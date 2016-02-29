@@ -1,0 +1,10 @@
+[package]
+name = "hello_world"
+version = "0.1.0"
+authors = ["Guilherme Lampert <guilherme.ronaldo.lampert@gmail.com>"]
+
+[dependencies]
+glium = "0.13.5"
+image = "0.6.1"
+xml-rs = "0.3.0"
+
