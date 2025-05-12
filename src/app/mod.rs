@@ -1,0 +1,89 @@
+// Internal implementation.
+mod glfw;
+use glfw::GlfwApplication;
+
+// Expose these here so we don't have to duplicate these enums.
+pub use glfw::InputModifiers;
+pub use glfw::InputAction;
+pub use glfw::InputKey;
+pub use glfw::MouseButton;
+pub use glfw::load_gl_func;
+
+use crate::utils::Point2D;
+use crate::utils::{Size2D, Vec2};
+
+// ----------------------------------------------
+// Application
+// ----------------------------------------------
+
+pub trait Application {
+    fn should_quit(&self) -> bool;
+    fn request_quit(&mut self);
+
+    fn poll_events(&mut self) -> Vec<ApplicationEvent>;
+    fn present(&mut self);
+
+    fn cursor_pos(&self) -> Point2D;
+    fn button_state(&self, button: MouseButton) -> InputAction;
+    fn key_state(&self, key: InputKey) -> InputAction;
+
+    fn window_size(&self) -> Size2D;
+    fn framebuffer_size(&self) -> Size2D;
+    fn content_scale(&self) -> Vec2;
+}
+
+// ----------------------------------------------
+// ApplicationEvent
+// ----------------------------------------------
+
+#[derive(Debug)]
+pub enum ApplicationEvent {
+    Quit,
+    WindowResize(Size2D),
+    KeyInput(InputKey, InputAction, InputModifiers),
+    CharInput(char),
+    Scroll(Vec2),
+}
+
+// ----------------------------------------------
+// ApplicationBuilder
+// ----------------------------------------------
+
+pub struct ApplicationBuilder {
+    title: String,
+    window_size: Size2D,
+    fullscreen: bool,
+}
+
+impl ApplicationBuilder {
+    pub fn new() -> Self {
+        ApplicationBuilder {
+            title: String::default(),
+            window_size: Size2D { width: 1024, height: 768 },
+            fullscreen: false,
+        }
+    }
+
+    pub fn window_title(&mut self, title: &str) -> &mut Self {
+        self.title = title.to_string();
+        self
+    }
+
+    pub fn window_size(&mut self, size: Size2D) -> &mut Self {
+        self.window_size = size;
+        self
+    }
+
+    pub fn fullscreen(&mut self, fullscreen: bool) -> &mut Self {
+        self.fullscreen = fullscreen;
+        self
+    }
+
+    pub fn build(&self) -> Box<impl Application> {
+        Box::new(GlfwApplication::new(
+            self.title.clone(),
+            self.window_size,
+            self.fullscreen,
+        ))
+    }
+}

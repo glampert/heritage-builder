@@ -1,10 +1,13 @@
 [package]
-name = "hello_world"
+name = "CitySim"
 version = "0.1.0"
-authors = ["Guilherme Lampert <guilherme.ronaldo.lampert@gmail.com>"]
+edition = "2024"
 
 [dependencies]
-glium = "0.13.5"
-image = "0.6.1"
-xml-rs = "0.3.0"
-
+image = "0.25.6"
+bitflags = "2.9.0"
+paste = "1.0.15"
+gl = "0.14.0"
+glfw = "0.59.0"
+imgui = "0.11"
+imgui-opengl-renderer = "0.12.1"

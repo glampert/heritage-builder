@@ -1,0 +1,51 @@
+{
+    // Install extensions:
+    // - rust-analyzer
+    // - CodeLLDB
+    //
+    // * Add launch args as needed to "args[]" array.
+
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'CitySim'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=CitySim",
+                    "--package=CitySim"
+                ],
+                "filter": {
+                    "name": "CitySim",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                // "user_arg1",
+                // "user_arg2"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'CitySim'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=CitySim",
+                    "--package=CitySim"
+                ],
+                "filter": {
+                    "name": "CitySim",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
