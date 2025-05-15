@@ -107,10 +107,10 @@ impl Texture2D {
 
         Ok(Self::with_data_raw(
             image_raw_bytes.as_ptr() as *const c_void,
-            Size2D {
-                width: image_dims.0 as i32,
-                height: image_dims.1 as i32,
-            },
+            Size2D::new(
+                image_dims.0  as i32,
+                image_dims.1 as i32
+            ),
             filter,
             wrap_mode,
             tex_unit,
@@ -362,7 +362,7 @@ impl TextureCache {
             a: u8,
         }
 
-        const SIZE: Size2D = Size2D { width: 8, height: 8 };
+        const SIZE: Size2D = Size2D::new(8, 8);
         const PIXEL_COUNT: usize = (SIZE.width * SIZE.height) as usize;
         let pixels = [RGBA8{ r: color[0], g: color[1], b: color[2], a: color[3] }; PIXEL_COUNT];
 

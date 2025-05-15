@@ -1,9 +1,10 @@
 use std::ffi::c_void;
 use glfw::Context;
+use super::input::InputSystem;
 use crate::app::{Application, ApplicationEvent};
-use crate::utils::{Size2D, Point2D, Vec2};
+use crate::utils::{self, Size2D, Point2D, Vec2};
 
-// These will be exposed as public types in the app module
+// These will be exposed as public types in the app::input module,
 // so we don't have to replicate all the GLFW enums.
 pub type InputModifiers = glfw::Modifiers;
 pub type InputAction = glfw::Action;
@@ -11,13 +12,18 @@ pub type InputKey = glfw::Key;
 pub type MouseButton = glfw::MouseButton;
 
 // For the ImGui OpenGL backend.
-pub fn load_gl_func<T: Application>(app: &mut T, func_name: &'static str) -> *const c_void {
+pub fn load_gl_func<T: Application>(app: &T, func_name: &'static str) -> *const c_void {
     unsafe {
+        // SAFETY: T is always GlfwApplication, there's only one implementation of the Application trait.
         debug_assert!(std::mem::size_of::<T>() == std::mem::size_of::<GlfwApplication>());
-        let glfw_app = &mut *(app as *mut T as *mut GlfwApplication);
-        glfw_app.window.get_proc_address(func_name) as *const c_void
+        let glfw_app_ptr = app as *const T as *mut GlfwApplication;
+        (*glfw_app_ptr).window.get_proc_address(func_name) as *const c_void
     }
 }
+
+// ----------------------------------------------
+// GlfwApplication
+// ----------------------------------------------
 
 pub struct GlfwApplication {
     title: String,
@@ -58,10 +64,17 @@ impl GlfwApplication {
         window.set_key_polling(true);
         window.set_char_polling(true);
         window.set_scroll_polling(true);
+        window.set_mouse_button_polling(true);
 
-        gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
+        // On MacOS this generates a lot of TTY spam about missing
+        // OpenGL functions that we don't need or care about. This
+        // is a hack to stop the TTY spamming but still keep a record
+        // of the errors if ever required for inspection.
+        utils::macos_redirect_stderr(|| {
+            gl::load_with(|symbol| window.get_proc_address(symbol))
+        }, "stderr_gl_load_app.log");
 
-        GlfwApplication {
+        Self {
             title: title,
             window_size: window_size,
             fullscreen: fullscreen,
@@ -95,7 +108,7 @@ impl Application for GlfwApplication {
                 glfw::WindowEvent::Size(width, height) => {
                     self.window_size.width = width;
                     self.window_size.height = height;
-                    translated_events.push(ApplicationEvent::WindowResize(Size2D { width: width, height: height }));
+                    translated_events.push(ApplicationEvent::WindowResize(Size2D::new(width, height)));
                 }
                 glfw::WindowEvent::Close => {
                     translated_events.push(ApplicationEvent::Quit);
@@ -107,7 +120,10 @@ impl Application for GlfwApplication {
                     translated_events.push(ApplicationEvent::CharInput(c));
                 }
                 glfw::WindowEvent::Scroll(x, y) => {
-                    translated_events.push(ApplicationEvent::Scroll(Vec2 { x: x as f32, y: y as f32 }));
+                    translated_events.push(ApplicationEvent::Scroll(Vec2::new(x as f32, y as f32)));
+                }
+                glfw::WindowEvent::MouseButton(button, action, modifiers) => {
+                    translated_events.push(ApplicationEvent::MouseButton(button, action, modifiers));
                 }
                 unhandled_event => {
                     eprintln!("Unhandled GLFW window event: {:?}", unhandled_event);
@@ -122,30 +138,58 @@ impl Application for GlfwApplication {
         self.window.swap_buffers();
     }
 
-    fn cursor_pos(&self) -> Point2D {
-        let (x, y) = self.window.get_cursor_pos();
-        Point2D::with_coords(x as i32, y as i32)
-    }
-
-    fn button_state(&self, button: MouseButton) -> InputAction {
-        self.window.get_mouse_button(button)
-    }
-
-    fn key_state(&self, key: InputKey) -> InputAction {
-        self.window.get_key(key)
-    }
-
     fn window_size(&self) -> Size2D {
         self.window_size
     }
 
     fn framebuffer_size(&self) -> Size2D {
         let (width, height) = self.window.get_framebuffer_size();
-        Size2D { width: width, height: height }
+        Size2D::new(width, height)
     }
 
     fn content_scale(&self) -> Vec2 {
         let (x_scale, y_scale) = self.window.get_content_scale();
-        Vec2 { x: x_scale, y: y_scale }
+        Vec2::new(x_scale, y_scale)
+    }
+}
+
+// ----------------------------------------------
+// GlfwInputSystem
+// ----------------------------------------------
+
+pub struct GlfwInputSystem {
+    window_ptr: *const glfw::PWindow,
+}
+
+impl GlfwInputSystem {
+    pub fn new<T: Application>(app: &T) -> Self {
+        // SAFETY: T is always GlfwApplication, there's only one implementation of the Application trait.
+        // Application will persist for as long at InputSystem.
+        debug_assert!(std::mem::size_of::<T>() == std::mem::size_of::<GlfwApplication>());
+        let glfw_app_ptr = app as *const T as *const GlfwApplication;
+        let window_ptr = unsafe { &(*glfw_app_ptr).window as *const glfw::PWindow };
+        Self {
+            window_ptr: window_ptr,
+        }
+    }
+
+    fn get_window(&self) -> &glfw::PWindow {
+        debug_assert!(self.window_ptr.is_null() == false);
+        unsafe { &*self.window_ptr }
+    }
+}
+
+impl InputSystem for GlfwInputSystem {
+    fn cursor_pos(&self) -> Point2D {
+        let (x, y) = self.get_window().get_cursor_pos();
+        Point2D::new(x as i32, y as i32)
+    }
+
+    fn mouse_button_state(&self, button: MouseButton) -> InputAction {
+        self.get_window().get_mouse_button(button)
+    }
+
+    fn key_state(&self, key: InputKey) -> InputAction {
+        self.get_window().get_key(key)
     }
 }

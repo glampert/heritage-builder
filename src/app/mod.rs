@@ -1,16 +1,12 @@
+pub mod input;
+
 // Internal implementation.
 mod glfw;
 use glfw::GlfwApplication;
-
-// Expose these here so we don't have to duplicate these enums.
-pub use glfw::InputModifiers;
-pub use glfw::InputAction;
-pub use glfw::InputKey;
-pub use glfw::MouseButton;
 pub use glfw::load_gl_func;
 
-use crate::utils::Point2D;
 use crate::utils::{Size2D, Vec2};
+use input::{InputKey, InputAction, InputModifiers, MouseButton};
 
 // ----------------------------------------------
 // Application
@@ -22,10 +18,6 @@ pub trait Application {
 
     fn poll_events(&mut self) -> Vec<ApplicationEvent>;
     fn present(&mut self);
-
-    fn cursor_pos(&self) -> Point2D;
-    fn button_state(&self, button: MouseButton) -> InputAction;
-    fn key_state(&self, key: InputKey) -> InputAction;
 
     fn window_size(&self) -> Size2D;
     fn framebuffer_size(&self) -> Size2D;
@@ -43,6 +35,7 @@ pub enum ApplicationEvent {
     KeyInput(InputKey, InputAction, InputModifiers),
     CharInput(char),
     Scroll(Vec2),
+    MouseButton(MouseButton, InputAction, InputModifiers),
 }
 
 // ----------------------------------------------
@@ -59,7 +52,7 @@ impl ApplicationBuilder {
     pub fn new() -> Self {
         ApplicationBuilder {
             title: String::default(),
-            window_size: Size2D { width: 1024, height: 768 },
+            window_size: Size2D::new(1024, 768),
             fullscreen: false,
         }
     }
@@ -79,11 +72,10 @@ impl ApplicationBuilder {
         self
     }
 
-    pub fn build(&self) -> Box<impl Application> {
-        Box::new(GlfwApplication::new(
+    pub fn build<'a>(&self) -> impl Application + use<'a> {
+        GlfwApplication::new(
             self.title.clone(),
             self.window_size,
-            self.fullscreen,
-        ))
+            self.fullscreen)
     }
 }

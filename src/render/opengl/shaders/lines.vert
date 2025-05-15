@@ -12,7 +12,9 @@ void main() {
 
     // Map to normalized clip coordinates:
     // 'in_position' comes in as screen space.
-    vec2 ndc = (in_position / viewport_size) * 2.0 - 1.0;
+    vec2 ndc = vec2(
+        (in_position.x / viewport_size.x) * 2.0 - 1.0,
+        1.0 - (in_position.y / viewport_size.y) * 2.0);  // Origin: top-left corner.
 
     gl_Position = vec4(ndc, 0.0, 1.0);
 }

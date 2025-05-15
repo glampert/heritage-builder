@@ -7,10 +7,10 @@ use super::batch::{DrawBatch, DrawBatchEntry};
 use super::texture::{TextureCache, TextureHandle};
 
 // ----------------------------------------------
-// RenderBackend
+// RenderSystem
 // ----------------------------------------------
 
-pub struct RenderBackend {
+pub struct RenderSystem {
     frame_started: bool,
     render_context: RenderContext,
     sprites_batch: DrawBatch<SpriteVertex2D, SpriteIndex2D>,
@@ -21,9 +21,9 @@ pub struct RenderBackend {
     points_shader: points::Shader,
 }
 
-impl RenderBackend {
+impl RenderSystem {
     pub fn new(window_size: Size2D) -> Self {
-        let mut render_backend = Self {
+        let mut render_sys = Self {
             frame_started: false,
             render_context: RenderContext::new(),
             sprites_batch: DrawBatch::new(
@@ -49,16 +49,16 @@ impl RenderBackend {
             points_shader: points::Shader::load(),
         };
 
-        render_backend.render_context
+        render_sys.render_context
             .set_clear_color(Color::gray())
             .set_alpha_blend(AlphaBlend::Enabled)
             // Pure 2D rendering, no depth test or back-face culling.
             .set_backface_culling(BackFaceCulling::Disabled)
             .set_depth_test(DepthTest::Disabled);
 
-        render_backend.set_window_size(window_size);
+        render_sys.set_window_size(window_size);
 
-        render_backend
+        render_sys
     }
 
     pub fn begin_frame(&mut self) {
@@ -113,12 +113,23 @@ impl RenderBackend {
     }
 
     pub fn set_window_size(&mut self, new_size: Size2D) {
-        self.render_context.set_viewport(Rect2D::with_xy_and_size(0, 0, new_size));
+        self.render_context.set_viewport(Rect2D::new(Point2D::zero(), new_size));
 
         let viewport_size = new_size.to_vec2();
         self.sprites_shader.set_viewport_size(viewport_size);
         self.lines_shader.set_viewport_size(viewport_size);
         self.points_shader.set_viewport_size(viewport_size);
+    }
+
+    pub fn draw_colored_rect(&mut self,
+                             rect: Rect2D,
+                             color: Color) {
+        // Just call this with the default white texture.
+        self.draw_textured_colored_rect(
+            rect,
+            &RectTexCoords::default(),
+            TextureHandle::white(),
+            color);
     }
 
     pub fn draw_textured_colored_rect(&mut self,
@@ -143,6 +154,22 @@ impl RenderBackend {
         self.sprites_batch.add_entry(&vertices, &INDICES, texture, color);
     }
 
+    pub fn draw_wireframe_rect_with_thickness(&mut self,
+                                              rect: Rect2D,
+                                              color: Color,
+                                              thickness: f32) {
+        debug_assert!(self.frame_started);
+
+        let points: [Point2D; 4] = [
+            Point2D::new(rect.x(), rect.y()),
+            Point2D::new(rect.x() + rect.width(), rect.y()),
+            Point2D::new(rect.x() + rect.width(), rect.y() + rect.height()),
+            Point2D::new(rect.x(), rect.y() + rect.height()),
+        ];
+
+        self.draw_polyline_with_thickness(&points, color, thickness, true);
+    }
+
     // This can handle straight lines efficiently but will produce discontinuities at connecting edges of
     // rectangles and other polygons. To draw connecting lines/polygons use draw_polyline_with_thickness().
     pub fn draw_line_with_thickness(&mut self,
@@ -156,7 +183,7 @@ impl RenderBackend {
         let v0 = from_pos.to_vec2();
         let v1 = to_pos.to_vec2();
 
-        let d = v1.sub(v0);
+        let d = v1 - v0;
         let length = d.length();
 
         // Normalize and rotate 90° to get perpendicular vector
@@ -167,17 +194,17 @@ impl RenderBackend {
         let offset_y = ny * (thickness / 2.0);
 
         // Four corner points of the quad (screen space)
-        let p0 = Point2D { x: (v0.x + offset_x).round() as i32, y: (v0.y + offset_y).round() as i32 };
-        let p1 = Point2D { x: (v1.x + offset_x).round() as i32, y: (v1.y + offset_y).round() as i32 };
-        let p2 = Point2D { x: (v1.x - offset_x).round() as i32, y: (v1.y - offset_y).round() as i32 };
-        let p3 = Point2D { x: (v0.x - offset_x).round() as i32, y: (v0.y - offset_y).round() as i32 };
+        let p0 = Vec2::new((v0.x + offset_x).round(), (v0.y + offset_y).round());
+        let p1 = Vec2::new((v1.x + offset_x).round(), (v1.y + offset_y).round());
+        let p2 = Vec2::new((v1.x - offset_x).round(), (v1.y - offset_y).round());
+        let p3 = Vec2::new((v0.x - offset_x).round(), (v0.y - offset_y).round());
 
         // Draw two triangles to form a quad
         let vertices: [SpriteVertex2D; 4] = [
-            SpriteVertex2D { position: p0.to_vec2(), tex_coords: Vec2::default() },
-            SpriteVertex2D { position: p1.to_vec2(), tex_coords: Vec2::default() },
-            SpriteVertex2D { position: p2.to_vec2(), tex_coords: Vec2::default() },
-            SpriteVertex2D { position: p3.to_vec2(), tex_coords: Vec2::default() },
+            SpriteVertex2D { position: p0, tex_coords: Vec2::default() },
+            SpriteVertex2D { position: p1, tex_coords: Vec2::default() },
+            SpriteVertex2D { position: p2, tex_coords: Vec2::default() },
+            SpriteVertex2D { position: p3, tex_coords: Vec2::default() },
         ];
 
         const INDICES: [SpriteIndex2D; 6] = [
@@ -224,12 +251,12 @@ impl RenderBackend {
             };
 
             // Compute averaged normal (miter join)
-            let dir1 = curr.sub(prev).normalize();
-            let dir2 = next.sub(curr).normalize();
+            let dir1 = (curr - prev).normalize();
+            let dir2 = (next - curr).normalize();
 
             let normal1 = Vec2::new(-dir1.y, dir1.x);
             let normal2 = Vec2::new(-dir2.y, dir2.x);
-            let avg_normal = normal1.add(normal2).normalize();
+            let avg_normal = (normal1 + normal2).normalize();
     
             // Limit how far the join stretches by clamping the offset length to a maximum miter limit.
             // - Scale the miter by 1 / dot(normal1, miter) to preserve line thickness.
@@ -238,15 +265,15 @@ impl RenderBackend {
             let miter_length = (thickness * 0.5) / avg_normal.dot(normal1).abs().max(1e-4);
             let max_miter = thickness * 2.0;
             let clamped_length = miter_length.min(max_miter);
-            let offset = avg_normal.scale(clamped_length);
+            let offset = avg_normal * clamped_length;
 
             // Two vertices per point: one offset +, one offset -
             vertices[v_count] = SpriteVertex2D {
-                position: curr.add(offset),
+                position: curr + offset,
                 tex_coords: Vec2::default(),
             };
             vertices[v_count + 1] = SpriteVertex2D {
-                position: curr.sub(offset),
+                position: curr - offset,
                 tex_coords: Vec2::default(),
             };
     
@@ -264,7 +291,11 @@ impl RenderBackend {
             v_count += 2;
         }
 
-        self.sprites_batch.add_entry(&vertices[..v_count], &indices[..i_count], TextureHandle::white(), color);
+        self.sprites_batch.add_entry(
+            &vertices[..v_count],
+            &indices[..i_count],
+            TextureHandle::white(),
+            color);
     }
 
     // NOTE: By default lines and points are batched separately and drawn
@@ -316,5 +347,35 @@ impl RenderBackend {
         const INDICES: [PointIndex2D; 1] = [ 0 ];
 
         self.points_batch.add_fast(&vertices, &INDICES);
+    }
+
+    pub fn draw_screen_origin_debug_marker(&mut self) {
+        // 50x50px white square to mark the origin.
+        self.draw_point_fast(
+            Point2D::new(0, 0), 
+            Color::white(),
+            50.0);
+
+        // Red line for the X axis.
+        self.draw_line_with_thickness(
+            Point2D::new(0, 0),
+            Point2D::new(100, 0),
+            Color::red(),
+            15.0);
+
+        self.draw_colored_rect(
+            Rect2D::new(Point2D::new(100, 0), Size2D::new(10, 10)),
+            Color::green());
+
+        // Blue line for the Y axis.
+        self.draw_line_with_thickness(
+            Point2D::new(0, 0),
+            Point2D::new(0, 100),
+            Color::blue(),
+            15.0);
+
+        self.draw_colored_rect(
+            Rect2D::new(Point2D::new(0, 100), Size2D::new(10, 10)),
+            Color::green());
     }
 }

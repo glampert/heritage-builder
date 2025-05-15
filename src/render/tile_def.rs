@@ -1,5 +1,5 @@
 use crate::utils::{Color, Size2D, RectTexCoords};
-use super::opengl::texture::TextureHandle;
+use super::texture::TextureHandle;
 
 // ----------------------------------------------
 // Constants
@@ -72,6 +72,13 @@ impl TileDef {
 
     pub fn is_unit(&self) -> bool {
         self.kind == TileKind::Unit
+    }
+
+    pub fn size_in_tiles(&self) -> Size2D {
+        // `logical_size` is assumed to be a multiple of the base tile size.
+        Size2D::new(
+            self.logical_size.width / BASE_TILE_SIZE.width,
+            self.logical_size.height / BASE_TILE_SIZE.height)
     }
 }
 
