@@ -5,8 +5,9 @@ mod glfw;
 use glfw::GlfwApplication;
 pub use glfw::load_gl_func;
 
+use smallvec::SmallVec;
 use crate::utils::{Size2D, Vec2};
-use input::{InputKey, InputAction, InputModifiers, MouseButton};
+use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
 
 // ----------------------------------------------
 // Application
@@ -16,12 +17,15 @@ pub trait Application {
     fn should_quit(&self) -> bool;
     fn request_quit(&mut self);
 
-    fn poll_events(&mut self) -> Vec<ApplicationEvent>;
+    fn poll_events(&mut self) -> ApplicationEventList;
     fn present(&mut self);
 
     fn window_size(&self) -> Size2D;
     fn framebuffer_size(&self) -> Size2D;
     fn content_scale(&self) -> Vec2;
+
+    type InputSystemType: InputSystem;
+    fn create_input_system(&self) -> Self::InputSystemType;
 }
 
 // ----------------------------------------------
@@ -37,6 +41,8 @@ pub enum ApplicationEvent {
     Scroll(Vec2),
     MouseButton(MouseButton, InputAction, InputModifiers),
 }
+
+type ApplicationEventList = SmallVec::<[ApplicationEvent; 16]>;
 
 // ----------------------------------------------
 // ApplicationBuilder

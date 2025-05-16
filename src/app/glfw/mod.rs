@@ -1,25 +1,19 @@
 use std::ffi::c_void;
 use glfw::Context;
 use super::input::InputSystem;
-use crate::app::{Application, ApplicationEvent};
+use crate::app::{Application, ApplicationEvent, ApplicationEventList};
 use crate::utils::{self, Size2D, Point2D, Vec2};
 
-// These will be exposed as public types in the app::input module,
-// so we don't have to replicate all the GLFW enums.
+// ----------------------------------------------
+// These will be exposed as public types in the
+// app::input module, so we don't have to
+// replicate all the GLFW enums.
+// ----------------------------------------------
+
 pub type InputModifiers = glfw::Modifiers;
 pub type InputAction = glfw::Action;
 pub type InputKey = glfw::Key;
 pub type MouseButton = glfw::MouseButton;
-
-// For the ImGui OpenGL backend.
-pub fn load_gl_func<T: Application>(app: &T, func_name: &'static str) -> *const c_void {
-    unsafe {
-        // SAFETY: T is always GlfwApplication, there's only one implementation of the Application trait.
-        debug_assert!(std::mem::size_of::<T>() == std::mem::size_of::<GlfwApplication>());
-        let glfw_app_ptr = app as *const T as *mut GlfwApplication;
-        (*glfw_app_ptr).window.get_proc_address(func_name) as *const c_void
-    }
-}
 
 // ----------------------------------------------
 // GlfwApplication
@@ -96,10 +90,10 @@ impl Application for GlfwApplication {
         self.should_quit = true;
     }
 
-    fn poll_events(&mut self) -> Vec<ApplicationEvent> {
+    fn poll_events(&mut self) -> ApplicationEventList {
         self.glfw_instance.poll_events();
 
-        let mut translated_events = Vec::new();
+        let mut translated_events = ApplicationEventList::new();
 
         for (_, event) in glfw::flush_messages(&self.event_receiver) {
             // NOTE: To receive events here we must call set_<event>_polling().
@@ -151,6 +145,32 @@ impl Application for GlfwApplication {
         let (x_scale, y_scale) = self.window.get_content_scale();
         Vec2::new(x_scale, y_scale)
     }
+
+    type InputSystemType = GlfwInputSystem;
+    fn create_input_system(&self) -> GlfwInputSystem {
+        GlfwInputSystem::new(self)
+    }
+}
+
+// ----------------------------------------------
+// Internal helpers
+// ----------------------------------------------
+
+#[inline]
+fn get_glfw_window_ptr<T: Application>(app: &T) -> *mut glfw::PWindow {
+    unsafe {
+        // SAFETY: Type `T` is always GlfwApplication, there's only one implementation of the Application trait.
+        debug_assert!(std::mem::size_of::<T>() == std::mem::size_of::<GlfwApplication>());
+        let glfw_app_ptr = app as *const T as *const GlfwApplication;
+        &(*glfw_app_ptr).window as *const glfw::PWindow as *mut glfw::PWindow
+    }
+}
+
+// For the ImGui OpenGL backend.
+pub fn load_gl_func<T: Application>(app: &T, func_name: &'static str) -> *const c_void {
+    let window_ptr = get_glfw_window_ptr(app);
+    debug_assert!(window_ptr.is_null() == false);
+    unsafe { (*window_ptr).get_proc_address(func_name) as *const c_void }
 }
 
 // ----------------------------------------------
@@ -163,19 +183,16 @@ pub struct GlfwInputSystem {
 
 impl GlfwInputSystem {
     pub fn new<T: Application>(app: &T) -> Self {
-        // SAFETY: T is always GlfwApplication, there's only one implementation of the Application trait.
-        // Application will persist for as long at InputSystem.
-        debug_assert!(std::mem::size_of::<T>() == std::mem::size_of::<GlfwApplication>());
-        let glfw_app_ptr = app as *const T as *const GlfwApplication;
-        let window_ptr = unsafe { &(*glfw_app_ptr).window as *const glfw::PWindow };
         Self {
-            window_ptr: window_ptr,
+            // SAFETY: Application will persist for as long at InputSystem.
+            window_ptr: get_glfw_window_ptr(app),
         }
     }
 
+    #[inline]
     fn get_window(&self) -> &glfw::PWindow {
         debug_assert!(self.window_ptr.is_null() == false);
-        unsafe { &*self.window_ptr }
+        unsafe { &(*self.window_ptr) }
     }
 }
 

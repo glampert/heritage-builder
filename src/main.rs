@@ -36,7 +36,7 @@ impl TestUiState {
         }
     }
 
-    pub fn draw(&mut self, ui_sys: &UiSystem, _delta_time: time::Duration, transform: &WorldToScreenTransform, selection_rect: Rect2D) {
+    pub fn draw(&mut self, ui_sys: &UiSystem, _delta_time: time::Duration) {
         let ui = ui_sys.builder();
 
         ui.window("CitySim")
@@ -45,7 +45,6 @@ impl TestUiState {
             .build(|| {
                 /*
                 ui.text("CitySim!");
-                ui.text("This...is...imgui-rs!");
                 ui.text_colored([0.0, 1.0, 1.0, 1.0], format!("dt: {}", delta_time.as_secs_f64()));
                 ui.separator();
 
@@ -55,73 +54,7 @@ impl TestUiState {
                 ui.input_int("Input int", &mut self.input_int_state).build();
                 ui.input_text("Input text", &mut self.input_text_state).build();
                 */
-
-                ui.text(format!(
-                    "Cursor Position: ({:.1},{:.1})",
-                    ui.io().mouse_pos[0], ui.io().mouse_pos[1]
-                ));
-
-                let iso_top_left = utils::screen_to_iso_point(selection_rect.mins, transform);
-                let iso_bottom_right = utils::screen_to_iso_point(selection_rect.maxs, transform);
-
-                ui.text(format!(
-                    "Sel Rect: min({},{}) max({},{})",
-                    selection_rect.mins.x, selection_rect.mins.y,
-                    selection_rect.maxs.x, selection_rect.maxs.y
-                ));
-
-                ui.text(format!(
-                    "Sel Rect Iso: min({},{}) max({},{})",
-                    iso_top_left.x, iso_top_left.y,
-                    iso_bottom_right.x, iso_bottom_right.y
-                ));
             });
-    }
-}
-
-// ----------------------------------------------
-// TileSelection
-// ----------------------------------------------
-
-pub struct TileSelection {
-    rect: Rect2D,
-    cursor_drag_start: Point2D,
-    left_mouse_button_held: bool,
-}
-
-impl TileSelection {
-    pub fn new() -> Self {
-        Self {
-            rect: Rect2D::zero(),
-            cursor_drag_start: Point2D::zero(),
-            left_mouse_button_held: false,
-        }
-    }
-
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_pos: Point2D) {
-        if action == InputAction::Press && button == MouseButton::Left {
-            self.cursor_drag_start = cursor_pos;
-            self.left_mouse_button_held = true;
-        }
-        else if action == InputAction::Release && button == MouseButton::Left {
-            self.cursor_drag_start = Point2D::zero();
-            self.left_mouse_button_held = false;
-        }
-    }
-
-    pub fn update_rect(&mut self, cursor_pos: Point2D) -> Rect2D {
-        if self.left_mouse_button_held {
-            self.rect = Rect2D::with_points(self.cursor_drag_start, cursor_pos);   
-        } else {
-            self.rect = Rect2D::zero();
-        }
-        self.rect
-    }
-
-    pub fn draw_rect(&self, render_sys: &mut RenderSystem) {
-        if self.left_mouse_button_held && self.rect.is_valid() {
-            render_sys.draw_wireframe_rect_with_thickness(self.rect, Color::blue(), 1.5);
-        }
     }
 }
 
@@ -139,7 +72,7 @@ fn main() {
         .fullscreen(false)
         .build();
 
-    let input_sys = app::input::new_input_system(&app);
+    let input_sys = app.create_input_system();
 
     let mut render_sys = RenderSystem::new(app.window_size());
     let mut ui_sys = UiSystem::new(&app);
@@ -185,18 +118,17 @@ fn main() {
                     ui_sys.on_scroll(amount);
                 }
                 ApplicationEvent::MouseButton(button, action, _modifiers) => {
-                    tile_selection.on_mouse_click(button, action, cursor_pos);
+                    let range_selecting = tile_selection.on_mouse_click(button, action, cursor_pos);
+                    if !range_selecting {
+                        tile_map.clear_selection(&mut tile_selection);
+                    }
                 }
             }
             println!("ApplicationEvent::{:?}", event);
         }
 
-        let selection_rect = tile_selection.update_rect(cursor_pos);
-        if selection_rect.is_valid() {
-            tile_map.update_range_selection(&selection_rect, &transform);
-        } else {
-            tile_map.update_selection(cursor_pos, &transform);
-        }
+        tile_selection.update(cursor_pos);
+        tile_map.update_selection(&mut tile_selection, &transform);
 
         ui_sys.begin_frame(&app, &input_sys, frame_clock.delta_time());
         render_sys.begin_frame();
@@ -214,13 +146,11 @@ fn main() {
                 TileMapRenderFlags::DrawUnits |
                 TileMapRenderFlags::DrawGrid);
 
-            tile_map.clear_range_selection();
-
-            tile_selection.draw_rect(&mut render_sys);
+            tile_selection.draw(&mut render_sys);
 
             render_sys.draw_screen_origin_debug_marker();
 
-            test_ui.draw(&ui_sys, frame_clock.delta_time(), &transform, selection_rect);
+            test_ui.draw(&ui_sys, frame_clock.delta_time());
 
             ui_sys.draw_debug_cursor_overlay();
         }

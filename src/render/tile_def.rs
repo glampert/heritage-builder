@@ -17,6 +17,7 @@ pub enum TileKind {
     Empty, // No tile, draws nothing.
     Terrain,
     Building,
+    BuildingBlocker, // Draws nothing; for multi-tile buildings.
     Unit,
 }
 
@@ -51,6 +52,11 @@ impl TileDef {
         &EMPTY_TILE
     }
 
+    pub fn building_blocker() -> &'static Self {
+        static BUILDING_BLOCKER_TILE: TileDef = TileDef::new(TileKind::BuildingBlocker);
+        &BUILDING_BLOCKER_TILE
+    }
+
     pub fn is_valid(&self) -> bool {
         self.kind != TileKind::Empty
         && self.logical_size.is_valid()
@@ -68,6 +74,10 @@ impl TileDef {
 
     pub fn is_building(&self) -> bool {
         self.kind == TileKind::Building
+    }
+
+    pub fn is_building_blocker(&self) -> bool {
+        self.kind == TileKind::BuildingBlocker
     }
 
     pub fn is_unit(&self) -> bool {
