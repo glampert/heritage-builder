@@ -1,5 +1,5 @@
 use crate::utils::{Color, Size2D, RectTexCoords};
-use super::TextureHandle;
+use crate::render::TextureHandle;
 
 // ----------------------------------------------
 // Constants

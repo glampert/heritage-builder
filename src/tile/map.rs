@@ -6,9 +6,9 @@ use smallvec::{smallvec, SmallVec};
 use crate::utils::*;
 use crate::app::input::{MouseButton, InputAction};
 use crate::ui::UiSystem;
-use super::RenderSystem;
-use super::tile_sets::TileSets;
-use super::tile_def::{TileDef, TileKind, BASE_TILE_SIZE};
+use crate::render::RenderSystem;
+use super::sets::TileSets;
+use super::def::{TileDef, TileKind, BASE_TILE_SIZE};
 
 // ----------------------------------------------
 // Tile / TileFlags

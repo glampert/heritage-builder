@@ -4,6 +4,7 @@ mod utils;
 mod app;
 mod render;
 mod ui;
+mod tile;
 
 use std::time::{self};
 use utils::*;
@@ -11,8 +12,8 @@ use app::*;
 use app::input::*;
 use ui::*;
 use render::*;
-use render::tile_sets::*;
-use render::tile_map::*;
+use tile::sets::*;
+use tile::map::*;
 
 // ----------------------------------------------
 // TestUiState

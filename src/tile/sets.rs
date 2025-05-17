@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use crate::utils::{Color, Size2D};
 use crate::utils::file_sys::{self};
 use crate::utils::hash::{self, PreHashedKeyMap, StringHash};
-use super::TextureCache;
-use super::tile_def::{TileDef, TileKind, TileTexInfo};
+use crate::render::TextureCache;
+use super::def::{TileDef, TileKind, TileTexInfo};
 
 // ----------------------------------------------
 // Constants
