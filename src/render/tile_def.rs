@@ -1,5 +1,5 @@
 use crate::utils::{Color, Size2D, RectTexCoords};
-use super::texture::TextureHandle;
+use super::TextureHandle;
 
 // ----------------------------------------------
 // Constants
@@ -47,12 +47,12 @@ impl TileDef {
         }
     }
 
-    pub fn empty() -> &'static Self {
+    pub const fn empty() -> &'static Self {
         static EMPTY_TILE: TileDef = TileDef::new(TileKind::Empty);
         &EMPTY_TILE
     }
 
-    pub fn building_blocker() -> &'static Self {
+    pub const fn building_blocker() -> &'static Self {
         static BUILDING_BLOCKER_TILE: TileDef = TileDef::new(TileKind::BuildingBlocker);
         &BUILDING_BLOCKER_TILE
     }

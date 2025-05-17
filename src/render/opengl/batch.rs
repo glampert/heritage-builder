@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::convert::{Into, TryFrom};
+
 use crate::utils::Color;
 use super::buffer::*;
 use super::shader::ShaderProgram;

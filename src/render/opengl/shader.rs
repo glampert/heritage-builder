@@ -1,6 +1,7 @@
 use std::ptr;
 use std::ffi::CString;
 use paste::paste;
+
 use crate::utils::{Vec2, Vec3, Vec4, Color};
 use super::texture::Texture2D;
 

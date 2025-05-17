@@ -328,7 +328,7 @@ impl Cell2D {
     }
 
     pub fn is_valid(&self) -> bool {
-        self.x > 0 && self.y > 0
+        self.x >= 0 && self.y >= 0
     }
 }
 

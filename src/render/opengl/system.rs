@@ -348,34 +348,4 @@ impl RenderSystem {
 
         self.points_batch.add_fast(&vertices, &INDICES);
     }
-
-    pub fn draw_screen_origin_debug_marker(&mut self) {
-        // 50x50px white square to mark the origin.
-        self.draw_point_fast(
-            Point2D::new(0, 0), 
-            Color::white(),
-            50.0);
-
-        // Red line for the X axis.
-        self.draw_line_with_thickness(
-            Point2D::new(0, 0),
-            Point2D::new(100, 0),
-            Color::red(),
-            15.0);
-
-        self.draw_colored_rect(
-            Rect2D::new(Point2D::new(100, 0), Size2D::new(10, 10)),
-            Color::green());
-
-        // Blue line for the Y axis.
-        self.draw_line_with_thickness(
-            Point2D::new(0, 0),
-            Point2D::new(0, 100),
-            Color::blue(),
-            15.0);
-
-        self.draw_colored_rect(
-            Rect2D::new(Point2D::new(0, 100), Size2D::new(10, 10)),
-            Color::green());
-    }
 }

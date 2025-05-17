@@ -9,9 +9,8 @@ use std::time::{self};
 use utils::*;
 use app::*;
 use app::input::*;
-use ui::system::*;
-use render::system::*;
-use render::texture::*;
+use ui::*;
+use render::*;
 use render::tile_sets::*;
 use render::tile_map::*;
 
@@ -148,11 +147,9 @@ fn main() {
 
             tile_selection.draw(&mut render_sys);
 
-            render_sys.draw_screen_origin_debug_marker();
-
             test_ui.draw(&ui_sys, frame_clock.delta_time());
 
-            ui_sys.draw_debug_cursor_overlay();
+            ui_sys.draw_debug(&mut render_sys);
         }
         render_sys.end_frame(&tex_cache);
         ui_sys.end_frame();
