@@ -103,6 +103,7 @@ pub struct TileTexInfo {
 }
 
 impl TileTexInfo {
+    // NOTE: This needs to be const for static declarations, so we don't derive from Default.
     pub const fn default() -> Self {
         Self {
             texture: TextureHandle::invalid(),
@@ -110,7 +111,7 @@ impl TileTexInfo {
         }
     }
 
-    pub fn with_texture(texture: TextureHandle) -> Self {
+    pub fn new(texture: TextureHandle) -> Self {
         Self {
             texture: texture,
             coords: RectTexCoords::default(),

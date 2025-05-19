@@ -233,6 +233,10 @@ impl Texture2D {
     pub fn name(&self) -> &String {
         &self.name
     }
+
+    pub fn native_handle(&self) -> gl::types::GLuint {
+        self.handle
+    }
 }
 
 impl Drop for Texture2D {
@@ -289,14 +293,15 @@ impl TextureCache {
         };
 
         tex_cache.dummy_texture = tex_cache.create_color_filled_8x8_texture(
-            "dummy_texture", [ 255, 0,   255, 255 ]);
+            "dummy_texture", [ 255, 0, 255, 255 ]); // magenta
 
         tex_cache.white_texture = tex_cache.create_color_filled_8x8_texture(
-            "white_texture", [ 255, 255, 255, 255 ]);
+            "white_texture", [ 255, 255, 255, 255 ]); // white
 
         tex_cache
     }
 
+    #[inline]
     pub fn handle_to_texture(&self, handle: TextureHandle) -> &Texture2D {
         if handle.is_valid() && (handle.index as usize) < self.textures.len() {
             &self.textures[handle.index as usize]
@@ -307,6 +312,11 @@ impl TextureCache {
                 &self.textures[self.dummy_texture.index as usize]
             }
         }
+    }
+
+    #[inline]
+    pub fn to_native_handle(&self, handle: TextureHandle) -> gl::types::GLuint {
+        self.handle_to_texture(handle).native_handle()
     }
 
     pub fn load_texture_with_settings(&mut self,
@@ -355,6 +365,7 @@ impl TextureCache {
     }
 
     fn create_color_filled_8x8_texture(&mut self, debug_name: &str, color: [u8; 4]) -> TextureHandle {
+        #[repr(C)]
         #[derive(Copy, Clone)]
         struct RGBA8 {
             r: u8,
@@ -362,6 +373,7 @@ impl TextureCache {
             b: u8,
             a: u8,
         }
+        debug_assert!(std::mem::size_of::<RGBA8>() == 4); // Ensure no padding.
 
         const SIZE: Size2D = Size2D::new(8, 8);
         const PIXEL_COUNT: usize = (SIZE.width * SIZE.height) as usize;

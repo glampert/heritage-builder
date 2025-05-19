@@ -30,14 +30,6 @@ impl TileSets {
         }
     }
 
-    pub fn find_by_name(&self, name: &str) -> &TileDef {
-        let tile_name_hash: StringHash = hash::fnv1a_from_str(name);
-        match self.sets.get(&tile_name_hash) {
-            Some(tile_def) => tile_def,
-            None => TileDef::empty(),
-        }
-    }
-
     pub fn load_all(&mut self, tex_cache: &mut TextureCache) {
         let terrain_tile_sets   = file_sys::collect_sub_dirs(Path::new(PATH_TO_TERRAIN_TILE_SETS));
         let buildings_tile_sets = file_sys::collect_sub_dirs(Path::new(PATH_TO_BUILDINGS_TILE_SETS));
@@ -47,12 +39,12 @@ impl TileSets {
         println!("Loading Buildings TileSets: {:#?}", buildings_tile_sets);
         println!("Loading Units TileSets: {:#?}",     units_tile_sets);
 
-        self.load(tex_cache, &terrain_tile_sets,   TileKind::Terrain);
-        self.load(tex_cache, &buildings_tile_sets, TileKind::Building);
-        self.load(tex_cache, &units_tile_sets,     TileKind::Unit);
+        self.load_set(tex_cache, &terrain_tile_sets,   TileKind::Terrain);
+        self.load_set(tex_cache, &buildings_tile_sets, TileKind::Building);
+        self.load_set(tex_cache, &units_tile_sets,     TileKind::Unit);
     }
 
-    pub fn load(&mut self, tex_cache: &mut TextureCache, paths: &Vec<PathBuf>, tile_kind: TileKind) {
+    pub fn load_set(&mut self, tex_cache: &mut TextureCache, paths: &Vec<PathBuf>, tile_kind: TileKind) {
         for path in paths {
             let files = file_sys::collect_files(path);
 
@@ -85,7 +77,7 @@ impl TileSets {
                     kind: tile_kind,
                     logical_size: Size2D::zero(),
                     draw_size: Size2D::zero(),
-                    tex_info: TileTexInfo::with_texture(tile_texture),
+                    tex_info: TileTexInfo::new(tile_texture),
                     color: Color::white(),
                     name: tile_name.to_string(),
                 };
@@ -102,7 +94,29 @@ impl TileSets {
         }
     }
 
-    pub fn list_all(&self, tex_cache: &TextureCache) {
+    pub fn find_by_name(&self, name: &str) -> &TileDef {
+        let tile_name_hash: StringHash = hash::fnv1a_from_str(name);
+        match self.sets.get(&tile_name_hash) {
+            Some(tile_def) => tile_def,
+            None => TileDef::empty(),
+        }
+    }
+
+    pub fn defs<'a, F>(&'a self, filter_fn: F) -> impl Iterator<Item = &'a TileDef> + 'a
+        where F: Fn(&TileDef) -> bool + 'a {
+
+        self.sets.values().filter(move |v| filter_fn(*v))
+    }
+
+    pub fn for_each<F>(&self, visitor_fn: F)
+        where F: Fn(StringHash, &TileDef) {
+
+        for (key, tile_def) in &self.sets {
+            visitor_fn(*key, tile_def);
+        }
+    }
+
+    pub fn print(&self, tex_cache: &TextureCache) {
         println!("----- TileSets -----");
         for (key, tile_def) in &self.sets {
             println!("[ key:{:#X}, name:'{}', kind:{:?}, tex:'{}' ]",
@@ -114,7 +128,8 @@ impl TileSets {
         println!("--------------------");
     }
 
-    pub fn new_with_test_tiles(tex_cache: &mut TextureCache) -> Self {
+    // [DEBUG]
+    pub fn with_test_tiles(tex_cache: &mut TextureCache) -> Self {
         println!("Loading test tile sets...");
 
         let mut tile_sets = TileSets::new();
@@ -125,11 +140,11 @@ impl TileSets {
         let tex_ped    = tex_cache.load_texture(&(PATH_TO_UNITS_TILE_SETS.to_string() + "/ped/0.png"));
 
         let tile_defs: [TileDef; 5] = [
-            TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::with_texture(tex_ground), color: Color::green(), name: "grass".to_string() },
-            TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::with_texture(tex_ground), color: Color::white(), name: "road".to_string()  },
-            TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 128, height: 64 }, draw_size: Size2D{ width: 128, height: 68  }, tex_info: TileTexInfo::with_texture(tex_house),  color: Color::white(), name: "house".to_string() },
-            TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 192, height: 96 }, draw_size: Size2D{ width: 192, height: 144 }, tex_info: TileTexInfo::with_texture(tex_tower),  color: Color::white(), name: "tower".to_string() },
-            TileDef { kind: TileKind::Unit,     logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 16,  height: 24  }, tex_info: TileTexInfo::with_texture(tex_ped),    color: Color::white(), name: "ped".to_string()   },
+            TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::green(), name: "grass".to_string() },
+            TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::white(), name: "road".to_string()  },
+            TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 128, height: 64 }, draw_size: Size2D{ width: 128, height: 68  }, tex_info: TileTexInfo::new(tex_house),  color: Color::white(), name: "house".to_string() },
+            TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 192, height: 96 }, draw_size: Size2D{ width: 192, height: 144 }, tex_info: TileTexInfo::new(tex_tower),  color: Color::white(), name: "tower".to_string() },
+            TileDef { kind: TileKind::Unit,     logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 16,  height: 24  }, tex_info: TileTexInfo::new(tex_ped),    color: Color::white(), name: "ped".to_string()   },
         ];
 
         for tile_def in tile_defs {

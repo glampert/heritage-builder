@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use strum::EnumCount;
+use strum_macros::{EnumCount, Display};
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
 use smallvec::{smallvec, SmallVec};
@@ -28,7 +30,6 @@ pub struct Tile<'a> {
     pub owner_cell: Cell2D,
     pub def: &'a TileDef,
     pub flags: TileFlags,
-    //z_sort: i32, // TODO: Support custom z_sort?
 }
 
 type TileFootprintList = SmallVec<[Cell2D; 16]>;
@@ -146,15 +147,15 @@ impl<'a> Tile<'a> {
 // TileMapLayer / TileMapLayerKind
 // ----------------------------------------------
 
-const TILE_MAP_LAYER_COUNT: usize = 3;
-
 #[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, EnumCount, Display)]
 pub enum TileMapLayerKind {
     Terrain,
     Buildings,
     Units,
 }
+
+pub const TILE_MAP_LAYER_COUNT: usize = TileMapLayerKind::COUNT;
 
 pub struct TileMapLayer<'a> {
     kind: TileMapLayerKind,
@@ -172,18 +173,18 @@ impl<'a> TileMapLayer<'a> {
     }
 
     pub fn add_tile(&mut self, cell: Cell2D, tile_def: &'a TileDef) {
-        let tile_index = cell.x + (cell.y * self.size_in_cells.width);
-        self.tiles[tile_index as usize] = Tile::new(cell, Cell2D::invalid(), tile_def);
+        let tile_index = self.cell_to_index(cell);
+        self.tiles[tile_index] = Tile::new(cell, Cell2D::invalid(), tile_def);
     }
 
     pub fn add_empty_tile(&mut self, cell: Cell2D) {
-        let tile_index = cell.x + (cell.y * self.size_in_cells.width);
-        self.tiles[tile_index as usize] = Tile::new(cell, Cell2D::invalid(), TileDef::empty());
+        let tile_index = self.cell_to_index(cell);
+        self.tiles[tile_index] = Tile::new(cell, Cell2D::invalid(), TileDef::empty());
     }
 
     pub fn add_building_blocker_tile(&mut self, cell: Cell2D, owner_cell: Cell2D) {
-        let tile_index = cell.x + (cell.y * self.size_in_cells.width);
-        self.tiles[tile_index as usize] = Tile::new(cell, owner_cell, TileDef::building_blocker());
+        let tile_index = self.cell_to_index(cell);
+        self.tiles[tile_index] = Tile::new(cell, owner_cell, TileDef::building_blocker());
     }
 
     pub fn cell_is_valid(&self, cell: Cell2D) -> bool {
@@ -195,15 +196,15 @@ impl<'a> TileMapLayer<'a> {
     }
 
     pub fn tile(&self, cell: Cell2D) -> &Tile {
-        let tile_index = cell.x + (cell.y * self.size_in_cells.width);
-        let tile = &self.tiles[tile_index as usize];
+        let tile_index = self.cell_to_index(cell);
+        let tile = &self.tiles[tile_index];
         debug_assert!(tile.cell == cell);
         tile
     }
 
     pub fn tile_mut(&mut self, cell: Cell2D) -> &mut Tile<'a> {
-        let tile_index = cell.x + (cell.y * self.size_in_cells.width);
-        let tile = &mut self.tiles[tile_index as usize];
+        let tile_index = self.cell_to_index(cell);
+        let tile = &mut self.tiles[tile_index];
         debug_assert!(tile.cell == cell);
         tile
     }
@@ -278,124 +279,12 @@ impl<'a> TileMapLayer<'a> {
             .map(|opt_ptr| opt_ptr.map(|ptr| unsafe { &mut *ptr }))
             .collect()
     }
-}
 
-// ----------------------------------------------
-// TileSelection
-// ----------------------------------------------
-
-#[derive(Default)]
-pub struct TileSelection {
-    rect: Rect2D,
-    cursor_drag_start: Point2D,
-    current_cursor_pos: Point2D,
-    left_mouse_button_held: bool,
-    cells: SmallVec::<[Cell2D; 1]>,
-}
-
-impl TileSelection {
-    pub fn new() -> Self {
-        Self::default()
+    #[inline]
+    fn cell_to_index(&self, cell: Cell2D) -> usize {
+        let tile_index = cell.x + (cell.y * self.size_in_cells.width);
+        tile_index as usize
     }
-
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_pos: Point2D) -> bool {
-        let mut range_selecting = false;
-        if button == MouseButton::Left {
-            if action == InputAction::Press {
-                self.cursor_drag_start = cursor_pos;
-                self.left_mouse_button_held = true;
-                range_selecting = true;
-            } else if action == InputAction::Release {
-                self.cursor_drag_start = Point2D::zero();
-                self.left_mouse_button_held = false;
-            }
-        }
-        range_selecting
-    }
-
-    pub fn update(&mut self, cursor_pos: Point2D) {
-        self.current_cursor_pos = cursor_pos;
-        if self.left_mouse_button_held {
-            // Keep updating the selection rect while left mouse button is held.
-            self.rect = Rect2D::with_points(self.cursor_drag_start, cursor_pos);   
-        } else {
-            self.rect = Rect2D::zero();
-        }
-    }
-
-    pub fn draw(&self, render_sys: &mut RenderSystem) {
-        if self.is_range() {
-            render_sys.draw_wireframe_rect_with_thickness(self.rect, Color::blue(), 1.5);
-        }
-    }
-
-    fn last_cell(&self) -> Cell2D {
-        self.cells.last().unwrap_or(&Cell2D::invalid()).clone()
-    }
-
-    fn is_range(&self) -> bool {
-        self.left_mouse_button_held && self.rect.is_valid()
-    }
-}
-
-// ----------------------------------------------
-// Tile selection helpers
-// ----------------------------------------------
-
-fn cursor_inside_tile_cell(cursor_screen_pos: Point2D,
-                           tile: &Tile,
-                           transform: &WorldToScreenTransform) -> bool {
-    debug_assert!(transform.is_valid());
-
-    let screen_points = cell_to_screen_diamond_points(
-        tile.cell,
-        tile.def.logical_size,
-        transform,
-        false);
-
-    screen_point_inside_diamond(cursor_screen_pos, &screen_points)
-}
-
-// "Broad-Phase" tile selection based on the 4 corners of a rectangle.
-// Given the layout of the isometric tile map, this algorithm is quite greedy
-// and will select more tiles than actually intersect the rect, so a refinement
-// pass must be done after to intersect each tile's rect with the selection rect.
-fn tile_selection_bounds(screen_rect: &Rect2D,
-                         tile_size: Size2D,
-                         map_size: Size2D,
-                         transform: &WorldToScreenTransform) -> (Cell2D, Cell2D) {
-    debug_assert!(screen_rect.is_valid());
-
-    // Convert screen-space corners to isometric space:
-    let top_left = screen_to_iso_point(screen_rect.mins, transform);
-    let bottom_right = screen_to_iso_point(screen_rect.maxs, transform);
-
-    let top_right = screen_to_iso_point(
-        Point2D::new(screen_rect.maxs.x, screen_rect.mins.y),
-        transform);
-    let bottom_left = screen_to_iso_point(
-        Point2D::new(screen_rect.mins.x, screen_rect.maxs.y),
-        transform);
-
-    // Convert isometric points to cell coordinates:
-    let cell_tl = iso_to_cell(top_left, tile_size);
-    let cell_tr = iso_to_cell(top_right, tile_size);
-    let cell_bl = iso_to_cell(bottom_left, tile_size);
-    let cell_br = iso_to_cell(bottom_right, tile_size);
-
-    // Compute bounding min/max cell coordinates:
-    let mut min_x = cell_tl.x.min(cell_tr.x).min(cell_bl.x).min(cell_br.x);
-    let mut max_x = cell_tl.x.max(cell_tr.x).max(cell_bl.x).max(cell_br.x);
-    let mut min_y = cell_tl.y.min(cell_tr.y).min(cell_bl.y).min(cell_br.y);
-    let mut max_y = cell_tl.y.max(cell_tr.y).max(cell_bl.y).max(cell_br.y);
-
-    // Clamp to map bounds:
-    min_x = min_x.clamp(0, map_size.width  - 1);
-    max_x = max_x.clamp(0, map_size.width  - 1);
-    min_y = min_y.clamp(0, map_size.height - 1);
-    max_y = max_y.clamp(0, map_size.height - 1);
-
-    (Cell2D::new(min_x, min_y), Cell2D::new(max_x, max_y))
 }
 
 // ----------------------------------------------
@@ -619,7 +508,8 @@ impl<'a> TileMap<'a> {
         }
     }
 
-    pub fn new_test_map(tile_sets: &'a mut TileSets) -> Self {
+    // [DEBUG]
+    pub fn with_test_map(tile_sets: &'a TileSets) -> Self {
         println!("Creating test map...");
 
         const MAP_WIDTH:  i32 = 8;
@@ -750,10 +640,129 @@ impl<'a> TileMap<'a> {
 }
 
 // ----------------------------------------------
+// TileSelection
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct TileSelection {
+    rect: Rect2D,
+    cursor_drag_start: Point2D,
+    current_cursor_pos: Point2D,
+    left_mouse_button_held: bool,
+    cells: SmallVec::<[Cell2D; 1]>,
+}
+
+impl TileSelection {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_pos: Point2D) -> bool {
+        let mut range_selecting = false;
+        if button == MouseButton::Left {
+            if action == InputAction::Press {
+                self.cursor_drag_start = cursor_pos;
+                self.left_mouse_button_held = true;
+                range_selecting = true;
+            } else if action == InputAction::Release {
+                self.cursor_drag_start = Point2D::zero();
+                self.left_mouse_button_held = false;
+            }
+        }
+        range_selecting
+    }
+
+    pub fn update(&mut self, cursor_pos: Point2D) {
+        self.current_cursor_pos = cursor_pos;
+        if self.left_mouse_button_held {
+            // Keep updating the selection rect while left mouse button is held.
+            self.rect = Rect2D::from_extents(self.cursor_drag_start, cursor_pos);   
+        } else {
+            self.rect = Rect2D::zero();
+        }
+    }
+
+    pub fn draw(&self, render_sys: &mut RenderSystem) {
+        if self.is_range() {
+            render_sys.draw_wireframe_rect_with_thickness(self.rect, Color::blue(), 1.5);
+        }
+    }
+
+    fn last_cell(&self) -> Cell2D {
+        self.cells.last().unwrap_or(&Cell2D::invalid()).clone()
+    }
+
+    fn is_range(&self) -> bool {
+        self.left_mouse_button_held && self.rect.is_valid()
+    }
+}
+
+// ----------------------------------------------
+// Tile selection helpers
+// ----------------------------------------------
+
+fn cursor_inside_tile_cell(cursor_screen_pos: Point2D,
+                           tile: &Tile,
+                           transform: &WorldToScreenTransform) -> bool {
+    debug_assert!(transform.is_valid());
+
+    let screen_points = cell_to_screen_diamond_points(
+        tile.cell,
+        tile.def.logical_size,
+        transform,
+        false);
+
+    screen_point_inside_diamond(cursor_screen_pos, &screen_points)
+}
+
+// "Broad-Phase" tile selection based on the 4 corners of a rectangle.
+// Given the layout of the isometric tile map, this algorithm is quite greedy
+// and will select more tiles than actually intersect the rect, so a refinement
+// pass must be done after to intersect each tile's rect with the selection rect.
+fn tile_selection_bounds(screen_rect: &Rect2D,
+                         tile_size: Size2D,
+                         map_size: Size2D,
+                         transform: &WorldToScreenTransform) -> (Cell2D, Cell2D) {
+    debug_assert!(screen_rect.is_valid());
+
+    // Convert screen-space corners to isometric space:
+    let top_left = screen_to_iso_point(screen_rect.mins, transform);
+    let bottom_right = screen_to_iso_point(screen_rect.maxs, transform);
+
+    let top_right = screen_to_iso_point(
+        Point2D::new(screen_rect.maxs.x, screen_rect.mins.y),
+        transform);
+    let bottom_left = screen_to_iso_point(
+        Point2D::new(screen_rect.mins.x, screen_rect.maxs.y),
+        transform);
+
+    // Convert isometric points to cell coordinates:
+    let cell_tl = iso_to_cell(top_left, tile_size);
+    let cell_tr = iso_to_cell(top_right, tile_size);
+    let cell_bl = iso_to_cell(bottom_left, tile_size);
+    let cell_br = iso_to_cell(bottom_right, tile_size);
+
+    // Compute bounding min/max cell coordinates:
+    let mut min_x = cell_tl.x.min(cell_tr.x).min(cell_bl.x).min(cell_br.x);
+    let mut max_x = cell_tl.x.max(cell_tr.x).max(cell_bl.x).max(cell_br.x);
+    let mut min_y = cell_tl.y.min(cell_tr.y).min(cell_bl.y).min(cell_br.y);
+    let mut max_y = cell_tl.y.max(cell_tr.y).max(cell_bl.y).max(cell_br.y);
+
+    // Clamp to map bounds:
+    min_x = min_x.clamp(0, map_size.width  - 1);
+    max_x = max_x.clamp(0, map_size.width  - 1);
+    min_y = min_y.clamp(0, map_size.height - 1);
+    max_y = max_y.clamp(0, map_size.height - 1);
+
+    (Cell2D::new(min_x, min_y), Cell2D::new(max_x, max_y))
+}
+
+// ----------------------------------------------
 // TileMapRenderer / TileMapRenderFlags
 // ----------------------------------------------
 
 bitflags! {
+    #[derive(Copy, Clone)]
     pub struct TileMapRenderFlags: u32 {
         const None                = 0;
         const DrawTerrain         = 1 << 1;
@@ -782,7 +791,7 @@ struct TileDrawListEntry {
 
     // Y value of the bottom left corner of the tile sprite for sorting.
     // Simulates a pseudo depth value so we can render units and buildings
-    // correctly. Can be overwritten by the Tile data. 
+    // correctly.
     z_sort: i32,
 }
 
@@ -846,30 +855,28 @@ impl TileMapRenderer {
 
         // Terrain:
         if flags.contains(TileMapRenderFlags::DrawTerrain) {
-            let layer = tile_map.layer(TileMapLayerKind::Terrain);
-            debug_assert!(layer.size_in_cells == map_cells);
+            let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
+            debug_assert!(terrain_layer.size_in_cells == map_cells);
 
             for y in (0..map_cells.height).rev() {
                 for x in (0..map_cells.width).rev() {
 
-                    let tile = layer.tile(Cell2D::new(x, y));
+                    let tile = terrain_layer.tile(Cell2D::new(x, y));
                     if tile.is_empty() {
                         continue;
                     }
 
-                    debug_assert!(tile.is_terrain());
-                    debug_assert!(tile.def.logical_size == BASE_TILE_SIZE); // Terrain tiles size is constrained.
+                    // Terrain tiles size is constrained.
+                    debug_assert!(tile.is_terrain() && tile.def.logical_size == BASE_TILE_SIZE);
 
                     let tile_iso_coords = tile.calc_adjusted_iso_coords();
-
-                    self.draw_tile(render_sys, ui_sys, tile_iso_coords, tile,
-                        flags.contains(TileMapRenderFlags::DrawTerrainTileDebugInfo),
-                        flags.contains(TileMapRenderFlags::DrawTileDebugBounds));
+                    self.draw_tile(render_sys, ui_sys, tile_iso_coords, tile, flags);
                 }
             }
         }
 
-        if flags.contains(TileMapRenderFlags::DrawGrid) {
+        if flags.contains(TileMapRenderFlags::DrawGrid) &&
+          !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Draw the grid now so that lines will be on top of the terrain but not on top of buildings.
             self.draw_isometric_grid(render_sys, tile_map);
         }
@@ -921,15 +928,7 @@ impl TileMapRenderer {
                 debug_assert!(tile.is_building() || tile.is_unit());
 
                 let tile_iso_coords = tile.calc_adjusted_iso_coords();
-
-                let draw_debug_info =
-                    flags.contains(TileMapRenderFlags::DrawBuildingsTileDebugInfo) ||
-                    flags.contains(TileMapRenderFlags::DrawUnitsTileDebugInfo);
-                
-                let draw_debug_bounds =
-                    flags.contains(TileMapRenderFlags::DrawTileDebugBounds);
-
-                self.draw_tile(render_sys, ui_sys, tile_iso_coords, tile, draw_debug_info, draw_debug_bounds);
+                self.draw_tile(render_sys, ui_sys, tile_iso_coords, tile, flags);
             }
 
             self.temp_tile_sort_list.clear();
@@ -947,7 +946,7 @@ impl TileMapRenderer {
                            tile_map: &TileMap) {
     
         let map_cells = tile_map.size_in_cells;
-
+        let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
         let line_thickness = self.grid_line_thickness * (self.world_to_screen.scaling as f32);
 
         let mut highlighted_cells = SmallVec::<[[Point2D; 4]; 64]>::new();
@@ -960,7 +959,7 @@ impl TileMapRenderer {
                     cell, BASE_TILE_SIZE, &self.world_to_screen, false);
 
                 // Save highlighted grid cells for drawing at the end, so they display correctly.
-                let tile = tile_map.layer(TileMapLayerKind::Terrain).tile(cell);
+                let tile = terrain_layer.tile(cell);
                 if tile.flags.contains(TileFlags::Highlighted) {
                     highlighted_cells.push(points);
                     continue;
@@ -977,101 +976,22 @@ impl TileMapRenderer {
         }
     }
 
-    fn draw_tile_debug_info_overlay(ui_sys: &UiSystem,
-                                    debug_overlay_pos: Point2D,
-                                    tile_screen_pos: Point2D,
-                                    tile_iso_pos: IsoPoint2D,
-                                    tile: &Tile) {
-
-        // Make the window background transparent and remove decorations:
-        let window_flags =
-            imgui::WindowFlags::NO_DECORATION |
-            imgui::WindowFlags::NO_MOVE |
-            imgui::WindowFlags::NO_SAVED_SETTINGS |
-            imgui::WindowFlags::NO_FOCUS_ON_APPEARING |
-            imgui::WindowFlags::NO_NAV |
-            imgui::WindowFlags::NO_MOUSE_INPUTS;
-
-        // NOTE: Label has to be unique for each tile because it will be used as the ImGui ID for this widget.
-        let label = format!("{}_{}_{}", tile.def.name, tile.cell.x, tile.cell.y);
-        let position = [ debug_overlay_pos.x as f32, debug_overlay_pos.y as f32 ];
-
-        let bg_color = match tile.def.kind {
-            TileKind::Building => Color::yellow().to_array(),
-            TileKind::Unit => Color::cyan().to_array(),
-            _ => Color::black().to_array()
-        };
-
-        let text_color = match tile.def.kind {
-            TileKind::Terrain => Color::white().to_array(),
-            _ => Color::black().to_array()
-        };
-
-        let ui = ui_sys.builder();
-
-        // Adjust window background color based on tile kind.
-        // The returned tokens take care of popping back to the previous color/font.
-        let _0 = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
-        let _1 = ui.push_style_color(imgui::StyleColor::Text, text_color);
-        let _2  = ui.push_font(ui_sys.fonts().small);
-
-        ui.window(label)
-            .position(position, imgui::Condition::Always)
-            .flags(window_flags)
-            .always_auto_resize(true)
-            .bg_alpha(0.4) // Semi-transparent
-            .build(|| {
-                ui.text(format!("C:{},{}", tile.cell.x,       tile.cell.y));       // Cell position
-                ui.text(format!("S:{},{}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
-                ui.text(format!("I:{},{}", tile_iso_pos.x,    tile_iso_pos.y));    // 2D isometric position
-            });
-    }
-
-    fn draw_tile_debug_info(render_sys: &mut RenderSystem,
-                            ui_sys: &UiSystem,
-                            tile_screen_pos: Point2D,
-                            tile_iso_pos: IsoPoint2D,
-                            tile: &Tile) {
-
-        let debug_overlay_offsets = match tile.def.kind {
-            TileKind::Terrain  => (tile.def.logical_size.width / 2, tile.def.logical_size.height / 2),
-            TileKind::Building => (tile.def.logical_size.width, tile.def.logical_size.height),
-            TileKind::Unit     => (tile.def.draw_size.width, tile.def.draw_size.height),
-            _ => (0, 0)
-        };
-
-        let debug_overlay_pos = Point2D::new(
-            tile_screen_pos.x + debug_overlay_offsets.0,
-            tile_screen_pos.y + debug_overlay_offsets.1);
-
-        Self::draw_tile_debug_info_overlay(
-            ui_sys,
-            debug_overlay_pos,
-            tile_screen_pos,
-            tile_iso_pos,
-            tile);
-
-        // Put a red dot at the tile's center.
-        let mut center_pos = tile.calc_tile_center(tile_screen_pos);
-        center_pos.x -= 5;
-        center_pos.y -= 5;
-        render_sys.draw_point_fast(center_pos, Color::red(), 10.0);
-    }
-
     fn draw_tile(&self,
                  render_sys: &mut RenderSystem,
                  ui_sys: &UiSystem,
                  tile_iso_coords: IsoPoint2D,
                  tile: &Tile,
-                 draw_debug_info: bool,
-                 draw_debug_bounds: bool) {
+                 flags: TileMapRenderFlags) {
 
         debug_assert!(tile.def.is_valid());
 
-        let tile_rect = iso_to_screen_rect(
+        // Only terrain and buildings might require spacing.
+        let apply_spacing = if !tile.is_unit() { true } else { false };
+
+        let tile_rect = self.world_to_screen.apply_to_rect(
             tile_iso_coords,
             tile.def.draw_size,
-            &self.world_to_screen);
+            apply_spacing);
 
         render_sys.draw_textured_colored_rect(
             tile_rect,
@@ -1079,24 +999,148 @@ impl TileMapRenderer {
             tile.def.tex_info.texture,
             tile.def.color);
 
-        if draw_debug_info {
-            Self::draw_tile_debug_info(
-                render_sys,
-                ui_sys,
-                tile_rect.position(),
-                tile_iso_coords,
-                tile);
-        }
-
-        if draw_debug_bounds {
-            let color = match tile.def.kind {
-                TileKind::Building => Color::yellow(),
-                TileKind::Unit => Color::cyan(),
-                _ => Color::red()
-            };
-
-            // Tile bounding box (of the actual sprite image): 
-            render_sys.draw_wireframe_rect_fast(tile_rect, color);
-        }
+        debug_draw::draw_tile_debug(
+            render_sys,
+            ui_sys,
+            tile_iso_coords,
+            tile_rect,
+            tile,
+            flags);
     }
+}
+
+// ----------------------------------------------
+// Debug Draw Helpers
+// ----------------------------------------------
+
+mod debug_draw {
+
+use crate::utils::{IsoPoint2D, Rect2D, Point2D, Color};
+use crate::{render::RenderSystem, ui::UiSystem};
+use super::{TileMapRenderFlags, Tile, TileKind};
+
+pub fn draw_tile_debug(render_sys: &mut RenderSystem,
+                       ui_sys: &UiSystem,
+                       tile_iso_coords: IsoPoint2D,
+                       tile_rect: Rect2D,
+                       tile: &Tile,
+                       flags: TileMapRenderFlags) {
+
+    let draw_debug_info =
+        if tile.is_terrain() && flags.contains(TileMapRenderFlags::DrawTerrainTileDebugInfo) {
+            true
+        } else if tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebugInfo) {
+            true
+        } else if tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnitsTileDebugInfo) {
+            true
+        } else {
+            false
+        };
+
+    if draw_debug_info {
+        draw_tile_debug_info(
+            render_sys,
+            ui_sys,
+            tile_rect.position(),
+            tile_iso_coords,
+            tile);
+    }
+
+    if flags.contains(TileMapRenderFlags::DrawTileDebugBounds) {
+        draw_tile_bounds(render_sys, tile_rect, tile);
+    }
+}
+
+fn draw_tile_debug_overlay_text(ui_sys: &UiSystem,
+                                debug_overlay_pos: Point2D,
+                                tile_screen_pos: Point2D,
+                                tile_iso_pos: IsoPoint2D,
+                                tile: &Tile) {
+
+    // Make the window background transparent and remove decorations:
+    let window_flags =
+        imgui::WindowFlags::NO_DECORATION |
+        imgui::WindowFlags::NO_MOVE |
+        imgui::WindowFlags::NO_SAVED_SETTINGS |
+        imgui::WindowFlags::NO_FOCUS_ON_APPEARING |
+        imgui::WindowFlags::NO_NAV |
+        imgui::WindowFlags::NO_MOUSE_INPUTS;
+
+    // NOTE: Label has to be unique for each tile because it will be used as the ImGui ID for this widget.
+    let label = format!("{}_{}_{}", tile.def.name, tile.cell.x, tile.cell.y);
+    let position = [ debug_overlay_pos.x as f32, debug_overlay_pos.y as f32 ];
+
+    let bg_color = match tile.def.kind {
+        TileKind::Building => Color::yellow().to_array(),
+        TileKind::Unit => Color::cyan().to_array(),
+        _ => Color::black().to_array()
+    };
+
+    let text_color = match tile.def.kind {
+        TileKind::Terrain => Color::white().to_array(),
+        _ => Color::black().to_array()
+    };
+
+    let ui = ui_sys.builder();
+
+    // Adjust window background color based on tile kind.
+    // The returned tokens take care of popping back to the previous color/font.
+    let _0 = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
+    let _1 = ui.push_style_color(imgui::StyleColor::Text, text_color);
+    let _2 = ui.push_font(ui_sys.fonts().small);
+
+    ui.window(label)
+        .position(position, imgui::Condition::Always)
+        .flags(window_flags)
+        .always_auto_resize(true)
+        .bg_alpha(0.4) // Semi-transparent
+        .build(|| {
+            ui.text(format!("C:{},{}", tile.cell.x,       tile.cell.y));       // Cell position
+            ui.text(format!("S:{},{}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
+            ui.text(format!("I:{},{}", tile_iso_pos.x,    tile_iso_pos.y));    // 2D isometric position
+        });
+}
+
+fn draw_tile_debug_info(render_sys: &mut RenderSystem,
+                        ui_sys: &UiSystem,
+                        tile_screen_pos: Point2D,
+                        tile_iso_pos: IsoPoint2D,
+                        tile: &Tile) {
+
+    let debug_overlay_offsets = match tile.def.kind {
+        TileKind::Terrain  => (tile.def.logical_size.width / 2, tile.def.logical_size.height / 2),
+        TileKind::Building => (tile.def.logical_size.width, tile.def.logical_size.height),
+        TileKind::Unit     => (tile.def.draw_size.width, tile.def.draw_size.height),
+        _ => (0, 0)
+    };
+
+    let debug_overlay_pos = Point2D::new(
+        tile_screen_pos.x + debug_overlay_offsets.0,
+        tile_screen_pos.y + debug_overlay_offsets.1);
+
+    draw_tile_debug_overlay_text(
+        ui_sys,
+        debug_overlay_pos,
+        tile_screen_pos,
+        tile_iso_pos,
+        tile);
+
+    // Put a red dot at the tile's center.
+    let mut center_pos = tile.calc_tile_center(tile_screen_pos);
+    center_pos.x -= 5;
+    center_pos.y -= 5;
+    render_sys.draw_point_fast(center_pos, Color::red(), 10.0);
+}
+
+fn draw_tile_bounds(render_sys: &mut RenderSystem, tile_rect: Rect2D, tile: &Tile) {
+    let color = match tile.def.kind {
+        TileKind::Building => Color::yellow(),
+        TileKind::Unit => Color::cyan(),
+        _ => Color::red()
+    };
+
+    // Tile bounding box (of the actual sprite image): 
+    render_sys.draw_wireframe_rect_fast(tile_rect, color);
+}
+
 }

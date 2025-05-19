@@ -1,13 +1,17 @@
 use std::ptr::null;
+use std::ffi::c_void;
 use std::time::{self};
 
 use imgui::Context as ImGuiContext;
 use imgui_opengl_renderer::Renderer as ImGuiRenderer;
 
-use crate::render::RenderSystem;
+pub use imgui::FontId as UiFontHandle;
+pub use imgui::TextureId as UiTextureHandle;
+
 use crate::utils::{self, Vec2, Point2D, Size2D, Rect2D, Color};
 use crate::app::{self, Application};
 use crate::app::input::{InputAction, InputKey, InputSystem, MouseButton};
+use crate::render::{RenderSystem, TextureCache, TextureHandle};
 
 // ----------------------------------------------
 // UiSystem
@@ -26,41 +30,59 @@ impl UiSystem {
         }
     }
 
+    #[inline]
     pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time: time::Duration) {
+        debug_assert!(self.builder_ptr.is_null() == true);
         let ui_builder = self.context.begin_frame(app, input_sys, delta_time);
         self.builder_ptr = ui_builder as *const imgui::Ui;
     }
 
+    #[inline]
     pub fn end_frame(&mut self) {
+        debug_assert!(self.builder_ptr.is_null() == false);
         self.builder_ptr = null::<imgui::Ui>();
         self.context.end_frame();
     }
 
+    #[inline]
     pub fn on_key_input(&mut self, key: InputKey, action: InputAction) {
         self.context.on_key_input(key, action);
     }
 
+    #[inline]
     pub fn on_char_input(&mut self, c: char) {
         self.context.on_char_input(c);
     }
 
+    #[inline]
     pub fn on_scroll(&mut self, amount: Vec2) {
         self.context.on_scroll(amount);
     }
 
-    pub fn fonts(&self) -> &FontIds {
+    #[inline]
+    pub fn fonts(&self) -> &UiFonts {
         self.context.fonts()
     }
 
+    #[inline]
     pub fn context(&self) -> &UiContext {
         &self.context
     }
 
+    #[inline]
     pub fn builder(&self) -> &imgui::Ui {
         debug_assert!(self.builder_ptr.is_null() == false);
         unsafe{ &*self.builder_ptr }
     }
 
+    #[inline]
+    pub fn to_ui_texture(&self, tex_cache: &TextureCache, tex_handle: TextureHandle) -> UiTextureHandle {
+        let native_handle = tex_cache.to_native_handle(tex_handle);
+        debug_assert!(std::mem::size_of_val(&native_handle) <= std::mem::size_of::<usize>());
+        UiTextureHandle::from(native_handle as usize as *mut c_void)
+    }
+
+    #[inline]
     pub fn draw_debug(&self, render_sys: &mut RenderSystem) {
         self.draw_debug_cursor_overlay();
         Self::draw_screen_origin_debug_marker(render_sys);
@@ -123,12 +145,12 @@ impl UiSystem {
 }
 
 // ----------------------------------------------
-// FontIds
+// UiFonts
 // ----------------------------------------------
 
-pub struct FontIds {
-    pub normal: imgui::FontId,
-    pub small: imgui::FontId,
+pub struct UiFonts {
+    pub normal: UiFontHandle,
+    pub small: UiFontHandle,
 }
 
 // ----------------------------------------------
@@ -138,7 +160,7 @@ pub struct FontIds {
 pub struct UiContext {
     imgui_ctx: ImGuiContext,
     imgui_renderer: ImGuiRenderer,
-    fonts_ids: FontIds,
+    fonts_ids: UiFonts,
     frame_started: bool,
 }
 
@@ -184,7 +206,7 @@ impl UiContext {
         Self {
             imgui_ctx: imgui_ctx,
             imgui_renderer: imgui_renderer,
-            fonts_ids: FontIds { normal: font_normal, small: font_small },
+            fonts_ids: UiFonts { normal: font_normal, small: font_small },
             frame_started: false,
         }
     }
@@ -211,7 +233,7 @@ impl UiContext {
         ui
     }
 
-    pub fn fonts(&self) -> &FontIds {
+    pub fn fonts(&self) -> &UiFonts {
         &self.fonts_ids
     }
 
