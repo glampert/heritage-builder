@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
-use crate::utils::{Cell2D, IsoPoint2D, Rect2D, Point2D, Size2D, Color, WorldToScreenTransform};
+use crate::render::TextureHandle;
+use crate::utils::{Cell2D, Color, IsoPoint2D, Point2D, Rect2D, RectTexCoords, Size2D, WorldToScreenTransform};
 use crate::{render::RenderSystem, render::TextureCache, ui::UiSystem};
+use crate::app::input::{MouseButton, InputAction};
 
 use super::sets::{self, TileSets};
 use super::def::{TileKind, TileDef, TileTexInfo, BASE_TILE_SIZE};
@@ -24,6 +26,8 @@ pub fn draw_tile_debug(render_sys: &mut RenderSystem,
         } else if tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebugInfo) {
             true
         } else if tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnitsTileDebugInfo) {
+            true
+        } else if tile.is_building_blocker() && flags.contains(TileMapRenderFlags::DrawDebugBuildingBlockers) {
             true
         } else {
             false
@@ -63,6 +67,7 @@ fn draw_tile_debug_overlay_text(ui_sys: &UiSystem,
     let position = [ debug_overlay_pos.x as f32, debug_overlay_pos.y as f32 ];
 
     let bg_color = match tile.def.kind {
+        TileKind::BuildingBlocker => Color::red().to_array(),
         TileKind::Building => Color::yellow().to_array(),
         TileKind::Unit => Color::cyan().to_array(),
         _ => Color::black().to_array()
@@ -158,6 +163,7 @@ pub struct DebugMenu {
     draw_units_debug_info: bool,
     draw_tile_debug_bounds: bool,
     draw_selected_tile_bounds: bool,
+    draw_debug_building_blockers: bool,
     draw_cursor_pos: bool,
 }
 
@@ -187,19 +193,20 @@ impl DebugMenu {
 
     pub fn selected_render_flags(&self) -> TileMapRenderFlags {
         let mut flags = TileMapRenderFlags::None;
-        if self.draw_terrain              { flags.insert(TileMapRenderFlags::DrawTerrain); }
-        if self.draw_buildings            { flags.insert(TileMapRenderFlags::DrawBuildings); }
-        if self.draw_units                { flags.insert(TileMapRenderFlags::DrawUnits); }
-        if self.draw_grid                 { flags.insert(TileMapRenderFlags::DrawGrid); }
-        if self.draw_grid_ignore_depth    { flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth); }
-        if self.draw_terrain_debug_info   { flags.insert(TileMapRenderFlags::DrawTerrainTileDebugInfo); }
-        if self.draw_buildings_debug_info { flags.insert(TileMapRenderFlags::DrawBuildingsTileDebugInfo); }
-        if self.draw_units_debug_info     { flags.insert(TileMapRenderFlags::DrawUnitsTileDebugInfo); }
-        if self.draw_tile_debug_bounds    { flags.insert(TileMapRenderFlags::DrawTileDebugBounds); }
+        if self.draw_terrain                 { flags.insert(TileMapRenderFlags::DrawTerrain); }
+        if self.draw_buildings               { flags.insert(TileMapRenderFlags::DrawBuildings); }
+        if self.draw_units                   { flags.insert(TileMapRenderFlags::DrawUnits); }
+        if self.draw_grid                    { flags.insert(TileMapRenderFlags::DrawGrid); }
+        if self.draw_grid_ignore_depth       { flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth); }
+        if self.draw_terrain_debug_info      { flags.insert(TileMapRenderFlags::DrawTerrainTileDebugInfo); }
+        if self.draw_buildings_debug_info    { flags.insert(TileMapRenderFlags::DrawBuildingsTileDebugInfo); }
+        if self.draw_units_debug_info        { flags.insert(TileMapRenderFlags::DrawUnitsTileDebugInfo); }
+        if self.draw_tile_debug_bounds       { flags.insert(TileMapRenderFlags::DrawTileDebugBounds); }
+        if self.draw_debug_building_blockers { flags.insert(TileMapRenderFlags::DrawDebugBuildingBlockers); }
         flags
     }
 
-    pub fn update_render_settings(&self, tile_map_renderer: &mut TileMapRenderer) {
+    pub fn apply_render_settings(&self, tile_map_renderer: &mut TileMapRenderer) {
         tile_map_renderer
             .set_draw_scaling(self.scaling)
             .set_draw_offset(Point2D::new(self.offset_x, self.offset_y))
@@ -249,28 +256,60 @@ impl DebugMenu {
                 ui.checkbox("Draw units debug", &mut self.draw_units_debug_info);
                 ui.checkbox("Draw tile bounds", &mut self.draw_tile_debug_bounds);
                 ui.checkbox("Draw selection bounds", &mut self.draw_selected_tile_bounds);
+                ui.checkbox("Draw building blockers", &mut self.draw_debug_building_blockers);
                 ui.checkbox("Draw cursor pos", &mut self.draw_cursor_pos);
             });
     }
 }
 
 // ----------------------------------------------
-// TileSelectionMenu
+// TileListMenu
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct TileSelectionMenu<'a> {
+pub struct TileListMenu<'a> {
     selected_tile: Option<&'a TileDef>,
-    selected_index: [Option<usize>; TILE_MAP_LAYER_COUNT],
+    selected_index: [Option<usize>; TILE_MAP_LAYER_COUNT], // For highlighting the selected button.
+    left_mouse_button_held: bool,
+    clear_button_image: TextureHandle,
 }
 
-impl<'a> TileSelectionMenu<'a> {
-    pub fn new() -> Self {
-        Self::default()
+impl<'a> TileListMenu<'a> {
+    pub fn new(tex_cache: &mut TextureCache) -> Self {
+        Self {
+            clear_button_image: tex_cache.load_texture("assets/ui/shovel.png"),
+            ..Default::default()
+        }
     }
 
     pub fn clear_selection(&mut self) {
-        *self = Self::default();
+        self.selected_tile = None;
+        self.selected_index = [None; TILE_MAP_LAYER_COUNT];
+        self.left_mouse_button_held = false;
+    }
+
+    pub fn has_selection(&self) -> bool {
+        self.selected_tile.is_some()
+    }
+
+    pub fn current_selection(&self) -> Option<&'a TileDef> {
+        self.selected_tile
+    }
+
+    pub fn can_place_tile(&self) -> bool {
+        self.left_mouse_button_held && self.has_selection()
+    }
+
+    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction) {
+        if button == MouseButton::Left {
+            if action == InputAction::Press {
+                self.left_mouse_button_held = true;
+            } else if action == InputAction::Release {
+                self.left_mouse_button_held = false;
+            }
+        } else if button == MouseButton::Right {
+            self.clear_selection();
+        }
     }
 
     pub fn draw(&mut self,
@@ -334,6 +373,33 @@ impl<'a> TileSelectionMenu<'a> {
                                     tile_size,
                                     tiles_per_row,
                                     padding_between_tiles);
+
+                ui.separator();
+
+                ui.text("Tools");
+                {
+                    let ui_texture = ui_sys.to_ui_texture(tex_cache, self.clear_button_image);
+
+                    let is_selected = self.selected_tile.is_some_and(|t| t.is_empty());
+                    let bg_color = if is_selected {
+                        Color::white().to_array()
+                    } else {
+                        Color::gray().to_array()
+                    };
+
+                    let clicked = ui.image_button_config("Clear", ui_texture, tile_size)
+                        .background_col(bg_color)
+                        .build();
+
+                    if ui.is_item_hovered() {
+                        ui.tooltip_text("Clear tiles");
+                    }
+
+                    if clicked {
+                        self.clear_selection();
+                        self.selected_tile = Some(TileDef::empty());
+                    }
+                }
             });
 
         self.draw_selected_tile(render_sys, cursor_pos, transform, draw_tile_bounds);
@@ -346,19 +412,39 @@ impl<'a> TileSelectionMenu<'a> {
                           draw_tile_bounds: bool) {
 
         if let Some(selected_tile) = self.selected_tile {
+            let is_clear_selected = self.selected_tile.is_some_and(|t| t.is_empty());
+            if is_clear_selected {
+                let rect = Rect2D::new(
+                    Point2D::new(cursor_pos.x, cursor_pos.y - 32),
+                    Size2D::new(64, 32));
 
-            let rect = Rect2D::new(cursor_pos, selected_tile.draw_size);
-            let offset = Point2D::new(-(selected_tile.draw_size.width / 2), -(selected_tile.draw_size.height / 2));
-            let cursor_transform = WorldToScreenTransform::new(transform.scaling, offset, 0);
+                render_sys.draw_textured_colored_rect(
+                    rect,
+                    &RectTexCoords::default(),
+                    self.clear_button_image,
+                    Color::white());
+            } else {
+                let rect = Rect2D::new(cursor_pos, selected_tile.draw_size);
 
-            render_sys.draw_textured_colored_rect(
-                cursor_transform.scale_and_offset_rect(rect),
-                &selected_tile.tex_info.coords,
-                selected_tile.tex_info.texture,
-                selected_tile.color);
+                let offset =
+                    if selected_tile.is_building() {
+                        Point2D::new(-(selected_tile.draw_size.width / 2), -selected_tile.draw_size.height)
+                    } else {
+                        Point2D::new(-(selected_tile.draw_size.width / 2), -(selected_tile.draw_size.height / 2))
+                    };
 
-            if draw_tile_bounds {
-                render_sys.draw_wireframe_rect_fast(cursor_transform.scale_and_offset_rect(rect), Color::red());
+                let cursor_transform = 
+                    WorldToScreenTransform::new(transform.scaling, offset, 0);
+
+                render_sys.draw_textured_colored_rect(
+                    cursor_transform.scale_and_offset_rect(rect),
+                    &selected_tile.tex_info.coords,
+                    selected_tile.tex_info.texture,
+                    Color::new(selected_tile.color.r, selected_tile.color.g, selected_tile.color.b, 0.7));
+
+                if draw_tile_bounds {
+                    render_sys.draw_wireframe_rect_fast(cursor_transform.scale_and_offset_rect(rect), Color::red());
+                }
             }
         }
     }
@@ -406,7 +492,6 @@ impl<'a> TileSelectionMenu<'a> {
 
             if clicked {
                 self.clear_selection();
-
                 self.selected_tile = Some(tile_def);
                 self.selected_index[layer as usize] = Some(i);
             }
@@ -510,7 +595,7 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
         (B4, Cell2D::new(1, 5)),
     ]);
 
-    let mut tile_map = TileMap::new(Size2D{ width: MAP_WIDTH, height: MAP_HEIGHT });
+    let mut tile_map = TileMap::new(Size2D::new(MAP_WIDTH, MAP_HEIGHT));
 
     // Terrain:
     {

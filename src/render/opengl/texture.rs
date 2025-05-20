@@ -277,6 +277,10 @@ impl TextureHandle {
     }
 }
 
+impl Default for TextureHandle {
+    fn default() -> Self { TextureHandle::invalid() }
+}
+
 pub struct TextureCache {
     textures: Vec<Texture2D>,
 

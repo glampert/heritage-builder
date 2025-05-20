@@ -35,15 +35,17 @@ fn main() {
     let mut tex_cache = TextureCache::new(128);
 
     let tile_sets = debug::create_test_tile_sets(&mut tex_cache);
-    let mut tile_map = debug::create_test_tile_map(&tile_sets);
+
+    //let mut tile_map = debug::create_test_tile_map(&tile_sets);
+    let mut tile_map = TileMap::new(Size2D::new(8, 8));
 
     let mut tile_map_renderer = TileMapRenderer::new();
 
     let mut debug_menu = DebugMenu::new();
-    debug_menu.update_render_settings(&mut tile_map_renderer);
+    debug_menu.apply_render_settings(&mut tile_map_renderer);
 
     let mut tile_selection = TileSelection::new();
-    let mut tile_selection_menu = TileSelectionMenu::new();
+    let mut tile_list_menu = TileListMenu::new(&mut tex_cache);
 
     let mut frame_clock = FrameClock::new();
 
@@ -52,9 +54,8 @@ fn main() {
 
         let transform = tile_map_renderer.world_to_screen_transform();
         let cursor_pos = input_sys.cursor_pos();
-        let events = app.poll_events();
 
-        for event in events {
+        for event in app.poll_events() {
             match event {
                 ApplicationEvent::Quit => {
                     app.request_quit();
@@ -66,7 +67,7 @@ fn main() {
                     ui_sys.on_key_input(key, action);
 
                     if key == InputKey::Escape {
-                        tile_selection_menu.clear_selection();
+                        tile_list_menu.clear_selection();
                     }
                 }
                 ApplicationEvent::CharInput(c) => {
@@ -76,17 +77,32 @@ fn main() {
                     ui_sys.on_scroll(amount);
                 }
                 ApplicationEvent::MouseButton(button, action, _modifiers) => {
-                    let range_selecting = tile_selection.on_mouse_click(button, action, cursor_pos);
-                    if !range_selecting {
-                        tile_map.clear_selection(&mut tile_selection);
+                    if tile_list_menu.has_selection() {
+                        tile_list_menu.on_mouse_click(button, action);
+                    } else {
+                        if !tile_selection.on_mouse_click(button, action, cursor_pos) {
+                            tile_map.clear_selection(&mut tile_selection);
+                        }
                     }
                 }
             }
             println!("ApplicationEvent::{:?}", event);
         }
 
-        tile_selection.update(cursor_pos);
+        tile_selection.update(cursor_pos, tile_list_menu.current_selection());
         tile_map.update_selection(&mut tile_selection, &transform);
+
+        if tile_list_menu.can_place_tile() {
+            tile_map.try_place_tile_at_cursor(
+                cursor_pos,
+                &transform,
+                tile_list_menu.current_selection().unwrap());
+
+            if tile_list_menu.current_selection().unwrap().is_building() ||
+               tile_list_menu.current_selection().unwrap().is_unit() {
+                tile_list_menu.clear_selection();
+            }
+        }
 
         ui_sys.begin_frame(&app, &input_sys, frame_clock.delta_time());
         render_sys.begin_frame();
@@ -99,7 +115,7 @@ fn main() {
 
             tile_selection.draw(&mut render_sys);
 
-            tile_selection_menu.draw(
+            tile_list_menu.draw(
                 &mut render_sys,
                 &ui_sys,
                 &tex_cache,
