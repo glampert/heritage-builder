@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-use strum::EnumCount;
-use strum_macros::{EnumCount, Display};
+use strum::{EnumCount, IntoEnumIterator};
+use strum_macros::{Display, EnumCount, EnumIter};
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
 use smallvec::{smallvec, SmallVec};
@@ -9,8 +8,8 @@ use crate::utils::*;
 use crate::app::input::{MouseButton, InputAction};
 use crate::ui::UiSystem;
 use crate::render::RenderSystem;
-use super::sets::TileSets;
 use super::def::{TileDef, TileKind, BASE_TILE_SIZE};
+use super::debug::{self};
 
 // ----------------------------------------------
 // Tile / TileFlags
@@ -148,7 +147,7 @@ impl<'a> Tile<'a> {
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Debug, EnumCount, Display)]
+#[derive(Copy, Clone, PartialEq, Debug, EnumCount, EnumIter, Display)]
 pub enum TileMapLayerKind {
     Terrain,
     Buildings,
@@ -298,10 +297,16 @@ pub struct TileMap<'a> {
 
 impl<'a> TileMap<'a> {
     pub fn new(size_in_cells: Size2D) -> Self {
-        Self {
+        let mut tile_map = Self {
             size_in_cells: size_in_cells,
             layers: Vec::with_capacity(TILE_MAP_LAYER_COUNT),
+        };
+
+        for layer in TileMapLayerKind::iter() {
+            tile_map.layers.push(Box::new(TileMapLayer::new(layer, size_in_cells)));
         }
+
+        tile_map
     }
 
     pub fn cell_is_valid(&self, cell: Cell2D) -> bool {
@@ -314,19 +319,17 @@ impl<'a> TileMap<'a> {
 
     pub fn layers(&self) -> (&TileMapLayer, &TileMapLayer, &TileMapLayer) {
         (
-            self.layers[TileMapLayerKind::Terrain as usize].as_ref(),
-            self.layers[TileMapLayerKind::Buildings as usize].as_ref(),
-            self.layers[TileMapLayerKind::Units as usize].as_ref(),
+            self.layer(TileMapLayerKind::Terrain),
+            self.layer(TileMapLayerKind::Buildings),
+            self.layer(TileMapLayerKind::Units),
         )
     }
 
     pub fn layers_mut(&mut self) -> (&mut TileMapLayer<'a>, &mut TileMapLayer<'a>, &mut TileMapLayer<'a>) {
-        let layers = &mut self.layers;
-
         // Use raw pointers to avoid borrow checker conflicts
-        let terrain   = layers[TileMapLayerKind::Terrain as usize].as_mut() as *mut TileMapLayer;
-        let buildings = layers[TileMapLayerKind::Buildings as usize].as_mut() as *mut TileMapLayer;
-        let units     = layers[TileMapLayerKind::Units as usize].as_mut() as *mut TileMapLayer;
+        let terrain   = self.layer_mut(TileMapLayerKind::Terrain)   as *mut TileMapLayer;
+        let buildings = self.layer_mut(TileMapLayerKind::Buildings) as *mut TileMapLayer;
+        let units     = self.layer_mut(TileMapLayerKind::Units)     as *mut TileMapLayer;
 
         // SAFETY: Indices are distinct and all references are valid while `self` is borrowed mutably.
         unsafe {
@@ -334,21 +337,25 @@ impl<'a> TileMap<'a> {
         }
     }
 
-    pub fn layer(&self, kind: TileMapLayerKind) -> &TileMapLayer {
-        self.layers[kind as usize].as_ref()
+    pub fn layer(&self, layer_kind: TileMapLayerKind) -> &TileMapLayer {
+        debug_assert!(self.layers[layer_kind as usize].kind == layer_kind);
+        self.layers[layer_kind as usize].as_ref()
     }
 
-    pub fn layer_mut(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer<'a> {
-        self.layers[kind as usize].as_mut()
+    pub fn layer_mut(&mut self, layer_kind: TileMapLayerKind) -> &mut TileMapLayer<'a> {
+        debug_assert!(self.layers[layer_kind as usize].kind == layer_kind);
+        self.layers[layer_kind as usize].as_mut()
     }
 
     pub fn try_tile_from_layer(&self, cell: Cell2D, layer_kind: TileMapLayerKind) -> Option<&Tile> {
         let layer = self.layer(layer_kind);
+        debug_assert!(layer.kind == layer_kind);
         layer.try_tile(cell)
     }
 
     pub fn try_tile_from_layer_mut(&mut self, cell: Cell2D, layer_kind: TileMapLayerKind) -> Option<&mut Tile<'a>> {
         let layer = self.layer_mut(layer_kind);
+        debug_assert!(layer.kind == layer_kind);
         layer.try_tile_mut(cell)
     }
 
@@ -506,136 +513,6 @@ impl<'a> TileMap<'a> {
             let tile = terrain_layer.tile_mut(cell);
             Self::toggle_tile_selection(selection, tile, selected);   
         }
-    }
-
-    // [DEBUG]
-    pub fn with_test_map(tile_sets: &'a TileSets) -> Self {
-        println!("Creating test map...");
-
-        const MAP_WIDTH:  i32 = 8;
-        const MAP_HEIGHT: i32 = 8;
-
-        const G:  i32 = 0; // ground:grass (empty)
-        const R:  i32 = 1; // ground:road
-        const U:  i32 = 2; // unit:ped
-        const HH: i32 = 3; // building:house (2x2)
-        const TT: i32 = 4; // building:tower (3x3)
-        const B0: i32 = 5; // special blocker for the 3x3 building.
-        const B1: i32 = 6; // special blocker for the 2x2 building.
-        const B2: i32 = 7; // special blocker for the 2x2 building.
-        const B3: i32 = 8; // special blocker for the 2x2 building.
-        const B4: i32 = 9; // special blocker for the 2x2 building.
-
-        const TILE_NAMES: [&str; 5] = [ "grass", "road", "ped", "house", "tower" ];
-
-        const TERRAIN_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
-            R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
-            R,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,R,
-            R,R,R,R,R,R,R,R,
-        ];
-
-        const BUILDINGS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
-            U, U, U, U, U, U, U, U, // <-- start, tile zero is the leftmost (top-left)
-            U, TT,B0,B0,U, HH,B1,U,
-            U, B0,B0,B0,U, B1,B1,U,
-            U, B0,B0,B0,U, HH,B2,U,
-            U, U, U, U, U, B2,B2,U,
-            U, HH,B4,U, U, HH,B3,U,
-            U, B4,B4,U, U, B3,B3,U,
-            U, U, U, U, U, U, U, U,
-        ];
-
-        const UNITS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
-            U,U,U,U,U,U,U,U, // <-- start, tile zero is the leftmost (top-left)
-            U,G,G,G,U,G,G,U,
-            U,G,G,G,U,G,G,U,
-            U,G,G,G,U,G,G,U,
-            U,U,U,U,U,G,G,U,
-            U,G,G,U,U,G,G,U,
-            U,G,G,U,U,G,G,U,
-            U,U,U,U,U,U,U,U,
-        ];
-
-        let blockers_mapping = HashMap::from([
-            (B0, Cell2D::new(1, 1)),
-            (B1, Cell2D::new(5, 1)),
-            (B2, Cell2D::new(5, 3)),
-            (B3, Cell2D::new(5, 5)),
-            (B4, Cell2D::new(1, 5)),
-        ]);
-
-        let mut tile_map = TileMap::new(
-            Size2D{ width: MAP_WIDTH, height: MAP_HEIGHT });
-
-        // Terrain:
-        {
-            let mut terrain_layer =
-                TileMapLayer::new(TileMapLayerKind::Terrain, tile_map.size_in_cells);
-
-            for y in (0..MAP_HEIGHT).rev() {
-                for x in (0..MAP_WIDTH).rev() {
-                    let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                    let tile_def = tile_sets.find_by_name(TILE_NAMES[tile_id as usize]);
-                    terrain_layer.add_tile(Cell2D::new(x, y), tile_def);
-                }
-            }
-
-            tile_map.layers.push(Box::new(terrain_layer));
-        }
-
-        // Buildings:
-        {
-            let mut buildings_layer =
-                TileMapLayer::new(TileMapLayerKind::Buildings, tile_map.size_in_cells);
-
-            for y in (0..MAP_HEIGHT).rev() {
-                for x in (0..MAP_WIDTH).rev() {
-                    let tile_id = BUILDINGS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                    let cell = Cell2D::new(x, y);
-
-                    if tile_id == G { // ground/empty
-                        buildings_layer.add_empty_tile(cell);
-                    } else if tile_id >= B0 { // building blocker
-                        let owner_cell = blockers_mapping.get(&tile_id).unwrap();
-                        buildings_layer.add_building_blocker_tile(cell, *owner_cell);
-                    } else { // building tile
-                        let tile_def = tile_sets.find_by_name(TILE_NAMES[tile_id as usize]);
-                        buildings_layer.add_tile(cell, tile_def);
-                    }
-                }
-            }
-
-            tile_map.layers.push(Box::new(buildings_layer));
-        }
-
-        // Units:
-        {
-            let mut units_layer =
-                TileMapLayer::new(TileMapLayerKind::Units, tile_map.size_in_cells);
-
-            for y in (0..MAP_HEIGHT).rev() {
-                for x in (0..MAP_WIDTH).rev() {
-                    let tile_id = UNITS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                    let cell = Cell2D::new(x, y);
-
-                    if tile_id == G { // ground/empty
-                        units_layer.add_empty_tile(cell);
-                    } else { // unit tile
-                        let tile_def = tile_sets.find_by_name(TILE_NAMES[tile_id as usize]);
-                        units_layer.add_tile(cell, tile_def);
-                    }
-                }
-            }
-
-            tile_map.layers.push(Box::new(units_layer));
-        }
-
-        tile_map
     }
 }
 
@@ -999,7 +876,7 @@ impl TileMapRenderer {
             tile.def.tex_info.texture,
             tile.def.color);
 
-        debug_draw::draw_tile_debug(
+        debug::draw_tile_debug(
             render_sys,
             ui_sys,
             tile_iso_coords,
@@ -1007,140 +884,4 @@ impl TileMapRenderer {
             tile,
             flags);
     }
-}
-
-// ----------------------------------------------
-// Debug Draw Helpers
-// ----------------------------------------------
-
-mod debug_draw {
-
-use crate::utils::{IsoPoint2D, Rect2D, Point2D, Color};
-use crate::{render::RenderSystem, ui::UiSystem};
-use super::{TileMapRenderFlags, Tile, TileKind};
-
-pub fn draw_tile_debug(render_sys: &mut RenderSystem,
-                       ui_sys: &UiSystem,
-                       tile_iso_coords: IsoPoint2D,
-                       tile_rect: Rect2D,
-                       tile: &Tile,
-                       flags: TileMapRenderFlags) {
-
-    let draw_debug_info =
-        if tile.is_terrain() && flags.contains(TileMapRenderFlags::DrawTerrainTileDebugInfo) {
-            true
-        } else if tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebugInfo) {
-            true
-        } else if tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnitsTileDebugInfo) {
-            true
-        } else {
-            false
-        };
-
-    if draw_debug_info {
-        draw_tile_debug_info(
-            render_sys,
-            ui_sys,
-            tile_rect.position(),
-            tile_iso_coords,
-            tile);
-    }
-
-    if flags.contains(TileMapRenderFlags::DrawTileDebugBounds) {
-        draw_tile_bounds(render_sys, tile_rect, tile);
-    }
-}
-
-fn draw_tile_debug_overlay_text(ui_sys: &UiSystem,
-                                debug_overlay_pos: Point2D,
-                                tile_screen_pos: Point2D,
-                                tile_iso_pos: IsoPoint2D,
-                                tile: &Tile) {
-
-    // Make the window background transparent and remove decorations:
-    let window_flags =
-        imgui::WindowFlags::NO_DECORATION |
-        imgui::WindowFlags::NO_MOVE |
-        imgui::WindowFlags::NO_SAVED_SETTINGS |
-        imgui::WindowFlags::NO_FOCUS_ON_APPEARING |
-        imgui::WindowFlags::NO_NAV |
-        imgui::WindowFlags::NO_MOUSE_INPUTS;
-
-    // NOTE: Label has to be unique for each tile because it will be used as the ImGui ID for this widget.
-    let label = format!("{}_{}_{}", tile.def.name, tile.cell.x, tile.cell.y);
-    let position = [ debug_overlay_pos.x as f32, debug_overlay_pos.y as f32 ];
-
-    let bg_color = match tile.def.kind {
-        TileKind::Building => Color::yellow().to_array(),
-        TileKind::Unit => Color::cyan().to_array(),
-        _ => Color::black().to_array()
-    };
-
-    let text_color = match tile.def.kind {
-        TileKind::Terrain => Color::white().to_array(),
-        _ => Color::black().to_array()
-    };
-
-    let ui = ui_sys.builder();
-
-    // Adjust window background color based on tile kind.
-    // The returned tokens take care of popping back to the previous color/font.
-    let _0 = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
-    let _1 = ui.push_style_color(imgui::StyleColor::Text, text_color);
-    let _2 = ui.push_font(ui_sys.fonts().small);
-
-    ui.window(label)
-        .position(position, imgui::Condition::Always)
-        .flags(window_flags)
-        .always_auto_resize(true)
-        .bg_alpha(0.4) // Semi-transparent
-        .build(|| {
-            ui.text(format!("C:{},{}", tile.cell.x,       tile.cell.y));       // Cell position
-            ui.text(format!("S:{},{}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
-            ui.text(format!("I:{},{}", tile_iso_pos.x,    tile_iso_pos.y));    // 2D isometric position
-        });
-}
-
-fn draw_tile_debug_info(render_sys: &mut RenderSystem,
-                        ui_sys: &UiSystem,
-                        tile_screen_pos: Point2D,
-                        tile_iso_pos: IsoPoint2D,
-                        tile: &Tile) {
-
-    let debug_overlay_offsets = match tile.def.kind {
-        TileKind::Terrain  => (tile.def.logical_size.width / 2, tile.def.logical_size.height / 2),
-        TileKind::Building => (tile.def.logical_size.width, tile.def.logical_size.height),
-        TileKind::Unit     => (tile.def.draw_size.width, tile.def.draw_size.height),
-        _ => (0, 0)
-    };
-
-    let debug_overlay_pos = Point2D::new(
-        tile_screen_pos.x + debug_overlay_offsets.0,
-        tile_screen_pos.y + debug_overlay_offsets.1);
-
-    draw_tile_debug_overlay_text(
-        ui_sys,
-        debug_overlay_pos,
-        tile_screen_pos,
-        tile_iso_pos,
-        tile);
-
-    // Put a red dot at the tile's center.
-    let mut center_pos = tile.calc_tile_center(tile_screen_pos);
-    center_pos.x -= 5;
-    center_pos.y -= 5;
-    render_sys.draw_point_fast(center_pos, Color::red(), 10.0);
-}
-
-fn draw_tile_bounds(render_sys: &mut RenderSystem, tile_rect: Rect2D, tile: &Tile) {
-    let color = match tile.def.kind {
-        TileKind::Building => Color::yellow(),
-        TileKind::Unit => Color::cyan(),
-        _ => Color::red()
-    };
-
-    // Tile bounding box (of the actual sprite image): 
-    render_sys.draw_wireframe_rect_fast(tile_rect, color);
-}
-
 }

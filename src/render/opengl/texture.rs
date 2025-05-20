@@ -234,6 +234,7 @@ impl Texture2D {
         &self.name
     }
 
+    #[inline]
     pub fn native_handle(&self) -> gl::types::GLuint {
         self.handle
     }

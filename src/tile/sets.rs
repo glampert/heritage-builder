@@ -11,9 +11,9 @@ use super::def::{TileDef, TileKind, TileTexInfo};
 // Constants
 // ----------------------------------------------
 
-const PATH_TO_TERRAIN_TILE_SETS:   &str = "assets/tiles/terrain";
-const PATH_TO_BUILDINGS_TILE_SETS: &str = "assets/tiles/buildings";
-const PATH_TO_UNITS_TILE_SETS:     &str = "assets/tiles/units";
+pub const PATH_TO_TERRAIN_TILE_SETS:   &str = "assets/tiles/terrain";
+pub const PATH_TO_BUILDINGS_TILE_SETS: &str = "assets/tiles/buildings";
+pub const PATH_TO_UNITS_TILE_SETS:     &str = "assets/tiles/units";
 
 // ----------------------------------------------
 // TileSets
@@ -82,15 +82,18 @@ impl TileSets {
                     name: tile_name.to_string(),
                 };
 
-                let tile_name_hash: StringHash = hash::fnv1a_from_str(&tile_def.name);
-                let prev_entry = self.sets.insert(tile_name_hash, tile_def);
-
-                if prev_entry.is_some() {
-                    panic!("TileSet: An entry for key '{}' ({:#X}) already exists!",
-                           tile_name,
-                           tile_name_hash);
-                }
+                self.add_def(tile_def);
             }
+        }
+    }
+
+    pub fn add_def(&mut self, tile_def: TileDef) {
+        let tile_name_hash: StringHash = hash::fnv1a_from_str(&tile_def.name);
+        let prev_entry = self.sets.insert(tile_name_hash, tile_def);
+        if prev_entry.is_some() {
+            panic!("TileSet: An entry for key '{}' ({:#X}) already exists!",
+                    prev_entry.unwrap().name,
+                    tile_name_hash);
         }
     }
 
@@ -126,33 +129,5 @@ impl TileSets {
                      tex_cache.handle_to_texture(tile_def.tex_info.texture).name());
         }
         println!("--------------------");
-    }
-
-    // [DEBUG]
-    pub fn with_test_tiles(tex_cache: &mut TextureCache) -> Self {
-        println!("Loading test tile sets...");
-
-        let mut tile_sets = TileSets::new();
-
-        let tex_ground = tex_cache.load_texture(&(PATH_TO_TERRAIN_TILE_SETS.to_string() + "/ground/0.png"));
-        let tex_house  = tex_cache.load_texture(&(PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/house/0.png"));
-        let tex_tower  = tex_cache.load_texture(&(PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tower/0.png"));
-        let tex_ped    = tex_cache.load_texture(&(PATH_TO_UNITS_TILE_SETS.to_string() + "/ped/0.png"));
-
-        let tile_defs: [TileDef; 5] = [
-            TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::green(), name: "grass".to_string() },
-            TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::white(), name: "road".to_string()  },
-            TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 128, height: 64 }, draw_size: Size2D{ width: 128, height: 68  }, tex_info: TileTexInfo::new(tex_house),  color: Color::white(), name: "house".to_string() },
-            TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 192, height: 96 }, draw_size: Size2D{ width: 192, height: 144 }, tex_info: TileTexInfo::new(tex_tower),  color: Color::white(), name: "tower".to_string() },
-            TileDef { kind: TileKind::Unit,     logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 16,  height: 24  }, tex_info: TileTexInfo::new(tex_ped),    color: Color::white(), name: "ped".to_string()   },
-        ];
-
-        for tile_def in tile_defs {
-            let tile_name_hash: StringHash = hash::fnv1a_from_str(&tile_def.name);
-            let prev_entry = tile_sets.sets.insert(tile_name_hash, tile_def);
-            assert!(prev_entry.is_none());
-        }
-
-        tile_sets
     }
 }
