@@ -94,18 +94,23 @@ impl TileDef {
     }
 
     #[inline]
-    pub fn size_in_tiles(&self) -> Size2D {
+    pub fn size_in_cells(&self) -> Size2D {
         // `logical_size` is assumed to be a multiple of the base tile size.
         Size2D::new(
             self.logical_size.width / BASE_TILE_SIZE.width,
             self.logical_size.height / BASE_TILE_SIZE.height)
     }
 
+    pub fn has_multi_cell_footprint(&self) -> bool {
+        let size = self.size_in_cells();
+        size.width > 1 || size.height > 1 // Multi-tile building?
+    }
+
     pub fn calc_footprint_cells(&self, base_cell: Cell2D) -> TileFootprintList {
         let mut footprint = TileFootprintList::new();
 
         if !self.is_empty() {
-            let size = self.size_in_tiles();
+            let size = self.size_in_cells();
             debug_assert!(size.is_valid());
 
             // Buildings can occupy multiple cells; Find which ones:

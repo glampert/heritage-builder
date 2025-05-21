@@ -8,10 +8,9 @@ use imgui_opengl_renderer::Renderer as ImGuiRenderer;
 pub use imgui::FontId as UiFontHandle;
 pub use imgui::TextureId as UiTextureHandle;
 
-use crate::utils::{self, Vec2, Point2D, Size2D, Rect2D, Color};
-use crate::app::{self, Application};
-use crate::app::input::{InputAction, InputKey, InputSystem, MouseButton};
-use crate::render::{RenderSystem, TextureCache, TextureHandle};
+use crate::utils::{self, Vec2};
+use crate::app::{self, Application, input::{InputAction, InputKey, InputSystem, MouseButton}};
+use crate::render::{TextureCache, TextureHandle};
 
 // ----------------------------------------------
 // UiSystem
@@ -80,67 +79,6 @@ impl UiSystem {
         let native_handle = tex_cache.to_native_handle(tex_handle);
         debug_assert!(std::mem::size_of_val(&native_handle) <= std::mem::size_of::<usize>());
         UiTextureHandle::from(native_handle as usize as *mut c_void)
-    }
-
-    #[inline]
-    pub fn draw_debug(&self, render_sys: &mut RenderSystem) {
-        self.draw_debug_cursor_overlay();
-        Self::draw_screen_origin_debug_marker(render_sys);
-    }
-
-    // Show a small debug overlay under the cursor with its current position.
-    fn draw_debug_cursor_overlay(&self) {
-        let ui = self.builder();
-        let cursor_pos = ui.io().mouse_pos;
-
-        // Make the window background transparent and remove decorations.
-        let window_flags =
-            imgui::WindowFlags::NO_DECORATION |
-            imgui::WindowFlags::NO_MOVE |
-            imgui::WindowFlags::NO_SAVED_SETTINGS |
-            imgui::WindowFlags::NO_FOCUS_ON_APPEARING |
-            imgui::WindowFlags::NO_NAV |
-            imgui::WindowFlags::NO_MOUSE_INPUTS;
-
-        // Draw a tiny window near the cursor
-        ui.window("Cursor Debug")
-            .position([cursor_pos[0] + 10.0, cursor_pos[1] + 10.0], imgui::Condition::Always)
-            .flags(window_flags)
-            .always_auto_resize(true)
-            .bg_alpha(0.6) // Semi-transparent
-            .build(|| {
-                ui.text(format!("({},{})", cursor_pos[0], cursor_pos[1]));
-            });
-    }
-
-    fn draw_screen_origin_debug_marker(render_sys: &mut RenderSystem) {
-        // 50x50px white square to mark the origin.
-        render_sys.draw_point_fast(
-            Point2D::new(0, 0), 
-            Color::white(),
-            50.0);
-
-        // Red line for the X axis, green square at the end.
-        render_sys.draw_line_with_thickness(
-            Point2D::new(0, 0),
-            Point2D::new(100, 0),
-            Color::red(),
-            15.0);
-
-        render_sys.draw_colored_rect(
-            Rect2D::new(Point2D::new(100, 0), Size2D::new(10, 10)),
-            Color::green());
-
-        // Blue line for the Y axis, green square at the end.
-        render_sys.draw_line_with_thickness(
-            Point2D::new(0, 0),
-            Point2D::new(0, 100),
-            Color::blue(),
-            15.0);
-
-        render_sys.draw_colored_rect(
-            Rect2D::new(Point2D::new(0, 100), Size2D::new(10, 10)),
-            Color::green());
     }
 }
 

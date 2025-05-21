@@ -187,7 +187,7 @@ impl<'a> TileMapLayer<'a> {
         self.tiles[tile_index] = Tile::new(cell, owner_cell, TileDef::building_blocker());
     }
 
-    pub fn cell_is_valid(&self, cell: Cell2D) -> bool {
+    pub fn is_cell_within_bounds(&self, cell: Cell2D) -> bool {
          if (cell.x < 0 || cell.x >= self.size_in_cells.width) ||
             (cell.y < 0 || cell.y >= self.size_in_cells.height) {
             return false;
@@ -211,14 +211,14 @@ impl<'a> TileMapLayer<'a> {
 
     // Fails with None if the cell indices are not within bounds.
     pub fn try_tile(&self, cell: Cell2D) -> Option<&Tile> {
-        if !self.cell_is_valid(cell) {
+        if !self.is_cell_within_bounds(cell) {
             return None;
         }
         Some(self.tile(cell))
     }
 
     pub fn try_tile_mut(&mut self, cell: Cell2D) -> Option<&mut Tile<'a>> {
-        if !self.cell_is_valid(cell) {
+        if !self.is_cell_within_bounds(cell) {
             return None;
         }
         Some(self.tile_mut(cell))
@@ -310,7 +310,7 @@ impl<'a> TileMap<'a> {
         tile_map
     }
 
-    pub fn cell_is_valid(&self, cell: Cell2D) -> bool {
+    pub fn is_cell_within_bounds(&self, cell: Cell2D) -> bool {
          if (cell.x < 0 || cell.x >= self.size_in_cells.width) ||
             (cell.y < 0 || cell.y >= self.size_in_cells.height) {
             return false;
@@ -338,25 +338,25 @@ impl<'a> TileMap<'a> {
         }
     }
 
-    pub fn layer(&self, layer_kind: TileMapLayerKind) -> &TileMapLayer {
-        debug_assert!(self.layers[layer_kind as usize].kind == layer_kind);
-        self.layers[layer_kind as usize].as_ref()
+    pub fn layer(&self, kind: TileMapLayerKind) -> &TileMapLayer {
+        debug_assert!(self.layers[kind as usize].kind == kind);
+        self.layers[kind as usize].as_ref()
     }
 
-    pub fn layer_mut(&mut self, layer_kind: TileMapLayerKind) -> &mut TileMapLayer<'a> {
-        debug_assert!(self.layers[layer_kind as usize].kind == layer_kind);
-        self.layers[layer_kind as usize].as_mut()
+    pub fn layer_mut(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer<'a> {
+        debug_assert!(self.layers[kind as usize].kind == kind);
+        self.layers[kind as usize].as_mut()
     }
 
-    pub fn try_tile_from_layer(&self, cell: Cell2D, layer_kind: TileMapLayerKind) -> Option<&Tile> {
-        let layer = self.layer(layer_kind);
-        debug_assert!(layer.kind == layer_kind);
+    pub fn try_tile_from_layer(&self, cell: Cell2D, kind: TileMapLayerKind) -> Option<&Tile> {
+        let layer = self.layer(kind);
+        debug_assert!(layer.kind == kind);
         layer.try_tile(cell)
     }
 
-    pub fn try_tile_from_layer_mut(&mut self, cell: Cell2D, layer_kind: TileMapLayerKind) -> Option<&mut Tile<'a>> {
-        let layer = self.layer_mut(layer_kind);
-        debug_assert!(layer.kind == layer_kind);
+    pub fn try_tile_from_layer_mut(&mut self, cell: Cell2D, kind: TileMapLayerKind) -> Option<&mut Tile<'a>> {
+        let layer = self.layer_mut(kind);
+        debug_assert!(layer.kind == kind);
         layer.try_tile_mut(cell)
     }
 
@@ -364,23 +364,40 @@ impl<'a> TileMap<'a> {
         self.place_tile_in_layer(cell, tile_kind_to_layer(tile_def.kind), tile_def);
     }
 
-    pub fn place_tile_in_layer(&mut self, cell: Cell2D, layer_kind: TileMapLayerKind, tile_def: &'a TileDef) {
-        debug_assert!(self.cell_is_valid(cell));
-        let layer = self.layer_mut(layer_kind);
+    pub fn place_tile_in_layer(&mut self, cell: Cell2D, kind: TileMapLayerKind, tile_def: &'a TileDef) {
+        debug_assert!(self.is_cell_within_bounds(cell));
 
-        if tile_def.is_building() {
-            let size = tile_def.size_in_tiles();
-            if size.width > 1 || size.height > 1 { // Multi-tile building?
-                let footprint = tile_def.calc_footprint_cells(cell);
-                for footprint_cell in footprint {
-                    let tile = layer.tile_mut(footprint_cell);
+        // Multi-tile building?
+        if tile_def.is_building() && tile_def.has_multi_cell_footprint() {
+            let footprint = tile_def.calc_footprint_cells(cell);
+            for footprint_cell in footprint {
+                if footprint_cell != cell {
+                    let tile = self.try_tile_from_layer_mut(footprint_cell, kind).unwrap();
                     tile.def = TileDef::building_blocker();
                     tile.owner_cell = cell;
                 }
             }
         }
 
-        layer.tile_mut(cell).def = tile_def;
+        // Tile removal/clearing: Handle removing multi-tile buildings.
+        if tile_def.is_empty() {
+            if let Some(current_tile) = self.try_tile_from_layer(cell, kind) {
+                if current_tile.is_building() || current_tile.is_building_blocker() {
+                    let footprint = Self::calc_tile_footprint_cells(cell, self.layer(kind));
+                    for footprint_cell in footprint {
+                        if footprint_cell != cell {
+                            let tile = self.try_tile_from_layer_mut(footprint_cell, kind).unwrap();
+                            tile.def = TileDef::empty();
+                            tile.owner_cell = Cell2D::invalid();
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(current_tile) = self.try_tile_from_layer_mut(cell, kind) {
+            current_tile.def = tile_def;
+        }
     }
 
     pub fn try_place_tile_at_cursor(&mut self,
@@ -390,31 +407,30 @@ impl<'a> TileMap<'a> {
 
         // If placing an empty tile we will actually clear the topmost layer under that cell.
         if tile_def.is_empty() {
-            for layer_kind in TileMapLayerKind::iter().rev() {
+            for kind in TileMapLayerKind::iter().rev() {
                 let cell = self.find_exact_cell(
-                    layer_kind,
+                    kind,
                     cursor_screen_pos,
                     transform);
 
-                if self.cell_is_valid(cell) {
-                    if let Some(existing_tile) = self.layer(layer_kind).try_tile(cell) {
+                if self.is_cell_within_bounds(cell) {
+                    if let Some(existing_tile) = self.layer(kind).try_tile(cell) {
                         if !existing_tile.is_empty() {
-                            self.place_tile_in_layer(cell, layer_kind, tile_def);
+                            self.place_tile_in_layer(cell, kind, tile_def);
                             break;
                         }
                     }
                 }      
             }
         } else {
-            let layer_kind = tile_kind_to_layer(tile_def.kind);
-
+            let kind = tile_kind_to_layer(tile_def.kind);
             let cell = self.find_exact_cell(
-                layer_kind,
+                kind,
                 cursor_screen_pos,
                 transform);
 
-            if self.cell_is_valid(cell) {
-                self.place_tile_in_layer(cell, layer_kind, tile_def);
+            if self.is_cell_within_bounds(cell) {
+                self.place_tile_in_layer(cell, kind, tile_def);
             }
         }
     }
@@ -438,7 +454,10 @@ impl<'a> TileMap<'a> {
 
                         let tile_iso_coords = base_tile.calc_adjusted_iso_coords();
                         let tile_screen_rect = iso_to_screen_rect(
-                            tile_iso_coords, base_tile.def.logical_size, transform);
+                            tile_iso_coords,
+                            base_tile.def.logical_size,
+                            transform,
+                            false);
 
                         if tile_screen_rect.intersects(&selection.rect) {
                             Self::toggle_selection(selection,
@@ -481,7 +500,7 @@ impl<'a> TileMap<'a> {
                     cursor_screen_pos,
                     transform);
                 
-                if self.cell_is_valid(highlight_cell) {
+                if self.is_cell_within_bounds(highlight_cell) {
                     let (terrain_layer, buildings_layer, _) = self.layers_mut();
 
                     Self::toggle_selection(selection,
@@ -513,25 +532,18 @@ impl<'a> TileMap<'a> {
     }
 
     fn find_exact_cell(&self,
-                       layer_kind: TileMapLayerKind,
+                       kind: TileMapLayerKind,
                        cursor_screen_pos: Point2D,
                        transform: &WorldToScreenTransform) -> Cell2D {
 
-        let mut cursor_iso_pos = screen_to_iso_point(cursor_screen_pos, transform);
-
-        // Offset the iso point downward by half a tile (visually centers the hit test to the tile center).
-        cursor_iso_pos.x -= BASE_TILE_SIZE.width  / 2;
-        cursor_iso_pos.y -= BASE_TILE_SIZE.height / 2;
-
+        let cursor_iso_pos = screen_to_iso_point(cursor_screen_pos, transform, BASE_TILE_SIZE, false);
         let approx_cell = iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
         let mut exact_cell = Cell2D::invalid();
 
-        if self.cell_is_valid(approx_cell) {
+        if self.is_cell_within_bounds(approx_cell) {
             // Get the 8 possible neighboring tiles + self and test cursor intersection
             // against each so we can know precisely which tile the cursor is hovering.
-            let layer = self.layer(layer_kind);
-            let neighbors = layer.tile_neighbors(approx_cell, true);
-
+            let neighbors = self.layer(kind).tile_neighbors(approx_cell, true);
             for neighbor in neighbors {
                 if let Some(tile) = neighbor {
                     if cursor_inside_tile_cell(cursor_screen_pos, tile, transform) {
@@ -545,9 +557,9 @@ impl<'a> TileMap<'a> {
         exact_cell
     }
 
-    fn calc_tile_footprint_cells(tile: &Tile, buildings: &TileMapLayer) -> TileFootprintList {
+    fn calc_tile_footprint_cells(base_cell: Cell2D, buildings: &TileMapLayer) -> TileFootprintList {
         // Buildings may take up multiple cells.
-        if let Some(building_layer_tile) = buildings.try_tile(tile.cell) {
+        if let Some(building_layer_tile) = buildings.try_tile(base_cell) {
             // Buildings have an origin tile and zero or more associated blockers
             // if they occupy multiple tiles, so here we might need to back-track
             // to the origin of the building from a blocker tile.
@@ -568,7 +580,7 @@ impl<'a> TileMap<'a> {
                 building_layer_tile.calc_footprint_cells()
             }
         } else {
-            smallvec![tile.cell]
+            smallvec![base_cell]
         }
     }
 
@@ -595,12 +607,12 @@ impl<'a> TileMap<'a> {
             } else {
                 // During drag selection/mouse hover:
                 let base_tile = terrain_layer.tile(base_cell);
-                Self::calc_tile_footprint_cells(base_tile, buildings_layer)
+                Self::calc_tile_footprint_cells(base_tile.cell, buildings_layer)
             };
 
-        for cell in footprint {
-            if terrain_layer.cell_is_valid(cell) {
-                let tile = terrain_layer.tile_mut(cell);
+        for footprint_cell in footprint {
+            if terrain_layer.is_cell_within_bounds(footprint_cell) {
+                let tile = terrain_layer.tile_mut(footprint_cell);
                 Self::toggle_tile_selection(selection, tile, selected);   
             }
         }
@@ -679,10 +691,9 @@ fn cursor_inside_tile_cell(cursor_screen_pos: Point2D,
     let screen_points = cell_to_screen_diamond_points(
         tile.cell,
         tile.def.logical_size,
-        transform,
-        false);
+        transform);
 
-    screen_point_inside_diamond(cursor_screen_pos, &screen_points)
+    is_screen_point_inside_diamond(cursor_screen_pos, &screen_points)
 }
 
 // "Broad-Phase" tile selection based on the 4 corners of a rectangle.
@@ -696,15 +707,16 @@ fn tile_selection_bounds(screen_rect: &Rect2D,
     debug_assert!(screen_rect.is_valid());
 
     // Convert screen-space corners to isometric space:
-    let top_left = screen_to_iso_point(screen_rect.mins, transform);
-    let bottom_right = screen_to_iso_point(screen_rect.maxs, transform);
-
+    let top_left = screen_to_iso_point(
+        screen_rect.mins, transform, BASE_TILE_SIZE, false);
+    let bottom_right = screen_to_iso_point(
+        screen_rect.maxs, transform, BASE_TILE_SIZE, false);
     let top_right = screen_to_iso_point(
         Point2D::new(screen_rect.maxs.x, screen_rect.mins.y),
-        transform);
+        transform, BASE_TILE_SIZE, false);
     let bottom_left = screen_to_iso_point(
         Point2D::new(screen_rect.mins.x, screen_rect.maxs.y),
-        transform);
+        transform, BASE_TILE_SIZE, false);
 
     // Convert isometric points to cell coordinates:
     let cell_tl = iso_to_cell(top_left, tile_size);
@@ -725,6 +737,31 @@ fn tile_selection_bounds(screen_rect: &Rect2D,
     max_y = max_y.clamp(0, map_size.height - 1);
 
     (Cell2D::new(min_x, min_y), Cell2D::new(max_x, max_y))
+}
+
+// Creates an isometric-aligned diamond rectangle for the given tile size and cell location.
+pub fn cell_to_screen_diamond_points(cell: Cell2D,
+                                     tile_size: Size2D,
+                                     transform: &WorldToScreenTransform) -> [Point2D; 4] {
+
+    let iso_center = cell_to_iso(cell, BASE_TILE_SIZE);
+    let screen_center = iso_to_screen_point(iso_center, transform, BASE_TILE_SIZE, false);
+
+    let tile_width  = tile_size.width  * transform.scaling;
+    let tile_height = tile_size.height * transform.scaling;
+    let base_height = BASE_TILE_SIZE.height * transform.scaling;
+
+    let half_tile_w = tile_width  / 2;
+    let half_tile_h = tile_height / 2;
+    let half_base_h = base_height / 2;
+
+    // Build 4 corners of the tile:
+    let top    = Point2D::new(screen_center.x, screen_center.y - tile_height + half_base_h);
+    let bottom = Point2D::new(screen_center.x, screen_center.y + half_base_h);
+    let right  = Point2D::new(screen_center.x + half_tile_w, screen_center.y - half_tile_h + half_base_h);
+    let left   = Point2D::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
+
+    [ top, right, bottom, left ]
 }
 
 // ----------------------------------------------
@@ -885,13 +922,15 @@ impl TileMapRenderer {
                         let tile_rect = iso_to_screen_rect(
                             tile_iso_coords,
                             building_tile.def.draw_size,
-                            &self.world_to_screen);
+                            &self.world_to_screen,
+                            true);
 
                         debug::draw_tile_debug(
                             render_sys,
                             ui_sys,
                             tile_iso_coords,
                             tile_rect,
+                            &self.world_to_screen,
                             building_tile,
                             flags);
                     }
@@ -939,9 +978,7 @@ impl TileMapRenderer {
         for y in (0..map_cells.height).rev() {
             for x in (0..map_cells.width).rev() {
                 let cell = Cell2D::new(x, y);
-
-                let points = cell_to_screen_diamond_points(
-                    cell, BASE_TILE_SIZE, &self.world_to_screen, false);
+                let points = cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, &self.world_to_screen);
 
                 // Save highlighted grid cells for drawing at the end, so they display correctly.
                 let tile = terrain_layer.tile(cell);
@@ -973,9 +1010,10 @@ impl TileMapRenderer {
         // Only terrain and buildings might require spacing.
         let apply_spacing = if !tile.is_unit() { true } else { false };
 
-        let tile_rect = self.world_to_screen.apply_to_rect(
+        let tile_rect = iso_to_screen_rect(
             tile_iso_coords,
             tile.def.draw_size,
+            &self.world_to_screen,
             apply_spacing);
 
         render_sys.draw_textured_colored_rect(
@@ -989,6 +1027,7 @@ impl TileMapRenderer {
             ui_sys,
             tile_iso_coords,
             tile_rect,
+            &self.world_to_screen,
             tile,
             flags);
     }

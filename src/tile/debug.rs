@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use crate::render::TextureHandle;
-use crate::utils::{Cell2D, Color, IsoPoint2D, Point2D, Rect2D, RectTexCoords, Size2D, WorldToScreenTransform};
-use crate::{render::RenderSystem, render::TextureCache, ui::UiSystem};
+use crate::utils::{self, Cell2D, Color, IsoPoint2D, Point2D, Rect2D, RectTexCoords, Size2D, WorldToScreenTransform};
+use crate::{render::RenderSystem, render::TextureCache, render::TextureHandle, ui::UiSystem};
 use crate::app::input::{MouseButton, InputAction};
 
 use super::sets::{self, TileSets};
 use super::def::{TileKind, TileDef, TileTexInfo, BASE_TILE_SIZE};
-use super::map::{TileMap, TileMapRenderFlags, TileMapRenderer, Tile, TileMapLayerKind, TILE_MAP_LAYER_COUNT};
+use super::map::{self, TileMap, TileMapRenderFlags, TileMapRenderer, Tile, TileMapLayerKind, TILE_MAP_LAYER_COUNT};
 
 // ----------------------------------------------
 // Debug Draw Helpers
@@ -17,6 +16,7 @@ pub fn draw_tile_debug(render_sys: &mut RenderSystem,
                        ui_sys: &UiSystem,
                        tile_iso_coords: IsoPoint2D,
                        tile_rect: Rect2D,
+                       transform: &WorldToScreenTransform,
                        tile: &Tile,
                        flags: TileMapRenderFlags) {
 
@@ -34,7 +34,7 @@ pub fn draw_tile_debug(render_sys: &mut RenderSystem,
         };
 
     if draw_debug_info {
-        draw_tile_debug_info(
+        draw_tile_info(
             render_sys,
             ui_sys,
             tile_rect.position(),
@@ -43,15 +43,15 @@ pub fn draw_tile_debug(render_sys: &mut RenderSystem,
     }
 
     if flags.contains(TileMapRenderFlags::DrawTileDebugBounds) {
-        draw_tile_bounds(render_sys, tile_rect, tile);
+        draw_tile_bounds(render_sys, tile_rect, transform, tile);
     }
 }
 
-fn draw_tile_debug_overlay_text(ui_sys: &UiSystem,
-                                debug_overlay_pos: Point2D,
-                                tile_screen_pos: Point2D,
-                                tile_iso_pos: IsoPoint2D,
-                                tile: &Tile) {
+fn draw_tile_overlay_text(ui_sys: &UiSystem,
+                          debug_overlay_pos: Point2D,
+                          tile_screen_pos: Point2D,
+                          tile_iso_pos: IsoPoint2D,
+                          tile: &Tile) {
 
     // Make the window background transparent and remove decorations:
     let window_flags =
@@ -98,11 +98,11 @@ fn draw_tile_debug_overlay_text(ui_sys: &UiSystem,
         });
 }
 
-fn draw_tile_debug_info(render_sys: &mut RenderSystem,
-                        ui_sys: &UiSystem,
-                        tile_screen_pos: Point2D,
-                        tile_iso_pos: IsoPoint2D,
-                        tile: &Tile) {
+fn draw_tile_info(render_sys: &mut RenderSystem,
+                  ui_sys: &UiSystem,
+                  tile_screen_pos: Point2D,
+                  tile_iso_pos: IsoPoint2D,
+                  tile: &Tile) {
 
     let debug_overlay_offsets = match tile.def.kind {
         TileKind::Terrain  => (tile.def.logical_size.width / 2, tile.def.logical_size.height / 2),
@@ -115,7 +115,7 @@ fn draw_tile_debug_info(render_sys: &mut RenderSystem,
         tile_screen_pos.x + debug_overlay_offsets.0,
         tile_screen_pos.y + debug_overlay_offsets.1);
 
-    draw_tile_debug_overlay_text(
+    draw_tile_overlay_text(
         ui_sys,
         debug_overlay_pos,
         tile_screen_pos,
@@ -129,15 +129,97 @@ fn draw_tile_debug_info(render_sys: &mut RenderSystem,
     render_sys.draw_point_fast(center_pos, Color::red(), 10.0);
 }
 
-fn draw_tile_bounds(render_sys: &mut RenderSystem, tile_rect: Rect2D, tile: &Tile) {
+fn draw_tile_bounds(render_sys: &mut RenderSystem,
+                    tile_rect: Rect2D,
+                    transform: &WorldToScreenTransform,
+                    tile: &Tile) {
+
     let color = match tile.def.kind {
         TileKind::Building => Color::yellow(),
         TileKind::Unit => Color::cyan(),
         _ => Color::red()
     };
 
-    // Tile bounding box (of the actual sprite image): 
+    // Tile isometric "diamond" bounding box:
+    let diamond_points = map::cell_to_screen_diamond_points(
+        tile.cell,
+        tile.def.logical_size,
+        transform);
+
+    render_sys.draw_line_fast(diamond_points[0], diamond_points[1], color, color);
+    render_sys.draw_line_fast(diamond_points[1], diamond_points[2], color, color);
+    render_sys.draw_line_fast(diamond_points[2], diamond_points[3], color, color);
+    render_sys.draw_line_fast(diamond_points[3], diamond_points[0], color, color);
+
+    for point in diamond_points {
+        render_sys.draw_point_fast(point, Color::green(), 10.0);
+    }
+
+    // Tile axis-aligned bounding rectangle of the actual sprite image:
     render_sys.draw_wireframe_rect_fast(tile_rect, color);
+}
+
+// Show a small debug overlay under the cursor with its current position.
+pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform) {
+    let ui = ui_sys.builder();
+    let cursor_screen_pos = ui.io().mouse_pos;
+
+    // Make the window background transparent and remove decorations.
+    let window_flags =
+        imgui::WindowFlags::NO_DECORATION |
+        imgui::WindowFlags::NO_MOVE |
+        imgui::WindowFlags::NO_SAVED_SETTINGS |
+        imgui::WindowFlags::NO_FOCUS_ON_APPEARING |
+        imgui::WindowFlags::NO_NAV |
+        imgui::WindowFlags::NO_MOUSE_INPUTS;
+
+    // Draw a tiny window near the cursor
+    ui.window("Cursor Debug")
+        .position([cursor_screen_pos[0] + 10.0, cursor_screen_pos[1] + 10.0], imgui::Condition::Always)
+        .flags(window_flags)
+        .always_auto_resize(true)
+        .bg_alpha(0.6) // Semi-transparent
+        .build(|| {
+            let cursor_iso_pos = utils::screen_to_iso_point(
+                Point2D::new(cursor_screen_pos[0] as i32, cursor_screen_pos[1] as i32),
+                transform, BASE_TILE_SIZE, false);
+
+            let cursor_approx_cell = utils::iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
+
+            ui.text(format!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
+            ui.text(format!("S:{},{}", cursor_screen_pos[0], cursor_screen_pos[1]));
+            ui.text(format!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
+        });
+}
+
+pub fn draw_screen_origin_marker(render_sys: &mut RenderSystem) {
+    // 50x50px white square to mark the origin.
+    render_sys.draw_point_fast(
+        Point2D::new(0, 0), 
+        Color::white(),
+        50.0);
+
+    // Red line for the X axis, green square at the end.
+    render_sys.draw_line_with_thickness(
+        Point2D::new(0, 0),
+        Point2D::new(100, 0),
+        Color::red(),
+        15.0);
+
+    render_sys.draw_colored_rect(
+        Rect2D::new(Point2D::new(100, 0), Size2D::new(10, 10)),
+        Color::green());
+
+    // Blue line for the Y axis, green square at the end.
+    render_sys.draw_line_with_thickness(
+        Point2D::new(0, 0),
+        Point2D::new(0, 100),
+        Color::blue(),
+        15.0);
+
+    render_sys.draw_colored_rect(
+        Rect2D::new(Point2D::new(0, 100), Size2D::new(10, 10)),
+        Color::green());
 }
 
 // ----------------------------------------------
@@ -160,11 +242,12 @@ pub struct DebugMenu {
 
     draw_terrain_debug_info: bool,
     draw_buildings_debug_info: bool,
+    draw_debug_building_blockers: bool,
     draw_units_debug_info: bool,
     draw_tile_debug_bounds: bool,
     draw_selected_tile_bounds: bool,
-    draw_debug_building_blockers: bool,
     draw_cursor_pos: bool,
+    draw_screen_origin: bool,
 }
 
 impl DebugMenu {
@@ -191,6 +274,10 @@ impl DebugMenu {
         self.draw_cursor_pos
     }
 
+    pub fn show_screen_origin(&self) -> bool {
+        self.draw_screen_origin
+    }
+
     pub fn selected_render_flags(&self) -> TileMapRenderFlags {
         let mut flags = TileMapRenderFlags::None;
         if self.draw_terrain                 { flags.insert(TileMapRenderFlags::DrawTerrain); }
@@ -200,9 +287,9 @@ impl DebugMenu {
         if self.draw_grid_ignore_depth       { flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth); }
         if self.draw_terrain_debug_info      { flags.insert(TileMapRenderFlags::DrawTerrainTileDebugInfo); }
         if self.draw_buildings_debug_info    { flags.insert(TileMapRenderFlags::DrawBuildingsTileDebugInfo); }
+        if self.draw_debug_building_blockers { flags.insert(TileMapRenderFlags::DrawDebugBuildingBlockers); }
         if self.draw_units_debug_info        { flags.insert(TileMapRenderFlags::DrawUnitsTileDebugInfo); }
         if self.draw_tile_debug_bounds       { flags.insert(TileMapRenderFlags::DrawTileDebugBounds); }
-        if self.draw_debug_building_blockers { flags.insert(TileMapRenderFlags::DrawDebugBuildingBlockers); }
         flags
     }
 
@@ -253,11 +340,12 @@ impl DebugMenu {
                 ui.checkbox("Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
                 ui.checkbox("Draw terrain debug", &mut self.draw_terrain_debug_info);
                 ui.checkbox("Draw buildings debug", &mut self.draw_buildings_debug_info);
+                ui.checkbox("Draw building blockers", &mut self.draw_debug_building_blockers);
                 ui.checkbox("Draw units debug", &mut self.draw_units_debug_info);
                 ui.checkbox("Draw tile bounds", &mut self.draw_tile_debug_bounds);
                 ui.checkbox("Draw selection bounds", &mut self.draw_selected_tile_bounds);
-                ui.checkbox("Draw building blockers", &mut self.draw_debug_building_blockers);
                 ui.checkbox("Draw cursor pos", &mut self.draw_cursor_pos);
+                ui.checkbox("Draw screen origin", &mut self.draw_screen_origin);
             });
     }
 }

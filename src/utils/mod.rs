@@ -1,4 +1,5 @@
 use std::ops::{Add, Sub, Mul};
+use std::time::{self};
 
 pub mod hash;
 pub mod file_sys;
@@ -453,50 +454,43 @@ pub fn cell_to_iso(cell: Cell2D, tile_size: Size2D) -> IsoPoint2D {
 }
 
 #[inline]
-pub fn iso_to_screen_point(iso_point: IsoPoint2D, transform: &WorldToScreenTransform) -> Point2D {
-    transform.apply_to_iso_point(iso_point, true)
+pub fn iso_to_screen_point(iso_point: IsoPoint2D,
+                           transform: &WorldToScreenTransform,
+                           tile_size: Size2D,
+                           apply_spacing: bool) -> Point2D {
+    // Undo offsetting.
+    let mut iso = iso_point;
+    iso.x += tile_size.width  / 2;
+    iso.y += tile_size.height / 2;
+
+    transform.apply_to_iso_point(iso, apply_spacing)
 }
 
 #[inline]
-pub fn screen_to_iso_point(screen_point: Point2D, transform: &WorldToScreenTransform) -> IsoPoint2D {
-    transform.apply_to_screen_point(screen_point, true)
+pub fn screen_to_iso_point(screen_point: Point2D,
+                           transform: &WorldToScreenTransform,
+                           tile_size: Size2D,
+                           apply_spacing: bool) -> IsoPoint2D {
+
+    let mut iso_pos = transform.apply_to_screen_point(screen_point, apply_spacing);
+
+    // Offset the iso point downward by half a tile (visually centers the hit test to the tile center).
+    iso_pos.x -= tile_size.width  / 2;
+    iso_pos.y -= tile_size.height / 2;
+    iso_pos
 }
 
 #[inline]
-pub fn iso_to_screen_rect(iso_position: IsoPoint2D, size: Size2D, transform: &WorldToScreenTransform) -> Rect2D {
-    transform.apply_to_rect(iso_position, size, true)
+pub fn iso_to_screen_rect(iso_position: IsoPoint2D,
+                          size: Size2D,
+                          transform: &WorldToScreenTransform,
+                          apply_spacing: bool) -> Rect2D {
+
+    transform.apply_to_rect(iso_position, size, apply_spacing)
 }
 
 #[inline]
-pub fn cell_to_screen_diamond_points(cell: Cell2D,
-                                     tile_size: Size2D,
-                                     transform: &WorldToScreenTransform,
-                                     apply_spacing: bool) -> [Point2D; 4] {
-
-    let iso_center = cell_to_iso(cell, tile_size);
-    let mut screen_center = transform.apply_to_iso_point(iso_center, apply_spacing);
-
-    // We want to apply spacing when precisely picking tiles but not when rendering the tile map grid.
-    let spacing = if apply_spacing { transform.tile_spacing } else { 0 };
-    let half_scaling = (transform.scaling as f32) / 2.0;
-
-    let width   = (((tile_size.width  - spacing) as f32) * half_scaling).round() as i32;
-    let height  = (((tile_size.height - spacing) as f32) * half_scaling).round() as i32;
-
-    screen_center.x += ((tile_size.width  as f32) * half_scaling).round() as i32;
-    screen_center.y += ((tile_size.height as f32) * half_scaling).round() as i32;
-
-    // 4 corners of the tile:
-    let top    = Point2D::new(screen_center.x, screen_center.y - height);
-    let right  = Point2D::new(screen_center.x + width, screen_center.y);
-    let bottom = Point2D::new(screen_center.x, screen_center.y + height);
-    let left   = Point2D::new(screen_center.x - width, screen_center.y);
-
-    [ top, right, bottom, left ]
-}
-
-#[inline]
-pub fn screen_point_inside_triangle(p: Point2D, a: Point2D, b: Point2D, c: Point2D) -> bool {
+pub fn is_screen_point_inside_triangle(p: Point2D, a: Point2D, b: Point2D, c: Point2D) -> bool {
     // Compute edge vectors of the triangle relative to vertex `a`:
     let va = a.to_vec2();
     let v0 = c.to_vec2() - va;
@@ -527,13 +521,13 @@ pub fn screen_point_inside_triangle(p: Point2D, a: Point2D, b: Point2D, c: Point
 }
 
 #[inline]
-pub fn screen_point_inside_diamond(p: Point2D, points: &[Point2D; 4]) -> bool {
+pub fn is_screen_point_inside_diamond(p: Point2D, points: &[Point2D; 4]) -> bool {
     // Triangle 1: top, right, bottom
-    if screen_point_inside_triangle(p, points[0], points[1], points[2]) {
+    if is_screen_point_inside_triangle(p, points[0], points[1], points[2]) {
         return true;
     }
     // Triangle 2: bottom, left, top
-    if screen_point_inside_triangle(p, points[2], points[3], points[0]) {
+    if is_screen_point_inside_triangle(p, points[2], points[3], points[0]) {
         return true;
     }
     false
@@ -761,8 +755,6 @@ impl RectTexCoords {
 // ----------------------------------------------
 // FrameClock
 // ----------------------------------------------
-
-use std::time::{self};
 
 pub struct FrameClock {
     last_frame_time: time::Instant,

@@ -93,13 +93,15 @@ fn main() {
         tile_map.update_selection(&mut tile_selection, &transform);
 
         if tile_list_menu.can_place_tile() {
+            let current_sel = tile_list_menu.current_selection().unwrap();
+
             tile_map.try_place_tile_at_cursor(
                 cursor_pos,
                 &transform,
-                tile_list_menu.current_selection().unwrap());
+                current_sel);
 
-            if tile_list_menu.current_selection().unwrap().is_building() ||
-               tile_list_menu.current_selection().unwrap().is_unit() {
+            if current_sel.is_building() || current_sel.is_unit() {
+                // Dop building/unit and exit tile placement mode.
                 tile_list_menu.clear_selection();
             }
         }
@@ -127,7 +129,11 @@ fn main() {
             debug_menu.draw(&mut tile_map_renderer, &ui_sys);
 
             if debug_menu.show_cursor_pos() {
-                ui_sys.draw_debug(&mut render_sys);
+                debug::draw_cursor_overlay(&ui_sys, &transform);
+            }
+
+            if debug_menu.show_screen_origin() {
+                debug::draw_screen_origin_marker(&mut render_sys);
             }
         }
         render_sys.end_frame(&tex_cache);
