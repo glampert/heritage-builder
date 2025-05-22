@@ -223,11 +223,11 @@ pub fn draw_screen_origin_marker(render_sys: &mut RenderSystem) {
 }
 
 // ----------------------------------------------
-// DebugMenu
+// DebugSettingsMenu
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct DebugMenu {
+pub struct DebugSettingsMenu {
     scaling: i32,
     offset_x: i32,
     offset_y: i32,
@@ -250,7 +250,7 @@ pub struct DebugMenu {
     draw_screen_origin: bool,
 }
 
-impl DebugMenu {
+impl DebugSettingsMenu {
     pub fn new() -> Self {
         Self {
             scaling: 2,
@@ -309,8 +309,9 @@ impl DebugMenu {
             imgui::WindowFlags::NO_RESIZE |
             imgui::WindowFlags::NO_SCROLLBAR;
 
-        ui.window("Debug Options")
+        ui.window("Debug Settings")
             .flags(window_flags)
+            .collapsed(true, imgui::Condition::FirstUseEver)
             .position([5.0, 5.0], imgui::Condition::FirstUseEver)
             .build(|| {
                 if ui.slider("Scaling/Zoom", 1, 10, &mut self.scaling) {
@@ -409,6 +410,7 @@ impl<'a> TileListMenu<'a> {
                 tile_sets: &'a TileSets,
                 cursor_pos: Point2D,
                 transform: &WorldToScreenTransform,
+                has_valid_placement: bool,
                 draw_tile_bounds: bool) {
 
         let ui = ui_sys.builder();
@@ -492,13 +494,14 @@ impl<'a> TileListMenu<'a> {
                 }
             });
 
-        self.draw_selected_tile(render_sys, cursor_pos, transform, draw_tile_bounds);
+        self.draw_selected_tile(render_sys, cursor_pos, transform, has_valid_placement, draw_tile_bounds);
     }
 
     fn draw_selected_tile(&self,
                           render_sys: &mut RenderSystem,
                           cursor_pos: Point2D,
                           transform: &WorldToScreenTransform,
+                          has_valid_placement: bool,
                           draw_tile_bounds: bool) {
 
         if let Some(selected_tile) = self.selected_tile {
@@ -528,11 +531,18 @@ impl<'a> TileListMenu<'a> {
                 let cursor_transform = 
                     WorldToScreenTransform::new(transform.scaling, offset, 0);
 
+                let highlight_color =
+                    if has_valid_placement {
+                        Color::white()
+                    } else {
+                        map::TILE_INVALID_COLOR
+                    };
+
                 render_sys.draw_textured_colored_rect(
                     cursor_transform.scale_and_offset_rect(rect),
                     &selected_tile.tex_info.coords,
                     selected_tile.tex_info.texture,
-                    Color::new(selected_tile.color.r, selected_tile.color.g, selected_tile.color.b, 0.7));
+                    Color::new(selected_tile.color.r, selected_tile.color.g, selected_tile.color.b, 0.7) * highlight_color);
 
                 if draw_tile_bounds {
                     render_sys.draw_wireframe_rect_fast(cursor_transform.scale_and_offset_rect(rect), Color::red());
@@ -604,22 +614,23 @@ pub fn create_test_tile_sets(tex_cache: &mut TextureCache) -> TileSets {
     println!("Loading test tile sets...");
 
     // Sprite Textures:
-    let tex_ground = tex_cache.load_texture(&(sets::PATH_TO_TERRAIN_TILE_SETS.to_string() + "/ground/0.png"));
-    let tex_house  = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/house/0.png"));
-    let tex_tower  = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tower/0.png"));
-    let tex_tree0  = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tree/0.png"));
-    let tex_tree1  = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tree/1.png"));
-    let tex_ped    = tex_cache.load_texture(&(sets::PATH_TO_UNITS_TILE_SETS.to_string() + "/ped/0.png"));
+    let tex_dirt  = tex_cache.load_texture(&(sets::PATH_TO_TERRAIN_TILE_SETS.to_string() + "/ground/dirt.png"));
+    let tex_grass = tex_cache.load_texture(&(sets::PATH_TO_TERRAIN_TILE_SETS.to_string() + "/ground/grass.png"));
+    let tex_house = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/house/0.png"));
+    let tex_tower = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tower/0.png"));
+    let tex_tree0 = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tree/0.png"));
+    let tex_tree1 = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tree/1.png"));
+    let tex_ped   = tex_cache.load_texture(&(sets::PATH_TO_UNITS_TILE_SETS.to_string() + "/ped/0.png"));
 
     // Metadata:
     let tile_defs: [TileDef; 7] = [
-        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::green(), name: "grass".to_string()  },
-        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::white(), name: "road".to_string()   },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 128, height: 64 }, draw_size: Size2D{ width: 128, height: 68  }, tex_info: TileTexInfo::new(tex_house),  color: Color::white(), name: "house".to_string()  },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 192, height: 96 }, draw_size: Size2D{ width: 192, height: 144 }, tex_info: TileTexInfo::new(tex_tower),  color: Color::white(), name: "tower".to_string()  },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 64  }, tex_info: TileTexInfo::new(tex_tree0),  color: Color::white(), name: "tree_0".to_string() },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 64  }, tex_info: TileTexInfo::new(tex_tree1),  color: Color::white(), name: "tree_1".to_string() },
-        TileDef { kind: TileKind::Unit,     logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 16,  height: 24  }, tex_info: TileTexInfo::new(tex_ped),    color: Color::white(), name: "ped".to_string()    },
+        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_dirt),  color: Color::white(), name: "dirt".to_string()   },
+        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_grass), color: Color::white(), name: "grass".to_string()  },
+        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 128, height: 64 }, draw_size: Size2D{ width: 128, height: 68  }, tex_info: TileTexInfo::new(tex_house), color: Color::white(), name: "house".to_string()  },
+        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 192, height: 96 }, draw_size: Size2D{ width: 192, height: 144 }, tex_info: TileTexInfo::new(tex_tower), color: Color::white(), name: "tower".to_string()  },
+        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 64  }, tex_info: TileTexInfo::new(tex_tree0), color: Color::white(), name: "tree 0".to_string() },
+        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 64  }, tex_info: TileTexInfo::new(tex_tree1), color: Color::white(), name: "tree 1".to_string() },
+        TileDef { kind: TileKind::Unit,     logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 16,  height: 24  }, tex_info: TileTexInfo::new(tex_ped),   color: Color::white(), name: "ped".to_string()    },
     ];
 
     let mut tile_sets = TileSets::new();
@@ -638,7 +649,7 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     const MAP_HEIGHT: i32 = 8;
 
     const G:  i32 = 0; // ground:grass (empty)
-    const R:  i32 = 1; // ground:road
+    const R:  i32 = 1; // ground:road/dirt (empty)
     const U:  i32 = 2; // unit:ped
     const HH: i32 = 3; // building:house (2x2)
     const TT: i32 = 4; // building:tower (3x3)
@@ -648,7 +659,7 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     const B3: i32 = 8; // special blocker for the 2x2 building.
     const B4: i32 = 9; // special blocker for the 2x2 building.
 
-    const TILE_NAMES: [&str; 5] = [ "grass", "road", "ped", "house", "tower" ];
+    const TILE_NAMES: [&str; 5] = [ "grass", "dirt", "ped", "house", "tower" ];
 
     const TERRAIN_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
         R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
@@ -662,14 +673,14 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     ];
 
     const BUILDINGS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
-        U, U, U, U, U, U, U, U, // <-- start, tile zero is the leftmost (top-left)
-        U, TT,B0,B0,U, HH,B1,U,
-        U, B0,B0,B0,U, B1,B1,U,
-        U, B0,B0,B0,U, HH,B2,U,
-        U, U, U, U, U, B2,B2,U,
-        U, HH,B4,U, U, HH,B3,U,
-        U, B4,B4,U, U, B3,B3,U,
-        U, U, U, U, U, U, U, U,
+        G, G, G, G, G, G, G, G, // <-- start, tile zero is the leftmost (top-left)
+        G, TT,B0,B0,G, HH,B1,G,
+        G, B0,B0,B0,G, B1,B1,G,
+        G, B0,B0,B0,G, HH,B2,G,
+        G, G, G, G, G, B2,B2,G,
+        G, HH,B4,G, G, HH,B3,G,
+        G, B4,B4,G, G, B3,B3,G,
+        G, G, G, G, G, G, G, G,
     ];
 
     const UNITS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [

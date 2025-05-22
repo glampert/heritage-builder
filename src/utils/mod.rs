@@ -228,6 +228,20 @@ impl Default for Color {
     fn default() -> Self { Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 } }
 }
 
+// Color * Color
+impl Mul for Color {
+    type Output = Color;
+
+    fn mul(self, rhs: Color) -> Color {
+        Color {
+            r: (self.r * rhs.r).min(1.0),
+            g: (self.g * rhs.g).min(1.0),
+            b: (self.b * rhs.b).min(1.0),
+            a: (self.a * rhs.a).min(1.0),
+        }
+    }
+}
+
 // ----------------------------------------------
 // Size2D
 // ----------------------------------------------

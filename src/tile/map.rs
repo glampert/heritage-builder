@@ -12,11 +12,21 @@ use super::def::{TileDef, TileKind, TileFootprintList, BASE_TILE_SIZE};
 use super::debug::{self};
 
 // ----------------------------------------------
+// Constants
+// ----------------------------------------------
+
+pub const TILE_HIGHLIGHT_COLOR: Color = Color::new(0.76, 0.96, 0.39, 1.0); // light green
+pub const TILE_INVALID_COLOR:   Color = Color::new(0.95, 0.60, 0.60, 1.0); // light red
+
+pub const GRID_HIGHLIGHT_COLOR: Color = Color::green();
+pub const GRID_INVALID_COLOR:   Color = Color::red();
+
+// ----------------------------------------------
 // Tile / TileFlags
 // ----------------------------------------------
 
 bitflags! {
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Clone, Default, PartialEq)]
     pub struct TileFlags: u32 {
         const None        = 0;
         const Highlighted = 1 << 1;
@@ -176,6 +186,10 @@ impl<'a> TileMapLayer<'a> {
 
     #[inline]
     pub fn add_tile(&mut self, cell: Cell2D, tile_def: &'a TileDef) {
+        if !tile_def.is_empty() {
+            debug_assert!(tile_kind_to_layer(tile_def.kind) == self.kind);
+        }
+
         let tile_index = self.cell_to_index(cell);
         self.tiles[tile_index] = Tile::new(cell, Cell2D::invalid(), tile_def);
     }
@@ -621,10 +635,6 @@ impl<'a> TileMap<'a> {
     }
 
     pub fn clear_selection(&mut self, selection: &mut TileSelection<'a>) {
-        if selection.cells.is_empty() {
-            return;
-        }
-
         let (terrain_layer, buildings_layer, units_layer) =
             self.layers_mut();
 
@@ -642,8 +652,9 @@ pub struct TileSelection<'a> {
     cursor_drag_start: Point2D,
     current_cursor_pos: Point2D,
     left_mouse_button_held: bool,
-    cells: SmallVec::<[Cell2D; 1]>,
     placement_candidate: Option<&'a TileDef>, // Tile placement candidate.
+    selection_flags: TileFlags,
+    cells: SmallVec::<[Cell2D; 36]>,
 }
 
 impl<'a> TileSelection<'a> {
@@ -679,8 +690,12 @@ impl<'a> TileSelection<'a> {
 
     pub fn draw(&self, render_sys: &mut RenderSystem) {
         if self.is_selecting_range() {
-            render_sys.draw_wireframe_rect_with_thickness(self.rect, Color::blue(), 1.5);
+            render_sys.draw_wireframe_rect_with_thickness(self.rect, Color::new(0.2, 0.7, 0.2, 1.0), 1.5);
         }
+    }
+
+    pub fn has_valid_placement(&self) -> bool {
+        self.selection_flags != TileFlags::Invalidated
     }
 
     fn last_cell(&self) -> Cell2D {
@@ -693,8 +708,10 @@ impl<'a> TileSelection<'a> {
 
     fn clear(&mut self,
              terrain_layer: &mut TileMapLayer<'a>,
-             buildings_layer: &TileMapLayer,
-             units_layer: &TileMapLayer) {
+             buildings_layer: &mut TileMapLayer<'a>,
+             units_layer: &mut TileMapLayer<'a>) {
+
+        self.selection_flags = TileFlags::None;
 
         while !self.cells.is_empty() {
             self.toggle_selection(terrain_layer,
@@ -717,8 +734,8 @@ impl<'a> TileSelection<'a> {
 
     fn toggle_selection(&mut self,
                         terrain_layer: &mut TileMapLayer<'a>,
-                        buildings_layer: &TileMapLayer,
-                        units_layer: &TileMapLayer,
+                        buildings_layer: &mut TileMapLayer<'a>,
+                        units_layer: &mut TileMapLayer<'a>,
                         base_cell: Cell2D,
                         selected: bool) {
 
@@ -736,20 +753,36 @@ impl<'a> TileSelection<'a> {
         let mut flags = TileFlags::Highlighted;
         if let Some(placement_candidate) = self.placement_candidate {
             if placement_candidate.is_building() {
-                for footprint_cell in &footprint {
-                    if !terrain_layer.is_cell_within_bounds(*footprint_cell) {
+                for &footprint_cell in &footprint {
+                    if !terrain_layer.is_cell_within_bounds(footprint_cell) {
                         // If any cell would fall outside of the map bounds we won't place.
                         flags = TileFlags::Invalidated;
                     }
 
-                    if let Some(current_tile) = buildings_layer.try_tile(*footprint_cell) {
+                    if let Some(current_tile) = buildings_layer.try_tile(footprint_cell) {
                         if current_tile.is_building() || current_tile.is_building_blocker() {
                             // Cannot place building here.
                             flags = TileFlags::Invalidated;
+
+                            // Fully highlight the other building too:
+                            let other_building_footprint =
+                                calc_tile_footprint_cells(footprint_cell, buildings_layer);
+
+                            for other_footprint_cell in other_building_footprint {
+                                if let Some(tile) = buildings_layer.try_tile_mut(other_footprint_cell) {
+                                    if !tile.is_empty() {
+                                        self.toggle_tile_selection(tile, flags, selected);
+                                    }
+                                }
+                                if let Some(tile) = terrain_layer.try_tile_mut(other_footprint_cell) {
+                                    // NOTE: Highlight terrain even when empty so we can correctly highlight grid cells.
+                                    self.toggle_tile_selection(tile, flags, selected);
+                                }
+                            }
                         }
                     }
 
-                    if let Some(current_tile) = units_layer.try_tile(*footprint_cell) {
+                    if let Some(current_tile) = units_layer.try_tile(footprint_cell) {
                         if current_tile.is_unit() {
                             // Cannot place building here.
                             flags = TileFlags::Invalidated;
@@ -780,11 +813,30 @@ impl<'a> TileSelection<'a> {
         }
 
         for footprint_cell in footprint {
-            if terrain_layer.is_cell_within_bounds(footprint_cell) {
-                let tile = terrain_layer.tile_mut(footprint_cell);
-                self.toggle_tile_selection(tile, flags, selected);   
+            if let Some(tile) = terrain_layer.try_tile_mut(footprint_cell) {
+                // NOTE: Highlight terrain even when empty so we can correctly highlight grid cells.
+                self.toggle_tile_selection(tile, flags, selected);
+            }
+
+            if self.placement_candidate.is_some_and(|t| t.is_terrain()) {
+                // No highlighting of buildings/units when placing a terrain tile (terrain can always be placed underneath).
+                continue;
+            }
+
+            if let Some(tile) = buildings_layer.try_tile_mut(footprint_cell) {
+                if !tile.is_empty() {
+                    self.toggle_tile_selection(tile, flags, selected);
+                }
+            }
+
+            if let Some(tile) = units_layer.try_tile_mut(footprint_cell) {
+                if !tile.is_empty() {
+                    self.toggle_tile_selection(tile, flags, selected);
+                }
             }
         }
+
+        self.selection_flags = flags;
     }
 }
 
@@ -1148,8 +1200,8 @@ impl TileMapRenderer {
         let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
         let line_thickness = self.grid_line_thickness * (self.world_to_screen.scaling as f32);
 
-        let mut highlighted_cells = SmallVec::<[[Point2D; 4]; 64]>::new();
-        let mut invalidated_cells = SmallVec::<[[Point2D; 4]; 64]>::new();
+        let mut highlighted_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
+        let mut invalidated_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
 
         for y in (0..map_cells.height).rev() {
             for x in (0..map_cells.width).rev() {
@@ -1175,11 +1227,11 @@ impl TileMapRenderer {
 
             // Highlighted on top:
             for points in &highlighted_cells {
-                render_sys.draw_polyline_with_thickness(&points, Color::green(), line_thickness, true);
+                render_sys.draw_polyline_with_thickness(&points, GRID_HIGHLIGHT_COLOR, line_thickness, true);
             }
 
             for points in &invalidated_cells {
-                render_sys.draw_polyline_with_thickness(&points, Color::red(), line_thickness, true);
+                render_sys.draw_polyline_with_thickness(&points, GRID_INVALID_COLOR, line_thickness, true);
             }
         }
     }
@@ -1202,11 +1254,20 @@ impl TileMapRenderer {
             &self.world_to_screen,
             apply_spacing);
 
+        let highlight_color =
+            if tile.flags.contains(TileFlags::Highlighted) {
+                TILE_HIGHLIGHT_COLOR
+            } else if tile.flags.contains(TileFlags::Invalidated) {
+                TILE_INVALID_COLOR
+            } else {
+                Color::white()
+            };
+
         render_sys.draw_textured_colored_rect(
             tile_rect,
             &tile.def.tex_info.coords,
             tile.def.tex_info.texture,
-            tile.def.color);
+            tile.def.color * highlight_color);
 
         debug::draw_tile_debug(
             render_sys,

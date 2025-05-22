@@ -15,6 +15,37 @@ use tile::map::*;
 use tile::debug::{self, *};
 
 // ----------------------------------------------
+// TileInspectorMenu
+// ----------------------------------------------
+
+#[derive(Default)]
+struct TileInspectorMenu {
+    // WIP
+}
+
+impl TileInspectorMenu {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn draw(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        let window_flags =
+            imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
+            imgui::WindowFlags::NO_RESIZE |
+            imgui::WindowFlags::NO_SCROLLBAR;
+
+        ui.window("Tile Inspector")
+            .flags(window_flags)
+            .position([5.0, 5.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                ui.text("Tile Inspector");
+            });
+    }
+}
+
+// ----------------------------------------------
 // main()
 // ----------------------------------------------
 
@@ -36,16 +67,17 @@ fn main() {
 
     let tile_sets = debug::create_test_tile_sets(&mut tex_cache);
 
-    //let mut tile_map = debug::create_test_tile_map(&tile_sets);
-    let mut tile_map = TileMap::new(Size2D::new(8, 8));
+    let mut tile_map = debug::create_test_tile_map(&tile_sets);
+    //let mut tile_map = TileMap::new(Size2D::new(8, 8));
 
     let mut tile_map_renderer = TileMapRenderer::new();
 
-    let mut debug_menu = DebugMenu::new();
-    debug_menu.apply_render_settings(&mut tile_map_renderer);
+    let mut debug_settings_menu = DebugSettingsMenu::new();
+    debug_settings_menu.apply_render_settings(&mut tile_map_renderer);
 
     let mut tile_selection = TileSelection::new();
     let mut tile_list_menu = TileListMenu::new(&mut tex_cache);
+    let tile_inspector_menu = TileInspectorMenu::new();
 
     let mut frame_clock = FrameClock::new();
 
@@ -119,7 +151,7 @@ fn main() {
                 &mut render_sys,
                 &ui_sys,
                 &tile_map,
-                debug_menu.selected_render_flags());
+                debug_settings_menu.selected_render_flags());
 
             tile_selection.draw(&mut render_sys);
 
@@ -130,15 +162,17 @@ fn main() {
                 &tile_sets,
                 cursor_pos,
                 &transform,
-                debug_menu.show_selected_tile_bounds());
+                tile_selection.has_valid_placement(),
+                debug_settings_menu.show_selected_tile_bounds());
 
-            debug_menu.draw(&mut tile_map_renderer, &ui_sys);
+            tile_inspector_menu.draw(&ui_sys);
+            debug_settings_menu.draw(&mut tile_map_renderer, &ui_sys);
 
-            if debug_menu.show_cursor_pos() {
+            if debug_settings_menu.show_cursor_pos() {
                 debug::draw_cursor_overlay(&ui_sys, &transform);
             }
 
-            if debug_menu.show_screen_origin() {
+            if debug_settings_menu.show_screen_origin() {
                 debug::draw_screen_origin_marker(&mut render_sys);
             }
         }

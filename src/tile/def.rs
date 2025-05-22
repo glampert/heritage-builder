@@ -27,7 +27,7 @@ pub enum TileKind {
 // TileDef
 // ----------------------------------------------
 
-pub type TileFootprintList = SmallVec<[Cell2D; 16]>;
+pub type TileFootprintList = SmallVec<[Cell2D; 36]>; // Can fit a 6x6 tile without allocating.
 
 #[derive(Clone)]
 pub struct TileDef {
