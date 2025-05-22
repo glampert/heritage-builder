@@ -68,6 +68,7 @@ fn main() {
 
                     if key == InputKey::Escape {
                         tile_list_menu.clear_selection();
+                        tile_map.clear_selection(&mut tile_selection);
                     }
                 }
                 ApplicationEvent::CharInput(c) => {
@@ -78,9 +79,13 @@ fn main() {
                 }
                 ApplicationEvent::MouseButton(button, action, _modifiers) => {
                     if tile_list_menu.has_selection() {
-                        tile_list_menu.on_mouse_click(button, action);
+                        if !tile_list_menu.on_mouse_click(button, action) {
+                            tile_list_menu.clear_selection();
+                            tile_map.clear_selection(&mut tile_selection);
+                        }
                     } else {
                         if !tile_selection.on_mouse_click(button, action, cursor_pos) {
+                            tile_list_menu.clear_selection();
                             tile_map.clear_selection(&mut tile_selection);
                         }
                     }
@@ -95,14 +100,15 @@ fn main() {
         if tile_list_menu.can_place_tile() {
             let current_sel = tile_list_menu.current_selection().unwrap();
 
-            tile_map.try_place_tile_at_cursor(
+            let did_place = tile_map.try_place_tile_at_cursor(
                 cursor_pos,
                 &transform,
                 current_sel);
 
-            if current_sel.is_building() || current_sel.is_unit() {
-                // Dop building/unit and exit tile placement mode.
+            if did_place && (current_sel.is_building() || current_sel.is_unit() || current_sel.is_empty()) {
+                // Dop or remove building/unit and exit tile placement mode.
                 tile_list_menu.clear_selection();
+                tile_map.clear_selection(&mut tile_selection);
             }
         }
 

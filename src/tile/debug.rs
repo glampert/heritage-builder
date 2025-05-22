@@ -365,7 +365,7 @@ pub struct TileListMenu<'a> {
 impl<'a> TileListMenu<'a> {
     pub fn new(tex_cache: &mut TextureCache) -> Self {
         Self {
-            clear_button_image: tex_cache.load_texture("assets/ui/shovel.png"),
+            clear_button_image: tex_cache.load_texture("assets/ui/x.png"),
             ..Default::default()
         }
     }
@@ -388,16 +388,18 @@ impl<'a> TileListMenu<'a> {
         self.left_mouse_button_held && self.has_selection()
     }
 
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction) {
+    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction) -> bool {
         if button == MouseButton::Left {
             if action == InputAction::Press {
                 self.left_mouse_button_held = true;
             } else if action == InputAction::Release {
                 self.left_mouse_button_held = false;
             }
+            return true;
         } else if button == MouseButton::Right {
-            self.clear_selection();
+            return false;
         }
+        return false;
     }
 
     pub fn draw(&mut self,
@@ -502,9 +504,11 @@ impl<'a> TileListMenu<'a> {
         if let Some(selected_tile) = self.selected_tile {
             let is_clear_selected = self.selected_tile.is_some_and(|t| t.is_empty());
             if is_clear_selected {
+                const CLEAR_ICON_SIZE: Size2D = Size2D::new(64, 32);
+
                 let rect = Rect2D::new(
-                    Point2D::new(cursor_pos.x, cursor_pos.y - 32),
-                    Size2D::new(64, 32));
+                    Point2D::new(cursor_pos.x - CLEAR_ICON_SIZE.width / 2, cursor_pos.y - CLEAR_ICON_SIZE.height / 2),
+                    CLEAR_ICON_SIZE);
 
                 render_sys.draw_textured_colored_rect(
                     rect,
@@ -603,15 +607,19 @@ pub fn create_test_tile_sets(tex_cache: &mut TextureCache) -> TileSets {
     let tex_ground = tex_cache.load_texture(&(sets::PATH_TO_TERRAIN_TILE_SETS.to_string() + "/ground/0.png"));
     let tex_house  = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/house/0.png"));
     let tex_tower  = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tower/0.png"));
+    let tex_tree0  = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tree/0.png"));
+    let tex_tree1  = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tree/1.png"));
     let tex_ped    = tex_cache.load_texture(&(sets::PATH_TO_UNITS_TILE_SETS.to_string() + "/ped/0.png"));
 
     // Metadata:
-    let tile_defs: [TileDef; 5] = [
-        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::green(), name: "grass".to_string() },
-        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::white(), name: "road".to_string()  },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 128, height: 64 }, draw_size: Size2D{ width: 128, height: 68  }, tex_info: TileTexInfo::new(tex_house),  color: Color::white(), name: "house".to_string() },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 192, height: 96 }, draw_size: Size2D{ width: 192, height: 144 }, tex_info: TileTexInfo::new(tex_tower),  color: Color::white(), name: "tower".to_string() },
-        TileDef { kind: TileKind::Unit,     logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 16,  height: 24  }, tex_info: TileTexInfo::new(tex_ped),    color: Color::white(), name: "ped".to_string()   },
+    let tile_defs: [TileDef; 7] = [
+        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::green(), name: "grass".to_string()  },
+        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_ground), color: Color::white(), name: "road".to_string()   },
+        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 128, height: 64 }, draw_size: Size2D{ width: 128, height: 68  }, tex_info: TileTexInfo::new(tex_house),  color: Color::white(), name: "house".to_string()  },
+        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 192, height: 96 }, draw_size: Size2D{ width: 192, height: 144 }, tex_info: TileTexInfo::new(tex_tower),  color: Color::white(), name: "tower".to_string()  },
+        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 64  }, tex_info: TileTexInfo::new(tex_tree0),  color: Color::white(), name: "tree_0".to_string() },
+        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 64  }, tex_info: TileTexInfo::new(tex_tree1),  color: Color::white(), name: "tree_1".to_string() },
+        TileDef { kind: TileKind::Unit,     logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 16,  height: 24  }, tex_info: TileTexInfo::new(tex_ped),    color: Color::white(), name: "ped".to_string()    },
     ];
 
     let mut tile_sets = TileSets::new();

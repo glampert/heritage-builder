@@ -16,10 +16,11 @@ use super::debug::{self};
 // ----------------------------------------------
 
 bitflags! {
-    #[derive(Clone)]
+    #[derive(Copy, Clone)]
     pub struct TileFlags: u32 {
         const None        = 0;
         const Highlighted = 1 << 1;
+        const Invalidated = 1 << 2;
     }
 }
 
@@ -137,11 +138,12 @@ pub enum TileMapLayerKind {
 
 pub const TILE_MAP_LAYER_COUNT: usize = TileMapLayerKind::COUNT;
 
+#[inline]
 fn tile_kind_to_layer(tile_kind: TileKind) -> TileMapLayerKind {
     match tile_kind {
-        TileKind::Terrain  => TileMapLayerKind::Terrain,
-        TileKind::Building => TileMapLayerKind::Buildings,
-        TileKind::Unit     => TileMapLayerKind::Units,
+        TileKind::Terrain => TileMapLayerKind::Terrain,
+        TileKind::Building | TileKind::BuildingBlocker => TileMapLayerKind::Buildings,
+        TileKind::Unit => TileMapLayerKind::Units,
         _ => panic!("Invalid tile map layer!")
     }
 }
@@ -172,21 +174,25 @@ impl<'a> TileMapLayer<'a> {
         layer
     }
 
+    #[inline]
     pub fn add_tile(&mut self, cell: Cell2D, tile_def: &'a TileDef) {
         let tile_index = self.cell_to_index(cell);
         self.tiles[tile_index] = Tile::new(cell, Cell2D::invalid(), tile_def);
     }
 
+    #[inline]
     pub fn add_empty_tile(&mut self, cell: Cell2D) {
         let tile_index = self.cell_to_index(cell);
         self.tiles[tile_index] = Tile::new(cell, Cell2D::invalid(), TileDef::empty());
     }
 
+    #[inline]
     pub fn add_building_blocker_tile(&mut self, cell: Cell2D, owner_cell: Cell2D) {
         let tile_index = self.cell_to_index(cell);
         self.tiles[tile_index] = Tile::new(cell, owner_cell, TileDef::building_blocker());
     }
 
+    #[inline]
     pub fn is_cell_within_bounds(&self, cell: Cell2D) -> bool {
          if (cell.x < 0 || cell.x >= self.size_in_cells.width) ||
             (cell.y < 0 || cell.y >= self.size_in_cells.height) {
@@ -195,21 +201,34 @@ impl<'a> TileMapLayer<'a> {
         true
     }
 
+    #[inline]
     pub fn tile(&self, cell: Cell2D) -> &Tile {
         let tile_index = self.cell_to_index(cell);
         let tile = &self.tiles[tile_index];
+
+        if !tile.is_empty() {
+            debug_assert!(tile_kind_to_layer(tile.def.kind) == self.kind);
+        }
         debug_assert!(tile.cell == cell);
+
         tile
     }
 
+    #[inline]
     pub fn tile_mut(&mut self, cell: Cell2D) -> &mut Tile<'a> {
         let tile_index = self.cell_to_index(cell);
         let tile = &mut self.tiles[tile_index];
+
+        if !tile.is_empty() {
+            debug_assert!(tile_kind_to_layer(tile.def.kind) == self.kind);
+        }
         debug_assert!(tile.cell == cell);
+
         tile
     }
 
     // Fails with None if the cell indices are not within bounds.
+    #[inline]
     pub fn try_tile(&self, cell: Cell2D) -> Option<&Tile> {
         if !self.is_cell_within_bounds(cell) {
             return None;
@@ -217,6 +236,7 @@ impl<'a> TileMapLayer<'a> {
         Some(self.tile(cell))
     }
 
+    #[inline]
     pub fn try_tile_mut(&mut self, cell: Cell2D) -> Option<&mut Tile<'a>> {
         if !self.is_cell_within_bounds(cell) {
             return None;
@@ -310,6 +330,7 @@ impl<'a> TileMap<'a> {
         tile_map
     }
 
+    #[inline]
     pub fn is_cell_within_bounds(&self, cell: Cell2D) -> bool {
          if (cell.x < 0 || cell.x >= self.size_in_cells.width) ||
             (cell.y < 0 || cell.y >= self.size_in_cells.height) {
@@ -318,6 +339,7 @@ impl<'a> TileMap<'a> {
         true
     }
 
+    #[inline]
     pub fn layers(&self) -> (&TileMapLayer, &TileMapLayer, &TileMapLayer) {
         (
             self.layer(TileMapLayerKind::Terrain),
@@ -326,8 +348,9 @@ impl<'a> TileMap<'a> {
         )
     }
 
+    #[inline]
     pub fn layers_mut(&mut self) -> (&mut TileMapLayer<'a>, &mut TileMapLayer<'a>, &mut TileMapLayer<'a>) {
-        // Use raw pointers to avoid borrow checker conflicts
+        // Use raw pointers to avoid borrow checker conflicts.
         let terrain   = self.layer_mut(TileMapLayerKind::Terrain)   as *mut TileMapLayer;
         let buildings = self.layer_mut(TileMapLayerKind::Buildings) as *mut TileMapLayer;
         let units     = self.layer_mut(TileMapLayerKind::Units)     as *mut TileMapLayer;
@@ -338,105 +361,185 @@ impl<'a> TileMap<'a> {
         }
     }
 
+    #[inline]
     pub fn layer(&self, kind: TileMapLayerKind) -> &TileMapLayer {
         debug_assert!(self.layers[kind as usize].kind == kind);
         self.layers[kind as usize].as_ref()
     }
 
+    #[inline]
     pub fn layer_mut(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer<'a> {
         debug_assert!(self.layers[kind as usize].kind == kind);
         self.layers[kind as usize].as_mut()
     }
 
+    #[inline]
     pub fn try_tile_from_layer(&self, cell: Cell2D, kind: TileMapLayerKind) -> Option<&Tile> {
         let layer = self.layer(kind);
         debug_assert!(layer.kind == kind);
         layer.try_tile(cell)
     }
 
+    #[inline]
     pub fn try_tile_from_layer_mut(&mut self, cell: Cell2D, kind: TileMapLayerKind) -> Option<&mut Tile<'a>> {
         let layer = self.layer_mut(kind);
         debug_assert!(layer.kind == kind);
         layer.try_tile_mut(cell)
     }
 
-    pub fn place_tile(&mut self, cell: Cell2D, tile_def: &'a TileDef) {
-        self.place_tile_in_layer(cell, tile_kind_to_layer(tile_def.kind), tile_def);
+    #[inline]
+    pub fn has_tile(&self, cell: Cell2D, layer_kind: TileMapLayerKind, tile_kinds: &[TileKind]) -> bool {
+        self.find_tile(cell, layer_kind, tile_kinds).is_some()
     }
 
-    pub fn place_tile_in_layer(&mut self, cell: Cell2D, kind: TileMapLayerKind, tile_def: &'a TileDef) {
-        debug_assert!(self.is_cell_within_bounds(cell));
-
-        // Multi-tile building?
-        if tile_def.is_building() && tile_def.has_multi_cell_footprint() {
-            let footprint = tile_def.calc_footprint_cells(cell);
-            for footprint_cell in footprint {
-                if footprint_cell != cell {
-                    let tile = self.try_tile_from_layer_mut(footprint_cell, kind).unwrap();
-                    tile.def = TileDef::building_blocker();
-                    tile.owner_cell = cell;
+    #[inline]
+    pub fn find_tile(&self, cell: Cell2D, layer_kind: TileMapLayerKind, tile_kinds: &[TileKind]) -> Option<&Tile> {
+        if let Some(current_tile) = self.try_tile_from_layer(cell, layer_kind) {
+            for &kind in tile_kinds {
+                if current_tile.def.kind == kind {
+                    return Some(current_tile);
                 }
             }
         }
+        None
+    }
 
+    #[inline]
+    pub fn place_tile(&mut self, target_cell: Cell2D, tile_to_place: &'a TileDef) -> bool {
+        self.place_tile_in_layer(target_cell, tile_kind_to_layer(tile_to_place.kind), tile_to_place)
+    }
+
+    pub fn place_tile_in_layer(&mut self, target_cell: Cell2D, kind: TileMapLayerKind, tile_to_place: &'a TileDef) -> bool {
+        debug_assert!(self.is_cell_within_bounds(target_cell));
+
+        // Overlap checks for buildings:
+        if tile_to_place.is_building() {
+            debug_assert!(kind == TileMapLayerKind::Buildings);
+
+            // Building -> unit overlap check:
+            if self.has_tile(target_cell, TileMapLayerKind::Units, &[TileKind::Unit]) {
+                return false;
+            }
+
+            // Check for building overlap:
+            if self.has_tile(target_cell, kind, &[TileKind::Building, TileKind::BuildingBlocker]) {
+                let current_footprint =
+                    calc_tile_footprint_cells(target_cell, self.layer(kind));
+
+                let target_footprint =
+                    tile_to_place.calc_footprint_cells(target_cell);
+
+                if cells_overlap(&current_footprint, &target_footprint) {
+                    return false; // Cannot place building here.
+                }
+            }
+
+            // Multi-tile building?
+            if tile_to_place.has_multi_cell_footprint() {
+                let target_footprint = tile_to_place.calc_footprint_cells(target_cell);
+
+                // Check if placement is allowed:
+                for footprint_cell in &target_footprint {
+                    if !self.is_cell_within_bounds(*footprint_cell) {
+                        // If any cell would fall outside of the map bounds we won't place.
+                        return false;
+                    }
+
+                    if self.has_tile(*footprint_cell, kind, &[TileKind::Building, TileKind::BuildingBlocker]) {
+                        return false; // Cannot place building here.
+                    }
+
+                    // Building blocker -> unit overlap check:
+                    if self.has_tile(*footprint_cell, TileMapLayerKind::Units, &[TileKind::Unit]) {
+                        return false; // Cannot place building here.
+                    }
+                }
+
+                for footprint_cell in target_footprint {
+                    if footprint_cell != target_cell {
+                        if let Some(current_tile) = self.try_tile_from_layer_mut(footprint_cell, kind) {
+                            current_tile.def = TileDef::building_blocker();
+                            current_tile.owner_cell = target_cell;
+                        }
+                    }
+                }
+            }
+        }
+        // Unit -> building overlap check:
+        else if tile_to_place.is_unit() {
+            debug_assert!(kind == TileMapLayerKind::Units);
+
+            // Check overlap with buildings:
+            if self.has_tile(target_cell, TileMapLayerKind::Buildings,
+                             &[TileKind::Building, TileKind::BuildingBlocker]) {
+                return false; // Can't place unit over building or building blocker cell.
+            }
+        }
         // Tile removal/clearing: Handle removing multi-tile buildings.
-        if tile_def.is_empty() {
-            if let Some(current_tile) = self.try_tile_from_layer(cell, kind) {
-                if current_tile.is_building() || current_tile.is_building_blocker() {
-                    let footprint = Self::calc_tile_footprint_cells(cell, self.layer(kind));
-                    for footprint_cell in footprint {
-                        if footprint_cell != cell {
-                            let tile = self.try_tile_from_layer_mut(footprint_cell, kind).unwrap();
-                            tile.def = TileDef::empty();
-                            tile.owner_cell = Cell2D::invalid();
+        else if tile_to_place.is_empty() {
+            if self.has_tile(target_cell, kind, &[TileKind::Building, TileKind::BuildingBlocker]) {
+                let target_footprint =
+                    calc_tile_footprint_cells(target_cell, self.layer(kind));
+
+                for footprint_cell in target_footprint {
+                    if footprint_cell != target_cell {
+                        if let Some(current_tile) = self.try_tile_from_layer_mut(footprint_cell, kind) {
+                            current_tile.def = TileDef::empty();
+                            current_tile.owner_cell = Cell2D::invalid();
                         }
                     }
                 }
             }
         }
 
-        if let Some(current_tile) = self.try_tile_from_layer_mut(cell, kind) {
-            current_tile.def = tile_def;
+        if let Some(current_tile) = self.try_tile_from_layer_mut(target_cell, kind) {
+            current_tile.def = tile_to_place;
+            return true; // Tile placed successfully.
         }
+
+        false // Nothing placed.
     }
 
     pub fn try_place_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Point2D,
                                     transform: &WorldToScreenTransform,
-                                    tile_def: &'a TileDef) {
+                                    tile_to_place: &'a TileDef) -> bool {
 
         // If placing an empty tile we will actually clear the topmost layer under that cell.
-        if tile_def.is_empty() {
+        if tile_to_place.is_empty() {
             for kind in TileMapLayerKind::iter().rev() {
-                let cell = self.find_exact_cell(
+                let target_cell = find_exact_cell(
+                    &self,
                     kind,
                     cursor_screen_pos,
                     transform);
 
-                if self.is_cell_within_bounds(cell) {
-                    if let Some(existing_tile) = self.layer(kind).try_tile(cell) {
+                if self.is_cell_within_bounds(target_cell) {
+                    if let Some(existing_tile) = self.layer(kind).try_tile(target_cell) {
                         if !existing_tile.is_empty() {
-                            self.place_tile_in_layer(cell, kind, tile_def);
-                            break;
+                            return self.place_tile_in_layer(target_cell, kind, tile_to_place);
                         }
                     }
                 }      
             }
         } else {
-            let kind = tile_kind_to_layer(tile_def.kind);
-            let cell = self.find_exact_cell(
+            let kind = tile_kind_to_layer(tile_to_place.kind);
+            let target_cell = find_exact_cell(
+                &self,
                 kind,
                 cursor_screen_pos,
                 transform);
 
-            if self.is_cell_within_bounds(cell) {
-                self.place_tile_in_layer(cell, kind, tile_def);
+            if self.is_cell_within_bounds(target_cell) {
+                return self.place_tile_in_layer(target_cell, kind, tile_to_place);
             }
         }
+
+        false // Nothing placed.
     }
 
-    pub fn update_selection(&mut self, selection: &mut TileSelection, transform: &WorldToScreenTransform) {
-        if selection.is_range() {
+    pub fn update_selection(&mut self, selection: &mut TileSelection<'a>, transform: &WorldToScreenTransform) {
+        if selection.is_selecting_range() {
             // Clear previous highlighted tiles:
             self.clear_selection(selection);
 
@@ -446,7 +549,8 @@ impl<'a> TileMap<'a> {
                 self.size_in_cells,
                 transform);
 
-            let (terrain_layer, buildings_layer, _) = self.layers_mut();
+            let (terrain_layer, buildings_layer, units_layer) =
+                self.layers_mut();
 
             for y in cell_min.y..=cell_max.y {
                 for x in cell_min.x..=cell_max.x {
@@ -460,11 +564,11 @@ impl<'a> TileMap<'a> {
                             false);
 
                         if tile_screen_rect.intersects(&selection.rect) {
-                            Self::toggle_selection(selection,
-                                                   terrain_layer,
-                                                   buildings_layer,
-                                                   base_tile.cell,
-                                                   true);
+                            selection.toggle_selection(terrain_layer,
+                                                       buildings_layer,
+                                                       units_layer,
+                                                       base_tile.cell,
+                                                       true);
                         }
                     }
                 }
@@ -483,139 +587,48 @@ impl<'a> TileMap<'a> {
                 }
 
                 let previous_cell = base_tile.cell;
-                let (terrain_layer, buildings_layer, _) = self.layers_mut();
+                let (terrain_layer, buildings_layer, units_layer) =
+                    self.layers_mut();
 
                 // Clear:
-                Self::toggle_selection(selection,
-                                       terrain_layer,
-                                       buildings_layer,
-                                       previous_cell,
-                                       false);
+                selection.toggle_selection(terrain_layer,
+                                           buildings_layer,
+                                           units_layer,
+                                           previous_cell,
+                                           false);
             }
 
             // Set highlight:
             {
-                let highlight_cell = self.find_exact_cell(
+                let highlight_cell = find_exact_cell(
+                    &self,
                     TileMapLayerKind::Terrain,
                     cursor_screen_pos,
                     transform);
                 
                 if self.is_cell_within_bounds(highlight_cell) {
-                    let (terrain_layer, buildings_layer, _) = self.layers_mut();
+                    let (terrain_layer, buildings_layer, units_layer) =
+                        self.layers_mut();
 
-                    Self::toggle_selection(selection,
-                                           terrain_layer,
-                                           buildings_layer,
-                                           highlight_cell,
-                                           true);
+                    selection.toggle_selection(terrain_layer,
+                                               buildings_layer,
+                                               units_layer,
+                                               highlight_cell,
+                                               true);
                 }
             }
         }
     }
 
-    pub fn clear_selection(&mut self, selection: &mut TileSelection) {
+    pub fn clear_selection(&mut self, selection: &mut TileSelection<'a>) {
         if selection.cells.is_empty() {
             return;
         }
 
-        let (terrain_layer, buildings_layer, _) = self.layers_mut();
+        let (terrain_layer, buildings_layer, units_layer) =
+            self.layers_mut();
 
-        while !selection.cells.is_empty() {
-            Self::toggle_selection(selection,
-                                   terrain_layer,
-                                   buildings_layer,
-                                   selection.last_cell(),
-                                   false);
-        }
-
-        selection.cells.clear();
-    }
-
-    fn find_exact_cell(&self,
-                       kind: TileMapLayerKind,
-                       cursor_screen_pos: Point2D,
-                       transform: &WorldToScreenTransform) -> Cell2D {
-
-        let cursor_iso_pos = screen_to_iso_point(cursor_screen_pos, transform, BASE_TILE_SIZE, false);
-        let approx_cell = iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
-        let mut exact_cell = Cell2D::invalid();
-
-        if self.is_cell_within_bounds(approx_cell) {
-            // Get the 8 possible neighboring tiles + self and test cursor intersection
-            // against each so we can know precisely which tile the cursor is hovering.
-            let neighbors = self.layer(kind).tile_neighbors(approx_cell, true);
-            for neighbor in neighbors {
-                if let Some(tile) = neighbor {
-                    if cursor_inside_tile_cell(cursor_screen_pos, tile, transform) {
-                        exact_cell = tile.cell;
-                        break;
-                    }
-                }
-            }
-        }
-
-        exact_cell
-    }
-
-    fn calc_tile_footprint_cells(base_cell: Cell2D, buildings: &TileMapLayer) -> TileFootprintList {
-        // Buildings may take up multiple cells.
-        if let Some(building_layer_tile) = buildings.try_tile(base_cell) {
-            // Buildings have an origin tile and zero or more associated blockers
-            // if they occupy multiple tiles, so here we might need to back-track
-            // to the origin of the building from a blocker tile.
-            //
-            /* For instance, a 2x2 house tile `H` will have the house at its origin
-            cell, and 3 other blocker tiles `B` that back-reference the house tile.
-            +---+---+
-            | H | B |
-            +---+---+
-            | B | B |
-            +---+---+ 
-            */
-            if building_layer_tile.is_building_blocker() {
-                debug_assert!(building_layer_tile.owner_cell.is_valid());
-                let owning_building_tile = buildings.tile(building_layer_tile.owner_cell);
-                owning_building_tile.calc_footprint_cells()
-            } else {
-                building_layer_tile.calc_footprint_cells()
-            }
-        } else {
-            smallvec![base_cell]
-        }
-    }
-
-    fn toggle_tile_selection(selection: &mut TileSelection, tile: &mut Tile, selected: bool) {
-        tile.flags.set(TileFlags::Highlighted, selected);
-        if selected {
-            selection.cells.push(tile.cell);
-        } else {
-            selection.cells.pop();
-        }
-    }
-
-    fn toggle_selection(selection: &mut TileSelection,
-                        terrain_layer: &mut TileMapLayer<'a>,
-                        buildings_layer: &TileMapLayer,
-                        base_cell: Cell2D,
-                        selected: bool) {
-
-        // Deal with multi-tile buildings:
-        let footprint =
-            if let Some(placement_tile_def) = selection.placement_tile {
-                // During placement tile hovering:
-                placement_tile_def.calc_footprint_cells(base_cell)
-            } else {
-                // During drag selection/mouse hover:
-                let base_tile = terrain_layer.tile(base_cell);
-                Self::calc_tile_footprint_cells(base_tile.cell, buildings_layer)
-            };
-
-        for footprint_cell in footprint {
-            if terrain_layer.is_cell_within_bounds(footprint_cell) {
-                let tile = terrain_layer.tile_mut(footprint_cell);
-                Self::toggle_tile_selection(selection, tile, selected);   
-            }
-        }
+        selection.clear(terrain_layer, buildings_layer, units_layer);
     }
 }
 
@@ -625,12 +638,12 @@ impl<'a> TileMap<'a> {
 
 #[derive(Default)]
 pub struct TileSelection<'a> {
-    rect: Rect2D,
+    rect: Rect2D, // Range selection rect w/ cursor click-n-drag.
     cursor_drag_start: Point2D,
     current_cursor_pos: Point2D,
     left_mouse_button_held: bool,
     cells: SmallVec::<[Cell2D; 1]>,
-    placement_tile: Option<&'a TileDef>, // Tile placement candidate.
+    placement_candidate: Option<&'a TileDef>, // Tile placement candidate.
 }
 
 impl<'a> TileSelection<'a> {
@@ -655,7 +668,7 @@ impl<'a> TileSelection<'a> {
 
     pub fn update(&mut self, cursor_pos: Point2D, placement_candidate: Option<&'a TileDef>) {
         self.current_cursor_pos = cursor_pos;
-        self.placement_tile = placement_candidate;
+        self.placement_candidate = placement_candidate;
         if self.left_mouse_button_held {
             // Keep updating the selection rect while left mouse button is held.
             self.rect = Rect2D::from_extents(self.cursor_drag_start, cursor_pos);   
@@ -665,7 +678,7 @@ impl<'a> TileSelection<'a> {
     }
 
     pub fn draw(&self, render_sys: &mut RenderSystem) {
-        if self.is_range() {
+        if self.is_selecting_range() {
             render_sys.draw_wireframe_rect_with_thickness(self.rect, Color::blue(), 1.5);
         }
     }
@@ -674,8 +687,104 @@ impl<'a> TileSelection<'a> {
         self.cells.last().unwrap_or(&Cell2D::invalid()).clone()
     }
 
-    fn is_range(&self) -> bool {
+    fn is_selecting_range(&self) -> bool {
         self.left_mouse_button_held && self.rect.is_valid()
+    }
+
+    fn clear(&mut self,
+             terrain_layer: &mut TileMapLayer<'a>,
+             buildings_layer: &TileMapLayer,
+             units_layer: &TileMapLayer) {
+
+        while !self.cells.is_empty() {
+            self.toggle_selection(terrain_layer,
+                                  buildings_layer,
+                                  units_layer,
+                                  self.last_cell(),
+                                  false);
+        }
+    }
+
+    fn toggle_tile_selection(&mut self, tile: &mut Tile, flags: TileFlags, selected: bool) {
+        if selected {
+            tile.flags.set(flags, true);
+            self.cells.push(tile.cell);
+        } else {
+            tile.flags.set(TileFlags::Highlighted | TileFlags::Invalidated, false);
+            self.cells.pop();
+        }
+    }
+
+    fn toggle_selection(&mut self,
+                        terrain_layer: &mut TileMapLayer<'a>,
+                        buildings_layer: &TileMapLayer,
+                        units_layer: &TileMapLayer,
+                        base_cell: Cell2D,
+                        selected: bool) {
+
+        // Deal with multi-tile buildings:
+        let mut footprint =
+            if let Some(placement_candidate) = self.placement_candidate {
+                // During placement tile hovering:
+                placement_candidate.calc_footprint_cells(base_cell)
+            } else {
+                // During drag selection/mouse hover:
+                calc_tile_footprint_cells(base_cell, buildings_layer)
+            };
+
+        // Highlight building placement overlaps:
+        let mut flags = TileFlags::Highlighted;
+        if let Some(placement_candidate) = self.placement_candidate {
+            if placement_candidate.is_building() {
+                for footprint_cell in &footprint {
+                    if !terrain_layer.is_cell_within_bounds(*footprint_cell) {
+                        // If any cell would fall outside of the map bounds we won't place.
+                        flags = TileFlags::Invalidated;
+                    }
+
+                    if let Some(current_tile) = buildings_layer.try_tile(*footprint_cell) {
+                        if current_tile.is_building() || current_tile.is_building_blocker() {
+                            // Cannot place building here.
+                            flags = TileFlags::Invalidated;
+                        }
+                    }
+
+                    if let Some(current_tile) = units_layer.try_tile(*footprint_cell) {
+                        if current_tile.is_unit() {
+                            // Cannot place building here.
+                            flags = TileFlags::Invalidated;
+                        }
+                    }
+                }
+            } else if placement_candidate.is_unit() {
+                // Trying to place unit over building?
+                if let Some(current_tile) = buildings_layer.try_tile(base_cell) {
+                    if current_tile.is_building() || current_tile.is_building_blocker() {
+                        // Cannot place unit here.
+                        flags = TileFlags::Invalidated;
+                        // Take the building's footprint so we'll highlight all of its tiles.
+                        footprint = calc_tile_footprint_cells(base_cell, buildings_layer);
+                    }
+                }
+            } else if placement_candidate.is_empty() {
+                // Tile clearing, highlight tile to be removed:
+                flags = TileFlags::Invalidated;
+                if let Some(current_tile) = buildings_layer.try_tile(base_cell) {
+                    if current_tile.is_building() || current_tile.is_building_blocker() {
+                        // If we're attempting to remove a building, take its own
+                        // footprint instead, as it may consist of many tiles.
+                        footprint = calc_tile_footprint_cells(base_cell, buildings_layer);
+                    }
+                }
+            }
+        }
+
+        for footprint_cell in footprint {
+            if terrain_layer.is_cell_within_bounds(footprint_cell) {
+                let tile = terrain_layer.tile_mut(footprint_cell);
+                self.toggle_tile_selection(tile, flags, selected);   
+            }
+        }
     }
 }
 
@@ -683,9 +792,74 @@ impl<'a> TileSelection<'a> {
 // Tile selection helpers
 // ----------------------------------------------
 
+fn cells_overlap(lhs_cells: &TileFootprintList, rhs_cells: &TileFootprintList) -> bool {
+    for lhs_cell in lhs_cells {
+        for rhs_cell in rhs_cells {
+            if lhs_cell == rhs_cell {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn find_exact_cell(tile_map: &TileMap,
+                   kind: TileMapLayerKind,
+                   cursor_screen_pos: Point2D,
+                   transform: &WorldToScreenTransform) -> Cell2D {
+
+    let cursor_iso_pos = screen_to_iso_point(
+        cursor_screen_pos, transform, BASE_TILE_SIZE, false);
+
+    let approx_cell = iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
+
+    if tile_map.is_cell_within_bounds(approx_cell) {
+        // Get the 8 possible neighboring tiles + self and test cursor intersection
+        // against each so we can know precisely which tile the cursor is hovering.
+        let neighbors = tile_map.layer(kind).tile_neighbors(approx_cell, true);
+        for neighbor in neighbors {
+            if let Some(tile) = neighbor {
+                if cursor_inside_tile_cell(cursor_screen_pos, tile, transform) {
+                    return tile.cell;
+                }
+            }
+        }
+    }
+
+    Cell2D::invalid()
+}
+
+fn calc_tile_footprint_cells(base_cell: Cell2D, buildings: &TileMapLayer) -> TileFootprintList {
+    // Buildings may take up multiple cells.
+    if let Some(building_layer_tile) = buildings.try_tile(base_cell) {
+        // Buildings have an origin tile and zero or more associated blockers
+        // if they occupy multiple tiles, so here we might need to back-track
+        // to the origin of the building from a blocker tile.
+        //
+        /* For instance, a 2x2 house tile `H` will have the house at its origin
+        cell, and 3 other blocker tiles `B` that back-reference the house tile.
+        +---+---+
+        | B | B |
+        +---+---+
+        | B | H | <-- origin tile, AKA base tile
+        +---+---+ 
+        */
+        if building_layer_tile.is_building_blocker() {
+            debug_assert!(building_layer_tile.owner_cell.is_valid());
+            let owning_building_tile = buildings.tile(building_layer_tile.owner_cell);
+            owning_building_tile.calc_footprint_cells()
+        } else {
+            building_layer_tile.calc_footprint_cells()
+        }
+    } else {
+        smallvec![base_cell]
+    }
+}
+
 fn cursor_inside_tile_cell(cursor_screen_pos: Point2D,
                            tile: &Tile,
                            transform: &WorldToScreenTransform) -> bool {
+
     debug_assert!(transform.is_valid());
 
     let screen_points = cell_to_screen_diamond_points(
@@ -704,6 +878,7 @@ fn tile_selection_bounds(screen_rect: &Rect2D,
                          tile_size: Size2D,
                          map_size: Size2D,
                          transform: &WorldToScreenTransform) -> (Cell2D, Cell2D) {
+
     debug_assert!(screen_rect.is_valid());
 
     // Convert screen-space corners to isometric space:
@@ -974,16 +1149,23 @@ impl TileMapRenderer {
         let line_thickness = self.grid_line_thickness * (self.world_to_screen.scaling as f32);
 
         let mut highlighted_cells = SmallVec::<[[Point2D; 4]; 64]>::new();
+        let mut invalidated_cells = SmallVec::<[[Point2D; 4]; 64]>::new();
 
         for y in (0..map_cells.height).rev() {
             for x in (0..map_cells.width).rev() {
                 let cell = Cell2D::new(x, y);
                 let points = cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, &self.world_to_screen);
 
-                // Save highlighted grid cells for drawing at the end, so they display correctly.
+                // Save highlighted grid cells for drawing at the end, so they display in the right order.
                 let tile = terrain_layer.tile(cell);
+    
                 if tile.flags.contains(TileFlags::Highlighted) {
                     highlighted_cells.push(points);
+                    continue;
+                }
+
+                if tile.flags.contains(TileFlags::Invalidated) {
+                    invalidated_cells.push(points);
                     continue;
                 }
 
@@ -991,8 +1173,12 @@ impl TileMapRenderer {
                 render_sys.draw_polyline_with_thickness(&points, self.grid_color, line_thickness, true);
             }
 
-            // Highlighted on top.
+            // Highlighted on top:
             for points in &highlighted_cells {
+                render_sys.draw_polyline_with_thickness(&points, Color::green(), line_thickness, true);
+            }
+
+            for points in &invalidated_cells {
                 render_sys.draw_polyline_with_thickness(&points, Color::red(), line_thickness, true);
             }
         }
