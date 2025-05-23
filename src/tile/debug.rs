@@ -7,10 +7,10 @@ use crate::{
 };
 
 use super::{
+    rendering::TileMapRenderFlags,
     sets::{self, TileSets},
     def::{self, TileDef, TileKind, TileTexInfo, BASE_TILE_SIZE},
-    map::{Tile, TileMap, TileMapLayerKind},
-    rendering::{TileMapRenderFlags}
+    map::{Tile, TileFlags, TileMap, TileMapLayerKind}
 };
 
 // ----------------------------------------------
@@ -26,17 +26,25 @@ pub fn draw_tile_debug(render_sys: &mut RenderSystem,
                        flags: TileMapRenderFlags) {
 
     let draw_debug_info =
-        if tile.is_terrain() && flags.contains(TileMapRenderFlags::DrawTerrainTileDebugInfo) {
-            true
-        } else if tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebugInfo) {
-            true
-        } else if tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnitsTileDebugInfo) {
-            true
-        } else if tile.is_building_blocker() && flags.contains(TileMapRenderFlags::DrawDebugBuildingBlockers) {
+        if tile.flags.contains(TileFlags::DrawDebugInfo) {
             true
         } else {
-            false
+            if tile.is_terrain() && flags.contains(TileMapRenderFlags::DrawTerrainTileDebugInfo) {
+                true
+            } else if tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebugInfo) {
+                true
+            } else if tile.is_building_blocker() && flags.contains(TileMapRenderFlags::DrawDebugBuildingBlockers) {
+                true
+            } else if tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnitsTileDebugInfo) {
+                true
+            } else {
+                false
+            }
         };
+
+    let draw_debug_bounds =
+        tile.flags.contains(TileFlags::DrawDebugBounds) ||
+        flags.contains(TileMapRenderFlags::DrawTileDebugBounds);
 
     if draw_debug_info {
         draw_tile_info(
@@ -47,7 +55,7 @@ pub fn draw_tile_debug(render_sys: &mut RenderSystem,
             tile);
     }
 
-    if flags.contains(TileMapRenderFlags::DrawTileDebugBounds) {
+    if draw_debug_bounds {
         draw_tile_bounds(render_sys, tile_rect, transform, tile);
     }
 }
@@ -68,7 +76,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
         imgui::WindowFlags::NO_MOUSE_INPUTS;
 
     // NOTE: Label has to be unique for each tile because it will be used as the ImGui ID for this widget.
-    let label = format!("{}_{}_{}", tile.def.name, tile.cell.x, tile.cell.y);
+    let label = format!("{}_{}_{}", tile.name(), tile.cell.x, tile.cell.y);
     let position = [ debug_overlay_pos.x as f32, debug_overlay_pos.y as f32 ];
 
     let bg_color = match tile.kind() {
@@ -142,7 +150,7 @@ fn draw_tile_bounds(render_sys: &mut RenderSystem,
     // Tile isometric "diamond" bounding box:
     let diamond_points = def::cell_to_screen_diamond_points(
         tile.cell,
-        tile.def.logical_size,
+        tile.logical_size(),
         transform);
 
     render_sys.draw_line_fast(diamond_points[0], diamond_points[1], color, color);

@@ -21,16 +21,19 @@ use super::{
 bitflags! {
     #[derive(Copy, Clone, Default, PartialEq)]
     pub struct TileFlags: u32 {
-        const None        = 0;
-        const Highlighted = 1 << 1;
-        const Invalidated = 1 << 2;
+        const None            = 0;
+        const Highlighted     = 1 << 1;
+        const Invalidated     = 1 << 2;
+        const Hidden          = 1 << 3;
+        const DrawDebugInfo   = 1 << 4;
+        const DrawDebugBounds = 1 << 5;
     }
 }
 
 #[derive(Clone)]
 pub struct Tile<'a> {
     pub cell: Cell2D,
-    pub owner_cell: Cell2D,
+    owner_cell: Cell2D,
     pub def: &'a TileDef,
     pub flags: TileFlags,
 }
@@ -69,6 +72,36 @@ impl<'a> Tile<'a> {
     #[inline]
     pub fn kind(&self) -> TileKind {
         self.def.kind
+    }
+
+    #[inline]
+    pub fn name(&self) -> &String {
+        &self.def.name
+    }
+
+    #[inline]
+    pub fn logical_size(&self) -> Size2D {
+        self.def.logical_size
+    }
+
+    #[inline]
+    pub fn draw_size(&self) -> Size2D {
+        self.def.draw_size
+    }
+
+    #[inline]
+    pub fn size_in_cells(&self) -> Size2D {
+        self.def.size_in_cells()
+    }
+
+    #[inline]
+    pub fn has_multi_cell_footprint(&self) -> bool {
+        self.def.has_multi_cell_footprint()
+    }
+
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.cell.is_valid() && self.def.is_valid()
     }
 
     #[inline]
@@ -562,25 +595,25 @@ impl<'a> TileMap<'a> {
         self.layer_mut(kind).find_tile_mut(cell, tile_kinds)
     }
 
-    pub fn place_tile(&mut self,
-                      target_cell: Cell2D,
-                      tile_to_place: &'a TileDef) -> bool {
+    pub fn try_place_tile(&mut self,
+                          target_cell: Cell2D,
+                          tile_to_place: &'a TileDef) -> bool {
 
-        self.place_tile_in_layer(
+        self.try_place_tile_in_layer(
             target_cell,
             tile_kind_to_layer(tile_to_place.kind),
             tile_to_place)
     }
 
-    pub fn place_tile_in_layer(&mut self,
-                               target_cell: Cell2D,
-                               kind: TileMapLayerKind,
-                               tile_to_place: &'a TileDef) -> bool {
+    pub fn try_place_tile_in_layer(&mut self,
+                                   target_cell: Cell2D,
+                                   kind: TileMapLayerKind,
+                                   tile_to_place: &'a TileDef) -> bool {
 
         if tile_to_place.is_empty() {
-            placement::clear_tile_from_layer(self, kind, target_cell)
+            placement::try_clear_tile_from_layer(self, kind, target_cell)
         } else {
-            placement::place_tile_in_layer(self, kind, target_cell, tile_to_place)
+            placement::try_place_tile_in_layer(self, kind, target_cell, tile_to_place)
         }
     }
 
@@ -613,10 +646,24 @@ impl<'a> TileMap<'a> {
             placement_candidate);
     }
 
-    pub fn clear_selection(&mut self,
-                           selection: &mut TileSelection<'a>) {
-
+    pub fn clear_selection(&mut self, selection: &mut TileSelection<'a>) {
         selection.clear(&mut self.layers_mut());
+    }
+
+    pub fn topmost_selected_tile(&self, selection: &TileSelection) -> Option<&Tile> {
+        let selected_cell = selection.last_cell();
+        if self.is_cell_within_bounds(selected_cell) {
+            // Returns the tile at the topmost layer if it is not empty (unit, building, terrain),
+            // or nothing if all layers are empty.
+            for layer_kind in TileMapLayerKind::iter().rev() {
+                if let Some(tile) = self.try_tile_from_layer(selected_cell, layer_kind) {
+                    if !tile.is_empty() {
+                        return Some(tile);
+                    }
+                }
+            }
+        }
+        None
     }
 
     pub fn find_exact_cell_for_point(&self,

@@ -140,7 +140,7 @@ impl TileMapRenderer {
                     }
 
                     // Terrain tiles size is constrained.
-                    debug_assert!(tile.is_terrain() && tile.def.logical_size == BASE_TILE_SIZE);
+                    debug_assert!(tile.is_terrain() && tile.logical_size() == BASE_TILE_SIZE);
 
                     let tile_iso_coords = tile.calc_adjusted_iso_coords();
                     self.draw_tile(render_sys, ui_sys, tile_iso_coords, tile, flags);
@@ -186,7 +186,7 @@ impl TileMapRenderer {
                         let tile_iso_coords = building_tile.calc_adjusted_iso_coords();
                         let tile_rect = utils::iso_to_screen_rect(
                             tile_iso_coords,
-                            building_tile.def.draw_size,
+                            building_tile.draw_size(),
                             &self.world_to_screen,
                             true);
 
@@ -281,31 +281,33 @@ impl TileMapRenderer {
                  tile: &Tile,
                  flags: TileMapRenderFlags) {
 
-        debug_assert!(tile.def.is_valid() && !tile.is_empty());
+        debug_assert!(tile.is_valid() && !tile.is_empty());
 
         // Only terrain and buildings might require spacing.
         let apply_spacing = if !tile.is_unit() { true } else { false };
 
         let tile_rect = utils::iso_to_screen_rect(
             tile_iso_coords,
-            tile.def.draw_size,
+            tile.draw_size(),
             &self.world_to_screen,
             apply_spacing);
 
-        let highlight_color =
-            if tile.flags.contains(TileFlags::Highlighted) {
-                TILE_HIGHLIGHT_COLOR
-            } else if tile.flags.contains(TileFlags::Invalidated) {
-                TILE_INVALID_COLOR
-            } else {
-                Color::white()
-            };
+        if !tile.flags.contains(TileFlags::Hidden) {
+            let highlight_color =
+                if tile.flags.contains(TileFlags::Highlighted) {
+                    TILE_HIGHLIGHT_COLOR
+                } else if tile.flags.contains(TileFlags::Invalidated) {
+                    TILE_INVALID_COLOR
+                } else {
+                    Color::white()
+                };
 
-        render_sys.draw_textured_colored_rect(
-            tile_rect,
-            &tile.def.tex_info.coords,
-            tile.def.tex_info.texture,
-            tile.def.color * highlight_color);
+            render_sys.draw_textured_colored_rect(
+                tile_rect,
+                &tile.def.tex_info.coords,
+                tile.def.tex_info.texture,
+                tile.def.color * highlight_color);
+        }
 
         debug::draw_tile_debug(
             render_sys,

@@ -16,43 +16,11 @@ use app::{
 };
 
 use tile::{
-    //map::*,
-    selection::*,
-    rendering::*,
+    debug::{self},
     debug_ui::*,
-    debug::{self}
+    rendering::*,
+    selection::*
 };
-
-// ----------------------------------------------
-// TileInspectorMenu
-// ----------------------------------------------
-
-#[derive(Default)]
-struct TileInspectorMenu {
-    // WIP
-}
-
-impl TileInspectorMenu {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn draw(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-
-        let window_flags =
-            imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
-            imgui::WindowFlags::NO_RESIZE |
-            imgui::WindowFlags::NO_SCROLLBAR;
-
-        ui.window("Tile Inspector")
-            .flags(window_flags)
-            .position([5.0, 5.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                ui.text("Tile Inspector");
-            });
-    }
-}
 
 // ----------------------------------------------
 // main()
@@ -86,7 +54,7 @@ fn main() {
 
     let mut tile_selection = TileSelection::new();
     let mut tile_list_menu = TileListMenu::new(&mut tex_cache);
-    let tile_inspector_menu = TileInspectorMenu::new();
+    let mut tile_inspector_menu = TileInspectorMenu::new();
 
     let mut frame_clock = FrameClock::new();
 
@@ -128,6 +96,10 @@ fn main() {
                         if !tile_selection.on_mouse_click(button, action, cursor_pos) {
                             tile_list_menu.clear_selection();
                             tile_map.clear_selection(&mut tile_selection);
+                        }
+
+                        if let Some(selected_tile) = tile_map.topmost_selected_tile(&tile_selection) {
+                            tile_inspector_menu.on_mouse_click(button, action, selected_tile);
                         }
                     }
                 }
@@ -174,9 +146,9 @@ fn main() {
                 cursor_pos,
                 &transform,
                 tile_selection.has_valid_placement(),
-                debug_settings_menu.show_selected_tile_bounds());
+                debug_settings_menu.show_selection_bounds());
 
-            tile_inspector_menu.draw(&ui_sys);
+            tile_inspector_menu.draw(&mut tile_map, &ui_sys, &transform);
             debug_settings_menu.draw(&mut tile_map_renderer, &ui_sys);
 
             if debug_settings_menu.show_cursor_pos() {

@@ -96,7 +96,7 @@ impl<'a> TileSelection<'a> {
 
                         let tile_screen_rect = utils::iso_to_screen_rect(
                             tile_iso_coords,
-                            base_tile.def.logical_size,
+                            base_tile.logical_size(),
                             transform,
                             false);
 
@@ -145,7 +145,7 @@ impl<'a> TileSelection<'a> {
         }
     }
 
-    fn last_cell(&self) -> Cell2D {
+    pub fn last_cell(&self) -> Cell2D {
         self.cells.last().unwrap_or(&Cell2D::invalid()).clone()
     }
 

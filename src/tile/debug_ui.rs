@@ -2,13 +2,13 @@ use crate::{
     ui::UiSystem,
     app::input::{MouseButton, InputAction},
     render::{RenderSystem, TextureCache, TextureHandle},
-    utils::{Color, Point2D, Rect2D, Size2D, RectTexCoords, WorldToScreenTransform}
+    utils::{self, Color, Cell2D, Point2D, Rect2D, Size2D, RectTexCoords, WorldToScreenTransform}
 };
 
 use super::{
     sets::TileSets,
-    def::{TileDef, BASE_TILE_SIZE},
-    map::{TileMapLayerKind, TILE_MAP_LAYER_COUNT},
+    def::{TileDef, TileKind, BASE_TILE_SIZE},
+    map::{self, Tile, TileFlags, TileMap, TileMapLayerKind, TILE_MAP_LAYER_COUNT},
     rendering::{TileMapRenderFlags, TileMapRenderer, TILE_INVALID_COLOR}
 };
 
@@ -30,14 +30,14 @@ pub struct DebugSettingsMenu {
     draw_grid: bool,
     draw_grid_ignore_depth: bool,
 
-    draw_terrain_debug_info: bool,
-    draw_buildings_debug_info: bool,
-    draw_debug_building_blockers: bool,
-    draw_units_debug_info: bool,
-    draw_tile_debug_bounds: bool,
-    draw_selected_tile_bounds: bool,
-    draw_cursor_pos: bool,
-    draw_screen_origin: bool,
+    show_terrain_debug: bool,
+    show_buildings_debug: bool,
+    show_building_blockers: bool,
+    show_units_debug: bool,
+    show_tile_bounds: bool,
+    show_selection_bounds: bool,
+    show_cursor_pos: bool,
+    show_screen_origin: bool,
 }
 
 impl DebugSettingsMenu {
@@ -56,30 +56,30 @@ impl DebugSettingsMenu {
         }
     }
 
-    pub fn show_selected_tile_bounds(&self) -> bool {
-        self.draw_selected_tile_bounds
+    pub fn show_selection_bounds(&self) -> bool {
+        self.show_selection_bounds
     }
 
     pub fn show_cursor_pos(&self) -> bool {
-        self.draw_cursor_pos
+        self.show_cursor_pos
     }
 
     pub fn show_screen_origin(&self) -> bool {
-        self.draw_screen_origin
+        self.show_screen_origin
     }
 
     pub fn selected_render_flags(&self) -> TileMapRenderFlags {
         let mut flags = TileMapRenderFlags::None;
-        if self.draw_terrain                 { flags.insert(TileMapRenderFlags::DrawTerrain); }
-        if self.draw_buildings               { flags.insert(TileMapRenderFlags::DrawBuildings); }
-        if self.draw_units                   { flags.insert(TileMapRenderFlags::DrawUnits); }
-        if self.draw_grid                    { flags.insert(TileMapRenderFlags::DrawGrid); }
-        if self.draw_grid_ignore_depth       { flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth); }
-        if self.draw_terrain_debug_info      { flags.insert(TileMapRenderFlags::DrawTerrainTileDebugInfo); }
-        if self.draw_buildings_debug_info    { flags.insert(TileMapRenderFlags::DrawBuildingsTileDebugInfo); }
-        if self.draw_debug_building_blockers { flags.insert(TileMapRenderFlags::DrawDebugBuildingBlockers); }
-        if self.draw_units_debug_info        { flags.insert(TileMapRenderFlags::DrawUnitsTileDebugInfo); }
-        if self.draw_tile_debug_bounds       { flags.insert(TileMapRenderFlags::DrawTileDebugBounds); }
+        if self.draw_terrain           { flags.insert(TileMapRenderFlags::DrawTerrain); }
+        if self.draw_buildings         { flags.insert(TileMapRenderFlags::DrawBuildings); }
+        if self.draw_units             { flags.insert(TileMapRenderFlags::DrawUnits); }
+        if self.draw_grid              { flags.insert(TileMapRenderFlags::DrawGrid); }
+        if self.draw_grid_ignore_depth { flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth); }
+        if self.show_terrain_debug     { flags.insert(TileMapRenderFlags::DrawTerrainTileDebugInfo); }
+        if self.show_buildings_debug   { flags.insert(TileMapRenderFlags::DrawBuildingsTileDebugInfo); }
+        if self.show_building_blockers { flags.insert(TileMapRenderFlags::DrawDebugBuildingBlockers); }
+        if self.show_units_debug       { flags.insert(TileMapRenderFlags::DrawUnitsTileDebugInfo); }
+        if self.show_tile_bounds       { flags.insert(TileMapRenderFlags::DrawTileDebugBounds); }
         flags
     }
 
@@ -129,14 +129,14 @@ impl DebugSettingsMenu {
                 ui.checkbox("Draw units", &mut self.draw_units);
                 ui.checkbox("Draw grid", &mut self.draw_grid);
                 ui.checkbox("Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
-                ui.checkbox("Draw terrain debug", &mut self.draw_terrain_debug_info);
-                ui.checkbox("Draw buildings debug", &mut self.draw_buildings_debug_info);
-                ui.checkbox("Draw building blockers", &mut self.draw_debug_building_blockers);
-                ui.checkbox("Draw units debug", &mut self.draw_units_debug_info);
-                ui.checkbox("Draw tile bounds", &mut self.draw_tile_debug_bounds);
-                ui.checkbox("Draw selection bounds", &mut self.draw_selected_tile_bounds);
-                ui.checkbox("Draw cursor pos", &mut self.draw_cursor_pos);
-                ui.checkbox("Draw screen origin", &mut self.draw_screen_origin);
+                ui.checkbox("Show terrain debug", &mut self.show_terrain_debug);
+                ui.checkbox("Show buildings debug", &mut self.show_buildings_debug);
+                ui.checkbox("Show building blockers", &mut self.show_building_blockers);
+                ui.checkbox("Show units debug", &mut self.show_units_debug);
+                ui.checkbox("Show tile bounds", &mut self.show_tile_bounds);
+                ui.checkbox("Show selection bounds", &mut self.show_selection_bounds);
+                ui.checkbox("Show cursor pos", &mut self.show_cursor_pos);
+                ui.checkbox("Show screen origin", &mut self.show_screen_origin);
             });
     }
 }
@@ -393,5 +393,102 @@ impl<'a> TileListMenu<'a> {
                 ui.same_line_with_spacing(0.0, padding_between_tiles);
             }
         }
+    }
+}
+
+// ----------------------------------------------
+// TileInspectorMenu
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct TileInspectorMenu {
+    is_open: bool,
+    selected: Option<(Cell2D, TileKind)>,
+
+    hide_tile: bool,
+    show_tile_debug: bool,
+    show_tile_bounds: bool,
+}
+
+impl TileInspectorMenu {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, selected_tile: &Tile) {
+        if button == MouseButton::Left && action == InputAction::Press {
+            self.is_open          = true;
+            self.selected         = Some((selected_tile.cell, selected_tile.kind()));
+            self.hide_tile        = selected_tile.flags.contains(TileFlags::Hidden);
+            self.show_tile_debug  = selected_tile.flags.contains(TileFlags::DrawDebugInfo);
+            self.show_tile_bounds = selected_tile.flags.contains(TileFlags::DrawDebugBounds);
+        }
+    }
+
+    pub fn draw(&mut self, tile_map: &mut TileMap, ui_sys: &UiSystem, transform: &WorldToScreenTransform) {
+        if !self.is_open || self.selected.is_none() {
+            return;
+        }
+
+        let (cell, tile_kind) = self.selected.unwrap();
+        if !cell.is_valid() || tile_kind == TileKind::Empty {
+            return;
+        }
+
+        let layer_kind = map::tile_kind_to_layer(tile_kind);
+        let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
+
+        let tile_iso_pos = utils::cell_to_iso(cell, BASE_TILE_SIZE);
+        let tile_iso_adjusted = tile.calc_adjusted_iso_coords();
+
+        let tile_screen_pos = utils::iso_to_screen_rect(
+            tile_iso_adjusted,
+            tile.draw_size(),
+            transform,
+            if !tile.is_unit() { true } else { false });
+
+        let window_position = [
+            (tile_screen_pos.center().x - 30) as f32,
+            (tile_screen_pos.center().y - 30) as f32
+        ];
+
+        let window_flags =
+            imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
+            imgui::WindowFlags::NO_SCROLLBAR;
+
+        let ui = ui_sys.builder();
+        ui.window(format!("{} ({},{})", tile.name(), tile.cell.x, tile.cell.y))
+            .opened(&mut self.is_open)
+            .flags(window_flags)
+            .position(window_position, imgui::Condition::Appearing)
+            .build(|| {
+                if ui.collapsing_header("Properties", imgui::TreeNodeFlags::empty()) {
+                    ui.text(format!("Name.........: '{}'", tile.name()));
+                    ui.text(format!("Kind.........: {:?}", tile.kind()));
+                    ui.text(format!("Cell.........: {},{}", tile.cell.x, tile.cell.y));
+                    ui.text(format!("Iso pos......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
+                    ui.text(format!("Iso adjusted.: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
+                    ui.text(format!("Screen pos...: {},{}", tile_screen_pos.x(), tile_screen_pos.y()));
+                    ui.text(format!("Logical size.: {},{}", tile.logical_size().width, tile.logical_size().height));
+                    ui.text(format!("Draw size....: {},{}", tile.draw_size().width, tile.draw_size().height));
+                    ui.text(format!("Cells size...: {},{}", tile.size_in_cells().width, tile.size_in_cells().height));
+                    ui.text(format!("Z-sort.......: {}", tile.calc_z_sort()));
+                    ui.text(format!("Color RGBA...: [{},{},{},{}]", tile.def.color.r, tile.def.color.g, tile.def.color.b, tile.def.color.a));
+                }
+
+                if ui.collapsing_header("Debug Options", imgui::TreeNodeFlags::empty()) {
+                    if ui.checkbox("Hide tile", &mut self.hide_tile) {
+                        tile.flags.set(TileFlags::Hidden, self.hide_tile);
+                    }
+
+                    if ui.checkbox("Show debug overlay", &mut self.show_tile_debug) {
+                        tile.flags.set(TileFlags::DrawDebugInfo, self.show_tile_debug);
+                    }
+
+                    if ui.checkbox("Show tile bounds", &mut self.show_tile_bounds) {
+                        tile.flags.set(TileFlags::DrawDebugBounds, self.show_tile_bounds);
+                    }
+                }
+            });
     }
 }

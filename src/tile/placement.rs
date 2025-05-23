@@ -13,10 +13,10 @@ use super::{
 // Tile placements helpers
 // ----------------------------------------------
 
-pub fn place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
-                               kind: TileMapLayerKind,
-                               target_cell: Cell2D,
-                               tile_to_place: &'a TileDef) -> bool {
+pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
+                                   kind: TileMapLayerKind,
+                                   target_cell: Cell2D,
+                                   tile_to_place: &'a TileDef) -> bool {
 
     debug_assert!(tile_map.is_cell_within_bounds(target_cell));
     debug_assert!(tile_to_place.is_empty() == false);
@@ -94,9 +94,9 @@ pub fn place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
     false // Nothing placed.
 }
 
-pub fn clear_tile_from_layer<'a>(tile_map: &mut TileMap<'a>,
-                                 kind: TileMapLayerKind,
-                                 target_cell: Cell2D) -> bool {
+pub fn try_clear_tile_from_layer<'a>(tile_map: &mut TileMap<'a>,
+                                     kind: TileMapLayerKind,
+                                     target_cell: Cell2D) -> bool {
 
     debug_assert!(tile_map.is_cell_within_bounds(target_cell));
 
@@ -137,7 +137,7 @@ pub fn try_place_tile_at_cursor<'a>(tile_map: &mut TileMap<'a>,
         transform);
 
     if tile_map.is_cell_within_bounds(target_cell) {
-        return place_tile_in_layer(tile_map, layer_kind, target_cell, tile_to_place);
+        return try_place_tile_in_layer(tile_map, layer_kind, target_cell, tile_to_place);
     }
 
     false // Nothing placed.
@@ -158,7 +158,7 @@ pub fn try_clear_tile_at_cursor<'a>(tile_map: &mut TileMap<'a>,
         if tile_map.is_cell_within_bounds(target_cell) {
             if let Some(existing_tile) = tile_map.try_tile_from_layer(target_cell, layer_kind) {
                 if !existing_tile.is_empty() {
-                    return clear_tile_from_layer(tile_map, layer_kind, target_cell);
+                    return try_clear_tile_from_layer(tile_map, layer_kind, target_cell);
                 }
             }
         }      
