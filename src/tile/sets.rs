@@ -1,11 +1,15 @@
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::utils::{Color, Size2D};
-use crate::utils::file_sys::{self};
-use crate::utils::hash::{self, PreHashedKeyMap, StringHash};
-use crate::render::TextureCache;
-use super::def::{TileDef, TileKind, TileTexInfo};
+use crate::{
+    render::TextureCache,
+    utils::{Color, Size2D},
+    utils::file_sys::{self},
+    utils::hash::{self, PreHashedKeyMap, StringHash}
+};
+
+use super::{
+    def::{TileDef, TileKind, TileTexInfo}
+};
 
 // ----------------------------------------------
 // Constants

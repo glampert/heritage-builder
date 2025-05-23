@@ -1,8 +1,14 @@
 use std::ffi::c_void;
 use glfw::Context;
-use super::input::InputSystem;
-use crate::app::{Application, ApplicationEvent, ApplicationEventList};
-use crate::utils::{self, Size2D, Point2D, Vec2};
+
+use crate::{
+    utils::{self, Size2D, Point2D, Vec2},
+    app::{Application, ApplicationEvent, ApplicationEventList},
+};
+
+use super::{
+    input::InputSystem
+};
 
 // ----------------------------------------------
 // These will be exposed as public types in the

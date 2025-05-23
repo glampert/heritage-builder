@@ -4,7 +4,9 @@ pub use super::glfw::InputAction;
 pub use super::glfw::InputKey;
 pub use super::glfw::MouseButton;
 
-use crate::utils::Point2D;
+use crate::{
+    utils::Point2D
+};
 
 // ----------------------------------------------
 // InputSystem

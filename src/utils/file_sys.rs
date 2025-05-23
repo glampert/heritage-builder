@@ -1,6 +1,5 @@
 use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // ----------------------------------------------
 // collect_files / collect_sub_dirs

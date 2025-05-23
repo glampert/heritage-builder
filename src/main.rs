@@ -1,18 +1,27 @@
 #![allow(dead_code)]
 
+mod ui;
+mod render;
 mod utils;
 mod app;
-mod render;
-mod ui;
 mod tile;
 
-use utils::*;
-use app::*;
-use app::input::*;
 use ui::*;
 use render::*;
-use tile::map::*;
-use tile::debug::{self, *};
+use utils::*;
+
+use app::{
+    *,
+    input::*
+};
+
+use tile::{
+    //map::*,
+    selection::*,
+    rendering::*,
+    debug_ui::*,
+    debug::{self}
+};
 
 // ----------------------------------------------
 // TileInspectorMenu
@@ -126,8 +135,10 @@ fn main() {
             println!("ApplicationEvent::{:?}", event);
         }
 
-        tile_selection.update(cursor_pos, tile_list_menu.current_selection());
-        tile_map.update_selection(&mut tile_selection, &transform);
+        tile_map.update_selection(&mut tile_selection,
+                                  cursor_pos,
+                                  &transform,
+                                  tile_list_menu.current_selection());
 
         if tile_list_menu.can_place_tile() {
             let current_sel = tile_list_menu.current_selection().unwrap();

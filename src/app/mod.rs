@@ -6,8 +6,14 @@ use glfw::GlfwApplication;
 pub use glfw::load_gl_func;
 
 use smallvec::SmallVec;
-use crate::utils::{Size2D, Vec2};
-use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
+
+use crate::{
+    utils::{Size2D, Vec2}
+};
+
+use input::{
+    InputAction, InputKey, InputModifiers, InputSystem, MouseButton
+};
 
 // ----------------------------------------------
 // Application

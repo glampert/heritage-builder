@@ -1,10 +1,14 @@
-use crate::utils::{Color, Vec2, Size2D, Point2D, Rect2D, RectTexCoords};
+use crate::{
+    utils::{Color, Vec2, Size2D, Point2D, Rect2D, RectTexCoords}
+};
 
-use super::shader::*;
-use super::vertex::*;
-use super::context::*;
-use super::batch::{DrawBatch, DrawBatchEntry};
-use super::texture::{TextureCache, TextureHandle};
+use super::{
+    shader::*,
+    vertex::*,
+    context::*,
+    batch::{DrawBatch, DrawBatchEntry},
+    texture::{TextureCache, TextureHandle}
+};
 
 // ----------------------------------------------
 // RenderSystem

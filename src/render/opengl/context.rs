@@ -1,9 +1,15 @@
 use std::ffi::c_void;
-use crate::utils::{Color, Rect2D};
-use super::{panic_if_gl_error, log_gl_info};
-use super::shader::{ShaderProgram, NULL_SHADER_HANDLE};
-use super::texture::{Texture2D, TextureUnit, MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE};
-use super::buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE};
+
+use crate::{
+    utils::{Color, Rect2D}
+};
+
+use super::{
+    {panic_if_gl_error, log_gl_info},
+    shader::{ShaderProgram, NULL_SHADER_HANDLE},
+    texture::{Texture2D, TextureUnit, MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE},
+    buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE},
+};
 
 // ----------------------------------------------
 // Constants

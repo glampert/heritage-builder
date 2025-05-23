@@ -1,5 +1,10 @@
-use crate::utils::{Color, Vec2};
-use super::buffer::{VertexTrait, VertexElementDef};
+use crate::{
+    utils::{Color, Vec2}
+};
+
+use super::{
+    buffer::{VertexTrait, VertexElementDef}
+};
 
 // ----------------------------------------------
 // Sprite Vertex

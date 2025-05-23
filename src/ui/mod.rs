@@ -8,9 +8,11 @@ use imgui_opengl_renderer::Renderer as ImGuiRenderer;
 pub use imgui::FontId as UiFontHandle;
 pub use imgui::TextureId as UiTextureHandle;
 
-use crate::utils::{self, Vec2};
-use crate::app::{self, Application, input::{InputAction, InputKey, InputSystem, MouseButton}};
-use crate::render::{TextureCache, TextureHandle};
+use crate::{
+    utils::{self, Vec2},
+    render::{TextureCache, TextureHandle},
+    app::{self, Application, input::{InputAction, InputKey, InputSystem, MouseButton}}
+};
 
 // ----------------------------------------------
 // UiSystem

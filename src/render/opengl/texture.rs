@@ -2,9 +2,14 @@ use std::ffi::c_void;
 use bitflags::bitflags;
 use image::GenericImageView;
 
-use crate::utils::Size2D;
-use super::gl_error_to_string;
-use super::shader::{ShaderVarTrait, ShaderVariable};
+use crate::{
+    utils::Size2D
+};
+
+use super::{
+    gl_error_to_string,
+    shader::{ShaderVarTrait, ShaderVariable}
+};
 
 // ----------------------------------------------
 // Constants

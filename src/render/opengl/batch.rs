@@ -1,11 +1,16 @@
 use std::fmt::Debug;
 use std::convert::{Into, TryFrom};
 
-use crate::utils::Color;
-use super::buffer::*;
-use super::shader::ShaderProgram;
-use super::texture::TextureHandle;
-use super::context::{RenderContext, PrimitiveTopology};
+use crate::{
+    utils::Color
+};
+
+use super::{
+    buffer::*,
+    shader::ShaderProgram,
+    texture::TextureHandle,
+    context::{RenderContext, PrimitiveTopology}
+};
 
 // ----------------------------------------------
 // DrawBatch
