@@ -33,7 +33,7 @@ bitflags! {
 #[derive(Clone)]
 pub struct Tile<'a> {
     pub cell: Cell2D,
-    owner_cell: Cell2D,
+    owner_cell: Cell2D, // For building blockers only.
     pub def: &'a TileDef,
     pub flags: TileFlags,
 }

@@ -1,6 +1,7 @@
 use smallvec::SmallVec;
 
 use crate::{
+    ui::UiInputEvent,
     render::RenderSystem,
     app::input::{MouseButton, InputAction},
     utils::{self, Cell2D, Point2D, Rect2D, Size2D, WorldToScreenTransform}
@@ -36,19 +37,18 @@ impl<'a> TileSelection<'a> {
         self.selection_flags != TileFlags::Invalidated
     }
 
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_pos: Point2D) -> bool {
-        let mut range_selecting = false;
+    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_pos: Point2D) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
                 self.cursor_drag_start = cursor_pos;
                 self.left_mouse_button_held = true;
-                range_selecting = true;
+                return UiInputEvent::Handled;
             } else if action == InputAction::Release {
                 self.cursor_drag_start = Point2D::zero();
                 self.left_mouse_button_held = false;
             }
         }
-        range_selecting
+        UiInputEvent::NotHandled
     }
 
     pub fn draw(&self, render_sys: &mut RenderSystem) {

@@ -72,34 +72,47 @@ fn main() {
                 ApplicationEvent::WindowResize(window_size) => {
                     render_sys.set_window_size(window_size);
                 }
-                ApplicationEvent::KeyInput(key, action, _modifiers) => {
-                    ui_sys.on_key_input(key, action);
+                ApplicationEvent::KeyInput(key, action, modifiers) => {
+                    if ui_sys.on_key_input(key, action, modifiers).is_handled() {
+                        continue;
+                    }
 
                     if key == InputKey::Escape {
+                        tile_inspector_menu.close();
                         tile_list_menu.clear_selection();
                         tile_map.clear_selection(&mut tile_selection);
                     }
                 }
                 ApplicationEvent::CharInput(c) => {
-                    ui_sys.on_char_input(c);
+                    if ui_sys.on_char_input(c).is_handled() {
+                        continue;
+                    }
                 }
                 ApplicationEvent::Scroll(amount) => {
-                    ui_sys.on_scroll(amount);
+                    if ui_sys.on_scroll(amount).is_handled() {
+                        continue;
+                    }
                 }
-                ApplicationEvent::MouseButton(button, action, _modifiers) => {
+                ApplicationEvent::MouseButton(button, action, modifiers) => {
+                    if ui_sys.on_mouse_click(button, action, modifiers).is_handled() {
+                        continue;
+                    }
+
                     if tile_list_menu.has_selection() {
-                        if !tile_list_menu.on_mouse_click(button, action) {
+                        if tile_list_menu.on_mouse_click(button, action).not_handled() {
                             tile_list_menu.clear_selection();
                             tile_map.clear_selection(&mut tile_selection);
                         }
                     } else {
-                        if !tile_selection.on_mouse_click(button, action, cursor_pos) {
+                        if tile_selection.on_mouse_click(button, action, cursor_pos).not_handled() {
                             tile_list_menu.clear_selection();
                             tile_map.clear_selection(&mut tile_selection);
                         }
 
                         if let Some(selected_tile) = tile_map.topmost_selected_tile(&tile_selection) {
-                            tile_inspector_menu.on_mouse_click(button, action, selected_tile);
+                            if tile_inspector_menu.on_mouse_click(button, action, selected_tile).is_handled() {
+                                continue;
+                            }
                         }
                     }
                 }
@@ -107,10 +120,12 @@ fn main() {
             println!("ApplicationEvent::{:?}", event);
         }
 
-        tile_map.update_selection(&mut tile_selection,
-                                  cursor_pos,
-                                  &transform,
-                                  tile_list_menu.current_selection());
+        if !ui_sys.is_handling_mouse_input() { // If we're not hovering over an ImGui menu.
+            tile_map.update_selection(&mut tile_selection,
+                                      cursor_pos,
+                                      &transform,
+                                      tile_list_menu.current_selection());
+        }
 
         if tile_list_menu.can_place_tile() {
             let current_sel = tile_list_menu.current_selection().unwrap();

@@ -11,8 +11,31 @@ pub use imgui::TextureId as UiTextureHandle;
 use crate::{
     utils::{self, Vec2},
     render::{TextureCache, TextureHandle},
-    app::{self, Application, input::{InputAction, InputKey, InputSystem, MouseButton}}
+    app::{self, Application, input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton}}
 };
+
+// ----------------------------------------------
+// UiInputEvent
+// ----------------------------------------------
+
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum UiInputEvent {
+    Handled,   // Input event was handled/consumed and should not propagate.
+    NotHandled // Input event wasn't handled and should propagate to other widgets.
+}
+
+impl UiInputEvent {
+    #[inline]
+    pub fn is_handled(self) -> bool {
+        self == UiInputEvent::Handled
+    }
+
+    #[inline]
+    pub fn not_handled(self) -> bool {
+        self == UiInputEvent::NotHandled
+    }
+}
 
 // ----------------------------------------------
 // UiSystem
@@ -46,18 +69,57 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn on_key_input(&mut self, key: InputKey, action: InputAction) {
+    pub fn on_key_input(&mut self, key: InputKey, action: InputAction, _: InputModifiers) -> UiInputEvent {
         self.context.on_key_input(key, action);
+
+        if self.is_handling_key_input() {
+            UiInputEvent::Handled
+        } else {
+            UiInputEvent::NotHandled
+        }
     }
 
     #[inline]
-    pub fn on_char_input(&mut self, c: char) {
+    pub fn on_char_input(&mut self, c: char) -> UiInputEvent {
         self.context.on_char_input(c);
+
+        if self.is_handling_key_input() {
+            UiInputEvent::Handled
+        } else {
+            UiInputEvent::NotHandled
+        }
     }
 
     #[inline]
-    pub fn on_scroll(&mut self, amount: Vec2) {
+    pub fn on_scroll(&mut self, amount: Vec2) -> UiInputEvent {
         self.context.on_scroll(amount);
+
+        if self.is_handling_mouse_input() {
+            UiInputEvent::Handled
+        } else {
+            UiInputEvent::NotHandled
+        }
+    }
+
+    #[inline]
+    pub fn on_mouse_click(&mut self, _: MouseButton, _: InputAction, _: InputModifiers) -> UiInputEvent {
+        // Mouse events are polled from the InputSystem instead;
+        // Just perform a quick check to see if mouse clicks are being consumed by ImGui.
+        if self.is_handling_mouse_input() {
+            UiInputEvent::Handled
+        } else {
+            UiInputEvent::NotHandled
+        }
+    }
+
+    #[inline]
+    pub fn is_handling_mouse_input(&self) -> bool {
+        self.context.imgui_ctx.io().want_capture_mouse
+    }
+
+    #[inline]
+    pub fn is_handling_key_input(&self) -> bool {
+        self.context.imgui_ctx.io().want_capture_keyboard
     }
 
     #[inline]

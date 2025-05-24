@@ -1,8 +1,8 @@
 use crate::{
-    ui::UiSystem,
-    app::input::{MouseButton, InputAction},
+    ui::{UiInputEvent, UiSystem},
+    app::input::{InputAction, MouseButton},
     render::{RenderSystem, TextureCache, TextureHandle},
-    utils::{self, Color, Cell2D, Point2D, Rect2D, Size2D, RectTexCoords, WorldToScreenTransform}
+    utils::{self, Cell2D, Color, Point2D, Rect2D, RectTexCoords, Size2D, WorldToScreenTransform}
 };
 
 use super::{
@@ -179,18 +179,17 @@ impl<'a> TileListMenu<'a> {
         self.left_mouse_button_held && self.has_selection()
     }
 
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction) -> bool {
+    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
                 self.left_mouse_button_held = true;
             } else if action == InputAction::Release {
                 self.left_mouse_button_held = false;
             }
-            return true;
-        } else if button == MouseButton::Right {
-            return false;
+            UiInputEvent::Handled
+        } else {
+            UiInputEvent::NotHandled
         }
-        return false;
     }
 
     pub fn draw(&mut self,
@@ -415,13 +414,20 @@ impl TileInspectorMenu {
         Self::default()
     }
 
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, selected_tile: &Tile) {
+    pub fn close(&mut self) {
+        self.is_open = false;
+    }
+
+    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, selected_tile: &Tile) -> UiInputEvent {
         if button == MouseButton::Left && action == InputAction::Press {
             self.is_open          = true;
             self.selected         = Some((selected_tile.cell, selected_tile.kind()));
             self.hide_tile        = selected_tile.flags.contains(TileFlags::Hidden);
             self.show_tile_debug  = selected_tile.flags.contains(TileFlags::DrawDebugInfo);
             self.show_tile_bounds = selected_tile.flags.contains(TileFlags::DrawDebugBounds);
+            UiInputEvent::Handled
+        } else {
+            UiInputEvent::NotHandled
         }
     }
 
