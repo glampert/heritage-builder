@@ -45,8 +45,8 @@ fn main() {
 
     let tile_sets = TileSets::load(&mut tex_cache);
 
-    let mut tile_map = debug::create_test_tile_map(&tile_sets);
-    //let mut tile_map = TileMap::new(Size2D::new(8, 8));
+    //let mut tile_map = debug::create_test_tile_map(&tile_sets);
+    let mut tile_map = tile::map::TileMap::new(Size2D::new(64, 64));
 
     let mut tile_map_renderer = TileMapRenderer::new();
 
@@ -165,7 +165,7 @@ fn main() {
                 debug_settings_menu.show_selection_bounds());
 
             tile_inspector_menu.draw(&mut tile_map, &tile_sets, &ui_sys, &transform);
-            debug_settings_menu.draw(&mut tile_map_renderer, &ui_sys);
+            debug_settings_menu.draw(&mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
 
             if debug_settings_menu.show_cursor_pos() {
                 debug::draw_cursor_overlay(&ui_sys, &transform);

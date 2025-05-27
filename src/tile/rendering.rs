@@ -143,7 +143,12 @@ impl TileMapRenderer {
                     debug_assert!(tile.is_terrain() && tile.logical_size() == BASE_TILE_SIZE);
 
                     let tile_iso_coords = tile.calc_adjusted_iso_coords();
-                    self.draw_tile(render_sys, ui_sys, tile_iso_coords, tile, flags);
+                    Self::draw_tile(render_sys,
+                                    ui_sys,
+                                    tile_iso_coords,
+                                    &self.world_to_screen,
+                                    tile,
+                                    flags);
                 }
             }
         }
@@ -181,23 +186,16 @@ impl TileMapRenderer {
                     } else if unit_tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnits) {
                         add_to_sort_list(unit_tile);
                     } else if building_tile.is_blocker() && // DEBUG:
-                              flags.contains(TileMapRenderFlags::DrawBlockerTilesDebug) {
+                              (flags.contains(TileMapRenderFlags::DrawBlockerTilesDebug) ||
+                               building_tile.flags.contains(TileFlags::DrawBlockerInfo)) {
 
                         let tile_iso_coords = building_tile.calc_adjusted_iso_coords();
-                        let tile_rect = utils::iso_to_screen_rect(
-                            tile_iso_coords,
-                            building_tile.draw_size(),
-                            &self.world_to_screen,
-                            true);
-
-                        debug::draw_tile_debug(
-                            render_sys,
-                            ui_sys,
-                            tile_iso_coords,
-                            tile_rect,
-                            &self.world_to_screen,
-                            building_tile,
-                            flags);
+                        Self::draw_tile(render_sys,
+                                        ui_sys,
+                                        tile_iso_coords,
+                                        &self.world_to_screen,
+                                        building_tile,
+                                        flags);
                     }
                 }
             }
@@ -217,7 +215,7 @@ impl TileMapRenderer {
                 debug_assert!(tile.is_building() || tile.is_unit());
 
                 let tile_iso_coords = tile.calc_adjusted_iso_coords();
-                self.draw_tile(render_sys, ui_sys, tile_iso_coords, tile, flags);
+                Self::draw_tile(render_sys, ui_sys, tile_iso_coords, &self.world_to_screen, tile, flags);
             }
 
             self.temp_tile_sort_list.clear();
@@ -274,10 +272,10 @@ impl TileMapRenderer {
         }
     }
 
-    fn draw_tile(&self,
-                 render_sys: &mut RenderSystem,
+    fn draw_tile(render_sys: &mut RenderSystem,
                  ui_sys: &UiSystem,
                  tile_iso_coords: IsoPoint2D,
+                 transform: &WorldToScreenTransform,
                  tile: &Tile,
                  flags: TileMapRenderFlags) {
 
@@ -289,7 +287,7 @@ impl TileMapRenderer {
         let tile_rect = utils::iso_to_screen_rect(
             tile_iso_coords,
             tile.draw_size(),
-            &self.world_to_screen,
+            transform,
             apply_spacing);
 
         if !tile.flags.contains(TileFlags::Hidden) {
@@ -316,7 +314,7 @@ impl TileMapRenderer {
             ui_sys,
             tile_iso_coords,
             tile_rect,
-            &self.world_to_screen,
+            transform,
             tile,
             flags);
     }

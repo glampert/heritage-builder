@@ -26,8 +26,11 @@ bitflags! {
         const Highlighted     = 1 << 1;
         const Invalidated     = 1 << 2;
         const Hidden          = 1 << 3;
+    
+        // Debug flags:
         const DrawDebugInfo   = 1 << 4;
         const DrawDebugBounds = 1 << 5;
+        const DrawBlockerInfo = 1 << 6;
     }
 }
 
@@ -40,7 +43,7 @@ pub struct Tile<'a> {
 }
 
 impl<'a> Tile<'a> {
-    pub const fn new(cell: Cell2D, owner_cell: Cell2D, def: &'a TileDef) -> Self {
+    const fn new(cell: Cell2D, owner_cell: Cell2D, def: &'a TileDef) -> Self {
         Self {
             cell: cell,
             owner_cell: owner_cell,
@@ -268,11 +271,13 @@ pub struct TileMapLayer<'a> {
 }
 
 impl<'a> TileMapLayer<'a> {
-    pub fn new(kind: TileMapLayerKind, size_in_cells: Size2D) -> Self {
+    pub fn new(kind: TileMapLayerKind, size_in_cells: Size2D, fill_tile: &'a TileDef) -> Self {
+        let tile_count = (size_in_cells.width * size_in_cells.height) as usize;
+
         let mut layer = Self {
             kind: kind,
             size_in_cells: size_in_cells,
-            tiles: vec![Tile::empty(); (size_in_cells.width * size_in_cells.height) as usize]
+            tiles: vec![Tile::new(Cell2D::invalid(), Cell2D::invalid(), fill_tile); tile_count]
         };
 
         // Update all cell indices:
@@ -502,12 +507,25 @@ impl<'a> TileMap<'a> {
             size_in_cells: size_in_cells,
             layers: ArrayVec::new(),
         };
-
-        for layer in TileMapLayerKind::iter() {
-            tile_map.layers.push(Box::new(TileMapLayer::new(layer, size_in_cells)));
-        }
-
+        tile_map.clear(TileDef::empty());
         tile_map
+    }
+
+    pub fn clear(&mut self, fill_tile: &'a TileDef) {
+        self.layers.clear();
+        // Reset all layers to empty.
+        for layer in TileMapLayerKind::iter() {
+            let mut fill_tile_def = TileDef::empty();
+
+            // Find which layer this tile belong to if we're not just setting everything to empty.
+            if !fill_tile.is_empty() {
+                if fill_tile.kind == layer_to_tile_kind(layer) {
+                    fill_tile_def = fill_tile;
+                }
+            }
+
+            self.layers.push(Box::new(TileMapLayer::new(layer, self.size_in_cells, fill_tile_def)));
+        }
     }
 
     #[inline]
@@ -686,5 +704,33 @@ impl<'a> TileMap<'a> {
                                      transform: &WorldToScreenTransform) -> Cell2D {
 
         self.layer(kind).find_exact_cell_for_point(screen_point, transform)
+    }
+
+    pub fn for_each_building_footprint_tile<F>(&self, cell: Cell2D, mut visitor_fn: F) 
+        where F: FnMut(&Tile) {
+
+        let buildings_layer = self.layer(TileMapLayerKind::Buildings);
+        let footprint = Tile::calc_exact_footprint_cells(cell, buildings_layer);
+
+        for footprint_cell in footprint {
+            if let Some(tile) = buildings_layer.find_tile(
+                    footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
+                visitor_fn(tile);
+            }
+        }
+    }
+
+    pub fn for_each_building_footprint_tile_mut<F>(&mut self, cell: Cell2D, mut visitor_fn: F) 
+        where F: FnMut(&mut Tile<'a>) {
+
+        let buildings_layer = self.layer_mut(TileMapLayerKind::Buildings);
+        let footprint = Tile::calc_exact_footprint_cells(cell, buildings_layer);
+
+        for footprint_cell in footprint {
+            if let Some(tile) = buildings_layer.find_tile_mut(
+                    footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
+                visitor_fn(tile);
+            }
+        }
     }
 }

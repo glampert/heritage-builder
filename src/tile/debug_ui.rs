@@ -91,7 +91,12 @@ impl DebugSettingsMenu {
             .set_tile_spacing(self.tile_spacing);
     }
 
-    pub fn draw(&mut self, tile_map_renderer: &mut TileMapRenderer, ui_sys: &UiSystem) {
+    pub fn draw<'a>(&mut self,
+                    tile_map_renderer: &mut TileMapRenderer,
+                    tile_map: &mut TileMap<'a>,
+                    tile_sets: &'a TileSets,
+                    ui_sys: &UiSystem) {
+
         let ui = ui_sys.builder();
 
         let window_flags =
@@ -137,6 +142,28 @@ impl DebugSettingsMenu {
                 ui.checkbox("Show selection bounds", &mut self.show_selection_bounds);
                 ui.checkbox("Show cursor pos", &mut self.show_cursor_pos);
                 ui.checkbox("Show screen origin", &mut self.show_screen_origin);
+
+                if ui.collapsing_header("Clear map options", imgui::TreeNodeFlags::empty()) {
+                    if ui.button("Clear empty") {
+                        tile_map.clear(TileDef::empty());
+                    }
+
+                    if ui.button("Clear dirt") {
+                        let dirt_tile = tile_sets.find_tile_by_name(
+                            TileMapLayerKind::Terrain,
+                            "ground",
+                            "dirt").unwrap_or(TileDef::empty());
+                        tile_map.clear(dirt_tile);
+                    }
+
+                    if ui.button("Clear grass") {
+                        let grass_tile = tile_sets.find_tile_by_name(
+                            TileMapLayerKind::Terrain,
+                            "ground",
+                            "grass").unwrap_or(TileDef::empty());
+                        tile_map.clear(grass_tile);
+                    }
+                }
             });
     }
 }
@@ -418,6 +445,7 @@ pub struct TileInspectorMenu {
     hide_tile: bool,
     show_tile_debug: bool,
     show_tile_bounds: bool,
+    show_building_blockers: bool,
 }
 
 impl TileInspectorMenu {
@@ -431,11 +459,12 @@ impl TileInspectorMenu {
 
     pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, selected_tile: &Tile) -> UiInputEvent {
         if button == MouseButton::Left && action == InputAction::Press {
-            self.is_open          = true;
-            self.selected         = Some((selected_tile.cell, selected_tile.kind()));
-            self.hide_tile        = selected_tile.flags.contains(TileFlags::Hidden);
-            self.show_tile_debug  = selected_tile.flags.contains(TileFlags::DrawDebugInfo);
-            self.show_tile_bounds = selected_tile.flags.contains(TileFlags::DrawDebugBounds);
+            self.is_open                = true;
+            self.selected               = Some((selected_tile.cell, selected_tile.kind()));
+            self.hide_tile              = selected_tile.flags.contains(TileFlags::Hidden);
+            self.show_tile_debug        = selected_tile.flags.contains(TileFlags::DrawDebugInfo);
+            self.show_tile_bounds       = selected_tile.flags.contains(TileFlags::DrawDebugBounds);
+            self.show_building_blockers = selected_tile.flags.contains(TileFlags::DrawBlockerInfo);
             UiInputEvent::Handled
         } else {
             UiInputEvent::NotHandled
@@ -453,7 +482,7 @@ impl TileInspectorMenu {
         }
 
         let layer_kind = map::tile_kind_to_layer(tile_kind);
-        let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
+        let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
 
         let tile_iso_pos = utils::cell_to_iso(cell, BASE_TILE_SIZE);
         let tile_iso_adjusted = tile.calc_adjusted_iso_coords();
@@ -487,6 +516,8 @@ impl TileInspectorMenu {
             .position(window_position, imgui::Condition::Appearing)
             .build(|| {
                 if ui.collapsing_header("Properties", imgui::TreeNodeFlags::empty()) {
+                    let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+
                     ui.text(format!("Name.........: '{}'", tile.name()));
                     ui.text(format!("Category.....: '{}'", category_name));
                     ui.text(format!("Kind.........: {:?}", tile.kind()));
@@ -505,16 +536,33 @@ impl TileInspectorMenu {
                 }
 
                 if ui.collapsing_header("Debug Options", imgui::TreeNodeFlags::empty()) {
-                    if ui.checkbox("Hide tile", &mut self.hide_tile) {
-                        tile.flags.set(TileFlags::Hidden, self.hide_tile);
+                    let is_building: bool;
+                    let tile_cell: Cell2D;
+                    {
+                        let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
+
+                        is_building = tile.is_building();
+                        tile_cell = tile.cell;
+
+                        if ui.checkbox("Hide tile", &mut self.hide_tile) {
+                            tile.flags.set(TileFlags::Hidden, self.hide_tile);
+                        }
+
+                        if ui.checkbox("Show debug overlay", &mut self.show_tile_debug) {
+                            tile.flags.set(TileFlags::DrawDebugInfo, self.show_tile_debug);
+                        }
+
+                        if ui.checkbox("Show tile bounds", &mut self.show_tile_bounds) {
+                            tile.flags.set(TileFlags::DrawDebugBounds, self.show_tile_bounds);
+                        }
                     }
 
-                    if ui.checkbox("Show debug overlay", &mut self.show_tile_debug) {
-                        tile.flags.set(TileFlags::DrawDebugInfo, self.show_tile_debug);
-                    }
-
-                    if ui.checkbox("Show tile bounds", &mut self.show_tile_bounds) {
-                        tile.flags.set(TileFlags::DrawDebugBounds, self.show_tile_bounds);
+                    if is_building {
+                        if ui.checkbox("Show blocker tiles", &mut self.show_building_blockers) {
+                            tile_map.for_each_building_footprint_tile_mut(tile_cell, |tile| {
+                                tile.flags.set(TileFlags::DrawBlockerInfo, self.show_building_blockers);
+                            });
+                        }
                     }
                 }
             });

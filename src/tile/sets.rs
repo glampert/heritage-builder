@@ -36,16 +36,6 @@ pub struct TileCategory {
 }
 
 impl TileCategory {
-    const fn empty() -> &'static Self {
-        static EMPTY_CATEGORY: TileCategory = TileCategory {
-            name: String::new(),
-            tiles: Vec::new(),
-            tileset_category_index: -1,
-            mapping: hash::new_const_hash_map(),
-        };
-        &EMPTY_CATEGORY
-    }
-
     pub fn is_empty(&self) -> bool {
         self.tiles.is_empty()
     }
@@ -243,7 +233,7 @@ impl TileCategory {
 
 #[derive(Clone, Deserialize)]
 pub struct TileSet {
-    // E.g.: Terrain, Building, Unit.
+    // Layer, e.g.: Terrain, Building, Unit.
     // Also internal runtime index into TileSets.
     pub layer_kind: TileMapLayerKind,
     pub categories: Vec<TileCategory>,
@@ -254,14 +244,13 @@ pub struct TileSet {
 }
 
 impl TileSet {
-    const fn empty() -> &'static Self {
-        static EMPTY_SET: TileSet = TileSet {
+    const fn empty() -> Self {
+        Self {
             // NOTE: Layer kind is irrelevant here.
             layer_kind: TileMapLayerKind::Terrain,
             categories: Vec::new(),
             mapping: hash::new_const_hash_map(),
-        };
-        &EMPTY_SET
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -329,33 +318,33 @@ const BLOCKER_TILE_DEF_HANDLE_INDEX: i32 = -2;
 
 #[derive(Copy, Clone)]
 pub struct TileDefHandle {
-    pub set: i32, // TileSet index into TileSets.
-    pub cat: i32, // TileCategory index into TileSet.
-    pub def: i32, // TileDef index into TileCategory.
+    tileset_index: i32,          // TileSet index into TileSets.
+    tileset_category_index: i32, // TileCategory index into TileSet.
+    category_tile_index: i32,    // TileDef index into TileCategory.
 }
 
 impl TileDefHandle {
     pub fn new(tile_set: &TileSet, tile_category: &TileCategory, tile_def: &TileDef) -> Self {
         Self {
-            set: tile_set.layer_kind as i32,
-            cat: tile_category.tileset_category_index,
-            def: tile_def.category_tile_index,
+            tileset_index: tile_set.layer_kind as i32,
+            tileset_category_index: tile_category.tileset_category_index,
+            category_tile_index: tile_def.category_tile_index,
         }
     }
 
     pub const fn empty() -> Self {
         Self {
-            set: EMPTY_TILE_DEF_HANDLE_INDEX,
-            cat: EMPTY_TILE_DEF_HANDLE_INDEX,
-            def: EMPTY_TILE_DEF_HANDLE_INDEX,
+            tileset_index: EMPTY_TILE_DEF_HANDLE_INDEX,
+            tileset_category_index: EMPTY_TILE_DEF_HANDLE_INDEX,
+            category_tile_index: EMPTY_TILE_DEF_HANDLE_INDEX,
         }
     }
 
     pub const fn blocker() -> Self {
         Self {
-            set: BLOCKER_TILE_DEF_HANDLE_INDEX,
-            cat: BLOCKER_TILE_DEF_HANDLE_INDEX,
-            def: BLOCKER_TILE_DEF_HANDLE_INDEX,
+            tileset_index: BLOCKER_TILE_DEF_HANDLE_INDEX,
+            tileset_category_index: BLOCKER_TILE_DEF_HANDLE_INDEX,
+            category_tile_index: BLOCKER_TILE_DEF_HANDLE_INDEX,
         }
     }
 }
@@ -371,7 +360,7 @@ pub struct TileSets {
 impl TileSets {
     pub fn load(tex_cache: &mut TextureCache) -> Self {
         let mut tile_sets = Self {
-            sets: smallvec![TileSet::empty().clone(); TILE_MAP_LAYER_COUNT],
+            sets: smallvec![TileSet::empty(); TILE_MAP_LAYER_COUNT],
         };
         tile_sets.load_all_layers(tex_cache);
         tile_sets
@@ -383,16 +372,16 @@ impl TileSets {
 
     #[inline]
     pub fn handle_to_tile(&self, handle: TileDefHandle) -> Option<&TileDef> {
-        if handle.def == EMPTY_TILE_DEF_HANDLE_INDEX {
+        if handle.category_tile_index == EMPTY_TILE_DEF_HANDLE_INDEX {
             return Some(TileDef::empty());
         }
-        if handle.def == BLOCKER_TILE_DEF_HANDLE_INDEX {
+        if handle.category_tile_index == BLOCKER_TILE_DEF_HANDLE_INDEX {
             return Some(TileDef::blocker());
         }
 
-        let set_idx = handle.set as usize;
-        let cat_idx = handle.cat as usize;
-        let def_idx = handle.def as usize;
+        let set_idx  = handle.tileset_index as usize;
+        let cat_idx  = handle.tileset_category_index as usize;
+        let tile_idx = handle.category_tile_index as usize;
         if set_idx >= self.sets.len() {
             return None;
         }
@@ -403,15 +392,15 @@ impl TileSets {
         }
 
         let cat = &set.categories[cat_idx];
-        if def_idx >= cat.tiles.len() {
+        if tile_idx >= cat.tiles.len() {
             return None;
         }
 
-        let def = &cat.tiles[def_idx];
+        let def = &cat.tiles[tile_idx];
         debug_assert!(set.layer_kind as usize == set_idx);
         debug_assert!(cat.tileset_category_index as usize == cat_idx);
         debug_assert!(def.tileset_category_index as usize == cat_idx);
-        debug_assert!(def.category_tile_index as usize == def_idx);
+        debug_assert!(def.category_tile_index as usize == tile_idx);
         Some(def)
     }
 
