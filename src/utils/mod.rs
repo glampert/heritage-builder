@@ -1,5 +1,6 @@
-use std::ops::{Add, Sub, Mul};
 use std::time::{self};
+use std::ops::{Add, Sub, Mul};
+use serde::{Deserialize, Serialize};
 
 pub mod hash;
 pub mod file_sys;
@@ -196,7 +197,7 @@ impl Vec4 {
 // ----------------------------------------------
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Color {
     pub r: f32,
     pub g: f32,
@@ -225,7 +226,7 @@ impl Color {
 }
 
 impl Default for Color {
-    fn default() -> Self { Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 } }
+    fn default() -> Self { Color::white() }
 }
 
 // Color * Color
@@ -246,7 +247,7 @@ impl Mul for Color {
 // Size2D
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Size2D {
     pub width:  i32,
     pub height: i32,

@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use crate::{
     ui::UiSystem,
-    render::{RenderSystem, TextureCache},
+    render::RenderSystem,
     utils::{self, Color, Cell2D, Point2D, Rect2D, IsoPoint2D, Size2D, WorldToScreenTransform}
 };
 
 use super::{
+    sets::TileSets,
     rendering::TileMapRenderFlags,
-    sets::{self, TileSets},
-    def::{self, TileDef, TileKind, TileTexInfo, BASE_TILE_SIZE},
+    def::{self, TileDef, TileKind, BASE_TILE_SIZE},
     map::{Tile, TileFlags, TileMap, TileMapLayerKind}
 };
 
@@ -33,7 +33,7 @@ pub fn draw_tile_debug(render_sys: &mut RenderSystem,
                 true
             } else if tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebugInfo) {
                 true
-            } else if tile.is_building_blocker() && flags.contains(TileMapRenderFlags::DrawDebugBuildingBlockers) {
+            } else if tile.is_blocker() && flags.contains(TileMapRenderFlags::DrawBlockerTilesDebug) {
                 true
             } else if tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnitsTileDebugInfo) {
                 true
@@ -80,7 +80,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
     let position = [ debug_overlay_pos.x as f32, debug_overlay_pos.y as f32 ];
 
     let bg_color = match tile.kind() {
-        TileKind::BuildingBlocker => Color::red().to_array(),
+        TileKind::Blocker => Color::red().to_array(),
         TileKind::Building => Color::yellow().to_array(),
         TileKind::Unit => Color::cyan().to_array(),
         _ => Color::black().to_array()
@@ -233,38 +233,6 @@ pub fn draw_screen_origin_marker(render_sys: &mut RenderSystem) {
 // Test map setup helpers
 // ----------------------------------------------
 
-pub fn create_test_tile_sets(tex_cache: &mut TextureCache) -> TileSets {
-    println!("Loading test tile sets...");
-
-    // Sprite Textures:
-    let tex_dirt  = tex_cache.load_texture(&(sets::PATH_TO_TERRAIN_TILE_SETS.to_string() + "/ground/dirt.png"));
-    let tex_grass = tex_cache.load_texture(&(sets::PATH_TO_TERRAIN_TILE_SETS.to_string() + "/ground/grass.png"));
-    let tex_house = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/house/0.png"));
-    let tex_tower = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tower/0.png"));
-    let tex_tree0 = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tree/0.png"));
-    let tex_tree1 = tex_cache.load_texture(&(sets::PATH_TO_BUILDINGS_TILE_SETS.to_string() + "/tree/1.png"));
-    let tex_ped   = tex_cache.load_texture(&(sets::PATH_TO_UNITS_TILE_SETS.to_string() + "/ped/0.png"));
-
-    // Metadata:
-    let tile_defs: [TileDef; 7] = [
-        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_dirt),  color: Color::white(), name: "dirt".to_string()   },
-        TileDef { kind: TileKind::Terrain,  logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 32  }, tex_info: TileTexInfo::new(tex_grass), color: Color::white(), name: "grass".to_string()  },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 128, height: 64 }, draw_size: Size2D{ width: 128, height: 68  }, tex_info: TileTexInfo::new(tex_house), color: Color::white(), name: "house".to_string()  },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 192, height: 96 }, draw_size: Size2D{ width: 192, height: 144 }, tex_info: TileTexInfo::new(tex_tower), color: Color::white(), name: "tower".to_string()  },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 64  }, tex_info: TileTexInfo::new(tex_tree0), color: Color::white(), name: "tree 0".to_string() },
-        TileDef { kind: TileKind::Building, logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 64,  height: 64  }, tex_info: TileTexInfo::new(tex_tree1), color: Color::white(), name: "tree 1".to_string() },
-        TileDef { kind: TileKind::Unit,     logical_size: Size2D{ width: 64,  height: 32 }, draw_size: Size2D{ width: 16,  height: 24  }, tex_info: TileTexInfo::new(tex_ped),   color: Color::white(), name: "ped".to_string()    },
-    ];
-
-    let mut tile_sets = TileSets::new();
-
-    for tile_def in tile_defs {
-        tile_sets.add_def(tile_def);
-    }
-
-    tile_sets
-}
-
 pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     println!("Creating test tile map...");
 
@@ -283,6 +251,13 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     const B4: i32 = 9; // special blocker for the 2x2 building.
 
     const TILE_NAMES: [&str; 5] = [ "grass", "dirt", "ped", "house", "tower" ];
+    const TILE_CATEGORIES: [&str; 5] = [ "ground", "ground", "on_foot", "residential", "residential" ];
+
+    let find_tile = |layer_kind: TileMapLayerKind, tile_id: i32| {
+        let tile_name = TILE_NAMES[tile_id as usize];
+        let category_name = TILE_CATEGORIES[tile_id as usize];
+        tile_sets.find_tile_by_name(layer_kind, category_name, tile_name).unwrap_or(TileDef::empty())
+    };
 
     const TERRAIN_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
         R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
@@ -334,7 +309,7 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
         for y in (0..MAP_HEIGHT).rev() {
             for x in (0..MAP_WIDTH).rev() {
                 let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                let tile_def = tile_sets.find_by_name(TILE_NAMES[tile_id as usize]);
+                let tile_def = find_tile(TileMapLayerKind::Terrain, tile_id);
                 terrain_layer.add_tile(Cell2D::new(x, y), tile_def);
             }
         }
@@ -353,9 +328,9 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
                     buildings_layer.add_empty_tile(cell);
                 } else if tile_id >= B0 { // building blocker
                     let owner_cell = blockers_mapping.get(&tile_id).unwrap();
-                    buildings_layer.add_building_blocker_tile(cell, *owner_cell);
+                    buildings_layer.add_blocker_tile(cell, *owner_cell);
                 } else { // building tile
-                    let tile_def = tile_sets.find_by_name(TILE_NAMES[tile_id as usize]);
+                    let tile_def = find_tile(TileMapLayerKind::Buildings, tile_id);
                     buildings_layer.add_tile(cell, tile_def);
                 }
             }
@@ -374,7 +349,7 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
                 if tile_id == G { // ground/empty
                     units_layer.add_empty_tile(cell);
                 } else { // unit tile
-                    let tile_def = tile_sets.find_by_name(TILE_NAMES[tile_id as usize]);
+                    let tile_def = find_tile(TileMapLayerKind::Units, tile_id);
                     units_layer.add_tile(cell, tile_def);
                 }
             }

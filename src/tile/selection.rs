@@ -188,7 +188,7 @@ impl<'a> TileSelection<'a> {
                         flags = TileFlags::Invalidated;
                     }
 
-                    if layers.buildings.has_tile(footprint_cell, &[TileKind::Building, TileKind::BuildingBlocker]) {
+                    if layers.buildings.has_tile(footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
                         // Cannot place building here.
                         flags = TileFlags::Invalidated;
 
@@ -198,7 +198,7 @@ impl<'a> TileSelection<'a> {
 
                         for other_footprint_cell in other_building_footprint {
                             if let Some(building_tile) = layers.buildings.find_tile_mut(
-                                    other_footprint_cell, &[TileKind::Building, TileKind::BuildingBlocker]) {
+                                    other_footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
 
                                 self.toggle_tile_selection(building_tile, flags, selected);
                             }
@@ -216,7 +216,7 @@ impl<'a> TileSelection<'a> {
                 }
             } else if placement_candidate.is_unit() {
                 // Trying to place unit over building?
-                if layers.buildings.has_tile(base_cell, &[TileKind::Building, TileKind::BuildingBlocker]) {
+                if layers.buildings.has_tile(base_cell, &[TileKind::Building, TileKind::Blocker]) {
                     // Cannot place unit here.
                     flags = TileFlags::Invalidated;
                     // Take the building's footprint so we'll highlight all of its tiles.
@@ -225,7 +225,7 @@ impl<'a> TileSelection<'a> {
             } else if placement_candidate.is_empty() {
                 // Tile clearing, highlight tile to be removed:
                 flags = TileFlags::Invalidated;
-                if layers.buildings.has_tile(base_cell, &[TileKind::Building, TileKind::BuildingBlocker]) {
+                if layers.buildings.has_tile(base_cell, &[TileKind::Building, TileKind::Blocker]) {
                     // If we're attempting to remove a building, take its own
                     // footprint instead, as it may consist of many tiles.
                     footprint = Tile::calc_exact_footprint_cells(base_cell, layers.buildings);
@@ -246,7 +246,7 @@ impl<'a> TileSelection<'a> {
             }
 
             if let Some(building_tile) = layers.buildings.find_tile_mut(
-                footprint_cell, &[TileKind::Building, TileKind::BuildingBlocker]) {
+                footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
 
                 self.toggle_tile_selection(building_tile, flags, selected);
             }

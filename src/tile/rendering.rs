@@ -44,7 +44,7 @@ bitflags! {
         const DrawBuildingsTileDebugInfo = 1 << 7;
         const DrawUnitsTileDebugInfo     = 1 << 8;
         const DrawTileDebugBounds        = 1 << 9;
-        const DrawDebugBuildingBlockers  = 1 << 10;
+        const DrawBlockerTilesDebug      = 1 << 10;
     }
 }
 
@@ -180,8 +180,8 @@ impl TileMapRenderer {
                         add_to_sort_list(building_tile);
                     } else if unit_tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnits) {
                         add_to_sort_list(unit_tile);
-                    } else if building_tile.is_building_blocker() && // DEBUG:
-                              flags.contains(TileMapRenderFlags::DrawDebugBuildingBlockers) {
+                    } else if building_tile.is_blocker() && // DEBUG:
+                              flags.contains(TileMapRenderFlags::DrawBlockerTilesDebug) {
 
                         let tile_iso_coords = building_tile.calc_adjusted_iso_coords();
                         let tile_rect = utils::iso_to_screen_rect(
@@ -302,11 +302,13 @@ impl TileMapRenderer {
                     Color::white()
                 };
 
-            render_sys.draw_textured_colored_rect(
-                tile_rect,
-                &tile.def.tex_info.coords,
-                tile.def.tex_info.texture,
-                tile.def.color * highlight_color);
+            if let Some(sprite_frame) = tile.def.anim_frame_by_index(0, 0, 0) {
+                render_sys.draw_textured_colored_rect(
+                    tile_rect,
+                    &sprite_frame.tex_info.coords,
+                    sprite_frame.tex_info.texture,
+                    tile.def.color * highlight_color);
+            }
         }
 
         debug::draw_tile_debug(

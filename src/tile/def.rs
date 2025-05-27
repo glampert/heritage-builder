@@ -1,4 +1,7 @@
 use smallvec::SmallVec;
+use strum::EnumCount;
+use strum_macros::{Display, EnumCount, EnumIter};
+use serde::Deserialize;
 
 use crate::{
     render::TextureHandle,
@@ -16,38 +19,120 @@ pub const BASE_TILE_SIZE: Size2D = Size2D{ width: 64, height: 32 };
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, Display, EnumCount, EnumIter, Deserialize)]
 pub enum TileKind {
-    Empty, // No tile, draws nothing.
+    Empty,   // No tile, draws nothing.
+    Blocker, // Draws nothing; blocker for multi-tile buildings, placed in the Buildings layer.
     Terrain,
     Building,
-    BuildingBlocker, // Draws nothing; for multi-tile buildings.
     Unit,
+}
+
+pub const TILE_KIND_COUNT: usize = TileKind::COUNT;
+
+// ----------------------------------------------
+// TileSprite
+// ----------------------------------------------
+
+#[derive(Clone, Deserialize)]
+pub struct TileSprite {
+    // Name of the tile texture. Resolved into a TextureHandle post load.
+    pub name: String,
+
+    // Not stored in serialized data.
+    #[serde(skip)]
+    pub tex_info: TileTexInfo,
+}
+
+// ----------------------------------------------
+// TileAnimSet
+// ----------------------------------------------
+
+#[derive(Clone, Deserialize)]
+pub struct TileAnimSet {
+    #[serde(default)]
+    pub name: String,
+
+    // Duration of the whole anim in seconds.
+    // Optional, can be zero if there's only a single frame.
+    #[serde(default)]
+    pub duration: f32,
+
+    // True if the animation will loop, false for play only once.
+    // Ignored when there's only one frame.
+    #[serde(default)]
+    pub looping: bool,
+
+    // Textures for each animation frame. Texture handles are resolved after loading.
+    // SmallVec optimizes for Terrain (single frame anim).
+    pub frames: SmallVec<[TileSprite; 1]>,
+}
+
+// ----------------------------------------------
+// TileVariation
+// ----------------------------------------------
+
+#[derive(Clone, Deserialize)]
+pub struct TileVariation {
+    // Variation name is optional for Terrain and Units.
+    #[serde(default)]
+    pub name: String,
+
+    // AnimSet may contain one or more animation frames.
+    pub anim_sets: SmallVec<[TileAnimSet; 1]>,
 }
 
 // ----------------------------------------------
 // TileDef
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
 pub struct TileDef {
+    // Friendly display name.
+    pub name: String,
+
+    // Tile kind, also defines which layer the tile can be placed on.
+    #[serde(default = "default_tile_kind")]
     pub kind: TileKind,
-    pub logical_size: Size2D, // Logical size for the tile map. Always a multiple of the base tile size.
-    pub draw_size: Size2D,    // Draw size for tile rendering. Can be any size ratio.
-    pub tex_info: TileTexInfo,
+
+    // Internal runtime index into TileCategory.
+    #[serde(skip)]
+    pub category_tile_index: i32,
+
+    // Internal runtime index into TileSet.
+    #[serde(skip)]
+    pub tileset_category_index: i32,
+
+    // Logical size for the tile map. Always a multiple of the base tile size.
+    // Optional for Terrain tiles (always = BASE_TILE_SIZE), required otherwise.
+    #[serde(default = "default_tile_size")]
+    pub logical_size: Size2D,
+
+    // Draw size for tile rendering. Can be any size ratio.
+    // Optional in serialized data. Defaults to the value of `logical_size` if missing.
+    #[serde(default)]
+    pub draw_size: Size2D,
+
+    // Tint color is optional in serialized data. Default to white if missing.
+    #[serde(default)]
     pub color: Color,
-    pub name: String, // Debug name.
+
+    // Tile variations for buildings.
+    // SmallVec optimizes for Terrain/Units with single variation.
+    pub variations: SmallVec<[TileVariation; 1]>,
 }
 
 impl TileDef {
-    pub const fn new(tile_kind: TileKind) -> Self {
+    const fn new(tile_kind: TileKind) -> Self {
         Self {
+            name: String::new(),
             kind: tile_kind,
+            category_tile_index: -1,
+            tileset_category_index: -1,
             logical_size: BASE_TILE_SIZE,
             draw_size: BASE_TILE_SIZE,
-            tex_info: TileTexInfo::default(),
             color: Color::white(),
-            name: String::new(),
+            variations: SmallVec::new_const(),
         }
     }
 
@@ -56,16 +141,14 @@ impl TileDef {
         &EMPTY_TILE
     }
 
-    pub const fn building_blocker() -> &'static Self {
-        static BUILDING_BLOCKER_TILE: TileDef = TileDef::new(TileKind::BuildingBlocker);
-        &BUILDING_BLOCKER_TILE
+    pub const fn blocker() -> &'static Self {
+        static BLOCKER_TILE: TileDef = TileDef::new(TileKind::Blocker);
+        &BLOCKER_TILE
     }
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        self.logical_size.is_valid()
-        && self.draw_size.is_valid()
-        && self.tex_info.is_valid()
+        self.logical_size.is_valid() && self.draw_size.is_valid()
     }
 
     #[inline]
@@ -84,8 +167,8 @@ impl TileDef {
     }
 
     #[inline]
-    pub fn is_building_blocker(&self) -> bool {
-        self.kind == TileKind::BuildingBlocker
+    pub fn is_blocker(&self) -> bool {
+        self.kind == TileKind::Blocker
     }
 
     #[inline]
@@ -125,7 +208,7 @@ impl TileDef {
             }
 
             // Last cell should be the original starting cell (selection relies on this).
-            debug_assert!((*footprint.last().unwrap()) == base_cell);
+            debug_assert!(*footprint.last().unwrap() == base_cell);
         } else {
             // Empty tiles always occupy one cell.
             footprint.push(base_cell);
@@ -133,7 +216,79 @@ impl TileDef {
 
         footprint
     }
+
+    #[inline]
+    pub fn texture_by_index(&self,
+                            variation_index: usize,
+                            anim_set_index: usize,
+                            frame_index: usize) -> TextureHandle {
+
+        if variation_index >= self.variations.len() {
+            return TextureHandle::invalid();
+        }
+
+        let var = &self.variations[variation_index];
+        if anim_set_index >= var.anim_sets.len() {
+            return TextureHandle::invalid();
+        }
+
+        let anim_set = &var.anim_sets[anim_set_index];
+        if frame_index >= anim_set.frames.len() {
+            return TextureHandle::invalid();
+        }
+
+        anim_set.frames[frame_index].tex_info.texture
+    }
+
+    #[inline]
+    pub fn anim_frame_by_index(&self,
+                               variation_index: usize,
+                               anim_set_index: usize,
+                               frame_index: usize) -> Option<&TileSprite> {
+
+        if variation_index >= self.variations.len() {
+            return None;
+        }
+
+        let var = &self.variations[variation_index];
+        if anim_set_index >= var.anim_sets.len() {
+            return None;
+        }
+
+        let anim_set = &var.anim_sets[anim_set_index];
+        if frame_index >= anim_set.frames.len() {
+            return None;
+        }
+
+        Some(&anim_set.frames[frame_index])
+    }
+
+    pub fn count_anim_sets(&self) -> usize {
+        let mut count = 0;
+        for var in &self.variations {
+            count += var.anim_sets.len();
+        }
+        count
+    }
+
+    pub fn count_anim_frames(&self) -> usize {
+        let mut count = 0;
+        for var in &self.variations {
+            for anim in &var.anim_sets {
+                count += anim.frames.len();
+            }
+        }
+        count
+    }
 }
+
+// Deserialization defaults:
+
+#[inline]
+const fn default_tile_size() -> Size2D { BASE_TILE_SIZE }
+
+#[inline]
+const fn default_tile_kind() -> TileKind { TileKind::Empty }
 
 // ----------------------------------------------
 // TileTexInfo
@@ -145,8 +300,12 @@ pub struct TileTexInfo {
     pub coords: RectTexCoords,
 }
 
+impl Default for TileTexInfo {
+    fn default() -> Self { Self::default() }
+}
+
 impl TileTexInfo {
-    // NOTE: This needs to be const for static declarations, so we don't derive from Default.
+    // NOTE: This needs to be const for static declarations, so we don't just derive from Default.
     pub const fn default() -> Self {
         Self {
             texture: TextureHandle::invalid(),

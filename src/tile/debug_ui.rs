@@ -6,7 +6,7 @@ use crate::{
 };
 
 use super::{
-    sets::TileSets,
+    sets::{TileDefHandle, TileSets},
     def::{TileDef, TileKind, BASE_TILE_SIZE},
     map::{self, Tile, TileFlags, TileMap, TileMapLayerKind, TILE_MAP_LAYER_COUNT},
     rendering::{TileMapRenderFlags, TileMapRenderer, TILE_INVALID_COLOR}
@@ -32,7 +32,7 @@ pub struct DebugSettingsMenu {
 
     show_terrain_debug: bool,
     show_buildings_debug: bool,
-    show_building_blockers: bool,
+    show_blockers: bool,
     show_units_debug: bool,
     show_tile_bounds: bool,
     show_selection_bounds: bool,
@@ -77,7 +77,7 @@ impl DebugSettingsMenu {
         if self.draw_grid_ignore_depth { flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth); }
         if self.show_terrain_debug     { flags.insert(TileMapRenderFlags::DrawTerrainTileDebugInfo); }
         if self.show_buildings_debug   { flags.insert(TileMapRenderFlags::DrawBuildingsTileDebugInfo); }
-        if self.show_building_blockers { flags.insert(TileMapRenderFlags::DrawDebugBuildingBlockers); }
+        if self.show_blockers          { flags.insert(TileMapRenderFlags::DrawBlockerTilesDebug); }
         if self.show_units_debug       { flags.insert(TileMapRenderFlags::DrawUnitsTileDebugInfo); }
         if self.show_tile_bounds       { flags.insert(TileMapRenderFlags::DrawTileDebugBounds); }
         flags
@@ -131,7 +131,7 @@ impl DebugSettingsMenu {
                 ui.checkbox("Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
                 ui.checkbox("Show terrain debug", &mut self.show_terrain_debug);
                 ui.checkbox("Show buildings debug", &mut self.show_buildings_debug);
-                ui.checkbox("Show building blockers", &mut self.show_building_blockers);
+                ui.checkbox("Show blocker tiles", &mut self.show_blockers);
                 ui.checkbox("Show units debug", &mut self.show_units_debug);
                 ui.checkbox("Show tile bounds", &mut self.show_tile_bounds);
                 ui.checkbox("Show selection bounds", &mut self.show_selection_bounds);
@@ -146,14 +146,14 @@ impl DebugSettingsMenu {
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct TileListMenu<'a> {
-    selected_tile: Option<&'a TileDef>,
+pub struct TileListMenu {
+    selected_tile: Option<TileDefHandle>,
     selected_index: [Option<usize>; TILE_MAP_LAYER_COUNT], // For highlighting the selected button.
     left_mouse_button_held: bool,
     clear_button_image: TextureHandle,
 }
 
-impl<'a> TileListMenu<'a> {
+impl TileListMenu {
     pub fn new(tex_cache: &mut TextureCache) -> Self {
         Self {
             clear_button_image: tex_cache.load_texture("assets/ui/x.png"),
@@ -171,8 +171,12 @@ impl<'a> TileListMenu<'a> {
         self.selected_tile.is_some()
     }
 
-    pub fn current_selection(&self) -> Option<&'a TileDef> {
-        self.selected_tile
+    pub fn current_selection<'a>(&self, tile_sets: &'a TileSets) -> Option<&'a TileDef> {
+        if let Some(selected_tile) = self.selected_tile {
+            tile_sets.handle_to_tile(selected_tile)
+        } else {
+            None
+        }
     }
 
     pub fn can_place_tile(&self) -> bool {
@@ -196,7 +200,7 @@ impl<'a> TileListMenu<'a> {
                 render_sys: &mut RenderSystem,
                 ui_sys: &UiSystem,
                 tex_cache: &TextureCache,
-                tile_sets: &'a TileSets,
+                tile_sets: &TileSets,
                 cursor_pos: Point2D,
                 transform: &WorldToScreenTransform,
                 has_valid_placement: bool,
@@ -261,7 +265,9 @@ impl<'a> TileListMenu<'a> {
                 {
                     let ui_texture = ui_sys.to_ui_texture(tex_cache, self.clear_button_image);
 
-                    let is_selected = self.selected_tile.is_some_and(|t| t.is_empty());
+                    let selected_tile = self.current_selection(tile_sets);
+                    let is_selected = selected_tile.is_some_and(|t| t.is_empty());
+
                     let bg_color = if is_selected {
                         Color::white().to_array()
                     } else {
@@ -278,23 +284,24 @@ impl<'a> TileListMenu<'a> {
 
                     if clicked {
                         self.clear_selection();
-                        self.selected_tile = Some(TileDef::empty());
+                        self.selected_tile = Some(TileDefHandle::empty());
                     }
                 }
             });
 
-        self.draw_selected_tile(render_sys, cursor_pos, transform, has_valid_placement, draw_tile_bounds);
+        self.draw_selected_tile(render_sys, tile_sets, cursor_pos, transform, has_valid_placement, draw_tile_bounds);
     }
 
     fn draw_selected_tile(&self,
                           render_sys: &mut RenderSystem,
+                          tile_sets: &TileSets,
                           cursor_pos: Point2D,
                           transform: &WorldToScreenTransform,
                           has_valid_placement: bool,
                           draw_tile_bounds: bool) {
 
-        if let Some(selected_tile) = self.selected_tile {
-            let is_clear_selected = self.selected_tile.is_some_and(|t| t.is_empty());
+        if let Some(selected_tile) = self.current_selection(tile_sets) {
+            let is_clear_selected = selected_tile.is_empty();
             if is_clear_selected {
                 const CLEAR_ICON_SIZE: Size2D = Size2D::new(64, 32);
 
@@ -327,11 +334,13 @@ impl<'a> TileListMenu<'a> {
                         TILE_INVALID_COLOR
                     };
 
-                render_sys.draw_textured_colored_rect(
-                    cursor_transform.scale_and_offset_rect(rect),
-                    &selected_tile.tex_info.coords,
-                    selected_tile.tex_info.texture,
-                    Color::new(selected_tile.color.r, selected_tile.color.g, selected_tile.color.b, 0.7) * highlight_color);
+                if let Some(sprite_frame) = selected_tile.anim_frame_by_index(0, 0, 0) {
+                    render_sys.draw_textured_colored_rect(
+                        cursor_transform.scale_and_offset_rect(rect),
+                        &sprite_frame.tex_info.coords,
+                        sprite_frame.tex_info.texture,
+                        Color::new(selected_tile.color.r, selected_tile.color.g, selected_tile.color.b, 0.7) * highlight_color);
+                }
 
                 if draw_tile_bounds {
                     render_sys.draw_wireframe_rect_fast(cursor_transform.scale_and_offset_rect(rect), Color::red());
@@ -344,7 +353,7 @@ impl<'a> TileListMenu<'a> {
                       layer: TileMapLayerKind,
                       ui_sys: &UiSystem,
                       tex_cache: &TextureCache,
-                      tile_sets: &'a TileSets,
+                      tile_sets: &TileSets,
                       tile_size: [f32; 2],
                       tiles_per_row: usize,
                       padding_between_tiles: f32) {
@@ -352,46 +361,48 @@ impl<'a> TileListMenu<'a> {
         let ui = ui_sys.builder();
         ui.text(layer.to_string());
 
-        let tile_sets_iter = tile_sets.defs(
-            move |tile_def| {
-                match layer {
-                    TileMapLayerKind::Terrain   => tile_def.is_terrain(),
-                    TileMapLayerKind::Buildings => tile_def.is_building(),
-                    TileMapLayerKind::Units     => tile_def.is_unit(),
+        let mut tile_index = 0;
+
+        tile_sets.for_each_tile(|tile_set, tile_category, tile_def| {
+            if tile_def.kind == map::layer_to_tile_kind(layer) {
+                let tile_texture = tile_def.texture_by_index(0, 0, 0);
+                let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_texture);
+
+                let is_selected = self.selected_index[layer as usize] == Some(tile_index);
+                let bg_color = if is_selected {
+                    Color::white().to_array()
+                } else {
+                    Color::gray().to_array()
+                };
+
+                let button_text = format!("{}/{}", tile_category.name, tile_def.name);
+
+                let clicked = ui.image_button_config(&button_text, ui_texture, tile_size)
+                    .background_col(bg_color)
+                    .tint_col(tile_def.color.to_array())
+                    .build();
+
+                // Show tooltip when hovered:
+                if ui.is_item_hovered() {
+                    ui.tooltip_text(&button_text);
                 }
-            });
 
-        for (i, tile_def) in tile_sets_iter.enumerate() {
-            let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_def.tex_info.texture);
+                if clicked {
+                    self.clear_selection();
+                    self.selected_tile = Some(TileDefHandle::new(tile_set, tile_category, tile_def));
+                    self.selected_index[layer as usize] = Some(tile_index);
+                }
 
-            let is_selected = self.selected_index[layer as usize] == Some(i);
-            let bg_color = if is_selected {
-                Color::white().to_array()
-            } else {
-                Color::gray().to_array()
-            };
+                // Move to next column unless it's the last in row.
+                if (tile_index + 1) % tiles_per_row != 0 {
+                    ui.same_line_with_spacing(0.0, padding_between_tiles);
+                }
 
-            let clicked = ui.image_button_config(tile_def.name.as_str(), ui_texture, tile_size)
-                .background_col(bg_color)
-                .tint_col(tile_def.color.to_array())
-                .build();
-
-            // Show tooltip when hovered:
-            if ui.is_item_hovered() {
-                ui.tooltip_text(&tile_def.name);
+                tile_index += 1;
             }
 
-            if clicked {
-                self.clear_selection();
-                self.selected_tile = Some(tile_def);
-                self.selected_index[layer as usize] = Some(i);
-            }
-
-            // Move to next column unless it's the last in row.
-            if (i + 1) % tiles_per_row != 0 {
-                ui.same_line_with_spacing(0.0, padding_between_tiles);
-            }
-        }
+            true
+        });
     }
 }
 
@@ -431,7 +442,7 @@ impl TileInspectorMenu {
         }
     }
 
-    pub fn draw(&mut self, tile_map: &mut TileMap, ui_sys: &UiSystem, transform: &WorldToScreenTransform) {
+    pub fn draw(&mut self, tile_map: &mut TileMap, tile_sets: &TileSets, ui_sys: &UiSystem, transform: &WorldToScreenTransform) {
         if !self.is_open || self.selected.is_none() {
             return;
         }
@@ -446,6 +457,13 @@ impl TileInspectorMenu {
 
         let tile_iso_pos = utils::cell_to_iso(cell, BASE_TILE_SIZE);
         let tile_iso_adjusted = tile.calc_adjusted_iso_coords();
+
+        let category_name = 
+            if let Some(category) = tile_sets.find_category_for_tile(&tile.def) {
+                &category.name
+            } else {
+                "<none>"
+            };
 
         let tile_screen_pos = utils::iso_to_screen_rect(
             tile_iso_adjusted,
@@ -470,6 +488,7 @@ impl TileInspectorMenu {
             .build(|| {
                 if ui.collapsing_header("Properties", imgui::TreeNodeFlags::empty()) {
                     ui.text(format!("Name.........: '{}'", tile.name()));
+                    ui.text(format!("Category.....: '{}'", category_name));
                     ui.text(format!("Kind.........: {:?}", tile.kind()));
                     ui.text(format!("Cell.........: {},{}", tile.cell.x, tile.cell.y));
                     ui.text(format!("Iso pos......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
@@ -480,6 +499,9 @@ impl TileInspectorMenu {
                     ui.text(format!("Cells size...: {},{}", tile.size_in_cells().width, tile.size_in_cells().height));
                     ui.text(format!("Z-sort.......: {}", tile.calc_z_sort()));
                     ui.text(format!("Color RGBA...: [{},{},{},{}]", tile.def.color.r, tile.def.color.g, tile.def.color.b, tile.def.color.a));
+                    ui.text(format!("Variations...: {}", tile.def.variations.len()));
+                    ui.text(format!("Anim Sets....: {}", tile.def.count_anim_sets()));
+                    ui.text(format!("Anim Frames..: {}", tile.def.count_anim_frames()));
                 }
 
                 if ui.collapsing_header("Debug Options", imgui::TreeNodeFlags::empty()) {

@@ -29,6 +29,15 @@ impl Hasher for IdentityHasher {
 
 pub type PreHashedKeyMap<K, V> = HashMap<K, V, BuildHasherDefault<IdentityHasher>>;
 
+// Creates a default initialized empty PreHashedKeyMap.
+// This can be used in a `const` context, such as to initialize a static variable.
+#[inline]
+pub const fn new_const_hash_map<K, V>() -> PreHashedKeyMap<K, V> {
+    PreHashedKeyMap::with_hasher(
+        BuildHasherDefault::<IdentityHasher>::new()
+    )
+}
+
 // ----------------------------------------------
 // FNV-1a hash utilities
 // ----------------------------------------------

@@ -19,7 +19,8 @@ use tile::{
     debug::{self},
     debug_ui::*,
     rendering::*,
-    selection::*
+    selection::*,
+    sets::TileSets
 };
 
 // ----------------------------------------------
@@ -42,7 +43,7 @@ fn main() {
     let mut ui_sys = UiSystem::new(&app);
     let mut tex_cache = TextureCache::new(128);
 
-    let tile_sets = debug::create_test_tile_sets(&mut tex_cache);
+    let tile_sets = TileSets::load(&mut tex_cache);
 
     let mut tile_map = debug::create_test_tile_map(&tile_sets);
     //let mut tile_map = TileMap::new(Size2D::new(8, 8));
@@ -124,11 +125,11 @@ fn main() {
             tile_map.update_selection(&mut tile_selection,
                                       cursor_pos,
                                       &transform,
-                                      tile_list_menu.current_selection());
+                                      tile_list_menu.current_selection(&tile_sets));
         }
 
         if tile_list_menu.can_place_tile() {
-            let current_sel = tile_list_menu.current_selection().unwrap();
+            let current_sel = tile_list_menu.current_selection(&tile_sets).unwrap();
 
             let did_place = tile_map.try_place_tile_at_cursor(
                 cursor_pos,
@@ -163,7 +164,7 @@ fn main() {
                 tile_selection.has_valid_placement(),
                 debug_settings_menu.show_selection_bounds());
 
-            tile_inspector_menu.draw(&mut tile_map, &ui_sys, &transform);
+            tile_inspector_menu.draw(&mut tile_map, &tile_sets, &ui_sys, &transform);
             debug_settings_menu.draw(&mut tile_map_renderer, &ui_sys);
 
             if debug_settings_menu.show_cursor_pos() {

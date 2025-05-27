@@ -1,0 +1,79 @@
+{
+    "layer_kind": "Terrain",
+    "categories": [
+        {
+            "name": "ground",
+            "tiles": [
+                {
+                    "name": "dirt",
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "dirt"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "grass",
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "grass"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "water",
+            "tiles": [
+                {
+                    "name": "blue",
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "blue"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "green",
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "green"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

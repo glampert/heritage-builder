@@ -32,7 +32,7 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
         }
 
         // Check for building overlap:
-        if tile_map.has_tile(target_cell, kind, &[TileKind::Building, TileKind::BuildingBlocker]) {
+        if tile_map.has_tile(target_cell, kind, &[TileKind::Building, TileKind::Blocker]) {
             let current_footprint =
                 Tile::calc_exact_footprint_cells(target_cell, tile_map.layer(kind));
 
@@ -55,7 +55,7 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
                     return false;
                 }
 
-                if tile_map.has_tile(*footprint_cell, kind, &[TileKind::Building, TileKind::BuildingBlocker]) {
+                if tile_map.has_tile(*footprint_cell, kind, &[TileKind::Building, TileKind::Blocker]) {
                     return false; // Cannot place building here.
                 }
 
@@ -68,7 +68,7 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
             for footprint_cell in target_footprint {
                 if footprint_cell != target_cell {
                     if let Some(current_tile) = tile_map.try_tile_from_layer_mut(footprint_cell, kind) {
-                        current_tile.set_as_building_blocker(target_cell);
+                        current_tile.set_as_blocker(target_cell);
                     }
                 }
             }
@@ -80,7 +80,7 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
 
         // Check overlap with buildings:
         if tile_map.has_tile(target_cell, TileMapLayerKind::Buildings,
-            &[TileKind::Building, TileKind::BuildingBlocker]) {
+            &[TileKind::Building, TileKind::Blocker]) {
 
             return false; // Can't place unit over building or building blocker cell.
         }
@@ -101,7 +101,7 @@ pub fn try_clear_tile_from_layer<'a>(tile_map: &mut TileMap<'a>,
     debug_assert!(tile_map.is_cell_within_bounds(target_cell));
 
     // Tile removal/clearing: Handle removing multi-tile buildings.
-    if tile_map.has_tile(target_cell, kind, &[TileKind::Building, TileKind::BuildingBlocker]) {
+    if tile_map.has_tile(target_cell, kind, &[TileKind::Building, TileKind::Blocker]) {
         let target_footprint =
             Tile::calc_exact_footprint_cells(target_cell, tile_map.layer(kind));
 

@@ -3,6 +3,7 @@ use smallvec::smallvec;
 use arrayvec::ArrayVec;
 use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumIter};
+use serde::Deserialize;
 
 use crate::{
     utils::{self, Cell2D, Point2D, IsoPoint2D, Size2D, WorldToScreenTransform}
@@ -53,9 +54,9 @@ impl<'a> Tile<'a> {
     }
 
     #[inline]
-    pub fn set_as_building_blocker(&mut self, owner_cell: Cell2D) {
+    pub fn set_as_blocker(&mut self, owner_cell: Cell2D) {
         self.owner_cell = owner_cell;
-        self.def = TileDef::building_blocker();
+        self.def = TileDef::blocker();
     }
 
     #[inline]
@@ -75,8 +76,12 @@ impl<'a> Tile<'a> {
     }
 
     #[inline]
-    pub fn name(&self) -> &String {
-        &self.def.name
+    pub fn name(&self) -> &str {
+        match self.kind() {
+            TileKind::Empty => "<empty>",
+            TileKind::Blocker => "<blocker>",
+            _ => &self.def.name,
+        }
     }
 
     #[inline]
@@ -120,8 +125,8 @@ impl<'a> Tile<'a> {
     }
 
     #[inline]
-    pub fn is_building_blocker(&self) -> bool {
-        self.def.is_building_blocker()
+    pub fn is_blocker(&self) -> bool {
+        self.def.is_blocker()
     }
 
     #[inline]
@@ -157,7 +162,7 @@ impl<'a> Tile<'a> {
             | B | H | <-- origin tile, AKA base tile
             +---+---+ 
             */
-            if building_tile.is_building_blocker() {
+            if building_tile.is_blocker() {
                 let building_blocker = building_tile;
                 debug_assert!(building_blocker.owner_cell.is_valid());
 
@@ -175,7 +180,7 @@ impl<'a> Tile<'a> {
 
     pub fn calc_adjusted_iso_coords(&self) -> IsoPoint2D {
         match self.kind() {
-            TileKind::Terrain | TileKind::Empty | TileKind::BuildingBlocker => {
+            TileKind::Terrain | TileKind::Empty | TileKind::Blocker => {
                 // No position adjustments needed for terrain/empty/blocker tiles.
                 utils::cell_to_iso(self.cell, BASE_TILE_SIZE)
             },
@@ -212,7 +217,7 @@ impl<'a> Tile<'a> {
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Debug, EnumCount, EnumIter, Display)]
+#[derive(Copy, Clone, PartialEq, Debug, Display, EnumCount, EnumIter, Deserialize)]
 pub enum TileMapLayerKind {
     Terrain,
     Buildings,
@@ -225,9 +230,18 @@ pub const TILE_MAP_LAYER_COUNT: usize = TileMapLayerKind::COUNT;
 pub fn tile_kind_to_layer(tile_kind: TileKind) -> TileMapLayerKind {
     match tile_kind {
         TileKind::Terrain => TileMapLayerKind::Terrain,
-        TileKind::Building | TileKind::BuildingBlocker => TileMapLayerKind::Buildings,
+        TileKind::Building | TileKind::Blocker => TileMapLayerKind::Buildings,
         TileKind::Unit => TileMapLayerKind::Units,
-        _ => panic!("Invalid tile map layer!")
+        _ => panic!("Invalid tile kind!")
+    }
+}
+
+#[inline]
+pub fn layer_to_tile_kind(layer_kind: TileMapLayerKind) -> TileKind {
+    match layer_kind {
+        TileMapLayerKind::Terrain   => TileKind::Terrain,
+        TileMapLayerKind::Buildings => TileKind::Building,
+        TileMapLayerKind::Units     => TileKind::Unit,
     }
 }
 
@@ -300,9 +314,9 @@ impl<'a> TileMapLayer<'a> {
     }
 
     #[inline]
-    pub fn add_building_blocker_tile(&mut self, cell: Cell2D, owner_cell: Cell2D) {
+    pub fn add_blocker_tile(&mut self, cell: Cell2D, owner_cell: Cell2D) {
         let tile_index = self.cell_to_index(cell);
-        self.tiles[tile_index] = Tile::new(cell, owner_cell, TileDef::building_blocker());
+        self.tiles[tile_index] = Tile::new(cell, owner_cell, TileDef::blocker());
     }
 
     #[inline]

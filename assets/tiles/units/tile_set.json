@@ -1,0 +1,31 @@
+{
+    "layer_kind": "Units",
+    "categories": [
+        {
+            "name": "on_foot",
+            "tiles": [
+                {
+                    "name": "ped",
+                    "draw_size": {
+                        "width": 16,
+                        "height": 24
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "name": "idle",
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }  
+            ]
+        }
+    ]
+}
