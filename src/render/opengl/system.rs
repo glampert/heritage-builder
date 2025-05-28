@@ -11,6 +11,24 @@ use super::{
 };
 
 // ----------------------------------------------
+// RenderStats
+// ----------------------------------------------
+
+#[derive(Clone, Default)]
+pub struct RenderStats {
+    // Current frame totals:
+    pub triangles_drawn: u32,
+    pub lines_drawn: u32,
+    pub points_drawn: u32,
+    pub texture_changes: u32,
+    // Peaks for the whole run:
+    pub peak_triangles_drawn: u32,
+    pub peak_lines_drawn: u32,
+    pub peak_points_drawn: u32,
+    pub peak_texture_changes: u32,
+}
+
+// ----------------------------------------------
 // RenderSystem
 // ----------------------------------------------
 
@@ -23,10 +41,12 @@ pub struct RenderSystem {
     lines_shader: lines::Shader,
     points_batch: DrawBatch<PointVertex2D, PointIndex2D>,
     points_shader: points::Shader,
+    stats: RenderStats,
+    window_size: Size2D,
 }
 
 impl RenderSystem {
-    pub fn new(window_size: Size2D) -> Self {
+    pub fn new(window_size: Size2D, clear_color: Color) -> Self {
         let mut render_sys = Self {
             frame_started: false,
             render_context: RenderContext::new(),
@@ -51,10 +71,12 @@ impl RenderSystem {
                 PrimitiveTopology::Points,
             ),
             points_shader: points::Shader::load(),
+            stats: RenderStats::default(),
+            window_size: window_size,
         };
 
         render_sys.render_context
-            .set_clear_color(Color::gray())
+            .set_clear_color(clear_color)
             .set_alpha_blend(AlphaBlend::Enabled)
             // Pure 2D rendering, no depth test or back-face culling.
             .set_backface_culling(BackFaceCulling::Disabled)
@@ -69,9 +91,14 @@ impl RenderSystem {
         debug_assert!(self.frame_started == false);
         self.render_context.begin_frame();
         self.frame_started = true;
+
+        self.stats.triangles_drawn = 0;
+        self.stats.lines_drawn     = 0;
+        self.stats.points_drawn    = 0;
+        self.stats.texture_changes = 0;
     }
 
-    pub fn end_frame(&mut self, tex_cache: &TextureCache) {
+    pub fn end_frame(&mut self, tex_cache: &TextureCache) -> RenderStats {
         debug_assert!(self.frame_started == true);
 
         self.flush_sprites(tex_cache);
@@ -80,6 +107,14 @@ impl RenderSystem {
 
         self.render_context.end_frame();
         self.frame_started = false;
+
+        self.stats.texture_changes      = self.render_context.texture_changes();
+        self.stats.peak_triangles_drawn = self.stats.triangles_drawn.max(self.stats.peak_triangles_drawn);
+        self.stats.peak_lines_drawn     = self.stats.lines_drawn.max(self.stats.peak_lines_drawn);
+        self.stats.peak_points_drawn    = self.stats.points_drawn.max(self.stats.peak_points_drawn);
+        self.stats.peak_texture_changes = self.stats.texture_changes.max(self.stats.peak_texture_changes);
+
+        self.stats.clone()
     }
 
     pub fn flush_sprites(&mut self, tex_cache: &TextureCache) {
@@ -117,12 +152,17 @@ impl RenderSystem {
     }
 
     pub fn set_window_size(&mut self, new_size: Size2D) {
+        self.window_size = new_size;
         self.render_context.set_viewport(Rect2D::new(Point2D::zero(), new_size));
 
         let viewport_size = new_size.to_vec2();
         self.sprites_shader.set_viewport_size(viewport_size);
         self.lines_shader.set_viewport_size(viewport_size);
         self.points_shader.set_viewport_size(viewport_size);
+    }
+
+    pub fn window_size(&self) -> Size2D {
+        self.window_size
     }
 
     pub fn draw_colored_rect(&mut self,
@@ -156,6 +196,7 @@ impl RenderSystem {
         ];
 
         self.sprites_batch.add_entry(&vertices, &INDICES, texture, color);
+        self.stats.triangles_drawn += (INDICES.len() / 3) as u32;
     }
 
     pub fn draw_wireframe_rect_with_thickness(&mut self,
@@ -217,6 +258,7 @@ impl RenderSystem {
         ];
 
         self.sprites_batch.add_entry(&vertices, &INDICES, TextureHandle::white(), color);
+        self.stats.triangles_drawn += (INDICES.len() / 3) as u32;
     }
 
     // Handles connecting lines or closed polygons with seamless mitered joints.
@@ -300,6 +342,8 @@ impl RenderSystem {
             &indices[..i_count],
             TextureHandle::white(),
             color);
+
+        self.stats.triangles_drawn += (i_count / 3) as u32;
     }
 
     // NOTE: By default lines and points are batched separately and drawn
@@ -326,6 +370,7 @@ impl RenderSystem {
         ];
 
         self.lines_batch.add_fast(&vertices, &INDICES);
+        self.stats.lines_drawn += (INDICES.len() / 2) as u32;
     }
 
     pub fn draw_line_fast(&mut self, from_pos: Point2D, to_pos: Point2D, from_color: Color, to_color: Color) {
@@ -339,6 +384,7 @@ impl RenderSystem {
         const INDICES: [LineIndex2D; 2] = [ 0, 1 ];
 
         self.lines_batch.add_fast(&vertices, &INDICES);
+        self.stats.lines_drawn += (INDICES.len() / 2) as u32;
     }
 
     pub fn draw_point_fast(&mut self, pos: Point2D, color: Color, size: f32) {
@@ -351,5 +397,6 @@ impl RenderSystem {
         const INDICES: [PointIndex2D; 1] = [ 0 ];
 
         self.points_batch.add_fast(&vertices, &INDICES);
+        self.stats.points_drawn += 1;
     }
 }

@@ -706,6 +706,7 @@ impl<'a> TileMap<'a> {
         self.layer(kind).find_exact_cell_for_point(screen_point, transform)
     }
 
+    // Iterate all tiles on multi-tile buildings.
     pub fn for_each_building_footprint_tile<F>(&self, cell: Cell2D, mut visitor_fn: F) 
         where F: FnMut(&Tile) {
 

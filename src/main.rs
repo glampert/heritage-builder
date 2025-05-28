@@ -18,6 +18,7 @@ use app::{
 use tile::{
     debug::{self},
     debug_ui::*,
+    map::*,
     rendering::*,
     selection::*,
     sets::TileSets
@@ -39,14 +40,14 @@ fn main() {
 
     let input_sys = app.create_input_system();
 
-    let mut render_sys = RenderSystem::new(app.window_size());
+    let mut render_sys = RenderSystem::new(app.window_size(), MAP_BACKGROUND_COLOR);
     let mut ui_sys = UiSystem::new(&app);
     let mut tex_cache = TextureCache::new(128);
 
     let tile_sets = TileSets::load(&mut tex_cache);
 
     //let mut tile_map = debug::create_test_tile_map(&tile_sets);
-    let mut tile_map = tile::map::TileMap::new(Size2D::new(64, 64));
+    let mut tile_map = TileMap::new(Size2D::new(64, 64));
 
     let mut tile_map_renderer = TileMapRenderer::new();
 
@@ -145,37 +146,42 @@ fn main() {
 
         ui_sys.begin_frame(&app, &input_sys, frame_clock.delta_time());
         render_sys.begin_frame();
-        {
-            tile_map_renderer.draw_map(
-                &mut render_sys,
-                &ui_sys,
-                &tile_map,
-                debug_settings_menu.selected_render_flags());
 
-            tile_selection.draw(&mut render_sys);
+        let tile_render_stats = tile_map_renderer.draw_map(
+            &mut render_sys,
+            &ui_sys,
+            &tile_map,
+            debug_settings_menu.selected_render_flags());
 
-            tile_list_menu.draw(
-                &mut render_sys,
-                &ui_sys,
-                &tex_cache,
-                &tile_sets,
-                cursor_pos,
-                &transform,
-                tile_selection.has_valid_placement(),
-                debug_settings_menu.show_selection_bounds());
+        tile_selection.draw(&mut render_sys);
 
-            tile_inspector_menu.draw(&mut tile_map, &tile_sets, &ui_sys, &transform);
-            debug_settings_menu.draw(&mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
+        tile_list_menu.draw(
+            &mut render_sys,
+            &ui_sys,
+            &tex_cache,
+            &tile_sets,
+            cursor_pos,
+            &transform,
+            tile_selection.has_valid_placement(),
+            debug_settings_menu.show_selection_bounds());
 
-            if debug_settings_menu.show_cursor_pos() {
-                debug::draw_cursor_overlay(&ui_sys, &transform);
-            }
+        tile_inspector_menu.draw(&mut tile_map, &tile_sets, &ui_sys, &transform);
+        debug_settings_menu.draw(&mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
 
-            if debug_settings_menu.show_screen_origin() {
-                debug::draw_screen_origin_marker(&mut render_sys);
-            }
+        if debug_settings_menu.show_cursor_pos() {
+            debug::draw_cursor_overlay(&ui_sys, &transform);
         }
-        render_sys.end_frame(&tex_cache);
+
+        if debug_settings_menu.show_screen_origin() {
+            debug::draw_screen_origin_marker(&mut render_sys);
+        }
+
+        let render_sys_stats = render_sys.end_frame(&tex_cache);
+
+        if debug_settings_menu.show_render_stats() {
+            debug::draw_render_stats(&ui_sys, &render_sys_stats, &tile_render_stats);
+        }
+
         ui_sys.end_frame();
 
         app.present();

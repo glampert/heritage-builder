@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use crate::{
     ui::UiSystem,
-    render::RenderSystem,
+    render::{RenderSystem, RenderStats},
     utils::{self, Color, Cell2D, Point2D, Rect2D, IsoPoint2D, Size2D, WorldToScreenTransform}
 };
 
 use super::{
     sets::TileSets,
-    rendering::TileMapRenderFlags,
+    rendering::{TileMapRenderFlags, TileMapRenderStats},
     def::{self, TileDef, TileKind, BASE_TILE_SIZE},
     map::{Tile, TileFlags, TileMap, TileMapLayerKind}
 };
@@ -227,6 +227,69 @@ pub fn draw_screen_origin_marker(render_sys: &mut RenderSystem) {
     render_sys.draw_colored_rect(
         Rect2D::new(Point2D::new(0, 100), Size2D::new(10, 10)),
         Color::green());
+}
+
+pub fn draw_render_stats(ui_sys: &UiSystem,
+                         render_sys_stats: &RenderStats,
+                         tile_render_stats: &TileMapRenderStats) {
+
+    let ui = ui_sys.builder();
+
+    let window_flags =
+        imgui::WindowFlags::NO_DECORATION |
+        imgui::WindowFlags::NO_MOVE |
+        imgui::WindowFlags::NO_SAVED_SETTINGS |
+        imgui::WindowFlags::NO_FOCUS_ON_APPEARING |
+        imgui::WindowFlags::NO_NAV |
+        imgui::WindowFlags::NO_MOUSE_INPUTS;
+
+    // Place the window at the bottom-left corner of the screen.
+    let window_position = [
+        5.0,
+        ui.io().display_size[1] - 150.0,
+    ];
+
+    ui.window("Render Stats")
+        .position(window_position, imgui::Condition::Always)
+        .flags(window_flags)
+        .always_auto_resize(true)
+        .bg_alpha(0.6) // Semi-transparent
+        .build(|| {
+            ui.text_colored(Color::yellow().to_array(),
+                format!("Tiles drawn: {} | Peak: {}",
+                              tile_render_stats.tiles_drawn,
+                              tile_render_stats.peak_tiles_drawn));
+
+            ui.text_colored(Color::yellow().to_array(),
+                format!("Triangles drawn: {} | Peak: {}",
+                              render_sys_stats.triangles_drawn,
+                              render_sys_stats.peak_triangles_drawn));
+
+            ui.text_colored(Color::yellow().to_array(),
+                format!("Texture changes: {} | Peak: {}",
+                              render_sys_stats.texture_changes,
+                              render_sys_stats.peak_texture_changes));
+
+            ui.text(format!("Tile sort list: {} | Peak: {}",
+                tile_render_stats.tile_sort_list_len,
+                tile_render_stats.peak_tile_sort_list_len));
+
+            ui.text(format!("Tiles highlighted: {} | Peak: {}",
+                tile_render_stats.tiles_drawn_highlighted,
+                tile_render_stats.peak_tiles_drawn_highlighted));
+
+            ui.text(format!("Tiles invalidated: {} | Peak: {}",
+                tile_render_stats.tiles_drawn_invalidated,
+                tile_render_stats.peak_tiles_drawn_invalidated));
+
+            ui.text(format!("Lines drawn: {} | Peak: {}",
+                render_sys_stats.lines_drawn,
+                render_sys_stats.peak_lines_drawn));
+
+            ui.text(format!("Points drawn: {} | Peak: {}",
+                render_sys_stats.points_drawn,
+                render_sys_stats.peak_points_drawn));
+        });
 }
 
 // ----------------------------------------------

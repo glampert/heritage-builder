@@ -270,10 +270,10 @@ impl<'a> TileSelection<'a> {
 // Given the layout of the isometric tile map, this algorithm is quite greedy
 // and will select more tiles than actually intersect the rect, so a refinement
 // pass must be done after to intersect each tile's rect with the selection rect.
-fn tile_selection_bounds(screen_rect: &Rect2D,
-                         tile_size: Size2D,
-                         map_size: Size2D,
-                         transform: &WorldToScreenTransform) -> (Cell2D, Cell2D) {
+pub fn tile_selection_bounds(screen_rect: &Rect2D,
+                             tile_size: Size2D,
+                             map_size: Size2D,
+                             transform: &WorldToScreenTransform) -> (Cell2D, Cell2D) {
 
     debug_assert!(screen_rect.is_valid());
 

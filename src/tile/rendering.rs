@@ -4,11 +4,12 @@ use smallvec::SmallVec;
 use crate::{
     ui::UiSystem,
     render::RenderSystem,
-    utils::{self, Color, Cell2D, Point2D, IsoPoint2D, WorldToScreenTransform}
+    utils::{self, Color, Cell2D, IsoPoint2D, Point2D, Size2D, Rect2D, WorldToScreenTransform}
 };
 
 use super::{
     debug::{self},
+    selection::{self},
     def::{self, BASE_TILE_SIZE},
     map::{Tile, TileFlags, TileMapLayerKind, TileMap}
 };
@@ -24,6 +25,7 @@ pub const GRID_HIGHLIGHT_COLOR: Color = Color::green();
 pub const GRID_INVALID_COLOR:   Color = Color::red();
 
 pub const SELECTION_RECT_COLOR: Color = Color::new(0.2, 0.7, 0.2, 1.0); // green-ish
+pub const MAP_BACKGROUND_COLOR: Color = Color::gray();
 
 // ----------------------------------------------
 // TileMapRenderFlags / TileDrawListEntry
@@ -65,40 +67,60 @@ struct TileDrawListEntry {
 }
 
 // ----------------------------------------------
+// TileMapRenderStats
+// ----------------------------------------------
+
+#[derive(Clone, Default)]
+pub struct TileMapRenderStats {
+    // Current frame totals:
+    pub tiles_drawn: u32,
+    pub tiles_drawn_highlighted: u32,
+    pub tiles_drawn_invalidated: u32,
+    pub tile_sort_list_len: u32,
+    // Peaks for the whole run:
+    pub peak_tiles_drawn: u32,
+    pub peak_tiles_drawn_highlighted: u32,
+    pub peak_tiles_drawn_invalidated: u32,
+    pub peak_tile_sort_list_len: u32,
+}
+
+// ----------------------------------------------
 // TileMapRenderer
 // ----------------------------------------------
 
 pub struct TileMapRenderer {
-    world_to_screen: WorldToScreenTransform,
+    transform: WorldToScreenTransform,
     grid_color: Color,
     grid_line_thickness: f32,
+    stats: TileMapRenderStats,
     temp_tile_sort_list: Vec<TileDrawListEntry>, // For z-sorting.
 }
 
 impl TileMapRenderer {
     pub fn new() -> Self {
         Self {
-            world_to_screen: WorldToScreenTransform::default(),
+            transform: WorldToScreenTransform::default(),
             grid_color: Color::white(),
             grid_line_thickness: 1.0,
+            stats: TileMapRenderStats::default(),
             temp_tile_sort_list: Vec::with_capacity(512),
         }
     }
 
     pub fn set_draw_scaling(&mut self, scaling: i32) -> &mut Self {
         debug_assert!(scaling > 0);
-        self.world_to_screen.scaling = scaling;
+        self.transform.scaling = scaling;
         self
     }
 
     pub fn set_draw_offset(&mut self, offset: Point2D) -> &mut Self {
-        self.world_to_screen.offset = offset;
+        self.transform.offset = offset;
         self
     }
 
     pub fn set_tile_spacing(&mut self, spacing: i32) -> &mut Self {
         debug_assert!(spacing >= 0);
-        self.world_to_screen.tile_spacing = spacing;
+        self.transform.tile_spacing = spacing;
         self
     }
 
@@ -114,25 +136,34 @@ impl TileMapRenderer {
     }
 
     pub fn world_to_screen_transform(&self) -> WorldToScreenTransform {
-        self.world_to_screen
+        self.transform
     }
 
     pub fn draw_map(&mut self,
                     render_sys: &mut RenderSystem,
                     ui_sys: &UiSystem,
                     tile_map: &TileMap,
-                    flags: TileMapRenderFlags) {
+                    flags: TileMapRenderFlags) -> TileMapRenderStats {
+
+        self.stats.tiles_drawn = 0;
+        self.stats.tiles_drawn_highlighted = 0;
+        self.stats.tiles_drawn_invalidated = 0;
+        self.stats.tile_sort_list_len = 0;
 
         debug_assert!(self.temp_tile_sort_list.is_empty());
+
         let map_cells = tile_map.size();
+
+        let (cell_min, cell_max) =
+            self.calc_visible_cells_range(render_sys.window_size(), map_cells);
 
         // Terrain:
         if flags.contains(TileMapRenderFlags::DrawTerrain) {
             let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
             debug_assert!(terrain_layer.size() == map_cells);
 
-            for y in (0..map_cells.height).rev() {
-                for x in (0..map_cells.width).rev() {
+            for y in cell_min.y..=cell_max.y {
+                for x in cell_min.x..=cell_max.x {
 
                     let tile = terrain_layer.tile(Cell2D::new(x, y));
                     if tile.is_empty() {
@@ -144,9 +175,10 @@ impl TileMapRenderer {
 
                     let tile_iso_coords = tile.calc_adjusted_iso_coords();
                     Self::draw_tile(render_sys,
+                                    &mut self.stats,
                                     ui_sys,
                                     tile_iso_coords,
-                                    &self.world_to_screen,
+                                    &self.transform,
                                     tile,
                                     flags);
                 }
@@ -156,7 +188,7 @@ impl TileMapRenderer {
         if flags.contains(TileMapRenderFlags::DrawGrid) &&
           !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Draw the grid now so that lines will be on top of the terrain but not on top of buildings.
-            self.draw_isometric_grid(render_sys, tile_map);
+            self.draw_isometric_grid(render_sys, tile_map, cell_min, cell_max);
         }
 
         // Buildings & Units:
@@ -174,8 +206,8 @@ impl TileMapRenderer {
                 });
             };
 
-            for y in (0..map_cells.height).rev() {
-                for x in (0..map_cells.width).rev() {
+            for y in cell_min.y..=cell_max.y {
+                for x in cell_min.x..=cell_max.x {
 
                     let cell = Cell2D::new(x, y);
                     let building_tile = buildings_layer.tile(cell);
@@ -191,9 +223,10 @@ impl TileMapRenderer {
 
                         let tile_iso_coords = building_tile.calc_adjusted_iso_coords();
                         Self::draw_tile(render_sys,
+                                        &mut self.stats,
                                         ui_sys,
                                         tile_iso_coords,
-                                        &self.world_to_screen,
+                                        &self.transform,
                                         building_tile,
                                         flags);
                     }
@@ -215,34 +248,49 @@ impl TileMapRenderer {
                 debug_assert!(tile.is_building() || tile.is_unit());
 
                 let tile_iso_coords = tile.calc_adjusted_iso_coords();
-                Self::draw_tile(render_sys, ui_sys, tile_iso_coords, &self.world_to_screen, tile, flags);
+                Self::draw_tile(render_sys,
+                                &mut self.stats,
+                                ui_sys,
+                                tile_iso_coords,
+                                &self.transform,
+                                tile,
+                                flags);
             }
 
+            self.stats.tile_sort_list_len += self.temp_tile_sort_list.len() as u32;
             self.temp_tile_sort_list.clear();
         }
 
         if flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Allow lines to draw later and effectively bypass the draw order
             // and appear on top of everything else (useful for debugging).
-            self.draw_isometric_grid(render_sys, tile_map);
+            self.draw_isometric_grid(render_sys, tile_map, cell_min, cell_max);
         }
+
+        self.stats.peak_tiles_drawn             = self.stats.tiles_drawn.max(self.stats.peak_tiles_drawn);
+        self.stats.peak_tiles_drawn_highlighted = self.stats.tiles_drawn_highlighted.max(self.stats.peak_tiles_drawn_highlighted);
+        self.stats.peak_tiles_drawn_invalidated = self.stats.tiles_drawn_invalidated.max(self.stats.peak_tiles_drawn_invalidated);
+        self.stats.peak_tile_sort_list_len      = self.stats.tile_sort_list_len.max(self.stats.peak_tile_sort_list_len);
+
+        self.stats.clone()
     }
 
     fn draw_isometric_grid(&self,
                            render_sys: &mut RenderSystem,
-                           tile_map: &TileMap) {
+                           tile_map: &TileMap,
+                           cell_min: Cell2D,
+                           cell_max: Cell2D) {
     
-        let map_cells = tile_map.size();
         let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
-        let line_thickness = self.grid_line_thickness * (self.world_to_screen.scaling as f32);
+        let line_thickness = self.grid_line_thickness * (self.transform.scaling as f32);
 
         let mut highlighted_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
         let mut invalidated_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
 
-        for y in (0..map_cells.height).rev() {
-            for x in (0..map_cells.width).rev() {
+        for y in cell_min.y..=cell_max.y {
+            for x in cell_min.x..=cell_max.x {
                 let cell = Cell2D::new(x, y);
-                let points = def::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, &self.world_to_screen);
+                let points = def::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, &self.transform);
 
                 // Save highlighted grid cells for drawing at the end, so they display in the right order.
                 let tile = terrain_layer.tile(cell);
@@ -273,6 +321,7 @@ impl TileMapRenderer {
     }
 
     fn draw_tile(render_sys: &mut RenderSystem,
+                 stats: &mut TileMapRenderStats,
                  ui_sys: &UiSystem,
                  tile_iso_coords: IsoPoint2D,
                  transform: &WorldToScreenTransform,
@@ -293,8 +342,10 @@ impl TileMapRenderer {
         if !tile.flags.contains(TileFlags::Hidden) {
             let highlight_color =
                 if tile.flags.contains(TileFlags::Highlighted) {
+                    stats.tiles_drawn_highlighted += 1;
                     TILE_HIGHLIGHT_COLOR
                 } else if tile.flags.contains(TileFlags::Invalidated) {
+                    stats.tiles_drawn_invalidated += 1;
                     TILE_INVALID_COLOR
                 } else {
                     Color::white()
@@ -306,6 +357,8 @@ impl TileMapRenderer {
                     &sprite_frame.tex_info.coords,
                     sprite_frame.tex_info.texture,
                     tile.def.color * highlight_color);
+
+                stats.tiles_drawn += 1;
             }
         }
 
@@ -317,5 +370,18 @@ impl TileMapRenderer {
             transform,
             tile,
             flags);
+    }
+
+    #[inline]
+    fn calc_visible_cells_range(&self, screen_size: Size2D, map_size: Size2D) -> (Cell2D, Cell2D) {
+        let screen_rect = Rect2D::new(
+            Point2D::zero(),
+            screen_size);
+
+        selection::tile_selection_bounds(
+            &screen_rect,
+            BASE_TILE_SIZE,
+            map_size,
+            &self.transform)
     }
 }

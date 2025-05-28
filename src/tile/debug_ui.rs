@@ -38,6 +38,7 @@ pub struct DebugSettingsMenu {
     show_selection_bounds: bool,
     show_cursor_pos: bool,
     show_screen_origin: bool,
+    show_render_stats: bool,
 }
 
 impl DebugSettingsMenu {
@@ -66,6 +67,10 @@ impl DebugSettingsMenu {
 
     pub fn show_screen_origin(&self) -> bool {
         self.show_screen_origin
+    }
+
+    pub fn show_render_stats(&self) -> bool {
+        self.show_render_stats
     }
 
     pub fn selected_render_flags(&self) -> TileMapRenderFlags {
@@ -142,6 +147,7 @@ impl DebugSettingsMenu {
                 ui.checkbox("Show selection bounds", &mut self.show_selection_bounds);
                 ui.checkbox("Show cursor pos", &mut self.show_cursor_pos);
                 ui.checkbox("Show screen origin", &mut self.show_screen_origin);
+                ui.checkbox("Show render stats", &mut self.show_render_stats);
 
                 if ui.collapsing_header("Clear map options", imgui::TreeNodeFlags::empty()) {
                     if ui.button("Clear empty") {

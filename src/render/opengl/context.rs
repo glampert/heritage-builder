@@ -58,6 +58,7 @@ pub struct RenderContext {
     current_vertex_array: gl::types::GLuint,
     current_index_type: Option<IndexType>,
     current_texture2d: [gl::types::GLuint; MAX_TEXTURE_UNITS],
+    texture_changes_count: u32,
 }
 
 impl RenderContext {
@@ -72,10 +73,11 @@ impl RenderContext {
             current_vertex_array: NULL_VERTEX_ARRAY_HANDLE,
             current_index_type: None,
             current_texture2d: [0; MAX_TEXTURE_UNITS],
+            texture_changes_count: 0,
         }
     }
 
-    pub fn enable_program_point_size() {
+    fn enable_program_point_size() {
         unsafe { gl::Enable(gl::PROGRAM_POINT_SIZE); }
     }
 
@@ -170,6 +172,7 @@ impl RenderContext {
 
         if self.current_texture2d[tex_unit] != tex_handle {
             self.current_texture2d[tex_unit] = tex_handle;
+            self.texture_changes_count += 1;
 
             unsafe {
                 gl::ActiveTexture(gl::TEXTURE0 + (tex_unit as gl::types::GLenum));
@@ -274,6 +277,8 @@ impl RenderContext {
     }
 
     pub fn begin_frame(&mut self) {
+        self.texture_changes_count = 0;
+
         unsafe {
             gl::ClearColor(self.clear_color.r,
                          self.clear_color.g,
@@ -303,4 +308,8 @@ impl RenderContext {
         self.current_index_type = None;
         self.current_texture2d = [0; MAX_TEXTURE_UNITS];
     }
+
+    pub fn texture_changes(&self) -> u32 {
+        self.texture_changes_count
+    } 
 }
