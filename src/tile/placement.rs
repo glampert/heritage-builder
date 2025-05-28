@@ -65,10 +65,12 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
                 }
             }
 
+            let owner_flags = tile_to_place.tile_flags();
+
             for footprint_cell in target_footprint {
                 if footprint_cell != target_cell {
                     if let Some(current_tile) = tile_map.try_tile_from_layer_mut(footprint_cell, kind) {
-                        current_tile.set_as_blocker(target_cell);
+                        current_tile.set_as_blocker(target_cell, owner_flags);
                     }
                 }
             }

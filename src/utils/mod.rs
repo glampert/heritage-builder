@@ -32,6 +32,7 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
+    #[inline]
     pub const fn new(x: f32, y: f32) -> Self {
         Self {
             x: x,
@@ -39,6 +40,7 @@ impl Vec2 {
         }
     }
 
+    #[inline]
     pub const fn zero() -> Self {
         Self {
             x: 0.0,
@@ -46,6 +48,7 @@ impl Vec2 {
         }
     }
 
+    #[inline]
     pub fn to_point2d(&self) -> Point2D {
         Point2D::new(self.x as i32, self.y as i32)
     }
@@ -254,18 +257,22 @@ pub struct Size2D {
 }
 
 impl Size2D {
+    #[inline]
     pub const fn new(width: i32, height: i32) -> Self {
         Self { width: width, height: height }
     }
 
+    #[inline]
     pub const fn zero() -> Self {
         Self { width: 0, height: 0 }
     }
 
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.width > 0 && self.height > 0
     }
 
+    #[inline]
     pub fn to_vec2(&self) -> Vec2 {
         Vec2::new(self.width as f32, self.height as f32)
     }
@@ -284,14 +291,17 @@ pub struct Point2D {
 }
 
 impl Point2D {
+    #[inline]
     pub const fn new(x: i32, y: i32) -> Self {
         Self { x: x, y: y }
     }
 
+    #[inline]
     pub const fn zero() -> Self {
         Self { x: 0, y: 0 }
     }
 
+    #[inline]
     pub fn to_vec2(&self) -> Vec2 {
         Vec2::new(self.x as f32, self.y as f32)
     }
@@ -310,14 +320,17 @@ pub struct IsoPoint2D {
 }
 
 impl IsoPoint2D {
+    #[inline]
     pub const fn new(x: i32, y: i32) -> Self {
         Self { x: x, y: y }
     }
 
+    #[inline]
     pub const fn zero() -> Self {
         Self { x: 0, y: 0 }
     }
 
+    #[inline]
     pub fn to_vec2(&self) -> Vec2 {
         Vec2::new(self.x as f32, self.y as f32)
     }
@@ -335,18 +348,22 @@ pub struct Cell2D {
 }
 
 impl Cell2D {
+    #[inline]
     pub const fn new(x: i32, y: i32) -> Self {
         Self { x: x, y: y }
     }
 
+    #[inline]
     pub const fn zero() -> Self {
         Self { x: 0, y: 0 }
     }
 
+    #[inline]
     pub const fn invalid() -> Self {
         Self { x: -1, y: -1 }
     }
 
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.x >= 0 && self.y >= 0
     }
@@ -561,6 +578,7 @@ pub struct Rect2D {
 }
 
 impl Rect2D {
+    #[inline]
     pub const fn new(pos: Point2D, size: Size2D) -> Self {
         Self {
             mins: pos,
@@ -568,6 +586,7 @@ impl Rect2D {
         }
     }
 
+    #[inline]
     pub const fn zero() -> Self {
         Self {
             mins: Point2D::zero(),
@@ -575,6 +594,7 @@ impl Rect2D {
         }
     }
 
+    #[inline]
     pub fn from_extents(a: Point2D, b: Point2D) -> Self {
         let min_x = a.x.min(b.x);
         let max_x = a.x.max(b.x);
@@ -586,6 +606,7 @@ impl Rect2D {
         }
     }
 
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.width() > 0 && self.height() > 0
     }

@@ -108,6 +108,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
             ui.text(format!("C:{},{}", tile.cell.x,       tile.cell.y));       // Cell position
             ui.text(format!("S:{},{}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
             ui.text(format!("I:{},{}", tile_iso_pos.x,    tile_iso_pos.y));    // 2D isometric position
+            ui.text(format!("Z:{}",    tile.calc_z_sort()));                   // Z-sort
         });
 }
 
@@ -369,8 +370,8 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     {
         let terrain_layer = tile_map.layer_mut(TileMapLayerKind::Terrain);
 
-        for y in (0..MAP_HEIGHT).rev() {
-            for x in (0..MAP_WIDTH).rev() {
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
                 let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
                 let tile_def = find_tile(TileMapLayerKind::Terrain, tile_id);
                 terrain_layer.add_tile(Cell2D::new(x, y), tile_def);
@@ -382,8 +383,8 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     {
         let buildings_layer = tile_map.layer_mut(TileMapLayerKind::Buildings);
 
-        for y in (0..MAP_HEIGHT).rev() {
-            for x in (0..MAP_WIDTH).rev() {
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
                 let tile_id = BUILDINGS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
                 let cell = Cell2D::new(x, y);
 
@@ -404,8 +405,8 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     {
         let units_layer = tile_map.layer_mut(TileMapLayerKind::Units);
 
-        for y in (0..MAP_HEIGHT).rev() {
-            for x in (0..MAP_WIDTH).rev() {
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
                 let tile_id = UNITS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
                 let cell = Cell2D::new(x, y);
 

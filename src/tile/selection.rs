@@ -139,7 +139,7 @@ impl<'a> TileSelection<'a> {
     }
 
     pub fn clear(&mut self, layers: &mut TileMapLayerMutRefs<'a>) {
-        self.selection_flags = TileFlags::None;
+        self.selection_flags = TileFlags::empty();
         while !self.cells.is_empty() {
             self.toggle_selection(layers, self.last_cell(), false);
         }

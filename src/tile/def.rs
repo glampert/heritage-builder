@@ -8,6 +8,10 @@ use crate::{
     utils::{self, Cell2D, Color, RectTexCoords, Size2D, Point2D, WorldToScreenTransform}
 };
 
+use super::{
+    map::TileFlags
+};
+
 // ----------------------------------------------
 // Constants
 // ----------------------------------------------
@@ -103,6 +107,11 @@ pub struct TileDef {
     #[serde(skip)]
     pub tileset_category_index: i32,
 
+    // True if the tile fully occludes the terrain tiles below, so we can cull them.
+    // Defaults to true for all Buildings, false for Units. Ignored for Terrain.
+    #[serde(default = "default_occludes_terrain")]
+    pub occludes_terrain: bool,
+
     // Logical size for the tile map. Always a multiple of the base tile size.
     // Optional for Terrain tiles (always = BASE_TILE_SIZE), required otherwise.
     #[serde(default = "default_tile_size")]
@@ -129,6 +138,7 @@ impl TileDef {
             kind: tile_kind,
             category_tile_index: -1,
             tileset_category_index: -1,
+            occludes_terrain: false,
             logical_size: BASE_TILE_SIZE,
             draw_size: BASE_TILE_SIZE,
             color: Color::white(),
@@ -174,6 +184,15 @@ impl TileDef {
     #[inline]
     pub fn is_unit(&self) -> bool {
         self.kind == TileKind::Unit
+    }
+
+    #[inline]
+    pub fn tile_flags(&self) -> TileFlags {
+        if self.occludes_terrain { 
+            TileFlags::OccludesTerrain
+        } else {
+            TileFlags::empty()
+        }
     }
 
     #[inline]
@@ -289,6 +308,9 @@ const fn default_tile_size() -> Size2D { BASE_TILE_SIZE }
 
 #[inline]
 const fn default_tile_kind() -> TileKind { TileKind::Empty }
+
+#[inline]
+const fn default_occludes_terrain() -> bool { true }
 
 // ----------------------------------------------
 // TileTexInfo

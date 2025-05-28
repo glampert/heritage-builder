@@ -136,6 +136,11 @@ impl TileCategory {
                           tile_def.name);
                 return false;
             }
+
+            tile_def.occludes_terrain = false;
+        } else if tile_def.kind == TileKind::Unit {
+            // Units always have transparent backgrounds that won't fully cover underlying terrain tiles.
+            tile_def.occludes_terrain = false;
         }
 
         if !tile_def.draw_size.is_valid() {

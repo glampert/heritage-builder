@@ -22,15 +22,15 @@ use super::{
 bitflags! {
     #[derive(Copy, Clone, Default, PartialEq)]
     pub struct TileFlags: u32 {
-        const None            = 0;
         const Highlighted     = 1 << 1;
         const Invalidated     = 1 << 2;
         const Hidden          = 1 << 3;
+        const OccludesTerrain = 1 << 4;
     
         // Debug flags:
-        const DrawDebugInfo   = 1 << 4;
-        const DrawDebugBounds = 1 << 5;
-        const DrawBlockerInfo = 1 << 6;
+        const DrawDebugInfo   = 1 << 5;
+        const DrawDebugBounds = 1 << 6;
+        const DrawBlockerInfo = 1 << 7;
     }
 }
 
@@ -43,34 +43,44 @@ pub struct Tile<'a> {
 }
 
 impl<'a> Tile<'a> {
-    const fn new(cell: Cell2D, owner_cell: Cell2D, def: &'a TileDef) -> Self {
+    #[inline]
+    const fn new(cell: Cell2D, owner_cell: Cell2D, def: &'a TileDef, flags: TileFlags) -> Self {
         Self {
             cell: cell,
             owner_cell: owner_cell,
             def: def,
-            flags: TileFlags::None,
+            flags: flags,
         }
     }
 
-    pub const fn empty() -> Self {
-        Self::new(Cell2D::invalid(), Cell2D::invalid(), TileDef::empty())
+    #[inline]
+    pub const fn empty() -> &'static Self {
+        static EMPTY_TILE: Tile = Tile::new(
+            Cell2D::invalid(),
+            Cell2D::invalid(),
+            TileDef::empty(),
+            TileFlags::empty());
+        &EMPTY_TILE
     }
 
     #[inline]
-    pub fn set_as_blocker(&mut self, owner_cell: Cell2D) {
+    pub fn set_as_blocker(&mut self, owner_cell: Cell2D, owner_flags: TileFlags) {
         self.owner_cell = owner_cell;
         self.def = TileDef::blocker();
+        self.flags = owner_flags;
     }
 
     #[inline]
     pub fn set_as_empty(&mut self) {
         self.owner_cell = Cell2D::invalid();
         self.def = TileDef::empty();
+        self.flags = TileFlags::empty();
     }
 
     #[inline]
-    pub fn set_def(&mut self, def: &'a TileDef) {
-        self.def = def;
+    pub fn set_def(&mut self, tile_def: &'a TileDef) {
+        self.def = tile_def;
+        self.flags = tile_def.tile_flags();
     }
 
     #[inline]
@@ -135,6 +145,11 @@ impl<'a> Tile<'a> {
     #[inline]
     pub fn is_unit(&self) -> bool {
         self.def.is_unit()
+    }
+
+    #[inline]
+    pub fn occludes_terrain(&self) -> bool {
+        self.def.occludes_terrain || self.flags.contains(TileFlags::OccludesTerrain)
     }
 
     #[inline]
@@ -277,7 +292,7 @@ impl<'a> TileMapLayer<'a> {
         let mut layer = Self {
             kind: kind,
             size_in_cells: size_in_cells,
-            tiles: vec![Tile::new(Cell2D::invalid(), Cell2D::invalid(), fill_tile); tile_count]
+            tiles: vec![Tile::new(Cell2D::invalid(), Cell2D::invalid(), fill_tile, TileFlags::empty()); tile_count]
         };
 
         // Update all cell indices:
@@ -308,20 +323,27 @@ impl<'a> TileMapLayer<'a> {
             debug_assert!(tile_kind_to_layer(tile_def.kind) == self.kind);
         }
 
+        let flags = tile_def.tile_flags();
         let tile_index = self.cell_to_index(cell);
-        self.tiles[tile_index] = Tile::new(cell, Cell2D::invalid(), tile_def);
+        self.tiles[tile_index] = Tile::new(cell, Cell2D::invalid(), tile_def, flags);
     }
 
     #[inline]
     pub fn add_empty_tile(&mut self, cell: Cell2D) {
         let tile_index = self.cell_to_index(cell);
-        self.tiles[tile_index] = Tile::new(cell, Cell2D::invalid(), TileDef::empty());
+        self.tiles[tile_index] = Tile::new(
+            cell,
+            Cell2D::invalid(),
+            TileDef::empty(),
+            TileFlags::empty());
     }
 
     #[inline]
     pub fn add_blocker_tile(&mut self, cell: Cell2D, owner_cell: Cell2D) {
-        let tile_index = self.cell_to_index(cell);
-        self.tiles[tile_index] = Tile::new(cell, owner_cell, TileDef::blocker());
+        let owner_tile = self.tile(owner_cell);
+        let blocker_flags = owner_tile.flags;
+        let blocker_index = self.cell_to_index(cell);
+        self.tiles[blocker_index] = Tile::new(cell, owner_cell, TileDef::blocker(), blocker_flags);
     }
 
     #[inline]
@@ -487,6 +509,7 @@ impl<'a> TileMapLayer<'a> {
 
     #[inline]
     fn cell_to_index(&self, cell: Cell2D) -> usize {
+        debug_assert!(self.is_cell_within_bounds(cell));
         let tile_index = cell.x + (cell.y * self.size_in_cells.width);
         tile_index as usize
     }

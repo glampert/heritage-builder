@@ -34,7 +34,6 @@ pub const MAP_BACKGROUND_COLOR: Color = Color::gray();
 bitflags! {
     #[derive(Copy, Clone)]
     pub struct TileMapRenderFlags: u32 {
-        const None                = 0;
         const DrawTerrain         = 1 << 1;
         const DrawBuildings       = 1 << 2;
         const DrawUnits           = 1 << 3;
@@ -145,12 +144,9 @@ impl TileMapRenderer {
                     tile_map: &TileMap,
                     flags: TileMapRenderFlags) -> TileMapRenderStats {
 
-        self.stats.tiles_drawn = 0;
-        self.stats.tiles_drawn_highlighted = 0;
-        self.stats.tiles_drawn_invalidated = 0;
-        self.stats.tile_sort_list_len = 0;
-
         debug_assert!(self.temp_tile_sort_list.is_empty());
+
+        self.reset_stats();
 
         let map_cells = tile_map.size();
 
@@ -160,18 +156,28 @@ impl TileMapRenderer {
         // Terrain:
         if flags.contains(TileMapRenderFlags::DrawTerrain) {
             let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
+            let buildings_layer = tile_map.layer(TileMapLayerKind::Buildings);
+
             debug_assert!(terrain_layer.size() == map_cells);
+            debug_assert!(buildings_layer.size() == map_cells);
 
-            for y in cell_min.y..=cell_max.y {
-                for x in cell_min.x..=cell_max.x {
+            for y in (cell_min.y..=cell_max.y).rev() {
+                for x in (cell_min.x..=cell_max.x).rev() {
+                    let cell = Cell2D::new(x, y);
 
-                    let tile = terrain_layer.tile(Cell2D::new(x, y));
+                    let tile = terrain_layer.tile(cell);
                     if tile.is_empty() {
                         continue;
                     }
 
                     // Terrain tiles size is constrained.
                     debug_assert!(tile.is_terrain() && tile.logical_size() == BASE_TILE_SIZE);
+
+                    let building_tile = buildings_layer.tile(cell);
+                    if !building_tile.is_empty() && building_tile.occludes_terrain() {
+                        // Skip drawing terrain if fully occluded.
+                        continue;
+                    }
 
                     let tile_iso_coords = tile.calc_adjusted_iso_coords();
                     Self::draw_tile(render_sys,
@@ -206,8 +212,10 @@ impl TileMapRenderer {
                 });
             };
 
-            for y in cell_min.y..=cell_max.y {
-                for x in cell_min.x..=cell_max.x {
+            // Drawing in reverse order (bottom to top) is required to ensure
+            // buildings with the same Z-sort value don't overlap in weird ways.
+            for y in (cell_min.y..=cell_max.y).rev() {
+                for x in (cell_min.x..=cell_max.x).rev() {
 
                     let cell = Cell2D::new(x, y);
                     let building_tile = buildings_layer.tile(cell);
@@ -267,11 +275,7 @@ impl TileMapRenderer {
             self.draw_isometric_grid(render_sys, tile_map, cell_min, cell_max);
         }
 
-        self.stats.peak_tiles_drawn             = self.stats.tiles_drawn.max(self.stats.peak_tiles_drawn);
-        self.stats.peak_tiles_drawn_highlighted = self.stats.tiles_drawn_highlighted.max(self.stats.peak_tiles_drawn_highlighted);
-        self.stats.peak_tiles_drawn_invalidated = self.stats.tiles_drawn_invalidated.max(self.stats.peak_tiles_drawn_invalidated);
-        self.stats.peak_tile_sort_list_len      = self.stats.tile_sort_list_len.max(self.stats.peak_tile_sort_list_len);
-
+        self.update_stats();
         self.stats.clone()
     }
 
@@ -351,11 +355,11 @@ impl TileMapRenderer {
                     Color::white()
                 };
 
-            if let Some(sprite_frame) = tile.def.anim_frame_by_index(0, 0, 0) {
+            if let Some(anim_frame) = tile.def.anim_frame_by_index(0, 0, 0) {
                 render_sys.draw_textured_colored_rect(
                     tile_rect,
-                    &sprite_frame.tex_info.coords,
-                    sprite_frame.tex_info.texture,
+                    &anim_frame.tex_info.coords,
+                    anim_frame.tex_info.texture,
                     tile.def.color * highlight_color);
 
                 stats.tiles_drawn += 1;
@@ -370,6 +374,22 @@ impl TileMapRenderer {
             transform,
             tile,
             flags);
+    }
+
+    #[inline]
+    fn reset_stats(&mut self) {
+        self.stats.tiles_drawn = 0;
+        self.stats.tiles_drawn_highlighted = 0;
+        self.stats.tiles_drawn_invalidated = 0;
+        self.stats.tile_sort_list_len = 0;
+    }
+
+    #[inline]
+    fn update_stats(&mut self) {
+        self.stats.peak_tiles_drawn             = self.stats.tiles_drawn.max(self.stats.peak_tiles_drawn);
+        self.stats.peak_tiles_drawn_highlighted = self.stats.tiles_drawn_highlighted.max(self.stats.peak_tiles_drawn_highlighted);
+        self.stats.peak_tiles_drawn_invalidated = self.stats.tiles_drawn_invalidated.max(self.stats.peak_tiles_drawn_invalidated);
+        self.stats.peak_tile_sort_list_len      = self.stats.tile_sort_list_len.max(self.stats.peak_tile_sort_list_len);
     }
 
     #[inline]

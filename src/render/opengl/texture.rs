@@ -19,7 +19,6 @@ pub const NULL_TEXTURE_HANDLE: gl::types::GLuint = 0;
 
 bitflags! {
     pub struct ImageLoaderFlags: u32 {
-        const None  = 0;
         const FlipV = 1 << 1;
         const FlipH = 1 << 2;
     }
@@ -359,7 +358,7 @@ impl TextureCache {
     pub fn load_texture(&mut self, file_path: &str) -> TextureHandle {
         Self::load_texture_with_settings(self,
                                          file_path,
-                                         ImageLoaderFlags::None,
+                                         ImageLoaderFlags::empty(),
                                          TextureFilter::Nearest,
                                          TextureWrapMode::ClampToEdge,
                                          TextureUnit(0),

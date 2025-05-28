@@ -74,7 +74,7 @@ impl DebugSettingsMenu {
     }
 
     pub fn selected_render_flags(&self) -> TileMapRenderFlags {
-        let mut flags = TileMapRenderFlags::None;
+        let mut flags = TileMapRenderFlags::empty();
         if self.draw_terrain           { flags.insert(TileMapRenderFlags::DrawTerrain); }
         if self.draw_buildings         { flags.insert(TileMapRenderFlags::DrawBuildings); }
         if self.draw_units             { flags.insert(TileMapRenderFlags::DrawUnits); }
@@ -542,13 +542,8 @@ impl TileInspectorMenu {
                 }
 
                 if ui.collapsing_header("Debug Options", imgui::TreeNodeFlags::empty()) {
-                    let is_building: bool;
-                    let tile_cell: Cell2D;
-                    {
+                    let (tile_cell, is_building) = {
                         let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
-
-                        is_building = tile.is_building();
-                        tile_cell = tile.cell;
 
                         if ui.checkbox("Hide tile", &mut self.hide_tile) {
                             tile.flags.set(TileFlags::Hidden, self.hide_tile);
@@ -561,7 +556,9 @@ impl TileInspectorMenu {
                         if ui.checkbox("Show tile bounds", &mut self.show_tile_bounds) {
                             tile.flags.set(TileFlags::DrawDebugBounds, self.show_tile_bounds);
                         }
-                    }
+
+                        (tile.cell, tile.is_building())
+                    };
 
                     if is_building {
                         if ui.checkbox("Show blocker tiles", &mut self.show_building_blockers) {

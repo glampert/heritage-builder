@@ -63,6 +63,7 @@
             "tiles": [
                 {
                     "name": "tree0",
+                    "occludes_terrain": false,
                     "draw_size": {
                         "width": 64,
                         "height": 64
@@ -85,6 +86,7 @@
                 },
                 {
                     "name": "tree1",
+                    "occludes_terrain": false,
                     "draw_size": {
                         "width": 64,
                         "height": 64
