@@ -9,7 +9,7 @@ use crate::{
 use super::{
     sets::TileSets,
     rendering::{TileMapRenderFlags, TileMapRenderStats},
-    def::{self, TileDef, TileKind, BASE_TILE_SIZE},
+    def::{TileDef, TileKind, BASE_TILE_SIZE},
     map::{Tile, TileFlags, TileMap, TileMapLayerKind}
 };
 
@@ -149,9 +149,10 @@ fn draw_tile_bounds(render_sys: &mut RenderSystem,
     };
 
     // Tile isometric "diamond" bounding box:
-    let diamond_points = def::cell_to_screen_diamond_points(
+    let diamond_points = utils::cell_to_screen_diamond_points(
         tile.cell,
         tile.logical_size(),
+        BASE_TILE_SIZE,
         transform);
 
     render_sys.draw_line_fast(diamond_points[0], diamond_points[1], color, color);

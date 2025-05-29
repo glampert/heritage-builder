@@ -522,6 +522,37 @@ pub fn iso_to_screen_rect(iso_position: IsoPoint2D,
 }
 
 #[inline]
+pub fn is_screen_point_inside_diamond(p: Point2D, points: &[Point2D; 4]) -> bool {
+    // Triangle 1: top, right, bottom
+    if is_screen_point_inside_triangle(p, points[0], points[1], points[2]) {
+        return true;
+    }
+    // Triangle 2: bottom, left, top
+    if is_screen_point_inside_triangle(p, points[2], points[3], points[0]) {
+        return true;
+    }
+    false
+}
+
+// Test precisely if the screen point is inside the isometric cell diamond.
+#[inline]
+pub fn is_screen_point_inside_cell(screen_point: Point2D,
+                                   cell: Cell2D,
+                                   tile_size: Size2D,
+                                   base_tile_size: Size2D,
+                                   transform: &WorldToScreenTransform) -> bool {
+
+    debug_assert!(transform.is_valid());
+
+    let screen_points = cell_to_screen_diamond_points(
+        cell,
+        tile_size,
+        base_tile_size,
+        transform);
+
+    is_screen_point_inside_diamond(screen_point, &screen_points)
+}
+
 pub fn is_screen_point_inside_triangle(p: Point2D, a: Point2D, b: Point2D, c: Point2D) -> bool {
     // Compute edge vectors of the triangle relative to vertex `a`:
     let va = a.to_vec2();
@@ -552,17 +583,32 @@ pub fn is_screen_point_inside_triangle(p: Point2D, a: Point2D, b: Point2D, c: Po
     u >= 0.0 && v >= 0.0 && (u + v) <= 1.0
 }
 
-#[inline]
-pub fn is_screen_point_inside_diamond(p: Point2D, points: &[Point2D; 4]) -> bool {
-    // Triangle 1: top, right, bottom
-    if is_screen_point_inside_triangle(p, points[0], points[1], points[2]) {
-        return true;
-    }
-    // Triangle 2: bottom, left, top
-    if is_screen_point_inside_triangle(p, points[2], points[3], points[0]) {
-        return true;
-    }
-    false
+// Creates an isometric-aligned diamond rectangle for the given tile size and cell location.
+pub fn cell_to_screen_diamond_points(cell: Cell2D,
+                                     tile_size: Size2D,
+                                     base_tile_size: Size2D,
+                                     transform: &WorldToScreenTransform) -> [Point2D; 4] {
+
+    debug_assert!(transform.is_valid());
+
+    let iso_center = cell_to_iso(cell, base_tile_size);
+    let screen_center = iso_to_screen_point(iso_center, transform, base_tile_size, false);
+
+    let tile_width  = tile_size.width  * transform.scaling;
+    let tile_height = tile_size.height * transform.scaling;
+    let base_height = base_tile_size.height * transform.scaling;
+
+    let half_tile_w = tile_width  / 2;
+    let half_tile_h = tile_height / 2;
+    let half_base_h = base_height / 2;
+
+    // Build 4 corners of the tile:
+    let top    = Point2D::new(screen_center.x, screen_center.y - tile_height + half_base_h);
+    let bottom = Point2D::new(screen_center.x, screen_center.y + half_base_h);
+    let right  = Point2D::new(screen_center.x + half_tile_w, screen_center.y - half_tile_h + half_base_h);
+    let left   = Point2D::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
+
+    [ top, right, bottom, left ]
 }
 
 // ----------------------------------------------

@@ -58,6 +58,7 @@ pub struct ApplicationBuilder {
     title: String,
     window_size: Size2D,
     fullscreen: bool,
+    confine_cursor: bool,
 }
 
 impl ApplicationBuilder {
@@ -66,6 +67,7 @@ impl ApplicationBuilder {
             title: String::default(),
             window_size: Size2D::new(1024, 768),
             fullscreen: false,
+            confine_cursor: false,
         }
     }
 
@@ -84,10 +86,16 @@ impl ApplicationBuilder {
         self
     }
 
+    pub fn confine_cursor_to_window(&mut self, confine: bool) -> &mut Self {
+        self.confine_cursor = confine;
+        self
+    }
+
     pub fn build<'a>(&self) -> impl Application + use<'a> {
         GlfwApplication::new(
             self.title.clone(),
             self.window_size,
-            self.fullscreen)
+            self.fullscreen,
+            self.confine_cursor)
     }
 }

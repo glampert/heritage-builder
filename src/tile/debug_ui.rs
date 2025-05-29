@@ -6,10 +6,11 @@ use crate::{
 };
 
 use super::{
+    camera::Camera,
     sets::{TileDefHandle, TileSets},
     def::{TileDef, TileKind, BASE_TILE_SIZE},
     map::{self, Tile, TileFlags, TileMap, TileMapLayerKind, TILE_MAP_LAYER_COUNT},
-    rendering::{TileMapRenderFlags, TileMapRenderer, TILE_INVALID_COLOR}
+    rendering::{TileMapRenderFlags, TileMapRenderer, INVALID_TILE_COLOR, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS}
 };
 
 // ----------------------------------------------
@@ -18,18 +19,12 @@ use super::{
 
 #[derive(Default)]
 pub struct DebugSettingsMenu {
-    scaling: i32,
-    offset_x: i32,
-    offset_y: i32,
-    tile_spacing: i32,
-    grid_thickness: f32,
-
+    start_open: bool,
     draw_terrain: bool,
     draw_buildings: bool,
     draw_units: bool,
     draw_grid: bool,
     draw_grid_ignore_depth: bool,
-
     show_terrain_debug: bool,
     show_buildings_debug: bool,
     show_blockers: bool,
@@ -42,13 +37,9 @@ pub struct DebugSettingsMenu {
 }
 
 impl DebugSettingsMenu {
-    pub fn new() -> Self {
+    pub fn new(start_open: bool) -> Self {
         Self {
-            scaling: 2,
-            offset_x: 448,
-            offset_y: 600,
-            tile_spacing: 4,
-            grid_thickness: 3.0,
+            start_open: start_open,
             draw_terrain: true,
             draw_buildings: true,
             draw_units: true,
@@ -88,15 +79,8 @@ impl DebugSettingsMenu {
         flags
     }
 
-    pub fn apply_render_settings(&self, tile_map_renderer: &mut TileMapRenderer) {
-        tile_map_renderer
-            .set_draw_scaling(self.scaling)
-            .set_draw_offset(Point2D::new(self.offset_x, self.offset_y))
-            .set_grid_line_thickness(self.grid_thickness)
-            .set_tile_spacing(self.tile_spacing);
-    }
-
     pub fn draw<'a>(&mut self,
+                    camera: &mut Camera,
                     tile_map_renderer: &mut TileMapRenderer,
                     tile_map: &mut TileMap<'a>,
                     tile_sets: &'a TileSets,
@@ -111,27 +95,33 @@ impl DebugSettingsMenu {
 
         ui.window("Debug Settings")
             .flags(window_flags)
-            .collapsed(true, imgui::Condition::FirstUseEver)
+            .collapsed(!self.start_open, imgui::Condition::FirstUseEver)
             .position([5.0, 5.0], imgui::Condition::FirstUseEver)
             .build(|| {
-                if ui.slider("Scaling/Zoom", 1, 10, &mut self.scaling) {
-                    tile_map_renderer.set_draw_scaling(self.scaling);
+                let zoom_limits = camera.zoom_limits();
+                let mut zoom = camera.current_zoom();
+                if ui.slider("Zoom", zoom_limits.0, zoom_limits.1, &mut zoom) {
+                    camera.set_zoom(zoom);
                 }
 
-                if ui.slider("Offset X", -2048, 2048, &mut self.offset_x) {
-                    tile_map_renderer.set_draw_offset(Point2D::new(self.offset_x, self.offset_y));
+                let scroll_limits = camera.scroll_limits();
+                let mut scroll = camera.current_scroll();
+                if ui.slider("Scroll X", scroll_limits.0.x, scroll_limits.1.x, &mut scroll.x) {
+                    camera.set_scroll(scroll);
+                }
+                if ui.slider("Scroll Y", scroll_limits.0.y, scroll_limits.1.y, &mut scroll.y) {
+                    camera.set_scroll(scroll);
                 }
 
-                if ui.slider("Offset Y", -2048, 2048, &mut self.offset_y) {
-                    tile_map_renderer.set_draw_offset(Point2D::new(self.offset_x, self.offset_y));
+                let tile_spacing_limits = camera.tile_spacing_limits();
+                let mut tile_spacing = camera.current_tile_spacing();
+                if ui.slider("Tile spacing", tile_spacing_limits.0, tile_spacing_limits.1, &mut tile_spacing) {
+                    camera.set_tile_spacing(tile_spacing);
                 }
 
-                if ui.slider("Tile spacing", 0, 10, &mut self.tile_spacing) {
-                    tile_map_renderer.set_tile_spacing(self.tile_spacing);
-                }
-
-                if ui.slider("Grid thickness", 0.5, 20.0, &mut self.grid_thickness) {
-                    tile_map_renderer.set_grid_line_thickness(self.grid_thickness);
+                let mut line_thickness = tile_map_renderer.grid_line_thickness();
+                if ui.slider("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS, &mut line_thickness) {
+                    tile_map_renderer.set_grid_line_thickness(line_thickness);
                 }
 
                 ui.checkbox("Draw terrain", &mut self.draw_terrain);
@@ -180,6 +170,7 @@ impl DebugSettingsMenu {
 
 #[derive(Default)]
 pub struct TileListMenu {
+    start_open: bool,
     selected_tile: Option<TileDefHandle>,
     selected_index: [Option<usize>; TILE_MAP_LAYER_COUNT], // For highlighting the selected button.
     left_mouse_button_held: bool,
@@ -187,8 +178,9 @@ pub struct TileListMenu {
 }
 
 impl TileListMenu {
-    pub fn new(tex_cache: &mut TextureCache) -> Self {
+    pub fn new(tex_cache: &mut TextureCache, start_open: bool) -> Self {
         Self {
+            start_open: start_open,
             clear_button_image: tex_cache.load_texture("assets/ui/x.png"),
             ..Default::default()
         }
@@ -234,10 +226,10 @@ impl TileListMenu {
                 ui_sys: &UiSystem,
                 tex_cache: &TextureCache,
                 tile_sets: &TileSets,
-                cursor_pos: Point2D,
+                cursor_screen_pos: Point2D,
                 transform: &WorldToScreenTransform,
                 has_valid_placement: bool,
-                draw_tile_bounds: bool) {
+                show_selection_bounds: bool) {
 
         let ui = ui_sys.builder();
 
@@ -250,7 +242,7 @@ impl TileListMenu {
 
         // X position = screen width - estimated window width - margin
         // Y position = 10px
-        let window_pos = [
+        let window_position = [
             ui.io().display_size[0] - window_width - window_margin,
             5.0
         ];
@@ -262,7 +254,8 @@ impl TileListMenu {
 
         ui.window("Tile Selection")
             .flags(window_flags)
-            .position(window_pos, imgui::Condition::FirstUseEver)
+            .collapsed(!self.start_open, imgui::Condition::FirstUseEver)
+            .position(window_position, imgui::Condition::FirstUseEver)
             .build(|| {
                 self.draw_tile_list(TileMapLayerKind::Terrain,
                                     ui_sys,
@@ -322,16 +315,21 @@ impl TileListMenu {
                 }
             });
 
-        self.draw_selected_tile(render_sys, tile_sets, cursor_pos, transform, has_valid_placement, draw_tile_bounds);
+        self.draw_selected_tile(render_sys,
+                                tile_sets,
+                                cursor_screen_pos,
+                                transform,
+                                has_valid_placement,
+                                show_selection_bounds);
     }
 
     fn draw_selected_tile(&self,
                           render_sys: &mut RenderSystem,
                           tile_sets: &TileSets,
-                          cursor_pos: Point2D,
+                          cursor_screen_pos: Point2D,
                           transform: &WorldToScreenTransform,
                           has_valid_placement: bool,
-                          draw_tile_bounds: bool) {
+                          show_selection_bounds: bool) {
 
         if let Some(selected_tile) = self.current_selection(tile_sets) {
             let is_clear_selected = selected_tile.is_empty();
@@ -339,7 +337,7 @@ impl TileListMenu {
                 const CLEAR_ICON_SIZE: Size2D = Size2D::new(64, 32);
 
                 let rect = Rect2D::new(
-                    Point2D::new(cursor_pos.x - CLEAR_ICON_SIZE.width / 2, cursor_pos.y - CLEAR_ICON_SIZE.height / 2),
+                    Point2D::new(cursor_screen_pos.x - CLEAR_ICON_SIZE.width / 2, cursor_screen_pos.y - CLEAR_ICON_SIZE.height / 2),
                     CLEAR_ICON_SIZE);
 
                 render_sys.draw_textured_colored_rect(
@@ -348,7 +346,7 @@ impl TileListMenu {
                     self.clear_button_image,
                     Color::white());
             } else {
-                let rect = Rect2D::new(cursor_pos, selected_tile.draw_size);
+                let rect = Rect2D::new(cursor_screen_pos, selected_tile.draw_size);
 
                 let offset =
                     if selected_tile.is_building() {
@@ -364,7 +362,7 @@ impl TileListMenu {
                     if has_valid_placement {
                         Color::white()
                     } else {
-                        TILE_INVALID_COLOR
+                        INVALID_TILE_COLOR
                     };
 
                 if let Some(sprite_frame) = selected_tile.anim_frame_by_index(0, 0, 0) {
@@ -375,7 +373,7 @@ impl TileListMenu {
                         Color::new(selected_tile.color.r, selected_tile.color.g, selected_tile.color.b, 0.7) * highlight_color);
                 }
 
-                if draw_tile_bounds {
+                if show_selection_bounds {
                     render_sys.draw_wireframe_rect_fast(cursor_transform.scale_and_offset_rect(rect), Color::red());
                 }
             }

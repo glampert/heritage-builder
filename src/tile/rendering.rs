@@ -4,31 +4,35 @@ use smallvec::SmallVec;
 use crate::{
     ui::UiSystem,
     render::RenderSystem,
-    utils::{self, Color, Cell2D, IsoPoint2D, Point2D, Size2D, Rect2D, WorldToScreenTransform}
+    utils::{self, Color, Cell2D, IsoPoint2D, Point2D, WorldToScreenTransform}
 };
 
 use super::{
-    debug::{self},
-    selection::{self},
-    def::{self, BASE_TILE_SIZE},
-    map::{Tile, TileFlags, TileMapLayerKind, TileMap}
+    debug_utils::{self},
+    def::BASE_TILE_SIZE,
+    selection::CellRange,
+    map::{Tile, TileFlags, TileMap, TileMapLayerKind}
 };
 
 // ----------------------------------------------
 // Constants
 // ----------------------------------------------
 
-pub const TILE_HIGHLIGHT_COLOR: Color = Color::new(0.76, 0.96, 0.39, 1.0); // light green
-pub const TILE_INVALID_COLOR:   Color = Color::new(0.95, 0.60, 0.60, 1.0); // light red
-
-pub const GRID_HIGHLIGHT_COLOR: Color = Color::green();
-pub const GRID_INVALID_COLOR:   Color = Color::red();
+pub const HIGHLIGHT_TILE_COLOR: Color = Color::new(0.76, 0.96, 0.39, 1.0); // light green
+pub const INVALID_TILE_COLOR:   Color = Color::new(0.95, 0.60, 0.60, 1.0); // light red
 
 pub const SELECTION_RECT_COLOR: Color = Color::new(0.2, 0.7, 0.2, 1.0); // green-ish
 pub const MAP_BACKGROUND_COLOR: Color = Color::gray();
 
+pub const DEFAULT_GRID_COLOR:   Color = Color::white();
+pub const HIGHLIGHT_GRID_COLOR: Color = Color::green();
+pub const INVALID_GRID_COLOR:   Color = Color::red();
+
+pub const MIN_GRID_LINE_THICKNESS: f32 = 0.5;
+pub const MAX_GRID_LINE_THICKNESS: f32 = 20.0;
+
 // ----------------------------------------------
-// TileMapRenderFlags / TileDrawListEntry
+// TileMapRenderFlags
 // ----------------------------------------------
 
 bitflags! {
@@ -47,22 +51,6 @@ bitflags! {
         const DrawTileDebugBounds        = 1 << 9;
         const DrawBlockerTilesDebug      = 1 << 10;
     }
-}
-
-struct TileDrawListEntry {
-    // NOTE: Raw pointer, no lifetime.
-    // This is only a temporary reference that lives
-    // for the scope of TileMapRenderer::draw_map().
-    // Since we store this in a temp vector that is a member
-    // of TileMapRenderer we need to bypass the borrow checker.
-    // Not ideal but avoids having to allocate a new temporary
-    // local Vec each time draw_map() is called.
-    tile_ptr: *const Tile<'static>,
-
-    // Y value of the bottom left corner of the tile sprite for sorting.
-    // Simulates a pseudo depth value so we can render units and buildings
-    // correctly.
-    z_sort: i32,
 }
 
 // ----------------------------------------------
@@ -88,7 +76,6 @@ pub struct TileMapRenderStats {
 // ----------------------------------------------
 
 pub struct TileMapRenderer {
-    transform: WorldToScreenTransform,
     grid_color: Color,
     grid_line_thickness: f32,
     stats: TileMapRenderStats,
@@ -96,73 +83,54 @@ pub struct TileMapRenderer {
 }
 
 impl TileMapRenderer {
-    pub fn new() -> Self {
+    pub fn new(grid_color: Color, grid_line_thickness: f32) -> Self {
         Self {
-            transform: WorldToScreenTransform::default(),
-            grid_color: Color::white(),
-            grid_line_thickness: 1.0,
+            grid_color: grid_color,
+            grid_line_thickness: grid_line_thickness.clamp(MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS),
             stats: TileMapRenderStats::default(),
             temp_tile_sort_list: Vec::with_capacity(512),
         }
     }
 
-    pub fn set_draw_scaling(&mut self, scaling: i32) -> &mut Self {
-        debug_assert!(scaling > 0);
-        self.transform.scaling = scaling;
-        self
-    }
-
-    pub fn set_draw_offset(&mut self, offset: Point2D) -> &mut Self {
-        self.transform.offset = offset;
-        self
-    }
-
-    pub fn set_tile_spacing(&mut self, spacing: i32) -> &mut Self {
-        debug_assert!(spacing >= 0);
-        self.transform.tile_spacing = spacing;
-        self
-    }
-
-    pub fn set_grid_color(&mut self, color: Color) -> &mut Self {
+    pub fn set_grid_color(&mut self, color: Color) {
         self.grid_color = color;
-        self
     }
 
-    pub fn set_grid_line_thickness(&mut self, thickness: f32) -> &mut Self {
-        debug_assert!(thickness > 0.0);
-        self.grid_line_thickness = thickness;
-        self
+    pub fn grid_color(&self) -> Color {
+        self.grid_color
     }
 
-    pub fn world_to_screen_transform(&self) -> WorldToScreenTransform {
-        self.transform
+    pub fn set_grid_line_thickness(&mut self, thickness: f32) {
+        self.grid_line_thickness = thickness.clamp(MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS);
+    }
+
+    pub fn grid_line_thickness(&self) -> f32 {
+        self.grid_line_thickness
     }
 
     pub fn draw_map(&mut self,
                     render_sys: &mut RenderSystem,
                     ui_sys: &UiSystem,
                     tile_map: &TileMap,
+                    transform: &WorldToScreenTransform,
+                    visible_range: CellRange,
                     flags: TileMapRenderFlags) -> TileMapRenderStats {
 
         debug_assert!(self.temp_tile_sort_list.is_empty());
+        let map_size_in_cells = tile_map.size();
 
         self.reset_stats();
-
-        let map_cells = tile_map.size();
-
-        let (cell_min, cell_max) =
-            self.calc_visible_cells_range(render_sys.window_size(), map_cells);
 
         // Terrain:
         if flags.contains(TileMapRenderFlags::DrawTerrain) {
             let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
             let buildings_layer = tile_map.layer(TileMapLayerKind::Buildings);
 
-            debug_assert!(terrain_layer.size() == map_cells);
-            debug_assert!(buildings_layer.size() == map_cells);
+            debug_assert!(terrain_layer.size() == map_size_in_cells);
+            debug_assert!(buildings_layer.size() == map_size_in_cells);
 
-            for y in (cell_min.y..=cell_max.y).rev() {
-                for x in (cell_min.x..=cell_max.x).rev() {
+            for y in (visible_range.min_cell.y..=visible_range.max_cell.y).rev() {
+                for x in (visible_range.min_cell.x..=visible_range.max_cell.x).rev() {
                     let cell = Cell2D::new(x, y);
 
                     let tile = terrain_layer.tile(cell);
@@ -184,7 +152,7 @@ impl TileMapRenderer {
                                     &mut self.stats,
                                     ui_sys,
                                     tile_iso_coords,
-                                    &self.transform,
+                                    transform,
                                     tile,
                                     flags);
                 }
@@ -194,7 +162,7 @@ impl TileMapRenderer {
         if flags.contains(TileMapRenderFlags::DrawGrid) &&
           !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Draw the grid now so that lines will be on top of the terrain but not on top of buildings.
-            self.draw_isometric_grid(render_sys, tile_map, cell_min, cell_max);
+            self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         }
 
         // Buildings & Units:
@@ -202,8 +170,8 @@ impl TileMapRenderer {
             let buildings_layer = tile_map.layer(TileMapLayerKind::Buildings);
             let units_layer = tile_map.layer(TileMapLayerKind::Units);
 
-            debug_assert!(buildings_layer.size() == map_cells);
-            debug_assert!(units_layer.size() == map_cells);
+            debug_assert!(buildings_layer.size() == map_size_in_cells);
+            debug_assert!(units_layer.size() == map_size_in_cells);
 
             let mut add_to_sort_list = |tile: &Tile| {
                 self.temp_tile_sort_list.push(TileDrawListEntry {
@@ -214,8 +182,8 @@ impl TileMapRenderer {
 
             // Drawing in reverse order (bottom to top) is required to ensure
             // buildings with the same Z-sort value don't overlap in weird ways.
-            for y in (cell_min.y..=cell_max.y).rev() {
-                for x in (cell_min.x..=cell_max.x).rev() {
+            for y in (visible_range.min_cell.y..=visible_range.max_cell.y).rev() {
+                for x in (visible_range.min_cell.x..=visible_range.max_cell.x).rev() {
 
                     let cell = Cell2D::new(x, y);
                     let building_tile = buildings_layer.tile(cell);
@@ -234,7 +202,7 @@ impl TileMapRenderer {
                                         &mut self.stats,
                                         ui_sys,
                                         tile_iso_coords,
-                                        &self.transform,
+                                        transform,
                                         building_tile,
                                         flags);
                     }
@@ -260,7 +228,7 @@ impl TileMapRenderer {
                                 &mut self.stats,
                                 ui_sys,
                                 tile_iso_coords,
-                                &self.transform,
+                                transform,
                                 tile,
                                 flags);
             }
@@ -272,29 +240,28 @@ impl TileMapRenderer {
         if flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Allow lines to draw later and effectively bypass the draw order
             // and appear on top of everything else (useful for debugging).
-            self.draw_isometric_grid(render_sys, tile_map, cell_min, cell_max);
+            self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         }
 
-        self.update_stats();
-        self.stats.clone()
+        self.update_stats()
     }
 
     fn draw_isometric_grid(&self,
                            render_sys: &mut RenderSystem,
                            tile_map: &TileMap,
-                           cell_min: Cell2D,
-                           cell_max: Cell2D) {
+                           transform: &WorldToScreenTransform,
+                           visible_range: CellRange) {
     
         let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
-        let line_thickness = self.grid_line_thickness * (self.transform.scaling as f32);
+        let line_thickness = self.grid_line_thickness * (transform.scaling as f32);
 
         let mut highlighted_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
         let mut invalidated_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
 
-        for y in cell_min.y..=cell_max.y {
-            for x in cell_min.x..=cell_max.x {
+        for y in visible_range.min_cell.y..=visible_range.max_cell.y {
+            for x in visible_range.min_cell.x..=visible_range.max_cell.x {
                 let cell = Cell2D::new(x, y);
-                let points = def::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, &self.transform);
+                let points = utils::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, BASE_TILE_SIZE, transform);
 
                 // Save highlighted grid cells for drawing at the end, so they display in the right order.
                 let tile = terrain_layer.tile(cell);
@@ -315,11 +282,11 @@ impl TileMapRenderer {
 
             // Highlighted on top:
             for points in &highlighted_cells {
-                render_sys.draw_polyline_with_thickness(&points, GRID_HIGHLIGHT_COLOR, line_thickness, true);
+                render_sys.draw_polyline_with_thickness(&points, HIGHLIGHT_GRID_COLOR, line_thickness, true);
             }
 
             for points in &invalidated_cells {
-                render_sys.draw_polyline_with_thickness(&points, GRID_INVALID_COLOR, line_thickness, true);
+                render_sys.draw_polyline_with_thickness(&points, INVALID_GRID_COLOR, line_thickness, true);
             }
         }
     }
@@ -347,10 +314,10 @@ impl TileMapRenderer {
             let highlight_color =
                 if tile.flags.contains(TileFlags::Highlighted) {
                     stats.tiles_drawn_highlighted += 1;
-                    TILE_HIGHLIGHT_COLOR
+                    HIGHLIGHT_TILE_COLOR
                 } else if tile.flags.contains(TileFlags::Invalidated) {
                     stats.tiles_drawn_invalidated += 1;
-                    TILE_INVALID_COLOR
+                    INVALID_TILE_COLOR
                 } else {
                     Color::white()
                 };
@@ -366,7 +333,7 @@ impl TileMapRenderer {
             }
         }
 
-        debug::draw_tile_debug(
+        debug_utils::draw_tile_debug(
             render_sys,
             ui_sys,
             tile_iso_coords,
@@ -385,23 +352,31 @@ impl TileMapRenderer {
     }
 
     #[inline]
-    fn update_stats(&mut self) {
+    fn update_stats(&mut self) -> TileMapRenderStats {
         self.stats.peak_tiles_drawn             = self.stats.tiles_drawn.max(self.stats.peak_tiles_drawn);
         self.stats.peak_tiles_drawn_highlighted = self.stats.tiles_drawn_highlighted.max(self.stats.peak_tiles_drawn_highlighted);
         self.stats.peak_tiles_drawn_invalidated = self.stats.tiles_drawn_invalidated.max(self.stats.peak_tiles_drawn_invalidated);
         self.stats.peak_tile_sort_list_len      = self.stats.tile_sort_list_len.max(self.stats.peak_tile_sort_list_len);
+        self.stats.clone()
     }
+}
 
-    #[inline]
-    fn calc_visible_cells_range(&self, screen_size: Size2D, map_size: Size2D) -> (Cell2D, Cell2D) {
-        let screen_rect = Rect2D::new(
-            Point2D::zero(),
-            screen_size);
+// ----------------------------------------------
+// TileDrawListEntry
+// ----------------------------------------------
 
-        selection::tile_selection_bounds(
-            &screen_rect,
-            BASE_TILE_SIZE,
-            map_size,
-            &self.transform)
-    }
+struct TileDrawListEntry {
+    // NOTE: Raw pointer, no lifetime.
+    // This is only a temporary reference that lives
+    // for the scope of TileMapRenderer::draw_map().
+    // Since we store this in a temp vector that is a member
+    // of TileMapRenderer we need to bypass the borrow checker.
+    // Not ideal but avoids having to allocate a new temporary
+    // local Vec each time draw_map() is called.
+    tile_ptr: *const Tile<'static>,
+
+    // Y value of the bottom left corner of the tile sprite for sorting.
+    // Simulates a pseudo depth value so we can render units and buildings
+    // correctly.
+    z_sort: i32,
 }

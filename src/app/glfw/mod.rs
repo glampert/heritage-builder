@@ -29,6 +29,7 @@ pub struct GlfwApplication {
     title: String,
     window_size: Size2D,
     fullscreen: bool,
+    confine_cursor: bool,
     should_quit: bool,
     glfw_instance: glfw::Glfw,
     window: glfw::PWindow,
@@ -36,7 +37,7 @@ pub struct GlfwApplication {
 }
 
 impl GlfwApplication {
-    pub fn new(title: String, window_size: Size2D, fullscreen: bool) -> Self {
+    pub fn new(title: String, window_size: Size2D, fullscreen: bool, confine_cursor: bool) -> Self {
         debug_assert!(window_size.is_valid());
 
         let mut glfw_instance =
@@ -78,6 +79,7 @@ impl GlfwApplication {
             title: title,
             window_size: window_size,
             fullscreen: fullscreen,
+            confine_cursor: confine_cursor,
             should_quit: false,
             glfw_instance: glfw_instance,
             window: window,
@@ -131,6 +133,10 @@ impl Application for GlfwApplication {
             }
         }
 
+        if self.confine_cursor {
+            confine_cursor_to_window(&mut self.window);
+        }
+
         translated_events
     }
 
@@ -161,6 +167,35 @@ impl Application for GlfwApplication {
 // ----------------------------------------------
 // Internal helpers
 // ----------------------------------------------
+
+fn confine_cursor_to_window(window: &mut glfw::Window) {
+    let (x, y) = window.get_cursor_pos();
+    let (width, height) = window.get_size();
+
+    let mut new_x = x;
+    let mut new_y = y;
+    let mut changed = false;
+
+    if x < 0.0 {
+        new_x = 0.0;
+        changed = true;
+    } else if x > width as f64 {
+        new_x = width as f64;
+        changed = true;
+    }
+
+    if y < 0.0 {
+        new_y = 0.0;
+        changed = true;
+    } else if y > height as f64 {
+        new_y = height as f64;
+        changed = true;
+    }
+
+    if changed {
+        window.set_cursor_pos(new_x, new_y);
+    }
+}
 
 #[inline]
 fn get_glfw_window_ptr<T: Application>(app: &T) -> *mut glfw::PWindow {

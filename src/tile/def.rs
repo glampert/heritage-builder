@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::{
     render::TextureHandle,
-    utils::{self, Cell2D, Color, RectTexCoords, Size2D, Point2D, WorldToScreenTransform}
+    utils::{Cell2D, Color, RectTexCoords, Size2D}
 };
 
 use super::{
@@ -13,10 +13,13 @@ use super::{
 };
 
 // ----------------------------------------------
-// Constants
+// Constants / helper types
 // ----------------------------------------------
 
 pub const BASE_TILE_SIZE: Size2D = Size2D{ width: 64, height: 32 };
+
+// Can fit a 6x6 tile without allocating.
+pub type TileFootprintList = SmallVec<[Cell2D; 36]>;
 
 // ----------------------------------------------
 // TileKind
@@ -301,7 +304,9 @@ impl TileDef {
     }
 }
 
-// Deserialization defaults:
+// ----------------------------------------------
+// Deserialization defaults
+// ----------------------------------------------
 
 #[inline]
 const fn default_tile_size() -> Size2D { BASE_TILE_SIZE }
@@ -345,63 +350,4 @@ impl TileTexInfo {
     pub fn is_valid(&self) -> bool {
         self.texture.is_valid()
     }
-}
-
-// ----------------------------------------------
-// Helper functions
-// ----------------------------------------------
-
-// Can fit a 6x6 tile without allocating.
-pub type TileFootprintList = SmallVec<[Cell2D; 36]>;
-
-pub fn cells_overlap(lhs_cells: &TileFootprintList, rhs_cells: &TileFootprintList) -> bool {
-    for lhs_cell in lhs_cells {
-        for rhs_cell in rhs_cells {
-            if lhs_cell == rhs_cell {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-// Creates an isometric-aligned diamond rectangle for the given tile size and cell location.
-pub fn cell_to_screen_diamond_points(cell: Cell2D,
-                                     tile_size: Size2D,
-                                     transform: &WorldToScreenTransform) -> [Point2D; 4] {
-
-    let iso_center = utils::cell_to_iso(cell, BASE_TILE_SIZE);
-    let screen_center = utils::iso_to_screen_point(iso_center, transform, BASE_TILE_SIZE, false);
-
-    let tile_width  = tile_size.width  * transform.scaling;
-    let tile_height = tile_size.height * transform.scaling;
-    let base_height = BASE_TILE_SIZE.height * transform.scaling;
-
-    let half_tile_w = tile_width  / 2;
-    let half_tile_h = tile_height / 2;
-    let half_base_h = base_height / 2;
-
-    // Build 4 corners of the tile:
-    let top    = Point2D::new(screen_center.x, screen_center.y - tile_height + half_base_h);
-    let bottom = Point2D::new(screen_center.x, screen_center.y + half_base_h);
-    let right  = Point2D::new(screen_center.x + half_tile_w, screen_center.y - half_tile_h + half_base_h);
-    let left   = Point2D::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
-
-    [ top, right, bottom, left ]
-}
-
-// Test precisely if the screen point is inside the isometric cell diamond.
-pub fn is_screen_point_inside_cell(screen_point: Point2D,
-                                   cell: Cell2D,
-                                   tile_def: &TileDef,
-                                   transform: &WorldToScreenTransform) -> bool {
-
-    debug_assert!(transform.is_valid());
-
-    let screen_points = cell_to_screen_diamond_points(
-        cell,
-        tile_def.logical_size,
-        transform);
-
-    utils::is_screen_point_inside_diamond(screen_point, &screen_points)
 }

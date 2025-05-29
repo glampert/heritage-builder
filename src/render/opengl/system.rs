@@ -42,11 +42,11 @@ pub struct RenderSystem {
     points_batch: DrawBatch<PointVertex2D, PointIndex2D>,
     points_shader: points::Shader,
     stats: RenderStats,
-    window_size: Size2D,
+    viewport_size: Size2D,
 }
 
 impl RenderSystem {
-    pub fn new(window_size: Size2D, clear_color: Color) -> Self {
+    pub fn new(viewport_size: Size2D, clear_color: Color) -> Self {
         let mut render_sys = Self {
             frame_started: false,
             render_context: RenderContext::new(),
@@ -72,7 +72,7 @@ impl RenderSystem {
             ),
             points_shader: points::Shader::load(),
             stats: RenderStats::default(),
-            window_size: window_size,
+            viewport_size: viewport_size,
         };
 
         render_sys.render_context
@@ -82,7 +82,7 @@ impl RenderSystem {
             .set_backface_culling(BackFaceCulling::Disabled)
             .set_depth_test(DepthTest::Disabled);
 
-        render_sys.set_window_size(window_size);
+        render_sys.set_viewport_size(viewport_size);
 
         render_sys
     }
@@ -151,18 +151,18 @@ impl RenderSystem {
         self.points_batch.clear();
     }
 
-    pub fn set_window_size(&mut self, new_size: Size2D) {
-        self.window_size = new_size;
+    pub fn set_viewport_size(&mut self, new_size: Size2D) {
+        self.viewport_size = new_size;
         self.render_context.set_viewport(Rect2D::new(Point2D::zero(), new_size));
 
-        let viewport_size = new_size.to_vec2();
-        self.sprites_shader.set_viewport_size(viewport_size);
-        self.lines_shader.set_viewport_size(viewport_size);
-        self.points_shader.set_viewport_size(viewport_size);
+        let viewport_size_vec2 = new_size.to_vec2();
+        self.sprites_shader.set_viewport_size(viewport_size_vec2);
+        self.lines_shader.set_viewport_size(viewport_size_vec2);
+        self.points_shader.set_viewport_size(viewport_size_vec2);
     }
 
-    pub fn window_size(&self) -> Size2D {
-        self.window_size
+    pub fn viewport_size(&self) -> Size2D {
+        self.viewport_size
     }
 
     pub fn draw_colored_rect(&mut self,

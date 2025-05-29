@@ -16,8 +16,9 @@ use app::{
 };
 
 use tile::{
-    debug::{self},
+    camera::Camera,
     debug_ui::*,
+    debug_utils::{self},
     map::*,
     rendering::*,
     selection::*,
@@ -36,6 +37,7 @@ fn main() {
         .window_title("CitySim")
         .window_size(Size2D::new(1024, 768))
         .fullscreen(false)
+        .confine_cursor_to_window(true)
         .build();
 
     let input_sys = app.create_input_system();
@@ -46,25 +48,29 @@ fn main() {
 
     let tile_sets = TileSets::load(&mut tex_cache);
 
-    //let mut tile_map = debug::create_test_tile_map(&tile_sets);
-    let mut tile_map = TileMap::new(Size2D::new(64, 64));
-
-    let mut tile_map_renderer = TileMapRenderer::new();
-
-    let mut debug_settings_menu = DebugSettingsMenu::new();
-    debug_settings_menu.apply_render_settings(&mut tile_map_renderer);
+    let mut tile_map = debug_utils::create_test_tile_map(&tile_sets);
+    //let mut tile_map = TileMap::new(Size2D::new(64, 64));
 
     let mut tile_selection = TileSelection::new();
-    let mut tile_list_menu = TileListMenu::new(&mut tex_cache);
+    let mut tile_map_renderer = TileMapRenderer::new(DEFAULT_GRID_COLOR, 3.0);
+
+    let mut camera = Camera::new(
+        render_sys.viewport_size(),
+        tile_map.size(),
+        1,
+        Point2D::new(250, 300),
+        4);
+
     let mut tile_inspector_menu = TileInspectorMenu::new();
+    let mut tile_list_menu = TileListMenu::new(&mut tex_cache, true);
+    let mut debug_settings_menu = DebugSettingsMenu::new(true);
 
     let mut frame_clock = FrameClock::new();
 
     while !app.should_quit() {
         frame_clock.begin_frame();
 
-        let transform = tile_map_renderer.world_to_screen_transform();
-        let cursor_pos = input_sys.cursor_pos();
+        let cursor_screen_pos = input_sys.cursor_pos();
 
         for event in app.poll_events() {
             match event {
@@ -72,7 +78,8 @@ fn main() {
                     app.request_quit();
                 }
                 ApplicationEvent::WindowResize(window_size) => {
-                    render_sys.set_window_size(window_size);
+                    render_sys.set_viewport_size(window_size);
+                    camera.set_viewport_size(window_size);
                 }
                 ApplicationEvent::KeyInput(key, action, modifiers) => {
                     if ui_sys.on_key_input(key, action, modifiers).is_handled() {
@@ -94,6 +101,8 @@ fn main() {
                     if ui_sys.on_scroll(amount).is_handled() {
                         continue;
                     }
+
+                    camera.update_zooming(amount.y as i32, frame_clock.delta_time());
                 }
                 ApplicationEvent::MouseButton(button, action, modifiers) => {
                     if ui_sys.on_mouse_click(button, action, modifiers).is_handled() {
@@ -106,7 +115,7 @@ fn main() {
                             tile_map.clear_selection(&mut tile_selection);
                         }
                     } else {
-                        if tile_selection.on_mouse_click(button, action, cursor_pos).not_handled() {
+                        if tile_selection.on_mouse_click(button, action, cursor_screen_pos).not_handled() {
                             tile_list_menu.clear_selection();
                             tile_map.clear_selection(&mut tile_selection);
                         }
@@ -122,22 +131,28 @@ fn main() {
             println!("ApplicationEvent::{:?}", event);
         }
 
-        if !ui_sys.is_handling_mouse_input() { // If we're not hovering over an ImGui menu.
+        // If we're not hovering over an ImGui menu...
+        if !ui_sys.is_handling_mouse_input() {
+            // Map scrolling:
+            camera.update_scrolling(cursor_screen_pos, frame_clock.delta_time());
+
+            // Tile hovering and selection:
+            let placement_candidate = tile_list_menu.current_selection(&tile_sets);
             tile_map.update_selection(&mut tile_selection,
-                                      cursor_pos,
-                                      &transform,
-                                      tile_list_menu.current_selection(&tile_sets));
+                                      cursor_screen_pos,
+                                      camera.transform(),
+                                      placement_candidate);
         }
 
         if tile_list_menu.can_place_tile() {
-            let current_sel = tile_list_menu.current_selection(&tile_sets).unwrap();
+            let tile_to_place = tile_list_menu.current_selection(&tile_sets).unwrap();
 
             let did_place = tile_map.try_place_tile_at_cursor(
-                cursor_pos,
-                &transform,
-                current_sel);
+                cursor_screen_pos,
+                camera.transform(),
+                tile_to_place);
 
-            if did_place && (current_sel.is_building() || current_sel.is_unit() || current_sel.is_empty()) {
+            if did_place && (tile_to_place.is_building() || tile_to_place.is_unit() || tile_to_place.is_empty()) {
                 // Dop or remove building/unit and exit tile placement mode.
                 tile_list_menu.clear_selection();
                 tile_map.clear_selection(&mut tile_selection);
@@ -151,6 +166,8 @@ fn main() {
             &mut render_sys,
             &ui_sys,
             &tile_map,
+            camera.transform(),
+            camera.visible_cells_range(),
             debug_settings_menu.selected_render_flags());
 
         tile_selection.draw(&mut render_sys);
@@ -160,26 +177,26 @@ fn main() {
             &ui_sys,
             &tex_cache,
             &tile_sets,
-            cursor_pos,
-            &transform,
+            cursor_screen_pos,
+            camera.transform(),
             tile_selection.has_valid_placement(),
             debug_settings_menu.show_selection_bounds());
 
-        tile_inspector_menu.draw(&mut tile_map, &tile_sets, &ui_sys, &transform);
-        debug_settings_menu.draw(&mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
+        tile_inspector_menu.draw(&mut tile_map, &tile_sets, &ui_sys, camera.transform());
+        debug_settings_menu.draw(&mut camera, &mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
 
         if debug_settings_menu.show_cursor_pos() {
-            debug::draw_cursor_overlay(&ui_sys, &transform);
+            debug_utils::draw_cursor_overlay(&ui_sys, camera.transform());
         }
 
         if debug_settings_menu.show_screen_origin() {
-            debug::draw_screen_origin_marker(&mut render_sys);
+            debug_utils::draw_screen_origin_marker(&mut render_sys);
         }
 
         let render_sys_stats = render_sys.end_frame(&tex_cache);
 
         if debug_settings_menu.show_render_stats() {
-            debug::draw_render_stats(&ui_sys, &render_sys_stats, &tile_render_stats);
+            debug_utils::draw_render_stats(&ui_sys, &render_sys_stats, &tile_render_stats);
         }
 
         ui_sys.end_frame();

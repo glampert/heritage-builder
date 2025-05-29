@@ -5,13 +5,24 @@ use crate::{
 };
 
 use super::{
-    def::{self, TileDef, TileKind},
+    def::{TileFootprintList, TileDef, TileKind},
     map::{self, Tile, TileMap, TileMapLayerKind}
 };
 
 // ----------------------------------------------
 // Tile placements helpers
 // ----------------------------------------------
+
+pub fn cells_overlap(lhs_cells: &TileFootprintList, rhs_cells: &TileFootprintList) -> bool {
+    for lhs_cell in lhs_cells {
+        for rhs_cell in rhs_cells {
+            if lhs_cell == rhs_cell {
+                return true;
+            }
+        }
+    }
+    false
+}
 
 pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
                                    kind: TileMapLayerKind,
@@ -39,7 +50,7 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
             let target_footprint =
                 tile_to_place.calc_footprint_cells(target_cell);
 
-            if def::cells_overlap(&current_footprint, &target_footprint) {
+            if cells_overlap(&current_footprint, &target_footprint) {
                 return false; // Cannot place building here.
             }
         }

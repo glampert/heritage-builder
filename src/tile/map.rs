@@ -10,7 +10,7 @@ use crate::{
 };
 
 use super::{
-    def::{self, TileDef, TileKind, TileFootprintList, BASE_TILE_SIZE},
+    def::{TileDef, TileKind, TileFootprintList, BASE_TILE_SIZE},
     selection::TileSelection,
     placement::{self}
 };
@@ -497,7 +497,11 @@ impl<'a> TileMapLayer<'a> {
 
             for neighbor in neighbors {
                 if let Some(tile) = neighbor {
-                    if def::is_screen_point_inside_cell(screen_point, tile.cell, tile.def, transform) {
+                    if utils::is_screen_point_inside_cell(screen_point,
+                                                          tile.cell,
+                                                          tile.logical_size(),
+                                                          BASE_TILE_SIZE,
+                                                          transform) {
                         return tile.cell;
                     }
                 }
@@ -690,12 +694,12 @@ impl<'a> TileMap<'a> {
                             transform: &WorldToScreenTransform,
                             placement_candidate: Option<&'a TileDef>) {
 
-        let map_size = self.size();
+        let map_size_in_cells = self.size();
         let mut layers = self.layers_mut(); 
 
         selection.update(
             &mut layers,
-            map_size,
+            map_size_in_cells,
             cursor_screen_pos,
             transform, 
             placement_candidate);

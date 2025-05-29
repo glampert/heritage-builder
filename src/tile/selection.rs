@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::{
-    def::{self, TileDef, TileKind, BASE_TILE_SIZE},
+    def::{TileDef, TileKind, BASE_TILE_SIZE},
     map::{Tile, TileFlags, TileMapLayerMutRefs},
     rendering::SELECTION_RECT_COLOR
 };
@@ -37,10 +37,10 @@ impl<'a> TileSelection<'a> {
         self.selection_flags != TileFlags::Invalidated
     }
 
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_pos: Point2D) -> UiInputEvent {
+    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_screen_pos: Point2D) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
-                self.cursor_drag_start = cursor_pos;
+                self.cursor_drag_start = cursor_screen_pos;
                 self.left_mouse_button_held = true;
                 return UiInputEvent::Handled;
             } else if action == InputAction::Release {
@@ -62,7 +62,7 @@ impl<'a> TileSelection<'a> {
 
     pub fn update(&mut self,
                   layers: &mut TileMapLayerMutRefs<'a>,
-                  map_size: Size2D,
+                  map_size_in_cells: Size2D,
                   cursor_screen_pos: Point2D,
                   transform: &WorldToScreenTransform,
                   placement_candidate: Option<&'a TileDef>) {
@@ -81,14 +81,14 @@ impl<'a> TileSelection<'a> {
             // Clear previous highlighted tiles:
             self.clear(layers);
 
-            let (cell_min, cell_max) = tile_selection_bounds(
+            let range = bounds(
                 &self.rect,
                 BASE_TILE_SIZE,
-                map_size,
+                map_size_in_cells,
                 transform);
 
-            for y in cell_min.y..=cell_max.y {
-                for x in cell_min.x..=cell_max.x {
+            for y in range.min_cell.y..=range.max_cell.y {
+                for x in range.min_cell.x..=range.max_cell.x {
                     if let Some(base_tile) = layers.terrain.try_tile(Cell2D::new(x, y)) {
 
                         let tile_iso_coords =
@@ -115,8 +115,11 @@ impl<'a> TileSelection<'a> {
                 // If the cursor is still inside this cell, we're done.
                 // This can happen because the isometric-to-cell conversion
                 // is not absolute but rather based on proximity to the cell's center.
-                if def::is_screen_point_inside_cell(
-                    cursor_screen_pos, base_tile.cell, base_tile.def, transform) {
+                if utils::is_screen_point_inside_cell(cursor_screen_pos,
+                                                      base_tile.cell,
+                                                      base_tile.logical_size(),
+                                                      BASE_TILE_SIZE,
+                                                      transform) {
                     return;
                 }
 
@@ -266,14 +269,20 @@ impl<'a> TileSelection<'a> {
 // Tile selection helpers
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
+pub struct CellRange {
+    pub min_cell: Cell2D,
+    pub max_cell: Cell2D,
+}
+
 // "Broad-Phase" tile selection based on the 4 corners of a rectangle.
 // Given the layout of the isometric tile map, this algorithm is quite greedy
 // and will select more tiles than actually intersect the rect, so a refinement
 // pass must be done after to intersect each tile's rect with the selection rect.
-pub fn tile_selection_bounds(screen_rect: &Rect2D,
-                             tile_size: Size2D,
-                             map_size: Size2D,
-                             transform: &WorldToScreenTransform) -> (Cell2D, Cell2D) {
+pub fn bounds(screen_rect: &Rect2D,
+              tile_size: Size2D,
+              map_size_in_cells: Size2D,
+              transform: &WorldToScreenTransform) -> CellRange {
 
     debug_assert!(screen_rect.is_valid());
 
@@ -302,10 +311,13 @@ pub fn tile_selection_bounds(screen_rect: &Rect2D,
     let mut max_y = cell_tl.y.max(cell_tr.y).max(cell_bl.y).max(cell_br.y);
 
     // Clamp to map bounds:
-    min_x = min_x.clamp(0, map_size.width  - 1);
-    max_x = max_x.clamp(0, map_size.width  - 1);
-    min_y = min_y.clamp(0, map_size.height - 1);
-    max_y = max_y.clamp(0, map_size.height - 1);
+    min_x = min_x.clamp(0, map_size_in_cells.width  - 1);
+    max_x = max_x.clamp(0, map_size_in_cells.width  - 1);
+    min_y = min_y.clamp(0, map_size_in_cells.height - 1);
+    max_y = max_y.clamp(0, map_size_in_cells.height - 1);
 
-    (Cell2D::new(min_x, min_y), Cell2D::new(max_x, max_y))
+    CellRange {
+        min_cell: Cell2D::new(min_x, min_y),
+        max_cell: Cell2D::new(max_x, max_y),
+    }
 }
