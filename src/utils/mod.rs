@@ -1,6 +1,6 @@
+use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign};
 use std::time::{self};
-use std::ops::{Add, Sub, Mul};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 pub mod hash;
 pub mod file_sys;
@@ -85,7 +85,6 @@ impl Vec2 {
 // Vec2 + Vec2
 impl Add for Vec2 {
     type Output = Vec2;
-
     fn add(self, rhs: Vec2) -> Vec2 {
         Vec2 {
             x: self.x + rhs.x,
@@ -94,10 +93,17 @@ impl Add for Vec2 {
     }
 }
 
+// Vec2 += Vec2
+impl AddAssign for Vec2 {
+    fn add_assign(&mut self, rhs: Vec2) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+    }
+}
+
 // Vec2 - Vec2
 impl Sub for Vec2 {
     type Output = Vec2;
-
     fn sub(self, rhs: Vec2) -> Vec2 {
         Vec2 {
             x: self.x - rhs.x,
@@ -106,14 +112,21 @@ impl Sub for Vec2 {
     }
 }
 
+// Vec2 -= Vec2
+impl SubAssign for Vec2 {
+    fn sub_assign(&mut self, rhs: Vec2) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+    }
+}
+
 // Vec2 * f32
 impl Mul<f32> for Vec2 {
     type Output = Vec2;
-
-    fn mul(self, scalar: f32) -> Vec2 {
+    fn mul(self, rhs: f32) -> Vec2 {
         Vec2 {
-            x: self.x * scalar,
-            y: self.y * scalar,
+            x: self.x * rhs,
+            y: self.y * rhs,
         }
     }
 }
@@ -121,12 +134,87 @@ impl Mul<f32> for Vec2 {
 // f32 * Vec2
 impl Mul<Vec2> for f32 {
     type Output = Vec2;
-
-    fn mul(self, vec: Vec2) -> Vec2 {
+    fn mul(self, rhs: Vec2) -> Vec2 {
         Vec2 {
-            x: vec.x * self,
-            y: vec.y * self,
+            x: self * rhs.x,
+            y: self * rhs.y,
         }
+    }
+}
+
+// Vec2 *= f32
+impl MulAssign<f32> for Vec2 {
+    fn mul_assign(&mut self, rhs: f32) {
+        self.x *= rhs;
+        self.y *= rhs;
+    }
+}
+
+// Vec2 * Vec2
+impl Mul for Vec2 {
+    type Output = Vec2;
+    fn mul(self, rhs: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x * rhs.x,
+            y: self.y * rhs.y,
+        }
+    }
+}
+
+// Vec2 *= Vec2
+impl MulAssign for Vec2 {
+    fn mul_assign(&mut self, rhs: Vec2) {
+        self.x *= rhs.x;
+        self.y *= rhs.y;
+    }
+}
+
+// Vec2 / f32
+impl Div<f32> for Vec2 {
+    type Output = Vec2;
+    fn div(self, rhs: f32) -> Vec2 {
+        Vec2 {
+            x: self.x / rhs,
+            y: self.y / rhs,
+        }
+    }
+}
+
+// f32 / Vec2
+impl Div<Vec2> for f32 {
+    type Output = Vec2;
+    fn div(self, rhs: Vec2) -> Vec2 {
+        Vec2 {
+            x: self / rhs.x,
+            y: self / rhs.y,
+        }
+    }
+}
+
+// Vec2 /= f32
+impl DivAssign<f32> for Vec2 {
+    fn div_assign(&mut self, rhs: f32) {
+        self.x /= rhs;
+        self.y /= rhs;
+    }
+}
+
+// Vec2 / Vec2
+impl Div for Vec2 {
+    type Output = Vec2;
+    fn div(self, rhs: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x / rhs.x,
+            y: self.y / rhs.y,
+        }
+    }
+}
+
+// Vec2 /= Vec2
+impl DivAssign for Vec2 {
+    fn div_assign(&mut self, rhs: Vec2) {
+        self.x /= rhs.x;
+        self.y /= rhs.y;
     }
 }
 
@@ -200,7 +288,7 @@ impl Vec4 {
 // ----------------------------------------------
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Deserialize)]
 pub struct Color {
     pub r: f32,
     pub g: f32,
@@ -209,23 +297,25 @@ pub struct Color {
 }
 
 impl Color {
+    #[inline]
     pub const fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r: r, g: g, b: b, a: a }
     }
 
-    pub const fn white()   -> Self { Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 } }
-    pub const fn black()   -> Self { Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 } }
-    pub const fn red()     -> Self { Self { r: 1.0, g: 0.0, b: 0.0, a: 1.0 } }
-    pub const fn green()   -> Self { Self { r: 0.0, g: 1.0, b: 0.0, a: 1.0 } }
-    pub const fn blue()    -> Self { Self { r: 0.0, g: 0.0, b: 1.0, a: 1.0 } }
-    pub const fn yellow()  -> Self { Self { r: 1.0, g: 1.0, b: 0.0, a: 1.0 } }
-    pub const fn cyan()    -> Self { Self { r: 0.0, g: 1.0, b: 1.0, a: 1.0 } }
-    pub const fn magenta() -> Self { Self { r: 1.0, g: 0.0, b: 1.0, a: 1.0 } }
-    pub const fn gray()    -> Self { Self { r: 0.7, g: 0.7, b: 0.7, a: 1.0 } }
-
+    #[inline]
     pub const fn to_array(&self) -> [f32; 4] {
         [ self.r, self.g, self.b, self.a ]
     }
+
+    #[inline] pub const fn white()   -> Self { Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 } }
+    #[inline] pub const fn black()   -> Self { Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 } }
+    #[inline] pub const fn red()     -> Self { Self { r: 1.0, g: 0.0, b: 0.0, a: 1.0 } }
+    #[inline] pub const fn green()   -> Self { Self { r: 0.0, g: 1.0, b: 0.0, a: 1.0 } }
+    #[inline] pub const fn blue()    -> Self { Self { r: 0.0, g: 0.0, b: 1.0, a: 1.0 } }
+    #[inline] pub const fn yellow()  -> Self { Self { r: 1.0, g: 1.0, b: 0.0, a: 1.0 } }
+    #[inline] pub const fn cyan()    -> Self { Self { r: 0.0, g: 1.0, b: 1.0, a: 1.0 } }
+    #[inline] pub const fn magenta() -> Self { Self { r: 1.0, g: 0.0, b: 1.0, a: 1.0 } }
+    #[inline] pub const fn gray()    -> Self { Self { r: 0.7, g: 0.7, b: 0.7, a: 1.0 } }
 }
 
 impl Default for Color {
@@ -235,7 +325,6 @@ impl Default for Color {
 // Color * Color
 impl Mul for Color {
     type Output = Color;
-
     fn mul(self, rhs: Color) -> Color {
         Color {
             r: (self.r * rhs.r).min(1.0),
@@ -246,11 +335,57 @@ impl Mul for Color {
     }
 }
 
+// Color *= Color
+impl MulAssign for Color {
+    fn mul_assign(&mut self, rhs: Color) {
+        self.r = (self.r * rhs.r).min(1.0);
+        self.g = (self.g * rhs.g).min(1.0);
+        self.b = (self.b * rhs.b).min(1.0);
+        self.a = (self.a * rhs.a).min(1.0);
+    }
+}
+
+// Color * f32
+impl Mul<f32> for Color {
+    type Output = Color;
+    fn mul(self, rhs: f32) -> Color {
+        Color {
+            r: (self.r * rhs).min(1.0),
+            g: (self.g * rhs).min(1.0),
+            b: (self.b * rhs).min(1.0),
+            a: (self.a * rhs).min(1.0),
+        }
+    }
+}
+
+// f32 * Color
+impl Mul<Color> for f32 {
+    type Output = Color;
+    fn mul(self, rhs: Color) -> Color {
+        Color {
+            r: (self * rhs.r).min(1.0),
+            g: (self * rhs.g).min(1.0),
+            b: (self * rhs.b).min(1.0),
+            a: (self * rhs.a).min(1.0),
+        }
+    }
+}
+
+// Color *= f32
+impl MulAssign<f32> for Color {
+    fn mul_assign(&mut self, rhs: f32) {
+        self.r = (self.r * rhs).min(1.0);
+        self.g = (self.g * rhs).min(1.0);
+        self.b = (self.b * rhs).min(1.0);
+        self.a = (self.a * rhs).min(1.0);
+    }
+}
+
 // ----------------------------------------------
 // Size2D
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct Size2D {
     pub width:  i32,
     pub height: i32,
@@ -370,6 +505,232 @@ impl Cell2D {
 }
 
 // ----------------------------------------------
+// Rect2D
+// ----------------------------------------------
+
+// Screen space rectangle defined by min and max extents.
+// `mins`` is the top-left corner and `maxs` is the bottom-right.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct Rect2D {
+    pub mins: Point2D,
+    pub maxs: Point2D,
+}
+
+impl Rect2D {
+    #[inline]
+    pub const fn new(pos: Point2D, size: Size2D) -> Self {
+        Self {
+            mins: pos,
+            maxs: Point2D::new(pos.x + size.width, pos.y + size.height),
+        }
+    }
+
+    #[inline]
+    pub const fn zero() -> Self {
+        Self {
+            mins: Point2D::zero(),
+            maxs: Point2D::zero(),
+        }
+    }
+
+    #[inline]
+    pub fn from_extents(a: Point2D, b: Point2D) -> Self {
+        let min_x = a.x.min(b.x);
+        let max_x = a.x.max(b.x);
+        let min_y = a.y.min(b.y);
+        let max_y = a.y.max(b.y);
+        Self {
+            mins: Point2D::new(min_x, min_y),
+            maxs: Point2D::new(max_x, max_y),
+        }
+    }
+
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.width() > 0 && self.height() > 0
+    }
+
+    #[inline]
+    pub fn x(&self) -> i32 {
+        self.mins.x
+    }
+
+    #[inline]
+    pub fn y(&self) -> i32 {
+        self.mins.y
+    }
+
+    #[inline]
+    pub fn position(&self) -> Point2D {
+        Point2D::new(self.x(), self.y())
+    }
+
+    #[inline]
+    pub fn width(&self) -> i32 {
+        self.maxs.x - self.mins.x
+    }
+
+    #[inline]
+    pub fn height(&self) -> i32 {
+        self.maxs.y - self.mins.y
+    }
+
+    #[inline]
+    pub fn area(&self) -> i32 {
+        self.width() * self.height()
+    }
+
+    #[inline]
+    pub fn center(&self) -> Point2D {
+        Point2D::new(
+            self.x() + self.width()  / 2,
+            self.y() + self.height() / 2)
+    }
+
+    #[inline]
+    pub fn canonicalize(&mut self) {
+        if self.mins.x > self.maxs.x {
+            std::mem::swap(&mut self.mins.x, &mut self.maxs.x);
+        }
+        if self.mins.y > self.maxs.y {
+            std::mem::swap(&mut self.mins.y, &mut self.maxs.y);
+        }
+    }
+
+    // Flips min/max bounds if needed.
+    #[inline]
+    pub fn update_min_extent(&mut self, new_mins: Point2D) {
+        self.mins = new_mins;
+        self.canonicalize();
+    }
+
+    #[inline]
+    pub fn update_max_extent(&mut self, new_maxs: Point2D) {
+        self.maxs = new_maxs;
+        self.canonicalize();
+    }
+
+    // Returns `true` if this rect intersects with another.
+    #[inline]
+    pub fn intersects(&self, other: &Rect2D) -> bool {
+        self.mins.x < other.maxs.x &&
+        self.maxs.x > other.mins.x &&
+        self.mins.y < other.maxs.y &&
+        self.maxs.y > other.mins.y
+    }
+
+    // Returns `true` if the point is inside this rect (inclusive of mins, exclusive of maxs).
+    #[inline]
+    pub fn contains_point(&self, point: Point2D) -> bool {
+        point.x >= self.mins.x &&
+        point.x <  self.maxs.x &&
+        point.y >= self.mins.y &&
+        point.y <  self.maxs.y
+    }
+
+    // Returns `true` if this rect fully contains the other rect.
+    #[inline]
+    pub fn contains_rect(&self, other: &Rect2D) -> bool {
+        self.mins.x <= other.mins.x &&
+        self.maxs.x >= other.maxs.x &&
+        self.mins.y <= other.mins.y &&
+        self.maxs.y >= other.maxs.y
+    }
+
+    //
+    // NOTE: Top-left is the origin.
+    //
+
+    #[inline]
+    pub fn top_left(&self) -> Vec2 {
+        Vec2::new(
+            self.x() as f32,
+            (self.y() + self.height()) as f32)
+    }
+
+    #[inline]
+    pub fn bottom_left(&self) -> Vec2 {
+        Vec2::new(
+            self.x() as f32,
+            self.y() as f32)
+    }
+
+    #[inline]
+    pub fn top_right(&self) -> Vec2 {
+        Vec2::new(
+            (self.x() + self.width())  as f32,
+            (self.y() + self.height()) as f32)
+    }
+
+    #[inline]
+    pub fn bottom_right(&self) -> Vec2 {
+        Vec2::new(
+            (self.x() + self.width()) as f32,
+            self.y() as f32)
+    }
+}
+
+// ----------------------------------------------
+// RectTexCoords
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Debug)]
+pub struct RectTexCoords {
+    pub coords: [Vec2; 4],
+}
+
+impl RectTexCoords {
+    #[inline]
+    pub const fn new(coords: [Vec2; 4]) -> Self {
+        Self { coords: coords }
+    }
+
+    #[inline]
+    pub const fn zero() -> Self {
+        Self {
+            coords: [Vec2::zero(); 4],
+        }
+    }
+
+    // NOTE: This needs to be const for static declarations, so we don't derive from Default.
+    #[inline]
+    pub const fn default() -> Self {
+        static DEFAULT: RectTexCoords = RectTexCoords::new(
+            [
+                Vec2::new(0.0, 0.0), // top_left
+                Vec2::new(0.0, 1.0), // bottom_left
+                Vec2::new(1.0, 0.0), // top_right
+                Vec2::new(1.0, 1.0), // bottom_right
+            ]);
+        DEFAULT
+    }
+
+    //
+    // NOTE: Top-left is the origin.
+    //
+
+    #[inline]
+    pub fn top_left(&self) -> Vec2 {
+        self.coords[0]
+    }
+
+    #[inline]
+    pub fn bottom_left(&self) -> Vec2 {
+        self.coords[1]
+    }
+
+    #[inline]
+    pub fn top_right(&self) -> Vec2 {
+        self.coords[2]
+    }
+
+    #[inline]
+    pub fn bottom_right(&self) -> Vec2 {
+        self.coords[3]
+    }
+}
+
+// ----------------------------------------------
 // WorldToScreenTransform
 // ----------------------------------------------
 
@@ -383,11 +744,13 @@ pub struct WorldToScreenTransform {
 
 impl WorldToScreenTransform {
     pub fn new(scaling: i32, offset: Point2D, tile_spacing: i32) -> Self {
-        Self {
+        let transform = Self {
             scaling: scaling,
             offset: offset,
             tile_spacing: tile_spacing,
-        }
+        };
+        debug_assert!(transform.is_valid());
+        transform
     }
 
     pub fn is_valid(&self) -> bool {
@@ -609,229 +972,6 @@ pub fn cell_to_screen_diamond_points(cell: Cell2D,
     let left   = Point2D::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
 
     [ top, right, bottom, left ]
-}
-
-// ----------------------------------------------
-// Rect2D
-// ----------------------------------------------
-
-// Screen space rectangle defined by min and max extents.
-// `mins`` is the top-left corner and `maxs` is the bottom-right.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Rect2D {
-    pub mins: Point2D,
-    pub maxs: Point2D,
-}
-
-impl Rect2D {
-    #[inline]
-    pub const fn new(pos: Point2D, size: Size2D) -> Self {
-        Self {
-            mins: pos,
-            maxs: Point2D::new(pos.x + size.width, pos.y + size.height),
-        }
-    }
-
-    #[inline]
-    pub const fn zero() -> Self {
-        Self {
-            mins: Point2D::zero(),
-            maxs: Point2D::zero(),
-        }
-    }
-
-    #[inline]
-    pub fn from_extents(a: Point2D, b: Point2D) -> Self {
-        let min_x = a.x.min(b.x);
-        let max_x = a.x.max(b.x);
-        let min_y = a.y.min(b.y);
-        let max_y = a.y.max(b.y);
-        Self {
-            mins: Point2D::new(min_x, min_y),
-            maxs: Point2D::new(max_x, max_y),
-        }
-    }
-
-    #[inline]
-    pub fn is_valid(&self) -> bool {
-        self.width() > 0 && self.height() > 0
-    }
-
-    #[inline]
-    pub fn x(&self) -> i32 {
-        self.mins.x
-    }
-
-    #[inline]
-    pub fn y(&self) -> i32 {
-        self.mins.y
-    }
-
-    #[inline]
-    pub fn position(&self) -> Point2D {
-        Point2D::new(self.x(), self.y())
-    }
-
-    #[inline]
-    pub fn width(&self) -> i32 {
-        self.maxs.x - self.mins.x
-    }
-
-    #[inline]
-    pub fn height(&self) -> i32 {
-        self.maxs.y - self.mins.y
-    }
-
-    #[inline]
-    pub fn area(&self) -> i32 {
-        self.width() * self.height()
-    }
-
-    #[inline]
-    pub fn center(&self) -> Point2D {
-        Point2D::new(
-            self.x() + self.width()  / 2,
-            self.y() + self.height() / 2)
-    }
-
-    #[inline]
-    pub fn canonicalize(&mut self) {
-        if self.mins.x > self.maxs.x {
-            std::mem::swap(&mut self.mins.x, &mut self.maxs.x);
-        }
-        if self.mins.y > self.maxs.y {
-            std::mem::swap(&mut self.mins.y, &mut self.maxs.y);
-        }
-    }
-
-    // Flips min/max bounds if needed.
-    #[inline]
-    pub fn update_min_extent(&mut self, new_mins: Point2D) {
-        self.mins = new_mins;
-        self.canonicalize();
-    }
-
-    #[inline]
-    pub fn update_max_extent(&mut self, new_maxs: Point2D) {
-        self.maxs = new_maxs;
-        self.canonicalize();
-    }
-
-    // Returns `true` if this rect intersects with another.
-    #[inline]
-    pub fn intersects(&self, other: &Rect2D) -> bool {
-        self.mins.x < other.maxs.x &&
-        self.maxs.x > other.mins.x &&
-        self.mins.y < other.maxs.y &&
-        self.maxs.y > other.mins.y
-    }
-
-    // Returns `true` if the point is inside this rect (inclusive of mins, exclusive of maxs).
-    #[inline]
-    pub fn contains_point(&self, point: Point2D) -> bool {
-        point.x >= self.mins.x &&
-        point.x <  self.maxs.x &&
-        point.y >= self.mins.y &&
-        point.y <  self.maxs.y
-    }
-
-    // Returns `true` if this rect fully contains the other rect.
-    #[inline]
-    pub fn contains_rect(&self, other: &Rect2D) -> bool {
-        self.mins.x <= other.mins.x &&
-        self.maxs.x >= other.maxs.x &&
-        self.mins.y <= other.mins.y &&
-        self.maxs.y >= other.maxs.y
-    }
-
-    //
-    // NOTE: Top-left is the origin.
-    //
-
-    #[inline]
-    pub fn top_left(&self) -> Vec2 {
-        Vec2::new(
-            self.x() as f32,
-            (self.y() + self.height()) as f32)
-    }
-
-    #[inline]
-    pub fn bottom_left(&self) -> Vec2 {
-        Vec2::new(
-            self.x() as f32,
-            self.y() as f32)
-    }
-
-    #[inline]
-    pub fn top_right(&self) -> Vec2 {
-        Vec2::new(
-            (self.x() + self.width())  as f32,
-            (self.y() + self.height()) as f32)
-    }
-
-    #[inline]
-    pub fn bottom_right(&self) -> Vec2 {
-        Vec2::new(
-            (self.x() + self.width()) as f32,
-            self.y() as f32)
-    }
-}
-
-// ----------------------------------------------
-// RectTexCoords
-// ----------------------------------------------
-
-#[derive(Copy, Clone, Debug)]
-pub struct RectTexCoords {
-    pub coords: [Vec2; 4],
-}
-
-impl RectTexCoords {
-    pub const fn new(coords: [Vec2; 4]) -> Self {
-        Self { coords: coords }
-    }
-
-    pub const fn zero() -> Self {
-        Self {
-            coords: [ Vec2::zero(); 4 ],
-        }
-    }
-
-    // NOTE: This needs to be const for static declarations, so we don't derive from Default.
-    pub const fn default() -> Self {
-        static DEFAULT: RectTexCoords = RectTexCoords::new(
-            [
-                Vec2::new(0.0, 0.0), // top_left
-                Vec2::new(0.0, 1.0), // bottom_left
-                Vec2::new(1.0, 0.0), // top_right
-                Vec2::new(1.0, 1.0), // bottom_right
-            ]);
-        DEFAULT
-    }
-
-    //
-    // NOTE: Top-left is the origin.
-    //
-
-    #[inline]
-    pub fn top_left(&self) -> Vec2 {
-        self.coords[0]
-    }
-
-    #[inline]
-    pub fn bottom_left(&self) -> Vec2 {
-        self.coords[1]
-    }
-
-    #[inline]
-    pub fn top_right(&self) -> Vec2 {
-        self.coords[2]
-    }
-
-    #[inline]
-    pub fn bottom_right(&self) -> Vec2 {
-        self.coords[3]
-    }
 }
 
 // ----------------------------------------------
