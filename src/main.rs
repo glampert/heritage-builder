@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
-mod ui;
+mod imgui_ui;
 mod render;
 mod utils;
 mod app;
 mod tile;
 
-use ui::*;
+use imgui_ui::*;
 use render::*;
 use utils::*;
 

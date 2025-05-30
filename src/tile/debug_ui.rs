@@ -1,5 +1,5 @@
 use crate::{
-    ui::{UiInputEvent, UiSystem},
+    imgui_ui::{UiInputEvent, UiSystem},
     app::input::{InputAction, MouseButton},
     render::{RenderSystem, TextureCache, TextureHandle},
     utils::{self, Cell2D, Color, Point2D, Rect2D, RectTexCoords, Size2D, WorldToScreenTransform}

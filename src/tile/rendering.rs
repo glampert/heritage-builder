@@ -2,7 +2,7 @@ use bitflags::bitflags;
 use smallvec::SmallVec;
 
 use crate::{
-    ui::UiSystem,
+    imgui_ui::UiSystem,
     render::RenderSystem,
     utils::{self, Color, Cell2D, IsoPoint2D, Point2D, WorldToScreenTransform}
 };

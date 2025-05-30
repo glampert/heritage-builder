@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ui::UiSystem,
+    imgui_ui::UiSystem,
     render::{RenderSystem, RenderStats},
     utils::{self, Color, Cell2D, Point2D, Rect2D, IsoPoint2D, Size2D, WorldToScreenTransform}
 };

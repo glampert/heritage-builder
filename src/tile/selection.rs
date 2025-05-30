@@ -1,7 +1,7 @@
 use smallvec::SmallVec;
 
 use crate::{
-    ui::UiInputEvent,
+    imgui_ui::UiInputEvent,
     render::RenderSystem,
     app::input::{MouseButton, InputAction},
     utils::{self, Cell2D, Point2D, Rect2D, Size2D, WorldToScreenTransform}
