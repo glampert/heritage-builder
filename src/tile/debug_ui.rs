@@ -98,6 +98,10 @@ impl DebugSettingsMenu {
             .collapsed(!self.start_open, imgui::Condition::FirstUseEver)
             .position([5.0, 5.0], imgui::Condition::FirstUseEver)
             .build(|| {
+                if ui.button("Re-center camera") {
+                    camera.center();
+                }
+
                 let zoom_limits = camera.zoom_limits();
                 let mut zoom = camera.current_zoom();
                 if ui.slider("Zoom", zoom_limits.0, zoom_limits.1, &mut zoom) {
@@ -124,20 +128,22 @@ impl DebugSettingsMenu {
                     tile_map_renderer.set_grid_line_thickness(line_thickness);
                 }
 
-                ui.checkbox("Draw terrain", &mut self.draw_terrain);
-                ui.checkbox("Draw buildings", &mut self.draw_buildings);
-                ui.checkbox("Draw units", &mut self.draw_units);
-                ui.checkbox("Draw grid", &mut self.draw_grid);
-                ui.checkbox("Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
-                ui.checkbox("Show terrain debug", &mut self.show_terrain_debug);
-                ui.checkbox("Show buildings debug", &mut self.show_buildings_debug);
-                ui.checkbox("Show blocker tiles", &mut self.show_blockers);
-                ui.checkbox("Show units debug", &mut self.show_units_debug);
-                ui.checkbox("Show tile bounds", &mut self.show_tile_bounds);
-                ui.checkbox("Show selection bounds", &mut self.show_selection_bounds);
-                ui.checkbox("Show cursor pos", &mut self.show_cursor_pos);
-                ui.checkbox("Show screen origin", &mut self.show_screen_origin);
-                ui.checkbox("Show render stats", &mut self.show_render_stats);
+                if ui.collapsing_header("Debug draw options", imgui::TreeNodeFlags::empty()) {
+                    ui.checkbox("Draw terrain", &mut self.draw_terrain);
+                    ui.checkbox("Draw buildings", &mut self.draw_buildings);
+                    ui.checkbox("Draw units", &mut self.draw_units);
+                    ui.checkbox("Draw grid", &mut self.draw_grid);
+                    ui.checkbox("Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
+                    ui.checkbox("Show terrain debug", &mut self.show_terrain_debug);
+                    ui.checkbox("Show buildings debug", &mut self.show_buildings_debug);
+                    ui.checkbox("Show blocker tiles", &mut self.show_blockers);
+                    ui.checkbox("Show units debug", &mut self.show_units_debug);
+                    ui.checkbox("Show tile bounds", &mut self.show_tile_bounds);
+                    ui.checkbox("Show selection bounds", &mut self.show_selection_bounds);
+                    ui.checkbox("Show cursor pos", &mut self.show_cursor_pos);
+                    ui.checkbox("Show screen origin", &mut self.show_screen_origin);
+                    ui.checkbox("Show render stats", &mut self.show_render_stats);
+                }
 
                 if ui.collapsing_header("Clear map options", imgui::TreeNodeFlags::empty()) {
                     if ui.button("Clear empty") {
@@ -285,6 +291,7 @@ impl TileListMenu {
                                     tiles_per_row,
                                     padding_between_tiles);
 
+                ui.new_line();
                 ui.separator();
 
                 ui.text("Tools");

@@ -16,11 +16,11 @@ use app::{
 };
 
 use tile::{
-    camera::Camera,
-    debug_ui::*,
+    rendering::{self, *},
+    camera::{self, *},
     debug_utils::{self},
+    debug_ui::*,
     map::*,
-    rendering::*,
     selection::*,
     sets::TileSets
 };
@@ -37,12 +37,12 @@ fn main() {
         .window_title("CitySim")
         .window_size(Size2D::new(1024, 768))
         .fullscreen(false)
-        .confine_cursor_to_window(true)
+        .confine_cursor_to_window(camera::CONFINE_CURSOR_TO_WINDOW)
         .build();
 
     let input_sys = app.create_input_system();
 
-    let mut render_sys = RenderSystem::new(app.window_size(), MAP_BACKGROUND_COLOR);
+    let mut render_sys = RenderSystem::new(app.window_size(), rendering::MAP_BACKGROUND_COLOR);
     let mut ui_sys = UiSystem::new(&app);
     let mut tex_cache = TextureCache::new(128);
 
@@ -57,9 +57,9 @@ fn main() {
     let mut camera = Camera::new(
         render_sys.viewport_size(),
         tile_map.size(),
-        1,
-        Point2D::new(250, 300),
-        4);
+        camera::MIN_ZOOM,
+        camera::Offset::Center,
+        camera::MIN_TILE_SPACING);
 
     let mut tile_inspector_menu = TileInspectorMenu::new();
     let mut tile_list_menu = TileListMenu::new(&mut tex_cache, true);
@@ -102,7 +102,8 @@ fn main() {
                         continue;
                     }
 
-                    camera.update_zooming(amount.y as i32, frame_clock.delta_time());
+                    // TODO: Smooth transition between zoom levels.
+                    camera.set_zoom(amount.y as i32);
                 }
                 ApplicationEvent::MouseButton(button, action, modifiers) => {
                     if ui_sys.on_mouse_click(button, action, modifiers).is_handled() {

@@ -13,14 +13,22 @@ use super::{
 // Constants
 // ----------------------------------------------
 
-const MIN_ZOOM: i32 = 1;
-const MAX_ZOOM: i32 = 10;
+pub const CONFINE_CURSOR_TO_WINDOW: bool = true;
 
-const MIN_TILE_SPACING: i32 = 0;
-const MAX_TILE_SPACING: i32 = 10;
+pub const MIN_ZOOM: i32 = 1;
+pub const MAX_ZOOM: i32 = 10;
 
+pub const MIN_TILE_SPACING: i32 = 0;
+pub const MAX_TILE_SPACING: i32 = 10;
+
+// Cursor map scrolling defaults:
 const SCROLL_MARGIN: i32 = 20;    // pixels from edge
 const SCROLL_SPEED:  f32 = 500.0; // pixels per second
+
+pub enum Offset {
+    Center,
+    Point(i32, i32),
+}
 
 // ----------------------------------------------
 // Camera
@@ -36,13 +44,21 @@ pub struct Camera {
 impl Camera {
     pub fn new(viewport_size: Size2D,
                map_size_in_cells: Size2D,
-               scaling: i32,
-               offset: Point2D,
+               zoom: i32,
+               offset: Offset,
                tile_spacing: i32) -> Self {
 
-        let clamped_scaling = scaling.clamp(MIN_ZOOM, MAX_ZOOM);
+        let clamped_scaling = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
         let clamped_tile_spacing = tile_spacing.clamp(MIN_TILE_SPACING, MAX_TILE_SPACING);
-        let clamped_offset = clamp_to_map_bounds(map_size_in_cells, clamped_scaling, clamped_tile_spacing, offset);
+
+        let clamped_offset = match offset {
+            Offset::Center => {
+                calc_map_center(map_size_in_cells, clamped_scaling, viewport_size)
+            }
+            Offset::Point(x, y) => {
+                clamp_to_map_bounds(map_size_in_cells, clamped_scaling, viewport_size, Point2D::new(x, y))
+            }
+        };
 
         Self {
             viewport_size: viewport_size,
@@ -140,10 +156,8 @@ impl Camera {
 
     #[inline]
     pub fn scroll_limits(&self) -> (Point2D, Point2D) {
-        calc_map_bounds(
-            self.map_size_in_cells,
-            self.transform.scaling,
-            self.transform.tile_spacing)
+        let bounds = calc_map_bounds(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
+        (bounds.mins, bounds.maxs)
     }
 
     #[inline]
@@ -153,16 +167,16 @@ impl Camera {
 
     #[inline]
     pub fn set_scroll(&mut self, scroll: Point2D) {
-        let clamped_scroll = clamp_to_map_bounds(
+        let clamped_offset = clamp_to_map_bounds(
             self.map_size_in_cells,
             self.transform.scaling,
-            self.transform.tile_spacing,
+            self.viewport_size,
             scroll);
 
-        self.transform.offset = clamped_scroll;
+        self.transform.offset = clamped_offset;
 
-        self.offset_unscaled.x = self.transform.offset.x / self.transform.scaling;
-        self.offset_unscaled.y = self.transform.offset.y / self.transform.scaling;
+        self.offset_unscaled.x = clamped_offset.x / self.transform.scaling;
+        self.offset_unscaled.y = clamped_offset.y / self.transform.scaling;
     }
 
     #[inline]
@@ -178,6 +192,12 @@ impl Camera {
         let current = self.current_scroll();
 
         self.set_scroll(Point2D::new(current.x + change.x, current.y + change.y));
+    }
+
+    // Center camera to the map.
+    pub fn center(&mut self) {
+        let center = calc_map_center(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
+        self.set_scroll(center);
     }
 }
 
@@ -247,24 +267,44 @@ fn calc_scroll_speed(cursor_screen_pos: Point2D, viewport_size: Size2D) -> f32 {
     scroll_speed_scaled
 }
 
-fn calc_map_bounds(_map_size_in_cells: Size2D, _scaling: i32, _tile_spacing: i32) -> (Point2D, Point2D) {
-    //let width  = (map_size_in_cells.width  * (BASE_TILE_SIZE.width  + tile_spacing) * scaling);
-    //let height = (map_size_in_cells.height * (BASE_TILE_SIZE.height + tile_spacing) * scaling);
+fn calc_map_center(map_size_in_cells: Size2D, scaling: i32, viewport_size: Size2D) -> Point2D {
+    let bounds = calc_map_bounds(map_size_in_cells, scaling, viewport_size);
 
-    //let half_w = width  / 2;
-    //let half_h = height / 2;
-    
-    //(Point2D::new(-half_w, half_h), Point2D::new(half_w, height * 2))
+    let half_diff_x = (bounds.maxs.x - bounds.mins.x).abs() / 2;
+    let half_diff_y = (bounds.maxs.y - bounds.mins.y).abs() / 2;
 
-    // TODO: WIP
-    (Point2D::new(-16384, -16384), Point2D::new(16384, 16384))
+    let x = bounds.maxs.x - half_diff_x;
+    let y = bounds.maxs.y - half_diff_y;
+
+    Point2D::new(x, y)
 }
 
-fn clamp_to_map_bounds(map_size_in_cells: Size2D, scaling: i32, tile_spacing: i32, offset: Point2D) -> Point2D {
-    let (mins, maxs) = calc_map_bounds(map_size_in_cells, scaling, tile_spacing);
+fn calc_map_bounds(map_size_in_cells: Size2D, scaling: i32, viewport_size: Size2D) -> Rect2D {
+    let tile_width_pixels  = BASE_TILE_SIZE.width  * scaling;
+    let tile_height_pixels = BASE_TILE_SIZE.height * scaling;
 
-    let off_x = offset.x.clamp(mins.x, maxs.x);
-    let off_y = offset.y.clamp(mins.y, maxs.y);
+    let map_width_pixels  = map_size_in_cells.width  * tile_width_pixels;
+    let map_height_pixels = map_size_in_cells.height * tile_height_pixels;
+
+    let half_tile_width_pixels = tile_width_pixels / 2;
+    let half_map_width_pixels  = map_width_pixels  / 2;
+
+    let min_pt = Point2D::new(
+        -(half_map_width_pixels + half_tile_width_pixels - viewport_size.width),
+        viewport_size.height - tile_height_pixels);
+
+    let max_pt = Point2D::new(
+        half_map_width_pixels - half_tile_width_pixels,
+        map_height_pixels - tile_height_pixels);
+
+    Rect2D::from_extents(min_pt, max_pt)
+}
+
+fn clamp_to_map_bounds(map_size_in_cells: Size2D, scaling: i32, viewport_size: Size2D, offset: Point2D) -> Point2D {
+    let bounds = calc_map_bounds(map_size_in_cells, scaling, viewport_size);
+
+    let off_x = offset.x.clamp(bounds.mins.x, bounds.maxs.x);
+    let off_y = offset.y.clamp(bounds.mins.y, bounds.maxs.y);
 
     Point2D::new(off_x, off_y)
 }
