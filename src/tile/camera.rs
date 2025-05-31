@@ -1,7 +1,7 @@
 use std::time::{self};
 
 use crate::{
-    utils::{Vec2, Point2D, Size2D, Rect2D, WorldToScreenTransform}
+    utils::{self, Vec2, Point2D, Size2D, Rect2D, WorldToScreenTransform}
 };
 
 use super::{
@@ -38,7 +38,6 @@ pub struct Camera {
     viewport_size: Size2D,
     map_size_in_cells: Size2D,
     transform: WorldToScreenTransform,
-    offset_unscaled: Point2D,
 }
 
 impl Camera {
@@ -66,9 +65,7 @@ impl Camera {
             transform: WorldToScreenTransform::new(
                 clamped_scaling,
                 clamped_offset,
-                clamped_tile_spacing
-            ),
-            offset_unscaled: clamped_offset,
+                clamped_tile_spacing),
         }
     }
 
@@ -137,10 +134,28 @@ impl Camera {
 
     #[inline]
     pub fn set_zoom(&mut self, zoom: i32) {
-        self.transform.scaling = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
+        let current_zoom = self.transform.scaling;
+        let new_zoom = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
 
-        self.transform.offset.x = self.offset_unscaled.x * self.transform.scaling;
-        self.transform.offset.y = self.offset_unscaled.y * self.transform.scaling;
+        let current_bounds = calc_map_bounds(self.map_size_in_cells, current_zoom, self.viewport_size);
+        let new_bounds = calc_map_bounds(self.map_size_in_cells, new_zoom, self.viewport_size);
+
+        // Remap the offset to the new scaled map bounds, so we stay at the same relative position as before.
+        self.transform.offset.x = utils::map_value_to_range(
+            self.transform.offset.x,
+            current_bounds.mins.x,
+            current_bounds.maxs.x,
+            new_bounds.mins.x,
+            new_bounds.maxs.x);
+
+        self.transform.offset.y = utils::map_value_to_range(
+            self.transform.offset.y,
+            current_bounds.mins.y,
+            current_bounds.maxs.y,
+            new_bounds.mins.y,
+            new_bounds.maxs.y);
+
+        self.transform.scaling = new_zoom;
     }
 
     #[inline]
@@ -174,9 +189,6 @@ impl Camera {
             scroll);
 
         self.transform.offset = clamped_offset;
-
-        self.offset_unscaled.x = clamped_offset.x / self.transform.scaling;
-        self.offset_unscaled.y = clamped_offset.y / self.transform.scaling;
     }
 
     #[inline]
@@ -196,8 +208,8 @@ impl Camera {
 
     // Center camera to the map.
     pub fn center(&mut self) {
-        let center = calc_map_center(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
-        self.set_scroll(center);
+        let map_center = calc_map_center(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
+        self.set_scroll(map_center);
     }
 }
 

@@ -974,6 +974,38 @@ pub fn cell_to_screen_diamond_points(cell: Cell2D,
     [ top, right, bottom, left ]
 }
 
+// Maps a value in the numerical range [in_min, in_max] to the range [out_min, out_max].
+#[inline]
+pub fn map_value_to_range<T>(val: T, in_min: T, in_max: T, out_min: T, out_max: T) -> T
+    where
+        T: Sub<Output = T> + Div<Output = T> + Mul<Output = T> + Add<Output = T> + PartialEq + Copy
+{
+    if in_min == in_max {
+        val // Would cause a division by zero in in_max - in_min, so just return back the input.
+    } else {
+        (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+    }
+}
+
+// Maps a scalar value within a range to the [0,1] normalized range.
+#[inline]
+pub fn normalize_value<T>(val: T, minimum: T, maximum: T) -> T 
+    where
+        T: Sub<Output = T> + Div<Output = T> + Copy
+{
+    (val - minimum) / (maximum - minimum)
+}
+
+// Linear interpolation.
+#[inline]
+pub fn lerp<T>(a: T, b: T, t: f32) -> T
+    where
+        T: Mul<f32, Output = T> + Add<Output = T> + Copy,
+        f32: Mul<T, Output = T> // for (1.0 - t) * a
+{
+    (1.0 - t) * a + t * b
+}
+
 // ----------------------------------------------
 // FrameClock
 // ----------------------------------------------

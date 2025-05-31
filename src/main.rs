@@ -48,8 +48,8 @@ fn main() {
 
     let tile_sets = TileSets::load(&mut tex_cache);
 
-    let mut tile_map = debug_utils::create_test_tile_map(&tile_sets);
-    //let mut tile_map = TileMap::new(Size2D::new(64, 64));
+    //let mut tile_map = debug_utils::create_test_tile_map(&tile_sets);
+    let mut tile_map = TileMap::new(Size2D::new(64, 64));
 
     let mut tile_selection = TileSelection::new();
     let mut tile_map_renderer = TileMapRenderer::new(DEFAULT_GRID_COLOR, 3.0);
