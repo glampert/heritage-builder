@@ -5,7 +5,7 @@ use crate::{
 };
 
 use super::{
-    def::BASE_TILE_SIZE,
+    sets::BASE_TILE_SIZE,
     selection::{self, CellRange}
 };
 

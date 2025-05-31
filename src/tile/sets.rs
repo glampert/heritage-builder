@@ -1,5 +1,6 @@
 use smallvec::{SmallVec, smallvec};
-use strum::IntoEnumIterator;
+use strum::{EnumCount, IntoEnumIterator};
+use strum_macros::{Display, EnumCount, EnumIter};
 use serde::Deserialize;
 
 use std::{
@@ -8,14 +9,485 @@ use std::{
 };
 
 use crate::{
-    render::TextureCache,
+    render::{TextureCache, TextureHandle},
+    utils::{Size2D, Cell2D, Color, RectTexCoords},
     utils::hash::{self, PreHashedKeyMap, StringHash}
 };
 
 use super::{
-    def::{TileDef, TileKind, TileTexInfo, BASE_TILE_SIZE},
-    map::{self, TileMapLayerKind, TILE_MAP_LAYER_COUNT}
+    map::{self, TileMapLayerKind, TileFlags, TILE_MAP_LAYER_COUNT}
 };
+
+// ----------------------------------------------
+// Constants / helper types
+// ----------------------------------------------
+
+pub const BASE_TILE_SIZE: Size2D = Size2D{ width: 64, height: 32 };
+
+// Can fit a 6x6 tile without allocating.
+pub type TileFootprintList = SmallVec<[Cell2D; 36]>;
+
+// ----------------------------------------------
+// TileKind
+// ----------------------------------------------
+
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq, Debug, Display, EnumCount, EnumIter, Deserialize)]
+pub enum TileKind {
+    Empty,   // No tile, draws nothing.
+    Blocker, // Draws nothing; blocker for multi-tile buildings, placed in the Buildings layer.
+    Terrain,
+    Building,
+    Unit,
+}
+
+pub const TILE_KIND_COUNT: usize = TileKind::COUNT;
+
+// ----------------------------------------------
+// TileTexInfo
+// ----------------------------------------------
+
+#[derive(Clone)]
+pub struct TileTexInfo {
+    pub texture: TextureHandle,
+    pub coords: RectTexCoords,
+}
+
+impl Default for TileTexInfo {
+    fn default() -> Self { Self::default() }
+}
+
+impl TileTexInfo {
+    // NOTE: This needs to be const for static declarations, so we don't just derive from Default.
+    pub const fn default() -> Self {
+        Self {
+            texture: TextureHandle::invalid(),
+            coords: RectTexCoords::default(),
+        }
+    }
+
+    pub fn new(texture: TextureHandle) -> Self {
+        Self {
+            texture: texture,
+            coords: RectTexCoords::default(),
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.texture.is_valid()
+    }
+}
+
+// ----------------------------------------------
+// TileSprite
+// ----------------------------------------------
+
+#[derive(Clone, Deserialize)]
+pub struct TileSprite {
+    // Name of the tile texture. Resolved into a TextureHandle post load.
+    pub name: String,
+
+    // Not stored in serialized data.
+    #[serde(skip)]
+    pub tex_info: TileTexInfo,
+}
+
+// ----------------------------------------------
+// TileAnimSet
+// ----------------------------------------------
+
+#[derive(Clone, Deserialize)]
+pub struct TileAnimSet {
+    #[serde(default)]
+    pub name: String,
+
+    // Duration of the whole anim in seconds.
+    // Optional, can be zero if there's only a single frame.
+    #[serde(default)]
+    pub duration: f32,
+
+    // True if the animation will loop, false for play only once.
+    // Ignored when there's only one frame.
+    #[serde(default)]
+    pub looping: bool,
+
+    // Textures for each animation frame. Texture handles are resolved after loading.
+    // SmallVec optimizes for Terrain (single frame anim).
+    pub frames: SmallVec<[TileSprite; 1]>,
+}
+
+// ----------------------------------------------
+// TileVariation
+// ----------------------------------------------
+
+#[derive(Clone, Deserialize)]
+pub struct TileVariation {
+    // Variation name is optional for Terrain and Units.
+    #[serde(default)]
+    pub name: String,
+
+    // AnimSet may contain one or more animation frames.
+    pub anim_sets: SmallVec<[TileAnimSet; 1]>,
+}
+
+// ----------------------------------------------
+// TileDef
+// ----------------------------------------------
+
+#[derive(Clone, Deserialize)]
+pub struct TileDef {
+    // Friendly display name.
+    pub name: String,
+
+    // Tile kind, also defines which layer the tile can be placed on.
+    #[serde(default = "default_tile_kind")]
+    pub kind: TileKind,
+
+    // Internal runtime index into TileCategory.
+    #[serde(skip)]
+    category_tile_index: i32,
+
+    // Internal runtime index into TileSet.
+    #[serde(skip)]
+    tileset_category_index: i32,
+
+    // True if the tile fully occludes the terrain tiles below, so we can cull them.
+    // Defaults to true for all Buildings, false for Units. Ignored for Terrain.
+    #[serde(default = "default_occludes_terrain")]
+    pub occludes_terrain: bool,
+
+    // Logical size for the tile map. Always a multiple of the base tile size.
+    // Optional for Terrain tiles (always = BASE_TILE_SIZE), required otherwise.
+    #[serde(default = "default_tile_size")]
+    pub logical_size: Size2D,
+
+    // Draw size for tile rendering. Can be any size ratio.
+    // Optional in serialized data. Defaults to the value of `logical_size` if missing.
+    #[serde(default)]
+    pub draw_size: Size2D,
+
+    // Tint color is optional in serialized data. Default to white if missing.
+    #[serde(default)]
+    pub color: Color,
+
+    // Tile variations for buildings.
+    // SmallVec optimizes for Terrain/Units with single variation.
+    pub variations: SmallVec<[TileVariation; 1]>,
+}
+
+impl TileDef {
+    const fn new(tile_kind: TileKind) -> Self {
+        Self {
+            name: String::new(),
+            kind: tile_kind,
+            category_tile_index: -1,
+            tileset_category_index: -1,
+            occludes_terrain: false,
+            logical_size: BASE_TILE_SIZE,
+            draw_size: BASE_TILE_SIZE,
+            color: Color::white(),
+            variations: SmallVec::new_const(),
+        }
+    }
+
+    pub const fn empty() -> &'static Self {
+        static EMPTY_TILE: TileDef = TileDef::new(TileKind::Empty);
+        &EMPTY_TILE
+    }
+
+    pub const fn blocker() -> &'static Self {
+        static BLOCKER_TILE: TileDef = TileDef::new(TileKind::Blocker);
+        &BLOCKER_TILE
+    }
+
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.logical_size.is_valid() && self.draw_size.is_valid()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.kind == TileKind::Empty
+    }
+
+    #[inline]
+    pub fn is_terrain(&self) -> bool {
+        self.kind == TileKind::Terrain
+    }
+
+    #[inline]
+    pub fn is_building(&self) -> bool {
+        self.kind == TileKind::Building
+    }
+
+    #[inline]
+    pub fn is_blocker(&self) -> bool {
+        self.kind == TileKind::Blocker
+    }
+
+    #[inline]
+    pub fn is_unit(&self) -> bool {
+        self.kind == TileKind::Unit
+    }
+
+    #[inline]
+    pub fn tile_flags(&self) -> TileFlags {
+        if self.occludes_terrain { 
+            TileFlags::OccludesTerrain
+        } else {
+            TileFlags::empty()
+        }
+    }
+
+    #[inline]
+    pub fn size_in_cells(&self) -> Size2D {
+        // `logical_size` is assumed to be a multiple of the base tile size.
+        Size2D::new(
+            self.logical_size.width / BASE_TILE_SIZE.width,
+            self.logical_size.height / BASE_TILE_SIZE.height)
+    }
+
+    #[inline]
+    pub fn has_multi_cell_footprint(&self) -> bool {
+        let size = self.size_in_cells();
+        size.width > 1 || size.height > 1 // Multi-tile building?
+    }
+
+    pub fn calc_footprint_cells(&self, base_cell: Cell2D) -> TileFootprintList {
+        let mut footprint = TileFootprintList::new();
+
+        if !self.is_empty() {
+            let size = self.size_in_cells();
+            debug_assert!(size.is_valid());
+
+            // Buildings can occupy multiple cells; Find which ones:
+            let start_cell = base_cell;
+            let end_cell = Cell2D::new(start_cell.x + size.width - 1, start_cell.y + size.height - 1);
+
+            for y in (start_cell.y..=end_cell.y).rev() {
+                for x in (start_cell.x..=end_cell.x).rev() {
+                    footprint.push(Cell2D::new(x, y));
+                }
+            }
+
+            // Last cell should be the original starting cell (selection relies on this).
+            debug_assert!(*footprint.last().unwrap() == base_cell);
+        } else {
+            // Empty tiles always occupy one cell.
+            footprint.push(base_cell);
+        }
+
+        footprint
+    }
+
+    #[inline]
+    pub fn texture_by_index(&self,
+                            variation_index: usize,
+                            anim_set_index: usize,
+                            frame_index: usize) -> TextureHandle {
+
+        if variation_index >= self.variations.len() {
+            return TextureHandle::invalid();
+        }
+
+        let var = &self.variations[variation_index];
+        if anim_set_index >= var.anim_sets.len() {
+            return TextureHandle::invalid();
+        }
+
+        let anim_set = &var.anim_sets[anim_set_index];
+        if frame_index >= anim_set.frames.len() {
+            return TextureHandle::invalid();
+        }
+
+        anim_set.frames[frame_index].tex_info.texture
+    }
+
+    #[inline]
+    pub fn anim_frame_by_index(&self,
+                               variation_index: usize,
+                               anim_set_index: usize,
+                               frame_index: usize) -> Option<&TileSprite> {
+
+        if variation_index >= self.variations.len() {
+            return None;
+        }
+
+        let var = &self.variations[variation_index];
+        if anim_set_index >= var.anim_sets.len() {
+            return None;
+        }
+
+        let anim_set = &var.anim_sets[anim_set_index];
+        if frame_index >= anim_set.frames.len() {
+            return None;
+        }
+
+        Some(&anim_set.frames[frame_index])
+    }
+
+    pub fn count_anim_sets(&self) -> usize {
+        let mut count = 0;
+        for var in &self.variations {
+            count += var.anim_sets.len();
+        }
+        count
+    }
+
+    pub fn count_anim_frames(&self) -> usize {
+        let mut count = 0;
+        for var in &self.variations {
+            for anim in &var.anim_sets {
+                count += anim.frames.len();
+            }
+        }
+        count
+    }
+
+    fn post_load(&mut self,
+                 tex_cache: &mut TextureCache,
+                 tile_set_path_with_category: &str,
+                 layer_kind: TileMapLayerKind) -> bool {
+
+        self.kind = map::layer_to_tile_kind(layer_kind);
+
+        if self.name.is_empty() {
+            eprintln!("TileDef '{}' name is missing! A name is required.", self.kind);
+            return false;
+        }
+
+        if !self.logical_size.is_valid() {
+            eprintln!("Invalid/missing TileDef logical size: '{}' - '{}'",
+                      self.kind,
+                      self.name);
+            return false;
+        }
+
+        if (self.logical_size.width  % BASE_TILE_SIZE.width)  != 0 ||
+           (self.logical_size.height % BASE_TILE_SIZE.height) != 0 {
+            eprintln!("Invalid TileDef logical size ({:?})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
+                      self.logical_size,
+                      self.kind,
+                      self.name);
+            return false;
+        }
+
+        if self.kind == TileKind::Terrain {
+            // For terrain logical_size must be BASE_TILE_SIZE.
+            if self.logical_size != BASE_TILE_SIZE {
+                eprintln!("Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
+                          self.kind,
+                          self.name);
+                return false;
+            }
+
+            self.occludes_terrain = false;
+        } else if self.kind == TileKind::Unit {
+            // Units always have transparent backgrounds that won't fully cover underlying terrain tiles.
+            self.occludes_terrain = false;
+        }
+
+        if !self.draw_size.is_valid() {
+            // Default to logical_size.
+            self.draw_size = self.logical_size;
+        }
+
+        if self.variations.is_empty() {
+            eprintln!("At least one variation is required! TileDef: '{}' - '{}'", self.kind, self.name);
+            return false;
+        }
+
+        // Validate deserialized data and resolve texture handles:
+        for variation in &mut self.variations {
+            for anim_set in &mut variation.anim_sets {
+                if layer_kind == TileMapLayerKind::Buildings {
+                    if variation.name.is_empty() {
+                        eprintln!("Variation name missing for TileDef: '{}' - '{}'", self.kind, self.name);
+                        return false;
+                    }
+                    if anim_set.name.is_empty() {
+                        eprintln!("AnimSet name missing for TileDef: '{}' - '{}'", self.kind, self.name);
+                        return false;
+                    }
+                } else if layer_kind == TileMapLayerKind::Units {
+                    if anim_set.name.is_empty() {
+                        eprintln!("AnimSet name missing for TileDef: '{}' - '{}'", self.kind, self.name);
+                        return false;
+                    }
+                }
+
+                if anim_set.frames.is_empty() {
+                    eprintln!("At least one animation frame is required! TileDef: '{}' - '{}'", self.kind, self.name);
+                    return false;
+                }
+
+                for (frame_index, frame) in anim_set.frames.iter_mut().enumerate() {
+                    if frame.name.is_empty() {
+                        eprintln!("Missing sprite frame name for index [{}]. AnimSet: '{}', TileDef: '{}' - '{}'",
+                                  frame_index,
+                                  anim_set.name,
+                                  self.kind,
+                                  self.name);
+                        return false;
+                    }
+
+                    // Path formats:
+                    //  terrain/<category>/<tile>.png
+                    //  buildings/<category>/<building_name>/<variation>/<anim_set>/<frame[N]>.png
+                    //  units/<category>/<unit_name>/<anim_set>/<frame[N]>.png
+                    let texture_path = match layer_kind {
+                        TileMapLayerKind::Terrain => {
+                            format!("{}{}{}.png",
+                                    tile_set_path_with_category,
+                                    MAIN_SEPARATOR,
+                                    frame.name)
+                        },
+                        TileMapLayerKind::Buildings => {
+                            format!("{}{}{}{}{}{}{}{}{}.png",
+                                    tile_set_path_with_category,
+                                    MAIN_SEPARATOR,
+                                    self.name,
+                                    MAIN_SEPARATOR,
+                                    variation.name,
+                                    MAIN_SEPARATOR,
+                                    anim_set.name,
+                                    MAIN_SEPARATOR,
+                                    frame.name)
+                        },
+                        TileMapLayerKind::Units => {
+                            format!("{}{}{}{}{}{}{}.png",
+                                    tile_set_path_with_category,
+                                    MAIN_SEPARATOR,
+                                    self.name,
+                                    MAIN_SEPARATOR,
+                                    anim_set.name,
+                                    MAIN_SEPARATOR,
+                                    frame.name)
+                        },
+                    };
+
+                    let frame_texture = tex_cache.load_texture(&texture_path);
+                    frame.tex_info = TileTexInfo::new(frame_texture);
+                }
+            }
+        }
+
+        true
+    }
+}
+
+// ----------------------------------------------
+// Deserialization defaults
+// ----------------------------------------------
+
+#[inline]
+const fn default_tile_size() -> Size2D { BASE_TILE_SIZE }
+
+#[inline]
+const fn default_tile_kind() -> TileKind { TileKind::Empty }
+
+#[inline]
+const fn default_occludes_terrain() -> bool { true }
 
 // ----------------------------------------------
 // TileCategory
@@ -28,7 +500,7 @@ pub struct TileCategory {
 
     // Internal runtime index into TileSet.
     #[serde(skip)]
-    pub tileset_category_index: i32,
+    tileset_category_index: i32,
 
     // Maps from tile name to TileDef index in self.tiles[].
     #[serde(skip)]
@@ -82,7 +554,7 @@ impl TileCategory {
             tile_def.category_tile_index = entry_index as i32;
             tile_def.tileset_category_index = self.tileset_category_index;
 
-            if !Self::post_load_tile_def(tex_cache, tile_def, &tile_set_path_with_category, layer_kind) {
+            if !tile_def.post_load(tex_cache, &tile_set_path_with_category, layer_kind) {
                 return false;
             }
 
@@ -94,137 +566,6 @@ impl TileCategory {
                           tile_name_hash,
                           entry_index);
                 return false;
-            }
-        }
-
-        true
-    }
-
-    fn post_load_tile_def(tex_cache: &mut TextureCache,
-                          tile_def: &mut TileDef,
-                          tile_set_path_with_category: &str,
-                          layer_kind: TileMapLayerKind) -> bool {
-
-        tile_def.kind = map::layer_to_tile_kind(layer_kind);
-
-        if tile_def.name.is_empty() {
-            eprintln!("TileDef '{}' name is missing! A name is required.", tile_def.kind);
-            return false;
-        }
-
-        if !tile_def.logical_size.is_valid() {
-            eprintln!("Invalid/missing TileDef logical size: '{}' - '{}'",
-                      tile_def.kind,
-                      tile_def.name);
-            return false;
-        }
-
-        if (tile_def.logical_size.width  % BASE_TILE_SIZE.width)  != 0 ||
-           (tile_def.logical_size.height % BASE_TILE_SIZE.height) != 0 {
-            eprintln!("Invalid TileDef logical size ({:?})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
-                      tile_def.logical_size,
-                      tile_def.kind,
-                      tile_def.name);
-            return false;
-        }
-
-        if tile_def.kind == TileKind::Terrain {
-            // For terrain logical_size must be BASE_TILE_SIZE.
-            if tile_def.logical_size != BASE_TILE_SIZE {
-                eprintln!("Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
-                          tile_def.kind,
-                          tile_def.name);
-                return false;
-            }
-
-            tile_def.occludes_terrain = false;
-        } else if tile_def.kind == TileKind::Unit {
-            // Units always have transparent backgrounds that won't fully cover underlying terrain tiles.
-            tile_def.occludes_terrain = false;
-        }
-
-        if !tile_def.draw_size.is_valid() {
-            // Default to logical_size.
-            tile_def.draw_size = tile_def.logical_size;
-        }
-
-        if tile_def.variations.is_empty() {
-            eprintln!("At least one variation is required! TileDef: '{}' - '{}'", tile_def.kind, tile_def.name);
-            return false;
-        }
-
-        // Validate deserialized data and resolve texture handles:
-        for variation in &mut tile_def.variations {
-            for anim_set in &mut variation.anim_sets {
-                if layer_kind == TileMapLayerKind::Buildings {
-                    if variation.name.is_empty() {
-                        eprintln!("Variation name missing for TileDef: '{}' - '{}'", tile_def.kind, tile_def.name);
-                        return false;
-                    }
-                    if anim_set.name.is_empty() {
-                        eprintln!("AnimSet name missing for TileDef: '{}' - '{}'", tile_def.kind, tile_def.name);
-                        return false;
-                    }
-                } else if layer_kind == TileMapLayerKind::Units {
-                    if anim_set.name.is_empty() {
-                        eprintln!("AnimSet name missing for TileDef: '{}' - '{}'", tile_def.kind, tile_def.name);
-                        return false;
-                    }
-                }
-
-                if anim_set.frames.is_empty() {
-                    eprintln!("At least one animation frame is required! TileDef: '{}' - '{}'", tile_def.kind, tile_def.name);
-                    return false;
-                }
-
-                for (frame_index, frame) in anim_set.frames.iter_mut().enumerate() {
-                    if frame.name.is_empty() {
-                        eprintln!("Missing sprite frame name for index [{}]. AnimSet: '{}', TileDef: '{}' - '{}'",
-                                  frame_index,
-                                  anim_set.name,
-                                  tile_def.kind,
-                                  tile_def.name);
-                        return false;
-                    }
-
-                    // Path formats:
-                    //  terrain/<category>/<tile>.png
-                    //  buildings/<category>/<building_name>/<variation>/<anim_set>/<frame[N]>.png
-                    //  units/<category>/<unit_name>/<anim_set>/<frame[N]>.png
-                    let texture_path = match layer_kind {
-                        TileMapLayerKind::Terrain => {
-                            format!("{}{}{}.png",
-                                    tile_set_path_with_category,
-                                    MAIN_SEPARATOR,
-                                    frame.name)
-                        },
-                        TileMapLayerKind::Buildings => {
-                            format!("{}{}{}{}{}{}{}{}{}.png",
-                                    tile_set_path_with_category,
-                                    MAIN_SEPARATOR,
-                                    tile_def.name,
-                                    MAIN_SEPARATOR,
-                                    variation.name,
-                                    MAIN_SEPARATOR,
-                                    anim_set.name,
-                                    MAIN_SEPARATOR,
-                                    frame.name)
-                        },
-                        TileMapLayerKind::Units => {
-                            format!("{}{}{}{}{}{}{}.png",
-                                    tile_set_path_with_category,
-                                    MAIN_SEPARATOR,
-                                    tile_def.name,
-                                    MAIN_SEPARATOR,
-                                    anim_set.name,
-                                    MAIN_SEPARATOR,
-                                    frame.name)
-                        },
-                    };
-
-                    let frame_texture = tex_cache.load_texture(&texture_path);
-                    frame.tex_info = TileTexInfo::new(frame_texture);
-                }
             }
         }
 

@@ -7,8 +7,7 @@ use crate::{
 
 use super::{
     camera::Camera,
-    sets::{TileDefHandle, TileSets},
-    def::{TileDef, TileKind, BASE_TILE_SIZE},
+    sets::{TileDefHandle, TileSets, TileDef, TileKind, BASE_TILE_SIZE},
     map::{self, Tile, TileFlags, TileMap, TileMapLayerKind, TILE_MAP_LAYER_COUNT},
     rendering::{TileMapRenderFlags, TileMapRenderer, INVALID_TILE_COLOR, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS}
 };

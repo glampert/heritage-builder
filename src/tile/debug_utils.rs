@@ -7,9 +7,8 @@ use crate::{
 };
 
 use super::{
-    sets::TileSets,
+    sets::{TileSets, TileDef, TileKind, BASE_TILE_SIZE},
     rendering::{TileMapRenderFlags, TileMapRenderStats},
-    def::{TileDef, TileKind, BASE_TILE_SIZE},
     map::{Tile, TileFlags, TileMap, TileMapLayerKind}
 };
 

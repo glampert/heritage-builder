@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::{
-    def::{TileDef, TileKind, BASE_TILE_SIZE},
+    sets::{TileDef, TileKind, BASE_TILE_SIZE},
     map::{Tile, TileFlags, TileMapLayerMutRefs},
     rendering::SELECTION_RECT_COLOR
 };

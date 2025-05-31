@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     debug_utils::{self},
-    def::BASE_TILE_SIZE,
+    sets::BASE_TILE_SIZE,
     selection::CellRange,
     map::{Tile, TileFlags, TileMap, TileMapLayerKind}
 };

@@ -10,7 +10,7 @@ use crate::{
 };
 
 use super::{
-    def::{TileDef, TileKind, TileFootprintList, BASE_TILE_SIZE},
+    sets::{TileDef, TileKind, TileFootprintList, BASE_TILE_SIZE},
     selection::TileSelection,
     placement::{self}
 };

@@ -5,7 +5,7 @@ use crate::{
 };
 
 use super::{
-    def::{TileFootprintList, TileDef, TileKind},
+    sets::{TileFootprintList, TileDef, TileKind},
     map::{self, Tile, TileMap, TileMapLayerKind}
 };
 
