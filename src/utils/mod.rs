@@ -22,7 +22,7 @@ macro_rules! name_of {
 // Vec2
 // ----------------------------------------------
 
-// 2D screen space vector or point.
+// 2D screen space vector or point (f32).
 // For interfacing with shaders and the rendering system.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
@@ -46,11 +46,6 @@ impl Vec2 {
             x: 0.0,
             y: 0.0,
         }
-    }
-
-    #[inline]
-    pub fn to_point2d(&self) -> Point2D {
-        Point2D::new(self.x as i32, self.y as i32)
     }
 
     #[inline]
@@ -222,6 +217,8 @@ impl DivAssign for Vec2 {
 // Color
 // ----------------------------------------------
 
+// Normalized RGBA color (f32, [0,1] range).
+// For interfacing with shaders and the rendering system.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, Deserialize)]
 pub struct Color {
@@ -317,16 +314,17 @@ impl MulAssign<f32> for Color {
 }
 
 // ----------------------------------------------
-// Size2D
+// Size
 // ----------------------------------------------
 
+// Integer width & height pair.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Deserialize)]
-pub struct Size2D {
+pub struct Size {
     pub width:  i32,
     pub height: i32,
 }
 
-impl Size2D {
+impl Size {
     #[inline]
     pub const fn new(width: i32, height: i32) -> Self {
         Self { width: width, height: height }
@@ -349,47 +347,18 @@ impl Size2D {
 }
 
 // ----------------------------------------------
-// Point2D
-// ----------------------------------------------
-
-// Cartesian 2D point coords in screen space.
-// Usually with WorldToScreenTransform applied.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Point2D {
-    pub x: i32,
-    pub y: i32,
-}
-
-impl Point2D {
-    #[inline]
-    pub const fn new(x: i32, y: i32) -> Self {
-        Self { x: x, y: y }
-    }
-
-    #[inline]
-    pub const fn zero() -> Self {
-        Self { x: 0, y: 0 }
-    }
-
-    #[inline]
-    pub fn to_vec2(&self) -> Vec2 {
-        Vec2::new(self.x as f32, self.y as f32)
-    }
-}
-
-// ----------------------------------------------
-// IsoPoint2D
+// IsoPoint
 // ----------------------------------------------
 
 // Isometric 2D point coords, in pure isometric space,
 // before any WorldToScreenTransform are applied.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct IsoPoint2D {
+pub struct IsoPoint {
     pub x: i32,
     pub y: i32,
 }
 
-impl IsoPoint2D {
+impl IsoPoint {
     #[inline]
     pub const fn new(x: i32, y: i32) -> Self {
         Self { x: x, y: y }
@@ -407,17 +376,17 @@ impl IsoPoint2D {
 }
 
 // ----------------------------------------------
-// Cell2D
+// Cell
 // ----------------------------------------------
 
-// Position in the tile map grid of cells.
+// X,Y position in the tile map grid of cells.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Cell2D {
+pub struct Cell {
     pub x: i32,
     pub y: i32,
 }
 
-impl Cell2D {
+impl Cell {
     #[inline]
     pub const fn new(x: i32, y: i32) -> Self {
         Self { x: x, y: y }
@@ -440,91 +409,104 @@ impl Cell2D {
 }
 
 // ----------------------------------------------
-// Rect2D
+// Rect
 // ----------------------------------------------
 
-// Screen space rectangle defined by min and max extents.
-// `mins`` is the top-left corner and `maxs` is the bottom-right.
+// Screen space rectangle defined by min and max extents (f32).
+// `min` is the top-left corner and `max` is the bottom-right.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Rect2D {
-    pub min: Point2D,
-    pub max: Point2D,
+pub struct Rect {
+    pub min: Vec2,
+    pub max: Vec2,
 }
 
-impl Rect2D {
+impl Rect {
     #[inline]
-    pub const fn new(pos: Point2D, size: Size2D) -> Self {
+    pub const fn new(pos: Vec2, size: Vec2) -> Self {
         Self {
             min: pos,
-            max: Point2D::new(pos.x + size.width, pos.y + size.height),
+            max: Vec2::new(pos.x + size.x, pos.y + size.y),
         }
     }
 
     #[inline]
     pub const fn zero() -> Self {
         Self {
-            min: Point2D::zero(),
-            max: Point2D::zero(),
+            min: Vec2::zero(),
+            max: Vec2::zero(),
         }
     }
 
     #[inline]
-    pub fn from_extents(a: Point2D, b: Point2D) -> Self {
+    pub fn from_pos_and_size(pos: Vec2, size: Size) -> Self {
+        Self {
+            min: pos,
+            max: Vec2::new(pos.x + (size.width as f32), pos.y + (size.height as f32)),
+        }
+    }
+
+    #[inline]
+    pub fn from_extents(a: Vec2, b: Vec2) -> Self {
         let min_x = a.x.min(b.x);
         let max_x = a.x.max(b.x);
         let min_y = a.y.min(b.y);
         let max_y = a.y.max(b.y);
         Self {
-            min: Point2D::new(min_x, min_y),
-            max: Point2D::new(max_x, max_y),
+            min: Vec2::new(min_x, min_y),
+            max: Vec2::new(max_x, max_y),
         }
     }
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        self.width() > 0 && self.height() > 0
+        self.width() > 0.0 && self.height() > 0.0
     }
 
     #[inline]
-    pub fn x(&self) -> i32 {
+    pub fn x(&self) -> f32 {
         self.min.x
     }
 
     #[inline]
-    pub fn y(&self) -> i32 {
+    pub fn y(&self) -> f32 {
         self.min.y
     }
 
     #[inline]
-    pub fn position(&self) -> Point2D {
-        Point2D::new(self.x(), self.y())
+    pub fn position(&self) -> Vec2 {
+        Vec2::new(self.x(), self.y())
     }
 
     #[inline]
-    pub fn width(&self) -> i32 {
+    pub fn width(&self) -> f32 {
         self.max.x - self.min.x
     }
 
     #[inline]
-    pub fn height(&self) -> i32 {
+    pub fn height(&self) -> f32 {
         self.max.y - self.min.y
     }
 
     #[inline]
-    pub fn area(&self) -> i32 {
+    pub fn area(&self) -> f32 {
         self.width() * self.height()
     }
 
     #[inline]
-    pub fn center(&self) -> Point2D {
-        Point2D::new(
-            self.x() + self.width()  / 2,
-            self.y() + self.height() / 2)
+    pub fn center(&self) -> Vec2 {
+        Vec2::new(
+            self.x() + self.width()  / 2.0,
+            self.y() + self.height() / 2.0)
     }
 
     #[inline]
-    pub fn size(&self) -> Size2D {
-        Size2D::new(self.width(), self.height())
+    pub fn size(&self) -> Size {
+        Size::new(self.width() as i32, self.height() as i32)
+    }
+
+    #[inline]
+    pub fn size_as_vec2(&self) -> Vec2 {
+        Vec2::new(self.width(), self.height())
     }
 
     #[inline]
@@ -539,20 +521,20 @@ impl Rect2D {
 
     // Flips min/max bounds if needed.
     #[inline]
-    pub fn update_min_extent(&mut self, new_mins: Point2D) {
-        self.min = new_mins;
+    pub fn update_min_extent(&mut self, new_min: Vec2) {
+        self.min = new_min;
         self.canonicalize();
     }
 
     #[inline]
-    pub fn update_max_extent(&mut self, new_maxs: Point2D) {
-        self.max = new_maxs;
+    pub fn update_max_extent(&mut self, new_max: Vec2) {
+        self.max = new_max;
         self.canonicalize();
     }
 
     // Returns `true` if this rect intersects with another.
     #[inline]
-    pub fn intersects(&self, other: &Rect2D) -> bool {
+    pub fn intersects(&self, other: &Rect) -> bool {
         self.min.x < other.max.x &&
         self.max.x > other.min.x &&
         self.min.y < other.max.y &&
@@ -561,7 +543,7 @@ impl Rect2D {
 
     // Returns `true` if the point is inside this rect (inclusive of mins, exclusive of maxs).
     #[inline]
-    pub fn contains_point(&self, point: Point2D) -> bool {
+    pub fn contains_point(&self, point: Vec2) -> bool {
         point.x >= self.min.x &&
         point.x <  self.max.x &&
         point.y >= self.min.y &&
@@ -570,7 +552,7 @@ impl Rect2D {
 
     // Returns `true` if this rect fully contains the other rect.
     #[inline]
-    pub fn contains_rect(&self, other: &Rect2D) -> bool {
+    pub fn contains_rect(&self, other: &Rect) -> bool {
         self.min.x <= other.min.x &&
         self.max.x >= other.max.x &&
         self.min.y <= other.min.y &&
@@ -583,30 +565,22 @@ impl Rect2D {
 
     #[inline]
     pub fn top_left(&self) -> Vec2 {
-        Vec2::new(
-            self.x() as f32,
-            (self.y() + self.height()) as f32)
+        Vec2::new(self.x(), self.y() + self.height())
     }
 
     #[inline]
     pub fn bottom_left(&self) -> Vec2 {
-        Vec2::new(
-            self.x() as f32,
-            self.y() as f32)
+        Vec2::new(self.x(), self.y())
     }
 
     #[inline]
     pub fn top_right(&self) -> Vec2 {
-        Vec2::new(
-            (self.x() + self.width())  as f32,
-            (self.y() + self.height()) as f32)
+        Vec2::new(self.x() + self.width(), self.y() + self.height())
     }
 
     #[inline]
     pub fn bottom_right(&self) -> Vec2 {
-        Vec2::new(
-            (self.x() + self.width()) as f32,
-            self.y() as f32)
+        Vec2::new(self.x() + self.width(), self.y())
     }
 }
 
@@ -634,7 +608,7 @@ impl RectTexCoords {
 
     // NOTE: This needs to be const for static declarations, so we don't derive from Default.
     #[inline]
-    pub const fn default() -> Self {
+    pub const fn default() -> &'static Self {
         static DEFAULT: RectTexCoords = RectTexCoords::new(
             [
                 Vec2::new(0.0, 0.0), // top_left
@@ -642,7 +616,7 @@ impl RectTexCoords {
                 Vec2::new(1.0, 0.0), // top_right
                 Vec2::new(1.0, 1.0), // bottom_right
             ]);
-        DEFAULT
+        &DEFAULT
     }
 
     //
@@ -677,13 +651,13 @@ impl RectTexCoords {
 // Transformations applied to a tile before rendering to screen.
 #[derive(Copy, Clone, Debug)]
 pub struct WorldToScreenTransform {
-    pub scaling: i32,      // draw scaling. 1 = no scaling.
-    pub offset: Point2D,   // screen-space offset (e.g. camera pan).
-    pub tile_spacing: i32, // pixels between tiles (0 = tight fit).
+    pub scaling: f32,      // Draw scaling. 1 = no scaling.
+    pub offset: Vec2,      // Screen-space offset (e.g. camera scroll).
+    pub tile_spacing: f32, // Pixels between tiles (0 = tight fit).
 }
 
 impl WorldToScreenTransform {
-    pub fn new(scaling: i32, offset: Point2D, tile_spacing: i32) -> Self {
+    pub fn new(scaling: f32, offset: Vec2, tile_spacing: f32) -> Self {
         let transform = Self {
             scaling: scaling,
             offset: offset,
@@ -693,62 +667,63 @@ impl WorldToScreenTransform {
         transform
     }
 
+    #[inline]
     pub fn is_valid(&self) -> bool {
-        self.scaling > 0 && self.tile_spacing >= 0
+        self.scaling > 0.0 && self.tile_spacing >= 0.0
     }
 
     #[inline]
-    pub fn apply_to_iso_point(&self, iso_point: IsoPoint2D, apply_spacing: bool) -> Point2D {
-        let half_spacing = if apply_spacing { self.tile_spacing / 2 } else { 0 };
+    pub fn apply_to_iso_point(&self, iso_point: IsoPoint, apply_spacing: bool) -> Vec2 {
+        let half_spacing = if apply_spacing { self.tile_spacing / 2.0 } else { 0.0 };
 
         // Apply spacing, offset and scaling:
-        let screen_x = ((iso_point.x + half_spacing) * self.scaling) + self.offset.x;
-        let screen_y = ((iso_point.y + half_spacing) * self.scaling) + self.offset.y;
+        let screen_x = (((iso_point.x as f32) + half_spacing) * self.scaling) + self.offset.x;
+        let screen_y = (((iso_point.y as f32) + half_spacing) * self.scaling) + self.offset.y;
 
-        Point2D::new(screen_x, screen_y)
+        Vec2::new(screen_x, screen_y)
     }
 
     #[inline]
-    pub fn apply_to_screen_point(&self, screen_point: Point2D, apply_spacing: bool) -> IsoPoint2D {
-        let half_spacing = if apply_spacing { self.tile_spacing / 2 } else { 0 };
+    pub fn apply_to_screen_point(&self, screen_point: Vec2, apply_spacing: bool) -> IsoPoint {
+        let half_spacing = if apply_spacing { self.tile_spacing / 2.0 } else { 0.0 };
 
         // Remove spacing, offset and scaling:
         let iso_x = ((screen_point.x - self.offset.x) / self.scaling) - half_spacing;
         let iso_y = ((screen_point.y - self.offset.y) / self.scaling) - half_spacing;
 
-        IsoPoint2D::new(iso_x, iso_y)
+        IsoPoint::new(iso_x as i32, iso_y as i32)
     }
 
     #[inline]
-    pub fn apply_to_rect(&self, iso_position: IsoPoint2D, size: Size2D, apply_spacing: bool) -> Rect2D {
-        let tile_spacing = if apply_spacing { self.tile_spacing } else { 0 };
+    pub fn apply_to_rect(&self, iso_position: IsoPoint, size: Size, apply_spacing: bool) -> Rect {
+        let tile_spacing = if apply_spacing { self.tile_spacing } else { 0.0 };
         let screen_position = self.apply_to_iso_point(iso_position, true);
 
         // Shrink size by spacing and apply scaling:
-        let screen_width  = (size.width  - tile_spacing) * self.scaling;
-        let screen_height = (size.height - tile_spacing) * self.scaling;
+        let screen_width  = ((size.width  as f32) - tile_spacing) * self.scaling;
+        let screen_height = ((size.height as f32) - tile_spacing) * self.scaling;
 
-        Rect2D::new(screen_position, Size2D::new(screen_width, screen_height))
+        Rect::new(screen_position, Vec2::new(screen_width, screen_height))
     }
 
     #[inline]
-    pub fn scale_and_offset_rect(&self, rect: Rect2D) -> Rect2D {
+    pub fn scale_and_offset_rect(&self, rect: Rect) -> Rect {
         let x = rect.x() + (self.offset.x * self.scaling);
         let y = rect.y() + (self.offset.y * self.scaling);
 
         let width  = rect.width()  * self.scaling;
         let height = rect.height() * self.scaling;
 
-        Rect2D::new(Point2D::new(x, y), Size2D::new(width, height))
+        Rect::new(Vec2::new(x, y), Vec2::new(width, height))
     }
 }
 
 impl Default for WorldToScreenTransform {
     fn default() -> Self {
         Self {
-            scaling: 1,
-            offset: Point2D::zero(),
-            tile_spacing: 0
+            scaling: 1.0,
+            offset: Vec2::zero(),
+            tile_spacing: 0.0
         }
     }
 }
@@ -766,7 +741,7 @@ impl Default for WorldToScreenTransform {
 // +-----------------------------------------------+
 
 #[inline]
-pub fn iso_to_cell(iso_point: IsoPoint2D, tile_size: Size2D) -> Cell2D {
+pub fn iso_to_cell(iso_point: IsoPoint, tile_size: Size) -> Cell {
     let half_tile_width  = tile_size.width  / 2;
     let half_tile_height = tile_size.height / 2;
 
@@ -774,25 +749,25 @@ pub fn iso_to_cell(iso_point: IsoPoint2D, tile_size: Size2D) -> Cell2D {
     let cell_x = (( iso_point.x / half_tile_width)  + (-iso_point.y / half_tile_height)) / 2;
     let cell_y = ((-iso_point.y / half_tile_height) - ( iso_point.x / half_tile_width))  / 2;
 
-    Cell2D::new(cell_x, cell_y)
+    Cell::new(cell_x, cell_y)
 }
 
 #[inline]
-pub fn cell_to_iso(cell: Cell2D, tile_size: Size2D) -> IsoPoint2D {
+pub fn cell_to_iso(cell: Cell, tile_size: Size) -> IsoPoint {
     let half_tile_width  = tile_size.width  / 2;
     let half_tile_height = tile_size.height / 2;
 
     let iso_x = (cell.x - cell.y) *  half_tile_width;
     let iso_y = (cell.x + cell.y) * -half_tile_height; // flip Y (top-left origin)
 
-    IsoPoint2D::new(iso_x, iso_y)
+    IsoPoint::new(iso_x, iso_y)
 }
 
 #[inline]
-pub fn iso_to_screen_point(iso_point: IsoPoint2D,
+pub fn iso_to_screen_point(iso_point: IsoPoint,
                            transform: &WorldToScreenTransform,
-                           tile_size: Size2D,
-                           apply_spacing: bool) -> Point2D {
+                           tile_size: Size,
+                           apply_spacing: bool) -> Vec2 {
     // Undo offsetting.
     let mut iso = iso_point;
     iso.x += tile_size.width  / 2;
@@ -802,10 +777,10 @@ pub fn iso_to_screen_point(iso_point: IsoPoint2D,
 }
 
 #[inline]
-pub fn screen_to_iso_point(screen_point: Point2D,
+pub fn screen_to_iso_point(screen_point: Vec2,
                            transform: &WorldToScreenTransform,
-                           tile_size: Size2D,
-                           apply_spacing: bool) -> IsoPoint2D {
+                           tile_size: Size,
+                           apply_spacing: bool) -> IsoPoint {
 
     let mut iso_pos = transform.apply_to_screen_point(screen_point, apply_spacing);
 
@@ -816,16 +791,16 @@ pub fn screen_to_iso_point(screen_point: Point2D,
 }
 
 #[inline]
-pub fn iso_to_screen_rect(iso_position: IsoPoint2D,
-                          size: Size2D,
+pub fn iso_to_screen_rect(iso_position: IsoPoint,
+                          size: Size,
                           transform: &WorldToScreenTransform,
-                          apply_spacing: bool) -> Rect2D {
+                          apply_spacing: bool) -> Rect {
 
     transform.apply_to_rect(iso_position, size, apply_spacing)
 }
 
 #[inline]
-pub fn is_screen_point_inside_diamond(p: Point2D, points: &[Point2D; 4]) -> bool {
+pub fn is_screen_point_inside_diamond(p: Vec2, points: &[Vec2; 4]) -> bool {
     // Triangle 1: top, right, bottom
     if is_screen_point_inside_triangle(p, points[0], points[1], points[2]) {
         return true;
@@ -839,10 +814,10 @@ pub fn is_screen_point_inside_diamond(p: Point2D, points: &[Point2D; 4]) -> bool
 
 // Test precisely if the screen point is inside the isometric cell diamond.
 #[inline]
-pub fn is_screen_point_inside_cell(screen_point: Point2D,
-                                   cell: Cell2D,
-                                   tile_size: Size2D,
-                                   base_tile_size: Size2D,
+pub fn is_screen_point_inside_cell(screen_point: Vec2,
+                                   cell: Cell,
+                                   tile_size: Size,
+                                   base_tile_size: Size,
                                    transform: &WorldToScreenTransform) -> bool {
 
     debug_assert!(transform.is_valid());
@@ -856,12 +831,11 @@ pub fn is_screen_point_inside_cell(screen_point: Point2D,
     is_screen_point_inside_diamond(screen_point, &screen_points)
 }
 
-pub fn is_screen_point_inside_triangle(p: Point2D, a: Point2D, b: Point2D, c: Point2D) -> bool {
+pub fn is_screen_point_inside_triangle(point: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
     // Compute edge vectors of the triangle relative to vertex `a`:
-    let va = a.to_vec2();
-    let v0 = c.to_vec2() - va;
-    let v1 = b.to_vec2() - va;
-    let v2 = p.to_vec2() - va; // vector from `a` to point `p`
+    let v0 = c - a;
+    let v1 = b - a;
+    let v2 = point - a; // vector from `a` to point
 
     // Compute dot products between the edge vectors and vector to point:
     let dot00 = v0.dot(v0);
@@ -887,29 +861,29 @@ pub fn is_screen_point_inside_triangle(p: Point2D, a: Point2D, b: Point2D, c: Po
 }
 
 // Creates an isometric-aligned diamond rectangle for the given tile size and cell location.
-pub fn cell_to_screen_diamond_points(cell: Cell2D,
-                                     tile_size: Size2D,
-                                     base_tile_size: Size2D,
-                                     transform: &WorldToScreenTransform) -> [Point2D; 4] {
+pub fn cell_to_screen_diamond_points(cell: Cell,
+                                     tile_size: Size,
+                                     base_tile_size: Size,
+                                     transform: &WorldToScreenTransform) -> [Vec2; 4] {
 
     debug_assert!(transform.is_valid());
 
     let iso_center = cell_to_iso(cell, base_tile_size);
     let screen_center = iso_to_screen_point(iso_center, transform, base_tile_size, false);
 
-    let tile_width  = tile_size.width  * transform.scaling;
-    let tile_height = tile_size.height * transform.scaling;
-    let base_height = base_tile_size.height * transform.scaling;
+    let tile_width  = (tile_size.width as f32) * transform.scaling;
+    let tile_height = (tile_size.height as f32) * transform.scaling;
+    let base_height = (base_tile_size.height as f32) * transform.scaling;
 
-    let half_tile_w = tile_width  / 2;
-    let half_tile_h = tile_height / 2;
-    let half_base_h = base_height / 2;
+    let half_tile_w = tile_width  / 2.0;
+    let half_tile_h = tile_height / 2.0;
+    let half_base_h = base_height / 2.0;
 
     // Build 4 corners of the tile:
-    let top    = Point2D::new(screen_center.x, screen_center.y - tile_height + half_base_h);
-    let bottom = Point2D::new(screen_center.x, screen_center.y + half_base_h);
-    let right  = Point2D::new(screen_center.x + half_tile_w, screen_center.y - half_tile_h + half_base_h);
-    let left   = Point2D::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
+    let top    = Vec2::new(screen_center.x, screen_center.y - tile_height + half_base_h);
+    let bottom = Vec2::new(screen_center.x, screen_center.y + half_base_h);
+    let right  = Vec2::new(screen_center.x + half_tile_w, screen_center.y - half_tile_h + half_base_h);
+    let left   = Vec2::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
 
     [ top, right, bottom, left ]
 }

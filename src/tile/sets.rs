@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     render::{TextureCache, TextureHandle},
-    utils::{Size2D, Cell2D, Color, RectTexCoords},
+    utils::{Size, Cell, Color, RectTexCoords},
     utils::hash::{self, PreHashedKeyMap, StringHash}
 };
 
@@ -22,10 +22,10 @@ use super::{
 // Constants / helper types
 // ----------------------------------------------
 
-pub const BASE_TILE_SIZE: Size2D = Size2D{ width: 64, height: 32 };
+pub const BASE_TILE_SIZE: Size = Size{ width: 64, height: 32 };
 
 // Can fit a 6x6 tile without allocating.
-pub type TileFootprintList = SmallVec<[Cell2D; 36]>;
+pub type TileFootprintList = SmallVec<[Cell; 36]>;
 
 // ----------------------------------------------
 // TileKind
@@ -62,14 +62,14 @@ impl TileTexInfo {
     pub const fn default() -> Self {
         Self {
             texture: TextureHandle::invalid(),
-            coords: RectTexCoords::default(),
+            coords: *RectTexCoords::default(),
         }
     }
 
     pub fn new(texture: TextureHandle) -> Self {
         Self {
             texture: texture,
-            coords: RectTexCoords::default(),
+            coords: *RectTexCoords::default(),
         }
     }
 
@@ -159,12 +159,12 @@ pub struct TileDef {
     // Logical size for the tile map. Always a multiple of the base tile size.
     // Optional for Terrain tiles (always = BASE_TILE_SIZE), required otherwise.
     #[serde(default = "default_tile_size")]
-    pub logical_size: Size2D,
+    pub logical_size: Size,
 
     // Draw size for tile rendering. Can be any size ratio.
     // Optional in serialized data. Defaults to the value of `logical_size` if missing.
     #[serde(default)]
-    pub draw_size: Size2D,
+    pub draw_size: Size,
 
     // Tint color is optional in serialized data. Default to white if missing.
     #[serde(default)]
@@ -240,9 +240,9 @@ impl TileDef {
     }
 
     #[inline]
-    pub fn size_in_cells(&self) -> Size2D {
+    pub fn size_in_cells(&self) -> Size {
         // `logical_size` is assumed to be a multiple of the base tile size.
-        Size2D::new(
+        Size::new(
             self.logical_size.width / BASE_TILE_SIZE.width,
             self.logical_size.height / BASE_TILE_SIZE.height)
     }
@@ -253,7 +253,7 @@ impl TileDef {
         size.width > 1 || size.height > 1 // Multi-tile building?
     }
 
-    pub fn calc_footprint_cells(&self, base_cell: Cell2D) -> TileFootprintList {
+    pub fn calc_footprint_cells(&self, base_cell: Cell) -> TileFootprintList {
         let mut footprint = TileFootprintList::new();
 
         if !self.is_empty() {
@@ -262,11 +262,11 @@ impl TileDef {
 
             // Buildings can occupy multiple cells; Find which ones:
             let start_cell = base_cell;
-            let end_cell = Cell2D::new(start_cell.x + size.width - 1, start_cell.y + size.height - 1);
+            let end_cell = Cell::new(start_cell.x + size.width - 1, start_cell.y + size.height - 1);
 
             for y in (start_cell.y..=end_cell.y).rev() {
                 for x in (start_cell.x..=end_cell.x).rev() {
-                    footprint.push(Cell2D::new(x, y));
+                    footprint.push(Cell::new(x, y));
                 }
             }
 
@@ -481,7 +481,7 @@ impl TileDef {
 // ----------------------------------------------
 
 #[inline]
-const fn default_tile_size() -> Size2D { BASE_TILE_SIZE }
+const fn default_tile_size() -> Size { BASE_TILE_SIZE }
 
 #[inline]
 const fn default_tile_kind() -> TileKind { TileKind::Empty }

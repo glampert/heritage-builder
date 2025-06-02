@@ -8,7 +8,7 @@ pub use glfw::load_gl_func;
 use smallvec::SmallVec;
 
 use crate::{
-    utils::{Size2D, Vec2}
+    utils::{Size, Vec2}
 };
 
 use input::{
@@ -26,8 +26,8 @@ pub trait Application {
     fn poll_events(&mut self) -> ApplicationEventList;
     fn present(&mut self);
 
-    fn window_size(&self) -> Size2D;
-    fn framebuffer_size(&self) -> Size2D;
+    fn window_size(&self) -> Size;
+    fn framebuffer_size(&self) -> Size;
     fn content_scale(&self) -> Vec2;
 
     type InputSystemType: InputSystem;
@@ -41,7 +41,7 @@ pub trait Application {
 #[derive(Debug)]
 pub enum ApplicationEvent {
     Quit,
-    WindowResize(Size2D),
+    WindowResize(Size),
     KeyInput(InputKey, InputAction, InputModifiers),
     CharInput(char),
     Scroll(Vec2),
@@ -56,7 +56,7 @@ type ApplicationEventList = SmallVec::<[ApplicationEvent; 16]>;
 
 pub struct ApplicationBuilder {
     title: String,
-    window_size: Size2D,
+    window_size: Size,
     fullscreen: bool,
     confine_cursor: bool,
 }
@@ -65,7 +65,7 @@ impl ApplicationBuilder {
     pub fn new() -> Self {
         ApplicationBuilder {
             title: String::default(),
-            window_size: Size2D::new(1024, 768),
+            window_size: Size::new(1024, 768),
             fullscreen: false,
             confine_cursor: false,
         }
@@ -76,7 +76,7 @@ impl ApplicationBuilder {
         self
     }
 
-    pub fn window_size(&mut self, size: Size2D) -> &mut Self {
+    pub fn window_size(&mut self, size: Size) -> &mut Self {
         self.window_size = size;
         self
     }

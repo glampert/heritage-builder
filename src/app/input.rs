@@ -5,7 +5,7 @@ pub use super::glfw::InputKey;
 pub use super::glfw::MouseButton;
 
 use crate::{
-    utils::Point2D
+    utils::Vec2
 };
 
 // ----------------------------------------------
@@ -13,7 +13,7 @@ use crate::{
 // ----------------------------------------------
 
 pub trait InputSystem {
-    fn cursor_pos(&self) -> Point2D;
+    fn cursor_pos(&self) -> Vec2;
     fn mouse_button_state(&self, button: MouseButton) -> InputAction;
     fn key_state(&self, key: InputKey) -> InputAction;
 }

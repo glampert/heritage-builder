@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     imgui_ui::UiSystem,
     render::{RenderSystem, RenderStats},
-    utils::{self, Color, Cell2D, Point2D, Rect2D, IsoPoint2D, Size2D, WorldToScreenTransform}
+    utils::{self, Color, Cell, IsoPoint, Size, Vec2, Rect, WorldToScreenTransform}
 };
 
 use super::{
@@ -18,8 +18,8 @@ use super::{
 
 pub fn draw_tile_debug(render_sys: &mut RenderSystem,
                        ui_sys: &UiSystem,
-                       tile_iso_coords: IsoPoint2D,
-                       tile_rect: Rect2D,
+                       tile_iso_coords: IsoPoint,
+                       tile_rect: Rect,
                        transform: &WorldToScreenTransform,
                        tile: &Tile,
                        flags: TileMapRenderFlags) {
@@ -60,9 +60,9 @@ pub fn draw_tile_debug(render_sys: &mut RenderSystem,
 }
 
 fn draw_tile_overlay_text(ui_sys: &UiSystem,
-                          debug_overlay_pos: Point2D,
-                          tile_screen_pos: Point2D,
-                          tile_iso_pos: IsoPoint2D,
+                          debug_overlay_pos: Vec2,
+                          tile_screen_pos: Vec2,
+                          tile_iso_pos: IsoPoint,
                           tile: &Tile) {
 
     // Make the window background transparent and remove decorations:
@@ -76,7 +76,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
 
     // NOTE: Label has to be unique for each tile because it will be used as the ImGui ID for this widget.
     let label = format!("{}_{}_{}", tile.name(), tile.cell.x, tile.cell.y);
-    let position = [ debug_overlay_pos.x as f32, debug_overlay_pos.y as f32 ];
+    let position = [ debug_overlay_pos.x, debug_overlay_pos.y ];
 
     let bg_color = match tile.kind() {
         TileKind::Blocker => Color::red().to_array(),
@@ -104,26 +104,26 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
         .always_auto_resize(true)
         .bg_alpha(0.4) // Semi-transparent
         .build(|| {
-            ui.text(format!("C:{},{}", tile.cell.x,       tile.cell.y));       // Cell position
-            ui.text(format!("S:{},{}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
-            ui.text(format!("I:{},{}", tile_iso_pos.x,    tile_iso_pos.y));    // 2D isometric position
-            ui.text(format!("Z:{}",    tile.calc_z_sort()));                   // Z-sort
+            ui.text(format!("C:{},{}", tile.cell.x, tile.cell.y)); // Cell position
+            ui.text(format!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
+            ui.text(format!("I:{},{}", tile_iso_pos.x, tile_iso_pos.y)); // 2D isometric position
+            ui.text(format!("Z:{}", tile.calc_z_sort())); // Z-sort
         });
 }
 
 fn draw_tile_info(render_sys: &mut RenderSystem,
                   ui_sys: &UiSystem,
-                  tile_screen_rect: Rect2D,
-                  tile_iso_pos: IsoPoint2D,
+                  tile_screen_rect: Rect,
+                  tile_iso_pos: IsoPoint,
                   tile: &Tile) {
 
     let tile_screen_pos = tile_screen_rect.position();
     let tile_center = tile_screen_rect.center();
 
     // Center the overlay text box roughly over the tile's center.
-    let debug_overlay_pos = Point2D::new(
-        tile_center.x - 30,
-        tile_center.y - 30);
+    let debug_overlay_pos = Vec2::new(
+        tile_center.x - 30.0,
+        tile_center.y - 30.0);
 
     draw_tile_overlay_text(
         ui_sys,
@@ -137,7 +137,7 @@ fn draw_tile_info(render_sys: &mut RenderSystem,
 }
 
 fn draw_tile_bounds(render_sys: &mut RenderSystem,
-                    tile_rect: Rect2D,
+                    tile_rect: Rect,
                     transform: &WorldToScreenTransform,
                     tile: &Tile) {
 
@@ -170,7 +170,7 @@ fn draw_tile_bounds(render_sys: &mut RenderSystem,
 // Show a small debug overlay under the cursor with its current position.
 pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform) {
     let ui = ui_sys.builder();
-    let cursor_screen_pos = ui.io().mouse_pos;
+    let cursor_screen_pos = Vec2::new(ui.io().mouse_pos[0], ui.io().mouse_pos[1]);
 
     // Make the window background transparent and remove decorations.
     let window_flags =
@@ -183,19 +183,21 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform
 
     // Draw a tiny window near the cursor
     ui.window("Cursor Debug")
-        .position([cursor_screen_pos[0] + 10.0, cursor_screen_pos[1] + 10.0], imgui::Condition::Always)
+        .position([cursor_screen_pos.x + 10.0, cursor_screen_pos.y + 10.0], imgui::Condition::Always)
         .flags(window_flags)
         .always_auto_resize(true)
         .bg_alpha(0.6) // Semi-transparent
         .build(|| {
             let cursor_iso_pos = utils::screen_to_iso_point(
-                Point2D::new(cursor_screen_pos[0] as i32, cursor_screen_pos[1] as i32),
-                transform, BASE_TILE_SIZE, false);
+                cursor_screen_pos,
+                transform,
+                BASE_TILE_SIZE,
+                false);
 
             let cursor_approx_cell = utils::iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
 
             ui.text(format!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
-            ui.text(format!("S:{},{}", cursor_screen_pos[0], cursor_screen_pos[1]));
+            ui.text(format!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
             ui.text(format!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
         });
 }
@@ -203,30 +205,30 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform
 pub fn draw_screen_origin_marker(render_sys: &mut RenderSystem) {
     // 50x50px white square to mark the origin.
     render_sys.draw_point_fast(
-        Point2D::new(0, 0), 
+        Vec2::zero(), 
         Color::white(),
         50.0);
 
     // Red line for the X axis, green square at the end.
     render_sys.draw_line_with_thickness(
-        Point2D::new(0, 0),
-        Point2D::new(100, 0),
+        Vec2::zero(),
+        Vec2::new(100.0, 0.0),
         Color::red(),
         15.0);
 
     render_sys.draw_colored_rect(
-        Rect2D::new(Point2D::new(100, 0), Size2D::new(10, 10)),
+        Rect::new(Vec2::new(100.0, 0.0), Vec2::new(10.0, 10.0)),
         Color::green());
 
     // Blue line for the Y axis, green square at the end.
     render_sys.draw_line_with_thickness(
-        Point2D::new(0, 0),
-        Point2D::new(0, 100),
+        Vec2::zero(),
+        Vec2::new(0.0, 100.0),
         Color::blue(),
         15.0);
 
     render_sys.draw_colored_rect(
-        Rect2D::new(Point2D::new(0, 100), Size2D::new(10, 10)),
+        Rect::new(Vec2::new(0.0, 100.0), Vec2::new(10.0, 10.0)),
         Color::green());
 }
 
@@ -362,14 +364,14 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     ];
 
     let blockers_mapping = HashMap::from([
-        (B0, Cell2D::new(1, 1)),
-        (B1, Cell2D::new(5, 1)),
-        (B2, Cell2D::new(5, 3)),
-        (B3, Cell2D::new(5, 5)),
-        (B4, Cell2D::new(1, 5)),
+        (B0, Cell::new(1, 1)),
+        (B1, Cell::new(5, 1)),
+        (B2, Cell::new(5, 3)),
+        (B3, Cell::new(5, 5)),
+        (B4, Cell::new(1, 5)),
     ]);
 
-    let mut tile_map = TileMap::new(Size2D::new(MAP_WIDTH, MAP_HEIGHT));
+    let mut tile_map = TileMap::new(Size::new(MAP_WIDTH, MAP_HEIGHT));
 
     // Terrain:
     {
@@ -379,7 +381,7 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
             for x in 0..MAP_WIDTH {
                 let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
                 let tile_def = find_tile(TileMapLayerKind::Terrain, tile_id);
-                terrain_layer.add_tile(Cell2D::new(x, y), tile_def);
+                terrain_layer.add_tile(Cell::new(x, y), tile_def);
             }
         }
     }
@@ -391,7 +393,7 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
         for y in 0..MAP_HEIGHT {
             for x in 0..MAP_WIDTH {
                 let tile_id = BUILDINGS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                let cell = Cell2D::new(x, y);
+                let cell = Cell::new(x, y);
 
                 if tile_id == G { // ground/empty
                     buildings_layer.add_empty_tile(cell);
@@ -413,7 +415,7 @@ pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
         for y in 0..MAP_HEIGHT {
             for x in 0..MAP_WIDTH {
                 let tile_id = UNITS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                let cell = Cell2D::new(x, y);
+                let cell = Cell::new(x, y);
 
                 if tile_id == G { // ground/empty
                     units_layer.add_empty_tile(cell);

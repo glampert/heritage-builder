@@ -219,10 +219,10 @@ impl UiContext {
         let io = self.imgui_ctx.io_mut();
         io.update_delta_time(delta_time);
 
-        let fb_size = app.framebuffer_size();
+        let fb_size = app.framebuffer_size().to_vec2();
         let content_scale = app.content_scale();
 
-        io.display_size = [(fb_size.width as f32) / content_scale.x, (fb_size.height as f32) / content_scale.y];
+        io.display_size = [fb_size.x / content_scale.x, fb_size.y / content_scale.y];
         io.display_framebuffer_scale = [content_scale.x, content_scale.y];
 
         // Send mouse/keyboard input to ImGui. The rest is handled by application events.
@@ -273,8 +273,8 @@ impl UiContext {
     fn update_input(&mut self, input_sys: &impl InputSystem) {
         let io = self.imgui_ctx.io_mut();
 
-        let cursor = input_sys.cursor_pos();
-        io.mouse_pos = [cursor.x as f32, cursor.y as f32];
+        let cursor_pos = input_sys.cursor_pos();
+        io.mouse_pos = [cursor_pos.x, cursor_pos.y];
     
         io.mouse_down[0] = input_sys.mouse_button_state(MouseButton::Left)   == InputAction::Press;
         io.mouse_down[1] = input_sys.mouse_button_state(MouseButton::Right)  == InputAction::Press;

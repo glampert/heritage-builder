@@ -1,8 +1,8 @@
 use crate::{
-    imgui_ui::{UiInputEvent, UiSystem},
     app::input::{InputAction, MouseButton},
+    imgui_ui::{UiInputEvent, UiSystem},
     render::{RenderSystem, TextureCache, TextureHandle},
-    utils::{self, Cell2D, Color, Point2D, Rect2D, RectTexCoords, Size2D, WorldToScreenTransform}
+    utils::{self, Cell, Color, Rect, RectTexCoords, Size, Vec2, WorldToScreenTransform}
 };
 
 use super::{
@@ -109,21 +109,29 @@ impl DebugSettingsMenu {
 
                 let scroll_limits = camera.scroll_limits();
                 let mut scroll = camera.current_scroll();
-                if ui.slider("Scroll X", scroll_limits.0.x, scroll_limits.1.x, &mut scroll.x) {
+                if ui.slider_config("Scroll X", scroll_limits.0.x, scroll_limits.1.x)
+                    .display_format("%.1f")
+                    .build(&mut scroll.x) {
                     camera.set_scroll(scroll);
                 }
-                if ui.slider("Scroll Y", scroll_limits.0.y, scroll_limits.1.y, &mut scroll.y) {
+                if ui.slider_config("Scroll Y", scroll_limits.0.y, scroll_limits.1.y)
+                    .display_format("%.1f")
+                    .build(&mut scroll.y) {
                     camera.set_scroll(scroll);
                 }
 
                 let tile_spacing_limits = camera.tile_spacing_limits();
                 let mut tile_spacing = camera.current_tile_spacing();
-                if ui.slider("Tile spacing", tile_spacing_limits.0, tile_spacing_limits.1, &mut tile_spacing) {
+                if ui.slider_config("Tile spacing", tile_spacing_limits.0, tile_spacing_limits.1)
+                    .display_format("%.1f")
+                    .build(&mut tile_spacing) {
                     camera.set_tile_spacing(tile_spacing);
                 }
 
                 let mut line_thickness = tile_map_renderer.grid_line_thickness();
-                if ui.slider("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS, &mut line_thickness) {
+                if ui.slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
+                    .display_format("%.1f")
+                    .build(&mut line_thickness) {
                     tile_map_renderer.set_grid_line_thickness(line_thickness);
                 }
 
@@ -231,7 +239,7 @@ impl TileListMenu {
                 ui_sys: &UiSystem,
                 tex_cache: &TextureCache,
                 tile_sets: &TileSets,
-                cursor_screen_pos: Point2D,
+                cursor_screen_pos: Vec2,
                 transform: &WorldToScreenTransform,
                 has_valid_placement: bool,
                 show_selection_bounds: bool) {
@@ -332,7 +340,7 @@ impl TileListMenu {
     fn draw_selected_tile(&self,
                           render_sys: &mut RenderSystem,
                           tile_sets: &TileSets,
-                          cursor_screen_pos: Point2D,
+                          cursor_screen_pos: Vec2,
                           transform: &WorldToScreenTransform,
                           has_valid_placement: bool,
                           show_selection_bounds: bool) {
@@ -340,29 +348,33 @@ impl TileListMenu {
         if let Some(selected_tile) = self.current_selection(tile_sets) {
             let is_clear_selected = selected_tile.is_empty();
             if is_clear_selected {
-                const CLEAR_ICON_SIZE: Size2D = Size2D::new(64, 32);
+                const CLEAR_ICON_SIZE: Size = Size::new(64, 32);
 
-                let rect = Rect2D::new(
-                    Point2D::new(cursor_screen_pos.x - CLEAR_ICON_SIZE.width / 2, cursor_screen_pos.y - CLEAR_ICON_SIZE.height / 2),
-                    CLEAR_ICON_SIZE);
+                let rect = Rect::from_pos_and_size(
+                    Vec2::new(
+                        cursor_screen_pos.x - (CLEAR_ICON_SIZE.width  / 2) as f32,
+                        cursor_screen_pos.y - (CLEAR_ICON_SIZE.height / 2) as f32
+                    ),
+                    CLEAR_ICON_SIZE
+                );
 
                 render_sys.draw_textured_colored_rect(
                     rect,
-                    &RectTexCoords::default(),
+                    RectTexCoords::default(),
                     self.clear_button_image,
                     Color::white());
             } else {
-                let rect = Rect2D::new(cursor_screen_pos, selected_tile.draw_size);
+                let rect = Rect::from_pos_and_size(cursor_screen_pos, selected_tile.draw_size);
 
                 let offset =
                     if selected_tile.is_building() {
-                        Point2D::new(-(selected_tile.draw_size.width / 2), -selected_tile.draw_size.height)
+                        Vec2::new(-(selected_tile.draw_size.width as f32 / 2.0), -(selected_tile.draw_size.height as f32))
                     } else {
-                        Point2D::new(-(selected_tile.draw_size.width / 2), -(selected_tile.draw_size.height / 2))
+                        Vec2::new(-(selected_tile.draw_size.width as f32 / 2.0), -(selected_tile.draw_size.height as f32 / 2.0))
                     };
 
                 let cursor_transform = 
-                    WorldToScreenTransform::new(transform.scaling, offset, 0);
+                    WorldToScreenTransform::new(transform.scaling, offset, 0.0);
 
                 let highlight_color =
                     if has_valid_placement {
@@ -450,7 +462,7 @@ impl TileListMenu {
 #[derive(Default)]
 pub struct TileInspectorMenu {
     is_open: bool,
-    selected: Option<(Cell2D, TileKind)>,
+    selected: Option<(Cell, TileKind)>,
 
     hide_tile: bool,
     show_tile_debug: bool,
@@ -511,8 +523,8 @@ impl TileInspectorMenu {
             if !tile.is_unit() { true } else { false });
 
         let window_position = [
-            (tile_screen_pos.center().x - 30) as f32,
-            (tile_screen_pos.center().y - 30) as f32
+            tile_screen_pos.center().x - 30.0,
+            tile_screen_pos.center().y - 30.0
         ];
 
         let window_flags =
@@ -534,7 +546,7 @@ impl TileInspectorMenu {
                     ui.text(format!("Cell.........: {},{}", tile.cell.x, tile.cell.y));
                     ui.text(format!("Iso pos......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
                     ui.text(format!("Iso adjusted.: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
-                    ui.text(format!("Screen pos...: {},{}", tile_screen_pos.x(), tile_screen_pos.y()));
+                    ui.text(format!("Screen pos...: {:.1},{:.1}", tile_screen_pos.x(), tile_screen_pos.y()));
                     ui.text(format!("Logical size.: {},{}", tile.logical_size().width, tile.logical_size().height));
                     ui.text(format!("Draw size....: {},{}", tile.draw_size().width, tile.draw_size().height));
                     ui.text(format!("Cells size...: {},{}", tile.size_in_cells().width, tile.size_in_cells().height));

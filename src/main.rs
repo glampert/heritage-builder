@@ -35,7 +35,7 @@ fn main() {
 
     let mut app = ApplicationBuilder::new()
         .window_title("CitySim")
-        .window_size(Size2D::new(1024, 768))
+        .window_size(Size::new(1024, 768))
         .fullscreen(false)
         .confine_cursor_to_window(camera::CONFINE_CURSOR_TO_WINDOW)
         .build();
@@ -49,7 +49,7 @@ fn main() {
     let tile_sets = TileSets::load(&mut tex_cache);
 
     //let mut tile_map = debug_utils::create_test_tile_map(&tile_sets);
-    let mut tile_map = TileMap::new(Size2D::new(64, 64));
+    let mut tile_map = TileMap::new(Size::new(64, 64));
 
     let mut tile_selection = TileSelection::new();
     let mut tile_map_renderer = TileMapRenderer::new(DEFAULT_GRID_COLOR, 3.0);
@@ -103,7 +103,7 @@ fn main() {
                     }
 
                     // TODO: Smooth transition between zoom levels.
-                    camera.set_zoom(amount.y as i32);
+                    camera.set_zoom(amount.y);
                 }
                 ApplicationEvent::MouseButton(button, action, modifiers) => {
                     if ui_sys.on_mouse_click(button, action, modifiers).is_handled() {

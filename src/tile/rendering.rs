@@ -4,7 +4,7 @@ use smallvec::SmallVec;
 use crate::{
     imgui_ui::UiSystem,
     render::RenderSystem,
-    utils::{self, Color, Cell2D, IsoPoint2D, Point2D, WorldToScreenTransform}
+    utils::{self, Cell, Color, IsoPoint, Vec2, WorldToScreenTransform}
 };
 
 use super::{
@@ -131,7 +131,7 @@ impl TileMapRenderer {
 
             for y in (visible_range.min.y..=visible_range.max.y).rev() {
                 for x in (visible_range.min.x..=visible_range.max.x).rev() {
-                    let cell = Cell2D::new(x, y);
+                    let cell = Cell::new(x, y);
 
                     let tile = terrain_layer.tile(cell);
                     if tile.is_empty() {
@@ -185,7 +185,7 @@ impl TileMapRenderer {
             for y in (visible_range.min.y..=visible_range.max.y).rev() {
                 for x in (visible_range.min.x..=visible_range.max.x).rev() {
 
-                    let cell = Cell2D::new(x, y);
+                    let cell = Cell::new(x, y);
                     let building_tile = buildings_layer.tile(cell);
                     let unit_tile = units_layer.tile(cell);
 
@@ -254,7 +254,7 @@ impl TileMapRenderer {
 
         // Returns true only if all points are offscreen.
         let viewport = render_sys.viewport();
-        let is_fully_offscreen = |points: &[Point2D; 4]| {
+        let is_fully_offscreen = |points: &[Vec2; 4]| {
 
             let mut offscreen_count = 0;
             for pt in points {
@@ -264,19 +264,19 @@ impl TileMapRenderer {
                     offscreen_count += 1;
                 }
             }
-            
+
             if offscreen_count == points.len() { true } else { false }
         };
 
         let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
-        let line_thickness = self.grid_line_thickness * (transform.scaling as f32);
+        let line_thickness = self.grid_line_thickness * transform.scaling;
 
-        let mut highlighted_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
-        let mut invalidated_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
+        let mut highlighted_cells = SmallVec::<[[Vec2; 4]; 128]>::new();
+        let mut invalidated_cells = SmallVec::<[[Vec2; 4]; 128]>::new();
 
         for y in visible_range.min.y..=visible_range.max.y {
             for x in visible_range.min.x..=visible_range.max.x {
-                let cell = Cell2D::new(x, y);
+                let cell = Cell::new(x, y);
                 let points = utils::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, BASE_TILE_SIZE, transform);
 
                 if is_fully_offscreen(&points) {
@@ -314,7 +314,7 @@ impl TileMapRenderer {
     fn draw_tile(render_sys: &mut RenderSystem,
                  stats: &mut TileMapRenderStats,
                  ui_sys: &UiSystem,
-                 tile_iso_coords: IsoPoint2D,
+                 tile_iso_coords: IsoPoint,
                  transform: &WorldToScreenTransform,
                  tile: &Tile,
                  flags: TileMapRenderFlags) {

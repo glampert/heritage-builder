@@ -1,7 +1,7 @@
 use std::time::{self};
 
 use crate::{
-    utils::{self, Vec2, Point2D, Size2D, Rect2D, WorldToScreenTransform}
+    utils::{self, Size, Vec2, Rect, WorldToScreenTransform}
 };
 
 use super::{
@@ -15,19 +15,19 @@ use super::{
 
 pub const CONFINE_CURSOR_TO_WINDOW: bool = true;
 
-pub const MIN_ZOOM: i32 = 1;
-pub const MAX_ZOOM: i32 = 10;
+pub const MIN_ZOOM: f32 = 1.0;
+pub const MAX_ZOOM: f32 = 10.0;
 
-pub const MIN_TILE_SPACING: i32 = 0;
-pub const MAX_TILE_SPACING: i32 = 10;
+pub const MIN_TILE_SPACING: f32 = 0.0;
+pub const MAX_TILE_SPACING: f32 = 10.0;
 
 // Cursor map scrolling defaults:
-const SCROLL_MARGIN: i32 = 20;    // pixels from edge
+const SCROLL_MARGIN: f32 = 20.0;  // pixels from edge
 const SCROLL_SPEED:  f32 = 500.0; // pixels per second
 
 pub enum Offset {
     Center,
-    Point(i32, i32),
+    Point(f32, f32),
 }
 
 // ----------------------------------------------
@@ -35,17 +35,17 @@ pub enum Offset {
 // ----------------------------------------------
 
 pub struct Camera {
-    viewport_size: Size2D,
-    map_size_in_cells: Size2D,
+    viewport_size: Size,
+    map_size_in_cells: Size,
     transform: WorldToScreenTransform,
 }
 
 impl Camera {
-    pub fn new(viewport_size: Size2D,
-               map_size_in_cells: Size2D,
-               zoom: i32,
+    pub fn new(viewport_size: Size,
+               map_size_in_cells: Size,
+               zoom: f32,
                offset: Offset,
-               tile_spacing: i32) -> Self {
+               tile_spacing: f32) -> Self {
 
         let clamped_scaling = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
         let clamped_tile_spacing = tile_spacing.clamp(MIN_TILE_SPACING, MAX_TILE_SPACING);
@@ -55,7 +55,7 @@ impl Camera {
                 calc_map_center(map_size_in_cells, clamped_scaling, viewport_size)
             }
             Offset::Point(x, y) => {
-                clamp_to_map_bounds(map_size_in_cells, clamped_scaling, viewport_size, Point2D::new(x, y))
+                clamp_to_map_bounds(map_size_in_cells, clamped_scaling, viewport_size, Vec2::new(x, y))
             }
         };
 
@@ -71,7 +71,7 @@ impl Camera {
 
     #[inline]
     pub fn visible_cells_range(&self) -> CellRange {
-        calc_visible_cells_range(self.viewport_size, self.map_size_in_cells, &self.transform)
+        calc_visible_cells_range(self.map_size_in_cells, self.viewport_size, &self.transform)
     }
 
     #[inline]
@@ -80,22 +80,22 @@ impl Camera {
     }
 
     #[inline]
-    pub fn set_viewport_size(&mut self, new_size: Size2D) {
+    pub fn set_viewport_size(&mut self, new_size: Size) {
         self.viewport_size = new_size;
     }
 
     #[inline]
-    pub fn viewport_size(&self) -> Size2D {
+    pub fn viewport_size(&self) -> Size {
         self.viewport_size
     }
 
     #[inline]
-    pub fn set_map_size_in_cells(&mut self, new_size: Size2D) {
+    pub fn set_map_size_in_cells(&mut self, new_size: Size) {
         self.map_size_in_cells = new_size;
     }
 
     #[inline]
-    pub fn map_size_in_cells(&self) -> Size2D {
+    pub fn map_size_in_cells(&self) -> Size {
         self.map_size_in_cells
     }
 
@@ -104,17 +104,17 @@ impl Camera {
     // ----------------------
 
     #[inline]
-    pub fn tile_spacing_limits(&self) -> (i32, i32) {
+    pub fn tile_spacing_limits(&self) -> (f32, f32) {
         (MIN_TILE_SPACING, MAX_TILE_SPACING)
     }
 
     #[inline]
-    pub fn current_tile_spacing(&self) -> i32 {
+    pub fn current_tile_spacing(&self) -> f32 {
         self.transform.tile_spacing
     }
 
     #[inline]
-    pub fn set_tile_spacing(&mut self, spacing: i32) {
+    pub fn set_tile_spacing(&mut self, spacing: f32) {
         self.transform.tile_spacing = spacing.clamp(MIN_TILE_SPACING, MAX_TILE_SPACING);
     }
 
@@ -123,17 +123,17 @@ impl Camera {
     // ----------------------
 
     #[inline]
-    pub fn zoom_limits(&self) -> (i32, i32) {
+    pub fn zoom_limits(&self) -> (f32, f32) {
         (MIN_ZOOM, MAX_ZOOM)
     }
 
     #[inline]
-    pub fn current_zoom(&self) -> i32 {
+    pub fn current_zoom(&self) -> f32 {
         self.transform.scaling
     }
 
     #[inline]
-    pub fn set_zoom(&mut self, zoom: i32) {
+    pub fn set_zoom(&mut self, zoom: f32) {
         let current_zoom = self.transform.scaling;
         let new_zoom = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
 
@@ -159,7 +159,7 @@ impl Camera {
     }
 
     #[inline]
-    pub fn update_zooming(&mut self, amount: i32, _delta_time: time::Duration) {
+    pub fn update_zooming(&mut self, amount: f32, _delta_time: time::Duration) {
         // TODO: Smooth zooming with mouse wheel (interpolation).
         // Need to first implement floating point zoom/scaling and rendering.
         self.set_zoom(self.transform.scaling + amount);
@@ -170,18 +170,18 @@ impl Camera {
     // ----------------------
 
     #[inline]
-    pub fn scroll_limits(&self) -> (Point2D, Point2D) {
+    pub fn scroll_limits(&self) -> (Vec2, Vec2) {
         let bounds = calc_map_bounds(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
         (bounds.min, bounds.max)
     }
 
     #[inline]
-    pub fn current_scroll(&self) -> Point2D {
+    pub fn current_scroll(&self) -> Vec2 {
         self.transform.offset
     }
 
     #[inline]
-    pub fn set_scroll(&mut self, scroll: Point2D) {
+    pub fn set_scroll(&mut self, scroll: Vec2) {
         self.transform.offset = clamp_to_map_bounds(
             self.map_size_in_cells,
             self.transform.scaling,
@@ -190,18 +190,16 @@ impl Camera {
     }
 
     #[inline]
-    pub fn update_scrolling(&mut self, cursor_screen_pos: Point2D, delta_time: time::Duration) {
+    pub fn update_scrolling(&mut self, cursor_screen_pos: Vec2, delta_time: time::Duration) {
         let delta_seconds = delta_time.as_secs_f32();
 
         let scroll_delta = calc_scroll_delta(cursor_screen_pos, self.viewport_size);
         let scroll_speed  = calc_scroll_speed(cursor_screen_pos, self.viewport_size);
 
         let offset_change = scroll_delta * scroll_speed * delta_seconds;
-
-        let change  = offset_change.to_point2d();
         let current = self.current_scroll();
 
-        self.set_scroll(Point2D::new(current.x + change.x, current.y + change.y));
+        self.set_scroll(Vec2::new(current.x + offset_change.x, current.y + offset_change.y));
     }
 
     // Center camera to the map.
@@ -215,17 +213,17 @@ impl Camera {
 // Helper functions
 // ----------------------------------------------
 
-fn calc_visible_cells_range(viewport_size: Size2D,
-                            map_size_in_cells: Size2D,
+fn calc_visible_cells_range(map_size_in_cells: Size,
+                            viewport_size: Size,
                             transform: &WorldToScreenTransform) -> CellRange {
 
     // Add one extra row of tiles on each end to avoid any visual popping while scrolling.
-    let tile_width  = BASE_TILE_SIZE.width  * transform.scaling;
-    let tile_height = BASE_TILE_SIZE.height * transform.scaling;
+    let tile_width  = (BASE_TILE_SIZE.width  as f32) * transform.scaling;
+    let tile_height = (BASE_TILE_SIZE.height as f32) * transform.scaling;
 
-    let screen_rect = Rect2D::new(
-        Point2D::new(-tile_width, -tile_height),
-        Size2D::new(viewport_size.width + tile_width, viewport_size.height + tile_height));
+    let screen_rect = Rect::new(
+        Vec2::new(-tile_width, -tile_height),
+        Vec2::new((viewport_size.width as f32) + tile_width, (viewport_size.height as f32) + tile_height));
 
     selection::bounds(
         &screen_rect,
@@ -234,87 +232,90 @@ fn calc_visible_cells_range(viewport_size: Size2D,
         &transform)
 }
 
-fn calc_scroll_delta(cursor_screen_pos: Point2D, viewport_size: Size2D) -> Vec2 {
+fn calc_scroll_delta(cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
     let mut scroll_delta = Vec2::zero();
 
     if cursor_screen_pos.x < SCROLL_MARGIN {
         scroll_delta.x += 1.0;
-    } else if cursor_screen_pos.x > viewport_size.width - SCROLL_MARGIN {
+    } else if cursor_screen_pos.x > (viewport_size.width as f32) - SCROLL_MARGIN {
         scroll_delta.x -= 1.0;
     }
 
     if cursor_screen_pos.y < SCROLL_MARGIN {
         scroll_delta.y += 1.0;
-    } else if cursor_screen_pos.y > viewport_size.height - SCROLL_MARGIN {
+    } else if cursor_screen_pos.y > (viewport_size.height as f32) - SCROLL_MARGIN {
         scroll_delta.y -= 1.0;
     }
 
     scroll_delta
 }
 
-fn calc_scroll_speed(cursor_screen_pos: Point2D, viewport_size: Size2D) -> f32 {
+fn calc_scroll_speed(cursor_screen_pos: Vec2, viewport_size: Size) -> f32 {
     let edge_dist_x = if cursor_screen_pos.x < SCROLL_MARGIN {
         SCROLL_MARGIN - cursor_screen_pos.x
-    } else if cursor_screen_pos.x > viewport_size.width - SCROLL_MARGIN {
-        cursor_screen_pos.x - (viewport_size.width - SCROLL_MARGIN)
+    } else if cursor_screen_pos.x > (viewport_size.width as f32) - SCROLL_MARGIN {
+        cursor_screen_pos.x - ((viewport_size.width as f32) - SCROLL_MARGIN)
     } else {
-        0
+        0.0
     };
 
     let edge_dist_y = if cursor_screen_pos.y < SCROLL_MARGIN {
         SCROLL_MARGIN - cursor_screen_pos.y
-    } else if cursor_screen_pos.y > viewport_size.height - SCROLL_MARGIN {
-        cursor_screen_pos.y - (viewport_size.height - SCROLL_MARGIN)
+    } else if cursor_screen_pos.y > (viewport_size.height as f32) - SCROLL_MARGIN {
+        cursor_screen_pos.y - ((viewport_size.height as f32) - SCROLL_MARGIN)
     } else {
-        0
+        0.0
     };
 
     let max_edge_dist = edge_dist_x.max(edge_dist_y);
 
-    let scroll_strength = ((max_edge_dist as f32) / (SCROLL_MARGIN as f32)).clamp(0.0, 1.0);
+    let scroll_strength = (max_edge_dist / SCROLL_MARGIN).clamp(0.0, 1.0);
     let scroll_speed_scaled = SCROLL_SPEED * scroll_strength;
 
     scroll_speed_scaled
 }
 
-fn calc_map_center(map_size_in_cells: Size2D, scaling: i32, viewport_size: Size2D) -> Point2D {
+fn calc_map_center(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -> Vec2 {
     let bounds = calc_map_bounds(map_size_in_cells, scaling, viewport_size);
 
-    let half_diff_x = (bounds.max.x - bounds.min.x).abs() / 2;
-    let half_diff_y = (bounds.max.y - bounds.min.y).abs() / 2;
+    let half_diff_x = (bounds.max.x - bounds.min.x).abs() / 2.0;
+    let half_diff_y = (bounds.max.y - bounds.min.y).abs() / 2.0;
 
     let x = bounds.max.x - half_diff_x;
     let y = bounds.max.y - half_diff_y;
 
-    Point2D::new(x, y)
+    Vec2::new(x, y)
 }
 
-fn calc_map_bounds(map_size_in_cells: Size2D, scaling: i32, viewport_size: Size2D) -> Rect2D {
-    let tile_width_pixels  = BASE_TILE_SIZE.width  * scaling;
-    let tile_height_pixels = BASE_TILE_SIZE.height * scaling;
+fn calc_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -> Rect {
+    debug_assert!(map_size_in_cells.is_valid());
+    debug_assert!(viewport_size.is_valid());
 
-    let map_width_pixels  = map_size_in_cells.width  * tile_width_pixels;
-    let map_height_pixels = map_size_in_cells.height * tile_height_pixels;
+    let tile_width_pixels  = (BASE_TILE_SIZE.width  as f32) * scaling;
+    let tile_height_pixels = (BASE_TILE_SIZE.height as f32) * scaling;
 
-    let half_tile_width_pixels = tile_width_pixels / 2;
-    let half_map_width_pixels  = map_width_pixels  / 2;
+    let map_width_pixels  = (map_size_in_cells.width  as f32) * tile_width_pixels;
+    let map_height_pixels = (map_size_in_cells.height as f32) * tile_height_pixels;
 
-    let min_pt = Point2D::new(
-        -(half_map_width_pixels + half_tile_width_pixels - viewport_size.width),
-        viewport_size.height - tile_height_pixels);
+    let half_tile_width_pixels = tile_width_pixels / 2.0;
+    let half_map_width_pixels  = map_width_pixels  / 2.0;
 
-    let max_pt = Point2D::new(
+    let min_pt = Vec2::new(
+        -(half_map_width_pixels + half_tile_width_pixels - (viewport_size.width as f32)),
+        (viewport_size.height as f32) - tile_height_pixels);
+
+    let max_pt = Vec2::new(
         half_map_width_pixels - half_tile_width_pixels,
         map_height_pixels - tile_height_pixels);
 
-    Rect2D::from_extents(min_pt, max_pt)
+    Rect::from_extents(min_pt, max_pt)
 }
 
-fn clamp_to_map_bounds(map_size_in_cells: Size2D, scaling: i32, viewport_size: Size2D, offset: Point2D) -> Point2D {
+fn clamp_to_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Size, offset: Vec2) -> Vec2 {
     let bounds = calc_map_bounds(map_size_in_cells, scaling, viewport_size);
 
     let off_x = offset.x.clamp(bounds.min.x, bounds.max.x);
     let off_y = offset.y.clamp(bounds.min.y, bounds.max.y);
 
-    Point2D::new(off_x, off_y)
+    Vec2::new(off_x, off_y)
 }

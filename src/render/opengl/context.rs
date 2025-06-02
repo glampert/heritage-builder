@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 
 use crate::{
-    utils::{Color, Rect2D}
+    utils::{Color, Rect}
 };
 
 use super::{
@@ -145,24 +145,24 @@ impl RenderContext {
         self
     }
 
-    pub fn set_viewport(&mut self, rect: Rect2D) -> &mut Self {
+    pub fn set_viewport(&mut self, viewport: Rect) -> &mut Self {
         unsafe {
             gl::Viewport(
-                rect.x(),
-                rect.y(),
-                rect.width(),
-                rect.height());
+                viewport.x() as gl::types::GLint,
+                viewport.y() as gl::types::GLint,
+                viewport.width() as gl::types::GLint,
+                viewport.height() as gl::types::GLint);
         }
         self
     }
 
-    pub fn set_scissor(&mut self, rect: Rect2D) -> &mut Self {
+    pub fn set_scissor(&mut self, rect: Rect) -> &mut Self {
         unsafe {
             gl::Scissor(
-                rect.x(),
-                rect.y(),
-                rect.width(),
-                rect.height());
+                rect.x() as gl::types::GLint,
+                rect.y() as gl::types::GLint,
+                rect.width() as gl::types::GLint,
+                rect.height() as gl::types::GLint);
         }
         self
     }

@@ -1,5 +1,5 @@
 use crate::{
-    utils::{Color, Vec2, Size2D, Point2D, Rect2D, RectTexCoords}
+    utils::{Color, Size, Vec2, Rect, RectTexCoords}
 };
 
 use super::{
@@ -44,11 +44,11 @@ pub struct RenderSystem {
     points_batch: DrawBatch<PointVertex2D, PointIndex2D>,
     points_shader: points::Shader,
     stats: RenderStats,
-    viewport: Rect2D,
+    viewport: Rect,
 }
 
 impl RenderSystem {
-    pub fn new(viewport_size: Size2D, clear_color: Color) -> Self {
+    pub fn new(viewport_size: Size, clear_color: Color) -> Self {
         let mut render_sys = Self {
             frame_started: false,
             render_context: RenderContext::new(),
@@ -74,7 +74,7 @@ impl RenderSystem {
             ),
             points_shader: points::Shader::load(),
             stats: RenderStats::default(),
-            viewport: Rect2D::new(Point2D::zero(), viewport_size),
+            viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size),
         };
 
         render_sys.render_context
@@ -125,7 +125,7 @@ impl RenderSystem {
     pub fn flush_sprites(&mut self, tex_cache: &TextureCache) {
         debug_assert!(self.frame_started == true);
 
-        let set_sprite_shader_vars = 
+        let set_shader_vars_fn = 
             |render_context: &mut RenderContext, entry: &DrawBatchEntry| {
 
             let texture2d = tex_cache.handle_to_texture(entry.texture);
@@ -136,7 +136,7 @@ impl RenderSystem {
         };
 
         self.sprites_batch.sync();
-        self.sprites_batch.draw_entries(&mut self.render_context, &self.sprites_shader.program, set_sprite_shader_vars);
+        self.sprites_batch.draw_entries(&mut self.render_context, &self.sprites_shader.program, set_shader_vars_fn);
         self.sprites_batch.clear();
     }
 
@@ -156,39 +156,37 @@ impl RenderSystem {
         self.points_batch.clear();
     }
 
-    pub fn set_viewport_size(&mut self, new_size: Size2D) {
-        self.viewport = Rect2D::new(Point2D::zero(), new_size);
-        self.render_context.set_viewport(Rect2D::new(Point2D::zero(), new_size));
-
-        let viewport_size = new_size.to_vec2();
-        self.sprites_shader.set_viewport_size(viewport_size);
-        self.lines_shader.set_viewport_size(viewport_size);
-        self.points_shader.set_viewport_size(viewport_size);
+    pub fn set_viewport_size(&mut self, new_size: Size) {
+        self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size);
+        self.render_context.set_viewport(self.viewport);
+        self.sprites_shader.set_viewport_size(self.viewport.size_as_vec2());
+        self.lines_shader.set_viewport_size(self.viewport.size_as_vec2());
+        self.points_shader.set_viewport_size(self.viewport.size_as_vec2());
     }
 
     #[inline]
-    pub fn viewport(&self) -> Rect2D {
+    pub fn viewport(&self) -> Rect {
         self.viewport
     }
 
     #[inline]
-    pub fn viewport_size(&self) -> Size2D {
+    pub fn viewport_size(&self) -> Size {
         self.viewport.size()
     }
 
     pub fn draw_colored_rect(&mut self,
-                             rect: Rect2D,
+                             rect: Rect,
                              color: Color) {
         // Just call this with the default white texture.
         self.draw_textured_colored_rect(
             rect,
-            &RectTexCoords::default(),
+            RectTexCoords::default(),
             TextureHandle::white(),
             color);
     }
 
     pub fn draw_textured_colored_rect(&mut self,
-                                      rect: Rect2D,
+                                      rect: Rect,
                                       tex_coords: &RectTexCoords,
                                       texture: TextureHandle,
                                       color: Color) {
@@ -215,7 +213,7 @@ impl RenderSystem {
     }
 
     pub fn draw_wireframe_rect_with_thickness(&mut self,
-                                              rect: Rect2D,
+                                              rect: Rect,
                                               color: Color,
                                               thickness: f32) {
         debug_assert!(self.frame_started);
@@ -224,11 +222,11 @@ impl RenderSystem {
             return; // Cull if fully offscreen.
         }
 
-        let points: [Point2D; 4] = [
-            Point2D::new(rect.x(), rect.y()),
-            Point2D::new(rect.x() + rect.width(), rect.y()),
-            Point2D::new(rect.x() + rect.width(), rect.y() + rect.height()),
-            Point2D::new(rect.x(), rect.y() + rect.height()),
+        let points: [Vec2; 4] = [
+            Vec2::new(rect.x(), rect.y()),
+            Vec2::new(rect.x() + rect.width(), rect.y()),
+            Vec2::new(rect.x() + rect.width(), rect.y() + rect.height()),
+            Vec2::new(rect.x(), rect.y() + rect.height()),
         ];
 
         self.draw_polyline_with_thickness(&points, color, thickness, true);
@@ -237,8 +235,8 @@ impl RenderSystem {
     // This can handle straight lines efficiently but will produce discontinuities at connecting edges of
     // rectangles and other polygons. To draw connecting lines/polygons use draw_polyline_with_thickness().
     pub fn draw_line_with_thickness(&mut self,
-                                    from_pos: Point2D,
-                                    to_pos: Point2D,
+                                    from_pos: Vec2,
+                                    to_pos: Vec2,
                                     color: Color,
                                     thickness: f32) {
         debug_assert!(self.frame_started);
@@ -247,11 +245,7 @@ impl RenderSystem {
             return; // Cull if fully offscreen.
         }
 
-        // Convert to float vectors
-        let v0 = from_pos.to_vec2();
-        let v1 = to_pos.to_vec2();
-
-        let d = v1 - v0;
+        let d = to_pos - from_pos;
         let length = d.length();
 
         // Normalize and rotate 90° to get perpendicular vector
@@ -262,10 +256,10 @@ impl RenderSystem {
         let offset_y = ny * (thickness / 2.0);
 
         // Four corner points of the quad (screen space)
-        let p0 = Vec2::new((v0.x + offset_x).round(), (v0.y + offset_y).round());
-        let p1 = Vec2::new((v1.x + offset_x).round(), (v1.y + offset_y).round());
-        let p2 = Vec2::new((v1.x - offset_x).round(), (v1.y - offset_y).round());
-        let p3 = Vec2::new((v0.x - offset_x).round(), (v0.y - offset_y).round());
+        let p0 = Vec2::new((from_pos.x + offset_x).round(), (from_pos.y + offset_y).round());
+        let p1 = Vec2::new((to_pos.x   + offset_x).round(), (to_pos.y   + offset_y).round());
+        let p2 = Vec2::new((to_pos.x   - offset_x).round(), (to_pos.y   - offset_y).round());
+        let p3 = Vec2::new((from_pos.x - offset_x).round(), (from_pos.y - offset_y).round());
 
         // Draw two triangles to form a quad
         let vertices: [SpriteVertex2D; 4] = [
@@ -287,7 +281,7 @@ impl RenderSystem {
     // Handles connecting lines or closed polygons with seamless mitered joints.
     // Slower but with correct visual results.
     pub fn draw_polyline_with_thickness<const N: usize>(&mut self,
-                                                        points: &[Point2D; N],
+                                                        points: &[Vec2; N],
                                                         color: Color,
                                                         thickness: f32,
                                                         is_closed: bool) {
@@ -306,17 +300,17 @@ impl RenderSystem {
     
         for i in 0..N {
             let prev = if i == 0 {
-                if is_closed { points[N - 1].to_vec2() } else { points[0].to_vec2() }
+                if is_closed { points[N - 1] } else { points[0] }
             } else {
-                points[i - 1].to_vec2()
+                points[i - 1]
             };
     
-            let curr = points[i].to_vec2();
+            let curr = points[i];
     
             let next = if i == N - 1 {
-                if is_closed { points[0].to_vec2() } else { points[N - 1].to_vec2() }
+                if is_closed { points[0] } else { points[N - 1] }
             } else {
-                points[i + 1].to_vec2()
+                points[i + 1]
             };
 
             // Compute averaged normal (miter join)
@@ -375,7 +369,7 @@ impl RenderSystem {
     // debugging. It is possible to produce a custom draw order by manually
     // calling one of the flush_* methods to force draws to be submitted early.
 
-    pub fn draw_wireframe_rect_fast(&mut self, rect: Rect2D, color: Color) {
+    pub fn draw_wireframe_rect_fast(&mut self, rect: Rect, color: Color) {
         debug_assert!(self.frame_started);
 
         if self.is_rect_fully_offscreen(&rect) {
@@ -400,7 +394,7 @@ impl RenderSystem {
         self.stats.lines_drawn += (INDICES.len() / 2) as u32;
     }
 
-    pub fn draw_line_fast(&mut self, from_pos: Point2D, to_pos: Point2D, from_color: Color, to_color: Color) {
+    pub fn draw_line_fast(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
         debug_assert!(self.frame_started);
 
         if self.is_line_fully_offscreen(&from_pos, &to_pos) {
@@ -408,8 +402,8 @@ impl RenderSystem {
         }
 
         let vertices: [LineVertex2D; 2] = [
-            LineVertex2D { position: from_pos.to_vec2(), color: from_color },
-            LineVertex2D { position: to_pos.to_vec2(),   color: to_color   },
+            LineVertex2D { position: from_pos, color: from_color },
+            LineVertex2D { position: to_pos,   color: to_color   },
         ];
 
         const INDICES: [LineIndex2D; 2] = [ 0, 1 ];
@@ -418,7 +412,7 @@ impl RenderSystem {
         self.stats.lines_drawn += (INDICES.len() / 2) as u32;
     }
 
-    pub fn draw_point_fast(&mut self, pt: Point2D, color: Color, size: f32) {
+    pub fn draw_point_fast(&mut self, pt: Vec2, color: Color, size: f32) {
         debug_assert!(self.frame_started);
 
         if self.is_point_fully_offscreen(&pt) {
@@ -426,7 +420,7 @@ impl RenderSystem {
         }
 
         let vertices: [PointVertex2D; 1] = [
-            PointVertex2D { position: pt.to_vec2(), color: color, size: size }
+            PointVertex2D { position: pt, color: color, size: size }
         ];
 
         const INDICES: [PointIndex2D; 1] = [ 0 ];
@@ -436,7 +430,7 @@ impl RenderSystem {
     }
 
     #[inline]
-    fn is_rect_fully_offscreen(&self, rect: &Rect2D) -> bool {
+    fn is_rect_fully_offscreen(&self, rect: &Rect) -> bool {
         if rect.max.x < self.viewport.min.x || rect.max.y < self.viewport.min.y {
             return true;
         }
@@ -447,7 +441,7 @@ impl RenderSystem {
     }
 
     #[inline]
-    fn is_line_fully_offscreen(&self, from: &Point2D, to: &Point2D) -> bool {
+    fn is_line_fully_offscreen(&self, from: &Vec2, to: &Vec2) -> bool {
         if (from.x < self.viewport.min.x && to.x < self.viewport.min.x) ||
            (from.y < self.viewport.min.y && to.y < self.viewport.min.y) {
             return true;
@@ -460,7 +454,7 @@ impl RenderSystem {
     }
 
     #[inline]
-    fn is_point_fully_offscreen(&self, pt: &Point2D) -> bool {
+    fn is_point_fully_offscreen(&self, pt: &Vec2) -> bool {
         if pt.x < self.viewport.min.x || pt.y < self.viewport.min.y {
             return true;
         }

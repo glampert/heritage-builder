@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use glfw::Context;
 
 use crate::{
-    utils::{self, Size2D, Point2D, Vec2},
+    utils::{self, Size, Vec2},
     app::{Application, ApplicationEvent, ApplicationEventList},
 };
 
@@ -27,7 +27,7 @@ pub type MouseButton = glfw::MouseButton;
 
 pub struct GlfwApplication {
     title: String,
-    window_size: Size2D,
+    window_size: Size,
     fullscreen: bool,
     confine_cursor: bool,
     should_quit: bool,
@@ -37,7 +37,7 @@ pub struct GlfwApplication {
 }
 
 impl GlfwApplication {
-    pub fn new(title: String, window_size: Size2D, fullscreen: bool, confine_cursor: bool) -> Self {
+    pub fn new(title: String, window_size: Size, fullscreen: bool, confine_cursor: bool) -> Self {
         debug_assert!(window_size.is_valid());
 
         let mut glfw_instance =
@@ -110,7 +110,7 @@ impl Application for GlfwApplication {
                 glfw::WindowEvent::Size(width, height) => {
                     self.window_size.width = width;
                     self.window_size.height = height;
-                    translated_events.push(ApplicationEvent::WindowResize(Size2D::new(width, height)));
+                    translated_events.push(ApplicationEvent::WindowResize(Size::new(width, height)));
                 }
                 glfw::WindowEvent::Close => {
                     translated_events.push(ApplicationEvent::Quit);
@@ -144,13 +144,13 @@ impl Application for GlfwApplication {
         self.window.swap_buffers();
     }
 
-    fn window_size(&self) -> Size2D {
+    fn window_size(&self) -> Size {
         self.window_size
     }
 
-    fn framebuffer_size(&self) -> Size2D {
+    fn framebuffer_size(&self) -> Size {
         let (width, height) = self.window.get_framebuffer_size();
-        Size2D::new(width, height)
+        Size::new(width, height)
     }
 
     fn content_scale(&self) -> Vec2 {
@@ -238,9 +238,9 @@ impl GlfwInputSystem {
 }
 
 impl InputSystem for GlfwInputSystem {
-    fn cursor_pos(&self) -> Point2D {
+    fn cursor_pos(&self) -> Vec2 {
         let (x, y) = self.get_window().get_cursor_pos();
-        Point2D::new(x as i32, y as i32)
+        Vec2::new(x as f32, y as f32)
     }
 
     fn mouse_button_state(&self, button: MouseButton) -> InputAction {

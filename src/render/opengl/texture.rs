@@ -3,7 +3,7 @@ use bitflags::bitflags;
 use image::GenericImageView;
 
 use crate::{
-    utils::Size2D
+    utils::Size
 };
 
 use super::{
@@ -74,7 +74,7 @@ pub enum TextureWrapMode {
 pub struct Texture2D {
     handle: gl::types::GLuint,
     tex_unit: TextureUnit,
-    size: Size2D,
+    size: Size,
     filter: TextureFilter,
     wrap_mode: TextureWrapMode,
     has_mipmaps: bool,
@@ -112,8 +112,8 @@ impl Texture2D {
 
         Ok(Self::with_data_raw(
             image_raw_bytes.as_ptr() as *const c_void,
-            Size2D::new(
-                image_dims.0  as i32,
+            Size::new(
+                image_dims.0 as i32,
                 image_dims.1 as i32
             ),
             filter,
@@ -125,7 +125,7 @@ impl Texture2D {
     }
 
     pub fn with_data_raw(data: *const c_void,
-                         size: Size2D,
+                         size: Size,
                          filter: TextureFilter,
                          wrap_mode: TextureWrapMode,
                          tex_unit: TextureUnit,
@@ -218,7 +218,7 @@ impl Texture2D {
         self.tex_unit
     }
 
-    pub fn size(&self) -> Size2D {
+    pub fn size(&self) -> Size {
         self.size
     }
 
@@ -384,7 +384,7 @@ impl TextureCache {
         }
         debug_assert!(std::mem::size_of::<RGBA8>() == 4); // Ensure no padding.
 
-        const SIZE: Size2D = Size2D::new(8, 8);
+        const SIZE: Size = Size::new(8, 8);
         const PIXEL_COUNT: usize = (SIZE.width * SIZE.height) as usize;
         let pixels = [RGBA8{ r: color[0], g: color[1], b: color[2], a: color[3] }; PIXEL_COUNT];
 

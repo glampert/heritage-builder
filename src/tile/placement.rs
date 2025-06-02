@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 
 use crate::{
-    utils::{Cell2D, Point2D, WorldToScreenTransform}
+    utils::{Cell, Vec2, WorldToScreenTransform}
 };
 
 use super::{
@@ -26,7 +26,7 @@ pub fn cells_overlap(lhs_cells: &TileFootprintList, rhs_cells: &TileFootprintLis
 
 pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
                                    kind: TileMapLayerKind,
-                                   target_cell: Cell2D,
+                                   target_cell: Cell,
                                    tile_to_place: &'a TileDef) -> bool {
 
     debug_assert!(tile_map.is_cell_within_bounds(target_cell));
@@ -109,7 +109,7 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
 
 pub fn try_clear_tile_from_layer<'a>(tile_map: &mut TileMap<'a>,
                                      kind: TileMapLayerKind,
-                                     target_cell: Cell2D) -> bool {
+                                     target_cell: Cell) -> bool {
 
     debug_assert!(tile_map.is_cell_within_bounds(target_cell));
 
@@ -136,7 +136,7 @@ pub fn try_clear_tile_from_layer<'a>(tile_map: &mut TileMap<'a>,
 }
 
 pub fn try_place_tile_at_cursor<'a>(tile_map: &mut TileMap<'a>,
-                                    cursor_screen_pos: Point2D,
+                                    cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform,
                                     tile_to_place: &'a TileDef) -> bool {
 
@@ -157,7 +157,7 @@ pub fn try_place_tile_at_cursor<'a>(tile_map: &mut TileMap<'a>,
 }
 
 pub fn try_clear_tile_at_cursor<'a>(tile_map: &mut TileMap<'a>,
-                                    cursor_screen_pos: Point2D,
+                                    cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform) -> bool {
 
     // If placing an empty tile we will actually clear the topmost layer under that cell.

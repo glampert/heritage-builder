@@ -3,8 +3,8 @@ use smallvec::SmallVec;
 use crate::{
     imgui_ui::UiInputEvent,
     render::RenderSystem,
-    app::input::{MouseButton, InputAction},
-    utils::{self, Cell2D, Point2D, Rect2D, Size2D, WorldToScreenTransform}
+    app::input::{InputAction, MouseButton},
+    utils::{self, Cell, Size, Rect, Vec2, WorldToScreenTransform}
 };
 
 use super::{
@@ -19,13 +19,13 @@ use super::{
 
 #[derive(Default)]
 pub struct TileSelection<'a> {
-    rect: Rect2D, // Range selection rect w/ cursor click-n-drag.
-    cursor_drag_start: Point2D,
-    current_cursor_pos: Point2D,
+    rect: Rect, // Range selection rect w/ cursor click-n-drag.
+    cursor_drag_start: Vec2,
+    current_cursor_pos: Vec2,
     left_mouse_button_held: bool,
     placement_candidate: Option<&'a TileDef>, // Tile placement candidate.
     selection_flags: TileFlags,
-    cells: SmallVec::<[Cell2D; 36]>,
+    cells: SmallVec::<[Cell; 36]>,
 }
 
 impl<'a> TileSelection<'a> {
@@ -37,14 +37,14 @@ impl<'a> TileSelection<'a> {
         self.selection_flags != TileFlags::Invalidated
     }
 
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_screen_pos: Point2D) -> UiInputEvent {
+    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_screen_pos: Vec2) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
                 self.cursor_drag_start = cursor_screen_pos;
                 self.left_mouse_button_held = true;
                 return UiInputEvent::Handled;
             } else if action == InputAction::Release {
-                self.cursor_drag_start = Point2D::zero();
+                self.cursor_drag_start = Vec2::zero();
                 self.left_mouse_button_held = false;
             }
         }
@@ -62,8 +62,8 @@ impl<'a> TileSelection<'a> {
 
     pub fn update(&mut self,
                   layers: &mut TileMapLayerMutRefs<'a>,
-                  map_size_in_cells: Size2D,
-                  cursor_screen_pos: Point2D,
+                  map_size_in_cells: Size,
+                  cursor_screen_pos: Vec2,
                   transform: &WorldToScreenTransform,
                   placement_candidate: Option<&'a TileDef>) {
 
@@ -72,9 +72,9 @@ impl<'a> TileSelection<'a> {
 
         if self.left_mouse_button_held {
             // Keep updating the selection rect while left mouse button is held.
-            self.rect = Rect2D::from_extents(self.cursor_drag_start, cursor_screen_pos);   
+            self.rect = Rect::from_extents(self.cursor_drag_start, cursor_screen_pos);   
         } else {
-            self.rect = Rect2D::zero();
+            self.rect = Rect::zero();
         }
 
         if self.is_selecting_range() {
@@ -89,7 +89,7 @@ impl<'a> TileSelection<'a> {
 
             for y in range.min.y..=range.max.y {
                 for x in range.min.x..=range.max.x {
-                    if let Some(base_tile) = layers.terrain.try_tile(Cell2D::new(x, y)) {
+                    if let Some(base_tile) = layers.terrain.try_tile(Cell::new(x, y)) {
 
                         let tile_iso_coords =
                             base_tile.calc_adjusted_iso_coords();
@@ -124,7 +124,7 @@ impl<'a> TileSelection<'a> {
                 }
 
                 // Clear:
-                let previous_selected_cell: Cell2D = base_tile.cell;
+                let previous_selected_cell: Cell = base_tile.cell;
                 self.toggle_selection(layers, previous_selected_cell, false);
             }
 
@@ -148,8 +148,8 @@ impl<'a> TileSelection<'a> {
         }
     }
 
-    pub fn last_cell(&self) -> Cell2D {
-        self.cells.last().unwrap_or(&Cell2D::invalid()).clone()
+    pub fn last_cell(&self) -> Cell {
+        self.cells.last().unwrap_or(&Cell::invalid()).clone()
     }
 
     fn is_selecting_range(&self) -> bool {
@@ -168,7 +168,7 @@ impl<'a> TileSelection<'a> {
 
     fn toggle_selection(&mut self,
                         layers: &mut TileMapLayerMutRefs<'a>,
-                        base_cell: Cell2D,
+                        base_cell: Cell,
                         selected: bool) {
 
         // Deal with multi-tile buildings:
@@ -271,17 +271,17 @@ impl<'a> TileSelection<'a> {
 
 #[derive(Copy, Clone)]
 pub struct CellRange {
-    pub min: Cell2D,
-    pub max: Cell2D,
+    pub min: Cell,
+    pub max: Cell,
 }
 
 // "Broad-Phase" tile selection based on the 4 corners of a rectangle.
 // Given the layout of the isometric tile map, this algorithm is quite greedy
 // and will select more tiles than actually intersect the rect, so a refinement
 // pass must be done after to intersect each tile's rect with the selection rect.
-pub fn bounds(screen_rect: &Rect2D,
-              tile_size: Size2D,
-              map_size_in_cells: Size2D,
+pub fn bounds(screen_rect: &Rect,
+              tile_size: Size,
+              map_size_in_cells: Size,
               transform: &WorldToScreenTransform) -> CellRange {
 
     debug_assert!(screen_rect.is_valid());
@@ -292,10 +292,10 @@ pub fn bounds(screen_rect: &Rect2D,
     let bottom_right = utils::screen_to_iso_point(
         screen_rect.max, transform, BASE_TILE_SIZE, false);
     let top_right = utils::screen_to_iso_point(
-        Point2D::new(screen_rect.max.x, screen_rect.min.y),
+        Vec2::new(screen_rect.max.x, screen_rect.min.y),
         transform, BASE_TILE_SIZE, false);
     let bottom_left = utils::screen_to_iso_point(
-        Point2D::new(screen_rect.min.x, screen_rect.max.y),
+        Vec2::new(screen_rect.min.x, screen_rect.max.y),
         transform, BASE_TILE_SIZE, false);
 
     // Convert isometric points to cell coordinates:
@@ -317,7 +317,7 @@ pub fn bounds(screen_rect: &Rect2D,
     max_y = max_y.clamp(0, map_size_in_cells.height - 1);
 
     CellRange {
-        min: Cell2D::new(min_x, min_y),
-        max: Cell2D::new(max_x, max_y),
+        min: Cell::new(min_x, min_y),
+        max: Cell::new(max_x, max_y),
     }
 }
