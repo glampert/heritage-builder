@@ -268,14 +268,17 @@ pub struct TextureHandle {
 }
 
 impl TextureHandle {
+    #[inline]
     pub const fn invalid() -> Self {
         Self { index : DUMMY_TEXTURE_HANDLE_INDEX } // Returns dummy_texture
     }
 
+    #[inline]
     pub const fn white() -> Self {
         Self { index : WHITE_TEXTURE_HANDLE_INDEX } // Returns white_texture
     }
 
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.index >= 0
     }

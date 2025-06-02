@@ -102,8 +102,13 @@ fn main() {
                         continue;
                     }
 
-                    // TODO: Smooth transition between zoom levels.
-                    camera.set_zoom(amount.y);
+                    if !ui_sys.is_handling_mouse_input() {
+                        if amount.y < 0.0 {
+                            camera.request_zoom(camera::Zoom::In);
+                        } else if amount.y > 0.0 {
+                            camera.request_zoom(camera::Zoom::Out);
+                        }
+                    }
                 }
                 ApplicationEvent::MouseButton(button, action, modifiers) => {
                     if ui_sys.on_mouse_click(button, action, modifiers).is_handled() {
@@ -131,6 +136,8 @@ fn main() {
             }
             println!("ApplicationEvent::{:?}", event);
         }
+
+        camera.update_zooming(frame_clock.delta_time());
 
         // If we're not hovering over an ImGui menu...
         if !ui_sys.is_handling_mouse_input() {

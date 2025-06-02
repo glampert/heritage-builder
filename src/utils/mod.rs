@@ -920,6 +920,11 @@ pub fn lerp<T>(a: T, b: T, t: f32) -> T
     (1.0 - t) * a + t * b
 }
 
+#[inline]
+pub fn approx_equal(a: f32, b: f32, epsilon: f32) -> bool {
+    (a - b).abs() < epsilon
+}
+
 // ----------------------------------------------
 // FrameClock
 // ----------------------------------------------

@@ -10,16 +10,18 @@ use super::{
 };
 
 // ----------------------------------------------
-// Constants
+// Constants / Enums
 // ----------------------------------------------
 
 pub const CONFINE_CURSOR_TO_WINDOW: bool = true;
 
-pub const MIN_ZOOM: f32 = 1.0;
-pub const MAX_ZOOM: f32 = 10.0;
-
 pub const MIN_TILE_SPACING: f32 = 0.0;
 pub const MAX_TILE_SPACING: f32 = 10.0;
+
+// Zoom / scaling defaults:
+pub const MIN_ZOOM: f32 = 1.0;
+pub const MAX_ZOOM: f32 = 10.0;
+const ZOOM_SPEED: f32 = 1.0; // pixels per second
 
 // Cursor map scrolling defaults:
 const SCROLL_MARGIN: f32 = 20.0;  // pixels from edge
@@ -30,6 +32,12 @@ pub enum Offset {
     Point(f32, f32),
 }
 
+#[repr(u32)]
+pub enum Zoom {
+    In,
+    Out
+}
+
 // ----------------------------------------------
 // Camera
 // ----------------------------------------------
@@ -38,6 +46,9 @@ pub struct Camera {
     viewport_size: Size,
     map_size_in_cells: Size,
     transform: WorldToScreenTransform,
+    current_zoom: f32,
+    target_zoom: f32,
+    is_zooming: bool,
 }
 
 impl Camera {
@@ -65,7 +76,11 @@ impl Camera {
             transform: WorldToScreenTransform::new(
                 clamped_scaling,
                 clamped_offset,
-                clamped_tile_spacing),
+                clamped_tile_spacing
+            ),
+            current_zoom: clamped_scaling,
+            target_zoom: clamped_scaling,
+            is_zooming: false,
         }
     }
 
@@ -159,10 +174,32 @@ impl Camera {
     }
 
     #[inline]
-    pub fn update_zooming(&mut self, amount: f32, _delta_time: time::Duration) {
-        // TODO: Smooth zooming with mouse wheel (interpolation).
-        // Need to first implement floating point zoom/scaling and rendering.
-        self.set_zoom(self.transform.scaling + amount);
+    pub fn request_zoom(&mut self, zoom: Zoom) {
+        match zoom {
+            Zoom::In => {
+                // request zoom-in
+                self.target_zoom = (self.target_zoom + 1.0).clamp(MIN_ZOOM, MAX_ZOOM);
+            },
+            Zoom::Out => {
+                // request zoom-out
+                self.target_zoom = (self.target_zoom - 1.0).clamp(MIN_ZOOM, MAX_ZOOM);
+            }
+        }
+        self.is_zooming = true;
+    }
+
+    #[inline]
+    pub fn update_zooming(&mut self, delta_time: time::Duration) {
+        if self.is_zooming {
+            if !utils::approx_equal(self.current_zoom, self.target_zoom, 0.001) {
+                let delta_seconds = delta_time.as_secs_f32();
+                self.current_zoom = utils::lerp(self.current_zoom, self.target_zoom, delta_seconds * ZOOM_SPEED);
+            } else {
+                self.current_zoom = self.target_zoom;
+                self.is_zooming = false;
+            }
+            self.set_zoom(self.current_zoom);
+        }
     }
 
     // ----------------------
