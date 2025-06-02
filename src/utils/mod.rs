@@ -219,71 +219,6 @@ impl DivAssign for Vec2 {
 }
 
 // ----------------------------------------------
-// Vec3
-// ----------------------------------------------
-
-// For interfacing with shaders.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Default)]
-pub struct Vec3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-impl Vec3 {
-    pub const fn new(x: f32, y: f32, z: f32) -> Self {
-        Self {
-            x: x,
-            y: y,
-            z: z,
-        }
-    }
-
-    pub const fn zero() -> Self {
-        Self {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        }
-    }
-}
-
-// ----------------------------------------------
-// Vec4
-// ----------------------------------------------
-
-// For interfacing with shaders.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Default)]
-pub struct Vec4 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub w: f32,
-}
-
-impl Vec4 {
-    pub const fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
-        Self {
-            x: x,
-            y: y,
-            z: z,
-            w: w,
-        }
-    }
-
-    pub const fn zero() -> Self {
-        Self {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-            w: 0.0,
-        }
-    }
-}
-
-// ----------------------------------------------
 // Color
 // ----------------------------------------------
 
@@ -512,24 +447,24 @@ impl Cell2D {
 // `mins`` is the top-left corner and `maxs` is the bottom-right.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Rect2D {
-    pub mins: Point2D,
-    pub maxs: Point2D,
+    pub min: Point2D,
+    pub max: Point2D,
 }
 
 impl Rect2D {
     #[inline]
     pub const fn new(pos: Point2D, size: Size2D) -> Self {
         Self {
-            mins: pos,
-            maxs: Point2D::new(pos.x + size.width, pos.y + size.height),
+            min: pos,
+            max: Point2D::new(pos.x + size.width, pos.y + size.height),
         }
     }
 
     #[inline]
     pub const fn zero() -> Self {
         Self {
-            mins: Point2D::zero(),
-            maxs: Point2D::zero(),
+            min: Point2D::zero(),
+            max: Point2D::zero(),
         }
     }
 
@@ -540,8 +475,8 @@ impl Rect2D {
         let min_y = a.y.min(b.y);
         let max_y = a.y.max(b.y);
         Self {
-            mins: Point2D::new(min_x, min_y),
-            maxs: Point2D::new(max_x, max_y),
+            min: Point2D::new(min_x, min_y),
+            max: Point2D::new(max_x, max_y),
         }
     }
 
@@ -552,12 +487,12 @@ impl Rect2D {
 
     #[inline]
     pub fn x(&self) -> i32 {
-        self.mins.x
+        self.min.x
     }
 
     #[inline]
     pub fn y(&self) -> i32 {
-        self.mins.y
+        self.min.y
     }
 
     #[inline]
@@ -567,12 +502,12 @@ impl Rect2D {
 
     #[inline]
     pub fn width(&self) -> i32 {
-        self.maxs.x - self.mins.x
+        self.max.x - self.min.x
     }
 
     #[inline]
     pub fn height(&self) -> i32 {
-        self.maxs.y - self.mins.y
+        self.max.y - self.min.y
     }
 
     #[inline]
@@ -588,53 +523,58 @@ impl Rect2D {
     }
 
     #[inline]
+    pub fn size(&self) -> Size2D {
+        Size2D::new(self.width(), self.height())
+    }
+
+    #[inline]
     pub fn canonicalize(&mut self) {
-        if self.mins.x > self.maxs.x {
-            std::mem::swap(&mut self.mins.x, &mut self.maxs.x);
+        if self.min.x > self.max.x {
+            std::mem::swap(&mut self.min.x, &mut self.max.x);
         }
-        if self.mins.y > self.maxs.y {
-            std::mem::swap(&mut self.mins.y, &mut self.maxs.y);
+        if self.min.y > self.max.y {
+            std::mem::swap(&mut self.min.y, &mut self.max.y);
         }
     }
 
     // Flips min/max bounds if needed.
     #[inline]
     pub fn update_min_extent(&mut self, new_mins: Point2D) {
-        self.mins = new_mins;
+        self.min = new_mins;
         self.canonicalize();
     }
 
     #[inline]
     pub fn update_max_extent(&mut self, new_maxs: Point2D) {
-        self.maxs = new_maxs;
+        self.max = new_maxs;
         self.canonicalize();
     }
 
     // Returns `true` if this rect intersects with another.
     #[inline]
     pub fn intersects(&self, other: &Rect2D) -> bool {
-        self.mins.x < other.maxs.x &&
-        self.maxs.x > other.mins.x &&
-        self.mins.y < other.maxs.y &&
-        self.maxs.y > other.mins.y
+        self.min.x < other.max.x &&
+        self.max.x > other.min.x &&
+        self.min.y < other.max.y &&
+        self.max.y > other.min.y
     }
 
     // Returns `true` if the point is inside this rect (inclusive of mins, exclusive of maxs).
     #[inline]
     pub fn contains_point(&self, point: Point2D) -> bool {
-        point.x >= self.mins.x &&
-        point.x <  self.maxs.x &&
-        point.y >= self.mins.y &&
-        point.y <  self.maxs.y
+        point.x >= self.min.x &&
+        point.x <  self.max.x &&
+        point.y >= self.min.y &&
+        point.y <  self.max.y
     }
 
     // Returns `true` if this rect fully contains the other rect.
     #[inline]
     pub fn contains_rect(&self, other: &Rect2D) -> bool {
-        self.mins.x <= other.mins.x &&
-        self.maxs.x >= other.maxs.x &&
-        self.mins.y <= other.mins.y &&
-        self.maxs.y >= other.maxs.y
+        self.min.x <= other.min.x &&
+        self.max.x >= other.max.x &&
+        self.min.y <= other.min.y &&
+        self.max.y >= other.max.y
     }
 
     //

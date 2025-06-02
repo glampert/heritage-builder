@@ -87,8 +87,8 @@ impl<'a> TileSelection<'a> {
                 map_size_in_cells,
                 transform);
 
-            for y in range.min_cell.y..=range.max_cell.y {
-                for x in range.min_cell.x..=range.max_cell.x {
+            for y in range.min.y..=range.max.y {
+                for x in range.min.x..=range.max.x {
                     if let Some(base_tile) = layers.terrain.try_tile(Cell2D::new(x, y)) {
 
                         let tile_iso_coords =
@@ -271,8 +271,8 @@ impl<'a> TileSelection<'a> {
 
 #[derive(Copy, Clone)]
 pub struct CellRange {
-    pub min_cell: Cell2D,
-    pub max_cell: Cell2D,
+    pub min: Cell2D,
+    pub max: Cell2D,
 }
 
 // "Broad-Phase" tile selection based on the 4 corners of a rectangle.
@@ -288,14 +288,14 @@ pub fn bounds(screen_rect: &Rect2D,
 
     // Convert screen-space corners to isometric space:
     let top_left = utils::screen_to_iso_point(
-        screen_rect.mins, transform, BASE_TILE_SIZE, false);
+        screen_rect.min, transform, BASE_TILE_SIZE, false);
     let bottom_right = utils::screen_to_iso_point(
-        screen_rect.maxs, transform, BASE_TILE_SIZE, false);
+        screen_rect.max, transform, BASE_TILE_SIZE, false);
     let top_right = utils::screen_to_iso_point(
-        Point2D::new(screen_rect.maxs.x, screen_rect.mins.y),
+        Point2D::new(screen_rect.max.x, screen_rect.min.y),
         transform, BASE_TILE_SIZE, false);
     let bottom_left = utils::screen_to_iso_point(
-        Point2D::new(screen_rect.mins.x, screen_rect.maxs.y),
+        Point2D::new(screen_rect.min.x, screen_rect.max.y),
         transform, BASE_TILE_SIZE, false);
 
     // Convert isometric points to cell coordinates:
@@ -317,7 +317,7 @@ pub fn bounds(screen_rect: &Rect2D,
     max_y = max_y.clamp(0, map_size_in_cells.height - 1);
 
     CellRange {
-        min_cell: Cell2D::new(min_x, min_y),
-        max_cell: Cell2D::new(max_x, max_y),
+        min: Cell2D::new(min_x, min_y),
+        max: Cell2D::new(max_x, max_y),
     }
 }

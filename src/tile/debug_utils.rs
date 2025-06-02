@@ -247,7 +247,7 @@ pub fn draw_render_stats(ui_sys: &UiSystem,
     // Place the window at the bottom-left corner of the screen.
     let window_position = [
         5.0,
-        ui.io().display_size[1] - 150.0,
+        ui.io().display_size[1] - 170.0,
     ];
 
     ui.window("Render Stats")
@@ -270,6 +270,11 @@ pub fn draw_render_stats(ui_sys: &UiSystem,
                 format!("Texture changes: {} | Peak: {}",
                               render_sys_stats.texture_changes,
                               render_sys_stats.peak_texture_changes));
+
+            ui.text_colored(Color::yellow().to_array(),
+                format!("Draw calls: {} | Peak: {}",
+                              render_sys_stats.draw_calls,
+                              render_sys_stats.peak_draw_calls));
 
             ui.text(format!("Tile sort list: {} | Peak: {}",
                 tile_render_stats.tile_sort_list_len,

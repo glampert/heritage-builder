@@ -21,11 +21,13 @@ pub struct RenderStats {
     pub lines_drawn: u32,
     pub points_drawn: u32,
     pub texture_changes: u32,
+    pub draw_calls: u32,
     // Peaks for the whole run:
     pub peak_triangles_drawn: u32,
     pub peak_lines_drawn: u32,
     pub peak_points_drawn: u32,
     pub peak_texture_changes: u32,
+    pub peak_draw_calls: u32,
 }
 
 // ----------------------------------------------
@@ -42,7 +44,7 @@ pub struct RenderSystem {
     points_batch: DrawBatch<PointVertex2D, PointIndex2D>,
     points_shader: points::Shader,
     stats: RenderStats,
-    viewport_size: Size2D,
+    viewport: Rect2D,
 }
 
 impl RenderSystem {
@@ -72,7 +74,7 @@ impl RenderSystem {
             ),
             points_shader: points::Shader::load(),
             stats: RenderStats::default(),
-            viewport_size: viewport_size,
+            viewport: Rect2D::new(Point2D::zero(), viewport_size),
         };
 
         render_sys.render_context
@@ -96,6 +98,7 @@ impl RenderSystem {
         self.stats.lines_drawn     = 0;
         self.stats.points_drawn    = 0;
         self.stats.texture_changes = 0;
+        self.stats.draw_calls      = 0;
     }
 
     pub fn end_frame(&mut self, tex_cache: &TextureCache) -> RenderStats {
@@ -109,10 +112,12 @@ impl RenderSystem {
         self.frame_started = false;
 
         self.stats.texture_changes      = self.render_context.texture_changes();
+        self.stats.draw_calls           = self.render_context.draw_calls();
         self.stats.peak_triangles_drawn = self.stats.triangles_drawn.max(self.stats.peak_triangles_drawn);
         self.stats.peak_lines_drawn     = self.stats.lines_drawn.max(self.stats.peak_lines_drawn);
         self.stats.peak_points_drawn    = self.stats.points_drawn.max(self.stats.peak_points_drawn);
         self.stats.peak_texture_changes = self.stats.texture_changes.max(self.stats.peak_texture_changes);
+        self.stats.peak_draw_calls      = self.stats.draw_calls.max(self.stats.peak_draw_calls);
 
         self.stats.clone()
     }
@@ -152,17 +157,23 @@ impl RenderSystem {
     }
 
     pub fn set_viewport_size(&mut self, new_size: Size2D) {
-        self.viewport_size = new_size;
+        self.viewport = Rect2D::new(Point2D::zero(), new_size);
         self.render_context.set_viewport(Rect2D::new(Point2D::zero(), new_size));
 
-        let viewport_size_vec2 = new_size.to_vec2();
-        self.sprites_shader.set_viewport_size(viewport_size_vec2);
-        self.lines_shader.set_viewport_size(viewport_size_vec2);
-        self.points_shader.set_viewport_size(viewport_size_vec2);
+        let viewport_size = new_size.to_vec2();
+        self.sprites_shader.set_viewport_size(viewport_size);
+        self.lines_shader.set_viewport_size(viewport_size);
+        self.points_shader.set_viewport_size(viewport_size);
     }
 
+    #[inline]
+    pub fn viewport(&self) -> Rect2D {
+        self.viewport
+    }
+
+    #[inline]
     pub fn viewport_size(&self) -> Size2D {
-        self.viewport_size
+        self.viewport.size()
     }
 
     pub fn draw_colored_rect(&mut self,
@@ -182,6 +193,10 @@ impl RenderSystem {
                                       texture: TextureHandle,
                                       color: Color) {
         debug_assert!(self.frame_started);
+
+        if self.is_rect_fully_offscreen(&rect) {
+            return; // Cull if fully offscreen.
+        }
 
         let vertices: [SpriteVertex2D; 4] = [
             SpriteVertex2D { position: rect.bottom_left(),  tex_coords: tex_coords.bottom_left()  },
@@ -205,6 +220,10 @@ impl RenderSystem {
                                               thickness: f32) {
         debug_assert!(self.frame_started);
 
+        if self.is_rect_fully_offscreen(&rect) {
+            return; // Cull if fully offscreen.
+        }
+
         let points: [Point2D; 4] = [
             Point2D::new(rect.x(), rect.y()),
             Point2D::new(rect.x() + rect.width(), rect.y()),
@@ -223,6 +242,10 @@ impl RenderSystem {
                                     color: Color,
                                     thickness: f32) {
         debug_assert!(self.frame_started);
+
+        if self.is_line_fully_offscreen(&from_pos, &to_pos) {
+            return; // Cull if fully offscreen.
+        }
 
         // Convert to float vectors
         let v0 = from_pos.to_vec2();
@@ -355,6 +378,10 @@ impl RenderSystem {
     pub fn draw_wireframe_rect_fast(&mut self, rect: Rect2D, color: Color) {
         debug_assert!(self.frame_started);
 
+        if self.is_rect_fully_offscreen(&rect) {
+            return; // Cull if fully offscreen.
+        }
+
         let vertices: [LineVertex2D; 4] = [
             LineVertex2D { position: rect.bottom_left(),  color: color },
             LineVertex2D { position: rect.bottom_right(), color: color },
@@ -376,6 +403,10 @@ impl RenderSystem {
     pub fn draw_line_fast(&mut self, from_pos: Point2D, to_pos: Point2D, from_color: Color, to_color: Color) {
         debug_assert!(self.frame_started);
 
+        if self.is_line_fully_offscreen(&from_pos, &to_pos) {
+            return; // Cull if fully offscreen.
+        }
+
         let vertices: [LineVertex2D; 2] = [
             LineVertex2D { position: from_pos.to_vec2(), color: from_color },
             LineVertex2D { position: to_pos.to_vec2(),   color: to_color   },
@@ -387,16 +418,55 @@ impl RenderSystem {
         self.stats.lines_drawn += (INDICES.len() / 2) as u32;
     }
 
-    pub fn draw_point_fast(&mut self, pos: Point2D, color: Color, size: f32) {
+    pub fn draw_point_fast(&mut self, pt: Point2D, color: Color, size: f32) {
         debug_assert!(self.frame_started);
 
+        if self.is_point_fully_offscreen(&pt) {
+            return; // Cull if fully offscreen.
+        }
+
         let vertices: [PointVertex2D; 1] = [
-            PointVertex2D { position: pos.to_vec2(), color: color, size: size }
+            PointVertex2D { position: pt.to_vec2(), color: color, size: size }
         ];
 
         const INDICES: [PointIndex2D; 1] = [ 0 ];
 
         self.points_batch.add_fast(&vertices, &INDICES);
         self.stats.points_drawn += 1;
+    }
+
+    #[inline]
+    fn is_rect_fully_offscreen(&self, rect: &Rect2D) -> bool {
+        if rect.max.x < self.viewport.min.x || rect.max.y < self.viewport.min.y {
+            return true;
+        }
+        if rect.min.x > self.viewport.max.x || rect.min.y > self.viewport.max.y {
+            return true;
+        }
+        false
+    }
+
+    #[inline]
+    fn is_line_fully_offscreen(&self, from: &Point2D, to: &Point2D) -> bool {
+        if (from.x < self.viewport.min.x && to.x < self.viewport.min.x) ||
+           (from.y < self.viewport.min.y && to.y < self.viewport.min.y) {
+            return true;
+        }
+        if (from.x > self.viewport.max.x && to.x > self.viewport.max.x) ||
+           (from.y > self.viewport.max.y && to.y > self.viewport.max.y) {
+            return true;
+        }
+        false
+    }
+
+    #[inline]
+    fn is_point_fully_offscreen(&self, pt: &Point2D) -> bool {
+        if pt.x < self.viewport.min.x || pt.y < self.viewport.min.y {
+            return true;
+        }
+        if pt.x > self.viewport.max.x || pt.y > self.viewport.max.y {
+            return true;
+        }
+        false
     }
 }

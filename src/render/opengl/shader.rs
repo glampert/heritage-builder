@@ -3,7 +3,7 @@ use std::ffi::CString;
 use paste::paste;
 
 use crate::{
-    utils::{Vec2, Vec3, Vec4, Color}
+    utils::{Vec2, Color}
 };
 
 use super::{
@@ -74,33 +74,6 @@ impl ShaderVarTrait for Vec2 {
                 variable.location,
                 value.x,
                 value.y);
-        }
-    }
-}
-
-impl ShaderVarTrait for Vec3 {
-    fn set_uniform(variable: &ShaderVariable, value: Self) {
-        unsafe {
-            gl::ProgramUniform3f(
-                variable.program_handle,
-                variable.location,
-                value.x,
-                value.y,
-                value.z);
-        }
-    }
-}
-
-impl ShaderVarTrait for Vec4 {
-    fn set_uniform(variable: &ShaderVariable, value: Self) {
-        unsafe {
-            gl::ProgramUniform4f(
-                variable.program_handle,
-                variable.location,
-                value.x,
-                value.y,
-                value.z,
-                value.w);
         }
     }
 }

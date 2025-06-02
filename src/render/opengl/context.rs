@@ -58,7 +58,9 @@ pub struct RenderContext {
     current_vertex_array: gl::types::GLuint,
     current_index_type: Option<IndexType>,
     current_texture2d: [gl::types::GLuint; MAX_TEXTURE_UNITS],
+    // Stats:
     texture_changes_count: u32,
+    draw_call_count: u32,
 }
 
 impl RenderContext {
@@ -74,6 +76,7 @@ impl RenderContext {
             current_index_type: None,
             current_texture2d: [0; MAX_TEXTURE_UNITS],
             texture_changes_count: 0,
+            draw_call_count: 0,
         }
     }
 
@@ -247,6 +250,8 @@ impl RenderContext {
                 first_vertex as gl::types::GLint,
                 vertex_count as gl::types::GLint);
         }
+
+        self.draw_call_count += 1;
     }
 
     pub fn draw_indexed(&mut self, first_index: u32, index_count: u32) {
@@ -267,6 +272,8 @@ impl RenderContext {
                 gl_index_type,
                 offset_in_bytes as *const c_void);
         }
+
+        self.draw_call_count += 1;
     }
 
     // Sets and draw the whole VertexArray.
@@ -278,6 +285,7 @@ impl RenderContext {
 
     pub fn begin_frame(&mut self) {
         self.texture_changes_count = 0;
+        self.draw_call_count = 0;
 
         unsafe {
             gl::ClearColor(self.clear_color.r,
@@ -309,7 +317,13 @@ impl RenderContext {
         self.current_texture2d = [0; MAX_TEXTURE_UNITS];
     }
 
+    #[inline]
     pub fn texture_changes(&self) -> u32 {
         self.texture_changes_count
-    } 
+    }
+
+    #[inline]
+    pub fn draw_calls(&self) -> u32 {
+        self.draw_call_count
+    }
 }

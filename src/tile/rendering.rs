@@ -129,8 +129,8 @@ impl TileMapRenderer {
             debug_assert!(terrain_layer.size() == map_size_in_cells);
             debug_assert!(buildings_layer.size() == map_size_in_cells);
 
-            for y in (visible_range.min_cell.y..=visible_range.max_cell.y).rev() {
-                for x in (visible_range.min_cell.x..=visible_range.max_cell.x).rev() {
+            for y in (visible_range.min.y..=visible_range.max.y).rev() {
+                for x in (visible_range.min.x..=visible_range.max.x).rev() {
                     let cell = Cell2D::new(x, y);
 
                     let tile = terrain_layer.tile(cell);
@@ -182,8 +182,8 @@ impl TileMapRenderer {
 
             // Drawing in reverse order (bottom to top) is required to ensure
             // buildings with the same Z-sort value don't overlap in weird ways.
-            for y in (visible_range.min_cell.y..=visible_range.max_cell.y).rev() {
-                for x in (visible_range.min_cell.x..=visible_range.max_cell.x).rev() {
+            for y in (visible_range.min.y..=visible_range.max.y).rev() {
+                for x in (visible_range.min.x..=visible_range.max.x).rev() {
 
                     let cell = Cell2D::new(x, y);
                     let building_tile = buildings_layer.tile(cell);
@@ -251,17 +251,37 @@ impl TileMapRenderer {
                            tile_map: &TileMap,
                            transform: &WorldToScreenTransform,
                            visible_range: CellRange) {
-    
+
+        // Returns true only if all points are offscreen.
+        let viewport = render_sys.viewport();
+        let is_fully_offscreen = |points: &[Point2D; 4]| {
+
+            let mut offscreen_count = 0;
+            for pt in points {
+                if pt.x < viewport.min.x || pt.y < viewport.min.y {
+                    offscreen_count += 1;
+                } else if pt.x > viewport.max.x || pt.y > viewport.max.y {
+                    offscreen_count += 1;
+                }
+            }
+            
+            if offscreen_count == points.len() { true } else { false }
+        };
+
         let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
         let line_thickness = self.grid_line_thickness * (transform.scaling as f32);
 
         let mut highlighted_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
         let mut invalidated_cells = SmallVec::<[[Point2D; 4]; 128]>::new();
 
-        for y in visible_range.min_cell.y..=visible_range.max_cell.y {
-            for x in visible_range.min_cell.x..=visible_range.max_cell.x {
+        for y in visible_range.min.y..=visible_range.max.y {
+            for x in visible_range.min.x..=visible_range.max.x {
                 let cell = Cell2D::new(x, y);
                 let points = utils::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, BASE_TILE_SIZE, transform);
+
+                if is_fully_offscreen(&points) {
+                    continue; // Cull if fully offscreen.
+                }
 
                 // Save highlighted grid cells for drawing at the end, so they display in the right order.
                 let tile = terrain_layer.tile(cell);

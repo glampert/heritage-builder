@@ -143,17 +143,17 @@ impl Camera {
         // Remap the offset to the new scaled map bounds, so we stay at the same relative position as before.
         self.transform.offset.x = utils::map_value_to_range(
             self.transform.offset.x,
-            current_bounds.mins.x,
-            current_bounds.maxs.x,
-            new_bounds.mins.x,
-            new_bounds.maxs.x);
+            current_bounds.min.x,
+            current_bounds.max.x,
+            new_bounds.min.x,
+            new_bounds.max.x);
 
         self.transform.offset.y = utils::map_value_to_range(
             self.transform.offset.y,
-            current_bounds.mins.y,
-            current_bounds.maxs.y,
-            new_bounds.mins.y,
-            new_bounds.maxs.y);
+            current_bounds.min.y,
+            current_bounds.max.y,
+            new_bounds.min.y,
+            new_bounds.max.y);
 
         self.transform.scaling = new_zoom;
     }
@@ -172,7 +172,7 @@ impl Camera {
     #[inline]
     pub fn scroll_limits(&self) -> (Point2D, Point2D) {
         let bounds = calc_map_bounds(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
-        (bounds.mins, bounds.maxs)
+        (bounds.min, bounds.max)
     }
 
     #[inline]
@@ -182,13 +182,11 @@ impl Camera {
 
     #[inline]
     pub fn set_scroll(&mut self, scroll: Point2D) {
-        let clamped_offset = clamp_to_map_bounds(
+        self.transform.offset = clamp_to_map_bounds(
             self.map_size_in_cells,
             self.transform.scaling,
             self.viewport_size,
             scroll);
-
-        self.transform.offset = clamped_offset;
     }
 
     #[inline]
@@ -282,11 +280,11 @@ fn calc_scroll_speed(cursor_screen_pos: Point2D, viewport_size: Size2D) -> f32 {
 fn calc_map_center(map_size_in_cells: Size2D, scaling: i32, viewport_size: Size2D) -> Point2D {
     let bounds = calc_map_bounds(map_size_in_cells, scaling, viewport_size);
 
-    let half_diff_x = (bounds.maxs.x - bounds.mins.x).abs() / 2;
-    let half_diff_y = (bounds.maxs.y - bounds.mins.y).abs() / 2;
+    let half_diff_x = (bounds.max.x - bounds.min.x).abs() / 2;
+    let half_diff_y = (bounds.max.y - bounds.min.y).abs() / 2;
 
-    let x = bounds.maxs.x - half_diff_x;
-    let y = bounds.maxs.y - half_diff_y;
+    let x = bounds.max.x - half_diff_x;
+    let y = bounds.max.y - half_diff_y;
 
     Point2D::new(x, y)
 }
@@ -315,8 +313,8 @@ fn calc_map_bounds(map_size_in_cells: Size2D, scaling: i32, viewport_size: Size2
 fn clamp_to_map_bounds(map_size_in_cells: Size2D, scaling: i32, viewport_size: Size2D, offset: Point2D) -> Point2D {
     let bounds = calc_map_bounds(map_size_in_cells, scaling, viewport_size);
 
-    let off_x = offset.x.clamp(bounds.mins.x, bounds.maxs.x);
-    let off_y = offset.y.clamp(bounds.mins.y, bounds.maxs.y);
+    let off_x = offset.x.clamp(bounds.min.x, bounds.max.x);
+    let off_y = offset.y.clamp(bounds.min.y, bounds.max.y);
 
     Point2D::new(off_x, off_y)
 }
