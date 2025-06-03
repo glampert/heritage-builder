@@ -52,7 +52,7 @@ fn main() {
     let mut tile_map = TileMap::new(Size::new(64, 64));
 
     let mut tile_selection = TileSelection::new();
-    let mut tile_map_renderer = TileMapRenderer::new(DEFAULT_GRID_COLOR, 3.0);
+    let mut tile_map_renderer = TileMapRenderer::new(rendering::DEFAULT_GRID_COLOR, 3.0);
 
     let mut camera = Camera::new(
         render_sys.viewport_size(),
@@ -102,12 +102,10 @@ fn main() {
                         continue;
                     }
 
-                    if !ui_sys.is_handling_mouse_input() {
-                        if amount.y < 0.0 {
-                            camera.request_zoom(camera::Zoom::In);
-                        } else if amount.y > 0.0 {
-                            camera.request_zoom(camera::Zoom::Out);
-                        }
+                    if amount.y < 0.0 {
+                        camera.request_zoom(camera::Zoom::In);
+                    } else if amount.y > 0.0 {
+                        camera.request_zoom(camera::Zoom::Out);
                     }
                 }
                 ApplicationEvent::MouseButton(button, action, modifiers) => {
@@ -167,6 +165,10 @@ fn main() {
             }
         }
 
+        let visible_range = camera.visible_cells_range();
+
+        tile_map.update_anims(visible_range, frame_clock.delta_time());
+
         ui_sys.begin_frame(&app, &input_sys, frame_clock.delta_time());
         render_sys.begin_frame();
 
@@ -175,7 +177,7 @@ fn main() {
             &ui_sys,
             &tile_map,
             camera.transform(),
-            camera.visible_cells_range(),
+            visible_range,
             debug_settings_menu.selected_render_flags());
 
         tile_selection.draw(&mut render_sys);

@@ -1,5 +1,5 @@
 {
-    "layer_kind": "Terrain",
+    "layer": "Terrain",
     "categories": [
         {
             "name": "ground",

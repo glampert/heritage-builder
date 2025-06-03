@@ -1,5 +1,5 @@
 {
-    "layer_kind": "Buildings",
+    "layer": "Buildings",
     "categories": [
         {
             "name": "residential",
@@ -27,6 +27,19 @@
                                     ]
                                 }
                             ]
+                        },
+                        {
+                            "name": "var1",
+                            "anim_sets": [
+                                {
+                                    "name": "idle",
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
                         }
                     ]
                 },
@@ -43,6 +56,19 @@
                     "variations": [
                         {
                             "name": "var0",
+                            "anim_sets": [
+                                {
+                                    "name": "idle",
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var1",
                             "anim_sets": [
                                 {
                                     "name": "idle",

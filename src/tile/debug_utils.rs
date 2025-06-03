@@ -249,7 +249,7 @@ pub fn draw_render_stats(ui_sys: &UiSystem,
     // Place the window at the bottom-left corner of the screen.
     let window_position = [
         5.0,
-        ui.io().display_size[1] - 170.0,
+        ui.io().display_size[1] - 185.0,
     ];
 
     ui.window("Render Stats")

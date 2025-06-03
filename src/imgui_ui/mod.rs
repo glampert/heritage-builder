@@ -2,7 +2,12 @@ use std::ptr::null;
 use std::ffi::c_void;
 use std::time::{self};
 
-use imgui::Context as ImGuiContext;
+use imgui::{
+    Context as ImGuiContext,
+    StyleColor,
+    Style
+};
+
 use imgui_opengl_renderer::Renderer as ImGuiRenderer;
 
 pub use imgui::FontId as UiFontHandle;
@@ -172,7 +177,9 @@ impl UiContext {
 
         // 'None' disables automatic "imgui.ini" saving.
         imgui_ctx.set_ini_filename(None);
-    
+
+        Self::apply_custom_theme(imgui_ctx.style_mut());
+
         // Load default fonts:
         const NORMAL_FONT_SIZE: f32 = 13.0;
         let font_normal = imgui_ctx.fonts().add_font(
@@ -327,5 +334,98 @@ impl UiContext {
     
             _ => return None, // Key not used by ImGui.
         })
+    }
+
+    fn apply_custom_theme(style: &mut Style) {
+        let colors = &mut style.colors;
+
+        colors[StyleColor::Text as usize] = [0.92, 0.93, 0.94, 1.0].into();
+        colors[StyleColor::TextDisabled as usize] = [0.50, 0.52, 0.54, 1.0].into();
+        colors[StyleColor::WindowBg as usize] = [0.14, 0.14, 0.16, 0.9].into();
+        colors[StyleColor::ChildBg as usize] = [0.16, 0.16, 0.18, 0.9].into();
+        colors[StyleColor::PopupBg as usize] = [0.18, 0.18, 0.20, 0.9].into();
+        colors[StyleColor::Border as usize] = [0.28, 0.29, 0.30, 0.60].into();
+        colors[StyleColor::BorderShadow as usize] = [0.00, 0.00, 0.00, 0.00].into();
+        colors[StyleColor::FrameBg as usize] = [0.20, 0.22, 0.24, 1.0].into();
+        colors[StyleColor::FrameBgHovered as usize] = [0.22, 0.24, 0.26, 1.0].into();
+        colors[StyleColor::FrameBgActive as usize] = [0.24, 0.26, 0.28, 1.0].into();
+        colors[StyleColor::TitleBg as usize] = [0.14, 0.14, 0.16, 1.0].into();
+        colors[StyleColor::TitleBgActive as usize] = [0.16, 0.16, 0.18, 1.0].into();
+        colors[StyleColor::TitleBgCollapsed as usize] = [0.14, 0.14, 0.16, 0.9].into();
+        colors[StyleColor::MenuBarBg as usize] = [0.20, 0.20, 0.22, 1.0].into();
+        colors[StyleColor::ScrollbarBg as usize] = [0.16, 0.16, 0.18, 1.0].into();
+
+        let theme_color = [0.58, 0.45, 0.35, 1.0]; // Soft light brown
+
+        colors[StyleColor::ScrollbarGrab as usize] = theme_color.into();
+        colors[StyleColor::ScrollbarGrabHovered as usize] = [0.63, 0.50, 0.38, 1.0].into();
+        colors[StyleColor::ScrollbarGrabActive as usize] = [0.68, 0.54, 0.42, 1.0].into();
+
+        colors[StyleColor::CheckMark as usize] = theme_color.into();
+        colors[StyleColor::SliderGrab as usize] = theme_color.into();
+        colors[StyleColor::SliderGrabActive as usize] = [0.65, 0.50, 0.40, 1.0].into();
+
+        colors[StyleColor::Button as usize] = theme_color.into();
+        colors[StyleColor::ButtonHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
+        colors[StyleColor::ButtonActive as usize] = [0.70, 0.55, 0.45, 1.0].into();
+
+        colors[StyleColor::Header as usize] = theme_color.into();
+        colors[StyleColor::HeaderHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
+        colors[StyleColor::HeaderActive as usize] = [0.70, 0.55, 0.45, 1.0].into();
+
+        colors[StyleColor::Separator as usize] = [0.28, 0.29, 0.30, 1.0].into();
+        colors[StyleColor::SeparatorHovered as usize] = theme_color.into();
+        colors[StyleColor::SeparatorActive as usize] = theme_color.into();
+
+        colors[StyleColor::ResizeGrip as usize] = theme_color.into();
+        colors[StyleColor::ResizeGripHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
+        colors[StyleColor::ResizeGripActive as usize] = [0.70, 0.55, 0.45, 1.0].into();
+
+        colors[StyleColor::Tab as usize] = [0.20, 0.22, 0.24, 1.0].into();
+        colors[StyleColor::TabHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
+        colors[StyleColor::TabActive as usize] = theme_color.into();
+        colors[StyleColor::TabUnfocused as usize] = [0.20, 0.22, 0.24, 1.0].into();
+        colors[StyleColor::TabUnfocusedActive as usize] = theme_color.into();
+
+        colors[StyleColor::PlotLines as usize] = theme_color.into();
+        colors[StyleColor::PlotLinesHovered as usize] = theme_color.into();
+        colors[StyleColor::PlotHistogram as usize] = theme_color.into();
+        colors[StyleColor::PlotHistogramHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
+
+        colors[StyleColor::TableHeaderBg as usize] = [0.20, 0.22, 0.24, 1.0].into();
+        colors[StyleColor::TableBorderStrong as usize] = [0.28, 0.29, 0.30, 1.0].into();
+        colors[StyleColor::TableBorderLight as usize] = [0.24, 0.25, 0.26, 1.0].into();
+        colors[StyleColor::TableRowBg as usize] = [0.20, 0.22, 0.24, 1.0].into();
+        colors[StyleColor::TableRowBgAlt as usize] = [0.22, 0.24, 0.26, 1.0].into();
+
+        colors[StyleColor::TextSelectedBg as usize] = [0.58, 0.45, 0.35, 0.35].into();
+        colors[StyleColor::DragDropTarget as usize] = [0.58, 0.45, 0.35, 0.90].into();
+        colors[StyleColor::NavHighlight as usize] = theme_color.into();
+        colors[StyleColor::NavWindowingHighlight as usize] = [1.0, 1.0, 1.0, 0.70].into();
+        colors[StyleColor::NavWindowingDimBg as usize] = [0.80, 0.80, 0.80, 0.20].into();
+        colors[StyleColor::ModalWindowDimBg as usize] = [0.80, 0.80, 0.80, 0.35].into();
+
+        style.window_padding = [8.0, 8.0].into();
+        style.frame_padding = [5.0, 2.0].into();
+        style.cell_padding = [6.0, 6.0].into();
+        style.item_spacing = [6.0, 6.0].into();
+        style.item_inner_spacing = [6.0, 6.0].into();
+        style.touch_extra_padding = [0.0, 0.0].into();
+        style.indent_spacing = 25.0;
+        style.scrollbar_size = 11.0;
+        style.grab_min_size = 10.0;
+        style.window_border_size = 1.0;
+        style.child_border_size = 1.0;
+        style.popup_border_size = 1.0;
+        style.frame_border_size = 1.0;
+        style.tab_border_size = 1.0;
+        style.window_rounding = 7.0;
+        style.child_rounding = 4.0;
+        style.frame_rounding = 3.0;
+        style.popup_rounding = 4.0;
+        style.scrollbar_rounding = 9.0;
+        style.grab_rounding = 3.0;
+        style.log_slider_deadzone = 4.0;
+        style.tab_rounding = 4.0;
     }
 }

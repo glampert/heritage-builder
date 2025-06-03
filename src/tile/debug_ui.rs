@@ -537,24 +537,44 @@ impl TileInspectorMenu {
             .flags(window_flags)
             .position(window_position, imgui::Condition::Appearing)
             .build(|| {
-                if ui.collapsing_header("Properties", imgui::TreeNodeFlags::empty()) {
-                    let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+                {
+                    let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
 
-                    ui.text(format!("Name.........: '{}'", tile.name()));
-                    ui.text(format!("Category.....: '{}'", category_name));
-                    ui.text(format!("Kind.........: {:?}", tile.kind()));
-                    ui.text(format!("Cell.........: {},{}", tile.cell.x, tile.cell.y));
-                    ui.text(format!("Iso pos......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
-                    ui.text(format!("Iso adjusted.: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
-                    ui.text(format!("Screen pos...: {:.1},{:.1}", tile_screen_pos.x(), tile_screen_pos.y()));
-                    ui.text(format!("Logical size.: {},{}", tile.logical_size().width, tile.logical_size().height));
-                    ui.text(format!("Draw size....: {},{}", tile.draw_size().width, tile.draw_size().height));
-                    ui.text(format!("Cells size...: {},{}", tile.size_in_cells().width, tile.size_in_cells().height));
-                    ui.text(format!("Z-sort.......: {}", tile.calc_z_sort()));
-                    ui.text(format!("Color RGBA...: [{},{},{},{}]", tile.def.color.r, tile.def.color.g, tile.def.color.b, tile.def.color.a));
-                    ui.text(format!("Variations...: {}", tile.def.variations.len()));
-                    ui.text(format!("Anim Sets....: {}", tile.def.count_anim_sets()));
-                    ui.text(format!("Anim Frames..: {}", tile.def.count_anim_frames()));
+                    if ui.collapsing_header("Properties", imgui::TreeNodeFlags::empty()) {
+                        ui.text(format!("Name..........: '{}'", tile.name()));
+                        ui.text(format!("Category......: '{}'", category_name));
+                        ui.text(format!("Kind..........: {:?}", tile.kind()));
+                        ui.text(format!("Cell..........: {},{}", tile.cell.x, tile.cell.y));
+                        ui.text(format!("Iso pos.......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
+                        ui.text(format!("Iso adjusted..: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
+                        ui.text(format!("Screen pos....: {:.1},{:.1}", tile_screen_pos.x(), tile_screen_pos.y()));
+                        ui.text(format!("Logical size..: {},{}", tile.logical_size().width, tile.logical_size().height));
+                        ui.text(format!("Draw size.....: {},{}", tile.draw_size().width, tile.draw_size().height));
+                        ui.text(format!("Cells size....: {},{}", tile.size_in_cells().width, tile.size_in_cells().height));
+                        ui.text(format!("Z-sort........: {}", tile.calc_z_sort()));
+
+                        let color = tile.tint_color();
+                        ui.text(format!("Color RGBA....: [{},{},{},{}]", color.r, color.g, color.b, color.a));
+                    }
+
+                    if ui.collapsing_header("Variations", imgui::TreeNodeFlags::empty()) {
+                        let mut variation_index = tile.variation_index();
+                        if ui.input_scalar("Var", &mut variation_index).step(1).build() {
+                            tile.set_variation_index(variation_index);
+                        }
+
+                        ui.text(format!("Variations....: {}", tile.variation_count()));
+                        ui.text(format!("Variation idx.: {}, '{}'", tile.variation_index(), tile.variation_name()));
+                    }
+
+                    if ui.collapsing_header("Animation", imgui::TreeNodeFlags::empty()) {
+                        ui.text(format!("Is animated...: {}", tile.is_animated()));
+                        ui.text(format!("Anim sets.....: {}", tile.anim_sets_count()));
+                        ui.text(format!("Anim set idx..: {}, '{}'", tile.anim_set_index(), tile.anim_set_name()));
+                        ui.text(format!("Anim frames...: {}", tile.anim_frames_count()));
+                        ui.text(format!("Frame idx.....: {}", tile.anim_frame_index()));
+                        ui.text(format!("Frame time....: {:.2}", tile.anim_frame_play_time_secs()));
+                    }
                 }
 
                 if ui.collapsing_header("Debug Options", imgui::TreeNodeFlags::empty()) {

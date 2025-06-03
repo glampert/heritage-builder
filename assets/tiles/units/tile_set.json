@@ -1,5 +1,5 @@
 {
-    "layer_kind": "Units",
+    "layer": "Units",
     "categories": [
         {
             "name": "on_foot",
@@ -15,9 +15,20 @@
                             "anim_sets": [
                                 {
                                     "name": "idle",
+                                    "looping": true,
+                                    "duration": 10.0,
                                     "frames": [
                                         {
                                             "name": "frame0"
+                                        },
+                                        {
+                                            "name": "frame1"
+                                        },
+                                        {
+                                            "name": "frame2"
+                                        },
+                                        {
+                                            "name": "frame3"
                                         }
                                     ]
                                 }

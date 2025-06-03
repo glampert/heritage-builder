@@ -1,3 +1,4 @@
+use std::time::{self};
 use bitflags::bitflags;
 use smallvec::smallvec;
 use arrayvec::ArrayVec;
@@ -6,14 +7,25 @@ use strum_macros::{Display, EnumCount, EnumIter};
 use serde::Deserialize;
 
 use crate::{
-    utils::{self, Cell, IsoPoint, Size, Vec2, WorldToScreenTransform}
+    utils::{self, Cell, IsoPoint, Size, Vec2, Color, WorldToScreenTransform}
 };
 
 use super::{
-    sets::{TileDef, TileKind, TileFootprintList, BASE_TILE_SIZE},
-    selection::TileSelection,
+    sets::{TileDef, TileKind, TileTexInfo, TileFootprintList, BASE_TILE_SIZE},
+    selection::{TileSelection, CellRange},
     placement::{self}
 };
+
+// ----------------------------------------------
+// TileAnimState
+// ----------------------------------------------
+
+#[derive(Clone, Default)]
+struct TileAnimState {
+    anim_set: u16,
+    frame: u16,
+    frame_play_time_secs: f32,
+}
 
 // ----------------------------------------------
 // Tile / TileFlags
@@ -21,10 +33,10 @@ use super::{
 
 bitflags! {
     #[derive(Copy, Clone, Default, PartialEq)]
-    pub struct TileFlags: u32 {
-        const Highlighted     = 1 << 1;
-        const Invalidated     = 1 << 2;
-        const Hidden          = 1 << 3;
+    pub struct TileFlags: u16 {
+        const Hidden          = 1 << 1;
+        const Highlighted     = 1 << 2;
+        const Invalidated     = 1 << 3;
         const OccludesTerrain = 1 << 4;
     
         // Debug flags:
@@ -38,29 +50,25 @@ bitflags! {
 pub struct Tile<'a> {
     pub cell: Cell,
     owner_cell: Cell, // For building blockers only.
+
     pub def: &'a TileDef,
     pub flags: TileFlags,
+
+    variation: u16,
+    anim_state: TileAnimState,
 }
 
 impl<'a> Tile<'a> {
     #[inline]
-    const fn new(cell: Cell, owner_cell: Cell, def: &'a TileDef, flags: TileFlags) -> Self {
+    fn new(cell: Cell, owner_cell: Cell, def: &'a TileDef, flags: TileFlags) -> Self {
         Self {
             cell: cell,
             owner_cell: owner_cell,
             def: def,
             flags: flags,
+            variation: 0,
+            anim_state: TileAnimState::default()
         }
-    }
-
-    #[inline]
-    pub const fn empty() -> &'static Self {
-        static EMPTY_TILE: Tile = Tile::new(
-            Cell::invalid(),
-            Cell::invalid(),
-            TileDef::empty(),
-            TileFlags::empty());
-        &EMPTY_TILE
     }
 
     #[inline]
@@ -68,6 +76,8 @@ impl<'a> Tile<'a> {
         self.owner_cell = owner_cell;
         self.def = TileDef::blocker();
         self.flags = owner_flags;
+        self.variation = 0;
+        self.anim_state = TileAnimState::default();
     }
 
     #[inline]
@@ -75,12 +85,16 @@ impl<'a> Tile<'a> {
         self.owner_cell = Cell::invalid();
         self.def = TileDef::empty();
         self.flags = TileFlags::empty();
+        self.variation = 0;
+        self.anim_state = TileAnimState::default();
     }
 
     #[inline]
     pub fn set_def(&mut self, tile_def: &'a TileDef) {
         self.def = tile_def;
         self.flags = tile_def.tile_flags();
+        self.variation = 0;
+        self.anim_state = TileAnimState::default();
     }
 
     #[inline]
@@ -110,6 +124,11 @@ impl<'a> Tile<'a> {
     #[inline]
     pub fn size_in_cells(&self) -> Size {
         self.def.size_in_cells()
+    }
+
+    #[inline]
+    pub fn tint_color(&self) -> Color {
+        self.def.color
     }
 
     #[inline]
@@ -228,6 +247,115 @@ impl<'a> Tile<'a> {
             },
         }
     }
+
+    #[inline]
+    pub fn anim_sets_count(&self) -> usize {
+        self.def.anim_sets_count(self.variation_index())
+    }
+
+    #[inline]
+    pub fn anim_set_name(&self) -> &str {
+        self.def.anim_set_name(self.variation_index(), self.anim_set_index())
+    }
+
+    #[inline]
+    pub fn anim_frames_count(&self) -> usize {
+        self.def.anim_frames_count(self.variation_index())
+    }
+
+    #[inline]
+    pub fn variation_count(&self) -> usize {
+        self.def.variations.len()
+    }
+
+    #[inline]
+    pub fn variation_name(&self) -> &str {
+        self.def.variation_name(self.variation_index())
+    }
+
+    #[inline]
+    pub fn set_variation_index(&mut self, variation_index: usize) {
+        self.variation = variation_index.min(self.def.variations.len() - 1) as u16;
+    }
+
+    #[inline]
+    pub fn variation_index(&self) -> usize {
+        self.variation as usize
+    }
+
+    #[inline]
+    pub fn anim_set_index(&self) -> usize {
+        self.anim_state.anim_set as usize
+    }
+
+    #[inline]
+    pub fn anim_frame_index(&self) -> usize {
+        self.anim_state.frame as usize
+    }
+
+    #[inline]
+    pub fn anim_frame_play_time_secs(&self) -> f32 {
+        self.anim_state.frame_play_time_secs
+    }
+
+    #[inline]
+    pub fn anim_frame_tex_info(&self) -> Option<&TileTexInfo> {
+        if let Some(anim_set) = self.def.anim_set_by_index(self.variation_index(), self.anim_set_index()) {
+            if self.anim_frame_index() < anim_set.frames.len() {
+                return Some(&anim_set.frames[self.anim_frame_index()].tex_info);
+            }
+        }
+        None
+    }
+
+    #[inline]
+    pub fn is_animated(&self) -> bool {
+        if self.kind_has_animation() {
+            if let Some(anim_set) = self.def.anim_set_by_index(self.variation_index(), self.anim_set_index()) {
+                if anim_set.frames.len() > 1 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    #[inline]
+    fn kind_has_animation(&self) -> bool {
+        match self.kind() {
+            TileKind::Empty | TileKind::Blocker | TileKind::Terrain => false,
+            _ => true
+        }
+    }
+
+    fn update_anim(&mut self, delta_time_secs: f32) {
+        if !self.kind_has_animation() {
+            return;
+        }
+
+        if let Some(anim_set) = self.def.anim_set_by_index(self.variation_index(), self.anim_set_index()) {
+            if anim_set.frames.len() <= 1 {
+                // Single frame sprite, nothing to update.
+                return;
+            }
+
+            self.anim_state.frame_play_time_secs += delta_time_secs;
+
+            if self.anim_state.frame_play_time_secs >= anim_set.frame_duration_secs() {
+                if (self.anim_state.frame as usize) < anim_set.frames.len() - 1 {
+                    // Move to next frame.
+                    self.anim_state.frame += 1;
+                } else {
+                    // Played the whole anim.
+                    if anim_set.looping {
+                        self.anim_state.frame = 0;
+                    }
+                }
+                // Reset the clock.
+                self.anim_state.frame_play_time_secs = 0.0;
+            }
+        }      
+    }
 }
 
 // ----------------------------------------------
@@ -255,8 +383,8 @@ pub fn tile_kind_to_layer(tile_kind: TileKind) -> TileMapLayerKind {
 }
 
 #[inline]
-pub fn layer_to_tile_kind(layer_kind: TileMapLayerKind) -> TileKind {
-    match layer_kind {
+pub fn layer_to_tile_kind(layer: TileMapLayerKind) -> TileKind {
+    match layer {
         TileMapLayerKind::Terrain   => TileKind::Terrain,
         TileMapLayerKind::Buildings => TileKind::Building,
         TileMapLayerKind::Units     => TileKind::Unit,
@@ -286,7 +414,7 @@ pub struct TileMapLayer<'a> {
 }
 
 impl<'a> TileMapLayer<'a> {
-    pub fn new(kind: TileMapLayerKind, size_in_cells: Size, fill_tile: &'a TileDef) -> Self {
+    fn new(kind: TileMapLayerKind, size_in_cells: Size, fill_tile: &'a TileDef) -> Self {
         let tile_count = (size_in_cells.width * size_in_cells.height) as usize;
 
         let mut layer = Self {
@@ -319,10 +447,7 @@ impl<'a> TileMapLayer<'a> {
 
     #[inline]
     pub fn add_tile(&mut self, cell: Cell, tile_def: &'a TileDef) {
-        if !tile_def.is_empty() {
-            debug_assert!(tile_kind_to_layer(tile_def.kind) == self.kind);
-        }
-
+        debug_assert!(tile_def.is_empty() || tile_kind_to_layer(tile_def.kind) == self.kind);
         let flags = tile_def.tile_flags();
         let tile_index = self.cell_to_index(cell);
         self.tiles[tile_index] = Tile::new(cell, Cell::invalid(), tile_def, flags);
@@ -359,12 +484,8 @@ impl<'a> TileMapLayer<'a> {
     pub fn tile(&self, cell: Cell) -> &Tile {
         let tile_index = self.cell_to_index(cell);
         let tile = &self.tiles[tile_index];
-
-        if !tile.is_empty() {
-            debug_assert!(tile_kind_to_layer(tile.kind()) == self.kind);
-        }
+        debug_assert!(tile.is_empty() || tile_kind_to_layer(tile.kind()) == self.kind);
         debug_assert!(tile.cell == cell);
-
         tile
     }
 
@@ -372,12 +493,8 @@ impl<'a> TileMapLayer<'a> {
     pub fn tile_mut(&mut self, cell: Cell) -> &mut Tile<'a> {
         let tile_index = self.cell_to_index(cell);
         let tile = &mut self.tiles[tile_index];
-
-        if !tile.is_empty() {
-            debug_assert!(tile_kind_to_layer(tile.kind()) == self.kind);
-        }
+        debug_assert!(tile.is_empty() || tile_kind_to_layer(tile.kind()) == self.kind);
         debug_assert!(tile.cell == cell);
-
         tile
     }
 
@@ -516,6 +633,16 @@ impl<'a> TileMapLayer<'a> {
         debug_assert!(self.is_cell_within_bounds(cell));
         let tile_index = cell.x + (cell.y * self.size_in_cells.width);
         tile_index as usize
+    }
+
+    #[inline]
+    fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: f32) {
+        for y in visible_range.min.y..=visible_range.max.y {
+            for x in visible_range.min.x..=visible_range.max.x {
+                let tile = self.tile_mut(Cell::new(x, y));
+                tile.update_anim(delta_time_secs);
+            }
+        }
     }
 }
 
@@ -714,8 +841,8 @@ impl<'a> TileMap<'a> {
         if self.is_cell_within_bounds(selected_cell) {
             // Returns the tile at the topmost layer if it is not empty (unit, building, terrain),
             // or nothing if all layers are empty.
-            for layer_kind in TileMapLayerKind::iter().rev() {
-                if let Some(tile) = self.try_tile_from_layer(selected_cell, layer_kind) {
+            for layer in TileMapLayerKind::iter().rev() {
+                if let Some(tile) = self.try_tile_from_layer(selected_cell, layer) {
                     if !tile.is_empty() {
                         return Some(tile);
                     }
@@ -760,5 +887,13 @@ impl<'a> TileMap<'a> {
                 visitor_fn(tile);
             }
         }
+    }
+
+    pub fn update_anims(&mut self, visible_range: CellRange, delta_time: time::Duration) {
+        let delta_time_secs = delta_time.as_secs_f32();
+        let layers = self.layers_mut();
+        layers.buildings.update_anims(visible_range, delta_time_secs);
+        layers.units.update_anims(visible_range, delta_time_secs);
+        // NOTE: Terrain layer not animated by design.
     }
 }

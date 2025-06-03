@@ -116,6 +116,20 @@ pub struct TileAnimSet {
     pub frames: SmallVec<[TileSprite; 1]>,
 }
 
+impl TileAnimSet {
+    #[inline]
+    pub fn anim_duration_secs(&self) -> f32 {
+        self.duration
+    }
+
+    #[inline]
+    pub fn frame_duration_secs(&self) -> f32 {
+        let frame_count = self.frames.len();
+        debug_assert!(frame_count != 0, "At least one animation frame required");
+        self.duration / (frame_count as f32)
+    }
+}
+
 // ----------------------------------------------
 // TileVariation
 // ----------------------------------------------
@@ -285,22 +299,10 @@ impl TileDef {
                             variation_index: usize,
                             anim_set_index: usize,
                             frame_index: usize) -> TextureHandle {
-
-        if variation_index >= self.variations.len() {
-            return TextureHandle::invalid();
+        if let Some(frame) = self.anim_frame_by_index(variation_index, anim_set_index, frame_index) {
+            return frame.tex_info.texture;
         }
-
-        let var = &self.variations[variation_index];
-        if anim_set_index >= var.anim_sets.len() {
-            return TextureHandle::invalid();
-        }
-
-        let anim_set = &var.anim_sets[anim_set_index];
-        if frame_index >= anim_set.frames.len() {
-            return TextureHandle::invalid();
-        }
-
-        anim_set.frames[frame_index].tex_info.texture
+        TextureHandle::invalid()
     }
 
     #[inline]
@@ -308,48 +310,74 @@ impl TileDef {
                                variation_index: usize,
                                anim_set_index: usize,
                                frame_index: usize) -> Option<&TileSprite> {
+        if let Some(anim_set) = self.anim_set_by_index(variation_index, anim_set_index) {
+            if frame_index < anim_set.frames.len() {
+                return Some(&anim_set.frames[frame_index])
+            }
+        }
+        None
+    }
 
+    #[inline]
+    pub fn anim_set_by_index(&self,
+                             variation_index: usize,
+                             anim_set_index: usize) -> Option<&TileAnimSet> {
         if variation_index >= self.variations.len() {
             return None;
         }
 
-        let var = &self.variations[variation_index];
-        if anim_set_index >= var.anim_sets.len() {
+        let variation = &self.variations[variation_index];
+        if anim_set_index >= variation.anim_sets.len() {
             return None;
         }
 
-        let anim_set = &var.anim_sets[anim_set_index];
-        if frame_index >= anim_set.frames.len() {
-            return None;
-        }
-
-        Some(&anim_set.frames[frame_index])
+        Some(&variation.anim_sets[anim_set_index])
     }
 
-    pub fn count_anim_sets(&self) -> usize {
+    pub fn anim_sets_count(&self, variation_index: usize) -> usize {
+        if variation_index >= self.variations.len() {
+            return 0;
+        }
+        self.variations[variation_index].anim_sets.len()
+    }
+
+    pub fn anim_frames_count(&self, variation_index: usize) -> usize {
+        if variation_index >= self.variations.len() {
+            return 0;
+        }
+
+        let variation = &self.variations[variation_index];
         let mut count = 0;
-        for var in &self.variations {
-            count += var.anim_sets.len();
+        for anim_set in &variation.anim_sets {
+            count += anim_set.frames.len();
         }
         count
     }
 
-    pub fn count_anim_frames(&self) -> usize {
-        let mut count = 0;
-        for var in &self.variations {
-            for anim in &var.anim_sets {
-                count += anim.frames.len();
-            }
+    pub fn variation_name(&self, variation_index: usize) -> &str {
+        if variation_index >= self.variations.len() {
+            return "";
         }
-        count
+        &self.variations[variation_index].name
+    }
+
+    pub fn anim_set_name(&self, variation_index: usize, anim_set_index: usize) -> &str {
+        if variation_index >= self.variations.len() {
+            return "";
+        }
+        let variation = &self.variations[variation_index];
+        if anim_set_index >= variation.anim_sets.len() {
+            return "";
+        }
+        &variation.anim_sets[anim_set_index].name
     }
 
     fn post_load(&mut self,
                  tex_cache: &mut TextureCache,
                  tile_set_path_with_category: &str,
-                 layer_kind: TileMapLayerKind) -> bool {
+                 layer: TileMapLayerKind) -> bool {
 
-        self.kind = map::layer_to_tile_kind(layer_kind);
+        self.kind = map::layer_to_tile_kind(layer);
 
         if self.name.is_empty() {
             eprintln!("TileDef '{}' name is missing! A name is required.", self.kind);
@@ -400,7 +428,7 @@ impl TileDef {
         // Validate deserialized data and resolve texture handles:
         for variation in &mut self.variations {
             for anim_set in &mut variation.anim_sets {
-                if layer_kind == TileMapLayerKind::Buildings {
+                if layer == TileMapLayerKind::Buildings {
                     if variation.name.is_empty() {
                         eprintln!("Variation name missing for TileDef: '{}' - '{}'", self.kind, self.name);
                         return false;
@@ -409,7 +437,7 @@ impl TileDef {
                         eprintln!("AnimSet name missing for TileDef: '{}' - '{}'", self.kind, self.name);
                         return false;
                     }
-                } else if layer_kind == TileMapLayerKind::Units {
+                } else if layer == TileMapLayerKind::Units {
                     if anim_set.name.is_empty() {
                         eprintln!("AnimSet name missing for TileDef: '{}' - '{}'", self.kind, self.name);
                         return false;
@@ -435,7 +463,7 @@ impl TileDef {
                     //  terrain/<category>/<tile>.png
                     //  buildings/<category>/<building_name>/<variation>/<anim_set>/<frame[N]>.png
                     //  units/<category>/<unit_name>/<anim_set>/<frame[N]>.png
-                    let texture_path = match layer_kind {
+                    let texture_path = match layer {
                         TileMapLayerKind::Terrain => {
                             format!("{}{}{}.png",
                                     tile_set_path_with_category,
@@ -538,7 +566,7 @@ impl TileCategory {
     fn post_load(&mut self,
                  tex_cache: &mut TextureCache,
                  tile_set_path: &str,
-                 layer_kind: TileMapLayerKind) -> bool {
+                 layer: TileMapLayerKind) -> bool {
 
         debug_assert!(self.mapping.is_empty());
 
@@ -554,7 +582,7 @@ impl TileCategory {
             tile_def.category_tile_index = entry_index as i32;
             tile_def.tileset_category_index = self.tileset_category_index;
 
-            if !tile_def.post_load(tex_cache, &tile_set_path_with_category, layer_kind) {
+            if !tile_def.post_load(tex_cache, &tile_set_path_with_category, layer) {
                 return false;
             }
 
@@ -581,7 +609,7 @@ impl TileCategory {
 pub struct TileSet {
     // Layer, e.g.: Terrain, Building, Unit.
     // Also internal runtime index into TileSets.
-    pub layer_kind: TileMapLayerKind,
+    pub layer: TileMapLayerKind,
     pub categories: Vec<TileCategory>,
 
     // Maps from category name to TileCategory index in self.categories[].
@@ -593,7 +621,7 @@ impl TileSet {
     const fn empty() -> Self {
         Self {
             // NOTE: Layer kind is irrelevant here.
-            layer_kind: TileMapLayerKind::Terrain,
+            layer: TileMapLayerKind::Terrain,
             categories: Vec::new(),
             mapping: hash::new_const_hash_map(),
         }
@@ -609,7 +637,7 @@ impl TileSet {
             Some(entry_index) => *entry_index,
             None => {
                 eprintln!("TileSet '{}': Couldn't find TileCategory for '{}'.",
-                          self.layer_kind,
+                          self.layer,
                           category_name);
                 return None;
             }
@@ -622,7 +650,7 @@ impl TileSet {
             Some(entry_index) => *entry_index,
             None => {
                 eprintln!("TileSet '{}': Couldn't find TileCategory for '{:#X}'.",
-                          self.layer_kind,
+                          self.layer,
                           category_name_hash);
                 return None;
             }
@@ -636,14 +664,14 @@ impl TileSet {
         for (entry_index, category) in self.categories.iter_mut().enumerate() {
             category.tileset_category_index = entry_index as i32;
 
-            if !category.post_load(tex_cache, tile_set_path, self.layer_kind) {
+            if !category.post_load(tex_cache, tile_set_path, self.layer) {
                 return false;
             }
 
             let category_name_hash: StringHash = hash::fnv1a_from_str(&category.name);
             if let Some(_) = self.mapping.insert(category_name_hash, entry_index) {
                 eprintln!("TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
-                          self.layer_kind,
+                          self.layer,
                           category.name,
                           category_name_hash,
                           entry_index);
@@ -672,7 +700,7 @@ pub struct TileDefHandle {
 impl TileDefHandle {
     pub fn new(tile_set: &TileSet, tile_category: &TileCategory, tile_def: &TileDef) -> Self {
         Self {
-            tileset_index: tile_set.layer_kind as i32,
+            tileset_index: tile_set.layer as i32,
             tileset_category_index: tile_category.tileset_category_index,
             category_tile_index: tile_def.category_tile_index,
         }
@@ -743,7 +771,7 @@ impl TileSets {
         }
 
         let def = &cat.tiles[tile_idx];
-        debug_assert!(set.layer_kind as usize == set_idx);
+        debug_assert!(set.layer as usize == set_idx);
         debug_assert!(cat.tileset_category_index as usize == cat_idx);
         debug_assert!(def.tileset_category_index as usize == cat_idx);
         debug_assert!(def.category_tile_index as usize == tile_idx);
@@ -775,19 +803,19 @@ impl TileSets {
     }
 
     pub fn find_set_for_tile(&self, tile_def: &TileDef) -> Option<&TileSet> {
-        let layer_kind = map::tile_kind_to_layer(tile_def.kind); 
-        let set = &self.sets[layer_kind as usize];
-        debug_assert!(set.layer_kind == layer_kind);
+        let layer = map::tile_kind_to_layer(tile_def.kind); 
+        let set = &self.sets[layer as usize];
+        debug_assert!(set.layer == layer);
         Some(set)
     }
 
-    pub fn find_set_by_layer(&self, layer_kind: TileMapLayerKind) -> Option<&TileSet> {
-        let index = layer_kind as usize;
+    pub fn find_set_by_layer(&self, layer: TileMapLayerKind) -> Option<&TileSet> {
+        let index = layer as usize;
 
         if index >= self.sets.len() {
             return None;
         }
-        if self.sets[index].layer_kind != layer_kind {
+        if self.sets[index].layer != layer {
             return None;
         }
 
@@ -795,32 +823,32 @@ impl TileSets {
     }
 
     pub fn find_category_by_name(&self,
-                                 layer_kind: TileMapLayerKind,
+                                 layer: TileMapLayerKind,
                                  category_name: &str) -> Option<&TileCategory> {
-        let set = self.find_set_by_layer(layer_kind)?;
+        let set = self.find_set_by_layer(layer)?;
         set.find_category_by_name(category_name)
     }
 
     pub fn find_category_by_hash(&self,
-                                 layer_kind: TileMapLayerKind,
+                                 layer: TileMapLayerKind,
                                  category_name_hash: StringHash) -> Option<&TileCategory> {
-        let set = self.find_set_by_layer(layer_kind)?;
+        let set = self.find_set_by_layer(layer)?;
         set.find_category_by_hash(category_name_hash)
     }
 
     pub fn find_tile_by_name(&self,
-                             layer_kind: TileMapLayerKind,
+                             layer: TileMapLayerKind,
                              category_name: &str,
                              tile_name: &str) -> Option<&TileDef> {
-        let cat = self.find_category_by_name(layer_kind, category_name)?;
+        let cat = self.find_category_by_name(layer, category_name)?;
         cat.find_tile_by_name(tile_name)
     }
 
     pub fn find_tile_by_hash(&self,
-                             layer_kind: TileMapLayerKind,
+                             layer: TileMapLayerKind,
                              category_name_hash: StringHash,
                              tile_name_hash: StringHash) -> Option<&TileDef> {
-        let cat = self.find_category_by_hash(layer_kind, category_name_hash)?;
+        let cat = self.find_category_by_hash(layer, category_name_hash)?;
         cat.find_tile_by_hash(tile_name_hash)
     }
 
@@ -901,21 +929,21 @@ impl TileSets {
     //  units/on_foot/ped/walk_left/frame0.png
     //  units/on_foot/ped/walk_left/frame1.png
     //
-    fn tile_set_path_for_kind(layer_kind: TileMapLayerKind) -> &'static str {
+    fn tile_set_path_for_kind(layer: TileMapLayerKind) -> &'static str {
         const TILE_SET_PATHS: [(TileMapLayerKind, &str); TILE_MAP_LAYER_COUNT] = [
             (TileMapLayerKind::Terrain,   "assets/tiles/terrain"),
             (TileMapLayerKind::Buildings, "assets/tiles/buildings"),
             (TileMapLayerKind::Units,     "assets/tiles/units")
         ];
-        debug_assert!(TILE_SET_PATHS[layer_kind as usize].0 == layer_kind); // Ensure enum order.
-        TILE_SET_PATHS[layer_kind as usize].1
+        debug_assert!(TILE_SET_PATHS[layer as usize].0 == layer); // Ensure enum order.
+        TILE_SET_PATHS[layer as usize].1
     }
 
     fn load_all_layers(&mut self, tex_cache: &mut TextureCache) {
-        for layer_kind in TileMapLayerKind::iter() {
-            let tile_set_path = Self::tile_set_path_for_kind(layer_kind);
-            if !self.load_tile_set(tex_cache, tile_set_path, layer_kind) {
-                eprintln!("TileSet '{}' ({}) didn't load!", layer_kind, tile_set_path);
+        for layer in TileMapLayerKind::iter() {
+            let tile_set_path = Self::tile_set_path_for_kind(layer);
+            if !self.load_tile_set(tex_cache, tile_set_path, layer) {
+                eprintln!("TileSet '{}' ({}) didn't load!", layer, tile_set_path);
             }
         }
     }
@@ -923,7 +951,7 @@ impl TileSets {
     fn load_tile_set(&mut self,
                      tex_cache: &mut TextureCache,
                      tile_set_path: &str,
-                     layer_kind: TileMapLayerKind) -> bool {
+                     layer: TileMapLayerKind) -> bool {
 
         debug_assert!(tile_set_path.is_empty() == false);
         let tile_set_json_path = Path::new(tile_set_path).join("tile_set.json");
@@ -944,21 +972,21 @@ impl TileSets {
             }
         };
 
-        if tile_set.layer_kind != layer_kind {
+        if tile_set.layer != layer {
             eprintln!("TileSet layer kind mismatch! Json specifies '{}' but expected '{}' for this set.",
-                      tile_set.layer_kind,
-                      layer_kind);
+                      tile_set.layer,
+                      layer);
             return false;
         }
 
         if !tile_set.post_load(tex_cache, tile_set_path) {
-            eprintln!("Post load failed for TileSet '{}' - {:?}!", layer_kind, tile_set_json_path);
+            eprintln!("Post load failed for TileSet '{}' - {:?}!", layer, tile_set_json_path);
             return false;
         }
 
-        println!("Successfully loaded TileSet '{}' from {:?}.", layer_kind, tile_set_json_path);
+        println!("Successfully loaded TileSet '{}' from {:?}.", layer, tile_set_json_path);
 
-        self.sets[layer_kind as usize] = tile_set;
+        self.sets[layer as usize] = tile_set;
         true
     }
 }

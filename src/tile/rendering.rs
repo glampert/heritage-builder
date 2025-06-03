@@ -331,24 +331,23 @@ impl TileMapRenderer {
             apply_spacing);
 
         if !tile.flags.contains(TileFlags::Hidden) {
-            let highlight_color =
-                if tile.flags.contains(TileFlags::Highlighted) {
-                    stats.tiles_drawn_highlighted += 1;
-                    HIGHLIGHT_TILE_COLOR
-                } else if tile.flags.contains(TileFlags::Invalidated) {
-                    stats.tiles_drawn_invalidated += 1;
-                    INVALID_TILE_COLOR
-                } else {
-                    Color::white()
-                };
+            if let Some(tile_sprite) = tile.anim_frame_tex_info() {
+                let highlight_color =
+                    if tile.flags.contains(TileFlags::Highlighted) {
+                        stats.tiles_drawn_highlighted += 1;
+                        HIGHLIGHT_TILE_COLOR
+                    } else if tile.flags.contains(TileFlags::Invalidated) {
+                        stats.tiles_drawn_invalidated += 1;
+                        INVALID_TILE_COLOR
+                    } else {
+                        Color::white()
+                    };
 
-            if let Some(anim_frame) = tile.def.anim_frame_by_index(0, 0, 0) {
-                render_sys.draw_textured_colored_rect(
-                    tile_rect,
-                    &anim_frame.tex_info.coords,
-                    anim_frame.tex_info.texture,
-                    tile.def.color * highlight_color);
+                let tex_coords = &tile_sprite.coords;
+                let texture = tile_sprite.texture;
+                let color = tile.tint_color() * highlight_color;
 
+                render_sys.draw_textured_colored_rect(tile_rect, tex_coords, texture, color);
                 stats.tiles_drawn += 1;
             }
         }
