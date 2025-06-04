@@ -256,31 +256,33 @@ impl Drop for Texture2D {
 }
 
 // ----------------------------------------------
-// TextureCache
+// TextureHandle
 // ----------------------------------------------
 
-const DUMMY_TEXTURE_HANDLE_INDEX: i32 = -1;
-const WHITE_TEXTURE_HANDLE_INDEX: i32 = -2;
-
 #[derive(Copy, Clone)]
-pub struct TextureHandle {
-    index: i32,
+pub enum TextureHandle {
+    Invalid,   // Returns built-in dummy_texture.
+    White,     // Returns built-in white_texture.
+    Index(u32) // Index into TextureCache array of textures.
 }
 
 impl TextureHandle {
     #[inline]
     pub const fn invalid() -> Self {
-        Self { index : DUMMY_TEXTURE_HANDLE_INDEX } // Returns dummy_texture
+        TextureHandle::Invalid
     }
 
     #[inline]
     pub const fn white() -> Self {
-        Self { index : WHITE_TEXTURE_HANDLE_INDEX } // Returns white_texture
+        TextureHandle::White
     }
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        self.index >= 0
+        match self {
+            TextureHandle::Invalid => false,
+            _ => true
+        }
     }
 }
 
@@ -288,26 +290,30 @@ impl Default for TextureHandle {
     fn default() -> Self { TextureHandle::invalid() }
 }
 
+// ----------------------------------------------
+// TextureCache
+// ----------------------------------------------
+
 pub struct TextureCache {
     textures: Vec<Texture2D>,
 
     // These are 8x8 pixels.
-    dummy_texture: TextureHandle, // DUMMY_TEXTURE_HANDLE_INDEX
-    white_texture: TextureHandle, // WHITE_TEXTURE_HANDLE_INDEX
+    dummy_texture_handle: TextureHandle, // TextureHandle::Invalid
+    white_texture_handle: TextureHandle, // TextureHandle::White
 }
 
 impl TextureCache {
     pub fn new(initial_capacity: usize) -> Self {
         let mut tex_cache = Self {
             textures: Vec::with_capacity(initial_capacity),
-            dummy_texture: TextureHandle::invalid(),
-            white_texture: TextureHandle::invalid(),
+            dummy_texture_handle: TextureHandle::invalid(),
+            white_texture_handle: TextureHandle::invalid(),
         };
 
-        tex_cache.dummy_texture = tex_cache.create_color_filled_8x8_texture(
+        tex_cache.dummy_texture_handle = tex_cache.create_color_filled_8x8_texture(
             "dummy_texture", [ 255, 0, 255, 255 ]); // magenta
 
-        tex_cache.white_texture = tex_cache.create_color_filled_8x8_texture(
+        tex_cache.white_texture_handle = tex_cache.create_color_filled_8x8_texture(
             "white_texture", [ 255, 255, 255, 255 ]); // white
 
         tex_cache
@@ -315,20 +321,49 @@ impl TextureCache {
 
     #[inline]
     pub fn handle_to_texture(&self, handle: TextureHandle) -> &Texture2D {
-        if handle.is_valid() && (handle.index as usize) < self.textures.len() {
-            &self.textures[handle.index as usize]
-        } else {
-            if handle.index == WHITE_TEXTURE_HANDLE_INDEX {
-                &self.textures[self.white_texture.index as usize]
-            } else {
-                &self.textures[self.dummy_texture.index as usize]
+        match handle {
+            TextureHandle::Invalid => self.dummy_texture(),
+            TextureHandle::White   => self.white_texture(),
+            TextureHandle::Index(handle_index) => {
+                let index = handle_index as usize;
+                if index < self.textures.len() {
+                    &self.textures[index]
+                } else {
+                    self.dummy_texture()
+                }
             }
+        }
+    }
+
+    #[inline]
+    pub fn dummy_texture(&self) -> &Texture2D {
+        match self.dummy_texture_handle {
+            TextureHandle::Index(index) => &self.textures[index as usize],
+            _ => panic!("Unexpected value for dummy_texture_handle!")
+        }
+    }
+
+    #[inline]
+    pub fn white_texture(&self) -> &Texture2D {
+        match self.white_texture_handle {
+            TextureHandle::Index(index) => &self.textures[index as usize],
+            _ => panic!("Unexpected value for white_texture_handle!")
         }
     }
 
     #[inline]
     pub fn to_native_handle(&self, handle: TextureHandle) -> gl::types::GLuint {
         self.handle_to_texture(handle).native_handle()
+    }
+
+    pub fn load_texture(&mut self, file_path: &str) -> TextureHandle {
+        Self::load_texture_with_settings(self,
+                                         file_path,
+                                         ImageLoaderFlags::empty(),
+                                         TextureFilter::Nearest,
+                                         TextureWrapMode::ClampToEdge,
+                                         TextureUnit(0),
+                                         false)
     }
 
     pub fn load_texture_with_settings(&mut self,
@@ -348,32 +383,14 @@ impl TextureCache {
             Ok(texture) => texture,
             Err(info_log) => {
                 eprintln!("TextureCache Error: {}", info_log);
-                return self.dummy_texture;
+                return self.dummy_texture_handle;
             },
         };
 
         let index = self.textures.len();
         self.textures.push(texture);
 
-        TextureHandle { index: index as i32 }
-    }
-
-    pub fn load_texture(&mut self, file_path: &str) -> TextureHandle {
-        Self::load_texture_with_settings(self,
-                                         file_path,
-                                         ImageLoaderFlags::empty(),
-                                         TextureFilter::Nearest,
-                                         TextureWrapMode::ClampToEdge,
-                                         TextureUnit(0),
-                                         false)
-    }
-
-    pub fn dummy_texture_handle(&self) -> TextureHandle {
-        self.dummy_texture
-    }
-
-    pub fn white_texture_handle(&self) -> TextureHandle {
-        self.white_texture
+        TextureHandle::Index(index as u32)
     }
 
     fn create_color_filled_8x8_texture(&mut self, debug_name: &str, color: [u8; 4]) -> TextureHandle {
@@ -402,6 +419,6 @@ impl TextureCache {
         let index = self.textures.len();
         self.textures.push(texture);
 
-        TextureHandle { index: index as i32 }
+        TextureHandle::Index(index as u32)
     }
 }

@@ -248,19 +248,13 @@ impl<'a> Tile<'a> {
         }
     }
 
-    #[inline]
-    pub fn anim_sets_count(&self) -> usize {
-        self.def.anim_sets_count(self.variation_index())
-    }
+    // ----------------------
+    // Variations:
+    // ----------------------
 
     #[inline]
-    pub fn anim_set_name(&self) -> &str {
-        self.def.anim_set_name(self.variation_index(), self.anim_set_index())
-    }
-
-    #[inline]
-    pub fn anim_frames_count(&self) -> usize {
-        self.def.anim_frames_count(self.variation_index())
+    pub fn has_variations(&self) -> bool {
+        self.def.variations.len() > 1
     }
 
     #[inline]
@@ -274,13 +268,32 @@ impl<'a> Tile<'a> {
     }
 
     #[inline]
+    pub fn variation_index(&self) -> usize {
+        self.variation as usize
+    }
+
+    #[inline]
     pub fn set_variation_index(&mut self, variation_index: usize) {
         self.variation = variation_index.min(self.def.variations.len() - 1) as u16;
     }
 
+    // ----------------------
+    // Animations:
+    // ----------------------
+
     #[inline]
-    pub fn variation_index(&self) -> usize {
-        self.variation as usize
+    pub fn anim_sets_count(&self) -> usize {
+        self.def.anim_sets_count(self.variation_index())
+    }
+
+    #[inline]
+    pub fn anim_set_name(&self) -> &str {
+        self.def.anim_set_name(self.variation_index(), self.anim_set_index())
+    }
+
+    #[inline]
+    pub fn anim_frames_count(&self) -> usize {
+        self.def.anim_frames_count(self.variation_index())
     }
 
     #[inline]

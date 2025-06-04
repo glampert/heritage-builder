@@ -557,23 +557,26 @@ impl TileInspectorMenu {
                         ui.text(format!("Color RGBA....: [{},{},{},{}]", color.r, color.g, color.b, color.a));
                     }
 
-                    if ui.collapsing_header("Variations", imgui::TreeNodeFlags::empty()) {
-                        let mut variation_index = tile.variation_index();
-                        if ui.input_scalar("Var", &mut variation_index).step(1).build() {
-                            tile.set_variation_index(variation_index);
-                        }
+                    if tile.has_variations() {
+                        if ui.collapsing_header("Variations", imgui::TreeNodeFlags::empty()) {
+                            let mut variation_index = tile.variation_index();
+                            if ui.input_scalar("Var", &mut variation_index).step(1).build() {
+                                tile.set_variation_index(variation_index);
+                            }
 
-                        ui.text(format!("Variations....: {}", tile.variation_count()));
-                        ui.text(format!("Variation idx.: {}, '{}'", tile.variation_index(), tile.variation_name()));
+                            ui.text(format!("Variations....: {}", tile.variation_count()));
+                            ui.text(format!("Variation idx.: {}, '{}'", tile.variation_index(), tile.variation_name()));
+                        }
                     }
 
-                    if ui.collapsing_header("Animation", imgui::TreeNodeFlags::empty()) {
-                        ui.text(format!("Is animated...: {}", tile.is_animated()));
-                        ui.text(format!("Anim sets.....: {}", tile.anim_sets_count()));
-                        ui.text(format!("Anim set idx..: {}, '{}'", tile.anim_set_index(), tile.anim_set_name()));
-                        ui.text(format!("Anim frames...: {}", tile.anim_frames_count()));
-                        ui.text(format!("Frame idx.....: {}", tile.anim_frame_index()));
-                        ui.text(format!("Frame time....: {:.2}", tile.anim_frame_play_time_secs()));
+                    if tile.is_animated() {
+                        if ui.collapsing_header("Animation", imgui::TreeNodeFlags::empty()) {
+                            ui.text(format!("Anim sets.....: {}", tile.anim_sets_count()));
+                            ui.text(format!("Anim set idx..: {}, '{}'", tile.anim_set_index(), tile.anim_set_name()));
+                            ui.text(format!("Anim frames...: {}", tile.anim_frames_count()));
+                            ui.text(format!("Frame idx.....: {}", tile.anim_frame_index()));
+                            ui.text(format!("Frame time....: {:.2}", tile.anim_frame_play_time_secs()));
+                        }
                     }
                 }
 

@@ -687,40 +687,33 @@ impl TileSet {
 // TileDefHandle
 // ----------------------------------------------
 
-const EMPTY_TILE_DEF_HANDLE_INDEX:   i32 = -1;
-const BLOCKER_TILE_DEF_HANDLE_INDEX: i32 = -2;
-
 #[derive(Copy, Clone)]
-pub struct TileDefHandle {
-    tileset_index: i32,          // TileSet index into TileSets.
-    tileset_category_index: i32, // TileCategory index into TileSet.
-    category_tile_index: i32,    // TileDef index into TileCategory.
+pub enum TileDefHandle {
+    Empty,
+    Blocker,
+    // (tileset_index, tileset_category_index, category_tile_index)
+    Indices(u16, u16, u16)
 }
 
 impl TileDefHandle {
+    #[inline]
     pub fn new(tile_set: &TileSet, tile_category: &TileCategory, tile_def: &TileDef) -> Self {
-        Self {
-            tileset_index: tile_set.layer as i32,
-            tileset_category_index: tile_category.tileset_category_index,
-            category_tile_index: tile_def.category_tile_index,
-        }
+        TileDefHandle::Indices(
+            tile_set.layer as u16,
+            tile_category.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
+            tile_def.category_tile_index.try_into().expect("Index cannot fit in a u16"),
+        )
     }
 
+    #[inline]
     pub const fn empty() -> Self {
-        Self {
-            tileset_index: EMPTY_TILE_DEF_HANDLE_INDEX,
-            tileset_category_index: EMPTY_TILE_DEF_HANDLE_INDEX,
-            category_tile_index: EMPTY_TILE_DEF_HANDLE_INDEX,
-        }
+        TileDefHandle::Empty
     }
 
+    #[inline]
     pub const fn blocker() -> Self {
-        Self {
-            tileset_index: BLOCKER_TILE_DEF_HANDLE_INDEX,
-            tileset_category_index: BLOCKER_TILE_DEF_HANDLE_INDEX,
-            category_tile_index: BLOCKER_TILE_DEF_HANDLE_INDEX,
-        }
-    }
+        TileDefHandle::Blocker
+    }   
 }
 
 // ----------------------------------------------
@@ -746,36 +739,36 @@ impl TileSets {
 
     #[inline]
     pub fn handle_to_tile(&self, handle: TileDefHandle) -> Option<&TileDef> {
-        if handle.category_tile_index == EMPTY_TILE_DEF_HANDLE_INDEX {
-            return Some(TileDef::empty());
-        }
-        if handle.category_tile_index == BLOCKER_TILE_DEF_HANDLE_INDEX {
-            return Some(TileDef::blocker());
-        }
+        match handle {
+            TileDefHandle::Empty   => Some(TileDef::empty()),
+            TileDefHandle::Blocker => Some(TileDef::blocker()),
+            TileDefHandle::Indices(tileset_index, tileset_category_index, category_tile_index) => {
+                let set_idx  = tileset_index as usize;          // TileSet index into TileSets.
+                let cat_idx  = tileset_category_index as usize; // TileCategory index into TileSet.
+                let tile_idx = category_tile_index as usize;    // TileDef index into TileCategory.
 
-        let set_idx  = handle.tileset_index as usize;
-        let cat_idx  = handle.tileset_category_index as usize;
-        let tile_idx = handle.category_tile_index as usize;
-        if set_idx >= self.sets.len() {
-            return None;
-        }
+                if set_idx >= self.sets.len() {
+                    return None;
+                }
 
-        let set = &self.sets[set_idx];
-        if cat_idx >= set.categories.len() {
-            return None;
-        }
+                let set = &self.sets[set_idx];
+                if cat_idx >= set.categories.len() {
+                    return None;
+                }
 
-        let cat = &set.categories[cat_idx];
-        if tile_idx >= cat.tiles.len() {
-            return None;
-        }
+                let cat = &set.categories[cat_idx];
+                if tile_idx >= cat.tiles.len() {
+                    return None;
+                }
 
-        let def = &cat.tiles[tile_idx];
-        debug_assert!(set.layer as usize == set_idx);
-        debug_assert!(cat.tileset_category_index as usize == cat_idx);
-        debug_assert!(def.tileset_category_index as usize == cat_idx);
-        debug_assert!(def.category_tile_index as usize == tile_idx);
-        Some(def)
+                let tile_def = &cat.tiles[tile_idx];
+                debug_assert!(set.layer as usize == set_idx);
+                debug_assert!(cat.tileset_category_index as usize == cat_idx);
+                debug_assert!(tile_def.tileset_category_index as usize == cat_idx);
+                debug_assert!(tile_def.category_tile_index as usize == tile_idx);
+                Some(tile_def)
+            }
+        }
     }
 
     pub fn find_category_for_tile(&self, tile_def: &TileDef) -> Option<&TileCategory> {
