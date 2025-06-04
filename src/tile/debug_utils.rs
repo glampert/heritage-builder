@@ -16,7 +16,7 @@ use super::{
 // Debug Draw Helpers
 // ----------------------------------------------
 
-pub fn draw_tile_debug(render_sys: &mut RenderSystem,
+pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
                        ui_sys: &UiSystem,
                        tile_iso_coords: IsoPoint,
                        tile_rect: Rect,
@@ -111,7 +111,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
         });
 }
 
-fn draw_tile_info(render_sys: &mut RenderSystem,
+fn draw_tile_info(render_sys: &mut impl RenderSystem,
                   ui_sys: &UiSystem,
                   tile_screen_rect: Rect,
                   tile_iso_pos: IsoPoint,
@@ -136,7 +136,7 @@ fn draw_tile_info(render_sys: &mut RenderSystem,
     render_sys.draw_point_fast(tile_center, Color::red(), 10.0);
 }
 
-fn draw_tile_bounds(render_sys: &mut RenderSystem,
+fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
                     tile_rect: Rect,
                     transform: &WorldToScreenTransform,
                     tile: &Tile) {
@@ -202,7 +202,7 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform
         });
 }
 
-pub fn draw_screen_origin_marker(render_sys: &mut RenderSystem) {
+pub fn draw_screen_origin_marker(render_sys: &mut impl RenderSystem) {
     // 50x50px white square to mark the origin.
     render_sys.draw_point_fast(
         Vec2::zero(), 

@@ -1,34 +1,14 @@
 use crate::{
-    utils::{Color, Size, Vec2, Rect, RectTexCoords}
+    render::{self, RenderStats, TextureCache, TextureHandle},
+    utils::{Color, Rect, RectTexCoords, Size, Vec2}
 };
 
 use super::{
     shader::*,
     vertex::*,
     context::*,
-    batch::{DrawBatch, DrawBatchEntry},
-    texture::{TextureCache, TextureHandle}
+    batch::{DrawBatch, DrawBatchEntry}
 };
-
-// ----------------------------------------------
-// RenderStats
-// ----------------------------------------------
-
-#[derive(Clone, Default)]
-pub struct RenderStats {
-    // Current frame totals:
-    pub triangles_drawn: u32,
-    pub lines_drawn: u32,
-    pub points_drawn: u32,
-    pub texture_changes: u32,
-    pub draw_calls: u32,
-    // Peaks for the whole run:
-    pub peak_triangles_drawn: u32,
-    pub peak_lines_drawn: u32,
-    pub peak_points_drawn: u32,
-    pub peak_texture_changes: u32,
-    pub peak_draw_calls: u32,
-}
 
 // ----------------------------------------------
 // RenderSystem
@@ -45,10 +25,13 @@ pub struct RenderSystem {
     points_shader: points::Shader,
     stats: RenderStats,
     viewport: Rect,
+    tex_cache: TextureCache,
 }
 
 impl RenderSystem {
     pub fn new(viewport_size: Size, clear_color: Color) -> Self {
+        debug_assert!(viewport_size.is_valid());
+
         let mut render_sys = Self {
             frame_started: false,
             render_context: RenderContext::new(),
@@ -75,6 +58,7 @@ impl RenderSystem {
             points_shader: points::Shader::load(),
             stats: RenderStats::default(),
             viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size),
+            tex_cache: TextureCache::new(128),
         };
 
         render_sys.render_context
@@ -84,13 +68,95 @@ impl RenderSystem {
             .set_backface_culling(BackFaceCulling::Disabled)
             .set_depth_test(DepthTest::Disabled);
 
-        render_sys.set_viewport_size(viewport_size);
+        render_sys.update_viewport(viewport_size);
 
         render_sys
     }
 
-    pub fn begin_frame(&mut self) {
+    fn update_viewport(&mut self, new_size: Size) {
+        debug_assert!(new_size.is_valid());
+        self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size);
+
+        self.render_context.set_viewport(self.viewport);
+        self.sprites_shader.set_viewport_size(self.viewport.size_as_vec2());
+        self.lines_shader.set_viewport_size(self.viewport.size_as_vec2());
+        self.points_shader.set_viewport_size(self.viewport.size_as_vec2());
+    }
+
+    fn flush_sprites(&mut self) {
+        debug_assert!(self.frame_started == true);
+
+        let set_shader_vars_fn = 
+            |render_context: &mut RenderContext, entry: &DrawBatchEntry| {
+
+            let texture2d = self.tex_cache.handle_to_texture(entry.texture);
+            render_context.set_texture_2d(texture2d);
+
+            self.sprites_shader.set_sprite_tint(entry.color);
+            self.sprites_shader.set_sprite_texture(texture2d);
+        };
+
+        self.sprites_batch.sync();
+        self.sprites_batch.draw_entries(&mut self.render_context, &self.sprites_shader.program, set_shader_vars_fn);
+        self.sprites_batch.clear();
+    }
+
+    fn flush_lines(&mut self) {
+        debug_assert!(self.frame_started == true);
+
+        self.lines_batch.sync();
+        self.lines_batch.draw_fast(&mut self.render_context, &self.lines_shader.program);
+        self.lines_batch.clear();
+    }
+
+    fn flush_points(&mut self) {
+        debug_assert!(self.frame_started == true);
+
+        self.points_batch.sync();
+        self.points_batch.draw_fast(&mut self.render_context, &self.points_shader.program);
+        self.points_batch.clear();
+    }
+
+    #[inline]
+    fn is_rect_fully_offscreen(&self, rect: &Rect) -> bool {
+        if rect.max.x < self.viewport.min.x || rect.max.y < self.viewport.min.y {
+            return true;
+        }
+        if rect.min.x > self.viewport.max.x || rect.min.y > self.viewport.max.y {
+            return true;
+        }
+        false
+    }
+
+    #[inline]
+    fn is_line_fully_offscreen(&self, from: &Vec2, to: &Vec2) -> bool {
+        if (from.x < self.viewport.min.x && to.x < self.viewport.min.x) ||
+           (from.y < self.viewport.min.y && to.y < self.viewport.min.y) {
+            return true;
+        }
+        if (from.x > self.viewport.max.x && to.x > self.viewport.max.x) ||
+           (from.y > self.viewport.max.y && to.y > self.viewport.max.y) {
+            return true;
+        }
+        false
+    }
+
+    #[inline]
+    fn is_point_fully_offscreen(&self, pt: &Vec2) -> bool {
+        if pt.x < self.viewport.min.x || pt.y < self.viewport.min.y {
+            return true;
+        }
+        if pt.x > self.viewport.max.x || pt.y > self.viewport.max.y {
+            return true;
+        }
+        false
+    }
+}
+
+impl render::RenderSystem for RenderSystem {
+    fn begin_frame(&mut self) {
         debug_assert!(self.frame_started == false);
+
         self.render_context.begin_frame();
         self.frame_started = true;
 
@@ -101,10 +167,10 @@ impl RenderSystem {
         self.stats.draw_calls      = 0;
     }
 
-    pub fn end_frame(&mut self, tex_cache: &TextureCache) -> RenderStats {
+    fn end_frame(&mut self) -> RenderStats {
         debug_assert!(self.frame_started == true);
 
-        self.flush_sprites(tex_cache);
+        self.flush_sprites();
         self.flush_lines();
         self.flush_points();
 
@@ -122,61 +188,28 @@ impl RenderSystem {
         self.stats.clone()
     }
 
-    pub fn flush_sprites(&mut self, tex_cache: &TextureCache) {
-        debug_assert!(self.frame_started == true);
-
-        let set_shader_vars_fn = 
-            |render_context: &mut RenderContext, entry: &DrawBatchEntry| {
-
-            let texture2d = tex_cache.handle_to_texture(entry.texture);
-            render_context.set_texture_2d(texture2d);
-
-            self.sprites_shader.set_sprite_tint(entry.color);
-            self.sprites_shader.set_sprite_texture(texture2d);
-        };
-
-        self.sprites_batch.sync();
-        self.sprites_batch.draw_entries(&mut self.render_context, &self.sprites_shader.program, set_shader_vars_fn);
-        self.sprites_batch.clear();
-    }
-
-    pub fn flush_lines(&mut self) {
-        debug_assert!(self.frame_started == true);
-
-        self.lines_batch.sync();
-        self.lines_batch.draw_fast(&mut self.render_context, &self.lines_shader.program);
-        self.lines_batch.clear();
-    }
-
-    pub fn flush_points(&mut self) {
-        debug_assert!(self.frame_started == true);
-
-        self.points_batch.sync();
-        self.points_batch.draw_fast(&mut self.render_context, &self.points_shader.program);
-        self.points_batch.clear();
-    }
-
-    pub fn set_viewport_size(&mut self, new_size: Size) {
-        self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size);
-        self.render_context.set_viewport(self.viewport);
-        self.sprites_shader.set_viewport_size(self.viewport.size_as_vec2());
-        self.lines_shader.set_viewport_size(self.viewport.size_as_vec2());
-        self.points_shader.set_viewport_size(self.viewport.size_as_vec2());
+    #[inline]
+    fn texture_cache(&self) -> &TextureCache {
+        &self.tex_cache
     }
 
     #[inline]
-    pub fn viewport(&self) -> Rect {
+    fn texture_cache_mut(&mut self) -> &mut TextureCache {
+        &mut self.tex_cache
+    }
+
+    #[inline]
+    fn viewport(&self) -> Rect {
         self.viewport
     }
 
     #[inline]
-    pub fn viewport_size(&self) -> Size {
-        self.viewport.size()
+    fn set_viewport_size(&mut self, new_size: Size) {
+        self.update_viewport(new_size);
     }
 
-    pub fn draw_colored_rect(&mut self,
-                             rect: Rect,
-                             color: Color) {
+    #[inline]
+    fn draw_colored_rect(&mut self, rect: Rect, color: Color) {
         // Just call this with the default white texture.
         self.draw_textured_colored_rect(
             rect,
@@ -185,11 +218,12 @@ impl RenderSystem {
             color);
     }
 
-    pub fn draw_textured_colored_rect(&mut self,
-                                      rect: Rect,
-                                      tex_coords: &RectTexCoords,
-                                      texture: TextureHandle,
-                                      color: Color) {
+    fn draw_textured_colored_rect(&mut self,
+                                  rect: Rect,
+                                  tex_coords: &RectTexCoords,
+                                  texture: TextureHandle,
+                                  color: Color) {
+
         debug_assert!(self.frame_started);
 
         if self.is_rect_fully_offscreen(&rect) {
@@ -212,10 +246,11 @@ impl RenderSystem {
         self.stats.triangles_drawn += (INDICES.len() / 3) as u32;
     }
 
-    pub fn draw_wireframe_rect_with_thickness(&mut self,
-                                              rect: Rect,
-                                              color: Color,
-                                              thickness: f32) {
+    fn draw_wireframe_rect_with_thickness(&mut self,
+                                          rect: Rect,
+                                          color: Color,
+                                          thickness: f32) {
+
         debug_assert!(self.frame_started);
 
         if self.is_rect_fully_offscreen(&rect) {
@@ -232,13 +267,14 @@ impl RenderSystem {
         self.draw_polyline_with_thickness(&points, color, thickness, true);
     }
 
-    // This can handle straight lines efficiently but will produce discontinuities at connecting edges of
+    // This can handle straight lines efficiently but might produce discontinuities at connecting edges of
     // rectangles and other polygons. To draw connecting lines/polygons use draw_polyline_with_thickness().
-    pub fn draw_line_with_thickness(&mut self,
-                                    from_pos: Vec2,
-                                    to_pos: Vec2,
-                                    color: Color,
-                                    thickness: f32) {
+    fn draw_line_with_thickness(&mut self,
+                                from_pos: Vec2,
+                                to_pos: Vec2,
+                                color: Color,
+                                thickness: f32) {
+
         debug_assert!(self.frame_started);
 
         if self.is_line_fully_offscreen(&from_pos, &to_pos) {
@@ -279,18 +315,21 @@ impl RenderSystem {
     }
 
     // Handles connecting lines or closed polygons with seamless mitered joints.
-    // Slower but with correct visual results.
-    pub fn draw_polyline_with_thickness<const N: usize>(&mut self,
-                                                        points: &[Vec2; N],
-                                                        color: Color,
-                                                        thickness: f32,
-                                                        is_closed: bool) {
+    // Slower but with correct visual results and no seams.
+    fn draw_polyline_with_thickness(&mut self,
+                                    points: &[Vec2],
+                                    color: Color,
+                                    thickness: f32,
+                                    is_closed: bool) {
+
         const MAX_POINTS:  usize = 32;
         const MAX_VERTS:   usize = 2 * MAX_POINTS;
         const MAX_INDICES: usize = 6 * MAX_POINTS;
 
+        let num_points = points.len();
+
         debug_assert!(self.frame_started);
-        debug_assert!(N >= 2 && N <= MAX_POINTS);
+        debug_assert!(num_points >= 2 && num_points <= MAX_POINTS);
 
         let mut vertices: [SpriteVertex2D; MAX_VERTS] = [SpriteVertex2D::default(); MAX_VERTS];
         let mut indices: [SpriteIndex2D; MAX_INDICES] = [0; MAX_INDICES];
@@ -298,17 +337,17 @@ impl RenderSystem {
         let mut v_count = 0;
         let mut i_count = 0;
     
-        for i in 0..N {
+        for i in 0..num_points {
             let prev = if i == 0 {
-                if is_closed { points[N - 1] } else { points[0] }
+                if is_closed { points[num_points - 1] } else { points[0] }
             } else {
                 points[i - 1]
             };
     
             let curr = points[i];
     
-            let next = if i == N - 1 {
-                if is_closed { points[0] } else { points[N - 1] }
+            let next = if i == num_points - 1 {
+                if is_closed { points[0] } else { points[num_points - 1] }
             } else {
                 points[i + 1]
             };
@@ -341,10 +380,10 @@ impl RenderSystem {
             };
     
             // Build indices
-            if i < N - 1 || is_closed {
+            if i < num_points - 1 || is_closed {
                 let i0 = v_count as SpriteIndex2D;
                 let i1 = i0 + 1;
-                let i2 = ((i + 1) % N * 2) as SpriteIndex2D;
+                let i2 = ((i + 1) % num_points * 2) as SpriteIndex2D;
                 let i3 = i2 + 1;
     
                 indices[i_count..i_count + 6].copy_from_slice(&[i0, i2, i1, i1, i2, i3]);
@@ -369,7 +408,7 @@ impl RenderSystem {
     // debugging. It is possible to produce a custom draw order by manually
     // calling one of the flush_* methods to force draws to be submitted early.
 
-    pub fn draw_wireframe_rect_fast(&mut self, rect: Rect, color: Color) {
+    fn draw_wireframe_rect_fast(&mut self, rect: Rect, color: Color) {
         debug_assert!(self.frame_started);
 
         if self.is_rect_fully_offscreen(&rect) {
@@ -394,7 +433,7 @@ impl RenderSystem {
         self.stats.lines_drawn += (INDICES.len() / 2) as u32;
     }
 
-    pub fn draw_line_fast(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
+    fn draw_line_fast(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
         debug_assert!(self.frame_started);
 
         if self.is_line_fully_offscreen(&from_pos, &to_pos) {
@@ -412,7 +451,7 @@ impl RenderSystem {
         self.stats.lines_drawn += (INDICES.len() / 2) as u32;
     }
 
-    pub fn draw_point_fast(&mut self, pt: Vec2, color: Color, size: f32) {
+    fn draw_point_fast(&mut self, pt: Vec2, color: Color, size: f32) {
         debug_assert!(self.frame_started);
 
         if self.is_point_fully_offscreen(&pt) {
@@ -427,40 +466,5 @@ impl RenderSystem {
 
         self.points_batch.add_fast(&vertices, &INDICES);
         self.stats.points_drawn += 1;
-    }
-
-    #[inline]
-    fn is_rect_fully_offscreen(&self, rect: &Rect) -> bool {
-        if rect.max.x < self.viewport.min.x || rect.max.y < self.viewport.min.y {
-            return true;
-        }
-        if rect.min.x > self.viewport.max.x || rect.min.y > self.viewport.max.y {
-            return true;
-        }
-        false
-    }
-
-    #[inline]
-    fn is_line_fully_offscreen(&self, from: &Vec2, to: &Vec2) -> bool {
-        if (from.x < self.viewport.min.x && to.x < self.viewport.min.x) ||
-           (from.y < self.viewport.min.y && to.y < self.viewport.min.y) {
-            return true;
-        }
-        if (from.x > self.viewport.max.x && to.x > self.viewport.max.x) ||
-           (from.y > self.viewport.max.y && to.y > self.viewport.max.y) {
-            return true;
-        }
-        false
-    }
-
-    #[inline]
-    fn is_point_fully_offscreen(&self, pt: &Vec2) -> bool {
-        if pt.x < self.viewport.min.x || pt.y < self.viewport.min.y {
-            return true;
-        }
-        if pt.x > self.viewport.max.x || pt.y > self.viewport.max.y {
-            return true;
-        }
-        false
     }
 }

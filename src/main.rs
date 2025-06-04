@@ -9,11 +9,7 @@ mod tile;
 use imgui_ui::*;
 use render::*;
 use utils::*;
-
-use app::{
-    *,
-    input::*
-};
+use app::{*, input::*};
 
 use tile::{
     rendering::{self, *},
@@ -22,7 +18,7 @@ use tile::{
     debug_ui::*,
     map::*,
     selection::*,
-    sets::TileSets
+    sets::*
 };
 
 // ----------------------------------------------
@@ -42,11 +38,14 @@ fn main() {
 
     let input_sys = app.create_input_system();
 
-    let mut render_sys = RenderSystem::new(app.window_size(), rendering::MAP_BACKGROUND_COLOR);
-    let mut ui_sys = UiSystem::new(&app);
-    let mut tex_cache = TextureCache::new(128);
+    let mut render_sys = RenderSystemBuilder::new()
+        .viewport_size(app.window_size())
+        .clear_color(rendering::MAP_BACKGROUND_COLOR)
+        .build();
 
-    let tile_sets = TileSets::load(&mut tex_cache);
+    let mut ui_sys = UiSystem::new(&app);
+
+    let tile_sets = TileSets::load(render_sys.texture_cache_mut());
 
     //let mut tile_map = debug_utils::create_test_tile_map(&tile_sets);
     let mut tile_map = TileMap::new(Size::new(64, 64));
@@ -55,14 +54,14 @@ fn main() {
     let mut tile_map_renderer = TileMapRenderer::new(rendering::DEFAULT_GRID_COLOR, 3.0);
 
     let mut camera = Camera::new(
-        render_sys.viewport_size(),
+        render_sys.viewport().size(),
         tile_map.size(),
         camera::MIN_ZOOM,
         camera::Offset::Center,
         camera::MIN_TILE_SPACING);
 
     let mut tile_inspector_menu = TileInspectorMenu::new();
-    let mut tile_list_menu = TileListMenu::new(&mut tex_cache, true);
+    let mut tile_list_menu = TileListMenu::new(render_sys.texture_cache_mut(), true);
     let mut debug_settings_menu = DebugSettingsMenu::new(true);
 
     let mut frame_clock = FrameClock::new();
@@ -185,7 +184,6 @@ fn main() {
         tile_list_menu.draw(
             &mut render_sys,
             &ui_sys,
-            &tex_cache,
             &tile_sets,
             cursor_screen_pos,
             camera.transform(),
@@ -203,7 +201,7 @@ fn main() {
             debug_utils::draw_screen_origin_marker(&mut render_sys);
         }
 
-        let render_sys_stats = render_sys.end_frame(&tex_cache);
+        let render_sys_stats = render_sys.end_frame();
 
         if debug_settings_menu.show_render_stats() {
             debug_utils::draw_render_stats(&ui_sys, &render_sys_stats, &tile_render_stats);

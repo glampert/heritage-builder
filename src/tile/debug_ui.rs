@@ -235,9 +235,8 @@ impl TileListMenu {
     }
 
     pub fn draw(&mut self,
-                render_sys: &mut RenderSystem,
+                render_sys: &mut impl RenderSystem,
                 ui_sys: &UiSystem,
-                tex_cache: &TextureCache,
                 tile_sets: &TileSets,
                 cursor_screen_pos: Vec2,
                 transform: &WorldToScreenTransform,
@@ -272,7 +271,7 @@ impl TileListMenu {
             .build(|| {
                 self.draw_tile_list(TileMapLayerKind::Terrain,
                                     ui_sys,
-                                    tex_cache,
+                                    render_sys.texture_cache(),
                                     tile_sets,
                                     tile_size,
                                     tiles_per_row,
@@ -282,7 +281,7 @@ impl TileListMenu {
 
                 self.draw_tile_list(TileMapLayerKind::Buildings,
                                     ui_sys,
-                                    tex_cache,
+                                    render_sys.texture_cache(),
                                     tile_sets,
                                     tile_size,
                                     tiles_per_row,
@@ -292,7 +291,7 @@ impl TileListMenu {
 
                 self.draw_tile_list(TileMapLayerKind::Units,
                                     ui_sys,
-                                    tex_cache,
+                                    render_sys.texture_cache(),
                                     tile_sets,
                                     tile_size,
                                     tiles_per_row,
@@ -303,7 +302,7 @@ impl TileListMenu {
 
                 ui.text("Tools");
                 {
-                    let ui_texture = ui_sys.to_ui_texture(tex_cache, self.clear_button_image);
+                    let ui_texture = ui_sys.to_ui_texture(render_sys.texture_cache(), self.clear_button_image);
 
                     let selected_tile = self.current_selection(tile_sets);
                     let is_selected = selected_tile.is_some_and(|t| t.is_empty());
@@ -338,7 +337,7 @@ impl TileListMenu {
     }
 
     fn draw_selected_tile(&self,
-                          render_sys: &mut RenderSystem,
+                          render_sys: &mut impl RenderSystem,
                           tile_sets: &TileSets,
                           cursor_screen_pos: Vec2,
                           transform: &WorldToScreenTransform,

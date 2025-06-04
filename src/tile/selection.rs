@@ -51,7 +51,7 @@ impl<'a> TileSelection<'a> {
         UiInputEvent::NotHandled
     }
 
-    pub fn draw(&self, render_sys: &mut RenderSystem) {
+    pub fn draw(&self, render_sys: &mut impl RenderSystem) {
         if self.is_selecting_range() {
             render_sys.draw_wireframe_rect_with_thickness(
                 self.rect,

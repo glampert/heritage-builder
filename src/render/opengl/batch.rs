@@ -2,13 +2,13 @@ use std::fmt::Debug;
 use std::convert::{Into, TryFrom};
 
 use crate::{
-    utils::Color
+    utils::Color,
+    render::TextureHandle
 };
 
 use super::{
     buffer::*,
     shader::ShaderProgram,
-    texture::TextureHandle,
     context::{RenderContext, PrimitiveTopology}
 };
 

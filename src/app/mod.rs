@@ -2,7 +2,6 @@ pub mod input;
 
 // Internal implementation.
 mod glfw;
-use glfw::GlfwApplication;
 pub use glfw::load_gl_func;
 
 use smallvec::SmallVec;
@@ -92,7 +91,7 @@ impl ApplicationBuilder {
     }
 
     pub fn build<'a>(&self) -> impl Application + use<'a> {
-        GlfwApplication::new(
+        glfw::GlfwApplication::new(
             self.title.clone(),
             self.window_size,
             self.fullscreen,

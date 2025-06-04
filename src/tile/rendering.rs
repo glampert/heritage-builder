@@ -109,7 +109,7 @@ impl TileMapRenderer {
     }
 
     pub fn draw_map(&mut self,
-                    render_sys: &mut RenderSystem,
+                    render_sys: &mut impl RenderSystem,
                     ui_sys: &UiSystem,
                     tile_map: &TileMap,
                     transform: &WorldToScreenTransform,
@@ -247,7 +247,7 @@ impl TileMapRenderer {
     }
 
     fn draw_isometric_grid(&self,
-                           render_sys: &mut RenderSystem,
+                           render_sys: &mut impl RenderSystem,
                            tile_map: &TileMap,
                            transform: &WorldToScreenTransform,
                            visible_range: CellRange) {
@@ -302,16 +302,16 @@ impl TileMapRenderer {
 
             // Highlighted on top:
             for points in &highlighted_cells {
-                render_sys.draw_polyline_with_thickness(&points, HIGHLIGHT_GRID_COLOR, line_thickness, true);
+                render_sys.draw_polyline_with_thickness(points, HIGHLIGHT_GRID_COLOR, line_thickness, true);
             }
 
             for points in &invalidated_cells {
-                render_sys.draw_polyline_with_thickness(&points, INVALID_GRID_COLOR, line_thickness, true);
+                render_sys.draw_polyline_with_thickness(points, INVALID_GRID_COLOR, line_thickness, true);
             }
         }
     }
 
-    fn draw_tile(render_sys: &mut RenderSystem,
+    fn draw_tile(render_sys: &mut impl RenderSystem,
                  stats: &mut TileMapRenderStats,
                  ui_sys: &UiSystem,
                  tile_iso_coords: IsoPoint,
