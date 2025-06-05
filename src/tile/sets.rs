@@ -878,6 +878,22 @@ impl TileSets {
         }
     }
 
+    // Get back a mutable reference for the given TileDef.
+    // This function is only intended for development/debug
+    // and use within the ImGui TileInspector widget.
+    pub fn try_get_editable_tile_debug(&self, tile_def: &TileDef) -> Option<&mut TileDef> {
+        if let Some(cat) = self.find_category_for_tile(tile_def) {
+            let const_def = &cat.tiles[tile_def.category_tile_index as usize];
+            // SAFETY: Here there be Dragons!
+            #[allow(invalid_reference_casting)]
+            let mutable_def = unsafe {
+                &mut *(const_def as *const TileDef as *mut TileDef)
+            };
+            return Some(mutable_def);
+        }
+        None
+    }
+
     // Terrain file structure:
     // -----------------------
     //  * Simple, no animations or variations. Each tile is a single .png image.

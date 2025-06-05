@@ -478,7 +478,11 @@ impl TileInspectorMenu {
         self.is_open = false;
     }
 
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, selected_tile: &Tile) -> UiInputEvent {
+    pub fn on_mouse_click(&mut self,
+                          button: MouseButton,
+                          action: InputAction,
+                          selected_tile: &Tile) -> UiInputEvent {
+
         if button == MouseButton::Left && action == InputAction::Press {
             self.is_open                = true;
             self.selected               = Some((selected_tile.cell, selected_tile.kind()));
@@ -492,7 +496,12 @@ impl TileInspectorMenu {
         }
     }
 
-    pub fn draw(&mut self, tile_map: &mut TileMap, tile_sets: &TileSets, ui_sys: &UiSystem, transform: &WorldToScreenTransform) {
+    pub fn draw(&mut self,
+                tile_map: &mut TileMap,
+                tile_sets: &TileSets,
+                ui_sys: &UiSystem,
+                transform: &WorldToScreenTransform) {
+
         if !self.is_open || self.selected.is_none() {
             return;
         }
@@ -507,13 +516,6 @@ impl TileInspectorMenu {
 
         let tile_iso_pos = utils::cell_to_iso(cell, BASE_TILE_SIZE);
         let tile_iso_adjusted = tile.calc_adjusted_iso_coords();
-
-        let category_name = 
-            if let Some(category) = tile_sets.find_category_for_tile(&tile.def) {
-                &category.name
-            } else {
-                "<none>"
-            };
 
         let tile_screen_pos = utils::iso_to_screen_rect(
             tile_iso_adjusted,
@@ -538,6 +540,13 @@ impl TileInspectorMenu {
             .build(|| {
                 {
                     let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
+
+                    let category_name = 
+                        if let Some(category) = tile_sets.find_category_for_tile(&tile.def) {
+                            &category.name
+                        } else {
+                            "<none>"
+                        };
 
                     if ui.collapsing_header("Properties", imgui::TreeNodeFlags::empty()) {
                         ui.text(format!("Name..........: '{}'", tile.name()));
@@ -603,6 +612,38 @@ impl TileInspectorMenu {
                             tile_map.for_each_building_footprint_tile_mut(tile_cell, |tile| {
                                 tile.flags.set(TileFlags::DrawBlockerInfo, self.show_building_blockers);
                             });
+                        }
+                    }
+                }
+
+                // Edit the underlying TileDef, which will apply to *all* tiles sharing this TileDef.
+                {
+                    let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+
+                    // Terrain tile size is always fixed - disallow editing.
+                    if !tile.is_empty() && !tile.is_blocker() && !tile.is_terrain() {
+                        if ui.collapsing_header("Edit TileDef", imgui::TreeNodeFlags::empty()) {
+                            let mut draw_size = tile.draw_size().to_array();
+                            if ui.input_int2("Draw size", &mut draw_size).build() {
+                                if let Some(editable_def) = tile_sets.try_get_editable_tile_debug(&tile.def) {
+                                    let new_size = Size::from_array(draw_size);
+                                    if new_size.is_valid() {
+                                        editable_def.draw_size = new_size;
+                                    }
+                                }
+                            }
+
+                            let mut logical_size = tile.logical_size().to_array();
+                            if ui.input_int2("Logical size", &mut logical_size).build() {
+                                if let Some(editable_def) = tile_sets.try_get_editable_tile_debug(&tile.def) {
+                                    let new_size = Size::from_array(logical_size);
+                                    if new_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
+                                        && (new_size.width  % BASE_TILE_SIZE.width)  == 0
+                                        && (new_size.height % BASE_TILE_SIZE.height) == 0 {
+                                        editable_def.logical_size = new_size;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
