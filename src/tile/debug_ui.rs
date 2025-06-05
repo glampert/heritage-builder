@@ -556,8 +556,8 @@ impl TileInspectorMenu {
                         ui.text(format!("Iso pos.......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
                         ui.text(format!("Iso adjusted..: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
                         ui.text(format!("Screen pos....: {:.1},{:.1}", tile_screen_pos.x(), tile_screen_pos.y()));
-                        ui.text(format!("Logical size..: {},{}", tile.logical_size().width, tile.logical_size().height));
                         ui.text(format!("Draw size.....: {},{}", tile.draw_size().width, tile.draw_size().height));
+                        ui.text(format!("Logical size..: {},{}", tile.logical_size().width, tile.logical_size().height));
                         ui.text(format!("Cells size....: {},{}", tile.size_in_cells().width, tile.size_in_cells().height));
                         ui.text(format!("Z-sort........: {}", tile.calc_z_sort()));
 
