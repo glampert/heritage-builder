@@ -9,12 +9,13 @@ bitflags = "2.9.0"
 paste = "1.0.15"
 gl = "0.14.0"
 glfw = "0.59.0"
-imgui = "0.11"
-imgui-opengl-renderer = "0.12.1"
+imgui = "0.12"
+imgui-opengl-renderer = { git = "https://github.com/glampert/rust-imgui-opengl-renderer" }
 libc = "0.2"
 arrayvec = "0.7.6"
 smallvec = { version = "1.15.0", features = ["serde", "const_new"] }
 strum = "0.27"
 strum_macros = "0.27"
+num_enum = "0.7.3"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
