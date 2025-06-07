@@ -243,6 +243,7 @@ impl TextureCache {
         self.handle_to_texture(handle).native_handle()
     }
 
+    #[inline]
     pub fn load_texture(&mut self, file_path: &str) -> TextureHandle {
         Self::load_texture_with_settings(self,
                                          file_path,

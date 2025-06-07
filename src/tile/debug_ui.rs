@@ -42,7 +42,6 @@ impl DebugSettingsMenu {
             draw_terrain: true,
             draw_buildings: true,
             draw_units: true,
-            draw_grid: true,
             ..Default::default()
         }
     }
@@ -620,28 +619,51 @@ impl TileInspectorMenu {
                 {
                     let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
 
-                    // Terrain tile size is always fixed - disallow editing.
-                    if !tile.is_empty() && !tile.is_blocker() && !tile.is_terrain() {
+                    if !tile.is_empty() && !tile.is_blocker() {
                         if ui.collapsing_header("Edit TileDef", imgui::TreeNodeFlags::empty()) {
-                            let mut draw_size = tile.draw_size().to_array();
-                            if ui.input_int2("Draw size", &mut draw_size).build() {
-                                if let Some(editable_def) = tile_sets.try_get_editable_tile_debug(&tile.def) {
-                                    let new_size = Size::from_array(draw_size);
-                                    if new_size.is_valid() {
-                                        editable_def.draw_size = new_size;
+                            {
+                                let mut changed = false;
+                                let mut draw_size = tile.draw_size();
+                                changed |= ui.input_int("Draw W", &mut draw_size.width).build();
+                                changed |= ui.input_int("Draw H", &mut draw_size.height).build();
+                                if changed {
+                                    if let Some(editable_def) = tile_sets.try_get_editable_tile_debug(&tile.def) {
+                                        if draw_size.is_valid() {
+                                            editable_def.draw_size = draw_size;
+                                        }
                                     }
                                 }
                             }
 
-                            let mut logical_size = tile.logical_size().to_array();
-                            if ui.input_int2("Logical size", &mut logical_size).build() {
-                                if let Some(editable_def) = tile_sets.try_get_editable_tile_debug(&tile.def) {
-                                    let new_size = Size::from_array(logical_size);
-                                    if new_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
-                                        && (new_size.width  % BASE_TILE_SIZE.width)  == 0
-                                        && (new_size.height % BASE_TILE_SIZE.height) == 0 {
-                                        editable_def.logical_size = new_size;
+                            // Terrain tile logical size is always fixed - disallow editing.
+                            if !tile.is_terrain() {
+                                ui.separator();
+
+                                let mut changed = false;
+                                let mut logical_size = tile.logical_size();
+                                changed |= ui.input_scalar("Logical W", &mut logical_size.width).step(BASE_TILE_SIZE.width).build();
+                                changed |= ui.input_scalar("Logical H", &mut logical_size.height).step(BASE_TILE_SIZE.height).build();
+                                if changed {
+                                    if let Some(editable_def) = tile_sets.try_get_editable_tile_debug(&tile.def) {
+                                        if logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
+                                            && (logical_size.width  % BASE_TILE_SIZE.width)  == 0
+                                            && (logical_size.height % BASE_TILE_SIZE.height) == 0 {
+                                            editable_def.logical_size = logical_size;
+                                        }
                                     }
+                                }
+
+                                ui.separator();
+
+                                let mut occludes_terrain = tile.flags.contains(TileFlags::OccludesTerrain);
+                                if ui.checkbox("Occludes terrain", &mut occludes_terrain) {
+                                    if let Some(editable_def) = tile_sets.try_get_editable_tile_debug(&tile.def) {
+                                        editable_def.occludes_terrain = occludes_terrain;
+                                    }
+
+                                    tile_map.for_each_building_footprint_tile_mut(tile.cell, |tile| {
+                                        tile.flags.set(TileFlags::OccludesTerrain, occludes_terrain);
+                                    });
                                 }
                             }
                         }
