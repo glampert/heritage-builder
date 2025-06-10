@@ -218,13 +218,19 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
+    pub fn is_unit(&self) -> bool {
+        self.def.is_unit()
+    }
+
+    #[inline]
     pub fn is_blocker(&self) -> bool {
         self.def.is_blocker()
     }
 
     #[inline]
-    pub fn is_unit(&self) -> bool {
-        self.def.is_unit()
+    pub fn blocker_owner_cell(&self) -> Cell {
+        debug_assert!(self.is_blocker());
+        self.owner_cell
     }
 
     #[inline]

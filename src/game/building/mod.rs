@@ -1,4 +1,5 @@
 use std::fmt;
+use rand::Rng;
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumIter, EnumDiscriminants};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -104,7 +105,7 @@ impl Building {
 
 pub struct BuildingList {
     archetype_kind: BuildingArchetypeKind,
-    buildings: Vec<Building>,
+    buildings: Vec<Building>, // All share the same archetype.
 }
 
 impl BuildingList {
@@ -116,6 +117,7 @@ impl BuildingList {
     }
 
     pub fn add(&mut self, building: Building) -> usize {
+        debug_assert!(building.archetype_kind() == self.archetype_kind);
         self.buildings.push(building);
         self.buildings.len() - 1
     }
@@ -204,18 +206,18 @@ impl BuildingArchetype {
 // BuildingUpdateContext
 // ----------------------------------------------
 
-pub struct BuildingUpdateContext<'building, 'query, 'tile_map, 'tile_sets> {
+pub struct BuildingUpdateContext<'building, 'query, 'sim, 'tile_map, 'tile_sets> {
     name: &'building str,
     map_cell: Cell,
     archetype_kind: BuildingArchetypeKind,
-    query: &'query mut Query<'tile_map, 'tile_sets>,
+    query: &'query mut Query<'sim, 'tile_map, 'tile_sets>,
 }
 
-impl<'building, 'query, 'tile_map, 'tile_sets> BuildingUpdateContext<'building, 'query, 'tile_map, 'tile_sets> {
+impl<'building, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'building, 'query, 'sim, 'tile_map, 'tile_sets> {
     fn new(name: &'building str,
            map_cell: Cell,
            archetype_kind: BuildingArchetypeKind,
-           query: &'query mut Query<'tile_map, 'tile_sets>) -> Self {
+           query: &'query mut Query<'sim, 'tile_map, 'tile_sets>) -> Self {
         Self {
             name: name,
             map_cell: map_cell,
@@ -239,6 +241,14 @@ impl<'building, 'query, 'tile_map, 'tile_sets> BuildingUpdateContext<'building, 
     pub fn find_tile_mut(&mut self) -> &mut Tile<'tile_sets> {
         self.query.find_tile_mut(self.map_cell, TileMapLayerKind::Buildings, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
+    }
+
+    pub fn set_random_variation(&mut self) {
+        let variation_count = self.find_tile().variation_count();
+        if variation_count > 1 {
+            let rand_variation_index = self.query.rng.random_range(0..variation_count);
+            self.find_tile_mut().set_variation_index(rand_variation_index);
+        }
     }
 
     pub fn try_replace_tile(&mut self, tile_to_place: &'tile_sets TileDef) -> bool {
@@ -277,7 +287,7 @@ impl<'building, 'query, 'tile_map, 'tile_sets> BuildingUpdateContext<'building, 
     }
 }
 
-impl<'building, 'query, 'tile_map, 'tile_sets> fmt::Display for BuildingUpdateContext<'building, 'query, 'tile_map, 'tile_sets> {
+impl<'building, 'query, 'sim, 'tile_map, 'tile_sets> fmt::Display for BuildingUpdateContext<'building, 'query, 'sim, 'tile_map, 'tile_sets> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Building '{}' ({:?}) [{},{}]",
                self.name,

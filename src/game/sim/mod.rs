@@ -1,10 +1,12 @@
 use std::time::{self};
+use rand::SeedableRng;
+use rand_pcg::Pcg64;
 
 use crate::{
-    utils::{Cell},
+    utils::{Cell, Size},
     tile::{
-        sets::{TileKind, TileSets, TileDef},
-        map::{Tile, TileMap, TileMapLayerKind}
+        sets::{TileDef, TileKind, TileSets},
+        map::{GameStateHandle, Tile, TileMap, TileMapLayerKind}
     }
 };
 
@@ -16,12 +18,20 @@ pub mod world;
 use world::World;
 
 // ----------------------------------------------
+// RandomGenerator
+// ----------------------------------------------
+
+const DEFAULT_RANDOM_SEED: u64 = 0xCAFE0CAFE0CAFE03;
+pub type RandomGenerator = Pcg64;
+
+// ----------------------------------------------
 // Simulation
 // ----------------------------------------------
 
 pub struct Simulation {
     update_frequency_secs: f32,
     time_since_last_update_secs: f32,
+    rng: RandomGenerator,
 }
 
 impl Simulation {
@@ -29,6 +39,7 @@ impl Simulation {
         Self {
             update_frequency_secs: 0.5,
             time_since_last_update_secs: 0.0,
+            rng: RandomGenerator::seed_from_u64(DEFAULT_RANDOM_SEED),
         }
     }
 
@@ -43,7 +54,8 @@ impl Simulation {
             // Fixed step update.
             let delta_time_secs = self.time_since_last_update_secs;
 
-            world.update(tile_map, tile_sets, delta_time_secs);
+            let mut query = Query::new(&mut self.rng, tile_map, tile_sets);
+            world.update(&mut query, delta_time_secs);
 
             // Reset the clock.
             self.time_since_last_update_secs = 0.0;
@@ -58,14 +70,18 @@ impl Simulation {
 // Query
 // ----------------------------------------------
 
-pub struct Query<'tile_map, 'tile_sets> {
+pub struct Query<'sim, 'tile_map, 'tile_sets> {
+    pub rng: &'sim mut RandomGenerator,
     pub tile_sets: &'tile_sets TileSets,
     pub tile_map: &'tile_map mut TileMap<'tile_sets>,
 }
 
-impl<'tile_map, 'tile_sets> Query<'tile_map, 'tile_sets> {
-    pub fn new(tile_map: &'tile_map mut TileMap<'tile_sets>, tile_sets: &'tile_sets TileSets) -> Self {
+impl<'sim, 'tile_map, 'tile_sets> Query<'sim, 'tile_map, 'tile_sets> {
+    fn new(rng: &'sim mut RandomGenerator,
+           tile_map: &'tile_map mut TileMap<'tile_sets>,
+           tile_sets: &'tile_sets TileSets) -> Self {
         Self {
+            rng: rng,
             tile_sets: tile_sets,
             tile_map: tile_map,
         }
@@ -98,19 +114,37 @@ impl<'tile_map, 'tile_sets> Query<'tile_map, 'tile_sets> {
     }
 
     pub fn is_near_building(&self, start_cell: Cell, kind: BuildingKind, radius_in_cells: i32) -> bool {
-        for dx in -radius_in_cells..=radius_in_cells {
-            for dy in -radius_in_cells..=radius_in_cells {
+        // Buildings can occupy multiple cells; Find out how many to offset the start by.
+        let mut end_offset = Size::zero();
+        if let Some(start_tile) = self.tile_map.try_tile_from_layer(start_cell, TileMapLayerKind::Buildings) {
+            let size = start_tile.size_in_cells();
+            end_offset = Size::new(size.width - 1, size.height - 1);
+        }
+
+        for dx in -radius_in_cells..=(radius_in_cells + end_offset.width) {
+            for dy in -radius_in_cells..=(radius_in_cells + end_offset.height) {
                 if dx == 0 && dy == 0 {
                     continue; // Skip start_cell.
                 }
 
                 let search_cell = Cell::new(start_cell.x + dx, start_cell.y + dy);
+                if let Some(search_tile) = self.tile_map.try_tile_from_layer(search_cell, TileMapLayerKind::Buildings) {
+                    let mut game_state = GameStateHandle::invalid();
 
-                if let Some(tile) = self.tile_map.try_tile_from_layer(search_cell, TileMapLayerKind::Buildings) {
-                    // FIXME: Need to handle multi-tile buildings here.
-                    if tile.is_building() && tile.game_state.is_valid() {
+                    if search_tile.is_blocker() {
+                        let owner_tile =
+                            self.tile_map.try_tile_from_layer(search_tile.blocker_owner_cell(), TileMapLayerKind::Buildings).unwrap();
+                        debug_assert!(owner_tile.is_building());
+                        if owner_tile.cell != start_cell {
+                            game_state = owner_tile.game_state;
+                        }
+                    } else if search_tile.is_building() {
+                        game_state = search_tile.game_state;
+                    }
+
+                    if game_state.is_valid() {
                         let tile_building_kind =
-                            BuildingKind::try_from(tile.game_state.kind())
+                            BuildingKind::try_from(game_state.kind())
                                 .expect("GameStateHandle does not contain a valid BuildingKind enum value!");
 
                         if tile_building_kind == kind {

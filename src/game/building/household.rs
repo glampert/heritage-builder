@@ -57,21 +57,26 @@ impl HouseholdState {
 
     fn try_upgrade(&mut self, update_ctx: &mut BuildingUpdateContext) {
         let mut tile_placed_successfully = false;
-        let new_tile_def_name = self.upgrade.level.next().get_str(HOUSE_LEVEL_TILE_DEF_KEY).unwrap();
+        let new_tile_def_name = self.upgrade.level.next().tile_def_name();
 
         if let Some(new_tile_def) = 
             update_ctx.find_tile_def(HOUSE_TILE_CATEGORY_NAME, new_tile_def_name) {
 
             // Try placing new. Might fail if there isn't enough space.
             if update_ctx.try_replace_tile(new_tile_def) {
+
                 self.upgrade.level.upgrade();
                 tile_placed_successfully = true;
+
+                // Set a random variation for the new building:
+                update_ctx.set_random_variation();
+
                 println!("{}: upgraded to level {:?}.", update_ctx, self.upgrade.level);
             }
         }
 
         if !tile_placed_successfully {
-            println!("{}: Failed to place new tile for upgrade.", update_ctx);
+            println!("{}: Failed to place new tile for upgrade. Building cannot upgrade.", update_ctx);
         }
 
         self.upgrade.time_since_last_secs = 0.0;
@@ -124,7 +129,6 @@ impl UpgradeState {
 
 const HOUSE_LEVEL_COUNT: usize = HouseLevel::COUNT;
 const HOUSE_TILE_CATEGORY_NAME: &str = "households";
-const HOUSE_LEVEL_TILE_DEF_KEY: &str = "TileDef";
 const HOUSE_UPGRADE_FREQUENCY_SECS: f32 = 10.0;
 
 #[repr(u32)]
@@ -139,7 +143,11 @@ enum HouseLevel {
 
 impl HouseLevel {
     #[inline]
-    #[must_use]
+    fn tile_def_name(self) -> &'static str {
+        self.get_str("TileDef").unwrap()
+    }
+
+    #[inline]
     fn is_max(self) -> bool {
         let curr: u32 = self.into();
         if (curr as usize) == (HOUSE_LEVEL_COUNT - 1) {
@@ -150,7 +158,6 @@ impl HouseLevel {
     }
 
     #[inline]
-    #[must_use]
     fn is_min(self) -> bool {
         let curr: u32 = self.into();
         if curr == 0 {

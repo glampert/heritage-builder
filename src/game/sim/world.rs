@@ -3,7 +3,6 @@ use strum::{IntoEnumIterator};
 
 use crate::{
     tile::{
-        sets::{TileSets},
         map::{Tile, TileMap, GameStateHandle}
     },
     game::building::{
@@ -54,15 +53,9 @@ impl World {
         world
     }
 
-    pub fn update<'tile_map, 'tile_sets>(&mut self,
-                                         tile_map: &'tile_map mut TileMap<'tile_sets>,
-                                         tile_sets: &'tile_sets TileSets,
-                                         delta_time_secs: f32) {
-
-        let mut query = Query::new(tile_map, tile_sets);
-
+    pub fn update(&mut self, query: &mut Query, delta_time_secs: f32) {
         for list in &mut self.building_lists {
-            list.update(&mut query, delta_time_secs);
+            list.update(query, delta_time_secs);
         }
     }
 
