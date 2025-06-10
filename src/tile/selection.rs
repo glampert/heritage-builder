@@ -18,17 +18,17 @@ use super::{
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct TileSelection<'a> {
+pub struct TileSelection<'tile_sets> {
     rect: Rect, // Range selection rect w/ cursor click-n-drag.
     cursor_drag_start: Vec2,
     current_cursor_pos: Vec2,
     left_mouse_button_held: bool,
-    placement_candidate: Option<&'a TileDef>, // Tile placement candidate.
+    placement_candidate: Option<&'tile_sets TileDef>, // Tile placement candidate.
     selection_flags: TileFlags,
     cells: SmallVec::<[Cell; 36]>,
 }
 
-impl<'a> TileSelection<'a> {
+impl<'tile_sets> TileSelection<'tile_sets> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -60,12 +60,12 @@ impl<'a> TileSelection<'a> {
         }
     }
 
-    pub fn update(&mut self,
-                  layers: &mut TileMapLayerMutRefs<'a>,
-                  map_size_in_cells: Size,
-                  cursor_screen_pos: Vec2,
-                  transform: &WorldToScreenTransform,
-                  placement_candidate: Option<&'a TileDef>) {
+    pub fn update<'tile_map>(&mut self,
+                             layers: &mut TileMapLayerMutRefs<'tile_map, 'tile_sets>,
+                             map_size_in_cells: Size,
+                             cursor_screen_pos: Vec2,
+                             transform: &WorldToScreenTransform,
+                             placement_candidate: Option<&'tile_sets TileDef>) {
 
         self.current_cursor_pos  = cursor_screen_pos;
         self.placement_candidate = placement_candidate;
@@ -141,7 +141,7 @@ impl<'a> TileSelection<'a> {
         }
     }
 
-    pub fn clear(&mut self, layers: &mut TileMapLayerMutRefs<'a>) {
+    pub fn clear<'tile_map>(&mut self, layers: &mut TileMapLayerMutRefs<'tile_map, 'tile_sets>) {
         self.selection_flags = TileFlags::empty();
         while !self.cells.is_empty() {
             self.toggle_selection(layers, self.last_cell(), false);
@@ -158,18 +158,18 @@ impl<'a> TileSelection<'a> {
 
     fn toggle_tile_selection(&mut self, tile: &mut Tile, flags: TileFlags, selected: bool) {
         if selected {
-            tile.flags.set(flags, true);
+            tile.set_flags(flags, true);
             self.cells.push(tile.cell);
         } else {
-            tile.flags.set(TileFlags::Highlighted | TileFlags::Invalidated, false);
+            tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
             self.cells.pop();
         }
     }
 
-    fn toggle_selection(&mut self,
-                        layers: &mut TileMapLayerMutRefs<'a>,
-                        base_cell: Cell,
-                        selected: bool) {
+    fn toggle_selection<'tile_map>(&mut self,
+                                   layers: &mut TileMapLayerMutRefs<'tile_map, 'tile_sets>,
+                                   base_cell: Cell,
+                                   selected: bool) {
 
         // Deal with multi-tile buildings:
         let mut footprint =
@@ -191,7 +191,7 @@ impl<'a> TileSelection<'a> {
                         flags = TileFlags::Invalidated;
                     }
 
-                    if layers.buildings.has_tile(footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
+                    if layers.buildings.has_tile(footprint_cell, TileKind::Building | TileKind::Blocker) {
                         // Cannot place building here.
                         flags = TileFlags::Invalidated;
 
@@ -201,7 +201,7 @@ impl<'a> TileSelection<'a> {
 
                         for other_footprint_cell in other_building_footprint {
                             if let Some(building_tile) = layers.buildings.find_tile_mut(
-                                    other_footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
+                                    other_footprint_cell, TileKind::Building | TileKind::Blocker) {
 
                                 self.toggle_tile_selection(building_tile, flags, selected);
                             }
@@ -212,14 +212,14 @@ impl<'a> TileSelection<'a> {
                         }
                     }
 
-                    if layers.units.has_tile(footprint_cell, &[TileKind::Unit]) {
+                    if layers.units.has_tile(footprint_cell, TileKind::Unit) {
                         // Cannot place building here.
                         flags = TileFlags::Invalidated;
                     }
                 }
             } else if placement_candidate.is_unit() {
                 // Trying to place unit over building?
-                if layers.buildings.has_tile(base_cell, &[TileKind::Building, TileKind::Blocker]) {
+                if layers.buildings.has_tile(base_cell, TileKind::Building | TileKind::Blocker) {
                     // Cannot place unit here.
                     flags = TileFlags::Invalidated;
                     // Take the building's footprint so we'll highlight all of its tiles.
@@ -228,7 +228,7 @@ impl<'a> TileSelection<'a> {
             } else if placement_candidate.is_empty() {
                 // Tile clearing, highlight tile to be removed:
                 flags = TileFlags::Invalidated;
-                if layers.buildings.has_tile(base_cell, &[TileKind::Building, TileKind::Blocker]) {
+                if layers.buildings.has_tile(base_cell, TileKind::Building | TileKind::Blocker) {
                     // If we're attempting to remove a building, take its own
                     // footprint instead, as it may consist of many tiles.
                     footprint = Tile::calc_exact_footprint_cells(base_cell, layers.buildings);
@@ -249,13 +249,13 @@ impl<'a> TileSelection<'a> {
             }
 
             if let Some(building_tile) = layers.buildings.find_tile_mut(
-                footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
+                footprint_cell, TileKind::Building | TileKind::Blocker) {
 
                 self.toggle_tile_selection(building_tile, flags, selected);
             }
 
             if let Some(unit_tile) = layers.units.find_tile_mut(
-                footprint_cell, &[TileKind::Unit]) {
+                footprint_cell, TileKind::Unit) {
 
                 self.toggle_tile_selection(unit_tile, flags, selected);
             }

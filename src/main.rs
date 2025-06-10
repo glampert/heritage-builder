@@ -1,24 +1,35 @@
 #![allow(dead_code)]
 
+mod app;
+mod debug;
+mod game;
 mod imgui_ui;
 mod render;
-mod utils;
-mod app;
 mod tile;
+mod utils;
 
 use imgui_ui::*;
 use render::*;
 use utils::*;
-use app::{*, input::*};
-
+use app::{
+    *,
+    input::*
+};
+use debug::{
+    inspector::*,
+    palette::*,
+    settings::*
+};
 use tile::{
-    rendering::{self, *},
     camera::{self, *},
-    debug_utils::{self},
-    debug_ui::*,
-    map::*,
+    rendering::{self, *},
     selection::*,
-    sets::*
+    sets::*,
+    map::*
+};
+use game::{
+    sim::*,
+    sim::world::*,
 };
 
 // ----------------------------------------------
@@ -47,11 +58,14 @@ fn main() {
 
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
 
-    //let mut tile_map = debug_utils::create_test_tile_map(&tile_sets);
-    let mut tile_map = TileMap::new(Size::new(64, 64));
+    let mut tile_map = create_test_tile_map_2(&tile_sets);
+    //let mut tile_map = TileMap::new(Size::new(64, 64));
+
+    let mut world = World::new(&mut tile_map);
+    let mut sim = Simulation::new();
 
     let mut tile_selection = TileSelection::new();
-    let mut tile_map_renderer = TileMapRenderer::new(rendering::DEFAULT_GRID_COLOR, 3.0);
+    let mut tile_map_renderer = TileMapRenderer::new(rendering::DEFAULT_GRID_COLOR, 1.0);
 
     let mut camera = Camera::new(
         render_sys.viewport().size(),
@@ -61,8 +75,8 @@ fn main() {
         camera::MIN_TILE_SPACING);
 
     let mut tile_inspector_menu = TileInspectorMenu::new();
-    let mut tile_list_menu = TileListMenu::new(render_sys.texture_cache_mut(), true);
-    let mut debug_settings_menu = DebugSettingsMenu::new(true);
+    let mut tile_palette_menu = TilePaletteMenu::new(true, render_sys.texture_cache_mut());
+    let mut debug_settings_menu = DebugSettingsMenu::new(false);
 
     let mut frame_clock = FrameClock::new();
 
@@ -87,7 +101,7 @@ fn main() {
 
                     if key == InputKey::Escape {
                         tile_inspector_menu.close();
-                        tile_list_menu.clear_selection();
+                        tile_palette_menu.clear_selection();
                         tile_map.clear_selection(&mut tile_selection);
                     }
                 }
@@ -112,14 +126,14 @@ fn main() {
                         continue;
                     }
 
-                    if tile_list_menu.has_selection() {
-                        if tile_list_menu.on_mouse_click(button, action).not_handled() {
-                            tile_list_menu.clear_selection();
+                    if tile_palette_menu.has_selection() {
+                        if tile_palette_menu.on_mouse_click(button, action).not_handled() {
+                            tile_palette_menu.clear_selection();
                             tile_map.clear_selection(&mut tile_selection);
                         }
                     } else {
                         if tile_selection.on_mouse_click(button, action, cursor_screen_pos).not_handled() {
-                            tile_list_menu.clear_selection();
+                            tile_palette_menu.clear_selection();
                             tile_map.clear_selection(&mut tile_selection);
                         }
 
@@ -134,6 +148,8 @@ fn main() {
             println!("ApplicationEvent::{:?}", event);
         }
 
+        sim.update(&mut world, &mut tile_map, &tile_sets, frame_clock.delta_time());
+
         camera.update_zooming(frame_clock.delta_time());
 
         // If we're not hovering over an ImGui menu...
@@ -142,15 +158,16 @@ fn main() {
             camera.update_scrolling(cursor_screen_pos, frame_clock.delta_time());
 
             // Tile hovering and selection:
-            let placement_candidate = tile_list_menu.current_selection(&tile_sets);
-            tile_map.update_selection(&mut tile_selection,
-                                      cursor_screen_pos,
-                                      camera.transform(),
-                                      placement_candidate);
+            let placement_candidate = tile_palette_menu.current_selection(&tile_sets);
+            tile_map.update_selection(
+                &mut tile_selection,
+                cursor_screen_pos,
+                camera.transform(),
+                placement_candidate);
         }
 
-        if tile_list_menu.can_place_tile() {
-            let tile_to_place = tile_list_menu.current_selection(&tile_sets).unwrap();
+        if tile_palette_menu.can_place_tile() {
+            let tile_to_place = tile_palette_menu.current_selection(&tile_sets).unwrap();
 
             let did_place = tile_map.try_place_tile_at_cursor(
                 cursor_screen_pos,
@@ -159,7 +176,7 @@ fn main() {
 
             if did_place && (tile_to_place.is_building() || tile_to_place.is_unit() || tile_to_place.is_empty()) {
                 // Dop or remove building/unit and exit tile placement mode.
-                tile_list_menu.clear_selection();
+                tile_palette_menu.clear_selection();
                 tile_map.clear_selection(&mut tile_selection);
             }
         }
@@ -181,7 +198,7 @@ fn main() {
 
         tile_selection.draw(&mut render_sys);
 
-        tile_list_menu.draw(
+        tile_palette_menu.draw(
             &mut render_sys,
             &ui_sys,
             &tile_sets,
@@ -194,17 +211,17 @@ fn main() {
         debug_settings_menu.draw(&mut camera, &mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
 
         if debug_settings_menu.show_cursor_pos() {
-            debug_utils::draw_cursor_overlay(&ui_sys, camera.transform());
+            debug::utils::draw_cursor_overlay(&ui_sys, camera.transform());
         }
 
         if debug_settings_menu.show_screen_origin() {
-            debug_utils::draw_screen_origin_marker(&mut render_sys);
+            debug::utils::draw_screen_origin_marker(&mut render_sys);
         }
 
         let render_sys_stats = render_sys.end_frame();
 
         if debug_settings_menu.show_render_stats() {
-            debug_utils::draw_render_stats(&ui_sys, &render_sys_stats, &tile_render_stats);
+            debug::utils::draw_render_stats(&ui_sys, &render_sys_stats, &tile_render_stats);
         }
 
         ui_sys.end_frame();
@@ -213,4 +230,214 @@ fn main() {
 
         frame_clock.end_frame();
     }
+}
+
+// ----------------------------------------------
+// Test map setup helpers
+// ----------------------------------------------
+
+fn create_test_tile_map_1(tile_sets: &TileSets) -> TileMap {
+    println!("Creating test tile map...");
+
+    const MAP_WIDTH:  i32 = 8;
+    const MAP_HEIGHT: i32 = 8;
+
+    const G:  i32 = 0; // ground:grass (empty)
+    const R:  i32 = 1; // ground:road/dirt (empty)
+    const U:  i32 = 2; // unit:ped
+    const HH: i32 = 3; // building:house (2x2)
+    const TT: i32 = 4; // building:tower (3x3)
+    const B0: i32 = 5; // special blocker for the 3x3 building.
+    const B1: i32 = 6; // special blocker for the 2x2 building.
+    const B2: i32 = 7; // special blocker for the 2x2 building.
+    const B3: i32 = 8; // special blocker for the 2x2 building.
+    const B4: i32 = 9; // special blocker for the 2x2 building.
+
+    const TILE_NAMES: [&str; 5] = [ "grass", "dirt", "ped", "house", "tower" ];
+    const TILE_CATEGORIES: [&str; 5] = [ "ground", "ground", "on_foot", "residential", "residential" ];
+
+    let find_tile = |layer_kind: TileMapLayerKind, tile_id: i32| {
+        let tile_name = TILE_NAMES[tile_id as usize];
+        let category_name = TILE_CATEGORIES[tile_id as usize];
+        tile_sets.find_tile_by_name(layer_kind, category_name, tile_name).unwrap_or(TileDef::empty())
+    };
+
+    const TERRAIN_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
+        R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
+        R,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,R,
+        R,R,R,R,R,R,R,R,
+    ];
+
+    const BUILDINGS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
+        G, G, G, G, G, G, G, G, // <-- start, tile zero is the leftmost (top-left)
+        G, TT,B0,B0,G, HH,B1,G,
+        G, B0,B0,B0,G, B1,B1,G,
+        G, B0,B0,B0,G, HH,B2,G,
+        G, G, G, G, G, B2,B2,G,
+        G, HH,B4,G, G, HH,B3,G,
+        G, B4,B4,G, G, B3,B3,G,
+        G, G, G, G, G, G, G, G,
+    ];
+
+    const UNITS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
+        U,U,U,U,U,U,U,U, // <-- start, tile zero is the leftmost (top-left)
+        U,G,G,G,U,G,G,U,
+        U,G,G,G,U,G,G,U,
+        U,G,G,G,U,G,G,U,
+        U,U,U,U,U,G,G,U,
+        U,G,G,U,U,G,G,U,
+        U,G,G,U,U,G,G,U,
+        U,U,U,U,U,U,U,U,
+    ];
+
+    let blockers_mapping = std::collections::HashMap::from([
+        (B0, Cell::new(1, 1)),
+        (B1, Cell::new(5, 1)),
+        (B2, Cell::new(5, 3)),
+        (B3, Cell::new(5, 5)),
+        (B4, Cell::new(1, 5)),
+    ]);
+
+    let mut tile_map = TileMap::new(Size::new(MAP_WIDTH, MAP_HEIGHT));
+
+    // Terrain:
+    {
+        let terrain_layer = tile_map.layer_mut(TileMapLayerKind::Terrain);
+
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
+                let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
+                let tile_def = find_tile(TileMapLayerKind::Terrain, tile_id);
+                terrain_layer.add_tile(Cell::new(x, y), tile_def);
+            }
+        }
+    }
+
+    // Buildings:
+    {
+        let buildings_layer = tile_map.layer_mut(TileMapLayerKind::Buildings);
+
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
+                let tile_id = BUILDINGS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
+                let cell = Cell::new(x, y);
+
+                if tile_id == G { // ground/empty
+                    buildings_layer.add_empty_tile(cell);
+                } else if tile_id >= B0 { // building blocker
+                    let owner_cell = blockers_mapping.get(&tile_id).unwrap();
+                    buildings_layer.add_blocker_tile(cell, *owner_cell);
+                } else { // building tile
+                    let tile_def = find_tile(TileMapLayerKind::Buildings, tile_id);
+                    buildings_layer.add_tile(cell, tile_def);
+                }
+            }
+        }
+    }
+
+    // Units:
+    {
+        let units_layer = tile_map.layer_mut(TileMapLayerKind::Units);
+
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
+                let tile_id = UNITS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
+                let cell = Cell::new(x, y);
+
+                if tile_id == G { // ground/empty
+                    units_layer.add_empty_tile(cell);
+                } else { // unit tile
+                    let tile_def = find_tile(TileMapLayerKind::Units, tile_id);
+                    units_layer.add_tile(cell, tile_def);
+                }
+            }
+        }
+    }
+
+    tile_map
+}
+
+fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
+    println!("Creating test tile map...");
+
+    const MAP_WIDTH:  i32 = 8;
+    const MAP_HEIGHT: i32 = 8;
+
+    const G: i32 = 0; // grass
+    const D: i32 = 1; // dirt
+    const H: i32 = 2; // house
+    const W: i32 = 3; // well
+    const M: i32 = 4; // market
+
+    const TILE_NAMES: [&str; 5] = [ "grass", "dirt", "house_0", "well", "market" ];
+    const TILE_CATEGORIES: [&str; 5] = [ "ground", "ground", "households", "services", "services" ];
+
+    let find_tile = |layer_kind: TileMapLayerKind, tile_id: i32| {
+        let tile_name = TILE_NAMES[tile_id as usize];
+        let category_name = TILE_CATEGORIES[tile_id as usize];
+        tile_sets.find_tile_by_name(layer_kind, category_name, tile_name).unwrap_or(TileDef::empty())
+    };
+
+    const TERRAIN_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
+        D,D,D,D,D,D,D,D, // <-- start, tile zero is the leftmost (top-left)
+        D,G,G,G,G,G,G,D,
+        D,G,G,G,G,G,G,D,
+        D,G,G,G,G,G,G,D,
+        D,G,G,G,G,G,G,D,
+        D,G,G,G,G,G,G,D,
+        D,G,G,G,G,G,G,D,
+        D,D,D,D,D,D,D,D,
+    ];
+
+    const BUILDINGS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
+        D,D,D,D,D,D,D,D, // <-- start, tile zero is the leftmost (top-left)
+        D,H,G,W,G,G,M,D,
+        D,G,G,G,G,G,G,D,
+        D,G,G,G,G,G,G,D,
+        D,G,G,G,G,G,G,D,
+        D,G,G,G,G,G,G,D,
+        D,G,G,G,G,G,G,D,
+        D,D,D,D,D,D,D,D,
+    ];
+
+    let mut tile_map = TileMap::new(Size::new(MAP_WIDTH, MAP_HEIGHT));
+
+    // Terrain:
+    {
+        let terrain_layer = tile_map.layer_mut(TileMapLayerKind::Terrain);
+
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
+                let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
+                let tile_def = find_tile(TileMapLayerKind::Terrain, tile_id);
+                terrain_layer.add_tile(Cell::new(x, y), tile_def);
+            }
+        }
+    }
+
+    // Buildings:
+    {
+        let buildings_layer = tile_map.layer_mut(TileMapLayerKind::Buildings);
+
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
+                let tile_id = BUILDINGS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
+                let cell = Cell::new(x, y);
+
+                if tile_id == G || tile_id == D { // ground/empty
+                    buildings_layer.add_empty_tile(cell);
+                } else { // building tile
+                    let tile_def = find_tile(TileMapLayerKind::Buildings, tile_id);
+                    buildings_layer.add_tile(cell, tile_def);
+                }
+            }
+        }
+    }
+
+    tile_map
 }

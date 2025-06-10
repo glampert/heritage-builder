@@ -4,11 +4,11 @@ use smallvec::SmallVec;
 use crate::{
     imgui_ui::UiSystem,
     render::RenderSystem,
+    debug::{self},
     utils::{self, Cell, Color, IsoPoint, Vec2, WorldToScreenTransform}
 };
 
 use super::{
-    debug_utils::{self},
     sets::BASE_TILE_SIZE,
     selection::CellRange,
     map::{Tile, TileFlags, TileMap, TileMapLayerKind}
@@ -116,134 +116,152 @@ impl TileMapRenderer {
                     visible_range: CellRange,
                     flags: TileMapRenderFlags) -> TileMapRenderStats {
 
-        debug_assert!(self.temp_tile_sort_list.is_empty());
-        let map_size_in_cells = tile_map.size();
-
         self.reset_stats();
 
-        // Terrain:
-        if flags.contains(TileMapRenderFlags::DrawTerrain) {
-            let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
-            let buildings_layer = tile_map.layer(TileMapLayerKind::Buildings);
+        self.draw_terrain_layer(render_sys, ui_sys, tile_map, transform, visible_range, flags);
 
-            debug_assert!(terrain_layer.size() == map_size_in_cells);
-            debug_assert!(buildings_layer.size() == map_size_in_cells);
-
-            for y in (visible_range.min.y..=visible_range.max.y).rev() {
-                for x in (visible_range.min.x..=visible_range.max.x).rev() {
-                    let cell = Cell::new(x, y);
-
-                    let tile = terrain_layer.tile(cell);
-                    if tile.is_empty() {
-                        continue;
-                    }
-
-                    // Terrain tiles size is constrained.
-                    debug_assert!(tile.is_terrain() && tile.logical_size() == BASE_TILE_SIZE);
-
-                    let building_tile = buildings_layer.tile(cell);
-                    if !building_tile.is_empty() && building_tile.occludes_terrain() {
-                        // Skip drawing terrain if fully occluded.
-                        continue;
-                    }
-
-                    let tile_iso_coords = tile.calc_adjusted_iso_coords();
-                    Self::draw_tile(render_sys,
-                                    &mut self.stats,
-                                    ui_sys,
-                                    tile_iso_coords,
-                                    transform,
-                                    tile,
-                                    flags);
-                }
-            }
-        }
-
-        if flags.contains(TileMapRenderFlags::DrawGrid) &&
-          !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
+        if flags.contains(TileMapRenderFlags::DrawGrid) && !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Draw the grid now so that lines will be on top of the terrain but not on top of buildings.
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         }
 
-        // Buildings & Units:
-        if flags.intersects(TileMapRenderFlags::DrawBuildings | TileMapRenderFlags::DrawUnits) {
-            let buildings_layer = tile_map.layer(TileMapLayerKind::Buildings);
-            let units_layer = tile_map.layer(TileMapLayerKind::Units);
-
-            debug_assert!(buildings_layer.size() == map_size_in_cells);
-            debug_assert!(units_layer.size() == map_size_in_cells);
-
-            let mut add_to_sort_list = |tile: &Tile| {
-                self.temp_tile_sort_list.push(TileDrawListEntry {
-                    tile_ptr: tile as *const Tile<'_> as *const Tile<'static>,
-                    z_sort: tile.calc_z_sort(),
-                });
-            };
-
-            // Drawing in reverse order (bottom to top) is required to ensure
-            // buildings with the same Z-sort value don't overlap in weird ways.
-            for y in (visible_range.min.y..=visible_range.max.y).rev() {
-                for x in (visible_range.min.x..=visible_range.max.x).rev() {
-
-                    let cell = Cell::new(x, y);
-                    let building_tile = buildings_layer.tile(cell);
-                    let unit_tile = units_layer.tile(cell);
-
-                    if building_tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildings) {
-                        add_to_sort_list(building_tile);
-                    } else if unit_tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnits) {
-                        add_to_sort_list(unit_tile);
-                    } else if building_tile.is_blocker() && // DEBUG:
-                              (flags.contains(TileMapRenderFlags::DrawBlockerTilesDebug) ||
-                               building_tile.flags.contains(TileFlags::DrawBlockerInfo)) {
-
-                        let tile_iso_coords = building_tile.calc_adjusted_iso_coords();
-                        Self::draw_tile(render_sys,
-                                        &mut self.stats,
-                                        ui_sys,
-                                        tile_iso_coords,
-                                        transform,
-                                        building_tile,
-                                        flags);
-                    }
-                }
-            }
-
-            self.temp_tile_sort_list.sort_by(|a, b| {
-                a.z_sort.cmp(&b.z_sort)
-            });
-
-            for entry in &self.temp_tile_sort_list {
-                // SAFETY: This reference only lives for the scope of this function.
-                // The only reason we store it in a member Vec is to avoid the memory
-                // allocation cost of a temp local Vec. temp_tile_draw_list is always
-                // cleared at the end of this function.
-                debug_assert!(entry.tile_ptr.is_null() == false);
-                let tile = unsafe { &*entry.tile_ptr };
-
-                debug_assert!(tile.is_building() || tile.is_unit());
-
-                let tile_iso_coords = tile.calc_adjusted_iso_coords();
-                Self::draw_tile(render_sys,
-                                &mut self.stats,
-                                ui_sys,
-                                tile_iso_coords,
-                                transform,
-                                tile,
-                                flags);
-            }
-
-            self.stats.tile_sort_list_len += self.temp_tile_sort_list.len() as u32;
-            self.temp_tile_sort_list.clear();
-        }
+        self.draw_buildings_and_units_layer(render_sys, ui_sys, tile_map, transform, visible_range, flags);
 
         if flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
-            // Allow lines to draw later and effectively bypass the draw order
+            // Allow grid lines to draw later and effectively bypass the draw order
             // and appear on top of everything else (useful for debugging).
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         }
 
         self.update_stats()
+    }
+
+    fn draw_terrain_layer(&mut self,
+                          render_sys: &mut impl RenderSystem,
+                          ui_sys: &UiSystem,
+                          tile_map: &TileMap,
+                          transform: &WorldToScreenTransform,
+                          visible_range: CellRange,
+                          flags: TileMapRenderFlags) {
+
+        if !flags.contains(TileMapRenderFlags::DrawTerrain) {
+            return;
+        }
+
+        let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
+        let buildings_layer = tile_map.layer(TileMapLayerKind::Buildings);
+
+        debug_assert!(terrain_layer.size() == tile_map.size());
+        debug_assert!(buildings_layer.size() == tile_map.size());
+
+        for y in (visible_range.min.y..=visible_range.max.y).rev() {
+            for x in (visible_range.min.x..=visible_range.max.x).rev() {
+                let cell = Cell::new(x, y);
+
+                let tile = terrain_layer.tile(cell);
+                if tile.is_empty() {
+                    continue;
+                }
+
+                // Terrain tiles size is constrained.
+                debug_assert!(tile.is_terrain() && tile.logical_size() == BASE_TILE_SIZE);
+
+                let building_tile = buildings_layer.tile(cell);
+                if !building_tile.is_empty() && building_tile.occludes_terrain() {
+                    // Skip drawing terrain if fully occluded.
+                    continue;
+                }
+
+                Self::draw_tile(render_sys,
+                                &mut self.stats,
+                                ui_sys,
+                                tile.calc_adjusted_iso_coords(),
+                                transform,
+                                tile,
+                                flags);
+            }
+        }
+    }
+
+    fn draw_buildings_and_units_layer(&mut self,
+                                      render_sys: &mut impl RenderSystem,
+                                      ui_sys: &UiSystem,
+                                      tile_map: &TileMap,
+                                      transform: &WorldToScreenTransform,
+                                      visible_range: CellRange,
+                                      flags: TileMapRenderFlags) {
+
+        if !flags.intersects(TileMapRenderFlags::DrawBuildings | TileMapRenderFlags::DrawUnits) {
+            return;
+        }
+
+        let buildings_layer = tile_map.layer(TileMapLayerKind::Buildings);
+        let units_layer = tile_map.layer(TileMapLayerKind::Units);
+
+        debug_assert!(buildings_layer.size() == tile_map.size());
+        debug_assert!(units_layer.size() == tile_map.size());
+        debug_assert!(self.temp_tile_sort_list.is_empty());
+
+        let mut add_to_sort_list = |tile: &Tile| {
+            self.temp_tile_sort_list.push(TileDrawListEntry {
+                tile_ptr: tile as *const Tile<'_> as *const Tile<'static>,
+                z_sort: tile.calc_z_sort(),
+            });
+        };
+
+        // Drawing in reverse order (bottom to top) is required to ensure
+        // buildings with the same Z-sort value don't overlap in weird ways.
+        for y in (visible_range.min.y..=visible_range.max.y).rev() {
+            for x in (visible_range.min.x..=visible_range.max.x).rev() {
+
+                let cell = Cell::new(x, y);
+                let building_tile = buildings_layer.tile(cell);
+                let unit_tile = units_layer.tile(cell);
+
+                if building_tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildings) {
+                    add_to_sort_list(building_tile);
+                } else if unit_tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnits) {
+                    add_to_sort_list(unit_tile);
+                } else if building_tile.is_blocker() && // DEBUG:
+                            (flags.contains(TileMapRenderFlags::DrawBlockerTilesDebug) ||
+                            building_tile.has_flags(TileFlags::DrawBlockerInfo)) {
+
+                    Self::draw_tile(render_sys,
+                                    &mut self.stats,
+                                    ui_sys,
+                                    building_tile.calc_adjusted_iso_coords(),
+                                    transform,
+                                    building_tile,
+                                    flags);
+                }
+            }
+        }
+
+        self.temp_tile_sort_list.sort_by(|a, b| {
+            a.z_sort.cmp(&b.z_sort)
+        });
+
+        for entry in &self.temp_tile_sort_list {
+            // SAFETY: This reference only lives for the scope of this function.
+            // The only reason we store it in a member Vec is to avoid the memory
+            // allocation cost of a temp local Vec. temp_tile_draw_list is always
+            // cleared at the end of this function.
+            debug_assert!(entry.tile_ptr.is_null() == false);
+            let tile = unsafe { &*entry.tile_ptr };
+
+            debug_assert!(tile.is_building() || tile.is_unit());
+
+            Self::draw_tile(render_sys,
+                            &mut self.stats,
+                            ui_sys,
+                            tile.calc_adjusted_iso_coords(),
+                            transform,
+                            tile,
+                            flags);
+        }
+
+        self.stats.tile_sort_list_len += self.temp_tile_sort_list.len() as u32;
+        self.temp_tile_sort_list.clear();
     }
 
     fn draw_isometric_grid(&self,
@@ -286,12 +304,12 @@ impl TileMapRenderer {
                 // Save highlighted grid cells for drawing at the end, so they display in the right order.
                 let tile = terrain_layer.tile(cell);
     
-                if tile.flags.contains(TileFlags::Highlighted) {
+                if tile.has_flags(TileFlags::Highlighted) {
                     highlighted_cells.push(points);
                     continue;
                 }
 
-                if tile.flags.contains(TileFlags::Invalidated) {
+                if tile.has_flags(TileFlags::Invalidated) {
                     invalidated_cells.push(points);
                     continue;
                 }
@@ -314,29 +332,22 @@ impl TileMapRenderer {
     fn draw_tile(render_sys: &mut impl RenderSystem,
                  stats: &mut TileMapRenderStats,
                  ui_sys: &UiSystem,
-                 tile_iso_coords: IsoPoint,
+                 tile_iso_pos: IsoPoint,
                  transform: &WorldToScreenTransform,
                  tile: &Tile,
                  flags: TileMapRenderFlags) {
 
         debug_assert!(tile.is_valid() && !tile.is_empty());
 
-        // Only terrain and buildings might require spacing.
-        let apply_spacing = if !tile.is_unit() { true } else { false };
+        let tile_screen_rect = tile.calc_screen_rect(transform);
 
-        let tile_rect = utils::iso_to_screen_rect(
-            tile_iso_coords,
-            tile.draw_size(),
-            transform,
-            apply_spacing);
-
-        if !tile.flags.contains(TileFlags::Hidden) {
+        if !tile.has_flags(TileFlags::Hidden) {
             if let Some(tile_sprite) = tile.anim_frame_tex_info() {
                 let highlight_color =
-                    if tile.flags.contains(TileFlags::Highlighted) {
+                    if tile.has_flags(TileFlags::Highlighted) {
                         stats.tiles_drawn_highlighted += 1;
                         HIGHLIGHT_TILE_COLOR
-                    } else if tile.flags.contains(TileFlags::Invalidated) {
+                    } else if tile.has_flags(TileFlags::Invalidated) {
                         stats.tiles_drawn_invalidated += 1;
                         INVALID_TILE_COLOR
                     } else {
@@ -347,16 +358,16 @@ impl TileMapRenderer {
                 let texture = tile_sprite.texture;
                 let color = tile.tint_color() * highlight_color;
 
-                render_sys.draw_textured_colored_rect(tile_rect, tex_coords, texture, color);
+                render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
                 stats.tiles_drawn += 1;
             }
         }
 
-        debug_utils::draw_tile_debug(
+        debug::utils::draw_tile_debug(
             render_sys,
             ui_sys,
-            tile_iso_coords,
-            tile_rect,
+            tile_iso_pos,
+            tile_screen_rect,
             transform,
             tile,
             flags);

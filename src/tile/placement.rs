@@ -24,10 +24,10 @@ pub fn cells_overlap(lhs_cells: &TileFootprintList, rhs_cells: &TileFootprintLis
     false
 }
 
-pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
-                                   kind: TileMapLayerKind,
-                                   target_cell: Cell,
-                                   tile_to_place: &'a TileDef) -> bool {
+pub fn try_place_tile_in_layer<'tile_sets>(tile_map: &mut TileMap<'tile_sets>,
+                                           kind: TileMapLayerKind,
+                                           target_cell: Cell,
+                                           tile_to_place: &'tile_sets TileDef) -> bool {
 
     debug_assert!(tile_map.is_cell_within_bounds(target_cell));
     debug_assert!(tile_to_place.is_empty() == false);
@@ -38,12 +38,12 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
         debug_assert!(kind == TileMapLayerKind::Buildings);
 
         // Building -> unit overlap check:
-        if tile_map.has_tile(target_cell, TileMapLayerKind::Units, &[TileKind::Unit]) {
+        if tile_map.has_tile(target_cell, TileMapLayerKind::Units, TileKind::Unit) {
             return false;
         }
 
         // Check for building overlap:
-        if tile_map.has_tile(target_cell, kind, &[TileKind::Building, TileKind::Blocker]) {
+        if tile_map.has_tile(target_cell, kind, TileKind::Building | TileKind::Blocker) {
             let current_footprint =
                 Tile::calc_exact_footprint_cells(target_cell, tile_map.layer(kind));
 
@@ -66,12 +66,12 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
                     return false;
                 }
 
-                if tile_map.has_tile(*footprint_cell, kind, &[TileKind::Building, TileKind::Blocker]) {
+                if tile_map.has_tile(*footprint_cell, kind, TileKind::Building | TileKind::Blocker) {
                     return false; // Cannot place building here.
                 }
 
                 // Building blocker -> unit overlap check:
-                if tile_map.has_tile(*footprint_cell, TileMapLayerKind::Units, &[TileKind::Unit]) {
+                if tile_map.has_tile(*footprint_cell, TileMapLayerKind::Units, TileKind::Unit) {
                     return false; // Cannot place building here.
                 }
             }
@@ -93,28 +93,28 @@ pub fn try_place_tile_in_layer<'a>(tile_map: &mut TileMap<'a>,
 
         // Check overlap with buildings:
         if tile_map.has_tile(target_cell, TileMapLayerKind::Buildings,
-            &[TileKind::Building, TileKind::Blocker]) {
+            TileKind::Building | TileKind::Blocker) {
 
             return false; // Can't place unit over building or building blocker cell.
         }
     }
 
     if let Some(current_tile) = tile_map.try_tile_from_layer_mut(target_cell, kind) {
-        current_tile.set_def(tile_to_place);
+        current_tile.reset_def(tile_to_place);
         return true; // Tile placed successfully.
     }
 
     false // Nothing placed.
 }
 
-pub fn try_clear_tile_from_layer<'a>(tile_map: &mut TileMap<'a>,
-                                     kind: TileMapLayerKind,
-                                     target_cell: Cell) -> bool {
+pub fn try_clear_tile_from_layer<'tile_sets>(tile_map: &mut TileMap<'tile_sets>,
+                                             kind: TileMapLayerKind,
+                                             target_cell: Cell) -> bool {
 
     debug_assert!(tile_map.is_cell_within_bounds(target_cell));
 
     // Tile removal/clearing: Handle removing multi-tile buildings.
-    if tile_map.has_tile(target_cell, kind, &[TileKind::Building, TileKind::Blocker]) {
+    if tile_map.has_tile(target_cell, kind, TileKind::Building | TileKind::Blocker) {
         let target_footprint =
             Tile::calc_exact_footprint_cells(target_cell, tile_map.layer(kind));
 
@@ -135,10 +135,10 @@ pub fn try_clear_tile_from_layer<'a>(tile_map: &mut TileMap<'a>,
     false // Nothing placed.
 }
 
-pub fn try_place_tile_at_cursor<'a>(tile_map: &mut TileMap<'a>,
-                                    cursor_screen_pos: Vec2,
-                                    transform: &WorldToScreenTransform,
-                                    tile_to_place: &'a TileDef) -> bool {
+pub fn try_place_tile_at_cursor<'tile_sets>(tile_map: &mut TileMap<'tile_sets>,
+                                            cursor_screen_pos: Vec2,
+                                            transform: &WorldToScreenTransform,
+                                            tile_to_place: &'tile_sets TileDef) -> bool {
 
     debug_assert!(tile_to_place.is_empty() == false);
 
@@ -156,9 +156,9 @@ pub fn try_place_tile_at_cursor<'a>(tile_map: &mut TileMap<'a>,
     false // Nothing placed.
 }
 
-pub fn try_clear_tile_at_cursor<'a>(tile_map: &mut TileMap<'a>,
-                                    cursor_screen_pos: Vec2,
-                                    transform: &WorldToScreenTransform) -> bool {
+pub fn try_clear_tile_at_cursor<'tile_sets>(tile_map: &mut TileMap<'tile_sets>,
+                                            cursor_screen_pos: Vec2,
+                                            transform: &WorldToScreenTransform) -> bool {
 
     // If placing an empty tile we will actually clear the topmost layer under that cell.
     for layer_kind in TileMapLayerKind::iter().rev() {

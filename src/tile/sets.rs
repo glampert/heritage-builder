@@ -1,6 +1,6 @@
+use bitflags::bitflags;
 use smallvec::{SmallVec, smallvec};
-use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{Display, EnumCount, EnumIter};
+use strum::IntoEnumIterator;
 use serde::Deserialize;
 
 use std::{
@@ -31,17 +31,16 @@ pub type TileFootprintList = SmallVec<[Cell; 36]>;
 // TileKind
 // ----------------------------------------------
 
-#[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Debug, Display, EnumCount, EnumIter, Deserialize)]
-pub enum TileKind {
-    Empty,   // No tile, draws nothing.
-    Blocker, // Draws nothing; blocker for multi-tile buildings, placed in the Buildings layer.
-    Terrain,
-    Building,
-    Unit,
+bitflags! {
+    #[derive(Copy, Clone, PartialEq, Debug, Deserialize)]
+    pub struct TileKind: u32 {
+        const Empty    = 1 << 1; // No tile, draws nothing.
+        const Blocker  = 1 << 2; // Draws nothing; blocker for multi-tile buildings, placed in the Buildings layer.
+        const Terrain  = 1 << 3;
+        const Building = 1 << 4;
+        const Unit     = 1 << 5;
+    }
 }
-
-pub const TILE_KIND_COUNT: usize = TileKind::COUNT;
 
 // ----------------------------------------------
 // TileTexInfo
@@ -157,19 +156,6 @@ pub struct TileDef {
     #[serde(default = "default_tile_kind")]
     pub kind: TileKind,
 
-    // Internal runtime index into TileCategory.
-    #[serde(skip)]
-    category_tile_index: i32,
-
-    // Internal runtime index into TileSet.
-    #[serde(skip)]
-    tileset_category_index: i32,
-
-    // True if the tile fully occludes the terrain tiles below, so we can cull them.
-    // Defaults to true for all Buildings, false for Units. Ignored for Terrain.
-    #[serde(default = "default_occludes_terrain")]
-    pub occludes_terrain: bool,
-
     // Logical size for the tile map. Always a multiple of the base tile size.
     // Optional for Terrain tiles (always = BASE_TILE_SIZE), required otherwise.
     #[serde(default = "default_tile_size")]
@@ -187,20 +173,33 @@ pub struct TileDef {
     // Tile variations for buildings.
     // SmallVec optimizes for Terrain/Units with single variation.
     pub variations: SmallVec<[TileVariation; 1]>,
+
+    // True if the tile fully occludes the terrain tiles below, so we can cull them.
+    // Defaults to true for all Buildings, false for Units. Ignored for Terrain.
+    #[serde(default = "default_occludes_terrain")]
+    pub occludes_terrain: bool,
+
+    // Internal runtime index into TileCategory.
+    #[serde(skip)]
+    category_tile_index: i32,
+
+    // Internal runtime index into TileSet.
+    #[serde(skip)]
+    tileset_category_index: i32,
 }
 
 impl TileDef {
     const fn new(tile_kind: TileKind) -> Self {
         Self {
             name: String::new(),
-            kind: tile_kind,
-            category_tile_index: -1,
-            tileset_category_index: -1,
-            occludes_terrain: false,
+            kind: tile_kind,            
             logical_size: BASE_TILE_SIZE,
             draw_size: BASE_TILE_SIZE,
             color: Color::white(),
             variations: SmallVec::new_const(),
+            occludes_terrain: false,
+            category_tile_index: -1,
+            tileset_category_index: -1,
         }
     }
 
@@ -380,12 +379,12 @@ impl TileDef {
         self.kind = map::layer_to_tile_kind(layer);
 
         if self.name.is_empty() {
-            eprintln!("TileDef '{}' name is missing! A name is required.", self.kind);
+            eprintln!("TileDef '{:?}' name is missing! A name is required.", self.kind);
             return false;
         }
 
         if !self.logical_size.is_valid() {
-            eprintln!("Invalid/missing TileDef logical size: '{}' - '{}'",
+            eprintln!("Invalid/missing TileDef logical size: '{:?}' - '{}'",
                       self.kind,
                       self.name);
             return false;
@@ -393,7 +392,7 @@ impl TileDef {
 
         if (self.logical_size.width  % BASE_TILE_SIZE.width)  != 0 ||
            (self.logical_size.height % BASE_TILE_SIZE.height) != 0 {
-            eprintln!("Invalid TileDef logical size ({:?})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
+            eprintln!("Invalid TileDef logical size ({:?})! Must be a multiple of BASE_TILE_SIZE: '{:?}' - '{}'",
                       self.logical_size,
                       self.kind,
                       self.name);
@@ -403,7 +402,7 @@ impl TileDef {
         if self.kind == TileKind::Terrain {
             // For terrain logical_size must be BASE_TILE_SIZE.
             if self.logical_size != BASE_TILE_SIZE {
-                eprintln!("Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
+                eprintln!("Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{:?}' - '{}'",
                           self.kind,
                           self.name);
                 return false;
@@ -421,7 +420,7 @@ impl TileDef {
         }
 
         if self.variations.is_empty() {
-            eprintln!("At least one variation is required! TileDef: '{}' - '{}'", self.kind, self.name);
+            eprintln!("At least one variation is required! TileDef: '{:?}' - '{}'", self.kind, self.name);
             return false;
         }
 
@@ -430,28 +429,28 @@ impl TileDef {
             for anim_set in &mut variation.anim_sets {
                 if layer == TileMapLayerKind::Buildings {
                     if variation.name.is_empty() {
-                        eprintln!("Variation name missing for TileDef: '{}' - '{}'", self.kind, self.name);
+                        eprintln!("Variation name missing for TileDef: '{:?}' - '{}'", self.kind, self.name);
                         return false;
                     }
                     if anim_set.name.is_empty() {
-                        eprintln!("AnimSet name missing for TileDef: '{}' - '{}'", self.kind, self.name);
+                        eprintln!("AnimSet name missing for TileDef: '{:?}' - '{}'", self.kind, self.name);
                         return false;
                     }
                 } else if layer == TileMapLayerKind::Units {
                     if anim_set.name.is_empty() {
-                        eprintln!("AnimSet name missing for TileDef: '{}' - '{}'", self.kind, self.name);
+                        eprintln!("AnimSet name missing for TileDef: '{:?}' - '{}'", self.kind, self.name);
                         return false;
                     }
                 }
 
                 if anim_set.frames.is_empty() {
-                    eprintln!("At least one animation frame is required! TileDef: '{}' - '{}'", self.kind, self.name);
+                    eprintln!("At least one animation frame is required! TileDef: '{:?}' - '{}'", self.kind, self.name);
                     return false;
                 }
 
                 for (frame_index, frame) in anim_set.frames.iter_mut().enumerate() {
                     if frame.name.is_empty() {
-                        eprintln!("Missing sprite frame name for index [{}]. AnimSet: '{}', TileDef: '{}' - '{}'",
+                        eprintln!("Missing sprite frame name for index [{}]. AnimSet: '{}', TileDef: '{:?}' - '{}'",
                                   frame_index,
                                   anim_set.name,
                                   self.kind,
@@ -881,7 +880,7 @@ impl TileSets {
     // Get back a mutable reference for the given TileDef.
     // This function is only intended for development/debug
     // and use within the ImGui TileInspector widget.
-    pub fn try_get_editable_tile_debug(&self, tile_def: &TileDef) -> Option<&mut TileDef> {
+    pub fn try_get_editable_tile(&self, tile_def: &TileDef) -> Option<&mut TileDef> {
         if let Some(cat) = self.find_category_for_tile(tile_def) {
             let const_def = &cat.tiles[tile_def.category_tile_index as usize];
             // SAFETY: Here there be Dragons!

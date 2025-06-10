@@ -71,7 +71,7 @@ impl GlfwApplication {
         // OpenGL functions that we don't need or care about. This
         // is a hack to stop the TTY spamming but still keep a record
         // of the errors if ever required for inspection.
-        utils::macos_redirect_stderr(|| {
+        utils::platform::macos_redirect_stderr(|| {
             gl::load_with(|symbol| window.get_proc_address(symbol))
         }, "stderr_gl_load_app.log");
 

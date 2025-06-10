@@ -7,14 +7,58 @@ use strum_macros::{Display, EnumCount, EnumIter};
 use serde::Deserialize;
 
 use crate::{
-    utils::{self, Cell, IsoPoint, Size, Vec2, Color, WorldToScreenTransform}
+    utils::{self, Cell, IsoPoint, Size, Rect, Vec2, Color, WorldToScreenTransform}
 };
 
 use super::{
-    sets::{TileDef, TileKind, TileTexInfo, TileFootprintList, BASE_TILE_SIZE},
+    sets::{TileSets, TileDef, TileKind, TileTexInfo, TileFootprintList, BASE_TILE_SIZE},
     selection::{TileSelection, CellRange},
     placement::{self}
 };
+
+// ----------------------------------------------
+// GameStateHandle
+// ----------------------------------------------
+
+// Index into associated game state.
+#[derive(Copy, Clone)]
+pub struct GameStateHandle {
+    index: i32,
+    kind:  i32,
+}
+
+impl GameStateHandle {
+    #[inline]
+    pub fn new(index: usize, kind: i32) -> Self {
+        debug_assert!(kind >= 0);
+        Self {
+            index: index.try_into().expect("Value cannot fit into an i32"),
+            kind:  kind
+        }
+    }
+
+    #[inline]
+    pub const fn invalid() -> Self {
+        Self { index: -1, kind: -1 }
+    }
+
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.index >= 0 && self.kind >= 0
+    }
+
+    #[inline]
+    pub fn index(&self) -> usize {
+        debug_assert!(self.is_valid());
+        self.index as usize
+    }
+
+    #[inline]
+    pub fn kind(&self) -> i32 {
+        debug_assert!(self.is_valid());
+        self.kind
+    }
+}
 
 // ----------------------------------------------
 // TileAnimState
@@ -46,55 +90,72 @@ bitflags! {
     }
 }
 
+// Tile is tied to the lifetime of the TileSets that owns the underlying TileDef.
 #[derive(Clone)]
-pub struct Tile<'a> {
+pub struct Tile<'tile_sets> {
     pub cell: Cell,
+    pub game_state: GameStateHandle,
+
+    def: &'tile_sets TileDef,
     owner_cell: Cell, // For building blockers only.
-
-    pub def: &'a TileDef,
-    pub flags: TileFlags,
-
+    flags: TileFlags,
     variation: u16,
     anim_state: TileAnimState,
 }
 
-impl<'a> Tile<'a> {
+impl<'tile_sets> Tile<'tile_sets> {
     #[inline]
-    fn new(cell: Cell, owner_cell: Cell, def: &'a TileDef, flags: TileFlags) -> Self {
+    fn new(cell: Cell, owner_cell: Cell, def: &'tile_sets TileDef, flags: TileFlags) -> Self {
         Self {
-            cell: cell,
+            cell:       cell,
+            game_state: GameStateHandle::invalid(),
+            def:        def,
             owner_cell: owner_cell,
-            def: def,
-            flags: flags,
-            variation: 0,
-            anim_state: TileAnimState::default()
+            flags:      flags,
+            variation:  0,
+            anim_state: TileAnimState::default(),
         }
     }
 
     #[inline]
     pub fn set_as_blocker(&mut self, owner_cell: Cell, owner_flags: TileFlags) {
+        self.game_state = GameStateHandle::invalid();
+        self.def        = TileDef::blocker();
         self.owner_cell = owner_cell;
-        self.def = TileDef::blocker();
-        self.flags = owner_flags;
-        self.variation = 0;
+        self.flags      = owner_flags;
+        self.variation  = 0;
         self.anim_state = TileAnimState::default();
     }
 
     #[inline]
     pub fn set_as_empty(&mut self) {
+        self.game_state = GameStateHandle::invalid();
+        self.def        = TileDef::empty();
         self.owner_cell = Cell::invalid();
-        self.def = TileDef::empty();
-        self.flags = TileFlags::empty();
-        self.variation = 0;
+        self.flags      = TileFlags::empty();
+        self.variation  = 0;
+        self.anim_state = TileAnimState::default();
+    }
+
+    // Change TileDef and reset all states to defaults.
+    #[inline]
+    pub fn reset_def(&mut self, tile_def: &'tile_sets TileDef) {
+        self.game_state = GameStateHandle::invalid();
+        self.def        = tile_def;
+        self.owner_cell = Cell::invalid();
+        self.flags      = tile_def.tile_flags();
+        self.variation  = 0;
         self.anim_state = TileAnimState::default();
     }
 
     #[inline]
-    pub fn set_def(&mut self, tile_def: &'a TileDef) {
-        self.def = tile_def;
-        self.flags = tile_def.tile_flags();
-        self.variation = 0;
-        self.anim_state = TileAnimState::default();
+    pub fn set_flags(&mut self, flags: TileFlags, value: bool) {
+        self.flags.set(flags, value);
+    }
+
+    #[inline]
+    pub fn has_flags(&self, flags: TileFlags) -> bool {
+        self.flags.contains(flags)
     }
 
     #[inline]
@@ -215,37 +276,48 @@ impl<'a> Tile<'a> {
         }
     }
 
+    #[inline]
     pub fn calc_adjusted_iso_coords(&self) -> IsoPoint {
-        match self.kind() {
-            TileKind::Terrain | TileKind::Empty | TileKind::Blocker => {
-                // No position adjustments needed for terrain/empty/blocker tiles.
-                utils::cell_to_iso(self.cell, BASE_TILE_SIZE)
-            },
-            TileKind::Building => {
-                // Convert the anchor (bottom tile) to isometric screen position:
-                let mut tile_iso_coords = utils::cell_to_iso(self.cell, BASE_TILE_SIZE);
+        if self.kind().intersects(TileKind::Terrain | TileKind::Empty | TileKind::Blocker) {
+            // No position adjustments needed for terrain/empty/blocker tiles.
+            utils::cell_to_iso(self.cell, BASE_TILE_SIZE)
+        } else if self.kind() == TileKind::Building {
+            // Convert the anchor (bottom tile) to isometric screen position:
+            let mut tile_iso_coords = utils::cell_to_iso(self.cell, BASE_TILE_SIZE);
 
-                // Center the image horizontally:
-                tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (self.def.logical_size.width / 2);
+            // Center the image horizontally:
+            tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (self.def.logical_size.width / 2);
 
-                // Vertical offset: move up the full sprite height *minus* 1 tile's height
-                // Since the anchor is the bottom tile, and cell_to_isometric gives us the *bottom*,
-                // we must offset up by (image_height - one_tile_height).
-                tile_iso_coords.y -= self.def.draw_size.height - BASE_TILE_SIZE.height;
+            // Vertical offset: move up the full sprite height *minus* 1 tile's height
+            // Since the anchor is the bottom tile, and cell_to_isometric gives us the *bottom*,
+            // we must offset up by (image_height - one_tile_height).
+            tile_iso_coords.y -= self.def.draw_size.height - BASE_TILE_SIZE.height;
 
-                tile_iso_coords
-            },
-            TileKind::Unit => {
-                // Convert the anchor tile into isometric screen coordinates:
-                let mut tile_iso_coords = utils::cell_to_iso(self.cell, BASE_TILE_SIZE);
+            tile_iso_coords
+        } else if self.kind() == TileKind::Unit {
+            // Convert the anchor tile into isometric screen coordinates:
+            let mut tile_iso_coords = utils::cell_to_iso(self.cell, BASE_TILE_SIZE);
 
-                // Adjust to center the unit sprite:
-                tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (self.def.draw_size.width / 2);
-                tile_iso_coords.y -= self.def.draw_size.height  - (BASE_TILE_SIZE.height / 2);
+            // Adjust to center the unit sprite:
+            tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (self.def.draw_size.width / 2);
+            tile_iso_coords.y -= self.def.draw_size.height  - (BASE_TILE_SIZE.height / 2);
 
-                tile_iso_coords
-            },
+            tile_iso_coords
+        } else {
+            panic!("Unhandled TileKind!");
         }
+    }
+
+    #[inline]
+    pub fn calc_screen_rect(&self, transform: &WorldToScreenTransform) -> Rect {
+        let iso_position = self.calc_adjusted_iso_coords();
+        // Only terrain and buildings might require spacing.
+        let apply_spacing = if !self.is_unit() { true } else { false };
+        utils::iso_to_screen_rect(
+            iso_position,
+            self.draw_size(),
+            transform,
+            apply_spacing)
     }
 
     // ----------------------
@@ -322,8 +394,8 @@ impl<'a> Tile<'a> {
     }
 
     #[inline]
-    pub fn is_animated(&self) -> bool {
-        if self.kind_has_animation() {
+    pub fn has_animations(&self) -> bool {
+        if self.kind_has_animations() {
             if let Some(anim_set) = self.def.anim_set_by_index(self.variation_index(), self.anim_set_index()) {
                 if anim_set.frames.len() > 1 {
                     return true;
@@ -334,7 +406,7 @@ impl<'a> Tile<'a> {
     }
 
     #[inline]
-    fn kind_has_animation(&self) -> bool {
+    fn kind_has_animations(&self) -> bool {
         match self.kind() {
             TileKind::Empty | TileKind::Blocker | TileKind::Terrain => false,
             _ => true
@@ -342,7 +414,7 @@ impl<'a> Tile<'a> {
     }
 
     fn update_anim(&mut self, delta_time_secs: f32) {
-        if !self.kind_has_animation() {
+        if !self.kind_has_animations() {
             return;
         }
 
@@ -369,6 +441,22 @@ impl<'a> Tile<'a> {
             }
         }      
     }
+}
+
+// ----------------------------------------------
+// Utility functions
+// ----------------------------------------------
+
+pub fn find_category_name_for_tile<'tile_sets>(tile: &Tile, tile_sets: &'tile_sets TileSets) -> &'tile_sets str {
+    if let Some(category) = tile_sets.find_category_for_tile(tile.def) {
+        &category.name
+    } else {
+        "<none>"
+    }
+}
+
+pub fn try_get_editable_tile<'tile_sets>(tile: &Tile, tile_sets: &'tile_sets TileSets) -> Option<&'tile_sets mut TileDef> {
+    tile_sets.try_get_editable_tile(tile.def)
 }
 
 // ----------------------------------------------
@@ -404,30 +492,31 @@ pub fn layer_to_tile_kind(layer: TileMapLayerKind) -> TileKind {
     }
 }
 
-pub struct TileMapLayerRefs<'a> {
-    pub terrain: &'a TileMapLayer<'a>,
-    pub buildings: &'a TileMapLayer<'a>,
-    pub units: &'a TileMapLayer<'a>,
+// These are bound to the TileMap's lifetime (which in turn is bound to the TileSets).
+pub struct TileMapLayerRefs<'tile_map, 'tile_sets> {
+    pub terrain: &'tile_map TileMapLayer<'tile_sets>,
+    pub buildings: &'tile_map TileMapLayer<'tile_sets>,
+    pub units: &'tile_map TileMapLayer<'tile_sets>,
 }
 
-pub struct TileMapLayerMutRefs<'a> {
-    pub terrain: &'a mut TileMapLayer<'a>,
-    pub buildings: &'a mut TileMapLayer<'a>,
-    pub units: &'a mut TileMapLayer<'a>,
+pub struct TileMapLayerMutRefs<'tile_map, 'tile_sets> {
+    pub terrain: &'tile_map mut TileMapLayer<'tile_sets>,
+    pub buildings: &'tile_map mut TileMapLayer<'tile_sets>,
+    pub units: &'tile_map mut TileMapLayer<'tile_sets>,
 }
 
 // ----------------------------------------------
 // TileMapLayer
 // ----------------------------------------------
 
-pub struct TileMapLayer<'a> {
+pub struct TileMapLayer<'tile_sets> {
     kind: TileMapLayerKind,
     size_in_cells: Size,
-    tiles: Vec<Tile<'a>>,
+    tiles: Vec<Tile<'tile_sets>>,
 }
 
-impl<'a> TileMapLayer<'a> {
-    fn new(kind: TileMapLayerKind, size_in_cells: Size, fill_tile: &'a TileDef) -> Self {
+impl<'tile_sets> TileMapLayer<'tile_sets> {
+    fn new(kind: TileMapLayerKind, size_in_cells: Size, fill_tile: &'tile_sets TileDef) -> Self {
         let tile_count = (size_in_cells.width * size_in_cells.height) as usize;
 
         let mut layer = Self {
@@ -459,7 +548,7 @@ impl<'a> TileMapLayer<'a> {
     } 
 
     #[inline]
-    pub fn add_tile(&mut self, cell: Cell, tile_def: &'a TileDef) {
+    pub fn add_tile(&mut self, cell: Cell, tile_def: &'tile_sets TileDef) {
         debug_assert!(tile_def.is_empty() || tile_kind_to_layer(tile_def.kind) == self.kind);
         let flags = tile_def.tile_flags();
         let tile_index = self.cell_to_index(cell);
@@ -503,7 +592,7 @@ impl<'a> TileMapLayer<'a> {
     }
 
     #[inline]
-    pub fn tile_mut(&mut self, cell: Cell) -> &mut Tile<'a> {
+    pub fn tile_mut(&mut self, cell: Cell) -> &mut Tile<'tile_sets> {
         let tile_index = self.cell_to_index(cell);
         let tile = &mut self.tiles[tile_index];
         debug_assert!(tile.is_empty() || tile_kind_to_layer(tile.kind()) == self.kind);
@@ -521,7 +610,7 @@ impl<'a> TileMapLayer<'a> {
     }
 
     #[inline]
-    pub fn try_tile_mut(&mut self, cell: Cell) -> Option<&mut Tile<'a>> {
+    pub fn try_tile_mut(&mut self, cell: Cell) -> Option<&mut Tile<'tile_sets>> {
         if !self.is_cell_within_bounds(cell) {
             return None;
         }
@@ -529,29 +618,25 @@ impl<'a> TileMapLayer<'a> {
     }
 
     #[inline]
-    pub fn has_tile(&self, cell: Cell, tile_kinds: &[TileKind]) -> bool {
+    pub fn has_tile(&self, cell: Cell, tile_kinds: TileKind) -> bool {
         self.find_tile(cell, tile_kinds).is_some()
     }
 
     #[inline]
-    pub fn find_tile(&self, cell: Cell, tile_kinds: &[TileKind]) -> Option<&Tile> {
+    pub fn find_tile(&self, cell: Cell, tile_kinds: TileKind) -> Option<&Tile> {
         if let Some(current_tile) = self.try_tile(cell) {
-            for &kind in tile_kinds {
-                if current_tile.kind() == kind {
-                    return Some(current_tile);
-                }
+            if current_tile.kind().intersects(tile_kinds) {
+                return Some(current_tile);
             }
         }
         None
     }
 
     #[inline]
-    pub fn find_tile_mut(&mut self, cell: Cell, tile_kinds: &[TileKind]) -> Option<&mut Tile<'a>> {
+    pub fn find_tile_mut(&mut self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile<'tile_sets>> {
         if let Some(current_tile) = self.try_tile_mut(cell) {
-            for &kind in tile_kinds {
-                if current_tile.kind() == kind {
-                    return Some(current_tile);
-                }
+            if current_tile.kind().intersects(tile_kinds) {
+                return Some(current_tile);
             }
         }
         None
@@ -582,13 +667,13 @@ impl<'a> TileMapLayer<'a> {
         neighbors
     }
 
-    pub fn tile_neighbors_mut(&mut self, cell: Cell, include_self: bool) -> ArrayVec::<Option<&mut Tile<'a>>, 9> {
-        let mut neighbors: ArrayVec<Option<*mut Tile<'a>>, 9> = ArrayVec::new();
+    pub fn tile_neighbors_mut(&mut self, cell: Cell, include_self: bool) -> ArrayVec::<Option<&mut Tile<'tile_sets>>, 9> {
+        let mut neighbors: ArrayVec<Option<*mut Tile<'tile_sets>>, 9> = ArrayVec::new();
 
         // Helper closure to get a raw pointer from try_tile_mut().
         let mut raw_tile_ptr = |c: Cell| {
             self.try_tile_mut(c)
-                .map(|tile| tile as *mut Tile<'a>) // Convert to raw pointer
+                .map(|tile| tile as *mut Tile<'tile_sets>) // Convert to raw pointer
         };
 
         if include_self {
@@ -642,6 +727,28 @@ impl<'a> TileMapLayer<'a> {
     }
 
     #[inline]
+    pub fn for_each_tile<F>(&self, mut visitor_fn: F, tile_kinds: TileKind)
+        where F: FnMut(&Tile) {
+
+        for tile in &self.tiles {
+            if tile.kind().intersects(tile_kinds) {
+                visitor_fn(tile);
+            }
+        }
+    }
+
+    #[inline]
+    pub fn for_each_tile_mut<F>(&mut self, mut visitor_fn: F, tile_kinds: TileKind)
+        where F: FnMut(&mut Tile<'tile_sets>) {
+
+        for tile in &mut self.tiles {
+            if tile.kind().intersects(tile_kinds) {
+                visitor_fn(tile);
+            }
+        }
+    }
+
+    #[inline]
     fn cell_to_index(&self, cell: Cell) -> usize {
         debug_assert!(self.is_cell_within_bounds(cell));
         let tile_index = cell.x + (cell.y * self.size_in_cells.width);
@@ -663,12 +770,12 @@ impl<'a> TileMapLayer<'a> {
 // TileMap
 // ----------------------------------------------
 
-pub struct TileMap<'a> {
+pub struct TileMap<'tile_sets> {
     size_in_cells: Size,
-    layers: ArrayVec::<Box<TileMapLayer<'a>>, TILE_MAP_LAYER_COUNT>,
+    layers: ArrayVec<Box<TileMapLayer<'tile_sets>>, TILE_MAP_LAYER_COUNT>,
 }
 
-impl<'a> TileMap<'a> {
+impl<'tile_sets> TileMap<'tile_sets> {
     pub fn new(size_in_cells: Size) -> Self {
         let mut tile_map = Self {
             size_in_cells: size_in_cells,
@@ -678,7 +785,7 @@ impl<'a> TileMap<'a> {
         tile_map
     }
 
-    pub fn clear(&mut self, fill_tile: &'a TileDef) {
+    pub fn clear(&mut self, fill_tile: &'tile_sets TileDef) {
         self.layers.clear();
         // Reset all layers to empty.
         for layer in TileMapLayerKind::iter() {
@@ -719,7 +826,7 @@ impl<'a> TileMap<'a> {
     }
 
     #[inline]
-    pub fn layers_mut(&mut self) -> TileMapLayerMutRefs<'a> {
+    pub fn layers_mut<'tile_map>(&mut self) -> TileMapLayerMutRefs<'tile_map, 'tile_sets> {
         // Use raw pointers to avoid borrow checker conflicts.
         let terrain   = self.layer_mut(TileMapLayerKind::Terrain)   as *mut TileMapLayer;
         let buildings = self.layer_mut(TileMapLayerKind::Buildings) as *mut TileMapLayer;
@@ -742,7 +849,7 @@ impl<'a> TileMap<'a> {
     }
 
     #[inline]
-    pub fn layer_mut(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer<'a> {
+    pub fn layer_mut(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer<'tile_sets> {
         debug_assert!(self.layers[kind as usize].kind == kind);
         self.layers[kind as usize].as_mut()
     }
@@ -760,7 +867,7 @@ impl<'a> TileMap<'a> {
     #[inline]
     pub fn try_tile_from_layer_mut(&mut self,
                                    cell: Cell,
-                                   kind: TileMapLayerKind) -> Option<&mut Tile<'a>> {
+                                   kind: TileMapLayerKind) -> Option<&mut Tile<'tile_sets>> {
 
         let layer = self.layer_mut(kind);
         debug_assert!(layer.kind == kind);
@@ -771,7 +878,7 @@ impl<'a> TileMap<'a> {
     pub fn has_tile(&self,
                     cell: Cell,
                     kind: TileMapLayerKind,
-                    tile_kinds: &[TileKind]) -> bool {
+                    tile_kinds: TileKind) -> bool {
 
         self.layer(kind).has_tile(cell, tile_kinds)
     }
@@ -780,7 +887,7 @@ impl<'a> TileMap<'a> {
     pub fn find_tile(&self,
                      cell: Cell,
                      kind: TileMapLayerKind,
-                     tile_kinds: &[TileKind]) -> Option<&Tile> {
+                     tile_kinds: TileKind) -> Option<&Tile> {
 
         self.layer(kind).find_tile(cell, tile_kinds)
     }
@@ -789,14 +896,14 @@ impl<'a> TileMap<'a> {
     pub fn find_tile_mut(&mut self,
                          cell: Cell,
                          kind: TileMapLayerKind,
-                         tile_kinds: &[TileKind]) -> Option<&mut Tile<'a>> {
+                         tile_kinds: TileKind) -> Option<&mut Tile<'tile_sets>> {
 
         self.layer_mut(kind).find_tile_mut(cell, tile_kinds)
     }
 
     pub fn try_place_tile(&mut self,
                           target_cell: Cell,
-                          tile_to_place: &'a TileDef) -> bool {
+                          tile_to_place: &'tile_sets TileDef) -> bool {
 
         self.try_place_tile_in_layer(
             target_cell,
@@ -807,7 +914,7 @@ impl<'a> TileMap<'a> {
     pub fn try_place_tile_in_layer(&mut self,
                                    target_cell: Cell,
                                    kind: TileMapLayerKind,
-                                   tile_to_place: &'a TileDef) -> bool {
+                                   tile_to_place: &'tile_sets TileDef) -> bool {
 
         if tile_to_place.is_empty() {
             placement::try_clear_tile_from_layer(self, kind, target_cell)
@@ -819,7 +926,7 @@ impl<'a> TileMap<'a> {
     pub fn try_place_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform,
-                                    tile_to_place: &'a TileDef) -> bool {
+                                    tile_to_place: &'tile_sets TileDef) -> bool {
 
         if tile_to_place.is_empty() {
             placement::try_clear_tile_at_cursor(self, cursor_screen_pos, transform)
@@ -829,10 +936,10 @@ impl<'a> TileMap<'a> {
     }
 
     pub fn update_selection(&mut self,
-                            selection: &mut TileSelection<'a>,
+                            selection: &mut TileSelection<'tile_sets>,
                             cursor_screen_pos: Vec2,
                             transform: &WorldToScreenTransform,
-                            placement_candidate: Option<&'a TileDef>) {
+                            placement_candidate: Option<&'tile_sets TileDef>) {
 
         let map_size_in_cells = self.size();
         let mut layers = self.layers_mut(); 
@@ -845,7 +952,7 @@ impl<'a> TileMap<'a> {
             placement_candidate);
     }
 
-    pub fn clear_selection(&mut self, selection: &mut TileSelection<'a>) {
+    pub fn clear_selection(&mut self, selection: &mut TileSelection<'tile_sets>) {
         selection.clear(&mut self.layers_mut());
     }
 
@@ -874,7 +981,7 @@ impl<'a> TileMap<'a> {
     }
 
     // Iterate all tiles on multi-tile buildings.
-    pub fn for_each_building_footprint_tile<F>(&self, cell: Cell, mut visitor_fn: F) 
+    pub fn for_each_building_footprint_tile<F>(&self, cell: Cell, mut visitor_fn: F)
         where F: FnMut(&Tile) {
 
         let buildings_layer = self.layer(TileMapLayerKind::Buildings);
@@ -882,24 +989,39 @@ impl<'a> TileMap<'a> {
 
         for footprint_cell in footprint {
             if let Some(tile) = buildings_layer.find_tile(
-                    footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
+                    footprint_cell, TileKind::Building | TileKind::Blocker) {
                 visitor_fn(tile);
             }
         }
     }
 
-    pub fn for_each_building_footprint_tile_mut<F>(&mut self, cell: Cell, mut visitor_fn: F) 
-        where F: FnMut(&mut Tile<'a>) {
+    pub fn for_each_building_footprint_tile_mut<F>(&mut self, cell: Cell, mut visitor_fn: F)
+        where F: FnMut(&mut Tile<'tile_sets>) {
 
         let buildings_layer = self.layer_mut(TileMapLayerKind::Buildings);
         let footprint = Tile::calc_exact_footprint_cells(cell, buildings_layer);
 
         for footprint_cell in footprint {
             if let Some(tile) = buildings_layer.find_tile_mut(
-                    footprint_cell, &[TileKind::Building, TileKind::Blocker]) {
+                    footprint_cell, TileKind::Building | TileKind::Blocker) {
                 visitor_fn(tile);
             }
         }
+    }
+
+    // For each building (no building blockers).
+    pub fn for_each_building_tile<F>(&self, visitor_fn: F)
+        where F: FnMut(&Tile) {
+
+        let buildings_layer = self.layer(TileMapLayerKind::Buildings);
+        buildings_layer.for_each_tile(visitor_fn, TileKind::Building);
+    }
+
+    pub fn for_each_building_tile_mut<F>(&mut self, visitor_fn: F)
+        where F: FnMut(&mut Tile<'tile_sets>) {
+
+        let buildings_layer = self.layer_mut(TileMapLayerKind::Buildings);
+        buildings_layer.for_each_tile_mut(visitor_fn, TileKind::Building);
     }
 
     pub fn update_anims(&mut self, visible_range: CellRange, delta_time: time::Duration) {

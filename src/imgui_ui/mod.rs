@@ -203,7 +203,7 @@ impl UiContext {
         // OpenGL functions that we don't need or care about. This
         // is a hack to stop the TTY spamming but still keep a record
         // of the errors if ever required for inspection.
-        let imgui_renderer = utils::macos_redirect_stderr(|| {
+        let imgui_renderer = utils::platform::macos_redirect_stderr(|| {
             // Set up the OpenGL renderer:
             let imgui_renderer = ImGuiRenderer::new(&mut imgui_ctx,
                 |func_name| {
