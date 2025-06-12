@@ -57,7 +57,7 @@ impl TileInspectorMenu {
             return;
         }
 
-        let layer_kind = map::tile_kind_to_layer(tile_kind);
+        let layer_kind = TileMapLayerKind::from_tile_kind(tile_kind);
         let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
         let tile_screen_rect = tile.calc_screen_rect(transform);
 
@@ -92,7 +92,7 @@ impl TileInspectorMenu {
                                 tile_sets: &TileSets,
                                 transform: &WorldToScreenTransform) {
 
-        if !ui.collapsing_header("Properties", imgui::TreeNodeFlags::empty()) {
+        if !ui.collapsing_header("Tile Properties", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 

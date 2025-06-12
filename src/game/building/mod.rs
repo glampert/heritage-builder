@@ -1,14 +1,14 @@
 use std::fmt;
 use rand::Rng;
 use strum::{EnumCount, IntoDiscriminant};
-use strum_macros::{Display, EnumCount, EnumIter, EnumDiscriminants};
+use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
-    utils::{Cell},
+    utils::Cell,
     tile::{
-        sets::{TileKind, TileDef},
-        map::{Tile, TileMapLayerKind}
+        map::{Tile, TileMapLayerKind},
+        sets::{TileDef, TileKind}
     }
 };
 
@@ -16,43 +16,42 @@ use super::{
     sim::{Query}
 };
 
+use config::{
+    BuildingConfigs
+};
+
 pub mod producer;
 pub mod storage;
 pub mod service;
-pub mod household;
-pub mod create;
-
-use producer::ProducerState;
-use storage::StorageState;
-use service::ServiceState;
-use household::HouseholdState;
+pub mod house;
+pub mod config;
 
 /*
 -----------------------
   Building Archetypes  
 -----------------------
 
-* Population Building (Household):
+* Population Building (AKA House/Household):
  - Consumes resources (water, food, goods, etc).
- - Needs certain services in the neighborhood.
+ - Needs access to certain services in the neighborhood.
  - Adds a population number (workers).
  - Pays tax (income).
  - Can evolve/expand (more population capacity).
  - Only evolves if it has required resources and services.
 
-* Production Building:
- - Produces a resource (farm, fishing wharf, factory).
+* Producer Building:
+ - Produces a resource/consumer good (farm, fishing wharf, factory) or raw material (mine, logging camp).
  - Uses workers (min, max workers needed). Production output depends on number of workers.
- - May need a raw material (factory needs wood, metal, etc).
+ - May need other raw materials to function (factory needs wood, metal, etc).
  - Needs Storage Buildings to store production.
 
 * Storage Building:
- - Stores production from Production Buildings (granary, storage yard).
+ - Stores production from Producer Buildings (granary, storage yard).
  - Uses workers (min, max workers needed).
 
 * Service Building:
  - Uses workers (min, max workers needed).
- - May consume resources (food, goods, etc) from storage (e.g.: Market).
+ - May consume resources (food, goods, etc) from storage (e.g.: a Market).
  - Provides services to neighborhood.
 */
 
@@ -60,19 +59,25 @@ use household::HouseholdState;
 // Building
 // ----------------------------------------------
 
-pub struct Building {
-    name: String,
-    map_cell: Cell,
+pub struct Building<'config> {
+    name: &'config str,
     kind: BuildingKind,
-    archetype: BuildingArchetype,
+    map_cell: Cell,
+    configs: &'config BuildingConfigs,
+    archetype: BuildingArchetype<'config>,
 }
 
-impl Building {
-    pub fn new(name: String, map_cell: Cell, kind: BuildingKind, archetype: BuildingArchetype) -> Self {
+impl<'config> Building<'config> {
+    pub fn new(name: &'config str,
+               kind: BuildingKind,
+               map_cell: Cell,
+               configs: &'config BuildingConfigs,
+               archetype: BuildingArchetype<'config>) -> Self {
         Self {
             name: name,
-            map_cell: map_cell,
             kind: kind,
+            map_cell: map_cell,
+            configs: configs,
             archetype: archetype
         }
     }
@@ -80,9 +85,11 @@ impl Building {
     #[inline]
     pub fn update(&mut self, query: &mut Query, delta_time_secs: f32) {
         let mut update_ctx = 
-            BuildingUpdateContext::new(&self.name,
-                                       self.map_cell,
+            BuildingUpdateContext::new(self.name,
+                                       self.kind,
                                        self.archetype_kind(),
+                                       self.map_cell,
+                                       self.configs,
                                        query);
 
         self.archetype.update(&mut update_ctx, delta_time_secs);
@@ -103,12 +110,12 @@ impl Building {
 // BuildingList
 // ----------------------------------------------
 
-pub struct BuildingList {
+pub struct BuildingList<'config> {
     archetype_kind: BuildingArchetypeKind,
-    buildings: Vec<Building>, // All share the same archetype.
+    buildings: Vec<Building<'config>>, // All share the same archetype.
 }
 
-impl BuildingList {
+impl<'config> BuildingList<'config> {
     pub fn new(archetype_kind: BuildingArchetypeKind) -> Self {
         Self {
             archetype_kind: archetype_kind,
@@ -116,7 +123,8 @@ impl BuildingList {
         }
     }
 
-    pub fn add(&mut self, building: Building) -> usize {
+    #[inline]
+    pub fn add(&mut self, building: Building<'config>) -> usize {
         debug_assert!(building.archetype_kind() == self.archetype_kind);
         self.buildings.push(building);
         self.buildings.len() - 1
@@ -135,7 +143,7 @@ impl BuildingList {
 // ----------------------------------------------
 
 #[repr(i32)]
-#[derive(Copy, Clone, Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 pub enum BuildingKind {
     // Archetype: Producer
 
@@ -145,8 +153,8 @@ pub enum BuildingKind {
     Well,
     Market,
 
-    // Archetype: Household
-    Household,
+    // Archetype: House
+    House,
 }
 
 // ----------------------------------------------
@@ -157,34 +165,34 @@ pub enum BuildingKind {
 #[strum_discriminants(repr(u32))]
 #[strum_discriminants(name(BuildingArchetypeKind))]
 #[strum_discriminants(derive(Display, EnumCount, EnumIter))]
-pub enum BuildingArchetype {
-    Producer(ProducerState),
-    Storage(StorageState),
-    Service(ServiceState),
-    Household(HouseholdState),
+pub enum BuildingArchetype<'config> {
+    Producer(producer::ProducerState<'config>),
+    Storage(storage::StorageState<'config>),
+    Service(service::ServiceState<'config>),
+    House(house::HouseState<'config>),
 }
 
 pub const BUILDING_ARCHETYPE_COUNT: usize = BuildingArchetypeKind::COUNT;
 
-impl BuildingArchetype {
-    pub fn new_producer(state: ProducerState) -> Self {
+impl<'config> BuildingArchetype<'config> {
+    fn new_producer(state: producer::ProducerState<'config>) -> Self {
         BuildingArchetype::Producer(state)
     }
 
-    pub fn new_storage(state: StorageState) -> Self {
+    fn new_storage(state: storage::StorageState<'config>) -> Self {
         BuildingArchetype::Storage(state)
     }
 
-    pub fn new_service(state: ServiceState) -> Self {
+    fn new_service(state: service::ServiceState<'config>) -> Self {
         BuildingArchetype::Service(state)
     }
 
-    pub fn new_household(state: HouseholdState) -> Self {
-        BuildingArchetype::Household(state)
+    fn new_house(state: house::HouseState<'config>) -> Self {
+        BuildingArchetype::House(state)
     }
 
     #[inline]
-    fn update(&mut self, update_ctx: &mut BuildingUpdateContext, delta_time_secs: f32) {
+    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
         match self {
             BuildingArchetype::Producer(state) => {
                 state.update(update_ctx, delta_time_secs);
@@ -195,7 +203,7 @@ impl BuildingArchetype {
             BuildingArchetype::Service(state) => {
                 state.update(update_ctx, delta_time_secs);
             }
-            BuildingArchetype::Household(state) => {
+            BuildingArchetype::House(state) => {
                 state.update(update_ctx, delta_time_secs);
             }
         }
@@ -206,44 +214,56 @@ impl BuildingArchetype {
 // BuildingUpdateContext
 // ----------------------------------------------
 
-pub struct BuildingUpdateContext<'building, 'query, 'sim, 'tile_map, 'tile_sets> {
-    name: &'building str,
-    map_cell: Cell,
+pub struct BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
+    name: &'config str,
+    kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
+    map_cell: Cell,
+    configs: &'config BuildingConfigs,
     query: &'query mut Query<'sim, 'tile_map, 'tile_sets>,
 }
 
-impl<'building, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'building, 'query, 'sim, 'tile_map, 'tile_sets> {
-    fn new(name: &'building str,
-           map_cell: Cell,
+impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
+    fn new(name: &'config str,
+           kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
+           map_cell: Cell,
+           configs: &'config BuildingConfigs,
            query: &'query mut Query<'sim, 'tile_map, 'tile_sets>) -> Self {
         Self {
             name: name,
-            map_cell: map_cell,
+            kind: kind,
             archetype_kind: archetype_kind,
+            map_cell: map_cell,
+            configs: configs,
             query: query
         }
     }
 
     #[inline]
-    pub fn find_tile_def(&self, category_name: &str, tile_name: &str) -> Option<&'tile_sets TileDef> {
-        self.query.find_tile_def(TileMapLayerKind::Buildings, category_name, tile_name)
+    fn find_tile_def(&self, category_name: &str, tile_def_name: &str) -> Option<&'tile_sets TileDef> {
+        self.query.find_tile_def(TileMapLayerKind::Buildings, category_name, tile_def_name)
     }
 
     #[inline]
-    pub fn find_tile(&self) -> &Tile {
+    fn find_tile(&self) -> &Tile {
         self.query.find_tile(self.map_cell, TileMapLayerKind::Buildings, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
     #[inline]
-    pub fn find_tile_mut(&mut self) -> &mut Tile<'tile_sets> {
+    fn find_tile_mut(&mut self) -> &mut Tile<'tile_sets> {
         self.query.find_tile_mut(self.map_cell, TileMapLayerKind::Buildings, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
-    pub fn set_random_variation(&mut self) {
+    #[inline]
+    fn is_near_building(&self, kind: BuildingKind, radius_in_cells: i32) -> bool {
+        self.query.is_near_building(self.map_cell, kind, radius_in_cells)
+    }
+
+    #[inline]
+    fn set_random_building_variation(&mut self) {
         let variation_count = self.find_tile().variation_count();
         if variation_count > 1 {
             let rand_variation_index = self.query.rng.random_range(0..variation_count);
@@ -251,47 +271,19 @@ impl<'building, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'buil
         }
     }
 
-    pub fn try_replace_tile(&mut self, tile_to_place: &'tile_sets TileDef) -> bool {
-        // Replaces the give tile if the placement is valid,
-        // fails and leaves the map unchanged otherwise.
-
-        // First check if we have space to place this tile.
-        let footprint = tile_to_place.calc_footprint_cells(self.map_cell);
-        for footprint_cell in footprint {
-            if footprint_cell == self.map_cell {
-                continue;
-            }
-
-            if let Some(tile) =
-                self.query.tile_map.try_tile_from_layer(footprint_cell, TileMapLayerKind::Buildings) {
-                if tile.is_building() || tile.is_blocker() {
-                    // Cannot expand here.
-                    return false;
-                }
-            }
-        }
-
-        // Now we must clear the previous tile.
-        if !self.query.tile_map.try_place_tile_in_layer(self.map_cell, TileMapLayerKind::Buildings, TileDef::empty()) {
-            eprintln!("Failed to clear previous tile! This is unexpected...");
-            return false;
-        }
-
-        // And place the new one.
-        if !self.query.tile_map.try_place_tile_in_layer(self.map_cell, TileMapLayerKind::Buildings, tile_to_place) {
-            eprintln!("Failed to place new tile! This is unexpected...");
-            return false;
-        }
-
-        true
+    #[inline]
+    fn has_access_to_service(&self, service_kind: BuildingKind) -> bool {
+        let config = self.configs.find::<service::ServiceConfig>(service_kind);
+        self.query.is_near_building(self.map_cell, service_kind, config.effect_radius)
     }
 }
 
-impl<'building, 'query, 'sim, 'tile_map, 'tile_sets> fmt::Display for BuildingUpdateContext<'building, 'query, 'sim, 'tile_map, 'tile_sets> {
+impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> fmt::Display for BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Building '{}' ({:?}) [{},{}]",
+        write!(f, "Building '{}' ({:?}|{:?}) [{},{}]",
                self.name,
                self.archetype_kind,
+               self.kind,
                self.map_cell.x,
                self.map_cell.y)
     }

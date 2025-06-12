@@ -24,7 +24,7 @@ use crate::{
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum UiInputEvent {
     Handled,   // Input event was handled/consumed and should not propagate.
     NotHandled // Input event wasn't handled and should propagate to other widgets.

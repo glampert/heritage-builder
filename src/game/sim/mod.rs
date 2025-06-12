@@ -11,11 +11,13 @@ use crate::{
 };
 
 use super::{
-    building::{BuildingKind}
+    building::{
+        BuildingKind
+    }
 };
 
+pub mod resources;
 pub mod world;
-use world::World;
 
 // ----------------------------------------------
 // RandomGenerator
@@ -28,6 +30,8 @@ pub type RandomGenerator = Pcg64;
 // Simulation
 // ----------------------------------------------
 
+const DEFAULT_SIM_UPDATE_FREQUENCY_SECS: f32 = 0.5;
+
 pub struct Simulation {
     update_frequency_secs: f32,
     time_since_last_update_secs: f32,
@@ -37,14 +41,14 @@ pub struct Simulation {
 impl Simulation {
     pub fn new() -> Self {
         Self {
-            update_frequency_secs: 0.5,
+            update_frequency_secs: DEFAULT_SIM_UPDATE_FREQUENCY_SECS,
             time_since_last_update_secs: 0.0,
             rng: RandomGenerator::seed_from_u64(DEFAULT_RANDOM_SEED),
         }
     }
 
     pub fn update<'tile_map, 'tile_sets>(&mut self,
-                                         world: &mut World,
+                                         world: &mut world::World,
                                          tile_map: &'tile_map mut TileMap<'tile_sets>,
                                          tile_sets: &'tile_sets TileSets,
                                          delta_time: time::Duration) {
@@ -91,8 +95,8 @@ impl<'sim, 'tile_map, 'tile_sets> Query<'sim, 'tile_map, 'tile_sets> {
     pub fn find_tile_def(&self,
                          layer: TileMapLayerKind,
                          category_name: &str,
-                         tile_name: &str) -> Option<&'tile_sets TileDef> {
-        self.tile_sets.find_tile_by_name(layer, category_name, tile_name)
+                         tile_def_name: &str) -> Option<&'tile_sets TileDef> {
+        self.tile_sets.find_tile_by_name(layer, category_name, tile_def_name)
     }
 
     #[inline]
@@ -114,6 +118,8 @@ impl<'sim, 'tile_map, 'tile_sets> Query<'sim, 'tile_map, 'tile_sets> {
     }
 
     pub fn is_near_building(&self, start_cell: Cell, kind: BuildingKind, radius_in_cells: i32) -> bool {
+        debug_assert!(radius_in_cells > 0);
+
         // Buildings can occupy multiple cells; Find out how many to offset the start by.
         let mut end_offset = Size::zero();
         if let Some(start_tile) = self.tile_map.try_tile_from_layer(start_cell, TileMapLayerKind::Buildings) {

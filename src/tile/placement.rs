@@ -6,7 +6,7 @@ use crate::{
 
 use super::{
     sets::{TileFootprintList, TileDef, TileKind},
-    map::{self, Tile, TileMap, TileMapLayerKind}
+    map::{Tile, TileMap, TileMapLayerKind}
 };
 
 // ----------------------------------------------
@@ -31,7 +31,7 @@ pub fn try_place_tile_in_layer<'tile_sets>(tile_map: &mut TileMap<'tile_sets>,
 
     debug_assert!(tile_map.is_cell_within_bounds(target_cell));
     debug_assert!(tile_to_place.is_empty() == false);
-    debug_assert!(map::tile_kind_to_layer(tile_to_place.kind) == kind);
+    debug_assert!(TileMapLayerKind::from_tile_kind(tile_to_place.kind) == kind);
 
     // Overlap checks for buildings:
     if tile_to_place.is_building() {
@@ -142,7 +142,7 @@ pub fn try_place_tile_at_cursor<'tile_sets>(tile_map: &mut TileMap<'tile_sets>,
 
     debug_assert!(tile_to_place.is_empty() == false);
 
-    let layer_kind = map::tile_kind_to_layer(tile_to_place.kind);
+    let layer_kind = TileMapLayerKind::from_tile_kind(tile_to_place.kind);
 
     let target_cell = tile_map.find_exact_cell_for_point(
         layer_kind,

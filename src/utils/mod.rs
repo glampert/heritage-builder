@@ -319,7 +319,7 @@ impl MulAssign<f32> for Color {
 // ----------------------------------------------
 
 // Integer width & height pair.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize)]
 pub struct Size {
     pub width:  i32,
     pub height: i32,
@@ -363,7 +363,7 @@ impl Size {
 
 // Isometric 2D point coords, in pure isometric space,
 // before any WorldToScreenTransform are applied.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct IsoPoint {
     pub x: i32,
     pub y: i32,
@@ -391,7 +391,7 @@ impl IsoPoint {
 // ----------------------------------------------
 
 // X,Y position in the tile map grid of cells.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Cell {
     pub x: i32,
     pub y: i32,

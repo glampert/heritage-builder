@@ -6,7 +6,7 @@ use crate::{
 
     tile::{
         rendering::{INVALID_TILE_COLOR},
-        map::{self, TileMapLayerKind, TILE_MAP_LAYER_COUNT},
+        map::{TileMapLayerKind, TILE_MAP_LAYER_COUNT},
         sets::{TileDef, TileDefHandle, TileSets, BASE_TILE_SIZE}
     }
 };
@@ -246,7 +246,7 @@ impl TilePaletteMenu {
         let mut tile_index = 0;
 
         tile_sets.for_each_tile(|tile_set, tile_category, tile_def| {
-            if tile_def.kind == map::layer_to_tile_kind(layer) {
+            if tile_def.kind == layer.to_tile_kind() {
                 let tile_texture = tile_def.texture_by_index(0, 0, 0);
                 let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_texture);
 

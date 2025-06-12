@@ -190,7 +190,32 @@ pub struct TextureCache {
 }
 
 impl TextureCache {
-    pub fn new(initial_capacity: usize) -> Self {
+
+    // ----------------------
+    // Public:
+    // ----------------------
+
+    #[inline]
+    pub fn load_texture(&mut self, file_path: &str) -> TextureHandle {
+        Self::load_texture_with_settings(self,
+                                         file_path,
+                                         TextureLoaderFlags::empty(),
+                                         TextureFilter::Nearest,
+                                         TextureWrapMode::ClampToEdge,
+                                         TextureUnit(0),
+                                         false)
+    }
+
+    #[inline]
+    pub fn to_native_handle(&self, handle: TextureHandle) -> usize {
+        self.handle_to_texture(handle).native_handle()
+    }
+
+    // ----------------------
+    // Internal:
+    // ----------------------
+
+    fn new(initial_capacity: usize) -> Self {
         let mut tex_cache = Self {
             textures: Vec::with_capacity(initial_capacity),
             dummy_texture_handle: TextureHandle::invalid(),
@@ -207,7 +232,7 @@ impl TextureCache {
     }
 
     #[inline]
-    pub fn handle_to_texture(&self, handle: TextureHandle) -> &Texture2D {
+    fn handle_to_texture(&self, handle: TextureHandle) -> &Texture2D {
         match handle {
             TextureHandle::Invalid => self.dummy_texture(),
             TextureHandle::White   => self.white_texture(),
@@ -223,7 +248,7 @@ impl TextureCache {
     }
 
     #[inline]
-    pub fn dummy_texture(&self) -> &Texture2D {
+    fn dummy_texture(&self) -> &Texture2D {
         match self.dummy_texture_handle {
             TextureHandle::Index(index) => &self.textures[index as usize],
             _ => panic!("Unexpected value for dummy_texture_handle!")
@@ -231,32 +256,12 @@ impl TextureCache {
     }
 
     #[inline]
-    pub fn white_texture(&self) -> &Texture2D {
+    fn white_texture(&self) -> &Texture2D {
         match self.white_texture_handle {
             TextureHandle::Index(index) => &self.textures[index as usize],
             _ => panic!("Unexpected value for white_texture_handle!")
         }
     }
-
-    #[inline]
-    pub fn to_native_handle(&self, handle: TextureHandle) -> usize {
-        self.handle_to_texture(handle).native_handle()
-    }
-
-    #[inline]
-    pub fn load_texture(&mut self, file_path: &str) -> TextureHandle {
-        Self::load_texture_with_settings(self,
-                                         file_path,
-                                         TextureLoaderFlags::empty(),
-                                         TextureFilter::Nearest,
-                                         TextureWrapMode::ClampToEdge,
-                                         TextureUnit(0),
-                                         false)
-    }
-
-    // ----------------------
-    // Internal:
-    // ----------------------
 
     fn load_texture_with_settings(&mut self,
                                   file_path: &str,

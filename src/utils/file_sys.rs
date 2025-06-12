@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum CollectDirEntriesFilter {
     Files,
     SubDirs,

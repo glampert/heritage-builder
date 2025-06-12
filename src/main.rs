@@ -30,6 +30,7 @@ use tile::{
 use game::{
     sim::*,
     sim::world::*,
+    building::{self, config::BuildingConfigs},
 };
 
 // ----------------------------------------------
@@ -61,8 +62,15 @@ fn main() {
     let mut tile_map = create_test_tile_map_2(&tile_sets);
     //let mut tile_map = TileMap::new(Size::new(64, 64));
 
-    let mut world = World::new(&mut tile_map);
+    let building_configs = BuildingConfigs::load();
     let mut sim = Simulation::new();
+    let mut world = World::new();
+
+    // TODO: This is temporary while testing only. Map should start empty.
+    tile_map.for_each_building_tile_mut(|tile| {
+        let building = building::config::instantiate(tile, &building_configs);
+        world.add_building(tile, building);
+    });
 
     let mut tile_selection = TileSelection::new();
     let mut tile_map_renderer = TileMapRenderer::new(rendering::DEFAULT_GRID_COLOR, 1.0);
@@ -375,7 +383,7 @@ fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
     const M: i32 = 4; // market
 
     const TILE_NAMES: [&str; 5] = [ "grass", "dirt", "house_0", "well", "market" ];
-    const TILE_CATEGORIES: [&str; 5] = [ "ground", "ground", "households", "services", "services" ];
+    const TILE_CATEGORIES: [&str; 5] = [ "ground", "ground", "houses", "services", "services" ];
 
     let find_tile = |layer_kind: TileMapLayerKind, tile_id: i32| {
         let tile_name = TILE_NAMES[tile_id as usize];

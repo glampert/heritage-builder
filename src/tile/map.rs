@@ -2,8 +2,8 @@ use std::time::{self};
 use bitflags::bitflags;
 use smallvec::smallvec;
 use arrayvec::ArrayVec;
-use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{Display, EnumCount, EnumIter};
+use strum::{EnumCount, EnumProperty, IntoEnumIterator};
+use strum_macros::{Display, EnumCount, EnumProperty, EnumIter};
 use serde::Deserialize;
 
 use crate::{
@@ -76,7 +76,7 @@ struct TileAnimState {
 // ----------------------------------------------
 
 bitflags! {
-    #[derive(Copy, Clone, Default, PartialEq)]
+    #[derive(Copy, Clone, Default, PartialEq, Eq)]
     pub struct TileFlags: u16 {
         const Hidden          = 1 << 1;
         const Highlighted     = 1 << 2;
@@ -470,31 +470,43 @@ pub fn try_get_editable_tile<'tile_sets>(tile: &Tile, tile_sets: &'tile_sets Til
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Debug, Display, EnumCount, EnumIter, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Display, EnumCount, EnumIter, EnumProperty, Deserialize)]
 pub enum TileMapLayerKind {
+    #[strum(props(AssetsPath = "assets/tiles/terrain"))]
     Terrain,
+
+    #[strum(props(AssetsPath = "assets/tiles/buildings"))]
     Buildings,
+
+    #[strum(props(AssetsPath = "assets/tiles/units"))]
     Units,
 }
 
 pub const TILE_MAP_LAYER_COUNT: usize = TileMapLayerKind::COUNT;
 
-#[inline]
-pub fn tile_kind_to_layer(tile_kind: TileKind) -> TileMapLayerKind {
-    match tile_kind {
-        TileKind::Terrain => TileMapLayerKind::Terrain,
-        TileKind::Building | TileKind::Blocker => TileMapLayerKind::Buildings,
-        TileKind::Unit => TileMapLayerKind::Units,
-        _ => panic!("Invalid tile kind!")
+impl TileMapLayerKind {
+    #[inline]
+    pub fn assets_path(self) -> &'static str {
+        self.get_str("AssetsPath").unwrap()
     }
-}
 
-#[inline]
-pub fn layer_to_tile_kind(layer: TileMapLayerKind) -> TileKind {
-    match layer {
-        TileMapLayerKind::Terrain   => TileKind::Terrain,
-        TileMapLayerKind::Buildings => TileKind::Building,
-        TileMapLayerKind::Units     => TileKind::Unit,
+    #[inline]
+    pub fn from_tile_kind(tile_kind: TileKind) -> TileMapLayerKind {
+        match tile_kind {
+            TileKind::Terrain => TileMapLayerKind::Terrain,
+            TileKind::Building | TileKind::Blocker => TileMapLayerKind::Buildings,
+            TileKind::Unit => TileMapLayerKind::Units,
+            _ => panic!("Invalid TileKind!")
+        }
+    }
+
+    #[inline]
+    pub fn to_tile_kind(self) -> TileKind {
+        match self {
+            TileMapLayerKind::Terrain   => TileKind::Terrain,
+            TileMapLayerKind::Buildings => TileKind::Building,
+            TileMapLayerKind::Units     => TileKind::Unit,
+        }
     }
 }
 
@@ -555,7 +567,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     #[inline]
     pub fn add_tile(&mut self, cell: Cell, tile_def: &'tile_sets TileDef) {
-        debug_assert!(tile_def.is_empty() || tile_kind_to_layer(tile_def.kind) == self.kind);
+        debug_assert!(tile_def.is_empty() || TileMapLayerKind::from_tile_kind(tile_def.kind) == self.kind);
         let flags = tile_def.tile_flags();
         let tile_index = self.cell_to_index(cell);
         self.tiles[tile_index] = Tile::new(cell, Cell::invalid(), tile_def, flags);
@@ -592,7 +604,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     pub fn tile(&self, cell: Cell) -> &Tile {
         let tile_index = self.cell_to_index(cell);
         let tile = &self.tiles[tile_index];
-        debug_assert!(tile.is_empty() || tile_kind_to_layer(tile.kind()) == self.kind);
+        debug_assert!(tile.is_empty() || TileMapLayerKind::from_tile_kind(tile.kind()) == self.kind);
         debug_assert!(tile.cell == cell);
         tile
     }
@@ -601,7 +613,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     pub fn tile_mut(&mut self, cell: Cell) -> &mut Tile<'tile_sets> {
         let tile_index = self.cell_to_index(cell);
         let tile = &mut self.tiles[tile_index];
-        debug_assert!(tile.is_empty() || tile_kind_to_layer(tile.kind()) == self.kind);
+        debug_assert!(tile.is_empty() || TileMapLayerKind::from_tile_kind(tile.kind()) == self.kind);
         debug_assert!(tile.cell == cell);
         tile
     }
@@ -649,8 +661,8 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     }
 
     // 8 neighboring tiles plus self cell (optionally).
-    pub fn tile_neighbors(&self, cell: Cell, include_self: bool) -> ArrayVec::<Option<&Tile>, 9> {
-        let mut neighbors = ArrayVec::<Option<&Tile>, 9>::new();
+    pub fn tile_neighbors(&self, cell: Cell, include_self: bool) -> ArrayVec<Option<&Tile>, 9> {
+        let mut neighbors: ArrayVec<Option<&Tile>, 9> = ArrayVec::new();
 
         if include_self {
             neighbors.push(self.try_tile(cell));
@@ -673,7 +685,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
         neighbors
     }
 
-    pub fn tile_neighbors_mut(&mut self, cell: Cell, include_self: bool) -> ArrayVec::<Option<&mut Tile<'tile_sets>>, 9> {
+    pub fn tile_neighbors_mut(&mut self, cell: Cell, include_self: bool) -> ArrayVec<Option<&mut Tile<'tile_sets>>, 9> {
         let mut neighbors: ArrayVec<Option<*mut Tile<'tile_sets>>, 9> = ArrayVec::new();
 
         // Helper closure to get a raw pointer from try_tile_mut().
@@ -799,7 +811,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
             // Find which layer this tile belong to if we're not just setting everything to empty.
             if !fill_tile.is_empty() {
-                if fill_tile.kind == layer_to_tile_kind(layer) {
+                if fill_tile.kind == layer.to_tile_kind() {
                     fill_tile_def = fill_tile;
                 }
             }
@@ -913,7 +925,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
         self.try_place_tile_in_layer(
             target_cell,
-            tile_kind_to_layer(tile_to_place.kind),
+            TileMapLayerKind::from_tile_kind(tile_to_place.kind),
             tile_to_place)
     }
 

@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    map::{self, TileMapLayerKind, TileFlags, TILE_MAP_LAYER_COUNT}
+    map::{TileMapLayerKind, TileFlags, TILE_MAP_LAYER_COUNT}
 };
 
 // ----------------------------------------------
@@ -32,7 +32,7 @@ pub type TileFootprintList = SmallVec<[Cell; 36]>;
 // ----------------------------------------------
 
 bitflags! {
-    #[derive(Copy, Clone, PartialEq, Debug, Deserialize)]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize)]
     pub struct TileKind: u32 {
         const Empty    = 1 << 1; // No tile, draws nothing.
         const Blocker  = 1 << 2; // Draws nothing; blocker for multi-tile buildings, placed in the Buildings layer.
@@ -376,7 +376,7 @@ impl TileDef {
                  tile_set_path_with_category: &str,
                  layer: TileMapLayerKind) -> bool {
 
-        self.kind = map::layer_to_tile_kind(layer);
+        self.kind = layer.to_tile_kind();
 
         if self.name.is_empty() {
             eprintln!("TileDef '{:?}' name is missing! A name is required.", self.kind);
@@ -775,7 +775,7 @@ impl TileSets {
             return None;
         }
 
-        let layer_idx = map::tile_kind_to_layer(tile_def.kind) as usize;
+        let layer_idx = TileMapLayerKind::from_tile_kind(tile_def.kind) as usize;
         let set_idx = tile_def.tileset_category_index as usize;
         let cat_idx = tile_def.category_tile_index as usize;
 
@@ -795,7 +795,7 @@ impl TileSets {
     }
 
     pub fn find_set_for_tile(&self, tile_def: &TileDef) -> Option<&TileSet> {
-        let layer = map::tile_kind_to_layer(tile_def.kind); 
+        let layer = TileMapLayerKind::from_tile_kind(tile_def.kind); 
         let set = &self.sets[layer as usize];
         debug_assert!(set.layer == layer);
         Some(set)
@@ -937,19 +937,9 @@ impl TileSets {
     //  units/on_foot/ped/walk_left/frame0.png
     //  units/on_foot/ped/walk_left/frame1.png
     //
-    fn tile_set_path_for_kind(layer: TileMapLayerKind) -> &'static str {
-        const TILE_SET_PATHS: [(TileMapLayerKind, &str); TILE_MAP_LAYER_COUNT] = [
-            (TileMapLayerKind::Terrain,   "assets/tiles/terrain"),
-            (TileMapLayerKind::Buildings, "assets/tiles/buildings"),
-            (TileMapLayerKind::Units,     "assets/tiles/units")
-        ];
-        debug_assert!(TILE_SET_PATHS[layer as usize].0 == layer); // Ensure enum order.
-        TILE_SET_PATHS[layer as usize].1
-    }
-
     fn load_all_layers(&mut self, tex_cache: &mut TextureCache) {
         for layer in TileMapLayerKind::iter() {
-            let tile_set_path = Self::tile_set_path_for_kind(layer);
+            let tile_set_path = layer.assets_path();
             if !self.load_tile_set(tex_cache, tile_set_path, layer) {
                 eprintln!("TileSet '{}' ({}) didn't load!", layer, tile_set_path);
             }
