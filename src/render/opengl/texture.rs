@@ -20,8 +20,8 @@ pub const MAX_TEXTURE_UNITS: usize = 4;
 
 bitflags! {
     pub struct TextureLoaderFlags: u32 {
-        const FlipV = 1 << 1;
-        const FlipH = 1 << 2;
+        const FlipV = 1 << 0;
+        const FlipH = 1 << 1;
     }
 }
 

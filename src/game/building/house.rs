@@ -3,6 +3,8 @@ use strum_macros::EnumCount;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
+    utils::Color,
+    imgui_ui::UiSystem,
     tile::{
         map::TileMapLayerKind,
         sets::TileDef 
@@ -17,7 +19,8 @@ use crate::{
 use super::{
     BuildingUpdateContext,
     config::{
-        BuildingConfigs
+        BuildingConfigs,
+        HOUSES_TILE_CATEGORY_NAME
     }
 };
 
@@ -25,9 +28,8 @@ use super::{
 // Constants
 // ----------------------------------------------
 
-pub const HOUSE_TILE_CATEGORY_NAME: &str = "houses";
-pub const HOUSE_LEVEL_COUNT: usize = HouseLevel::COUNT;
-pub const DEFAULT_HOUSE_UPGRADE_FREQUENCY_SECS: f32 = 10.0;
+const HOUSE_LEVEL_COUNT: usize = HouseLevel::COUNT;
+const DEFAULT_HOUSE_UPGRADE_FREQUENCY_SECS: f32 = 10.0;
 
 // ----------------------------------------------
 // HouseState
@@ -49,198 +51,78 @@ impl<'config> HouseState<'config> {
     pub fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
         self.upgrade_state.update(update_ctx, &self.goods_stock, delta_time_secs);
     }
-}
 
-// ----------------------------------------------
-// HouseUpgradeState
-// ----------------------------------------------
+    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        let draw_level_requirements = |label: &str, level_requirements: &HouseLevelRequirements<'config>| {
+            ui.separator();
+            ui.text(label);
 
-struct HouseUpgradeState<'config> {
-    level: HouseLevel,
-    level_config: &'config HouseLevelConfig,
-    frequency_secs: f32,
-    time_since_last_secs: f32,
-    services_available: u32, // From the level requirements, how many we have access to.
-    goods_available: u32,    // From the level requirements, how many we have in stock.
-}
+            ui.text(format!("  Goods avail.....: {} out of {}",
+                level_requirements.goods_available.len(),
+                level_requirements.level_config.goods_required.len()));
+            ui.text(format!("  Services avail..: {} out of {}",
+                level_requirements.services_available.len(),
+                level_requirements.level_config.services_required.len()));
 
-impl<'config> HouseUpgradeState<'config> {
-    fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
-        Self {
-            level: level,
-            level_config: configs.find_house_level(level),
-            frequency_secs: DEFAULT_HOUSE_UPGRADE_FREQUENCY_SECS,
-            time_since_last_secs: 0.0,
-            services_available: 0,
-            goods_available: 0,
-        }
-    }
-
-    fn update(&mut self,
-              update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>,
-              goods_stock: &ConsumerGoodsStock,
-              delta_time_secs: f32) {
-
-        self.refresh_requirements(update_ctx, goods_stock);
-
-        if self.can_upgrade() {
-            self.try_upgrade(update_ctx);
-        } else if self.can_downgrade() {
-            self.try_downgrade(update_ctx);
-        } else {
-            self.time_since_last_secs += delta_time_secs;
-        }
-    }
-
-    fn refresh_requirements(&mut self,
-                            update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>,
-                            goods_stock: &ConsumerGoodsStock) {
-
-        let mut services_available: u32 = 0;
-        for service in self.level_config.services_required.iter() {
-            if update_ctx.has_access_to_service(*service) {
-                services_available += 1;
-            }
-        }
-        self.services_available = services_available;
-
-        let mut goods_available: u32 = 0;
-        for good in self.level_config.goods_required.iter() {
-            if goods_stock.has(*good) {
-                goods_available += 1;
-            }
-        }
-        self.goods_available = goods_available;
-    }
-
-    #[inline]
-    fn has_all_required_services(&self) -> bool {
-        (self.services_available as usize) == self.level_config.services_required.len()
-    }
-
-    #[inline]
-    fn has_all_required_consumer_goods(&self) -> bool {
-        (self.goods_available as usize) == self.level_config.goods_required.len()
-    }
-
-    fn can_upgrade(&self) -> bool {
-        if self.level.is_max() {
-            return false;
-        }
-
-        if self.time_since_last_secs < self.frequency_secs {
-            return false;
-        }
-
-        self.has_all_required_services() && self.has_all_required_consumer_goods()
-    }
-
-    fn can_downgrade(&self) -> bool {
-        if self.level.is_min() {
-            return false;
-        }
-
-        if self.time_since_last_secs < self.frequency_secs {
-            return false;
-        }
-
-        !self.has_all_required_services() || !self.has_all_required_consumer_goods()
-    }
-
-    // TODO: Merge neighboring houses into larger ones when upgrading.
-    fn try_upgrade(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
-        let mut tile_placed_successfully = false;
-        let level_config = update_ctx.configs.find_house_level(self.level.next());
-
-        if let Some(new_tile_def) = 
-            update_ctx.find_tile_def(HOUSE_TILE_CATEGORY_NAME, &level_config.tile_def_name) {
-
-            // Try placing new. Might fail if there isn't enough space.
-            if Self::try_replace_tile(update_ctx, new_tile_def) {
-
-                self.level.upgrade();
-                self.level_config = level_config;
-                tile_placed_successfully = true;
-
-                // Set a random variation for the new building:
-                update_ctx.set_random_building_variation();
-
-                println!("{}: upgraded to {:?}.", update_ctx, self.level);
-            }
-        }
-
-        if !tile_placed_successfully {
-            println!("{}: Failed to place new tile for upgrade. Building cannot upgrade.", update_ctx);
-        }
-
-        self.time_since_last_secs = 0.0;
-    }
-
-    fn try_downgrade(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
-        let mut tile_placed_successfully = false;
-        let level_config = update_ctx.configs.find_house_level(self.level.prev());
-
-        if let Some(new_tile_def) = 
-            update_ctx.find_tile_def(HOUSE_TILE_CATEGORY_NAME, &level_config.tile_def_name) {
-
-            // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
-            if Self::try_replace_tile(update_ctx, new_tile_def) {
-
-                self.level.downgrade();
-                self.level_config = level_config;
-                tile_placed_successfully = true;
-
-                // Set a random variation for the new building:
-                update_ctx.set_random_building_variation();
-
-                println!("{}: downgraded to {:?}.", update_ctx, self.level);
-            }
-        }
-
-        if !tile_placed_successfully {
-            eprintln!("{}: Failed to place new tile for downgrade. Building cannot downgrade.", update_ctx);
-        }
-
-        self.time_since_last_secs = 0.0;
-    }
-
-    fn try_replace_tile<'tile_sets>(update_ctx: &mut BuildingUpdateContext<'_, '_, '_, '_, 'tile_sets>,
-                                    tile_to_place: &'tile_sets TileDef) -> bool {
-
-        // Replaces the give tile if the placement is valid,
-        // fails and leaves the map unchanged otherwise.
-
-        // First check if we have space to place this tile.
-        let footprint = tile_to_place.calc_footprint_cells(update_ctx.map_cell);
-        for footprint_cell in footprint {
-            if footprint_cell == update_ctx.map_cell {
-                continue;
-            }
-
-            if let Some(tile) =
-                update_ctx.query.tile_map.try_tile_from_layer(footprint_cell, TileMapLayerKind::Buildings) {
-                if tile.is_building() || tile.is_blocker() {
-                    // Cannot expand here.
-                    return false;
+            if ui.collapsing_header(format!("Goods##_{}_goods", label), imgui::TreeNodeFlags::empty()) {
+                ui.text("In stock:");
+                for good in self.goods_stock.iter() {
+                    ui.text(format!("  {:?}: {}", good.kind, good.count));
+                }
+                ui.text("Required:");
+                if level_requirements.level_config.goods_required.is_empty() {
+                    ui.text("  <none>");
+                }
+                for good in level_requirements.level_config.goods_required.iter() {
+                    ui.text(format!("  {:?}", good));
                 }
             }
+
+            if ui.collapsing_header(format!("Services##_{}_services", label), imgui::TreeNodeFlags::empty()) {
+                ui.text("Available:");
+                if level_requirements.services_available.is_empty() {
+                    ui.text("  <none>");
+                }
+                for service in level_requirements.services_available.iter() {
+                    ui.text(format!("  {}", service));
+                }
+
+                ui.text("Required:");
+                if level_requirements.level_config.services_required.is_empty() {
+                    ui.text("  <none>");
+                }
+                for service in level_requirements.level_config.services_required.iter() {
+                    ui.text(format!("  {}", service));
+                }
+            }
+        };
+
+        let upgrade_state = &self.upgrade_state;
+        ui.text(format!("Level.............: {:?}", upgrade_state.level));
+
+        ui.text("Upgrade:");
+        ui.text(format!("  Upgrade freg....: {:.2}s", upgrade_state.upgrade_frequency_secs));
+        ui.text(format!("  Time since last.: {:.2}s", upgrade_state.time_since_last_upgrade_secs));
+
+        ui.text("  Has room........:");
+        if upgrade_state.has_room_to_upgrade {
+            ui.same_line();
+            ui.text("true");
+        } else {
+            ui.same_line();
+            ui.text_colored(Color::red().to_array(), "false");
         }
 
-        // Now we must clear the previous tile.
-        if !update_ctx.query.tile_map.try_place_tile_in_layer(
-            update_ctx.map_cell, TileMapLayerKind::Buildings, TileDef::empty()) {
-            eprintln!("Failed to clear previous tile! This is unexpected...");
-            return false;
-        }
+        draw_level_requirements(
+            &format!("Curr level reqs ({:?}):", upgrade_state.level),
+            &upgrade_state.curr_level_requirements);
 
-        // And place the new one.
-        if !update_ctx.query.tile_map.try_place_tile_in_layer(
-            update_ctx.map_cell, TileMapLayerKind::Buildings, tile_to_place) {
-            eprintln!("Failed to place new tile! This is unexpected...");
-            return false;
+        if !upgrade_state.level.is_max() {
+            draw_level_requirements(
+                &format!("Next level reqs ({:?}):", upgrade_state.level.next()),
+                &upgrade_state.next_level_requirements);
         }
-
-        true
     }
 }
 
@@ -253,6 +135,7 @@ impl<'config> HouseUpgradeState<'config> {
 pub enum HouseLevel {
     Level0,
     Level1,
+    Level2,
 }
 
 impl HouseLevel {
@@ -309,7 +192,6 @@ impl HouseLevel {
 
 pub struct HouseLevelConfig {
     pub tile_def_name: String,
-    pub upgrade_frequency_secs: f32,
 
     pub max_residents: u32,
     pub tax_generated: u32,
@@ -319,4 +201,261 @@ pub struct HouseLevelConfig {
 
     // Kinds of goods required for the house level to be obtained and maintained.
     pub goods_required: ConsumerGoodsList,
+}
+
+// ----------------------------------------------
+// HouseLevelRequirements
+// ----------------------------------------------
+
+struct HouseLevelRequirements<'config> {
+    level_config: &'config HouseLevelConfig,
+    services_available: ServicesList,   // From the level requirements, how many we have access to.
+    goods_available: ConsumerGoodsList, // From the level requirements, how many we have in stock.
+}
+
+impl<'config> HouseLevelRequirements<'config> {
+    #[inline]
+    fn has_all_required_services(&self) -> bool {
+        self.services_available.len() >= self.level_config.services_required.len()
+    }
+
+    #[inline]
+    fn has_all_required_consumer_goods(&self) -> bool {
+        self.goods_available.len() >= self.level_config.goods_required.len()
+    }
+
+    fn update(&mut self,
+              update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
+              goods_stock: &ConsumerGoodsStock) {
+
+        let config = self.level_config;
+
+        self.services_available.clear();
+        for service in config.services_required.iter() {
+            // Break down services that are ORed together.
+            for single_service in *service {
+                if update_ctx.has_access_to_service(single_service) {
+                    self.services_available.add(single_service);
+                }
+            }
+        }
+
+        self.goods_available.clear();
+        for good in config.goods_required.iter() {
+            if goods_stock.has(*good) {
+                self.goods_available.add(*good);
+            }
+        }
+    }
+}
+
+// ----------------------------------------------
+// HouseUpgradeState
+// ----------------------------------------------
+
+struct HouseUpgradeState<'config> {
+    level: HouseLevel,
+
+    curr_level_requirements: HouseLevelRequirements<'config>,
+    next_level_requirements: HouseLevelRequirements<'config>,
+
+    upgrade_frequency_secs: f32,
+    time_since_last_upgrade_secs: f32,
+    has_room_to_upgrade: bool,
+}
+
+impl<'config> HouseUpgradeState<'config> {
+    fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
+        Self {
+            level: level,
+            curr_level_requirements: HouseLevelRequirements {
+                level_config: configs.find_house_level(level),
+                services_available: ServicesList::new(),
+                goods_available: ConsumerGoodsList::new(),
+            },
+            next_level_requirements: HouseLevelRequirements {
+                level_config: configs.find_house_level(level.next()),
+                services_available: ServicesList::new(),
+                goods_available: ConsumerGoodsList::new(),
+            },
+            upgrade_frequency_secs: DEFAULT_HOUSE_UPGRADE_FREQUENCY_SECS,
+            time_since_last_upgrade_secs: 0.0,
+            has_room_to_upgrade: true,
+        }
+    }
+
+    fn update(&mut self,
+              update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>,
+              goods_stock: &ConsumerGoodsStock,
+              delta_time_secs: f32) {
+
+        if self.can_upgrade(update_ctx, goods_stock) {
+            self.try_upgrade(update_ctx);
+        } else if self.can_downgrade(update_ctx, goods_stock) {
+            self.try_downgrade(update_ctx);
+        } else {
+            self.time_since_last_upgrade_secs += delta_time_secs;
+        }
+    }
+
+    fn can_upgrade(&mut self,
+                   update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>,
+                   goods_stock: &ConsumerGoodsStock) -> bool {
+        if self.level.is_max() {
+            return false;
+        }
+
+        if self.time_since_last_upgrade_secs < self.upgrade_frequency_secs {
+            return false;
+        }
+
+        self.next_level_requirements.update(update_ctx, goods_stock);
+
+        // Upgrade if we have the required goods and services for the next level.
+        self.next_level_requirements.has_all_required_services() &&
+        self.next_level_requirements.has_all_required_consumer_goods()
+    }
+
+    fn can_downgrade(&mut self,
+                     update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>,
+                     goods_stock: &ConsumerGoodsStock) -> bool {
+        if self.level.is_min() {
+            return false;
+        }
+
+        if self.time_since_last_upgrade_secs < self.upgrade_frequency_secs {
+            return false;
+        }
+
+        self.curr_level_requirements.update(update_ctx, goods_stock);
+
+        // Downgrade if we don't have the required goods and services for the current level.
+        !self.curr_level_requirements.has_all_required_services() ||
+        !self.curr_level_requirements.has_all_required_consumer_goods()
+    }
+
+    // TODO: Merge neighboring houses into larger ones when upgrading.
+    fn try_upgrade(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
+        let mut tile_placed_successfully = false;
+
+        let next_level = self.level.next();
+        let next_level_config = update_ctx.configs.find_house_level(next_level);
+
+        if let Some(new_tile_def) = 
+            update_ctx.find_tile_def(HOUSES_TILE_CATEGORY_NAME, &next_level_config.tile_def_name) {
+
+            // Try placing new. Might fail if there isn't enough space.
+            if Self::try_replace_tile(update_ctx, new_tile_def) {
+
+                self.level.upgrade();
+                debug_assert!(self.level == next_level);
+
+                self.curr_level_requirements.level_config = next_level_config;
+                if !next_level.is_max() {
+                    self.next_level_requirements.level_config = update_ctx.configs.find_house_level(next_level.next());
+                }
+
+                // Set a random variation for the new building tile:
+                update_ctx.set_random_building_variation();
+
+                tile_placed_successfully = true;
+                println!("{update_ctx}: upgraded to {:?}.", self.level);
+            }
+        }
+
+        if !tile_placed_successfully {
+            println!("{update_ctx}: Failed to place new tile for upgrade. Building cannot upgrade.");
+        }
+
+        self.has_room_to_upgrade = tile_placed_successfully;
+        self.time_since_last_upgrade_secs = 0.0;
+    }
+
+    fn try_downgrade(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
+        let mut tile_placed_successfully = false;
+
+        let prev_level = self.level.prev();
+        let prev_level_config = update_ctx.configs.find_house_level(prev_level);
+
+        if let Some(new_tile_def) = 
+            update_ctx.find_tile_def(HOUSES_TILE_CATEGORY_NAME, &prev_level_config.tile_def_name) {
+
+            // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
+            if Self::try_replace_tile(update_ctx, new_tile_def) {
+
+                self.level.downgrade();
+                debug_assert!(self.level == prev_level);
+
+                self.curr_level_requirements.level_config = prev_level_config;
+                self.next_level_requirements.level_config = update_ctx.configs.find_house_level(prev_level.next());
+
+                // Set a random variation for the new building:
+                update_ctx.set_random_building_variation();
+
+                tile_placed_successfully = true;
+                println!("{update_ctx}: downgraded to {:?}.", self.level);
+            }
+        }
+
+        if !tile_placed_successfully {
+            eprintln!("{update_ctx}: Failed to place new tile for downgrade. Building cannot downgrade.");
+        }
+
+        self.time_since_last_upgrade_secs = 0.0;
+    }
+
+    fn try_replace_tile<'tile_sets>(update_ctx: &mut BuildingUpdateContext<'_, '_, '_, '_, 'tile_sets>,
+                                    tile_to_place: &'tile_sets TileDef) -> bool {
+
+        // Replaces the give tile if the placement is valid,
+        // fails and leaves the map unchanged otherwise.
+
+        // First check if we have space to place this tile.
+        let footprint = tile_to_place.calc_footprint_cells(update_ctx.map_cell);
+        for footprint_cell in footprint {
+            if let Some(tile) =
+                update_ctx.query.tile_map.try_tile_from_layer(footprint_cell, TileMapLayerKind::Buildings) {
+                if tile.is_building() {
+                    let is_self = tile.cell == update_ctx.map_cell;
+                    if !is_self {
+                        // Cannot expand here.
+                        return false;
+                    }
+                } else if tile.is_blocker() {
+                    let is_self = tile.blocker_owner_cell() == update_ctx.map_cell;
+                    if !is_self {
+                        // Cannot expand here.
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // We'll need to restore this to the new tile.
+        let prev_tile_game_state = {
+            let prev_tile = update_ctx.find_tile();
+            debug_assert!(prev_tile.game_state.is_valid(), "Building tile doesn't have a valid associated GameStateHandle!");
+            prev_tile.game_state
+        };
+
+        // Now we must clear the previous tile.
+        if !update_ctx.query.tile_map.try_place_tile_in_layer(
+            update_ctx.map_cell, TileMapLayerKind::Buildings, TileDef::empty()) {
+            eprintln!("Failed to clear previous tile! This is unexpected...");
+            return false;
+        }
+
+        // And place the new one.
+        if !update_ctx.query.tile_map.try_place_tile_in_layer(
+            update_ctx.map_cell, TileMapLayerKind::Buildings, tile_to_place) {
+            eprintln!("Failed to place new tile! This is unexpected...");
+            return false;
+        }
+
+        // Update game state handle:
+        let new_tile = update_ctx.find_tile_mut();
+        new_tile.game_state = prev_tile_game_state;
+
+        true
+    }
 }

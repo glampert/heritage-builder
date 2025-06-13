@@ -1,4 +1,5 @@
 use crate::{
+    imgui_ui::UiSystem,
     game::sim::resources::{
         ConsumerGoodKind,
         RawMaterialKind,
@@ -11,9 +12,7 @@ use crate::{
 use super::{
     BuildingKind,
     BuildingUpdateContext,
-    config::{
-        BuildingConfigs
-    }
+    config::{BuildingConfigs}
 };
 
 // ----------------------------------------------
@@ -39,6 +38,9 @@ impl<'config> ProducerState<'config> {
     }
 
     pub fn update(&mut self, _update_ctx: &mut BuildingUpdateContext, _delta_time_secs: f32) {
+    }
+
+    pub fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
     }
 }
 

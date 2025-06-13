@@ -38,18 +38,18 @@ pub const MAX_GRID_LINE_THICKNESS: f32 = 20.0;
 bitflags! {
     #[derive(Copy, Clone)]
     pub struct TileMapRenderFlags: u32 {
-        const DrawTerrain         = 1 << 1;
-        const DrawBuildings       = 1 << 2;
-        const DrawUnits           = 1 << 3;
-        const DrawGrid            = 1 << 4; // Grid draws on top of terrain but under buildings/units.
-        const DrawGridIgnoreDepth = 1 << 5; // Grid draws on top of everything ignoring z-sort order.
+        const DrawTerrain         = 1 << 0;
+        const DrawBuildings       = 1 << 1;
+        const DrawUnits           = 1 << 2;
+        const DrawGrid            = 1 << 3; // Grid draws on top of terrain but under buildings/units.
+        const DrawGridIgnoreDepth = 1 << 4; // Grid draws on top of everything ignoring z-sort order.
 
         // Debug flags:
-        const DrawTerrainTileDebugInfo   = 1 << 6;
-        const DrawBuildingsTileDebugInfo = 1 << 7;
-        const DrawUnitsTileDebugInfo     = 1 << 8;
-        const DrawTileDebugBounds        = 1 << 9;
-        const DrawBlockerTilesDebug      = 1 << 10;
+        const DrawTerrainTileDebugInfo   = 1 << 5;
+        const DrawBuildingsTileDebugInfo = 1 << 6;
+        const DrawUnitsTileDebugInfo     = 1 << 7;
+        const DrawTileDebugBounds        = 1 << 8;
+        const DrawBlockerTilesDebug      = 1 << 9;
     }
 }
 

@@ -5,10 +5,11 @@ use serde::Deserialize;
 
 use std::{
     fs,
-    path::{Path, MAIN_SEPARATOR}
+    path::{Path, MAIN_SEPARATOR, MAIN_SEPARATOR_STR}
 };
 
 use crate::{
+    bitflags_with_display,
     render::{TextureCache, TextureHandle},
     utils::{Size, Cell, Color, RectTexCoords},
     utils::hash::{self, PreHashedKeyMap, StringHash}
@@ -31,14 +32,14 @@ pub type TileFootprintList = SmallVec<[Cell; 36]>;
 // TileKind
 // ----------------------------------------------
 
-bitflags! {
+bitflags_with_display! {
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize)]
     pub struct TileKind: u32 {
-        const Empty    = 1 << 1; // No tile, draws nothing.
-        const Blocker  = 1 << 2; // Draws nothing; blocker for multi-tile buildings, placed in the Buildings layer.
-        const Terrain  = 1 << 3;
-        const Building = 1 << 4;
-        const Unit     = 1 << 5;
+        const Empty    = 1 << 0; // No tile, draws nothing.
+        const Blocker  = 1 << 1; // Draws nothing; blocker for multi-tile buildings, placed in the Buildings layer.
+        const Terrain  = 1 << 2;
+        const Building = 1 << 3;
+        const Unit     = 1 << 4;
     }
 }
 
@@ -379,12 +380,12 @@ impl TileDef {
         self.kind = layer.to_tile_kind();
 
         if self.name.is_empty() {
-            eprintln!("TileDef '{:?}' name is missing! A name is required.", self.kind);
+            eprintln!("TileDef '{}' name is missing! A name is required.", self.kind);
             return false;
         }
 
         if !self.logical_size.is_valid() {
-            eprintln!("Invalid/missing TileDef logical size: '{:?}' - '{}'",
+            eprintln!("Invalid/missing TileDef logical size: '{}' - '{}'",
                       self.kind,
                       self.name);
             return false;
@@ -392,7 +393,7 @@ impl TileDef {
 
         if (self.logical_size.width  % BASE_TILE_SIZE.width)  != 0 ||
            (self.logical_size.height % BASE_TILE_SIZE.height) != 0 {
-            eprintln!("Invalid TileDef logical size ({:?})! Must be a multiple of BASE_TILE_SIZE: '{:?}' - '{}'",
+            eprintln!("Invalid TileDef logical size ({:?})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
                       self.logical_size,
                       self.kind,
                       self.name);
@@ -402,7 +403,7 @@ impl TileDef {
         if self.kind == TileKind::Terrain {
             // For terrain logical_size must be BASE_TILE_SIZE.
             if self.logical_size != BASE_TILE_SIZE {
-                eprintln!("Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{:?}' - '{}'",
+                eprintln!("Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
                           self.kind,
                           self.name);
                 return false;
@@ -420,38 +421,21 @@ impl TileDef {
         }
 
         if self.variations.is_empty() {
-            eprintln!("At least one variation is required! TileDef: '{:?}' - '{}'", self.kind, self.name);
+            eprintln!("At least one variation is required! TileDef: '{}' - '{}'", self.kind, self.name);
             return false;
         }
 
         // Validate deserialized data and resolve texture handles:
         for variation in &mut self.variations {
             for anim_set in &mut variation.anim_sets {
-                if layer == TileMapLayerKind::Buildings {
-                    if variation.name.is_empty() {
-                        eprintln!("Variation name missing for TileDef: '{:?}' - '{}'", self.kind, self.name);
-                        return false;
-                    }
-                    if anim_set.name.is_empty() {
-                        eprintln!("AnimSet name missing for TileDef: '{:?}' - '{}'", self.kind, self.name);
-                        return false;
-                    }
-                } else if layer == TileMapLayerKind::Units {
-                    if anim_set.name.is_empty() {
-                        eprintln!("AnimSet name missing for TileDef: '{:?}' - '{}'", self.kind, self.name);
-                        return false;
-                    }
-                }
-
                 if anim_set.frames.is_empty() {
-                    eprintln!("At least one animation frame is required! TileDef: '{:?}' - '{}'", self.kind, self.name);
+                    eprintln!("At least one animation frame is required! TileDef: '{}' - '{}'", self.kind, self.name);
                     return false;
                 }
 
                 for (frame_index, frame) in anim_set.frames.iter_mut().enumerate() {
                     if frame.name.is_empty() {
-                        eprintln!("Missing sprite frame name for index [{}]. AnimSet: '{}', TileDef: '{:?}' - '{}'",
-                                  frame_index,
+                        eprintln!("Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{}' - '{}'",
                                   anim_set.name,
                                   self.kind,
                                   self.name);
@@ -470,26 +454,51 @@ impl TileDef {
                                     frame.name)
                         },
                         TileMapLayerKind::Buildings => {
-                            format!("{}{}{}{}{}{}{}{}{}.png",
-                                    tile_set_path_with_category,
-                                    MAIN_SEPARATOR,
-                                    self.name,
-                                    MAIN_SEPARATOR,
-                                    variation.name,
-                                    MAIN_SEPARATOR,
-                                    anim_set.name,
-                                    MAIN_SEPARATOR,
-                                    frame.name)
+                            // buildings/<category>/<building_name>/
+                            let mut path = format!("{}{}{}{}",
+                                tile_set_path_with_category,
+                                MAIN_SEPARATOR,
+                                self.name,
+                                MAIN_SEPARATOR);
+
+                            // Do we have a variation? If not the anim_set name follows directly.
+                            // + <variation>/
+                            if !variation.name.is_empty() {
+                                path += &variation.name;
+                                path += MAIN_SEPARATOR_STR;
+                            }
+
+                            // Do we have an anim_set? If not the sprite frame image follows directly.
+                            // + <anim_set>/
+                            if !anim_set.name.is_empty() {
+                                path += &anim_set.name;
+                                path += MAIN_SEPARATOR_STR;
+                            }
+
+                            // + <frame[N]>.png
+                            path += &frame.name;
+                            path += ".png";
+                            path
                         },
                         TileMapLayerKind::Units => {
-                            format!("{}{}{}{}{}{}{}.png",
-                                    tile_set_path_with_category,
-                                    MAIN_SEPARATOR,
-                                    self.name,
-                                    MAIN_SEPARATOR,
-                                    anim_set.name,
-                                    MAIN_SEPARATOR,
-                                    frame.name)
+                            // units/<category>/<unit_name>/
+                            let mut path = format!("{}{}{}{}",
+                                tile_set_path_with_category,
+                                MAIN_SEPARATOR,
+                                self.name,
+                                MAIN_SEPARATOR);
+
+                            // Optional anim set name or just sprite frame follows.
+                            // + <anim_set>/
+                            if !anim_set.name.is_empty() {
+                                path += &anim_set.name;
+                                path += &MAIN_SEPARATOR_STR;
+                            }
+
+                            // + <frame[N]>.png
+                            path += &frame.name;
+                            path += ".png";
+                            path
                         },
                     };
 
@@ -941,7 +950,7 @@ impl TileSets {
         for layer in TileMapLayerKind::iter() {
             let tile_set_path = layer.assets_path();
             if !self.load_tile_set(tex_cache, tile_set_path, layer) {
-                eprintln!("TileSet '{}' ({}) didn't load!", layer, tile_set_path);
+                eprintln!("TileSet '{layer}' ({tile_set_path}) didn't load!");
             }
         }
     }

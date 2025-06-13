@@ -78,15 +78,15 @@ struct TileAnimState {
 bitflags! {
     #[derive(Copy, Clone, Default, PartialEq, Eq)]
     pub struct TileFlags: u16 {
-        const Hidden          = 1 << 1;
-        const Highlighted     = 1 << 2;
-        const Invalidated     = 1 << 3;
-        const OccludesTerrain = 1 << 4;
+        const Hidden          = 1 << 0;
+        const Highlighted     = 1 << 1;
+        const Invalidated     = 1 << 2;
+        const OccludesTerrain = 1 << 3;
     
         // Debug flags:
-        const DrawDebugInfo   = 1 << 5;
-        const DrawDebugBounds = 1 << 6;
-        const DrawBlockerInfo = 1 << 7;
+        const DrawDebugInfo   = 1 << 4;
+        const DrawDebugBounds = 1 << 5;
+        const DrawBlockerInfo = 1 << 6;
     }
 }
 
@@ -155,7 +155,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn has_flags(&self, flags: TileFlags) -> bool {
-        self.flags.contains(flags)
+        self.flags.intersects(flags)
     }
 
     #[inline]

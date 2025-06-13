@@ -1,5 +1,4 @@
 use core::slice::Iter;
-use std::marker::PhantomData;
 use arrayvec::ArrayVec;
 use smallvec::SmallVec;
 use num_enum::IntoPrimitive;
@@ -7,44 +6,41 @@ use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumIter};
 
 use crate::{
-    game::building::{
-        BuildingKind
-    }
+    game::building::BuildingKind
 };
 
 // ----------------------------------------------
 // Stock generic
 // ----------------------------------------------
 
-pub struct StockItem {
+pub struct StockItem<T> {
+    pub kind: T,
     pub count: u32,
 }
 
 pub struct Stock<T, const CAPACITY: usize> {
-    items: ArrayVec<StockItem, CAPACITY>,
-    _marker: PhantomData<T>, // Prevents a compilation error since T is not referenced here.
+    items: ArrayVec<StockItem<T>, CAPACITY>,
 }
 
 impl<T, const CAPACITY: usize> Stock<T, CAPACITY> 
 where
-    T: IntoEnumIterator + Into<u32> + Copy {
+    T: IntoEnumIterator + Into<u32> + Copy + PartialEq {
 
     #[inline]
     pub fn new() -> Self {
         let mut stock = Self {
             items: ArrayVec::new(),
-            _marker: PhantomData,
         };
 
-        for _ in T::iter() {
-            stock.items.push(StockItem { count: 0 });
+        for kind in T::iter() {
+            stock.items.push(StockItem { kind: kind, count: 0 });
         }
 
         stock
     }
 
     #[inline]
-    pub fn iter(&self) -> Iter<'_, StockItem> {
+    pub fn iter(&self) -> Iter<'_, StockItem<T>> {
         self.items.iter()
     }
 
@@ -56,6 +52,7 @@ where
     #[inline]
     pub fn has(&self, wanted: T) -> bool {
         let index: u32 = wanted.into();
+        debug_assert!(self.items[index as usize].kind == wanted);
         self.items[index as usize].count != 0
     }
 }
@@ -92,6 +89,11 @@ where
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    #[inline]
     pub fn len(&self) -> usize {
         self.items.len()
     }
@@ -104,6 +106,16 @@ where
             }
         }
         false
+    }
+
+     #[inline]
+    pub fn clear(&mut self) {
+        self.items.clear();
+    }
+
+     #[inline]
+    pub fn add(&mut self, item: T) {
+        self.items.push(item);
     }
 }
 

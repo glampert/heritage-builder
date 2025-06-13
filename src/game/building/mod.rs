@@ -1,19 +1,21 @@
 use std::fmt;
 use rand::Rng;
+use bitflags::bitflags;
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
+    bitflags_with_display,
     utils::Cell,
+    imgui_ui::UiSystem,
     tile::{
-        map::{Tile, TileMapLayerKind},
-        sets::{TileDef, TileKind}
+        sets::{TileDef, TileKind},
+        map::{GameStateHandle, Tile, TileMapLayerKind}
     }
 };
 
 use super::{
-    sim::{Query}
+    sim::Query
 };
 
 use config::{
@@ -104,6 +106,22 @@ impl<'config> Building<'config> {
     pub fn archetype_kind(&self) -> BuildingArchetypeKind {
         self.archetype.discriminant()
     }
+
+    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
+        if !ui.collapsing_header("Properties##_building_props", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        ui.text(format!("Name..............: '{}'", self.name));
+        ui.text(format!("Kind..............: {}", self.kind));
+        ui.text(format!("Archetype.........: {}", self.archetype_kind()));
+        ui.text(format!("Cell..............: {},{}", self.map_cell.x, self.map_cell.y));
+
+        self.archetype.draw_debug_ui(ui_sys);
+    }
 }
 
 // ----------------------------------------------
@@ -121,6 +139,17 @@ impl<'config> BuildingList<'config> {
             archetype_kind: archetype_kind,
             buildings: Vec::new(),
         }
+    }
+
+    #[inline]
+    pub fn try_get(&self, index: usize, archetype_kind: BuildingArchetypeKind) -> Option<&Building<'config>> {
+        if index >= self.buildings.len() {
+            return None;
+        }
+        if archetype_kind != self.archetype_kind {
+            return None;
+        }
+        Some(&self.buildings[index])
     }
 
     #[inline]
@@ -142,19 +171,40 @@ impl<'config> BuildingList<'config> {
 // BuildingKind
 // ----------------------------------------------
 
-#[repr(i32)]
-#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-pub enum BuildingKind {
-    // Archetype: Producer
+bitflags_with_display! {
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    pub struct BuildingKind: i32 {
+        // Archetype: House
+        const House     = 1 << 0;
 
-    // Archetype: Storage
+        // Archetype: Producer
 
-    // Archetype: Service
-    Well,
-    Market,
+        // Archetype: Storage
 
-    // Archetype: House
-    House,
+        // Archetype: Service
+        const WellSmall = 1 << 1;
+        const WellBig   = 1 << 2;
+        const Market    = 1 << 3;
+    }
+}
+
+impl BuildingKind {
+    #[inline]
+    pub fn from_game_state_handle(handle: GameStateHandle) -> Self {
+        BuildingKind::from_bits(handle.kind())
+            .expect("GameStateHandle does not contain a valid BuildingKind enum value!")
+    }
+
+    #[inline]
+    pub fn archetype_kind(self) -> BuildingArchetypeKind {
+        if self.intersects(BuildingKind::House) {
+            BuildingArchetypeKind::House
+        } else if self.intersects(BuildingKind::WellSmall | BuildingKind::WellBig | BuildingKind::Market) {
+            BuildingArchetypeKind::Service
+        } else {
+            panic!("Unknown archetype for building kind: {:?}", self);
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -205,6 +255,23 @@ impl<'config> BuildingArchetype<'config> {
             }
             BuildingArchetype::House(state) => {
                 state.update(update_ctx, delta_time_secs);
+            }
+        }
+    }
+
+    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        match self {
+            BuildingArchetype::Producer(state) => {
+                state.draw_debug_ui(ui_sys);
+            }
+            BuildingArchetype::Storage(state) => {
+                state.draw_debug_ui(ui_sys);
+            }
+            BuildingArchetype::Service(state) => {
+                state.draw_debug_ui(ui_sys);
+            }
+            BuildingArchetype::House(state) => {
+                state.draw_debug_ui(ui_sys);
             }
         }
     }

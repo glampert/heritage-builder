@@ -279,7 +279,7 @@ impl TextureCache {
                                                             gen_mipmaps) {
             Ok(texture) => texture,
             Err(err) => {
-                eprintln!("TextureCache Load Error: {}", err);
+                eprintln!("TextureCache Load Error: {err}");
                 return self.dummy_texture_handle;
             },
         };

@@ -215,7 +215,7 @@ fn main() {
             tile_selection.has_valid_placement(),
             debug_settings_menu.show_selection_bounds());
 
-        tile_inspector_menu.draw(&mut tile_map, &tile_sets, &ui_sys, camera.transform());
+        tile_inspector_menu.draw(&mut tile_map, &tile_sets, &world, &ui_sys, camera.transform());
         debug_settings_menu.draw(&mut camera, &mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
 
         if debug_settings_menu.show_cursor_pos() {
@@ -379,11 +379,12 @@ fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
     const G: i32 = 0; // grass
     const D: i32 = 1; // dirt
     const H: i32 = 2; // house
-    const W: i32 = 3; // well
-    const M: i32 = 4; // market
+    const W: i32 = 3; // well_small
+    const B: i32 = 4; // well_big
+    const M: i32 = 5; // market
 
-    const TILE_NAMES: [&str; 5] = [ "grass", "dirt", "house_0", "well", "market" ];
-    const TILE_CATEGORIES: [&str; 5] = [ "ground", "ground", "houses", "services", "services" ];
+    const TILE_NAMES: [&str; 6] = [ "grass", "dirt", "house0", "well_small", "well_big", "market" ];
+    const TILE_CATEGORIES: [&str; 6] = [ "ground", "ground", "houses", "services", "services", "services" ];
 
     let find_tile = |layer_kind: TileMapLayerKind, tile_id: i32| {
         let tile_name = TILE_NAMES[tile_id as usize];
@@ -404,9 +405,9 @@ fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
 
     const BUILDINGS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
         D,D,D,D,D,D,D,D, // <-- start, tile zero is the leftmost (top-left)
-        D,H,G,W,G,G,M,D,
+        D,H,G,B,G,M,G,D,
         D,G,G,G,G,G,G,D,
-        D,G,G,G,G,G,G,D,
+        D,G,W,G,G,G,G,D,
         D,G,G,G,G,G,G,D,
         D,G,G,G,G,G,G,D,
         D,G,G,G,G,G,G,D,
@@ -449,3 +450,55 @@ fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
 
     tile_map
 }
+
+/*
+// saves some bytes on the blockers (40 bytes vs 48 on Tile)
+pub enum Tile_v2<'tile_sets> {
+    Terrain {
+        cell: Cell,
+        tile_def: &'tile_sets TileDef,
+        flags: TileFlags,
+    }
+    Building {
+        cell: Cell,
+        tile_def: &'tile_sets TileDef,
+        flags: TileFlags,
+        game_state: GameStateHandle,
+        anim_state: TileAnimState,
+        variation: u16,
+    },
+    Blocker {
+        cell: Cell,
+        owner_cell: Cell,
+        flags: TileFlags,
+    }
+}
+
+impl<'tile_sets> Tile_v2<'tile_sets> {
+    fn get_game_state(&self) -> GameStateHandle {
+        if let Tile_v2::Regular { game_state, .. } = self {
+            *game_state
+        } else {
+            panic!("No game state!");
+        }
+    }
+}
+
+fn match_on_tile(tile: &Tile_v2) {
+    match tile {
+        Tile_v2::Blocker { 
+            cell,
+            owner_cell,
+            flags
+        } => {},
+        Tile_v2::Regular {
+            cell,
+            game_state,
+            tile_def,
+            flags,
+            variation,
+            anim_state
+        } => {}
+    }
+}
+*/

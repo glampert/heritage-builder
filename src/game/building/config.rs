@@ -15,8 +15,7 @@ use super::{
     house::{
         HouseLevel,
         HouseLevelConfig,
-        HouseState,
-        DEFAULT_HOUSE_UPGRADE_FREQUENCY_SECS
+        HouseState
     },
     producer::{
         ProducerConfig,
@@ -32,14 +31,25 @@ use super::{
 };
 
 // ----------------------------------------------
+// Constants
+// ----------------------------------------------
+
+pub const PRODUCERS_TILE_CATEGORY_NAME: &str = "producers";
+pub const STORAGE_TILE_CATEGORY_NAME:   &str = "storage";
+pub const SERVICES_TILE_CATEGORY_NAME:  &str = "services";
+pub const HOUSES_TILE_CATEGORY_NAME:    &str = "houses";
+
+// ----------------------------------------------
 // BuildingConfigs
 // ----------------------------------------------
 
 pub struct BuildingConfigs {
     // Temporary
-    house_0: HouseLevelConfig,
-    house_1: HouseLevelConfig,
-    service_well: ServiceConfig,
+    house0: HouseLevelConfig,
+    house1: HouseLevelConfig,
+    house2: HouseLevelConfig,
+    service_well_small: ServiceConfig,
+    service_well_big: ServiceConfig,
     service_market: ServiceConfig,
     dummy_producer: ProducerConfig,
     dummy_storage: StorageConfig,
@@ -49,27 +59,39 @@ impl BuildingConfigs {
     // TODO: Load from config file.
     pub fn load() -> Self {
         Self {
-            house_0: HouseLevelConfig {
-                tile_def_name: "house_0".to_string(),
-                upgrade_frequency_secs: DEFAULT_HOUSE_UPGRADE_FREQUENCY_SECS,
+            house0: HouseLevelConfig {
+                tile_def_name: "house0".to_string(),
                 max_residents: 2,
                 tax_generated: 0,
-                services_required: ServicesList::from_slice(&[BuildingKind::Well]),
+                services_required: ServicesList::new(),
                 goods_required: ConsumerGoodsList::new(),        
             },
-            house_1: HouseLevelConfig {
-                tile_def_name: "house_1".to_string(),
-                upgrade_frequency_secs: DEFAULT_HOUSE_UPGRADE_FREQUENCY_SECS,
+            house1: HouseLevelConfig {
+                tile_def_name: "house1".to_string(),
                 max_residents: 4,
                 tax_generated: 1,
-                services_required: ServicesList::from_slice(&[BuildingKind::Well, BuildingKind::Market]),
+                services_required: ServicesList::from_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
                 goods_required: ConsumerGoodsList::new(),        
             },
-            service_well: ServiceConfig {
-                tile_def_name: "well".to_string(),
+            house2: HouseLevelConfig {
+                tile_def_name: "house2".to_string(),
+                max_residents: 6,
+                tax_generated: 2,
+                services_required: ServicesList::from_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
+                goods_required: ConsumerGoodsList::new(),
+            },
+            service_well_small: ServiceConfig {
+                tile_def_name: "well_small".to_string(),
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 3,
+                goods_required: ConsumerGoodsList::new(),
+            },
+            service_well_big: ServiceConfig {
+                tile_def_name: "well_big".to_string(),
+                min_workers: 0,
+                max_workers: 1,
+                effect_radius: 5,
                 goods_required: ConsumerGoodsList::new(),
             },
             service_market: ServiceConfig {
@@ -98,8 +120,9 @@ impl BuildingConfigs {
 
     pub fn find_house_level(&self, level: HouseLevel) -> &HouseLevelConfig {
         match level {
-            HouseLevel::Level0 => &self.house_0,
-            HouseLevel::Level1 => &self.house_1,
+            HouseLevel::Level0 => &self.house0,
+            HouseLevel::Level1 => &self.house1,
+            HouseLevel::Level2 => &self.house2,
         }
     }
 
@@ -121,8 +144,10 @@ impl BuildingConfigLookup for ProducerConfig {
 
 impl BuildingConfigLookup for ServiceConfig {
     fn find<'config>(configs: &'config BuildingConfigs, kind: BuildingKind) -> &'config Self {
-        if kind == BuildingKind::Well {
-            &configs.service_well
+        if kind == BuildingKind::WellSmall {
+            &configs.service_well_small
+        } else if kind == BuildingKind::WellBig {
+            &configs.service_well_big
         } else if kind == BuildingKind::Market {
             &configs.service_market
         } else { panic!("No service!") }
@@ -141,13 +166,21 @@ impl BuildingConfigLookup for StorageConfig {
 
 pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> Building<'config> {
     // TODO: Temporary
-    if tile.name() == "well" {
+    if tile.name() == "well_small" {
         Building::new(
-            "Well",
-            BuildingKind::Well,
+            "Well Small",
+            BuildingKind::WellSmall,
             tile.cell,
             configs,
-            BuildingArchetype::new_service(ServiceState::new(BuildingKind::Well, configs))
+            BuildingArchetype::new_service(ServiceState::new(BuildingKind::WellSmall, configs))
+        )
+    } else if tile.name() == "well_big" {
+        Building::new(
+            "Well Big",
+            BuildingKind::WellBig,
+            tile.cell,
+            configs,
+            BuildingArchetype::new_service(ServiceState::new(BuildingKind::WellSmall, configs))
         )
     } else if tile.name() == "market" {
         Building::new(
@@ -157,7 +190,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
             configs,
             BuildingArchetype::new_service(ServiceState::new(BuildingKind::Market, configs))
         )
-    } else if tile.name() == "house_0" {
+    } else if tile.name() == "house0" {
         Building::new(
             "House",
             BuildingKind::House,

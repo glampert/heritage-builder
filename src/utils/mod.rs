@@ -19,6 +19,47 @@ macro_rules! name_of {
     }};
 }
 
+// Defines a bitflags struct with a Display implementation.
+#[macro_export]
+macro_rules! bitflags_with_display {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident: $ty:ty {
+            $(
+                const $flag:ident = $value:expr;
+            )+
+        }
+    ) => {
+        bitflags! {
+            $(#[$meta])*
+            $vis struct $name: $ty {
+                $(
+                    const $flag = $value;
+                )+
+            }
+        }
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let mut first = true;
+                $(
+                    if self.contains($name::$flag) {
+                        if !first {
+                            write!(f, " | ")?;
+                        }
+                        write!(f, stringify!($flag))?;
+                        first = false;
+                    }
+                )+
+                if first {
+                    write!(f, "(empty)")
+                } else {
+                    Ok(())
+                }
+            }
+        }
+    };
+}
+
 // ----------------------------------------------
 // Vec2
 // ----------------------------------------------

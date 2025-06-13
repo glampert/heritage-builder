@@ -2,7 +2,7 @@ use crate::{
     utils::{self, Cell, WorldToScreenTransform},
     app::input::{InputAction, MouseButton},
     imgui_ui::{UiInputEvent, UiSystem},
-
+    game::sim::world::World,
     tile::{
         map::{self, Tile, TileFlags, TileMap, TileMapLayerKind},
         sets::{TileKind, TileSets, BASE_TILE_SIZE}
@@ -45,6 +45,7 @@ impl TileInspectorMenu {
     pub fn draw(&mut self,
                 tile_map: &mut TileMap,
                 tile_sets: &TileSets,
+                world: &World,
                 ui_sys: &UiSystem,
                 transform: &WorldToScreenTransform) {
 
@@ -60,6 +61,7 @@ impl TileInspectorMenu {
         let layer_kind = TileMapLayerKind::from_tile_kind(tile_kind);
         let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
         let tile_screen_rect = tile.calc_screen_rect(transform);
+        let is_building = tile.is_building();
 
         let window_position = [
             tile_screen_rect.center().x - 30.0,
@@ -77,11 +79,21 @@ impl TileInspectorMenu {
             .flags(window_flags)
             .position(window_position, imgui::Condition::Appearing)
             .build(|| {
-                Self::tile_properties_dropdown(ui, tile_map, cell, layer_kind, tile_sets, transform);
-                Self::tile_variations_dropdown(ui, tile_map, cell, layer_kind);
-                Self::tile_animations_dropdown(ui, tile_map, cell, layer_kind);
-                Self::tile_debug_opts_dropdown(ui, tile_map, cell, layer_kind);
-                Self::tile_def_editor_dropdown(ui, tile_map, cell, layer_kind, tile_sets);
+                if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
+                    ui.indent_by(10.0);
+                    Self::tile_properties_dropdown(ui, tile_map, cell, layer_kind, tile_sets, transform);
+                    Self::tile_variations_dropdown(ui, tile_map, cell, layer_kind);
+                    Self::tile_animations_dropdown(ui, tile_map, cell, layer_kind);
+                    Self::tile_debug_opts_dropdown(ui, tile_map, cell, layer_kind);
+                    Self::tile_def_editor_dropdown(ui, tile_map, cell, layer_kind, tile_sets);
+                    ui.unindent_by(10.0);
+                }
+
+                if is_building && ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
+                    ui.indent_by(10.0);
+                    Self::building_debug_ui(tile_map, world, ui_sys, cell, layer_kind);
+                    ui.unindent_by(10.0);
+                }
             });
     }
 
@@ -92,7 +104,8 @@ impl TileInspectorMenu {
                                 tile_sets: &TileSets,
                                 transform: &WorldToScreenTransform) {
 
-        if !ui.collapsing_header("Tile Properties", imgui::TreeNodeFlags::empty()) {
+        // NOTE: Use the special ##id here so we don't collide with Building/Properties.
+        if !ui.collapsing_header("Properties##_tile_props", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 
@@ -109,7 +122,7 @@ impl TileInspectorMenu {
 
         ui.text(format!("Name..........: '{}'", tile.name()));
         ui.text(format!("Category......: '{}'", category_name));
-        ui.text(format!("Kind..........: {:?}", tile.kind()));
+        ui.text(format!("Kind..........: {}", tile.kind()));
         ui.text(format!("Cell..........: {},{}", tile.cell.x, tile.cell.y));
         ui.text(format!("Iso pos.......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
         ui.text(format!("Iso adjusted..: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
@@ -272,6 +285,18 @@ impl TileInspectorMenu {
             tile_map.for_each_building_footprint_tile_mut(tile.cell, |footprint_tile| {
                 footprint_tile.set_flags(TileFlags::OccludesTerrain, occludes_terrain);
             });
+        }
+    }
+
+    fn building_debug_ui(tile_map: &TileMap,
+                         world: &World,
+                         ui_sys: &UiSystem,
+                         cell: Cell,
+                         layer_kind: TileMapLayerKind) {
+
+        let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+        if let Some(building) = world.find_building_for_tile(tile) {
+            building.draw_debug_ui(ui_sys);
         }
     }
 }

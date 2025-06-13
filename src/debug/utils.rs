@@ -24,7 +24,7 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
                        flags: TileMapRenderFlags) {
 
     let draw_debug_info =
-        if tile.has_flags(TileFlags::DrawDebugInfo) || tile.has_flags(TileFlags::DrawBlockerInfo) {
+        if tile.has_flags(TileFlags::DrawDebugInfo | TileFlags::DrawBlockerInfo) {
             true
         } else {
             if tile.is_terrain() && flags.contains(TileMapRenderFlags::DrawTerrainTileDebugInfo) {

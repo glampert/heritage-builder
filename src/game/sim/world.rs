@@ -8,6 +8,7 @@ use crate::{
     },
     game::building::{
         Building,
+        BuildingKind,
         BuildingList,
         BuildingArchetypeKind,
         BUILDING_ARCHETYPE_COUNT
@@ -24,7 +25,7 @@ use super::{
 
 // Holds the world state and provides queries.
 pub struct World<'config> {
-    // One list per archetype.
+    // One list per building archetype.
     building_lists: ArrayVec<BuildingList<'config>, BUILDING_ARCHETYPE_COUNT>,
 }
 
@@ -55,16 +56,28 @@ impl<'config> World<'config> {
         let list = self.building_list_mut(archetype_kind);
         let index = list.add(building);
 
-        tile.game_state = GameStateHandle::new(index, building_kind.into());
+        tile.game_state = GameStateHandle::new(index, building_kind.bits());
     }
 
     #[inline]
-    pub fn building_list(&self, kind: BuildingArchetypeKind) -> &BuildingList {
-        &self.building_lists[kind as usize]
+    pub fn building_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
+        &self.building_lists[archetype_kind as usize]
     }
 
     #[inline]
-    pub fn building_list_mut(&mut self, kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
-        &mut self.building_lists[kind as usize]
+    pub fn building_list_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
+        &mut self.building_lists[archetype_kind as usize]
+    }
+
+    #[inline]
+    pub fn find_building_for_tile(&self, tile: &Tile) -> Option<&Building<'config>> {
+        if tile.game_state.is_valid() {
+            let list_index = tile.game_state.index();
+            let building_kind = BuildingKind::from_game_state_handle(tile.game_state);
+            let archetype_kind = building_kind.archetype_kind();
+            let list = self.building_list(archetype_kind);
+            return list.try_get(list_index, archetype_kind);
+        }
+        None
     }
 }

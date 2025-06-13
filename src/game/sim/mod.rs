@@ -11,9 +11,7 @@ use crate::{
 };
 
 use super::{
-    building::{
-        BuildingKind
-    }
+    building::{BuildingKind}
 };
 
 pub mod resources;
@@ -149,11 +147,8 @@ impl<'sim, 'tile_map, 'tile_sets> Query<'sim, 'tile_map, 'tile_sets> {
                     }
 
                     if game_state.is_valid() {
-                        let tile_building_kind =
-                            BuildingKind::try_from(game_state.kind())
-                                .expect("GameStateHandle does not contain a valid BuildingKind enum value!");
-
-                        if tile_building_kind == kind {
+                        let building_kind = BuildingKind::from_game_state_handle(game_state);
+                        if building_kind == kind {
                             return true;
                         }
                     }

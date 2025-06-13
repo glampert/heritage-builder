@@ -140,7 +140,7 @@ impl UiSystem {
     #[inline]
     pub fn builder(&self) -> &imgui::Ui {
         debug_assert!(self.builder_ptr.is_null() == false);
-        unsafe{ &*self.builder_ptr }
+        unsafe { &*self.builder_ptr }
     }
 
     #[inline]
