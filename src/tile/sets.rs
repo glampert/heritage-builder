@@ -11,7 +11,7 @@ use std::{
 use crate::{
     bitflags_with_display,
     render::{TextureCache, TextureHandle},
-    utils::{Size, Cell, Color, RectTexCoords},
+    utils::{coords::Cell, Size, Color, RectTexCoords},
     utils::hash::{self, PreHashedKeyMap, StringHash}
 };
 

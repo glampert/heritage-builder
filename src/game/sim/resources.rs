@@ -23,8 +23,8 @@ pub struct Stock<T, const CAPACITY: usize> {
 }
 
 impl<T, const CAPACITY: usize> Stock<T, CAPACITY> 
-where
-    T: IntoEnumIterator + Into<u32> + Copy + PartialEq {
+    where
+        T: IntoEnumIterator + Into<u32> + Copy + PartialEq {
 
     #[inline]
     pub fn new() -> Self {
@@ -66,8 +66,8 @@ pub struct List<T> {
 }
 
 impl<T> List<T> 
-where 
-    T: Copy + PartialEq {
+    where 
+        T: Copy + PartialEq {
 
     #[inline]
     pub fn new() -> Self {

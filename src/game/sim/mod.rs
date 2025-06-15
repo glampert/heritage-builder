@@ -3,7 +3,10 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 use crate::{
-    utils::{Cell, Size},
+    utils::{
+        Size,
+        coords::Cell
+    },
     tile::{
         sets::{TileDef, TileKind, TileSets},
         map::{GameStateHandle, Tile, TileMap, TileMapLayerKind}

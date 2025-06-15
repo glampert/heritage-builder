@@ -6,7 +6,7 @@ use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
 
 use crate::{
     bitflags_with_display,
-    utils::Cell,
+    utils::coords::Cell,
     imgui_ui::UiSystem,
     tile::{
         sets::{TileDef, TileKind},

@@ -1,12 +1,18 @@
 use std::time::{self};
 
 use crate::{
-    utils::{self, Size, Vec2, Rect, WorldToScreenTransform}
+    utils::{
+        self, Size, Vec2, Rect,
+        coords::{
+            CellRange,
+            WorldToScreenTransform
+        }
+    }
 };
 
 use super::{
-    sets::BASE_TILE_SIZE,
-    selection::{self, CellRange}
+    selection::{self},
+    sets::BASE_TILE_SIZE
 };
 
 // ----------------------------------------------

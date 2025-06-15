@@ -1,7 +1,13 @@
 use strum::IntoEnumIterator;
 
 use crate::{
-    utils::{Cell, Vec2, WorldToScreenTransform}
+    utils::{
+        Vec2,
+        coords::{
+            Cell,
+            WorldToScreenTransform
+        }
+    }
 };
 
 use super::{

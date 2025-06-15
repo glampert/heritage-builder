@@ -18,10 +18,12 @@ impl Hasher for IdentityHasher {
         panic!("Only write_u64 is supported!");
     }
 
+    #[inline]
     fn write_u64(&mut self, h: u64) {
         self.hash = h;
     }
 
+    #[inline]
     fn finish(&self) -> u64 {
         self.hash
     }

@@ -1,8 +1,14 @@
 use crate::{
     imgui_ui::UiSystem,
     render::{RenderSystem, RenderStats},
-    utils::{self, Color, IsoPoint, Vec2, Rect, WorldToScreenTransform},
-
+    utils::{
+        Color, Vec2, Rect,
+        coords::{
+            self,
+            IsoPoint,
+            WorldToScreenTransform
+        }
+    },
     tile::{
         map::{Tile, TileFlags},
         sets::{TileKind, BASE_TILE_SIZE},
@@ -79,13 +85,13 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform
         .always_auto_resize(true)
         .bg_alpha(0.6) // Semi-transparent
         .build(|| {
-            let cursor_iso_pos = utils::screen_to_iso_point(
+            let cursor_iso_pos = coords::screen_to_iso_point(
                 cursor_screen_pos,
                 transform,
                 BASE_TILE_SIZE,
                 false);
 
-            let cursor_approx_cell = utils::iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
+            let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
 
             ui.text(format!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
             ui.text(format!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
@@ -284,7 +290,7 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
     };
 
     // Tile isometric "diamond" bounding box:
-    let diamond_points = utils::cell_to_screen_diamond_points(
+    let diamond_points = coords::cell_to_screen_diamond_points(
         tile.cell,
         tile.logical_size(),
         BASE_TILE_SIZE,

@@ -5,12 +5,19 @@ use crate::{
     imgui_ui::UiSystem,
     render::RenderSystem,
     debug::{self},
-    utils::{self, Cell, Color, IsoPoint, Vec2, WorldToScreenTransform}
+    utils::{
+        Color, Vec2,
+        coords::{
+            self,
+            CellRange,
+            IsoPoint,
+            WorldToScreenTransform
+        }
+    }
 };
 
 use super::{
     sets::BASE_TILE_SIZE,
-    selection::CellRange,
     map::{Tile, TileFlags, TileMap, TileMapLayerKind}
 };
 
@@ -154,32 +161,28 @@ impl TileMapRenderer {
         debug_assert!(terrain_layer.size() == tile_map.size());
         debug_assert!(buildings_layer.size() == tile_map.size());
 
-        for y in (visible_range.min.y..=visible_range.max.y).rev() {
-            for x in (visible_range.min.x..=visible_range.max.x).rev() {
-                let cell = Cell::new(x, y);
-
-                let tile = terrain_layer.tile(cell);
-                if tile.is_empty() {
-                    continue;
-                }
-
-                // Terrain tiles size is constrained.
-                debug_assert!(tile.is_terrain() && tile.logical_size() == BASE_TILE_SIZE);
-
-                let building_tile = buildings_layer.tile(cell);
-                if !building_tile.is_empty() && building_tile.occludes_terrain() {
-                    // Skip drawing terrain if fully occluded.
-                    continue;
-                }
-
-                Self::draw_tile(render_sys,
-                                &mut self.stats,
-                                ui_sys,
-                                tile.calc_adjusted_iso_coords(),
-                                transform,
-                                tile,
-                                flags);
+        for cell in visible_range.iter_rev() {
+            let tile = terrain_layer.tile(cell);
+            if tile.is_empty() {
+                continue;
             }
+
+            // Terrain tiles size is constrained.
+            debug_assert!(tile.is_terrain() && tile.logical_size() == BASE_TILE_SIZE);
+
+            let building_tile = buildings_layer.tile(cell);
+            if !building_tile.is_empty() && building_tile.occludes_terrain() {
+                // As an optimization, skip drawing terrain if fully occluded.
+                continue;
+            }
+
+            Self::draw_tile(render_sys,
+                            &mut self.stats,
+                            ui_sys,
+                            tile.calc_adjusted_iso_coords(),
+                            transform,
+                            tile,
+                            flags);
         }
     }
 
@@ -209,31 +212,31 @@ impl TileMapRenderer {
             });
         };
 
+        let debug_draw_blocker_tile = |tile: &Tile| {
+            tile.is_blocker() && 
+                (tile.has_flags(TileFlags::DrawBlockerInfo) || 
+                 flags.contains(TileMapRenderFlags::DrawBlockerTilesDebug))
+        };
+
         // Drawing in reverse order (bottom to top) is required to ensure
         // buildings with the same Z-sort value don't overlap in weird ways.
-        for y in (visible_range.min.y..=visible_range.max.y).rev() {
-            for x in (visible_range.min.x..=visible_range.max.x).rev() {
+        for cell in visible_range.iter_rev() {
+            let building_tile = buildings_layer.tile(cell);
+            let unit_tile = units_layer.tile(cell);
 
-                let cell = Cell::new(x, y);
-                let building_tile = buildings_layer.tile(cell);
-                let unit_tile = units_layer.tile(cell);
-
-                if building_tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildings) {
-                    add_to_sort_list(building_tile);
-                } else if unit_tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnits) {
-                    add_to_sort_list(unit_tile);
-                } else if building_tile.is_blocker() && // DEBUG:
-                            (flags.contains(TileMapRenderFlags::DrawBlockerTilesDebug) ||
-                            building_tile.has_flags(TileFlags::DrawBlockerInfo)) {
-
-                    Self::draw_tile(render_sys,
-                                    &mut self.stats,
-                                    ui_sys,
-                                    building_tile.calc_adjusted_iso_coords(),
-                                    transform,
-                                    building_tile,
-                                    flags);
-                }
+            if building_tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildings) {
+                add_to_sort_list(building_tile);
+            } else if unit_tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnits) {
+                add_to_sort_list(unit_tile);
+            } else if debug_draw_blocker_tile(building_tile) {
+                // Debug display for blocker tiles:
+                Self::draw_tile(render_sys,
+                                &mut self.stats,
+                                ui_sys,
+                                building_tile.calc_adjusted_iso_coords(),
+                                transform,
+                                building_tile,
+                                flags);
             }
         }
 
@@ -273,7 +276,6 @@ impl TileMapRenderer {
         // Returns true only if all points are offscreen.
         let viewport = render_sys.viewport();
         let is_fully_offscreen = |points: &[Vec2; 4]| {
-
             let mut offscreen_count = 0;
             for pt in points {
                 if pt.x < viewport.min.x || pt.y < viewport.min.y {
@@ -282,7 +284,6 @@ impl TileMapRenderer {
                     offscreen_count += 1;
                 }
             }
-
             if offscreen_count == points.len() { true } else { false }
         };
 
@@ -292,40 +293,36 @@ impl TileMapRenderer {
         let mut highlighted_cells = SmallVec::<[[Vec2; 4]; 128]>::new();
         let mut invalidated_cells = SmallVec::<[[Vec2; 4]; 128]>::new();
 
-        for y in visible_range.min.y..=visible_range.max.y {
-            for x in visible_range.min.x..=visible_range.max.x {
-                let cell = Cell::new(x, y);
-                let points = utils::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, BASE_TILE_SIZE, transform);
-
-                if is_fully_offscreen(&points) {
-                    continue; // Cull if fully offscreen.
-                }
-
-                // Save highlighted grid cells for drawing at the end, so they display in the right order.
-                let tile = terrain_layer.tile(cell);
-    
-                if tile.has_flags(TileFlags::Highlighted) {
-                    highlighted_cells.push(points);
-                    continue;
-                }
-
-                if tile.has_flags(TileFlags::Invalidated) {
-                    invalidated_cells.push(points);
-                    continue;
-                }
-
-                // Draw diamond:
-                render_sys.draw_polyline_with_thickness(&points, self.grid_color, line_thickness, true);
+        for cell in &visible_range {
+            let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE, BASE_TILE_SIZE, transform);
+            if is_fully_offscreen(&points) {
+                continue; // Cull if fully offscreen.
             }
 
-            // Highlighted on top:
-            for points in &highlighted_cells {
-                render_sys.draw_polyline_with_thickness(points, HIGHLIGHT_GRID_COLOR, line_thickness, true);
+            // Save highlighted grid cells for drawing at the end, so they display in the right order.
+            let tile = terrain_layer.tile(cell);
+
+            if tile.has_flags(TileFlags::Highlighted) {
+                highlighted_cells.push(points);
+                continue;
             }
 
-            for points in &invalidated_cells {
-                render_sys.draw_polyline_with_thickness(points, INVALID_GRID_COLOR, line_thickness, true);
+            if tile.has_flags(TileFlags::Invalidated) {
+                invalidated_cells.push(points);
+                continue;
             }
+
+            // Draw diamond:
+            render_sys.draw_polyline_with_thickness(&points, self.grid_color, line_thickness, true);
+        }
+
+        // Highlighted on top:
+        for points in &highlighted_cells {
+            render_sys.draw_polyline_with_thickness(points, HIGHLIGHT_GRID_COLOR, line_thickness, true);
+        }
+
+        for points in &invalidated_cells {
+            render_sys.draw_polyline_with_thickness(points, INVALID_GRID_COLOR, line_thickness, true);
         }
     }
 

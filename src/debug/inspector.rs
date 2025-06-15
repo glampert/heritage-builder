@@ -1,8 +1,12 @@
 use crate::{
-    utils::{self, Cell, WorldToScreenTransform},
     app::input::{InputAction, MouseButton},
     imgui_ui::{UiInputEvent, UiSystem},
     game::sim::world::World,
+    utils::coords::{
+        self,
+        Cell,
+        WorldToScreenTransform
+    },
     tile::{
         map::{self, Tile, TileFlags, TileMap, TileMapLayerKind},
         sets::{TileKind, TileSets, BASE_TILE_SIZE}
@@ -114,7 +118,7 @@ impl TileInspectorMenu {
         let category_name = map::find_category_name_for_tile(tile, tile_sets);
         let color = tile.tint_color();
 
-        let tile_iso_pos = utils::cell_to_iso(cell, BASE_TILE_SIZE);
+        let tile_iso_pos = coords::cell_to_iso(cell, BASE_TILE_SIZE);
         let tile_iso_adjusted = tile.calc_adjusted_iso_coords();
 
         let tile_screen_rect = tile.calc_screen_rect(transform);

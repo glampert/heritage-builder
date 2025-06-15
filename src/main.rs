@@ -10,7 +10,10 @@ mod utils;
 
 use imgui_ui::*;
 use render::*;
-use utils::*;
+use utils::{
+    *,
+    coords::*
+};
 use app::{
     *,
     input::*

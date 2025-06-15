@@ -7,13 +7,22 @@ use strum_macros::{Display, EnumCount, EnumProperty, EnumIter};
 use serde::Deserialize;
 
 use crate::{
-    utils::{self, Cell, IsoPoint, Size, Rect, Vec2, Color, WorldToScreenTransform}
+    utils::{
+        Size, Rect, Vec2, Color,
+        coords::{
+            self,
+            Cell,
+            CellRange,
+            IsoPoint,
+            WorldToScreenTransform
+        }
+    }
 };
 
 use super::{
-    sets::{TileSets, TileDef, TileKind, TileTexInfo, TileFootprintList, BASE_TILE_SIZE},
-    selection::{TileSelection, CellRange},
-    placement::{self}
+    placement::{self},
+    selection::TileSelection,
+    sets::{TileSets, TileDef, TileKind, TileTexInfo, TileFootprintList, BASE_TILE_SIZE}
 };
 
 // ----------------------------------------------
@@ -240,7 +249,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn calc_z_sort(&self) -> i32 {
-        utils::cell_to_iso(self.cell, BASE_TILE_SIZE).y - self.def.logical_size.height
+        coords::cell_to_iso(self.cell, BASE_TILE_SIZE).y - self.def.logical_size.height
     }
 
     #[inline]
@@ -286,10 +295,10 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn calc_adjusted_iso_coords(&self) -> IsoPoint {
         if self.kind().intersects(TileKind::Terrain | TileKind::Empty | TileKind::Blocker) {
             // No position adjustments needed for terrain/empty/blocker tiles.
-            utils::cell_to_iso(self.cell, BASE_TILE_SIZE)
+            coords::cell_to_iso(self.cell, BASE_TILE_SIZE)
         } else if self.kind() == TileKind::Building {
             // Convert the anchor (bottom tile) to isometric screen position:
-            let mut tile_iso_coords = utils::cell_to_iso(self.cell, BASE_TILE_SIZE);
+            let mut tile_iso_coords = coords::cell_to_iso(self.cell, BASE_TILE_SIZE);
 
             // Center the image horizontally:
             tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (self.def.logical_size.width / 2);
@@ -302,7 +311,7 @@ impl<'tile_sets> Tile<'tile_sets> {
             tile_iso_coords
         } else if self.kind() == TileKind::Unit {
             // Convert the anchor tile into isometric screen coordinates:
-            let mut tile_iso_coords = utils::cell_to_iso(self.cell, BASE_TILE_SIZE);
+            let mut tile_iso_coords = coords::cell_to_iso(self.cell, BASE_TILE_SIZE);
 
             // Adjust to center the unit sprite:
             tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (self.def.draw_size.width / 2);
@@ -319,7 +328,7 @@ impl<'tile_sets> Tile<'tile_sets> {
         let iso_position = self.calc_adjusted_iso_coords();
         // Only terrain and buildings might require spacing.
         let apply_spacing = if !self.is_unit() { true } else { false };
-        utils::iso_to_screen_rect(
+        coords::iso_to_screen_rect(
             iso_position,
             self.draw_size(),
             transform,
@@ -720,8 +729,8 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
                                      screen_point: Vec2,
                                      transform: &WorldToScreenTransform) -> Cell {
 
-        let iso_point = utils::screen_to_iso_point(screen_point, transform, BASE_TILE_SIZE, false);
-        let approx_cell = utils::iso_to_cell(iso_point, BASE_TILE_SIZE);
+        let iso_point = coords::screen_to_iso_point(screen_point, transform, BASE_TILE_SIZE, false);
+        let approx_cell = coords::iso_to_cell(iso_point, BASE_TILE_SIZE);
 
         if self.is_cell_within_bounds(approx_cell) {
             // Get the 8 possible neighboring tiles + self and test cursor intersection
@@ -730,11 +739,11 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
             for neighbor in neighbors {
                 if let Some(tile) = neighbor {
-                    if utils::is_screen_point_inside_cell(screen_point,
-                                                          tile.cell,
-                                                          tile.logical_size(),
-                                                          BASE_TILE_SIZE,
-                                                          transform) {
+                    if coords::is_screen_point_inside_cell(screen_point,
+                                                           tile.cell,
+                                                           tile.logical_size(),
+                                                           BASE_TILE_SIZE,
+                                                           transform) {
                         return tile.cell;
                     }
                 }
@@ -775,11 +784,9 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     #[inline]
     fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: f32) {
-        for y in visible_range.min.y..=visible_range.max.y {
-            for x in visible_range.min.x..=visible_range.max.x {
-                let tile = self.tile_mut(Cell::new(x, y));
-                tile.update_anim(delta_time_secs);
-            }
+        for cell in &visible_range {
+            let tile = self.tile_mut(cell);
+            tile.update_anim(delta_time_secs);
         }
     }
 }
