@@ -1,0 +1,444 @@
+{
+    "layer": "Objects",
+    "categories": [
+        {
+            "name": "buildings",
+            "tile_defs": [
+                {
+                    "name": "house0",
+                    "occludes_terrain": false,
+                    "logical_size": {
+                        "width": 64,
+                        "height": 32
+                    },
+                    "draw_size": {
+                        "width": 64,
+                        "height": 40
+                    },
+                    "variations": [
+                        {
+                            "name": "var0",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var1",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "house1",
+                    "logical_size": {
+                        "width": 128,
+                        "height": 64
+                    },
+                    "draw_size": {
+                        "width": 132,
+                        "height": 97
+                    },
+                    "variations": [
+                        {
+                            "name": "var0",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var1",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var2",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "house2",
+                    "logical_size": {
+                        "width": 128,
+                        "height": 64
+                    },
+                    "draw_size": {
+                        "width": 132,
+                        "height": 97
+                    },
+                    "variations": [
+                        {
+                            "name": "var0",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var1",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "market",
+                    "logical_size": {
+                        "width": 192,
+                        "height": 96
+                    },
+                    "draw_size": {
+                        "width": 192,
+                        "height": 140
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "well_small",
+                    "draw_size": {
+                        "width": 70,
+                        "height": 54
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "well_big",
+                    "logical_size": {
+                        "width": 128,
+                        "height": 64
+                    },
+                    "draw_size": {
+                        "width": 128,
+                        "height": 108
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "rice_farm",
+                    "logical_size": {
+                        "width": 256,
+                        "height": 128
+                    },
+                    "draw_size": {
+                        "width": 265,
+                        "height": 205
+                    },
+                    "variations": [
+                        {
+                            "name": "var0",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var1",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "props",
+            "tile_defs": [
+                {
+                    "name": "rock",
+                    "occludes_terrain": false,
+                    "draw_size": {
+                        "width": 64,
+                        "height": 50
+                    },
+                    "variations": [
+                        {
+                            "name": "var0",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var1",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var2",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var3",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var4",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "vegetation",
+            "tile_defs": [
+                {
+                    "name": "tree",
+                    "occludes_terrain": false,
+                    "draw_size": {
+                        "width": 75,
+                        "height": 95
+                    },
+                    "variations": [
+                        {
+                            "name": "var0",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var1",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var2",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "bamboo",
+                    "occludes_terrain": false,
+                    "draw_size": {
+                        "width": 70,
+                        "height": 80
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "bush",
+                    "occludes_terrain": false,
+                    "draw_size": {
+                        "width": 70,
+                        "height": 44
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "units",
+            "tile_defs": [
+                {
+                    "name": "ped",
+                    "draw_size": {
+                        "width": 16,
+                        "height": 24
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "name": "idle",
+                                    "looping": true,
+                                    "duration": 10.0,
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        },
+                                        {
+                                            "name": "frame1"
+                                        },
+                                        {
+                                            "name": "frame2"
+                                        },
+                                        {
+                                            "name": "frame3"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

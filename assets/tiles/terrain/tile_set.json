@@ -3,9 +3,13 @@
     "categories": [
         {
             "name": "ground",
-            "tiles": [
+            "tile_defs": [
                 {
                     "name": "dirt",
+                    "draw_size": {
+                        "width": 67,
+                        "height": 36
+                    },
                     "variations": [
                         {
                             "anim_sets": [
@@ -22,6 +26,10 @@
                 },
                 {
                     "name": "grass",
+                    "draw_size": {
+                        "width": 69,
+                        "height": 38
+                    },
                     "variations": [
                         {
                             "anim_sets": [
@@ -35,14 +43,38 @@
                             ]
                         }
                     ]
+                },
+                {
+                    "name": "stone_path",
+                    "draw_size": {
+                        "width": 68,
+                        "height": 36
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "stone_path"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
                 }
             ]
         },
         {
             "name": "water",
-            "tiles": [
+            "tile_defs": [
                 {
                     "name": "blue",
+                    "draw_size": {
+                        "width": 68,
+                        "height": 34
+                    },
                     "variations": [
                         {
                             "anim_sets": [
@@ -50,22 +82,6 @@
                                     "frames": [
                                         {
                                             "name": "blue"
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    "name": "green",
-                    "variations": [
-                        {
-                            "anim_sets": [
-                                {
-                                    "frames": [
-                                        {
-                                            "name": "green"
                                         }
                                     ]
                                 }
