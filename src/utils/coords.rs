@@ -90,6 +90,12 @@ impl CellRange {
     }
 
     #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.start.is_valid() && self.end.is_valid() &&
+        self.start.x <= self.end.x && self.start.y <= self.end.y
+    }
+
+    #[inline]
     pub fn x_range(&self) -> RangeInclusive<i32> {
         self.start.x..=self.end.x
     }
@@ -228,17 +234,15 @@ impl<'a> IntoIterator for &'a CellRange {
 // Transformations applied to a tile before rendering to screen.
 #[derive(Copy, Clone, Debug)]
 pub struct WorldToScreenTransform {
-    pub scaling: f32,      // Draw scaling. 1 = no scaling.
-    pub offset: Vec2,      // Screen-space offset (e.g. camera scroll).
-    pub tile_spacing: f32, // Pixels between tiles (0 = tight fit).
+    pub scaling: f32, // Draw scaling. 1 = no scaling.
+    pub offset: Vec2, // Screen-space offset (e.g. camera scroll).
 }
 
 impl WorldToScreenTransform {
-    pub fn new(scaling: f32, offset: Vec2, tile_spacing: f32) -> Self {
+    pub fn new(scaling: f32, offset: Vec2) -> Self {
         let transform = Self {
             scaling: scaling,
             offset: offset,
-            tile_spacing: tile_spacing,
         };
         debug_assert!(transform.is_valid());
         transform
@@ -246,40 +250,31 @@ impl WorldToScreenTransform {
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        self.scaling > 0.0 && self.tile_spacing >= 0.0
+        self.scaling > 0.0
     }
 
     #[inline]
-    pub fn apply_to_iso_point(&self, iso_point: IsoPoint, apply_spacing: bool) -> Vec2 {
-        let half_spacing = if apply_spacing { self.tile_spacing / 2.0 } else { 0.0 };
-
-        // Apply spacing, offset and scaling:
-        let screen_x = (((iso_point.x as f32) + half_spacing) * self.scaling) + self.offset.x;
-        let screen_y = (((iso_point.y as f32) + half_spacing) * self.scaling) + self.offset.y;
-
+    pub fn apply_to_iso_point(&self, iso_point: IsoPoint) -> Vec2 {
+        // Apply offset and scaling:
+        let screen_x = ((iso_point.x as f32) * self.scaling) + self.offset.x;
+        let screen_y = ((iso_point.y as f32) * self.scaling) + self.offset.y;
         Vec2::new(screen_x, screen_y)
     }
 
     #[inline]
-    pub fn apply_to_screen_point(&self, screen_point: Vec2, apply_spacing: bool) -> IsoPoint {
-        let half_spacing = if apply_spacing { self.tile_spacing / 2.0 } else { 0.0 };
-
-        // Remove spacing, offset and scaling:
-        let iso_x = ((screen_point.x - self.offset.x) / self.scaling) - half_spacing;
-        let iso_y = ((screen_point.y - self.offset.y) / self.scaling) - half_spacing;
-
+    pub fn apply_to_screen_point(&self, screen_point: Vec2) -> IsoPoint {
+        // Remove offset and scaling:
+        let iso_x = (screen_point.x - self.offset.x) / self.scaling;
+        let iso_y = (screen_point.y - self.offset.y) / self.scaling;
         IsoPoint::new(iso_x as i32, iso_y as i32)
     }
 
     #[inline]
-    pub fn apply_to_rect(&self, iso_position: IsoPoint, size: Size, apply_spacing: bool) -> Rect {
-        let tile_spacing = if apply_spacing { self.tile_spacing } else { 0.0 };
-        let screen_position = self.apply_to_iso_point(iso_position, true);
-
-        // Shrink size by spacing and apply scaling:
-        let screen_width  = ((size.width  as f32) - tile_spacing) * self.scaling;
-        let screen_height = ((size.height as f32) - tile_spacing) * self.scaling;
-
+    pub fn apply_to_rect(&self, iso_position: IsoPoint, size: Size) -> Rect {
+        let screen_position = self.apply_to_iso_point(iso_position);
+        // Apply scaling:
+        let screen_width  = (size.width  as f32) * self.scaling;
+        let screen_height = (size.height as f32) * self.scaling;
         Rect::new(screen_position, Vec2::new(screen_width, screen_height))
     }
 
@@ -299,8 +294,7 @@ impl Default for WorldToScreenTransform {
     fn default() -> Self {
         Self {
             scaling: 1.0,
-            offset: Vec2::zero(),
-            tile_spacing: 0.0
+            offset: Vec2::zero()
         }
     }
 }
@@ -343,23 +337,21 @@ pub fn cell_to_iso(cell: Cell, tile_size: Size) -> IsoPoint {
 #[inline]
 pub fn iso_to_screen_point(iso_point: IsoPoint,
                            transform: &WorldToScreenTransform,
-                           tile_size: Size,
-                           apply_spacing: bool) -> Vec2 {
+                           tile_size: Size) -> Vec2 {
     // Undo offsetting.
     let mut iso = iso_point;
     iso.x += tile_size.width  / 2;
     iso.y += tile_size.height / 2;
 
-    transform.apply_to_iso_point(iso, apply_spacing)
+    transform.apply_to_iso_point(iso)
 }
 
 #[inline]
 pub fn screen_to_iso_point(screen_point: Vec2,
                            transform: &WorldToScreenTransform,
-                           tile_size: Size,
-                           apply_spacing: bool) -> IsoPoint {
+                           tile_size: Size) -> IsoPoint {
 
-    let mut iso_pos = transform.apply_to_screen_point(screen_point, apply_spacing);
+    let mut iso_pos = transform.apply_to_screen_point(screen_point);
 
     // Offset the iso point downward by half a tile (visually centers the hit test to the tile center).
     iso_pos.x -= tile_size.width  / 2;
@@ -370,10 +362,9 @@ pub fn screen_to_iso_point(screen_point: Vec2,
 #[inline]
 pub fn iso_to_screen_rect(iso_position: IsoPoint,
                           size: Size,
-                          transform: &WorldToScreenTransform,
-                          apply_spacing: bool) -> Rect {
+                          transform: &WorldToScreenTransform) -> Rect {
 
-    transform.apply_to_rect(iso_position, size, apply_spacing)
+    transform.apply_to_rect(iso_position, size)
 }
 
 #[inline]
@@ -446,7 +437,7 @@ pub fn cell_to_screen_diamond_points(cell: Cell,
     debug_assert!(transform.is_valid());
 
     let iso_center = cell_to_iso(cell, base_tile_size);
-    let screen_center = iso_to_screen_point(iso_center, transform, base_tile_size, false);
+    let screen_center = iso_to_screen_point(iso_center, transform, base_tile_size);
 
     let tile_width  = (tile_size.width as f32) * transform.scaling;
     let tile_height = (tile_size.height as f32) * transform.scaling;

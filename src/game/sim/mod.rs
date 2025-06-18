@@ -3,18 +3,18 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 use crate::{
-    utils::{
-        Size,
-        coords::Cell
-    },
     tile::{
-        sets::{TileDef, TileKind, TileSets},
-        map::{GameStateHandle, Tile, TileMap, TileMapLayerKind}
+        map::{Tile, TileMap, TileMapLayerKind},
+        sets::{TileDef, TileKind, TileSets}
+    },
+    utils::{
+        coords::{Cell, CellRange},
+        hash::StringHash
     }
 };
 
 use super::{
-    building::{BuildingKind}
+    building::BuildingKind
 };
 
 pub mod resources;
@@ -95,16 +95,16 @@ impl<'sim, 'tile_map, 'tile_sets> Query<'sim, 'tile_map, 'tile_sets> {
     #[inline]
     pub fn find_tile_def(&self,
                          layer: TileMapLayerKind,
-                         category_name: &str,
-                         tile_def_name: &str) -> Option<&'tile_sets TileDef> {
-        self.tile_sets.find_tile_by_name(layer, category_name, tile_def_name)
+                         category_name_hash: StringHash,
+                         tile_def_name_hash: StringHash) -> Option<&'tile_sets TileDef> {
+        self.tile_sets.find_tile_def_by_hash(layer, category_name_hash, tile_def_name_hash)
     }
 
     #[inline]
     pub fn find_tile(&self,
                      cell: Cell,
                      layer: TileMapLayerKind,
-                     tile_kinds: TileKind) -> Option<&Tile> {
+                     tile_kinds: TileKind) -> Option<&Tile<'tile_sets>> {
 
         self.tile_map.find_tile(cell, layer, tile_kinds)
     }
@@ -118,42 +118,26 @@ impl<'sim, 'tile_map, 'tile_sets> Query<'sim, 'tile_map, 'tile_sets> {
         self.tile_map.find_tile_mut(cell, layer, tile_kinds)
     }
 
-    pub fn is_near_building(&self, start_cell: Cell, kind: BuildingKind, radius_in_cells: i32) -> bool {
+    pub fn is_near_building(&self, start_cells: CellRange, kind: BuildingKind, radius_in_cells: i32) -> bool {
+        debug_assert!(start_cells.is_valid());
         debug_assert!(radius_in_cells > 0);
 
-        // Buildings can occupy multiple cells; Find out how many to offset the start by.
-        let mut end_offset = Size::zero();
-        if let Some(start_tile) = self.tile_map.try_tile_from_layer(start_cell, TileMapLayerKind::Buildings) {
-            let size = start_tile.size_in_cells();
-            end_offset = Size::new(size.width - 1, size.height - 1);
-        }
+        let search_range = {
+            let start_x = start_cells.start.x - radius_in_cells;
+            let start_y = start_cells.start.y - radius_in_cells;
+            let end_x   = start_cells.end.x   + radius_in_cells;
+            let end_y   = start_cells.end.y   + radius_in_cells;
+            CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))  
+        };
 
-        for dx in -radius_in_cells..=(radius_in_cells + end_offset.width) {
-            for dy in -radius_in_cells..=(radius_in_cells + end_offset.height) {
-                if dx == 0 && dy == 0 {
-                    continue; // Skip start_cell.
-                }
-
-                let search_cell = Cell::new(start_cell.x + dx, start_cell.y + dy);
-                if let Some(search_tile) = self.tile_map.try_tile_from_layer(search_cell, TileMapLayerKind::Buildings) {
-                    let mut game_state = GameStateHandle::invalid();
-
-                    if search_tile.is_blocker() {
-                        let owner_tile =
-                            self.tile_map.try_tile_from_layer(search_tile.blocker_owner_cell(), TileMapLayerKind::Buildings).unwrap();
-                        debug_assert!(owner_tile.is_building());
-                        if owner_tile.cell != start_cell {
-                            game_state = owner_tile.game_state;
-                        }
-                    } else if search_tile.is_building() {
-                        game_state = search_tile.game_state;
-                    }
-
-                    if game_state.is_valid() {
-                        let building_kind = BuildingKind::from_game_state_handle(game_state);
-                        if building_kind == kind {
-                            return true;
-                        }
+        for search_cell in &search_range {
+            if let Some(search_tile) =
+                self.tile_map.find_tile(search_cell, TileMapLayerKind::Objects, TileKind::Building) {
+                let game_state = search_tile.game_state_handle();
+                if game_state.is_valid() {
+                    let building_kind = BuildingKind::from_game_state_handle(game_state);
+                    if building_kind == kind {
+                        return true;
                     }
                 }
             }

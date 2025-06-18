@@ -30,25 +30,17 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
                        flags: TileMapRenderFlags) {
 
     let draw_debug_info =
-        if tile.has_flags(TileFlags::DrawDebugInfo | TileFlags::DrawBlockerInfo) {
-            true
-        } else {
-            if tile.is_terrain() && flags.contains(TileMapRenderFlags::DrawTerrainTileDebugInfo) {
-                true
-            } else if tile.is_building() && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebugInfo) {
-                true
-            } else if tile.is_blocker() && flags.contains(TileMapRenderFlags::DrawBlockerTilesDebug) {
-                true
-            } else if tile.is_unit() && flags.contains(TileMapRenderFlags::DrawUnitsTileDebugInfo) {
-                true
-            } else {
-                false
-            }
-        };
+        tile.has_flags(TileFlags::DrawDebugInfo | TileFlags::DrawBlockerInfo) ||
+        (tile.is(TileKind::Terrain)    && flags.contains(TileMapRenderFlags::DrawTerrainTileDebug))   ||
+        (tile.is(TileKind::Blocker)    && flags.contains(TileMapRenderFlags::DrawBlockersTileDebug))  ||
+        (tile.is(TileKind::Building)   && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebug)) ||
+        (tile.is(TileKind::Prop)       && flags.contains(TileMapRenderFlags::DrawPropsTileDebug))     ||
+        (tile.is(TileKind::Unit)       && flags.contains(TileMapRenderFlags::DrawUnitsTileDebug))     ||
+        (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetationTileDebug));
 
     let draw_debug_bounds =
         tile.has_flags(TileFlags::DrawDebugBounds) ||
-        flags.contains(TileMapRenderFlags::DrawTileDebugBounds);
+        flags.contains(TileMapRenderFlags::DrawDebugBounds);
 
     if draw_debug_info {
         draw_tile_info(
@@ -88,8 +80,7 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform
             let cursor_iso_pos = coords::screen_to_iso_point(
                 cursor_screen_pos,
                 transform,
-                BASE_TILE_SIZE,
-                false);
+                BASE_TILE_SIZE);
 
             let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
 
@@ -217,19 +208,32 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
         imgui::WindowFlags::NO_MOUSE_INPUTS;
 
     // NOTE: Label has to be unique for each tile because it will be used as the ImGui ID for this widget.
-    let label = format!("{}_{}_{}", tile.name(), tile.cell.x, tile.cell.y);
+    let cell = tile.base_cell();
+    let label = format!("{}_{}_{}", tile.name(), cell.x, cell.y);
     let position = [ debug_overlay_pos.x, debug_overlay_pos.y ];
 
-    let bg_color = match tile.kind() {
-        TileKind::Blocker => Color::red().to_array(),
-        TileKind::Building => Color::yellow().to_array(),
-        TileKind::Unit => Color::cyan().to_array(),
-        _ => Color::black().to_array()
+    let bg_color = {
+        if tile.is(TileKind::Blocker) {
+            Color::red().to_array()
+        } else if tile.is(TileKind::Building) {
+            Color::yellow().to_array()
+        } else if tile.is(TileKind::Prop) {
+            Color::magenta().to_array()
+        } else if tile.is(TileKind::Unit) {
+            Color::cyan().to_array()
+        } else if tile.is(TileKind::Vegetation) {
+            Color::green().to_array()
+        } else {
+            Color::black().to_array()
+        }
     };
 
-    let text_color = match tile.kind() {
-        TileKind::Terrain => Color::white().to_array(),
-        _ => Color::black().to_array()
+    let text_color = {
+        if tile.is(TileKind::Terrain) {
+            Color::white().to_array()
+        } else {
+            Color::black().to_array()
+        }
     };
 
     let ui = ui_sys.builder();
@@ -246,7 +250,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
         .always_auto_resize(true)
         .bg_alpha(0.4) // Semi-transparent
         .build(|| {
-            ui.text(format!("C:{},{}", tile.cell.x, tile.cell.y)); // Cell position
+            ui.text(format!("C:{},{}", cell.x, cell.y)); // Cell position
             ui.text(format!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
             ui.text(format!("I:{},{}", tile_iso_pos.x, tile_iso_pos.y)); // 2D isometric position
             ui.text(format!("Z:{}", tile.calc_z_sort())); // Z-sort
@@ -283,15 +287,25 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
                     transform: &WorldToScreenTransform,
                     tile: &Tile) {
 
-    let color = match tile.kind() {
-        TileKind::Building => Color::yellow(),
-        TileKind::Unit => Color::cyan(),
-        _ => Color::red()
+    let color = {
+        if tile.is(TileKind::Blocker) {
+            Color::red()
+        } else if tile.is(TileKind::Building) {
+            Color::yellow()
+        } else if tile.is(TileKind::Prop) {
+            Color::magenta()
+        } else if tile.is(TileKind::Unit) {
+            Color::cyan()
+        } else if tile.is(TileKind::Vegetation) {
+            Color::green()
+        } else {
+            Color::red()
+        }
     };
 
     // Tile isometric "diamond" bounding box:
     let diamond_points = coords::cell_to_screen_diamond_points(
-        tile.cell,
+        tile.base_cell(),
         tile.logical_size(),
         BASE_TILE_SIZE,
         transform);

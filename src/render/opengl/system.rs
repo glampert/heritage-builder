@@ -213,7 +213,7 @@ impl render::RenderSystem for RenderSystem {
         // Just call this with the default white texture.
         self.draw_textured_colored_rect(
             rect,
-            RectTexCoords::default(),
+            RectTexCoords::default_ref(),
             TextureHandle::white(),
             color);
     }

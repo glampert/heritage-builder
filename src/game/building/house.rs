@@ -3,11 +3,14 @@ use strum_macros::EnumCount;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
-    utils::Color,
     imgui_ui::UiSystem,
+    utils::{
+        Color,
+        hash::StringHash
+    },
     tile::{
         map::TileMapLayerKind,
-        sets::TileDef 
+        sets::{TileKind, TileDef, OBJECTS_BUILDINGS_CATEGORY}
     },
     game::sim::resources::{
         ConsumerGoodsList,
@@ -18,10 +21,7 @@ use crate::{
 
 use super::{
     BuildingUpdateContext,
-    config::{
-        BuildingConfigs,
-        HOUSES_TILE_CATEGORY_NAME
-    }
+    config::BuildingConfigs
 };
 
 // ----------------------------------------------
@@ -192,6 +192,7 @@ impl HouseLevel {
 
 pub struct HouseLevelConfig {
     pub tile_def_name: String,
+    pub tile_def_name_hash: StringHash,
 
     pub max_residents: u32,
     pub tax_generated: u32,
@@ -342,7 +343,7 @@ impl<'config> HouseUpgradeState<'config> {
         let next_level_config = update_ctx.configs.find_house_level(next_level);
 
         if let Some(new_tile_def) = 
-            update_ctx.find_tile_def(HOUSES_TILE_CATEGORY_NAME, &next_level_config.tile_def_name) {
+            update_ctx.find_tile_def(OBJECTS_BUILDINGS_CATEGORY.hash, next_level_config.tile_def_name_hash) {
 
             // Try placing new. Might fail if there isn't enough space.
             if Self::try_replace_tile(update_ctx, new_tile_def) {
@@ -378,7 +379,7 @@ impl<'config> HouseUpgradeState<'config> {
         let prev_level_config = update_ctx.configs.find_house_level(prev_level);
 
         if let Some(new_tile_def) = 
-            update_ctx.find_tile_def(HOUSES_TILE_CATEGORY_NAME, &prev_level_config.tile_def_name) {
+            update_ctx.find_tile_def(OBJECTS_BUILDINGS_CATEGORY.hash, prev_level_config.tile_def_name_hash) {
 
             // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
             if Self::try_replace_tile(update_ctx, new_tile_def) {
@@ -405,28 +406,20 @@ impl<'config> HouseUpgradeState<'config> {
     }
 
     fn try_replace_tile<'tile_sets>(update_ctx: &mut BuildingUpdateContext<'_, '_, '_, '_, 'tile_sets>,
-                                    tile_to_place: &'tile_sets TileDef) -> bool {
+                                    tile_def_to_place: &'tile_sets TileDef) -> bool {
 
         // Replaces the give tile if the placement is valid,
         // fails and leaves the map unchanged otherwise.
 
         // First check if we have space to place this tile.
-        let footprint = tile_to_place.calc_footprint_cells(update_ctx.map_cell);
-        for footprint_cell in footprint {
+        let cell_range = tile_def_to_place.calc_footprint_cells(update_ctx.map_cells.start);
+        for cell in &cell_range {
             if let Some(tile) =
-                update_ctx.query.tile_map.try_tile_from_layer(footprint_cell, TileMapLayerKind::Buildings) {
-                if tile.is_building() {
-                    let is_self = tile.cell == update_ctx.map_cell;
-                    if !is_self {
-                        // Cannot expand here.
-                        return false;
-                    }
-                } else if tile.is_blocker() {
-                    let is_self = tile.blocker_owner_cell() == update_ctx.map_cell;
-                    if !is_self {
-                        // Cannot expand here.
-                        return false;
-                    }
+                update_ctx.query.tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building) {
+                let is_self = tile.base_cell() == update_ctx.map_cells.start;
+                if !is_self {
+                    // Cannot expand here.
+                    return false;
                 }
             }
         }
@@ -434,27 +427,28 @@ impl<'config> HouseUpgradeState<'config> {
         // We'll need to restore this to the new tile.
         let prev_tile_game_state = {
             let prev_tile = update_ctx.find_tile();
-            debug_assert!(prev_tile.game_state.is_valid(), "Building tile doesn't have a valid associated GameStateHandle!");
-            prev_tile.game_state
+            let game_state = prev_tile.game_state_handle();
+            debug_assert!(game_state.is_valid(), "Building tile doesn't have a valid associated GameStateHandle!");
+            game_state
         };
 
         // Now we must clear the previous tile.
-        if !update_ctx.query.tile_map.try_place_tile_in_layer(
-            update_ctx.map_cell, TileMapLayerKind::Buildings, TileDef::empty()) {
+        if !update_ctx.query.tile_map.try_clear_tile_from_layer(
+            update_ctx.map_cells.start, TileMapLayerKind::Objects) {
             eprintln!("Failed to clear previous tile! This is unexpected...");
             return false;
         }
 
         // And place the new one.
         if !update_ctx.query.tile_map.try_place_tile_in_layer(
-            update_ctx.map_cell, TileMapLayerKind::Buildings, tile_to_place) {
+            update_ctx.map_cells.start, TileMapLayerKind::Objects, tile_def_to_place) {
             eprintln!("Failed to place new tile! This is unexpected...");
             return false;
         }
 
         // Update game state handle:
         let new_tile = update_ctx.find_tile_mut();
-        new_tile.game_state = prev_tile_game_state;
+        new_tile.set_game_state_handle(prev_tile_game_state);
 
         true
     }

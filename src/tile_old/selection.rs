@@ -17,7 +17,7 @@ use crate::{
 
 use super::{
     sets::{TileDef, TileKind, BASE_TILE_SIZE},
-    map::{Tile, TileFlags, TileMapLayerKind, TileMapLayerMutRefs},
+    map::{Tile, TileFlags, TileMapLayerMutRefs},
     rendering::SELECTION_RECT_COLOR
 };
 
@@ -26,21 +26,23 @@ use super::{
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct TileSelection {
+pub struct TileSelection<'tile_sets> {
     rect: Rect, // Range selection rect w/ cursor click-n-drag.
     cursor_drag_start: Vec2,
+    current_cursor_pos: Vec2,
     left_mouse_button_held: bool,
-    valid_placement: bool,
-    cells: SmallVec<[Cell; 36]>,
+    placement_candidate: Option<&'tile_sets TileDef>, // Tile placement candidate.
+    selection_flags: TileFlags,
+    cells: SmallVec::<[Cell; 36]>,
 }
 
-impl TileSelection {
+impl<'tile_sets> TileSelection<'tile_sets> {
     pub fn new() -> Self {
         Self::default()
     }
 
     pub fn has_valid_placement(&self) -> bool {
-        self.valid_placement
+        self.selection_flags != TileFlags::Invalidated
     }
 
     pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_screen_pos: Vec2) -> UiInputEvent {
@@ -66,12 +68,15 @@ impl TileSelection {
         }
     }
 
-    pub fn update<'tile_sets>(&mut self,
-                              mut layers: TileMapLayerMutRefs<'tile_sets>,
-                              map_size_in_cells: Size,
-                              cursor_screen_pos: Vec2,
-                              transform: &WorldToScreenTransform,
-                              placement_candidate: Option<&'tile_sets TileDef>) {
+    pub fn update<'tile_map>(&mut self,
+                             layers: &mut TileMapLayerMutRefs<'tile_map, 'tile_sets>,
+                             map_size_in_cells: Size,
+                             cursor_screen_pos: Vec2,
+                             transform: &WorldToScreenTransform,
+                             placement_candidate: Option<&'tile_sets TileDef>) {
+
+        self.current_cursor_pos  = cursor_screen_pos;
+        self.placement_candidate = placement_candidate;
 
         if self.left_mouse_button_held {
             // Keep updating the selection rect while left mouse button is held.
@@ -91,7 +96,7 @@ impl TileSelection {
                 transform);
 
             for cell in &range {
-                if let Some(base_tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
+                if let Some(base_tile) = layers.terrain.try_tile(cell) {
                     let tile_iso_coords =
                         base_tile.calc_adjusted_iso_coords();
 
@@ -101,104 +106,88 @@ impl TileSelection {
                         transform);
 
                     if tile_screen_rect.intersects(&self.rect) {
-                        let base_cell = base_tile.base_cell();
-                        self.toggle_selection(placement_candidate, layers, base_cell, true);
+                        self.toggle_selection(layers, base_tile.cell, true);
                     }
                 }
             }
         } else {
             // Clear previous highlighted tile for single selection:
+            let cursor_screen_pos = self.current_cursor_pos;
             let last_cell = self.last_cell();
 
-            if let Some(base_tile) = layers.get(TileMapLayerKind::Terrain).try_tile(last_cell) {
+            if let Some(base_tile) = layers.terrain.try_tile(last_cell) {
                 // If the cursor is still inside this cell, we're done.
                 // This can happen because the isometric-to-cell conversion
                 // is not absolute but rather based on proximity to the cell's center.
-                if base_tile.is_screen_point_inside_base_cell(cursor_screen_pos, transform) {
+                if coords::is_screen_point_inside_cell(cursor_screen_pos,
+                                                       base_tile.cell,
+                                                       base_tile.logical_size(),
+                                                       BASE_TILE_SIZE,
+                                                       transform) {
                     return;
                 }
 
                 // Clear:
-                let previous_selected_cell = base_tile.base_cell();
-                self.toggle_selection(placement_candidate, layers, previous_selected_cell, false);
+                let previous_selected_cell: Cell = base_tile.cell;
+                self.toggle_selection(layers, previous_selected_cell, false);
             }
 
             // Set highlight:
             {
-                let highlight_cell = layers.get(TileMapLayerKind::Terrain).find_exact_cell_for_point(
+                let highlight_cell = layers.terrain.find_exact_cell_for_point(
                     cursor_screen_pos,
                     transform);
 
-                if layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(highlight_cell) {
-                    self.toggle_selection(placement_candidate, layers, highlight_cell, true);
+                if layers.terrain.is_cell_within_bounds(highlight_cell) {
+                    self.toggle_selection(layers, highlight_cell, true);
                 }
             }
         }
     }
 
-    pub fn clear(&mut self, layers: TileMapLayerMutRefs) {
-        self.valid_placement = false;
+    pub fn clear<'tile_map>(&mut self, layers: &mut TileMapLayerMutRefs<'tile_map, 'tile_sets>) {
+        self.selection_flags = TileFlags::empty();
         while !self.cells.is_empty() {
-            self.toggle_selection(None, layers, self.last_cell(), false);
+            self.toggle_selection(layers, self.last_cell(), false);
         }
     }
 
     pub fn last_cell(&self) -> Cell {
-        *self.cells.last().unwrap_or(&Cell::invalid())
+        self.cells.last().unwrap_or(&Cell::invalid()).clone()
     }
 
     fn is_selecting_range(&self) -> bool {
         self.left_mouse_button_held && self.rect.is_valid()
     }
 
-    fn toggle_tile_selection<'tile_sets>(&mut self,
-                                         tile: &mut Tile<'tile_sets>,
-                                         mut layers: TileMapLayerMutRefs<'tile_sets>,
-                                         flags: TileFlags,
-                                         selected: bool) {
-
-        let layer = layers.get(tile.layer_kind());
-
+    fn toggle_tile_selection(&mut self, tile: &mut Tile, flags: TileFlags, selected: bool) {
         if selected {
-            tile.set_flags(layer, flags, true);
-
-            // Last cell should be the original starting cell (base cell). Iterate in reverse.
-            for cell in tile.cell_range().iter_rev() {
-                self.cells.push(cell); 
-            }
+            tile.set_flags(flags, true);
+            self.cells.push(tile.cell);
         } else {
-            tile.set_flags(layer, TileFlags::Highlighted | TileFlags::Invalidated, false);
-
-            // Pop the same number we've pushed.
-            for cell in &tile.cell_range() {
-                if let Some(result) = self.cells.pop() {
-                    assert!(result == cell);
-                }
-            }
+            tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
+            self.cells.pop();
         }
     }
 
-    fn toggle_selection<'tile_sets>(&mut self,
-                                    placement_candidate: Option<&'tile_sets TileDef>,
-                                    mut layers: TileMapLayerMutRefs<'tile_sets>,
-                                    base_cell: Cell,
-                                    selected: bool) {
+    fn toggle_selection<'tile_map>(&mut self,
+                                   layers: &mut TileMapLayerMutRefs<'tile_map, 'tile_sets>,
+                                   base_cell: Cell,
+                                   selected: bool) {
 
-        // TODO: Rewrite this.
-        /*
         // Deal with multi-tile buildings:
         let mut footprint =
-            if let Some(placement_candidate) = placement_candidate {
+            if let Some(placement_candidate) = self.placement_candidate {
                 // During placement tile hovering:
                 placement_candidate.calc_footprint_cells(base_cell)
             } else {
                 // During drag selection/mouse hover:
-                Tile::calc_exact_footprint_cells(base_cell, layers.objects)
+                Tile::calc_exact_footprint_cells(base_cell, layers.buildings)
             };
 
         // Highlight building placement overlaps:
         let mut flags = TileFlags::Highlighted;
-        if let Some(placement_candidate) = placement_candidate {
+        if let Some(placement_candidate) = self.placement_candidate {
             if placement_candidate.is_building() {
                 for &footprint_cell in &footprint {
                     if !layers.terrain.is_cell_within_bounds(footprint_cell) {
@@ -206,16 +195,16 @@ impl TileSelection {
                         flags = TileFlags::Invalidated;
                     }
 
-                    if layers.objects.has_tile(footprint_cell, TileKind::Building | TileKind::Blocker) {
+                    if layers.buildings.has_tile(footprint_cell, TileKind::Building | TileKind::Blocker) {
                         // Cannot place building here.
                         flags = TileFlags::Invalidated;
 
                         // Fully highlight the other building too:
                         let other_building_footprint =
-                            Tile::calc_exact_footprint_cells(footprint_cell, layers.objects);
+                            Tile::calc_exact_footprint_cells(footprint_cell, layers.buildings);
 
                         for other_footprint_cell in other_building_footprint {
-                            if let Some(building_tile) = layers.objects.find_tile_mut(
+                            if let Some(building_tile) = layers.buildings.find_tile_mut(
                                     other_footprint_cell, TileKind::Building | TileKind::Blocker) {
 
                                 self.toggle_tile_selection(building_tile, flags, selected);
@@ -234,19 +223,19 @@ impl TileSelection {
                 }
             } else if placement_candidate.is_unit() {
                 // Trying to place unit over building?
-                if layers.objects.has_tile(base_cell, TileKind::Building | TileKind::Blocker) {
+                if layers.buildings.has_tile(base_cell, TileKind::Building | TileKind::Blocker) {
                     // Cannot place unit here.
                     flags = TileFlags::Invalidated;
                     // Take the building's footprint so we'll highlight all of its tiles.
-                    footprint = Tile::calc_exact_footprint_cells(base_cell, layers.objects);
+                    footprint = Tile::calc_exact_footprint_cells(base_cell, layers.buildings);
                 }
             } else if placement_candidate.is_empty() {
                 // Tile clearing, highlight tile to be removed:
                 flags = TileFlags::Invalidated;
-                if layers.objects.has_tile(base_cell, TileKind::Building | TileKind::Blocker) {
+                if layers.buildings.has_tile(base_cell, TileKind::Building | TileKind::Blocker) {
                     // If we're attempting to remove a building, take its own
                     // footprint instead, as it may consist of many tiles.
-                    footprint = Tile::calc_exact_footprint_cells(base_cell, layers.objects);
+                    footprint = Tile::calc_exact_footprint_cells(base_cell, layers.buildings);
                 }
             }
         }
@@ -263,7 +252,7 @@ impl TileSelection {
                 continue;
             }
 
-            if let Some(building_tile) = layers.objects.find_tile_mut(
+            if let Some(building_tile) = layers.buildings.find_tile_mut(
                 footprint_cell, TileKind::Building | TileKind::Blocker) {
 
                 self.toggle_tile_selection(building_tile, flags, selected);
@@ -276,8 +265,7 @@ impl TileSelection {
             }
         }
 
-        self.valid_placement = !flags.intersects(TileFlags::Invalidated);
-        */
+        self.selection_flags = flags;
     }
 }
 
@@ -298,24 +286,15 @@ pub fn bounds(screen_rect: &Rect,
 
     // Convert screen-space corners to isometric space:
     let top_left = coords::screen_to_iso_point(
-        screen_rect.min,
-        transform,
-        BASE_TILE_SIZE);
-
+        screen_rect.min, transform, BASE_TILE_SIZE);
     let bottom_right = coords::screen_to_iso_point(
-        screen_rect.max,
-        transform,
-        BASE_TILE_SIZE);
-
+        screen_rect.max, transform, BASE_TILE_SIZE);
     let top_right = coords::screen_to_iso_point(
         Vec2::new(screen_rect.max.x, screen_rect.min.y),
-        transform,
-        BASE_TILE_SIZE);
-
+        transform, BASE_TILE_SIZE);
     let bottom_left = coords::screen_to_iso_point(
         Vec2::new(screen_rect.min.x, screen_rect.max.y),
-        transform,
-        BASE_TILE_SIZE);
+        transform, BASE_TILE_SIZE);
 
     // Convert isometric points to cell coordinates:
     let cell_tl = coords::iso_to_cell(top_left, tile_size);

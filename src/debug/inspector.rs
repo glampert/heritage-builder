@@ -8,7 +8,7 @@ use crate::{
         WorldToScreenTransform
     },
     tile::{
-        map::{self, Tile, TileFlags, TileMap, TileMapLayerKind},
+        map::{Tile, TileFlags, TileMap, TileMapLayerKind},
         sets::{TileKind, TileSets, BASE_TILE_SIZE}
     }
 };
@@ -39,7 +39,7 @@ impl TileInspectorMenu {
 
         if button == MouseButton::Left && action == InputAction::Press {
             self.is_open  = true;
-            self.selected = Some((selected_tile.cell, selected_tile.kind()));
+            self.selected = Some((selected_tile.base_cell(), selected_tile.kind()));
             UiInputEvent::Handled
         } else {
             UiInputEvent::NotHandled
@@ -58,14 +58,14 @@ impl TileInspectorMenu {
         }
 
         let (cell, tile_kind) = self.selected.unwrap();
-        if !cell.is_valid() || tile_kind == TileKind::Empty {
+        if !cell.is_valid() {
             return;
         }
 
         let layer_kind = TileMapLayerKind::from_tile_kind(tile_kind);
         let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
         let tile_screen_rect = tile.calc_screen_rect(transform);
-        let is_building = tile.is_building();
+        let is_building = tile.is(TileKind::Building);
 
         let window_position = [
             tile_screen_rect.center().x - 30.0,
@@ -78,7 +78,7 @@ impl TileInspectorMenu {
 
         let ui = ui_sys.builder();
 
-        ui.window(format!("{} ({},{})", tile.name(), tile.cell.x, tile.cell.y))
+        ui.window(format!("{} ({},{})", tile.name(), cell.x, cell.y))
             .opened(&mut self.is_open)
             .flags(window_flags)
             .position(window_position, imgui::Condition::Appearing)
@@ -114,8 +114,9 @@ impl TileInspectorMenu {
         }
 
         let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+        let cell_range = tile.cell_range();
 
-        let category_name = map::find_category_name_for_tile(tile, tile_sets);
+        let category_name = tile.category_name(tile_sets);
         let color = tile.tint_color();
 
         let tile_iso_pos = coords::cell_to_iso(cell, BASE_TILE_SIZE);
@@ -127,7 +128,8 @@ impl TileInspectorMenu {
         ui.text(format!("Name..........: '{}'", tile.name()));
         ui.text(format!("Category......: '{}'", category_name));
         ui.text(format!("Kind..........: {}", tile.kind()));
-        ui.text(format!("Cell..........: {},{}", tile.cell.x, tile.cell.y));
+        ui.text(format!("Flags.........: {}", tile.flags()));
+        ui.text(format!("Cells.........: [{},{}-{},{}]", cell_range.start.x, cell_range.start.y, cell_range.end.x, cell_range.end.y));
         ui.text(format!("Iso pos.......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
         ui.text(format!("Iso adjusted..: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
         ui.text(format!("Screen pos....: {:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y));
@@ -193,29 +195,29 @@ impl TileInspectorMenu {
             return; // collapsed.
         }
 
+        let mut layers = tile_map.layers_mut();
         let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
+        let layer = layers.get(tile.layer_kind());
 
         let mut hide_tile = tile.has_flags(TileFlags::Hidden);
         if ui.checkbox("Hide tile", &mut hide_tile) {
-            tile.set_flags(TileFlags::Hidden, hide_tile);
+            tile.set_flags(layer, TileFlags::Hidden, hide_tile);
         }
 
         let mut show_tile_debug = tile.has_flags(TileFlags::DrawDebugInfo);
         if ui.checkbox("Show debug overlay", &mut show_tile_debug) {
-            tile.set_flags(TileFlags::DrawDebugInfo, show_tile_debug);
+            tile.set_flags(layer, TileFlags::DrawDebugInfo, show_tile_debug);
         }
 
         let mut show_tile_bounds = tile.has_flags(TileFlags::DrawDebugBounds);
         if ui.checkbox("Show tile bounds", &mut show_tile_bounds) {
-            tile.set_flags(TileFlags::DrawDebugBounds, show_tile_bounds);
+            tile.set_flags(layer, TileFlags::DrawDebugBounds, show_tile_bounds);
         }
 
-        if tile.is_building() {
+        if tile.is(TileKind::Building) {
             let mut show_building_blockers = tile.has_flags(TileFlags::DrawBlockerInfo);
             if ui.checkbox("Show blocker tiles", &mut show_building_blockers) {
-                tile_map.for_each_building_footprint_tile_mut(cell, |footprint_tile| {
-                    footprint_tile.set_flags(TileFlags::DrawBlockerInfo, show_building_blockers);
-                });
+                tile.set_flags(layer, TileFlags::DrawBlockerInfo, show_building_blockers);
             }
         }
     }
@@ -227,9 +229,10 @@ impl TileInspectorMenu {
                                 layer_kind: TileMapLayerKind,
                                 tile_sets: &TileSets) {
 
-        let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+        let mut layers = tile_map.layers_mut();
+        let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
 
-        if tile.is_empty() || tile.is_blocker() {
+        if tile.is(TileKind::Blocker) {
             return;
         }
 
@@ -244,7 +247,7 @@ impl TileInspectorMenu {
         draw_size_changed |= ui.input_int("Draw H", &mut draw_size.height).build();
 
         if draw_size_changed {
-            if let Some(editable_def) = map::try_get_editable_tile(tile, tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
                 if draw_size.is_valid() {
                     editable_def.draw_size = draw_size;
                 }
@@ -252,7 +255,7 @@ impl TileInspectorMenu {
         }
 
         // Terrain tile logical size is always fixed - disallow editing.
-        if tile.is_terrain() {
+        if tile.is(TileKind::Terrain) {
             return;
         }
 
@@ -269,7 +272,7 @@ impl TileInspectorMenu {
             .build();
 
         if logical_size_changed {
-            if let Some(editable_def) = map::try_get_editable_tile(tile, tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
                 if logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
                     && (logical_size.width  % BASE_TILE_SIZE.width)  == 0
                     && (logical_size.height % BASE_TILE_SIZE.height) == 0 {
@@ -282,13 +285,12 @@ impl TileInspectorMenu {
 
         let mut occludes_terrain = tile.has_flags(TileFlags::OccludesTerrain);
         if ui.checkbox("Occludes terrain", &mut occludes_terrain) {
-            if let Some(editable_def) = map::try_get_editable_tile(tile, tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
                 editable_def.occludes_terrain = occludes_terrain;
             }
 
-            tile_map.for_each_building_footprint_tile_mut(tile.cell, |footprint_tile| {
-                footprint_tile.set_flags(TileFlags::OccludesTerrain, occludes_terrain);
-            });
+            let layer = layers.get(tile.layer_kind());
+            tile.set_flags(layer, TileFlags::OccludesTerrain, occludes_terrain);
         }
     }
 

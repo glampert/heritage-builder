@@ -6,8 +6,11 @@ use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
 
 use crate::{
     bitflags_with_display,
-    utils::coords::Cell,
     imgui_ui::UiSystem,
+    utils::{
+        hash::StringHash,
+        coords::CellRange
+    },
     tile::{
         sets::{TileDef, TileKind},
         map::{GameStateHandle, Tile, TileMapLayerKind}
@@ -64,7 +67,7 @@ pub mod config;
 pub struct Building<'config> {
     name: &'config str,
     kind: BuildingKind,
-    map_cell: Cell,
+    map_cells: CellRange,
     configs: &'config BuildingConfigs,
     archetype: BuildingArchetype<'config>,
 }
@@ -72,13 +75,13 @@ pub struct Building<'config> {
 impl<'config> Building<'config> {
     pub fn new(name: &'config str,
                kind: BuildingKind,
-               map_cell: Cell,
+               map_cells: CellRange,
                configs: &'config BuildingConfigs,
                archetype: BuildingArchetype<'config>) -> Self {
         Self {
             name: name,
             kind: kind,
-            map_cell: map_cell,
+            map_cells: map_cells,
             configs: configs,
             archetype: archetype
         }
@@ -90,7 +93,7 @@ impl<'config> Building<'config> {
             BuildingUpdateContext::new(self.name,
                                        self.kind,
                                        self.archetype_kind(),
-                                       self.map_cell,
+                                       self.map_cells,
                                        self.configs,
                                        query);
 
@@ -118,7 +121,11 @@ impl<'config> Building<'config> {
         ui.text(format!("Name..............: '{}'", self.name));
         ui.text(format!("Kind..............: {}", self.kind));
         ui.text(format!("Archetype.........: {}", self.archetype_kind()));
-        ui.text(format!("Cell..............: {},{}", self.map_cell.x, self.map_cell.y));
+        ui.text(format!("Cells.............: [{},{}-{},{}]",
+            self.map_cells.start.x,
+            self.map_cells.start.y,
+            self.map_cells.end.x,
+            self.map_cells.end.y));
 
         self.archetype.draw_debug_ui(ui_sys);
     }
@@ -285,7 +292,7 @@ pub struct BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
     name: &'config str,
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
-    map_cell: Cell,
+    map_cells: CellRange,
     configs: &'config BuildingConfigs,
     query: &'query mut Query<'sim, 'tile_map, 'tile_sets>,
 }
@@ -294,39 +301,39 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'config
     fn new(name: &'config str,
            kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
-           map_cell: Cell,
+           map_cells: CellRange,
            configs: &'config BuildingConfigs,
            query: &'query mut Query<'sim, 'tile_map, 'tile_sets>) -> Self {
         Self {
             name: name,
             kind: kind,
             archetype_kind: archetype_kind,
-            map_cell: map_cell,
+            map_cells: map_cells,
             configs: configs,
             query: query
         }
     }
 
     #[inline]
-    fn find_tile_def(&self, category_name: &str, tile_def_name: &str) -> Option<&'tile_sets TileDef> {
-        self.query.find_tile_def(TileMapLayerKind::Buildings, category_name, tile_def_name)
+    fn find_tile_def(&self, category_name_hash: StringHash, tile_def_name_hash: StringHash) -> Option<&'tile_sets TileDef> {
+        self.query.find_tile_def(TileMapLayerKind::Objects, category_name_hash, tile_def_name_hash)
     }
 
     #[inline]
-    fn find_tile(&self) -> &Tile {
-        self.query.find_tile(self.map_cell, TileMapLayerKind::Buildings, TileKind::Building)
+    fn find_tile(&self) -> &Tile<'tile_sets> {
+        self.query.find_tile(self.map_cells.start, TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
     #[inline]
     fn find_tile_mut(&mut self) -> &mut Tile<'tile_sets> {
-        self.query.find_tile_mut(self.map_cell, TileMapLayerKind::Buildings, TileKind::Building)
+        self.query.find_tile_mut(self.map_cells.start, TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
     #[inline]
     fn is_near_building(&self, kind: BuildingKind, radius_in_cells: i32) -> bool {
-        self.query.is_near_building(self.map_cell, kind, radius_in_cells)
+        self.query.is_near_building(self.map_cells, kind, radius_in_cells)
     }
 
     #[inline]
@@ -341,17 +348,17 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'config
     #[inline]
     fn has_access_to_service(&self, service_kind: BuildingKind) -> bool {
         let config = self.configs.find::<service::ServiceConfig>(service_kind);
-        self.query.is_near_building(self.map_cell, service_kind, config.effect_radius)
+        self.query.is_near_building(self.map_cells, service_kind, config.effect_radius)
     }
 }
 
 impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> fmt::Display for BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Building '{}' ({:?}|{:?}) [{},{}]",
+        write!(f, "Building '{}' ({}|{}) [{},{}]",
                self.name,
                self.archetype_kind,
                self.kind,
-               self.map_cell.x,
-               self.map_cell.y)
+               self.map_cells.start.x,
+               self.map_cells.start.y)
     }
 }

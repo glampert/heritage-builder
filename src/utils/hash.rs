@@ -48,6 +48,21 @@ pub type FNV1aHash = u64;
 pub type StringHash = FNV1aHash;
 pub const NULL_HASH: FNV1aHash = 0;
 
+pub struct StrHashPair {
+    pub string: &'static str,
+    pub hash: StringHash,
+}
+
+impl StrHashPair {
+    #[inline]
+    pub const fn from_str(string: &'static str) -> Self {
+        Self {
+            string: string,
+            hash: fnv1a_from_str(string)
+        }
+    }
+}
+
 pub const fn fnv1a_from_str(s: &str) -> FNV1aHash {
     if s.is_empty() {
         return NULL_HASH;

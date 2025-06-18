@@ -1,5 +1,6 @@
 use crate::{
     imgui_ui::UiSystem,
+    utils::hash::StringHash,
     game::sim::resources::{
         ConsumerGoodsList,
         ConsumerGoodsStock,
@@ -52,6 +53,7 @@ impl<'config> StorageState<'config> {
 
 pub struct StorageConfig {
     pub tile_def_name: String,
+    pub tile_def_name_hash: StringHash,
 
     pub min_workers: u32,
     pub max_workers: u32,

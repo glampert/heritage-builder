@@ -1,6 +1,26 @@
-use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign};
-use std::time::{self};
-use serde::Deserialize;
+use core::ptr::NonNull;
+
+use std::{
+    time::{self},
+    cell::UnsafeCell,
+    ops::{
+        Add,
+        AddAssign,
+        Sub,
+        SubAssign,
+        Mul,
+        MulAssign,
+        Div,
+        DivAssign,
+        Deref,
+        DerefMut
+    }
+};
+
+use serde::{
+    Deserialize,
+    Deserializer
+};
 
 pub mod coords;
 pub mod file_sys;
@@ -597,9 +617,9 @@ impl RectTexCoords {
         }
     }
 
-    // NOTE: This needs to be const for static declarations, so we don't derive from Default.
+    // NOTE: This needs to be const for static declarations, so we don't just derive from Default.
     #[inline]
-    pub const fn default() -> &'static Self {
+    pub const fn default_ref() -> &'static Self {
         static DEFAULT: RectTexCoords = RectTexCoords::new(
             [
                 Vec2::new(0.0, 0.0), // top_left
@@ -633,6 +653,10 @@ impl RectTexCoords {
     pub fn bottom_right(&self) -> Vec2 {
         self.coords[3]
     }
+}
+
+impl Default for RectTexCoords {
+    fn default() -> Self { *RectTexCoords::default_ref() }
 }
 
 // ----------------------------------------------
@@ -707,5 +731,136 @@ impl FrameClock {
     #[must_use]
     pub fn delta_time(&self) -> time::Duration {
         self.delta_time
+    }
+}
+
+// ----------------------------------------------
+// UnsafeWeakRef
+// ----------------------------------------------
+
+// Store a raw pointer.
+// This allows bypassing the language lifetime guarantees, so should be used with care.
+pub struct UnsafeWeakRef<T> {
+    ptr: NonNull<T>,
+}
+
+impl<T> UnsafeWeakRef<T> {
+    #[inline]
+    pub fn new(reference: &T) -> Self {
+        let ptr = reference as *const T as *mut T;
+        Self {
+            ptr: NonNull::new(ptr).unwrap(),
+        }
+    }
+
+    #[inline]
+    pub fn from_ptr(ptr_in: *const T) -> Self {
+        let ptr = ptr_in as *mut T;
+        Self {
+            ptr: NonNull::new(ptr).unwrap(),
+        }
+    }
+
+    // Convert raw pointer to reference.
+    // Pointer is never null but there are not guarantees about its lifetime.
+    #[inline(always)]
+    pub fn as_ref(&self) -> &T {
+        unsafe { self.ptr.as_ref() }
+    }
+
+    // Convert raw pointer to mutable reference.
+    // SAFETY: Caller must ensure there are no aliasing issues 
+    // (e.g. no other refs) and valid pointer lifetime.
+    #[inline(always)]
+    pub fn as_mut(&mut self) -> &mut T {
+        unsafe { self.ptr.as_mut() }
+    }
+}
+
+// Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
+impl<T> Deref for UnsafeWeakRef<T> {
+    type Target = T;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+impl<T> DerefMut for UnsafeWeakRef<T> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: Caller must ensure exclusive access (no aliasing).
+        self.as_mut()
+    }
+}
+
+impl<T> Copy  for UnsafeWeakRef<T> {}
+impl<T> Clone for UnsafeWeakRef<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self // Just a cheap pointer copy.
+    }
+}
+
+// ----------------------------------------------
+// UnsafeMutable
+// ----------------------------------------------
+
+// Hold an UnsafeCell<T> which allows unchecked interior mutability (const casting).
+pub struct UnsafeMutable<T> {
+    cell: UnsafeCell<T>,
+}
+
+impl<T> UnsafeMutable<T> {
+    #[inline]
+    pub fn new(instance: T) -> Self {
+        Self {
+            cell: UnsafeCell::new(instance),
+        }
+    }
+
+    // Safe to share immutable ref, no interior mut.
+    #[inline(always)]
+    pub fn as_ref(&self) -> &T {
+        unsafe { &*self.cell.get() }
+    }
+
+    // SAFETY: Caller must ensure there are no aliasing issues (e.g. no other refs).
+    #[inline(always)]
+    pub fn as_mut(&self) -> &mut T {
+        unsafe { &mut *self.cell.get() }
+    }
+}
+
+// Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
+impl<T> Deref for UnsafeMutable<T> {
+    type Target = T;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+impl<T> DerefMut for UnsafeMutable<T> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: Caller must ensure exclusive access (no aliasing).
+        self.as_mut()
+    }
+}
+
+// Serde deserialization support.
+impl<'de, T> Deserialize<'de> for UnsafeMutable<T>
+    where
+        T: Deserialize<'de>
+{
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>
+    {
+        T::deserialize(deserializer).map(UnsafeMutable::new)
     }
 }

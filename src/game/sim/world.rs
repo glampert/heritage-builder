@@ -56,7 +56,7 @@ impl<'config> World<'config> {
         let list = self.building_list_mut(archetype_kind);
         let index = list.add(building);
 
-        tile.game_state = GameStateHandle::new(index, building_kind.bits());
+        tile.set_game_state_handle(GameStateHandle::new(index, building_kind.bits()));
     }
 
     #[inline]
@@ -71,9 +71,10 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_building_for_tile(&self, tile: &Tile) -> Option<&Building<'config>> {
-        if tile.game_state.is_valid() {
-            let list_index = tile.game_state.index();
-            let building_kind = BuildingKind::from_game_state_handle(tile.game_state);
+        let game_state = tile.game_state_handle();
+        if game_state.is_valid() {
+            let list_index = game_state.index();
+            let building_kind = BuildingKind::from_game_state_handle(game_state);
             let archetype_kind = building_kind.archetype_kind();
             let list = self.building_list(archetype_kind);
             return list.try_get(list_index, archetype_kind);

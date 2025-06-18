@@ -1,5 +1,6 @@
 use crate::{
     tile::map::Tile,
+    utils::hash::{self},
     game::sim::resources::{
         ConsumerGoodKind,
         ConsumerGoodsList,
@@ -31,15 +32,6 @@ use super::{
 };
 
 // ----------------------------------------------
-// Constants
-// ----------------------------------------------
-
-pub const PRODUCERS_TILE_CATEGORY_NAME: &str = "producers";
-pub const STORAGE_TILE_CATEGORY_NAME:   &str = "storage";
-pub const SERVICES_TILE_CATEGORY_NAME:  &str = "services";
-pub const HOUSES_TILE_CATEGORY_NAME:    &str = "houses";
-
-// ----------------------------------------------
 // BuildingConfigs
 // ----------------------------------------------
 
@@ -61,6 +53,7 @@ impl BuildingConfigs {
         Self {
             house0: HouseLevelConfig {
                 tile_def_name: "house0".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("house0"),
                 max_residents: 2,
                 tax_generated: 0,
                 services_required: ServicesList::new(),
@@ -68,6 +61,7 @@ impl BuildingConfigs {
             },
             house1: HouseLevelConfig {
                 tile_def_name: "house1".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("house1"),
                 max_residents: 4,
                 tax_generated: 1,
                 services_required: ServicesList::from_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
@@ -75,6 +69,7 @@ impl BuildingConfigs {
             },
             house2: HouseLevelConfig {
                 tile_def_name: "house2".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("house2"),
                 max_residents: 6,
                 tax_generated: 2,
                 services_required: ServicesList::from_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
@@ -82,6 +77,7 @@ impl BuildingConfigs {
             },
             service_well_small: ServiceConfig {
                 tile_def_name: "well_small".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("well_small"),
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 3,
@@ -89,6 +85,7 @@ impl BuildingConfigs {
             },
             service_well_big: ServiceConfig {
                 tile_def_name: "well_big".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("well_big"),
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 5,
@@ -96,20 +93,23 @@ impl BuildingConfigs {
             },
             service_market: ServiceConfig {
                 tile_def_name: "market".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("market"),
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 5,
                 goods_required: ConsumerGoodsList::new(),
             },
             dummy_producer: ProducerConfig {
-                tile_def_name: "Producer".to_string(),
+                tile_def_name: "producer".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("producer"),
                 min_workers: 0,
                 max_workers: 1,
                 production_output: ProducerOutputKind::ConsumerGood(ConsumerGoodKind::Rice),
                 raw_materials_required: RawMaterialsList::new(),
             },
             dummy_storage: StorageConfig {
-                tile_def_name: "Storage".to_string(),
+                tile_def_name: "storage".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("storage"),
                 min_workers: 0,
                 max_workers: 1,
                 goods_accepted: ConsumerGoodsList::new(),
@@ -170,7 +170,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
         Building::new(
             "Well Small",
             BuildingKind::WellSmall,
-            tile.cell,
+            tile.cell_range(),
             configs,
             BuildingArchetype::new_service(ServiceState::new(BuildingKind::WellSmall, configs))
         )
@@ -178,7 +178,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
         Building::new(
             "Well Big",
             BuildingKind::WellBig,
-            tile.cell,
+            tile.cell_range(),
             configs,
             BuildingArchetype::new_service(ServiceState::new(BuildingKind::WellSmall, configs))
         )
@@ -186,7 +186,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
         Building::new(
             "Market",
             BuildingKind::Market,
-            tile.cell,
+            tile.cell_range(),
             configs,
             BuildingArchetype::new_service(ServiceState::new(BuildingKind::Market, configs))
         )
@@ -194,7 +194,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
         Building::new(
             "House",
             BuildingKind::House,
-            tile.cell,
+            tile.cell_range(),
             configs,
             BuildingArchetype::new_house(HouseState::new(HouseLevel::Level0, configs))
         )

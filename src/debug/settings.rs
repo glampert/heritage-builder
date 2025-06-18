@@ -1,11 +1,18 @@
 use crate::{
     imgui_ui::UiSystem,
-
     tile::{
         camera::Camera,
-        sets::{TileDef, TileSets},
-        map::{TileMap, TileMapLayerKind},
-        rendering::{TileMapRenderFlags, TileMapRenderer, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
+        sets::TileSets,
+        map::{
+            TileMap,
+            TileMapLayerKind
+        },
+        rendering::{
+            TileMapRenderFlags,
+            TileMapRenderer,
+            MAX_GRID_LINE_THICKNESS,
+            MIN_GRID_LINE_THICKNESS
+        }
     }
 };
 
@@ -18,14 +25,18 @@ pub struct DebugSettingsMenu {
     start_open: bool,
     draw_terrain: bool,
     draw_buildings: bool,
+    draw_props: bool,
     draw_units: bool,
+    draw_vegetation: bool,
     draw_grid: bool,
     draw_grid_ignore_depth: bool,
+    show_tile_bounds: bool,
     show_terrain_debug: bool,
     show_buildings_debug: bool,
-    show_blockers: bool,
+    show_props_debug: bool,
     show_units_debug: bool,
-    show_tile_bounds: bool,
+    show_vegetation_debug: bool,
+    show_blockers: bool,
     show_selection_bounds: bool,
     show_cursor_pos: bool,
     show_screen_origin: bool,
@@ -38,7 +49,9 @@ impl DebugSettingsMenu {
             start_open: start_open,
             draw_terrain: true,
             draw_buildings: true,
+            draw_props: true,
             draw_units: true,
+            draw_vegetation: true,
             ..Default::default()
         }
     }
@@ -63,14 +76,18 @@ impl DebugSettingsMenu {
         let mut flags = TileMapRenderFlags::empty();
         if self.draw_terrain           { flags.insert(TileMapRenderFlags::DrawTerrain); }
         if self.draw_buildings         { flags.insert(TileMapRenderFlags::DrawBuildings); }
+        if self.draw_props             { flags.insert(TileMapRenderFlags::DrawProps); }
         if self.draw_units             { flags.insert(TileMapRenderFlags::DrawUnits); }
+        if self.draw_vegetation        { flags.insert(TileMapRenderFlags::DrawVegetation); }
         if self.draw_grid              { flags.insert(TileMapRenderFlags::DrawGrid); }
         if self.draw_grid_ignore_depth { flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth); }
-        if self.show_terrain_debug     { flags.insert(TileMapRenderFlags::DrawTerrainTileDebugInfo); }
-        if self.show_buildings_debug   { flags.insert(TileMapRenderFlags::DrawBuildingsTileDebugInfo); }
-        if self.show_blockers          { flags.insert(TileMapRenderFlags::DrawBlockerTilesDebug); }
-        if self.show_units_debug       { flags.insert(TileMapRenderFlags::DrawUnitsTileDebugInfo); }
-        if self.show_tile_bounds       { flags.insert(TileMapRenderFlags::DrawTileDebugBounds); }
+        if self.show_tile_bounds       { flags.insert(TileMapRenderFlags::DrawDebugBounds); }
+        if self.show_terrain_debug     { flags.insert(TileMapRenderFlags::DrawTerrainTileDebug); }
+        if self.show_buildings_debug   { flags.insert(TileMapRenderFlags::DrawBuildingsTileDebug); }
+        if self.show_props_debug       { flags.insert(TileMapRenderFlags::DrawPropsTileDebug); }
+        if self.show_units_debug       { flags.insert(TileMapRenderFlags::DrawUnitsTileDebug); }
+        if self.show_vegetation_debug  { flags.insert(TileMapRenderFlags::DrawVegetationTileDebug); }
+        if self.show_blockers          { flags.insert(TileMapRenderFlags::DrawBlockersTileDebug); }
         flags
     }
 
@@ -94,7 +111,7 @@ impl DebugSettingsMenu {
             .position([5.0, 5.0], imgui::Condition::FirstUseEver)
             .build(|| {
                 self.camera_dropdown(ui, camera);
-                self.map_grid_dropdown(ui, camera, tile_map_renderer);
+                self.map_grid_dropdown(ui, tile_map_renderer);
                 self.debug_draw_dropdown(ui);
                 self.reset_map_dropdown(ui, tile_map, tile_sets);
             });
@@ -135,19 +152,10 @@ impl DebugSettingsMenu {
 
     fn map_grid_dropdown(&mut self,
                          ui: &imgui::Ui,
-                         camera: &mut Camera,
                          tile_map_renderer: &mut TileMapRenderer) {
 
         if !ui.collapsing_header("Grid", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
-        }
-
-        let tile_spacing_limits = camera.tile_spacing_limits();
-        let mut tile_spacing = camera.current_tile_spacing();
-        if ui.slider_config("Tile spacing", tile_spacing_limits.0, tile_spacing_limits.1)
-            .display_format("%.1f")
-            .build(&mut tile_spacing) {
-            camera.set_tile_spacing(tile_spacing);
         }
 
         let mut line_thickness = tile_map_renderer.grid_line_thickness();
@@ -169,11 +177,17 @@ impl DebugSettingsMenu {
 
         ui.checkbox("Draw terrain", &mut self.draw_terrain);
         ui.checkbox("Draw buildings", &mut self.draw_buildings);
+        ui.checkbox("Draw props", &mut self.draw_props);
         ui.checkbox("Draw units", &mut self.draw_units);
+        ui.checkbox("Draw vegetation", &mut self.draw_vegetation);
+        ui.separator();
         ui.checkbox("Show terrain debug", &mut self.show_terrain_debug);
         ui.checkbox("Show buildings debug", &mut self.show_buildings_debug);
+        ui.checkbox("Show props debug", &mut self.show_props_debug);
         ui.checkbox("Show units debug", &mut self.show_units_debug);
-        ui.checkbox("Show blocker tiles", &mut self.show_blockers);
+        ui.checkbox("Show vegetation debug", &mut self.show_vegetation_debug);
+        ui.checkbox("Show blocker tiles debug", &mut self.show_blockers);
+        ui.separator();
         ui.checkbox("Show tile bounds", &mut self.show_tile_bounds);
         ui.checkbox("Show selection bounds", &mut self.show_selection_bounds);
         ui.checkbox("Show cursor pos", &mut self.show_cursor_pos);
@@ -191,23 +205,23 @@ impl DebugSettingsMenu {
         }
 
         if ui.button("Reset empty") {
-            tile_map.clear(TileDef::empty());
+            tile_map.reset(None);
         }
 
         if ui.button("Reset to dirt tiles") {
-            let dirt_tile = tile_sets.find_tile_by_name(
+            let dirt_til_def = tile_sets.find_tile_def_by_name(
                 TileMapLayerKind::Terrain,
                 "ground",
-                "dirt").unwrap_or(TileDef::empty());
-            tile_map.clear(dirt_tile);
+                "dirt");
+            tile_map.reset(dirt_til_def);
         }
 
         if ui.button("Reset to grass tiles") {
-            let grass_tile = tile_sets.find_tile_by_name(
+            let grass_tile_def = tile_sets.find_tile_def_by_name(
                 TileMapLayerKind::Terrain,
                 "ground",
-                "grass").unwrap_or(TileDef::empty());
-            tile_map.clear(grass_tile);
+                "grass");
+            tile_map.reset(grass_tile_def);
         }
     }
 }

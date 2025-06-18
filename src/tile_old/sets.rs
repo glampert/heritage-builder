@@ -1,6 +1,5 @@
 use bitflags::bitflags;
-use arrayvec::ArrayVec;
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 use strum::IntoEnumIterator;
 use serde::Deserialize;
 
@@ -11,87 +10,36 @@ use std::{
 
 use crate::{
     bitflags_with_display,
-    render::{
-        TextureCache,
-        TextureHandle
-    },
-    utils::{
-        Size,
-        Color,
-        RectTexCoords,
-        UnsafeMutable,
-        coords::{
-            Cell,
-            CellRange
-        },
-        hash::{
-            self,
-            PreHashedKeyMap,
-            StrHashPair,
-            StringHash,
-            NULL_HASH
-        }
-    }
+    render::{TextureCache, TextureHandle},
+    utils::{coords::Cell, Size, Color, RectTexCoords},
+    utils::hash::{self, PreHashedKeyMap, StringHash}
 };
 
 use super::{
-    map::{
-        TileMapLayerKind,
-        TileFlags,
-        TILE_MAP_LAYER_COUNT
-    }
+    map::{TileMapLayerKind, TileFlags, TILE_MAP_LAYER_COUNT}
 };
 
 // ----------------------------------------------
-// Constants
+// Constants / helper types
 // ----------------------------------------------
 
 pub const BASE_TILE_SIZE: Size = Size{ width: 64, height: 32 };
 
-// Terrain Layer:
-pub const TERRAIN_GROUND_CATEGORY: StrHashPair = StrHashPair::from_str("ground");
-pub const TERRAIN_WATER_CATEGORY:  StrHashPair = StrHashPair::from_str("water");
-
-// Objects Layer:
-pub const OBJECTS_BUILDINGS_CATEGORY:  StrHashPair = StrHashPair::from_str("buildings");
-pub const OBJECTS_PROPS_CATEGORY:      StrHashPair = StrHashPair::from_str("props");
-pub const OBJECTS_UNITS_CATEGORY:      StrHashPair = StrHashPair::from_str("units");
-pub const OBJECTS_VEGETATION_CATEGORY: StrHashPair = StrHashPair::from_str("vegetation");
+// Can fit a 6x6 tile without allocating.
+pub type TileFootprintList = SmallVec<[Cell; 36]>;
 
 // ----------------------------------------------
 // TileKind
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-    pub struct TileKind: u8 {
-        // Base Archetypes:
-        const Terrain    = 1 << 0;
-        const Object     = 1 << 1;
-        const Blocker    = 1 << 2; // Draws nothing; blocker for multi-tile buildings, placed in the Objects layer.
-
-        // Specialized tile kinds (Object Archetype & Objects Layer):
-        const Building   = 1 << 3;
-        const Prop       = 1 << 4;
-        const Unit       = 1 << 5;
-        const Vegetation = 1 << 6;
-    }
-}
-
-impl TileKind {
-    #[inline]
-    fn specialized_kind_for_category(category_hash: StringHash) -> Self {
-        if category_hash == OBJECTS_BUILDINGS_CATEGORY.hash {
-            TileKind::Building
-        } else if category_hash == OBJECTS_PROPS_CATEGORY.hash {
-            TileKind::Prop
-        } else if category_hash == OBJECTS_UNITS_CATEGORY.hash {
-            TileKind::Unit
-        } else if category_hash == OBJECTS_VEGETATION_CATEGORY.hash {
-            TileKind::Vegetation
-        } else {
-            panic!("Unknown Tile Category hash!");
-        }
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize)]
+    pub struct TileKind: u32 {
+        const Empty    = 1 << 0; // No tile, draws nothing.
+        const Blocker  = 1 << 1; // Draws nothing; blocker for multi-tile buildings, placed in the Buildings layer.
+        const Terrain  = 1 << 2;
+        const Building = 1 << 3;
+        const Unit     = 1 << 4;
     }
 }
 
@@ -99,17 +47,29 @@ impl TileKind {
 // TileTexInfo
 // ----------------------------------------------
 
-#[derive(Default)]
+#[derive(Clone)]
 pub struct TileTexInfo {
     pub texture: TextureHandle,
     pub coords: RectTexCoords,
 }
 
+impl Default for TileTexInfo {
+    fn default() -> Self { Self::default() }
+}
+
 impl TileTexInfo {
+    // NOTE: This needs to be const for static declarations, so we don't just derive from Default.
+    pub const fn default() -> Self {
+        Self {
+            texture: TextureHandle::invalid(),
+            coords: *RectTexCoords::default_ref(),
+        }
+    }
+
     pub fn new(texture: TextureHandle) -> Self {
         Self {
             texture: texture,
-            coords: RectTexCoords::default(),
+            coords: *RectTexCoords::default_ref(),
         }
     }
 
@@ -122,7 +82,7 @@ impl TileTexInfo {
 // TileSprite
 // ----------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TileSprite {
     // Name of the tile texture. Resolved into a TextureHandle post load.
     pub name: String,
@@ -136,7 +96,7 @@ pub struct TileSprite {
 // TileAnimSet
 // ----------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TileAnimSet {
     #[serde(default)]
     pub name: String,
@@ -174,7 +134,7 @@ impl TileAnimSet {
 // TileVariation
 // ----------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TileVariation {
     // Variation name is optional for Terrain and Units.
     #[serde(default)]
@@ -188,14 +148,14 @@ pub struct TileVariation {
 // TileDef
 // ----------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TileDef {
     // Friendly display name.
     pub name: String,
 
-    // Hash of `name`, computed post-load.
-    #[serde(skip)]
-    pub hash: StringHash,
+    // Tile kind, also defines which layer the tile can be placed on.
+    #[serde(default = "default_tile_kind")]
+    pub kind: TileKind,
 
     // Logical size for the tile map. Always a multiple of the base tile size.
     // Optional for Terrain tiles (always = BASE_TILE_SIZE), required otherwise.
@@ -220,14 +180,9 @@ pub struct TileDef {
     #[serde(default = "default_occludes_terrain")]
     pub occludes_terrain: bool,
 
-    // Tile kind & archetype combined, also defines which layer the tile can be placed on.
-    // Resolved post-load based on layer and category.
-    #[serde(skip, default = "default_tile_kind")]
-    kind: TileKind,
-
     // Internal runtime index into TileCategory.
     #[serde(skip)]
-    category_tiledef_index: i32,
+    category_tile_index: i32,
 
     // Internal runtime index into TileSet.
     #[serde(skip)]
@@ -235,41 +190,75 @@ pub struct TileDef {
 }
 
 impl TileDef {
-    #[inline]
-    pub fn kind(&self) -> TileKind {
-        self.kind
+    const fn new(tile_kind: TileKind) -> Self {
+        Self {
+            name: String::new(),
+            kind: tile_kind,            
+            logical_size: BASE_TILE_SIZE,
+            draw_size: BASE_TILE_SIZE,
+            color: Color::white(),
+            variations: SmallVec::new_const(),
+            occludes_terrain: false,
+            category_tile_index: -1,
+            tileset_category_index: -1,
+        }
     }
 
-    #[inline]
-    pub fn layer_kind(&self) -> TileMapLayerKind {
-        TileMapLayerKind::from_tile_kind(self.kind)
+    pub const fn empty() -> &'static Self {
+        static EMPTY_TILE: TileDef = TileDef::new(TileKind::Empty);
+        &EMPTY_TILE
     }
 
-    #[inline]
-    pub fn is(&self, kinds: TileKind) -> bool {
-        self.kind.intersects(kinds)
+    pub const fn blocker() -> &'static Self {
+        static BLOCKER_TILE: TileDef = TileDef::new(TileKind::Blocker);
+        &BLOCKER_TILE
     }
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        !self.kind.is_empty() && self.logical_size.is_valid() && self.draw_size.is_valid()
+        self.logical_size.is_valid() && self.draw_size.is_valid()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.kind == TileKind::Empty
+    }
+
+    #[inline]
+    pub fn is_terrain(&self) -> bool {
+        self.kind == TileKind::Terrain
+    }
+
+    #[inline]
+    pub fn is_building(&self) -> bool {
+        self.kind == TileKind::Building
+    }
+
+    #[inline]
+    pub fn is_blocker(&self) -> bool {
+        self.kind == TileKind::Blocker
+    }
+
+    #[inline]
+    pub fn is_unit(&self) -> bool {
+        self.kind == TileKind::Unit
     }
 
     #[inline]
     pub fn tile_flags(&self) -> TileFlags {
-        let mut flags = TileFlags::empty();
-
         if self.occludes_terrain { 
-            flags.set(TileFlags::OccludesTerrain, true);
+            TileFlags::OccludesTerrain
+        } else {
+            TileFlags::empty()
         }
-
-        flags
     }
 
     #[inline]
     pub fn size_in_cells(&self) -> Size {
         // `logical_size` is assumed to be a multiple of the base tile size.
-        Size::new(self.logical_size.width / BASE_TILE_SIZE.width, self.logical_size.height / BASE_TILE_SIZE.height)
+        Size::new(
+            self.logical_size.width / BASE_TILE_SIZE.width,
+            self.logical_size.height / BASE_TILE_SIZE.height)
     }
 
     #[inline]
@@ -278,12 +267,31 @@ impl TileDef {
         size.width > 1 || size.height > 1 // Multi-tile building?
     }
 
-    #[inline]
-    pub fn calc_footprint_cells(&self, start_cell: Cell) -> CellRange {
-        // Buildings can occupy multiple cells; Find which ones:
-        let size = self.size_in_cells();
-        let end_cell = Cell::new(start_cell.x + size.width - 1, start_cell.y + size.height - 1);
-        CellRange::new(start_cell, end_cell)
+    pub fn calc_footprint_cells(&self, base_cell: Cell) -> TileFootprintList {
+        let mut footprint = TileFootprintList::new();
+
+        if !self.is_empty() {
+            let size = self.size_in_cells();
+            debug_assert!(size.is_valid());
+
+            // Buildings can occupy multiple cells; Find which ones:
+            let start_cell = base_cell;
+            let end_cell = Cell::new(start_cell.x + size.width - 1, start_cell.y + size.height - 1);
+
+            for y in (start_cell.y..=end_cell.y).rev() {
+                for x in (start_cell.x..=end_cell.x).rev() {
+                    footprint.push(Cell::new(x, y));
+                }
+            }
+
+            // Last cell should be the original starting cell (selection relies on this).
+            debug_assert!(*footprint.last().unwrap() == base_cell);
+        } else {
+            // Empty tiles always occupy one cell.
+            footprint.push(base_cell);
+        }
+
+        footprint
     }
 
     #[inline]
@@ -346,6 +354,13 @@ impl TileDef {
         count
     }
 
+    pub fn variation_name(&self, variation_index: usize) -> &str {
+        if variation_index >= self.variations.len() {
+            return "";
+        }
+        &self.variations[variation_index].name
+    }
+
     pub fn anim_set_name(&self, variation_index: usize, anim_set_index: usize) -> &str {
         if variation_index >= self.variations.len() {
             return "";
@@ -357,31 +372,12 @@ impl TileDef {
         &variation.anim_sets[anim_set_index].name
     }
 
-    pub fn variation_name(&self, variation_index: usize) -> &str {
-        if variation_index >= self.variations.len() {
-            return "";
-        }
-        &self.variations[variation_index].name
-    }
-
     fn post_load(&mut self,
                  tex_cache: &mut TextureCache,
                  tile_set_path_with_category: &str,
-                 layer: TileMapLayerKind,
-                 category_hash: StringHash) -> bool {
+                 layer: TileMapLayerKind) -> bool {
 
-        debug_assert!(self.hash != NULL_HASH);
-        debug_assert!(category_hash != NULL_HASH);
-
-        let archetype = layer.to_tile_archetype_kind();
-        let specialized_type =
-            if layer == TileMapLayerKind::Objects {
-                TileKind::specialized_kind_for_category(category_hash)
-            } else {
-                TileKind::empty() // No specialization for Terrain.
-            };
-
-        self.kind = archetype | specialized_type;
+        self.kind = layer.to_tile_kind();
 
         if self.name.is_empty() {
             eprintln!("TileDef '{}' name is missing! A name is required.", self.kind);
@@ -404,7 +400,7 @@ impl TileDef {
             return false;
         }
 
-        if self.is(TileKind::Terrain) {
+        if self.kind == TileKind::Terrain {
             // For terrain logical_size must be BASE_TILE_SIZE.
             if self.logical_size != BASE_TILE_SIZE {
                 eprintln!("Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
@@ -412,6 +408,10 @@ impl TileDef {
                           self.name);
                 return false;
             }
+
+            self.occludes_terrain = false;
+        } else if self.kind == TileKind::Unit {
+            // Units always have transparent backgrounds that won't fully cover underlying terrain tiles.
             self.occludes_terrain = false;
         }
 
@@ -444,7 +444,8 @@ impl TileDef {
 
                     // Path formats:
                     //  terrain/<category>/<tile>.png
-                    //  objects/<category>/<object_name>/<variation>/<anim_set>/<frame[N]>.png
+                    //  buildings/<category>/<building_name>/<variation>/<anim_set>/<frame[N]>.png
+                    //  units/<category>/<unit_name>/<anim_set>/<frame[N]>.png
                     let texture_path = match layer {
                         TileMapLayerKind::Terrain => {
                             format!("{}{}{}.png",
@@ -452,8 +453,8 @@ impl TileDef {
                                     MAIN_SEPARATOR,
                                     frame.name)
                         },
-                        TileMapLayerKind::Objects => {
-                            // objects/<category>/<object_name>/
+                        TileMapLayerKind::Buildings => {
+                            // buildings/<category>/<building_name>/
                             let mut path = format!("{}{}{}{}",
                                 tile_set_path_with_category,
                                 MAIN_SEPARATOR,
@@ -478,7 +479,27 @@ impl TileDef {
                             path += &frame.name;
                             path += ".png";
                             path
-                        }
+                        },
+                        TileMapLayerKind::Units => {
+                            // units/<category>/<unit_name>/
+                            let mut path = format!("{}{}{}{}",
+                                tile_set_path_with_category,
+                                MAIN_SEPARATOR,
+                                self.name,
+                                MAIN_SEPARATOR);
+
+                            // Optional anim set name or just sprite frame follows.
+                            // + <anim_set>/
+                            if !anim_set.name.is_empty() {
+                                path += &anim_set.name;
+                                path += &MAIN_SEPARATOR_STR;
+                            }
+
+                            // + <frame[N]>.png
+                            path += &frame.name;
+                            path += ".png";
+                            path
+                        },
                     };
 
                     let frame_texture = tex_cache.load_texture(&texture_path);
@@ -496,35 +517,22 @@ impl TileDef {
 // ----------------------------------------------
 
 #[inline]
-const fn default_tile_kind() -> TileKind { TileKind::empty() }
+const fn default_tile_size() -> Size { BASE_TILE_SIZE }
 
 #[inline]
-const fn default_tile_size() -> Size { BASE_TILE_SIZE }
+const fn default_tile_kind() -> TileKind { TileKind::Empty }
 
 #[inline]
 const fn default_occludes_terrain() -> bool { true }
 
 // ----------------------------------------------
-// EditableTileDef
-// ----------------------------------------------
-
-// This allows returning a mutable TileDef reference in try_get_editable_tile_def()
-// for runtime editing purposes. We only require this functionality for debug and development.
-type EditableTileDef = UnsafeMutable<TileDef>;
-
-// ----------------------------------------------
 // TileCategory
 // ----------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TileCategory {
-    pub name: String, // E.g.: buildings, props, units, etc...
-
-    #[serde(skip)]
-    pub hash: StringHash, // Hash of `name`, computed post-load.
-
-    // List of associated tiles.
-    tile_defs: Vec<EditableTileDef>,
+    pub name: String, // E.g.: ground, water, residential, etc...
+    pub tiles: Vec<TileDef>,
 
     // Internal runtime index into TileSet.
     #[serde(skip)]
@@ -537,10 +545,10 @@ pub struct TileCategory {
 
 impl TileCategory {
     pub fn is_empty(&self) -> bool {
-        self.tile_defs.is_empty()
+        self.tiles.is_empty()
     }
 
-    pub fn find_tile_def_by_name(&self, tile_name: &str) -> Option<&TileDef> {
+    pub fn find_tile_by_name(&self, tile_name: &str) -> Option<&TileDef> {
         let tile_name_hash: StringHash = hash::fnv1a_from_str(tile_name);
         let entry_index = match self.mapping.get(&tile_name_hash) {
             Some(entry_index) => *entry_index,
@@ -549,10 +557,10 @@ impl TileCategory {
                 return None;
             }
         };
-        Some(&self.tile_defs[entry_index])
+        Some(&self.tiles[entry_index])
     }
 
-    pub fn find_tile_def_by_hash(&self, tile_name_hash: StringHash) -> Option<&TileDef> {
+    pub fn find_tile_by_hash(&self, tile_name_hash: StringHash) -> Option<&TileDef> {
         let entry_index = match self.mapping.get(&tile_name_hash) {
             Some(entry_index) => *entry_index,
             None => {
@@ -560,7 +568,7 @@ impl TileCategory {
                 return None;
             }
         };
-        Some(&self.tile_defs[entry_index])
+        Some(&self.tiles[entry_index])
     }
 
     fn post_load(&mut self,
@@ -569,7 +577,6 @@ impl TileCategory {
                  layer: TileMapLayerKind) -> bool {
 
         debug_assert!(self.mapping.is_empty());
-        debug_assert!(self.hash != NULL_HASH);
 
         if self.name.is_empty() {
             eprintln!("TileCategory name is missing! A name is required.");
@@ -579,28 +586,15 @@ impl TileCategory {
         let tile_set_path_with_category =
             format!("{}{}{}", tile_set_path, MAIN_SEPARATOR, self.name);
 
-        for (entry_index, editable_def) in self.tile_defs.iter_mut().enumerate() {
-            let tile_def = editable_def.as_mut();
-
-            if tile_def.name.is_empty() {
-                eprintln!("TileCategory '{}': Invalid empty TileDef name! Index: [{}]",
-                          self.name,
-                          entry_index);
-                return false;   
-            }
-
-            tile_def.category_tiledef_index = entry_index as i32;
+        for (entry_index, tile_def) in self.tiles.iter_mut().enumerate() {
+            tile_def.category_tile_index = entry_index as i32;
             tile_def.tileset_category_index = self.tileset_category_index;
 
-            let tile_name_hash: StringHash = hash::fnv1a_from_str(&tile_def.name);
-            tile_def.hash = tile_name_hash;
-
-            if !tile_def.post_load(tex_cache, &tile_set_path_with_category, layer, self.hash) {
+            if !tile_def.post_load(tex_cache, &tile_set_path_with_category, layer) {
                 return false;
             }
 
-            debug_assert!(tile_def.kind.is_empty() == false, "Missing TileKind flags!");
-
+            let tile_name_hash: StringHash = hash::fnv1a_from_str(&tile_def.name);
             if let Some(_) = self.mapping.insert(tile_name_hash, entry_index) {
                 eprintln!("TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
                           self.name,
@@ -619,14 +613,12 @@ impl TileCategory {
 // TileSet
 // ----------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TileSet {
-    // Layer, e.g.: Terrain, Object.
+    // Layer, e.g.: Terrain, Building, Unit.
     // Also internal runtime index into TileSets.
     pub layer: TileMapLayerKind,
-
-    // List of associated categories.
-    categories: Vec<TileCategory>,
+    pub categories: Vec<TileCategory>,
 
     // Maps from category name to TileCategory index in self.categories[].
     #[serde(skip)]
@@ -634,6 +626,15 @@ pub struct TileSet {
 }
 
 impl TileSet {
+    const fn empty() -> Self {
+        Self {
+            // NOTE: Layer kind is irrelevant here.
+            layer: TileMapLayerKind::Terrain,
+            categories: Vec::new(),
+            mapping: hash::new_const_hash_map(),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.categories.is_empty()
     }
@@ -669,22 +670,13 @@ impl TileSet {
         debug_assert!(self.mapping.is_empty());
 
         for (entry_index, category) in self.categories.iter_mut().enumerate() {
-            if category.name.is_empty() {
-                eprintln!("TileSet '{}': Invalid empty category name! Index: [{}]",
-                          self.layer,
-                          entry_index);
-                return false;   
-            }
-
             category.tileset_category_index = entry_index as i32;
-
-            let category_name_hash: StringHash = hash::fnv1a_from_str(&category.name);
-            category.hash = category_name_hash;
 
             if !category.post_load(tex_cache, tile_set_path, self.layer) {
                 return false;
             }
 
+            let category_name_hash: StringHash = hash::fnv1a_from_str(&category.name);
             if let Some(_) = self.mapping.insert(category_name_hash, entry_index) {
                 eprintln!("TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
                           self.layer,
@@ -704,21 +696,32 @@ impl TileSet {
 // ----------------------------------------------
 
 #[derive(Copy, Clone)]
-pub struct TileDefHandle {
-    tileset_index: u16,
-    tileset_category_index: u16,
-    category_tiledef_index: u16,
+pub enum TileDefHandle {
+    Empty,
+    Blocker,
+    // (tileset_index, tileset_category_index, category_tile_index)
+    Indices(u16, u16, u16)
 }
 
 impl TileDefHandle {
     #[inline]
     pub fn new(tile_set: &TileSet, tile_category: &TileCategory, tile_def: &TileDef) -> Self {
-        Self {
-            tileset_index: tile_set.layer as u16,
-            tileset_category_index: tile_category.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
-            category_tiledef_index: tile_def.category_tiledef_index.try_into().expect("Index cannot fit in a u16"),
-        }
+        TileDefHandle::Indices(
+            tile_set.layer as u16,
+            tile_category.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
+            tile_def.category_tile_index.try_into().expect("Index cannot fit in a u16"),
+        )
     }
+
+    #[inline]
+    pub const fn empty() -> Self {
+        TileDefHandle::Empty
+    }
+
+    #[inline]
+    pub const fn blocker() -> Self {
+        TileDefHandle::Blocker
+    }   
 }
 
 // ----------------------------------------------
@@ -726,13 +729,13 @@ impl TileDefHandle {
 // ----------------------------------------------
 
 pub struct TileSets {
-    sets: ArrayVec<TileSet, TILE_MAP_LAYER_COUNT>,
+    sets: SmallVec<[TileSet; TILE_MAP_LAYER_COUNT]>,
 }
 
 impl TileSets {
     pub fn load(tex_cache: &mut TextureCache) -> Self {
         let mut tile_sets = Self {
-            sets: ArrayVec::new(),
+            sets: smallvec![TileSet::empty(); TILE_MAP_LAYER_COUNT],
         };
         tile_sets.load_all_layers(tex_cache);
         tile_sets
@@ -743,37 +746,47 @@ impl TileSets {
     }
 
     #[inline]
-    pub fn handle_to_tile_def(&self, handle: TileDefHandle) -> Option<&TileDef> {
-            let set_idx  = handle.tileset_index as usize;          // TileSet index into TileSets.
-            let cat_idx  = handle.tileset_category_index as usize; // TileCategory index into TileSet.
-            let tile_idx = handle.category_tiledef_index as usize; // TileDef index into TileCategory.
+    pub fn handle_to_tile(&self, handle: TileDefHandle) -> Option<&TileDef> {
+        match handle {
+            TileDefHandle::Empty   => Some(TileDef::empty()),
+            TileDefHandle::Blocker => Some(TileDef::blocker()),
+            TileDefHandle::Indices(tileset_index, tileset_category_index, category_tile_index) => {
+                let set_idx  = tileset_index as usize;          // TileSet index into TileSets.
+                let cat_idx  = tileset_category_index as usize; // TileCategory index into TileSet.
+                let tile_idx = category_tile_index as usize;    // TileDef index into TileCategory.
 
-            if set_idx >= self.sets.len() {
-                return None;
+                if set_idx >= self.sets.len() {
+                    return None;
+                }
+
+                let set = &self.sets[set_idx];
+                if cat_idx >= set.categories.len() {
+                    return None;
+                }
+
+                let cat = &set.categories[cat_idx];
+                if tile_idx >= cat.tiles.len() {
+                    return None;
+                }
+
+                let tile_def = &cat.tiles[tile_idx];
+                debug_assert!(set.layer as usize == set_idx);
+                debug_assert!(cat.tileset_category_index as usize == cat_idx);
+                debug_assert!(tile_def.tileset_category_index as usize == cat_idx);
+                debug_assert!(tile_def.category_tile_index as usize == tile_idx);
+                Some(tile_def)
             }
-
-            let set = &self.sets[set_idx];
-            if cat_idx >= set.categories.len() {
-                return None;
-            }
-
-            let cat = &set.categories[cat_idx];
-            if tile_idx >= cat.tile_defs.len() {
-                return None;
-            }
-
-            let tile_def = &*cat.tile_defs[tile_idx];
-            debug_assert!(set.layer as usize == set_idx);
-            debug_assert!(cat.tileset_category_index as usize == cat_idx);
-            debug_assert!(tile_def.tileset_category_index as usize == cat_idx);
-            debug_assert!(tile_def.category_tiledef_index as usize == tile_idx);
-            Some(tile_def)
+        }
     }
 
-    pub fn find_category_for_tile_def(&self, tile_def: &TileDef) -> Option<&TileCategory> {
-        let layer_idx = tile_def.layer_kind() as usize;
+    pub fn find_category_for_tile(&self, tile_def: &TileDef) -> Option<&TileCategory> {
+        if tile_def.is_empty() || tile_def.is_blocker() {
+            return None;
+        }
+
+        let layer_idx = TileMapLayerKind::from_tile_kind(tile_def.kind) as usize;
         let set_idx = tile_def.tileset_category_index as usize;
-        let cat_idx = tile_def.category_tiledef_index as usize;
+        let cat_idx = tile_def.category_tile_index as usize;
 
         let set = &self.sets[layer_idx];
         if set_idx >= set.categories.len() {
@@ -781,17 +794,17 @@ impl TileSets {
         }
 
         let cat = &self.sets[layer_idx].categories[set_idx];
-        if cat_idx >= cat.tile_defs.len() {
+        if cat_idx >= cat.tiles.len() {
             return None;
         }
 
-        debug_assert!(cat.tile_defs[cat_idx].category_tiledef_index == tile_def.category_tiledef_index);
-        debug_assert!(cat.tile_defs[cat_idx].tileset_category_index == tile_def.tileset_category_index);
+        debug_assert!(cat.tiles[cat_idx].category_tile_index == tile_def.category_tile_index);
+        debug_assert!(cat.tiles[cat_idx].tileset_category_index == tile_def.tileset_category_index);
         Some(cat)
     }
 
-    pub fn find_set_for_tile_def(&self, tile_def: &TileDef) -> Option<&TileSet> {
-        let layer = tile_def.layer_kind();
+    pub fn find_set_for_tile(&self, tile_def: &TileDef) -> Option<&TileSet> {
+        let layer = TileMapLayerKind::from_tile_kind(tile_def.kind); 
         let set = &self.sets[layer as usize];
         debug_assert!(set.layer == layer);
         Some(set)
@@ -824,26 +837,23 @@ impl TileSets {
         set.find_category_by_hash(category_name_hash)
     }
 
-    pub fn find_tile_def_by_name(&self,
-                                 layer: TileMapLayerKind,
-                                 category_name: &str,
-                                 tile_name: &str) -> Option<&TileDef> {
+    pub fn find_tile_by_name(&self,
+                             layer: TileMapLayerKind,
+                             category_name: &str,
+                             tile_name: &str) -> Option<&TileDef> {
         let cat = self.find_category_by_name(layer, category_name)?;
-        cat.find_tile_def_by_name(tile_name)
+        cat.find_tile_by_name(tile_name)
     }
 
-    pub fn find_tile_def_by_hash(&self,
-                                 layer: TileMapLayerKind,
-                                 category_name_hash: StringHash,
-                                 tile_name_hash: StringHash) -> Option<&TileDef> {
+    pub fn find_tile_by_hash(&self,
+                             layer: TileMapLayerKind,
+                             category_name_hash: StringHash,
+                             tile_name_hash: StringHash) -> Option<&TileDef> {
         let cat = self.find_category_by_hash(layer, category_name_hash)?;
-        cat.find_tile_def_by_hash(tile_name_hash)
+        cat.find_tile_by_hash(tile_name_hash)
     }
 
-    pub fn for_each_set<F>(&self, mut visitor_fn: F)
-        where
-            F: FnMut(&TileSet) -> bool
-    {
+    pub fn for_each_set<F>(&self, mut visitor_fn: F) where F: FnMut(&TileSet) -> bool {
         for set in &self.sets {
             let should_continue = visitor_fn(set);
             if !should_continue {
@@ -852,10 +862,7 @@ impl TileSets {
         }
     }
 
-    pub fn for_each_category<F>(&self, mut visitor_fn: F)
-        where
-            F: FnMut(&TileSet, &TileCategory) -> bool
-    {
+    pub fn for_each_category<F>(&self, mut visitor_fn: F) where F: FnMut(&TileSet, &TileCategory) -> bool {
         for set in &self.sets {
             for cat in &set.categories {
                 let should_continue = visitor_fn(set, cat);
@@ -866,14 +873,11 @@ impl TileSets {
         }
     }
 
-    pub fn for_each_tile_def<F>(&self, mut visitor_fn: F)
-        where 
-            F: FnMut(&TileSet, &TileCategory, &TileDef) -> bool
-    {
+    pub fn for_each_tile<F>(&self, mut visitor_fn: F) where F: FnMut(&TileSet, &TileCategory, &TileDef) -> bool {
         for set in &self.sets {
             for cat in &set.categories {
-                for editable_def in &cat.tile_defs {
-                    let should_continue = visitor_fn(set, cat, editable_def);
+                for tile in &cat.tiles {
+                    let should_continue = visitor_fn(set, cat, tile);
                     if !should_continue {
                         return;
                     }
@@ -885,12 +889,14 @@ impl TileSets {
     // Get back a mutable reference for the given TileDef.
     // This function is only intended for development/debug
     // and use within the ImGui TileInspector widget.
-    pub fn try_get_editable_tile_def(&self, tile_def: &TileDef) -> Option<&mut TileDef> {
-        if let Some(cat) = self.find_category_for_tile_def(tile_def) {
-            let editable_def = &cat.tile_defs[tile_def.category_tiledef_index as usize];
-            // SAFETY: We're assuming that mutable access is sound here
-            // (e.g., no overlapping accesses to the same TileDef elsewhere)
-            let mutable_def = editable_def.as_mut();
+    pub fn try_get_editable_tile(&self, tile_def: &TileDef) -> Option<&mut TileDef> {
+        if let Some(cat) = self.find_category_for_tile(tile_def) {
+            let const_def = &cat.tiles[tile_def.category_tile_index as usize];
+            // SAFETY: Here there be Dragons!
+            #[allow(invalid_reference_casting)]
+            let mutable_def = unsafe {
+                &mut *(const_def as *const TileDef as *mut TileDef)
+            };
             return Some(mutable_def);
         }
         None
@@ -909,35 +915,36 @@ impl TileSets {
     //  terrain/water/blue.png
     //  terrain/water/green.png
     //
-    // Objects file structure:
+    // Buildings file structure:
     // -------------------------
-    //  * Objects can have variations and animations.
+    //  * Buildings have variations and animations.
     // Structure:
-    //  objects/tile_set.json
-    //  objects/<category>/<objects_name>/<variation>/<anim_set>/<frame[N]>.png,*
+    //  buildings/tile_set.json
+    //  buildings/<category>/<building_name>/<variation>/<anim_set>/<frame[N]>.png,*
     // Example:
-    //  objects/buildings/house/var0/build
-    //  objects/buildings/house/var0/fire
+    //  buildings/residential/house/var0/build
+    //  buildings/residential/house/var0/fire
     // ...
-    //  objects/buildings/house/var1/build
-    //  objects/buildings/house/var1/fire
+    //  buildings/residential/house/var1/build
+    //  buildings/residential/house/var1/fire
     // ...
-    //  objects/buildings/house/var0/build/frame0.png
-    //  objects/buildings/house/var0/build/frame1.png
-    //  objects/buildings/house/var0/build/frame2.png
+    //  buildings/residential/house/var0/build/frame0.png
+    //  buildings/residential/house/var0/build/frame1.png
+    //  buildings/residential/house/var0/build/frame2.png
     //
-    // Variations and animations are optional so the structure can also be:
-    //
-    //  objects/<category>/<object_name>/<anim_set>/<frame[N]>.png,*
-    // Or:
-    //  objects/<category>/<object_name>/<variation>/<frame[N]>.png,*
-    //
+    // Units file structure:
+    // ---------------------
+    //  * Units don’t have variations, only animations.
+    //  * Several different walk directions.
+    // Structure:
+    //  units/tile_set.json
+    //  units/<category>/<unit_name>/<anim_set>/<frame[N]>.png,*
     // Example:
-    //  objects/units/ped/idle/frame0.png
-    //  objects/units/ped/idle/frame1.png
+    //  units/on_foot/ped/idle/frame0.png
+    //  units/on_foot/ped/idle/frame1.png
     // ...
-    //  objects/units/ped/walk_left/frame0.png
-    //  objects/units/ped/walk_left/frame1.png
+    //  units/on_foot/ped/walk_left/frame0.png
+    //  units/on_foot/ped/walk_left/frame1.png
     //
     fn load_all_layers(&mut self, tex_cache: &mut TextureCache) {
         for layer in TileMapLayerKind::iter() {
@@ -984,12 +991,9 @@ impl TileSets {
             return false;
         }
 
-        debug_assert!(self.sets.len() == (layer as usize));
+        println!("Successfully loaded TileSet '{}' from {:?}.", layer, tile_set_json_path);
 
-        println!("Successfully loaded TileSet '{layer}' from path {:?}.", tile_set_json_path);
-    
-        self.sets.push(tile_set);
-
+        self.sets[layer as usize] = tile_set;
         true
     }
 }

@@ -62,28 +62,29 @@ fn main() {
 
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
 
-    let mut tile_map = create_test_tile_map_2(&tile_sets);
-    //let mut tile_map = TileMap::new(Size::new(64, 64));
+    //let mut tile_map = create_test_tile_map_2(&tile_sets);
+    let mut tile_map = TileMap::new(Size::new(8, 8), None);
 
-    let building_configs = BuildingConfigs::load();
+    //let building_configs = BuildingConfigs::load();
     let mut sim = Simulation::new();
     let mut world = World::new();
 
+    /*
     // TODO: This is temporary while testing only. Map should start empty.
     tile_map.for_each_building_tile_mut(|tile| {
         let building = building::config::instantiate(tile, &building_configs);
         world.add_building(tile, building);
     });
+    */
 
     let mut tile_selection = TileSelection::new();
     let mut tile_map_renderer = TileMapRenderer::new(rendering::DEFAULT_GRID_COLOR, 1.0);
 
     let mut camera = Camera::new(
         render_sys.viewport().size(),
-        tile_map.size(),
+        tile_map.size_in_cells(),
         camera::MIN_ZOOM,
-        camera::Offset::Center,
-        camera::MIN_TILE_SPACING);
+        camera::Offset::Center);
 
     let mut tile_inspector_menu = TileInspectorMenu::new();
     let mut tile_palette_menu = TilePaletteMenu::new(true, render_sys.texture_cache_mut());
@@ -178,14 +179,26 @@ fn main() {
         }
 
         if tile_palette_menu.can_place_tile() {
-            let tile_to_place = tile_palette_menu.current_selection(&tile_sets).unwrap();
+            let tile_def_to_place_opt = tile_palette_menu.current_selection(&tile_sets);
 
-            let did_place = tile_map.try_place_tile_at_cursor(
-                cursor_screen_pos,
-                camera.transform(),
-                tile_to_place);
+            let did_place = {
+                // If we have a selection place it, otherwise we want to try clearing the tile under the cursor.
+                if let Some(tile_def_to_place) = tile_def_to_place_opt {
+                    tile_map.try_place_tile_at_cursor(
+                        cursor_screen_pos,
+                        camera.transform(),
+                        tile_def_to_place)
+                } else {
+                    tile_map.try_clear_tile_at_cursor(
+                        cursor_screen_pos,
+                        camera.transform())           
+                }
+            };
 
-            if did_place && (tile_to_place.is_building() || tile_to_place.is_unit() || tile_to_place.is_empty()) {
+            let placed_an_object = tile_def_to_place_opt.map_or(false, 
+                |def| def.is(TileKind::Object));
+
+            if did_place && placed_an_object {
                 // Dop or remove building/unit and exit tile placement mode.
                 tile_palette_menu.clear_selection();
                 tile_map.clear_selection(&mut tile_selection);
@@ -247,6 +260,7 @@ fn main() {
 // Test map setup helpers
 // ----------------------------------------------
 
+/*
 fn create_test_tile_map_1(tile_sets: &TileSets) -> TileMap {
     println!("Creating test tile map...");
 
@@ -452,56 +466,5 @@ fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
     }
 
     tile_map
-}
-
-/*
-// saves some bytes on the blockers (40 bytes vs 48 on Tile)
-pub enum Tile_v2<'tile_sets> {
-    Terrain {
-        cell: Cell,
-        tile_def: &'tile_sets TileDef,
-        flags: TileFlags,
-    }
-    Building {
-        cell: Cell,
-        tile_def: &'tile_sets TileDef,
-        flags: TileFlags,
-        game_state: GameStateHandle,
-        anim_state: TileAnimState,
-        variation: u16,
-    },
-    Blocker {
-        cell: Cell,
-        owner_cell: Cell,
-        flags: TileFlags,
-    }
-}
-
-impl<'tile_sets> Tile_v2<'tile_sets> {
-    fn get_game_state(&self) -> GameStateHandle {
-        if let Tile_v2::Regular { game_state, .. } = self {
-            *game_state
-        } else {
-            panic!("No game state!");
-        }
-    }
-}
-
-fn match_on_tile(tile: &Tile_v2) {
-    match tile {
-        Tile_v2::Blocker { 
-            cell,
-            owner_cell,
-            flags
-        } => {},
-        Tile_v2::Regular {
-            cell,
-            game_state,
-            tile_def,
-            flags,
-            variation,
-            anim_state
-        } => {}
-    }
 }
 */
