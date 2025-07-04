@@ -144,7 +144,7 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn to_ui_texture(&self, tex_cache: &TextureCache, tex_handle: TextureHandle) -> UiTextureHandle {
+    pub fn to_ui_texture(&self, tex_cache: &impl TextureCache, tex_handle: TextureHandle) -> UiTextureHandle {
         let native_handle = tex_cache.to_native_handle(tex_handle);
         debug_assert!(std::mem::size_of_val(&native_handle) <= std::mem::size_of::<usize>());
         UiTextureHandle::from(native_handle as *mut c_void)

@@ -2,9 +2,9 @@ use std::time::{self};
 use slab::Slab;
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
+use serde::Deserialize;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumProperty, EnumIter};
-use serde::Deserialize;
 
 use crate::{
     bitflags_with_display,
@@ -87,7 +87,7 @@ impl Default for GameStateHandle {
 
 bitflags_with_display! {
     #[derive(Copy, Clone, Default, PartialEq, Eq)]
-    pub struct TileFlags: u32 {
+    pub struct TileFlags: u8 {
         const Hidden          = 1 << 0;
         const Highlighted     = 1 << 1;
         const Invalidated     = 1 << 2;
@@ -106,8 +106,8 @@ bitflags_with_display! {
 
 #[derive(Default)]
 struct TileAnimState {
-    anim_set: u16,
-    frame: u16,
+    anim_set_index: u16,
+    frame_index: u16,
     frame_play_time_secs: f32,
 }
 
@@ -115,16 +115,11 @@ struct TileAnimState {
 // Tile
 // ----------------------------------------------
 
-const INVALID_TILE_INDEX: usize = usize::MAX;
-
 // Tile is tied to the lifetime of the TileSets that owns the underlying TileDef.
-// We also may keep a reference to the owning TileMapLayer for building blockers.
+// We also may keep a reference to the owning TileMapLayer for building blockers and objects.
 pub struct Tile<'tile_sets> {
-    // Next tile in this cell for this layer, if any. Used when stacking tiles.
-    // INVALID_TILE_INDEX = nil.
     kind: TileKind,
     flags: TileFlags,
-    next: usize,
     archetype: TileArchetype<'tile_sets>,
 }
 
@@ -138,9 +133,14 @@ enum TileArchetype<'tile_sets> {
         // Buildings can occupy multiple cells. `cell_range.start` is the start or "base" cell.
         cell_range: CellRange,
         def: &'tile_sets TileDef,
-        variation: u32,
+        variation_index: u32,
         anim_state: TileAnimState,
         game_state: GameStateHandle,
+
+        // Owning layer so we can propagate flags from a building to all of its blocker tiles.
+        // SAFETY: This ref will always be valid as long as the Tile instance is, since the Tile
+        // belongs to its parent layer.
+        layer: UnsafeWeakRef<TileMapLayer<'tile_sets>>,
     },
     Blocker {
         // Building blocker tiles occupy a single cell and have a backreference to the owner start cell.
@@ -149,8 +149,6 @@ enum TileArchetype<'tile_sets> {
         owner_cell: Cell,
 
         // Weak reference to owning map layer so we can seamlessly resolve blockers into buildings.
-        // SAFETY: This is ref will always be valid as long as the tile instance is, since the Tile
-        // belongs to its parent layer.
         layer: UnsafeWeakRef<TileMapLayer<'tile_sets>>,
     }
 }
@@ -158,9 +156,9 @@ enum TileArchetype<'tile_sets> {
 impl<'tile_sets> Tile<'tile_sets> {
     fn new(cell: Cell,
            tile_def: &'tile_sets TileDef,
-           layer_kind: TileMapLayerKind) -> Self {
+           layer: &TileMapLayer<'tile_sets>) -> Self {
 
-        let archetype = match layer_kind {
+        let archetype = match layer.kind() {
             TileMapLayerKind::Terrain => {
                 TileArchetype::Terrain {
                     cell: cell,
@@ -171,17 +169,17 @@ impl<'tile_sets> Tile<'tile_sets> {
                 TileArchetype::Object {
                     cell_range: tile_def.calc_footprint_cells(cell),
                     def: tile_def,
-                    variation: 0,
+                    variation_index: 0,
                     anim_state: TileAnimState::default(),
                     game_state: GameStateHandle::default(),
+                    layer: UnsafeWeakRef::new(layer),
                 }
             }
         };
 
         Self {
             kind: tile_def.kind(),
-            flags: tile_def.tile_flags(),
-            next: INVALID_TILE_INDEX,
+            flags: tile_def.flags(),
             archetype: archetype
         }
     }
@@ -194,7 +192,6 @@ impl<'tile_sets> Tile<'tile_sets> {
         Self {
             kind: TileKind::Blocker | owner_kind,
             flags: owner_flags,
-            next: INVALID_TILE_INDEX,
             archetype: TileArchetype::Blocker {
                 cell: blocker_cell,
                 owner_cell: owner_cell,
@@ -204,24 +201,21 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn set_flags(&mut self, tile_layer: &mut TileMapLayer<'tile_sets>, flags: TileFlags, value: bool) {
-        debug_assert!(self.layer_kind() == tile_layer.kind());
-
+    pub fn set_flags(&mut self, flags: TileFlags, value: bool) {
         match &mut self.archetype {
             TileArchetype::Terrain { .. } => {
                 self.flags.set(flags, value);
             },
-            TileArchetype::Object { cell_range, .. } => {
+            TileArchetype::Object { cell_range, layer, .. } => {
                 // Propagate flags to any child blockers in its cell range:
                 for cell in cell_range.iter() {
-                    let tile = tile_layer.tile_mut(cell);
+                    let tile = layer.tile_mut(cell);
                     tile.flags.set(flags, value);
                 }
             },
-            TileArchetype::Blocker { owner_cell, layer, .. } =>  {
+            TileArchetype::Blocker { owner_cell, layer, .. } => {
                 // Propagate back to owner tile:
-                debug_assert!(layer.kind() == tile_layer.kind());
-                layer.find_blocker_owner_mut(*owner_cell).set_flags(tile_layer, flags, value);
+                layer.find_blocker_owner_mut(*owner_cell).set_flags(flags, value);
             }
         }
 
@@ -274,7 +268,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     #[inline]
     pub fn game_state_handle(&self) -> GameStateHandle {
         match &self.archetype {
-            TileArchetype::Terrain { .. } => panic!("Terrain tiles cannot store game state!"),
+            TileArchetype::Terrain { .. } => GameStateHandle::invalid(), // Terrain tiles cannot store game state.
             TileArchetype::Object  { game_state, .. } => *game_state,
             TileArchetype::Blocker { owner_cell, layer, .. } => {
                 layer.find_blocker_owner(*owner_cell).game_state_handle()
@@ -285,7 +279,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     #[inline]
     pub fn set_game_state_handle(&mut self, handle: GameStateHandle) {
         match &mut self.archetype {
-            TileArchetype::Terrain { .. } => panic!("Terrain tiles cannot store game state!"),
+            TileArchetype::Terrain { .. } => {}, // Terrain tiles cannot store game state.
             TileArchetype::Object  { game_state, .. } => *game_state = handle,
             TileArchetype::Blocker { owner_cell, layer, .. } => {
                 layer.find_blocker_owner_mut(*owner_cell).set_game_state_handle(handle)
@@ -376,7 +370,7 @@ impl<'tile_sets> Tile<'tile_sets> {
             TileArchetype::Terrain { cell, .. } => {
                 coords::cell_to_iso(cell, BASE_TILE_SIZE).y
             },
-            TileArchetype::Object  { cell_range, def, .. } => {
+            TileArchetype::Object { cell_range, def, .. } => {
                 coords::cell_to_iso(cell_range.start, BASE_TILE_SIZE).y - def.logical_size.height
             },
             TileArchetype::Blocker { owner_cell, layer, .. } => {
@@ -500,7 +494,7 @@ impl<'tile_sets> Tile<'tile_sets> {
             TileArchetype::Terrain { def, .. } => {
                 tile_sets.find_category_for_tile_def(def).map_or("<none>", |cat| &cat.name)
             },
-            TileArchetype::Object  { def, .. } => {
+            TileArchetype::Object { def, .. } => {
                 tile_sets.find_category_for_tile_def(def).map_or("<none>", |cat| &cat.name)
             },
             TileArchetype::Blocker { owner_cell, layer, .. } => {
@@ -549,7 +543,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn variation_name(&self) -> &'tile_sets str {
         match self.archetype {
             TileArchetype::Terrain { .. } => "",
-            TileArchetype::Object  { def, variation, .. } => def.variation_name(variation as usize),
+            TileArchetype::Object  { def, variation_index, .. } => def.variation_name(variation_index as usize),
             TileArchetype::Blocker { owner_cell, layer, .. } => {
                 layer.find_blocker_owner(owner_cell).variation_name()
             }
@@ -560,7 +554,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn variation_index(&self) -> usize {
         match self.archetype {
             TileArchetype::Terrain { .. } => 0,
-            TileArchetype::Object  { variation, .. } => variation as usize,
+            TileArchetype::Object  { variation_index, .. } => variation_index as usize,
             TileArchetype::Blocker { owner_cell, layer, .. } => {
                 layer.find_blocker_owner(owner_cell).variation_index()
             }
@@ -568,14 +562,14 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn set_variation_index(&mut self, variation_index: usize) {
+    pub fn set_variation_index(&mut self, index: usize) {
         match &mut self.archetype {
             TileArchetype::Terrain { .. } => {},
-            TileArchetype::Object  { def, variation, .. } => {
-                *variation = variation_index.min(def.variations.len() - 1) as u32;
+            TileArchetype::Object { def, variation_index, .. } => {
+                *variation_index = index.min(def.variations.len() - 1) as u32;
             }
             TileArchetype::Blocker { owner_cell, layer, .. } => {
-                layer.find_blocker_owner_mut(*owner_cell).set_variation_index(variation_index);
+                layer.find_blocker_owner_mut(*owner_cell).set_variation_index(index);
             }
         }
     }
@@ -588,7 +582,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn anim_sets_count(&self) -> usize {
         match self.archetype {
             TileArchetype::Terrain { .. } => 0,
-            TileArchetype::Object  { def, variation, .. } => def.anim_sets_count(variation as usize),
+            TileArchetype::Object  { def, variation_index, .. } => def.anim_sets_count(variation_index as usize),
             TileArchetype::Blocker { owner_cell, layer, .. } => {
                 layer.find_blocker_owner(owner_cell).anim_sets_count()
             }
@@ -599,8 +593,8 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn anim_set_name(&self) -> &'tile_sets str {
         match &self.archetype {
             TileArchetype::Terrain { .. } => "",
-            TileArchetype::Object  { def, variation, anim_state, .. } => {
-                def.anim_set_name(*variation as usize, anim_state.anim_set as usize)
+            TileArchetype::Object { def, variation_index, anim_state, .. } => {
+                def.anim_set_name(*variation_index as usize, anim_state.anim_set_index as usize)
             },
             TileArchetype::Blocker { owner_cell, layer, .. } => {
                 layer.find_blocker_owner(*owner_cell).anim_set_name()
@@ -612,8 +606,8 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn anim_frames_count(&self) -> usize {
         match self.archetype {
             TileArchetype::Terrain { .. } => 0,
-            TileArchetype::Object  { def, variation, .. } => {
-                def.anim_frames_count(variation as usize)
+            TileArchetype::Object { def, variation_index, .. } => {
+                def.anim_frames_count(variation_index as usize)
             },
             TileArchetype::Blocker { owner_cell, layer, .. } => {
                 layer.find_blocker_owner(owner_cell).anim_frames_count()
@@ -625,7 +619,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn anim_set_index(&self) -> usize {
         match &self.archetype {
             TileArchetype::Terrain { .. } => 0,
-            TileArchetype::Object  { anim_state, .. } => anim_state.anim_set as usize,
+            TileArchetype::Object  { anim_state, .. } => anim_state.anim_set_index as usize,
             TileArchetype::Blocker { owner_cell, layer, .. } => {
                 layer.find_blocker_owner(*owner_cell).anim_set_index()
             }
@@ -636,7 +630,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn anim_frame_index(&self) -> usize {
         match &self.archetype {
             TileArchetype::Terrain { .. } => 0,
-            TileArchetype::Object  { anim_state, .. } => anim_state.frame as usize,
+            TileArchetype::Object  { anim_state, .. } => anim_state.frame_index as usize,
             TileArchetype::Blocker { owner_cell, layer, .. } => {
                 layer.find_blocker_owner(*owner_cell).anim_frame_index()
             }
@@ -663,9 +657,9 @@ impl<'tile_sets> Tile<'tile_sets> {
                 }
                 None          
             },
-            TileArchetype::Object { def, variation, anim_state, .. } => {
-                if let Some(anim_set) = def.anim_set_by_index(*variation as usize, anim_state.anim_set as usize) {
-                    let anim_frame_index = anim_state.frame as usize;
+            TileArchetype::Object { def, variation_index, anim_state, .. } => {
+                if let Some(anim_set) = def.anim_set_by_index(*variation_index as usize, anim_state.anim_set_index as usize) {
+                    let anim_frame_index = anim_state.frame_index as usize;
                     if anim_frame_index < anim_set.frames.len() {
                         return Some(&anim_set.frames[anim_frame_index].tex_info);
                     }
@@ -682,8 +676,8 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn has_animations(&self) -> bool {
         match &self.archetype {
             TileArchetype::Terrain { .. } => false,
-            TileArchetype::Object  { def, variation, anim_state, .. } => {
-                if let Some(anim_set) = def.anim_set_by_index(*variation as usize, anim_state.anim_set as usize) {
+            TileArchetype::Object { def, variation_index, anim_state, .. } => {
+                if let Some(anim_set) = def.anim_set_by_index(*variation_index as usize, anim_state.anim_set_index as usize) {
                     if anim_set.frames.len() > 1 {
                         return true;
                     }
@@ -699,12 +693,12 @@ impl<'tile_sets> Tile<'tile_sets> {
     fn update_anim(&mut self, delta_time_secs: f32) {
         if let TileArchetype::Object {
             def,
-            variation,
+            variation_index,
             anim_state,
             ..
         } = &mut self.archetype {
             if let Some(anim_set) = 
-                def.anim_set_by_index(*variation as usize, anim_state.anim_set as usize) {
+                def.anim_set_by_index(*variation_index as usize, anim_state.anim_set_index as usize) {
 
                 if anim_set.frames.len() <= 1 {
                     // Single frame sprite, nothing to update.
@@ -714,13 +708,13 @@ impl<'tile_sets> Tile<'tile_sets> {
                 anim_state.frame_play_time_secs += delta_time_secs;
 
                 if anim_state.frame_play_time_secs >= anim_set.frame_duration_secs() {
-                    if (anim_state.frame as usize) < anim_set.frames.len() - 1 {
+                    if (anim_state.frame_index as usize) < anim_set.frames.len() - 1 {
                         // Move to next frame.
-                        anim_state.frame += 1;
+                        anim_state.frame_index += 1;
                     } else {
                         // Played the whole anim.
                         if anim_set.looping {
-                            anim_state.frame = 0;
+                            anim_state.frame_index = 0;
                         }
                     }
                     // Reset the clock.
@@ -737,7 +731,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 // TileMapLayerKind
 // ----------------------------------------------
 
-#[repr(u32)]
+#[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Display, EnumCount, EnumIter, EnumProperty, Deserialize)]
 pub enum TileMapLayerKind {
     #[strum(props(AssetsPath = "assets/tiles/terrain"))]
@@ -812,6 +806,8 @@ impl<'tile_sets> TileMapLayerMutRefs<'tile_sets> {
 // ----------------------------------------------
 // TilePool
 // ----------------------------------------------
+
+const INVALID_TILE_INDEX: usize = usize::MAX;
 
 struct TilePool<'tile_sets> {
     layer_kind: TileMapLayerKind,
@@ -962,8 +958,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
             for y in 0..size_in_cells.height {
                 for x in 0..size_in_cells.width {
                     let cell = Cell::new(x, y);
-                    let fill_tile = Tile::new(cell, fill_tile_def, layer_kind);
-                    let did_insert_tile = layer.pool.insert_tile(cell, fill_tile);
+                    let did_insert_tile = layer.insert_tile(cell, fill_tile_def);
                     assert!(did_insert_tile);
                 }
             }
@@ -977,7 +972,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     pub fn memory_usage_estimate(&self) -> usize {
         let mut estimate = std::mem::size_of::<Self>();
         estimate += self.pool.cell_to_slab_idx.capacity() * std::mem::size_of::<usize>();
-        estimate += self.pool.slab.capacity() * std::mem::size_of::<Tile<'tile_sets>>();
+        estimate += self.pool.slab.capacity() * std::mem::size_of::<Tile>();
         estimate
     }
 
@@ -1192,7 +1187,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     pub fn insert_tile(&mut self, cell: Cell, tile_def: &'tile_sets TileDef) -> bool {
         debug_assert!(tile_def.layer_kind() == self.kind());
-        let new_tile = Tile::new(cell, tile_def, self.kind());
+        let new_tile = Tile::new(cell, tile_def, self);
         self.pool.insert_tile(cell, new_tile)
     }
 
@@ -1338,11 +1333,11 @@ impl<'tile_sets> TileMap<'tile_sets> {
     }
 
     #[inline]
-    pub fn layers_mut(&self) -> TileMapLayerMutRefs<'tile_sets> {
+    pub fn layers_mut(&mut self) -> TileMapLayerMutRefs<'tile_sets> {
         TileMapLayerMutRefs {
             refs: [
-                UnsafeWeakRef::new(self.layer(TileMapLayerKind::Terrain)),
-                UnsafeWeakRef::new(self.layer(TileMapLayerKind::Objects)),
+                UnsafeWeakRef::new(self.layer_mut(TileMapLayerKind::Terrain)),
+                UnsafeWeakRef::new(self.layer_mut(TileMapLayerKind::Objects)),
             ]
         }
     }

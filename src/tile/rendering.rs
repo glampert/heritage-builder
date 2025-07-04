@@ -371,9 +371,6 @@ impl TileMapRenderer {
 
                 render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
                 stats.tiles_drawn += 1;
-
-                // TODO: Draw stacked tiles!
-                // draw_tile(tile.next)
             }
         }
 

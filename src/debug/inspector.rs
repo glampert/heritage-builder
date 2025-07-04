@@ -195,29 +195,27 @@ impl TileInspectorMenu {
             return; // collapsed.
         }
 
-        let mut layers = tile_map.layers_mut();
         let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
-        let layer = layers.get(tile.layer_kind());
 
         let mut hide_tile = tile.has_flags(TileFlags::Hidden);
         if ui.checkbox("Hide tile", &mut hide_tile) {
-            tile.set_flags(layer, TileFlags::Hidden, hide_tile);
+            tile.set_flags(TileFlags::Hidden, hide_tile);
         }
 
         let mut show_tile_debug = tile.has_flags(TileFlags::DrawDebugInfo);
         if ui.checkbox("Show debug overlay", &mut show_tile_debug) {
-            tile.set_flags(layer, TileFlags::DrawDebugInfo, show_tile_debug);
+            tile.set_flags(TileFlags::DrawDebugInfo, show_tile_debug);
         }
 
         let mut show_tile_bounds = tile.has_flags(TileFlags::DrawDebugBounds);
         if ui.checkbox("Show tile bounds", &mut show_tile_bounds) {
-            tile.set_flags(layer, TileFlags::DrawDebugBounds, show_tile_bounds);
+            tile.set_flags(TileFlags::DrawDebugBounds, show_tile_bounds);
         }
 
         if tile.is(TileKind::Building) {
             let mut show_building_blockers = tile.has_flags(TileFlags::DrawBlockerInfo);
             if ui.checkbox("Show blocker tiles", &mut show_building_blockers) {
-                tile.set_flags(layer, TileFlags::DrawBlockerInfo, show_building_blockers);
+                tile.set_flags(TileFlags::DrawBlockerInfo, show_building_blockers);
             }
         }
     }
@@ -229,7 +227,6 @@ impl TileInspectorMenu {
                                 layer_kind: TileMapLayerKind,
                                 tile_sets: &TileSets) {
 
-        let mut layers = tile_map.layers_mut();
         let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
 
         if tile.is(TileKind::Blocker) {
@@ -288,9 +285,7 @@ impl TileInspectorMenu {
             if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
                 editable_def.occludes_terrain = occludes_terrain;
             }
-
-            let layer = layers.get(tile.layer_kind());
-            tile.set_flags(layer, TileFlags::OccludesTerrain, occludes_terrain);
+            tile.set_flags(TileFlags::OccludesTerrain, occludes_terrain);
         }
     }
 

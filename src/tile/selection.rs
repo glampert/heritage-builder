@@ -153,21 +153,18 @@ impl TileSelection {
 
     fn toggle_tile_selection<'tile_sets>(&mut self,
                                          tile: &mut Tile<'tile_sets>,
-                                         mut layers: TileMapLayerMutRefs<'tile_sets>,
                                          flags: TileFlags,
                                          selected: bool) {
 
-        let layer = layers.get(tile.layer_kind());
-
         if selected {
-            tile.set_flags(layer, flags, true);
+            tile.set_flags(flags, true);
 
             // Last cell should be the original starting cell (base cell). Iterate in reverse.
             for cell in tile.cell_range().iter_rev() {
                 self.cells.push(cell); 
             }
         } else {
-            tile.set_flags(layer, TileFlags::Highlighted | TileFlags::Invalidated, false);
+            tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
 
             // Pop the same number we've pushed.
             for cell in &tile.cell_range() {

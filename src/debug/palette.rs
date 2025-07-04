@@ -46,7 +46,7 @@ pub struct TilePaletteMenu {
 }
 
 impl TilePaletteMenu {
-    pub fn new(start_open: bool, tex_cache: &mut TextureCache) -> Self {
+    pub fn new(start_open: bool, tex_cache: &mut impl TextureCache) -> Self {
         Self {
             start_open: start_open,
             clear_button_image: tex_cache.load_texture("assets/ui/x.png"),
@@ -250,7 +250,7 @@ impl TilePaletteMenu {
     fn draw_tile_list(&mut self,
                       tile_kind: TileKind,
                       ui_sys: &UiSystem,
-                      tex_cache: &TextureCache,
+                      tex_cache: &impl TextureCache,
                       tile_sets: &TileSets,
                       tile_size: [f32; 2],
                       tiles_per_row: usize,

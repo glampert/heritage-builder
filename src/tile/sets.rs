@@ -144,7 +144,7 @@ pub struct TileAnimSet {
     // Duration of the whole anim in seconds.
     // Optional, can be zero if there's only a single frame.
     #[serde(default)]
-    pub duration: f32,
+    duration: f32,
 
     // True if the animation will loop, false for play only once.
     // Ignored when there's only one frame.
@@ -256,13 +256,9 @@ impl TileDef {
     }
 
     #[inline]
-    pub fn tile_flags(&self) -> TileFlags {
+    pub fn flags(&self) -> TileFlags {
         let mut flags = TileFlags::empty();
-
-        if self.occludes_terrain { 
-            flags.set(TileFlags::OccludesTerrain, true);
-        }
-
+        flags.set(TileFlags::OccludesTerrain, self.occludes_terrain);
         flags
     }
 
@@ -365,7 +361,7 @@ impl TileDef {
     }
 
     fn post_load(&mut self,
-                 tex_cache: &mut TextureCache,
+                 tex_cache: &mut impl TextureCache,
                  tile_set_path_with_category: &str,
                  layer: TileMapLayerKind,
                  category_hash: StringHash) -> bool {
@@ -374,12 +370,13 @@ impl TileDef {
         debug_assert!(category_hash != NULL_HASH);
 
         let archetype = layer.to_tile_archetype_kind();
-        let specialized_type =
+        let specialized_type = {
             if layer == TileMapLayerKind::Objects {
                 TileKind::specialized_kind_for_category(category_hash)
             } else {
                 TileKind::empty() // No specialization for Terrain.
-            };
+            }
+        };
 
         self.kind = archetype | specialized_type;
 
@@ -564,7 +561,7 @@ impl TileCategory {
     }
 
     fn post_load(&mut self,
-                 tex_cache: &mut TextureCache,
+                 tex_cache: &mut impl TextureCache,
                  tile_set_path: &str,
                  layer: TileMapLayerKind) -> bool {
 
@@ -665,7 +662,7 @@ impl TileSet {
         Some(&self.categories[entry_index])
     }
 
-    fn post_load(&mut self, tex_cache: &mut TextureCache, tile_set_path: &str) -> bool {
+    fn post_load(&mut self, tex_cache: &mut impl TextureCache, tile_set_path: &str) -> bool {
         debug_assert!(self.mapping.is_empty());
 
         for (entry_index, category) in self.categories.iter_mut().enumerate() {
@@ -730,7 +727,7 @@ pub struct TileSets {
 }
 
 impl TileSets {
-    pub fn load(tex_cache: &mut TextureCache) -> Self {
+    pub fn load(tex_cache: &mut impl TextureCache) -> Self {
         let mut tile_sets = Self {
             sets: ArrayVec::new(),
         };
@@ -939,7 +936,7 @@ impl TileSets {
     //  objects/units/ped/walk_left/frame0.png
     //  objects/units/ped/walk_left/frame1.png
     //
-    fn load_all_layers(&mut self, tex_cache: &mut TextureCache) {
+    fn load_all_layers(&mut self, tex_cache: &mut impl TextureCache) {
         for layer in TileMapLayerKind::iter() {
             let tile_set_path = layer.assets_path();
             if !self.load_tile_set(tex_cache, tile_set_path, layer) {
@@ -949,7 +946,7 @@ impl TileSets {
     }
 
     fn load_tile_set(&mut self,
-                     tex_cache: &mut TextureCache,
+                     tex_cache: &mut impl TextureCache,
                      tile_set_path: &str,
                      layer: TileMapLayerKind) -> bool {
 
