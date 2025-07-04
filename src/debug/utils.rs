@@ -29,14 +29,15 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
                        tile: &Tile,
                        flags: TileMapRenderFlags) {
 
-    let draw_debug_info =
+    let draw_debug_info = {
         tile.has_flags(TileFlags::DrawDebugInfo | TileFlags::DrawBlockerInfo) ||
         (tile.is(TileKind::Terrain)    && flags.contains(TileMapRenderFlags::DrawTerrainTileDebug))   ||
         (tile.is(TileKind::Blocker)    && flags.contains(TileMapRenderFlags::DrawBlockersTileDebug))  ||
         (tile.is(TileKind::Building)   && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebug)) ||
         (tile.is(TileKind::Prop)       && flags.contains(TileMapRenderFlags::DrawPropsTileDebug))     ||
         (tile.is(TileKind::Unit)       && flags.contains(TileMapRenderFlags::DrawUnitsTileDebug))     ||
-        (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetationTileDebug));
+        (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetationTileDebug))
+    };
 
     let draw_debug_bounds =
         tile.has_flags(TileFlags::DrawDebugBounds) ||
@@ -208,7 +209,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
         imgui::WindowFlags::NO_MOUSE_INPUTS;
 
     // NOTE: Label has to be unique for each tile because it will be used as the ImGui ID for this widget.
-    let cell = tile.base_cell();
+    let cell = tile.actual_base_cell();
     let label = format!("{}_{}_{}", tile.name(), cell.x, cell.y);
     let position = [ debug_overlay_pos.x, debug_overlay_pos.y ];
 
@@ -268,8 +269,8 @@ fn draw_tile_info(render_sys: &mut impl RenderSystem,
 
     // Center the overlay text box roughly over the tile's center.
     let debug_overlay_pos = Vec2::new(
-        tile_center.x - 30.0,
-        tile_center.y - 30.0);
+        tile_center.x - 40.0,
+        tile_center.y - 40.0);
 
     draw_tile_overlay_text(
         ui_sys,
@@ -278,8 +279,9 @@ fn draw_tile_info(render_sys: &mut impl RenderSystem,
         tile_iso_pos,
         tile);
 
-    // Put a red dot at the tile's center.
-    render_sys.draw_point_fast(tile_center, Color::red(), 10.0);
+    // Put a dot at the tile's center.
+    let center_pt_color = if tile.is(TileKind::Blocker) { Color::white() } else { Color::red() };
+    render_sys.draw_point_fast(tile_center, center_pt_color, 10.0);
 }
 
 fn draw_tile_bounds(render_sys: &mut impl RenderSystem,

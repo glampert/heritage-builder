@@ -39,6 +39,10 @@ pub fn try_place_tile_in_layer<'tile_sets>(layer: &mut TileMapLayer<'tile_sets>,
     debug_assert!(tile_def_to_place.is_valid());
     debug_assert!(tile_def_to_place.layer_kind() == layer.kind());
 
+    if !layer.is_cell_within_bounds(target_cell) {
+        return false;
+    }
+
     // TODO: overlap checks !!!
 
     // Place base tile.

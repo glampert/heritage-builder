@@ -424,6 +424,16 @@ impl<'tile_sets> Tile<'tile_sets> {
         self.cell_range().start
     }
 
+    // Base cell without resolving blocker tiles into their owner cell.
+    #[inline]
+    pub fn actual_base_cell(&self) -> Cell {
+        match self.archetype {
+            TileArchetype::Terrain { cell, .. } => cell,
+            TileArchetype::Object  { cell_range, .. } => cell_range.start,
+            TileArchetype::Blocker { cell, .. } => cell
+        }
+    }
+
     #[inline]
     pub fn cell_range(&self) -> CellRange {
         match self.archetype {
@@ -691,6 +701,10 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     fn update_anim(&mut self, delta_time_secs: f32) {
+        if self.is(TileKind::Terrain | TileKind::Blocker) {
+            return; // Not animated.
+        }
+
         if let TileArchetype::Object {
             def,
             variation_index,
@@ -862,7 +876,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
         let tile = &self.slab[slab_index];
 
         debug_assert!(tile.layer_kind() == self.layer_kind);
-        debug_assert!(tile.base_cell()  == cell);
+        debug_assert!(tile.actual_base_cell() == cell);
 
         Some(tile)
     }
@@ -883,7 +897,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
         let tile_mut = &mut self.slab[slab_index];
 
         debug_assert!(tile_mut.layer_kind() == self.layer_kind);
-        debug_assert!(tile_mut.base_cell()  == cell);
+        debug_assert!(tile_mut.actual_base_cell() == cell);
 
         Some(tile_mut)
     }

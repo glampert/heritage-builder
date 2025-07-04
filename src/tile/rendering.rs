@@ -226,37 +226,47 @@ impl TileMapRenderer {
         debug_assert!(self.temp_tile_sort_list.is_empty());
 
         let mut try_add_to_sort_list = |tile: &Tile| {
-            let should_draw = 
+            let should_draw = {
+                !tile.is(TileKind::Blocker)    &&
                 (tile.is(TileKind::Building)   && flags.contains(TileMapRenderFlags::DrawBuildings)) ||
                 (tile.is(TileKind::Prop)       && flags.contains(TileMapRenderFlags::DrawProps))     ||
                 (tile.is(TileKind::Unit)       && flags.contains(TileMapRenderFlags::DrawUnits))     ||
-                (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetation));
+                (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetation))
+            };
 
             if should_draw {
                 self.temp_tile_sort_list.push(TileDrawListEntry::new(tile));
             }
         };
 
-        let debug_draw_blocker_tile = |tile: &Tile| {
-            tile.is(TileKind::Blocker) && 
+        let mut debug_draw_blocker_tile = |cell, tile: &Tile| -> bool {
+            let should_draw = {
+                tile.is(TileKind::Blocker) && 
                 (tile.has_flags(TileFlags::DrawBlockerInfo) || 
                  flags.contains(TileMapRenderFlags::DrawBlockersTileDebug))
+            };
+
+            if should_draw {
+                // Debug display for blocker tiles:
+                let tile_iso_pos = coords::cell_to_iso(cell, BASE_TILE_SIZE);
+                let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_pos, BASE_TILE_SIZE, transform);
+                debug::utils::draw_tile_debug(
+                    render_sys,
+                    ui_sys,
+                    tile_iso_pos,
+                    tile_screen_rect,
+                    transform,
+                    tile,
+                    flags);
+            }
+            should_draw
         };
 
         // Drawing in reverse order (bottom to top) is required to ensure
         // buildings with the same Z-sort value don't overlap in weird ways.
         for cell in visible_range.iter_rev() {
             if let Some(tile) = objects.try_tile(cell) {
-                if debug_draw_blocker_tile(tile) {
-                    // Debug display for blocker tiles:
-                    Self::draw_tile(render_sys,
-                                    &mut self.stats,
-                                    ui_sys,
-                                    tile.calc_adjusted_iso_coords(),
-                                    transform,
-                                    tile,
-                                    flags);
-                } else {
+                if !debug_draw_blocker_tile(cell, tile) {
                     try_add_to_sort_list(tile);
                 }
             }
@@ -350,6 +360,8 @@ impl TileMapRenderer {
                  flags: TileMapRenderFlags) {
 
         debug_assert!(tile.is_valid());
+        debug_assert!(!tile.is(TileKind::Blocker));
+
         let tile_screen_rect = tile.calc_screen_rect(transform);
 
         if !tile.has_flags(TileFlags::Hidden) {
