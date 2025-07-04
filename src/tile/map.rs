@@ -916,8 +916,8 @@ impl<'tile_sets> TilePool<'tile_sets> {
             slab_index = self.slab.insert(new_tile);
             self.cell_to_slab_idx[cell_index] = slab_index;
         } else {
-            // Overwrite cell with new tile.
-            self.slab[slab_index] = new_tile;
+            // Cell is already occupied.
+            return false;
         }
 
         true
@@ -1205,7 +1205,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
         self.pool.insert_tile(cell, new_tile)
     }
 
-    pub fn insert_blocker_tiles(&mut self, blocker_cells: CellRange, owner_cell: Cell) {
+    pub fn insert_blocker_tiles(&mut self, blocker_cells: CellRange, owner_cell: Cell) -> bool {
         // Only building blockers in the Objects layer for now.
         debug_assert!(self.kind() == TileMapLayerKind::Objects);
 
@@ -1222,9 +1222,12 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
                 owner_tile.flags,
                 self);
 
-            let did_insert_blocker = self.pool.insert_tile(blocker_cell, blocker_tile);
-            assert!(did_insert_blocker);
+            if !self.pool.insert_tile(blocker_cell, blocker_tile) {
+                return false;
+            }
         }
+
+        true
     }
 
     pub fn remove_tile(&mut self, cell: Cell) -> bool {

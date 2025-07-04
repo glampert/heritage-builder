@@ -195,11 +195,13 @@ fn main() {
                 }
             };
 
-            let placed_an_object = tile_def_to_place_opt.map_or(false, 
+            let placing_an_object = tile_def_to_place_opt.map_or(false, 
                 |def| def.is(TileKind::Object));
 
-            if did_place && placed_an_object {
-                // Dop or remove building/unit and exit tile placement mode.
+            let clearing_a_tile = tile_def_to_place_opt.is_none();
+
+            if did_place && (placing_an_object || clearing_a_tile) {
+                // Place or remove building/unit and exit tile placement mode.
                 tile_palette_menu.clear_selection();
                 tile_map.clear_selection(&mut tile_selection);
             }
