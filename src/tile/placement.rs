@@ -49,8 +49,8 @@ pub fn try_place_tile_in_layer<'tile_sets>(layer: &mut TileMapLayer<'tile_sets>,
 
     // Check if we have to place any child blockers too for larger tiles.
     if tile_def_to_place.has_multi_cell_footprint() {
-        let did_insert_blocker = layer.insert_blocker_tiles(cell_range, target_cell);
-        assert!(did_insert_blocker);
+        let did_pace_blocker = layer.insert_blocker_tiles(cell_range, target_cell);
+        assert!(did_pace_blocker);
     }
 
     // Placement successful.

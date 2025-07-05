@@ -4,7 +4,7 @@ use image::GenericImageView;
 
 use crate::{
     utils::Size,
-    render::{self, TextureHandle}
+    render::{self, TextureHandle, NativeTextureHandle}
 };
 
 use super::{
@@ -239,8 +239,8 @@ impl Texture2D {
     }
 
     #[inline]
-    pub fn native_handle(&self) -> usize {
-        self.handle as usize
+    pub fn native_handle(&self) -> NativeTextureHandle {
+        NativeTextureHandle { bits: self.handle as usize }
     }
 }
 
@@ -390,7 +390,7 @@ impl render::TextureCache for TextureCache {
     }
 
     #[inline]
-    fn to_native_handle(&self, handle: TextureHandle) -> usize {
+    fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle {
         self.handle_to_texture(handle).native_handle()
     }
 }

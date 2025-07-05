@@ -352,11 +352,15 @@ impl Default for TextureHandle {
     fn default() -> Self { TextureHandle::invalid() }
 }
 
+pub struct NativeTextureHandle {
+    pub bits: usize,
+}
+
 // ----------------------------------------------
 // TextureCache
 // ----------------------------------------------
 
 pub trait TextureCache {
     fn load_texture(&mut self, file_path: &str) -> TextureHandle;
-    fn to_native_handle(&self, handle: TextureHandle) -> usize;
+    fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle;
 }
