@@ -20,6 +20,7 @@ use crate::{
 };
 
 use super::{
+    BuildingBehavior,
     BuildingUpdateContext,
     config::BuildingConfigs
 };
@@ -47,12 +48,14 @@ impl<'config> HouseState<'config> {
             goods_stock: ConsumerGoodsStock::new(),
         }
     }
+}
 
-    pub fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
+impl<'config> BuildingBehavior<'config> for HouseState<'config> {
+    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
         self.upgrade_state.update(update_ctx, &self.goods_stock, delta_time_secs);
     }
 
-    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         let draw_level_requirements = |label: &str, level_requirements: &HouseLevelRequirements<'config>| {
             ui.separator();

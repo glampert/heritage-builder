@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    sets::TileDef,
+    sets::{TileDef, TileKind},
     map::{
         TileMap,
         TileMapLayer,
@@ -32,6 +32,13 @@ pub fn try_place_tile_in_layer<'tile_sets>(layer: &mut TileMapLayer<'tile_sets>,
 
     if !layer.is_cell_within_bounds(target_cell) {
         return false;
+    }
+
+    // Terrain tiles are always allowed to replace existing tiles,
+    // so first clear the cell in case there's already a tile there.
+    if tile_def_to_place.is(TileKind::Terrain) {
+        debug_assert!(layer.kind() == TileMapLayerKind::Terrain);
+        layer.remove_tile(target_cell);
     }
 
     // First check if the whole cell range is free:

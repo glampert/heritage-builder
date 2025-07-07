@@ -12,6 +12,7 @@ use crate::{
 
 use super::{
     BuildingKind,
+    BuildingBehavior,
     BuildingUpdateContext,
     config::{BuildingConfigs}
 };
@@ -39,11 +40,13 @@ impl<'config> StorageState<'config> {
             raw_materials_stock: RawMaterialsStock::new(),
         }
     }
+}
 
-    pub fn update(&mut self, _update_ctx: &mut BuildingUpdateContext, _delta_time_secs: f32) {
+impl<'config> BuildingBehavior<'config> for StorageState<'config> {
+    fn update(&mut self, _update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, _delta_time_secs: f32) {
     }
 
-    pub fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
+    fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
     }
 }
 

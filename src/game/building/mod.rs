@@ -233,19 +233,19 @@ pub const BUILDING_ARCHETYPE_COUNT: usize = BuildingArchetypeKind::COUNT;
 
 impl<'config> BuildingArchetype<'config> {
     fn new_producer(state: producer::ProducerState<'config>) -> Self {
-        BuildingArchetype::Producer(state)
+        Self::Producer(state)
     }
 
     fn new_storage(state: storage::StorageState<'config>) -> Self {
-        BuildingArchetype::Storage(state)
+        Self::Storage(state)
     }
 
     fn new_service(state: service::ServiceState<'config>) -> Self {
-        BuildingArchetype::Service(state)
+        Self::Service(state)
     }
 
     fn new_house(state: house::HouseState<'config>) -> Self {
-        BuildingArchetype::House(state)
+        Self::House(state)
     }
 
     #[inline]
@@ -282,6 +282,16 @@ impl<'config> BuildingArchetype<'config> {
             }
         }
     }
+}
+
+// ----------------------------------------------
+// BuildingBehavior
+// ----------------------------------------------
+
+// Common behavior for all Building archetypes.
+pub trait BuildingBehavior<'config> {
+    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32);
+    fn draw_debug_ui(&self, ui_sys: &UiSystem);
 }
 
 // ----------------------------------------------
