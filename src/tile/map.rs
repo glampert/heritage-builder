@@ -109,7 +109,7 @@ bitflags_with_display! {
 // TileAnimState
 // ----------------------------------------------
 
-#[derive(Default)]
+#[derive(Copy, Clone, Default)]
 struct TileAnimState {
     anim_set_index: u16,
     frame_index: u16,
@@ -121,24 +121,62 @@ struct TileAnimState {
 // ----------------------------------------------
 
 // Tile is tied to the lifetime of the TileSets that owns the underlying TileDef.
-// We also may keep a reference to the owning TileMapLayer for building blockers
-// and objects inside the TileArchetype.
+// We also may keep a reference to the owning TileMapLayer inside TileArchetype
+// for building blockers and objects.
 pub struct Tile<'tile_sets> {
     kind: TileKind,
     flags: TileFlags,
     archetype: TileArchetype<'tile_sets>,
 }
 
-enum TileArchetype<'tile_sets> {
-    Terrain(TerrainTile<'tile_sets>),
-    Object(ObjectTile<'tile_sets>),
-    Blocker(BlockerTile<'tile_sets>),
+// NOTE: Using a raw union here to avoid some padding and since we can
+// derive the tile archetype from the `kind` field.
+#[repr(C)]
+union TileArchetype<'tile_sets> {
+    terrain: TerrainTile<'tile_sets>,
+    object:  ObjectTile<'tile_sets>,
+    blocker: BlockerTile<'tile_sets>,
+}
+
+impl<'tile_sets> TileArchetype<'tile_sets> {
+    #[inline]
+    fn new_terrain(terrain: TerrainTile<'tile_sets>) -> Self {
+        Self {
+            terrain: terrain
+        }
+    }
+
+    #[inline]
+    fn new_object(object: ObjectTile<'tile_sets>) -> Self {
+        Self {
+            object: object
+        }
+    }
+
+    #[inline]
+    fn new_blocker(blocker: BlockerTile<'tile_sets>) -> Self {
+        Self {
+            blocker: blocker
+        }
+    }
+}
+
+macro_rules! delegate_to_archetype {
+    ($self:ident, $method:ident $(, $arg:expr )* ) => {
+        unsafe {
+            if      $self.is(TileKind::Terrain) { $self.archetype.terrain.$method( $( $arg ),* ) }
+            else if $self.is(TileKind::Object)  { $self.archetype.object.$method( $( $arg ),*  ) }
+            else if $self.is(TileKind::Blocker) { $self.archetype.blocker.$method( $( $arg ),* ) }
+            else { panic!("Invalid TileKind!"); }
+        }
+    };
 }
 
 // ----------------------------------------------
 // TerrainTile
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
 struct TerrainTile<'tile_sets> {
     def: &'tile_sets TileDef,
 
@@ -183,7 +221,8 @@ impl<'tile_sets> TerrainTile<'tile_sets> {
             frame_index: 0,
             frame_play_time_secs: 0.0,
         };
-        &DUMMY_ANIM_STATE // Return a dummy value for Tile::anim_set_index()/Tile::anim_frame_index()/etc.
+        // Return a dummy value for Tile::anim_set_index()/Tile::anim_frame_index()/etc.
+        &DUMMY_ANIM_STATE
     }
 
     #[inline]
@@ -197,6 +236,7 @@ impl<'tile_sets> TerrainTile<'tile_sets> {
 // ObjectTile
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
 struct ObjectTile<'tile_sets> {
     def: &'tile_sets TileDef,
 
@@ -286,6 +326,7 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
 // BlockerTile
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
 struct BlockerTile<'tile_sets> {
     // Weak reference to owning map layer so we can seamlessly resolve blockers into buildings.
     // SAFETY: This ref will always be valid as long as the Tile instance is, since the Tile
@@ -354,25 +395,6 @@ impl<'tile_sets> BlockerTile<'tile_sets> {
 // Tile impl
 // ----------------------------------------------
 
-macro_rules! delegate_to_archetype {
-    // Immutable method call (self)
-    (&$self:ident, $method:ident $(, $arg:expr )* ) => {
-        match &$self.archetype {
-            TileArchetype::Terrain(t) => t.$method( $( $arg ),* ),
-            TileArchetype::Object(o)  => o.$method( $( $arg ),* ),
-            TileArchetype::Blocker(b) => b.$method( $( $arg ),* ),
-        }
-    };
-    // Mutable method call (mut self)
-    (&mut $self:ident, $method:ident $(, $arg:expr )* ) => {
-        match &mut $self.archetype {
-            TileArchetype::Terrain(t) => t.$method( $( $arg ),* ),
-            TileArchetype::Object(o)  => o.$method( $( $arg ),* ),
-            TileArchetype::Blocker(b) => b.$method( $( $arg ),* ),
-        }
-    };
-}
-
 impl<'tile_sets> Tile<'tile_sets> {
     fn new(cell: Cell,
            tile_def: &'tile_sets TileDef,
@@ -380,13 +402,13 @@ impl<'tile_sets> Tile<'tile_sets> {
 
         let archetype = match layer.kind() {
             TileMapLayerKind::Terrain => {
-                TileArchetype::Terrain(TerrainTile {
+                TileArchetype::new_terrain(TerrainTile {
                     def: tile_def,
                     cell: cell,
                 })
             },
             TileMapLayerKind::Objects => {
-                TileArchetype::Object(ObjectTile {
+                TileArchetype::new_object(ObjectTile {
                     def: tile_def,
                     layer: UnsafeWeakRef::new(layer),
                     cell_range: tile_def.calc_footprint_cells(cell),
@@ -409,10 +431,11 @@ impl<'tile_sets> Tile<'tile_sets> {
                    owner_kind: TileKind,
                    owner_flags: TileFlags,
                    layer: &TileMapLayer<'tile_sets>) -> Self {
+        debug_assert!(owner_kind == TileKind::Object | TileKind::Building);
         Self {
-            kind: TileKind::Blocker | owner_kind,
+            kind: TileKind::Blocker | TileKind::Building,
             flags: owner_flags,
-            archetype: TileArchetype::Blocker(BlockerTile {
+            archetype: TileArchetype::new_blocker(BlockerTile {
                 layer: UnsafeWeakRef::new(layer),
                 cell: blocker_cell,
                 owner_cell: owner_cell,
@@ -422,7 +445,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn set_flags(&mut self, new_flags: TileFlags, value: bool) {
-        delegate_to_archetype!(&mut self, set_flags, &mut self.flags, new_flags, value);
+        delegate_to_archetype!(self, set_flags, &mut self.flags, new_flags, value);
         debug_assert!(self.has_flags(new_flags) == value);
     }
 
@@ -446,7 +469,7 @@ impl<'tile_sets> Tile<'tile_sets> {
         if self.kind.is_empty() {
             return false;
         }
-        delegate_to_archetype!(&self, is_valid)
+        delegate_to_archetype!(self, is_valid)
     }
 
     #[inline]
@@ -461,17 +484,17 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn game_state_handle(&self) -> GameStateHandle {
-        delegate_to_archetype!(&self, game_state_handle)
+        delegate_to_archetype!(self, game_state_handle)
     }
 
     #[inline]
     pub fn set_game_state_handle(&mut self, handle: GameStateHandle) {
-        delegate_to_archetype!(&mut self, set_game_state_handle, handle)
+        delegate_to_archetype!(self, set_game_state_handle, handle)
     }
 
     #[inline]
     pub fn tile_def(&self) -> &'tile_sets TileDef {
-        delegate_to_archetype!(&self, tile_def)
+        delegate_to_archetype!(self, tile_def)
     }
 
     #[inline]
@@ -506,12 +529,12 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn calc_z_sort(&self) -> i32 {
-        delegate_to_archetype!(&self, calc_z_sort)
+        delegate_to_archetype!(self, calc_z_sort)
     }
 
     #[inline]
     pub fn calc_adjusted_iso_coords(&self) -> IsoPoint {
-        delegate_to_archetype!(&self, calc_adjusted_iso_coords, self.kind)
+        delegate_to_archetype!(self, calc_adjusted_iso_coords, self.kind)
     }
 
     #[inline]
@@ -524,7 +547,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     // Base cell without resolving blocker tiles into their owner cell.
     #[inline]
     pub fn actual_base_cell(&self) -> Cell {
-        delegate_to_archetype!(&self, actual_base_cell)
+        delegate_to_archetype!(self, actual_base_cell)
     }
 
     #[inline]
@@ -534,7 +557,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn cell_range(&self) -> CellRange {
-        delegate_to_archetype!(&self, cell_range)
+        delegate_to_archetype!(self, cell_range)
     }
 
     #[inline]
@@ -597,12 +620,12 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn variation_index(&self) -> usize {
-        delegate_to_archetype!(&self, variation_index)
+        delegate_to_archetype!(self, variation_index)
     }
 
     #[inline]
     pub fn set_variation_index(&mut self, index: usize) {
-        delegate_to_archetype!(&mut self, set_variation_index, index)
+        delegate_to_archetype!(self, set_variation_index, index)
     }
 
     // ----------------------
@@ -706,12 +729,12 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     fn anim_state_ref(&self) -> &TileAnimState {
-        delegate_to_archetype!(&self, anim_state_ref)
+        delegate_to_archetype!(self, anim_state_ref)
     }
 
     #[inline]
     fn anim_state_mut_ref(&mut self) -> &mut TileAnimState {
-        delegate_to_archetype!(&mut self, anim_state_mut_ref)
+        delegate_to_archetype!(self, anim_state_mut_ref)
     }
 }
 
