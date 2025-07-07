@@ -64,6 +64,10 @@ impl TilePaletteMenu {
         matches!(self.selection, SelectionState::NoSelection) == false
     }
 
+    pub fn is_clear_selected(&self) -> bool {
+        matches!(self.selection, SelectionState::ClearSelected) == true
+    }
+
     pub fn current_selection<'tile_sets>(&self, tile_sets: &'tile_sets TileSets) -> Option<&'tile_sets TileDef> {
         match self.selection {
             SelectionState::TileSelected(selected_tile_def_handle) => {
@@ -151,9 +155,8 @@ impl TilePaletteMenu {
                 ui.text("Tools");
                 {
                     let ui_texture = ui_sys.to_ui_texture(render_sys.texture_cache(), self.clear_button_image);
-                    let is_clear_button_selected = matches!(self.selection, SelectionState::ClearSelected);
 
-                    let bg_color = if is_clear_button_selected {
+                    let bg_color = if self.is_clear_selected() {
                         Color::white().to_array()
                     } else {
                         Color::gray().to_array()
@@ -194,10 +197,8 @@ impl TilePaletteMenu {
             return;
         }
 
-        let is_clear_selected = matches!(self.selection, SelectionState::ClearSelected);
-
         // Draw clear tile icon under the cursor:
-        if is_clear_selected {
+        if self.is_clear_selected() {
             const CLEAR_ICON_SIZE: Size = Size::new(64, 32);
 
             let rect = Rect::from_pos_and_size(

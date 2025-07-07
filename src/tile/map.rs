@@ -22,7 +22,7 @@ use crate::{
 };
 
 use super::{
-    placement::{self},
+    placement::{self, PlacementOp},
     selection::TileSelection,
     sets::{
         TileSets,
@@ -1513,14 +1513,14 @@ impl<'tile_sets> TileMap<'tile_sets> {
                             selection: &mut TileSelection,
                             cursor_screen_pos: Vec2,
                             transform: &WorldToScreenTransform,
-                            placement_candidate: Option<&'tile_sets TileDef>) {
+                            placement_op: PlacementOp) {
         let map_size_in_cells = self.size_in_cells();
         selection.update(
             self.layers_mut(),
             map_size_in_cells,
             cursor_screen_pos,
             transform, 
-            placement_candidate);
+            placement_op);
     }
 
     #[inline]

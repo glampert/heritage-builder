@@ -18,6 +18,7 @@ use crate::{
 use super::{
     sets::{TileDef, TileKind, BASE_TILE_SIZE},
     map::{Tile, TileFlags, TileMapLayerKind, TileMapLayerMutRefs},
+    placement::PlacementOp,
     rendering::SELECTION_RECT_COLOR
 };
 
@@ -41,6 +42,10 @@ impl TileSelection {
 
     pub fn has_valid_placement(&self) -> bool {
         self.valid_placement
+    }
+
+    pub fn last_cell(&self) -> Cell {
+        *self.cells.last().unwrap_or(&Cell::invalid())
     }
 
     pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction, cursor_screen_pos: Vec2) -> UiInputEvent {
@@ -71,7 +76,7 @@ impl TileSelection {
                               map_size_in_cells: Size,
                               cursor_screen_pos: Vec2,
                               transform: &WorldToScreenTransform,
-                              placement_candidate: Option<&'tile_sets TileDef>) {
+                              placement_op: PlacementOp) {
 
         if self.left_mouse_button_held {
             // Keep updating the selection rect while left mouse button is held.
@@ -102,7 +107,7 @@ impl TileSelection {
 
                     if tile_screen_rect.intersects(&self.rect) {
                         let base_cell = base_tile.base_cell();
-                        self.toggle_selection(placement_candidate, layers, base_cell, true);
+                        self.toggle_selection(placement_op, layers, base_cell, true);
                     }
                 }
             }
@@ -120,31 +125,24 @@ impl TileSelection {
 
                 // Clear:
                 let previous_selected_cell = base_tile.base_cell();
-                self.toggle_selection(placement_candidate, layers, previous_selected_cell, false);
+                self.toggle_selection(placement_op, layers, previous_selected_cell, false);
             }
 
             // Set highlight:
             {
-                let highlight_cell = layers.get(TileMapLayerKind::Terrain).find_exact_cell_for_point(
-                    cursor_screen_pos,
-                    transform);
+                let highlight_cell = layers.get(TileMapLayerKind::Terrain)
+                    .find_exact_cell_for_point(cursor_screen_pos, transform);
 
-                if layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(highlight_cell) {
-                    self.toggle_selection(placement_candidate, layers, highlight_cell, true);
-                }
+                self.toggle_selection(placement_op, layers, highlight_cell, true);
             }
         }
     }
 
     pub fn clear(&mut self, layers: TileMapLayerMutRefs) {
-        self.valid_placement = false;
         while !self.cells.is_empty() {
-            self.toggle_selection(None, layers, self.last_cell(), false);
+            self.toggle_selection(PlacementOp::None, layers, self.last_cell(), false);
         }
-    }
-
-    pub fn last_cell(&self) -> Cell {
-        *self.cells.last().unwrap_or(&Cell::invalid())
+        self.valid_placement = false;
     }
 
     fn is_selecting_range(&self) -> bool {
@@ -168,18 +166,77 @@ impl TileSelection {
 
             // Pop the same number we've pushed.
             for cell in &tile.cell_range() {
-                if let Some(result) = self.cells.pop() {
-                    assert!(result == cell);
-                }
+
+                self.cells.pop();
+
+                //TODO NEED THIS???
+                //let prev_selection = self.cells.pop().unwrap();
+                //assert!(prev_selection == cell);
             }
         }
     }
 
     fn toggle_selection<'tile_sets>(&mut self,
-                                    placement_candidate: Option<&'tile_sets TileDef>,
+                                    placement_op: PlacementOp,
                                     mut layers: TileMapLayerMutRefs<'tile_sets>,
                                     base_cell: Cell,
                                     selected: bool) {
+
+        if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(base_cell) {
+            return;
+        }
+
+        let flags = match placement_op {
+            // Check if our placement candidate tile overlaps with any other Object.
+            PlacementOp::Place(tile_def) => {
+                let mut flags = TileFlags::Highlighted;
+                for cell in &tile_def.calc_footprint_cells(base_cell) {
+                    if layers.get(TileMapLayerKind::Objects).try_tile(cell).is_some() {
+                        flags = TileFlags::Invalidated;
+                        break;
+                    }
+                }
+                flags
+            },
+            // Tile clearing, highlight tile to be removed with the Invalidated flag instead.
+            PlacementOp::Clear => {
+                TileFlags::Invalidated
+            },
+            // Tile mouse hover.
+            PlacementOp::None => {
+                TileFlags::Highlighted
+            }
+        };
+
+        // Highlight Terrain:
+        if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(base_cell) {
+            self.toggle_tile_selection(tile, flags, selected);
+
+            // Highlight all Terrain tiles this placement candidate would occupy.
+            if let PlacementOp::Place(tile_def) = placement_op {
+                for cell in tile_def.calc_footprint_cells(base_cell).iter_rev() {
+                    if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(cell) {
+                        self.toggle_tile_selection(tile, flags, selected);
+                    }
+                }
+            }
+        }
+
+        // Highlight Objects:
+        if let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile_mut(base_cell) {
+            self.toggle_tile_selection(object, flags, selected);
+
+            // Highlight all terrain tiles this building occupies.
+            for cell in object.cell_range().iter_rev() {
+                if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(cell) {
+                    self.toggle_tile_selection(tile, flags, selected);
+                }
+            }
+        }
+
+        self.valid_placement = !flags.intersects(TileFlags::Invalidated);
+
+
 
         // TODO: Rewrite this.
         /*

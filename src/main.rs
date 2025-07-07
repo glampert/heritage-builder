@@ -27,6 +27,7 @@ use tile::{
     camera::{self, *},
     rendering::{self, *},
     selection::*,
+    placement::*,
     sets::*,
     map::*
 };
@@ -170,24 +171,33 @@ fn main() {
             camera.update_scrolling(cursor_screen_pos, frame_clock.delta_time());
 
             // Tile hovering and selection:
-            let placement_candidate = tile_palette_menu.current_selection(&tile_sets);
+            let placement_op = {
+                if let Some(tile_def) = tile_palette_menu.current_selection(&tile_sets) {
+                    PlacementOp::Place(tile_def)
+                } else if tile_palette_menu.is_clear_selected() {
+                    PlacementOp::Clear
+                } else {
+                    PlacementOp::None
+                }
+            };
+
             tile_map.update_selection(
                 &mut tile_selection,
                 cursor_screen_pos,
                 camera.transform(),
-                placement_candidate);
+                placement_op);
         }
 
         if tile_palette_menu.can_place_tile() {
-            let tile_def_to_place_opt = tile_palette_menu.current_selection(&tile_sets);
+            let placement_candidate = tile_palette_menu.current_selection(&tile_sets);
 
             let did_place = {
                 // If we have a selection place it, otherwise we want to try clearing the tile under the cursor.
-                if let Some(tile_def_to_place) = tile_def_to_place_opt {
+                if let Some(tile_def) = placement_candidate {
                     tile_map.try_place_tile_at_cursor(
                         cursor_screen_pos,
                         camera.transform(),
-                        tile_def_to_place)
+                        tile_def)
                 } else {
                     tile_map.try_clear_tile_at_cursor(
                         cursor_screen_pos,
@@ -195,10 +205,10 @@ fn main() {
                 }
             };
 
-            let placing_an_object = tile_def_to_place_opt.map_or(false, 
+            let placing_an_object = placement_candidate.map_or(false, 
                 |def| def.is(TileKind::Object));
 
-            let clearing_a_tile = tile_def_to_place_opt.is_none();
+            let clearing_a_tile = tile_palette_menu.is_clear_selected();
 
             if did_place && (placing_an_object || clearing_a_tile) {
                 // Place or remove building/unit and exit tile placement mode.

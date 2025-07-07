@@ -23,6 +23,13 @@ use super::{
 // Tile placements helpers
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
+pub enum PlacementOp<'tile_sets> {
+    Place(&'tile_sets TileDef),
+    Clear,
+    None,
+}
+
 pub fn try_place_tile_in_layer<'tile_sets>(layer: &mut TileMapLayer<'tile_sets>,
                                            target_cell: Cell,
                                            tile_def_to_place: &'tile_sets TileDef) -> bool {
@@ -44,6 +51,11 @@ pub fn try_place_tile_in_layer<'tile_sets>(layer: &mut TileMapLayer<'tile_sets>,
     // First check if the whole cell range is free:
     let cell_range = tile_def_to_place.calc_footprint_cells(target_cell);
     for cell in &cell_range {
+        if !layer.is_cell_within_bounds(cell) {
+            // One or more cells for this tile fall outside of the map.
+            return false;
+        }
+
         if layer.try_tile(cell).is_some() {
             // One of the cells for this tile is already occupied.
             return false;
