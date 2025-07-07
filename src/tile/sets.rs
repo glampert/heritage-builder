@@ -360,6 +360,10 @@ impl TileDef {
         &self.variations[variation_index].name
     }
 
+    pub fn has_variations(&self) -> bool {
+        self.variations.len() > 1
+    }
+
     fn post_load(&mut self,
                  tex_cache: &mut impl TextureCache,
                  tile_set_path_with_category: &str,

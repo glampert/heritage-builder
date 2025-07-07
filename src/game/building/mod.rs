@@ -180,7 +180,7 @@ impl<'config> BuildingList<'config> {
 
 bitflags_with_display! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    pub struct BuildingKind: i32 {
+    pub struct BuildingKind: u32 {
         // Archetype: House
         const House     = 1 << 0;
 

@@ -1,5 +1,4 @@
 use std::ptr::null;
-use std::ffi::c_void;
 use std::time::{self};
 
 use imgui::{
