@@ -13,6 +13,7 @@ use crate::{
 use super::{
     sets::{TileDef, TileKind},
     map::{
+        Tile,
         TileMap,
         TileMapLayer,
         TileMapLayerKind
@@ -30,15 +31,15 @@ pub enum PlacementOp<'tile_sets> {
     None,
 }
 
-pub fn try_place_tile_in_layer<'tile_sets>(layer: &mut TileMapLayer<'tile_sets>,
-                                           target_cell: Cell,
-                                           tile_def_to_place: &'tile_sets TileDef) -> bool {
+pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut TileMapLayer<'tile_sets>,
+                                                      target_cell: Cell,
+                                                      tile_def_to_place: &'tile_sets TileDef) -> Option<&'tile_map mut Tile<'tile_sets>> {
 
     debug_assert!(tile_def_to_place.is_valid());
     debug_assert!(tile_def_to_place.layer_kind() == layer.kind());
 
     if !layer.is_cell_within_bounds(target_cell) {
-        return false;
+        return None;
     }
 
     // Terrain tiles are always allowed to replace existing tiles,
@@ -53,12 +54,12 @@ pub fn try_place_tile_in_layer<'tile_sets>(layer: &mut TileMapLayer<'tile_sets>,
     for cell in &cell_range {
         if !layer.is_cell_within_bounds(cell) {
             // One or more cells for this tile fall outside of the map.
-            return false;
+            return None;
         }
 
         if layer.try_tile(cell).is_some() {
             // One of the cells for this tile is already occupied.
-            return false;
+            return None;
         }
     }
 
@@ -68,12 +69,12 @@ pub fn try_place_tile_in_layer<'tile_sets>(layer: &mut TileMapLayer<'tile_sets>,
 
     // Check if we have to place any child blockers too for larger tiles.
     if tile_def_to_place.has_multi_cell_footprint() {
-        let did_pace_blocker = layer.insert_blocker_tiles(cell_range, target_cell);
-        assert!(did_pace_blocker);
+        let did_place_blocker = layer.insert_blocker_tiles(cell_range, target_cell);
+        assert!(did_place_blocker);
     }
 
     // Placement successful.
-    true
+    layer.try_tile_mut(target_cell)
 }
 
 pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
@@ -92,10 +93,10 @@ pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
     }
 }
 
-pub fn try_place_tile_at_cursor<'tile_sets>(tile_map: &mut TileMap<'tile_sets>,
-                                            cursor_screen_pos: Vec2,
-                                            transform: &WorldToScreenTransform,
-                                            tile_def_to_place: &'tile_sets TileDef) -> bool {
+pub fn try_place_tile_at_cursor<'tile_map, 'tile_sets>(tile_map: &'tile_map mut TileMap<'tile_sets>,
+                                                       cursor_screen_pos: Vec2,
+                                                       transform: &WorldToScreenTransform,
+                                                       tile_def_to_place: &'tile_sets TileDef) -> Option<&'tile_map mut Tile<'tile_sets>> {
 
     debug_assert!(transform.is_valid());
     debug_assert!(tile_def_to_place.is_valid());

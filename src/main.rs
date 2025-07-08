@@ -63,20 +63,18 @@ fn main() {
 
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
 
-    //let mut tile_map = create_test_tile_map_2(&tile_sets);
-    let mut tile_map = TileMap::new(Size::new(8, 8), None);
+    let mut tile_map = create_test_tile_map_2(&tile_sets);
+    //let mut tile_map = TileMap::new(Size::new(8, 8), None);
 
-    //let building_configs = BuildingConfigs::load();
+    let building_configs = BuildingConfigs::load();
     let mut sim = Simulation::new();
     let mut world = World::new();
 
-    /*
     // TODO: This is temporary while testing only. Map should start empty.
-    tile_map.for_each_building_tile_mut(|tile| {
+    tile_map.for_each_tile_mut(TileMapLayerKind::Objects, TileKind::Building, |tile| {
         let building = building::config::instantiate(tile, &building_configs);
         world.add_building(tile, building);
     });
-    */
 
     let mut tile_selection = TileSelection::new();
     let mut tile_map_renderer = TileMapRenderer::new(rendering::DEFAULT_GRID_COLOR, 1.0);
@@ -191,17 +189,33 @@ fn main() {
         if tile_palette_menu.can_place_tile() {
             let placement_candidate = tile_palette_menu.current_selection(&tile_sets);
 
-            let did_place = {
+            let did_place_or_clear = {
                 // If we have a selection place it, otherwise we want to try clearing the tile under the cursor.
                 if let Some(tile_def) = placement_candidate {
-                    tile_map.try_place_tile_at_cursor(
+                    let place_result = tile_map.try_place_tile_at_cursor(
                         cursor_screen_pos,
                         camera.transform(),
-                        tile_def)
+                        tile_def);
+
+                    if let Some(tile) = place_result {
+                        if tile_def.is(TileKind::Building) {
+                            let building = building::config::instantiate(tile, &building_configs);
+                            world.add_building(tile, building);
+                        }
+                        true
+                    } else {
+                        false
+                    }
                 } else {
+                    if let Some(tile) = tile_map.topmost_tile_at_cursor(cursor_screen_pos, camera.transform()) {
+                        if tile.is(TileKind::Building | TileKind::Blocker) {
+                            world.remove_building(tile);
+                        }
+                    }
+
                     tile_map.try_clear_tile_at_cursor(
                         cursor_screen_pos,
-                        camera.transform())           
+                        camera.transform())
                 }
             };
 
@@ -210,7 +224,7 @@ fn main() {
 
             let clearing_a_tile = tile_palette_menu.is_clear_selected();
 
-            if did_place && (placing_an_object || clearing_a_tile) {
+            if did_place_or_clear && (placing_an_object || clearing_a_tile) {
                 // Place or remove building/unit and exit tile placement mode.
                 tile_palette_menu.clear_selection();
                 tile_map.clear_selection(&mut tile_selection);
@@ -398,6 +412,7 @@ fn create_test_tile_map_1(tile_sets: &TileSets) -> TileMap {
 
     tile_map
 }
+*/
 
 fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
     println!("Creating test tile map...");
@@ -413,12 +428,12 @@ fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
     const M: i32 = 5; // market
 
     const TILE_NAMES: [&str; 6] = [ "grass", "dirt", "house0", "well_small", "well_big", "market" ];
-    const TILE_CATEGORIES: [&str; 6] = [ "ground", "ground", "houses", "services", "services", "services" ];
+    const TILE_CATEGORIES: [&str; 6] = [ "ground", "ground", "buildings", "buildings", "buildings", "buildings" ];
 
     let find_tile = |layer_kind: TileMapLayerKind, tile_id: i32| {
         let tile_name = TILE_NAMES[tile_id as usize];
         let category_name = TILE_CATEGORIES[tile_id as usize];
-        tile_sets.find_tile_by_name(layer_kind, category_name, tile_name).unwrap_or(TileDef::empty())
+        tile_sets.find_tile_def_by_name(layer_kind, category_name, tile_name)
     };
 
     const TERRAIN_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
@@ -443,35 +458,30 @@ fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
         D,D,D,D,D,D,D,D,
     ];
 
-    let mut tile_map = TileMap::new(Size::new(MAP_WIDTH, MAP_HEIGHT));
+    let mut tile_map = TileMap::new(Size::new(MAP_WIDTH, MAP_HEIGHT), None);
 
     // Terrain:
-    {
-        let terrain_layer = tile_map.layer_mut(TileMapLayerKind::Terrain);
-
-        for y in 0..MAP_HEIGHT {
-            for x in 0..MAP_WIDTH {
-                let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                let tile_def = find_tile(TileMapLayerKind::Terrain, tile_id);
-                terrain_layer.add_tile(Cell::new(x, y), tile_def);
+    for y in 0..MAP_HEIGHT {
+        for x in 0..MAP_WIDTH {
+            let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
+            if let Some(tile_def) = find_tile(TileMapLayerKind::Terrain, tile_id) {
+                let place_result = tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Terrain, tile_def);
+                debug_assert!(place_result.is_some());
             }
         }
     }
 
     // Buildings:
-    {
-        let buildings_layer = tile_map.layer_mut(TileMapLayerKind::Buildings);
-
-        for y in 0..MAP_HEIGHT {
-            for x in 0..MAP_WIDTH {
-                let tile_id = BUILDINGS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                let cell = Cell::new(x, y);
-
-                if tile_id == G || tile_id == D { // ground/empty
-                    buildings_layer.add_empty_tile(cell);
-                } else { // building tile
-                    let tile_def = find_tile(TileMapLayerKind::Buildings, tile_id);
-                    buildings_layer.add_tile(cell, tile_def);
+    for y in 0..MAP_HEIGHT {
+        for x in 0..MAP_WIDTH {
+            let tile_id = BUILDINGS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
+            if tile_id == G || tile_id == D {
+                    // ground/empty
+            } else {
+                // building tile
+                if let Some(tile_def) = find_tile(TileMapLayerKind::Objects, tile_id) {
+                    let place_result = tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Objects, tile_def);
+                    debug_assert!(place_result.is_some());
                 }
             }
         }
@@ -479,4 +489,3 @@ fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
 
     tile_map
 }
-*/

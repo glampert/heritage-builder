@@ -1,4 +1,5 @@
 use std::fmt;
+use slab::Slab;
 use rand::Rng;
 use bitflags::bitflags;
 use strum::{EnumCount, IntoDiscriminant};
@@ -137,38 +138,45 @@ impl<'config> Building<'config> {
 
 pub struct BuildingList<'config> {
     archetype_kind: BuildingArchetypeKind,
-    buildings: Vec<Building<'config>>, // All share the same archetype.
+    buildings: Slab<Building<'config>>, // All share the same archetype.
 }
 
 impl<'config> BuildingList<'config> {
     pub fn new(archetype_kind: BuildingArchetypeKind) -> Self {
         Self {
             archetype_kind: archetype_kind,
-            buildings: Vec::new(),
+            buildings: Slab::new(),
         }
     }
 
     #[inline]
     pub fn try_get(&self, index: usize, archetype_kind: BuildingArchetypeKind) -> Option<&Building<'config>> {
-        if index >= self.buildings.len() {
-            return None;
-        }
         if archetype_kind != self.archetype_kind {
             return None;
         }
-        Some(&self.buildings[index])
+        self.buildings.get(index)
     }
 
     #[inline]
     pub fn add(&mut self, building: Building<'config>) -> usize {
         debug_assert!(building.archetype_kind() == self.archetype_kind);
-        self.buildings.push(building);
-        self.buildings.len() - 1
+        self.buildings.insert(building)
+    }
+
+    #[inline]
+    pub fn remove(&mut self, index: usize, archetype_kind: BuildingArchetypeKind) -> bool {
+        if archetype_kind != self.archetype_kind {
+            return false;
+        }
+        if self.buildings.try_remove(index).is_none() {
+            return false;
+        }
+        true
     }
 
     #[inline]
     pub fn update(&mut self, query: &mut Query, delta_time_secs: f32) {
-        for building in &mut self.buildings {
+        for (_, building) in &mut self.buildings {
             building.update(query, delta_time_secs);
         }
     }

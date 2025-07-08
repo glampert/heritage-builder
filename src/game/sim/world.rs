@@ -59,6 +59,24 @@ impl<'config> World<'config> {
         tile.set_game_state_handle(GameStateHandle::new(index, building_kind.bits()));
     }
 
+    pub fn remove_building(&mut self, tile: &Tile) {
+        let game_state = tile.game_state_handle();
+        if !game_state.is_valid() {
+            panic!("Building tile '{}' [{},{}] must have a valid game state!",
+                   tile.name(), tile.base_cell().x, tile.base_cell().y);
+        }
+
+        let list_index = game_state.index();
+        let building_kind = BuildingKind::from_game_state_handle(game_state);
+        let archetype_kind = building_kind.archetype_kind();
+        let list = self.building_list_mut(archetype_kind);
+
+        if !list.remove(list_index, archetype_kind) {
+            panic!("Failed to remove building '{}' [{},{}]! This is unexpected...",
+                   tile.name(), tile.base_cell().x, tile.base_cell().y);
+        }
+    }
+
     #[inline]
     pub fn building_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
         &self.building_lists[archetype_kind as usize]

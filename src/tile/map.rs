@@ -160,8 +160,8 @@ macro_rules! delegate_to_archetype {
     ( $self:ident, $method:ident $(, $arg:expr )* ) => {
         unsafe {
             if      $self.is(TileKind::Terrain) { $self.archetype.terrain.$method( $( $arg ),* ) }
-            else if $self.is(TileKind::Object)  { $self.archetype.object.$method(  $( $arg ),* ) }
             else if $self.is(TileKind::Blocker) { $self.archetype.blocker.$method( $( $arg ),* ) }
+            else if $self.is(TileKind::Object)  { $self.archetype.object.$method(  $( $arg ),* ) }
             else { panic!("Invalid TileKind!"); }
         }
     };
@@ -459,9 +459,11 @@ impl<'tile_sets> Tile<'tile_sets> {
 
         let archetype = match layer.kind() {
             TileMapLayerKind::Terrain => {
+                debug_assert!(tile_def.kind() == TileKind::Terrain); // Only Terrain.
                 TileArchetype::new_terrain(TerrainTile::new(cell, tile_def))
             },
             TileMapLayerKind::Objects => {
+                debug_assert!(tile_def.kind().intersects(TileKind::Object)); // Object | Building, Prop, etc...
                 TileArchetype::new_object(ObjectTile::new(cell, tile_def, layer))
             }
         };
@@ -480,7 +482,7 @@ impl<'tile_sets> Tile<'tile_sets> {
                    layer: &TileMapLayer<'tile_sets>) -> Self {
         debug_assert!(owner_kind == TileKind::Object | TileKind::Building);
         Self {
-            kind: TileKind::Blocker | TileKind::Building,
+            kind: TileKind::Object | TileKind::Blocker,
             flags: owner_flags,
             archetype: TileArchetype::new_blocker(BlockerTile::new(blocker_cell, owner_cell, layer))
         }
@@ -801,12 +803,7 @@ impl TileMapLayerKind {
     pub fn from_tile_kind(tile_kind: TileKind) -> Self {
         if tile_kind.intersects(TileKind::Terrain) {
             TileMapLayerKind::Terrain
-        } else if tile_kind.intersects(TileKind::Object   |
-                                       TileKind::Blocker  |
-                                       TileKind::Building |
-                                       TileKind::Prop     |
-                                       TileKind::Unit     |
-                                       TileKind::Vegetation) {
+        } else if tile_kind.intersects(TileKind::Object) {
             TileMapLayerKind::Objects
         } else {
             panic!("Unknown TileKind!");
@@ -1489,7 +1486,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_place_tile(&mut self,
                           target_cell: Cell,
-                          tile_def_to_place: &'tile_sets TileDef) -> bool {
+                          tile_def_to_place: &'tile_sets TileDef) -> Option<&mut Tile<'tile_sets>> {
         placement::try_place_tile_in_layer(
             self.layer_mut(tile_def_to_place.layer_kind()), // Guess layer from TileDef.
             target_cell,
@@ -1500,7 +1497,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile_in_layer(&mut self,
                                    target_cell: Cell,
                                    layer_kind: TileMapLayerKind,
-                                   tile_def_to_place: &'tile_sets TileDef) -> bool {
+                                   tile_def_to_place: &'tile_sets TileDef) -> Option<&mut Tile<'tile_sets>> {
         placement::try_place_tile_in_layer(self.layer_mut(layer_kind), target_cell, tile_def_to_place)
     }
 
@@ -1508,7 +1505,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform,
-                                    tile_def_to_place: &'tile_sets TileDef) -> bool {
+                                    tile_def_to_place: &'tile_sets TileDef) -> Option<&mut Tile<'tile_sets>> {
         placement::try_place_tile_at_cursor(self, cursor_screen_pos, transform, tile_def_to_place)
     }
 
@@ -1550,13 +1547,34 @@ impl<'tile_sets> TileMap<'tile_sets> {
         selection.clear(self.layers_mut());
     }
 
-    #[inline]
     pub fn topmost_selected_tile(&self, selection: &TileSelection) -> Option<&Tile<'tile_sets>> {
         let selected_cell = selection.last_cell();
         // Returns the tile at the topmost layer if it is not empty
         // (object, terrain), or nothing if all layers are empty.
         for layer_kind in TileMapLayerKind::iter().rev() {
             let tile = self.try_tile_from_layer(selected_cell, layer_kind);
+            if tile.is_some() {
+                return tile;
+            }
+        }
+        None
+    }
+
+    pub fn topmost_tile_at_cursor(&self,
+                                  cursor_screen_pos: Vec2,
+                                  transform: &WorldToScreenTransform) -> Option<&Tile<'tile_sets>> {
+
+        debug_assert!(transform.is_valid());
+
+        // Find topmost layer tile under the target cell.
+        for layer_kind in TileMapLayerKind::iter().rev() {
+            let layer = self.layer(layer_kind);
+
+            let target_cell = layer.find_exact_cell_for_point(
+                cursor_screen_pos,
+                transform);
+
+            let tile = layer.try_tile(target_cell);
             if tile.is_some() {
                 return tile;
             }

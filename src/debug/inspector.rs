@@ -129,6 +129,7 @@ impl TileInspectorMenu {
         ui.text(format!("Category......: '{}'", category_name));
         ui.text(format!("Kind..........: {}", tile.kind()));
         ui.text(format!("Flags.........: {}", tile.flags()));
+        ui.text(format!("Has Game State: {}", tile.game_state_handle().is_valid()));
         ui.text(format!("Cells.........: [{},{}-{},{}]", cell_range.start.x, cell_range.start.y, cell_range.end.x, cell_range.end.y));
         ui.text(format!("Iso pos.......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
         ui.text(format!("Iso adjusted..: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));

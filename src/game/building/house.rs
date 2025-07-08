@@ -10,7 +10,7 @@ use crate::{
     },
     tile::{
         map::TileMapLayerKind,
-        sets::{TileKind, TileDef, OBJECTS_BUILDINGS_CATEGORY}
+        sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}
     },
     game::sim::resources::{
         ConsumerGoodsList,
@@ -350,7 +350,6 @@ impl<'config> HouseUpgradeState<'config> {
 
             // Try placing new. Might fail if there isn't enough space.
             if Self::try_replace_tile(update_ctx, new_tile_def) {
-
                 self.level.upgrade();
                 debug_assert!(self.level == next_level);
 
@@ -386,7 +385,6 @@ impl<'config> HouseUpgradeState<'config> {
 
             // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
             if Self::try_replace_tile(update_ctx, new_tile_def) {
-
                 self.level.downgrade();
                 debug_assert!(self.level == prev_level);
 
@@ -418,7 +416,7 @@ impl<'config> HouseUpgradeState<'config> {
         let cell_range = tile_def_to_place.calc_footprint_cells(update_ctx.map_cells.start);
         for cell in &cell_range {
             if let Some(tile) =
-                update_ctx.query.tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building) {
+                update_ctx.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
                 let is_self = tile.base_cell() == update_ctx.map_cells.start;
                 if !is_self {
                     // Cannot expand here.
@@ -438,19 +436,21 @@ impl<'config> HouseUpgradeState<'config> {
         // Now we must clear the previous tile.
         if !update_ctx.query.tile_map.try_clear_tile_from_layer(
             update_ctx.map_cells.start, TileMapLayerKind::Objects) {
-            eprintln!("Failed to clear previous tile! This is unexpected...");
-            return false;
+            panic!("Failed to clear previous tile! This is unexpected...");
         }
 
         // And place the new one.
-        if !update_ctx.query.tile_map.try_place_tile_in_layer(
-            update_ctx.map_cells.start, TileMapLayerKind::Objects, tile_def_to_place) {
-            eprintln!("Failed to place new tile! This is unexpected...");
-            return false;
+        let place_result = update_ctx.query.tile_map.try_place_tile_in_layer(
+            update_ctx.map_cells.start,
+            TileMapLayerKind::Objects,
+            tile_def_to_place);
+
+        if place_result.is_none() {
+            panic!("Failed to place new tile! This is unexpected...");
         }
 
         // Update game state handle:
-        let new_tile = update_ctx.find_tile_mut();
+        let new_tile = place_result.unwrap();
         new_tile.set_game_state_handle(prev_tile_game_state);
 
         true
