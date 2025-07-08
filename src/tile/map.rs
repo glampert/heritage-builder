@@ -157,7 +157,7 @@ impl<'tile_sets> TileArchetype<'tile_sets> {
 
 // Call the specified method in the active member of the union.
 macro_rules! delegate_to_archetype {
-    ($self:ident, $method:ident $(, $arg:expr )* ) => {
+    ( $self:ident, $method:ident $(, $arg:expr )* ) => {
         unsafe {
             if      $self.is(TileKind::Terrain) { $self.archetype.terrain.$method( $( $arg ),* ) }
             else if $self.is(TileKind::Object)  { $self.archetype.object.$method(  $( $arg ),* ) }
@@ -177,7 +177,7 @@ trait TileBehavior<'tile_sets> {
     fn set_game_state_handle(&mut self, handle: GameStateHandle);
 
     fn calc_z_sort(&self) -> i32;
-    fn calc_adjusted_iso_coords(&self, _: TileKind) -> IsoPoint;
+    fn calc_adjusted_iso_coords(&self, kind: TileKind) -> IsoPoint;
 
     fn actual_base_cell(&self) -> Cell;
     fn cell_range(&self) -> CellRange;
@@ -199,14 +199,6 @@ trait TileBehavior<'tile_sets> {
 // TerrainTile
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
-struct TerrainTile<'tile_sets> {
-    def: &'tile_sets TileDef,
-
-    // Terrain tiles always occupy a single cell (of BASE_TILE_SIZE size).
-    cell: Cell,
-}
-
 // NOTES:
 //  - Terrain tiles cannot store game state.
 //  - Terrain tile are always 1x1.
@@ -214,12 +206,33 @@ struct TerrainTile<'tile_sets> {
 //  - Terrain tile draw size can be customized.
 //  - No variations or animations.
 //
+#[derive(Copy, Clone)]
+struct TerrainTile<'tile_sets> {
+    def: &'tile_sets TileDef,
+
+    // Terrain tiles always occupy a single cell (of BASE_TILE_SIZE size).
+    cell: Cell,
+
+    // Cached from the cell, since it never changes.
+    iso_coords: IsoPoint,
+}
+
+impl<'tile_sets> TerrainTile<'tile_sets> {
+    fn new(cell: Cell, tile_def: &'tile_sets TileDef) -> Self {
+        Self {
+            def: tile_def,
+            cell: cell,
+            iso_coords: coords::cell_to_iso(cell, BASE_TILE_SIZE),
+        }
+    }
+}
+
 impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
     #[inline] fn game_state_handle(&self) -> GameStateHandle { GameStateHandle::invalid() }
     #[inline] fn set_game_state_handle(&mut self, _: GameStateHandle) {}
 
-    #[inline] fn calc_z_sort(&self) -> i32 { coords::cell_to_iso(self.cell, BASE_TILE_SIZE).y }
-    #[inline] fn calc_adjusted_iso_coords(&self, _: TileKind) -> IsoPoint { coords::cell_to_iso(self.cell, BASE_TILE_SIZE) }
+    #[inline] fn calc_z_sort(&self) -> i32 { self.iso_coords.y }
+    #[inline] fn calc_adjusted_iso_coords(&self, _: TileKind) -> IsoPoint { self.iso_coords }
 
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
     #[inline] fn cell_range(&self) -> CellRange { CellRange::new(self.cell, self.cell) }
@@ -244,7 +257,8 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
             frame_index: 0,
             frame_play_time_secs: 0.0,
         };
-        // Return a valid dummy value for Tile::anim_set_index()/Tile::anim_frame_index()/etc.
+        // Return a valid dummy value for Tile::anim_set_index()/Tile::anim_frame_index()/etc
+        // that has all fields set to defaults.
         &DUMMY_ANIM_STATE
     }
 
@@ -273,6 +287,21 @@ struct ObjectTile<'tile_sets> {
     game_state: GameStateHandle,
     anim_state: TileAnimState,
     variation_index: u32,
+}
+
+impl<'tile_sets> ObjectTile<'tile_sets> {
+    fn new(cell: Cell,
+           tile_def: &'tile_sets TileDef,
+           layer: &TileMapLayer<'tile_sets>) -> Self {
+        Self {
+            def: tile_def,
+            layer: UnsafeWeakRef::new(layer),
+            cell_range: tile_def.calc_footprint_cells(cell),
+            game_state: GameStateHandle::default(),
+            anim_state: TileAnimState::default(),
+            variation_index: 0,
+        }
+    }
 }
 
 impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
@@ -335,6 +364,17 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
 // BlockerTile
 // ----------------------------------------------
 
+// Buildings have an origin tile and zero or more associated Blocker Tiles
+// if they occupy multiple tiles.
+//
+// For instance, a 2x2 house tile `H` will have the house at its origin
+// cell, and 3 other blocker tiles `B` that backreference the house tile.
+//  +---+---+
+//  | B | B |
+//  +---+---+
+//  | B | H | <-- origin tile, AKA base tile
+//  +---+---+
+//
 #[derive(Copy, Clone)]
 struct BlockerTile<'tile_sets> {
     // Weak reference to owning map layer so we can seamlessly resolve blockers into buildings.
@@ -348,18 +388,17 @@ struct BlockerTile<'tile_sets> {
     owner_cell: Cell,
 }
 
-// Buildings have an origin tile and zero or more associated Blocker Tiles
-// if they occupy multiple tiles.
-//
-// For instance, a 2x2 house tile `H` will have the house at its origin
-// cell, and 3 other blocker tiles `B` that backreference the house tile.
-//  +---+---+
-//  | B | B |
-//  +---+---+
-//  | B | H | <-- origin tile, AKA base tile
-//  +---+---+
-//
 impl<'tile_sets> BlockerTile<'tile_sets> {
+    fn new(blocker_cell: Cell,
+           owner_cell: Cell,
+           layer: &TileMapLayer<'tile_sets>) -> Self {
+        Self {
+            layer: UnsafeWeakRef::new(layer),
+            cell: blocker_cell,
+            owner_cell: owner_cell,
+        }
+    }
+
     #[inline]
     fn owner(&self) -> &Tile<'tile_sets> {
         self.layer.find_blocker_owner(self.owner_cell)
@@ -381,10 +420,7 @@ impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
     #[inline] fn calc_z_sort(&self) -> i32 { self.owner().calc_z_sort() }
     #[inline] fn calc_adjusted_iso_coords(&self, _: TileKind) -> IsoPoint { self.owner().calc_adjusted_iso_coords() }
 
-    #[inline]
-    fn tile_def(&self) -> &'tile_sets TileDef {
-        self.owner().tile_def()
-    }
+    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.owner().tile_def() }
 
     #[inline]
     fn is_valid(&self) -> bool {
@@ -407,7 +443,7 @@ impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
     // Animations:
     #[inline] fn anim_state_ref(&self) -> &TileAnimState { self.owner().anim_state_ref() }
     #[inline] fn anim_state_mut_ref(&mut self) -> &mut TileAnimState {
-        // This is method is only called from Tile::update_anim(), so should never be used for Blocker.
+        // This is method is only called from Tile::update_anim(), so should never be used for Blockers.
         panic!("Blocker Tiles are not animated! Do not call update_anim() on a Blocker Tile.");
     }
 }
@@ -423,20 +459,10 @@ impl<'tile_sets> Tile<'tile_sets> {
 
         let archetype = match layer.kind() {
             TileMapLayerKind::Terrain => {
-                TileArchetype::new_terrain(TerrainTile {
-                    def: tile_def,
-                    cell: cell,
-                })
+                TileArchetype::new_terrain(TerrainTile::new(cell, tile_def))
             },
             TileMapLayerKind::Objects => {
-                TileArchetype::new_object(ObjectTile {
-                    def: tile_def,
-                    layer: UnsafeWeakRef::new(layer),
-                    cell_range: tile_def.calc_footprint_cells(cell),
-                    game_state: GameStateHandle::default(),
-                    anim_state: TileAnimState::default(),
-                    variation_index: 0,
-                })
+                TileArchetype::new_object(ObjectTile::new(cell, tile_def, layer))
             }
         };
 
@@ -456,11 +482,7 @@ impl<'tile_sets> Tile<'tile_sets> {
         Self {
             kind: TileKind::Blocker | TileKind::Building,
             flags: owner_flags,
-            archetype: TileArchetype::new_blocker(BlockerTile {
-                layer: UnsafeWeakRef::new(layer),
-                cell: blocker_cell,
-                owner_cell: owner_cell,
-            }),
+            archetype: TileArchetype::new_blocker(BlockerTile::new(blocker_cell, owner_cell, layer))
         }
     }
 

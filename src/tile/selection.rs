@@ -16,10 +16,10 @@ use crate::{
 };
 
 use super::{
-    sets::{TileDef, TileKind, BASE_TILE_SIZE},
-    map::{Tile, TileFlags, TileMapLayerKind, TileMapLayerMutRefs},
     placement::PlacementOp,
-    rendering::SELECTION_RECT_COLOR
+    rendering::SELECTION_RECT_COLOR,
+    sets::{TileKind, BASE_TILE_SIZE},
+    map::{Tile, TileFlags, TileMapLayerKind, TileMapLayerMutRefs}
 };
 
 // ----------------------------------------------
@@ -32,7 +32,7 @@ pub struct TileSelection {
     cursor_drag_start: Vec2,
     left_mouse_button_held: bool,
     valid_placement: bool,
-    cells: SmallVec<[Cell; 36]>,
+    cells: SmallVec<[Cell; 64]>,
 }
 
 impl TileSelection {
@@ -107,7 +107,7 @@ impl TileSelection {
 
                     if tile_screen_rect.intersects(&self.rect) {
                         let base_cell = base_tile.base_cell();
-                        self.toggle_selection(placement_op, layers, base_cell, true);
+                        self.toggle_selection(layers, base_cell, placement_op);
                     }
                 }
             }
@@ -115,223 +115,132 @@ impl TileSelection {
             // Clear previous highlighted tile for single selection:
             let last_cell = self.last_cell();
 
-            if let Some(base_tile) = layers.get(TileMapLayerKind::Terrain).try_tile(last_cell) {
+            if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(last_cell) {
                 // If the cursor is still inside this cell, we're done.
                 // This can happen because the isometric-to-cell conversion
                 // is not absolute but rather based on proximity to the cell's center.
-                if base_tile.is_screen_point_inside_base_cell(cursor_screen_pos, transform) {
+                if tile.is_screen_point_inside_base_cell(cursor_screen_pos, transform) {
                     return;
                 }
 
-                // Clear:
-                let previous_selected_cell = base_tile.base_cell();
-                self.toggle_selection(placement_op, layers, previous_selected_cell, false);
+                self.clear(layers);
             }
 
-            // Set highlight:
-            {
-                let highlight_cell = layers.get(TileMapLayerKind::Terrain)
-                    .find_exact_cell_for_point(cursor_screen_pos, transform);
+            // Set new selection highlight:
+            let highlight_cell = layers.get(TileMapLayerKind::Terrain)
+                .find_exact_cell_for_point(cursor_screen_pos, transform);
 
-                self.toggle_selection(placement_op, layers, highlight_cell, true);
-            }
+            self.toggle_selection(layers, highlight_cell, placement_op);
         }
     }
 
-    pub fn clear(&mut self, layers: TileMapLayerMutRefs) {
-        while !self.cells.is_empty() {
-            self.toggle_selection(PlacementOp::None, layers, self.last_cell(), false);
+    pub fn clear<'tile_sets>(&mut self, mut layers: TileMapLayerMutRefs<'tile_sets>) {
+        for cell in &self.cells {
+            if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(*cell) {
+                tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
+            }
+            if let Some(tile) = layers.get(TileMapLayerKind::Objects).try_tile_mut(*cell) {
+                tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
+            }
         }
+
         self.valid_placement = false;
+        self.cells.clear();
     }
 
     fn is_selecting_range(&self) -> bool {
         self.left_mouse_button_held && self.rect.is_valid()
     }
 
-    fn toggle_tile_selection<'tile_sets>(&mut self,
-                                         tile: &mut Tile<'tile_sets>,
-                                         flags: TileFlags,
-                                         selected: bool) {
+    fn select_tile<'tile_sets>(&mut self,
+                               tile: &mut Tile<'tile_sets>,
+                               selection_flags: TileFlags) {
 
-        if selected {
-            tile.set_flags(flags, true);
+        tile.set_flags(selection_flags, true);
 
-            // Last cell should be the original starting cell (base cell). Iterate in reverse.
-            for cell in tile.cell_range().iter_rev() {
-                self.cells.push(cell); 
-            }
-        } else {
-            tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
-
-            // Pop the same number we've pushed.
-            for cell in &tile.cell_range() {
-
-                self.cells.pop();
-
-                //TODO NEED THIS???
-                //let prev_selection = self.cells.pop().unwrap();
-                //assert!(prev_selection == cell);
-            }
+        // Last cell should be the original starting cell (base cell). Iterate in reverse.
+        for cell in tile.cell_range().iter_rev() {
+            self.cells.push(cell); 
         }
+
+        debug_assert!(self.last_cell() == tile.base_cell());
     }
 
     fn toggle_selection<'tile_sets>(&mut self,
-                                    placement_op: PlacementOp,
                                     mut layers: TileMapLayerMutRefs<'tile_sets>,
                                     base_cell: Cell,
-                                    selected: bool) {
+                                    placement_op: PlacementOp) {
 
         if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(base_cell) {
+            self.valid_placement = false;
             return;
         }
 
-        let flags = match placement_op {
+        // Highlight object layer tiles if we are placing an object, clearing tiles or just mouse hovering.
+        // Don't highlight objects if placing terrain tiles.
+        let highlight_objects = match placement_op {
+            PlacementOp::Place(tile_def) => tile_def.is(TileKind::Object),
+            PlacementOp::Clear => true,
+            PlacementOp::None  => true,
+        };
+
+        let selection_flags = match placement_op {
             // Check if our placement candidate tile overlaps with any other Object.
             PlacementOp::Place(tile_def) => {
                 let mut flags = TileFlags::Highlighted;
                 for cell in &tile_def.calc_footprint_cells(base_cell) {
-                    if layers.get(TileMapLayerKind::Objects).try_tile(cell).is_some() {
+                    // Placement candidate not fully within map bounds?
+                    if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(cell) {
                         flags = TileFlags::Invalidated;
                         break;
+                    }
+
+                    // Terrain tiles can always be placed anywhere, so don't invalidate for terrain.
+                    if !tile_def.is(TileKind::Terrain) {
+                        // Placement candidate would overlap another object?
+                        if layers.get(TileMapLayerKind::Objects).try_tile(cell).is_some() {
+                            flags = TileFlags::Invalidated;
+                            break;
+                        }
                     }
                 }
                 flags
             },
             // Tile clearing, highlight tile to be removed with the Invalidated flag instead.
-            PlacementOp::Clear => {
-                TileFlags::Invalidated
-            },
-            // Tile mouse hover.
-            PlacementOp::None => {
-                TileFlags::Highlighted
-            }
+            PlacementOp::Clear => TileFlags::Invalidated,
+            // Tile mouse hover; normal highlight.
+            PlacementOp::None  => TileFlags::Highlighted,
         };
 
         // Highlight Terrain:
         if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(base_cell) {
-            self.toggle_tile_selection(tile, flags, selected);
+            self.select_tile(tile, selection_flags);
 
             // Highlight all Terrain tiles this placement candidate would occupy.
             if let PlacementOp::Place(tile_def) = placement_op {
                 for cell in tile_def.calc_footprint_cells(base_cell).iter_rev() {
                     if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(cell) {
-                        self.toggle_tile_selection(tile, flags, selected);
+                        self.select_tile(tile, selection_flags);
                     }
                 }
             }
         }
 
         // Highlight Objects:
-        if let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile_mut(base_cell) {
-            self.toggle_tile_selection(object, flags, selected);
+        if highlight_objects {
+            if let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile_mut(base_cell) {
+                self.select_tile(object, selection_flags);
 
-            // Highlight all terrain tiles this building occupies.
-            for cell in object.cell_range().iter_rev() {
-                if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(cell) {
-                    self.toggle_tile_selection(tile, flags, selected);
+                // Highlight all terrain tiles this building occupies.
+                for cell in object.cell_range().iter_rev() {
+                    if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(cell) {
+                        self.select_tile(tile, selection_flags);
+                    }
                 }
             }
         }
 
-        self.valid_placement = !flags.intersects(TileFlags::Invalidated);
-
-
-
-        // TODO: Rewrite this.
-        /*
-        // Deal with multi-tile buildings:
-        let mut footprint =
-            if let Some(placement_candidate) = placement_candidate {
-                // During placement tile hovering:
-                placement_candidate.calc_footprint_cells(base_cell)
-            } else {
-                // During drag selection/mouse hover:
-                Tile::calc_exact_footprint_cells(base_cell, layers.objects)
-            };
-
-        // Highlight building placement overlaps:
-        let mut flags = TileFlags::Highlighted;
-        if let Some(placement_candidate) = placement_candidate {
-            if placement_candidate.is_building() {
-                for &footprint_cell in &footprint {
-                    if !layers.terrain.is_cell_within_bounds(footprint_cell) {
-                        // If any cell would fall outside of the map bounds we won't place.
-                        flags = TileFlags::Invalidated;
-                    }
-
-                    if layers.objects.has_tile(footprint_cell, TileKind::Building | TileKind::Blocker) {
-                        // Cannot place building here.
-                        flags = TileFlags::Invalidated;
-
-                        // Fully highlight the other building too:
-                        let other_building_footprint =
-                            Tile::calc_exact_footprint_cells(footprint_cell, layers.objects);
-
-                        for other_footprint_cell in other_building_footprint {
-                            if let Some(building_tile) = layers.objects.find_tile_mut(
-                                    other_footprint_cell, TileKind::Building | TileKind::Blocker) {
-
-                                self.toggle_tile_selection(building_tile, flags, selected);
-                            }
-                            if let Some(terrain_tile) = layers.terrain.try_tile_mut(other_footprint_cell) {
-                                // NOTE: Highlight terrain even when empty so we can correctly highlight grid cells.
-                                self.toggle_tile_selection(terrain_tile, flags, selected);
-                            }
-                        }
-                    }
-
-                    if layers.units.has_tile(footprint_cell, TileKind::Unit) {
-                        // Cannot place building here.
-                        flags = TileFlags::Invalidated;
-                    }
-                }
-            } else if placement_candidate.is_unit() {
-                // Trying to place unit over building?
-                if layers.objects.has_tile(base_cell, TileKind::Building | TileKind::Blocker) {
-                    // Cannot place unit here.
-                    flags = TileFlags::Invalidated;
-                    // Take the building's footprint so we'll highlight all of its tiles.
-                    footprint = Tile::calc_exact_footprint_cells(base_cell, layers.objects);
-                }
-            } else if placement_candidate.is_empty() {
-                // Tile clearing, highlight tile to be removed:
-                flags = TileFlags::Invalidated;
-                if layers.objects.has_tile(base_cell, TileKind::Building | TileKind::Blocker) {
-                    // If we're attempting to remove a building, take its own
-                    // footprint instead, as it may consist of many tiles.
-                    footprint = Tile::calc_exact_footprint_cells(base_cell, layers.objects);
-                }
-            }
-        }
-
-        for footprint_cell in footprint {
-            if let Some(terrain_tile) = layers.terrain.try_tile_mut(footprint_cell) {
-                // NOTE: Highlight terrain even when empty so we can correctly highlight grid cells.
-                self.toggle_tile_selection(terrain_tile, flags, selected);
-            }
-
-            if self.placement_candidate.is_some_and(|tile| tile.is_terrain()) {
-                // No highlighting of buildings/units when placing a terrain tile
-                // (terrain can always be placed underneath).
-                continue;
-            }
-
-            if let Some(building_tile) = layers.objects.find_tile_mut(
-                footprint_cell, TileKind::Building | TileKind::Blocker) {
-
-                self.toggle_tile_selection(building_tile, flags, selected);
-            }
-
-            if let Some(unit_tile) = layers.units.find_tile_mut(
-                footprint_cell, TileKind::Unit) {
-
-                self.toggle_tile_selection(unit_tile, flags, selected);
-            }
-        }
-
-        self.valid_placement = !flags.intersects(TileFlags::Invalidated);
-        */
+        self.valid_placement = !selection_flags.intersects(TileFlags::Invalidated);
     }
 }
 
