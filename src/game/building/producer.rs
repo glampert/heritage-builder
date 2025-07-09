@@ -18,10 +18,10 @@ use super::{
 };
 
 // ----------------------------------------------
-// ProducerState
+// ProducerBuilding
 // ----------------------------------------------
 
-pub struct ProducerState<'config> {
+pub struct ProducerBuilding<'config> {
     config: &'config ProducerConfig,
     workers: Workers,
 
@@ -29,7 +29,7 @@ pub struct ProducerState<'config> {
     raw_materials_stock: RawMaterialsStock,
 }
 
-impl<'config> ProducerState<'config> {
+impl<'config> ProducerBuilding<'config> {
     pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
         let config = configs.find::<ProducerConfig>(kind);
         Self {
@@ -40,11 +40,11 @@ impl<'config> ProducerState<'config> {
     }
 }
 
-impl<'config> BuildingBehavior<'config> for ProducerState<'config> {
+impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     fn update(&mut self, _update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, _delta_time_secs: f32) {
     }
 
-    fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _ui_sys: &UiSystem) {
     }
 }
 

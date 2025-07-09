@@ -16,14 +16,14 @@ use super::{
     house::{
         HouseLevel,
         HouseLevelConfig,
-        HouseState
+        HouseBuilding
     },
     producer::{
         ProducerConfig,
         ProducerOutputKind
     },
     service::{
-        ServiceState,
+        ServiceBuilding,
         ServiceConfig
     },
     storage::{
@@ -65,7 +65,8 @@ impl BuildingConfigs {
                 max_residents: 4,
                 tax_generated: 1,
                 services_required: ServicesList::from_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
-                goods_required: ConsumerGoodsList::new(),        
+                // Any 1 kind of food.
+                goods_required: ConsumerGoodsList::from_slice(&[ConsumerGoodKind::any_food()]),
             },
             house2: HouseLevelConfig {
                 tile_def_name: "house2".to_string(),
@@ -73,7 +74,8 @@ impl BuildingConfigs {
                 max_residents: 6,
                 tax_generated: 2,
                 services_required: ServicesList::from_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
-                goods_required: ConsumerGoodsList::new(),
+                // 2 kinds of food required: Rice + meat or fish.
+                goods_required: ConsumerGoodsList::from_slice(&[ConsumerGoodKind::Rice, ConsumerGoodKind::Meat | ConsumerGoodKind::Fish]),
             },
             service_well_small: ServiceConfig {
                 tile_def_name: "well_small".to_string(),
@@ -172,7 +174,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
             BuildingKind::WellSmall,
             tile.cell_range(),
             configs,
-            BuildingArchetype::new_service(ServiceState::new(BuildingKind::WellSmall, configs))
+            BuildingArchetype::new_service(ServiceBuilding::new(BuildingKind::WellSmall, configs))
         )
     } else if tile.name() == "well_big" {
         Building::new(
@@ -180,7 +182,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
             BuildingKind::WellBig,
             tile.cell_range(),
             configs,
-            BuildingArchetype::new_service(ServiceState::new(BuildingKind::WellSmall, configs))
+            BuildingArchetype::new_service(ServiceBuilding::new(BuildingKind::WellSmall, configs))
         )
     } else if tile.name() == "market" {
         Building::new(
@@ -188,7 +190,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
             BuildingKind::Market,
             tile.cell_range(),
             configs,
-            BuildingArchetype::new_service(ServiceState::new(BuildingKind::Market, configs))
+            BuildingArchetype::new_service(ServiceBuilding::new(BuildingKind::Market, configs))
         )
     } else if tile.name() == "house0" {
         Building::new(
@@ -196,7 +198,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
             BuildingKind::House,
             tile.cell_range(),
             configs,
-            BuildingArchetype::new_house(HouseState::new(HouseLevel::Level0, configs))
+            BuildingArchetype::new_house(HouseBuilding::new(HouseLevel::Level0, configs))
         )
     } else {
         panic!("Unknown building tile!")

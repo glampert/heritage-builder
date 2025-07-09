@@ -1,11 +1,10 @@
-use core::slice::Iter;
+use core::slice::{Iter, IterMut};
 use arrayvec::ArrayVec;
 use smallvec::SmallVec;
-use num_enum::IntoPrimitive;
-use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{EnumCount, EnumIter};
+use bitflags::{bitflags, Flags};
 
 use crate::{
+    bitflags_with_display,
     game::building::BuildingKind
 };
 
@@ -24,7 +23,7 @@ pub struct Stock<T, const CAPACITY: usize> {
 
 impl<T, const CAPACITY: usize> Stock<T, CAPACITY> 
     where
-        T: IntoEnumIterator + Into<u32> + Copy + PartialEq
+        T: Copy + std::fmt::Display + bitflags::Flags
 {
     #[inline]
     pub fn new() -> Self {
@@ -32,8 +31,8 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
             items: ArrayVec::new(),
         };
 
-        for kind in T::iter() {
-            stock.items.push(StockItem { kind: kind, count: 0 });
+        for kind in T::FLAGS.iter() {
+            stock.items.push(StockItem { kind: *kind.value(), count: 0 });
         }
 
         stock
@@ -45,15 +44,45 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     }
 
     #[inline]
+    pub fn iter_mut(&mut self) -> IterMut<'_, StockItem<T>> {
+        self.items.iter_mut()
+    }
+
+    #[inline]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
     #[inline]
     pub fn has(&self, wanted: T) -> bool {
-        let index: u32 = wanted.into();
-        debug_assert!(self.items[index as usize].kind == wanted);
-        self.items[index as usize].count != 0
+        for item in &self.items {
+            if item.kind.intersects(wanted) && item.count != 0 {
+                return true;
+            }
+        }
+        false
+    }
+
+    #[inline]
+    pub fn consume(&mut self, wanted: T) -> Option<T> {
+        for item in &mut self.items {
+            if item.kind.intersects(wanted) && item.count != 0 {
+                item.count -= 1;
+                return Some(item.kind);
+            }
+        }
+        None
+    }
+
+    #[inline]
+    pub fn add(&mut self, new: T) {
+        for item in &mut self.items {
+            if item.kind.intersects(new) {
+                item.count += 1;
+                return;
+            }
+        }
+        panic!("Failed to add item '{}' to Stock!", new);
     }
 }
 
@@ -61,13 +90,14 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
 // List generic
 // ----------------------------------------------
 
+#[derive(Debug)]
 pub struct List<T> {
     items: SmallVec<[T; 1]>,
 }
 
 impl<T> List<T> 
     where 
-        T: Copy + PartialEq
+        T: Copy + bitflags::Flags
 {
     #[inline]
     pub fn new() -> Self {
@@ -101,21 +131,21 @@ impl<T> List<T>
     #[inline]
     pub fn has(&self, wanted: T) -> bool {
         for item in &self.items {
-            if *item == wanted {
+            if item.intersects(wanted) {
                 return true;
             }
         }
         false
     }
 
-     #[inline]
+    #[inline]
     pub fn clear(&mut self) {
         self.items.clear();
     }
 
-     #[inline]
-    pub fn add(&mut self, item: T) {
-        self.items.push(item);
+    #[inline]
+    pub fn add(&mut self, new: T) {
+        self.items.push(new);
     }
 }
 
@@ -123,32 +153,56 @@ impl<T> List<T>
 // Raw Materials
 // ----------------------------------------------
 
-#[repr(u32)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumIter, IntoPrimitive)]
-pub enum RawMaterialKind {
-    Wood,
-    Metal,
+bitflags_with_display! {
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    pub struct RawMaterialKind: u32 {
+        const Wood  = 1 << 0;
+        const Metal = 1 << 1;
+    }
 }
 
-pub const RAW_MATERIAL_COUNT: usize = RawMaterialKind::COUNT;
+impl RawMaterialKind {
+    #[inline]
+    pub const fn count() -> usize {
+        RawMaterialKind::FLAGS.len()
+    }
+}
+
+const RAW_MATERIAL_COUNT: usize = RawMaterialKind::count();
 pub type RawMaterialsStock = Stock<RawMaterialKind, RAW_MATERIAL_COUNT>;
-pub type RawMaterialsList = List<RawMaterialKind>;
+pub type RawMaterialsList  = List<RawMaterialKind>;
 
 // ----------------------------------------------
 // Consumer Goods
 // ----------------------------------------------
 
-#[repr(u32)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumIter, IntoPrimitive)]
-pub enum ConsumerGoodKind {
-    Rice,
-    Meat,
-    Fish,
+bitflags_with_display! {
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    pub struct ConsumerGoodKind: u32 {
+        // Foods:
+        const Rice = 1 << 0;
+        const Meat = 1 << 1;
+        const Fish = 1 << 2;
+    }
 }
 
-pub const CONSUMER_GOOD_COUNT: usize = ConsumerGoodKind::COUNT;
+impl ConsumerGoodKind {
+    #[inline]
+    pub const fn count() -> usize {
+        ConsumerGoodKind::FLAGS.len()
+    }
+
+    #[inline]
+    pub fn any_food() -> Self {
+        ConsumerGoodKind::Rice |
+        ConsumerGoodKind::Meat |
+        ConsumerGoodKind::Fish
+    }
+}
+
+const CONSUMER_GOOD_COUNT: usize = ConsumerGoodKind::count();
 pub type ConsumerGoodsStock = Stock<ConsumerGoodKind, CONSUMER_GOOD_COUNT>;
-pub type ConsumerGoodsList = List<ConsumerGoodKind>;
+pub type ConsumerGoodsList  = List<ConsumerGoodKind>;
 
 // ----------------------------------------------
 // Services

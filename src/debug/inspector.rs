@@ -47,9 +47,9 @@ impl TileInspectorMenu {
     }
 
     pub fn draw(&mut self,
+                world: &mut World,
                 tile_map: &mut TileMap,
                 tile_sets: &TileSets,
-                world: &World,
                 ui_sys: &UiSystem,
                 transform: &WorldToScreenTransform) {
 
@@ -95,7 +95,7 @@ impl TileInspectorMenu {
 
                 if is_building && ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    Self::building_debug_ui(tile_map, world, ui_sys, cell, layer_kind);
+                    Self::building_debug_ui(world, tile_map, ui_sys, cell, layer_kind);
                     ui.unindent_by(10.0);
                 }
             });
@@ -109,7 +109,7 @@ impl TileInspectorMenu {
                                 transform: &WorldToScreenTransform) {
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
-        if !ui.collapsing_header("Properties##_tile_props", imgui::TreeNodeFlags::empty()) {
+        if !ui.collapsing_header("Properties##_tile_properties", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 
@@ -130,7 +130,7 @@ impl TileInspectorMenu {
         ui.text(format!("Kind..........: {}", tile.kind()));
         ui.text(format!("Flags.........: {}", tile.flags()));
         ui.text(format!("Has Game State: {}", tile.game_state_handle().is_valid()));
-        ui.text(format!("Cells.........: [{},{}-{},{}]", cell_range.start.x, cell_range.start.y, cell_range.end.x, cell_range.end.y));
+        ui.text(format!("Cells.........: [{},{}; {},{}]", cell_range.start.x, cell_range.start.y, cell_range.end.x, cell_range.end.y));
         ui.text(format!("Iso pos.......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
         ui.text(format!("Iso adjusted..: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
         ui.text(format!("Screen pos....: {:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y));
@@ -290,14 +290,14 @@ impl TileInspectorMenu {
         }
     }
 
-    fn building_debug_ui(tile_map: &TileMap,
-                         world: &World,
+    fn building_debug_ui(world: &mut World,
+                         tile_map: &TileMap,
                          ui_sys: &UiSystem,
                          cell: Cell,
                          layer_kind: TileMapLayerKind) {
 
         let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
-        if let Some(building) = world.find_building_for_tile(tile) {
+        if let Some(building) = world.find_building_for_tile_mut(tile) {
             building.draw_debug_ui(ui_sys);
         }
     }

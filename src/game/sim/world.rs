@@ -43,11 +43,15 @@ impl<'config> World<'config> {
         world
     }
 
-    pub fn update(&mut self, query: &mut Query, delta_time_secs: f32) {
+    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: f32) {
         for list in &mut self.building_lists {
             list.update(query, delta_time_secs);
         }
     }
+
+    // ----------------------
+    // Buildings API:
+    // ----------------------
 
     pub fn add_building(&mut self, tile: &mut Tile, building: Building<'config>) {
         let building_kind = building.kind();
@@ -78,16 +82,6 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn building_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
-        &self.building_lists[archetype_kind as usize]
-    }
-
-    #[inline]
-    pub fn building_list_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
-        &mut self.building_lists[archetype_kind as usize]
-    }
-
-    #[inline]
     pub fn find_building_for_tile(&self, tile: &Tile) -> Option<&Building<'config>> {
         let game_state = tile.game_state_handle();
         if game_state.is_valid() {
@@ -98,5 +92,32 @@ impl<'config> World<'config> {
             return list.try_get(list_index, archetype_kind);
         }
         None
+    }
+
+    #[inline]
+    pub fn find_building_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Building<'config>> {
+        let game_state = tile.game_state_handle();
+        if game_state.is_valid() {
+            let list_index = game_state.index();
+            let building_kind = BuildingKind::from_game_state_handle(game_state);
+            let archetype_kind = building_kind.archetype_kind();
+            let list = self.building_list_mut(archetype_kind);
+            return list.try_get_mut(list_index, archetype_kind);
+        }
+        None
+    }
+
+    // ----------------------
+    // Building list helpers:
+    // ----------------------
+
+    #[inline]
+    fn building_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
+        &self.building_lists[archetype_kind as usize]
+    }
+
+    #[inline]
+    fn building_list_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
+        &mut self.building_lists[archetype_kind as usize]
     }
 }

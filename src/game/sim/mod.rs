@@ -9,12 +9,19 @@ use crate::{
     },
     utils::{
         coords::{Cell, CellRange},
-        hash::StringHash
+        hash::StringHash,
+        UnsafeWeakRef
     }
 };
 
 use super::{
-    building::BuildingKind
+    building::{
+        Building,
+        BuildingKind
+    },
+    sim::world::{
+        World
+    }
 };
 
 pub mod resources;
@@ -49,7 +56,7 @@ impl Simulation {
     }
 
     pub fn update<'tile_map, 'tile_sets>(&mut self,
-                                         world: &mut world::World,
+                                         world: &mut World,
                                          tile_map: &'tile_map mut TileMap<'tile_sets>,
                                          tile_sets: &'tile_sets TileSets,
                                          delta_time: time::Duration) {
@@ -59,7 +66,7 @@ impl Simulation {
             // Fixed step update.
             let delta_time_secs = self.time_since_last_update_secs;
 
-            let mut query = Query::new(&mut self.rng, tile_map, tile_sets);
+            let mut query = Query::new(&mut self.rng, world, tile_map, tile_sets);
             world.update(&mut query, delta_time_secs);
 
             // Reset the clock.
@@ -75,20 +82,29 @@ impl Simulation {
 // Query
 // ----------------------------------------------
 
-pub struct Query<'sim, 'tile_map, 'tile_sets> {
+pub struct Query<'config, 'sim, 'tile_map, 'tile_sets> {
     pub rng: &'sim mut RandomGenerator,
-    pub tile_sets: &'tile_sets TileSets,
     pub tile_map: &'tile_map mut TileMap<'tile_sets>,
+    pub tile_sets: &'tile_sets TileSets,
+
+    // SAFETY: Queries are local variables in the Simulation::update() stack, so none
+    // of the references stored here will persist or leak outside the call stack.
+    // The reason we store this as a weak reference is because we cannot take another
+    // reference to the world while we are also invoking update() on it, however,
+    // a reference is required in some cases to look up other buildings.
+    world: UnsafeWeakRef<World<'config>>,
 }
 
-impl<'sim, 'tile_map, 'tile_sets> Query<'sim, 'tile_map, 'tile_sets> {
+impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile_sets> {
     fn new(rng: &'sim mut RandomGenerator,
+           world: &mut World<'config>,
            tile_map: &'tile_map mut TileMap<'tile_sets>,
            tile_sets: &'tile_sets TileSets) -> Self {
         Self {
             rng: rng,
-            tile_sets: tile_sets,
             tile_map: tile_map,
+            tile_sets: tile_sets,
+            world: UnsafeWeakRef::new(world),
         }
     }
 
@@ -144,5 +160,37 @@ impl<'sim, 'tile_map, 'tile_sets> Query<'sim, 'tile_map, 'tile_sets> {
         }
 
         false
+    }
+
+    pub fn find_nearest_building_mut(&mut self,
+                                     start_cells: CellRange,
+                                     kind: BuildingKind,
+                                     radius_in_cells: i32) -> Option<&mut Building<'config>> {
+
+        debug_assert!(start_cells.is_valid());
+        debug_assert!(radius_in_cells > 0);
+
+        let search_range = {
+            let start_x = start_cells.start.x - radius_in_cells;
+            let start_y = start_cells.start.y - radius_in_cells;
+            let end_x   = start_cells.end.x   + radius_in_cells;
+            let end_y   = start_cells.end.y   + radius_in_cells;
+            CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))  
+        };
+
+        for search_cell in &search_range {
+            if let Some(search_tile) =
+                self.tile_map.find_tile(search_cell, TileMapLayerKind::Objects, TileKind::Building) {
+                let game_state = search_tile.game_state_handle();
+                if game_state.is_valid() {
+                    let building_kind = BuildingKind::from_game_state_handle(game_state);
+                    if building_kind == kind {
+                        return self.world.find_building_for_tile_mut(search_tile);
+                    }
+                }
+            }
+        }
+
+        None
     }
 }

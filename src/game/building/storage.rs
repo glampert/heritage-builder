@@ -18,10 +18,10 @@ use super::{
 };
 
 // ----------------------------------------------
-// StorageState
+// StorageBuilding
 // ----------------------------------------------
 
-pub struct StorageState<'config> {
+pub struct StorageBuilding<'config> {
     config: &'config StorageConfig,
     workers: Workers,
 
@@ -30,7 +30,7 @@ pub struct StorageState<'config> {
     raw_materials_stock: RawMaterialsStock,
 }
 
-impl<'config> StorageState<'config> {
+impl<'config> StorageBuilding<'config> {
     pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
         let config = configs.find::<StorageConfig>(kind);
         Self {
@@ -42,11 +42,11 @@ impl<'config> StorageState<'config> {
     }
 }
 
-impl<'config> BuildingBehavior<'config> for StorageState<'config> {
+impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     fn update(&mut self, _update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, _delta_time_secs: f32) {
     }
 
-    fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _ui_sys: &UiSystem) {
     }
 }
 

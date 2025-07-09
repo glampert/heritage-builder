@@ -16,10 +16,10 @@ use super::{
 };
 
 // ----------------------------------------------
-// ServiceState
+// ServiceBuilding
 // ----------------------------------------------
 
-pub struct ServiceState<'config> {
+pub struct ServiceBuilding<'config> {
     config: &'config ServiceConfig,
     workers: Workers,
 
@@ -27,7 +27,7 @@ pub struct ServiceState<'config> {
     goods_stock: ConsumerGoodsStock,
 }
 
-impl<'config> ServiceState<'config> {
+impl<'config> ServiceBuilding<'config> {
     pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
         let config = configs.find::<ServiceConfig>(kind);
         Self {
@@ -36,13 +36,36 @@ impl<'config> ServiceState<'config> {
             goods_stock: ConsumerGoodsStock::new(),
         }
     }
+
+    pub fn shop(&mut self, shopping_basket: &mut ConsumerGoodsStock, shopping_list: &ConsumerGoodsList, all_or_nothing: bool) {
+        if all_or_nothing {
+            for wanted_item in shopping_list.iter() {
+                if !self.goods_stock.has(*wanted_item) {
+                    return; // If any item is missing we take nothing.
+                }
+            }      
+        }
+
+        for wanted_item in shopping_list.iter() {
+            if let Some(stock_item) = self.goods_stock.consume(*wanted_item) {
+                shopping_basket.add(stock_item);
+            }
+        }
+    }
 }
 
-impl<'config> BuildingBehavior<'config> for ServiceState<'config> {
+impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     fn update(&mut self, _update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, _delta_time_secs: f32) {
     }
 
-    fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        if ui.collapsing_header("Stock##_building_stock", imgui::TreeNodeFlags::empty()) {
+            for (index, good) in self.goods_stock.iter_mut().enumerate() {
+                ui.input_scalar(format!("{}##_stock_item_{}", good.kind, index), &mut good.count).step(1).build();
+            }
+        }
     }
 }
 
