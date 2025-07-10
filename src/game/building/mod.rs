@@ -1,7 +1,7 @@
 use std::fmt;
 use slab::Slab;
 use rand::Rng;
-use bitflags::bitflags;
+use bitflags::{bitflags, Flags};
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
 
@@ -210,17 +210,36 @@ bitflags_with_display! {
 }
 
 impl BuildingKind {
+    #[inline] pub const fn count() -> usize { Self::FLAGS.len() }
+
+    #[inline] pub const fn producer_count() -> usize { 0 }
+    #[inline] pub fn producers() -> BuildingKind {
+        todo!(); // TODO!
+    }
+
+    #[inline] pub const fn storage_count() -> usize { 0 }
+    #[inline] pub const fn storage() -> BuildingKind {
+        todo!(); // TODO!
+    }
+
+    #[inline] pub const fn services_count() -> usize { 3 }
+    #[inline] pub fn services() -> BuildingKind {
+        Self::WellSmall |
+        Self::WellBig   |
+        Self::Market
+    }
+
     #[inline]
     pub fn from_game_state_handle(handle: GameStateHandle) -> Self {
-        BuildingKind::from_bits(handle.kind())
+        Self::from_bits(handle.kind())
             .expect("GameStateHandle does not contain a valid BuildingKind enum value!")
     }
 
     #[inline]
     pub fn archetype_kind(self) -> BuildingArchetypeKind {
-        if self.intersects(BuildingKind::House) {
+        if self.intersects(Self::House) {
             BuildingArchetypeKind::House
-        } else if self.intersects(BuildingKind::WellSmall | BuildingKind::WellBig | BuildingKind::Market) {
+        } else if self.intersects(Self::services()) {
             BuildingArchetypeKind::Service
         } else {
             panic!("Unknown archetype for building kind: {:?}", self);

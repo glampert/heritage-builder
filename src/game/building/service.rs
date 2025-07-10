@@ -47,7 +47,7 @@ impl<'config> ServiceBuilding<'config> {
         }
 
         for wanted_item in shopping_list.iter() {
-            if let Some(stock_item) = self.goods_stock.consume(*wanted_item) {
+            if let Some(stock_item) = self.goods_stock.remove(*wanted_item) {
                 shopping_basket.add(stock_item);
             }
         }
@@ -60,6 +60,10 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
 
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
+
+        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
+            self.config.draw_debug_ui(ui_sys);
+        }
 
         if ui.collapsing_header("Stock##_building_stock", imgui::TreeNodeFlags::empty()) {
             for (index, good) in self.goods_stock.iter_mut().enumerate() {
@@ -84,4 +88,15 @@ pub struct ServiceConfig {
 
     // Kinds of goods required for the service to run, if any.
     pub goods_required: ConsumerGoodsList,
+}
+
+impl ServiceConfig {
+    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        ui.text(format!("Tile def name..: {}", self.tile_def_name));
+        ui.text(format!("Min workers....: {}", self.min_workers));
+        ui.text(format!("Max workers....: {}", self.max_workers));
+        ui.text(format!("Effect radius..: {}", self.effect_radius));
+        ui.text(format!("Goods required.: {}", self.goods_required));
+    }
 }

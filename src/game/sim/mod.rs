@@ -134,17 +134,12 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
         self.tile_map.find_tile_mut(cell, layer, tile_kinds)
     }
 
-    pub fn is_near_building(&self, start_cells: CellRange, kind: BuildingKind, radius_in_cells: i32) -> bool {
-        debug_assert!(start_cells.is_valid());
-        debug_assert!(radius_in_cells > 0);
+    pub fn is_near_building(&self,
+                            start_cells: CellRange,
+                            kind: BuildingKind,
+                            radius_in_cells: i32) -> bool {
 
-        let search_range = {
-            let start_x = start_cells.start.x - radius_in_cells;
-            let start_y = start_cells.start.y - radius_in_cells;
-            let end_x   = start_cells.end.x   + radius_in_cells;
-            let end_y   = start_cells.end.y   + radius_in_cells;
-            CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))  
-        };
+        let search_range = Self::calc_search_range(start_cells, radius_in_cells);
 
         for search_cell in &search_range {
             if let Some(search_tile) =
@@ -167,16 +162,7 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
                                      kind: BuildingKind,
                                      radius_in_cells: i32) -> Option<&mut Building<'config>> {
 
-        debug_assert!(start_cells.is_valid());
-        debug_assert!(radius_in_cells > 0);
-
-        let search_range = {
-            let start_x = start_cells.start.x - radius_in_cells;
-            let start_y = start_cells.start.y - radius_in_cells;
-            let end_x   = start_cells.end.x   + radius_in_cells;
-            let end_y   = start_cells.end.y   + radius_in_cells;
-            CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))  
-        };
+        let search_range = Self::calc_search_range(start_cells, radius_in_cells);
 
         for search_cell in &search_range {
             if let Some(search_tile) =
@@ -192,5 +178,17 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
         }
 
         None
+    }
+
+    #[inline]
+    fn calc_search_range(start_cells: CellRange, radius_in_cells: i32) -> CellRange {
+        debug_assert!(start_cells.is_valid());
+        debug_assert!(radius_in_cells > 0);
+
+        let start_x = start_cells.start.x - radius_in_cells;
+        let start_y = start_cells.start.y - radius_in_cells;
+        let end_x   = start_cells.end.x   + radius_in_cells;
+        let end_y   = start_cells.end.y   + radius_in_cells;
+        CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))
     }
 }

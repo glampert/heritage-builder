@@ -29,6 +29,22 @@ use super::{
 };
 
 // ----------------------------------------------
+// TODO List:
+// ----------------------------------------------
+
+// - Merge neighboring houses into larger ones when upgrading.
+//   Also have to update is_upgrade_available() to handle this!
+//
+// - Goods should have individual rates of consumption. Some
+//   kinds of goods are consumed slower/faster than others.
+//
+// - Goods consumption rate should be expressed in units per day.
+// - The house occupancy should also influence the goods consumption rate.
+//
+// - Allow houses to stock up on more than 1 unit of each kind of goods?
+//   Could allow stocking up to a maximum number of units.
+
+// ----------------------------------------------
 // Constants
 // ----------------------------------------------
 
@@ -78,16 +94,14 @@ impl<'config> HouseBuilding<'config> {
 
         if !curr_level_goods_required.is_empty() || !next_level_goods_required.is_empty() {
             // Consume one of each goods this level uses.
-            for goods in curr_level_goods_required.iter() {
-                // Break down goods that are ORed together.
-                for wanted_good in *goods {
-                    if self.goods_stock.consume(wanted_good).is_some() {
-                        // We consumed one, done.
-                        // E.g.: goods = Meat|Fish, consume one of either.
-                        break;
-                    }
+            curr_level_goods_required.for_each(|good| {
+                if self.goods_stock.remove(good).is_some() {
+                    // We consumed one, done.
+                    // E.g.: goods = Meat|Fish, consume one of either.
+                    return false;
                 }
-            }
+                true
+            });
 
             let upgrade_available = self.upgrade_state.is_upgrade_available(update_ctx);
 
@@ -96,7 +110,8 @@ impl<'config> HouseBuilding<'config> {
                 update_ctx.find_nearest_service_mut(BuildingKind::Market) {
 
                 // Shop for goods needed for this level.
-                market.shop(&mut self.goods_stock, &curr_level_goods_required, false);
+                let all_or_nothing = false;
+                market.shop(&mut self.goods_stock, &curr_level_goods_required, all_or_nothing);
 
                 // And if we have space to upgrade, shop for goods needed for the next level, so we can advance.
                 // But only take any if we have the whole shopping list. No point in shopping partially since we
@@ -112,7 +127,8 @@ impl<'config> HouseBuilding<'config> {
                         }
                     }
 
-                    market.shop(&mut self.goods_stock, &next_level_shopping_list, true);
+                    let all_or_nothing = true;
+                    market.shop(&mut self.goods_stock, &next_level_shopping_list, all_or_nothing);
                 }
             }
         }
@@ -129,6 +145,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
+
+        if ui.collapsing_header(format!("Config ({:?})##_building_config", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
+            self.upgrade_state.curr_level_requirements.level_config.draw_debug_ui(ui_sys);
+        }
 
         if !ui.collapsing_header(format!("Upgrade##_building_upgrade"), imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -312,6 +332,17 @@ pub struct HouseLevelConfig {
     pub goods_required: ConsumerGoodsList,
 }
 
+impl HouseLevelConfig {
+    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        ui.text(format!("Tile def name.....: {}", self.tile_def_name));
+        ui.text(format!("Max residents.....: {}", self.max_residents));
+        ui.text(format!("Tax generated.....: {}", self.tax_generated));
+        ui.text(format!("Services required.: {}", self.services_required));
+        ui.text(format!("Goods required....: {}", self.goods_required));
+    }
+}
+
 // ----------------------------------------------
 // HouseLevelRequirements
 // ----------------------------------------------
@@ -358,24 +389,20 @@ impl<'config> HouseLevelRequirements<'config> {
               goods_stock: &ConsumerGoodsStock) {
 
         self.services_available.clear();
-        for services in self.level_config.services_required.iter() {
-            // Break down services that are ORed together.
-            for wanted_service in *services {
-                if update_ctx.has_access_to_service(wanted_service) {
-                    self.services_available.add(wanted_service);
-                }
+        self.level_config.services_required.for_each(|service| {
+            if update_ctx.has_access_to_service(service) {
+                self.services_available.add(service);
             }
-        }
+            true
+        });
 
         self.goods_available.clear();
-        for goods in self.level_config.goods_required.iter() {
-            // Break down goods that are ORed together.
-            for wanted_good in *goods {
-                if goods_stock.has(wanted_good) {
-                    self.goods_available.add(wanted_good);
-                }
+        self.level_config.goods_required.for_each(|good| {
+            if goods_stock.has(good) {
+                self.goods_available.add(good);
             }
-        }
+            true
+        });
     }
 }
 
@@ -479,9 +506,6 @@ impl<'config> HouseUpgradeState<'config> {
         !self.curr_level_requirements.has_all_required_services() ||
         !self.curr_level_requirements.has_all_required_consumer_goods()
     }
-
-    // TODO: Merge neighboring houses into larger ones when upgrading.
-    // Also have to update is_upgrade_available() to handle this!
 
     fn try_upgrade(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
         let mut tile_placed_successfully = false;

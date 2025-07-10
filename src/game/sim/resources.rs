@@ -1,7 +1,7 @@
 use core::slice::{Iter, IterMut};
-use arrayvec::ArrayVec;
-use smallvec::SmallVec;
 use bitflags::{bitflags, Flags};
+use arrayvec::ArrayVec;
+use std::fmt::Display;
 
 use crate::{
     bitflags_with_display,
@@ -13,7 +13,7 @@ use crate::{
 // ----------------------------------------------
 
 pub struct StockItem<T> {
-    pub kind: T,
+    pub kind: T, // This is always a single bitflag; never multiple ORed together.
     pub count: u32,
 }
 
@@ -23,7 +23,7 @@ pub struct Stock<T, const CAPACITY: usize> {
 
 impl<T, const CAPACITY: usize> Stock<T, CAPACITY> 
     where
-        T: Copy + std::fmt::Display + bitflags::Flags
+        T: Copy + Display + bitflags::Flags
 {
     #[inline]
     pub fn new() -> Self {
@@ -54,6 +54,23 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        for item in &self.items {
+            if item.count != 0 {
+                return false;
+            }
+        }
+        true
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        for item in &mut self.items {
+            item.count = 0;
+        }
+    }
+
+    #[inline]
     pub fn has(&self, wanted: T) -> bool {
         for item in &self.items {
             if item.kind.intersects(wanted) && item.count != 0 {
@@ -64,7 +81,18 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     }
 
     #[inline]
-    pub fn consume(&mut self, wanted: T) -> Option<T> {
+    pub fn add(&mut self, new_item: T) {
+        for item in &mut self.items {
+            if item.kind.intersects(new_item) {
+                item.count += 1;
+                return;
+            }
+        }
+        panic!("Failed to add item '{}' to Stock!", new_item);
+    }
+
+    #[inline]
+    pub fn remove(&mut self, wanted: T) -> Option<T> {
         for item in &mut self.items {
             if item.kind.intersects(wanted) && item.count != 0 {
                 item.count -= 1;
@@ -73,43 +101,31 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
         }
         None
     }
-
-    #[inline]
-    pub fn add(&mut self, new: T) {
-        for item in &mut self.items {
-            if item.kind.intersects(new) {
-                item.count += 1;
-                return;
-            }
-        }
-        panic!("Failed to add item '{}' to Stock!", new);
-    }
 }
 
 // ----------------------------------------------
 // List generic
 // ----------------------------------------------
 
-#[derive(Debug)]
-pub struct List<T> {
-    items: SmallVec<[T; 1]>,
+pub struct List<T, const CAPACITY: usize> {
+    items: ArrayVec<T, CAPACITY>, // Each item can be a single bitflag or multiple ORed together.
 }
 
-impl<T> List<T> 
+impl<T, const CAPACITY: usize> List<T, CAPACITY> 
     where 
-        T: Copy + bitflags::Flags
+        T: Copy + Display + bitflags::Flags
 {
     #[inline]
     pub fn new() -> Self {
         Self {
-            items: SmallVec::new(),
+            items: ArrayVec::new(),
         }
     }
 
     #[inline]
     pub fn from_slice(items: &[T]) -> Self {
         Self {
-            items: SmallVec::from_slice(items),
+            items: ArrayVec::try_from(items).expect("Cannot fit all items into FlagsList!"),
         }
     }
 
@@ -119,13 +135,18 @@ impl<T> List<T>
     }
 
     #[inline]
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
     #[inline]
-    pub fn len(&self) -> usize {
-        self.items.len()
+    pub fn clear(&mut self) {
+        self.items.clear();
     }
 
     #[inline]
@@ -139,13 +160,45 @@ impl<T> List<T>
     }
 
     #[inline]
-    pub fn clear(&mut self) {
-        self.items.clear();
+    pub fn add(&mut self, new_item: T) {
+        debug_assert!(!self.has(new_item));
+        self.items.push(new_item);
     }
 
+    // This will break down any flags that are ORed together into
+    // individual calls to visitor_fn, unlike iter() which yields
+    // combined flags as they are.
     #[inline]
-    pub fn add(&mut self, new: T) {
-        self.items.push(new);
+    pub fn for_each<F>(&self, mut visitor_fn: F)
+        where F: FnMut(T) -> bool
+    {
+        for items in &self.items {
+            // Break down items that are ORed together (T is bitflags).
+            for single_item in items.iter() {
+                if !visitor_fn(single_item) {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+impl<T, const CAPACITY: usize> Display for List<T, CAPACITY>
+    where 
+    T: Copy + Display + bitflags::Flags
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        write!(f, "[")?;
+        for items in &self.items {
+            if !first {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", items)?;
+            first = false
+        }
+        write!(f, "]")?;
+        Ok(())
     }
 }
 
@@ -164,13 +217,13 @@ bitflags_with_display! {
 impl RawMaterialKind {
     #[inline]
     pub const fn count() -> usize {
-        RawMaterialKind::FLAGS.len()
+        Self::FLAGS.len()
     }
 }
 
 const RAW_MATERIAL_COUNT: usize = RawMaterialKind::count();
 pub type RawMaterialsStock = Stock<RawMaterialKind, RAW_MATERIAL_COUNT>;
-pub type RawMaterialsList  = List<RawMaterialKind>;
+pub type RawMaterialsList  = List<RawMaterialKind,  RAW_MATERIAL_COUNT>;
 
 // ----------------------------------------------
 // Consumer Goods
@@ -189,26 +242,27 @@ bitflags_with_display! {
 impl ConsumerGoodKind {
     #[inline]
     pub const fn count() -> usize {
-        ConsumerGoodKind::FLAGS.len()
+        Self::FLAGS.len()
     }
 
     #[inline]
     pub fn any_food() -> Self {
-        ConsumerGoodKind::Rice |
-        ConsumerGoodKind::Meat |
-        ConsumerGoodKind::Fish
+        Self::Rice |
+        Self::Meat |
+        Self::Fish
     }
 }
 
 const CONSUMER_GOOD_COUNT: usize = ConsumerGoodKind::count();
 pub type ConsumerGoodsStock = Stock<ConsumerGoodKind, CONSUMER_GOOD_COUNT>;
-pub type ConsumerGoodsList  = List<ConsumerGoodKind>;
+pub type ConsumerGoodsList  = List<ConsumerGoodKind,  CONSUMER_GOOD_COUNT>;
 
 // ----------------------------------------------
 // Services
 // ----------------------------------------------
 
-pub type ServicesList = List<BuildingKind>;
+const SERVICES_COUNT: usize = BuildingKind::services_count();
+pub type ServicesList = List<BuildingKind, SERVICES_COUNT>;
 
 // ----------------------------------------------
 // Workers
