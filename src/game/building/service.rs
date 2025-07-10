@@ -12,7 +12,7 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingUpdateContext,
-    config::{BuildingConfigs}
+    config::BuildingConfigs
 };
 
 // ----------------------------------------------
@@ -33,7 +33,7 @@ impl<'config> ServiceBuilding<'config> {
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
-            goods_stock: ConsumerGoodsStock::new(),
+            goods_stock: ConsumerGoodsStock::new(&config.goods_required),
         }
     }
 
@@ -65,11 +65,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
             self.config.draw_debug_ui(ui_sys);
         }
 
-        if ui.collapsing_header("Stock##_building_stock", imgui::TreeNodeFlags::empty()) {
-            for (index, good) in self.goods_stock.iter_mut().enumerate() {
-                ui.input_scalar(format!("{}##_stock_item_{}", good.kind, index), &mut good.count).step(1).build();
-            }
-        }
+        self.goods_stock.draw_debug_ui("Stock", ui_sys);
     }
 }
 
@@ -93,7 +89,7 @@ pub struct ServiceConfig {
 impl ServiceConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        ui.text(format!("Tile def name..: {}", self.tile_def_name));
+        ui.text(format!("Tile def name..: '{}'", self.tile_def_name));
         ui.text(format!("Min workers....: {}", self.min_workers));
         ui.text(format!("Max workers....: {}", self.max_workers));
         ui.text(format!("Effect radius..: {}", self.effect_radius));

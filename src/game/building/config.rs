@@ -1,6 +1,6 @@
 use crate::{
-    tile::map::Tile,
     utils::hash::{self},
+    tile::map::Tile,
     game::sim::resources::{
         ConsumerGoodKind,
         ConsumerGoodsList,
@@ -20,7 +20,8 @@ use super::{
     },
     producer::{
         ProducerConfig,
-        ProducerOutputKind
+        ProducerOutputKind,
+        ProducerBuilding
     },
     service::{
         ServiceBuilding,
@@ -36,14 +37,14 @@ use super::{
 // ----------------------------------------------
 
 pub struct BuildingConfigs {
-    // Temporary
+    // TODO: Temporary
     house0: HouseLevelConfig,
     house1: HouseLevelConfig,
     house2: HouseLevelConfig,
     service_well_small: ServiceConfig,
     service_well_big: ServiceConfig,
     service_market: ServiceConfig,
-    dummy_producer: ProducerConfig,
+    producer_farm: ProducerConfig,
     dummy_storage: StorageConfig,
 }
 
@@ -56,26 +57,26 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house0"),
                 max_residents: 2,
                 tax_generated: 0,
-                services_required: ServicesList::new(),
-                goods_required: ConsumerGoodsList::new(),        
+                services_required: ServicesList::empty(),
+                goods_required: ConsumerGoodsList::empty(),        
             },
             house1: HouseLevelConfig {
                 tile_def_name: "house1".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("house1"),
                 max_residents: 4,
                 tax_generated: 1,
-                services_required: ServicesList::from_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
+                services_required: ServicesList::new(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
                 // Any 1 kind of food.
-                goods_required: ConsumerGoodsList::from_slice(&[ConsumerGoodKind::any_food()]),
+                goods_required: ConsumerGoodsList::new(&[ConsumerGoodKind::any_food()]),
             },
             house2: HouseLevelConfig {
                 tile_def_name: "house2".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("house2"),
                 max_residents: 6,
                 tax_generated: 2,
-                services_required: ServicesList::from_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
+                services_required: ServicesList::new(&[BuildingKind::WellBig, BuildingKind::Market]),
                 // 2 kinds of food required: Rice + meat or fish.
-                goods_required: ConsumerGoodsList::from_slice(&[ConsumerGoodKind::Rice, ConsumerGoodKind::Meat | ConsumerGoodKind::Fish]),
+                goods_required: ConsumerGoodsList::new(&[ConsumerGoodKind::Rice, ConsumerGoodKind::Meat | ConsumerGoodKind::Fish]),
             },
             service_well_small: ServiceConfig {
                 tile_def_name: "well_small".to_string(),
@@ -83,7 +84,7 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 3,
-                goods_required: ConsumerGoodsList::new(),
+                goods_required: ConsumerGoodsList::empty(),
             },
             service_well_big: ServiceConfig {
                 tile_def_name: "well_big".to_string(),
@@ -91,7 +92,7 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 5,
-                goods_required: ConsumerGoodsList::new(),
+                goods_required: ConsumerGoodsList::empty(),
             },
             service_market: ServiceConfig {
                 tile_def_name: "market".to_string(),
@@ -99,23 +100,25 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 5,
-                goods_required: ConsumerGoodsList::new(),
+                goods_required: ConsumerGoodsList::all(),
             },
-            dummy_producer: ProducerConfig {
-                tile_def_name: "producer".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("producer"),
+            producer_farm: ProducerConfig {
+                tile_def_name: "rice_farm".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
                 min_workers: 0,
                 max_workers: 1,
                 production_output: ProducerOutputKind::ConsumerGood(ConsumerGoodKind::Rice),
-                raw_materials_required: RawMaterialsList::new(),
+                production_capacity: 5,
+                raw_materials_required: RawMaterialsList::empty(),
+                raw_materials_capacity: 5,
             },
             dummy_storage: StorageConfig {
                 tile_def_name: "storage".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("storage"),
                 min_workers: 0,
                 max_workers: 1,
-                goods_accepted: ConsumerGoodsList::new(),
-                raw_materials_accepted: RawMaterialsList::new()
+                goods_accepted: ConsumerGoodsList::empty(),
+                raw_materials_accepted: RawMaterialsList::empty()
             }
         }
     }
@@ -139,8 +142,10 @@ pub trait BuildingConfigLookup {
 }
 
 impl BuildingConfigLookup for ProducerConfig {
-    fn find<'config>(configs: &'config BuildingConfigs, _kind: BuildingKind) -> &'config Self {
-        &configs.dummy_producer
+    fn find<'config>(configs: &'config BuildingConfigs, kind: BuildingKind) -> &'config Self {
+        if kind == BuildingKind::Farm {
+            &configs.producer_farm
+        } else { panic!("No producer!") }
     }
 }
 
@@ -199,6 +204,14 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> B
             tile.cell_range(),
             configs,
             BuildingArchetype::new_house(HouseBuilding::new(HouseLevel::Level0, configs))
+        )
+    } else if tile.name() == "rice_farm" {
+        Building::new(
+            "Rice Farm",
+            BuildingKind::Farm,
+            tile.cell_range(),
+            configs,
+            BuildingArchetype::new_producer(ProducerBuilding::new(BuildingKind::Farm, configs))
         )
     } else {
         panic!("Unknown building tile!")

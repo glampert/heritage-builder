@@ -5,6 +5,7 @@ use std::fmt::Display;
 
 use crate::{
     bitflags_with_display,
+    imgui_ui::UiSystem,
     game::building::BuildingKind
 };
 
@@ -26,13 +27,26 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
         T: Copy + Display + bitflags::Flags
 {
     #[inline]
-    pub fn new() -> Self {
+    pub fn new(items_accepted: &List<T, CAPACITY>) -> Self {
         let mut stock = Self {
             items: ArrayVec::new(),
         };
 
-        for kind in T::FLAGS.iter() {
-            stock.items.push(StockItem { kind: *kind.value(), count: 0 });
+        for item in items_accepted.iter() {
+            stock.items.push(StockItem { kind: *item, count: 0 });
+        }
+
+        stock
+    }
+
+    #[inline]
+    pub fn accept_all() -> Self {
+        let mut stock = Self {
+            items: ArrayVec::new(),
+        };
+
+        for item in T::FLAGS.iter() {
+            stock.items.push(StockItem { kind: *item.value(), count: 0 });
         }
 
         stock
@@ -81,6 +95,16 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     }
 
     #[inline]
+    pub fn count(&mut self, wanted: T) -> u32 {
+        for item in &self.items {
+            if item.kind.intersects(wanted) {
+                return item.count;
+            }
+        }
+        panic!("Failed to find item '{}' to Stock!", wanted);
+    }
+
+    #[inline]
     pub fn add(&mut self, new_item: T) {
         for item in &mut self.items {
             if item.kind.intersects(new_item) {
@@ -101,6 +125,32 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
         }
         None
     }
+
+    pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header(format!("{}##_resource_stock", label), imgui::TreeNodeFlags::empty()) {
+            for (index, item) in self.iter_mut().enumerate() {
+                ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count)
+                    .step(1)
+                    .build();
+            }
+        }
+    }
+
+    pub fn draw_debug_ui_filtered<F>(&mut self, label: &str, ui_sys: &UiSystem, filter_fn: F)
+        where F: Fn(&StockItem<T>) -> bool
+    {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header(format!("{}##_resource_stock", label), imgui::TreeNodeFlags::empty()) {
+            for (index, item) in self.iter_mut().enumerate() {
+                if filter_fn(item) {
+                    ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count)
+                        .step(1)
+                        .build();
+                }
+            }
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -116,16 +166,29 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
         T: Copy + Display + bitflags::Flags
 {
     #[inline]
-    pub fn new() -> Self {
+    pub fn empty() -> Self {
         Self {
             items: ArrayVec::new(),
         }
     }
 
     #[inline]
-    pub fn from_slice(items: &[T]) -> Self {
+    pub fn all() -> Self {
+        let mut list = Self {
+            items: ArrayVec::new(),
+        };
+
+        for item in T::FLAGS.iter() {
+            list.items.push(*item.value());
+        }
+
+        list
+    }
+
+    #[inline]
+    pub fn new(items: &[T]) -> Self {
         Self {
-            items: ArrayVec::try_from(items).expect("Cannot fit all items into FlagsList!"),
+            items: ArrayVec::try_from(items).expect("Cannot fit all items into List!"),
         }
     }
 
@@ -187,7 +250,7 @@ impl<T, const CAPACITY: usize> Display for List<T, CAPACITY>
     where 
     T: Copy + Display + bitflags::Flags
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut first = true;
         write!(f, "[")?;
         for items in &self.items {

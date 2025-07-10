@@ -32,6 +32,8 @@ use super::{
 // TODO List:
 // ----------------------------------------------
 
+// - Implement house population & tax income.
+//
 // - Merge neighboring houses into larger ones when upgrading.
 //   Also have to update is_upgrade_available() to handle this!
 //
@@ -49,7 +51,7 @@ use super::{
 // ----------------------------------------------
 
 const UPGRADE_FREQUENCY_SECS: f32 = 10.0;
-const GOODS_CONSUMPTION_FREQUENCY_SECS: f32 = 20.0;
+const GOODS_CONSUMPTION_FREQUENCY_SECS: f32 = 20.0; // TODO: days_to_seconds(x)
 
 // ----------------------------------------------
 // HouseBuilding
@@ -73,8 +75,9 @@ impl<'config> HouseBuilding<'config> {
     pub fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
         Self {
             upgrade_state: HouseUpgradeState::new(level, configs),
-            goods_stock: ConsumerGoodsStock::new(),
+            goods_stock: ConsumerGoodsStock::accept_all(),
             time_since_last_goods_consumed_secs: 0.0,
+            // Debug flags:
             freeze_goods_consumption: false,
         }
     }
@@ -117,7 +120,7 @@ impl<'config> HouseBuilding<'config> {
                 // But only take any if we have the whole shopping list. No point in shopping partially since we
                 // wouldn't be able to upgrade and would wasted those goods.
                 if upgrade_available {
-                    let mut next_level_shopping_list = ConsumerGoodsList::new();
+                    let mut next_level_shopping_list = ConsumerGoodsList::empty();
 
                     // We've already shopped for goods in the current level list,
                     // so take only the ones that are exclusive to the next level.
@@ -150,106 +153,8 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
             self.upgrade_state.curr_level_requirements.level_config.draw_debug_ui(ui_sys);
         }
 
-        if !ui.collapsing_header(format!("Upgrade##_building_upgrade"), imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        let draw_level_requirements = 
-            |label: &str, level_requirements: &mut HouseLevelRequirements<'config>, next_imgui_id: u32| {
-
-            ui.separator();
-            ui.text(label);
-
-            ui.text(format!("  Goods avail....: {} (req: {})",
-                level_requirements.goods_available.len(),
-                level_requirements.level_config.goods_required.len()));
-            ui.text(format!("  Services avail.: {} (req: {})",
-                level_requirements.services_available.len(),
-                level_requirements.level_config.services_required.len()));
-
-            if ui.collapsing_header(format!("Goods##_building_goods_{}", next_imgui_id), imgui::TreeNodeFlags::empty()) {
-                if !level_requirements.level_config.goods_required.is_empty() {
-                    ui.text("Available:");
-                    if level_requirements.goods_available.is_empty() {
-                        ui.text("  <none>");
-                    }
-                    for good in level_requirements.goods_available.iter() {
-                        ui.text(format!("  {}", good));
-                    }
-                }
-
-                ui.text("Required:");
-                if level_requirements.level_config.goods_required.is_empty() {
-                    ui.text("  <none>");
-                }
-                for good in level_requirements.level_config.goods_required.iter() {
-                    ui.text(format!("  {}", good));
-                }
-            }
-
-            if ui.collapsing_header(format!("Services##_building_services_{}", next_imgui_id), imgui::TreeNodeFlags::empty()) {
-                if !level_requirements.level_config.services_required.is_empty() {
-                    ui.text("Available:");
-                    if level_requirements.services_available.is_empty() {
-                        ui.text("  <none>");
-                    }
-                    for service in level_requirements.services_available.iter() {
-                        ui.text(format!("  {}", service));
-                    }
-                }
-
-                ui.text("Required:");
-                if level_requirements.level_config.services_required.is_empty() {
-                    ui.text("  <none>");
-                }
-                for service in level_requirements.level_config.services_required.iter() {
-                    ui.text(format!("  {}", service));
-                }
-            }
-        };
-
-        let color_text = |text: &str, value: bool| {
-            ui.text(text);
-            ui.same_line();
-            if value {
-                ui.text("yes");
-            } else {
-                ui.text_colored(Color::red().to_array(), "no");
-            }
-        };
-
-        let upgrade_state = &mut self.upgrade_state;
-
-        ui.checkbox("Force refresh level reqs", &mut upgrade_state.force_refresh_level_requirements);
-        ui.checkbox("Freeze level changes", &mut upgrade_state.freeze_level_change);
-        ui.checkbox("Freeze goods consumption", &mut self.freeze_goods_consumption);
-        ui.text(format!("Level...........: {:?}", upgrade_state.level));
-
-        ui.text("Upgrade:");
-        ui.text(format!("  Frequency.....: {:.2}s", UPGRADE_FREQUENCY_SECS));
-        ui.text(format!("  Time since....: {:.2}s", upgrade_state.time_since_last_upgrade_secs));
-        color_text("  Has room......:", upgrade_state.has_room_to_upgrade);
-        color_text("  Has services..:", upgrade_state.next_level_requirements.has_all_required_services());
-        color_text("  Has goods.....:", upgrade_state.next_level_requirements.has_all_required_consumer_goods());
-
-        ui.text("Goods Consumption:");
-        ui.text(format!("  Frequency.....: {:.2}s", GOODS_CONSUMPTION_FREQUENCY_SECS));
-        ui.text(format!("  Time since....: {:.2}s", self.time_since_last_goods_consumed_secs));
-
-        if ui.collapsing_header("Stock##_building_stock", imgui::TreeNodeFlags::empty()) {
-            for (index, good) in self.goods_stock.iter_mut().enumerate() {
-                ui.input_scalar(format!("{}##_stock_item_{}", good.kind, index), &mut good.count).step(1).build();
-            }
-        }
-
-        draw_level_requirements(
-            &format!("Curr level reqs ({:?}):", upgrade_state.level),
-            &mut upgrade_state.curr_level_requirements, 0);
-
-        if !upgrade_state.level.is_max() {
-            draw_level_requirements(
-                &format!("Next level reqs ({:?}):", upgrade_state.level.next()),
-                &mut upgrade_state.next_level_requirements, 1);
+        if ui.collapsing_header(format!("Upgrade##_building_upgrade"), imgui::TreeNodeFlags::empty()) {
+            HouseUpgradeState::draw_debug_ui(self, ui_sys);
         }
     }
 }
@@ -335,7 +240,7 @@ pub struct HouseLevelConfig {
 impl HouseLevelConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        ui.text(format!("Tile def name.....: {}", self.tile_def_name));
+        ui.text(format!("Tile def name.....: '{}'", self.tile_def_name));
         ui.text(format!("Max residents.....: {}", self.max_residents));
         ui.text(format!("Tax generated.....: {}", self.tax_generated));
         ui.text(format!("Services required.: {}", self.services_required));
@@ -436,13 +341,13 @@ impl<'config> HouseUpgradeState<'config> {
             level: level,
             curr_level_requirements: HouseLevelRequirements {
                 level_config: configs.find_house_level(level),
-                services_available: ServicesList::new(),
-                goods_available: ConsumerGoodsList::new(),
+                services_available: ServicesList::empty(),
+                goods_available: ConsumerGoodsList::empty(),
             },
             next_level_requirements: HouseLevelRequirements {
                 level_config: configs.find_house_level(level.next()),
-                services_available: ServicesList::new(),
-                goods_available: ConsumerGoodsList::new(),
+                services_available: ServicesList::empty(),
+                goods_available: ConsumerGoodsList::empty(),
             },
             time_since_last_upgrade_secs: 0.0,
             has_room_to_upgrade: true,
@@ -457,28 +362,29 @@ impl<'config> HouseUpgradeState<'config> {
               goods_stock: &ConsumerGoodsStock,
               delta_time_secs: f32) {
 
+        if self.time_since_last_upgrade_secs < UPGRADE_FREQUENCY_SECS {
+            self.time_since_last_upgrade_secs += delta_time_secs;
+            return;
+        }
+
         if self.can_upgrade(update_ctx, goods_stock) {
             self.try_upgrade(update_ctx);
         } else if self.can_downgrade(update_ctx, goods_stock) {
             self.try_downgrade(update_ctx);
         } else {
-            self.time_since_last_upgrade_secs += delta_time_secs;
-
             if self.force_refresh_level_requirements {
                 self.curr_level_requirements.update(update_ctx, goods_stock);
                 self.next_level_requirements.update(update_ctx, goods_stock);
             }
         }
+
+        self.time_since_last_upgrade_secs = 0.0;
     }
 
     fn can_upgrade(&mut self,
                    update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
                    goods_stock: &ConsumerGoodsStock) -> bool {
         if self.level.is_max() || self.freeze_level_change {
-            return false;
-        }
-
-        if self.time_since_last_upgrade_secs < UPGRADE_FREQUENCY_SECS {
             return false;
         }
 
@@ -493,10 +399,6 @@ impl<'config> HouseUpgradeState<'config> {
                      update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
                      goods_stock: &ConsumerGoodsStock) -> bool {
         if self.level.is_min() || self.freeze_level_change {
-            return false;
-        }
-
-        if self.time_since_last_upgrade_secs < UPGRADE_FREQUENCY_SECS {
             return false;
         }
 
@@ -652,5 +554,103 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         true
+    }
+
+    fn draw_debug_ui(house: &mut HouseBuilding<'config>, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        let draw_level_requirements = 
+            |label: &str, level_requirements: &mut HouseLevelRequirements<'config>, imgui_id: u32| {
+
+            ui.separator();
+            ui.text(label);
+
+            ui.text(format!("  Goods avail....: {} (req: {})",
+                level_requirements.goods_available.len(),
+                level_requirements.level_config.goods_required.len()));
+            ui.text(format!("  Services avail.: {} (req: {})",
+                level_requirements.services_available.len(),
+                level_requirements.level_config.services_required.len()));
+
+            if ui.collapsing_header(format!("Goods##_building_goods_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
+                if !level_requirements.level_config.goods_required.is_empty() {
+                    ui.text("Available:");
+                    if level_requirements.goods_available.is_empty() {
+                        ui.text("  <none>");
+                    }
+                    for good in level_requirements.goods_available.iter() {
+                        ui.text(format!("  {}", good));
+                    }
+                }
+
+                ui.text("Required:");
+                if level_requirements.level_config.goods_required.is_empty() {
+                    ui.text("  <none>");
+                }
+                for good in level_requirements.level_config.goods_required.iter() {
+                    ui.text(format!("  {}", good));
+                }
+            }
+
+            if ui.collapsing_header(format!("Services##_building_services_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
+                if !level_requirements.level_config.services_required.is_empty() {
+                    ui.text("Available:");
+                    if level_requirements.services_available.is_empty() {
+                        ui.text("  <none>");
+                    }
+                    for service in level_requirements.services_available.iter() {
+                        ui.text(format!("  {}", service));
+                    }
+                }
+
+                ui.text("Required:");
+                if level_requirements.level_config.services_required.is_empty() {
+                    ui.text("  <none>");
+                }
+                for service in level_requirements.level_config.services_required.iter() {
+                    ui.text(format!("  {}", service));
+                }
+            }
+        };
+
+        let color_text = |text: &str, value: bool| {
+            ui.text(text);
+            ui.same_line();
+            if value {
+                ui.text("yes");
+            } else {
+                ui.text_colored(Color::red().to_array(), "no");
+            }
+        };
+
+        let upgrade_state = &mut house.upgrade_state;
+
+        ui.checkbox("Force refresh level reqs", &mut upgrade_state.force_refresh_level_requirements);
+        ui.checkbox("Freeze level changes", &mut upgrade_state.freeze_level_change);
+        ui.checkbox("Freeze goods consumption", &mut house.freeze_goods_consumption);
+        ui.text(format!("Level...........: {:?}", upgrade_state.level));
+
+        ui.text("Upgrade:");
+        ui.text(format!("  Frequency.....: {:.2}s", UPGRADE_FREQUENCY_SECS));
+        ui.text(format!("  Time since....: {:.2}s", upgrade_state.time_since_last_upgrade_secs));
+        color_text("  Has room......:", upgrade_state.has_room_to_upgrade);
+        color_text("  Has services..:", upgrade_state.next_level_requirements.has_all_required_services());
+        color_text("  Has goods.....:", upgrade_state.next_level_requirements.has_all_required_consumer_goods());
+
+        ui.text("Goods Consumption:");
+        ui.text(format!("  Frequency.....: {:.2}s", GOODS_CONSUMPTION_FREQUENCY_SECS));
+        ui.text(format!("  Time since....: {:.2}s", house.time_since_last_goods_consumed_secs));
+
+        house.goods_stock.draw_debug_ui("Stock", ui_sys);
+
+        draw_level_requirements(
+            &format!("Curr level reqs ({:?}):", upgrade_state.level),
+            &mut upgrade_state.curr_level_requirements, 0);
+
+        if !upgrade_state.level.is_max() {
+            draw_level_requirements(
+                &format!("Next level reqs ({:?}):", upgrade_state.level.next()),
+                &mut upgrade_state.next_level_requirements, 1);
+        }
     }
 }

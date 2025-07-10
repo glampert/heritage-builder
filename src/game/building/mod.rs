@@ -1,4 +1,3 @@
-use std::fmt;
 use slab::Slab;
 use rand::Rng;
 use bitflags::{bitflags, Flags};
@@ -196,37 +195,47 @@ bitflags_with_display! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub struct BuildingKind: u32 {
         // Archetype: House
-        const House     = 1 << 0;
+        const House       = 1 << 0;
 
         // Archetype: Producer
+        const Farm        = 1 << 1;
 
         // Archetype: Storage
+        const Granary     = 1 << 2;
+        const StorageYard = 1 << 3;
 
         // Archetype: Service
-        const WellSmall = 1 << 1;
-        const WellBig   = 1 << 2;
-        const Market    = 1 << 3;
+        const WellSmall   = 1 << 4;
+        const WellBig     = 1 << 5;
+        const Market      = 1 << 6;
     }
 }
 
 impl BuildingKind {
     #[inline] pub const fn count() -> usize { Self::FLAGS.len() }
 
-    #[inline] pub const fn producer_count() -> usize { 0 }
-    #[inline] pub fn producers() -> BuildingKind {
-        todo!(); // TODO!
+    #[inline] pub const fn producer_count() -> usize { Self::producers().bits().count_ones() as usize }
+    #[inline] pub const fn producers() -> BuildingKind {
+        BuildingKind::from_bits_retain(
+            Self::Farm.bits()
+        )
     }
 
-    #[inline] pub const fn storage_count() -> usize { 0 }
+    #[inline] pub const fn storage_count() -> usize { Self::storage().bits().count_ones() as usize }
     #[inline] pub const fn storage() -> BuildingKind {
-        todo!(); // TODO!
+        BuildingKind::from_bits_retain(
+            Self::Granary.bits() |
+            Self::StorageYard.bits()
+        )
     }
 
-    #[inline] pub const fn services_count() -> usize { 3 }
-    #[inline] pub fn services() -> BuildingKind {
-        Self::WellSmall |
-        Self::WellBig   |
-        Self::Market
+    #[inline] pub const fn services_count() -> usize { Self::services().bits().count_ones() as usize }
+    #[inline] pub const fn services() -> BuildingKind {
+        BuildingKind::from_bits_retain(
+            Self::WellSmall.bits() |
+            Self::WellBig.bits() |
+            Self::Market.bits()
+        )
     }
 
     #[inline]
@@ -237,10 +246,14 @@ impl BuildingKind {
 
     #[inline]
     pub fn archetype_kind(self) -> BuildingArchetypeKind {
-        if self.intersects(Self::House) {
-            BuildingArchetypeKind::House
+        if self.intersects(Self::producers()) {
+            BuildingArchetypeKind::Producer
+        } else if self.intersects(Self::storage()) {
+            BuildingArchetypeKind::Storage
         } else if self.intersects(Self::services()) {
             BuildingArchetypeKind::Service
+        } else if self.intersects(Self::House) {
+            BuildingArchetypeKind::House
         } else {
             panic!("Unknown archetype for building kind: {:?}", self);
         }
@@ -442,8 +455,8 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'config
     }
 }
 
-impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> fmt::Display for BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> std::fmt::Display for BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Building '{}' ({}|{}) [{},{}]",
                self.name,
                self.archetype_kind,

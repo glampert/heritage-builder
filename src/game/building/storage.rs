@@ -14,7 +14,7 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingUpdateContext,
-    config::{BuildingConfigs}
+    config::BuildingConfigs
 };
 
 // ----------------------------------------------
@@ -36,8 +36,8 @@ impl<'config> StorageBuilding<'config> {
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
-            goods_stock: ConsumerGoodsStock::new(),
-            raw_materials_stock: RawMaterialsStock::new(),
+            goods_stock: ConsumerGoodsStock::new(&config.goods_accepted),
+            raw_materials_stock: RawMaterialsStock::new(&config.raw_materials_accepted),
         }
     }
 }
