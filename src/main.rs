@@ -72,8 +72,9 @@ fn main() {
 
     // TODO: This is temporary while testing only. Map should start empty.
     tile_map.for_each_tile_mut(TileMapLayerKind::Objects, TileKind::Building, |tile| {
-        let building = building::config::instantiate(tile, &building_configs);
-        world.add_building(tile, building);
+        if let Some(building) = building::config::instantiate(tile, &building_configs) {
+            world.add_building(tile, building);
+        }
     });
 
     let mut tile_selection = TileSelection::new();
@@ -199,8 +200,9 @@ fn main() {
 
                     if let Some(tile) = place_result {
                         if tile_def.is(TileKind::Building) {
-                            let building = building::config::instantiate(tile, &building_configs);
-                            world.add_building(tile, building);
+                            if let Some(building) = building::config::instantiate(tile, &building_configs) {
+                                world.add_building(tile, building);
+                            }
                         }
                         true
                     } else {
@@ -258,7 +260,7 @@ fn main() {
             debug_settings_menu.show_selection_bounds());
 
         tile_inspector_menu.draw(&mut world, &mut tile_map, &tile_sets, &ui_sys, camera.transform());
-        debug_settings_menu.draw(&mut camera, &mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
+        debug_settings_menu.draw(&mut camera, &mut world, &mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
 
         if debug_settings_menu.show_cursor_pos() {
             debug::utils::draw_cursor_overlay(&ui_sys, camera.transform());

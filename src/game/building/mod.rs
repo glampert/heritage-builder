@@ -146,6 +146,10 @@ impl<'config> BuildingList<'config> {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.buildings.clear();
+    }
+
     #[inline]
     pub fn try_get(&self, index: usize, archetype_kind: BuildingArchetypeKind) -> Option<&Building<'config>> {
         if archetype_kind != self.archetype_kind {

@@ -171,49 +171,50 @@ impl BuildingConfigLookup for StorageConfig {
 // Helper functions
 // ----------------------------------------------
 
-pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> Building<'config> {
+pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> Option<Building<'config>> {
     // TODO: Temporary
     if tile.name() == "well_small" {
-        Building::new(
+        Some(Building::new(
             "Well Small",
             BuildingKind::WellSmall,
             tile.cell_range(),
             configs,
             BuildingArchetype::new_service(ServiceBuilding::new(BuildingKind::WellSmall, configs))
-        )
+        ))
     } else if tile.name() == "well_big" {
-        Building::new(
+        Some(Building::new(
             "Well Big",
             BuildingKind::WellBig,
             tile.cell_range(),
             configs,
             BuildingArchetype::new_service(ServiceBuilding::new(BuildingKind::WellSmall, configs))
-        )
+        ))
     } else if tile.name() == "market" {
-        Building::new(
+        Some(Building::new(
             "Market",
             BuildingKind::Market,
             tile.cell_range(),
             configs,
             BuildingArchetype::new_service(ServiceBuilding::new(BuildingKind::Market, configs))
-        )
+        ))
     } else if tile.name() == "house0" {
-        Building::new(
+        Some(Building::new(
             "House",
             BuildingKind::House,
             tile.cell_range(),
             configs,
             BuildingArchetype::new_house(HouseBuilding::new(HouseLevel::Level0, configs))
-        )
+        ))
     } else if tile.name() == "rice_farm" {
-        Building::new(
+        Some(Building::new(
             "Rice Farm",
             BuildingKind::Farm,
             tile.cell_range(),
             configs,
             BuildingArchetype::new_producer(ProducerBuilding::new(BuildingKind::Farm, configs))
-        )
+        ))
     } else {
-        panic!("Unknown building tile!")
+        eprintln!("Unknown building tile!");
+        None
     }
 }

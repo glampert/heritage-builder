@@ -1,5 +1,6 @@
 use crate::{
     imgui_ui::UiSystem,
+    game::sim::world::World,
     tile::{
         camera::Camera,
         sets::TileSets,
@@ -93,6 +94,7 @@ impl DebugSettingsMenu {
 
     pub fn draw<'tile_sets>(&mut self,
                             camera: &mut Camera,
+                            world: &mut World,
                             tile_map_renderer: &mut TileMapRenderer,
                             tile_map: &mut TileMap<'tile_sets>,
                             tile_sets: &'tile_sets TileSets,
@@ -113,7 +115,7 @@ impl DebugSettingsMenu {
                 self.camera_dropdown(ui, camera);
                 self.map_grid_dropdown(ui, tile_map_renderer);
                 self.debug_draw_dropdown(ui);
-                self.reset_map_dropdown(ui, tile_map, tile_sets);
+                self.reset_map_dropdown(ui, world, tile_map, tile_sets);
             });
     }
 
@@ -197,6 +199,7 @@ impl DebugSettingsMenu {
 
     fn reset_map_dropdown<'tile_sets>(&self,
                                       ui: &imgui::Ui,
+                                      world: &mut World,
                                       tile_map: &mut TileMap<'tile_sets>,
                                       tile_sets: &'tile_sets TileSets) {
 
@@ -206,6 +209,7 @@ impl DebugSettingsMenu {
 
         if ui.button("Reset empty") {
             tile_map.reset(None);
+            world.reset();
         }
 
         if ui.button("Reset to dirt tiles") {
@@ -214,6 +218,7 @@ impl DebugSettingsMenu {
                 "ground",
                 "dirt");
             tile_map.reset(dirt_til_def);
+            world.reset();
         }
 
         if ui.button("Reset to grass tiles") {
@@ -222,6 +227,7 @@ impl DebugSettingsMenu {
                 "ground",
                 "grass");
             tile_map.reset(grass_tile_def);
+            world.reset();
         }
     }
 }

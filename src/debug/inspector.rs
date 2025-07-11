@@ -29,7 +29,7 @@ impl TileInspectorMenu {
     }
 
     pub fn close(&mut self) {
-        self.is_open = false;
+        *self = Self::default();
     }
 
     pub fn on_mouse_click(&mut self,
@@ -54,16 +54,24 @@ impl TileInspectorMenu {
                 transform: &WorldToScreenTransform) {
 
         if !self.is_open || self.selected.is_none() {
+            self.close();
             return;
         }
 
         let (cell, tile_kind) = self.selected.unwrap();
         if !cell.is_valid() {
+            self.close();
             return;
         }
 
         let layer_kind = TileMapLayerKind::from_tile_kind(tile_kind);
-        let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+        let maybe_tile = tile_map.try_tile_from_layer(cell, layer_kind);
+        if maybe_tile.is_none() {
+            self.close();
+            return;
+        }
+
+        let tile = maybe_tile.unwrap();
         let tile_screen_rect = tile.calc_screen_rect(transform);
         let is_building = tile.is(TileKind::Building);
 

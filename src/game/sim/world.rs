@@ -43,6 +43,12 @@ impl<'config> World<'config> {
         world
     }
 
+    pub fn reset(&mut self) {
+        for list in &mut self.building_lists {
+            list.clear();
+        }
+    }
+
     pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: f32) {
         for list in &mut self.building_lists {
             list.update(query, delta_time_secs);
@@ -66,8 +72,9 @@ impl<'config> World<'config> {
     pub fn remove_building(&mut self, tile: &Tile) {
         let game_state = tile.game_state_handle();
         if !game_state.is_valid() {
-            panic!("Building tile '{}' [{},{}] must have a valid game state!",
-                   tile.name(), tile.base_cell().x, tile.base_cell().y);
+            eprintln!("Building tile '{}' [{},{}] should have a valid game state!",
+                      tile.name(), tile.base_cell().x, tile.base_cell().y);
+            return;
         }
 
         let list_index = game_state.index();
