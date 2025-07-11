@@ -9,15 +9,18 @@ use crate::{
         hash::StringHash
     },
     tile::{
-        map::TileMapLayerKind,
-        sets::TileDef
+        sets::TileDef,
+        map::TileMapLayerKind
     },
     game::{
         building::BuildingKind,
-        sim::resources::{
-            ConsumerGoodsList,
-            ConsumerGoodsStock,
-            ServicesList
+        sim::{
+            UpdateTimer,
+            resources::{
+                ConsumerGoodsList,
+                ConsumerGoodsStock,
+                ServicesList
+            }
         }
     }
 };
@@ -29,7 +32,7 @@ use super::{
 };
 
 // ----------------------------------------------
-// TODO List:
+// TODO List
 // ----------------------------------------------
 
 // - Implement house population & tax income.
@@ -50,44 +53,97 @@ use super::{
 // Constants
 // ----------------------------------------------
 
-const UPGRADE_FREQUENCY_SECS: f32 = 10.0;
-const GOODS_CONSUMPTION_FREQUENCY_SECS: f32 = 20.0; // TODO: days_to_seconds(x)
+const STOCK_UPDATE_FREQUENCY_SECS: f32 = 20.0;
+const UPGRADE_UPDATE_FREQUENCY_SECS: f32 = 10.0;
+
+// ----------------------------------------------
+// HouseLevelConfig
+// ----------------------------------------------
+
+pub struct HouseLevelConfig {
+    pub tile_def_name: String,
+    pub tile_def_name_hash: StringHash,
+
+    pub max_residents: u32,
+    pub tax_generated: u32,
+
+    // Types of services provided by these kinds of buildings for the house level to be obtained and maintained.
+    pub services_required: ServicesList,
+
+    // Kinds of goods required for the house level to be obtained and maintained.
+    pub goods_required: ConsumerGoodsList,
+}
+
+// ----------------------------------------------
+// HouseDebug
+// ----------------------------------------------
+
+#[derive(Default)]
+struct HouseDebug {
+    // Stops any goods from being consumed.
+    // Also stops refreshing goods stock from a market.
+    freeze_stock_update: bool,
+
+    // Stops any upgrade/downgrade when true.
+    freeze_upgrade_update: bool,
+}
 
 // ----------------------------------------------
 // HouseBuilding
 // ----------------------------------------------
 
 pub struct HouseBuilding<'config> {
+    stock_update_timer: UpdateTimer,
+    upgrade_update_timer: UpdateTimer,
+
     upgrade_state: HouseUpgradeState<'config>,
     goods_stock: ConsumerGoodsStock,
-    time_since_last_goods_consumed_secs: f32,
 
-    // ----------------------
-    // Debug flags:
-    // ----------------------
+    debug: HouseDebug,
+}
 
-    // Stops any goods from being consumed.
-    // Also stops shopping from the closest market.
-    freeze_goods_consumption: bool,
+impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
+    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
+        // Update house states:
+        if self.stock_update_timer.tick(delta_time_secs).should_update() {
+            if !self.debug.freeze_stock_update {
+                self.stock_update(update_ctx);
+            }
+        }
+
+        if self.upgrade_update_timer.tick(delta_time_secs).should_update() {
+            if !self.debug.freeze_upgrade_update {
+                self.upgrade_update(update_ctx);
+            }
+        }
+    }
+
+    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        self.draw_debug_ui_level_config(ui_sys);
+        self.draw_debug_ui_upgrade_state(ui_sys);
+    }
 }
 
 impl<'config> HouseBuilding<'config> {
     pub fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
         Self {
+            stock_update_timer: UpdateTimer::new(STOCK_UPDATE_FREQUENCY_SECS),
+            upgrade_update_timer: UpdateTimer::new(UPGRADE_UPDATE_FREQUENCY_SECS),
             upgrade_state: HouseUpgradeState::new(level, configs),
             goods_stock: ConsumerGoodsStock::accept_all(),
-            time_since_last_goods_consumed_secs: 0.0,
-            // Debug flags:
-            freeze_goods_consumption: false,
+            debug: HouseDebug::default(),
         }
     }
 
-    fn update_goods_stock(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
-        // Consume goods from the stock periodically.
-        if self.time_since_last_goods_consumed_secs < GOODS_CONSUMPTION_FREQUENCY_SECS || self.freeze_goods_consumption {
-            self.time_since_last_goods_consumed_secs += delta_time_secs;
-            return;
+    fn is_upgrade_available(&self, update_ctx: &BuildingUpdateContext) -> bool {
+        if self.debug.freeze_upgrade_update {
+            return false;
         }
+        self.upgrade_state.is_upgrade_available(update_ctx)
+    }
+
+    fn stock_update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
+        // Consume goods from the stock periodically and shop for more as needed.
 
         let curr_level_goods_required =
             &self.upgrade_state.curr_level_requirements.level_config.goods_required;
@@ -106,7 +162,7 @@ impl<'config> HouseBuilding<'config> {
                 true
             });
 
-            let upgrade_available = self.upgrade_state.is_upgrade_available(update_ctx);
+            let upgrade_available = self.is_upgrade_available(update_ctx);
 
             // Go shopping:
             if let Some(market) =
@@ -135,27 +191,11 @@ impl<'config> HouseBuilding<'config> {
                 }
             }
         }
-
-        self.time_since_last_goods_consumed_secs = 0.0;
-    }
-}
-
-impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
-    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
-        self.update_goods_stock(update_ctx, delta_time_secs);
-        self.upgrade_state.update(update_ctx, &self.goods_stock, delta_time_secs);
     }
 
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-
-        if ui.collapsing_header(format!("Config ({:?})##_building_config", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
-            self.upgrade_state.curr_level_requirements.level_config.draw_debug_ui(ui_sys);
-        }
-
-        if ui.collapsing_header(format!("Upgrade##_building_upgrade"), imgui::TreeNodeFlags::empty()) {
-            HouseUpgradeState::draw_debug_ui(self, ui_sys);
-        }
+    fn upgrade_update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
+        // Attempt to upgrade or downgrade based on service and goods availability.
+        self.upgrade_state.update(update_ctx, &self.goods_stock);
     }
 }
 
@@ -220,35 +260,6 @@ impl HouseLevel {
 }
 
 // ----------------------------------------------
-// HouseLevelConfig
-// ----------------------------------------------
-
-pub struct HouseLevelConfig {
-    pub tile_def_name: String,
-    pub tile_def_name_hash: StringHash,
-
-    pub max_residents: u32,
-    pub tax_generated: u32,
-
-    // Types of services provided by these kinds of buildings for the house level to be obtained and maintained.
-    pub services_required: ServicesList,
-
-    // Kinds of goods required for the house level to be obtained and maintained.
-    pub goods_required: ConsumerGoodsList,
-}
-
-impl HouseLevelConfig {
-    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        ui.text(format!("Tile def name.....: '{}'", self.tile_def_name));
-        ui.text(format!("Max residents.....: {}", self.max_residents));
-        ui.text(format!("Tax generated.....: {}", self.tax_generated));
-        ui.text(format!("Services required.: {}", self.services_required));
-        ui.text(format!("Goods required....: {}", self.goods_required));
-    }
-}
-
-// ----------------------------------------------
 // HouseLevelRequirements
 // ----------------------------------------------
 
@@ -270,7 +281,6 @@ impl<'config> HouseLevelRequirements<'config> {
                 return false;
             }
         }
-
         true
     }
 
@@ -285,7 +295,6 @@ impl<'config> HouseLevelRequirements<'config> {
                 return false;
             }
         }
-
         true
     }
 
@@ -317,22 +326,9 @@ impl<'config> HouseLevelRequirements<'config> {
 
 struct HouseUpgradeState<'config> {
     level: HouseLevel,
-
     curr_level_requirements: HouseLevelRequirements<'config>,
     next_level_requirements: HouseLevelRequirements<'config>,
-
-    time_since_last_upgrade_secs: f32,
-    has_room_to_upgrade: bool,
-
-    // ----------------------
-    // Debug flags:
-    // ----------------------
-
-    // Stops any upgrade/downgrade when true.
-    freeze_level_change: bool,
-
-    // Refresh HouseLevelRequirements every update() rather than based on HOUSE_UPGRADE_FREQUENCY_SECS.
-    force_refresh_level_requirements: bool,
+    has_room_to_upgrade: bool, // Result of last attempt to expand the house.
 }
 
 impl<'config> HouseUpgradeState<'config> {
@@ -349,42 +345,25 @@ impl<'config> HouseUpgradeState<'config> {
                 services_available: ServicesList::empty(),
                 goods_available: ConsumerGoodsList::empty(),
             },
-            time_since_last_upgrade_secs: 0.0,
             has_room_to_upgrade: true,
-            // Debug flags:
-            freeze_level_change: false,
-            force_refresh_level_requirements: false,
         }
     }
 
     fn update(&mut self,
               update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>,
-              goods_stock: &ConsumerGoodsStock,
-              delta_time_secs: f32) {
-
-        if self.time_since_last_upgrade_secs < UPGRADE_FREQUENCY_SECS {
-            self.time_since_last_upgrade_secs += delta_time_secs;
-            return;
-        }
+              goods_stock: &ConsumerGoodsStock) {
 
         if self.can_upgrade(update_ctx, goods_stock) {
             self.try_upgrade(update_ctx);
         } else if self.can_downgrade(update_ctx, goods_stock) {
             self.try_downgrade(update_ctx);
-        } else {
-            if self.force_refresh_level_requirements {
-                self.curr_level_requirements.update(update_ctx, goods_stock);
-                self.next_level_requirements.update(update_ctx, goods_stock);
-            }
         }
-
-        self.time_since_last_upgrade_secs = 0.0;
     }
 
     fn can_upgrade(&mut self,
                    update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
                    goods_stock: &ConsumerGoodsStock) -> bool {
-        if self.level.is_max() || self.freeze_level_change {
+        if self.level.is_max() {
             return false;
         }
 
@@ -398,7 +377,7 @@ impl<'config> HouseUpgradeState<'config> {
     fn can_downgrade(&mut self,
                      update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
                      goods_stock: &ConsumerGoodsStock) -> bool {
-        if self.level.is_min() || self.freeze_level_change {
+        if self.level.is_min() {
             return false;
         }
 
@@ -415,9 +394,7 @@ impl<'config> HouseUpgradeState<'config> {
         let next_level = self.level.next();
         let next_level_config = update_ctx.configs.find_house_level(next_level);
 
-        if let Some(new_tile_def) = 
-            update_ctx.find_tile_def(next_level_config.tile_def_name_hash) {
-
+        if let Some(new_tile_def) = update_ctx.find_tile_def(next_level_config.tile_def_name_hash) {
             // Try placing new. Might fail if there isn't enough space.
             if Self::try_replace_tile(update_ctx, new_tile_def) {
                 self.level.upgrade();
@@ -441,7 +418,6 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         self.has_room_to_upgrade = tile_placed_successfully;
-        self.time_since_last_upgrade_secs = 0.0;
     }
 
     fn try_downgrade(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
@@ -450,9 +426,7 @@ impl<'config> HouseUpgradeState<'config> {
         let prev_level = self.level.prev();
         let prev_level_config = update_ctx.configs.find_house_level(prev_level);
 
-        if let Some(new_tile_def) = 
-            update_ctx.find_tile_def(prev_level_config.tile_def_name_hash) {
-
+        if let Some(new_tile_def) = update_ctx.find_tile_def(prev_level_config.tile_def_name_hash) {
             // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
             if Self::try_replace_tile(update_ctx, new_tile_def) {
                 self.level.downgrade();
@@ -472,8 +446,6 @@ impl<'config> HouseUpgradeState<'config> {
         if !tile_placed_successfully {
             eprintln!("{update_ctx}: Failed to place new tile for downgrade. Building cannot downgrade.");
         }
-
-        self.time_since_last_upgrade_secs = 0.0;
     }
 
     fn try_replace_tile<'tile_sets>(update_ctx: &mut BuildingUpdateContext<'_, '_, '_, '_, 'tile_sets>,
@@ -526,8 +498,9 @@ impl<'config> HouseUpgradeState<'config> {
         true
     }
 
+    // Check if we can increment the level and if there's enough space to expand the house.
     fn is_upgrade_available(&self, update_ctx: &BuildingUpdateContext) -> bool {
-        if self.level.is_max() || self.freeze_level_change {
+        if self.level.is_max() {
             return false;
         }
 
@@ -543,8 +516,7 @@ impl<'config> HouseUpgradeState<'config> {
         let cell_range = tile_def.calc_footprint_cells(update_ctx.map_cells.start);
 
         for cell in &cell_range {
-            if let Some(tile) =
-                update_ctx.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+            if let Some(tile) = update_ctx.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
                 let is_self = tile.base_cell() == update_ctx.map_cells.start;
                 if !is_self {
                     // Cannot expand here.
@@ -555,8 +527,39 @@ impl<'config> HouseUpgradeState<'config> {
 
         true
     }
+}
 
-    fn draw_debug_ui(house: &mut HouseBuilding<'config>, ui_sys: &UiSystem) {
+// ----------------------------------------------
+// Debug UI
+// ----------------------------------------------
+
+impl HouseLevelConfig {
+    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        ui.text(format!("Tile def name.....: '{}'", self.tile_def_name));
+        ui.text(format!("Max residents.....: {}", self.max_residents));
+        ui.text(format!("Tax generated.....: {}", self.tax_generated));
+        ui.text(format!("Services required.: {}", self.services_required));
+        ui.text(format!("Goods required....: {}", self.goods_required));
+    }
+}
+
+impl<'config> HouseBuilding<'config> {
+    fn draw_debug_ui_level_config(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header(format!("Config ({:?})##_building_config", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
+            self.upgrade_state.curr_level_requirements.level_config.draw_debug_ui(ui_sys);
+        }
+    }
+
+    fn draw_debug_ui_upgrade_state(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header(format!("Upgrade##_building_upgrade"), imgui::TreeNodeFlags::empty()) {
+            self.draw_debug_ui_upgrade_state_internal(ui_sys);
+        }
+    }
+
+    fn draw_debug_ui_upgrade_state_internal(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         let draw_level_requirements = 
@@ -623,25 +626,23 @@ impl<'config> HouseUpgradeState<'config> {
             }
         };
 
-        let upgrade_state = &mut house.upgrade_state;
+        let upgrade_state = &mut self.upgrade_state;
 
-        ui.checkbox("Force refresh level reqs", &mut upgrade_state.force_refresh_level_requirements);
-        ui.checkbox("Freeze level changes", &mut upgrade_state.freeze_level_change);
-        ui.checkbox("Freeze goods consumption", &mut house.freeze_goods_consumption);
+        ui.checkbox("Freeze upgrades", &mut self.debug.freeze_upgrade_update);
+        ui.checkbox("Freeze goods stock", &mut self.debug.freeze_stock_update);
         ui.text(format!("Level...........: {:?}", upgrade_state.level));
 
         ui.text("Upgrade:");
-        ui.text(format!("  Frequency.....: {:.2}s", UPGRADE_FREQUENCY_SECS));
-        ui.text(format!("  Time since....: {:.2}s", upgrade_state.time_since_last_upgrade_secs));
+        ui.text(format!("  Frequency.....: {:.2}s", self.upgrade_update_timer.frequency_secs()));
+        ui.text(format!("  Time since....: {:.2}s", self.upgrade_update_timer.time_since_last_secs()));
         color_text("  Has room......:", upgrade_state.has_room_to_upgrade);
         color_text("  Has services..:", upgrade_state.next_level_requirements.has_all_required_services());
         color_text("  Has goods.....:", upgrade_state.next_level_requirements.has_all_required_consumer_goods());
 
-        ui.text("Goods Consumption:");
-        ui.text(format!("  Frequency.....: {:.2}s", GOODS_CONSUMPTION_FREQUENCY_SECS));
-        ui.text(format!("  Time since....: {:.2}s", house.time_since_last_goods_consumed_secs));
-
-        house.goods_stock.draw_debug_ui("Stock", ui_sys);
+        ui.text("Stock:");
+        ui.text(format!("  Frequency.....: {:.2}s", self.stock_update_timer.frequency_secs()));
+        ui.text(format!("  Time since....: {:.2}s", self.stock_update_timer.time_since_last_secs()));
+        self.goods_stock.draw_debug_ui("Goods In Stock", ui_sys);
 
         draw_level_requirements(
             &format!("Curr level reqs ({:?}):", upgrade_state.level),

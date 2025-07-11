@@ -16,6 +16,23 @@ use super::{
 };
 
 // ----------------------------------------------
+// ServiceConfig
+// ----------------------------------------------
+
+pub struct ServiceConfig {
+    pub tile_def_name: String,
+    pub tile_def_name_hash: StringHash,
+
+    pub min_workers: u32,
+    pub max_workers: u32,
+
+    pub effect_radius: i32,
+
+    // Kinds of goods required for the service to run, if any.
+    pub goods_required: ConsumerGoodsList,
+}
+
+// ----------------------------------------------
 // ServiceBuilding
 // ----------------------------------------------
 
@@ -25,6 +42,17 @@ pub struct ServiceBuilding<'config> {
 
     // Current local stock of goods.
     goods_stock: ConsumerGoodsStock,
+}
+
+impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
+    fn update(&mut self, _update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, _delta_time_secs: f32) {
+        // TODO
+    }
+
+    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        self.draw_debug_ui_service_config(ui_sys);
+        self.goods_stock.draw_debug_ui("Goods In Stock", ui_sys);
+    }
 }
 
 impl<'config> ServiceBuilding<'config> {
@@ -54,37 +82,9 @@ impl<'config> ServiceBuilding<'config> {
     }
 }
 
-impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
-    fn update(&mut self, _update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, _delta_time_secs: f32) {
-    }
-
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-
-        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
-
-        self.goods_stock.draw_debug_ui("Stock", ui_sys);
-    }
-}
-
 // ----------------------------------------------
-// ServiceConfig
+// Debug UI
 // ----------------------------------------------
-
-pub struct ServiceConfig {
-    pub tile_def_name: String,
-    pub tile_def_name_hash: StringHash,
-
-    pub min_workers: u32,
-    pub max_workers: u32,
-
-    pub effect_radius: i32,
-
-    // Kinds of goods required for the service to run, if any.
-    pub goods_required: ConsumerGoodsList,
-}
 
 impl ServiceConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
@@ -94,5 +94,14 @@ impl ServiceConfig {
         ui.text(format!("Max workers....: {}", self.max_workers));
         ui.text(format!("Effect radius..: {}", self.effect_radius));
         ui.text(format!("Goods required.: {}", self.goods_required));
+    }
+}
+
+impl<'config> ServiceBuilding<'config> {
+    fn draw_debug_ui_service_config(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
+            self.config.draw_debug_ui(ui_sys);
+        }
     }
 }

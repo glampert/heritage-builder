@@ -41,16 +41,14 @@ pub type RandomGenerator = Pcg64;
 const DEFAULT_SIM_UPDATE_FREQUENCY_SECS: f32 = 0.5;
 
 pub struct Simulation {
-    update_frequency_secs: f32,
-    time_since_last_update_secs: f32,
+    update_timer: UpdateTimer,
     rng: RandomGenerator,
 }
 
 impl Simulation {
     pub fn new() -> Self {
         Self {
-            update_frequency_secs: DEFAULT_SIM_UPDATE_FREQUENCY_SECS,
-            time_since_last_update_secs: 0.0,
+            update_timer: UpdateTimer::new(DEFAULT_SIM_UPDATE_FREQUENCY_SECS),
             rng: RandomGenerator::seed_from_u64(DEFAULT_RANDOM_SEED),
         }
     }
@@ -61,20 +59,69 @@ impl Simulation {
                                          tile_sets: &'tile_sets TileSets,
                                          delta_time: time::Duration) {
 
-        if self.time_since_last_update_secs >= self.update_frequency_secs {
+        // Fixed step update.
+        let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
 
-            // Fixed step update.
-            let delta_time_secs = self.time_since_last_update_secs;
-
+        if self.update_timer.tick(delta_time.as_secs_f32()).should_update() {
             let mut query = Query::new(&mut self.rng, world, tile_map, tile_sets);
-            world.update(&mut query, delta_time_secs);
+            world.update(&mut query, world_update_delta_time_secs);
+        }
+    }
+}
 
+// ----------------------------------------------
+// UpdateTimer
+// ----------------------------------------------
+
+pub struct UpdateTimer {
+    update_frequency_secs: f32,
+    time_since_last_update_secs: f32,
+}
+
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum UpdateTimerResult {
+    DoNotUpdate,
+    ShouldUpdate,
+}
+
+impl UpdateTimerResult {
+    #[inline]
+    pub fn should_update(self) -> bool {
+        self == UpdateTimerResult::ShouldUpdate
+    }
+}
+
+impl UpdateTimer {
+    #[inline]
+    pub fn new(update_frequency_secs: f32) -> Self {
+        Self {
+            update_frequency_secs: update_frequency_secs,
+            time_since_last_update_secs: 0.0,
+        }
+    }
+
+    #[inline]
+    pub fn tick(&mut self, delta_time_secs: f32) -> UpdateTimerResult {
+        if self.time_since_last_update_secs >= self.update_frequency_secs {
             // Reset the clock.
             self.time_since_last_update_secs = 0.0;
+            UpdateTimerResult::ShouldUpdate
         } else {
             // Advance the clock.
-            self.time_since_last_update_secs += delta_time.as_secs_f32();
+            self.time_since_last_update_secs += delta_time_secs;
+            UpdateTimerResult::DoNotUpdate
         }
+    }
+
+    #[inline]
+    pub fn frequency_secs(&self) -> f32 {
+        self.update_frequency_secs
+    }
+
+    #[inline]
+    pub fn time_since_last_secs(&self) -> f32 {
+        self.time_since_last_update_secs
     }
 }
 
