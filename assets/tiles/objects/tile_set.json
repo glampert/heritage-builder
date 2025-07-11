@@ -11,8 +11,8 @@
                         "height": 32
                     },
                     "draw_size": {
-                        "width": 64,
-                        "height": 40
+                        "width": 72,
+                        "height": 42
                     },
                     "variations": [
                         {
@@ -130,7 +130,7 @@
                 {
                     "name": "market",
                     "logical_size": {
-                        "width": 192,
+                        "width": 198,
                         "height": 96
                     },
                     "draw_size": {
@@ -202,12 +202,11 @@
                         "height": 128
                     },
                     "draw_size": {
-                        "width": 265,
-                        "height": 205
+                        "width": 262,
+                        "height": 140
                     },
                     "variations": [
                         {
-                            "name": "var0",
                             "anim_sets": [
                                 {
                                     "frames": [
@@ -217,9 +216,45 @@
                                     ]
                                 }
                             ]
-                        },
+                        }
+                    ]
+                },
+                {
+                    "name": "storage_yard",
+                    "logical_size": {
+                        "width": 192,
+                        "height": 96
+                    },
+                    "draw_size": {
+                        "width": 198,
+                        "height": 152
+                    },
+                    "variations": [
                         {
-                            "name": "var1",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "granary",
+                    "logical_size": {
+                        "width": 192,
+                        "height": 96
+                    },
+                    "draw_size": {
+                        "width": 200,
+                        "height": 170
+                    },
+                    "variations": [
+                        {
                             "anim_sets": [
                                 {
                                     "frames": [
