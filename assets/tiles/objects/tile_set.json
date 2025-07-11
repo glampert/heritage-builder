@@ -130,11 +130,11 @@
                 {
                     "name": "market",
                     "logical_size": {
-                        "width": 198,
+                        "width": 192,
                         "height": 96
                     },
                     "draw_size": {
-                        "width": 192,
+                        "width": 198,
                         "height": 140
                     },
                     "variations": [

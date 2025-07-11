@@ -160,6 +160,7 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
                          layer: TileMapLayerKind,
                          category_name_hash: StringHash,
                          tile_def_name_hash: StringHash) -> Option<&'tile_sets TileDef> {
+
         self.tile_sets.find_tile_def_by_hash(layer, category_name_hash, tile_def_name_hash)
     }
 
@@ -204,10 +205,10 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
         false
     }
 
-    pub fn find_nearest_building_mut(&mut self,
-                                     start_cells: CellRange,
-                                     kind: BuildingKind,
-                                     radius_in_cells: i32) -> Option<&mut Building<'config>> {
+    pub fn find_nearest_building(&mut self,
+                                 start_cells: CellRange,
+                                 kind: BuildingKind,
+                                 radius_in_cells: i32) -> Option<&mut Building<'config>> {
 
         let search_range = Self::calc_search_range(start_cells, radius_in_cells);
 

@@ -68,6 +68,11 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     }
 
     #[inline]
+    pub fn has_any_entry(&self) -> bool {
+        self.items.len() != 0
+    }
+
+    #[inline]
     pub fn is_empty(&self) -> bool {
         for item in &self.items {
             if item.count != 0 {
@@ -190,6 +195,20 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
         Self {
             items: ArrayVec::try_from(items).expect("Cannot fit all items into List!"),
         }
+    }
+
+    #[inline]
+    pub fn split(items: T) -> Self {
+         let mut list = Self {
+            items: ArrayVec::new(),
+        };
+
+        // Break input into individual flags.
+        for item in items.iter() {
+            list.items.push(item);
+        }
+
+        list
     }
 
     #[inline]

@@ -24,11 +24,12 @@ use super::{
         ProducerBuilding
     },
     service::{
-        ServiceBuilding,
-        ServiceConfig
+        ServiceConfig,
+        ServiceBuilding
     },
     storage::{
-        StorageConfig
+        StorageConfig,
+        StorageBuilding
     }
 };
 
@@ -45,7 +46,8 @@ pub struct BuildingConfigs {
     service_well_big: ServiceConfig,
     service_market: ServiceConfig,
     producer_farm: ProducerConfig,
-    dummy_storage: StorageConfig,
+    storage_yard: StorageConfig,
+    storage_granary: StorageConfig,
 }
 
 impl BuildingConfigs {
@@ -112,13 +114,21 @@ impl BuildingConfigs {
                 raw_materials_required: RawMaterialsList::empty(),
                 raw_materials_capacity: 5,
             },
-            dummy_storage: StorageConfig {
-                tile_def_name: "storage".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("storage"),
+            storage_yard: StorageConfig {
+                tile_def_name: "storage_yard".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("storage_yard"),
                 min_workers: 0,
                 max_workers: 1,
-                goods_accepted: ConsumerGoodsList::empty(),
-                raw_materials_accepted: RawMaterialsList::empty()
+                goods_accepted: ConsumerGoodsList::all(),
+                raw_materials_accepted: RawMaterialsList::all(),
+            },
+            storage_granary: StorageConfig {
+                tile_def_name: "granary".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("granary"),
+                min_workers: 0,
+                max_workers: 1,
+                goods_accepted: ConsumerGoodsList::split(ConsumerGoodKind::any_food()),
+                raw_materials_accepted: RawMaterialsList::empty(),
             }
         }
     }
@@ -162,8 +172,12 @@ impl BuildingConfigLookup for ServiceConfig {
 }
 
 impl BuildingConfigLookup for StorageConfig {
-    fn find<'config>(configs: &'config BuildingConfigs, _kind: BuildingKind) -> &'config Self {
-        &configs.dummy_storage
+    fn find<'config>(configs: &'config BuildingConfigs, kind: BuildingKind) -> &'config Self {
+        if kind == BuildingKind::Granary {
+            &configs.storage_granary
+        } else if kind == BuildingKind::StorageYard {
+            &configs.storage_yard
+        } else { panic!("No storage!") }
     }
 }
 
@@ -212,6 +226,22 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> O
             tile.cell_range(),
             configs,
             BuildingArchetype::new_producer(ProducerBuilding::new(BuildingKind::Farm, configs))
+        ))
+    } else if tile.name() == "granary" {
+        Some(Building::new(
+            "Granary",
+            BuildingKind::Granary,
+            tile.cell_range(),
+            configs,
+            BuildingArchetype::new_storage(StorageBuilding::new(BuildingKind::Granary, configs))
+        ))
+    } else if tile.name() == "storage_yard" {
+        Some(Building::new(
+            "Storage Yard",
+            BuildingKind::StorageYard,
+            tile.cell_range(),
+            configs,
+            BuildingArchetype::new_storage(StorageBuilding::new(BuildingKind::StorageYard, configs))
         ))
     } else {
         eprintln!("Unknown building tile!");

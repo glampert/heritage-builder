@@ -55,8 +55,14 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
 
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         self.draw_debug_ui_storage_config(ui_sys);
-        self.goods_stock.draw_debug_ui("Goods In Stock", ui_sys);
-        self.raw_materials_stock.draw_debug_ui("Raw Materials In Stock", ui_sys);
+
+        if self.goods_stock.has_any_entry() {
+            self.goods_stock.draw_debug_ui("Goods In Stock", ui_sys);
+        }
+
+        if self.raw_materials_stock.has_any_entry() {
+            self.raw_materials_stock.draw_debug_ui("Raw Materials In Stock", ui_sys);
+        }
     }
 }
 

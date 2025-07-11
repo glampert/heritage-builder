@@ -222,7 +222,7 @@ impl ProducerOutputLocalStock {
 
 struct ProducerRawMaterialsLocalStock {
     items: SmallVec<[StockItem<RawMaterialKind>; 1]>,
-    capacity: u32, // Same capacity for each item.
+    capacity: u32, // Total capacity for all items.
 }
 
 impl ProducerRawMaterialsLocalStock {
@@ -243,13 +243,29 @@ impl ProducerRawMaterialsLocalStock {
     }
 
     #[inline]
-    fn is_entry_full(&self, wanted: RawMaterialKind) -> bool {
+    fn is_full(&self) -> bool {
+        let mut count = 0;
         for item in &self.items {
-            if item.kind.intersects(wanted) && item.count >= self.capacity {
+            count += item.count;
+            if count >= self.capacity {
                 return true;
             }
         }
         false
+    }
+
+    #[inline]
+    fn capacity_left(&self) -> u32 {
+        self.capacity - self.count_all_items()
+    }
+
+    #[inline]
+    fn count_all_items(&self) -> u32 {
+        let mut count = 0;
+        for item in &self.items {
+            count += item.count;
+        }
+        count
     }
 
     #[inline]
@@ -316,15 +332,15 @@ impl ProducerOutputLocalStock {
         ui.text("Local Stock:");
 
         match self {
-            ProducerOutputLocalStock::RawMaterial { item, .. } => {
-                ui.input_scalar(format!("{}", item.kind), &mut item.count)
-                    .step(1)
-                    .build();
+            ProducerOutputLocalStock::RawMaterial { item, capacity } => {
+                if ui.input_scalar(format!("{}", item.kind), &mut item.count).step(1).build() {
+                    item.count = item.count.min(*capacity);
+                }
             },
-            ProducerOutputLocalStock::ConsumerGood { item, .. } => {
-                ui.input_scalar(format!("{}", item.kind), &mut item.count)
-                    .step(1)
-                    .build();
+            ProducerOutputLocalStock::ConsumerGood { item, capacity } => {
+                if ui.input_scalar(format!("{}", item.kind), &mut item.count).step(1).build() {
+                    item.count = item.count.min(*capacity);
+                }
             }
         }
 
@@ -344,16 +360,34 @@ impl ProducerRawMaterialsLocalStock {
         if self.items.is_empty() {
             ui.text("<none>");
         } else {
-            for (index, item) in self.items.iter_mut().enumerate() {
-                ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count)
-                    .step(1)
-                    .build();
+            let mut capacity_left = self.capacity_left();
 
-                let is_full = item.count >= self.capacity;
-                if is_full {
-                    ui.same_line();
-                    ui.text_colored(Color::red().to_array(), "(full)");
+            for (index, item) in self.items.iter_mut().enumerate() {
+                let label = format!("{}##_stock_item_{}", item.kind, index);
+                let original_count = item.count;
+
+                if ui.input_scalar(label, &mut item.count).step(1).build() {
+                    if item.count > original_count {
+                        // User increased the value — clamp it based on remaining capacity:
+                        let delta = item.count - original_count;
+                        let clamped_delta = delta.min(capacity_left);
+                        item.count = original_count + clamped_delta;
+                        capacity_left = capacity_left.saturating_sub(clamped_delta);
+                    } else {
+                        // User decreased or kept the value — allow freely.
+                        // (no change to capacity_left).
+                    }
                 }
+            }
+
+            ui.text(format!("Capacity left: {}", capacity_left));
+
+            ui.text("Is full:");
+            ui.same_line();
+            if self.is_full() {
+                ui.text_colored(Color::red().to_array(), "yes");
+            } else {
+                ui.text("no");
             }
         }
     }

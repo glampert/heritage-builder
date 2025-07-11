@@ -166,7 +166,7 @@ impl<'config> HouseBuilding<'config> {
 
             // Go shopping:
             if let Some(market) =
-                update_ctx.find_nearest_service_mut(BuildingKind::Market) {
+                update_ctx.find_nearest_service(BuildingKind::Market) {
 
                 // Shop for goods needed for this level.
                 let all_or_nothing = false;

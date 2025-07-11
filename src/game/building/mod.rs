@@ -440,12 +440,12 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'config
         self.query.is_near_building(self.map_cells, service_kind, config.effect_radius)
     }
 
-    fn find_nearest_service_mut(&mut self, service_kind: BuildingKind) -> Option<&mut service::ServiceBuilding<'config>> {
+    fn find_nearest_service(&mut self, service_kind: BuildingKind) -> Option<&mut service::ServiceBuilding<'config>> {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::Service);
         let config = self.configs.find::<service::ServiceConfig>(service_kind);
 
         if let Some(building) =
-            self.query.find_nearest_building_mut(self.map_cells, service_kind, config.effect_radius) {
+            self.query.find_nearest_building(self.map_cells, service_kind, config.effect_radius) {
 
             if building.archetype_kind() != BuildingArchetypeKind::Service {
                 panic!("Building '{}' ({}|{}): Expected archetype to be Service!",
