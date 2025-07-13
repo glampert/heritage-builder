@@ -112,7 +112,7 @@ impl BuildingConfigs {
                 production_output: ProducerOutputKind::ConsumerGood(ConsumerGoodKind::Rice),
                 production_capacity: 5,
                 raw_materials_required: RawMaterialsList::empty(),
-                raw_materials_capacity: 5,
+                raw_materials_capacity: 0,
             },
             storage_yard: StorageConfig {
                 tile_def_name: "storage_yard".to_string(),
@@ -121,6 +121,8 @@ impl BuildingConfigs {
                 max_workers: 1,
                 goods_accepted: ConsumerGoodsList::all(),
                 raw_materials_accepted: RawMaterialsList::all(),
+                num_slots: 8,
+                slot_capacity: 4,
             },
             storage_granary: StorageConfig {
                 tile_def_name: "granary".to_string(),
@@ -129,6 +131,8 @@ impl BuildingConfigs {
                 max_workers: 1,
                 goods_accepted: ConsumerGoodsList::split(ConsumerGoodKind::any_food()),
                 raw_materials_accepted: RawMaterialsList::empty(),
+                num_slots: 8,
+                slot_capacity: 4,
             }
         }
     }

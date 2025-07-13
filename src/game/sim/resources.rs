@@ -100,6 +100,26 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     }
 
     #[inline]
+    pub fn find(&self, wanted: T) -> Option<&StockItem<T>> {
+        for item in &self.items {
+            if item.kind.intersects(wanted) {
+                return Some(item);
+            }
+        }
+        None
+    }
+
+    #[inline]
+    pub fn find_mut(&mut self, wanted: T) -> Option<&mut StockItem<T>> {
+        for item in &mut self.items {
+            if item.kind.intersects(wanted) {
+                return Some(item);
+            }
+        }
+        None
+    }
+
+    #[inline]
     pub fn count(&mut self, wanted: T) -> u32 {
         for item in &self.items {
             if item.kind.intersects(wanted) {
@@ -167,7 +187,7 @@ pub struct List<T, const CAPACITY: usize> {
 }
 
 impl<T, const CAPACITY: usize> List<T, CAPACITY> 
-    where 
+    where
         T: Copy + Display + bitflags::Flags
 {
     #[inline]
@@ -303,7 +323,7 @@ impl RawMaterialKind {
     }
 }
 
-const RAW_MATERIAL_COUNT: usize = RawMaterialKind::count();
+pub const RAW_MATERIAL_COUNT: usize = RawMaterialKind::count();
 pub type RawMaterialsStock = Stock<RawMaterialKind, RAW_MATERIAL_COUNT>;
 pub type RawMaterialsList  = List<RawMaterialKind,  RAW_MATERIAL_COUNT>;
 
@@ -335,7 +355,7 @@ impl ConsumerGoodKind {
     }
 }
 
-const CONSUMER_GOOD_COUNT: usize = ConsumerGoodKind::count();
+pub const CONSUMER_GOOD_COUNT: usize = ConsumerGoodKind::count();
 pub type ConsumerGoodsStock = Stock<ConsumerGoodKind, CONSUMER_GOOD_COUNT>;
 pub type ConsumerGoodsList  = List<ConsumerGoodKind,  CONSUMER_GOOD_COUNT>;
 
@@ -343,7 +363,7 @@ pub type ConsumerGoodsList  = List<ConsumerGoodKind,  CONSUMER_GOOD_COUNT>;
 // Services
 // ----------------------------------------------
 
-const SERVICES_COUNT: usize = BuildingKind::services_count();
+pub const SERVICES_COUNT: usize = BuildingKind::services_count();
 pub type ServicesList = List<BuildingKind, SERVICES_COUNT>;
 
 // ----------------------------------------------

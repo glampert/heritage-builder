@@ -125,12 +125,12 @@ impl<'config> ProducerBuilding<'config> {
             let mut produce_one_item = true;
 
             // If we have raw material requirements, first check if they are available in stock.
-            if self.raw_materials_required_stock.has_any_entry() {
+            if self.raw_materials_required_stock.has_any_slot() {
                 if self.raw_materials_required_stock.has_all_required_items() {
                     // Consume our raw materials (one of each).
                     self.raw_materials_required_stock.consume_all_items();
                 } else {
-                    // We are missing one or more, halt production.
+                    // We are missing one or more raw materials, halt production.
                     produce_one_item = false;
                 }
             }
@@ -149,10 +149,32 @@ impl<'config> ProducerBuilding<'config> {
         if self.production_output_stock.is_full() {
             return true;
         }
-        if self.raw_materials_required_stock.has_any_entry() && !self.raw_materials_required_stock.has_all_required_items() {
+        if self.raw_materials_required_stock.has_any_slot() && !self.raw_materials_required_stock.has_all_required_items() {
             return true;
         }
         false
+    }
+}
+
+// ----------------------------------------------
+// ProducerOutputKind
+// ----------------------------------------------
+
+pub enum ProducerOutputKind {
+    RawMaterial(RawMaterialKind),
+    ConsumerGood(ConsumerGoodKind),
+}
+
+impl std::fmt::Display for ProducerOutputKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ProducerOutputKind::RawMaterial(material) => {
+                write!(f, "{}", material)
+            },
+            ProducerOutputKind::ConsumerGood(good) => {
+                write!(f, "{}", good)
+            }
+        }
     }
 }
 
@@ -221,57 +243,62 @@ impl ProducerOutputLocalStock {
 // ----------------------------------------------
 
 struct ProducerRawMaterialsLocalStock {
-    items: SmallVec<[StockItem<RawMaterialKind>; 1]>,
-    capacity: u32, // Total capacity for all items.
+    slots: SmallVec<[StockItem<RawMaterialKind>; 1]>,
+    capacity: u32, // Capacity for each raw material kind.
 }
 
 impl ProducerRawMaterialsLocalStock {
     fn new(raw_materials_required: &RawMaterialsList, capacity: u32) -> Self {
-        let mut items = SmallVec::new();
+        let mut slots = SmallVec::new();
         for material in raw_materials_required.iter() {
-            items.push(StockItem { kind: *material, count: 0 });
+            slots.push(StockItem { kind: *material, count: 0 });
         }
         Self {
-            items: items,
+            slots: slots,
             capacity: capacity,
         }
     }
 
     #[inline]
-    fn has_any_entry(&self) -> bool {
-        !self.items.is_empty()
+    fn has_any_slot(&self) -> bool {
+        !self.slots.is_empty()
     }
 
     #[inline]
-    fn is_full(&self) -> bool {
-        let mut count = 0;
-        for item in &self.items {
-            count += item.count;
-            if count >= self.capacity {
-                return true;
+    fn is_slot_full(&self, kind: RawMaterialKind) -> bool {
+        for slot in &self.slots {
+            if slot.kind.intersects(kind) {
+                if slot.count >= self.capacity {
+                    return true;
+                }
             }
         }
         false
     }
 
     #[inline]
-    fn capacity_left(&self) -> u32 {
-        self.capacity - self.count_all_items()
+    fn capacity_left(&self, kind: RawMaterialKind) -> u32 {
+        for slot in &self.slots {
+            if slot.kind.intersects(kind) {
+                return self.capacity - slot.count;
+            }
+        }
+        0
     }
 
     #[inline]
     fn count_all_items(&self) -> u32 {
         let mut count = 0;
-        for item in &self.items {
-            count += item.count;
+        for slot in &self.slots {
+            count += slot.count;
         }
         count
     }
 
     #[inline]
     fn has_all_required_items(&self) -> bool {
-        for item in &self.items {
-            if item.count == 0 {
+        for slot in &self.slots {
+            if slot.count == 0 {
                 return false;
             }
         }
@@ -280,31 +307,9 @@ impl ProducerRawMaterialsLocalStock {
 
     #[inline]
     fn consume_all_items(&mut self) {
-        for item in &mut self.items {
-            debug_assert!(item.count != 0);
-            item.count -= 1;
-        }
-    }
-}
-
-// ----------------------------------------------
-// ProducerOutputKind
-// ----------------------------------------------
-
-pub enum ProducerOutputKind {
-    RawMaterial(RawMaterialKind),
-    ConsumerGood(ConsumerGoodKind),
-}
-
-impl std::fmt::Display for ProducerOutputKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ProducerOutputKind::RawMaterial(material) => {
-                write!(f, "{}", material)
-            },
-            ProducerOutputKind::ConsumerGood(good) => {
-                write!(f, "{}", good)
-            }
+        for slot in &mut self.slots {
+            debug_assert!(slot.count != 0);
+            slot.count -= 1;
         }
     }
 }
@@ -357,37 +362,28 @@ impl ProducerOutputLocalStock {
 impl ProducerRawMaterialsLocalStock {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if self.items.is_empty() {
+        if self.slots.is_empty() {
             ui.text("<none>");
         } else {
-            let mut capacity_left = self.capacity_left();
+            let capacity = self.capacity;
 
-            for (index, item) in self.items.iter_mut().enumerate() {
+            for (index, item) in self.slots.iter_mut().enumerate() {
                 let label = format!("{}##_stock_item_{}", item.kind, index);
-                let original_count = item.count;
 
                 if ui.input_scalar(label, &mut item.count).step(1).build() {
-                    if item.count > original_count {
-                        // User increased the value — clamp it based on remaining capacity:
-                        let delta = item.count - original_count;
-                        let clamped_delta = delta.min(capacity_left);
-                        item.count = original_count + clamped_delta;
-                        capacity_left = capacity_left.saturating_sub(clamped_delta);
-                    } else {
-                        // User decreased or kept the value — allow freely.
-                        // (no change to capacity_left).
-                    }
+                    item.count = item.count.min(capacity);
                 }
-            }
 
-            ui.text(format!("Capacity left: {}", capacity_left));
+                let capacity_left = capacity - item.count;
+                let is_full = item.count >= capacity;
 
-            ui.text("Is full:");
-            ui.same_line();
-            if self.is_full() {
-                ui.text_colored(Color::red().to_array(), "yes");
-            } else {
-                ui.text("no");
+                ui.same_line();
+                ui.text(format!("(of {})", capacity_left));
+
+                if is_full {
+                    ui.same_line();
+                    ui.text_colored(Color::red().to_array(), "(full)");
+                }
             }
         }
     }
