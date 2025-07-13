@@ -125,7 +125,7 @@ impl<'config> ProducerBuilding<'config> {
             let mut produce_one_item = true;
 
             // If we have raw material requirements, first check if they are available in stock.
-            if self.raw_materials_required_stock.has_any_slot() {
+            if self.raw_materials_required_stock.has_any_item_slot() {
                 if self.raw_materials_required_stock.has_all_required_items() {
                     // Consume our raw materials (one of each).
                     self.raw_materials_required_stock.consume_all_items();
@@ -149,7 +149,7 @@ impl<'config> ProducerBuilding<'config> {
         if self.production_output_stock.is_full() {
             return true;
         }
-        if self.raw_materials_required_stock.has_any_slot() && !self.raw_materials_required_stock.has_all_required_items() {
+        if self.raw_materials_required_stock.has_any_item_slot() && !self.raw_materials_required_stock.has_all_required_items() {
             return true;
         }
         false
@@ -250,9 +250,10 @@ struct ProducerRawMaterialsLocalStock {
 impl ProducerRawMaterialsLocalStock {
     fn new(raw_materials_required: &RawMaterialsList, capacity: u32) -> Self {
         let mut slots = SmallVec::new();
-        for material in raw_materials_required.iter() {
-            slots.push(StockItem { kind: *material, count: 0 });
-        }
+        raw_materials_required.for_each(|material| {
+            slots.push(StockItem { kind: material, count: 0 });
+            true
+        });
         Self {
             slots: slots,
             capacity: capacity,
@@ -260,12 +261,12 @@ impl ProducerRawMaterialsLocalStock {
     }
 
     #[inline]
-    fn has_any_slot(&self) -> bool {
+    fn has_any_item_slot(&self) -> bool {
         !self.slots.is_empty()
     }
 
     #[inline]
-    fn is_slot_full(&self, kind: RawMaterialKind) -> bool {
+    fn is_item_slot_full(&self, kind: RawMaterialKind) -> bool {
         for slot in &self.slots {
             if slot.kind.intersects(kind) {
                 if slot.count >= self.capacity {
@@ -378,11 +379,10 @@ impl ProducerRawMaterialsLocalStock {
                 let is_full = item.count >= capacity;
 
                 ui.same_line();
-                ui.text(format!("(of {})", capacity_left));
-
                 if is_full {
-                    ui.same_line();
                     ui.text_colored(Color::red().to_array(), "(full)");
+                } else {
+                    ui.text(format!("({} left)", capacity_left));
                 }
             }
         }

@@ -842,8 +842,7 @@ impl TileSets {
     }
 
     pub fn for_each_set<F>(&self, mut visitor_fn: F)
-        where
-            F: FnMut(&TileSet) -> bool
+        where F: FnMut(&TileSet) -> bool
     {
         for set in &self.sets {
             let should_continue = visitor_fn(set);
@@ -854,8 +853,7 @@ impl TileSets {
     }
 
     pub fn for_each_category<F>(&self, mut visitor_fn: F)
-        where
-            F: FnMut(&TileSet, &TileCategory) -> bool
+        where F: FnMut(&TileSet, &TileCategory) -> bool
     {
         for set in &self.sets {
             for cat in &set.categories {
@@ -868,8 +866,7 @@ impl TileSets {
     }
 
     pub fn for_each_tile_def<F>(&self, mut visitor_fn: F)
-        where 
-            F: FnMut(&TileSet, &TileCategory, &TileDef) -> bool
+        where F: FnMut(&TileSet, &TileCategory, &TileDef) -> bool
     {
         for set in &self.sets {
             for cat in &set.categories {

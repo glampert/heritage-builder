@@ -119,18 +119,17 @@ type ConsumerGoodSlots = StorageSlots<ConsumerGoodKind, CONSUMER_GOOD_COUNT>;
 type RawMaterialSlots  = StorageSlots<RawMaterialKind,  RAW_MATERIAL_COUNT>;
 
 impl<T, const STOCK_CAPACITY: usize> StorageSlots<T, STOCK_CAPACITY>
-    where
-        T: Copy + Display + bitflags::Flags + PartialEq
+    where T: Copy + Display + bitflags::Flags + PartialEq, u32: From<<T as bitflags::Flags>::Bits>
 {
-    fn new(items_accepted: &List<T, STOCK_CAPACITY>, num_slots: u32, slot_capacity: u32) -> Option<Box<Self>> {
-        if items_accepted.is_empty() || num_slots == 0 || slot_capacity == 0 {
+    fn new(accepted_items: &List<T, STOCK_CAPACITY>, num_slots: u32, slot_capacity: u32) -> Option<Box<Self>> {
+        if accepted_items.is_empty() || num_slots == 0 || slot_capacity == 0 {
             return None;
         }
 
         let mut slots = ArrayVec::new();
         for _ in 0..num_slots {
             slots.push(StorageSlot {
-                stock: Stock::new(items_accepted),
+                stock: Stock::with_accepted_items(accepted_items),
                 allocated_item_kind: None,
             });
         }
@@ -143,32 +142,44 @@ impl<T, const STOCK_CAPACITY: usize> StorageSlots<T, STOCK_CAPACITY>
         slot.allocated_item_kind.is_none()
     }
 
+    fn is_slot_full(&self, slot_index: usize) -> bool {
+        let slot = &self.slots[slot_index];
+        if let Some(allocated_item_kind) = slot.allocated_item_kind {
+            let count = slot.stock.count(allocated_item_kind);
+            if count >= self.slot_capacity {
+                return true;
+            }
+        }
+        false
+    }
+
     fn increment_item_count(&mut self, slot_index: usize, item_kind: T, add_amount: u32) -> u32 {
         let slot = &mut self.slots[slot_index];
 
-        let item = slot.stock.find_mut(item_kind)
+        let (item_index, mut item) = slot.stock.find(item_kind)
             .expect(&format!("Item {} expected to exist in the stock!", item_kind));
         debug_assert!(item.kind == item_kind);
 
         let prev_count = item.count;
-        item.count = (item.count + add_amount).min(self.slot_capacity);
+        item.count = (prev_count + add_amount).min(self.slot_capacity);
 
         if let Some(allocated_item_kind) = slot.allocated_item_kind {
-            if allocated_item_kind != item.kind {
-                panic!("Slot {} can only accept {}!", slot_index, item.kind);
+            if allocated_item_kind != item_kind {
+                panic!("Slot {} can only accept {}!", slot_index, item_kind);
             }
         } else {
             debug_assert!(prev_count == 0);
-            slot.allocated_item_kind = Some(item.kind);
+            slot.allocated_item_kind = Some(item_kind);
         }
 
+        slot.stock.set(item_index, item);
         item.count
     }
 
     fn decrement_item_count(&mut self, slot_index: usize, item_kind: T, sub_amount: u32) -> u32 {
         let slot = &mut self.slots[slot_index];
 
-        let item = slot.stock.find_mut(item_kind)
+        let (item_index, mut item) = slot.stock.find(item_kind)
             .expect(&format!("Item {} expected to exist in the stock!", item_kind));
         debug_assert!(item.kind == item_kind);
 
@@ -176,8 +187,8 @@ impl<T, const STOCK_CAPACITY: usize> StorageSlots<T, STOCK_CAPACITY>
             item.count = item.count.saturating_sub(sub_amount);
 
             // If we have a non-zero item count we must have an allocated item and its kind must match.
-            if slot.allocated_item_kind.unwrap() != item.kind {
-                panic!("Slot {} can only accept {}!", slot_index, item.kind);
+            if slot.allocated_item_kind.unwrap() != item_kind {
+                panic!("Slot {} can only accept {}!", slot_index, item_kind);
             }
 
             if item.count == 0 {
@@ -185,6 +196,7 @@ impl<T, const STOCK_CAPACITY: usize> StorageSlots<T, STOCK_CAPACITY>
             }
         }
 
+        slot.stock.set(item_index, item);
         item.count
     }
 }
@@ -216,8 +228,7 @@ impl<'config> StorageBuilding<'config> {
 }
 
 impl<T, const STOCK_CAPACITY: usize> StorageSlots<T, STOCK_CAPACITY>
-    where 
-        T: Copy + Display + bitflags::Flags + PartialEq
+    where T: Copy + Display + bitflags::Flags + PartialEq, u32: From<<T as bitflags::Flags>::Bits>
 {
     fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
         if self.slots.is_empty() {
@@ -236,9 +247,9 @@ impl<T, const STOCK_CAPACITY: usize> StorageSlots<T, STOCK_CAPACITY>
                     display_slots[slot_index].push(allocated_item_kind);
                 } else {
                     // No item allocated for the slot, display all possible item kinds accepted.
-                    for item in slot.stock.iter() {
+                    slot.stock.for_each(|_, item| {
                         display_slots[slot_index].push(item.kind);
-                    }
+                    });
                 }
             }
 
@@ -257,9 +268,10 @@ impl<T, const STOCK_CAPACITY: usize> StorageSlots<T, STOCK_CAPACITY>
                         let item_label =
                             format!("{}##_stock_item_{}_slot_{}", item_kind, item_index, slot_index);
 
-                        let prev_item_count = self.slots[slot_index].stock.find(*item_kind)
-                            .expect(&format!("Item {} expected to exist in the stock!", item_kind)).count;
+                        let (_, item) = self.slots[slot_index].stock.find(*item_kind)
+                            .expect(&format!("Item {} expected to exist in the stock!", item_kind));
 
+                        let prev_item_count = item.count;
                         let mut new_item_count = prev_item_count;
 
                         if ui.input_scalar(item_label, &mut new_item_count).step(1).build() {
@@ -276,11 +288,10 @@ impl<T, const STOCK_CAPACITY: usize> StorageSlots<T, STOCK_CAPACITY>
                         let is_full = new_item_count >= self.slot_capacity;
 
                         ui.same_line();
-                        ui.text(format!("(of {})", capacity_left));
-
                         if is_full {
-                            ui.same_line();
                             ui.text_colored(Color::red().to_array(), "(full)");
+                        } else {
+                            ui.text(format!("({} left)", capacity_left));
                         }
                     }
                 }

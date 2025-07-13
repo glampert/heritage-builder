@@ -61,7 +61,7 @@ impl<'config> ServiceBuilding<'config> {
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
-            goods_stock: ConsumerGoodsStock::new(&config.goods_required),
+            goods_stock: ConsumerGoodsStock::with_accepted_items(&config.goods_required),
         }
     }
 

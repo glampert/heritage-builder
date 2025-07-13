@@ -130,7 +130,7 @@ impl<'config> HouseBuilding<'config> {
             stock_update_timer: UpdateTimer::new(STOCK_UPDATE_FREQUENCY_SECS),
             upgrade_update_timer: UpdateTimer::new(UPGRADE_UPDATE_FREQUENCY_SECS),
             upgrade_state: HouseUpgradeState::new(level, configs),
-            goods_stock: ConsumerGoodsStock::accept_all(),
+            goods_stock: ConsumerGoodsStock::accept_all_items(),
             debug: HouseDebug::default(),
         }
     }

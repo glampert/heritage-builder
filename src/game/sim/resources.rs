@@ -1,6 +1,6 @@
-use core::slice::{Iter, IterMut};
-use bitflags::{bitflags, Flags};
+use core::slice::Iter;
 use arrayvec::ArrayVec;
+use bitflags::{bitflags, Flags};
 use std::fmt::Display;
 
 use crate::{
@@ -13,69 +13,72 @@ use crate::{
 // Stock generic
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
 pub struct StockItem<T> {
-    pub kind: T, // This is always a single bitflag; never multiple ORed together.
+    pub kind: T, // This is always a single bitflag; never ORed together.
     pub count: u32,
 }
 
 pub struct Stock<T, const CAPACITY: usize> {
-    items: ArrayVec<StockItem<T>, CAPACITY>,
+    item_bits: T,
+    item_counts: [u16; CAPACITY],
+}
+
+#[inline(always)]
+fn bit_index<T>(bitflag: T) -> usize
+    where T: Copy + bitflags::Flags, u32: From<<T as bitflags::Flags>::Bits>
+{
+    let bits: u32 = bitflag.bits().into();
+    debug_assert!(bits.count_ones() == 1);
+    bits.trailing_zeros() as usize
 }
 
 impl<T, const CAPACITY: usize> Stock<T, CAPACITY> 
-    where
-        T: Copy + Display + bitflags::Flags
+    where T: Copy + Display + bitflags::Flags, u32: From<<T as Flags>::Bits>
 {
     #[inline]
-    pub fn new(items_accepted: &List<T, CAPACITY>) -> Self {
+    pub fn with_accepted_items(accepted_items: &List<T, CAPACITY>) -> Self {
         let mut stock = Self {
-            items: ArrayVec::new(),
+            item_bits: T::empty(),
+            item_counts: [0; CAPACITY],
         };
 
-        for item in items_accepted.iter() {
-            stock.items.push(StockItem { kind: *item, count: 0 });
-        }
+        accepted_items.for_each(|item| {
+            stock.item_bits.set(item, true);
+            true
+        });
 
         stock
     }
 
     #[inline]
-    pub fn accept_all() -> Self {
+    pub fn accept_all_items() -> Self {
         let mut stock = Self {
-            items: ArrayVec::new(),
+            item_bits: T::empty(),
+            item_counts: [0; CAPACITY],
         };
 
         for item in T::FLAGS.iter() {
-            stock.items.push(StockItem { kind: *item.value(), count: 0 });
+            stock.item_bits.set(*item.value(), true);
         }
 
         stock
     }
 
     #[inline]
-    pub fn iter(&self) -> Iter<'_, StockItem<T>> {
-        self.items.iter()
+    pub fn item_slot_count(&self) -> usize {
+        self.item_counts.len()
     }
 
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<'_, StockItem<T>> {
-        self.items.iter_mut()
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.items.len()
-    }
-
-    #[inline]
-    pub fn has_any_entry(&self) -> bool {
-        self.items.len() != 0
+    pub fn has_any_item_slot(&self) -> bool {
+        self.item_slot_count() != 0
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        for item in &self.items {
-            if item.count != 0 {
+        for item_count in self.item_counts {
+            if item_count != 0 {
                 return false;
             }
         }
@@ -84,15 +87,18 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
 
     #[inline]
     pub fn clear(&mut self) {
-        for item in &mut self.items {
-            item.count = 0;
+        for item_count in &mut self.item_counts {
+            *item_count = 0;
         }
     }
 
     #[inline]
     pub fn has(&self, wanted: T) -> bool {
-        for item in &self.items {
-            if item.kind.intersects(wanted) && item.count != 0 {
+        // Break down flags that are ORed together (since T is bitflags),
+        // so that has() can work with multiple wanted items, e.g.:
+        // has(A | B | C) -> returns true if any A|B|C is non-zero
+        for single_flag in wanted.iter() {
+            if self.count(single_flag) != 0 {
                 return true;
             }
         }
@@ -100,65 +106,94 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     }
 
     #[inline]
-    pub fn find(&self, wanted: T) -> Option<&StockItem<T>> {
-        for item in &self.items {
-            if item.kind.intersects(wanted) {
-                return Some(item);
-            }
+    pub fn find(&self, wanted: T) -> Option<(usize, StockItem<T>)> {
+        if !self.item_bits.intersects(wanted) {
+            return None;
         }
-        None
+        let item_index = bit_index(wanted);
+        let item_count = self.item_counts[item_index];
+        let stock_item = StockItem { kind: wanted, count: item_count.into() };
+        return Some((item_index, stock_item));
     }
 
     #[inline]
-    pub fn find_mut(&mut self, wanted: T) -> Option<&mut StockItem<T>> {
-        for item in &mut self.items {
-            if item.kind.intersects(wanted) {
-                return Some(item);
-            }
-        }
-        None
+    pub fn set(&mut self, item_index: usize, new_item: StockItem<T>) {
+        debug_assert!(self.item_bits.intersects(new_item.kind));
+        debug_assert!(bit_index(new_item.kind) == item_index);
+        self.item_counts[item_index] = new_item.count.try_into().expect("Value cannot fit into a u16!");
     }
 
     #[inline]
-    pub fn count(&mut self, wanted: T) -> u32 {
-        for item in &self.items {
-            if item.kind.intersects(wanted) {
-                return item.count;
-            }
+    pub fn count(&self, wanted: T) -> u32 {
+        if !self.item_bits.intersects(wanted) {
+            return 0;
         }
-        panic!("Failed to find item '{}' to Stock!", wanted);
+        let item_index = bit_index(wanted);
+        self.item_counts[item_index].into()
     }
 
     #[inline]
     pub fn add(&mut self, new_item: T) {
-        for item in &mut self.items {
-            if item.kind.intersects(new_item) {
-                item.count += 1;
-                return;
-            }
+        if !self.item_bits.intersects(new_item) {
+            panic!("Failed to add item '{}' to Stock! Item not accepted.", new_item);
         }
-        panic!("Failed to add item '{}' to Stock!", new_item);
+        let item_index = bit_index(new_item);
+        self.item_counts[item_index] += 1;
     }
 
     #[inline]
     pub fn remove(&mut self, wanted: T) -> Option<T> {
-        for item in &mut self.items {
-            if item.kind.intersects(wanted) && item.count != 0 {
-                item.count -= 1;
-                return Some(item.kind);
+        // Break down flags that are ORed together (since T is bitflags),
+        // so that remove() can work with multiple wanted items, e.g.:
+        // remove(A | B | C) -> will remove the first of A|B|C that is
+        // non-zero and return it.
+        for single_flag in wanted.iter() {
+            if self.item_bits.intersects(single_flag) {
+                let item_index = bit_index(single_flag);
+                let item_count = self.item_counts[item_index];
+                if item_count == 0 {
+                    continue;
+                }
+                self.item_counts[item_index] = item_count - 1;
+                return Some(single_flag);
             }
         }
         None
+    }
+
+    #[inline]
+    pub fn for_each<F>(&self, mut visitor_fn: F)
+        where F: FnMut(usize, &StockItem<T>)
+    {
+        for (item_index, item_kind) in self.item_bits.iter().enumerate() {
+            debug_assert!(bit_index(item_kind) == item_index);
+            let item_count = self.item_counts[item_index];
+            let stock_item = StockItem { kind: item_kind, count: item_count.into() };
+            visitor_fn(item_index, &stock_item);
+        }
+    }
+
+    #[inline]
+    pub fn for_each_mut<F>(&mut self, mut visitor_fn: F)
+        where F: FnMut(usize, &mut StockItem<T>)
+    {
+        for (item_index, item_kind) in self.item_bits.iter().enumerate() {
+            debug_assert!(bit_index(item_kind) == item_index);
+            let item_count = self.item_counts[item_index];
+            let mut stock_item = StockItem { kind: item_kind, count: item_count.into() };
+            visitor_fn(item_index, &mut stock_item);
+            self.item_counts[item_index] = stock_item.count.try_into().expect("Value cannot fit into a u16!");
+        }
     }
 
     pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header(format!("{}##_resource_stock", label), imgui::TreeNodeFlags::empty()) {
-            for (index, item) in self.iter_mut().enumerate() {
+            self.for_each_mut(|index, item| {
                 ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count)
                     .step(1)
                     .build();
-            }
+            });
         }
     }
 
@@ -167,13 +202,13 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     {
         let ui = ui_sys.builder();
         if ui.collapsing_header(format!("{}##_resource_stock", label), imgui::TreeNodeFlags::empty()) {
-            for (index, item) in self.iter_mut().enumerate() {
+            self.for_each_mut(|index, item| {
                 if filter_fn(item) {
                     ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count)
                         .step(1)
                         .build();
                 }
-            }
+            });
         }
     }
 }
@@ -187,8 +222,7 @@ pub struct List<T, const CAPACITY: usize> {
 }
 
 impl<T, const CAPACITY: usize> List<T, CAPACITY> 
-    where
-        T: Copy + Display + bitflags::Flags
+    where T: Copy + Display + bitflags::Flags
 {
     #[inline]
     pub fn empty() -> Self {
@@ -198,7 +232,7 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
     }
 
     #[inline]
-    pub fn all() -> Self {
+    pub fn with_all_items() -> Self {
         let mut list = Self {
             items: ArrayVec::new(),
         };
@@ -211,14 +245,14 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
     }
 
     #[inline]
-    pub fn new(items: &[T]) -> Self {
+    pub fn with_items_slice(items: &[T]) -> Self {
         Self {
             items: ArrayVec::try_from(items).expect("Cannot fit all items into List!"),
         }
     }
 
     #[inline]
-    pub fn split(items: T) -> Self {
+    pub fn with_items_expanded(items: T) -> Self {
          let mut list = Self {
             items: ArrayVec::new(),
         };
@@ -252,6 +286,12 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
     }
 
     #[inline]
+    pub fn add(&mut self, new_item: T) {
+        debug_assert!(!self.has(new_item));
+        self.items.push(new_item);
+    }
+
+    #[inline]
     pub fn has(&self, wanted: T) -> bool {
         for item in &self.items {
             if item.intersects(wanted) {
@@ -261,15 +301,9 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
         false
     }
 
-    #[inline]
-    pub fn add(&mut self, new_item: T) {
-        debug_assert!(!self.has(new_item));
-        self.items.push(new_item);
-    }
-
     // This will break down any flags that are ORed together into
     // individual calls to visitor_fn, unlike iter() which yields
-    // combined flags as they are.
+    // combined flags as they appear.
     #[inline]
     pub fn for_each<F>(&self, mut visitor_fn: F)
         where F: FnMut(T) -> bool
@@ -286,8 +320,7 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
 }
 
 impl<T, const CAPACITY: usize> Display for List<T, CAPACITY>
-    where 
-    T: Copy + Display + bitflags::Flags
+    where T: Copy + Display + bitflags::Flags
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut first = true;

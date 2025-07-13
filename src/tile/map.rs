@@ -607,8 +607,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn for_each_cell<F>(&self, reverse: bool, mut visitor_fn: F)
-        where
-            F: FnMut(Cell)
+        where F: FnMut(Cell)
     {
         if reverse {
             for cell in self.cell_range().iter_rev() {
@@ -1201,8 +1200,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     #[inline]
     pub fn for_each_tile<F>(&self, tile_kinds: TileKind, mut visitor_fn: F)
-        where
-            F: FnMut(&Tile<'tile_sets>)
+        where F: FnMut(&Tile<'tile_sets>)
     {
         for (_, tile) in &self.pool.slab {
             if tile.is(tile_kinds) {
@@ -1213,8 +1211,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     #[inline]
     pub fn for_each_tile_mut<F>(&mut self, tile_kinds: TileKind, mut visitor_fn: F)
-        where
-            F: FnMut(&mut Tile<'tile_sets>)
+        where F: FnMut(&mut Tile<'tile_sets>)
     {
         for (_, tile) in &mut self.pool.slab {
             if tile.is(tile_kinds) {
@@ -1454,8 +1451,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     #[inline]
     pub fn for_each_tile<F>(&self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
-        where
-            F: FnMut(&Tile<'tile_sets>)
+        where F: FnMut(&Tile<'tile_sets>)
     {
         let layer = self.layer(layer_kind);
         layer.for_each_tile(tile_kinds, visitor_fn);
@@ -1463,8 +1459,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     #[inline]
     pub fn for_each_tile_mut<F>(&mut self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
-        where
-            F: FnMut(&mut Tile<'tile_sets>)
+        where F: FnMut(&mut Tile<'tile_sets>)
     {
         let layer = self.layer_mut(layer_kind);
         layer.for_each_tile_mut(tile_kinds, visitor_fn);
