@@ -11,9 +11,8 @@ use crate::{
     game::sim::{
         UpdateTimer,
         resources::{
-            ConsumerGoodKind,
-            RawMaterialKind,
-            RawMaterialsList,
+            ResourceKind,
+            ResourceKinds,
             StockItem,
             Workers
         }
@@ -32,7 +31,6 @@ use super::{
 // TODO List
 // ----------------------------------------------
 
-// - Move production output from local stock to storage.
 // - Get raw materials from storage OR from other producers directly.
 
 // ----------------------------------------------
@@ -53,12 +51,12 @@ pub struct ProducerConfig {
     pub max_workers: u32,
 
     // Producer output: A raw material or a consumer good.
-    pub production_output: ProducerOutputKind,
+    pub production_output_kind: ResourceKind,
     pub production_capacity: u32,
 
     // Kinds of raw materials required for production, if any.
-    pub raw_materials_required: RawMaterialsList,
-    pub raw_materials_capacity: u32,
+    pub resources_required: ResourceKinds,
+    pub resources_capacity: u32,
 }
 
 // ----------------------------------------------
@@ -84,8 +82,8 @@ pub struct ProducerBuilding<'config> {
     workers: Workers,
 
     production_update_timer: UpdateTimer,
+    production_input_stock:  ProducerInputsLocalStock, // Local stock of required raw materials.
     production_output_stock: ProducerOutputLocalStock, // Local production output storage.
-    raw_materials_required_stock: ProducerRawMaterialsLocalStock, // Current local stock of required raw materials.
 
     debug: ProducerDebug,
 }
@@ -117,13 +115,13 @@ impl<'config> ProducerBuilding<'config> {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
             production_update_timer: UpdateTimer::new(PRODUCTION_OUTPUT_FREQUENCY_SECS),
-            production_output_stock: ProducerOutputLocalStock::new(
-                &config.production_output,
-                config.production_capacity
+            production_input_stock: ProducerInputsLocalStock::new(
+                &config.resources_required,
+                config.resources_capacity
             ),
-            raw_materials_required_stock: ProducerRawMaterialsLocalStock::new(
-                &config.raw_materials_required,
-                config.raw_materials_capacity
+            production_output_stock: ProducerOutputLocalStock::new(
+                config.production_output_kind,
+                config.production_capacity
             ),
             debug: ProducerDebug::default(),
         }
@@ -135,10 +133,10 @@ impl<'config> ProducerBuilding<'config> {
             let mut produce_one_item = true;
 
             // If we have raw material requirements, first check if they are available in stock.
-            if self.raw_materials_required_stock.requires_any_item() {
-                if self.raw_materials_required_stock.has_all_required_items() {
+            if self.production_input_stock.requires_any_resource() {
+                if self.production_input_stock.has_all_required_resources() {
                     // Consume our raw materials (one of each).
-                    self.raw_materials_required_stock.consume_all_items();
+                    self.production_input_stock.consume_all_resources();
                 } else {
                     // We are missing one or more raw materials, halt production.
                     produce_one_item = false;
@@ -176,8 +174,8 @@ impl<'config> ProducerBuilding<'config> {
         if self.production_output_stock.is_full() {
             return true;
         }
-        if self.raw_materials_required_stock.requires_any_item() &&
-          !self.raw_materials_required_stock.has_all_required_items() {
+        if self.production_input_stock.requires_any_resource() &&
+          !self.production_input_stock.has_all_required_resources() {
             return true;
         }
         false
@@ -185,113 +183,53 @@ impl<'config> ProducerBuilding<'config> {
 }
 
 // ----------------------------------------------
-// ProducerOutputKind
-// ----------------------------------------------
-
-pub enum ProducerOutputKind {
-    RawMaterial(RawMaterialKind),
-    ConsumerGood(ConsumerGoodKind),
-}
-
-impl std::fmt::Display for ProducerOutputKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ProducerOutputKind::RawMaterial(material) => {
-                write!(f, "{}", material)
-            },
-            ProducerOutputKind::ConsumerGood(good) => {
-                write!(f, "{}", good)
-            }
-        }
-    }
-}
-
-// ----------------------------------------------
 // ProducerOutputLocalStock
 // ----------------------------------------------
 
-enum ProducerOutputLocalStock {
-    RawMaterial {
-        item: StockItem<RawMaterialKind>,
-        capacity: u32
-    },
-    ConsumerGood {
-        item: StockItem<ConsumerGoodKind>,
-        capacity: u32,
-    },
+struct ProducerOutputLocalStock {
+    item: StockItem,
+    capacity: u32,
 }
 
 impl ProducerOutputLocalStock {
-    fn new(output: &ProducerOutputKind, capacity: u32) -> Self {
-        match output {
-            ProducerOutputKind::RawMaterial(material) => {
-                Self::RawMaterial {
-                    item: StockItem { kind: *material, count: 0 },
-                    capacity: capacity,
-                }
-            },
-            ProducerOutputKind::ConsumerGood(good) => {
-                Self::ConsumerGood {
-                    item: StockItem { kind: *good, count: 0 },
-                    capacity: capacity,
-                }
-            }
+    fn new(output_kind: ResourceKind, capacity: u32) -> Self {
+        Self {
+            item: StockItem { kind: output_kind, count: 0 },
+            capacity: capacity,
         }
     }
 
     #[inline]
     fn is_full(&self) -> bool {
-        match self {
-            ProducerOutputLocalStock::RawMaterial { item, capacity } => {
-                item.count >= *capacity
-            },
-            ProducerOutputLocalStock::ConsumerGood { item, capacity } => {
-                item.count >= *capacity
-            }
-        }
+        self.item.count >= self.capacity
     }
 
     #[inline]
     fn add_item(&mut self) {
-        match self {
-            ProducerOutputLocalStock::RawMaterial { item, capacity } => {
-                debug_assert!(item.count < *capacity);
-                item.count += 1
-            },
-            ProducerOutputLocalStock::ConsumerGood { item, capacity } => {
-                debug_assert!(item.count < *capacity);
-                item.count += 1
-            }
-        }
+        debug_assert!(self.item.count < self.capacity);
+        self.item.count += 1;
     }
 
     #[inline]
     fn try_ship_to_storage(&mut self, storage: &mut StorageBuilding) -> bool {
-        match self {
-            ProducerOutputLocalStock::RawMaterial { item, .. } => {
-                storage.try_receive_materials(item)
-            },
-            ProducerOutputLocalStock::ConsumerGood { item, .. } => {
-                storage.try_receive_goods(item)
-            }
-        }
+        storage.try_receive_resources(&mut self.item)
     }
 }
 
 // ----------------------------------------------
-// ProducerRawMaterialsLocalStock
+// ProducerInputsLocalStock
 // ----------------------------------------------
 
-struct ProducerRawMaterialsLocalStock {
-    slots: SmallVec<[StockItem<RawMaterialKind>; 1]>,
-    capacity: u32, // Capacity for each raw material kind.
+struct ProducerInputsLocalStock {
+    slots: SmallVec<[StockItem; 1]>,
+    capacity: u32, // Capacity for each resource kind.
 }
 
-impl ProducerRawMaterialsLocalStock {
-    fn new(raw_materials_required: &RawMaterialsList, capacity: u32) -> Self {
+impl ProducerInputsLocalStock {
+    fn new(resources_required: &ResourceKinds, capacity: u32) -> Self {
         let mut slots = SmallVec::new();
-        raw_materials_required.for_each(|material| {
-            slots.push(StockItem { kind: material, count: 0 });
+        resources_required.for_each(|kind| {
+            slots.push(StockItem { kind: kind, count: 0 });
             true
         });
         Self {
@@ -301,12 +239,22 @@ impl ProducerRawMaterialsLocalStock {
     }
 
     #[inline]
-    fn requires_any_item(&self) -> bool {
+    fn requires_any_resource(&self) -> bool {
         !self.slots.is_empty()
     }
 
     #[inline]
-    fn is_item_slot_full(&self, kind: RawMaterialKind) -> bool {
+    fn has_all_required_resources(&self) -> bool {
+        for slot in &self.slots {
+            if slot.count == 0 {
+                return false;
+            }
+        }
+        true
+    }
+
+    #[inline]
+    fn is_resource_slot_full(&self, kind: ResourceKind) -> bool {
         for slot in &self.slots {
             if slot.kind.intersects(kind) {
                 if slot.count >= self.capacity {
@@ -318,7 +266,7 @@ impl ProducerRawMaterialsLocalStock {
     }
 
     #[inline]
-    fn capacity_left(&self, kind: RawMaterialKind) -> u32 {
+    fn resource_slot_capacity_left(&self, kind: ResourceKind) -> u32 {
         for slot in &self.slots {
             if slot.kind.intersects(kind) {
                 return self.capacity - slot.count;
@@ -328,7 +276,7 @@ impl ProducerRawMaterialsLocalStock {
     }
 
     #[inline]
-    fn count_all_items(&self) -> u32 {
+    fn count_all_resources(&self) -> u32 {
         let mut count = 0;
         for slot in &self.slots {
             count += slot.count;
@@ -337,17 +285,7 @@ impl ProducerRawMaterialsLocalStock {
     }
 
     #[inline]
-    fn has_all_required_items(&self) -> bool {
-        for slot in &self.slots {
-            if slot.count == 0 {
-                return false;
-            }
-        }
-        true
-    }
-
-    #[inline]
-    fn consume_all_items(&mut self) {
+    fn consume_all_resources(&mut self) {
         for slot in &mut self.slots {
             debug_assert!(slot.count != 0);
             slot.count -= 1;
@@ -365,10 +303,10 @@ impl ProducerConfig {
         ui.text(format!("Tile def name.......: '{}'", self.tile_def_name));
         ui.text(format!("Min workers.........: {}", self.min_workers));
         ui.text(format!("Max workers.........: {}", self.max_workers));
-        ui.text(format!("Production output...: {}", self.production_output));
+        ui.text(format!("Production output...: {}", self.production_output_kind));
         ui.text(format!("Production capacity.: {}", self.production_capacity));
-        ui.text(format!("Materials required..: {}", self.raw_materials_required));
-        ui.text(format!("Materials capacity..: {}", self.raw_materials_capacity));
+        ui.text(format!("Resources required..: {}", self.resources_required));
+        ui.text(format!("Resources capacity..: {}", self.resources_capacity));
     }
 }
 
@@ -377,17 +315,8 @@ impl ProducerOutputLocalStock {
         let ui = ui_sys.builder();
         ui.text("Local Stock:");
 
-        match self {
-            ProducerOutputLocalStock::RawMaterial { item, capacity } => {
-                if ui.input_scalar(format!("{}", item.kind), &mut item.count).step(1).build() {
-                    item.count = item.count.min(*capacity);
-                }
-            },
-            ProducerOutputLocalStock::ConsumerGood { item, capacity } => {
-                if ui.input_scalar(format!("{}", item.kind), &mut item.count).step(1).build() {
-                    item.count = item.count.min(*capacity);
-                }
-            }
+        if ui.input_scalar(format!("{}", self.item.kind), &mut self.item.count).step(1).build() {
+            self.item.count = self.item.count.min(self.capacity);
         }
 
         ui.text("Is full:");
@@ -400,7 +329,7 @@ impl ProducerOutputLocalStock {
     }
 }
 
-impl ProducerRawMaterialsLocalStock {
+impl ProducerInputsLocalStock {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if self.slots.is_empty() {
@@ -440,7 +369,7 @@ impl<'config> ProducerBuilding<'config> {
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header("Raw Materials In Stock##_building_input_stock", imgui::TreeNodeFlags::empty()) {
-            self.raw_materials_required_stock.draw_debug_ui(ui_sys);
+            self.production_input_stock.draw_debug_ui(ui_sys);
         }
     }
 

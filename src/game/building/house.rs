@@ -11,17 +11,17 @@ use crate::{
         hash::StringHash
     },
     tile::{
-        sets::TileDef,
-        map::TileMapLayerKind
+        map::TileMapLayerKind,
+        sets::TileDef
     },
     game::{
         building::BuildingKind,
         sim::{
             UpdateTimer,
             resources::{
-                ConsumerGoodsList,
-                ConsumerGoodsStock,
-                ServicesList
+                ResourceKinds,
+                ResourceStock,
+                ServiceKinds
             }
         }
     }
@@ -42,13 +42,13 @@ use super::{
 // - Merge neighboring houses into larger ones when upgrading.
 //   Also have to update is_upgrade_available() to handle this!
 //
-// - Goods should have individual rates of consumption. Some
-//   kinds of goods are consumed slower/faster than others.
+// - Resources should have individual rates of consumption. Some
+//   kinds of resources are consumed slower/faster than others.
 //
-// - Goods consumption rate should be expressed in units per day.
-// - The house occupancy should also influence the goods consumption rate.
+// - Resources consumption rate should be expressed in units per day.
+// - The house occupancy should also influence the resources consumption rate.
 //
-// - Allow houses to stock up on more than 1 unit of each kind of goods?
+// - Allow houses to stock up on more than 1 unit of each kind of resources?
 //   Could allow stocking up to a maximum number of units.
 
 // ----------------------------------------------
@@ -70,10 +70,10 @@ pub struct HouseLevelConfig {
     pub tax_generated: u32,
 
     // Types of services provided by these kinds of buildings for the house level to be obtained and maintained.
-    pub services_required: ServicesList,
+    pub services_required: ServiceKinds,
 
-    // Kinds of goods required for the house level to be obtained and maintained.
-    pub goods_required: ConsumerGoodsList,
+    // Kinds of resources required for the house level to be obtained and maintained.
+    pub resources_required: ResourceKinds,
 }
 
 // ----------------------------------------------
@@ -83,8 +83,8 @@ pub struct HouseLevelConfig {
 declare_building_debug_options!(
     HouseDebug,
 
-    // Stops any goods from being consumed.
-    // Also stops refreshing goods stock from a market.
+    // Stops any resources from being consumed.
+    // Also stops refreshing resources stock from a market.
     freeze_stock_update: bool,
 
     // Stops any upgrade/downgrade when true.
@@ -100,7 +100,7 @@ pub struct HouseBuilding<'config> {
     upgrade_update_timer: UpdateTimer,
 
     upgrade_state: HouseUpgradeState<'config>,
-    goods_stock: ConsumerGoodsStock,
+    stock: ResourceStock,
 
     debug: HouseDebug,
 }
@@ -133,7 +133,7 @@ impl<'config> HouseBuilding<'config> {
             stock_update_timer: UpdateTimer::new(STOCK_UPDATE_FREQUENCY_SECS),
             upgrade_update_timer: UpdateTimer::new(UPGRADE_UPDATE_FREQUENCY_SECS),
             upgrade_state: HouseUpgradeState::new(level, configs),
-            goods_stock: ConsumerGoodsStock::accept_all_items(),
+            stock: ResourceStock::accept_all_resources(),
             debug: HouseDebug::default(),
         }
     }
@@ -146,20 +146,20 @@ impl<'config> HouseBuilding<'config> {
     }
 
     fn stock_update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
-        // Consume goods from the stock periodically and shop for more as needed.
+        // Consume resources from the stock periodically and shop for more as needed.
 
-        let curr_level_goods_required =
-            &self.upgrade_state.curr_level_requirements.level_config.goods_required;
+        let curr_level_resources_required =
+            &self.upgrade_state.curr_level_requirements.level_config.resources_required;
 
-        let next_level_goods_required =
-            &self.upgrade_state.next_level_requirements.level_config.goods_required;
+        let next_level_resources_required =
+            &self.upgrade_state.next_level_requirements.level_config.resources_required;
 
-        if !curr_level_goods_required.is_empty() || !next_level_goods_required.is_empty() {
-            // Consume one of each goods this level uses.
-            curr_level_goods_required.for_each(|good| {
-                if self.goods_stock.remove(good).is_some() {
+        if !curr_level_resources_required.is_empty() || !next_level_resources_required.is_empty() {
+            // Consume one of each resources this level uses.
+            curr_level_resources_required.for_each(|resource| {
+                if self.stock.remove(resource).is_some() {
                     // We consumed one, done.
-                    // E.g.: goods = Meat|Fish, consume one of either.
+                    // E.g.: resource = Meat|Fish, consume one of either.
                     return false;
                 }
                 true
@@ -171,34 +171,34 @@ impl<'config> HouseBuilding<'config> {
             if let Some(market) =
                 update_ctx.find_nearest_service(BuildingKind::Market) {
 
-                // Shop for goods needed for this level.
+                // Shop for resources needed for this level.
                 let all_or_nothing = false;
-                market.shop(&mut self.goods_stock, &curr_level_goods_required, all_or_nothing);
+                market.shop(&mut self.stock, &curr_level_resources_required, all_or_nothing);
 
-                // And if we have space to upgrade, shop for goods needed for the next level, so we can advance.
+                // And if we have space to upgrade, shop for resources needed for the next level, so we can advance.
                 // But only take any if we have the whole shopping list. No point in shopping partially since we
-                // wouldn't be able to upgrade and would wasted those goods.
+                // wouldn't be able to upgrade and would wasted those resources.
                 if upgrade_available {
-                    let mut next_level_shopping_list = ConsumerGoodsList::empty();
+                    let mut next_level_shopping_list = ResourceKinds::empty();
 
-                    // We've already shopped for goods in the current level list,
+                    // We've already shopped for resources in the current level list,
                     // so take only the ones that are exclusive to the next level.
-                    for &goods in next_level_goods_required.iter() {
-                        if !self.goods_stock.has(goods) {
-                            next_level_shopping_list.add(goods);
+                    for &resources in next_level_resources_required.iter() {
+                        if !self.stock.has(resources) {
+                            next_level_shopping_list.add(resources);
                         }
                     }
 
                     let all_or_nothing = true;
-                    market.shop(&mut self.goods_stock, &next_level_shopping_list, all_or_nothing);
+                    market.shop(&mut self.stock, &next_level_shopping_list, all_or_nothing);
                 }
             }
         }
     }
 
     fn upgrade_update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
-        // Attempt to upgrade or downgrade based on service and goods availability.
-        self.upgrade_state.update(update_ctx, &self.goods_stock);
+        // Attempt to upgrade or downgrade based on services and resources availability.
+        self.upgrade_state.update(update_ctx, &self.stock);
     }
 }
 
@@ -268,8 +268,8 @@ impl HouseLevel {
 
 struct HouseLevelRequirements<'config> {
     level_config: &'config HouseLevelConfig,
-    services_available: ServicesList,   // From the level requirements, how many we have access to.
-    goods_available: ConsumerGoodsList, // From the level requirements, how many we have in stock.
+    services_available: ServiceKinds,   // From the level requirements, how many we have access to.
+    resources_available: ResourceKinds, // From the level requirements, how many we have in stock.
 }
 
 impl<'config> HouseLevelRequirements<'config> {
@@ -288,13 +288,13 @@ impl<'config> HouseLevelRequirements<'config> {
     }
 
     #[inline]
-    fn has_all_required_consumer_goods(&self) -> bool {
-        if self.goods_available.len() < self.level_config.goods_required.len() {
+    fn has_all_required_resources(&self) -> bool {
+        if self.resources_available.len() < self.level_config.resources_required.len() {
             return false;
         }
 
-        for good in self.level_config.goods_required.iter() {
-            if !self.goods_available.has(*good) {
+        for resource in self.level_config.resources_required.iter() {
+            if !self.resources_available.has(*resource) {
                 return false;
             }
         }
@@ -303,7 +303,7 @@ impl<'config> HouseLevelRequirements<'config> {
 
     fn update(&mut self,
               update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
-              goods_stock: &ConsumerGoodsStock) {
+              stock: &ResourceStock) {
 
         self.services_available.clear();
         self.level_config.services_required.for_each(|service| {
@@ -313,10 +313,10 @@ impl<'config> HouseLevelRequirements<'config> {
             true
         });
 
-        self.goods_available.clear();
-        self.level_config.goods_required.for_each(|good| {
-            if goods_stock.has(good) {
-                self.goods_available.add(good);
+        self.resources_available.clear();
+        self.level_config.resources_required.for_each(|resource| {
+            if stock.has(resource) {
+                self.resources_available.add(resource);
             }
             true
         });
@@ -340,13 +340,13 @@ impl<'config> HouseUpgradeState<'config> {
             level: level,
             curr_level_requirements: HouseLevelRequirements {
                 level_config: configs.find_house_level(level),
-                services_available: ServicesList::empty(),
-                goods_available: ConsumerGoodsList::empty(),
+                services_available: ServiceKinds::empty(),
+                resources_available: ResourceKinds::empty(),
             },
             next_level_requirements: HouseLevelRequirements {
                 level_config: configs.find_house_level(level.next()),
-                services_available: ServicesList::empty(),
-                goods_available: ConsumerGoodsList::empty(),
+                services_available: ServiceKinds::empty(),
+                resources_available: ResourceKinds::empty(),
             },
             has_room_to_upgrade: true,
         }
@@ -354,41 +354,41 @@ impl<'config> HouseUpgradeState<'config> {
 
     fn update(&mut self,
               update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>,
-              goods_stock: &ConsumerGoodsStock) {
+              stock: &ResourceStock) {
 
-        if self.can_upgrade(update_ctx, goods_stock) {
+        if self.can_upgrade(update_ctx, stock) {
             self.try_upgrade(update_ctx);
-        } else if self.can_downgrade(update_ctx, goods_stock) {
+        } else if self.can_downgrade(update_ctx, stock) {
             self.try_downgrade(update_ctx);
         }
     }
 
     fn can_upgrade(&mut self,
                    update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
-                   goods_stock: &ConsumerGoodsStock) -> bool {
+                   stock: &ResourceStock) -> bool {
         if self.level.is_max() {
             return false;
         }
 
-        self.next_level_requirements.update(update_ctx, goods_stock);
+        self.next_level_requirements.update(update_ctx, stock);
 
-        // Upgrade if we have the required goods and services for the next level.
+        // Upgrade if we have the required services and resources for the next level.
         self.next_level_requirements.has_all_required_services() &&
-        self.next_level_requirements.has_all_required_consumer_goods()
+        self.next_level_requirements.has_all_required_resources()
     }
 
     fn can_downgrade(&mut self,
                      update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
-                     goods_stock: &ConsumerGoodsStock) -> bool {
+                     stock: &ResourceStock) -> bool {
         if self.level.is_min() {
             return false;
         }
 
-        self.curr_level_requirements.update(update_ctx, goods_stock);
+        self.curr_level_requirements.update(update_ctx, stock);
 
-        // Downgrade if we don't have the required goods and services for the current level.
+        // Downgrade if we don't have the required services and resources for the current level.
         !self.curr_level_requirements.has_all_required_services() ||
-        !self.curr_level_requirements.has_all_required_consumer_goods()
+        !self.curr_level_requirements.has_all_required_resources()
     }
 
     fn try_upgrade(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
@@ -539,11 +539,11 @@ impl<'config> HouseUpgradeState<'config> {
 impl HouseLevelConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        ui.text(format!("Tile def name.....: '{}'", self.tile_def_name));
-        ui.text(format!("Max residents.....: {}", self.max_residents));
-        ui.text(format!("Tax generated.....: {}", self.tax_generated));
-        ui.text(format!("Services required.: {}", self.services_required));
-        ui.text(format!("Goods required....: {}", self.goods_required));
+        ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
+        ui.text(format!("Max residents......: {}", self.max_residents));
+        ui.text(format!("Tax generated......: {}", self.tax_generated));
+        ui.text(format!("Services required..: {}", self.services_required));
+        ui.text(format!("Resources required.: {}", self.resources_required));
     }
 }
 
@@ -571,30 +571,30 @@ impl<'config> HouseBuilding<'config> {
             ui.separator();
             ui.text(label);
 
-            ui.text(format!("  Goods avail....: {} (req: {})",
-                level_requirements.goods_available.len(),
-                level_requirements.level_config.goods_required.len()));
-            ui.text(format!("  Services avail.: {} (req: {})",
+            ui.text(format!("  Resources avail.: {} (req: {})",
+                level_requirements.resources_available.len(),
+                level_requirements.level_config.resources_required.len()));
+            ui.text(format!("  Services avail..: {} (req: {})",
                 level_requirements.services_available.len(),
                 level_requirements.level_config.services_required.len()));
 
-            if ui.collapsing_header(format!("Goods##_building_goods_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
-                if !level_requirements.level_config.goods_required.is_empty() {
+            if ui.collapsing_header(format!("Resources##_building_resources_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
+                if !level_requirements.level_config.resources_required.is_empty() {
                     ui.text("Available:");
-                    if level_requirements.goods_available.is_empty() {
+                    if level_requirements.resources_available.is_empty() {
                         ui.text("  <none>");
                     }
-                    for good in level_requirements.goods_available.iter() {
-                        ui.text(format!("  {}", good));
+                    for resource in level_requirements.resources_available.iter() {
+                        ui.text(format!("  {}", resource));
                     }
                 }
 
                 ui.text("Required:");
-                if level_requirements.level_config.goods_required.is_empty() {
+                if level_requirements.level_config.resources_required.is_empty() {
                     ui.text("  <none>");
                 }
-                for good in level_requirements.level_config.goods_required.iter() {
-                    ui.text(format!("  {}", good));
+                for resource in level_requirements.level_config.resources_required.iter() {
+                    ui.text(format!("  {}", resource));
                 }
             }
 
@@ -639,12 +639,12 @@ impl<'config> HouseBuilding<'config> {
         ui.text(format!("  Time since....: {:.2}s", self.upgrade_update_timer.time_since_last_secs()));
         color_text("  Has room......:", upgrade_state.has_room_to_upgrade);
         color_text("  Has services..:", upgrade_state.next_level_requirements.has_all_required_services());
-        color_text("  Has goods.....:", upgrade_state.next_level_requirements.has_all_required_consumer_goods());
+        color_text("  Has resources.:", upgrade_state.next_level_requirements.has_all_required_resources());
 
         ui.text("Stock:");
         ui.text(format!("  Frequency.....: {:.2}s", self.stock_update_timer.frequency_secs()));
         ui.text(format!("  Time since....: {:.2}s", self.stock_update_timer.time_since_last_secs()));
-        self.goods_stock.draw_debug_ui("Goods In Stock", ui_sys);
+        self.stock.draw_debug_ui("Resources In Stock", ui_sys);
 
         draw_level_requirements(
             &format!("Curr level reqs ({:?}):", upgrade_state.level),

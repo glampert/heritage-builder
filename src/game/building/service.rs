@@ -5,8 +5,8 @@ use crate::{
         hash::StringHash
     },
     game::sim::resources::{
-        ConsumerGoodsList,
-        ConsumerGoodsStock,
+        ResourceKinds,
+        ResourceStock,
         Workers
     }
 };
@@ -31,8 +31,8 @@ pub struct ServiceConfig {
 
     pub effect_radius: i32,
 
-    // Kinds of goods required for the service to run, if any.
-    pub goods_required: ConsumerGoodsList,
+    // Kinds of resources required for the service to run, if any.
+    pub resources_required: ResourceKinds,
 }
 
 // ----------------------------------------------
@@ -43,8 +43,8 @@ pub struct ServiceBuilding<'config> {
     config: &'config ServiceConfig,
     workers: Workers,
 
-    // Current local stock of goods.
-    goods_stock: ConsumerGoodsStock,
+    // Current local stock of resources.
+    stock: ResourceStock,
 }
 
 impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
@@ -54,7 +54,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
 
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         self.draw_debug_ui_service_config(ui_sys);
-        self.goods_stock.draw_debug_ui("Goods In Stock", ui_sys);
+        self.stock.draw_debug_ui("Resources In Stock", ui_sys);
     }
 }
 
@@ -64,22 +64,22 @@ impl<'config> ServiceBuilding<'config> {
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
-            goods_stock: ConsumerGoodsStock::with_accepted_items(&config.goods_required),
+            stock: ResourceStock::with_accepted_resources(&config.resources_required),
         }
     }
 
-    pub fn shop(&mut self, shopping_basket: &mut ConsumerGoodsStock, shopping_list: &ConsumerGoodsList, all_or_nothing: bool) {
+    pub fn shop(&mut self, shopping_basket: &mut ResourceStock, shopping_list: &ResourceKinds, all_or_nothing: bool) {
         if all_or_nothing {
-            for wanted_item in shopping_list.iter() {
-                if !self.goods_stock.has(*wanted_item) {
+            for wanted_resource in shopping_list.iter() {
+                if !self.stock.has(*wanted_resource) {
                     return; // If any item is missing we take nothing.
                 }
             }      
         }
 
-        for wanted_item in shopping_list.iter() {
-            if let Some(stock_item) = self.goods_stock.remove(*wanted_item) {
-                shopping_basket.add(stock_item);
+        for wanted_resource in shopping_list.iter() {
+            if let Some(resource) = self.stock.remove(*wanted_resource) {
+                shopping_basket.add(resource);
             }
         }
     }
@@ -92,11 +92,11 @@ impl<'config> ServiceBuilding<'config> {
 impl ServiceConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        ui.text(format!("Tile def name..: '{}'", self.tile_def_name));
-        ui.text(format!("Min workers....: {}", self.min_workers));
-        ui.text(format!("Max workers....: {}", self.max_workers));
-        ui.text(format!("Effect radius..: {}", self.effect_radius));
-        ui.text(format!("Goods required.: {}", self.goods_required));
+        ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
+        ui.text(format!("Min workers........: {}", self.min_workers));
+        ui.text(format!("Max workers........: {}", self.max_workers));
+        ui.text(format!("Effect radius......: {}", self.effect_radius));
+        ui.text(format!("Resources required.: {}", self.resources_required));
     }
 }
 

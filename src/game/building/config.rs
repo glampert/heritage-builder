@@ -2,10 +2,9 @@ use crate::{
     utils::hash::{self},
     tile::map::Tile,
     game::sim::resources::{
-        ConsumerGoodKind,
-        ConsumerGoodsList,
-        RawMaterialsList,
-        ServicesList
+        ResourceKind,
+        ResourceKinds,
+        ServiceKinds
     }
 };
 
@@ -20,7 +19,6 @@ use super::{
     },
     producer::{
         ProducerConfig,
-        ProducerOutputKind,
         ProducerBuilding
     },
     service::{
@@ -59,26 +57,26 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house0"),
                 max_residents: 2,
                 tax_generated: 0,
-                services_required: ServicesList::empty(),
-                goods_required: ConsumerGoodsList::empty(),        
+                services_required: ServiceKinds::empty(),
+                resources_required: ResourceKinds::empty(),        
             },
             house1: HouseLevelConfig {
                 tile_def_name: "house1".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("house1"),
                 max_residents: 4,
                 tax_generated: 1,
-                services_required: ServicesList::with_items_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
+                services_required: ServiceKinds::with_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
                 // Any 1 kind of food.
-                goods_required: ConsumerGoodsList::with_items_slice(&[ConsumerGoodKind::any_food()]),
+                resources_required: ResourceKinds::with_slice(&[ResourceKind::any_food()]),
             },
             house2: HouseLevelConfig {
                 tile_def_name: "house2".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("house2"),
                 max_residents: 6,
                 tax_generated: 2,
-                services_required: ServicesList::with_items_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
+                services_required: ServiceKinds::with_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
                 // 2 kinds of food required: Rice + meat or fish.
-                goods_required: ConsumerGoodsList::with_items_slice(&[ConsumerGoodKind::Rice, ConsumerGoodKind::Meat | ConsumerGoodKind::Fish]),
+                resources_required: ResourceKinds::with_slice(&[ResourceKind::Rice, ResourceKind::Meat | ResourceKind::Fish]),
             },
             service_well_small: ServiceConfig {
                 tile_def_name: "well_small".to_string(),
@@ -86,7 +84,7 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 3,
-                goods_required: ConsumerGoodsList::empty(),
+                resources_required: ResourceKinds::empty(),
             },
             service_well_big: ServiceConfig {
                 tile_def_name: "well_big".to_string(),
@@ -94,7 +92,7 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 5,
-                goods_required: ConsumerGoodsList::empty(),
+                resources_required: ResourceKinds::empty(),
             },
             service_market: ServiceConfig {
                 tile_def_name: "market".to_string(),
@@ -102,25 +100,24 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 5,
-                goods_required: ConsumerGoodsList::with_all_items(),
+                resources_required: ResourceKinds::all_kinds(),
             },
             producer_farm: ProducerConfig {
                 tile_def_name: "rice_farm".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
                 min_workers: 0,
                 max_workers: 1,
-                production_output: ProducerOutputKind::ConsumerGood(ConsumerGoodKind::Rice),
+                production_output_kind: ResourceKind::Rice,
                 production_capacity: 5,
-                raw_materials_required: RawMaterialsList::empty(),
-                raw_materials_capacity: 0,
+                resources_required: ResourceKinds::empty(),
+                resources_capacity: 0,
             },
             storage_yard: StorageConfig {
                 tile_def_name: "storage_yard".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("storage_yard"),
                 min_workers: 0,
                 max_workers: 1,
-                accepted_goods: ConsumerGoodsList::with_all_items(),
-                accepted_raw_materials: RawMaterialsList::with_all_items(),
+                resources_accepted: ResourceKinds::all_kinds(),
                 num_slots: 8,
                 slot_capacity: 4,
             },
@@ -129,8 +126,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("granary"),
                 min_workers: 0,
                 max_workers: 1,
-                accepted_goods: ConsumerGoodsList::with_items_expanded(ConsumerGoodKind::any_food()),
-                accepted_raw_materials: RawMaterialsList::empty(),
+                resources_accepted: ResourceKinds::with_kinds(ResourceKind::any_food()),
                 num_slots: 8,
                 slot_capacity: 4,
             }

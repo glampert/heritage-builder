@@ -9,14 +9,11 @@ use crate::{
         hash::StringHash
     },
     game::sim::resources::{
-        ConsumerGoodKind,
-        ConsumerGoodsList,
-        ConsumerGoodsStock,
-        RawMaterialKind,
-        RawMaterialsList,
-        RawMaterialsStock,
-        Workers,
+        ResourceKind,
+        ResourceKinds,
+        ResourceStock,
         StockItem,
+        Workers
     }
 };
 
@@ -38,9 +35,8 @@ pub struct StorageConfig {
     pub min_workers: u32,
     pub max_workers: u32,
 
-    // Goods/raw materials it can store.
-    pub accepted_goods: ConsumerGoodsList,
-    pub accepted_raw_materials: RawMaterialsList,
+    // Resources we can store.
+    pub resources_accepted: ResourceKinds,
 
     // Number of storage slots and capacity of each slot.
     pub num_slots: u32,
@@ -66,7 +62,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
 
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         self.draw_debug_ui_storage_config(ui_sys);
-        self.storage_slots.draw_debug_ui("Stock Items", ui_sys);
+        self.storage_slots.draw_debug_ui("Stock Slots", ui_sys);
     }
 }
 
@@ -77,8 +73,7 @@ impl<'config> StorageBuilding<'config> {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
             storage_slots: StorageSlots::new(
-                &config.accepted_goods,
-                &config.accepted_raw_materials,
+                &config.resources_accepted,
                 config.num_slots,
                 config.slot_capacity
             ),
@@ -91,12 +86,8 @@ impl<'config> StorageBuilding<'config> {
 
     // Returns true if *any number* of items can be stored.
     // Decrements the number of stored items from the argument if successful.
-    pub fn try_receive_materials(&mut self, materials: &mut StockItem<RawMaterialKind>) -> bool {
-        self.storage_slots.try_add_materials(materials)
-    }
-
-    pub fn try_receive_goods(&mut self, goods: &mut StockItem<ConsumerGoodKind>) -> bool {
-        self.storage_slots.try_add_goods(goods)
+    pub fn try_receive_resources(&mut self, item: &mut StockItem) -> bool {
+        self.storage_slots.try_add_resources(item)
     }
 }
 
@@ -106,16 +97,9 @@ impl<'config> StorageBuilding<'config> {
 
 const MAX_STORAGE_SLOTS: usize = 8;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum StorageItemKind {
-    ConsumerGood(ConsumerGoodKind),
-    RawMaterial(RawMaterialKind),
-}
-
 struct StorageSlot {
-    goods: ConsumerGoodsStock,
-    materials: RawMaterialsStock,
-    allocated_item_kind: Option<StorageItemKind>,
+    stock: ResourceStock,
+    allocated_resource_kind: Option<ResourceKind>,
 }
 
 struct StorageSlots {
@@ -126,19 +110,12 @@ struct StorageSlots {
 impl StorageSlot {
     #[inline]
     fn is_free(&self) -> bool {
-        self.allocated_item_kind.is_none()
+        self.allocated_resource_kind.is_none()
     }
 
     fn is_full(&self, slot_capacity: u32) -> bool {
-        if let Some(allocated_item_kind) = self.allocated_item_kind {
-            let count = match allocated_item_kind {
-                StorageItemKind::ConsumerGood(good) => {
-                    self.goods.count(good)
-                },
-                StorageItemKind::RawMaterial(material) => {
-                    self.materials.count(material)
-                },
-            };
+        if let Some(kind) = self.allocated_resource_kind {
+            let count = self.stock.count(kind);
             if count >= slot_capacity {
                 return true;
             }
@@ -146,105 +123,81 @@ impl StorageSlot {
         false
     }
 
-    fn item_count(&self, item_kind: StorageItemKind) -> (usize, u32) {
-        match item_kind {
-            StorageItemKind::ConsumerGood(good) => {
-                let (item_index, item) = self.goods.find(good)
-                    .expect(&format!("Item {} expected to exist in the stock!", item_kind));
-                (item_index, item.count)
-            },
-            StorageItemKind::RawMaterial(material) => {
-                let (item_index, item) = self.materials.find(material)
-                    .expect(&format!("Item {} expected to exist in the stock!", item_kind));
-                (item_index, item.count)
-            },
-        }
+    fn resource_index_and_count(&self, kind: ResourceKind) -> (usize, u32) {
+        let (index, item) = self.stock.find(kind)
+            .expect(&format!("Resource kind '{}' expected to exist in the stock!", kind));
+        (index, item.count)
     }
 
-    fn set_item_count(&mut self, item_index: usize, item_count: u32) {
-        match self.allocated_item_kind.unwrap() {
-            StorageItemKind::ConsumerGood(good) => {
-                self.goods.set(item_index, StockItem { kind: good, count: item_count });
-            },
-            StorageItemKind::RawMaterial(material) => {
-                self.materials.set(item_index, StockItem { kind: material, count: item_count });
-            },
-        }
+    fn set_resource_count(&mut self, index: usize, count: u32) {
+        let kind = self.allocated_resource_kind.unwrap();
+        self.stock.set(index, StockItem { kind: kind, count: count });
     }
 
-    fn increment_item_count(&mut self, item_kind: StorageItemKind, add_amount: u32, slot_capacity: u32) -> u32 {
-        let (item_index, mut item_count) = self.item_count(item_kind);
+    fn increment_resource_count(&mut self, kind: ResourceKind, add_amount: u32, slot_capacity: u32) -> u32 {
+        let (index, mut count) = self.resource_index_and_count(kind);
 
-        let prev_count = item_count;
-        item_count = (prev_count + add_amount).min(slot_capacity);
+        let prev_count = count;
+        count = (prev_count + add_amount).min(slot_capacity);
 
-        if let Some(allocated_item_kind) = self.allocated_item_kind {
-            if allocated_item_kind != item_kind {
-                panic!("Storage slot can only accept {}!", item_kind);
+        if let Some(allocated_kind) = self.allocated_resource_kind {
+            if allocated_kind != kind {
+                panic!("Storage slot can only accept '{}'!", kind);
             }
         } else {
             debug_assert!(prev_count == 0);
-            self.allocated_item_kind = Some(item_kind);
+            self.allocated_resource_kind = Some(kind);
         }
 
-        if item_count != prev_count {
-            self.set_item_count(item_index, item_count);
+        if count != prev_count {
+            self.set_resource_count(index, count);
         }
 
-        item_count
+        count
     }
 
-    fn decrement_item_count(&mut self, item_kind: StorageItemKind, sub_amount: u32) -> u32 {
-        let (item_index, mut item_count) = self.item_count(item_kind);
+    fn decrement_resource_count(&mut self, kind: ResourceKind, sub_amount: u32) -> u32 {
+        let (index, mut count) = self.resource_index_and_count(kind);
 
-        if item_count != 0 {
-            item_count = item_count.saturating_sub(sub_amount);
+        if count != 0 {
+            count = count.saturating_sub(sub_amount);
 
             // If we have a non-zero item count we must have an allocated item and its kind must match.
-            if self.allocated_item_kind.unwrap() != item_kind {
-                panic!("Storage slot can only accept {}!", item_kind);
+            if self.allocated_resource_kind.unwrap() != kind {
+                panic!("Storage slot can only accept '{}'!", kind);
             }
 
-            self.set_item_count(item_index, item_count);
+            self.set_resource_count(index, count);
 
-            if item_count == 0 {
-                self.allocated_item_kind = None;
+            if count == 0 {
+                self.allocated_resource_kind = None;
             }
         }
 
-        item_count
+        count
     }
 
-    fn for_each_item_kind<F>(&self, mut visitor_fn: F)
-        where F: FnMut(StorageItemKind)
+    fn for_each_resource_kind<F>(&self, mut visitor_fn: F)
+        where F: FnMut(ResourceKind)
     {
-        self.goods.for_each(|_, good| {
-            visitor_fn(StorageItemKind::ConsumerGood(good.kind));
-        });
-
-        self.materials.for_each(|_, material| {
-            visitor_fn(StorageItemKind::RawMaterial(material.kind));
+        self.stock.for_each(|_, item| {
+            visitor_fn(item.kind);
         });
     }
 }
 
 impl StorageSlots {
-    fn new(accepted_goods: &ConsumerGoodsList,
-           accepted_raw_materials: &RawMaterialsList,
-           num_slots: u32, slot_capacity: u32) -> Box<Self> {
-
-        if (accepted_goods.is_empty() && accepted_raw_materials.is_empty()) ||
-            num_slots == 0 || slot_capacity == 0 {
-            panic!("Storage building must have a non-zero number of slots, slot capacity and a list of accepted goods/materials!");
+    fn new(resources_accepted: &ResourceKinds, num_slots: u32, slot_capacity: u32) -> Box<Self> {
+        if resources_accepted.is_empty() || num_slots == 0 || slot_capacity == 0 {
+            panic!("Storage building must have a non-zero number of slots, slot capacity and a list of accepted resources!");
         }
 
         let mut slots = ArrayVec::new();
 
         for _ in 0..num_slots {
             slots.push(StorageSlot {
-                goods: ConsumerGoodsStock::with_accepted_items(accepted_goods),
-                materials: RawMaterialsStock::with_accepted_items(accepted_raw_materials),
-                allocated_item_kind: None,
+                stock: ResourceStock::with_accepted_resources(resources_accepted),
+                allocated_resource_kind: None,
             });
         }
 
@@ -262,18 +215,18 @@ impl StorageSlots {
     }
 
     #[inline]
-    fn slot_item_count(&self, slot_index: usize, item_kind: StorageItemKind) -> u32 {
-        self.slots[slot_index].item_count(item_kind).1
+    fn slot_resource_count(&self, slot_index: usize, kind: ResourceKind) -> u32 {
+        self.slots[slot_index].resource_index_and_count(kind).1
     }
 
     #[inline]
-    fn increment_slot_item_count(&mut self, slot_index: usize, item_kind: StorageItemKind, add_amount: u32) -> u32 {
-        self.slots[slot_index].increment_item_count(item_kind, add_amount, self.slot_capacity)
+    fn increment_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, add_amount: u32) -> u32 {
+        self.slots[slot_index].increment_resource_count(kind, add_amount, self.slot_capacity)
     }
 
     #[inline]
-    fn decrement_slot_item_count(&mut self, slot_index: usize, item_kind: StorageItemKind, sub_amount: u32) -> u32 {
-        self.slots[slot_index].decrement_item_count(item_kind, sub_amount)
+    fn decrement_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, sub_amount: u32) -> u32 {
+        self.slots[slot_index].decrement_resource_count(kind, sub_amount)
     }
 
     #[inline]
@@ -296,17 +249,15 @@ impl StorageSlots {
         None
     }
 
-    fn find_slot_for_material_kind(&self, kind: RawMaterialKind) -> Option<usize> {
+    fn find_slot_for_resource(&self, kind: ResourceKind) -> Option<usize> {
         // Should be a single kind, never multiple ORed flags.
         debug_assert!(kind.bits().count_ones() == 1);
 
-        // See if this item kind is already being stored somewhere:
+        // See if this resource kind is already being stored somewhere:
         for (slot_index, slot) in self.slots.iter().enumerate() {
-            if let Some(allocated_item_kind) = slot.allocated_item_kind {
-                if let StorageItemKind::RawMaterial(item_kind) = allocated_item_kind {
-                    if item_kind == kind && !self.is_slot_full(slot_index) {
-                        return Some(slot_index);
-                    }
+            if let Some(allocated_kind) = slot.allocated_resource_kind {
+                if allocated_kind == kind && !self.is_slot_full(slot_index) {
+                    return Some(slot_index);
                 }
             }
         }
@@ -315,78 +266,25 @@ impl StorageSlots {
         self.find_free_slot()
     }
 
-    fn find_slot_for_good_kind(&self, kind: ConsumerGoodKind) -> Option<usize> {
-        // Should be a single kind, never multiple ORed flags.
-        debug_assert!(kind.bits().count_ones() == 1);
+    fn try_add_resources(&mut self, item: &mut StockItem) -> bool {
+        let kind = item.kind;
+        let add_amount = item.count;
 
-        // See if this item kind is already being stored somewhere:
-        for (slot_index, slot) in self.slots.iter().enumerate() {
-            if let Some(allocated_item_kind) = slot.allocated_item_kind {
-                if let StorageItemKind::ConsumerGood(item_kind) = allocated_item_kind {
-                    if item_kind == kind && !self.is_slot_full(slot_index) {
-                        return Some(slot_index);
-                    }
-                }
-            }
-        }
-
-        // Not in storage yet or other slots are full, see if we can allocate a new slot for it:
-        self.find_free_slot()
-    }
-
-    fn try_add_materials(&mut self, materials: &mut StockItem<RawMaterialKind>) -> bool {
-        let item_kind = materials.kind;
-        let add_amount = materials.count;
-
-        let slot_index = match self.find_slot_for_material_kind(item_kind) {
+        let slot_index = match self.find_slot_for_resource(kind) {
             Some(slot_index) => slot_index,
             None => return false
         };
 
-        let prev_item_count =
-            self.slot_item_count(slot_index, StorageItemKind::RawMaterial(item_kind));
+        let prev_count =
+            self.slot_resource_count(slot_index, kind);
 
-        let new_item_count =
-            self.increment_slot_item_count(slot_index, StorageItemKind::RawMaterial(item_kind), add_amount);
+        let new_count =
+            self.increment_slot_resource_count(slot_index, kind, add_amount);
 
-        let items_added = new_item_count - prev_item_count;
-        materials.count -= items_added;
+        let num_added = new_count - prev_count;
+        item.count -= num_added;
 
-        items_added != 0
-    }
-
-    fn try_add_goods(&mut self, goods: &mut StockItem<ConsumerGoodKind>) -> bool {
-        let item_kind = goods.kind;
-        let add_amount = goods.count;
-
-        let slot_index = match self.find_slot_for_good_kind(item_kind) {
-            Some(slot_index) => slot_index,
-            None => return false
-        };
-
-        let prev_item_count =
-            self.slot_item_count(slot_index, StorageItemKind::ConsumerGood(item_kind));
-
-        let new_item_count =
-            self.increment_slot_item_count(slot_index, StorageItemKind::ConsumerGood(item_kind), add_amount);
-
-        let items_added = new_item_count - prev_item_count;
-        goods.count -= items_added;
-
-        items_added != 0
-    }
-}
-
-impl std::fmt::Display for StorageItemKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            StorageItemKind::RawMaterial(material) => {
-                write!(f, "{}", material)
-            },
-            StorageItemKind::ConsumerGood(good) => {
-                write!(f, "{}", good)
-            }
-        }
+        num_added != 0
     }
 }
 
@@ -400,8 +298,7 @@ impl StorageConfig {
         ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
         ui.text(format!("Min workers........: {}", self.min_workers));
         ui.text(format!("Max workers........: {}", self.max_workers));
-        ui.text(format!("Accepted goods.....: {}", self.accepted_goods));
-        ui.text(format!("Accepted materials.: {}", self.accepted_raw_materials));
+        ui.text(format!("Resources accepted.: {}", self.resources_accepted));
         ui.text(format!("Num slots..........: {}", self.num_slots));
         ui.text(format!("Slot capacity......: {}", self.slot_capacity));
     }
@@ -425,17 +322,17 @@ impl StorageSlots {
         let ui = ui_sys.builder();
 
         if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
-            let mut display_slots: SmallVec<[SmallVec<[StorageItemKind; 8]>; MAX_STORAGE_SLOTS]> =
+            let mut display_slots: SmallVec<[SmallVec<[ResourceKind; 8]>; MAX_STORAGE_SLOTS]> =
                 smallvec![SmallVec::new(); MAX_STORAGE_SLOTS];
 
             for (slot_index, slot) in self.slots.iter().enumerate() {
-                if let Some(allocated_item_kind) = slot.allocated_item_kind {
-                    // Display only the allocated item kind.
-                    display_slots[slot_index].push(allocated_item_kind);
+                if let Some(allocated_kind) = slot.allocated_resource_kind {
+                    // Display only the allocated resource kind.
+                    display_slots[slot_index].push(allocated_kind);
                 } else {
-                    // No item allocated for the slot, display all possible item kinds accepted.
-                    slot.for_each_item_kind(|item_kind| {
-                        display_slots[slot_index].push(item_kind);
+                    // No resource allocated for the slot, display all possible resource kinds accepted.
+                    slot.for_each_resource_kind(|kind| {
+                        display_slots[slot_index].push(kind);
                     });
                 }
             }
@@ -454,25 +351,25 @@ impl StorageSlots {
                     format!("{}##_stock_slot_{}", slot_label, slot_index);
 
                 if ui.collapsing_header(header_label, imgui::TreeNodeFlags::DEFAULT_OPEN) {
-                    for (item_index, item_kind) in slot.iter().enumerate() {
-                        let item_label =
-                            format!("{}##_stock_item_{}_slot_{}", item_kind, item_index, slot_index);
+                    for (res_index, res_kind) in slot.iter().enumerate() {
+                        let res_label =
+                            format!("{}##_stock_item_{}_slot_{}", res_kind, res_index, slot_index);
 
-                        let prev_item_count = self.slot_item_count(slot_index, *item_kind);
-                        let mut new_item_count = prev_item_count;
+                        let prev_count = self.slot_resource_count(slot_index, *res_kind);
+                        let mut new_count = prev_count;
 
-                        if ui.input_scalar(item_label, &mut new_item_count).step(1).build() {
-                            if new_item_count > prev_item_count {
-                                new_item_count = self.increment_slot_item_count(
-                                    slot_index, *item_kind, new_item_count - prev_item_count);
-                            } else if new_item_count < prev_item_count {
-                                new_item_count = self.decrement_slot_item_count(
-                                    slot_index, *item_kind, prev_item_count - new_item_count);
+                        if ui.input_scalar(res_label, &mut new_count).step(1).build() {
+                            if new_count > prev_count {
+                                new_count = self.increment_slot_resource_count(
+                                    slot_index, *res_kind, new_count - prev_count);
+                            } else if new_count < prev_count {
+                                new_count = self.decrement_slot_resource_count(
+                                    slot_index, *res_kind, prev_count - new_count);
                             }
                         }
 
-                        let capacity_left = self.slot_capacity - new_item_count;
-                        let is_full = new_item_count >= self.slot_capacity;
+                        let capacity_left = self.slot_capacity - new_count;
+                        let is_full = new_count >= self.slot_capacity;
 
                         ui.same_line();
                         if is_full {

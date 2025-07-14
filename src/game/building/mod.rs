@@ -273,23 +273,23 @@ impl BuildingKind {
     #[inline] pub const fn count() -> usize { Self::FLAGS.len() }
 
     #[inline] pub const fn producer_count() -> usize { Self::producers().bits().count_ones() as usize }
-    #[inline] pub const fn producers() -> BuildingKind {
-        BuildingKind::from_bits_retain(
+    #[inline] pub const fn producers() -> Self {
+        Self::from_bits_retain(
             Self::Farm.bits()
         )
     }
 
     #[inline] pub const fn storage_count() -> usize { Self::storage().bits().count_ones() as usize }
-    #[inline] pub const fn storage() -> BuildingKind {
-        BuildingKind::from_bits_retain(
+    #[inline] pub const fn storage() -> Self {
+        Self::from_bits_retain(
             Self::Granary.bits() |
             Self::StorageYard.bits()
         )
     }
 
     #[inline] pub const fn services_count() -> usize { Self::services().bits().count_ones() as usize }
-    #[inline] pub const fn services() -> BuildingKind {
-        BuildingKind::from_bits_retain(
+    #[inline] pub const fn services() -> Self {
+        Self::from_bits_retain(
             Self::WellSmall.bits() |
             Self::WellBig.bits() |
             Self::Market.bits()
