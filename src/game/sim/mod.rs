@@ -10,7 +10,8 @@ use crate::{
     utils::{
         coords::{Cell, CellRange},
         hash::StringHash,
-        UnsafeWeakRef
+        UnsafeWeakRef,
+        Seconds
     }
 };
 
@@ -38,7 +39,7 @@ pub type RandomGenerator = Pcg64;
 // Simulation
 // ----------------------------------------------
 
-const DEFAULT_SIM_UPDATE_FREQUENCY_SECS: f32 = 0.5;
+const DEFAULT_SIM_UPDATE_FREQUENCY_SECS: Seconds = 0.5;
 
 pub struct Simulation {
     update_timer: UpdateTimer,
@@ -74,8 +75,8 @@ impl Simulation {
 // ----------------------------------------------
 
 pub struct UpdateTimer {
-    update_frequency_secs: f32,
-    time_since_last_update_secs: f32,
+    update_frequency_secs: Seconds,
+    time_since_last_update_secs: Seconds,
 }
 
 #[repr(u32)]
@@ -94,7 +95,7 @@ impl UpdateTimerResult {
 
 impl UpdateTimer {
     #[inline]
-    pub fn new(update_frequency_secs: f32) -> Self {
+    pub fn new(update_frequency_secs: Seconds) -> Self {
         Self {
             update_frequency_secs: update_frequency_secs,
             time_since_last_update_secs: 0.0,
@@ -102,7 +103,7 @@ impl UpdateTimer {
     }
 
     #[inline]
-    pub fn tick(&mut self, delta_time_secs: f32) -> UpdateTimerResult {
+    pub fn tick(&mut self, delta_time_secs: Seconds) -> UpdateTimerResult {
         if self.time_since_last_update_secs >= self.update_frequency_secs {
             // Reset the clock.
             self.time_since_last_update_secs = 0.0;
@@ -139,7 +140,7 @@ pub struct Query<'config, 'sim, 'tile_map, 'tile_sets> {
     // The reason we store this as a weak reference is because we cannot take another
     // reference to the world while we are also invoking update() on it, however,
     // a reference is required in some cases to look up other buildings.
-    world: UnsafeWeakRef<World<'config>>,
+    pub world: UnsafeWeakRef<World<'config>>,
 }
 
 impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile_sets> {

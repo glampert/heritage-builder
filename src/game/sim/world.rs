@@ -16,6 +16,7 @@ use crate::{
 };
 
 use super::{
+    Seconds,
     Query
 };
 
@@ -49,7 +50,7 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: f32) {
+    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
         for list in &mut self.building_lists {
             list.update(query, delta_time_secs);
         }
@@ -119,12 +120,12 @@ impl<'config> World<'config> {
     // ----------------------
 
     #[inline]
-    fn building_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
+    pub fn building_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
         &self.building_lists[archetype_kind as usize]
     }
 
     #[inline]
-    fn building_list_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
+    pub fn building_list_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
         &mut self.building_lists[archetype_kind as usize]
     }
 }

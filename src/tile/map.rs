@@ -9,7 +9,11 @@ use strum_macros::{Display, EnumCount, EnumProperty, EnumIter};
 use crate::{
     bitflags_with_display,
     utils::{
-        Size, Rect, Vec2, Color,
+        Size,
+        Rect,
+        Vec2,
+        Color,
+        Seconds,
         UnsafeWeakRef,
         coords::{
             self,
@@ -113,7 +117,7 @@ bitflags_with_display! {
 struct TileAnimState {
     anim_set_index: u16,
     frame_index: u16,
-    frame_play_time_secs: f32,
+    frame_play_time_secs: Seconds,
 }
 
 // ----------------------------------------------
@@ -736,7 +740,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    fn update_anim(&mut self, delta_time_secs: f32) {
+    fn update_anim(&mut self, delta_time_secs: Seconds) {
         if self.is(TileKind::Terrain | TileKind::Blocker) {
             return; // Not animated.
         }
@@ -1281,7 +1285,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     }
 
     #[inline]
-    fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: f32) {
+    fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: Seconds) {
         for cell in &visible_range {
             if let Some(tile) = self.try_tile_mut(cell) {
                 tile.update_anim(delta_time_secs);

@@ -8,6 +8,7 @@ use crate::{
     bitflags_with_display,
     imgui_ui::UiSystem,
     utils::{
+        Seconds,
         hash::StringHash,
         coords::CellRange
     },
@@ -30,6 +31,35 @@ pub mod storage;
 pub mod service;
 pub mod house;
 pub mod config;
+
+// ----------------------------------------------
+// Macros
+// ----------------------------------------------
+
+#[macro_export]
+macro_rules! declare_building_debug_options {
+    (
+        $struct_name:ident,
+        $($field_name:ident : $field_type:ty),* $(,)?
+    ) => {
+        #[derive(Default)]
+        struct $struct_name {
+            $(
+                $field_name: $field_type,
+            )*
+        }
+        impl $struct_name {
+            fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+                let ui = ui_sys.builder();
+                $(
+                    ui.checkbox(crate::utils::snake_case_to_title(
+                        $crate::name_of!($struct_name, $field_name)),
+                        &mut self.$field_name);
+                )*
+            }
+        }
+    };
+}
 
 /*
 -----------------------
@@ -88,7 +118,7 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: f32) {
+    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
         let mut update_ctx = 
             BuildingUpdateContext::new(self.name,
                                        self.kind,
@@ -184,7 +214,31 @@ impl<'config> BuildingList<'config> {
     }
 
     #[inline]
-    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: f32) {
+    pub fn for_each<F>(&self, mut visitor_fn: F)
+        where F: FnMut(usize, &Building<'config>) -> bool
+    {
+        for (index, building) in &self.buildings {
+            let should_continue = visitor_fn(index, building);
+            if !should_continue {
+                break;
+            }
+        }
+    }
+
+    #[inline]
+    pub fn for_each_mut<F>(&mut self, mut visitor_fn: F)
+        where F: FnMut(usize, &mut Building<'config>) -> bool
+    {
+        for (index, building) in &mut self.buildings {
+            let should_continue = visitor_fn(index, building);
+            if !should_continue {
+                break;
+            }
+        }
+    }
+
+    #[inline]
+    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
         for (_, building) in &mut self.buildings {
             building.update(query, delta_time_secs);
         }
@@ -299,7 +353,7 @@ impl<'config> BuildingArchetype<'config> {
     }
 
     #[inline]
-    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
+    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
         match self {
             BuildingArchetype::Producer(state) => {
                 state.update(update_ctx, delta_time_secs);
@@ -373,7 +427,7 @@ impl<'config> BuildingArchetype<'config> {
 
 // Common behavior for all Building archetypes.
 pub trait BuildingBehavior<'config> {
-    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32);
+    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds);
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem);
 }
 
@@ -456,6 +510,19 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'config
         }
 
         None
+    }
+
+    fn for_each_storage<F>(&mut self, storage_kind: BuildingKind, mut visitor_fn: F)
+        where F: FnMut(&mut storage::StorageBuilding<'config>) -> bool
+    {
+        debug_assert!(storage_kind.archetype_kind() == BuildingArchetypeKind::Storage);
+
+        let storage_buildings =
+            self.query.world.building_list_mut(BuildingArchetypeKind::Storage);
+
+        storage_buildings.for_each_mut(|_, building| {
+            visitor_fn(building.archetype.as_storage_mut())
+        });
     }
 }
 

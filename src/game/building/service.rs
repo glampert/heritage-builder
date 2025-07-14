@@ -1,6 +1,9 @@
 use crate::{
     imgui_ui::UiSystem,
-    utils::hash::StringHash,
+    utils::{
+        Seconds,
+        hash::StringHash
+    },
     game::sim::resources::{
         ConsumerGoodsList,
         ConsumerGoodsStock,
@@ -45,7 +48,7 @@ pub struct ServiceBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
-    fn update(&mut self, _update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, _delta_time_secs: f32) {
+    fn update(&mut self, _update_ctx: &mut BuildingUpdateContext, _delta_time_secs: Seconds) {
         // TODO
     }
 

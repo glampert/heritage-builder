@@ -1,9 +1,11 @@
 use smallvec::SmallVec;
 
 use crate::{
+    declare_building_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Color,
+        Seconds,
         hash::StringHash
     },
     game::sim::{
@@ -22,7 +24,8 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingUpdateContext,
-    config::BuildingConfigs
+    config::BuildingConfigs,
+    storage::StorageBuilding,
 };
 
 // ----------------------------------------------
@@ -36,7 +39,7 @@ use super::{
 // Constants
 // ----------------------------------------------
 
-const PRODUCTION_OUTPUT_FREQUENCY_SECS: f32 = 20.0;
+const PRODUCTION_OUTPUT_FREQUENCY_SECS: Seconds = 20.0;
 
 // ----------------------------------------------
 // ProducerConfig
@@ -62,11 +65,15 @@ pub struct ProducerConfig {
 // ProducerDebug
 // ----------------------------------------------
 
-#[derive(Default)]
-struct ProducerDebug {
+declare_building_debug_options!(
+    ProducerDebug,
+
     // Stops goods from being produced and stock from being spent.
     freeze_production: bool,
-}
+
+    // Stop shipping production output from local stock to storage buildings.
+    freeze_shipping: bool,
+);
 
 // ----------------------------------------------
 // ProducerBuilding
@@ -84,11 +91,14 @@ pub struct ProducerBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
-    fn update(&mut self, _update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
+    fn update(&mut self, update_ctx: &mut BuildingUpdateContext, delta_time_secs: Seconds) {
         // Update producer states:
         if self.production_update_timer.tick(delta_time_secs).should_update() {
             if !self.debug.freeze_production {
                 self.production_update();
+            }
+            if !self.debug.freeze_shipping {
+                self.ship_to_storage(update_ctx);
             }
         };
     }
@@ -125,7 +135,7 @@ impl<'config> ProducerBuilding<'config> {
             let mut produce_one_item = true;
 
             // If we have raw material requirements, first check if they are available in stock.
-            if self.raw_materials_required_stock.has_any_item_slot() {
+            if self.raw_materials_required_stock.requires_any_item() {
                 if self.raw_materials_required_stock.has_all_required_items() {
                     // Consume our raw materials (one of each).
                     self.raw_materials_required_stock.consume_all_items();
@@ -142,6 +152,23 @@ impl<'config> ProducerBuilding<'config> {
         }
     }
 
+    fn ship_to_storage(&mut self, update_ctx: &mut BuildingUpdateContext) {
+        // Try to find a storage yard that can accept our goods.
+        update_ctx.for_each_storage(BuildingKind::StorageYard, |storage| {
+            let mut continue_search = true;
+
+            if !storage.is_full() {
+                if self.production_output_stock.try_ship_to_storage(storage) {
+                    // Storage accepted at least some of our items, stop.
+                    continue_search = false;
+                }
+            }
+            // Else we couldn't find a single free slot in this storage, try again with another one.
+
+            continue_search
+        });
+    }
+
     fn is_production_halted(&self) -> bool {
         if self.debug.freeze_production {
             return true;
@@ -149,7 +176,8 @@ impl<'config> ProducerBuilding<'config> {
         if self.production_output_stock.is_full() {
             return true;
         }
-        if self.raw_materials_required_stock.has_any_item_slot() && !self.raw_materials_required_stock.has_all_required_items() {
+        if self.raw_materials_required_stock.requires_any_item() &&
+          !self.raw_materials_required_stock.has_all_required_items() {
             return true;
         }
         false
@@ -236,6 +264,18 @@ impl ProducerOutputLocalStock {
             }
         }
     }
+
+    #[inline]
+    fn try_ship_to_storage(&mut self, storage: &mut StorageBuilding) -> bool {
+        match self {
+            ProducerOutputLocalStock::RawMaterial { item, .. } => {
+                storage.try_receive_materials(item)
+            },
+            ProducerOutputLocalStock::ConsumerGood { item, .. } => {
+                storage.try_receive_goods(item)
+            }
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -261,7 +301,7 @@ impl ProducerRawMaterialsLocalStock {
     }
 
     #[inline]
-    fn has_any_item_slot(&self) -> bool {
+    fn requires_any_item(&self) -> bool {
         !self.slots.is_empty()
     }
 
@@ -407,12 +447,15 @@ impl<'config> ProducerBuilding<'config> {
     fn draw_debug_ui_production_output(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header("Production Output##_building_prod_output", imgui::TreeNodeFlags::empty()) {
-            ui.checkbox("Freeze production", &mut self.debug.freeze_production);
+            self.debug.draw_debug_ui(ui_sys);
+
             if self.is_production_halted() {
                 ui.text_colored(Color::red().to_array(), "Production Halted!");
             }
+
             ui.text(format!("Frequency.....: {:.2}s", self.production_update_timer.frequency_secs()));
             ui.text(format!("Time since....: {:.2}s", self.production_update_timer.time_since_last_secs()));
+
             self.production_output_stock.draw_debug_ui(ui_sys);
         }
     }

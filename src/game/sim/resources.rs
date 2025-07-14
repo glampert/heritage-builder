@@ -37,6 +37,7 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     where T: Copy + Display + bitflags::Flags, u32: From<<T as Flags>::Bits>
 {
     #[inline]
+    #[must_use]
     pub fn with_accepted_items(accepted_items: &List<T, CAPACITY>) -> Self {
         let mut stock = Self {
             item_bits: T::empty(),
@@ -52,6 +53,7 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     }
 
     #[inline]
+    #[must_use]
     pub fn accept_all_items() -> Self {
         let mut stock = Self {
             item_bits: T::empty(),
@@ -66,13 +68,13 @@ impl<T, const CAPACITY: usize> Stock<T, CAPACITY>
     }
 
     #[inline]
-    pub fn item_slot_count(&self) -> usize {
+    pub fn accepted_items_count(&self) -> usize {
         self.item_counts.len()
     }
 
     #[inline]
-    pub fn has_any_item_slot(&self) -> bool {
-        self.item_slot_count() != 0
+    pub fn accepts_any_item(&self) -> bool {
+        self.accepted_items_count() != 0
     }
 
     #[inline]
@@ -225,6 +227,7 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
     where T: Copy + Display + bitflags::Flags
 {
     #[inline]
+    #[must_use]
     pub fn empty() -> Self {
         Self {
             items: ArrayVec::new(),
@@ -232,6 +235,7 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
     }
 
     #[inline]
+    #[must_use]
     pub fn with_all_items() -> Self {
         let mut list = Self {
             items: ArrayVec::new(),
@@ -245,6 +249,7 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
     }
 
     #[inline]
+    #[must_use]
     pub fn with_items_slice(items: &[T]) -> Self {
         Self {
             items: ArrayVec::try_from(items).expect("Cannot fit all items into List!"),
@@ -252,6 +257,7 @@ impl<T, const CAPACITY: usize> List<T, CAPACITY>
     }
 
     #[inline]
+    #[must_use]
     pub fn with_items_expanded(items: T) -> Self {
          let mut list = Self {
             items: ArrayVec::new(),

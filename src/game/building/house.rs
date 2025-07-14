@@ -3,9 +3,11 @@ use strum_macros::EnumCount;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
+    declare_building_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Color,
+        Seconds,
         hash::StringHash
     },
     tile::{
@@ -53,8 +55,8 @@ use super::{
 // Constants
 // ----------------------------------------------
 
-const STOCK_UPDATE_FREQUENCY_SECS: f32 = 20.0;
-const UPGRADE_UPDATE_FREQUENCY_SECS: f32 = 10.0;
+const STOCK_UPDATE_FREQUENCY_SECS: Seconds = 20.0;
+const UPGRADE_UPDATE_FREQUENCY_SECS: Seconds = 10.0;
 
 // ----------------------------------------------
 // HouseLevelConfig
@@ -78,15 +80,16 @@ pub struct HouseLevelConfig {
 // HouseDebug
 // ----------------------------------------------
 
-#[derive(Default)]
-struct HouseDebug {
+declare_building_debug_options!(
+    HouseDebug,
+
     // Stops any goods from being consumed.
     // Also stops refreshing goods stock from a market.
     freeze_stock_update: bool,
 
     // Stops any upgrade/downgrade when true.
     freeze_upgrade_update: bool,
-}
+);
 
 // ----------------------------------------------
 // HouseBuilding
@@ -103,7 +106,7 @@ pub struct HouseBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
-    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: f32) {
+    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
         // Update house states:
         if self.stock_update_timer.tick(delta_time_secs).should_update() {
             if !self.debug.freeze_stock_update {
@@ -626,10 +629,9 @@ impl<'config> HouseBuilding<'config> {
             }
         };
 
-        let upgrade_state = &mut self.upgrade_state;
+        self.debug.draw_debug_ui(ui_sys);
 
-        ui.checkbox("Freeze upgrades", &mut self.debug.freeze_upgrade_update);
-        ui.checkbox("Freeze goods stock", &mut self.debug.freeze_stock_update);
+        let upgrade_state = &mut self.upgrade_state;
         ui.text(format!("Level...........: {:?}", upgrade_state.level));
 
         ui.text("Upgrade:");
