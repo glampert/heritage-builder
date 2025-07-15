@@ -20,7 +20,7 @@ use crate::{
 use super::{
     BuildingKind,
     BuildingBehavior,
-    BuildingUpdateContext,
+    BuildingContext,
     config::BuildingConfigs
 };
 
@@ -56,11 +56,11 @@ pub struct StorageBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
-    fn update(&mut self, _update_ctx: &mut BuildingUpdateContext, _delta_time_secs: Seconds) {
+    fn update(&mut self, _context: &mut BuildingContext, _delta_time_secs: Seconds) {
         // Nothing for now.
     }
 
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_storage_config(ui_sys);
         self.storage_slots.draw_debug_ui("Stock Slots", ui_sys);
     }
@@ -196,7 +196,7 @@ impl StorageSlots {
 
         for _ in 0..num_slots {
             slots.push(StorageSlot {
-                stock: ResourceStock::with_accepted_resources(resources_accepted),
+                stock: ResourceStock::with_accepted_list(resources_accepted),
                 allocated_resource_kind: None,
             });
         }

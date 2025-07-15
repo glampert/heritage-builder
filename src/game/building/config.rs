@@ -57,8 +57,8 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house0"),
                 max_residents: 2,
                 tax_generated: 0,
-                services_required: ServiceKinds::empty(),
-                resources_required: ResourceKinds::empty(),        
+                services_required: ServiceKinds::none(),
+                resources_required: ResourceKinds::none(),        
             },
             house1: HouseLevelConfig {
                 tile_def_name: "house1".to_string(),
@@ -84,7 +84,7 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 3,
-                resources_required: ResourceKinds::empty(),
+                resources_required: ResourceKinds::none(),
             },
             service_well_big: ServiceConfig {
                 tile_def_name: "well_big".to_string(),
@@ -92,7 +92,7 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 5,
-                resources_required: ResourceKinds::empty(),
+                resources_required: ResourceKinds::none(),
             },
             service_market: ServiceConfig {
                 tile_def_name: "market".to_string(),
@@ -100,7 +100,7 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 5,
-                resources_required: ResourceKinds::all_kinds(),
+                resources_required: ResourceKinds::all(),
             },
             producer_farm: ProducerConfig {
                 tile_def_name: "rice_farm".to_string(),
@@ -109,7 +109,7 @@ impl BuildingConfigs {
                 max_workers: 1,
                 production_output_kind: ResourceKind::Rice,
                 production_capacity: 5,
-                resources_required: ResourceKinds::empty(),
+                resources_required: ResourceKinds::none(),
                 resources_capacity: 0,
             },
             storage_yard: StorageConfig {
@@ -117,7 +117,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("storage_yard"),
                 min_workers: 0,
                 max_workers: 1,
-                resources_accepted: ResourceKinds::all_kinds(),
+                resources_accepted: ResourceKinds::all(),
                 num_slots: 8,
                 slot_capacity: 4,
             },

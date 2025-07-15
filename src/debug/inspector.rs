@@ -1,7 +1,10 @@
 use crate::{
     app::input::{InputAction, MouseButton},
     imgui_ui::{UiInputEvent, UiSystem},
-    game::sim::world::World,
+    game::sim::{
+        Simulation,
+        world::World
+    },
     utils::coords::{
         self,
         Cell,
@@ -46,12 +49,13 @@ impl TileInspectorMenu {
         }
     }
 
-    pub fn draw(&mut self,
-                world: &mut World,
-                tile_map: &mut TileMap,
-                tile_sets: &TileSets,
-                ui_sys: &UiSystem,
-                transform: &WorldToScreenTransform) {
+    pub fn draw<'tile_map, 'tile_sets>(&mut self,
+                                       sim: &mut Simulation,
+                                       world: &mut World,
+                                       tile_map: &'tile_map mut TileMap<'tile_sets>,
+                                       tile_sets: &'tile_sets TileSets,
+                                       ui_sys: &UiSystem,
+                                       transform: &WorldToScreenTransform) {
 
         if !self.is_open || self.selected.is_none() {
             self.close();
@@ -65,13 +69,14 @@ impl TileInspectorMenu {
         }
 
         let layer_kind = TileMapLayerKind::from_tile_kind(tile_kind);
-        let maybe_tile = tile_map.try_tile_from_layer(cell, layer_kind);
-        if maybe_tile.is_none() {
-            self.close();
-            return;
-        }
+        let tile = match tile_map.try_tile_from_layer(cell, layer_kind) {
+            Some(tile) => tile,
+            None => {
+                self.close();
+                return;
+            }
+        };
 
-        let tile = maybe_tile.unwrap();
         let tile_screen_rect = tile.calc_screen_rect(transform);
         let is_building = tile.is(TileKind::Building);
 
@@ -103,7 +108,7 @@ impl TileInspectorMenu {
 
                 if is_building && ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    Self::building_debug_ui(world, tile_map, ui_sys, cell, layer_kind);
+                    sim.draw_building_debug_ui(world, tile_map, tile_sets, ui_sys, cell, layer_kind);
                     ui.unindent_by(10.0);
                 }
             });
@@ -295,18 +300,6 @@ impl TileInspectorMenu {
                 editable_def.occludes_terrain = occludes_terrain;
             }
             tile.set_flags(TileFlags::OccludesTerrain, occludes_terrain);
-        }
-    }
-
-    fn building_debug_ui(world: &mut World,
-                         tile_map: &TileMap,
-                         ui_sys: &UiSystem,
-                         cell: Cell,
-                         layer_kind: TileMapLayerKind) {
-
-        let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
-        if let Some(building) = world.find_building_for_tile_mut(tile) {
-            building.draw_debug_ui(ui_sys);
         }
     }
 }

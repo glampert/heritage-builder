@@ -14,7 +14,7 @@ use crate::{
 use super::{
     BuildingKind,
     BuildingBehavior,
-    BuildingUpdateContext,
+    BuildingContext,
     config::BuildingConfigs
 };
 
@@ -48,11 +48,11 @@ pub struct ServiceBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
-    fn update(&mut self, _update_ctx: &mut BuildingUpdateContext, _delta_time_secs: Seconds) {
+    fn update(&mut self, _context: &mut BuildingContext, _delta_time_secs: Seconds) {
         // TODO
     }
 
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_service_config(ui_sys);
         self.stock.draw_debug_ui("Resources In Stock", ui_sys);
     }
@@ -64,7 +64,7 @@ impl<'config> ServiceBuilding<'config> {
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
-            stock: ResourceStock::with_accepted_resources(&config.resources_required),
+            stock: ResourceStock::with_accepted_list(&config.resources_required),
         }
     }
 

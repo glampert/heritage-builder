@@ -43,15 +43,17 @@ impl ResourceKind {
     }
 }
 
-const RESOURCE_KIND_COUNT: usize = ResourceKind::count();
+pub const RESOURCE_KIND_COUNT: usize = ResourceKind::count();
 pub type ResourceKinds = ResourceList<ResourceKind, RESOURCE_KIND_COUNT>;
 
 // ----------------------------------------------
 // Services
 // ----------------------------------------------
 
-const SERVICE_KIND_COUNT: usize = BuildingKind::services_count();
-pub type ServiceKinds = ResourceList<BuildingKind, SERVICE_KIND_COUNT>;
+pub type ServiceKind = BuildingKind;
+
+pub const SERVICE_KIND_COUNT: usize = ServiceKind::services_count();
+pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 
 // ----------------------------------------------
 // Workers
@@ -99,14 +101,14 @@ fn bit_index(kind: ResourceKind) -> usize {
 impl ResourceStock {
     #[inline]
     #[must_use]
-    pub fn with_accepted_resources(accepted_resources: &ResourceKinds) -> Self {
+    pub fn with_accepted_list(accepted_resources: &ResourceKinds) -> Self {
         let mut stock = Self {
             kinds: ResourceKind::empty(),
             counts: [0; RESOURCE_KIND_COUNT],
         };
 
         accepted_resources.for_each(|kind| {
-            stock.kinds.set(kind, true);
+            stock.kinds.insert(kind);
             true
         });
 
@@ -115,27 +117,30 @@ impl ResourceStock {
 
     #[inline]
     #[must_use]
-    pub fn accept_all_resources() -> Self {
-        let mut stock = Self {
-            kinds: ResourceKind::empty(),
+    pub fn with_accepted_kinds(accepted_kinds: ResourceKind) -> Self {
+        Self {
+            kinds: accepted_kinds,
             counts: [0; RESOURCE_KIND_COUNT],
-        };
-
-        for flag in ResourceKind::FLAGS.iter() {
-            stock.kinds.set(*flag.value(), true);
         }
-
-        stock
     }
 
     #[inline]
-    pub fn accepted_resources_count(&self) -> usize {
+    #[must_use]
+    pub fn accept_all() -> Self {
+        Self {
+            kinds: ResourceKind::all(),
+            counts: [0; RESOURCE_KIND_COUNT],
+        }
+    }
+
+    #[inline]
+    pub fn accepted_count(&self) -> usize {
         self.counts.len()
     }
 
     #[inline]
-    pub fn accepts_any_resource(&self) -> bool {
-        self.accepted_resources_count() != 0
+    pub fn accepts_any(&self) -> bool {
+        self.accepted_count() != 0
     }
 
     #[inline]
@@ -289,7 +294,7 @@ impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
 {
     #[inline]
     #[must_use]
-    pub fn empty() -> Self {
+    pub fn none() -> Self {
         Self {
             kinds: ArrayVec::new(),
         }
@@ -297,7 +302,7 @@ impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
 
     #[inline]
     #[must_use]
-    pub fn all_kinds() -> Self {
+    pub fn all() -> Self {
         let mut list = Self {
             kinds: ArrayVec::new(),
         };

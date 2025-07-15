@@ -19,8 +19,10 @@ use crate::{
         sim::{
             UpdateTimer,
             resources::{
-                ResourceKinds,
                 ResourceStock,
+                ResourceKind,
+                ResourceKinds,
+                ServiceKind,
                 ServiceKinds
             }
         }
@@ -29,7 +31,7 @@ use crate::{
 
 use super::{
     BuildingBehavior,
-    BuildingUpdateContext,
+    BuildingContext,
     config::BuildingConfigs
 };
 
@@ -106,24 +108,24 @@ pub struct HouseBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
-    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
         // Update house states:
         if self.stock_update_timer.tick(delta_time_secs).should_update() {
             if !self.debug.freeze_stock_update {
-                self.stock_update(update_ctx);
+                self.stock_update(context);
             }
         }
 
         if self.upgrade_update_timer.tick(delta_time_secs).should_update() {
             if !self.debug.freeze_upgrade_update {
-                self.upgrade_update(update_ctx);
+                self.upgrade_update(context);
             }
         }
     }
 
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_level_config(ui_sys);
-        self.draw_debug_ui_upgrade_state(ui_sys);
+        self.draw_debug_ui_upgrade_state(context, ui_sys);
     }
 }
 
@@ -133,26 +135,26 @@ impl<'config> HouseBuilding<'config> {
             stock_update_timer: UpdateTimer::new(STOCK_UPDATE_FREQUENCY_SECS),
             upgrade_update_timer: UpdateTimer::new(UPGRADE_UPDATE_FREQUENCY_SECS),
             upgrade_state: HouseUpgradeState::new(level, configs),
-            stock: ResourceStock::accept_all_resources(),
+            stock: ResourceStock::with_accepted_kinds(ResourceKind::any_food()),
             debug: HouseDebug::default(),
         }
     }
 
-    fn is_upgrade_available(&self, update_ctx: &BuildingUpdateContext) -> bool {
+    fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
         if self.debug.freeze_upgrade_update {
             return false;
         }
-        self.upgrade_state.is_upgrade_available(update_ctx)
+        self.upgrade_state.is_upgrade_available(context)
     }
 
-    fn stock_update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
+    fn stock_update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>) {
         // Consume resources from the stock periodically and shop for more as needed.
 
         let curr_level_resources_required =
-            &self.upgrade_state.curr_level_requirements.level_config.resources_required;
+            &self.upgrade_state.curr_level_config.resources_required;
 
         let next_level_resources_required =
-            &self.upgrade_state.next_level_requirements.level_config.resources_required;
+            &self.upgrade_state.next_level_config.resources_required;
 
         if !curr_level_resources_required.is_empty() || !next_level_resources_required.is_empty() {
             // Consume one of each resources this level uses.
@@ -165,11 +167,11 @@ impl<'config> HouseBuilding<'config> {
                 true
             });
 
-            let upgrade_available = self.is_upgrade_available(update_ctx);
+            let upgrade_available = self.is_upgrade_available(context);
 
             // Go shopping:
             if let Some(market) =
-                update_ctx.find_nearest_service(BuildingKind::Market) {
+                context.find_nearest_service(BuildingKind::Market) {
 
                 // Shop for resources needed for this level.
                 let all_or_nothing = false;
@@ -179,7 +181,7 @@ impl<'config> HouseBuilding<'config> {
                 // But only take any if we have the whole shopping list. No point in shopping partially since we
                 // wouldn't be able to upgrade and would wasted those resources.
                 if upgrade_available {
-                    let mut next_level_shopping_list = ResourceKinds::empty();
+                    let mut next_level_shopping_list = ResourceKinds::none();
 
                     // We've already shopped for resources in the current level list,
                     // so take only the ones that are exclusive to the next level.
@@ -196,9 +198,9 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
-    fn upgrade_update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
+    fn upgrade_update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>) {
         // Attempt to upgrade or downgrade based on services and resources availability.
-        self.upgrade_state.update(update_ctx, &self.stock);
+        self.upgrade_state.update(context, &self.stock);
     }
 }
 
@@ -268,19 +270,56 @@ impl HouseLevel {
 
 struct HouseLevelRequirements<'config> {
     level_config: &'config HouseLevelConfig,
-    services_available: ServiceKinds,   // From the level requirements, how many we have access to.
-    resources_available: ResourceKinds, // From the level requirements, how many we have in stock.
+    services_available: ServiceKind,   // From the level requirements, which ones we have access to.
+    resources_available: ResourceKind, // From the level requirements, which ones we have in stock.
 }
 
 impl<'config> HouseLevelRequirements<'config> {
+    fn new(context: &BuildingContext,
+           level_config: &'config HouseLevelConfig,
+           stock: &ResourceStock) -> Self {
+
+        let mut reqs = Self {
+            level_config: level_config,
+            services_available: ServiceKind::empty(),
+            resources_available: ResourceKind::empty(),
+        };
+
+        level_config.services_required.for_each(|service| {
+            if context.has_access_to_service(service) {
+                reqs.services_available.insert(service);
+            }
+            true
+        });
+
+        level_config.resources_required.for_each(|resource| {
+            if stock.has(resource) {
+                reqs.resources_available.insert(resource);
+            }
+            true
+        });
+
+        reqs
+    }
+
     #[inline]
-    fn has_all_required_services(&self) -> bool {
-        if self.services_available.len() < self.level_config.services_required.len() {
+    fn services_available_count(&self) -> usize {
+        self.services_available.bits().count_ones() as usize
+    }
+
+    #[inline]
+    fn resources_available_count(&self) -> usize {
+        self.resources_available.bits().count_ones() as usize
+    }
+
+    #[inline]
+    fn has_required_services(&self) -> bool {
+        if self.services_available_count() < self.level_config.services_required.len() {
             return false;
         }
 
         for service in self.level_config.services_required.iter() {
-            if !self.services_available.has(*service) {
+            if !self.services_available.intersects(*service) {
                 return false;
             }
         }
@@ -288,38 +327,17 @@ impl<'config> HouseLevelRequirements<'config> {
     }
 
     #[inline]
-    fn has_all_required_resources(&self) -> bool {
-        if self.resources_available.len() < self.level_config.resources_required.len() {
+    fn has_required_resources(&self) -> bool {
+        if self.resources_available_count() < self.level_config.resources_required.len() {
             return false;
         }
 
         for resource in self.level_config.resources_required.iter() {
-            if !self.resources_available.has(*resource) {
+            if !self.resources_available.intersects(*resource) {
                 return false;
             }
         }
         true
-    }
-
-    fn update(&mut self,
-              update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
-              stock: &ResourceStock) {
-
-        self.services_available.clear();
-        self.level_config.services_required.for_each(|service| {
-            if update_ctx.has_access_to_service(service) {
-                self.services_available.add(service);
-            }
-            true
-        });
-
-        self.resources_available.clear();
-        self.level_config.resources_required.for_each(|resource| {
-            if stock.has(resource) {
-                self.resources_available.add(resource);
-            }
-            true
-        });
     }
 }
 
@@ -329,8 +347,8 @@ impl<'config> HouseLevelRequirements<'config> {
 
 struct HouseUpgradeState<'config> {
     level: HouseLevel,
-    curr_level_requirements: HouseLevelRequirements<'config>,
-    next_level_requirements: HouseLevelRequirements<'config>,
+    curr_level_config: &'config HouseLevelConfig,
+    next_level_config: &'config HouseLevelConfig,
     has_room_to_upgrade: bool, // Result of last attempt to expand the house.
 }
 
@@ -338,131 +356,133 @@ impl<'config> HouseUpgradeState<'config> {
     fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
         Self {
             level: level,
-            curr_level_requirements: HouseLevelRequirements {
-                level_config: configs.find_house_level(level),
-                services_available: ServiceKinds::empty(),
-                resources_available: ResourceKinds::empty(),
-            },
-            next_level_requirements: HouseLevelRequirements {
-                level_config: configs.find_house_level(level.next()),
-                services_available: ServiceKinds::empty(),
-                resources_available: ResourceKinds::empty(),
-            },
+            curr_level_config: configs.find_house_level(level),
+            next_level_config: configs.find_house_level(level.next()),
             has_room_to_upgrade: true,
         }
     }
 
     fn update(&mut self,
-              update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>,
+              context: &mut BuildingContext<'config, '_, '_, '_, '_>,
               stock: &ResourceStock) {
 
-        if self.can_upgrade(update_ctx, stock) {
-            self.try_upgrade(update_ctx);
-        } else if self.can_downgrade(update_ctx, stock) {
-            self.try_downgrade(update_ctx);
+        if self.can_upgrade(context, stock) {
+            self.try_upgrade(context);
+        } else if self.can_downgrade(context, stock) {
+            self.try_downgrade(context);
         }
     }
 
     fn can_upgrade(&mut self,
-                   update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
+                   context: &BuildingContext<'config, '_, '_, '_, '_>,
                    stock: &ResourceStock) -> bool {
         if self.level.is_max() {
             return false;
         }
 
-        self.next_level_requirements.update(update_ctx, stock);
+        let next_level_requirements =
+            HouseLevelRequirements::new(context, self.next_level_config, stock);
 
         // Upgrade if we have the required services and resources for the next level.
-        self.next_level_requirements.has_all_required_services() &&
-        self.next_level_requirements.has_all_required_resources()
+        let has_requirements = {
+            next_level_requirements.has_required_services() &&
+            next_level_requirements.has_required_resources()
+        };
+
+        has_requirements
     }
 
     fn can_downgrade(&mut self,
-                     update_ctx: &BuildingUpdateContext<'config, '_, '_, '_, '_>,
+                     context: &BuildingContext<'config, '_, '_, '_, '_>,
                      stock: &ResourceStock) -> bool {
         if self.level.is_min() {
             return false;
         }
 
-        self.curr_level_requirements.update(update_ctx, stock);
+        let curr_level_requirements =
+            HouseLevelRequirements::new(context, self.curr_level_config, stock);
 
         // Downgrade if we don't have the required services and resources for the current level.
-        !self.curr_level_requirements.has_all_required_services() ||
-        !self.curr_level_requirements.has_all_required_resources()
+        let missing_requirements = {
+            !curr_level_requirements.has_required_services() ||
+            !curr_level_requirements.has_required_resources()
+        };
+
+        missing_requirements
     }
 
-    fn try_upgrade(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
+    fn try_upgrade(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>) {
         let mut tile_placed_successfully = false;
 
         let next_level = self.level.next();
-        let next_level_config = update_ctx.configs.find_house_level(next_level);
+        let next_level_config = context.configs.find_house_level(next_level);
 
-        if let Some(new_tile_def) = update_ctx.find_tile_def(next_level_config.tile_def_name_hash) {
+        if let Some(new_tile_def) = context.find_tile_def(next_level_config.tile_def_name_hash) {
             // Try placing new. Might fail if there isn't enough space.
-            if Self::try_replace_tile(update_ctx, new_tile_def) {
+            if Self::try_replace_tile(context, new_tile_def) {
                 self.level.upgrade();
                 debug_assert!(self.level == next_level);
 
-                self.curr_level_requirements.level_config = next_level_config;
+                self.curr_level_config = next_level_config;
                 if !next_level.is_max() {
-                    self.next_level_requirements.level_config = update_ctx.configs.find_house_level(next_level.next());
+                    self.next_level_config = context.configs.find_house_level(next_level.next());
                 }
 
                 // Set a random variation for the new building tile:
-                update_ctx.set_random_building_variation();
+                context.set_random_building_variation();
 
                 tile_placed_successfully = true;
-                println!("{update_ctx}: upgraded to {:?}.", self.level);
+                println!("{context}: upgraded to {:?}.", self.level);
             }
         }
 
         if !tile_placed_successfully {
-            println!("{update_ctx}: Failed to place new tile for upgrade. Building cannot upgrade.");
+            println!("{context}: Failed to place new tile for upgrade. Building cannot upgrade.");
         }
 
         self.has_room_to_upgrade = tile_placed_successfully;
     }
 
-    fn try_downgrade(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>) {
+    fn try_downgrade(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>) {
         let mut tile_placed_successfully = false;
 
         let prev_level = self.level.prev();
-        let prev_level_config = update_ctx.configs.find_house_level(prev_level);
+        let prev_level_config = context.configs.find_house_level(prev_level);
 
-        if let Some(new_tile_def) = update_ctx.find_tile_def(prev_level_config.tile_def_name_hash) {
+        if let Some(new_tile_def) = context.find_tile_def(prev_level_config.tile_def_name_hash) {
             // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
-            if Self::try_replace_tile(update_ctx, new_tile_def) {
+            if Self::try_replace_tile(context, new_tile_def) {
                 self.level.downgrade();
                 debug_assert!(self.level == prev_level);
 
-                self.curr_level_requirements.level_config = prev_level_config;
-                self.next_level_requirements.level_config = update_ctx.configs.find_house_level(prev_level.next());
+                self.curr_level_config = prev_level_config;
+                self.next_level_config = context.configs.find_house_level(prev_level.next());
 
                 // Set a random variation for the new building:
-                update_ctx.set_random_building_variation();
+                context.set_random_building_variation();
 
                 tile_placed_successfully = true;
-                println!("{update_ctx}: downgraded to {:?}.", self.level);
+                println!("{context}: downgraded to {:?}.", self.level);
             }
         }
 
         if !tile_placed_successfully {
-            eprintln!("{update_ctx}: Failed to place new tile for downgrade. Building cannot downgrade.");
+            eprintln!("{context}: Failed to place new tile for downgrade. Building cannot downgrade.");
         }
     }
 
-    fn try_replace_tile<'tile_sets>(update_ctx: &mut BuildingUpdateContext<'_, '_, '_, '_, 'tile_sets>,
+    fn try_replace_tile<'tile_sets>(context: &mut BuildingContext<'_, '_, '_, '_, 'tile_sets>,
                                     tile_def_to_place: &'tile_sets TileDef) -> bool {
 
         // Replaces the give tile if the placement is valid,
         // fails and leaves the map unchanged otherwise.
 
         // First check if we have space to place this tile.
-        let cell_range = tile_def_to_place.calc_footprint_cells(update_ctx.map_cells.start);
+        let cell_range = tile_def_to_place.calc_footprint_cells(context.map_cells.start);
         for cell in &cell_range {
             if let Some(tile) =
-                update_ctx.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                let is_self = tile.base_cell() == update_ctx.map_cells.start;
+                context.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                let is_self = tile.base_cell() == context.map_cells.start;
                 if !is_self {
                     // Cannot expand here.
                     return false;
@@ -472,21 +492,21 @@ impl<'config> HouseUpgradeState<'config> {
 
         // We'll need to restore this to the new tile.
         let prev_tile_game_state = {
-            let prev_tile = update_ctx.find_tile();
+            let prev_tile = context.find_tile();
             let game_state = prev_tile.game_state_handle();
             debug_assert!(game_state.is_valid(), "Building tile doesn't have a valid associated GameStateHandle!");
             game_state
         };
 
         // Now we must clear the previous tile.
-        if !update_ctx.query.tile_map.try_clear_tile_from_layer(
-            update_ctx.map_cells.start, TileMapLayerKind::Objects) {
+        if !context.query.tile_map.try_clear_tile_from_layer(
+            context.map_cells.start, TileMapLayerKind::Objects) {
             panic!("Failed to clear previous tile! This is unexpected...");
         }
 
         // And place the new one.
-        let place_result = update_ctx.query.tile_map.try_place_tile_in_layer(
-            update_ctx.map_cells.start,
+        let place_result = context.query.tile_map.try_place_tile_in_layer(
+            context.map_cells.start,
             TileMapLayerKind::Objects,
             tile_def_to_place);
 
@@ -502,25 +522,24 @@ impl<'config> HouseUpgradeState<'config> {
     }
 
     // Check if we can increment the level and if there's enough space to expand the house.
-    fn is_upgrade_available(&self, update_ctx: &BuildingUpdateContext) -> bool {
+    fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
         if self.level.is_max() {
             return false;
         }
 
         let next_level = self.level.next();
-        let next_level_config = update_ctx.configs.find_house_level(next_level);
+        let next_level_config = context.configs.find_house_level(next_level);
 
-        let result = update_ctx.find_tile_def(next_level_config.tile_def_name_hash);
-        if result.is_none() {
-            return false;
-        }
+        let tile_def = match context.find_tile_def(next_level_config.tile_def_name_hash) {
+            Some(tile_def) => tile_def,
+            None => return false,
+        };
 
-        let tile_def = result.unwrap();
-        let cell_range = tile_def.calc_footprint_cells(update_ctx.map_cells.start);
+        let cell_range = tile_def.calc_footprint_cells(context.map_cells.start);
 
         for cell in &cell_range {
-            if let Some(tile) = update_ctx.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                let is_self = tile.base_cell() == update_ctx.map_cells.start;
+            if let Some(tile) = context.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                let is_self = tile.base_cell() == context.map_cells.start;
                 if !is_self {
                     // Cannot expand here.
                     return false;
@@ -551,31 +570,31 @@ impl<'config> HouseBuilding<'config> {
     fn draw_debug_ui_level_config(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header(format!("Config ({:?})##_building_config", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
-            self.upgrade_state.curr_level_requirements.level_config.draw_debug_ui(ui_sys);
+            self.upgrade_state.curr_level_config.draw_debug_ui(ui_sys);
         }
     }
 
-    fn draw_debug_ui_upgrade_state(&mut self, ui_sys: &UiSystem) {
+    fn draw_debug_ui_upgrade_state(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header(format!("Upgrade##_building_upgrade"), imgui::TreeNodeFlags::empty()) {
-            self.draw_debug_ui_upgrade_state_internal(ui_sys);
+            self.draw_debug_ui_upgrade_state_internal(context, ui_sys);
         }
     }
 
-    fn draw_debug_ui_upgrade_state_internal(&mut self, ui_sys: &UiSystem) {
+    fn draw_debug_ui_upgrade_state_internal(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         let draw_level_requirements = 
-            |label: &str, level_requirements: &mut HouseLevelRequirements<'config>, imgui_id: u32| {
+            |label: &str, level_requirements: &HouseLevelRequirements<'config>, imgui_id: u32| {
 
             ui.separator();
             ui.text(label);
 
             ui.text(format!("  Resources avail.: {} (req: {})",
-                level_requirements.resources_available.len(),
+                level_requirements.resources_available_count(),
                 level_requirements.level_config.resources_required.len()));
             ui.text(format!("  Services avail..: {} (req: {})",
-                level_requirements.services_available.len(),
+                level_requirements.services_available_count(),
                 level_requirements.level_config.services_required.len()));
 
             if ui.collapsing_header(format!("Resources##_building_resources_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
@@ -631,15 +650,22 @@ impl<'config> HouseBuilding<'config> {
 
         self.debug.draw_debug_ui(ui_sys);
 
-        let upgrade_state = &mut self.upgrade_state;
+        let upgrade_state = &self.upgrade_state;
+
+        let curr_level_requirements =
+            HouseLevelRequirements::new(context, upgrade_state.curr_level_config, &self.stock);
+
+        let next_level_requirements =
+            HouseLevelRequirements::new(context, upgrade_state.next_level_config, &self.stock);
+
         ui.text(format!("Level...........: {:?}", upgrade_state.level));
 
         ui.text("Upgrade:");
         ui.text(format!("  Frequency.....: {:.2}s", self.upgrade_update_timer.frequency_secs()));
         ui.text(format!("  Time since....: {:.2}s", self.upgrade_update_timer.time_since_last_secs()));
         color_text("  Has room......:", upgrade_state.has_room_to_upgrade);
-        color_text("  Has services..:", upgrade_state.next_level_requirements.has_all_required_services());
-        color_text("  Has resources.:", upgrade_state.next_level_requirements.has_all_required_resources());
+        color_text("  Has services..:", next_level_requirements.has_required_services());
+        color_text("  Has resources.:", next_level_requirements.has_required_resources());
 
         ui.text("Stock:");
         ui.text(format!("  Frequency.....: {:.2}s", self.stock_update_timer.frequency_secs()));
@@ -648,12 +674,12 @@ impl<'config> HouseBuilding<'config> {
 
         draw_level_requirements(
             &format!("Curr level reqs ({:?}):", upgrade_state.level),
-            &mut upgrade_state.curr_level_requirements, 0);
+            &curr_level_requirements, 0);
 
         if !upgrade_state.level.is_max() {
             draw_level_requirements(
                 &format!("Next level reqs ({:?}):", upgrade_state.level.next()),
-                &mut upgrade_state.next_level_requirements, 1);
+                &next_level_requirements, 1);
         }
     }
 }

@@ -118,19 +118,6 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
-        let mut update_ctx = 
-            BuildingUpdateContext::new(self.name,
-                                       self.kind,
-                                       self.archetype_kind(),
-                                       self.map_cells,
-                                       self.configs,
-                                       query);
-
-        self.archetype.update(&mut update_ctx, delta_time_secs);
-    }
-
-    #[inline]
     pub fn kind(&self) -> BuildingKind {
         self.kind
     }
@@ -140,7 +127,20 @@ impl<'config> Building<'config> {
         self.archetype.discriminant()
     }
 
-    pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+    #[inline]
+    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
+        let mut context = 
+            BuildingContext::new(self.name,
+                                 self.kind,
+                                 self.archetype_kind(),
+                                 self.map_cells,
+                                 self.configs,
+                                 query);
+
+        self.archetype.update(&mut context, delta_time_secs);
+    }
+
+    pub fn draw_debug_ui(&mut self, query: &mut Query<'config, '_, '_, '_>, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
@@ -155,7 +155,15 @@ impl<'config> Building<'config> {
                 self.map_cells.end.y));
         }
 
-        self.archetype.draw_debug_ui(ui_sys);
+        let mut context = 
+            BuildingContext::new(self.name,
+                                 self.kind,
+                                 self.archetype_kind(),
+                                 self.map_cells,
+                                 self.configs,
+                                 query);
+
+        self.archetype.draw_debug_ui(&mut context, ui_sys);
     }
 }
 
@@ -181,18 +189,17 @@ impl<'config> BuildingList<'config> {
     }
 
     #[inline]
-    pub fn try_get(&self, index: usize, archetype_kind: BuildingArchetypeKind) -> Option<&Building<'config>> {
-        if archetype_kind != self.archetype_kind {
-            return None;
-        }
+    pub fn archetype_kind(&self) -> BuildingArchetypeKind {
+        self.archetype_kind
+    }
+
+    #[inline]
+    pub fn try_get(&self, index: usize) -> Option<&Building<'config>> {
         self.buildings.get(index)
     }
 
     #[inline]
-    pub fn try_get_mut(&mut self, index: usize, archetype_kind: BuildingArchetypeKind) -> Option<&mut Building<'config>> {
-        if archetype_kind != self.archetype_kind {
-            return None;
-        }
+    pub fn try_get_mut(&mut self, index: usize) -> Option<&mut Building<'config>> {
         self.buildings.get_mut(index)
     }
 
@@ -203,10 +210,7 @@ impl<'config> BuildingList<'config> {
     }
 
     #[inline]
-    pub fn remove(&mut self, index: usize, archetype_kind: BuildingArchetypeKind) -> bool {
-        if archetype_kind != self.archetype_kind {
-            return false;
-        }
+    pub fn remove(&mut self, index: usize) -> bool {
         if self.buildings.try_remove(index).is_none() {
             return false;
         }
@@ -353,36 +357,36 @@ impl<'config> BuildingArchetype<'config> {
     }
 
     #[inline]
-    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
         match self {
             BuildingArchetype::Producer(state) => {
-                state.update(update_ctx, delta_time_secs);
+                state.update(context, delta_time_secs);
             }
             BuildingArchetype::Storage(state) => {
-                state.update(update_ctx, delta_time_secs);
+                state.update(context, delta_time_secs);
             }
             BuildingArchetype::Service(state) => {
-                state.update(update_ctx, delta_time_secs);
+                state.update(context, delta_time_secs);
             }
             BuildingArchetype::House(state) => {
-                state.update(update_ctx, delta_time_secs);
+                state.update(context, delta_time_secs);
             }
         }
     }
 
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, ui_sys: &UiSystem) {
         match self {
             BuildingArchetype::Producer(state) => {
-                state.draw_debug_ui(ui_sys);
+                state.draw_debug_ui(context, ui_sys);
             }
             BuildingArchetype::Storage(state) => {
-                state.draw_debug_ui(ui_sys);
+                state.draw_debug_ui(context, ui_sys);
             }
             BuildingArchetype::Service(state) => {
-                state.draw_debug_ui(ui_sys);
+                state.draw_debug_ui(context, ui_sys);
             }
             BuildingArchetype::House(state) => {
-                state.draw_debug_ui(ui_sys);
+                state.draw_debug_ui(context, ui_sys);
             }
         }
     }
@@ -427,15 +431,15 @@ impl<'config> BuildingArchetype<'config> {
 
 // Common behavior for all Building archetypes.
 pub trait BuildingBehavior<'config> {
-    fn update(&mut self, update_ctx: &mut BuildingUpdateContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds);
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem);
+    fn update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds);
+    fn draw_debug_ui(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, ui_sys: &UiSystem);
 }
 
 // ----------------------------------------------
-// BuildingUpdateContext
+// BuildingContext
 // ----------------------------------------------
 
-pub struct BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
+pub struct BuildingContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
     name: &'config str,
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
@@ -444,7 +448,7 @@ pub struct BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
     query: &'query mut Query<'config, 'sim, 'tile_map, 'tile_sets>,
 }
 
-impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
+impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
     fn new(name: &'config str,
            kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
@@ -526,7 +530,7 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingUpdateContext<'config
     }
 }
 
-impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> std::fmt::Display for BuildingUpdateContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
+impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> std::fmt::Display for BuildingContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Building '{}' ({}|{}) [{},{}]",
                self.name,

@@ -22,7 +22,7 @@ use crate::{
 use super::{
     BuildingKind,
     BuildingBehavior,
-    BuildingUpdateContext,
+    BuildingContext,
     config::BuildingConfigs,
     storage::StorageBuilding,
 };
@@ -89,19 +89,19 @@ pub struct ProducerBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
-    fn update(&mut self, update_ctx: &mut BuildingUpdateContext, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &mut BuildingContext, delta_time_secs: Seconds) {
         // Update producer states:
         if self.production_update_timer.tick(delta_time_secs).should_update() {
             if !self.debug.freeze_production {
                 self.production_update();
             }
             if !self.debug.freeze_shipping {
-                self.ship_to_storage(update_ctx);
+                self.ship_to_storage(context);
             }
         };
     }
 
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_producer_config(ui_sys);
         self.draw_debug_ui_input_stock(ui_sys);
         self.draw_debug_ui_production_output(ui_sys);
@@ -150,9 +150,9 @@ impl<'config> ProducerBuilding<'config> {
         }
     }
 
-    fn ship_to_storage(&mut self, update_ctx: &mut BuildingUpdateContext) {
+    fn ship_to_storage(&mut self, context: &mut BuildingContext) {
         // Try to find a storage yard that can accept our goods.
-        update_ctx.for_each_storage(BuildingKind::StorageYard, |storage| {
+        context.for_each_storage(BuildingKind::StorageYard, |storage| {
             let mut continue_search = true;
 
             if !storage.is_full() {

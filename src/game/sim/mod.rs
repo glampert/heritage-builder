@@ -3,6 +3,7 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 use crate::{
+    imgui_ui::UiSystem,
     tile::{
         map::{Tile, TileMap, TileMapLayerKind},
         sets::{TileDef, TileKind, TileSets}
@@ -66,6 +67,26 @@ impl Simulation {
         if self.update_timer.tick(delta_time.as_secs_f32()).should_update() {
             let mut query = Query::new(&mut self.rng, world, tile_map, tile_sets);
             world.update(&mut query, world_update_delta_time_secs);
+        }
+    }
+
+    pub fn draw_building_debug_ui<'tile_map, 'tile_sets>(&mut self,
+                                                         world: &mut World,
+                                                         tile_map: &'tile_map mut TileMap<'tile_sets>,
+                                                         tile_sets: &'tile_sets TileSets,
+                                                         ui_sys: &UiSystem,
+                                                         cell: Cell,
+                                                         layer_kind: TileMapLayerKind) {
+
+        let mut query = Query::new(&mut self.rng, world, tile_map, tile_sets);
+
+        let tile = match query.tile_map.try_tile_from_layer(cell, layer_kind) {
+            Some(tile) => tile,
+            None => return,
+        };
+
+        if let Some(building) = world.find_building_for_tile_mut(tile) {
+            building.draw_debug_ui(&mut query, ui_sys);
         }
     }
 }

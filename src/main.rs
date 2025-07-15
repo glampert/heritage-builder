@@ -259,7 +259,7 @@ fn main() {
             tile_selection.has_valid_placement(),
             debug_settings_menu.show_selection_bounds());
 
-        tile_inspector_menu.draw(&mut world, &mut tile_map, &tile_sets, &ui_sys, camera.transform());
+        tile_inspector_menu.draw(&mut sim, &mut world, &mut tile_map, &tile_sets, &ui_sys, camera.transform());
         debug_settings_menu.draw(&mut camera, &mut world, &mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
 
         if debug_settings_menu.show_cursor_pos() {

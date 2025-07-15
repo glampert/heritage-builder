@@ -82,8 +82,9 @@ impl<'config> World<'config> {
         let building_kind = BuildingKind::from_game_state_handle(game_state);
         let archetype_kind = building_kind.archetype_kind();
         let list = self.building_list_mut(archetype_kind);
+        debug_assert!(list.archetype_kind() == archetype_kind);
 
-        if !list.remove(list_index, archetype_kind) {
+        if !list.remove(list_index) {
             panic!("Failed to remove building '{}' [{},{}]! This is unexpected...",
                    tile.name(), tile.base_cell().x, tile.base_cell().y);
         }
@@ -97,7 +98,8 @@ impl<'config> World<'config> {
             let building_kind = BuildingKind::from_game_state_handle(game_state);
             let archetype_kind = building_kind.archetype_kind();
             let list = self.building_list(archetype_kind);
-            return list.try_get(list_index, archetype_kind);
+            debug_assert!(list.archetype_kind() == archetype_kind);
+            return list.try_get(list_index);
         }
         None
     }
@@ -110,7 +112,8 @@ impl<'config> World<'config> {
             let building_kind = BuildingKind::from_game_state_handle(game_state);
             let archetype_kind = building_kind.archetype_kind();
             let list = self.building_list_mut(archetype_kind);
-            return list.try_get_mut(list_index, archetype_kind);
+            debug_assert!(list.archetype_kind() == archetype_kind);
+            return list.try_get_mut(list_index);
         }
         None
     }
