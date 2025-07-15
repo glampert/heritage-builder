@@ -63,8 +63,8 @@ fn main() {
 
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
 
-    let mut tile_map = create_test_tile_map_2(&tile_sets);
-    //let mut tile_map = TileMap::new(Size::new(8, 8), None);
+    let mut tile_map = create_test_tile_map(&tile_sets);
+    //let mut tile_map = TileMap::new(Size::new(64, 64), None);
 
     let building_configs = BuildingConfigs::load();
     let mut sim = Simulation::new();
@@ -157,7 +157,6 @@ fn main() {
                     }
                 }
             }
-            println!("ApplicationEvent::{:?}", event);
         }
 
         sim.update(&mut world, &mut tile_map, &tile_sets, frame_clock.delta_time());
@@ -284,139 +283,7 @@ fn main() {
     }
 }
 
-// ----------------------------------------------
-// Test map setup helpers
-// ----------------------------------------------
-
-/*
-fn create_test_tile_map_1(tile_sets: &TileSets) -> TileMap {
-    println!("Creating test tile map...");
-
-    const MAP_WIDTH:  i32 = 8;
-    const MAP_HEIGHT: i32 = 8;
-
-    const G:  i32 = 0; // ground:grass (empty)
-    const R:  i32 = 1; // ground:road/dirt (empty)
-    const U:  i32 = 2; // unit:ped
-    const HH: i32 = 3; // building:house (2x2)
-    const TT: i32 = 4; // building:tower (3x3)
-    const B0: i32 = 5; // special blocker for the 3x3 building.
-    const B1: i32 = 6; // special blocker for the 2x2 building.
-    const B2: i32 = 7; // special blocker for the 2x2 building.
-    const B3: i32 = 8; // special blocker for the 2x2 building.
-    const B4: i32 = 9; // special blocker for the 2x2 building.
-
-    const TILE_NAMES: [&str; 5] = [ "grass", "dirt", "ped", "house", "tower" ];
-    const TILE_CATEGORIES: [&str; 5] = [ "ground", "ground", "on_foot", "residential", "residential" ];
-
-    let find_tile = |layer_kind: TileMapLayerKind, tile_id: i32| {
-        let tile_name = TILE_NAMES[tile_id as usize];
-        let category_name = TILE_CATEGORIES[tile_id as usize];
-        tile_sets.find_tile_by_name(layer_kind, category_name, tile_name).unwrap_or(TileDef::empty())
-    };
-
-    const TERRAIN_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
-        R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
-        R,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,R,
-        R,R,R,R,R,R,R,R,
-    ];
-
-    const BUILDINGS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
-        G, G, G, G, G, G, G, G, // <-- start, tile zero is the leftmost (top-left)
-        G, TT,B0,B0,G, HH,B1,G,
-        G, B0,B0,B0,G, B1,B1,G,
-        G, B0,B0,B0,G, HH,B2,G,
-        G, G, G, G, G, B2,B2,G,
-        G, HH,B4,G, G, HH,B3,G,
-        G, B4,B4,G, G, B3,B3,G,
-        G, G, G, G, G, G, G, G,
-    ];
-
-    const UNITS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
-        U,U,U,U,U,U,U,U, // <-- start, tile zero is the leftmost (top-left)
-        U,G,G,G,U,G,G,U,
-        U,G,G,G,U,G,G,U,
-        U,G,G,G,U,G,G,U,
-        U,U,U,U,U,G,G,U,
-        U,G,G,U,U,G,G,U,
-        U,G,G,U,U,G,G,U,
-        U,U,U,U,U,U,U,U,
-    ];
-
-    let blockers_mapping = std::collections::HashMap::from([
-        (B0, Cell::new(1, 1)),
-        (B1, Cell::new(5, 1)),
-        (B2, Cell::new(5, 3)),
-        (B3, Cell::new(5, 5)),
-        (B4, Cell::new(1, 5)),
-    ]);
-
-    let mut tile_map = TileMap::new(Size::new(MAP_WIDTH, MAP_HEIGHT));
-
-    // Terrain:
-    {
-        let terrain_layer = tile_map.layer_mut(TileMapLayerKind::Terrain);
-
-        for y in 0..MAP_HEIGHT {
-            for x in 0..MAP_WIDTH {
-                let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                let tile_def = find_tile(TileMapLayerKind::Terrain, tile_id);
-                terrain_layer.add_tile(Cell::new(x, y), tile_def);
-            }
-        }
-    }
-
-    // Buildings:
-    {
-        let buildings_layer = tile_map.layer_mut(TileMapLayerKind::Buildings);
-
-        for y in 0..MAP_HEIGHT {
-            for x in 0..MAP_WIDTH {
-                let tile_id = BUILDINGS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                let cell = Cell::new(x, y);
-
-                if tile_id == G { // ground/empty
-                    buildings_layer.add_empty_tile(cell);
-                } else if tile_id >= B0 { // building blocker
-                    let owner_cell = blockers_mapping.get(&tile_id).unwrap();
-                    buildings_layer.add_blocker_tile(cell, *owner_cell);
-                } else { // building tile
-                    let tile_def = find_tile(TileMapLayerKind::Buildings, tile_id);
-                    buildings_layer.add_tile(cell, tile_def);
-                }
-            }
-        }
-    }
-
-    // Units:
-    {
-        let units_layer = tile_map.layer_mut(TileMapLayerKind::Units);
-
-        for y in 0..MAP_HEIGHT {
-            for x in 0..MAP_WIDTH {
-                let tile_id = UNITS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-                let cell = Cell::new(x, y);
-
-                if tile_id == G { // ground/empty
-                    units_layer.add_empty_tile(cell);
-                } else { // unit tile
-                    let tile_def = find_tile(TileMapLayerKind::Units, tile_id);
-                    units_layer.add_tile(cell, tile_def);
-                }
-            }
-        }
-    }
-
-    tile_map
-}
-*/
-
-fn create_test_tile_map_2(tile_sets: &TileSets) -> TileMap {
+fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
     println!("Creating test tile map...");
 
     const MAP_WIDTH:  i32 = 8;

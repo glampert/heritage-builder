@@ -494,13 +494,13 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingContext<'config, 'que
     #[inline]
     fn has_access_to_service(&self, service_kind: BuildingKind) -> bool {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::Service);
-        let config = self.configs.find::<service::ServiceConfig>(service_kind);
+        let config = self.configs.find_service_config(service_kind);
         self.query.is_near_building(self.map_cells, service_kind, config.effect_radius)
     }
 
     fn find_nearest_service(&mut self, service_kind: BuildingKind) -> Option<&mut service::ServiceBuilding<'config>> {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::Service);
-        let config = self.configs.find::<service::ServiceConfig>(service_kind);
+        let config = self.configs.find_service_config(service_kind);
 
         if let Some(building) =
             self.query.find_nearest_building(self.map_cells, service_kind, config.effect_radius) {

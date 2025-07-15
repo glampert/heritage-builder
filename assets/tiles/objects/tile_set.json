@@ -220,6 +220,30 @@
                     ]
                 },
                 {
+                    "name": "livestock_farm",
+                    "logical_size": {
+                        "width": 256,
+                        "height": 128
+                    },
+                    "draw_size": {
+                        "width": 265,
+                        "height": 168
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
                     "name": "storage_yard",
                     "logical_size": {
                         "width": 192,

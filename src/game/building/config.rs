@@ -1,5 +1,5 @@
 use crate::{
-    utils::hash::{self},
+    utils::hash::{self, StringHash},
     tile::map::Tile,
     game::sim::resources::{
         ResourceKind,
@@ -43,7 +43,8 @@ pub struct BuildingConfigs {
     service_well_small: ServiceConfig,
     service_well_big: ServiceConfig,
     service_market: ServiceConfig,
-    producer_farm: ProducerConfig,
+    producer_rice_farm: ProducerConfig,
+    producer_livestock_farm: ProducerConfig,
     storage_yard: StorageConfig,
     storage_granary: StorageConfig,
 }
@@ -68,7 +69,7 @@ impl BuildingConfigs {
                 // Any water source (small well OR big well) AND a market.
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
                 // Any 1 kind of food.
-                resources_required: ResourceKinds::with_kinds(ResourceKind::foods()),
+                resources_required: ResourceKinds::with_slice(&[ResourceKind::foods()]),
             },
             house2: HouseLevelConfig {
                 tile_def_name: "house2".to_string(),
@@ -103,7 +104,7 @@ impl BuildingConfigs {
                 effect_radius: 5,
                 resources_required: ResourceKinds::with_kinds(ResourceKind::foods()),
             },
-            producer_farm: ProducerConfig {
+            producer_rice_farm: ProducerConfig {
                 tile_def_name: "rice_farm".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
                 min_workers: 0,
@@ -112,6 +113,18 @@ impl BuildingConfigs {
                 production_capacity: 5,
                 resources_required: ResourceKinds::none(),
                 resources_capacity: 0,
+                storage_buildings_accepted: BuildingKind::Granary,
+            },
+            producer_livestock_farm: ProducerConfig {
+                tile_def_name: "livestock_farm".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("livestock_farm"),
+                min_workers: 0,
+                max_workers: 1,
+                production_output: ResourceKind::Meat,
+                production_capacity: 5,
+                resources_required: ResourceKinds::none(),
+                resources_capacity: 0,
+                storage_buildings_accepted: BuildingKind::Granary,
             },
             storage_yard: StorageConfig {
                 tile_def_name: "storage_yard".to_string(),
@@ -142,42 +155,31 @@ impl BuildingConfigs {
         }
     }
 
-    pub fn find<T: BuildingConfigLookup>(&self, kind: BuildingKind) -> &T {
-        T::find(self, kind)
-    }
-}
-
-// Trait to specialize lookup for each config type.
-pub trait BuildingConfigLookup {
-    fn find<'config>(configs: &'config BuildingConfigs, kind: BuildingKind) -> &'config Self;
-}
-
-impl BuildingConfigLookup for ProducerConfig {
-    fn find<'config>(configs: &'config BuildingConfigs, kind: BuildingKind) -> &'config Self {
+    pub fn find_producer_config(&self, kind: BuildingKind, tile_name: &str, tile_name_hash: StringHash) -> &ProducerConfig {
         if kind == BuildingKind::Farm {
-            &configs.producer_farm
+            if tile_name_hash == hash::fnv1a_from_str("rice_farm") {
+                &self.producer_rice_farm
+            } else if tile_name_hash == hash::fnv1a_from_str("livestock_farm") {
+                &self.producer_livestock_farm
+            } else { panic!("Unknown farm tile: '{}'", tile_name) }
         } else { panic!("No producer!") }
     }
-}
 
-impl BuildingConfigLookup for ServiceConfig {
-    fn find<'config>(configs: &'config BuildingConfigs, kind: BuildingKind) -> &'config Self {
+    pub fn find_service_config(&self, kind: BuildingKind) -> &ServiceConfig {
         if kind == BuildingKind::WellSmall {
-            &configs.service_well_small
+            &self.service_well_small
         } else if kind == BuildingKind::WellBig {
-            &configs.service_well_big
+            &self.service_well_big
         } else if kind == BuildingKind::Market {
-            &configs.service_market
+            &self.service_market
         } else { panic!("No service!") }
     }
-}
 
-impl BuildingConfigLookup for StorageConfig {
-    fn find<'config>(configs: &'config BuildingConfigs, kind: BuildingKind) -> &'config Self {
+    pub fn find_storage_config(&self, kind: BuildingKind) -> &StorageConfig {
         if kind == BuildingKind::Granary {
-            &configs.storage_granary
+            &self.storage_granary
         } else if kind == BuildingKind::StorageYard {
-            &configs.storage_yard
+            &self.storage_yard
         } else { panic!("No storage!") }
     }
 }
@@ -188,6 +190,7 @@ impl BuildingConfigLookup for StorageConfig {
 
 pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> Option<Building<'config>> {
     // TODO: Temporary
+    let tile_name_hash = tile.tile_def().hash;
     if tile.name() == "well_small" {
         Some(Building::new(
             "Well Small",
@@ -220,13 +223,13 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> O
             configs,
             BuildingArchetype::new_house(HouseBuilding::new(HouseLevel::Level0, configs))
         ))
-    } else if tile.name() == "rice_farm" {
+    } else if tile.name() == "rice_farm" || tile.name() == "livestock_farm" {
         Some(Building::new(
             "Rice Farm",
             BuildingKind::Farm,
             tile.cell_range(),
             configs,
-            BuildingArchetype::new_producer(ProducerBuilding::new(BuildingKind::Farm, configs))
+            BuildingArchetype::new_producer(ProducerBuilding::new(BuildingKind::Farm, tile.name(), tile_name_hash, configs))
         ))
     } else if tile.name() == "granary" {
         Some(Building::new(

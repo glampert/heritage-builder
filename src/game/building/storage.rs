@@ -68,7 +68,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
 
 impl<'config> StorageBuilding<'config> {
     pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
-        let config = configs.find::<StorageConfig>(kind);
+        let config = configs.find_storage_config(kind);
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),

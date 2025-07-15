@@ -57,6 +57,9 @@ pub struct ProducerConfig {
     // Kinds of raw materials required for production, if any.
     pub resources_required: ResourceKinds,
     pub resources_capacity: u32,
+
+    // Where we can ship our production to (Granary, StorageYard).
+    pub storage_buildings_accepted: BuildingKind,
 }
 
 // ----------------------------------------------
@@ -109,8 +112,8 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
 }
 
 impl<'config> ProducerBuilding<'config> {
-    pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
-        let config = configs.find::<ProducerConfig>(kind);
+    pub fn new(kind: BuildingKind, tile_name: &str, tile_name_hash: StringHash, configs: &'config BuildingConfigs) -> Self {
+        let config = configs.find_producer_config(kind, tile_name, tile_name_hash);
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
@@ -151,8 +154,10 @@ impl<'config> ProducerBuilding<'config> {
     }
 
     fn ship_to_storage(&mut self, context: &mut BuildingContext) {
-        // Try to find a storage yard that can accept our goods.
-        context.for_each_storage(BuildingKind::StorageYard, |storage| {
+        let storage_kinds = self.config.storage_buildings_accepted;
+
+        // Try to find a storage building that can accept our goods.
+        context.for_each_storage(storage_kinds, |storage| {
             let mut continue_search = true;
 
             if !storage.is_full() {
@@ -307,6 +312,7 @@ impl ProducerConfig {
         ui.text(format!("Production capacity.: {}", self.production_capacity));
         ui.text(format!("Resources required..: {}", self.resources_required));
         ui.text(format!("Resources capacity..: {}", self.resources_capacity));
+        ui.text(format!("Storage buildings...: {}", self.storage_buildings_accepted));
     }
 }
 

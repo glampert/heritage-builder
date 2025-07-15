@@ -90,7 +90,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
 
 impl<'config> ServiceBuilding<'config> {
     pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
-        let config = configs.find::<ServiceConfig>(kind);
+        let config = configs.find_service_config(kind);
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
