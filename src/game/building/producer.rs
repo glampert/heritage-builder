@@ -51,7 +51,7 @@ pub struct ProducerConfig {
     pub max_workers: u32,
 
     // Producer output: A raw material or a consumer good.
-    pub production_output_kind: ResourceKind,
+    pub production_output: ResourceKind,
     pub production_capacity: u32,
 
     // Kinds of raw materials required for production, if any.
@@ -98,7 +98,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
             if !self.debug.freeze_shipping {
                 self.ship_to_storage(context);
             }
-        };
+        }
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
@@ -120,7 +120,7 @@ impl<'config> ProducerBuilding<'config> {
                 config.resources_capacity
             ),
             production_output_stock: ProducerOutputLocalStock::new(
-                config.production_output_kind,
+                config.production_output,
                 config.production_capacity
             ),
             debug: ProducerDebug::default(),
@@ -134,9 +134,9 @@ impl<'config> ProducerBuilding<'config> {
 
             // If we have raw material requirements, first check if they are available in stock.
             if self.production_input_stock.requires_any_resource() {
-                if self.production_input_stock.has_all_required_resources() {
+                if self.production_input_stock.has_required_resources() {
                     // Consume our raw materials (one of each).
-                    self.production_input_stock.consume_all_resources();
+                    self.production_input_stock.consume_resources();
                 } else {
                     // We are missing one or more raw materials, halt production.
                     produce_one_item = false;
@@ -156,7 +156,7 @@ impl<'config> ProducerBuilding<'config> {
             let mut continue_search = true;
 
             if !storage.is_full() {
-                if self.production_output_stock.try_ship_to_storage(storage) {
+                if self.production_output_stock.ship_to_storage(storage) {
                     // Storage accepted at least some of our items, stop.
                     continue_search = false;
                 }
@@ -175,7 +175,7 @@ impl<'config> ProducerBuilding<'config> {
             return true;
         }
         if self.production_input_stock.requires_any_resource() &&
-          !self.production_input_stock.has_all_required_resources() {
+          !self.production_input_stock.has_required_resources() {
             return true;
         }
         false
@@ -211,8 +211,8 @@ impl ProducerOutputLocalStock {
     }
 
     #[inline]
-    fn try_ship_to_storage(&mut self, storage: &mut StorageBuilding) -> bool {
-        storage.try_receive_resources(&mut self.item)
+    fn ship_to_storage(&mut self, storage: &mut StorageBuilding) -> bool {
+        storage.receive_resources(&mut self.item)
     }
 }
 
@@ -244,7 +244,7 @@ impl ProducerInputsLocalStock {
     }
 
     #[inline]
-    fn has_all_required_resources(&self) -> bool {
+    fn has_required_resources(&self) -> bool {
         for slot in &self.slots {
             if slot.count == 0 {
                 return false;
@@ -276,7 +276,7 @@ impl ProducerInputsLocalStock {
     }
 
     #[inline]
-    fn count_all_resources(&self) -> u32 {
+    fn count_resources(&self) -> u32 {
         let mut count = 0;
         for slot in &self.slots {
             count += slot.count;
@@ -285,7 +285,7 @@ impl ProducerInputsLocalStock {
     }
 
     #[inline]
-    fn consume_all_resources(&mut self) {
+    fn consume_resources(&mut self) {
         for slot in &mut self.slots {
             debug_assert!(slot.count != 0);
             slot.count -= 1;
@@ -303,7 +303,7 @@ impl ProducerConfig {
         ui.text(format!("Tile def name.......: '{}'", self.tile_def_name));
         ui.text(format!("Min workers.........: {}", self.min_workers));
         ui.text(format!("Max workers.........: {}", self.max_workers));
-        ui.text(format!("Production output...: {}", self.production_output_kind));
+        ui.text(format!("Production output...: {}", self.production_output));
         ui.text(format!("Production capacity.: {}", self.production_capacity));
         ui.text(format!("Resources required..: {}", self.resources_required));
         ui.text(format!("Resources capacity..: {}", self.resources_capacity));

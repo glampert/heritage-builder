@@ -34,7 +34,7 @@ impl ResourceKind {
     }
 
     #[inline]
-    pub const fn any_food() -> Self {
+    pub const fn foods() -> Self {
         Self::from_bits_retain(
             Self::Rice.bits() |
             Self::Meat.bits() |
@@ -135,12 +135,12 @@ impl ResourceStock {
 
     #[inline]
     pub fn accepted_count(&self) -> usize {
-        self.counts.len()
+        self.kinds.bits().count_ones() as usize
     }
 
     #[inline]
     pub fn accepts_any(&self) -> bool {
-        self.accepted_count() != 0
+        !self.kinds.is_empty()
     }
 
     #[inline]
@@ -361,6 +361,23 @@ impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
     pub fn add(&mut self, kind: T) {
         debug_assert!(!self.has(kind));
         self.kinds.push(kind);
+    }
+
+    #[inline]
+    pub fn remove(&mut self, kind: T) {
+        let mut index_to_remove = None;
+
+        for (index, resource) in self.kinds.iter().enumerate() {
+            if resource.intersects(kind) {
+                index_to_remove = Some(index);
+                break;
+            }
+        }
+
+        if let Some(index) = index_to_remove {
+            let removed = self.kinds.remove(index);
+            assert!(removed.intersects(kind));
+        }
     }
 
     #[inline]

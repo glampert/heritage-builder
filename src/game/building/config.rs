@@ -65,9 +65,10 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house1"),
                 max_residents: 4,
                 tax_generated: 1,
+                // Any water source (small well OR big well) AND a market.
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
                 // Any 1 kind of food.
-                resources_required: ResourceKinds::with_slice(&[ResourceKind::any_food()]),
+                resources_required: ResourceKinds::with_kinds(ResourceKind::foods()),
             },
             house2: HouseLevelConfig {
                 tile_def_name: "house2".to_string(),
@@ -75,7 +76,7 @@ impl BuildingConfigs {
                 max_residents: 6,
                 tax_generated: 2,
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
-                // 2 kinds of food required: Rice + meat or fish.
+                // 2 kinds of food required: Rice AND Meat OR Fish.
                 resources_required: ResourceKinds::with_slice(&[ResourceKind::Rice, ResourceKind::Meat | ResourceKind::Fish]),
             },
             service_well_small: ServiceConfig {
@@ -100,14 +101,14 @@ impl BuildingConfigs {
                 min_workers: 0,
                 max_workers: 1,
                 effect_radius: 5,
-                resources_required: ResourceKinds::all(),
+                resources_required: ResourceKinds::with_kinds(ResourceKind::foods()),
             },
             producer_farm: ProducerConfig {
                 tile_def_name: "rice_farm".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
                 min_workers: 0,
                 max_workers: 1,
-                production_output_kind: ResourceKind::Rice,
+                production_output: ResourceKind::Rice,
                 production_capacity: 5,
                 resources_required: ResourceKinds::none(),
                 resources_capacity: 0,
@@ -126,7 +127,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("granary"),
                 min_workers: 0,
                 max_workers: 1,
-                resources_accepted: ResourceKinds::with_kinds(ResourceKind::any_food()),
+                resources_accepted: ResourceKinds::with_kinds(ResourceKind::foods()),
                 num_slots: 8,
                 slot_capacity: 4,
             }

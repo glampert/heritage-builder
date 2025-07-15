@@ -86,8 +86,35 @@ impl<'config> StorageBuilding<'config> {
 
     // Returns true if *any number* of items can be stored.
     // Decrements the number of stored items from the argument if successful.
-    pub fn try_receive_resources(&mut self, item: &mut StockItem) -> bool {
+    pub fn receive_resources(&mut self, item: &mut StockItem) -> bool {
         self.storage_slots.try_add_resources(item)
+    }
+
+    pub fn shop(&mut self, shopping_basket: &mut ResourceStock, shopping_list: &ResourceKinds, all_or_nothing: bool) {
+        if all_or_nothing {
+            for &wanted_resource in shopping_list.iter() {
+                let slot_index = match self.storage_slots.find_resource_slot(wanted_resource) {
+                    Some(slot_index) => slot_index,
+                    None => return,
+                };
+                // If we have a slot allocated for this resource its count must not be zero.
+                debug_assert!(self.storage_slots.slot_resource_count(slot_index, wanted_resource) != 0);
+            }      
+        }
+
+        for &wanted_resource in shopping_list.iter() {
+            let slot_index = match self.storage_slots.find_resource_slot(wanted_resource) {
+                Some(slot_index) => slot_index,
+                None => continue,
+            };
+
+            let prev_count = self.storage_slots.slot_resource_count(slot_index, wanted_resource);
+            let new_count  = self.storage_slots.decrement_slot_resource_count(slot_index, wanted_resource, 1);
+
+            if new_count < prev_count {
+                shopping_basket.add(wanted_resource);
+            }
+        }
     }
 }
 
@@ -249,7 +276,19 @@ impl StorageSlots {
         None
     }
 
-    fn find_slot_for_resource(&self, kind: ResourceKind) -> Option<usize> {
+    #[inline]
+    fn find_resource_slot(&self, kind: ResourceKind) -> Option<usize> {
+        for (slot_index, slot) in self.slots.iter().enumerate() {
+            if let Some(allocated_kind) = slot.allocated_resource_kind {
+                if allocated_kind == kind {
+                    return Some(slot_index);
+                }
+            }
+        }
+        None
+    }
+
+    fn alloc_resource_slot(&mut self, kind: ResourceKind) -> Option<usize> {
         // Should be a single kind, never multiple ORed flags.
         debug_assert!(kind.bits().count_ones() == 1);
 
@@ -266,13 +305,14 @@ impl StorageSlots {
         self.find_free_slot()
     }
 
+    // Returns true if anything was added. False if no space left.
     fn try_add_resources(&mut self, item: &mut StockItem) -> bool {
         let kind = item.kind;
         let add_amount = item.count;
 
-        let slot_index = match self.find_slot_for_resource(kind) {
+        let slot_index = match self.alloc_resource_slot(kind) {
             Some(slot_index) => slot_index,
-            None => return false
+            None => return false,
         };
 
         let prev_count =

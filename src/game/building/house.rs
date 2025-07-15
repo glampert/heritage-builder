@@ -135,7 +135,7 @@ impl<'config> HouseBuilding<'config> {
             stock_update_timer: UpdateTimer::new(STOCK_UPDATE_FREQUENCY_SECS),
             upgrade_update_timer: UpdateTimer::new(UPGRADE_UPDATE_FREQUENCY_SECS),
             upgrade_state: HouseUpgradeState::new(level, configs),
-            stock: ResourceStock::with_accepted_kinds(ResourceKind::any_food()),
+            stock: ResourceStock::with_accepted_kinds(ResourceKind::foods()),
             debug: HouseDebug::default(),
         }
     }

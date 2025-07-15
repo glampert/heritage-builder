@@ -505,8 +505,8 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingContext<'config, 'que
         if let Some(building) =
             self.query.find_nearest_building(self.map_cells, service_kind, config.effect_radius) {
 
-            if building.archetype_kind() != BuildingArchetypeKind::Service {
-                panic!("Building '{}' ({}|{}): Expected archetype to be Service!",
+            if building.archetype_kind() != BuildingArchetypeKind::Service || building.kind() != service_kind {
+                panic!("Building '{}' ({}|{}): Expected archetype to be Service ({service_kind})!",
                        building.name, building.archetype_kind(), building.kind());
             }
 
@@ -516,16 +516,21 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingContext<'config, 'que
         None
     }
 
-    fn for_each_storage<F>(&mut self, storage_kind: BuildingKind, mut visitor_fn: F)
+    // `storage_kinds` can be a combination of ORed flags.
+    fn for_each_storage<F>(&mut self, storage_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&mut storage::StorageBuilding<'config>) -> bool
     {
-        debug_assert!(storage_kind.archetype_kind() == BuildingArchetypeKind::Storage);
+        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
 
         let storage_buildings =
             self.query.world.building_list_mut(BuildingArchetypeKind::Storage);
 
         storage_buildings.for_each_mut(|_, building| {
-            visitor_fn(building.archetype.as_storage_mut())
+            if building.kind().intersects(storage_kinds) {
+                visitor_fn(building.archetype.as_storage_mut())
+            } else {
+                true // continue
+            }
         });
     }
 }
