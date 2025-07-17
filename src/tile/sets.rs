@@ -322,6 +322,7 @@ impl TileDef {
         Some(&variation.anim_sets[anim_set_index])
     }
 
+    #[inline]
     pub fn anim_sets_count(&self, variation_index: usize) -> usize {
         if variation_index >= self.variations.len() {
             return 0;
@@ -329,19 +330,19 @@ impl TileDef {
         self.variations[variation_index].anim_sets.len()
     }
 
-    pub fn anim_frames_count(&self, variation_index: usize) -> usize {
+    #[inline]
+    pub fn anim_frames_count(&self, variation_index: usize, anim_set_index: usize) -> usize {
         if variation_index >= self.variations.len() {
             return 0;
         }
-
         let variation = &self.variations[variation_index];
-        let mut count = 0;
-        for anim_set in &variation.anim_sets {
-            count += anim_set.frames.len();
+        if anim_set_index >= variation.anim_sets.len() {
+            return 0;
         }
-        count
+        variation.anim_sets[anim_set_index].frames.len()
     }
 
+    #[inline]
     pub fn anim_set_name(&self, variation_index: usize, anim_set_index: usize) -> &str {
         if variation_index >= self.variations.len() {
             return "";
@@ -353,6 +354,7 @@ impl TileDef {
         &variation.anim_sets[anim_set_index].name
     }
 
+    #[inline]
     pub fn variation_name(&self, variation_index: usize) -> &str {
         if variation_index >= self.variations.len() {
             return "";
@@ -360,6 +362,7 @@ impl TileDef {
         &self.variations[variation_index].name
     }
 
+    #[inline]
     pub fn has_variations(&self) -> bool {
         self.variations.len() > 1
     }

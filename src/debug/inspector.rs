@@ -179,11 +179,11 @@ impl TileInspectorMenu {
     }
 
     fn tile_animations_dropdown(ui: &imgui::Ui,
-                                tile_map: &TileMap,
+                                tile_map: &mut TileMap,
                                 cell: Cell,
                                 layer_kind: TileMapLayerKind) {
 
-        let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+        let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
 
         if !tile.has_animations() {
             return;
@@ -193,11 +193,34 @@ impl TileInspectorMenu {
             return; // collapsed.
         }
 
-        ui.text(format!("Anim sets.....: {}", tile.anim_sets_count()));
-        ui.text(format!("Anim set idx..: {}, '{}'", tile.anim_set_index(), tile.anim_set_name()));
-        ui.text(format!("Anim frames...: {}", tile.anim_frames_count()));
-        ui.text(format!("Frame idx.....: {}", tile.anim_frame_index()));
-        ui.text(format!("Frame time....: {:.2}", tile.anim_frame_play_time_secs()));
+        let anim_set_count = tile.anim_sets_count();
+        let mut anim_set_names = Vec::with_capacity(anim_set_count);
+        for i in 0..anim_set_count {
+            let anim_set_name = tile.tile_def().anim_set_name(tile.variation_index(), i);
+            anim_set_names.push(anim_set_name);
+        }
+
+        let mut anim_set_index: usize = tile.anim_set_index();
+        if ui.combo_simple_string("Anim Set", &mut anim_set_index, &anim_set_names) {
+            tile.set_anim_set_index(anim_set_index);
+        }
+
+        anim_set_index = tile.anim_set_index();
+        if ui.input_scalar("Anim Set idx", &mut anim_set_index).step(1).build() {
+            tile.set_anim_set_index(anim_set_index);
+        }
+
+        let anim_set = tile.anim_set();
+
+        ui.text(format!("Anim sets......: {}", anim_set_count));
+        ui.text(format!("Anim Set idx...: {}, '{}'", tile.anim_set_index(), tile.anim_set_name()));
+        ui.text(format!("Anim frames....: {}", tile.anim_frames_count()));
+        ui.text(format!("Anim duration..: {}", anim_set.anim_duration_secs()));
+        ui.text(format!("Looping........: {}", anim_set.looping));
+        ui.separator();
+        ui.text(format!("Frame idx......: {}", tile.anim_frame_index()));
+        ui.text(format!("Frame duration.: {}", anim_set.frame_duration_secs()));
+        ui.text(format!("Frame time.....: {:.2}", tile.anim_frame_play_time_secs()));
     }
 
     fn tile_debug_opts_dropdown(ui: &imgui::Ui,

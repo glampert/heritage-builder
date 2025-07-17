@@ -30,6 +30,7 @@ use super::{
     selection::TileSelection,
     sets::{
         TileSets,
+        TileAnimSet,
         TileDef,
         TileKind,
         TileTexInfo,
@@ -268,8 +269,9 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
 
     #[inline]
     fn anim_state_mut_ref(&mut self) -> &mut TileAnimState {
-        // This is method is only called from Tile::update_anim(), so should never be used for Terrain.
-        panic!("Terrain Tiles are not animated! Do not call update_anim() on a Terrain Tile.");
+        // This is method is only called from Tile::update_anim() and
+        // Tile::set_anim_set_index(), so should never be used for Terrain.
+        panic!("Terrain Tiles are not animated! Do not call this on a Terrain Tile.");
     }
 }
 
@@ -446,10 +448,7 @@ impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
 
     // Animations:
     #[inline] fn anim_state_ref(&self) -> &TileAnimState { self.owner().anim_state_ref() }
-    #[inline] fn anim_state_mut_ref(&mut self) -> &mut TileAnimState {
-        // This is method is only called from Tile::update_anim(), so should never be used for Blockers.
-        panic!("Blocker Tiles are not animated! Do not call update_anim() on a Blocker Tile.");
-    }
+    #[inline] fn anim_state_mut_ref(&mut self) -> &mut TileAnimState { self.owner_mut().anim_state_mut_ref() }
 }
 
 // ----------------------------------------------
@@ -705,8 +704,22 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
+    pub fn anim_set(&self) -> &TileAnimSet {
+        self.tile_def().anim_set_by_index(self.variation_index(), self.anim_set_index()).unwrap()
+    }
+
+    #[inline]
     pub fn anim_frames_count(&self) -> usize {
-        self.tile_def().anim_frames_count(self.variation_index())
+        self.tile_def().anim_frames_count(self.variation_index(), self.anim_set_index())
+    }
+
+    #[inline]
+    pub fn set_anim_set_index(&mut self, index: usize) {
+        let max_index = self.anim_sets_count() - 1;
+        let anim_state = self.anim_state_mut_ref();
+        anim_state.anim_set_index = index.min(max_index).try_into().expect("Anim Set index must be <= u16::MAX!");
+        anim_state.frame_index = 0;
+        anim_state.frame_play_time_secs = 0.0;
     }
 
     #[inline]
@@ -755,7 +768,7 @@ impl<'tile_sets> Tile<'tile_sets> {
                 return;
             }
 
-            let anim_state = delegate_to_archetype!(self, anim_state_mut_ref);
+            let anim_state = self.anim_state_mut_ref();
             anim_state.frame_play_time_secs += delta_time_secs;
 
             if anim_state.frame_play_time_secs >= anim_set.frame_duration_secs() {
@@ -777,6 +790,11 @@ impl<'tile_sets> Tile<'tile_sets> {
     #[inline]
     fn anim_state_ref(&self) -> &TileAnimState {
         delegate_to_archetype!(self, anim_state_ref)
+    }
+
+    #[inline]
+    fn anim_state_mut_ref(&mut self) -> &mut TileAnimState {
+        delegate_to_archetype!(self, anim_state_mut_ref)
     }
 }
 

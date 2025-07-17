@@ -63,8 +63,8 @@ fn main() {
 
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
 
-    let mut tile_map = create_test_tile_map(&tile_sets);
-    //let mut tile_map = TileMap::new(Size::new(64, 64), None);
+    //let mut tile_map = create_test_tile_map(&tile_sets);
+    let mut tile_map = TileMap::new(Size::new(64, 64), None);
 
     let building_configs = BuildingConfigs::load();
     let mut sim = Simulation::new();
