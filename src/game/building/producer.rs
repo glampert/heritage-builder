@@ -35,12 +35,6 @@ use super::{
 // - Get raw materials from storage OR from other producers directly.
 
 // ----------------------------------------------
-// Constants
-// ----------------------------------------------
-
-const PRODUCTION_OUTPUT_FREQUENCY_SECS: Seconds = 20.0;
-
-// ----------------------------------------------
 // ProducerConfig
 // ----------------------------------------------
 
@@ -50,6 +44,8 @@ pub struct ProducerConfig {
 
     pub min_workers: u32,
     pub max_workers: u32,
+
+    pub production_output_frequency_secs: Seconds,
 
     // Producer output: A raw material or a consumer good.
     pub production_output: ResourceKind,
@@ -106,8 +102,8 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.debug.draw_debug_ui(ui_sys);
         self.config.draw_debug_ui(ui_sys);
+        self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_input_stock(ui_sys);
         self.draw_debug_ui_production_output(ui_sys);
     }
@@ -130,7 +126,7 @@ impl<'config> ProducerBuilding<'config> {
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
-            production_update_timer: UpdateTimer::new(PRODUCTION_OUTPUT_FREQUENCY_SECS),
+            production_update_timer: UpdateTimer::new(config.production_output_frequency_secs),
             production_input_stock: ProducerInputsLocalStock::new(
                 &config.resources_required,
                 config.resources_capacity
@@ -324,15 +320,16 @@ impl ProducerInputsLocalStock {
 impl ProducerConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
-            ui.text(format!("Tile def name.......: '{}'", self.tile_def_name));
-            ui.text(format!("Min workers.........: {}", self.min_workers));
-            ui.text(format!("Max workers.........: {}", self.max_workers));
-            ui.text(format!("Production output...: {}", self.production_output));
-            ui.text(format!("Production capacity.: {}", self.production_capacity));
-            ui.text(format!("Resources required..: {}", self.resources_required));
-            ui.text(format!("Resources capacity..: {}", self.resources_capacity));
-            ui.text(format!("Storage buildings...: {}", self.storage_buildings_accepted));
+        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+            ui.text(format!("Tile def name........: '{}'", self.tile_def_name));
+            ui.text(format!("Min workers..........: {}", self.min_workers));
+            ui.text(format!("Max workers..........: {}", self.max_workers));
+            ui.text(format!("Production frequency.: {}", self.production_output_frequency_secs));
+            ui.text(format!("Production output....: {}", self.production_output));
+            ui.text(format!("Production capacity..: {}", self.production_capacity));
+            ui.text(format!("Resources required...: {}", self.resources_required));
+            ui.text(format!("Resources capacity...: {}", self.resources_capacity));
+            ui.text(format!("Storage buildings....: {}", self.storage_buildings_accepted));
         }
     }
 }
@@ -387,22 +384,21 @@ impl ProducerInputsLocalStock {
 
 impl<'config> ProducerBuilding<'config> {
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Raw Materials In Stock##_building_input_stock", imgui::TreeNodeFlags::empty()) {
-            self.production_input_stock.draw_debug_ui(ui_sys);
+        if self.production_input_stock.requires_any_resource() {
+            let ui = ui_sys.builder();
+            if ui.collapsing_header("Raw Materials In Stock", imgui::TreeNodeFlags::empty()) {
+                self.production_input_stock.draw_debug_ui(ui_sys);
+            }
         }
     }
 
     fn draw_debug_ui_production_output(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header("Production Output##_building_prod_output", imgui::TreeNodeFlags::empty()) {
+        if ui.collapsing_header("Production Output", imgui::TreeNodeFlags::empty()) {
             if self.is_production_halted() {
                 ui.text_colored(Color::red().to_array(), "Production Halted!");
             }
-
-            ui.text(format!("Frequency.....: {:.2}s", self.production_update_timer.frequency_secs()));
-            ui.text(format!("Time since....: {:.2}s", self.production_update_timer.time_since_last_secs()));
-
+            self.production_update_timer.draw_debug_ui("Update:", ui_sys);
             self.production_output_stock.draw_debug_ui(ui_sys);
         }
     }

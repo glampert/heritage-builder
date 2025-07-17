@@ -256,7 +256,7 @@ impl ResourceStock {
 
     pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header(format!("{}##_resource_stock", label), imgui::TreeNodeFlags::empty()) {
+        if ui.collapsing_header(format!("{}", label), imgui::TreeNodeFlags::empty()) {
             self.for_each_mut(|index, item| {
                 ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count)
                     .step(1)
@@ -269,7 +269,7 @@ impl ResourceStock {
         where F: Fn(&StockItem) -> bool
     {
         let ui = ui_sys.builder();
-        if ui.collapsing_header(format!("{}##_resource_stock", label), imgui::TreeNodeFlags::empty()) {
+        if ui.collapsing_header(format!("{}", label), imgui::TreeNodeFlags::empty()) {
             self.for_each_mut(|index, item| {
                 if filter_fn(item) {
                     ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count)

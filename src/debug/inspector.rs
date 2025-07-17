@@ -138,20 +138,20 @@ impl TileInspectorMenu {
         let tile_screen_rect = tile.calc_screen_rect(transform);
         let tile_screen_pos = tile_screen_rect.position();
 
-        ui.text(format!("Name..........: '{}'", tile.name()));
-        ui.text(format!("Category......: '{}'", category_name));
-        ui.text(format!("Kind..........: {}", tile.kind()));
-        ui.text(format!("Flags.........: {}", tile.flags()));
-        ui.text(format!("Has Game State: {}", tile.game_state_handle().is_valid()));
-        ui.text(format!("Cells.........: [{},{}; {},{}]", cell_range.start.x, cell_range.start.y, cell_range.end.x, cell_range.end.y));
-        ui.text(format!("Iso pos.......: {},{}", tile_iso_pos.x, tile_iso_pos.y));
-        ui.text(format!("Iso adjusted..: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
-        ui.text(format!("Screen pos....: {:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y));
-        ui.text(format!("Draw size.....: {},{}", tile.draw_size().width, tile.draw_size().height));
-        ui.text(format!("Logical size..: {},{}", tile.logical_size().width, tile.logical_size().height));
-        ui.text(format!("Cells size....: {},{}", tile.size_in_cells().width, tile.size_in_cells().height));
-        ui.text(format!("Z-sort........: {}", tile.calc_z_sort()));
-        ui.text(format!("Color RGBA....: [{},{},{},{}]", color.r, color.g, color.b, color.a));
+        ui.text(format!("Name...........: '{}'", tile.name()));
+        ui.text(format!("Category.......: '{}'", category_name));
+        ui.text(format!("Kind...........: {}", tile.kind()));
+        ui.text(format!("Flags..........: {}", tile.flags()));
+        ui.text(format!("Has Game State.: {}", tile.game_state_handle().is_valid()));
+        ui.text(format!("Cells..........: [{},{}; {},{}]", cell_range.start.x, cell_range.start.y, cell_range.end.x, cell_range.end.y));
+        ui.text(format!("Iso pos........: {},{}", tile_iso_pos.x, tile_iso_pos.y));
+        ui.text(format!("Iso adjusted...: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
+        ui.text(format!("Screen pos.....: {:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y));
+        ui.text(format!("Draw size......: {},{}", tile.draw_size().width, tile.draw_size().height));
+        ui.text(format!("Logical size...: {},{}", tile.logical_size().width, tile.logical_size().height));
+        ui.text(format!("Cells size.....: {},{}", tile.size_in_cells().width, tile.size_in_cells().height));
+        ui.text(format!("Z-sort.........: {}", tile.calc_z_sort()));
+        ui.text(format!("Color RGBA.....: [{},{},{},{}]", color.r, color.g, color.b, color.a));
     }
 
     fn tile_variations_dropdown(ui: &imgui::Ui,
@@ -228,7 +228,8 @@ impl TileInspectorMenu {
                                 cell: Cell,
                                 layer_kind: TileMapLayerKind) {
 
-        if !ui.collapsing_header("Debug Options", imgui::TreeNodeFlags::empty()) {
+        // NOTE: Use the special ##id here so we don't collide with Building/Debug Options.
+        if !ui.collapsing_header("Debug Options##_tile_debug_opts", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 

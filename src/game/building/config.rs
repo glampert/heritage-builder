@@ -14,6 +14,7 @@ use super::{
     BuildingArchetype,
     house::{
         HouseLevel,
+        HouseConfig,
         HouseLevelConfig,
         HouseBuilding
     },
@@ -37,6 +38,7 @@ use super::{
 
 pub struct BuildingConfigs {
     // TODO: Temporary
+    house_cfg: HouseConfig,
     house0: HouseLevelConfig,
     house1: HouseLevelConfig,
     house2: HouseLevelConfig,
@@ -53,6 +55,11 @@ impl BuildingConfigs {
     // TODO: Load from config file.
     pub fn load() -> Self {
         Self {
+            house_cfg: HouseConfig {
+                // General configuration parameters for all house buildings & levels.
+                stock_update_frequency_secs: 20.0,
+                upgrade_update_frequency_secs: 10.0,
+            },
             house0: HouseLevelConfig {
                 tile_def_name: "house0".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("house0"),
@@ -85,6 +92,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("well_small"),
                 min_workers: 0,
                 max_workers: 1,
+                stock_update_frequency_secs: 0.0,
                 effect_radius: 3,
                 resources_required: ResourceKinds::none(),
             },
@@ -93,6 +101,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("well_big"),
                 min_workers: 0,
                 max_workers: 1,
+                stock_update_frequency_secs: 0.0,
                 effect_radius: 5,
                 resources_required: ResourceKinds::none(),
             },
@@ -101,6 +110,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("market"),
                 min_workers: 0,
                 max_workers: 1,
+                stock_update_frequency_secs: 20.0,
                 effect_radius: 5,
                 resources_required: ResourceKinds::with_kinds(ResourceKind::foods()),
             },
@@ -109,6 +119,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
                 min_workers: 0,
                 max_workers: 1,
+                production_output_frequency_secs: 20.0,
                 production_output: ResourceKind::Rice,
                 production_capacity: 5,
                 resources_required: ResourceKinds::none(),
@@ -120,6 +131,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("livestock_farm"),
                 min_workers: 0,
                 max_workers: 1,
+                production_output_frequency_secs: 20.0,
                 production_output: ResourceKind::Meat,
                 production_capacity: 5,
                 resources_required: ResourceKinds::none(),
@@ -147,7 +159,11 @@ impl BuildingConfigs {
         }
     }
 
-    pub fn find_house_level(&self, level: HouseLevel) -> &HouseLevelConfig {
+    pub fn find_house_config(&self) -> &HouseConfig {
+        &self.house_cfg
+    }
+
+    pub fn find_house_level_config(&self, level: HouseLevel) -> &HouseLevelConfig {
         match level {
             HouseLevel::Level0 => &self.house0,
             HouseLevel::Level1 => &self.house1,

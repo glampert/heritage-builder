@@ -55,15 +55,13 @@ use super::{
 //   Could allow stocking up to a maximum number of units.
 
 // ----------------------------------------------
-// Constants
+// HouseConfig & HouseLevelConfig
 // ----------------------------------------------
 
-const STOCK_UPDATE_FREQUENCY_SECS: Seconds = 20.0;
-const UPGRADE_UPDATE_FREQUENCY_SECS: Seconds = 10.0;
-
-// ----------------------------------------------
-// HouseLevelConfig
-// ----------------------------------------------
+pub struct HouseConfig {
+    pub stock_update_frequency_secs: Seconds,
+    pub upgrade_update_frequency_secs: Seconds,
+}
 
 pub struct HouseLevelConfig {
     pub tile_def_name: String,
@@ -125,8 +123,8 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_level_config(ui_sys);
+        self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_upgrade_state(context, ui_sys);
     }
 
@@ -144,9 +142,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 
 impl<'config> HouseBuilding<'config> {
     pub fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
+        let config = configs.find_house_config();
         Self {
-            stock_update_timer: UpdateTimer::new(STOCK_UPDATE_FREQUENCY_SECS),
-            upgrade_update_timer: UpdateTimer::new(UPGRADE_UPDATE_FREQUENCY_SECS),
+            stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
+            upgrade_update_timer: UpdateTimer::new(config.upgrade_update_frequency_secs),
             upgrade_state: HouseUpgradeState::new(level, configs),
             stock: ResourceStock::with_accepted_kinds(ResourceKind::foods()),
             debug: HouseDebug::new(),
@@ -374,8 +373,8 @@ impl<'config> HouseUpgradeState<'config> {
     fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
         Self {
             level: level,
-            curr_level_config: configs.find_house_level(level),
-            next_level_config: configs.find_house_level(level.next()),
+            curr_level_config: configs.find_house_level_config(level),
+            next_level_config: configs.find_house_level_config(level.next()),
             has_room_to_upgrade: true,
         }
     }
@@ -434,7 +433,7 @@ impl<'config> HouseUpgradeState<'config> {
         let mut tile_placed_successfully = false;
 
         let next_level = self.level.next();
-        let next_level_config = context.configs.find_house_level(next_level);
+        let next_level_config = context.configs.find_house_level_config(next_level);
 
         if let Some(new_tile_def) = context.find_tile_def(next_level_config.tile_def_name_hash) {
             // Try placing new. Might fail if there isn't enough space.
@@ -444,7 +443,7 @@ impl<'config> HouseUpgradeState<'config> {
 
                 self.curr_level_config = next_level_config;
                 if !next_level.is_max() {
-                    self.next_level_config = context.configs.find_house_level(next_level.next());
+                    self.next_level_config = context.configs.find_house_level_config(next_level.next());
                 }
 
                 // Set a random variation for the new building tile:
@@ -466,7 +465,7 @@ impl<'config> HouseUpgradeState<'config> {
         let mut tile_placed_successfully = false;
 
         let prev_level = self.level.prev();
-        let prev_level_config = context.configs.find_house_level(prev_level);
+        let prev_level_config = context.configs.find_house_level_config(prev_level);
 
         if let Some(new_tile_def) = context.find_tile_def(prev_level_config.tile_def_name_hash) {
             // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
@@ -475,7 +474,7 @@ impl<'config> HouseUpgradeState<'config> {
                 debug_assert!(self.level == prev_level);
 
                 self.curr_level_config = prev_level_config;
-                self.next_level_config = context.configs.find_house_level(prev_level.next());
+                self.next_level_config = context.configs.find_house_level_config(prev_level.next());
 
                 // Set a random variation for the new building:
                 context.set_random_building_variation();
@@ -547,7 +546,7 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         let next_level = self.level.next();
-        let next_level_config = context.configs.find_house_level(next_level);
+        let next_level_config = context.configs.find_house_level_config(next_level);
 
         let tile_def = match context.find_tile_def(next_level_config.tile_def_name_hash) {
             Some(tile_def) => tile_def,
@@ -588,14 +587,14 @@ impl HouseLevelConfig {
 impl<'config> HouseBuilding<'config> {
     fn draw_debug_ui_level_config(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header(format!("Config ({:?})##_building_lvl_config", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
+        if ui.collapsing_header(format!("Config ({:?})", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
             self.upgrade_state.curr_level_config.draw_debug_ui(ui_sys);
         }
     }
 
     fn draw_debug_ui_upgrade_state(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header(format!("Upgrade##_building_upgrade"), imgui::TreeNodeFlags::empty()) {
+        if ui.collapsing_header(format!("Upgrade"), imgui::TreeNodeFlags::empty()) {
             self.draw_debug_ui_upgrade_state_internal(context, ui_sys);
         }
     }
@@ -675,18 +674,14 @@ impl<'config> HouseBuilding<'config> {
         let next_level_requirements =
             HouseLevelRequirements::new(context, upgrade_state.next_level_config, &self.stock);
 
-        ui.text(format!("Level...........: {:?}", upgrade_state.level));
-
-        ui.text("Upgrade:");
-        ui.text(format!("  Frequency.....: {:.2}s", self.upgrade_update_timer.frequency_secs()));
-        ui.text(format!("  Time since....: {:.2}s", self.upgrade_update_timer.time_since_last_secs()));
+        ui.text(format!("Level: {:?}", upgrade_state.level));
         color_text("  Has room......:", upgrade_state.has_room_to_upgrade);
         color_text("  Has services..:", next_level_requirements.has_required_services());
         color_text("  Has resources.:", next_level_requirements.has_required_resources());
+        ui.separator();
 
-        ui.text("Stock:");
-        ui.text(format!("  Frequency.....: {:.2}s", self.stock_update_timer.frequency_secs()));
-        ui.text(format!("  Time since....: {:.2}s", self.stock_update_timer.time_since_last_secs()));
+        self.upgrade_update_timer.draw_debug_ui("Upgrade:", ui_sys);
+        self.stock_update_timer.draw_debug_ui("Stock Update:", ui_sys);
         self.stock.draw_debug_ui("Resources In Stock", ui_sys);
 
         draw_level_requirements(

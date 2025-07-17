@@ -25,12 +25,6 @@ use super::{
 };
 
 // ----------------------------------------------
-// Constants
-// ----------------------------------------------
-
-const STOCK_UPDATE_FREQUENCY_SECS: Seconds = 20.0;
-
-// ----------------------------------------------
 // ServiceConfig
 // ----------------------------------------------
 
@@ -41,6 +35,7 @@ pub struct ServiceConfig {
     pub min_workers: u32,
     pub max_workers: u32,
 
+    pub stock_update_frequency_secs: Seconds,
     pub effect_radius: i32,
 
     // Kinds of resources required for the service to run, if any.
@@ -85,8 +80,8 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.debug.draw_debug_ui(ui_sys);
         self.config.draw_debug_ui(ui_sys);
+        self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_resources_stock(ui_sys);
     }
 
@@ -108,7 +103,7 @@ impl<'config> ServiceBuilding<'config> {
         Self {
             config: config,
             workers: Workers::new(config.min_workers, config.max_workers),
-            stock_update_timer: UpdateTimer::new(STOCK_UPDATE_FREQUENCY_SECS),
+            stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
             stock: ResourceStock::with_accepted_list(&config.resources_required),
             debug: ServiceDebug::new(),
         }
@@ -184,7 +179,7 @@ impl<'config> ServiceBuilding<'config> {
 impl ServiceConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
+        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
             ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
             ui.text(format!("Min workers........: {}", self.min_workers));
             ui.text(format!("Max workers........: {}", self.max_workers));
@@ -198,10 +193,8 @@ impl<'config> ServiceBuilding<'config> {
     fn draw_debug_ui_resources_stock(&mut self, ui_sys: &UiSystem) {
         if self.stock.accepts_any() {
             let ui = ui_sys.builder();
-            if ui.collapsing_header("Stock##_building_stock", imgui::TreeNodeFlags::empty()) {
-                ui.text("Stock Update:");
-                ui.text(format!("  Frequency.....: {:.2}s", self.stock_update_timer.frequency_secs()));
-                ui.text(format!("  Time since....: {:.2}s", self.stock_update_timer.time_since_last_secs()));
+            if ui.collapsing_header("Stock", imgui::TreeNodeFlags::empty()) {
+                self.stock_update_timer.draw_debug_ui("Update:", ui_sys);
                 self.stock.draw_debug_ui("Resources", ui_sys);
             }
         }

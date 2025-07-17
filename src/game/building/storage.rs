@@ -73,8 +73,8 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.debug.draw_debug_ui(ui_sys);
         self.config.draw_debug_ui(ui_sys);
+        self.debug.draw_debug_ui(ui_sys);
         self.storage_slots.draw_debug_ui("Stock Slots", ui_sys);
     }
 
@@ -370,7 +370,7 @@ impl StorageSlots {
 impl StorageConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
+        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
             ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
             ui.text(format!("Min workers........: {}", self.min_workers));
             ui.text(format!("Max workers........: {}", self.max_workers));

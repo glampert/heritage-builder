@@ -607,14 +607,24 @@ macro_rules! building_debug_options {
                 }
 
                 fn draw_debug_ui(&mut self, ui_sys: &$crate::imgui_ui::UiSystem) {
-                    let ui = ui_sys.builder();
-                    if ui.collapsing_header("Debug Options##_building_debug_opts", imgui::TreeNodeFlags::empty()) {
-                        ui.checkbox("Show Popup Messages", &mut self.show_popup_messages);
-                        $(
-                            ui.checkbox(
-                                $crate::utils::snake_case_to_title(stringify!($field_name)),
-                                &mut self.[<opt_ $field_name>]);
-                        )*
+                    // Hack to count the number of fields.
+                    // We just need something to reference the field so that we can call `$( )*` to increment a count.
+                    const fn use_field(_: &'static str) -> u32 { 1 }
+                    #[allow(unused_mut)]
+                    let mut field_count = 0;
+                    $(
+                        field_count += use_field(stringify!($field_name));
+                    )*
+
+                    if field_count != 0 {
+                        let ui = ui_sys.builder();
+                        if ui.collapsing_header("Debug Options##_building_debug_opts", imgui::TreeNodeFlags::empty()) {
+                            $(
+                                ui.checkbox(
+                                    $crate::utils::snake_case_to_title(stringify!($field_name)),
+                                    &mut self.[<opt_ $field_name>]);
+                            )*
+                        }
                     }
                 }
 
