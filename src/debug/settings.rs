@@ -38,6 +38,7 @@ pub struct DebugSettingsMenu {
     show_units_debug: bool,
     show_vegetation_debug: bool,
     show_blockers: bool,
+    show_popup_messages: bool,
     show_selection_bounds: bool,
     show_cursor_pos: bool,
     show_screen_origin: bool,
@@ -55,6 +56,10 @@ impl DebugSettingsMenu {
             draw_vegetation: true,
             ..Default::default()
         }
+    }
+
+    pub fn show_popup_messages(&self) -> bool {
+        self.show_popup_messages
     }
 
     pub fn show_selection_bounds(&self) -> bool {
@@ -192,6 +197,7 @@ impl DebugSettingsMenu {
         ui.separator();
         ui.checkbox("Show tile bounds", &mut self.show_tile_bounds);
         ui.checkbox("Show selection bounds", &mut self.show_selection_bounds);
+        ui.checkbox("Show popup messages", &mut self.show_popup_messages);
         ui.checkbox("Show cursor pos", &mut self.show_cursor_pos);
         ui.checkbox("Show screen origin", &mut self.show_screen_origin);
         ui.checkbox("Show render stats", &mut self.show_render_stats);

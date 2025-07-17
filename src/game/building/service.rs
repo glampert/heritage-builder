@@ -1,13 +1,15 @@
 use crate::{
-    declare_building_debug_options,
+    building_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Seconds,
-        hash::StringHash
+        hash::StringHash,
+        coords::{CellRange, WorldToScreenTransform}
     },
     game::sim::{
         UpdateTimer,
         resources::{
+            ResourceKind,
             ResourceKinds,
             ResourceStock,
             Workers
@@ -49,7 +51,7 @@ pub struct ServiceConfig {
 // ServiceDebug
 // ----------------------------------------------
 
-declare_building_debug_options!(
+building_debug_options!(
     ServiceDebug,
 
     // Stops fetching resources from storage.
@@ -75,7 +77,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         // Procure resources from storage periodically if we need them.
         if self.stock.accepts_any() {
             if self.stock_update_timer.tick(delta_time_secs).should_update() {
-                if !self.debug.freeze_stock_update {
+                if !self.debug.freeze_stock_update() {
                     self.stock_update(context);
                 }
             }
@@ -83,8 +85,20 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.draw_debug_ui_service_config(ui_sys);
+        self.debug.draw_debug_ui(ui_sys);
+        self.config.draw_debug_ui(ui_sys);
         self.draw_debug_ui_resources_stock(ui_sys);
+    }
+
+    fn draw_debug_popups(&mut self,
+                         context: &BuildingContext,
+                         ui_sys: &UiSystem,
+                         transform: &WorldToScreenTransform,
+                         visible_range: CellRange,
+                         delta_time_secs: Seconds,
+                         show_popup_messages: bool) {
+
+        self.debug.draw_popup_messages(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
     }
 }
 
@@ -96,24 +110,34 @@ impl<'config> ServiceBuilding<'config> {
             workers: Workers::new(config.min_workers, config.max_workers),
             stock_update_timer: UpdateTimer::new(STOCK_UPDATE_FREQUENCY_SECS),
             stock: ResourceStock::with_accepted_list(&config.resources_required),
-            debug: ServiceDebug::default(),
+            debug: ServiceDebug::new(),
         }
     }
 
-    pub fn shop(&mut self, shopping_basket: &mut ResourceStock, shopping_list: &ResourceKinds, all_or_nothing: bool) {
+    pub fn shop(&mut self,
+                shopping_basket: &mut ResourceStock,
+                shopping_list: &ResourceKinds,
+                all_or_nothing: bool) -> ResourceKind {
+
         if all_or_nothing {
             for wanted_resource in shopping_list.iter() {
                 if !self.stock.has(*wanted_resource) {
-                    return; // If any item is missing we take nothing.
+                    return ResourceKind::empty(); // If any item is missing we take nothing.
                 }
             }      
         }
 
+        let mut kinds_added_to_basked = ResourceKind::empty();
+
         for wanted_resource in shopping_list.iter() {
             if let Some(resource) = self.stock.remove(*wanted_resource) {
                 shopping_basket.add(resource);
+                kinds_added_to_basked.insert(resource);
+                self.debug.log_resources_lost(resource, 1);
             }
         }
+
+        kinds_added_to_basked
     }
 
     fn stock_update(&mut self, context: &mut BuildingContext) {
@@ -133,7 +157,9 @@ impl<'config> ServiceBuilding<'config> {
 
         context.for_each_storage(storage_kinds, |storage| {
             let all_or_nothing = false;
-            storage.shop(&mut self.stock, &shopping_list, all_or_nothing);
+            let resource_kinds_got =
+                storage.shop(&mut self.stock, &shopping_list, all_or_nothing);
+            self.debug.log_resources_gained(resource_kinds_got, 1);
 
             let mut continue_search = false;
 
@@ -158,33 +184,26 @@ impl<'config> ServiceBuilding<'config> {
 impl ServiceConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
-        ui.text(format!("Min workers........: {}", self.min_workers));
-        ui.text(format!("Max workers........: {}", self.max_workers));
-        ui.text(format!("Effect radius......: {}", self.effect_radius));
-        ui.text(format!("Resources required.: {}", self.resources_required));
+        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
+            ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
+            ui.text(format!("Min workers........: {}", self.min_workers));
+            ui.text(format!("Max workers........: {}", self.max_workers));
+            ui.text(format!("Effect radius......: {}", self.effect_radius));
+            ui.text(format!("Resources required.: {}", self.resources_required));
+        }
     }
 }
 
 impl<'config> ServiceBuilding<'config> {
-    fn draw_debug_ui_service_config(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
-    }
-
     fn draw_debug_ui_resources_stock(&mut self, ui_sys: &UiSystem) {
-        self.debug.draw_debug_ui(ui_sys);
-
         if self.stock.accepts_any() {
             let ui = ui_sys.builder();
-
-            ui.text("Stock Update:");
-            ui.text(format!("  Frequency.....: {:.2}s", self.stock_update_timer.frequency_secs()));
-            ui.text(format!("  Time since....: {:.2}s", self.stock_update_timer.time_since_last_secs()));
-
-            self.stock.draw_debug_ui("Resources In Stock", ui_sys);
+            if ui.collapsing_header("Stock##_building_stock", imgui::TreeNodeFlags::empty()) {
+                ui.text("Stock Update:");
+                ui.text(format!("  Frequency.....: {:.2}s", self.stock_update_timer.frequency_secs()));
+                ui.text(format!("  Time since....: {:.2}s", self.stock_update_timer.time_since_last_secs()));
+                self.stock.draw_debug_ui("Resources", ui_sys);
+            }
         }
     }
 }

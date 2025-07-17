@@ -2,6 +2,11 @@ use arrayvec::ArrayVec;
 use strum::IntoEnumIterator;
 
 use crate::{
+    imgui_ui::UiSystem,
+    utils::{
+        coords::{CellRange, WorldToScreenTransform},
+        Seconds
+    },
     tile::map::{
         Tile,
         GameStateHandle
@@ -16,7 +21,6 @@ use crate::{
 };
 
 use super::{
-    Seconds,
     Query
 };
 
@@ -130,5 +134,25 @@ impl<'config> World<'config> {
     #[inline]
     pub fn building_list_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
         &mut self.building_lists[archetype_kind as usize]
+    }
+
+    // ----------------------
+    // Building debug:
+    // ----------------------
+
+    pub fn draw_building_debug_popups(&mut self,
+                                      query: &mut Query<'config, '_, '_, '_>,
+                                      ui_sys: &UiSystem,
+                                      transform: &WorldToScreenTransform,
+                                      visible_range: CellRange,
+                                      delta_time_secs: Seconds,
+                                      show_popup_messages: bool) {
+
+        for list in &mut self.building_lists {
+            list.for_each_mut(|_, building| {
+                building.draw_debug_popups(query, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+                true
+            });
+        }
     }
 }

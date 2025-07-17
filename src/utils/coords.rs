@@ -114,6 +114,17 @@ impl CellRange {
     pub fn iter_rev(&self) -> CellRangeIter<true> {
         CellRangeIter::new(*self)
     }
+
+    #[inline]
+    pub fn contains(&self, cell: Cell) -> bool {
+        if cell.x < self.start.x || cell.y < self.start.y {
+            return false;
+        }
+        if cell.x > self.end.x || cell.y > self.end.y {
+            return false;
+        }
+        true
+    }
 }
 
 // ----------------------------------------------

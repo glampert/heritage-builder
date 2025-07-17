@@ -20,7 +20,6 @@ use crate::{
 // Debug Draw Helpers
 // ----------------------------------------------
 
-#[inline]
 pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
                        ui_sys: &UiSystem,
                        tile_iso_pos: IsoPoint,

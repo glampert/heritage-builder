@@ -261,6 +261,16 @@ fn main() {
         tile_inspector_menu.draw(&mut sim, &mut world, &mut tile_map, &tile_sets, &ui_sys, camera.transform());
         debug_settings_menu.draw(&mut camera, &mut world, &mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
 
+        sim.draw_building_debug_popups(
+            &mut world,
+            &mut tile_map,
+            &tile_sets,
+            &ui_sys,
+            camera.transform(),
+            visible_range,
+            frame_clock.delta_time(),
+            debug_settings_menu.show_popup_messages());
+
         if debug_settings_menu.show_cursor_pos() {
             debug::utils::draw_cursor_overlay(&ui_sys, camera.transform());
         }

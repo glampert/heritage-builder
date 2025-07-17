@@ -1,12 +1,13 @@
 use smallvec::SmallVec;
 
 use crate::{
-    declare_building_debug_options,
+    building_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Color,
         Seconds,
-        hash::StringHash
+        hash::StringHash,
+        coords::{CellRange, WorldToScreenTransform}
     },
     game::sim::{
         UpdateTimer,
@@ -66,7 +67,7 @@ pub struct ProducerConfig {
 // ProducerDebug
 // ----------------------------------------------
 
-declare_building_debug_options!(
+building_debug_options!(
     ProducerDebug,
 
     // Stops goods from being produced and stock from being spent.
@@ -95,19 +96,31 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     fn update(&mut self, context: &mut BuildingContext, delta_time_secs: Seconds) {
         // Update producer states:
         if self.production_update_timer.tick(delta_time_secs).should_update() {
-            if !self.debug.freeze_production {
+            if !self.debug.freeze_production() {
                 self.production_update();
             }
-            if !self.debug.freeze_shipping {
+            if !self.debug.freeze_shipping() {
                 self.ship_to_storage(context);
             }
         }
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.draw_debug_ui_producer_config(ui_sys);
+        self.debug.draw_debug_ui(ui_sys);
+        self.config.draw_debug_ui(ui_sys);
         self.draw_debug_ui_input_stock(ui_sys);
         self.draw_debug_ui_production_output(ui_sys);
+    }
+
+    fn draw_debug_popups(&mut self,
+                         context: &BuildingContext,
+                         ui_sys: &UiSystem,
+                         transform: &WorldToScreenTransform,
+                         visible_range: CellRange,
+                         delta_time_secs: Seconds,
+                         show_popup_messages: bool) {
+
+        self.debug.draw_popup_messages(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
     }
 }
 
@@ -126,7 +139,7 @@ impl<'config> ProducerBuilding<'config> {
                 config.production_output,
                 config.production_capacity
             ),
-            debug: ProducerDebug::default(),
+            debug: ProducerDebug::new(),
         }
     }
 
@@ -139,7 +152,7 @@ impl<'config> ProducerBuilding<'config> {
             if self.production_input_stock.requires_any_resource() {
                 if self.production_input_stock.has_required_resources() {
                     // Consume our raw materials (one of each).
-                    self.production_input_stock.consume_resources();
+                    self.production_input_stock.consume_resources(&mut self.debug);
                 } else {
                     // We are missing one or more raw materials, halt production.
                     produce_one_item = false;
@@ -149,6 +162,7 @@ impl<'config> ProducerBuilding<'config> {
             // Produce one item and store it locally:
             if produce_one_item {
                 self.production_output_stock.add_item();
+                self.debug.log_resources_gained(self.production_output_stock.item.kind, 1);
             }
         }
     }
@@ -161,9 +175,11 @@ impl<'config> ProducerBuilding<'config> {
             let mut continue_search = true;
 
             if !storage.is_full() {
-                if self.production_output_stock.ship_to_storage(storage) {
+                let shipped = self.production_output_stock.ship_to_storage(storage);
+                if shipped != 0 {
                     // Storage accepted at least some of our items, stop.
                     continue_search = false;
+                    self.debug.log_resources_lost(self.production_output_stock.item.kind, shipped);
                 }
             }
             // Else we couldn't find a single free slot in this storage, try again with another one.
@@ -173,7 +189,7 @@ impl<'config> ProducerBuilding<'config> {
     }
 
     fn is_production_halted(&self) -> bool {
-        if self.debug.freeze_production {
+        if self.debug.freeze_production() {
             return true;
         }
         if self.production_output_stock.is_full() {
@@ -216,8 +232,10 @@ impl ProducerOutputLocalStock {
     }
 
     #[inline]
-    fn ship_to_storage(&mut self, storage: &mut StorageBuilding) -> bool {
-        storage.receive_resources(&mut self.item)
+    fn ship_to_storage(&mut self, storage: &mut StorageBuilding) -> u32 {
+        let received = storage.receive_resources(self.item);
+        self.item.count -= received;
+        received
     }
 }
 
@@ -290,10 +308,11 @@ impl ProducerInputsLocalStock {
     }
 
     #[inline]
-    fn consume_resources(&mut self) {
+    fn consume_resources(&mut self, debug: &mut ProducerDebug) {
         for slot in &mut self.slots {
             debug_assert!(slot.count != 0);
             slot.count -= 1;
+            debug.log_resources_lost(slot.kind, 1);
         }
     }
 }
@@ -305,14 +324,16 @@ impl ProducerInputsLocalStock {
 impl ProducerConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        ui.text(format!("Tile def name.......: '{}'", self.tile_def_name));
-        ui.text(format!("Min workers.........: {}", self.min_workers));
-        ui.text(format!("Max workers.........: {}", self.max_workers));
-        ui.text(format!("Production output...: {}", self.production_output));
-        ui.text(format!("Production capacity.: {}", self.production_capacity));
-        ui.text(format!("Resources required..: {}", self.resources_required));
-        ui.text(format!("Resources capacity..: {}", self.resources_capacity));
-        ui.text(format!("Storage buildings...: {}", self.storage_buildings_accepted));
+        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
+            ui.text(format!("Tile def name.......: '{}'", self.tile_def_name));
+            ui.text(format!("Min workers.........: {}", self.min_workers));
+            ui.text(format!("Max workers.........: {}", self.max_workers));
+            ui.text(format!("Production output...: {}", self.production_output));
+            ui.text(format!("Production capacity.: {}", self.production_capacity));
+            ui.text(format!("Resources required..: {}", self.resources_required));
+            ui.text(format!("Resources capacity..: {}", self.resources_capacity));
+            ui.text(format!("Storage buildings...: {}", self.storage_buildings_accepted));
+        }
     }
 }
 
@@ -365,13 +386,6 @@ impl ProducerInputsLocalStock {
 }
 
 impl<'config> ProducerBuilding<'config> {
-    fn draw_debug_ui_producer_config(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
-    }
-
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header("Raw Materials In Stock##_building_input_stock", imgui::TreeNodeFlags::empty()) {
@@ -382,8 +396,6 @@ impl<'config> ProducerBuilding<'config> {
     fn draw_debug_ui_production_output(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header("Production Output##_building_prod_output", imgui::TreeNodeFlags::empty()) {
-            self.debug.draw_debug_ui(ui_sys);
-
             if self.is_production_halted() {
                 ui.text_colored(Color::red().to_array(), "Production Halted!");
             }

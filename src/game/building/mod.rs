@@ -10,7 +10,7 @@ use crate::{
     utils::{
         Seconds,
         hash::StringHash,
-        coords::CellRange
+        coords::{CellRange, WorldToScreenTransform}
     },
     tile::{
         sets::{TileDef, TileKind, OBJECTS_BUILDINGS_CATEGORY},
@@ -31,35 +31,6 @@ pub mod storage;
 pub mod service;
 pub mod house;
 pub mod config;
-
-// ----------------------------------------------
-// Macros
-// ----------------------------------------------
-
-#[macro_export]
-macro_rules! declare_building_debug_options {
-    (
-        $struct_name:ident,
-        $($field_name:ident : $field_type:ty),* $(,)?
-    ) => {
-        #[derive(Default)]
-        struct $struct_name {
-            $(
-                $field_name: $field_type,
-            )*
-        }
-        impl $struct_name {
-            fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-                let ui = ui_sys.builder();
-                $(
-                    ui.checkbox(crate::utils::snake_case_to_title(
-                        $crate::name_of!($struct_name, $field_name)),
-                        &mut self.$field_name);
-                )*
-            }
-        }
-    };
-}
 
 /*
 -----------------------
@@ -129,7 +100,7 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
-        let mut context = 
+        let mut context =
             BuildingContext::new(self.name,
                                  self.kind,
                                  self.archetype_kind(),
@@ -155,7 +126,7 @@ impl<'config> Building<'config> {
                 self.map_cells.end.y));
         }
 
-        let mut context = 
+        let mut context =
             BuildingContext::new(self.name,
                                  self.kind,
                                  self.archetype_kind(),
@@ -164,6 +135,25 @@ impl<'config> Building<'config> {
                                  query);
 
         self.archetype.draw_debug_ui(&mut context, ui_sys);
+    }
+
+    pub fn draw_debug_popups(&mut self,
+                             query: &mut Query<'config, '_, '_, '_>,
+                             ui_sys: &UiSystem,
+                             transform: &WorldToScreenTransform,
+                             visible_range: CellRange,
+                             delta_time_secs: Seconds,
+                             show_popup_messages: bool) {
+
+        let context =
+            BuildingContext::new(self.name,
+                                 self.kind,
+                                 self.archetype_kind(),
+                                 self.map_cells,
+                                 self.configs,
+                                 query);
+
+        self.archetype.draw_debug_popups(&context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
     }
 }
 
@@ -340,61 +330,30 @@ pub enum BuildingArchetype<'config> {
 pub const BUILDING_ARCHETYPE_COUNT: usize = BuildingArchetypeKind::COUNT;
 
 impl<'config> BuildingArchetype<'config> {
+    #[inline]
     fn new_producer(state: producer::ProducerBuilding<'config>) -> Self {
         Self::Producer(state)
     }
 
+    #[inline]
     fn new_storage(state: storage::StorageBuilding<'config>) -> Self {
         Self::Storage(state)
     }
 
+    #[inline]
     fn new_service(state: service::ServiceBuilding<'config>) -> Self {
         Self::Service(state)
     }
 
+    #[inline]
     fn new_house(state: house::HouseBuilding<'config>) -> Self {
         Self::House(state)
     }
 
     #[inline]
-    fn update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
-        match self {
-            BuildingArchetype::Producer(state) => {
-                state.update(context, delta_time_secs);
-            }
-            BuildingArchetype::Storage(state) => {
-                state.update(context, delta_time_secs);
-            }
-            BuildingArchetype::Service(state) => {
-                state.update(context, delta_time_secs);
-            }
-            BuildingArchetype::House(state) => {
-                state.update(context, delta_time_secs);
-            }
-        }
-    }
-
-    fn draw_debug_ui(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, ui_sys: &UiSystem) {
-        match self {
-            BuildingArchetype::Producer(state) => {
-                state.draw_debug_ui(context, ui_sys);
-            }
-            BuildingArchetype::Storage(state) => {
-                state.draw_debug_ui(context, ui_sys);
-            }
-            BuildingArchetype::Service(state) => {
-                state.draw_debug_ui(context, ui_sys);
-            }
-            BuildingArchetype::House(state) => {
-                state.draw_debug_ui(context, ui_sys);
-            }
-        }
-    }
-
-    #[inline]
     fn as_producer_mut(&mut self) -> &mut producer::ProducerBuilding<'config> {
         match self {
-            BuildingArchetype::Producer(state) => state,
+            Self::Producer(state) => state,
             _ => panic!("Building archetype is not Producer!")
         }
     }
@@ -402,7 +361,7 @@ impl<'config> BuildingArchetype<'config> {
     #[inline]
     fn as_storage_mut(&mut self) -> &mut storage::StorageBuilding<'config> {
         match self {
-            BuildingArchetype::Storage(state) => state,
+            Self::Storage(state) => state,
             _ => panic!("Building archetype is not Storage!")
         }
     }
@@ -410,7 +369,7 @@ impl<'config> BuildingArchetype<'config> {
     #[inline]
     fn as_service_mut(&mut self) -> &mut service::ServiceBuilding<'config> {
         match self {
-            BuildingArchetype::Service(state) => state,
+            Self::Service(state) => state,
             _ => panic!("Building archetype is not Service!")
         }
     }
@@ -418,11 +377,68 @@ impl<'config> BuildingArchetype<'config> {
     #[inline]
     fn as_house_mut(&mut self) -> &mut house::HouseBuilding<'config> {
         match self {
-            BuildingArchetype::House(state) => state,
+            Self::House(state) => state,
             _ => panic!("Building archetype is not House!")
         }
     }
 
+    #[inline]
+    fn update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
+        match self {
+            Self::Producer(state) => {
+                state.update(context, delta_time_secs);
+            }
+            Self::Storage(state) => {
+                state.update(context, delta_time_secs);
+            }
+            Self::Service(state) => {
+                state.update(context, delta_time_secs);
+            }
+            Self::House(state) => {
+                state.update(context, delta_time_secs);
+            }
+        }
+    }
+
+    fn draw_debug_ui(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, ui_sys: &UiSystem) {
+        match self {
+            Self::Producer(state) => {
+                state.draw_debug_ui(context, ui_sys);
+            }
+            Self::Storage(state) => {
+                state.draw_debug_ui(context, ui_sys);
+            }
+            Self::Service(state) => {
+                state.draw_debug_ui(context, ui_sys);
+            }
+            Self::House(state) => {
+                state.draw_debug_ui(context, ui_sys);
+            }
+        }
+    }
+
+    fn draw_debug_popups(&mut self,
+                         context: &BuildingContext<'config, '_, '_, '_, '_>,
+                         ui_sys: &UiSystem,
+                         transform: &WorldToScreenTransform,
+                         visible_range: CellRange,
+                         delta_time_secs: Seconds,
+                         show_popup_messages: bool) {
+        match self {
+            Self::Producer(state) => {
+                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+            }
+            Self::Storage(state) => {
+                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+            }
+            Self::Service(state) => {
+                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+            }
+            Self::House(state) => {
+                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+            }
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -431,8 +447,21 @@ impl<'config> BuildingArchetype<'config> {
 
 // Common behavior for all Building archetypes.
 pub trait BuildingBehavior<'config> {
-    fn update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds);
-    fn draw_debug_ui(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, ui_sys: &UiSystem);
+    fn update(&mut self,
+              context: &mut BuildingContext<'config, '_, '_, '_, '_>,
+              delta_time_secs: Seconds);
+
+    fn draw_debug_ui(&mut self,
+                     context: &mut BuildingContext<'config, '_, '_, '_, '_>,
+                     ui_sys: &UiSystem);
+
+    fn draw_debug_popups(&mut self,
+                         context: &BuildingContext<'config, '_, '_, '_, '_>,
+                         ui_sys: &UiSystem,
+                         transform: &WorldToScreenTransform,
+                         visible_range: CellRange,
+                         delta_time_secs: Seconds,
+                         show_popup_messages: bool);
 }
 
 // ----------------------------------------------
@@ -544,4 +573,107 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> std::fmt::Display for Buildin
                self.map_cells.start.x,
                self.map_cells.start.y)
     }
+}
+
+// ----------------------------------------------
+// Macro: building_debug_options
+// ----------------------------------------------
+
+#[macro_export]
+macro_rules! building_debug_options {
+    (
+        $struct_name:ident,
+        $($field_name:ident : $field_type:ty),* $(,)?
+    ) => {
+        use paste::paste;
+        paste! {
+            #[derive(Default)]
+            struct $struct_name {
+                popup_messages: $crate::debug::popups::PopupMessages,
+                show_popup_messages: bool,
+                $(
+                    [<opt_ $field_name>] : $field_type,
+                )*
+            }
+            impl $struct_name {
+                $(
+                    #[must_use]
+                    #[inline(always)]
+                    fn $field_name(&self) -> $field_type { self.[<opt_ $field_name>] }
+                )*
+
+                fn new() -> Self {
+                    Self::default()
+                }
+
+                fn draw_debug_ui(&mut self, ui_sys: &$crate::imgui_ui::UiSystem) {
+                    let ui = ui_sys.builder();
+                    if ui.collapsing_header("Debug Options##_building_debug_opts", imgui::TreeNodeFlags::empty()) {
+                        ui.checkbox("Show Popup Messages", &mut self.show_popup_messages);
+                        $(
+                            ui.checkbox(
+                                $crate::utils::snake_case_to_title(stringify!($field_name)),
+                                &mut self.[<opt_ $field_name>]);
+                        )*
+                    }
+                }
+
+                fn draw_popup_messages(&mut self,
+                                       context: &$crate::game::building::BuildingContext,
+                                       ui_sys: &$crate::imgui_ui::UiSystem,
+                                       transform: &$crate::utils::coords::WorldToScreenTransform,
+                                       visible_range: $crate::utils::coords::CellRange,
+                                       delta_time_secs: $crate::utils::Seconds,
+                                       show_popup_messages: bool) {
+                    self.show_popup_messages = show_popup_messages;
+
+                    // Remove any expired messages.
+                    const LIFETIME_MULTIPLIER: f32 = 3.0;
+                    self.popup_messages.update(LIFETIME_MULTIPLIER, delta_time_secs);
+
+                    // Draw remaining ones that are in view.
+                    if self.show_popup_messages {
+                        let tile = context.find_tile();
+                        if visible_range.contains(tile.base_cell()) {
+                            let screen_pos = tile.calc_screen_rect(transform).center();
+                            const SCROLL_DIST: f32 = 5.0;
+                            const SCROLL_SPEED: f32 = 12.0;
+                            const START_BG_ALPHA: f32 = 0.6;
+                            self.popup_messages.draw(ui_sys, screen_pos, SCROLL_DIST, SCROLL_SPEED, START_BG_ALPHA);
+                        }
+                    }
+                }
+
+                #[inline]
+                fn popup_msg(&mut self, text: impl Into<std::borrow::Cow<'static, str>>) {
+                    if self.show_popup_messages {
+                        const LIFETIME: $crate::utils::Seconds = 6.0;
+                        self.popup_messages.push_with_args(LIFETIME, $crate::utils::Color::default(), text);
+                    }
+                }
+
+                #[inline]
+                fn popup_msg_color(&mut self, color: $crate::utils::Color, text: impl Into<std::borrow::Cow<'static, str>>) {
+                    if self.show_popup_messages {
+                        const LIFETIME: $crate::utils::Seconds = 6.0;
+                        self.popup_messages.push_with_args(LIFETIME, color, text);
+                    }
+                }
+
+                #[inline]
+                fn log_resources_gained(&mut self, kind: $crate::game::sim::resources::ResourceKind, count: u32) {
+                    if self.show_popup_messages && !kind.is_empty() {
+                        self.popup_msg_color($crate::utils::Color::green(), format!("+{count} {kind}"));
+                    }
+                }
+
+                #[inline]
+                fn log_resources_lost(&mut self, kind: $crate::game::sim::resources::ResourceKind, count: u32) {
+                    if self.show_popup_messages && !kind.is_empty() {
+                        self.popup_msg_color($crate::utils::Color::red(), format!("-{count} {kind}"));
+                    }
+                }
+            }
+        }
+    };
 }

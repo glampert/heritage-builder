@@ -3,12 +3,13 @@ use strum_macros::EnumCount;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
-    declare_building_debug_options,
+    building_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Color,
         Seconds,
-        hash::StringHash
+        hash::StringHash,
+        coords::{CellRange, WorldToScreenTransform}
     },
     tile::{
         map::TileMapLayerKind,
@@ -82,7 +83,7 @@ pub struct HouseLevelConfig {
 // HouseDebug
 // ----------------------------------------------
 
-declare_building_debug_options!(
+building_debug_options!(
     HouseDebug,
 
     // Stops any resources from being consumed.
@@ -111,21 +112,33 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     fn update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
         // Update house states:
         if self.stock_update_timer.tick(delta_time_secs).should_update() {
-            if !self.debug.freeze_stock_update {
+            if !self.debug.freeze_stock_update() {
                 self.stock_update(context);
             }
         }
 
         if self.upgrade_update_timer.tick(delta_time_secs).should_update() {
-            if !self.debug.freeze_upgrade_update {
+            if !self.debug.freeze_upgrade_update() {
                 self.upgrade_update(context);
             }
         }
     }
 
     fn draw_debug_ui(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
+        self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_level_config(ui_sys);
         self.draw_debug_ui_upgrade_state(context, ui_sys);
+    }
+
+    fn draw_debug_popups(&mut self,
+                         context: &BuildingContext,
+                         ui_sys: &UiSystem,
+                         transform: &WorldToScreenTransform,
+                         visible_range: CellRange,
+                         delta_time_secs: Seconds,
+                         show_popup_messages: bool) {
+
+        self.debug.draw_popup_messages(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
     }
 }
 
@@ -136,12 +149,12 @@ impl<'config> HouseBuilding<'config> {
             upgrade_update_timer: UpdateTimer::new(UPGRADE_UPDATE_FREQUENCY_SECS),
             upgrade_state: HouseUpgradeState::new(level, configs),
             stock: ResourceStock::with_accepted_kinds(ResourceKind::foods()),
-            debug: HouseDebug::default(),
+            debug: HouseDebug::new(),
         }
     }
 
     fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
-        if self.debug.freeze_upgrade_update {
+        if self.debug.freeze_upgrade_update() {
             return false;
         }
         self.upgrade_state.is_upgrade_available(context)
@@ -159,9 +172,10 @@ impl<'config> HouseBuilding<'config> {
         if !curr_level_resources_required.is_empty() || !next_level_resources_required.is_empty() {
             // Consume one of each resources this level uses.
             curr_level_resources_required.for_each(|resource| {
-                if self.stock.remove(resource).is_some() {
+                if let Some(resource_consumed) = self.stock.remove(resource) {
                     // We consumed one, done.
                     // E.g.: resource = Meat|Fish, consume one of either.
+                    self.debug.log_resources_lost(resource_consumed, 1);
                     return false;
                 }
                 true
@@ -175,7 +189,9 @@ impl<'config> HouseBuilding<'config> {
 
                 // Shop for resources needed for this level.
                 let all_or_nothing = false;
-                market.shop(&mut self.stock, &curr_level_resources_required, all_or_nothing);
+                let resource_kinds_got =
+                    market.shop(&mut self.stock, &curr_level_resources_required, all_or_nothing);
+                self.debug.log_resources_gained(resource_kinds_got, 1);
 
                 // And if we have space to upgrade, shop for resources needed for the next level, so we can advance.
                 // But only take any if we have the whole shopping list. No point in shopping partially since we
@@ -192,7 +208,9 @@ impl<'config> HouseBuilding<'config> {
                     }
 
                     let all_or_nothing = true;
-                    market.shop(&mut self.stock, &next_level_shopping_list, all_or_nothing);
+                    let resource_kinds_got =
+                        market.shop(&mut self.stock, &next_level_shopping_list, all_or_nothing);
+                    self.debug.log_resources_gained(resource_kinds_got, 1);
                 }
             }
         }
@@ -200,7 +218,7 @@ impl<'config> HouseBuilding<'config> {
 
     fn upgrade_update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>) {
         // Attempt to upgrade or downgrade based on services and resources availability.
-        self.upgrade_state.update(context, &self.stock);
+        self.upgrade_state.update(context, &mut self.debug, &self.stock);
     }
 }
 
@@ -364,12 +382,13 @@ impl<'config> HouseUpgradeState<'config> {
 
     fn update(&mut self,
               context: &mut BuildingContext<'config, '_, '_, '_, '_>,
+              debug: &mut HouseDebug,
               stock: &ResourceStock) {
 
         if self.can_upgrade(context, stock) {
-            self.try_upgrade(context);
+            self.try_upgrade(context, debug);
         } else if self.can_downgrade(context, stock) {
-            self.try_downgrade(context);
+            self.try_downgrade(context, debug);
         }
     }
 
@@ -411,7 +430,7 @@ impl<'config> HouseUpgradeState<'config> {
         missing_requirements
     }
 
-    fn try_upgrade(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>) {
+    fn try_upgrade(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, debug: &mut HouseDebug) {
         let mut tile_placed_successfully = false;
 
         let next_level = self.level.next();
@@ -432,18 +451,18 @@ impl<'config> HouseUpgradeState<'config> {
                 context.set_random_building_variation();
 
                 tile_placed_successfully = true;
-                println!("{context}: upgraded to {:?}.", self.level);
+                debug.popup_msg(format!("[U] {} -> {:?}", self.curr_level_config.tile_def_name, self.level));
             }
         }
 
         if !tile_placed_successfully {
-            println!("{context}: Failed to place new tile for upgrade. Building cannot upgrade.");
+            debug.popup_msg_color(Color::yellow(), format!("[U] {}: No space", self.curr_level_config.tile_def_name));
         }
 
         self.has_room_to_upgrade = tile_placed_successfully;
     }
 
-    fn try_downgrade(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>) {
+    fn try_downgrade(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, debug: &mut HouseDebug) {
         let mut tile_placed_successfully = false;
 
         let prev_level = self.level.prev();
@@ -462,12 +481,12 @@ impl<'config> HouseUpgradeState<'config> {
                 context.set_random_building_variation();
 
                 tile_placed_successfully = true;
-                println!("{context}: downgraded to {:?}.", self.level);
+                debug.popup_msg(format!("[D] {} -> {:?}", self.curr_level_config.tile_def_name, self.level));
             }
         }
 
         if !tile_placed_successfully {
-            eprintln!("{context}: Failed to place new tile for downgrade. Building cannot downgrade.");
+            debug.popup_msg_color(Color::red(), format!("[D] {}: Failed!", self.curr_level_config.tile_def_name));
         }
     }
 
@@ -569,7 +588,7 @@ impl HouseLevelConfig {
 impl<'config> HouseBuilding<'config> {
     fn draw_debug_ui_level_config(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header(format!("Config ({:?})##_building_config", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
+        if ui.collapsing_header(format!("Config ({:?})##_building_lvl_config", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
             self.upgrade_state.curr_level_config.draw_debug_ui(ui_sys);
         }
     }
@@ -647,8 +666,6 @@ impl<'config> HouseBuilding<'config> {
                 ui.text_colored(Color::red().to_array(), "no");
             }
         };
-
-        self.debug.draw_debug_ui(ui_sys);
 
         let upgrade_state = &self.upgrade_state;
 

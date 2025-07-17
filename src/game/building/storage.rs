@@ -2,11 +2,13 @@ use arrayvec::ArrayVec;
 use smallvec::{smallvec, SmallVec};
 
 use crate::{
+    building_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Color,
         Seconds,
-        hash::StringHash
+        hash::StringHash,
+        coords::{CellRange, WorldToScreenTransform}
     },
     game::sim::resources::{
         ResourceKind,
@@ -44,6 +46,14 @@ pub struct StorageConfig {
 }
 
 // ----------------------------------------------
+// StorageDebug
+// ----------------------------------------------
+
+building_debug_options!(
+    StorageDebug,
+);
+
+// ----------------------------------------------
 // StorageBuilding
 // ----------------------------------------------
 
@@ -53,6 +63,8 @@ pub struct StorageBuilding<'config> {
 
     // Stockpiles:
     storage_slots: Box<StorageSlots>,
+
+    debug: StorageDebug,
 }
 
 impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
@@ -61,8 +73,20 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.draw_debug_ui_storage_config(ui_sys);
+        self.debug.draw_debug_ui(ui_sys);
+        self.config.draw_debug_ui(ui_sys);
         self.storage_slots.draw_debug_ui("Stock Slots", ui_sys);
+    }
+
+    fn draw_debug_popups(&mut self,
+                         context: &BuildingContext<'config, '_, '_, '_, '_>,
+                         ui_sys: &UiSystem,
+                         transform: &WorldToScreenTransform,
+                         visible_range: CellRange,
+                         delta_time_secs: Seconds,
+                         show_popup_messages: bool) {
+
+        self.debug.draw_popup_messages(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
     }
 }
 
@@ -77,6 +101,7 @@ impl<'config> StorageBuilding<'config> {
                 config.num_slots,
                 config.slot_capacity
             ),
+            debug: StorageDebug::new(),
         }
     }
 
@@ -84,23 +109,32 @@ impl<'config> StorageBuilding<'config> {
         self.storage_slots.are_all_slots_full()
     }
 
-    // Returns true if *any number* of items can be stored.
-    // Decrements the number of stored items from the argument if successful.
-    pub fn receive_resources(&mut self, item: &mut StockItem) -> bool {
-        self.storage_slots.try_add_resources(item)
+    // Returns number of received resources.
+    pub fn receive_resources(&mut self, item: StockItem) -> u32 {
+        let added = self.storage_slots.try_add_resources(item);
+        if added != 0 {
+            self.debug.log_resources_gained(item.kind, added);
+        }
+        added
     }
 
-    pub fn shop(&mut self, shopping_basket: &mut ResourceStock, shopping_list: &ResourceKinds, all_or_nothing: bool) {
+    pub fn shop(&mut self,
+                shopping_basket: &mut ResourceStock,
+                shopping_list: &ResourceKinds,
+                all_or_nothing: bool) -> ResourceKind {
+
         if all_or_nothing {
             for &wanted_resource in shopping_list.iter() {
                 let slot_index = match self.storage_slots.find_resource_slot(wanted_resource) {
                     Some(slot_index) => slot_index,
-                    None => return,
+                    None => return ResourceKind::empty(),
                 };
                 // If we have a slot allocated for this resource its count must not be zero.
                 debug_assert!(self.storage_slots.slot_resource_count(slot_index, wanted_resource) != 0);
             }      
         }
+
+        let mut kinds_added_to_basked = ResourceKind::empty();
 
         for &wanted_resource in shopping_list.iter() {
             let slot_index = match self.storage_slots.find_resource_slot(wanted_resource) {
@@ -113,8 +147,12 @@ impl<'config> StorageBuilding<'config> {
 
             if new_count < prev_count {
                 shopping_basket.add(wanted_resource);
+                kinds_added_to_basked.insert(wanted_resource);
+                self.debug.log_resources_lost(wanted_resource, 1);
             }
         }
+
+        kinds_added_to_basked
     }
 }
 
@@ -305,14 +343,14 @@ impl StorageSlots {
         self.find_free_slot()
     }
 
-    // Returns true if anything was added. False if no space left.
-    fn try_add_resources(&mut self, item: &mut StockItem) -> bool {
+    // Returns number of added resources.
+    fn try_add_resources(&mut self, item: StockItem) -> u32 {
         let kind = item.kind;
         let add_amount = item.count;
 
         let slot_index = match self.alloc_resource_slot(kind) {
             Some(slot_index) => slot_index,
-            None => return false,
+            None => return 0,
         };
 
         let prev_count =
@@ -321,10 +359,7 @@ impl StorageSlots {
         let new_count =
             self.increment_slot_resource_count(slot_index, kind, add_amount);
 
-        let num_added = new_count - prev_count;
-        item.count -= num_added;
-
-        num_added != 0
+        new_count - prev_count
     }
 }
 
@@ -335,20 +370,13 @@ impl StorageSlots {
 impl StorageConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
-        ui.text(format!("Min workers........: {}", self.min_workers));
-        ui.text(format!("Max workers........: {}", self.max_workers));
-        ui.text(format!("Resources accepted.: {}", self.resources_accepted));
-        ui.text(format!("Num slots..........: {}", self.num_slots));
-        ui.text(format!("Slot capacity......: {}", self.slot_capacity));
-    }
-}
-
-impl<'config> StorageBuilding<'config> {
-    fn draw_debug_ui_storage_config(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
         if ui.collapsing_header("Config##_building_config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
+            ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
+            ui.text(format!("Min workers........: {}", self.min_workers));
+            ui.text(format!("Max workers........: {}", self.max_workers));
+            ui.text(format!("Resources accepted.: {}", self.resources_accepted));
+            ui.text(format!("Num slots..........: {}", self.num_slots));
+            ui.text(format!("Slot capacity......: {}", self.slot_capacity));
         }
     }
 }
