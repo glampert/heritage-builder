@@ -594,7 +594,7 @@ impl<'config> HouseBuilding<'config> {
 
     fn draw_debug_ui_upgrade_state(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header(format!("Upgrade"), imgui::TreeNodeFlags::empty()) {
+        if ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {
             self.draw_debug_ui_upgrade_state_internal(context, ui_sys);
         }
     }
