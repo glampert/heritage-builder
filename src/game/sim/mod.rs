@@ -167,7 +167,7 @@ impl UpdateTimer {
     pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
-        ui.text(label);
+        ui.text(format!("{}:", label));
 
         ui.input_float("Frequency (secs)", &mut self.update_frequency_secs)
             .step(0.5)

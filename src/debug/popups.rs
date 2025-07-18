@@ -19,10 +19,6 @@ pub struct PopupMessages {
 }
 
 impl PopupMessages {
-    pub fn new() -> Self {
-        Self { list: None }
-    }
-
     #[inline]
     pub fn push_with_args(&mut self, lifetime_secs: Seconds, color: Color, text: impl Into<Cow<'static, str>>) {
         self.push_message(PopupMessage::with_random_offset(Some(lifetime_secs), color, text));

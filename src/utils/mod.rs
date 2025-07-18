@@ -1,4 +1,5 @@
 use core::ptr::NonNull;
+use arrayvec::ArrayString;
 
 use std::{
     time::{self},
@@ -697,17 +698,31 @@ pub fn approx_equal(a: f32, b: f32, epsilon: f32) -> bool {
     (a - b).abs() < epsilon
 }
 
-pub fn snake_case_to_title(s: &str) -> String {
-    s.split('_')
-        .map(|word| {
-            let mut chars = word.chars();
-            match chars.next() {
-                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                None => String::new(),
+pub fn snake_case_to_title<const N: usize>(s: &str) -> ArrayString<N> {
+    let mut result = ArrayString::<N>::new();
+
+    for (i, word) in s.split('_').enumerate() {
+        if i > 0 && result.try_push(' ').is_err() {
+            break;
+        }
+
+        let mut chars = word.chars();
+        if let Some(first) = chars.next() {
+            for c in first.to_uppercase() {
+                if result.try_push(c).is_err() {
+                    return result;
+                }
             }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+
+            for c in chars {
+                if result.try_push(c).is_err() {
+                    return result;
+                }
+            }
+        }
+    }
+
+    result
 }
 
 // ----------------------------------------------

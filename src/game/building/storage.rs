@@ -101,7 +101,7 @@ impl<'config> StorageBuilding<'config> {
                 config.num_slots,
                 config.slot_capacity
             ),
-            debug: StorageDebug::new(),
+            debug: StorageDebug::default(),
         }
     }
 

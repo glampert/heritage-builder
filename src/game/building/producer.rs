@@ -135,7 +135,7 @@ impl<'config> ProducerBuilding<'config> {
                 config.production_output,
                 config.production_capacity
             ),
-            debug: ProducerDebug::new(),
+            debug: ProducerDebug::default(),
         }
     }
 
@@ -398,7 +398,7 @@ impl<'config> ProducerBuilding<'config> {
             if self.is_production_halted() {
                 ui.text_colored(Color::red().to_array(), "Production Halted!");
             }
-            self.production_update_timer.draw_debug_ui("Update:", ui_sys);
+            self.production_update_timer.draw_debug_ui("Update", ui_sys);
             self.production_output_stock.draw_debug_ui(ui_sys);
         }
     }

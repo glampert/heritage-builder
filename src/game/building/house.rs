@@ -148,7 +148,7 @@ impl<'config> HouseBuilding<'config> {
             upgrade_update_timer: UpdateTimer::new(config.upgrade_update_frequency_secs),
             upgrade_state: HouseUpgradeState::new(level, configs),
             stock: ResourceStock::with_accepted_kinds(ResourceKind::foods()),
-            debug: HouseDebug::new(),
+            debug: HouseDebug::default(),
         }
     }
 
@@ -680,8 +680,8 @@ impl<'config> HouseBuilding<'config> {
         color_text("  Has resources.:", next_level_requirements.has_required_resources());
         ui.separator();
 
-        self.upgrade_update_timer.draw_debug_ui("Upgrade:", ui_sys);
-        self.stock_update_timer.draw_debug_ui("Stock Update:", ui_sys);
+        self.upgrade_update_timer.draw_debug_ui("Upgrade", ui_sys);
+        self.stock_update_timer.draw_debug_ui("Stock Update", ui_sys);
         self.stock.draw_debug_ui("Resources In Stock", ui_sys);
 
         draw_level_requirements(

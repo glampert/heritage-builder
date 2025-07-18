@@ -105,7 +105,7 @@ impl<'config> ServiceBuilding<'config> {
             workers: Workers::new(config.min_workers, config.max_workers),
             stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
             stock: ResourceStock::with_accepted_list(&config.resources_required),
-            debug: ServiceDebug::new(),
+            debug: ServiceDebug::default(),
         }
     }
 
@@ -194,7 +194,7 @@ impl<'config> ServiceBuilding<'config> {
         if self.stock.accepts_any() {
             let ui = ui_sys.builder();
             if ui.collapsing_header("Stock", imgui::TreeNodeFlags::empty()) {
-                self.stock_update_timer.draw_debug_ui("Update:", ui_sys);
+                self.stock_update_timer.draw_debug_ui("Update", ui_sys);
                 self.stock.draw_debug_ui("Resources", ui_sys);
             }
         }

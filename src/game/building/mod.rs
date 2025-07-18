@@ -1,5 +1,7 @@
+use std::borrow::Cow;
 use slab::Slab;
 use rand::Rng;
+use smallvec::SmallVec;
 use bitflags::{bitflags, Flags};
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
@@ -7,7 +9,10 @@ use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
 use crate::{
     bitflags_with_display,
     imgui_ui::UiSystem,
+    debug::popups::PopupMessages,
     utils::{
+        self,
+        Color,
         Seconds,
         hash::StringHash,
         coords::{CellRange, WorldToScreenTransform}
@@ -19,7 +24,10 @@ use crate::{
 };
 
 use super::{
-    sim::Query
+    sim::{
+        Query,
+        resources::ResourceKind
+    }
 };
 
 use config::{
@@ -576,6 +584,151 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> std::fmt::Display for Buildin
 }
 
 // ----------------------------------------------
+// BuildingDebugVar
+// ----------------------------------------------
+
+pub struct BuildingDebugVar<'a> {
+    name: &'static str,
+    value: BuildingDebugVarRef<'a>,
+}
+
+enum BuildingDebugVarRef<'a> {
+    Bool(&'a mut bool),
+    I32(&'a mut i32),
+    F32(&'a mut f32),
+}
+
+trait IntoBuildingDebugVar<'a> {
+    fn into_debug_var(self) -> BuildingDebugVarRef<'a>;
+}
+
+impl<'a> IntoBuildingDebugVar<'a> for &'a mut bool {
+    fn into_debug_var(self) -> BuildingDebugVarRef<'a> {
+        BuildingDebugVarRef::Bool(self)
+    }
+}
+
+impl<'a> IntoBuildingDebugVar<'a> for &'a mut i32 {
+    fn into_debug_var(self) -> BuildingDebugVarRef<'a> {
+        BuildingDebugVarRef::I32(self)
+    }
+}
+
+impl<'a> IntoBuildingDebugVar<'a> for &'a mut f32 {
+    fn into_debug_var(self) -> BuildingDebugVarRef<'a> {
+        BuildingDebugVarRef::F32(self)
+    }
+}
+
+impl<'a> BuildingDebugVar<'a> {
+    fn new(name: &'static str, value: impl IntoBuildingDebugVar<'a>) -> Self {
+        Self {
+            name: name,
+            value: value.into_debug_var(),
+        }
+    }
+}
+
+// ----------------------------------------------
+// BuildingDebugPopups
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct BuildingDebugPopups {
+    messages: PopupMessages,
+    show: bool,
+}
+
+// ----------------------------------------------
+// BuildingDebugOptions
+// ----------------------------------------------
+
+pub trait BuildingDebugOptions {
+    fn get_popups(&mut self) -> &mut BuildingDebugPopups;
+    fn get_vars(&mut self) -> SmallVec<[BuildingDebugVar; 16]>;
+
+    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        let mut vars = self.get_vars();
+        if !vars.is_empty() {
+            let ui = ui_sys.builder();
+            if ui.collapsing_header("Debug Options##_building_debug_opts", imgui::TreeNodeFlags::empty()) {
+                for var in &mut vars {
+                    match &mut var.value {
+                        BuildingDebugVarRef::Bool(value) => {
+                            ui.checkbox(utils::snake_case_to_title::<64>(var.name), value);
+                        },
+                        BuildingDebugVarRef::I32(value) => {
+                            ui.input_int(utils::snake_case_to_title::<64>(var.name), value).build();
+                        },
+                        BuildingDebugVarRef::F32(value) => {
+                            ui.input_float(utils::snake_case_to_title::<64>(var.name), value).build();
+                        },
+                    }
+                }
+            }
+        }
+    }
+
+    fn draw_popup_messages(&mut self,
+                           context: &BuildingContext,
+                           ui_sys: &UiSystem,
+                           transform: &WorldToScreenTransform,
+                           visible_range: CellRange,
+                           delta_time_secs: Seconds,
+                           show_popup_messages: bool) {
+
+        let popups = self.get_popups();
+        popups.show = show_popup_messages;
+
+        const LIFETIME_MULTIPLIER: f32 = 3.0;
+        popups.messages.update(LIFETIME_MULTIPLIER, delta_time_secs);
+
+        if popups.show {
+            let tile = context.find_tile();
+            if visible_range.contains(tile.base_cell()) {
+                let screen_pos = tile.calc_screen_rect(transform).center();
+                const SCROLL_DIST: f32 = 5.0;
+                const SCROLL_SPEED: f32 = 12.0;
+                const START_BG_ALPHA: f32 = 0.6;
+                popups.messages.draw(ui_sys, screen_pos, SCROLL_DIST, SCROLL_SPEED, START_BG_ALPHA);
+            }
+        }
+    }
+
+    #[inline]
+    fn popup_msg(&mut self, text: impl Into<Cow<'static, str>>) {
+        let popups = self.get_popups();
+        if popups.show {
+            const LIFETIME: Seconds = 6.0;
+            popups.messages.push_with_args(LIFETIME, Color::default(), text);
+        }
+    }
+
+    #[inline]
+    fn popup_msg_color(&mut self, color: Color, text: impl Into<Cow<'static, str>>) {
+        let popups = self.get_popups();
+        if popups.show {
+            const LIFETIME: Seconds = 6.0;
+            popups.messages.push_with_args(LIFETIME, color, text);
+        }
+    }
+
+    #[inline]
+    fn log_resources_gained(&mut self, kind: ResourceKind, count: u32) {
+        if self.get_popups().show && !kind.is_empty() {
+            self.popup_msg_color(Color::green(), format!("+{count} {kind}"));
+        }
+    }
+
+    #[inline]
+    fn log_resources_lost(&mut self, kind: ResourceKind, count: u32) {
+        if self.get_popups().show && !kind.is_empty() {
+            self.popup_msg_color(Color::red(), format!("-{count} {kind}"));
+        }
+    }
+}
+
+// ----------------------------------------------
 // Macro: building_debug_options
 // ----------------------------------------------
 
@@ -586,102 +739,44 @@ macro_rules! building_debug_options {
         $($field_name:ident : $field_type:ty),* $(,)?
     ) => {
         use paste::paste;
+        use $crate::game::building::{
+            BuildingDebugVar,
+            BuildingDebugPopups,
+            BuildingDebugOptions
+        };
+
         paste! {
             #[derive(Default)]
             struct $struct_name {
-                popup_messages: $crate::debug::popups::PopupMessages,
-                show_popup_messages: bool,
+                popups: BuildingDebugPopups,
                 $(
                     [<opt_ $field_name>] : $field_type,
                 )*
             }
+
             impl $struct_name {
                 $(
                     #[must_use]
                     #[inline(always)]
-                    fn $field_name(&self) -> $field_type { self.[<opt_ $field_name>] }
+                    fn $field_name(&self) -> $field_type {
+                        self.[<opt_ $field_name>]
+                    }
                 )*
+            }
 
-                fn new() -> Self {
-                    Self::default()
-                }
-
-                fn draw_debug_ui(&mut self, ui_sys: &$crate::imgui_ui::UiSystem) {
-                    // Hack to count the number of fields.
-                    // We just need something to reference the field so that we can call `$( )*` to increment a count.
-                    const fn use_field(_: &'static str) -> u32 { 1 }
-                    #[allow(unused_mut)]
-                    let mut field_count = 0;
-                    $(
-                        field_count += use_field(stringify!($field_name));
-                    )*
-
-                    if field_count != 0 {
-                        let ui = ui_sys.builder();
-                        if ui.collapsing_header("Debug Options##_building_debug_opts", imgui::TreeNodeFlags::empty()) {
-                            $(
-                                ui.checkbox(
-                                    $crate::utils::snake_case_to_title(stringify!($field_name)),
-                                    &mut self.[<opt_ $field_name>]);
-                            )*
-                        }
-                    }
-                }
-
-                fn draw_popup_messages(&mut self,
-                                       context: &$crate::game::building::BuildingContext,
-                                       ui_sys: &$crate::imgui_ui::UiSystem,
-                                       transform: &$crate::utils::coords::WorldToScreenTransform,
-                                       visible_range: $crate::utils::coords::CellRange,
-                                       delta_time_secs: $crate::utils::Seconds,
-                                       show_popup_messages: bool) {
-                    self.show_popup_messages = show_popup_messages;
-
-                    // Remove any expired messages.
-                    const LIFETIME_MULTIPLIER: f32 = 3.0;
-                    self.popup_messages.update(LIFETIME_MULTIPLIER, delta_time_secs);
-
-                    // Draw remaining ones that are in view.
-                    if self.show_popup_messages {
-                        let tile = context.find_tile();
-                        if visible_range.contains(tile.base_cell()) {
-                            let screen_pos = tile.calc_screen_rect(transform).center();
-                            const SCROLL_DIST: f32 = 5.0;
-                            const SCROLL_SPEED: f32 = 12.0;
-                            const START_BG_ALPHA: f32 = 0.6;
-                            self.popup_messages.draw(ui_sys, screen_pos, SCROLL_DIST, SCROLL_SPEED, START_BG_ALPHA);
-                        }
-                    }
+            impl BuildingDebugOptions for $struct_name {
+                #[inline]
+                fn get_popups(&mut self) -> &mut BuildingDebugPopups {
+                    &mut self.popups
                 }
 
                 #[inline]
-                fn popup_msg(&mut self, text: impl Into<std::borrow::Cow<'static, str>>) {
-                    if self.show_popup_messages {
-                        const LIFETIME: $crate::utils::Seconds = 6.0;
-                        self.popup_messages.push_with_args(LIFETIME, $crate::utils::Color::default(), text);
-                    }
-                }
-
-                #[inline]
-                fn popup_msg_color(&mut self, color: $crate::utils::Color, text: impl Into<std::borrow::Cow<'static, str>>) {
-                    if self.show_popup_messages {
-                        const LIFETIME: $crate::utils::Seconds = 6.0;
-                        self.popup_messages.push_with_args(LIFETIME, color, text);
-                    }
-                }
-
-                #[inline]
-                fn log_resources_gained(&mut self, kind: $crate::game::sim::resources::ResourceKind, count: u32) {
-                    if self.show_popup_messages && !kind.is_empty() {
-                        self.popup_msg_color($crate::utils::Color::green(), format!("+{count} {kind}"));
-                    }
-                }
-
-                #[inline]
-                fn log_resources_lost(&mut self, kind: $crate::game::sim::resources::ResourceKind, count: u32) {
-                    if self.show_popup_messages && !kind.is_empty() {
-                        self.popup_msg_color($crate::utils::Color::red(), format!("-{count} {kind}"));
-                    }
+                fn get_vars(&mut self) -> smallvec::SmallVec<[BuildingDebugVar; 16]> {
+                    smallvec::smallvec![
+                        $(
+                            BuildingDebugVar::new(stringify!($field_name), &mut self.[<opt_ $field_name>]),
+                        )*
+                    ]
                 }
             }
         }
