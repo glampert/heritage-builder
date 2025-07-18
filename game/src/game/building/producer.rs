@@ -1,4 +1,5 @@
 use smallvec::SmallVec;
+use proc_macros::DrawDebugUi;
 
 use crate::{
     building_debug_options,
@@ -38,8 +39,11 @@ use super::{
 // ProducerConfig
 // ----------------------------------------------
 
+#[derive(DrawDebugUi)]
 pub struct ProducerConfig {
     pub tile_def_name: String,
+
+    #[debug_ui(skip)]
     pub tile_def_name_hash: StringHash,
 
     pub min_workers: u32,
@@ -102,7 +106,9 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.config.draw_debug_ui(ui_sys);
+        if ui_sys.builder().collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+            self.config.draw_debug_ui(ui_sys);
+        }
         self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_input_stock(ui_sys);
         self.draw_debug_ui_production_output(ui_sys);
@@ -316,23 +322,6 @@ impl ProducerInputsLocalStock {
 // ----------------------------------------------
 // Debug UI
 // ----------------------------------------------
-
-impl ProducerConfig {
-    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            ui.text(format!("Tile def name........: '{}'", self.tile_def_name));
-            ui.text(format!("Min workers..........: {}", self.min_workers));
-            ui.text(format!("Max workers..........: {}", self.max_workers));
-            ui.text(format!("Production frequency.: {}", self.production_output_frequency_secs));
-            ui.text(format!("Production output....: {}", self.production_output));
-            ui.text(format!("Production capacity..: {}", self.production_capacity));
-            ui.text(format!("Resources required...: {}", self.resources_required));
-            ui.text(format!("Resources capacity...: {}", self.resources_capacity));
-            ui.text(format!("Storage buildings....: {}", self.storage_buildings_accepted));
-        }
-    }
-}
 
 impl ProducerOutputLocalStock {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {

@@ -277,6 +277,12 @@ impl DivAssign for Vec2 {
     }
 }
 
+impl std::fmt::Display for Vec2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[{},{}]", self.x, self.y)
+    }
+}
+
 // ----------------------------------------------
 // Color
 // ----------------------------------------------
@@ -377,6 +383,12 @@ impl MulAssign<f32> for Color {
     }
 }
 
+impl std::fmt::Display for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[{},{},{},{}]", self.r, self.g, self.b, self.a)
+    }
+}
+
 // ----------------------------------------------
 // Size
 // ----------------------------------------------
@@ -417,6 +429,12 @@ impl Size {
     #[inline]
     pub fn to_array(&self) -> [i32; 2] {
         [ self.width, self.height ]
+    }
+}
+
+impl std::fmt::Display for Size {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[{},{}]", self.width, self.height)
     }
 }
 

@@ -1,3 +1,5 @@
+use proc_macros::DrawDebugUi;
+
 use crate::{
     building_debug_options,
     imgui_ui::UiSystem,
@@ -28,8 +30,11 @@ use super::{
 // ServiceConfig
 // ----------------------------------------------
 
+#[derive(DrawDebugUi)]
 pub struct ServiceConfig {
     pub tile_def_name: String,
+
+    #[debug_ui(skip)]
     pub tile_def_name_hash: StringHash,
 
     pub min_workers: u32,
@@ -80,7 +85,9 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.config.draw_debug_ui(ui_sys);
+        if ui_sys.builder().collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+            self.config.draw_debug_ui(ui_sys);
+        }
         self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_resources_stock(ui_sys);
     }
@@ -175,19 +182,6 @@ impl<'config> ServiceBuilding<'config> {
 // ----------------------------------------------
 // Debug UI
 // ----------------------------------------------
-
-impl ServiceConfig {
-    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
-            ui.text(format!("Min workers........: {}", self.min_workers));
-            ui.text(format!("Max workers........: {}", self.max_workers));
-            ui.text(format!("Effect radius......: {}", self.effect_radius));
-            ui.text(format!("Resources required.: {}", self.resources_required));
-        }
-    }
-}
 
 impl<'config> ServiceBuilding<'config> {
     fn draw_debug_ui_resources_stock(&mut self, ui_sys: &UiSystem) {

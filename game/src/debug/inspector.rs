@@ -1,3 +1,5 @@
+use proc_macros::DrawDebugUi;
+
 use crate::{
     app::input::{InputAction, MouseButton},
     imgui_ui::{UiInputEvent, UiSystem},
@@ -5,10 +7,18 @@ use crate::{
         Simulation,
         world::World
     },
-    utils::coords::{
-        self,
-        Cell,
-        WorldToScreenTransform
+    utils::{
+        Size,
+        Vec2,
+        Color,
+        Seconds,
+        coords::{
+            self,
+            Cell,
+            CellRange,
+            IsoPoint,
+            WorldToScreenTransform
+        }
     },
     tile::{
         map::{Tile, TileFlags, TileMap, TileMapLayerKind},
@@ -98,9 +108,9 @@ impl TileInspectorMenu {
             .build(|| {
                 if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    Self::tile_properties_dropdown(ui, tile_map, cell, layer_kind, tile_sets, transform);
+                    Self::tile_properties_dropdown(ui, tile_map, cell, layer_kind, tile_sets, ui_sys, transform);
                     Self::tile_variations_dropdown(ui, tile_map, cell, layer_kind);
-                    Self::tile_animations_dropdown(ui, tile_map, cell, layer_kind);
+                    Self::tile_animations_dropdown(ui, tile_map, cell, layer_kind, ui_sys);
                     Self::tile_debug_opts_dropdown(ui, tile_map, cell, layer_kind);
                     Self::tile_def_editor_dropdown(ui, tile_map, cell, layer_kind, tile_sets);
                     ui.unindent_by(10.0);
@@ -119,6 +129,7 @@ impl TileInspectorMenu {
                                 cell: Cell,
                                 layer_kind: TileMapLayerKind,
                                 tile_sets: &TileSets,
+                                ui_sys: &UiSystem,
                                 transform: &WorldToScreenTransform) {
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
@@ -127,31 +138,43 @@ impl TileInspectorMenu {
         }
 
         let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
-        let cell_range = tile.cell_range();
 
-        let category_name = tile.category_name(tile_sets);
-        let color = tile.tint_color();
+        #[derive(DrawDebugUi)]
+        struct DrawDebugUiVariables<'a> {
+            name: &'a str,
+            category: &'a str,
+            kind: TileKind,
+            flags: TileFlags,
+            has_game_state: bool,
+            cells: CellRange,
+            iso_pos: IsoPoint,
+            iso_adjusted: IsoPoint,
+            screen_pos: Vec2,
+            draw_size: Size,
+            logical_size: Size,
+            size_in_cells: Size,
+            z_sort: i32,
+            color: Color,
+        }
 
-        let tile_iso_pos = coords::cell_to_iso(cell, BASE_TILE_SIZE);
-        let tile_iso_adjusted = tile.calc_adjusted_iso_coords();
+        let debug_vars = DrawDebugUiVariables {
+            name: tile.name(),
+            category: tile.category_name(tile_sets),
+            kind: tile.kind(),
+            flags: tile.flags(),
+            has_game_state: tile.game_state_handle().is_valid(),
+            cells: tile.cell_range(),
+            iso_pos: coords::cell_to_iso(cell, BASE_TILE_SIZE),
+            iso_adjusted: tile.calc_adjusted_iso_coords(),
+            screen_pos: tile.calc_screen_rect(transform).position(),
+            draw_size: tile.draw_size(),
+            logical_size: tile.logical_size(),
+            size_in_cells: tile.size_in_cells(),
+            z_sort: tile.calc_z_sort(),
+            color: tile.tint_color(),
+        };
 
-        let tile_screen_rect = tile.calc_screen_rect(transform);
-        let tile_screen_pos = tile_screen_rect.position();
-
-        ui.text(format!("Name...........: '{}'", tile.name()));
-        ui.text(format!("Category.......: '{}'", category_name));
-        ui.text(format!("Kind...........: {}", tile.kind()));
-        ui.text(format!("Flags..........: {}", tile.flags()));
-        ui.text(format!("Has Game State.: {}", tile.game_state_handle().is_valid()));
-        ui.text(format!("Cells..........: [{},{}; {},{}]", cell_range.start.x, cell_range.start.y, cell_range.end.x, cell_range.end.y));
-        ui.text(format!("Iso pos........: {},{}", tile_iso_pos.x, tile_iso_pos.y));
-        ui.text(format!("Iso adjusted...: {},{}", tile_iso_adjusted.x, tile_iso_adjusted.y));
-        ui.text(format!("Screen pos.....: {:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y));
-        ui.text(format!("Draw size......: {},{}", tile.draw_size().width, tile.draw_size().height));
-        ui.text(format!("Logical size...: {},{}", tile.logical_size().width, tile.logical_size().height));
-        ui.text(format!("Cells size.....: {},{}", tile.size_in_cells().width, tile.size_in_cells().height));
-        ui.text(format!("Z-sort.........: {}", tile.calc_z_sort()));
-        ui.text(format!("Color RGBA.....: [{},{},{},{}]", color.r, color.g, color.b, color.a));
+        debug_vars.draw_debug_ui(ui_sys);
     }
 
     fn tile_variations_dropdown(ui: &imgui::Ui,
@@ -174,14 +197,15 @@ impl TileInspectorMenu {
             tile.set_variation_index(variation_index);
         }
 
-        ui.text(format!("Variations....: {}", tile.variation_count()));
-        ui.text(format!("Variation idx.: {}, '{}'", tile.variation_index(), tile.variation_name()));    
+        ui.text(format!("Variations    : {}", tile.variation_count()));
+        ui.text(format!("Variation idx : {}, {}", tile.variation_index(), tile.variation_name()));    
     }
 
     fn tile_animations_dropdown(ui: &imgui::Ui,
                                 tile_map: &mut TileMap,
                                 cell: Cell,
-                                layer_kind: TileMapLayerKind) {
+                                layer_kind: TileMapLayerKind,
+                                ui_sys: &UiSystem) {
 
         let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
 
@@ -212,15 +236,30 @@ impl TileInspectorMenu {
 
         let anim_set = tile.anim_set();
 
-        ui.text(format!("Anim sets......: {}", anim_set_count));
-        ui.text(format!("Anim Set idx...: {}, '{}'", tile.anim_set_index(), tile.anim_set_name()));
-        ui.text(format!("Anim frames....: {}", tile.anim_frames_count()));
-        ui.text(format!("Anim duration..: {}", anim_set.anim_duration_secs()));
-        ui.text(format!("Looping........: {}", anim_set.looping));
-        ui.separator();
-        ui.text(format!("Frame idx......: {}", tile.anim_frame_index()));
-        ui.text(format!("Frame duration.: {}", anim_set.frame_duration_secs()));
-        ui.text(format!("Frame time.....: {:.2}", tile.anim_frame_play_time_secs()));
+        #[derive(DrawDebugUi)]
+        struct DrawDebugUiVariables {
+            anim_set_count: usize,
+            anim_frames_count: usize,
+            anim_duration_secs: Seconds,
+            #[debug_ui(separator)] looping: bool,
+
+            frame_index: usize,
+            frame_duration_secs: Seconds,
+            frame_play_time_secs: Seconds,
+        }
+
+        let debug_vars = DrawDebugUiVariables {
+            anim_set_count: anim_set_count,
+            anim_frames_count: tile.anim_frames_count(),
+            anim_duration_secs: anim_set.anim_duration_secs(),
+            looping: anim_set.looping,
+
+            frame_index: tile.anim_frame_index(),
+            frame_duration_secs: anim_set.frame_duration_secs(),
+            frame_play_time_secs: tile.anim_frame_play_time_secs(),
+        };
+
+        debug_vars.draw_debug_ui(ui_sys);
     }
 
     fn tile_debug_opts_dropdown(ui: &imgui::Ui,

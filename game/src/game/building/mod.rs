@@ -5,6 +5,7 @@ use smallvec::SmallVec;
 use bitflags::{bitflags, Flags};
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
+use proc_macros::DrawDebugUi;
 
 use crate::{
     bitflags_with_display,
@@ -124,14 +125,20 @@ impl<'config> Building<'config> {
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
         if ui.collapsing_header("Properties##_building_properties", imgui::TreeNodeFlags::empty()) {
-            ui.text(format!("Name............: '{}'", self.name));
-            ui.text(format!("Kind............: {}", self.kind));
-            ui.text(format!("Archetype.......: {}", self.archetype_kind()));
-            ui.text(format!("Cells...........: [{},{}; {},{}]",
-                self.map_cells.start.x,
-                self.map_cells.start.y,
-                self.map_cells.end.x,
-                self.map_cells.end.y));
+            #[derive(DrawDebugUi)]
+            struct DrawDebugUiVariables<'a> {
+                name: &'a str,
+                kind: BuildingKind,
+                archetype: BuildingArchetypeKind,
+                cells: CellRange,
+            }
+            let debug_vars = DrawDebugUiVariables {
+                name: self.name,
+                kind: self.kind,
+                archetype: self.archetype_kind(),
+                cells: self.map_cells,
+            };
+            debug_vars.draw_debug_ui(ui_sys);
         }
 
         let mut context =

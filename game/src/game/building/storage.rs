@@ -1,5 +1,6 @@
 use arrayvec::ArrayVec;
 use smallvec::{smallvec, SmallVec};
+use proc_macros::DrawDebugUi;
 
 use crate::{
     building_debug_options,
@@ -30,8 +31,11 @@ use super::{
 // StorageConfig
 // ----------------------------------------------
 
+#[derive(DrawDebugUi)]
 pub struct StorageConfig {
     pub tile_def_name: String,
+
+    #[debug_ui(skip)]
     pub tile_def_name_hash: StringHash,
 
     pub min_workers: u32,
@@ -73,7 +77,9 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
-        self.config.draw_debug_ui(ui_sys);
+        if ui_sys.builder().collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+            self.config.draw_debug_ui(ui_sys);
+        }
         self.debug.draw_debug_ui(ui_sys);
         self.storage_slots.draw_debug_ui("Stock Slots", ui_sys);
     }
@@ -366,20 +372,6 @@ impl StorageSlots {
 // ----------------------------------------------
 // Debug UI
 // ----------------------------------------------
-
-impl StorageConfig {
-    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
-            ui.text(format!("Min workers........: {}", self.min_workers));
-            ui.text(format!("Max workers........: {}", self.max_workers));
-            ui.text(format!("Resources accepted.: {}", self.resources_accepted));
-            ui.text(format!("Num slots..........: {}", self.num_slots));
-            ui.text(format!("Slot capacity......: {}", self.slot_capacity));
-        }
-    }
-}
 
 impl StorageSlots {
     fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {

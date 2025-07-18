@@ -1,6 +1,7 @@
 use strum::EnumCount;
 use strum_macros::EnumCount;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use proc_macros::DrawDebugUi;
 
 use crate::{
     building_debug_options,
@@ -63,8 +64,11 @@ pub struct HouseConfig {
     pub upgrade_update_frequency_secs: Seconds,
 }
 
+#[derive(DrawDebugUi)]
 pub struct HouseLevelConfig {
     pub tile_def_name: String,
+
+    #[debug_ui(skip)]
     pub tile_def_name_hash: StringHash,
 
     pub max_residents: u32,
@@ -573,17 +577,6 @@ impl<'config> HouseUpgradeState<'config> {
 // Debug UI
 // ----------------------------------------------
 
-impl HouseLevelConfig {
-    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        ui.text(format!("Tile def name......: '{}'", self.tile_def_name));
-        ui.text(format!("Max residents......: {}", self.max_residents));
-        ui.text(format!("Tax generated......: {}", self.tax_generated));
-        ui.text(format!("Services required..: {}", self.services_required));
-        ui.text(format!("Resources required.: {}", self.resources_required));
-    }
-}
-
 impl<'config> HouseBuilding<'config> {
     fn draw_debug_ui_level_config(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
@@ -608,10 +601,10 @@ impl<'config> HouseBuilding<'config> {
             ui.separator();
             ui.text(label);
 
-            ui.text(format!("  Resources avail.: {} (req: {})",
+            ui.text(format!("  Resources avail : {} (req: {})",
                 level_requirements.resources_available_count(),
                 level_requirements.level_config.resources_required.len()));
-            ui.text(format!("  Services avail..: {} (req: {})",
+            ui.text(format!("  Services avail  : {} (req: {})",
                 level_requirements.services_available_count(),
                 level_requirements.level_config.services_required.len()));
 
@@ -675,9 +668,9 @@ impl<'config> HouseBuilding<'config> {
             HouseLevelRequirements::new(context, upgrade_state.next_level_config, &self.stock);
 
         ui.text(format!("Level: {:?}", upgrade_state.level));
-        color_text("  Has room......:", upgrade_state.has_room_to_upgrade);
-        color_text("  Has services..:", next_level_requirements.has_required_services());
-        color_text("  Has resources.:", next_level_requirements.has_required_resources());
+        color_text(" - Has room      :", upgrade_state.has_room_to_upgrade);
+        color_text(" - Has services  :", next_level_requirements.has_required_services());
+        color_text(" - Has resources :", next_level_requirements.has_required_resources());
         ui.separator();
 
         self.upgrade_update_timer.draw_debug_ui("Upgrade", ui_sys);

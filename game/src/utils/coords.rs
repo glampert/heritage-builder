@@ -36,6 +36,12 @@ impl IsoPoint {
     }
 }
 
+impl std::fmt::Display for IsoPoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[{},{}]", self.x, self.y)
+    }
+}
+
 // ----------------------------------------------
 // Cell
 // ----------------------------------------------
@@ -66,6 +72,12 @@ impl Cell {
     #[inline]
     pub fn is_valid(&self) -> bool {
         self.x >= 0 && self.y >= 0
+    }
+}
+
+impl std::fmt::Display for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[{},{}]", self.x, self.y)
     }
 }
 
@@ -124,6 +136,16 @@ impl CellRange {
             return false;
         }
         true
+    }
+}
+
+impl std::fmt::Display for CellRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[{},{}; {},{}]",
+               self.start.x,
+               self.start.y,
+               self.end.x,
+               self.end.y)
     }
 }
 
