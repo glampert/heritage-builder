@@ -668,7 +668,7 @@ pub trait BuildingDebugOptions {
                             ui.input_int(utils::snake_case_to_title::<64>(var.name), value).build();
                         },
                         BuildingDebugVarRef::F32(value) => {
-                            ui.input_float(utils::snake_case_to_title::<64>(var.name), value).build();
+                            ui.input_float(utils::snake_case_to_title::<64>(var.name), value).step(1.0).build();
                         },
                     }
                 }

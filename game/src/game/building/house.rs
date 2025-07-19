@@ -140,7 +140,13 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
                          delta_time_secs: Seconds,
                          show_popup_messages: bool) {
 
-        self.debug.draw_popup_messages(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+        self.debug.draw_popup_messages(
+            context,
+            ui_sys,
+            transform,
+            visible_range,
+            delta_time_secs,
+            show_popup_messages);
     }
 }
 
@@ -587,13 +593,9 @@ impl<'config> HouseBuilding<'config> {
 
     fn draw_debug_ui_upgrade_state(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {
-            self.draw_debug_ui_upgrade_state_internal(context, ui_sys);
+        if !ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
         }
-    }
-
-    fn draw_debug_ui_upgrade_state_internal(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
 
         let draw_level_requirements = 
             |label: &str, level_requirements: &HouseLevelRequirements<'config>, imgui_id: u32| {
@@ -673,8 +675,8 @@ impl<'config> HouseBuilding<'config> {
         color_text(" - Has resources :", next_level_requirements.has_required_resources());
         ui.separator();
 
-        self.upgrade_update_timer.draw_debug_ui("Upgrade", ui_sys);
-        self.stock_update_timer.draw_debug_ui("Stock Update", ui_sys);
+        self.upgrade_update_timer.draw_debug_ui("Upgrade", 0, ui_sys);
+        self.stock_update_timer.draw_debug_ui("Stock Update", 1, ui_sys);
         self.stock.draw_debug_ui("Resources In Stock", ui_sys);
 
         draw_level_requirements(

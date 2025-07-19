@@ -100,7 +100,13 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
                          delta_time_secs: Seconds,
                          show_popup_messages: bool) {
 
-        self.debug.draw_popup_messages(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+        self.debug.draw_popup_messages(
+            context,
+            ui_sys,
+            transform,
+            visible_range,
+            delta_time_secs,
+            show_popup_messages);
     }
 }
 
@@ -188,7 +194,7 @@ impl<'config> ServiceBuilding<'config> {
         if self.stock.accepts_any() {
             let ui = ui_sys.builder();
             if ui.collapsing_header("Stock", imgui::TreeNodeFlags::empty()) {
-                self.stock_update_timer.draw_debug_ui("Update", ui_sys);
+                self.stock_update_timer.draw_debug_ui("Update", 0, ui_sys);
                 self.stock.draw_debug_ui("Resources", ui_sys);
             }
         }

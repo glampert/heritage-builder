@@ -92,7 +92,13 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
                          delta_time_secs: Seconds,
                          show_popup_messages: bool) {
 
-        self.debug.draw_popup_messages(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+        self.debug.draw_popup_messages(
+            context,
+            ui_sys,
+            transform,
+            visible_range,
+            delta_time_secs,
+            show_popup_messages);
     }
 }
 

@@ -122,7 +122,13 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
                          delta_time_secs: Seconds,
                          show_popup_messages: bool) {
 
-        self.debug.draw_popup_messages(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+        self.debug.draw_popup_messages(
+            context,
+            ui_sys,
+            transform,
+            visible_range,
+            delta_time_secs,
+            show_popup_messages);
     }
 }
 
@@ -387,7 +393,7 @@ impl<'config> ProducerBuilding<'config> {
             if self.is_production_halted() {
                 ui.text_colored(Color::red().to_array(), "Production Halted!");
             }
-            self.production_update_timer.draw_debug_ui("Update", ui_sys);
+            self.production_update_timer.draw_debug_ui("Update", 0, ui_sys);
             self.production_output_stock.draw_debug_ui(ui_sys);
         }
     }

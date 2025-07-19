@@ -164,16 +164,18 @@ impl UpdateTimer {
         self.time_since_last_update_secs
     }
 
-    pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&mut self, label: &str, imgui_id: u32, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         ui.text(format!("{}:", label));
 
-        ui.input_float("Frequency (secs)", &mut self.update_frequency_secs)
+        ui.input_float(format!("Frequency (secs)##_timer_frequency_{}", imgui_id), &mut self.update_frequency_secs)
+            .display_format("%.2f")
             .step(0.5)
             .build();
 
-        ui.input_float("Time since last", &mut self.time_since_last_update_secs)
+        ui.input_float(format!("Time since last##_last_update_{}", imgui_id), &mut self.time_since_last_update_secs)
+            .display_format("%.2f")
             .read_only(true)
             .build();
     }

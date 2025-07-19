@@ -119,6 +119,7 @@ fn parse_debug_ui_attrs(attrs: &[Attribute]) -> DebugUiAttrs {
 }
 
 #[repr(u32)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 enum FieldKind {
     Bool,
     Int,
@@ -134,7 +135,7 @@ fn infer_field_kind(field: &Field) -> FieldKind {
                 "bool" => FieldKind::Bool,
                 "u8" | "u16" | "u32" | "u64" | "usize" |
                 "i8" | "i16" | "i32" | "i64" | "isize" => FieldKind::Int,
-                "f32" | "f64" => FieldKind::Float,
+                "f32" | "f64" | "Seconds" => FieldKind::Float,
                 "String" => FieldKind::String,
                 _ => FieldKind::Unknown,
             };
@@ -206,15 +207,21 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
             return None;
         }
 
-        let name = &field.ident;
+        let field_name = &field.ident;
+        let field_kind = infer_field_kind(field);
 
         let label_str = attrs.label.unwrap_or_else(|| {
-            let name_str = name.as_ref().unwrap().to_string();
+            let name_str = field_name.as_ref().unwrap().to_string();
             snake_case_to_title(&name_str)
         });
 
         let format_str = attrs.format.unwrap_or_else(|| {
-            format!("{:<width$}: {}", label_str, "{}", width = field_name_padding)
+            let value_format_specifier = if field_kind == FieldKind::Float {
+                "{:.2}" // Use 2 decimal digits only for float variables.
+            } else {
+                "{}" // Default Display format.
+            };
+            format!("{:<width$}: {}", label_str, value_format_specifier, width = field_name_padding)
         });
 
         let format_str_lit = LitStr::new(&format_str, Span::call_site());
@@ -245,19 +252,18 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                 }
             };
 
-            let kind = infer_field_kind(field);
-            let field_expr = match kind {
+            let field_tokens = match field_kind {
                 FieldKind::Bool => {
                     if read_only {
                         quote! {
                             {
                                 // Write into a local variable so any change will be discarded.
-                                let mut b_curr_value_ = self.#name;
+                                let mut b_curr_value_ = self.#field_name;
                                 ui.checkbox(#label_str, &mut b_curr_value_);
                             }
                         }
                     } else {
-                        quote! { ui.checkbox(#label_str, &mut self.#name); }
+                        quote! { ui.checkbox(#label_str, &mut self.#field_name); }
                     }
                 },
                 FieldKind::Int => {
@@ -269,7 +275,7 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                             quote! {
                                 {
                                     // Write into a local variable so any change will be discarded.
-                                    let mut i_curr_value_ = self.#name;
+                                    let mut i_curr_value_ = self.#field_name;
                                     ui.slider_config(#label_str, #min, #max)
                                         .display_format(#display_format)
                                         .build(&mut i_curr_value_);
@@ -279,13 +285,13 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                             quote! {
                                 ui.slider_config(#label_str, #min, #max)
                                     .display_format(#display_format)
-                                    .build(&mut self.#name);
+                                    .build(&mut self.#field_name);
                             }
                         }
                     } else {
                         let step: i32 = attrs.step.unwrap_or("1".into()).parse().expect("Invalid 'step' attribute!");
                         quote! {
-                            ui.input_int(#label_str, &mut self.#name)
+                            ui.input_int(#label_str, &mut self.#field_name)
                                 .display_format(#display_format)
                                 .read_only(#read_only)
                                 .step(#step)
@@ -302,7 +308,7 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                             quote! {
                                 {
                                     // Write into a local variable so any change will be discarded.
-                                    let mut f_curr_value_ = self.#name;
+                                    let mut f_curr_value_ = self.#field_name;
                                     ui.slider_config(#label_str, #min, #max)
                                         .display_format(#display_format)
                                         .build(&mut f_curr_value_);
@@ -312,13 +318,13 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                             quote! {
                                 ui.slider_config(#label_str, #min, #max)
                                     .display_format(#display_format)
-                                    .build(&mut self.#name);
+                                    .build(&mut self.#field_name);
                             }
                         }
                     } else {
                         let step: f32 = attrs.step.unwrap_or("1.0".into()).parse().expect("Invalid 'step' attribute!");
                         quote! {
-                            ui.input_float(#label_str, &mut self.#name)
+                            ui.input_float(#label_str, &mut self.#field_name)
                                 .display_format(#display_format)
                                 .read_only(#read_only)
                                 .step(#step)
@@ -328,22 +334,22 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                 },
                 FieldKind::String => {
                     quote! {
-                        ui.input_text(#label_str, &mut self.#name)
+                        ui.input_text(#label_str, &mut self.#field_name)
                             .read_only(#read_only)
                             .build();
                     }
                 },
                 FieldKind::Unknown => {
                     // Fallback: Try format Display text.
-                    quote! { ui.text(format!(#format_str_lit, self.#name)); }
+                    quote! { ui.text(format!(#format_str_lit, self.#field_name)); }
                 },
             };
 
-            tokens.extend(field_expr);
+            tokens.extend(field_tokens);
         } else {
             // Read only text field.
             tokens.extend(quote! {
-                ui.text(format!(#format_str_lit, self.#name));
+                ui.text(format!(#format_str_lit, self.#field_name));
             });
         }
 
