@@ -59,13 +59,13 @@ impl TileInspectorMenu {
         }
     }
 
-    pub fn draw<'tile_map, 'tile_sets>(&mut self,
-                                       sim: &mut Simulation,
-                                       world: &mut World,
-                                       tile_map: &'tile_map mut TileMap<'tile_sets>,
-                                       tile_sets: &'tile_sets TileSets,
-                                       ui_sys: &UiSystem,
-                                       transform: &WorldToScreenTransform) {
+    pub fn draw<'tile_sets>(&mut self,
+                            sim: &mut Simulation,
+                            world: &mut World,
+                            tile_map: &mut TileMap<'tile_sets>,
+                            tile_sets: &'tile_sets TileSets,
+                            ui_sys: &UiSystem,
+                            transform: &WorldToScreenTransform) {
 
         if !self.is_open || self.selected.is_none() {
             self.close();

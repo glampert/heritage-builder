@@ -153,7 +153,7 @@ pub trait RenderSystem {
         const MAX_INDICES:  usize = 6 * MAX_POINTS;
 
         let num_points = points.len();
-        debug_assert!(num_points >= 2 && num_points <= MAX_POINTS);
+        debug_assert!((2..=MAX_POINTS).contains(&num_points));
 
         let mut vertices = [Vec2::default(); MAX_VERTICES];
         let mut indices  = [0u16; MAX_INDICES];
@@ -341,10 +341,7 @@ impl TextureHandle {
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        match self {
-            TextureHandle::Invalid => false,
-            _ => true
-        }
+        !matches!(self, TextureHandle::Invalid)
     }
 }
 

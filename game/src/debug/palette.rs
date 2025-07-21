@@ -22,14 +22,12 @@ use crate::{
 // SelectionState
 // ----------------------------------------------
 
+#[derive(Default)]
 enum SelectionState {
     TileSelected(TileDefHandle),
     ClearSelected,
+    #[default]
     NoSelection,
-}
-
-impl Default for SelectionState {
-    fn default() -> Self { SelectionState::NoSelection }
 }
 
 // ----------------------------------------------
@@ -61,11 +59,11 @@ impl TilePaletteMenu {
     }
 
     pub fn has_selection(&self) -> bool {
-        matches!(self.selection, SelectionState::NoSelection) == false
+        !matches!(self.selection, SelectionState::NoSelection)
     }
 
     pub fn is_clear_selected(&self) -> bool {
-        matches!(self.selection, SelectionState::ClearSelected) == true
+        matches!(self.selection, SelectionState::ClearSelected)
     }
 
     pub fn current_selection<'tile_sets>(&self, tile_sets: &'tile_sets TileSets) -> Option<&'tile_sets TileDef> {

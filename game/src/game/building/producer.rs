@@ -377,7 +377,7 @@ impl ProducerInputsLocalStock {
     }
 }
 
-impl<'config> ProducerBuilding<'config> {
+impl ProducerBuilding<'_> {
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
         if self.production_input_stock.requires_any_resource() {
             let ui = ui_sys.builder();

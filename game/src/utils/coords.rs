@@ -31,7 +31,7 @@ impl IsoPoint {
     }
 
     #[inline]
-    pub fn to_vec2(&self) -> Vec2 {
+    pub fn to_vec2(self) -> Vec2 {
         Vec2::new(self.x as f32, self.y as f32)
     }
 }
@@ -250,7 +250,7 @@ impl<const REVERSED: bool> ExactSizeIterator for CellRangeIter<REVERSED> {
 impl<const REVERSED: bool> FusedIterator for CellRangeIter<REVERSED> {}
 
 // Support for-each style iteration.
-impl<'a> IntoIterator for &'a CellRange {
+impl IntoIterator for &CellRange {
     type Item = Cell;
     type IntoIter = CellRangeIter<false>;
 

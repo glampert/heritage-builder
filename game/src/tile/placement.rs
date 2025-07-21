@@ -108,7 +108,7 @@ pub fn try_place_tile_at_cursor<'tile_map, 'tile_sets>(tile_map: &'tile_map mut 
         cursor_screen_pos,
         transform);
 
-    return try_place_tile_in_layer(layer, target_cell, tile_def_to_place);
+    try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
 }
 
 pub fn try_clear_tile_at_cursor(tile_map: &mut TileMap,

@@ -87,7 +87,7 @@ impl RenderSystem {
     }
 
     fn flush_sprites(&mut self) {
-        debug_assert!(self.frame_started == true);
+        debug_assert!(self.frame_started);
 
         let set_shader_vars_fn = 
             |render_context: &mut RenderContext, entry: &DrawBatchEntry| {
@@ -105,7 +105,7 @@ impl RenderSystem {
     }
 
     fn flush_lines(&mut self) {
-        debug_assert!(self.frame_started == true);
+        debug_assert!(self.frame_started);
 
         self.lines_batch.sync();
         self.lines_batch.draw_fast(&mut self.render_context, &self.lines_shader.program);
@@ -113,7 +113,7 @@ impl RenderSystem {
     }
 
     fn flush_points(&mut self) {
-        debug_assert!(self.frame_started == true);
+        debug_assert!(self.frame_started);
 
         self.points_batch.sync();
         self.points_batch.draw_fast(&mut self.render_context, &self.points_shader.program);
@@ -123,7 +123,7 @@ impl RenderSystem {
 
 impl render::RenderSystem for RenderSystem {
     fn begin_frame(&mut self) {
-        debug_assert!(self.frame_started == false);
+        debug_assert!(!self.frame_started);
 
         self.render_context.begin_frame();
         self.frame_started = true;
@@ -136,7 +136,7 @@ impl render::RenderSystem for RenderSystem {
     }
 
     fn end_frame(&mut self) -> RenderStats {
-        debug_assert!(self.frame_started == true);
+        debug_assert!(self.frame_started);
 
         self.flush_sprites();
         self.flush_lines();

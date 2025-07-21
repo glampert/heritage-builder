@@ -89,7 +89,7 @@ impl Texture2D {
                      tex_unit: TextureUnit,
                      gen_mipmaps: bool) -> Result<Self, String> {
 
-        debug_assert!(file_path.is_empty() == false);
+        debug_assert!(!file_path.is_empty());
 
         let mut image = match image::open(file_path) {
             Ok(image) => image,
@@ -133,7 +133,7 @@ impl Texture2D {
                          debug_name: &str) -> Self {
 
         debug_assert!((tex_unit.0 as usize) < MAX_TEXTURE_UNITS);
-        debug_assert!(data.is_null() == false);
+        debug_assert!(!data.is_null());
         debug_assert!(size.is_valid());
 
         let handle = unsafe {

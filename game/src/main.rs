@@ -220,7 +220,7 @@ fn main() {
                 }
             };
 
-            let placing_an_object = placement_candidate.map_or(false, 
+            let placing_an_object = placement_candidate.is_some_and( 
                 |def| def.is(TileKind::Object));
 
             let clearing_a_tile = tile_palette_menu.is_clear_selected();

@@ -159,14 +159,14 @@ pub enum IndexType {
 }
 
 impl IndexType {
-    pub fn size_in_bytes(&self) -> usize {
+    pub fn size_in_bytes(self) -> usize {
         match self {
             IndexType::U16 => mem::size_of::<u16>(),
             IndexType::U32 => mem::size_of::<u32>(),
         }
     }
 
-    pub fn to_gl_enum(&self) -> gl::types::GLenum {
+    pub fn to_gl_enum(self) -> gl::types::GLenum {
         match self {
             IndexType::U16 => gl::UNSIGNED_SHORT,
             IndexType::U32 => gl::UNSIGNED_INT,
@@ -393,8 +393,7 @@ impl VertexArray {
 
             // Set vertex layout:
             let mut offset: usize = 0;
-            let mut index: u32 = 0;
-            for vertex_element in vertex_layout {
+            for (index, vertex_element) in (0_u32..).zip(vertex_layout.iter()) {
                 gl::EnableVertexAttribArray(index);
                 gl::VertexAttribPointer(
                     index,
@@ -405,7 +404,6 @@ impl VertexArray {
                     offset as *const c_void);
 
                 offset += (vertex_element.count as usize) * vertex_element.size_in_bytes();
-                index += 1;
             }
 
             // Unbind all:

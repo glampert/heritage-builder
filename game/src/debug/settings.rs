@@ -3,9 +3,13 @@ use proc_macros::DrawDebugUi;
 use crate::{
     imgui_ui::UiSystem,
     game::sim::world::World,
+    utils::hash::{self},
     tile::{
         camera::Camera,
-        sets::TileSets,
+        sets::{
+            TileSets,
+            TERRAIN_GROUND_CATEGORY
+        },
         map::{
             TileMap,
             TileMapLayerKind
@@ -210,19 +214,19 @@ impl DebugSettingsMenu {
         }
 
         if ui.button("Reset to dirt tiles") {
-            let dirt_til_def = tile_sets.find_tile_def_by_name(
+            let dirt_til_def = tile_sets.find_tile_def_by_hash(
                 TileMapLayerKind::Terrain,
-                "ground",
-                "dirt");
+                TERRAIN_GROUND_CATEGORY.hash,
+                hash::fnv1a_from_str("dirt"));
             tile_map.reset(dirt_til_def);
             world.reset();
         }
 
         if ui.button("Reset to grass tiles") {
-            let grass_tile_def = tile_sets.find_tile_def_by_name(
+            let grass_tile_def = tile_sets.find_tile_def_by_hash(
                 TileMapLayerKind::Terrain,
-                "ground",
-                "grass");
+                TERRAIN_GROUND_CATEGORY.hash,
+                hash::fnv1a_from_str("grass"));
             tile_map.reset(grass_tile_def);
             world.reset();
         }

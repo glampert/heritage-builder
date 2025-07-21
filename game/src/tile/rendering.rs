@@ -309,7 +309,7 @@ impl TileMapRenderer {
                     offscreen_count += 1;
                 }
             }
-            if offscreen_count == points.len() { true } else { false }
+            offscreen_count == points.len()
         };
 
         let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);

@@ -246,7 +246,7 @@ fn calc_visible_cells_range(map_size_in_cells: Size,
         &screen_rect,
         BASE_TILE_SIZE,
         map_size_in_cells,
-        &transform)
+        transform)
 }
 
 fn calc_scroll_delta(cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
@@ -285,11 +285,9 @@ fn calc_scroll_speed(cursor_screen_pos: Vec2, viewport_size: Size) -> f32 {
     };
 
     let max_edge_dist = edge_dist_x.max(edge_dist_y);
-
     let scroll_strength = (max_edge_dist / SCROLL_MARGIN).clamp(0.0, 1.0);
-    let scroll_speed_scaled = SCROLL_SPEED * scroll_strength;
 
-    scroll_speed_scaled
+    SCROLL_SPEED * scroll_strength
 }
 
 fn calc_map_center(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -> Vec2 {

@@ -199,7 +199,7 @@ impl<'config> HouseBuilding<'config> {
                 // Shop for resources needed for this level.
                 let all_or_nothing = false;
                 let resource_kinds_got =
-                    market.shop(&mut self.stock, &curr_level_resources_required, all_or_nothing);
+                    market.shop(&mut self.stock, curr_level_resources_required, all_or_nothing);
                 self.debug.log_resources_gained(resource_kinds_got, 1);
 
                 // And if we have space to upgrade, shop for resources needed for the next level, so we can advance.
@@ -247,21 +247,13 @@ impl HouseLevel {
     #[inline]
     fn is_max(self) -> bool {
         let curr: u32 = self.into();
-        if (curr as usize) == (HouseLevel::COUNT - 1) {
-            true
-        } else {
-            false
-        }
+        (curr as usize) == (HouseLevel::COUNT - 1)
     }
 
     #[inline]
     fn is_min(self) -> bool {
         let curr: u32 = self.into();
-        if curr == 0 {
-            true
-        } else {
-            false
-        }
+        curr == 0
     }
 
     #[inline]
@@ -583,7 +575,7 @@ impl<'config> HouseUpgradeState<'config> {
 // Debug UI
 // ----------------------------------------------
 
-impl<'config> HouseBuilding<'config> {
+impl HouseBuilding<'_> {
     fn draw_debug_ui_level_config(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header(format!("Config ({:?})", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
@@ -598,7 +590,7 @@ impl<'config> HouseBuilding<'config> {
         }
 
         let draw_level_requirements = 
-            |label: &str, level_requirements: &HouseLevelRequirements<'config>, imgui_id: u32| {
+            |label: &str, level_requirements: &HouseLevelRequirements, imgui_id: u32| {
 
             ui.separator();
             ui.text(label);

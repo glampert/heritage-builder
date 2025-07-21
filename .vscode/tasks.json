@@ -1,14 +1,54 @@
+/*
+| Task   | Command        | Keybinding        |
+| ------ | -------------- | ----------------- |
+| Build  | `cargo build`  | `Shift + Cmd + B` |
+| Test   | `cargo test`   | `Shift + Cmd + T` |
+| Check  | `cargo check`  | `Ctrl  + Cmd + C` |
+| Clippy | `cargo clippy` | `Shift + Cmd + L` |
+See: keybindings.json
+*/
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"type": "cargo",
-			"command": "build",
-			"problemMatcher": [
-				"$rustc"
-			],
-			"group": "build",
-			"label": "rust: cargo build"
-		}
-	]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "cargo",
+      "command": "build",
+      "label": "rust: cargo build",
+      "problemMatcher": ["$rustc"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "type": "cargo",
+      "command": "test",
+      "label": "rust: cargo test",
+      "problemMatcher": ["$rustc"],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    },
+    {
+      "type": "cargo",
+      "command": "check",
+      "label": "rust: cargo check",
+      "problemMatcher": ["$rustc"],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    },
+    {
+      "type": "cargo",
+      "command": "clippy",
+      "label": "rust: cargo clippy",
+      "problemMatcher": ["$rustc"],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    }
+  ]
 }

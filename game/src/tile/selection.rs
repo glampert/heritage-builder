@@ -71,12 +71,12 @@ impl TileSelection {
         }
     }
 
-    pub fn update<'tile_sets>(&mut self,
-                              mut layers: TileMapLayerMutRefs<'tile_sets>,
-                              map_size_in_cells: Size,
-                              cursor_screen_pos: Vec2,
-                              transform: &WorldToScreenTransform,
-                              placement_op: PlacementOp) {
+    pub fn update(&mut self,
+                  mut layers: TileMapLayerMutRefs,
+                  map_size_in_cells: Size,
+                  cursor_screen_pos: Vec2,
+                  transform: &WorldToScreenTransform,
+                  placement_op: PlacementOp) {
 
         if self.left_mouse_button_held {
             // Keep updating the selection rect while left mouse button is held.
@@ -134,7 +134,7 @@ impl TileSelection {
         }
     }
 
-    pub fn clear<'tile_sets>(&mut self, mut layers: TileMapLayerMutRefs<'tile_sets>) {
+    pub fn clear(&mut self, mut layers: TileMapLayerMutRefs) {
         for cell in &self.cells {
             if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(*cell) {
                 tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
@@ -152,9 +152,9 @@ impl TileSelection {
         self.left_mouse_button_held && self.rect.is_valid()
     }
 
-    fn select_tile<'tile_sets>(&mut self,
-                               tile: &mut Tile<'tile_sets>,
-                               selection_flags: TileFlags) {
+    fn select_tile(&mut self,
+                   tile: &mut Tile,
+                   selection_flags: TileFlags) {
 
         tile.set_flags(selection_flags, true);
 
@@ -166,10 +166,10 @@ impl TileSelection {
         debug_assert!(self.last_cell() == tile.base_cell());
     }
 
-    fn toggle_selection<'tile_sets>(&mut self,
-                                    mut layers: TileMapLayerMutRefs<'tile_sets>,
-                                    base_cell: Cell,
-                                    placement_op: PlacementOp) {
+    fn toggle_selection(&mut self,
+                        mut layers: TileMapLayerMutRefs,
+                        base_cell: Cell,
+                        placement_op: PlacementOp) {
 
         if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(base_cell) {
             self.valid_placement = false;

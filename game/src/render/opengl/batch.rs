@@ -129,7 +129,7 @@ impl<V: VertexTrait + Copy, I: IndexTrait + Copy + TryFrom<usize> + Into<usize>>
             return;
         }
 
-        debug_assert!(self.needs_sync == false); // call sync() first!
+        debug_assert!(!self.needs_sync); // call sync() first!
 
         render_context.set_primitive_topology(self.primitive_topology);
         render_context.set_shader_program(shader_program);
@@ -153,7 +153,7 @@ impl<V: VertexTrait + Copy, I: IndexTrait + Copy + TryFrom<usize> + Into<usize>>
             return;
         }
 
-        debug_assert!(self.needs_sync == false); // call sync() first!
+        debug_assert!(!self.needs_sync); // call sync() first!
 
         render_context.set_primitive_topology(self.primitive_topology);
         render_context.set_shader_program(shader_program);

@@ -164,7 +164,7 @@ impl ShaderProgram {
     }
 
     pub fn try_find_variable(&self, name: &str) -> Result<ShaderVariable, String> {
-        debug_assert!(name.is_empty() == false);
+        debug_assert!(!name.is_empty());
         debug_assert!(self.is_valid());
 
         // Marshall to null terminated C string:
@@ -196,7 +196,7 @@ impl ShaderProgram {
     fn create_shader(shader_type: gl::types::GLenum,
                      shader_code: &str) -> Result<gl::types::GLuint, String> {
 
-        debug_assert!(shader_code.is_empty() == false);
+        debug_assert!(!shader_code.is_empty());
 
         unsafe {
             let shader_handle = gl::CreateShader(shader_type);
@@ -211,14 +211,14 @@ impl ShaderProgram {
             gl::CompileShader(shader_handle);
 
             // Check for shader compile errors:
-            const INFO_LOG_BUFFER_SIZE: usize = 512;
             let mut success = gl::FALSE as gl::types::GLint;
-            let mut info_log = Vec::with_capacity(INFO_LOG_BUFFER_SIZE);
-            info_log.set_len(INFO_LOG_BUFFER_SIZE - 1); // subtract 1 to skip the trailing null character
-
             gl::GetShaderiv(shader_handle, gl::COMPILE_STATUS, &mut success);
 
             if success != gl::TRUE as gl::types::GLint {
+                const INFO_LOG_BUFFER_SIZE: usize = 512;
+                let mut info_log = vec![0u8; INFO_LOG_BUFFER_SIZE];
+                info_log.set_len(INFO_LOG_BUFFER_SIZE - 1); // subtract 1 to skip the trailing null character
+
                 gl::GetShaderInfoLog(
                     shader_handle,
                     INFO_LOG_BUFFER_SIZE as gl::types::GLsizei,
@@ -263,13 +263,14 @@ impl ShaderProgram {
             gl::LinkProgram(program_handle);
 
             // Check for linking errors:
-            const INFO_LOG_BUFFER_SIZE: usize = 512;
             let mut success = gl::FALSE as gl::types::GLint;
-            let mut info_log = Vec::with_capacity(INFO_LOG_BUFFER_SIZE);
-            info_log.set_len(INFO_LOG_BUFFER_SIZE - 1); // subtract 1 to skip the trailing null character
             gl::GetProgramiv(program_handle, gl::LINK_STATUS, &mut success);
 
             if success != gl::TRUE as gl::types::GLint {
+                const INFO_LOG_BUFFER_SIZE: usize = 512;
+                let mut info_log = vec![0u8; INFO_LOG_BUFFER_SIZE];
+                info_log.set_len(INFO_LOG_BUFFER_SIZE - 1); // subtract 1 to skip the trailing null character
+
                 gl::GetProgramInfoLog(
                     program_handle,
                     INFO_LOG_BUFFER_SIZE as gl::types::GLsizei,

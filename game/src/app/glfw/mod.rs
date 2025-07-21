@@ -210,8 +210,8 @@ fn get_glfw_window_ptr<T: Application>(app: &T) -> *mut glfw::PWindow {
 // For the ImGui OpenGL backend.
 pub fn load_gl_func<T: Application>(app: &T, func_name: &'static str) -> *const c_void {
     let window_ptr = get_glfw_window_ptr(app);
-    debug_assert!(window_ptr.is_null() == false);
-    unsafe { (*window_ptr).get_proc_address(func_name) as *const c_void }
+    debug_assert!(!window_ptr.is_null());
+    unsafe { (*window_ptr).get_proc_address(func_name) }
 }
 
 // ----------------------------------------------
@@ -232,7 +232,7 @@ impl GlfwInputSystem {
 
     #[inline]
     fn get_window(&self) -> &glfw::PWindow {
-        debug_assert!(self.window_ptr.is_null() == false);
+        debug_assert!(!self.window_ptr.is_null());
         unsafe { &(*self.window_ptr) }
     }
 }

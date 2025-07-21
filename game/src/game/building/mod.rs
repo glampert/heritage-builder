@@ -579,7 +579,7 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingContext<'config, 'que
     }
 }
 
-impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> std::fmt::Display for BuildingContext<'config, 'query, 'sim, 'tile_map, 'tile_sets> {
+impl std::fmt::Display for BuildingContext<'_, '_, '_, '_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Building '{}' ({}|{}) [{},{}]",
                self.name,

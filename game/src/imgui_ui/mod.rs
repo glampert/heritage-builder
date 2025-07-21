@@ -60,14 +60,14 @@ impl UiSystem {
 
     #[inline]
     pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time: time::Duration) {
-        debug_assert!(self.builder_ptr.is_null() == true);
+        debug_assert!(self.builder_ptr.is_null());
         let ui_builder = self.context.begin_frame(app, input_sys, delta_time);
         self.builder_ptr = ui_builder as *const imgui::Ui;
     }
 
     #[inline]
     pub fn end_frame(&mut self) {
-        debug_assert!(self.builder_ptr.is_null() == false);
+        debug_assert!(!self.builder_ptr.is_null());
         self.builder_ptr = null::<imgui::Ui>();
         self.context.end_frame();
     }
@@ -138,7 +138,7 @@ impl UiSystem {
 
     #[inline]
     pub fn builder(&self) -> &imgui::Ui {
-        debug_assert!(self.builder_ptr.is_null() == false);
+        debug_assert!(!self.builder_ptr.is_null());
         unsafe { &*self.builder_ptr }
     }
 
@@ -204,11 +204,10 @@ impl UiContext {
         // of the errors if ever required for inspection.
         let imgui_renderer = utils::platform::macos_redirect_stderr(|| {
             // Set up the OpenGL renderer:
-            let imgui_renderer = ImGuiRenderer::new(&mut imgui_ctx,
+            ImGuiRenderer::new(&mut imgui_ctx,
                 |func_name| {
                     app::load_gl_func(app, func_name)
-                });
-            imgui_renderer
+                })
         }, "stderr_gl_load_imgui.log");
 
         Self {
@@ -220,7 +219,7 @@ impl UiContext {
     }
 
     pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time: time::Duration) -> &imgui::Ui {
-        debug_assert!(self.frame_started == false);
+        debug_assert!(!self.frame_started);
     
         let io = self.imgui_ctx.io_mut();
         io.update_delta_time(delta_time);
@@ -246,7 +245,7 @@ impl UiContext {
     }
 
     pub fn end_frame(&mut self) {
-        debug_assert!(self.frame_started == true);
+        debug_assert!(self.frame_started);
 
         let draw_data = self.imgui_ctx.render();
 
@@ -338,78 +337,78 @@ impl UiContext {
     fn apply_custom_theme(style: &mut Style) {
         let colors = &mut style.colors;
 
-        colors[StyleColor::Text as usize] = [0.92, 0.93, 0.94, 1.0].into();
-        colors[StyleColor::TextDisabled as usize] = [0.50, 0.52, 0.54, 1.0].into();
-        colors[StyleColor::WindowBg as usize] = [0.14, 0.14, 0.16, 0.9].into();
-        colors[StyleColor::ChildBg as usize] = [0.16, 0.16, 0.18, 0.9].into();
-        colors[StyleColor::PopupBg as usize] = [0.18, 0.18, 0.20, 0.9].into();
-        colors[StyleColor::Border as usize] = [0.28, 0.29, 0.30, 0.60].into();
-        colors[StyleColor::BorderShadow as usize] = [0.00, 0.00, 0.00, 0.00].into();
-        colors[StyleColor::FrameBg as usize] = [0.20, 0.22, 0.24, 1.0].into();
-        colors[StyleColor::FrameBgHovered as usize] = [0.22, 0.24, 0.26, 1.0].into();
-        colors[StyleColor::FrameBgActive as usize] = [0.24, 0.26, 0.28, 1.0].into();
-        colors[StyleColor::TitleBg as usize] = [0.14, 0.14, 0.16, 1.0].into();
-        colors[StyleColor::TitleBgActive as usize] = [0.16, 0.16, 0.18, 1.0].into();
-        colors[StyleColor::TitleBgCollapsed as usize] = [0.14, 0.14, 0.16, 0.9].into();
-        colors[StyleColor::MenuBarBg as usize] = [0.20, 0.20, 0.22, 1.0].into();
-        colors[StyleColor::ScrollbarBg as usize] = [0.16, 0.16, 0.18, 1.0].into();
+        colors[StyleColor::Text as usize] = [0.92, 0.93, 0.94, 1.0];
+        colors[StyleColor::TextDisabled as usize] = [0.50, 0.52, 0.54, 1.0];
+        colors[StyleColor::WindowBg as usize] = [0.14, 0.14, 0.16, 0.9];
+        colors[StyleColor::ChildBg as usize] = [0.16, 0.16, 0.18, 0.9];
+        colors[StyleColor::PopupBg as usize] = [0.18, 0.18, 0.20, 0.9];
+        colors[StyleColor::Border as usize] = [0.28, 0.29, 0.30, 0.60];
+        colors[StyleColor::BorderShadow as usize] = [0.00, 0.00, 0.00, 0.00];
+        colors[StyleColor::FrameBg as usize] = [0.20, 0.22, 0.24, 1.0];
+        colors[StyleColor::FrameBgHovered as usize] = [0.22, 0.24, 0.26, 1.0];
+        colors[StyleColor::FrameBgActive as usize] = [0.24, 0.26, 0.28, 1.0];
+        colors[StyleColor::TitleBg as usize] = [0.14, 0.14, 0.16, 1.0];
+        colors[StyleColor::TitleBgActive as usize] = [0.16, 0.16, 0.18, 1.0];
+        colors[StyleColor::TitleBgCollapsed as usize] = [0.14, 0.14, 0.16, 0.9];
+        colors[StyleColor::MenuBarBg as usize] = [0.20, 0.20, 0.22, 1.0];
+        colors[StyleColor::ScrollbarBg as usize] = [0.16, 0.16, 0.18, 1.0];
 
         let theme_color = [0.58, 0.45, 0.35, 1.0]; // Soft light brown
 
-        colors[StyleColor::ScrollbarGrab as usize] = theme_color.into();
-        colors[StyleColor::ScrollbarGrabHovered as usize] = [0.63, 0.50, 0.38, 1.0].into();
-        colors[StyleColor::ScrollbarGrabActive as usize] = [0.68, 0.54, 0.42, 1.0].into();
+        colors[StyleColor::ScrollbarGrab as usize] = theme_color;
+        colors[StyleColor::ScrollbarGrabHovered as usize] = [0.63, 0.50, 0.38, 1.0];
+        colors[StyleColor::ScrollbarGrabActive as usize] = [0.68, 0.54, 0.42, 1.0];
 
-        colors[StyleColor::CheckMark as usize] = theme_color.into();
-        colors[StyleColor::SliderGrab as usize] = theme_color.into();
-        colors[StyleColor::SliderGrabActive as usize] = [0.65, 0.50, 0.40, 1.0].into();
+        colors[StyleColor::CheckMark as usize] = theme_color;
+        colors[StyleColor::SliderGrab as usize] = theme_color;
+        colors[StyleColor::SliderGrabActive as usize] = [0.65, 0.50, 0.40, 1.0];
 
-        colors[StyleColor::Button as usize] = theme_color.into();
-        colors[StyleColor::ButtonHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
-        colors[StyleColor::ButtonActive as usize] = [0.70, 0.55, 0.45, 1.0].into();
+        colors[StyleColor::Button as usize] = theme_color;
+        colors[StyleColor::ButtonHovered as usize] = [0.65, 0.50, 0.40, 1.0];
+        colors[StyleColor::ButtonActive as usize] = [0.70, 0.55, 0.45, 1.0];
 
-        colors[StyleColor::Header as usize] = theme_color.into();
-        colors[StyleColor::HeaderHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
-        colors[StyleColor::HeaderActive as usize] = [0.70, 0.55, 0.45, 1.0].into();
+        colors[StyleColor::Header as usize] = theme_color;
+        colors[StyleColor::HeaderHovered as usize] = [0.65, 0.50, 0.40, 1.0];
+        colors[StyleColor::HeaderActive as usize] = [0.70, 0.55, 0.45, 1.0];
 
-        colors[StyleColor::Separator as usize] = [0.28, 0.29, 0.30, 1.0].into();
-        colors[StyleColor::SeparatorHovered as usize] = theme_color.into();
-        colors[StyleColor::SeparatorActive as usize] = theme_color.into();
+        colors[StyleColor::Separator as usize] = [0.28, 0.29, 0.30, 1.0];
+        colors[StyleColor::SeparatorHovered as usize] = theme_color;
+        colors[StyleColor::SeparatorActive as usize] = theme_color;
 
-        colors[StyleColor::ResizeGrip as usize] = theme_color.into();
-        colors[StyleColor::ResizeGripHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
-        colors[StyleColor::ResizeGripActive as usize] = [0.70, 0.55, 0.45, 1.0].into();
+        colors[StyleColor::ResizeGrip as usize] = theme_color;
+        colors[StyleColor::ResizeGripHovered as usize] = [0.65, 0.50, 0.40, 1.0];
+        colors[StyleColor::ResizeGripActive as usize] = [0.70, 0.55, 0.45, 1.0];
 
-        colors[StyleColor::Tab as usize] = [0.20, 0.22, 0.24, 1.0].into();
-        colors[StyleColor::TabHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
-        colors[StyleColor::TabActive as usize] = theme_color.into();
-        colors[StyleColor::TabUnfocused as usize] = [0.20, 0.22, 0.24, 1.0].into();
-        colors[StyleColor::TabUnfocusedActive as usize] = theme_color.into();
+        colors[StyleColor::Tab as usize] = [0.20, 0.22, 0.24, 1.0];
+        colors[StyleColor::TabHovered as usize] = [0.65, 0.50, 0.40, 1.0];
+        colors[StyleColor::TabActive as usize] = theme_color;
+        colors[StyleColor::TabUnfocused as usize] = [0.20, 0.22, 0.24, 1.0];
+        colors[StyleColor::TabUnfocusedActive as usize] = theme_color;
 
-        colors[StyleColor::PlotLines as usize] = theme_color.into();
-        colors[StyleColor::PlotLinesHovered as usize] = theme_color.into();
-        colors[StyleColor::PlotHistogram as usize] = theme_color.into();
-        colors[StyleColor::PlotHistogramHovered as usize] = [0.65, 0.50, 0.40, 1.0].into();
+        colors[StyleColor::PlotLines as usize] = theme_color;
+        colors[StyleColor::PlotLinesHovered as usize] = theme_color;
+        colors[StyleColor::PlotHistogram as usize] = theme_color;
+        colors[StyleColor::PlotHistogramHovered as usize] = [0.65, 0.50, 0.40, 1.0];
 
-        colors[StyleColor::TableHeaderBg as usize] = [0.20, 0.22, 0.24, 1.0].into();
-        colors[StyleColor::TableBorderStrong as usize] = [0.28, 0.29, 0.30, 1.0].into();
-        colors[StyleColor::TableBorderLight as usize] = [0.24, 0.25, 0.26, 1.0].into();
-        colors[StyleColor::TableRowBg as usize] = [0.20, 0.22, 0.24, 1.0].into();
-        colors[StyleColor::TableRowBgAlt as usize] = [0.22, 0.24, 0.26, 1.0].into();
+        colors[StyleColor::TableHeaderBg as usize] = [0.20, 0.22, 0.24, 1.0];
+        colors[StyleColor::TableBorderStrong as usize] = [0.28, 0.29, 0.30, 1.0];
+        colors[StyleColor::TableBorderLight as usize] = [0.24, 0.25, 0.26, 1.0];
+        colors[StyleColor::TableRowBg as usize] = [0.20, 0.22, 0.24, 1.0];
+        colors[StyleColor::TableRowBgAlt as usize] = [0.22, 0.24, 0.26, 1.0];
 
-        colors[StyleColor::TextSelectedBg as usize] = [0.58, 0.45, 0.35, 0.35].into();
-        colors[StyleColor::DragDropTarget as usize] = [0.58, 0.45, 0.35, 0.90].into();
-        colors[StyleColor::NavHighlight as usize] = theme_color.into();
-        colors[StyleColor::NavWindowingHighlight as usize] = [1.0, 1.0, 1.0, 0.70].into();
-        colors[StyleColor::NavWindowingDimBg as usize] = [0.80, 0.80, 0.80, 0.20].into();
-        colors[StyleColor::ModalWindowDimBg as usize] = [0.80, 0.80, 0.80, 0.35].into();
+        colors[StyleColor::TextSelectedBg as usize] = [0.58, 0.45, 0.35, 0.35];
+        colors[StyleColor::DragDropTarget as usize] = [0.58, 0.45, 0.35, 0.90];
+        colors[StyleColor::NavHighlight as usize] = theme_color;
+        colors[StyleColor::NavWindowingHighlight as usize] = [1.0, 1.0, 1.0, 0.70];
+        colors[StyleColor::NavWindowingDimBg as usize] = [0.80, 0.80, 0.80, 0.20];
+        colors[StyleColor::ModalWindowDimBg as usize] = [0.80, 0.80, 0.80, 0.35];
 
-        style.window_padding = [8.0, 8.0].into();
-        style.frame_padding = [5.0, 2.0].into();
-        style.cell_padding = [6.0, 6.0].into();
-        style.item_spacing = [6.0, 6.0].into();
-        style.item_inner_spacing = [6.0, 6.0].into();
-        style.touch_extra_padding = [0.0, 0.0].into();
+        style.window_padding = [8.0, 8.0];
+        style.frame_padding = [5.0, 2.0];
+        style.cell_padding = [6.0, 6.0];
+        style.item_spacing = [6.0, 6.0];
+        style.item_inner_spacing = [6.0, 6.0];
+        style.touch_extra_padding = [0.0, 0.0];
         style.indent_spacing = 25.0;
         style.scrollbar_size = 11.0;
         style.grab_min_size = 10.0;

@@ -125,11 +125,7 @@ pub struct PopupMessage {
 
 impl PopupMessage {
     pub fn new(lifetime_secs: Option<Seconds>, color: Color, text: impl Into<Cow<'static, str>>) -> Self {
-        let lifetime = lifetime_secs.map_or(
-            None,
-            |seconds| Some((seconds, seconds))
-        );
-
+        let lifetime = lifetime_secs.map(|seconds| (seconds, seconds));
         Self {
             lifetime: lifetime,
             color: color,

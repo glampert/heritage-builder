@@ -189,7 +189,7 @@ impl<'config> ServiceBuilding<'config> {
 // Debug UI
 // ----------------------------------------------
 
-impl<'config> ServiceBuilding<'config> {
+impl ServiceBuilding<'_> {
     fn draw_debug_ui_resources_stock(&mut self, ui_sys: &UiSystem) {
         if self.stock.accepts_any() {
             let ui = ui_sys.builder();

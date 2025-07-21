@@ -603,9 +603,9 @@ impl TileCategory {
                 return false;
             }
 
-            debug_assert!(tile_def.kind.is_empty() == false, "Missing TileKind flags!");
+            debug_assert!(!tile_def.kind.is_empty(), "Missing TileKind flags!");
 
-            if let Some(_) = self.mapping.insert(tile_name_hash, entry_index) {
+            if self.mapping.insert(tile_name_hash, entry_index).is_some() {
                 eprintln!("TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
                           self.name,
                           tile_def.name,
@@ -689,7 +689,7 @@ impl TileSet {
                 return false;
             }
 
-            if let Some(_) = self.mapping.insert(category_name_hash, entry_index) {
+            if self.mapping.insert(category_name_hash, entry_index).is_some() {
                 eprintln!("TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
                           self.layer,
                           category.name,
@@ -954,7 +954,7 @@ impl TileSets {
                      tile_set_path: &str,
                      layer: TileMapLayerKind) -> bool {
 
-        debug_assert!(tile_set_path.is_empty() == false);
+        debug_assert!(!tile_set_path.is_empty());
         let tile_set_json_path = Path::new(tile_set_path).join("tile_set.json");
 
         let json = match fs::read_to_string(&tile_set_json_path) {
