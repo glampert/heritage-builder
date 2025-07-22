@@ -6,6 +6,7 @@
             "tile_defs": [
                 {
                     "name": "dirt",
+                    "path_kind": "Ground",
                     "draw_size": {
                         "width": 67,
                         "height": 36
@@ -26,6 +27,7 @@
                 },
                 {
                     "name": "grass",
+                    "path_kind": "Ground",
                     "draw_size": {
                         "width": 69,
                         "height": 38
@@ -46,6 +48,7 @@
                 },
                 {
                     "name": "stone_path",
+                    "path_kind": "Road",
                     "draw_size": {
                         "width": 68,
                         "height": 36
@@ -71,6 +74,7 @@
             "tile_defs": [
                 {
                     "name": "blue",
+                    "path_kind": "Water",
                     "draw_size": {
                         "width": 68,
                         "height": 34

@@ -214,11 +214,11 @@ impl DebugSettingsMenu {
         }
 
         if ui.button("Reset to dirt tiles") {
-            let dirt_til_def = tile_sets.find_tile_def_by_hash(
+            let dirt_tile_def = tile_sets.find_tile_def_by_hash(
                 TileMapLayerKind::Terrain,
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("dirt"));
-            tile_map.reset(dirt_til_def);
+            tile_map.reset(dirt_tile_def);
             world.reset();
         }
 

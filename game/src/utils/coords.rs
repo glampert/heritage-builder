@@ -47,7 +47,7 @@ impl std::fmt::Display for IsoPoint {
 // ----------------------------------------------
 
 // X,Y position in the tile map grid of cells.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Cell {
     pub x: i32,
     pub y: i32,

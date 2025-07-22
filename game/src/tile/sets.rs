@@ -11,6 +11,7 @@ use std::{
 
 use crate::{
     bitflags_with_display,
+    pathfind::NodeKind as PathNodeKind,
     render::{
         TextureCache,
         TextureHandle
@@ -216,9 +217,12 @@ pub struct TileDef {
     pub variations: SmallVec<[TileVariation; 1]>,
 
     // True if the tile fully occludes the terrain tiles below, so we can cull them.
-    // Defaults to true for all Buildings, false for Units. Ignored for Terrain.
+    // Defaults to true. Ignored for Terrain.
     #[serde(default = "default_occludes_terrain")]
     pub occludes_terrain: bool,
+
+    #[serde(default = "default_path_kind")]
+    pub path_kind: PathNodeKind,
 
     // Tile kind & archetype combined, also defines which layer the tile can be placed on.
     // Resolved post-load based on layer and category.
@@ -507,6 +511,9 @@ const fn default_tile_size() -> Size { BASE_TILE_SIZE }
 
 #[inline]
 const fn default_occludes_terrain() -> bool { true }
+
+#[inline]
+const fn default_path_kind() -> PathNodeKind { PathNodeKind::empty() }
 
 // ----------------------------------------------
 // EditableTileDef

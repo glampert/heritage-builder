@@ -4,15 +4,18 @@ mod app;
 mod debug;
 mod game;
 mod imgui_ui;
+mod pathfind;
 mod render;
 mod tile;
 mod utils;
 
 use imgui_ui::*;
+use pathfind::*;
 use render::*;
 use utils::{
     *,
-    coords::*
+    coords::*,
+    hash::*,
 };
 use app::{
     *,
@@ -63,8 +66,13 @@ fn main() {
 
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
 
-    let mut tile_map = create_test_tile_map(&tile_sets);
-    //let mut tile_map = TileMap::new(Size::new(64, 64), None);
+    //let mut tile_map = create_test_tile_map(&tile_sets);
+    let mut tile_map = TileMap::with_terrain_tile(
+        Size::new(64, 64),
+        &tile_sets,
+        TERRAIN_GROUND_CATEGORY,
+        StrHashPair::from_str("dirt")
+    );
 
     let building_configs = BuildingConfigs::load();
     let mut sim = Simulation::new();
@@ -92,6 +100,13 @@ fn main() {
 
     let mut frame_clock = FrameClock::new();
 
+    // Test path finding:
+    //  CTRL+Left Mouse places start and end goals.
+    //  ENTER runs the search and highlights path cells.
+    //  ESCAPE clears start/end and search results.
+    let mut search_test_start = Cell::invalid();
+    let mut search_test_goal  = Cell::invalid();
+
     while !app.should_quit() {
         frame_clock.begin_frame();
 
@@ -115,6 +130,35 @@ fn main() {
                         tile_inspector_menu.close();
                         tile_palette_menu.clear_selection();
                         tile_map.clear_selection(&mut tile_selection);
+
+                        // Clear test search:
+                        search_test_start = Cell::invalid();
+                        search_test_goal  = Cell::invalid();
+                        tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::all(),
+                            |tile| {
+                                tile.set_flags(TileFlags::Highlighted, false);
+                            });
+                    }
+
+                    if key == InputKey::Enter {
+                        let graph = Graph::from_tile_map(&tile_map);
+                        let heuristic = AStarHeuristic::new();
+                        let mut search = Search::new(&graph);
+                        let traversable_node_kinds = NodeKind::Road;
+
+                        match search.find_path(&graph, &heuristic, traversable_node_kinds, Node::new(search_test_start), Node::new(search_test_goal)) {
+                            SearchResult::PathFound(path) => {
+                                println!("FOUND PATH: {:?}", path);
+                                for node in path {
+                                    if let Some(tile) = tile_map.try_tile_from_layer_mut(node.cell, TileMapLayerKind::Terrain) {
+                                        tile.set_flags(TileFlags::Highlighted, true);
+                                    }
+                                }
+                            },
+                            SearchResult::PathNotFound => {
+                                println!("NO PATH COULD BE FOUND!");
+                            }
+                        }
                     }
                 }
                 ApplicationEvent::CharInput(c) => {
@@ -153,6 +197,18 @@ fn main() {
                             if tile_inspector_menu.on_mouse_click(button, action, selected_tile).is_handled() {
                                 continue;
                             }
+                        }
+                    }
+
+                    if button == MouseButton::Left && modifiers.intersects(InputModifiers::Control) {
+                        if !search_test_start.is_valid() {
+                            let cursor_cell = tile_map.find_exact_cell_for_point(TileMapLayerKind::Terrain, cursor_screen_pos, camera.transform());
+                            search_test_start = cursor_cell;
+                            println!("search_start: {search_test_start}");
+                        } else if !search_test_goal.is_valid() {
+                            let cursor_cell = tile_map.find_exact_cell_for_point(TileMapLayerKind::Terrain, cursor_screen_pos, camera.transform());
+                            search_test_goal = cursor_cell;
+                            println!("search_goal: {search_test_goal}");
                         }
                     }
                 }

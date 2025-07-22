@@ -3,6 +3,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     app::input::{InputAction, MouseButton},
     imgui_ui::{UiInputEvent, UiSystem},
+    pathfind::NodeKind as PathNodeKind,
     game::sim::{
         Simulation,
         world::World
@@ -145,6 +146,7 @@ impl TileInspectorMenu {
             category: &'a str,
             kind: TileKind,
             flags: TileFlags,
+            path_kind: PathNodeKind,
             has_game_state: bool,
             cells: CellRange,
             iso_pos: IsoPoint,
@@ -162,6 +164,7 @@ impl TileInspectorMenu {
             category: tile.category_name(tile_sets),
             kind: tile.kind(),
             flags: tile.flags(),
+            path_kind: tile.tile_def().path_kind,
             has_game_state: tile.game_state_handle().is_valid(),
             cells: tile.cell_range(),
             iso_pos: coords::cell_to_iso(cell, BASE_TILE_SIZE),

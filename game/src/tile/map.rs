@@ -15,6 +15,7 @@ use crate::{
         Color,
         Seconds,
         UnsafeWeakRef,
+        hash::StrHashPair,
         coords::{
             self,
             Cell,
@@ -1330,6 +1331,19 @@ impl<'tile_sets> TileMap<'tile_sets> {
         };
         tile_map.reset(fill_with_def);
         tile_map
+    }
+
+    pub fn with_terrain_tile(size_in_cells: Size,
+                             tile_sets: &'tile_sets TileSets,
+                             category_name: StrHashPair,
+                             tile_name: StrHashPair) -> Self {
+
+        let fill_with_def = tile_sets.find_tile_def_by_hash(
+            TileMapLayerKind::Terrain,
+            category_name.hash,
+            tile_name.hash);
+
+        Self::new(size_in_cells, fill_with_def)
     }
 
     pub fn reset(&mut self, fill_with_def: Option<&'tile_sets TileDef>) {
