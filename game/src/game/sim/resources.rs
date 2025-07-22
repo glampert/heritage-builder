@@ -70,8 +70,8 @@ impl Workers {
         debug_assert!(min <= max);
         Self {
             count: 0,
-            min: min,
-            max: max,
+            min,
+            max,
         }
     }
 }
@@ -180,7 +180,7 @@ impl ResourceStock {
         }
         let index = bit_index(kind);
         let count = self.counts[index];
-        let item = StockItem { kind: kind, count: count.into() };
+        let item = StockItem { kind, count: count.into() };
         Some((index, item))
     }
 
@@ -236,7 +236,7 @@ impl ResourceStock {
         for (index, kind) in self.kinds.iter().enumerate() {
             debug_assert!(bit_index(kind) == index);
             let count = self.counts[index];
-            let item = StockItem { kind: kind, count: count.into() };
+            let item = StockItem { kind, count: count.into() };
             visitor_fn(index, &item);
         }
     }
@@ -248,7 +248,7 @@ impl ResourceStock {
         for (index, kind) in self.kinds.iter().enumerate() {
             debug_assert!(bit_index(kind) == index);
             let count = self.counts[index];
-            let mut item = StockItem { kind: kind, count: count.into() };
+            let mut item = StockItem { kind, count: count.into() };
             visitor_fn(index, &mut item);
             self.counts[index] = item.count.try_into().expect("Value cannot fit into a u16!");
         }

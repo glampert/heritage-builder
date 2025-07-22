@@ -89,11 +89,11 @@ impl<'config> Building<'config> {
                configs: &'config BuildingConfigs,
                archetype: BuildingArchetype<'config>) -> Self {
         Self {
-            name: name,
-            kind: kind,
-            map_cells: map_cells,
-            configs: configs,
-            archetype: archetype
+            name,
+            kind,
+            map_cells,
+            configs,
+            archetype,
         }
     }
 
@@ -184,7 +184,7 @@ pub struct BuildingList<'config> {
 impl<'config> BuildingList<'config> {
     pub fn new(archetype_kind: BuildingArchetypeKind) -> Self {
         Self {
-            archetype_kind: archetype_kind,
+            archetype_kind,
             buildings: Slab::new(),
         }
     }
@@ -500,12 +500,12 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingContext<'config, 'que
            configs: &'config BuildingConfigs,
            query: &'query mut Query<'config, 'sim, 'tile_map, 'tile_sets>) -> Self {
         Self {
-            name: name,
-            kind: kind,
-            archetype_kind: archetype_kind,
-            map_cells: map_cells,
-            configs: configs,
-            query: query
+            name,
+            kind,
+            archetype_kind,
+            map_cells,
+            configs,
+            query,
         }
     }
 
@@ -629,10 +629,7 @@ impl<'a> IntoBuildingDebugVar<'a> for &'a mut f32 {
 
 impl<'a> BuildingDebugVar<'a> {
     fn new(name: &'static str, value: impl IntoBuildingDebugVar<'a>) -> Self {
-        Self {
-            name: name,
-            value: value.into_debug_var(),
-        }
+        Self { name, value: value.into_debug_var() }
     }
 }
 

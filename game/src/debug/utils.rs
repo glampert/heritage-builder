@@ -240,9 +240,9 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
 
     // Adjust window background color based on tile kind.
     // The returned tokens take care of popping back to the previous color/font.
-    let _0 = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
-    let _1 = ui.push_style_color(imgui::StyleColor::Text, text_color);
-    let _2  = ui.push_font(ui_sys.fonts().small);
+    let _bg_col   = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
+    let _text_col = ui.push_style_color(imgui::StyleColor::Text, text_color);
+    let _font     = ui.push_font(ui_sys.fonts().small);
 
     ui.window(label)
         .position(position, imgui::Condition::Always)

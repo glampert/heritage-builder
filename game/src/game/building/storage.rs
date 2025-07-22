@@ -106,7 +106,7 @@ impl<'config> StorageBuilding<'config> {
     pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
         let config = configs.find_storage_config(kind);
         Self {
-            config: config,
+            config,
             workers: Workers::new(config.min_workers, config.max_workers),
             storage_slots: StorageSlots::new(
                 &config.resources_accepted,
@@ -202,13 +202,13 @@ impl StorageSlot {
 
     fn resource_index_and_count(&self, kind: ResourceKind) -> (usize, u32) {
         let (index, item) = self.stock.find(kind)
-            .expect(&format!("Resource kind '{}' expected to exist in the stock!", kind));
+            .unwrap_or_else(|| panic!("Resource kind '{}' expected to exist in the stock!", kind));
         (index, item.count)
     }
 
     fn set_resource_count(&mut self, index: usize, count: u32) {
         let kind = self.allocated_resource_kind.unwrap();
-        self.stock.set(index, StockItem { kind: kind, count: count });
+        self.stock.set(index, StockItem { kind, count });
     }
 
     fn increment_resource_count(&mut self, kind: ResourceKind, add_amount: u32, slot_capacity: u32) -> u32 {
@@ -278,7 +278,7 @@ impl StorageSlots {
             });
         }
 
-        Box::new(Self { slots: slots, slot_capacity: slot_capacity })
+        Box::new(Self { slots, slot_capacity })
     }
 
     #[inline]

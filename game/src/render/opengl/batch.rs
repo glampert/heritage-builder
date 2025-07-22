@@ -59,7 +59,7 @@ impl<V: VertexTrait + Copy, I: IndexTrait + Copy + TryFrom<usize> + Into<usize>>
                 index_buffer,
                 &vertex_layout,
                 vertex_stride),
-            primitive_topology: primitive_topology,
+            primitive_topology,
             needs_sync: false,
         }
     }
@@ -78,8 +78,8 @@ impl<V: VertexTrait + Copy, I: IndexTrait + Copy + TryFrom<usize> + Into<usize>>
                 start: ib_slice_start as u32,
                 count: indices.len() as u32,
             },
-            texture: texture,
-            color: color,
+            texture,
+            color,
         });
     }
 

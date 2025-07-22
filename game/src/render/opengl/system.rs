@@ -257,7 +257,7 @@ impl render::RenderSystem for RenderSystem {
             return; // Cull if fully offscreen.
         }
 
-        let vertices = [ PointVertex2D { position: pt, color: color, size: size } ];
+        let vertices = [ PointVertex2D { position: pt, color, size } ];
         const INDICES: [PointIndex2D; 1] = [ 0 ];
 
         self.points_batch.add_fast(&vertices, &INDICES);

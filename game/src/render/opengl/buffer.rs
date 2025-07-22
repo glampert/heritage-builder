@@ -129,9 +129,9 @@ impl VertexBuffer {
 
         Self {
             handle: buffer_handle,
-            count: count,
-            stride: stride,
-            usage_hint: usage_hint,
+            count,
+            stride,
+            usage_hint,
         }
     }
 }
@@ -303,9 +303,9 @@ impl IndexBuffer {
 
         Self {
             handle: buffer_handle,
-            count: count,
-            usage_hint: usage_hint,
-            index_type: index_type,
+            count,
+            usage_hint,
+            index_type,
         }
     }
 }
@@ -416,8 +416,8 @@ impl VertexArray {
 
         Self {
             handle: array_handle,
-            vertex_buffer: vertex_buffer,
-            index_buffer: index_buffer,
+            vertex_buffer,
+            index_buffer,
         }
     }
 

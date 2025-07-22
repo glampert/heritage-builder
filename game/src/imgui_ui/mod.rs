@@ -211,8 +211,8 @@ impl UiContext {
         }, "stderr_gl_load_imgui.log");
 
         Self {
-            imgui_ctx: imgui_ctx,
-            imgui_renderer: imgui_renderer,
+            imgui_ctx,
+            imgui_renderer,
             fonts_ids: UiFonts { normal: font_normal, small: font_small },
             frame_started: false,
         }

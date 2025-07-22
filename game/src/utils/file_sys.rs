@@ -35,9 +35,8 @@ pub fn collect_dir_entries(path: &Path, filter: CollectDirEntriesFilter) -> Vec<
         match entry_result {
             Ok(entry) => {
                 let path = entry.path();
-                if path.is_file() && filter == CollectDirEntriesFilter::Files {
-                    result.push(path);
-                } else if path.is_dir() && filter == CollectDirEntriesFilter::SubDirs {
+                if (path.is_file() && filter == CollectDirEntriesFilter::Files) ||
+                   (path.is_dir()  && filter == CollectDirEntriesFilter::SubDirs) {
                     result.push(path);
                 }
             },

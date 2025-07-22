@@ -71,8 +71,8 @@ impl Camera {
         };
 
         Self {
-            viewport_size: viewport_size,
-            map_size_in_cells: map_size_in_cells,
+            viewport_size,
+            map_size_in_cells,
             transform: WorldToScreenTransform::new(
                 clamped_scaling,
                 clamped_offset

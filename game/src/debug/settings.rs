@@ -61,7 +61,7 @@ pub struct DebugSettingsMenu {
 impl DebugSettingsMenu {
     pub fn new(start_open: bool) -> Self {
         Self {
-            start_open: start_open,
+            start_open,
             draw_terrain: true,
             draw_buildings: true,
             draw_props: true,

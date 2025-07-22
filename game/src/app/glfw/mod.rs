@@ -76,14 +76,14 @@ impl GlfwApplication {
         }, "stderr_gl_load_app.log");
 
         Self {
-            title: title,
-            window_size: window_size,
-            fullscreen: fullscreen,
-            confine_cursor: confine_cursor,
+            title,
+            window_size,
+            fullscreen,
+            confine_cursor,
             should_quit: false,
-            glfw_instance: glfw_instance,
-            window: window,
-            event_receiver: event_receiver,
+            glfw_instance,
+            window,
+            event_receiver,
         }
     }
 }

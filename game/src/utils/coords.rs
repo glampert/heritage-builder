@@ -22,7 +22,7 @@ pub struct IsoPoint {
 impl IsoPoint {
     #[inline]
     pub const fn new(x: i32, y: i32) -> Self {
-        Self { x: x, y: y }
+        Self { x, y }
     }
 
     #[inline]
@@ -56,7 +56,7 @@ pub struct Cell {
 impl Cell {
     #[inline]
     pub const fn new(x: i32, y: i32) -> Self {
-        Self { x: x, y: y }
+        Self { x, y }
     }
 
     #[inline]
@@ -95,10 +95,7 @@ pub struct CellRange {
 impl CellRange {
     #[inline]
     pub const fn new(start: Cell, end: Cell) -> Self {
-        Self {
-            start: start,
-            end: end,
-        }
+        Self { start, end }
     }
 
     #[inline]
@@ -274,8 +271,8 @@ pub struct WorldToScreenTransform {
 impl WorldToScreenTransform {
     pub fn new(scaling: f32, offset: Vec2) -> Self {
         let transform = Self {
-            scaling: scaling,
-            offset: offset,
+            scaling,
+            offset,
         };
         debug_assert!(transform.is_valid());
         transform

@@ -136,7 +136,7 @@ impl UpdateTimer {
     #[inline]
     pub fn new(update_frequency_secs: Seconds) -> Self {
         Self {
-            update_frequency_secs: update_frequency_secs,
+            update_frequency_secs,
             time_since_last_update_secs: 0.0,
         }
     }
@@ -204,9 +204,9 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
            tile_map: &'tile_map mut TileMap<'tile_sets>,
            tile_sets: &'tile_sets TileSets) -> Self {
         Self {
-            rng: rng,
-            tile_map: tile_map,
-            tile_sets: tile_sets,
+            rng,
+            tile_map,
+            tile_sets,
             world: UnsafeWeakRef::new(world),
         }
     }

@@ -113,16 +113,12 @@ pub struct HouseBuilding<'config> {
 impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     fn update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
         // Update house states:
-        if self.stock_update_timer.tick(delta_time_secs).should_update() {
-            if !self.debug.freeze_stock_update() {
-                self.stock_update(context);
-            }
+        if self.stock_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_stock_update() {
+            self.stock_update(context);
         }
 
-        if self.upgrade_update_timer.tick(delta_time_secs).should_update() {
-            if !self.debug.freeze_upgrade_update() {
-                self.upgrade_update(context);
-            }
+        if self.upgrade_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_upgrade_update() {
+            self.upgrade_update(context);
         }
     }
 
@@ -299,7 +295,7 @@ impl<'config> HouseLevelRequirements<'config> {
            stock: &ResourceStock) -> Self {
 
         let mut reqs = Self {
-            level_config: level_config,
+            level_config,
             services_available: ServiceKind::empty(),
             resources_available: ResourceKind::empty(),
         };
@@ -374,7 +370,7 @@ struct HouseUpgradeState<'config> {
 impl<'config> HouseUpgradeState<'config> {
     fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
         Self {
-            level: level,
+            level,
             curr_level_config: configs.find_house_level_config(level),
             next_level_config: configs.find_house_level_config(level.next()),
             has_room_to_upgrade: true,
@@ -404,12 +400,8 @@ impl<'config> HouseUpgradeState<'config> {
             HouseLevelRequirements::new(context, self.next_level_config, stock);
 
         // Upgrade if we have the required services and resources for the next level.
-        let has_requirements = {
-            next_level_requirements.has_required_services() &&
-            next_level_requirements.has_required_resources()
-        };
-
-        has_requirements
+        next_level_requirements.has_required_services() &&
+        next_level_requirements.has_required_resources()
     }
 
     fn can_downgrade(&mut self,
@@ -423,12 +415,8 @@ impl<'config> HouseUpgradeState<'config> {
             HouseLevelRequirements::new(context, self.curr_level_config, stock);
 
         // Downgrade if we don't have the required services and resources for the current level.
-        let missing_requirements = {
-            !curr_level_requirements.has_required_services() ||
-            !curr_level_requirements.has_required_resources()
-        };
-
-        missing_requirements
+        !curr_level_requirements.has_required_services() ||
+        !curr_level_requirements.has_required_resources()
     }
 
     fn try_upgrade(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, debug: &mut HouseDebug) {

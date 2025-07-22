@@ -112,7 +112,7 @@ pub struct TileMapRenderer {
 impl TileMapRenderer {
     pub fn new(grid_color: Color, grid_line_thickness: f32) -> Self {
         Self {
-            grid_color: grid_color,
+            grid_color,
             grid_line_thickness: grid_line_thickness.clamp(MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS),
             stats: TileMapRenderStats::default(),
             temp_tile_sort_list: Vec::with_capacity(512),
@@ -303,9 +303,7 @@ impl TileMapRenderer {
         let is_fully_offscreen = |points: &[Vec2; 4]| {
             let mut offscreen_count = 0;
             for pt in points {
-                if pt.x < viewport.min.x || pt.y < viewport.min.y {
-                    offscreen_count += 1;
-                } else if pt.x > viewport.max.x || pt.y > viewport.max.y {
+                if pt.x < viewport.min.x || pt.y < viewport.min.y || pt.x > viewport.max.x || pt.y > viewport.max.y {
                     offscreen_count += 1;
                 }
             }

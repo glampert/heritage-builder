@@ -119,9 +119,9 @@ impl ShaderProgram {
         let vertex_shader_handle = Self::create_shader(gl::VERTEX_SHADER, vertex_shader_code)?;
         let program_handle = Self::create_program(vertex_shader_handle, NULL_SHADER_HANDLE)?;
         Ok(Self {
-            vertex_shader_handle: vertex_shader_handle,
+            vertex_shader_handle,
             fragment_shader_handle: NULL_SHADER_HANDLE,
-            program_handle: program_handle,
+            program_handle,
         })
     }
 
@@ -130,8 +130,8 @@ impl ShaderProgram {
         let program_handle = Self::create_program(NULL_SHADER_HANDLE, fragment_shader_handle)?;
         Ok(Self {
             vertex_shader_handle: NULL_SHADER_HANDLE,
-            fragment_shader_handle: fragment_shader_handle,
-            program_handle: program_handle,
+            fragment_shader_handle,
+            program_handle,
         })
     }
 
@@ -140,9 +140,9 @@ impl ShaderProgram {
         let fragment_shader_handle = Self::create_shader(gl::FRAGMENT_SHADER, fragment_shader_code)?;
         let program_handle = Self::create_program(vertex_shader_handle, fragment_shader_handle)?;
         Ok(Self {
-            vertex_shader_handle: vertex_shader_handle,
-            fragment_shader_handle: fragment_shader_handle,
-            program_handle: program_handle,
+            vertex_shader_handle,
+            fragment_shader_handle,
+            program_handle,
         })
     }
 
@@ -175,7 +175,7 @@ impl ShaderProgram {
             Err(format!("Cannot find shader variable '{}'", name))
         } else {
             Ok(ShaderVariable {
-                location: location,
+                location,
                 program_handle: self.program_handle,
                 name: name.to_string(),
             })

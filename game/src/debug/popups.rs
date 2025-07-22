@@ -127,8 +127,8 @@ impl PopupMessage {
     pub fn new(lifetime_secs: Option<Seconds>, color: Color, text: impl Into<Cow<'static, str>>) -> Self {
         let lifetime = lifetime_secs.map(|seconds| (seconds, seconds));
         Self {
-            lifetime: lifetime,
-            color: color,
+            lifetime,
+            color,
             offset: Vec2::zero(),
             text: text.into(),
         }

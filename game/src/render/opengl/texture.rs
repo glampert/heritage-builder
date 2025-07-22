@@ -196,11 +196,11 @@ impl Texture2D {
         };
 
         Self {
-            handle: handle,
-            tex_unit: tex_unit,
-            size: size,
-            filter: filter,
-            wrap_mode: wrap_mode,
+            handle,
+            tex_unit,
+            size,
+            filter,
+            wrap_mode,
             has_mipmaps: gen_mipmaps,
             name: debug_name.to_string(),
         }

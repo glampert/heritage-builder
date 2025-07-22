@@ -57,7 +57,7 @@ impl StrHashPair {
     #[inline]
     pub const fn from_str(string: &'static str) -> Self {
         Self {
-            string: string,
+            string,
             hash: fnv1a_from_str(string)
         }
     }

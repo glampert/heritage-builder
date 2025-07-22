@@ -47,8 +47,8 @@ pub enum BackFaceCulling {
 #[repr(u32)]
 #[derive(Copy, Clone)]
 pub enum FrontFacing {
-    CW,
-    CCW,
+    Cw,
+    Ccw,
 }
 
 pub struct RenderContext {
@@ -135,10 +135,10 @@ impl RenderContext {
 
     pub fn set_front_facing(&mut self, front_facing: FrontFacing) -> &mut Self {
         match front_facing {
-            FrontFacing::CW => unsafe {
+            FrontFacing::Cw => unsafe {
                 gl::FrontFace(gl::CW);
             },
-            FrontFacing::CCW => unsafe {
+            FrontFacing::Ccw => unsafe {
                 gl::FrontFace(gl::CCW);
             },
         }

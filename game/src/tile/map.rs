@@ -57,7 +57,7 @@ impl GameStateHandle {
         debug_assert!(kind  < u32::MAX); // Reserved value for invalid.
         Self {
             index: index as u32,
-            kind:  kind,
+            kind,
         }
     }
 
@@ -147,17 +147,17 @@ union TileArchetype<'tile_sets> {
 impl<'tile_sets> TileArchetype<'tile_sets> {
     #[inline]
     fn new_terrain(terrain: TerrainTile<'tile_sets>) -> Self {
-        Self { terrain: terrain }
+        Self { terrain }
     }
 
     #[inline]
     fn new_object(object: ObjectTile<'tile_sets>) -> Self {
-        Self { object: object }
+        Self { object }
     }
 
     #[inline]
     fn new_blocker(blocker: BlockerTile<'tile_sets>) -> Self {
-        Self { blocker: blocker }
+        Self { blocker }
     }
 }
 
@@ -227,7 +227,7 @@ impl<'tile_sets> TerrainTile<'tile_sets> {
     fn new(cell: Cell, tile_def: &'tile_sets TileDef) -> Self {
         Self {
             def: tile_def,
-            cell: cell,
+            cell,
             iso_coords: coords::cell_to_iso(cell, BASE_TILE_SIZE),
         }
     }
@@ -402,7 +402,7 @@ impl<'tile_sets> BlockerTile<'tile_sets> {
         Self {
             layer: UnsafeWeakRef::new(layer),
             cell: blocker_cell,
-            owner_cell: owner_cell,
+            owner_cell,
         }
     }
 
@@ -475,7 +475,7 @@ impl<'tile_sets> Tile<'tile_sets> {
         Self {
             kind: tile_def.kind(),
             flags: tile_def.flags(),
-            archetype: archetype
+            archetype
         }
     }
 
@@ -891,7 +891,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
         let tile_count = (size_in_cells.width * size_in_cells.height) as usize;
 
         Self {
-            layer_kind: layer_kind,
+            layer_kind,
             layer_size_in_cells: size_in_cells,
             cell_to_slab_idx: vec![INVALID_TILE_INDEX; tile_count],
             slab: Slab::new(),
@@ -1326,7 +1326,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn new(size_in_cells: Size, fill_with_def: Option<&'tile_sets TileDef>) -> Self {
         debug_assert!(size_in_cells.is_valid());
         let mut tile_map = Self {
-            size_in_cells: size_in_cells,
+            size_in_cells,
             layers: ArrayVec::new(),
         };
         tile_map.reset(fill_with_def);

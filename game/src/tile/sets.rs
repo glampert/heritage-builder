@@ -109,7 +109,7 @@ pub struct TileTexInfo {
 impl TileTexInfo {
     pub fn new(texture: TextureHandle) -> Self {
         Self {
-            texture: texture,
+            texture,
             coords: RectTexCoords::default(),
         }
     }

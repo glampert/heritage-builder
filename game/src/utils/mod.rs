@@ -98,18 +98,12 @@ pub struct Vec2 {
 impl Vec2 {
     #[inline]
     pub const fn new(x: f32, y: f32) -> Self {
-        Self {
-            x: x,
-            y: y,
-        }
+        Self { x, y }
     }
 
     #[inline]
     pub const fn zero() -> Self {
-        Self {
-            x: 0.0,
-            y: 0.0,
-        }
+        Self { x: 0.0, y: 0.0 }
     }
 
     #[inline]
@@ -301,7 +295,7 @@ pub struct Color {
 impl Color {
     #[inline]
     pub const fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
-        Self { r: r, g: g, b: b, a: a }
+        Self { r, g, b, a }
     }
 
     #[inline]
@@ -403,7 +397,7 @@ pub struct Size {
 impl Size {
     #[inline]
     pub const fn new(width: i32, height: i32) -> Self {
-        Self { width: width, height: height }
+        Self { width, height }
     }
 
     #[inline]
@@ -626,7 +620,7 @@ pub struct RectTexCoords {
 impl RectTexCoords {
     #[inline]
     pub const fn new(coords: [Vec2; 4]) -> Self {
-        Self { coords: coords }
+        Self { coords }
     }
 
     #[inline]

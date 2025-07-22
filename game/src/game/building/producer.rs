@@ -136,7 +136,7 @@ impl<'config> ProducerBuilding<'config> {
     pub fn new(kind: BuildingKind, tile_name: &str, tile_name_hash: StringHash, configs: &'config BuildingConfigs) -> Self {
         let config = configs.find_producer_config(kind, tile_name, tile_name_hash);
         Self {
-            config: config,
+            config,
             workers: Workers::new(config.min_workers, config.max_workers),
             production_update_timer: UpdateTimer::new(config.production_output_frequency_secs),
             production_input_stock: ProducerInputsLocalStock::new(
@@ -224,7 +224,7 @@ impl ProducerOutputLocalStock {
     fn new(output_kind: ResourceKind, capacity: u32) -> Self {
         Self {
             item: StockItem { kind: output_kind, count: 0 },
-            capacity: capacity,
+            capacity,
         }
     }
 
@@ -260,13 +260,10 @@ impl ProducerInputsLocalStock {
     fn new(resources_required: &ResourceKinds, capacity: u32) -> Self {
         let mut slots = SmallVec::new();
         resources_required.for_each(|kind| {
-            slots.push(StockItem { kind: kind, count: 0 });
+            slots.push(StockItem { kind, count: 0 });
             true
         });
-        Self {
-            slots: slots,
-            capacity: capacity,
-        }
+        Self { slots, capacity }
     }
 
     #[inline]
@@ -287,10 +284,8 @@ impl ProducerInputsLocalStock {
     #[inline]
     fn is_resource_slot_full(&self, kind: ResourceKind) -> bool {
         for slot in &self.slots {
-            if slot.kind.intersects(kind) {
-                if slot.count >= self.capacity {
-                    return true;
-                }
+            if slot.kind.intersects(kind) && slot.count >= self.capacity {
+                return true;
             }
         }
         false

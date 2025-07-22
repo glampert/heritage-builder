@@ -75,12 +75,10 @@ pub struct ServiceBuilding<'config> {
 impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     fn update(&mut self, context: &mut BuildingContext, delta_time_secs: Seconds) {
         // Procure resources from storage periodically if we need them.
-        if self.stock.accepts_any() {
-            if self.stock_update_timer.tick(delta_time_secs).should_update() {
-                if !self.debug.freeze_stock_update() {
-                    self.stock_update(context);
-                }
-            }
+        if self.stock.accepts_any() &&
+           self.stock_update_timer.tick(delta_time_secs).should_update() &&
+          !self.debug.freeze_stock_update() {
+            self.stock_update(context);
         }
     }
 
@@ -114,7 +112,7 @@ impl<'config> ServiceBuilding<'config> {
     pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
         let config = configs.find_service_config(kind);
         Self {
-            config: config,
+            config,
             workers: Workers::new(config.min_workers, config.max_workers),
             stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
             stock: ResourceStock::with_accepted_list(&config.resources_required),

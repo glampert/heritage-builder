@@ -252,7 +252,7 @@ impl TileInspectorMenu {
         }
 
         let debug_vars = DrawDebugUiVariables {
-            anim_set_count: anim_set_count,
+            anim_set_count,
             anim_frames_count: tile.anim_frames_count(),
             anim_duration_secs: anim_set.anim_duration_secs(),
             looping: anim_set.looping,

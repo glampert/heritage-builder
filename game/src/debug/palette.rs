@@ -46,7 +46,7 @@ pub struct TilePaletteMenu {
 impl TilePaletteMenu {
     pub fn new(start_open: bool, tex_cache: &mut impl TextureCache) -> Self {
         Self {
-            start_open: start_open,
+            start_open,
             clear_button_image: tex_cache.load_texture("assets/ui/x.png"),
             ..Default::default()
         }
