@@ -3,7 +3,7 @@ use smallvec::{smallvec, SmallVec};
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    building_debug_options,
+    game_object_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Color,
@@ -53,9 +53,9 @@ pub struct StorageConfig {
 // StorageDebug
 // ----------------------------------------------
 
-building_debug_options!(
+game_object_debug_options! {
     StorageDebug,
-);
+}
 
 // ----------------------------------------------
 // StorageBuilding
@@ -93,7 +93,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
                          show_popup_messages: bool) {
 
         self.debug.draw_popup_messages(
-            context,
+            || context.find_tile(),
             ui_sys,
             transform,
             visible_range,

@@ -4,7 +4,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    building_debug_options,
+    game_object_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Color,
@@ -85,7 +85,7 @@ pub struct HouseLevelConfig {
 // HouseDebug
 // ----------------------------------------------
 
-building_debug_options!(
+game_object_debug_options! {
     HouseDebug,
 
     // Stops any resources from being consumed.
@@ -94,7 +94,7 @@ building_debug_options!(
 
     // Stops any upgrade/downgrade when true.
     freeze_upgrade_update: bool,
-);
+}
 
 // ----------------------------------------------
 // HouseBuilding
@@ -137,7 +137,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
                          show_popup_messages: bool) {
 
         self.debug.draw_popup_messages(
-            context,
+            || context.find_tile(),
             ui_sys,
             transform,
             visible_range,

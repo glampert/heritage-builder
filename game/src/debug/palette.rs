@@ -4,6 +4,7 @@ use crate::{
     app::input::{InputAction, MouseButton},
     imgui_ui::{UiInputEvent, UiSystem},
     render::{RenderSystem, TextureCache, TextureHandle},
+    game::sim::{self},
     utils::{
         Color,
         Size,
@@ -93,15 +94,13 @@ impl TilePaletteMenu {
     }
 
     pub fn draw(&mut self,
+                context: &mut sim::debug::DebugContext,
                 render_sys: &mut impl RenderSystem,
-                ui_sys: &UiSystem,
-                tile_sets: &TileSets,
                 cursor_screen_pos: Vec2,
-                transform: &WorldToScreenTransform,
                 has_valid_placement: bool,
                 show_selection_bounds: bool) {
 
-        let ui = ui_sys.builder();
+        let ui = context.ui_sys.builder();
         let tex_cache = render_sys.texture_cache();
 
         let tile_size = [ BASE_TILE_SIZE.width as f32, BASE_TILE_SIZE.height as f32 ];
@@ -137,9 +136,9 @@ impl TilePaletteMenu {
 
                 for (idx, tile_kind) in tile_kinds.into_iter().enumerate() {
                     self.draw_tile_list(tile_kind,
-                                        ui_sys,
+                                        context.ui_sys,
                                         tex_cache,
-                                        tile_sets,
+                                        context.tile_sets,
                                         tile_size,
                                         tiles_per_row,
                                         padding_between_tiles);
@@ -152,7 +151,7 @@ impl TilePaletteMenu {
 
                 ui.text("Tools");
                 {
-                    let ui_texture = ui_sys.to_ui_texture(render_sys.texture_cache(), self.clear_button_image);
+                    let ui_texture = context.ui_sys.to_ui_texture(render_sys.texture_cache(), self.clear_button_image);
 
                     let bg_color = if self.is_clear_selected() {
                         Color::white().to_array()
@@ -176,9 +175,9 @@ impl TilePaletteMenu {
             });
 
         self.draw_selected_tile(render_sys,
-                                tile_sets,
+                                context.tile_sets,
                                 cursor_screen_pos,
-                                transform,
+                                context.transform,
                                 has_valid_placement,
                                 show_selection_bounds);
     }
@@ -187,7 +186,7 @@ impl TilePaletteMenu {
                           render_sys: &mut impl RenderSystem,
                           tile_sets: &TileSets,
                           cursor_screen_pos: Vec2,
-                          transform: &WorldToScreenTransform,
+                          transform: WorldToScreenTransform,
                           has_valid_placement: bool,
                           show_selection_bounds: bool) {
 

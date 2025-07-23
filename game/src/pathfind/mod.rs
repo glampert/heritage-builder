@@ -291,7 +291,7 @@ pub enum SearchResult<'search> {
     PathNotFound,
 }
 
-impl<'search> SearchResult<'search> {
+impl SearchResult<'_> {
     #[inline] fn found(&self)     -> bool { matches!(self, Self::PathFound(_)) }
     #[inline] fn not_found(&self) -> bool { matches!(self, Self::PathNotFound) }
 }

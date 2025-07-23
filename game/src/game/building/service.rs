@@ -1,7 +1,7 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    building_debug_options,
+    game_object_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Seconds,
@@ -51,12 +51,12 @@ pub struct ServiceConfig {
 // ServiceDebug
 // ----------------------------------------------
 
-building_debug_options!(
+game_object_debug_options! {
     ServiceDebug,
 
     // Stops fetching resources from storage.
     freeze_stock_update: bool,
-);
+}
 
 // ----------------------------------------------
 // ServiceBuilding
@@ -99,7 +99,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
                          show_popup_messages: bool) {
 
         self.debug.draw_popup_messages(
-            context,
+            || context.find_tile(),
             ui_sys,
             transform,
             visible_range,

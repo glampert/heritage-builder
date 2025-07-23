@@ -5,7 +5,7 @@ use rand_pcg::Pcg64;
 use crate::{
     imgui_ui::UiSystem,
     utils::{
-        coords::{Cell, CellRange, WorldToScreenTransform},
+        coords::{Cell, CellRange},
         hash::StringHash,
         UnsafeWeakRef,
         Seconds
@@ -26,6 +26,7 @@ use super::{
     }
 };
 
+pub mod debug;
 pub mod resources;
 pub mod world;
 
@@ -65,7 +66,12 @@ impl Simulation {
         let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
 
         if self.update_timer.tick(delta_time.as_secs_f32()).should_update() {
-            let mut query = Query::new(&mut self.rng, world, tile_map, tile_sets);
+            let mut query = Query::new(
+                &mut self.rng,
+                world,
+                tile_map,
+                tile_sets);
+
             world.update(&mut query, world_update_delta_time_secs);
         }
     }
@@ -74,38 +80,78 @@ impl Simulation {
     // Debug:
     // ----------------------
 
-    pub fn draw_building_debug_popups<'tile_sets>(&mut self,
-                                                  world: &mut World,
-                                                  tile_map: &mut TileMap<'tile_sets>,
-                                                  tile_sets: &'tile_sets TileSets,
-                                                  ui_sys: &UiSystem,
-                                                  transform: &WorldToScreenTransform,
-                                                  visible_range: CellRange,
-                                                  delta_time: time::Duration,
-                                                  show_popup_messages: bool) {
+    // Buildings:
+    pub fn draw_building_debug_popups(&mut self,
+                                      context: &mut debug::DebugContext,
+                                      visible_range: CellRange,
+                                      show_popup_messages: bool) {
 
-        let mut query = Query::new(&mut self.rng, world, tile_map, tile_sets);
-        world.draw_building_debug_popups(&mut query, ui_sys, transform, visible_range, delta_time.as_secs_f32(), show_popup_messages);
+        let mut query = Query::new(
+            &mut self.rng,
+            context.world,
+            context.tile_map,
+            context.tile_sets);
+
+        context.world.draw_building_debug_popups(
+            &mut query,
+            context.ui_sys,
+            &context.transform,
+            visible_range,
+            context.delta_time_secs,
+            show_popup_messages);
     }
 
-    pub fn draw_building_debug_ui<'tile_sets>(&mut self,
-                                              world: &mut World,
-                                              tile_map: &mut TileMap<'tile_sets>,
-                                              tile_sets: &'tile_sets TileSets,
-                                              ui_sys: &UiSystem,
-                                              selected_cell: Cell,
-                                              layer_kind: TileMapLayerKind) {
+    pub fn draw_building_debug_ui(&mut self,
+                                  context: &mut debug::DebugContext,
+                                  selected_cell: Cell) {
 
-        let mut query = Query::new(&mut self.rng, world, tile_map, tile_sets);
+        let mut query = Query::new(
+            &mut self.rng,
+            context.world,
+            context.tile_map,
+            context.tile_sets);
 
-        let tile = match query.tile_map.try_tile_from_layer(selected_cell, layer_kind) {
-            Some(tile) => tile,
-            None => return,
-        };
+        context.world.draw_building_debug_ui(
+            &mut query,
+            context.ui_sys,
+            selected_cell);
+    }
 
-        if let Some(building) = world.find_building_for_tile_mut(tile) {
-            building.draw_debug_ui(&mut query, ui_sys);
-        }
+    // Units:
+    pub fn draw_unit_debug_popups(&mut self,
+                                  context: &mut debug::DebugContext,
+                                  visible_range: CellRange,
+                                  show_popup_messages: bool) {
+
+        let mut query = Query::new(
+            &mut self.rng,
+            context.world,
+            context.tile_map,
+            context.tile_sets);
+
+        context.world.draw_unit_debug_popups(
+            &mut query,
+            context.ui_sys,
+            &context.transform,
+            visible_range,
+            context.delta_time_secs,
+            show_popup_messages);
+    }
+
+    pub fn draw_unit_debug_ui(&mut self,
+                              context: &mut debug::DebugContext,
+                              selected_cell: Cell) {
+
+        let mut query = Query::new(
+            &mut self.rng,
+            context.world,
+            context.tile_map,
+            context.tile_sets);
+
+        context.world.draw_unit_debug_ui(
+            &mut query,
+            context.ui_sys,
+            selected_cell);
     }
 }
 

@@ -2,7 +2,7 @@ use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    building_debug_options,
+    game_object_debug_options,
     imgui_ui::UiSystem,
     utils::{
         Color,
@@ -67,7 +67,7 @@ pub struct ProducerConfig {
 // ProducerDebug
 // ----------------------------------------------
 
-building_debug_options!(
+game_object_debug_options! {
     ProducerDebug,
 
     // Stops goods from being produced and stock from being spent.
@@ -75,7 +75,7 @@ building_debug_options!(
 
     // Stop shipping production output from local stock to storage buildings.
     freeze_shipping: bool,
-);
+}
 
 // ----------------------------------------------
 // ProducerBuilding
@@ -123,7 +123,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
                          show_popup_messages: bool) {
 
         self.debug.draw_popup_messages(
-            context,
+            || context.find_tile(),
             ui_sys,
             transform,
             visible_range,

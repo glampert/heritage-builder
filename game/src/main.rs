@@ -35,9 +35,10 @@ use tile::{
     map::*
 };
 use game::{
-    sim::*,
+    sim::{self, *},
     sim::world::*,
     building::{self, config::BuildingConfigs},
+    unit::{self, config::UnitConfigs},
 };
 
 // ----------------------------------------------
@@ -75,6 +76,8 @@ fn main() {
     );
 
     let building_configs = BuildingConfigs::load();
+    let unit_configs = UnitConfigs::load();
+
     let mut sim = Simulation::new();
     let mut world = World::new();
 
@@ -258,6 +261,10 @@ fn main() {
                             if let Some(building) = building::config::instantiate(tile, &building_configs) {
                                 world.add_building(tile, building);
                             }
+                        } else if tile_def.is(TileKind::Unit) {
+                            if let Some(unit) = unit::config::instantiate(tile, &unit_configs) {
+                                world.add_unit(tile, unit);
+                            }
                         }
                         true
                     } else {
@@ -267,6 +274,8 @@ fn main() {
                     if let Some(tile) = tile_map.topmost_tile_at_cursor(cursor_screen_pos, camera.transform()) {
                         if tile.is(TileKind::Building | TileKind::Blocker) {
                             world.remove_building(tile);
+                        } else if tile.is(TileKind::Unit) {
+                            world.remove_unit(tile);
                         }
                     }
 
@@ -276,9 +285,7 @@ fn main() {
                 }
             };
 
-            let placing_an_object = placement_candidate.is_some_and( 
-                |def| def.is(TileKind::Object));
-
+            let placing_an_object = placement_candidate.is_some_and(|def| def.is(TileKind::Object));
             let clearing_a_tile = tile_palette_menu.is_clear_selected();
 
             if did_place_or_clear && (placing_an_object || clearing_a_tile) {
@@ -305,27 +312,27 @@ fn main() {
 
         tile_selection.draw(&mut render_sys);
 
+        let mut debug_context = sim::debug::DebugContext {
+            ui_sys: &ui_sys,
+            world: &mut world,
+            tile_map: &mut tile_map,
+            tile_sets: &tile_sets,
+            transform: *camera.transform(),
+            delta_time_secs: frame_clock.delta_time().as_secs_f32(),
+        };
+
         tile_palette_menu.draw(
+            &mut debug_context,
             &mut render_sys,
-            &ui_sys,
-            &tile_sets,
             cursor_screen_pos,
-            camera.transform(),
             tile_selection.has_valid_placement(),
             debug_settings_menu.show_selection_bounds());
 
-        tile_inspector_menu.draw(&mut sim, &mut world, &mut tile_map, &tile_sets, &ui_sys, camera.transform());
-        debug_settings_menu.draw(&mut camera, &mut world, &mut tile_map_renderer, &mut tile_map, &tile_sets, &ui_sys);
+        tile_inspector_menu.draw(&mut debug_context, &mut sim);
+        debug_settings_menu.draw(&mut debug_context, &mut camera, &mut tile_map_renderer);
 
-        sim.draw_building_debug_popups(
-            &mut world,
-            &mut tile_map,
-            &tile_sets,
-            &ui_sys,
-            camera.transform(),
-            visible_range,
-            frame_clock.delta_time(),
-            debug_settings_menu.show_popup_messages());
+        sim.draw_building_debug_popups(&mut debug_context, visible_range, debug_settings_menu.show_popup_messages());
+        sim.draw_unit_debug_popups(&mut debug_context, visible_range, debug_settings_menu.show_popup_messages());
 
         if debug_settings_menu.show_cursor_pos() {
             debug::utils::draw_cursor_overlay(&ui_sys, camera.transform());

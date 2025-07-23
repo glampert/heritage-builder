@@ -5,8 +5,8 @@ use crate::{
     imgui_ui::{UiInputEvent, UiSystem},
     pathfind::NodeKind as PathNodeKind,
     game::sim::{
-        Simulation,
-        world::World
+        self,
+        Simulation
     },
     utils::{
         Size,
@@ -60,13 +60,9 @@ impl TileInspectorMenu {
         }
     }
 
-    pub fn draw<'tile_sets>(&mut self,
-                            sim: &mut Simulation,
-                            world: &mut World,
-                            tile_map: &mut TileMap<'tile_sets>,
-                            tile_sets: &'tile_sets TileSets,
-                            ui_sys: &UiSystem,
-                            transform: &WorldToScreenTransform) {
+    pub fn draw(&mut self,
+                context: &mut sim::debug::DebugContext,
+                sim: &mut Simulation) {
 
         if !self.is_open || self.selected.is_none() {
             self.close();
@@ -80,7 +76,7 @@ impl TileInspectorMenu {
         }
 
         let layer_kind = TileMapLayerKind::from_tile_kind(tile_kind);
-        let tile = match tile_map.try_tile_from_layer(cell, layer_kind) {
+        let tile = match context.tile_map.try_tile_from_layer(cell, layer_kind) {
             Some(tile) => tile,
             None => {
                 self.close();
@@ -88,8 +84,9 @@ impl TileInspectorMenu {
             }
         };
 
-        let tile_screen_rect = tile.calc_screen_rect(transform);
+        let tile_screen_rect = tile.calc_screen_rect(&context.transform);
         let is_building = tile.is(TileKind::Building);
+        let is_unit = tile.is(TileKind::Unit);
 
         let window_position = [
             tile_screen_rect.center().x - 30.0,
@@ -100,7 +97,7 @@ impl TileInspectorMenu {
             imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
             imgui::WindowFlags::NO_SCROLLBAR;
 
-        let ui = ui_sys.builder();
+        let ui = context.ui_sys.builder();
 
         ui.window(format!("{} ({},{})", tile.name(), cell.x, cell.y))
             .opened(&mut self.is_open)
@@ -109,29 +106,36 @@ impl TileInspectorMenu {
             .build(|| {
                 if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    Self::tile_properties_dropdown(ui, tile_map, cell, layer_kind, tile_sets, ui_sys, transform);
-                    Self::tile_variations_dropdown(ui, tile_map, cell, layer_kind);
-                    Self::tile_animations_dropdown(ui, tile_map, cell, layer_kind, ui_sys);
-                    Self::tile_debug_opts_dropdown(ui, tile_map, cell, layer_kind);
-                    Self::tile_def_editor_dropdown(ui, tile_map, cell, layer_kind, tile_sets);
+                    Self::tile_properties_dropdown(context.ui_sys, context.tile_map, cell, layer_kind, context.tile_sets, &context.transform);
+                    Self::tile_variations_dropdown(context.ui_sys, context.tile_map, cell, layer_kind);
+                    Self::tile_animations_dropdown(context.ui_sys, context.tile_map, cell, layer_kind);
+                    Self::tile_debug_opts_dropdown(context.ui_sys, context.tile_map, cell, layer_kind);
+                    Self::tile_def_editor_dropdown(context.ui_sys, context.tile_map, cell, layer_kind, context.tile_sets);
                     ui.unindent_by(10.0);
                 }
 
                 if is_building && ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    sim.draw_building_debug_ui(world, tile_map, tile_sets, ui_sys, cell, layer_kind);
+                    sim.draw_building_debug_ui(context, cell);
+                    ui.unindent_by(10.0);
+                }
+
+                if is_unit && ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
+                    ui.indent_by(10.0);
+                    sim.draw_unit_debug_ui(context, cell);
                     ui.unindent_by(10.0);
                 }
             });
     }
 
-    fn tile_properties_dropdown(ui: &imgui::Ui,
+    fn tile_properties_dropdown(ui_sys: &UiSystem,
                                 tile_map: &TileMap,
                                 cell: Cell,
                                 layer_kind: TileMapLayerKind,
                                 tile_sets: &TileSets,
-                                ui_sys: &UiSystem,
                                 transform: &WorldToScreenTransform) {
+
+        let ui = ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
         if !ui.collapsing_header("Properties##_tile_properties", imgui::TreeNodeFlags::empty()) {
@@ -180,17 +184,17 @@ impl TileInspectorMenu {
         debug_vars.draw_debug_ui(ui_sys);
     }
 
-    fn tile_variations_dropdown(ui: &imgui::Ui,
+    fn tile_variations_dropdown(ui_sys: &UiSystem,
                                 tile_map: &mut TileMap,
                                 cell: Cell,
                                 layer_kind: TileMapLayerKind) {
 
         let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
-
         if !tile.has_variations() {
             return;
         }
 
+        let ui = ui_sys.builder();
         if !ui.collapsing_header("Variations", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -204,18 +208,17 @@ impl TileInspectorMenu {
         ui.text(format!("Variation idx : {}, {}", tile.variation_index(), tile.variation_name()));    
     }
 
-    fn tile_animations_dropdown(ui: &imgui::Ui,
+    fn tile_animations_dropdown(ui_sys: &UiSystem,
                                 tile_map: &mut TileMap,
                                 cell: Cell,
-                                layer_kind: TileMapLayerKind,
-                                ui_sys: &UiSystem) {
+                                layer_kind: TileMapLayerKind) {
 
         let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
-
         if !tile.has_animations() {
             return;
         }
 
+        let ui = ui_sys.builder();
         if !ui.collapsing_header("Animations", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -265,10 +268,12 @@ impl TileInspectorMenu {
         debug_vars.draw_debug_ui(ui_sys);
     }
 
-    fn tile_debug_opts_dropdown(ui: &imgui::Ui,
+    fn tile_debug_opts_dropdown(ui_sys: &UiSystem,
                                 tile_map: &mut TileMap,
                                 cell: Cell,
                                 layer_kind: TileMapLayerKind) {
+
+        let ui = ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Debug Options.
         if !ui.collapsing_header("Debug Options##_tile_debug_opts", imgui::TreeNodeFlags::empty()) {
@@ -301,7 +306,7 @@ impl TileInspectorMenu {
     }
 
     // Edit the underlying TileDef, which will apply to *all* tiles sharing this TileDef.
-    fn tile_def_editor_dropdown(ui: &imgui::Ui,
+    fn tile_def_editor_dropdown(ui_sys: &UiSystem,
                                 tile_map: &mut TileMap,
                                 cell: Cell,
                                 layer_kind: TileMapLayerKind,
@@ -313,6 +318,7 @@ impl TileInspectorMenu {
             return;
         }
 
+        let ui = ui_sys.builder();
         if !ui.collapsing_header("Edit TileDef", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }

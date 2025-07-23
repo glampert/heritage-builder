@@ -1,7 +1,5 @@
-use std::borrow::Cow;
 use slab::Slab;
 use rand::Rng;
-use smallvec::SmallVec;
 use bitflags::{bitflags, Flags};
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
@@ -10,10 +8,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     bitflags_with_display,
     imgui_ui::UiSystem,
-    debug::popups::PopupMessages,
     utils::{
-        self,
-        Color,
         Seconds,
         hash::StringHash,
         coords::{CellRange, WorldToScreenTransform}
@@ -25,10 +20,7 @@ use crate::{
 };
 
 use super::{
-    sim::{
-        Query,
-        resources::ResourceKind
-    }
+    sim::Query
 };
 
 use config::{
@@ -168,7 +160,13 @@ impl<'config> Building<'config> {
                                  self.configs,
                                  query);
 
-        self.archetype.draw_debug_popups(&context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+        self.archetype.draw_debug_popups(
+            &context,
+            ui_sys,
+            transform,
+            visible_range,
+            delta_time_secs,
+            show_popup_messages);
     }
 }
 
@@ -182,6 +180,7 @@ pub struct BuildingList<'config> {
 }
 
 impl<'config> BuildingList<'config> {
+    #[inline]
     pub fn new(archetype_kind: BuildingArchetypeKind) -> Self {
         Self {
             archetype_kind,
@@ -189,6 +188,7 @@ impl<'config> BuildingList<'config> {
         }
     }
 
+    #[inline]
     pub fn clear(&mut self) {
         self.buildings.clear();
     }
@@ -249,6 +249,7 @@ impl<'config> BuildingList<'config> {
     #[inline]
     pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
         for (_, building) in &mut self.buildings {
+            debug_assert!(building.archetype_kind() == self.archetype_kind);
             building.update(query, delta_time_secs);
         }
     }
@@ -567,7 +568,7 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingContext<'config, 'que
         debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
 
         let storage_buildings =
-            self.query.world.building_list_mut(BuildingArchetypeKind::Storage);
+            self.query.world.buildings_list_mut(BuildingArchetypeKind::Storage);
 
         storage_buildings.for_each_mut(|_, building| {
             if building.kind().intersects(storage_kinds) {
@@ -581,208 +582,10 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingContext<'config, 'que
 
 impl std::fmt::Display for BuildingContext<'_, '_, '_, '_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Building '{}' ({}|{}) [{},{}]",
+        write!(f, "Building '{}' ({}|{}) {}",
                self.name,
                self.archetype_kind,
                self.kind,
-               self.map_cells.start.x,
-               self.map_cells.start.y)
+               self.map_cells.start)
     }
-}
-
-// ----------------------------------------------
-// BuildingDebugVar
-// ----------------------------------------------
-
-pub struct BuildingDebugVar<'a> {
-    name: &'static str,
-    value: BuildingDebugVarRef<'a>,
-}
-
-enum BuildingDebugVarRef<'a> {
-    Bool(&'a mut bool),
-    I32(&'a mut i32),
-    F32(&'a mut f32),
-}
-
-trait IntoBuildingDebugVar<'a> {
-    fn into_debug_var(self) -> BuildingDebugVarRef<'a>;
-}
-
-impl<'a> IntoBuildingDebugVar<'a> for &'a mut bool {
-    fn into_debug_var(self) -> BuildingDebugVarRef<'a> {
-        BuildingDebugVarRef::Bool(self)
-    }
-}
-
-impl<'a> IntoBuildingDebugVar<'a> for &'a mut i32 {
-    fn into_debug_var(self) -> BuildingDebugVarRef<'a> {
-        BuildingDebugVarRef::I32(self)
-    }
-}
-
-impl<'a> IntoBuildingDebugVar<'a> for &'a mut f32 {
-    fn into_debug_var(self) -> BuildingDebugVarRef<'a> {
-        BuildingDebugVarRef::F32(self)
-    }
-}
-
-impl<'a> BuildingDebugVar<'a> {
-    fn new(name: &'static str, value: impl IntoBuildingDebugVar<'a>) -> Self {
-        Self { name, value: value.into_debug_var() }
-    }
-}
-
-// ----------------------------------------------
-// BuildingDebugPopups
-// ----------------------------------------------
-
-#[derive(Default)]
-pub struct BuildingDebugPopups {
-    messages: PopupMessages,
-    show: bool,
-}
-
-// ----------------------------------------------
-// BuildingDebugOptions
-// ----------------------------------------------
-
-pub trait BuildingDebugOptions {
-    fn get_popups(&mut self) -> &mut BuildingDebugPopups;
-    fn get_vars(&mut self) -> SmallVec<[BuildingDebugVar; 16]>;
-
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let mut vars = self.get_vars();
-        if !vars.is_empty() {
-            let ui = ui_sys.builder();
-            if ui.collapsing_header("Debug Options##_building_debug_opts", imgui::TreeNodeFlags::empty()) {
-                for var in &mut vars {
-                    match &mut var.value {
-                        BuildingDebugVarRef::Bool(value) => {
-                            ui.checkbox(utils::snake_case_to_title::<64>(var.name), value);
-                        },
-                        BuildingDebugVarRef::I32(value) => {
-                            ui.input_int(utils::snake_case_to_title::<64>(var.name), value).build();
-                        },
-                        BuildingDebugVarRef::F32(value) => {
-                            ui.input_float(utils::snake_case_to_title::<64>(var.name), value).step(1.0).build();
-                        },
-                    }
-                }
-            }
-        }
-    }
-
-    fn draw_popup_messages(&mut self,
-                           context: &BuildingContext,
-                           ui_sys: &UiSystem,
-                           transform: &WorldToScreenTransform,
-                           visible_range: CellRange,
-                           delta_time_secs: Seconds,
-                           show_popup_messages: bool) {
-
-        let popups = self.get_popups();
-        popups.show = show_popup_messages;
-
-        const LIFETIME_MULTIPLIER: f32 = 3.0;
-        popups.messages.update(LIFETIME_MULTIPLIER, delta_time_secs);
-
-        if popups.show {
-            let tile = context.find_tile();
-            if visible_range.contains(tile.base_cell()) {
-                let screen_pos = tile.calc_screen_rect(transform).center();
-                const SCROLL_DIST: f32 = 5.0;
-                const SCROLL_SPEED: f32 = 12.0;
-                const START_BG_ALPHA: f32 = 0.6;
-                popups.messages.draw(ui_sys, screen_pos, SCROLL_DIST, SCROLL_SPEED, START_BG_ALPHA);
-            }
-        }
-    }
-
-    #[inline]
-    fn popup_msg(&mut self, text: impl Into<Cow<'static, str>>) {
-        let popups = self.get_popups();
-        if popups.show {
-            const LIFETIME: Seconds = 6.0;
-            popups.messages.push_with_args(LIFETIME, Color::default(), text);
-        }
-    }
-
-    #[inline]
-    fn popup_msg_color(&mut self, color: Color, text: impl Into<Cow<'static, str>>) {
-        let popups = self.get_popups();
-        if popups.show {
-            const LIFETIME: Seconds = 6.0;
-            popups.messages.push_with_args(LIFETIME, color, text);
-        }
-    }
-
-    #[inline]
-    fn log_resources_gained(&mut self, kind: ResourceKind, count: u32) {
-        if self.get_popups().show && !kind.is_empty() {
-            self.popup_msg_color(Color::green(), format!("+{count} {kind}"));
-        }
-    }
-
-    #[inline]
-    fn log_resources_lost(&mut self, kind: ResourceKind, count: u32) {
-        if self.get_popups().show && !kind.is_empty() {
-            self.popup_msg_color(Color::red(), format!("-{count} {kind}"));
-        }
-    }
-}
-
-// ----------------------------------------------
-// Macro: building_debug_options
-// ----------------------------------------------
-
-#[macro_export]
-macro_rules! building_debug_options {
-    (
-        $struct_name:ident,
-        $($field_name:ident : $field_type:ty),* $(,)?
-    ) => {
-        use paste::paste;
-        use $crate::game::building::{
-            BuildingDebugVar,
-            BuildingDebugPopups,
-            BuildingDebugOptions
-        };
-
-        paste! {
-            #[derive(Default)]
-            struct $struct_name {
-                popups: BuildingDebugPopups,
-                $(
-                    [<opt_ $field_name>] : $field_type,
-                )*
-            }
-
-            impl $struct_name {
-                $(
-                    #[must_use]
-                    #[inline(always)]
-                    fn $field_name(&self) -> $field_type {
-                        self.[<opt_ $field_name>]
-                    }
-                )*
-            }
-
-            impl BuildingDebugOptions for $struct_name {
-                #[inline]
-                fn get_popups(&mut self) -> &mut BuildingDebugPopups {
-                    &mut self.popups
-                }
-
-                #[inline]
-                fn get_vars(&mut self) -> smallvec::SmallVec<[BuildingDebugVar; 16]> {
-                    smallvec::smallvec![
-                        $(
-                            BuildingDebugVar::new(stringify!($field_name), &mut self.[<opt_ $field_name>]),
-                        )*
-                    ]
-                }
-            }
-        }
-    };
 }

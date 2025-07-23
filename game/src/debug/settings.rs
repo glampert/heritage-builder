@@ -2,7 +2,6 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     imgui_ui::UiSystem,
-    game::sim::world::World,
     utils::hash::{self},
     tile::{
         camera::Camera,
@@ -20,6 +19,10 @@ use crate::{
             MAX_GRID_LINE_THICKNESS,
             MIN_GRID_LINE_THICKNESS
         }
+    },
+    game::sim::{
+        self,
+        world::World
     }
 };
 
@@ -110,34 +113,32 @@ impl DebugSettingsMenu {
         flags
     }
 
-    pub fn draw<'tile_sets>(&mut self,
-                            camera: &mut Camera,
-                            world: &mut World,
-                            tile_map_renderer: &mut TileMapRenderer,
-                            tile_map: &mut TileMap<'tile_sets>,
-                            tile_sets: &'tile_sets TileSets,
-                            ui_sys: &UiSystem) {
+    pub fn draw(&mut self,
+                context: &mut sim::debug::DebugContext,
+                camera: &mut Camera,
+                tile_map_renderer: &mut TileMapRenderer) {
 
         let window_flags =
             imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
             imgui::WindowFlags::NO_RESIZE |
             imgui::WindowFlags::NO_SCROLLBAR;
 
-        let ui = ui_sys.builder();
+        let ui = context.ui_sys.builder();
 
         ui.window("Debug Settings")
             .flags(window_flags)
             .collapsed(!self.start_open, imgui::Condition::FirstUseEver)
             .position([5.0, 5.0], imgui::Condition::FirstUseEver)
             .build(|| {
-                self.camera_dropdown(ui, camera);
-                self.map_grid_dropdown(ui, tile_map_renderer);
-                self.debug_draw_dropdown(ui_sys);
-                self.reset_map_dropdown(ui, world, tile_map, tile_sets);
+                self.camera_dropdown(context.ui_sys, camera);
+                self.map_grid_dropdown(context.ui_sys, tile_map_renderer);
+                self.debug_draw_dropdown(context.ui_sys);
+                self.reset_map_dropdown(context.ui_sys, context.world, context.tile_map, context.tile_sets);
             });
     }
 
-    fn camera_dropdown(&self, ui: &imgui::Ui, camera: &mut Camera) {
+    fn camera_dropdown(&self, ui_sys: &UiSystem, camera: &mut Camera) {
+        let ui = ui_sys.builder();
         if !ui.collapsing_header("Camera", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -170,9 +171,10 @@ impl DebugSettingsMenu {
     }
 
     fn map_grid_dropdown(&mut self,
-                         ui: &imgui::Ui,
+                         ui_sys: &UiSystem,
                          tile_map_renderer: &mut TileMapRenderer) {
 
+        let ui = ui_sys.builder();
         if !ui.collapsing_header("Grid", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -190,7 +192,6 @@ impl DebugSettingsMenu {
 
     fn debug_draw_dropdown(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-
         if !ui.collapsing_header("Debug Draw", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -199,11 +200,12 @@ impl DebugSettingsMenu {
     }
 
     fn reset_map_dropdown<'tile_sets>(&self,
-                                      ui: &imgui::Ui,
+                                      ui_sys: &UiSystem,
                                       world: &mut World,
                                       tile_map: &mut TileMap<'tile_sets>,
                                       tile_sets: &'tile_sets TileSets) {
 
+        let ui = ui_sys.builder();
         if !ui.collapsing_header("Reset Map", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.                    
         }
