@@ -142,7 +142,7 @@ fn main() {
 
                     if key == InputKey::Enter {
                         let graph = Graph::from_tile_map(&tile_map);
-                        let heuristic = AStarHeuristic::new();
+                        let heuristic = AStarUniformCostHeuristic::new();
                         let mut search = Search::new(&graph);
                         let traversable_node_kinds = NodeKind::Road;
 

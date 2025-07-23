@@ -16,6 +16,15 @@ use crate::{
     }
 };
 
+#[cfg(test)]
+mod tests;
+
+// Useful references and reading material:
+//  https://gabrielgambetta.com/generic-search.html
+//  https://www.redblobgames.com/pathfinding/a-star/introduction.html
+//  https://www.redblobgames.com/pathfinding/a-star/implementation.html
+//  https://www.redblobgames.com/pathfinding/grids/algorithms.html
+
 // ----------------------------------------------
 // NodeKind
 // ----------------------------------------------
@@ -248,14 +257,15 @@ pub trait Heuristic {
     fn movement_cost(&self, graph: &Graph, from: Node, to: Node) -> NodeCost;
 }
 
-pub struct AStarHeuristic;
+// Uniform movement cost (movement_cost() always = 1).
+pub struct AStarUniformCostHeuristic;
 
-impl AStarHeuristic {
+impl AStarUniformCostHeuristic {
     #[inline]
     pub fn new() -> Self { Self }
 }
 
-impl Heuristic for AStarHeuristic {
+impl Heuristic for AStarUniformCostHeuristic {
     #[inline]
     fn estimate_cost_to_goal(&self, _graph: &Graph, node: Node, goal: Node) -> NodeCost {
         // Estimating 0 here would turn A* into Dijkstra's.
@@ -264,7 +274,7 @@ impl Heuristic for AStarHeuristic {
 
     #[inline]
     fn movement_cost(&self, _graph: &Graph, _from: Node, _to: Node) -> NodeCost {
-        // Uniform movement cost for now.
+        // Uniform movement cost.
         // Could be a dynamic cost based on terrain kind in the future.
         1
     }
@@ -281,6 +291,11 @@ pub enum SearchResult<'search> {
     PathNotFound,
 }
 
+impl<'search> SearchResult<'search> {
+    #[inline] fn found(&self)     -> bool { matches!(self, Self::PathFound(_)) }
+    #[inline] fn not_found(&self) -> bool { matches!(self, Self::PathNotFound) }
+}
+
 pub struct Search {
     // Reconstructed path when SearchResult == PathFound, empty otherwise.
     path: Path,
@@ -291,6 +306,8 @@ pub struct Search {
     frontier: PriorityQueue<Node, Reverse<NodeCost>>,
     came_from: Grid<Node>,
     cost_so_far: Grid<NodeCost>,
+
+    first_run: bool,
 }
 
 impl Search {
@@ -302,11 +319,14 @@ impl Search {
             frontier: PriorityQueue::new(),
             came_from: Grid::new(grid_size, vec![Node::invalid(); node_count]),
             cost_so_far: Grid::new(grid_size, vec![NODE_COST_INFINITE; node_count]),
+            first_run: true,
         }
     }
 
+    // A* graph search.
     // Only nodes of `traversable_node_kinds` will be considered by the search.
     // Anything else is assumed not traversable and ignored.
+    #[must_use]
     pub fn find_path(&mut self,
                      graph: &Graph,
                      heuristic: &impl Heuristic,
@@ -352,11 +372,14 @@ impl Search {
     }
 
     fn reset(&mut self, start: Node) {
-        self.path.clear();
-        self.frontier.clear();
-
-        self.came_from.fill(Node::invalid());
-        self.cost_so_far.fill(NODE_COST_INFINITE);
+        if !self.first_run {
+            // If we're reusing the Search instance, reset these to defaults.
+            self.path.clear();
+            self.frontier.clear();
+            self.came_from.fill(Node::invalid());
+            self.cost_so_far.fill(NODE_COST_INFINITE);
+        }
+        self.first_run = false;
 
         self.frontier.push(start, Reverse(NODE_COST_ZERO));
         self.came_from[start] = start;
