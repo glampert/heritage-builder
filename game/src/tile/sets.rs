@@ -273,13 +273,13 @@ impl TileDef {
     }
 
     #[inline]
-    pub fn has_multi_cell_footprint(&self) -> bool {
+    pub fn occupies_multiple_cells(&self) -> bool {
         let size = self.size_in_cells();
-        size.width > 1 || size.height > 1 // Multi-tile building?
+        size.width > 1 || size.height > 1 // Multi-cell building?
     }
 
     #[inline]
-    pub fn calc_footprint_cells(&self, start_cell: Cell) -> CellRange {
+    pub fn cell_range(&self, start_cell: Cell) -> CellRange {
         // Buildings can occupy multiple cells; Find which ones:
         let size = self.size_in_cells();
         let end_cell = Cell::new(start_cell.x + size.width - 1, start_cell.y + size.height - 1);

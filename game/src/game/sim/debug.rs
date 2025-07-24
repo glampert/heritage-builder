@@ -139,7 +139,7 @@ pub trait GameObjectDebugOptions {
         if popups.show {
             let tile = find_tile_fn();
             if visible_range.contains(tile.base_cell()) {
-                let screen_pos = tile.calc_screen_rect(transform).center();
+                let screen_pos = tile.screen_rect(transform).center();
                 const SCROLL_DIST: f32 = 5.0;
                 const SCROLL_SPEED: f32 = 12.0;
                 const START_BG_ALPHA: f32 = 0.6;

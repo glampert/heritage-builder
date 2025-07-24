@@ -1,7 +1,12 @@
 use std::ops::RangeInclusive;
 use std::iter::FusedIterator;
 
+use crate::{
+    field_accessor_xy
+};
+
 use super::{
+    FieldAccessorXY,
     Vec2,
     Size,
     Rect
@@ -42,6 +47,8 @@ impl std::fmt::Display for IsoPoint {
     }
 }
 
+field_accessor_xy! { IsoPoint, i32, x, y }
+
 // ----------------------------------------------
 // Cell
 // ----------------------------------------------
@@ -80,6 +87,8 @@ impl std::fmt::Display for Cell {
         write!(f, "[{},{}]", self.x, self.y)
     }
 }
+
+field_accessor_xy! { Cell, i32, x, y }
 
 // ----------------------------------------------
 // CellRange

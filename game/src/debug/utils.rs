@@ -253,7 +253,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
             ui.text(format!("C:{},{}", cell.x, cell.y)); // Cell position
             ui.text(format!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
             ui.text(format!("I:{},{}", tile_iso_pos.x, tile_iso_pos.y)); // 2D isometric position
-            ui.text(format!("Z:{}", tile.calc_z_sort())); // Z-sort
+            ui.text(format!("Z:{}", tile.z_sort_key())); // Z-sort
         });
 }
 

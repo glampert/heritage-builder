@@ -197,7 +197,7 @@ impl TileMapRenderer {
                 Self::draw_tile(render_sys,
                                 &mut self.stats,
                                 ui_sys,
-                                tile.calc_adjusted_iso_coords(),
+                                tile.adjusted_iso_coords(),
                                 transform,
                                 tile,
                                 flags);
@@ -282,7 +282,7 @@ impl TileMapRenderer {
             Self::draw_tile(render_sys,
                             &mut self.stats,
                             ui_sys,
-                            tile.calc_adjusted_iso_coords(),
+                            tile.adjusted_iso_coords(),
                             transform,
                             tile,
                             flags);
@@ -360,7 +360,7 @@ impl TileMapRenderer {
         debug_assert!(tile.is_valid());
         debug_assert!(!tile.is(TileKind::Blocker));
 
-        let tile_screen_rect = tile.calc_screen_rect(transform);
+        let tile_screen_rect = tile.screen_rect(transform);
 
         if !tile.has_flags(TileFlags::Hidden) {
             if let Some(tile_sprite) = tile.anim_frame_tex_info() {
@@ -439,7 +439,7 @@ impl TileDrawListEntry {
         let tile_ptr = tile as *const Tile<'_> as *const Tile<'static>;
         Self {
             tile_ref: UnsafeWeakRef::from_ptr(tile_ptr),
-            z_sort: tile.calc_z_sort(),
+            z_sort: tile.z_sort_key(),
         }
     }
 

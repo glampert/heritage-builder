@@ -2,7 +2,7 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     app::input::{InputAction, MouseButton},
-    imgui_ui::{UiInputEvent, UiSystem},
+    imgui_ui::{self, UiInputEvent, UiSystem},
     pathfind::NodeKind as PathNodeKind,
     game::sim::{
         self,
@@ -10,19 +10,12 @@ use crate::{
     },
     utils::{
         Size,
-        Vec2,
         Color,
         Seconds,
-        coords::{
-            self,
-            Cell,
-            CellRange,
-            IsoPoint,
-            WorldToScreenTransform
-        }
+        coords::Cell
     },
     tile::{
-        map::{Tile, TileFlags, TileMap, TileMapLayerKind},
+        map::{Tile, TileFlags, TileMap, TileMapLayerKind, TileEditor},
         sets::{TileKind, TileSets, BASE_TILE_SIZE}
     }
 };
@@ -69,7 +62,7 @@ impl TileInspectorMenu {
             return;
         }
 
-        let (cell, tile_kind) = self.selected.unwrap();
+        let (mut cell, tile_kind) = self.selected.unwrap();
         if !cell.is_valid() {
             self.close();
             return;
@@ -84,7 +77,7 @@ impl TileInspectorMenu {
             }
         };
 
-        let tile_screen_rect = tile.calc_screen_rect(&context.transform);
+        let tile_screen_rect = tile.screen_rect(&context.transform);
         let is_building = tile.is(TileKind::Building);
         let is_unit = tile.is(TileKind::Unit);
 
@@ -98,15 +91,16 @@ impl TileInspectorMenu {
             imgui::WindowFlags::NO_SCROLLBAR;
 
         let ui = context.ui_sys.builder();
+        let mut is_open = self.is_open;
 
-        ui.window(format!("{} ({},{})", tile.name(), cell.x, cell.y))
-            .opened(&mut self.is_open)
+        ui.window(format!("{} {}", tile.name(), cell))
+            .opened(&mut is_open)
             .flags(window_flags)
             .position(window_position, imgui::Condition::Appearing)
             .build(|| {
                 if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    Self::tile_properties_dropdown(context.ui_sys, context.tile_map, cell, layer_kind, context.tile_sets, &context.transform);
+                    cell = self.tile_properties_dropdown(context, cell, layer_kind);
                     Self::tile_variations_dropdown(context.ui_sys, context.tile_map, cell, layer_kind);
                     Self::tile_animations_dropdown(context.ui_sys, context.tile_map, cell, layer_kind);
                     Self::tile_debug_opts_dropdown(context.ui_sys, context.tile_map, cell, layer_kind);
@@ -126,24 +120,26 @@ impl TileInspectorMenu {
                     ui.unindent_by(10.0);
                 }
             });
+
+        self.is_open = is_open;
     }
 
-    fn tile_properties_dropdown(ui_sys: &UiSystem,
-                                tile_map: &TileMap,
+    fn tile_properties_dropdown(&mut self,
+                                context: &mut sim::debug::DebugContext,
                                 cell: Cell,
-                                layer_kind: TileMapLayerKind,
-                                tile_sets: &TileSets,
-                                transform: &WorldToScreenTransform) {
+                                layer_kind: TileMapLayerKind) -> Cell {
 
-        let ui = ui_sys.builder();
+        let ui = context.ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
         if !ui.collapsing_header("Properties##_tile_properties", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
+            return cell; // collapsed.
         }
 
-        let tile = tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+        let tile_editor = TileEditor::new(cell, layer_kind, context.tile_map);
+        let tile = tile_editor.tile();
 
+        // Display-only properties:
         #[derive(DrawDebugUi)]
         struct DrawDebugUiVariables<'a> {
             name: &'a str,
@@ -152,36 +148,81 @@ impl TileInspectorMenu {
             flags: TileFlags,
             path_kind: PathNodeKind,
             has_game_state: bool,
-            cells: CellRange,
-            iso_pos: IsoPoint,
-            iso_adjusted: IsoPoint,
-            screen_pos: Vec2,
+            size_in_cells: Size,
             draw_size: Size,
             logical_size: Size,
-            size_in_cells: Size,
-            z_sort: i32,
             color: Color,
         }
 
         let debug_vars = DrawDebugUiVariables {
             name: tile.name(),
-            category: tile.category_name(tile_sets),
+            category: tile.category_name(context.tile_sets),
             kind: tile.kind(),
             flags: tile.flags(),
             path_kind: tile.tile_def().path_kind,
             has_game_state: tile.game_state_handle().is_valid(),
-            cells: tile.cell_range(),
-            iso_pos: coords::cell_to_iso(cell, BASE_TILE_SIZE),
-            iso_adjusted: tile.calc_adjusted_iso_coords(),
-            screen_pos: tile.calc_screen_rect(transform).position(),
+            size_in_cells: tile.size_in_cells(),
             draw_size: tile.draw_size(),
             logical_size: tile.logical_size(),
-            size_in_cells: tile.size_in_cells(),
-            z_sort: tile.calc_z_sort(),
             color: tile.tint_color(),
         };
 
-        debug_vars.draw_debug_ui(ui_sys);
+        debug_vars.draw_debug_ui(context.ui_sys);
+        ui.separator();
+
+        // Editing the cell only for single cell Tiles for now; no building blockers support.
+        let read_only_cell = tile.occupies_multiple_cells();
+        let mut updated_cell = cell;
+
+        // Editable properties:
+        let mut start_cell = tile.cell_range().start;
+        if imgui_ui::input_i32_xy(ui, "Start Cell:", &mut start_cell, read_only_cell, None, None) {
+            if tile_editor.set_base_cell(start_cell) {
+                updated_cell = start_cell;
+            }
+        }
+
+        let mut end_cell = tile.cell_range().end;
+        imgui_ui::input_i32_xy(ui, "End Cell:", &mut end_cell, true, None, None);
+
+        let mut iso_coords = tile.iso_coords();
+        imgui_ui::input_i32_xy(ui, "Iso Coords:", &mut iso_coords, true, None, None);
+
+        let mut iso_adjusted = tile.adjusted_iso_coords();
+        if imgui_ui::input_i32_xy(ui, "Adjusted Iso Coords:", &mut iso_adjusted, false, None, None) {
+            tile_editor.set_adjusted_iso_coords(iso_adjusted);
+        }
+
+        let mut screen_coords = tile.screen_rect(&context.transform).position();
+        imgui_ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
+
+        let mut z_sort_key = tile.z_sort_key();
+        if imgui_ui::input_i32(ui, "Z Sort Key:", &mut z_sort_key, false, None) {
+            tile_editor.set_z_sort_key(z_sort_key);
+        }
+
+        // If we've moved the tile, update the Inspector's selected cell and game-side state.
+        if updated_cell != cell {
+            debug_assert!(tile.base_cell() == updated_cell);
+
+            if let Some((_, tile_kind)) = self.selected {
+                self.selected = Some((updated_cell, tile_kind));
+            }
+
+            if tile.is(TileKind::Building) {
+                if let Some(building) = context.world.find_building_for_tile_mut(tile) {
+                    building.set_cell_range(tile.cell_range());
+                }
+            }
+
+            if tile.is(TileKind::Unit) {
+                if let Some(unit) = context.world.find_unit_for_tile_mut(tile) {
+                    unit.set_cell(updated_cell);
+                }
+            }
+        }
+
+        updated_cell
     }
 
     fn tile_variations_dropdown(ui_sys: &UiSystem,
@@ -259,7 +300,6 @@ impl TileInspectorMenu {
             anim_frames_count: tile.anim_frames_count(),
             anim_duration_secs: anim_set.anim_duration_secs(),
             looping: anim_set.looping,
-
             frame_index: tile.anim_frame_index(),
             frame_duration_secs: anim_set.frame_duration_secs(),
             frame_play_time_secs: tile.anim_frame_play_time_secs(),
@@ -323,13 +363,25 @@ impl TileInspectorMenu {
             return; // collapsed.
         }
 
-        let mut draw_size_changed = false;
+        let mut color = tile.tint_color();
+        if imgui_ui::input_color(ui, "Color:", &mut color) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
+                // Prevent invalid values.
+                editable_def.color = color.clamp();
+            }
+        }
+
+        ui.separator();
+
         let mut draw_size = tile.draw_size();
+        if imgui_ui::input_i32_xy(
+            ui,
+            "Draw Size:",
+            &mut draw_size,
+            false,
+            None,
+            Some([ "W", "H" ])) {
 
-        draw_size_changed |= ui.input_int("Draw W", &mut draw_size.width).build();
-        draw_size_changed |= ui.input_int("Draw H", &mut draw_size.height).build();
-
-        if draw_size_changed {
             if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
                 if draw_size.is_valid() {
                     editable_def.draw_size = draw_size;
@@ -344,17 +396,15 @@ impl TileInspectorMenu {
 
         ui.separator();
 
-        let mut logical_size_changed = false;
         let mut logical_size = tile.logical_size();
+        if imgui_ui::input_i32_xy(
+            ui,
+            "Logical Size:",
+            &mut logical_size,
+            false,
+            Some([ BASE_TILE_SIZE.width, BASE_TILE_SIZE.height ]),
+            Some([ "W", "H" ])) {
 
-        logical_size_changed |= ui.input_scalar("Logical W", &mut logical_size.width)
-            .step(BASE_TILE_SIZE.width)
-            .build();
-        logical_size_changed |= ui.input_scalar("Logical H", &mut logical_size.height)
-            .step(BASE_TILE_SIZE.height)
-            .build();
-
-        if logical_size_changed {
             if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
                 if logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
                     && (logical_size.width  % BASE_TILE_SIZE.width)  == 0

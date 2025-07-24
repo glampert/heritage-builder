@@ -50,7 +50,7 @@ pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut Tile
     }
 
     // First check if the whole cell range is free:
-    let cell_range = tile_def_to_place.calc_footprint_cells(target_cell);
+    let cell_range = tile_def_to_place.cell_range(target_cell);
     for cell in &cell_range {
         if !layer.is_cell_within_bounds(cell) {
             // One or more cells for this tile fall outside of the map.
@@ -68,7 +68,7 @@ pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut Tile
     assert!(did_place_tile);
 
     // Check if we have to place any child blockers too for larger tiles.
-    if tile_def_to_place.has_multi_cell_footprint() {
+    if tile_def_to_place.occupies_multiple_cells() {
         let did_place_blocker = layer.insert_blocker_tiles(cell_range, target_cell);
         assert!(did_place_blocker);
     }

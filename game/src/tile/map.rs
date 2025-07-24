@@ -9,20 +9,21 @@ use strum_macros::{Display, EnumCount, EnumProperty, EnumIter};
 use crate::{
     bitflags_with_display,
     utils::{
-        Size,
-        Rect,
-        Vec2,
-        Color,
-        Seconds,
-        UnsafeWeakRef,
-        hash::StrHashPair,
         coords::{
             self,
             Cell,
             CellRange,
             IsoPoint,
             WorldToScreenTransform
-        }
+        },
+        hash::StrHashPair,
+        UnsafeMutable,
+        UnsafeWeakRef,
+        Seconds,
+        Color,
+        Rect,
+        Size,
+        Vec2
     }
 };
 
@@ -122,6 +123,14 @@ struct TileAnimState {
     frame_play_time_secs: Seconds,
 }
 
+impl TileAnimState {
+    const DEFAULT: Self = Self {
+        anim_set_index: 0,
+        frame_index: 0,
+        frame_play_time_secs: 0.0
+    };
+}
+
 // ----------------------------------------------
 // Tile / TileArchetype
 // ----------------------------------------------
@@ -132,6 +141,8 @@ struct TileAnimState {
 pub struct Tile<'tile_sets> {
     kind: TileKind,
     flags: TileFlags,
+    variation_index: u16,
+    cached_z_sort_key: i32,
     archetype: TileArchetype<'tile_sets>,
 }
 
@@ -179,22 +190,21 @@ macro_rules! delegate_to_archetype {
 
 // Common behavior for all Tile archetypes.
 trait TileBehavior<'tile_sets> {
+    fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
+    fn set_base_cell(&mut self, cell: Cell);
+    fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint);
+
     fn game_state_handle(&self) -> GameStateHandle;
     fn set_game_state_handle(&mut self, handle: GameStateHandle);
 
-    fn calc_z_sort(&self) -> i32;
-    fn calc_adjusted_iso_coords(&self, kind: TileKind) -> IsoPoint;
+    fn z_sort_key(&self) -> i32;
+    fn adjusted_iso_coords(&self) -> IsoPoint;
 
     fn actual_base_cell(&self) -> Cell;
     fn cell_range(&self) -> CellRange;
 
     fn tile_def(&self) -> &'tile_sets TileDef;
     fn is_valid(&self) -> bool;
-    fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
-
-    // Variations:
-    fn variation_index(&self) -> usize;
-    fn set_variation_index(&mut self, index: usize);
 
     // Animations:
     fn anim_state_ref(&self) -> &TileAnimState;
@@ -234,11 +244,24 @@ impl<'tile_sets> TerrainTile<'tile_sets> {
 }
 
 impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
-    #[inline] fn game_state_handle(&self) -> GameStateHandle { GameStateHandle::invalid() }
-    #[inline] fn set_game_state_handle(&mut self, _: GameStateHandle) {}
+    #[inline]
+    fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool) {
+        current_flags.set(new_flags, value);
+    }
 
-    #[inline] fn calc_z_sort(&self) -> i32 { self.iso_coords.y }
-    #[inline] fn calc_adjusted_iso_coords(&self, _: TileKind) -> IsoPoint { self.iso_coords }
+    #[inline]
+    fn set_base_cell(&mut self, cell: Cell) {
+        self.cell = cell;
+        self.iso_coords = coords::cell_to_iso(cell, BASE_TILE_SIZE);
+    }
+
+    #[inline] fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint) { self.iso_coords = iso_coords; }
+
+    #[inline] fn game_state_handle(&self) -> GameStateHandle { GameStateHandle::invalid() }
+    #[inline] fn set_game_state_handle(&mut self, _handle: GameStateHandle) {}
+
+    #[inline] fn z_sort_key(&self) -> i32 { self.iso_coords.y }
+    #[inline] fn adjusted_iso_coords(&self) -> IsoPoint { self.iso_coords }
 
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
     #[inline] fn cell_range(&self) -> CellRange { CellRange::new(self.cell, self.cell) }
@@ -246,26 +269,12 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
     #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.def }
     #[inline] fn is_valid(&self) -> bool { self.cell.is_valid() && self.def.is_valid() }
 
-    #[inline]
-    fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool) {
-        current_flags.set(new_flags, value);
-    }
-
-    // No support for variations on Terrain.
-    #[inline] fn variation_index(&self) -> usize { 0 }
-    #[inline] fn set_variation_index(&mut self, _: usize) {}
-
     // No support for animations on Terrain.
     #[inline]
     fn anim_state_ref(&self) -> &TileAnimState {
-        const DUMMY_ANIM_STATE: TileAnimState = TileAnimState {
-            anim_set_index: 0,
-            frame_index: 0,
-            frame_play_time_secs: 0.0,
-        };
-        // Return a valid dummy value for Tile::anim_set_index()/Tile::anim_frame_index()/etc
-        // that has all fields set to defaults.
-        &DUMMY_ANIM_STATE
+        // Return a valid dummy value for Tile::anim_set_index(),
+        // Tile::anim_frame_index(), etc that has all fields set to defaults.
+        &TileAnimState::DEFAULT
     }
 
     #[inline]
@@ -293,7 +302,9 @@ struct ObjectTile<'tile_sets> {
     cell_range: CellRange,
     game_state: GameStateHandle,
     anim_state: TileAnimState,
-    variation_index: u32,
+
+    // Cached upon construction.
+    adjusted_iso_coords: IsoPoint,
 }
 
 impl<'tile_sets> ObjectTile<'tile_sets> {
@@ -303,26 +314,17 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
         Self {
             def: tile_def,
             layer: UnsafeWeakRef::new(layer),
-            cell_range: tile_def.calc_footprint_cells(cell),
+            cell_range: tile_def.cell_range(cell),
             game_state: GameStateHandle::default(),
             anim_state: TileAnimState::default(),
-            variation_index: 0,
+            adjusted_iso_coords: calc_object_adjusted_iso_coords(tile_def.kind(), cell, tile_def.logical_size, tile_def.draw_size),
         }
     }
 }
 
 impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
-    #[inline] fn game_state_handle(&self) -> GameStateHandle { self.game_state }
-    #[inline] fn set_game_state_handle(&mut self, handle: GameStateHandle) { self.game_state = handle; }
-
-    #[inline] fn actual_base_cell(&self) -> Cell { self.cell_range.start }
-    #[inline] fn cell_range(&self) -> CellRange { self.cell_range }
-
-    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.def }
-    #[inline] fn is_valid(&self) -> bool { self.cell_range.is_valid() && self.def.is_valid() }
-
     #[inline]
-    fn set_flags(&mut self, _: &mut TileFlags, new_flags: TileFlags, value: bool) {
+    fn set_flags(&mut self, _current_flags: &mut TileFlags, new_flags: TileFlags, value: bool) {
         // Propagate flags to any child blockers in its cell range (including self).
         for cell in &self.cell_range {
             let tile = self.layer.tile_mut(cell);
@@ -331,40 +333,53 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     }
 
     #[inline]
-    fn calc_z_sort(&self) -> i32 {
-        let height = self.def.logical_size.height;
-        coords::cell_to_iso(self.cell_range.start, BASE_TILE_SIZE).y - height
+    fn set_base_cell(&mut self, cell: Cell) {
+        self.cell_range = self.def.cell_range(cell);
+        self.adjusted_iso_coords = calc_object_adjusted_iso_coords(self.def.kind(), cell, self.def.logical_size, self.def.draw_size);
     }
 
-    #[inline]
-    fn calc_adjusted_iso_coords(&self, kind: TileKind) -> IsoPoint {
-        // Convert the anchor (bottom tile for buildings) to isometric coordinates:
-        let mut tile_iso_coords = coords::cell_to_iso(self.cell_range.start, BASE_TILE_SIZE);
+    #[inline] fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint) { self.adjusted_iso_coords = iso_coords; }
 
-        if kind.intersects(TileKind::Building | TileKind::Prop | TileKind::Vegetation) {
-            // Center the sprite horizontally:
-            tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (self.def.logical_size.width / 2);
+    #[inline] fn game_state_handle(&self) -> GameStateHandle { self.game_state }
+    #[inline] fn set_game_state_handle(&mut self, handle: GameStateHandle) { self.game_state = handle; }
 
-            // Vertical offset: move up the full sprite height *minus* 1 tile's height.
-            // Since the anchor is the bottom tile, and cell_to_iso gives us the *bottom*,
-            // we must offset up by (image_height - one_tile_height).
-            tile_iso_coords.y -= self.def.draw_size.height - BASE_TILE_SIZE.height;
-        } else if kind.intersects(TileKind::Unit) {
-            // Adjust to center the unit sprite:
-            tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (self.def.draw_size.width / 2);
-            tile_iso_coords.y -= self.def.draw_size.height - (BASE_TILE_SIZE.height / 2);
-        }
+    #[inline] fn z_sort_key(&self) -> i32 { calc_object_z_sort_key(self.cell_range.start, self.def.logical_size.height) }
+    #[inline] fn adjusted_iso_coords(&self) -> IsoPoint { self.adjusted_iso_coords }
 
-        tile_iso_coords
-    }
+    #[inline] fn actual_base_cell(&self) -> Cell { self.cell_range.start }
+    #[inline] fn cell_range(&self) -> CellRange { self.cell_range }
 
-    // Variations:
-    #[inline] fn variation_index(&self) -> usize { self.variation_index as usize }
-    #[inline] fn set_variation_index(&mut self, index: usize) { self.variation_index = index.min(self.def.variations.len() - 1) as u32; }
+    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.def }
+    #[inline] fn is_valid(&self) -> bool { self.cell_range.is_valid() && self.def.is_valid() }
 
     // Animations:
     #[inline] fn anim_state_ref(&self) -> &TileAnimState { &self.anim_state }
     #[inline] fn anim_state_mut_ref(&mut self) -> &mut TileAnimState { &mut self.anim_state }
+}
+
+fn calc_object_adjusted_iso_coords(kind: TileKind, base_cell: Cell, logical_size: Size, draw_size: Size) -> IsoPoint {
+    // Convert the anchor (bottom tile for buildings) to isometric coordinates:
+    let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
+
+    if kind.intersects(TileKind::Building | TileKind::Prop | TileKind::Vegetation) {
+        // Center the sprite horizontally:
+        tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (logical_size.width / 2);
+
+        // Vertical offset: move up the full sprite height *minus* 1 tile's height.
+        // Since the anchor is the bottom tile, and cell_to_iso gives us the *bottom*,
+        // we must offset up by (image_height - one_tile_height).
+        tile_iso_coords.y -= draw_size.height - BASE_TILE_SIZE.height;
+    } else if kind.intersects(TileKind::Unit) {
+        // Adjust to center the unit sprite:
+        tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
+        tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2);
+    }
+
+    tile_iso_coords
+}
+
+fn calc_object_z_sort_key(base_cell: Cell, logical_height: i32) -> i32 {
+    coords::cell_to_iso(base_cell, BASE_TILE_SIZE).y - logical_height
 }
 
 // ----------------------------------------------
@@ -418,34 +433,26 @@ impl<'tile_sets> BlockerTile<'tile_sets> {
 }
 
 impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
-    #[inline] fn game_state_handle(&self) -> GameStateHandle { self.owner().game_state_handle() }
-    #[inline] fn set_game_state_handle(&mut self, handle: GameStateHandle) { self.owner_mut().set_game_state_handle(handle); }
-
-    #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
-    #[inline] fn cell_range(&self) -> CellRange { self.owner().cell_range() }
-
-    #[inline] fn calc_z_sort(&self) -> i32 { self.owner().calc_z_sort() }
-    #[inline] fn calc_adjusted_iso_coords(&self, _: TileKind) -> IsoPoint { self.owner().calc_adjusted_iso_coords() }
-
-    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.owner().tile_def() }
-
     #[inline]
-    fn is_valid(&self) -> bool {
-        if !self.cell.is_valid() || !self.owner_cell.is_valid() {
-            return false;
-        }
-        self.owner().is_valid()
-    }
-
-    #[inline]
-    fn set_flags(&mut self, _: &mut TileFlags, new_flags: TileFlags, value: bool) {
+    fn set_flags(&mut self, _current_flags: &mut TileFlags, new_flags: TileFlags, value: bool) {
         // Propagate back to owner tile:
         self.owner_mut().set_flags(new_flags, value);
     }
 
-    // Variations:
-    #[inline] fn variation_index(&self) -> usize { self.owner().variation_index() }
-    #[inline] fn set_variation_index(&mut self, index: usize) { self.owner_mut().set_variation_index(index); }
+    #[inline] fn set_base_cell(&mut self, _cell: Cell) { panic!("Not implemented for BlockerTile!"); }
+    #[inline] fn set_adjusted_iso_coords(&mut self, _iso_coords: IsoPoint) { panic!("Not implemented for BlockerTile!"); }
+
+    #[inline] fn game_state_handle(&self) -> GameStateHandle { self.owner().game_state_handle() }
+    #[inline] fn set_game_state_handle(&mut self, handle: GameStateHandle) { self.owner_mut().set_game_state_handle(handle); }
+
+    #[inline] fn z_sort_key(&self) -> i32 { self.owner().z_sort_key() }
+    #[inline] fn adjusted_iso_coords(&self) -> IsoPoint { self.owner().adjusted_iso_coords() }
+
+    #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
+    #[inline] fn cell_range(&self) -> CellRange { self.owner().cell_range() }
+
+    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.owner().tile_def() }
+    #[inline] fn is_valid(&self) -> bool { self.cell.is_valid() && self.owner_cell.is_valid() && self.owner().is_valid() }
 
     // Animations:
     #[inline] fn anim_state_ref(&self) -> &TileAnimState { self.owner().anim_state_ref() }
@@ -461,20 +468,24 @@ impl<'tile_sets> Tile<'tile_sets> {
            tile_def: &'tile_sets TileDef,
            layer: &TileMapLayer<'tile_sets>) -> Self {
 
-        let archetype = match layer.kind() {
+        let (z_sort_key, archetype) = match layer.kind() {
             TileMapLayerKind::Terrain => {
                 debug_assert!(tile_def.kind() == TileKind::Terrain); // Only Terrain.
-                TileArchetype::new_terrain(TerrainTile::new(cell, tile_def))
+                let terrain = TerrainTile::new(cell, tile_def);
+                (terrain.z_sort_key(), TileArchetype::new_terrain(terrain))
             },
             TileMapLayerKind::Objects => {
                 debug_assert!(tile_def.kind().intersects(TileKind::Object)); // Object | Building, Prop, etc...
-                TileArchetype::new_object(ObjectTile::new(cell, tile_def, layer))
+                let object = ObjectTile::new(cell, tile_def, layer);
+                (object.z_sort_key(), TileArchetype::new_object(object))
             }
         };
 
         Self {
             kind: tile_def.kind(),
             flags: tile_def.flags(),
+            variation_index: 0,
+            cached_z_sort_key: z_sort_key,
             archetype
         }
     }
@@ -488,6 +499,8 @@ impl<'tile_sets> Tile<'tile_sets> {
         Self {
             kind: TileKind::Object | TileKind::Blocker,
             flags: owner_flags,
+            variation_index: 0,   // unused
+            cached_z_sort_key: 0, // unused
             archetype: TileArchetype::new_blocker(BlockerTile::new(blocker_cell, owner_cell, layer))
         }
     }
@@ -515,10 +528,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        if self.kind.is_empty() {
-            return false;
-        }
-        delegate_to_archetype!(self, is_valid)
+        !self.kind.is_empty() && delegate_to_archetype!(self, is_valid)
     }
 
     #[inline]
@@ -572,24 +582,32 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn has_multi_cell_footprint(&self) -> bool {
-        self.tile_def().has_multi_cell_footprint()
+    pub fn occupies_multiple_cells(&self) -> bool {
+        self.tile_def().occupies_multiple_cells()
     }
 
     #[inline]
-    pub fn calc_z_sort(&self) -> i32 {
-        delegate_to_archetype!(self, calc_z_sort)
+    pub fn z_sort_key(&self) -> i32 {
+        self.cached_z_sort_key
     }
 
     #[inline]
-    pub fn calc_adjusted_iso_coords(&self) -> IsoPoint {
-        delegate_to_archetype!(self, calc_adjusted_iso_coords, self.kind)
+    pub fn iso_coords(&self) -> IsoPoint {
+        // Isometric coordinates of the base cell, assuming a single tile of BASE_TILE_SIZE.
+        // This is the same as adjusted_iso_coords() for Terrain tiles. For objects
+        // normally you'll want to use adjusted_iso_coords() instead.
+        coords::cell_to_iso(self.base_cell(), BASE_TILE_SIZE)
     }
 
     #[inline]
-    pub fn calc_screen_rect(&self, transform: &WorldToScreenTransform) -> Rect {
+    pub fn adjusted_iso_coords(&self) -> IsoPoint {
+        delegate_to_archetype!(self, adjusted_iso_coords)
+    }
+
+    #[inline]
+    pub fn screen_rect(&self, transform: &WorldToScreenTransform) -> Rect {
         let draw_size = self.draw_size();
-        let iso_position = self.calc_adjusted_iso_coords();
+        let iso_position = self.adjusted_iso_coords();
         coords::iso_to_screen_rect(iso_position, draw_size, transform)
     }
 
@@ -668,12 +686,14 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn variation_index(&self) -> usize {
-        delegate_to_archetype!(self, variation_index)
+        self.variation_index.into()
     }
 
     #[inline]
     pub fn set_variation_index(&mut self, index: usize) {
-        delegate_to_archetype!(self, set_variation_index, index)
+        self.variation_index =
+            index.min(self.variation_count() - 1).try_into()
+                .expect("Value cannot fit into a u16!"); 
     }
 
     // ----------------------
@@ -755,7 +775,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     fn update_anim(&mut self, delta_time_secs: Seconds) {
-        if self.is(TileKind::Terrain | TileKind::Blocker) {
+        if !self.is_animated_archetype() {
             return; // Not animated.
         }
 
@@ -788,6 +808,15 @@ impl<'tile_sets> Tile<'tile_sets> {
         }
     }
 
+    // ----------------------
+    // Internal helpers:
+    // ----------------------
+
+    #[inline]
+    fn is_animated_archetype(&self) -> bool {
+        !self.is(TileKind::Terrain | TileKind::Blocker)
+    }
+
     #[inline]
     fn anim_state_ref(&self) -> &TileAnimState {
         delegate_to_archetype!(self, anim_state_ref)
@@ -796,6 +825,31 @@ impl<'tile_sets> Tile<'tile_sets> {
     #[inline]
     fn anim_state_mut_ref(&mut self) -> &mut TileAnimState {
         delegate_to_archetype!(self, anim_state_mut_ref)
+    }
+
+    #[inline]
+    fn set_base_cell(&mut self, cell: Cell) {
+        // This will also update the cached iso coords in the archetype.
+        delegate_to_archetype!(self, set_base_cell, cell);
+
+        let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
+        self.set_z_sort_key(new_z_sort_key);
+
+        // We would have to update all blocker cells here and point its owner cell back to the new cell.
+        assert!(!self.occupies_multiple_cells(), "This does not support multi-cell tiles yet!");
+    }
+
+    #[inline]
+    fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint) {
+        delegate_to_archetype!(self, set_adjusted_iso_coords, iso_coords);
+
+        let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
+        self.set_z_sort_key(new_z_sort_key);
+    }
+
+    #[inline]
+    fn set_z_sort_key(&mut self, z_sort_key: i32) {
+        self.cached_z_sort_key = z_sort_key;
     }
 }
 
@@ -1009,6 +1063,9 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     fn new(layer_kind: TileMapLayerKind,
            size_in_cells: Size,
            fill_with_def: Option<&'tile_sets TileDef>) -> Box<TileMapLayer<'tile_sets>> {
+
+        // Keeping it within one CPU cache line for best runtime performance.
+        debug_assert!(std::mem::size_of::<Tile>() == 64);
 
         let mut layer = Box::new(Self {
             pool: TilePool::new(layer_kind, size_in_cells),
@@ -1554,6 +1611,39 @@ impl<'tile_sets> TileMap<'tile_sets> {
         placement::try_clear_tile_at_cursor(self, cursor_screen_pos, transform)
     }
 
+    pub fn try_move_tile(&mut self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
+        if !self.is_cell_within_bounds(from) ||
+           !self.is_cell_within_bounds(to) {
+            return false;
+        }
+
+        let layer = self.layer_mut(layer_kind);
+        if layer.try_tile(from).is_none() {
+            return false; // No tile at 'from' cell!
+        }
+        if layer.try_tile(to).is_some() {
+            return false; // 'to' tile is occupied!
+        }
+
+        let from_cell_index = layer.pool.map_cell_to_index(from);
+        let from_slab_index = layer.pool.cell_to_slab_idx[from_cell_index];
+        debug_assert!(from_slab_index != INVALID_TILE_INDEX); // Can't be empty, we have the 'from' tile.
+
+        let to_cell_index = layer.pool.map_cell_to_index(to);
+        let to_slab_index = layer.pool.cell_to_slab_idx[to_cell_index];
+        debug_assert!(to_slab_index == INVALID_TILE_INDEX); // Should be empty, we've checked the destination is free.
+
+        // Swap indices.
+        layer.pool.cell_to_slab_idx[from_cell_index] = to_slab_index;
+        layer.pool.cell_to_slab_idx[to_cell_index]   = from_slab_index;
+
+        // Update cached tile states:
+        let tile = &mut layer.pool.slab[from_slab_index];
+        tile.set_base_cell(to);
+
+        true
+    }
+
     // ----------------------
     // Tile selection:
     // ----------------------
@@ -1611,5 +1701,58 @@ impl<'tile_sets> TileMap<'tile_sets> {
             }
         }
         None
+    }
+}
+
+// ----------------------------------------------
+// TileEditor
+// ----------------------------------------------
+
+pub struct TileEditor<'tile_map, 'tile_sets> {
+    // SAFETY: This should only be used for debug editing from the ImGui widgets,
+    // so we'll tolerate holding an UnsafeCell here and casting-away const.
+    tile_map: UnsafeMutable<&'tile_map mut TileMap<'tile_sets>>,
+    cell: UnsafeMutable<Cell>,
+    layer_kind: TileMapLayerKind,
+}
+
+impl<'tile_map, 'tile_sets> TileEditor<'tile_map, 'tile_sets> {
+    pub fn new(cell: Cell, layer_kind: TileMapLayerKind, tile_map: &'tile_map mut TileMap<'tile_sets>) -> Self {
+        Self {
+            tile_map: UnsafeMutable::new(tile_map),
+            cell: UnsafeMutable::new(cell),
+            layer_kind,
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.tile_map.try_tile_from_layer(*self.cell.as_ref(), self.layer_kind).is_some()
+    }
+
+    pub fn tile(&self) -> &Tile {
+        self.tile_map.try_tile_from_layer(*self.cell.as_ref(), self.layer_kind).unwrap()
+    }
+
+    pub fn tile_mut(&self) -> &mut Tile<'tile_sets> {
+        self.tile_map.as_mut().try_tile_from_layer_mut(*self.cell.as_ref(), self.layer_kind).unwrap()
+    }
+
+    pub fn set_adjusted_iso_coords(&self, iso_coords: IsoPoint) -> bool {
+        self.tile_mut().set_adjusted_iso_coords(iso_coords);
+        true
+    }
+
+    pub fn set_z_sort_key(&self, z_sort_key: i32) -> bool {
+        self.tile_mut().set_z_sort_key(z_sort_key);
+        true
+    }
+
+    pub fn set_base_cell(&self, cell: Cell) -> bool {
+        // Only set cell if valid.
+        if self.tile_map.as_mut().try_move_tile(*self.cell.as_ref(), cell, self.layer_kind) {
+            *self.cell.as_mut() = cell;
+            return true;
+        }
+        false
     }
 }

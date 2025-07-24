@@ -66,7 +66,13 @@ impl<'config> Unit<'config> {
     pub fn update(&mut self,
                   _query: &mut Query<'config, '_, '_, '_,>,
                   _delta_time_secs: Seconds) {
-        // TODO
+
+        // TODO: cell movement, follow path.
+    }
+
+    pub fn set_cell(&mut self, new_cell: Cell) {
+        debug_assert!(new_cell.is_valid());
+        self.cell = new_cell;
     }
 
     pub fn draw_debug_ui(&mut self,

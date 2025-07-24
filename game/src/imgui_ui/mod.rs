@@ -13,7 +13,7 @@ pub use imgui::FontId as UiFontHandle;
 pub use imgui::TextureId as UiTextureHandle;
 
 use crate::{
-    utils::{self, Vec2},
+    utils::{self, Vec2, Color, FieldAccessorXY},
     render::{TextureCache, TextureHandle},
     app::{self, Application, input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton}}
 };
@@ -426,4 +426,132 @@ impl UiContext {
         style.log_slider_deadzone = 4.0;
         style.tab_rounding = 4.0;
     }
+}
+
+// ----------------------------------------------
+// Helper functions
+// ----------------------------------------------
+
+pub fn input_i32(ui: &imgui::Ui,
+                 label: &str,
+                 value: &mut i32,
+                 read_only: bool,
+                 step: Option<i32>) -> bool {
+
+    ui.text(label);
+    ui.indent_by(5.0);
+
+    let edited = ui.input_int(format!("##_{}_value", label), value)
+        .read_only(read_only)
+        .step(step.unwrap_or(1))
+        .build();
+
+    ui.unindent_by(5.0);
+    edited
+}
+
+pub fn input_i32_xy<T>(ui: &imgui::Ui,
+                       label: &str,
+                       value: &mut T,
+                       read_only: bool,
+                       steps: Option<[i32; 2]>, 
+                       field_labels: Option<[&str; 2]>) -> bool
+    where T:
+        FieldAccessorXY<i32>
+{
+    let s = steps.unwrap_or([ 1, 1 ]);
+    let l = field_labels.unwrap_or([ "X", "Y" ]);
+
+    ui.text(label);
+    ui.indent_by(5.0);
+
+    let edited_x = ui.input_int(format!("{}##_{}_x", l[0], label), value.x_mut())
+        .read_only(read_only)
+        .step(s[0])
+        .build();
+
+    let edited_y = ui.input_int(format!("{}##_{}_y", l[1], label), value.y_mut())
+        .read_only(read_only)
+        .step(s[1])
+        .build();
+
+    ui.unindent_by(5.0);
+    edited_x | edited_y
+}
+
+pub fn input_f32(ui: &imgui::Ui,
+                 label: &str,
+                 value: &mut f32,
+                 read_only: bool,
+                 step: Option<f32>) -> bool {
+
+    ui.text(label);
+    ui.indent_by(5.0);
+
+    let edited = ui.input_float(format!("##_{}_value", label), value)
+        .read_only(read_only)
+        .display_format("%.2f")
+        .step(step.unwrap_or(1.0))
+        .build();
+
+    ui.unindent_by(5.0);
+    edited
+}
+
+pub fn input_f32_xy<T>(ui: &imgui::Ui,
+                       label: &str,
+                       value: &mut T,
+                       read_only: bool,
+                       steps: Option<[f32; 2]>, 
+                       field_labels: Option<[&str; 2]>) -> bool
+    where T:
+        FieldAccessorXY<f32>
+{
+    let s = steps.unwrap_or([ 1.0, 1.0 ]);
+    let l = field_labels.unwrap_or([ "X", "Y" ]);
+
+    ui.text(label);
+    ui.indent_by(5.0);
+
+    let edited_x = ui.input_float(format!("{}##_{}_x", l[0], label), &mut value.x_mut())
+        .read_only(read_only)
+        .display_format("%.2f")
+        .step(s[0])
+        .build();
+
+    let edited_y = ui.input_float(format!("{}##_{}_y", l[1], label), &mut value.y_mut())
+        .read_only(read_only)
+        .display_format("%.2f")
+        .step(s[1])
+        .build();
+
+    ui.unindent_by(5.0);
+    edited_x | edited_y
+}
+
+pub fn input_color(ui: &imgui::Ui,
+                   label: &str,
+                   value: &mut Color) -> bool {
+
+    ui.text(label);
+    ui.indent_by(5.0);
+
+    let edited_r = ui.slider_config(format!("R##_{}_r", label), 0.0, 1.0)
+        .display_format("%.2f")
+        .build(&mut value.r);
+
+    let edited_g = ui.slider_config(format!("G##_{}_g", label), 0.0, 1.0)
+        .display_format("%.2f")
+        .build(&mut value.g);
+
+    let edited_b = ui.slider_config(format!("B##_{}_b", label), 0.0, 1.0)
+        .display_format("%.2f")
+        .build(&mut value.b);
+
+    let edited_a = ui.slider_config(format!("A##_{}_a", label), 0.0, 1.0)
+        .display_format("%.2f")
+        .build(&mut value.a);
+
+    ui.unindent_by(5.0);
+    edited_r | edited_g | edited_b | edited_a
 }

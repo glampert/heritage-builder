@@ -486,7 +486,7 @@ impl<'config> HouseUpgradeState<'config> {
         // fails and leaves the map unchanged otherwise.
 
         // First check if we have space to place this tile.
-        let cell_range = tile_def_to_place.calc_footprint_cells(context.map_cells.start);
+        let cell_range = tile_def_to_place.cell_range(context.map_cells.start);
         for cell in &cell_range {
             if let Some(tile) =
                 context.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
@@ -513,17 +513,13 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         // And place the new one.
-        let place_result = context.query.tile_map.try_place_tile_in_layer(
+        let new_tile = context.query.tile_map.try_place_tile_in_layer(
             context.map_cells.start,
             TileMapLayerKind::Objects,
-            tile_def_to_place);
-
-        if place_result.is_none() {
-            panic!("Failed to place new tile! This is unexpected...");
-        }
+            tile_def_to_place)
+            .expect("Failed to place new tile! This is unexpected...");
 
         // Update game state handle:
-        let new_tile = place_result.unwrap();
         new_tile.set_game_state_handle(prev_tile_game_state);
 
         true
@@ -543,7 +539,7 @@ impl<'config> HouseUpgradeState<'config> {
             None => return false,
         };
 
-        let cell_range = tile_def.calc_footprint_cells(context.map_cells.start);
+        let cell_range = tile_def.cell_range(context.map_cells.start);
 
         for cell in &cell_range {
             if let Some(tile) = context.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {

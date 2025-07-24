@@ -98,7 +98,7 @@ impl TileSelection {
             for cell in &range {
                 if let Some(base_tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                     let tile_iso_coords =
-                        base_tile.calc_adjusted_iso_coords();
+                        base_tile.adjusted_iso_coords();
 
                     let tile_screen_rect = coords::iso_to_screen_rect(
                         tile_iso_coords,
@@ -188,7 +188,7 @@ impl TileSelection {
             // Check if our placement candidate tile overlaps with any other Object.
             PlacementOp::Place(tile_def) => {
                 let mut flags = TileFlags::Highlighted;
-                for cell in &tile_def.calc_footprint_cells(base_cell) {
+                for cell in &tile_def.cell_range(base_cell) {
                     // Placement candidate not fully within map bounds?
                     if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(cell) {
                         flags = TileFlags::Invalidated;
@@ -218,7 +218,7 @@ impl TileSelection {
 
             // Highlight all Terrain tiles this placement candidate would occupy.
             if let PlacementOp::Place(tile_def) = placement_op {
-                for cell in tile_def.calc_footprint_cells(base_cell).iter_rev() {
+                for cell in tile_def.cell_range(base_cell).iter_rev() {
                     if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(cell) {
                         self.select_tile(tile, selection_flags);
                     }

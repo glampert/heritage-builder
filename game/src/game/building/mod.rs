@@ -112,6 +112,11 @@ impl<'config> Building<'config> {
         self.archetype.update(&mut context, delta_time_secs);
     }
 
+    pub fn set_cell_range(&mut self, new_map_cells: CellRange) {
+        debug_assert!(new_map_cells.is_valid());
+        self.map_cells = new_map_cells;
+    }
+
     pub fn draw_debug_ui(&mut self, query: &mut Query<'config, '_, '_, '_>, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 

@@ -82,6 +82,27 @@ macro_rules! bitflags_with_display {
     };
 }
 
+// Returns refs to the x,y fields of structs like Vec2, Cell, IsoPoint, etc.
+// Used with imgui debug widgets.
+pub trait FieldAccessorXY<T> {
+    fn x_ref(&self) -> &T;
+    fn y_ref(&self) -> &T;
+    fn x_mut(&mut self) -> &mut T;
+    fn y_mut(&mut self) -> &mut T;
+}
+
+#[macro_export]
+macro_rules! field_accessor_xy {
+    ($struct_name:ty, $field_type:ty, $x_field:ident, $y_field:ident) => {
+        impl FieldAccessorXY<$field_type> for $struct_name {
+            #[inline] fn x_ref(&self) -> &$field_type { &self.$x_field }
+            #[inline] fn y_ref(&self) -> &$field_type { &self.$y_field }
+            #[inline] fn x_mut(&mut self) -> &mut $field_type { &mut self.$x_field }
+            #[inline] fn y_mut(&mut self) -> &mut $field_type { &mut self.$y_field }
+        }
+    };
+}
+
 // ----------------------------------------------
 // Vec2
 // ----------------------------------------------
@@ -277,6 +298,8 @@ impl std::fmt::Display for Vec2 {
     }
 }
 
+field_accessor_xy! { Vec2, f32, x, y }
+
 // ----------------------------------------------
 // Color
 // ----------------------------------------------
@@ -312,6 +335,16 @@ impl Color {
     #[inline] pub const fn cyan()    -> Self { Self { r: 0.0, g: 1.0, b: 1.0, a: 1.0 } }
     #[inline] pub const fn magenta() -> Self { Self { r: 1.0, g: 0.0, b: 1.0, a: 1.0 } }
     #[inline] pub const fn gray()    -> Self { Self { r: 0.7, g: 0.7, b: 0.7, a: 1.0 } }
+
+    #[inline]
+    pub fn clamp(&self) -> Self {
+        Self {
+            r: self.r.clamp(0.0, 1.0),
+            g: self.g.clamp(0.0, 1.0),
+            b: self.b.clamp(0.0, 1.0),
+            a: self.a.clamp(0.0, 1.0),
+        }
+    }
 }
 
 impl Default for Color {
@@ -431,6 +464,8 @@ impl std::fmt::Display for Size {
         write!(f, "[{},{}]", self.width, self.height)
     }
 }
+
+field_accessor_xy! { Size, i32, width, height }
 
 // ----------------------------------------------
 // Rect
