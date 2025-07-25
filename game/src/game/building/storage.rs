@@ -425,12 +425,16 @@ impl StorageSlots {
                         let mut new_count = prev_count;
 
                         if ui.input_scalar(res_label, &mut new_count).step(1).build() {
-                            if new_count > prev_count {
-                                new_count = self.increment_slot_resource_count(
-                                    slot_index, *res_kind, new_count - prev_count);
-                            } else if new_count < prev_count {
-                                new_count = self.decrement_slot_resource_count(
-                                    slot_index, *res_kind, prev_count - new_count);
+                            match new_count.cmp(&prev_count) {
+                                std::cmp::Ordering::Greater => {
+                                    new_count = self.increment_slot_resource_count(
+                                        slot_index, *res_kind, new_count - prev_count);
+                                },
+                                std::cmp::Ordering::Less => {
+                                    new_count = self.decrement_slot_resource_count(
+                                        slot_index, *res_kind, prev_count - new_count);
+                                },
+                                std::cmp::Ordering::Equal => {} // nothing
                             }
                         }
 

@@ -136,8 +136,8 @@ impl TileInspectorMenu {
             return cell; // collapsed.
         }
 
-        let tile_editor = TileEditor::new(cell, layer_kind, context.tile_map);
-        let tile = tile_editor.tile();
+        let tile = context.tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
+        let mut tile_editor = TileEditor::new(context.tile_map, layer_kind, cell);
 
         // Display-only properties:
         #[derive(DrawDebugUi)]
@@ -176,10 +176,9 @@ impl TileInspectorMenu {
 
         // Editable properties:
         let mut start_cell = tile.cell_range().start;
-        if imgui_ui::input_i32_xy(ui, "Start Cell:", &mut start_cell, read_only_cell, None, None) {
-            if tile_editor.set_base_cell(start_cell) {
-                updated_cell = start_cell;
-            }
+        if imgui_ui::input_i32_xy(ui, "Start Cell:", &mut start_cell, read_only_cell, None, None)
+            && tile_editor.set_base_cell(start_cell) {
+            updated_cell = start_cell;
         }
 
         let mut end_cell = tile.cell_range().end;

@@ -47,7 +47,7 @@ Common Unit Behavior:
 */
 
 pub struct Unit<'config> {
-    cell: Cell,
+    map_cell: Cell,
     config: &'config UnitConfig,
     resources: Option<ResourceStock>,
     debug: UnitDebug,
@@ -56,7 +56,7 @@ pub struct Unit<'config> {
 impl<'config> Unit<'config> {
     pub fn new(cell: Cell, config: &'config UnitConfig) -> Self {
         Self {
-            cell,
+            map_cell: cell,
             config,
             resources: None,
             debug: UnitDebug::default(),
@@ -70,9 +70,9 @@ impl<'config> Unit<'config> {
         // TODO: cell movement, follow path.
     }
 
-    pub fn set_cell(&mut self, new_cell: Cell) {
-        debug_assert!(new_cell.is_valid());
-        self.cell = new_cell;
+    pub fn set_cell(&mut self, new_map_cell: Cell) {
+        debug_assert!(new_map_cell.is_valid());
+        self.map_cell = new_map_cell;
     }
 
     pub fn draw_debug_ui(&mut self,
@@ -102,7 +102,7 @@ impl<'config> Unit<'config> {
 
         self.debug.draw_popup_messages(
             || {
-                query.find_tile(self.cell, TileMapLayerKind::Objects, TileKind::Unit)
+                query.find_tile(self.map_cell, TileMapLayerKind::Objects, TileKind::Unit)
                     .expect("Unit should have an associated Tile in the TileMap!")
             },
             ui_sys,

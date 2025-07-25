@@ -17,7 +17,6 @@ use crate::{
             WorldToScreenTransform
         },
         hash::StrHashPair,
-        UnsafeMutable,
         UnsafeWeakRef,
         Seconds,
         Color,
@@ -832,6 +831,7 @@ impl<'tile_sets> Tile<'tile_sets> {
         // This will also update the cached iso coords in the archetype.
         delegate_to_archetype!(self, set_base_cell, cell);
 
+        // Z-sort key is derived from cell and iso coords so it needs to be recomputed.
         let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
         self.set_z_sort_key(new_z_sort_key);
 
@@ -1611,6 +1611,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
         placement::try_clear_tile_at_cursor(self, cursor_screen_pos, transform)
     }
 
+    // Move tile from one cell to another if destination is free.
     pub fn try_move_tile(&mut self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
         if !self.is_cell_within_bounds(from) ||
            !self.is_cell_within_bounds(to) {
@@ -1708,49 +1709,50 @@ impl<'tile_sets> TileMap<'tile_sets> {
 // TileEditor
 // ----------------------------------------------
 
-pub struct TileEditor<'tile_map, 'tile_sets> {
+pub struct TileEditor<'tile_sets> {
     // SAFETY: This should only be used for debug editing from the ImGui widgets,
-    // so we'll tolerate holding an UnsafeCell here and casting-away const.
-    tile_map: UnsafeMutable<&'tile_map mut TileMap<'tile_sets>>,
-    cell: UnsafeMutable<Cell>,
+    // so we'll tolerate holding an UnsafeWeakRef here and casting-away const.
+    tile_map: UnsafeWeakRef<TileMap<'tile_sets>>,
     layer_kind: TileMapLayerKind,
+    cell: Cell,
 }
 
-impl<'tile_map, 'tile_sets> TileEditor<'tile_map, 'tile_sets> {
-    pub fn new(cell: Cell, layer_kind: TileMapLayerKind, tile_map: &'tile_map mut TileMap<'tile_sets>) -> Self {
+impl<'tile_sets> TileEditor<'tile_sets> {
+    pub fn new(tile_map: &TileMap<'tile_sets>, layer_kind: TileMapLayerKind, cell: Cell) -> Self {
         Self {
-            tile_map: UnsafeMutable::new(tile_map),
-            cell: UnsafeMutable::new(cell),
+            tile_map: UnsafeWeakRef::new(tile_map),
             layer_kind,
+            cell,
         }
     }
 
-    pub fn is_valid(&self) -> bool {
-        self.tile_map.try_tile_from_layer(*self.cell.as_ref(), self.layer_kind).is_some()
+    pub fn try_tile(&self) -> Option<&Tile> {
+        self.tile_map.try_tile_from_layer(self.cell, self.layer_kind)
     }
 
-    pub fn tile(&self) -> &Tile {
-        self.tile_map.try_tile_from_layer(*self.cell.as_ref(), self.layer_kind).unwrap()
+    pub fn try_tile_mut(&mut self) -> Option<&mut Tile<'tile_sets>> {
+        self.tile_map.try_tile_from_layer_mut(self.cell, self.layer_kind)
     }
 
-    pub fn tile_mut(&self) -> &mut Tile<'tile_sets> {
-        self.tile_map.as_mut().try_tile_from_layer_mut(*self.cell.as_ref(), self.layer_kind).unwrap()
+    pub fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint) -> bool {
+        if let Some(tile) = self.try_tile_mut() {
+            tile.set_adjusted_iso_coords(iso_coords);
+            return true;
+        }
+        false
     }
 
-    pub fn set_adjusted_iso_coords(&self, iso_coords: IsoPoint) -> bool {
-        self.tile_mut().set_adjusted_iso_coords(iso_coords);
-        true
+    pub fn set_z_sort_key(&mut self, z_sort_key: i32) -> bool {
+        if let Some(tile) = self.try_tile_mut() {
+            tile.set_z_sort_key(z_sort_key);
+            return true;
+        }
+        false
     }
 
-    pub fn set_z_sort_key(&self, z_sort_key: i32) -> bool {
-        self.tile_mut().set_z_sort_key(z_sort_key);
-        true
-    }
-
-    pub fn set_base_cell(&self, cell: Cell) -> bool {
-        // Only set cell if valid.
-        if self.tile_map.as_mut().try_move_tile(*self.cell.as_ref(), cell, self.layer_kind) {
-            *self.cell.as_mut() = cell;
+    pub fn set_base_cell(&mut self, new_cell: Cell) -> bool {
+        if self.tile_map.try_move_tile(self.cell, new_cell, self.layer_kind) {
+            self.cell = new_cell;
             return true;
         }
         false

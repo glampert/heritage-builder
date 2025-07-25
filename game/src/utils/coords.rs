@@ -185,6 +185,7 @@ impl<const REVERSED: bool> Iterator for CellRangeIter<REVERSED> {
     type Item = Cell;
 
     #[inline]
+    #[allow(clippy::collapsible_else_if)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
             return None;

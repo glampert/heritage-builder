@@ -902,6 +902,7 @@ impl<T> UnsafeMutable<T> {
 
     // SAFETY: Caller must ensure there are no aliasing issues (e.g. no other refs).
     #[inline(always)]
+    #[allow(clippy::mut_from_ref)] // mut-cast is intentional.
     pub fn as_mut(&self) -> &mut T {
         unsafe { &mut *self.cell.get() }
     }

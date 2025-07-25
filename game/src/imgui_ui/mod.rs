@@ -513,13 +513,13 @@ pub fn input_f32_xy<T>(ui: &imgui::Ui,
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_x = ui.input_float(format!("{}##_{}_x", l[0], label), &mut value.x_mut())
+    let edited_x = ui.input_float(format!("{}##_{}_x", l[0], label), value.x_mut())
         .read_only(read_only)
         .display_format("%.2f")
         .step(s[0])
         .build();
 
-    let edited_y = ui.input_float(format!("{}##_{}_y", l[1], label), &mut value.y_mut())
+    let edited_y = ui.input_float(format!("{}##_{}_y", l[1], label), value.y_mut())
         .read_only(read_only)
         .display_format("%.2f")
         .step(s[1])
