@@ -1413,6 +1413,8 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     pub fn reset(&mut self, fill_with_def: Option<&'tile_sets TileDef>) {
         self.layers.clear();
+        TileEditor::invoke_map_reset_callback(self);
+
         for layer_kind in TileMapLayerKind::iter() {
             // Find which layer this tile belong to if we're not just setting everything to empty.
             let fill_opt =
@@ -1761,13 +1763,17 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
 type TilePlacedCallback   = std::cell::OnceCell<Box<dyn Fn(&mut Tile, bool) + 'static>>;
 type RemovingTileCallback = std::cell::OnceCell<Box<dyn Fn(&mut Tile) + 'static>>;
+type MapResetCallback     = std::cell::OnceCell<Box<dyn Fn(&mut TileMap) + 'static>>;
 
 std::thread_local! {
     // Called *after* a tile is placed with the new tile instance.
-    static ON_TILE_PLACED_CALLBACK: TilePlacedCallback = TilePlacedCallback::new();
+    static ON_TILE_PLACED_CALLBACK: TilePlacedCallback = const { TilePlacedCallback::new() };
 
     // Called *before* the tile is removed with the instance about to be removed.
-    static ON_REMOVING_TILE_CALLBACK: RemovingTileCallback = RemovingTileCallback::new();
+    static ON_REMOVING_TILE_CALLBACK: RemovingTileCallback = const { RemovingTileCallback::new() };
+
+    // Called *after* the TileMap has been reset. Any existing tile references/cells are invalidated.
+    static ON_MAP_RESET_CALLBACK: MapResetCallback = const { MapResetCallback::new() };
 }
 
 // ----------------------------------------------
@@ -1837,6 +1843,12 @@ impl<'tile_sets> TileEditor<'tile_sets> {
         });
     }
 
+    pub fn set_map_reset_callback(callback: impl Fn(&mut TileMap) + 'static) {
+        ON_MAP_RESET_CALLBACK.with(|cb| {
+            cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_MAP_RESET_CALLBACK was already set!"));
+        });
+    }
+
     #[inline]
     fn invoke_tile_placed_callback(tile: &mut Tile, did_reallocate: bool) {
         ON_TILE_PLACED_CALLBACK.with(|cb| {
@@ -1851,6 +1863,15 @@ impl<'tile_sets> TileEditor<'tile_sets> {
         ON_REMOVING_TILE_CALLBACK.with(|cb| {
             if let Some(callback) = cb.get() {
                 callback(tile);
+            }
+        });
+    }
+
+    #[inline]
+    fn invoke_map_reset_callback(tile_map: &mut TileMap) {
+        ON_MAP_RESET_CALLBACK.with(|cb| {
+            if let Some(callback) = cb.get() {
+                callback(tile_map);
             }
         });
     }

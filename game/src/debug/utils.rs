@@ -56,8 +56,8 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
     }
 }
 
-// Show a small debug overlay under the cursor with its current position.
-pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform) {
+// Show a small debug overlay under the cursor with its current position or provided text.
+pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform, opt_text: Option<&str>) {
     let ui = ui_sys.builder();
     let cursor_screen_pos = Vec2::new(ui.io().mouse_pos[0], ui.io().mouse_pos[1]);
 
@@ -77,16 +77,20 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform
         .always_auto_resize(true)
         .bg_alpha(0.6) // Semi-transparent
         .build(|| {
-            let cursor_iso_pos = coords::screen_to_iso_point(
-                cursor_screen_pos,
-                transform,
-                BASE_TILE_SIZE);
+            if let Some(text) = opt_text {
+                ui.text(text);
+            } else {
+                let cursor_iso_pos = coords::screen_to_iso_point(
+                    cursor_screen_pos,
+                    transform,
+                    BASE_TILE_SIZE);
 
-            let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
+                let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
 
-            ui.text(format!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
-            ui.text(format!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
-            ui.text(format!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
+                ui.text(format!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
+                ui.text(format!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
+                ui.text(format!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
+            }
         });
 }
 

@@ -65,6 +65,7 @@ impl TileWeakRef {
 // TileInspectorMenu
 // ----------------------------------------------
 
+#[derive(Default)]
 pub struct TileInspectorMenu {
     is_open: bool,
     selected: Option<TileWeakRef>,
