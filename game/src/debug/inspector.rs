@@ -12,31 +12,71 @@ use crate::{
         Size,
         Color,
         Seconds,
-        coords::Cell
+        UnsafeWeakRef,
     },
     tile::{
-        map::{Tile, TileFlags, TileMap, TileMapLayerKind, TileEditor},
-        sets::{TileKind, TileSets, BASE_TILE_SIZE}
+        map::{Tile, TileFlags, TileMapLayerKind, TileEditor},
+        sets::{TileKind, BASE_TILE_SIZE}
     }
 };
+
+// ----------------------------------------------
+// TileWeakRef
+// ----------------------------------------------
+
+struct TileWeakRef {
+    // SAFETY: None. Tile Inspector is used only for debug and development.
+    tile_ref: UnsafeWeakRef<Tile<'static>>,
+    tile_kind: TileKind,
+    tile_layer: TileMapLayerKind,
+}
+
+impl TileWeakRef {
+    fn new(tile: &Tile) -> Self {
+        // Strip away lifetime (pretend it is static).
+        #[allow(clippy::unnecessary_cast)] // cast to Tile<'_> is needed to then cast away lifetime as 'static.
+        let tile_ptr = tile as *const Tile<'_> as *const Tile<'static>;
+        Self {
+            tile_ref: UnsafeWeakRef::from_ptr(tile_ptr),
+            tile_kind: tile.kind(),
+            tile_layer: tile.layer_kind(),
+        }
+    }
+
+    fn try_tile(&self) -> Option<&Tile> {
+        // Still same layer and kind, chances are our weak ref is still in good shape.
+        if self.tile_ref.kind() == self.tile_kind &&
+           self.tile_ref.layer_kind() == self.tile_layer {
+            return Some(self.tile_ref.as_ref());
+        }
+        None
+    }
+
+    fn try_tile_mut(&mut self) -> Option<&mut Tile<'static>> {
+        if self.tile_ref.kind() == self.tile_kind &&
+           self.tile_ref.layer_kind() == self.tile_layer {
+            return Some(self.tile_ref.as_mut());
+        }
+        None
+    }
+}
 
 // ----------------------------------------------
 // TileInspectorMenu
 // ----------------------------------------------
 
-#[derive(Default)]
 pub struct TileInspectorMenu {
     is_open: bool,
-    selected: Option<(Cell, TileKind)>,
+    selected: Option<TileWeakRef>,
 }
 
 impl TileInspectorMenu {
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self { is_open: false, selected: None }
     }
 
     pub fn close(&mut self) {
-        *self = Self::default();
+        *self = Self::new();
     }
 
     pub fn on_mouse_click(&mut self,
@@ -46,30 +86,32 @@ impl TileInspectorMenu {
 
         if button == MouseButton::Left && action == InputAction::Press {
             self.is_open  = true;
-            self.selected = Some((selected_tile.base_cell(), selected_tile.kind()));
+            self.selected = Some(TileWeakRef::new(selected_tile));
             UiInputEvent::Handled
         } else {
             UiInputEvent::NotHandled
         }
     }
 
-    pub fn draw(&mut self,
-                context: &mut sim::debug::DebugContext,
-                sim: &mut Simulation) {
-
-        if !self.is_open || self.selected.is_none() {
+    pub fn on_tile_placed(&mut self, _: &Tile, did_reallocate: bool) {
+        if did_reallocate {
+            // Tidy any local Tile references if the tile map has
+            // reallocated its slab as a result of the new tile added.
             self.close();
-            return;
         }
+    }
 
-        let (mut cell, tile_kind) = self.selected.unwrap();
-        if !cell.is_valid() {
-            self.close();
-            return;
+    pub fn on_removing_tile(&mut self, tile: &Tile) {
+        // Tidy cached tile reference if it's been removed.
+        if let Some(selected_tile) = self.try_get_selected_tile() {
+            if selected_tile.base_cell() == tile.base_cell() {
+                self.close();
+            }
         }
+    }
 
-        let layer_kind = TileMapLayerKind::from_tile_kind(tile_kind);
-        let tile = match context.tile_map.try_tile_from_layer(cell, layer_kind) {
+    pub fn draw(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation) {
+        let tile = match self.try_get_selected_tile() {
             Some(tile) => tile,
             None => {
                 self.close();
@@ -80,6 +122,8 @@ impl TileInspectorMenu {
         let tile_screen_rect = tile.screen_rect(&context.transform);
         let is_building = tile.is(TileKind::Building);
         let is_unit = tile.is(TileKind::Unit);
+
+        let window_label = Self::make_stable_imgui_window_label(tile);
 
         let window_position = [
             tile_screen_rect.center().x - 30.0,
@@ -93,30 +137,35 @@ impl TileInspectorMenu {
         let ui = context.ui_sys.builder();
         let mut is_open = self.is_open;
 
-        ui.window(format!("{} {}", tile.name(), cell))
+        ui.window(window_label)
             .opened(&mut is_open)
             .flags(window_flags)
-            .position(window_position, imgui::Condition::Appearing)
+            .position(window_position, imgui::Condition::FirstUseEver)
             .build(|| {
+                let tile_mut = match self.try_get_selected_tile_mut() {
+                    Some(tile_mut) => tile_mut,
+                    None => return,
+                };
+
                 if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    cell = self.tile_properties_dropdown(context, cell, layer_kind);
-                    Self::tile_variations_dropdown(context.ui_sys, context.tile_map, cell, layer_kind);
-                    Self::tile_animations_dropdown(context.ui_sys, context.tile_map, cell, layer_kind);
-                    Self::tile_debug_opts_dropdown(context.ui_sys, context.tile_map, cell, layer_kind);
-                    Self::tile_def_editor_dropdown(context.ui_sys, context.tile_map, cell, layer_kind, context.tile_sets);
+                    Self::tile_properties_dropdown(context, tile_mut);
+                    Self::tile_variations_dropdown(context, tile_mut);
+                    Self::tile_animations_dropdown(context, tile_mut);
+                    Self::tile_debug_opts_dropdown(context, tile_mut);
+                    Self::tile_def_editor_dropdown(context, tile_mut);
                     ui.unindent_by(10.0);
                 }
 
                 if is_building && ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    sim.draw_building_debug_ui(context, cell);
+                    sim.draw_building_debug_ui(context, tile_mut.base_cell());
                     ui.unindent_by(10.0);
                 }
 
                 if is_unit && ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    sim.draw_unit_debug_ui(context, cell);
+                    sim.draw_unit_debug_ui(context, tile_mut.base_cell());
                     ui.unindent_by(10.0);
                 }
             });
@@ -124,20 +173,51 @@ impl TileInspectorMenu {
         self.is_open = is_open;
     }
 
-    fn tile_properties_dropdown(&mut self,
-                                context: &mut sim::debug::DebugContext,
-                                cell: Cell,
-                                layer_kind: TileMapLayerKind) -> Cell {
+    fn try_get_selected_tile(&self) -> Option<&Tile> {
+        if !self.is_open {
+            return None;
+        }
+        let tile_ref = match &self.selected {
+            Some(tile_ref) => tile_ref,
+            None => return None,
+        };
+        tile_ref.try_tile()
+    }
 
+    fn try_get_selected_tile_mut(&mut self) -> Option<&mut Tile<'static>> {
+        if !self.is_open {
+            return None;
+        }
+        let tile_ref = match &mut self.selected {
+            Some(tile_ref) => tile_ref,
+            None => return None,
+        };
+        tile_ref.try_tile_mut()
+    }
+
+    fn make_stable_imgui_window_label(tile: &Tile) -> String {
+        // If the tile has an associated game state, we'll use it as the imgui window ID,
+        // since it is the most stable handle we can get.
+        let game_state = tile.game_state_handle();
+        if game_state.is_valid() {
+            return format!("{} - ID({},{:x})",
+                tile.kind(),
+                game_state.index(),
+                game_state.kind());
+        }
+
+        // Use the tile cell as a fallback. This is fine as long as the
+        // tile doesn't move, so should be OK for terrain & prop tiles.
+        format!("Tile: {} @ {}", tile.name(), tile.base_cell())
+    }
+
+    fn tile_properties_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
         let ui = context.ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
         if !ui.collapsing_header("Properties##_tile_properties", imgui::TreeNodeFlags::empty()) {
-            return cell; // collapsed.
+            return; // collapsed.
         }
-
-        let tile = context.tile_map.try_tile_from_layer(cell, layer_kind).unwrap();
-        let mut tile_editor = TileEditor::new(context.tile_map, layer_kind, cell);
 
         // Display-only properties:
         #[derive(DrawDebugUi)]
@@ -170,15 +250,29 @@ impl TileInspectorMenu {
         debug_vars.draw_debug_ui(context.ui_sys);
         ui.separator();
 
-        // Editing the cell only for single cell Tiles for now; no building blockers support.
-        let read_only_cell = tile.occupies_multiple_cells();
-        let mut updated_cell = cell;
-
         // Editable properties:
+        let mut tile_editor = TileEditor::new(context.tile_map, tile.layer_kind(), tile.base_cell());
+
+        // Editing the cell only for single cell Tiles for now; no building blockers support.
+        let read_only_cell = tile.occupies_multiple_cells() || tile.is(TileKind::Terrain);
         let mut start_cell = tile.cell_range().start;
         if imgui_ui::input_i32_xy(ui, "Start Cell:", &mut start_cell, read_only_cell, None, None)
-            && tile_editor.set_base_cell(start_cell) {
-            updated_cell = start_cell;
+           && tile_editor.set_base_cell(start_cell) {
+
+            // If we've moved the tile, update the game-side state.
+            debug_assert!(tile.base_cell() == start_cell);
+
+            if tile.is(TileKind::Building) {
+                if let Some(building) = context.world.find_building_for_tile_mut(tile) {
+                    building.set_cell_range(tile.cell_range());
+                }
+            }
+
+            if tile.is(TileKind::Unit) {
+                if let Some(unit) = context.world.find_unit_for_tile_mut(tile) {
+                    unit.set_cell(tile.base_cell());
+                }
+            }
         }
 
         let mut end_cell = tile.cell_range().end;
@@ -199,42 +293,14 @@ impl TileInspectorMenu {
         if imgui_ui::input_i32(ui, "Z Sort Key:", &mut z_sort_key, false, None) {
             tile_editor.set_z_sort_key(z_sort_key);
         }
-
-        // If we've moved the tile, update the Inspector's selected cell and game-side state.
-        if updated_cell != cell {
-            debug_assert!(tile.base_cell() == updated_cell);
-
-            if let Some((_, tile_kind)) = self.selected {
-                self.selected = Some((updated_cell, tile_kind));
-            }
-
-            if tile.is(TileKind::Building) {
-                if let Some(building) = context.world.find_building_for_tile_mut(tile) {
-                    building.set_cell_range(tile.cell_range());
-                }
-            }
-
-            if tile.is(TileKind::Unit) {
-                if let Some(unit) = context.world.find_unit_for_tile_mut(tile) {
-                    unit.set_cell(updated_cell);
-                }
-            }
-        }
-
-        updated_cell
     }
 
-    fn tile_variations_dropdown(ui_sys: &UiSystem,
-                                tile_map: &mut TileMap,
-                                cell: Cell,
-                                layer_kind: TileMapLayerKind) {
-
-        let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
+    fn tile_variations_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
         if !tile.has_variations() {
             return;
         }
 
-        let ui = ui_sys.builder();
+        let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Variations", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -248,17 +314,12 @@ impl TileInspectorMenu {
         ui.text(format!("Variation idx : {}, {}", tile.variation_index(), tile.variation_name()));    
     }
 
-    fn tile_animations_dropdown(ui_sys: &UiSystem,
-                                tile_map: &mut TileMap,
-                                cell: Cell,
-                                layer_kind: TileMapLayerKind) {
-
-        let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
+    fn tile_animations_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
         if !tile.has_animations() {
             return;
         }
 
-        let ui = ui_sys.builder();
+        let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Animations", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -304,22 +365,16 @@ impl TileInspectorMenu {
             frame_play_time_secs: tile.anim_frame_play_time_secs(),
         };
 
-        debug_vars.draw_debug_ui(ui_sys);
+        debug_vars.draw_debug_ui(context.ui_sys);
     }
 
-    fn tile_debug_opts_dropdown(ui_sys: &UiSystem,
-                                tile_map: &mut TileMap,
-                                cell: Cell,
-                                layer_kind: TileMapLayerKind) {
-
-        let ui = ui_sys.builder();
+    fn tile_debug_opts_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+        let ui = context.ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Debug Options.
         if !ui.collapsing_header("Debug Options##_tile_debug_opts", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
-
-        let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
 
         let mut hide_tile = tile.has_flags(TileFlags::Hidden);
         if ui.checkbox("Hide tile", &mut hide_tile) {
@@ -345,26 +400,19 @@ impl TileInspectorMenu {
     }
 
     // Edit the underlying TileDef, which will apply to *all* tiles sharing this TileDef.
-    fn tile_def_editor_dropdown(ui_sys: &UiSystem,
-                                tile_map: &mut TileMap,
-                                cell: Cell,
-                                layer_kind: TileMapLayerKind,
-                                tile_sets: &TileSets) {
-
-        let tile = tile_map.try_tile_from_layer_mut(cell, layer_kind).unwrap();
-
+    fn tile_def_editor_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
         if tile.is(TileKind::Blocker) {
             return;
         }
 
-        let ui = ui_sys.builder();
+        let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Edit TileDef", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 
         let mut color = tile.tint_color();
         if imgui_ui::input_color(ui, "Color:", &mut color) {
-            if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def(context.tile_sets) {
                 // Prevent invalid values.
                 editable_def.color = color.clamp();
             }
@@ -379,9 +427,9 @@ impl TileInspectorMenu {
             &mut draw_size,
             false,
             None,
-            Some([ "W", "H" ])) {
+            Some(["W", "H"])) {
 
-            if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def(context.tile_sets) {
                 if draw_size.is_valid() {
                     editable_def.draw_size = draw_size;
                 }
@@ -401,10 +449,10 @@ impl TileInspectorMenu {
             "Logical Size:",
             &mut logical_size,
             false,
-            Some([ BASE_TILE_SIZE.width, BASE_TILE_SIZE.height ]),
-            Some([ "W", "H" ])) {
+            Some([BASE_TILE_SIZE.width, BASE_TILE_SIZE.height]),
+            Some(["W", "H"])) {
 
-            if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def(context.tile_sets) {
                 if logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
                     && (logical_size.width  % BASE_TILE_SIZE.width)  == 0
                     && (logical_size.height % BASE_TILE_SIZE.height) == 0 {
@@ -417,7 +465,7 @@ impl TileInspectorMenu {
 
         let mut occludes_terrain = tile.has_flags(TileFlags::OccludesTerrain);
         if ui.checkbox("Occludes terrain", &mut occludes_terrain) {
-            if let Some(editable_def) = tile.try_get_editable_tile_def(tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def(context.tile_sets) {
                 editable_def.occludes_terrain = occludes_terrain;
             }
             tile.set_flags(TileFlags::OccludesTerrain, occludes_terrain);

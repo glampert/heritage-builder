@@ -1,3 +1,5 @@
+use slab::Slab;
+
 use crate::{
     imgui_ui::UiSystem,
     tile::sets::TileKind,
@@ -18,13 +20,11 @@ use crate::{
         building::{
             Building,
             BuildingKind,
-            BuildingList,
             BuildingArchetypeKind,
             BUILDING_ARCHETYPE_COUNT
         },
         unit::{
             Unit,
-            UnitList,
         }
     }
 };
@@ -69,10 +69,16 @@ impl<'config> World<'config> {
 
     pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
         for buildings in &mut self.buildings_list {
-            buildings.update(query, delta_time_secs);
+            let list_archetype = buildings.archetype_kind();
+            for (_, building) in buildings.iter_mut() {
+                debug_assert!(building.archetype_kind() == list_archetype);
+                building.update(query, delta_time_secs);
+            }
         }
 
-        self.units_list.update(query, delta_time_secs);
+        for (_, unit) in self.units_list.iter_mut() {
+            unit.update(query, delta_time_secs);
+        }
     }
 
     // ----------------------
@@ -135,9 +141,19 @@ impl<'config> World<'config> {
         None
     }
 
-    // ----------------------
-    // Building list helpers:
-    // ----------------------
+    pub fn find_building_by_name(&self, name: &str, archetype_kind: BuildingArchetypeKind) -> Option<&Building<'config>> {
+        self.buildings_list(archetype_kind)
+            .iter()
+            .find(|(_, building)| building.name() == name)
+            .map(|(_, building)| building)
+    }
+
+    pub fn find_building_by_name_mut(&mut self, name: &str, archetype_kind: BuildingArchetypeKind) -> Option<&mut Building<'config>> {
+        self.buildings_list_mut(archetype_kind)
+            .iter_mut()
+            .find(|(_, building)| building.name() == name)
+            .map(|(_, building)| building)
+    }
 
     #[inline]
     pub fn buildings_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
@@ -162,7 +178,9 @@ impl<'config> World<'config> {
                                       show_popup_messages: bool) {
 
         for buildings in &mut self.buildings_list {
-            buildings.for_each_mut(|_, building| {
+            let list_archetype = buildings.archetype_kind();
+            for (_, building) in buildings.iter_mut() {
+                debug_assert!(building.archetype_kind() == list_archetype);
                 building.draw_debug_popups(
                     query,
                     ui_sys,
@@ -170,8 +188,7 @@ impl<'config> World<'config> {
                     visible_range,
                     delta_time_secs,
                     show_popup_messages);
-                true
-            });
+            };
         }
     }
 
@@ -196,7 +213,7 @@ impl<'config> World<'config> {
     // Units API:
     // ----------------------
 
-    // TODO: Store anything more useful in the GameStateHandle `kind` field?
+    // TODO: Store anything more useful in the GameStateHandle `kind` field for Units?
     const UNIT_GAME_STATE_KIND: u32 = 0xABCD1234;
 
     pub fn add_unit(&mut self, tile: &mut Tile, unit: Unit<'config>) {
@@ -240,6 +257,20 @@ impl<'config> World<'config> {
         None
     }
 
+    pub fn find_unit_by_name(&self, name: &str) -> Option<&Unit<'config>> {
+        self.units_list
+            .iter()
+            .find(|(_, unit)| unit.name() == name)
+            .map(|(_, unit)| unit)
+    }
+
+    pub fn find_unit_by_name_mut(&mut self, name: &str) -> Option<&mut Unit<'config>> {
+        self.units_list
+            .iter_mut()
+            .find(|(_, unit)| unit.name() == name)
+            .map(|(_, unit)| unit)
+    }
+
     // ----------------------
     // Units debug:
     // ----------------------
@@ -252,7 +283,7 @@ impl<'config> World<'config> {
                                   delta_time_secs: Seconds,
                                   show_popup_messages: bool) {
 
-        self.units_list.for_each_mut(|_, unit| {
+        for (_, unit) in self.units_list.iter_mut() {
             unit.draw_debug_popups(
                 query,
                 ui_sys,
@@ -260,8 +291,7 @@ impl<'config> World<'config> {
                 visible_range,
                 delta_time_secs,
                 show_popup_messages);
-            true
-        });
+        };
     }
 
     pub fn draw_unit_debug_ui(&mut self,
@@ -279,5 +309,121 @@ impl<'config> World<'config> {
         if let Some(unit) = self.find_unit_for_tile_mut(tile) {
             unit.draw_debug_ui(query, ui_sys);
         }
+    }
+}
+
+// ----------------------------------------------
+// BuildingList
+// ----------------------------------------------
+
+pub struct BuildingList<'config> {
+    archetype_kind: BuildingArchetypeKind,
+    buildings: Slab<Building<'config>>, // All share the same archetype.
+}
+
+impl<'config> BuildingList<'config> {
+    #[inline]
+    pub fn new(archetype_kind: BuildingArchetypeKind) -> Self {
+        Self {
+            archetype_kind,
+            buildings: Slab::new(),
+        }
+    }
+
+    #[inline]
+    pub fn iter(&self) -> slab::Iter<'_, Building<'config>> {
+        self.buildings.iter()
+    }
+
+    #[inline]
+    pub fn iter_mut(&mut self) -> slab::IterMut<'_, Building<'config>> {
+        self.buildings.iter_mut()
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.buildings.clear();
+    }
+
+    #[inline]
+    pub fn archetype_kind(&self) -> BuildingArchetypeKind {
+        self.archetype_kind
+    }
+
+    #[inline]
+    pub fn try_get(&self, index: usize) -> Option<&Building<'config>> {
+        self.buildings.get(index)
+    }
+
+    #[inline]
+    pub fn try_get_mut(&mut self, index: usize) -> Option<&mut Building<'config>> {
+        self.buildings.get_mut(index)
+    }
+
+    #[inline]
+    pub fn add(&mut self, building: Building<'config>) -> usize {
+        debug_assert!(building.archetype_kind() == self.archetype_kind);
+        self.buildings.insert(building)
+    }
+
+    #[inline]
+    pub fn remove(&mut self, index: usize) -> bool {
+        if self.buildings.try_remove(index).is_none() {
+            return false;
+        }
+        true
+    }
+}
+
+// ----------------------------------------------
+// UnitList
+// ----------------------------------------------
+
+pub struct UnitList<'config> {
+    units: Slab<Unit<'config>>,
+}
+
+impl<'config> UnitList<'config> {
+    #[inline]
+    pub fn new() -> Self {
+        Self { units: Slab::new() }
+    }
+
+    #[inline]
+    pub fn iter(&self) -> slab::Iter<'_, Unit<'config>> {
+        self.units.iter()
+    }
+
+    #[inline]
+    pub fn iter_mut(&mut self) -> slab::IterMut<'_, Unit<'config>> {
+        self.units.iter_mut()
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.units.clear();
+    }
+
+    #[inline]
+    pub fn try_get(&self, index: usize) -> Option<&Unit<'config>> {
+        self.units.get(index)
+    }
+
+    #[inline]
+    pub fn try_get_mut(&mut self, index: usize) -> Option<&mut Unit<'config>> {
+        self.units.get_mut(index)
+    }
+
+    #[inline]
+    pub fn add(&mut self, unit: Unit<'config>) -> usize {
+        self.units.insert(unit)
+    }
+
+    #[inline]
+    pub fn remove(&mut self, index: usize) -> bool {
+        if self.units.try_remove(index).is_none() {
+            return false;
+        }
+        true
     }
 }

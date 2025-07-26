@@ -555,3 +555,51 @@ pub fn input_color(ui: &imgui::Ui,
     ui.unindent_by(5.0);
     edited_r | edited_g | edited_b | edited_a
 }
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum DPadDirection {
+    NE,
+    NW,
+    SE,
+    SW,
+}
+
+pub fn dpad_buttons(ui: &imgui::Ui) -> Option<DPadDirection> {
+    let mut direction_pressed = None;
+
+    ui.dummy([35.0, 0.0]);
+    ui.same_line();
+    ui.text("NE");
+
+    ui.dummy([35.0, 0.0]);
+    ui.same_line();
+    if ui.arrow_button("NE", imgui::Direction::Up) {
+        direction_pressed = Some(DPadDirection::NE);
+    }
+
+    ui.text("NW");
+    ui.same_line();
+    if ui.arrow_button("NW", imgui::Direction::Left) {
+        direction_pressed = Some(DPadDirection::NW);
+    }
+
+    ui.same_line();
+    ui.dummy([13.0, 0.0]);
+    ui.same_line();
+    if ui.arrow_button("SE", imgui::Direction::Right) {
+        direction_pressed = Some(DPadDirection::SE);
+    }
+    ui.same_line();
+    ui.text("SE");
+
+    ui.dummy([35.0, 0.0]);
+    ui.same_line();
+    if ui.arrow_button("SW", imgui::Direction::Down) {
+        direction_pressed = Some(DPadDirection::SW);
+    }
+    ui.dummy([35.0, 0.0]);
+    ui.same_line();
+    ui.text("SW");
+
+    direction_pressed
+}

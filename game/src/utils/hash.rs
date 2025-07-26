@@ -48,6 +48,7 @@ pub type FNV1aHash = u64;
 pub type StringHash = FNV1aHash;
 pub const NULL_HASH: FNV1aHash = 0;
 
+#[derive(Copy, Clone)]
 pub struct StrHashPair {
     pub string: &'static str,
     pub hash: StringHash,
@@ -55,10 +56,18 @@ pub struct StrHashPair {
 
 impl StrHashPair {
     #[inline]
+    pub const fn empty() -> Self {
+        Self {
+            string: "",
+            hash: NULL_HASH,
+        }
+    }
+
+    #[inline]
     pub const fn from_str(string: &'static str) -> Self {
         Self {
             string,
-            hash: fnv1a_from_str(string)
+            hash: fnv1a_from_str(string),
         }
     }
 }

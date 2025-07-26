@@ -1,6 +1,6 @@
 use crate::{
-    utils::hash::{self, StringHash},
-    tile::map::Tile
+    tile::map::Tile,
+    utils::hash::{self, StringHash}
 };
 
 use super::{
@@ -47,5 +47,5 @@ impl UnitConfigs {
 pub fn instantiate<'config>(tile: &Tile, configs: &'config UnitConfigs) -> Option<Unit<'config>> {
     let tile_name_hash = tile.tile_def().hash;
     let config = configs.find_config_by_hash(tile_name_hash);
-    Some(Unit::new(tile.base_cell(), config))
+    Some(Unit::new("Ped", tile.base_cell(), config))
 }

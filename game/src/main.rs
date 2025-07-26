@@ -41,6 +41,12 @@ use game::{
     unit::{self, config::UnitConfigs},
 };
 
+use std::cell::RefCell;
+
+std::thread_local! {
+    static TILE_INSPECTOR_MENU: RefCell<TileInspectorMenu> = const { RefCell::new(TileInspectorMenu::new()) };
+}
+
 // ----------------------------------------------
 // main()
 // ----------------------------------------------
@@ -97,7 +103,6 @@ fn main() {
         camera::MIN_ZOOM,
         camera::Offset::Center);
 
-    let mut tile_inspector_menu = TileInspectorMenu::new();
     let mut tile_palette_menu = TilePaletteMenu::new(true, render_sys.texture_cache_mut());
     let mut debug_settings_menu = DebugSettingsMenu::new(false);
 
@@ -109,6 +114,20 @@ fn main() {
     //  ESCAPE clears start/end and search results.
     let mut search_test_start = Cell::invalid();
     let mut search_test_goal  = Cell::invalid();
+
+    TileEditor::set_tile_placed_callback(|tile, did_reallocate| {
+        TILE_INSPECTOR_MENU.with(|inspector| {
+            let mut inspector = inspector.borrow_mut();
+            inspector.on_tile_placed(tile, did_reallocate);
+        });
+    });
+
+    TileEditor::set_removing_tile_callback(|tile| {
+        TILE_INSPECTOR_MENU.with(|inspector| {
+            let mut inspector = inspector.borrow_mut();
+            inspector.on_removing_tile(tile);
+        });
+    });
 
     while !app.should_quit() {
         frame_clock.begin_frame();
@@ -130,7 +149,11 @@ fn main() {
                     }
 
                     if key == InputKey::Escape {
-                        tile_inspector_menu.close();
+                        TILE_INSPECTOR_MENU.with(|inspector| {
+                            let mut inspector = inspector.borrow_mut();
+                            inspector.close();
+                        });
+
                         tile_palette_menu.clear_selection();
                         tile_map.clear_selection(&mut tile_selection);
 
@@ -141,6 +164,10 @@ fn main() {
                             |tile| {
                                 tile.set_flags(TileFlags::Highlighted, false);
                             });
+
+                        if let Some(ped) = world.find_unit_by_name_mut("Ped") {
+                            ped.follow_path(None);
+                        }
                     }
 
                     if key == InputKey::Enter {
@@ -156,6 +183,10 @@ fn main() {
                                     if let Some(tile) = tile_map.try_tile_from_layer_mut(node.cell, TileMapLayerKind::Terrain) {
                                         tile.set_flags(TileFlags::Highlighted, true);
                                     }
+                                }
+
+                                if let Some(ped) = world.find_unit_by_name_mut("Ped") {
+                                    ped.follow_path(Some(path));
                                 }
                             },
                             SearchResult::PathNotFound => {
@@ -197,7 +228,14 @@ fn main() {
                         }
 
                         if let Some(selected_tile) = tile_map.topmost_selected_tile(&tile_selection) {
-                            if tile_inspector_menu.on_mouse_click(button, action, selected_tile).is_handled() {
+                            let mouse_click_handled = TILE_INSPECTOR_MENU.with(|inspector| {
+                                let mut inspector = inspector.borrow_mut();
+                                if inspector.on_mouse_click(button, action, selected_tile).is_handled() {
+                                    return true;
+                                }
+                                false
+                            });
+                            if mouse_click_handled {
                                 continue;
                             }
                         }
@@ -328,7 +366,11 @@ fn main() {
             tile_selection.has_valid_placement(),
             debug_settings_menu.show_selection_bounds());
 
-        tile_inspector_menu.draw(&mut debug_context, &mut sim);
+        TILE_INSPECTOR_MENU.with(|inspector| {
+            let mut inspector = inspector.borrow_mut();
+            inspector.draw(&mut debug_context, &mut sim);
+        });
+
         debug_settings_menu.draw(&mut debug_context, &mut camera, &mut tile_map_renderer);
 
         sim.draw_building_debug_popups(&mut debug_context, visible_range, debug_settings_menu.show_popup_messages());

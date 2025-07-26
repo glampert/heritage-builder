@@ -737,9 +737,12 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn set_anim_set_index(&mut self, index: usize) {
         let max_index = self.anim_sets_count() - 1;
         let anim_state = self.anim_state_mut_ref();
-        anim_state.anim_set_index = index.min(max_index).try_into().expect("Anim Set index must be <= u16::MAX!");
-        anim_state.frame_index = 0;
-        anim_state.frame_play_time_secs = 0.0;
+        let new_anim_set_index: u16 = index.min(max_index).try_into().expect("Anim Set index must be <= u16::MAX!");
+        if new_anim_set_index != anim_state.anim_set_index {
+            anim_state.anim_set_index = new_anim_set_index;
+            anim_state.frame_index = 0;
+            anim_state.frame_play_time_secs = 0.0;
+        }
     }
 
     #[inline]
@@ -1098,6 +1101,11 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
         estimate += self.pool.cell_to_slab_idx.capacity() * std::mem::size_of::<usize>();
         estimate += self.pool.slab.capacity() * std::mem::size_of::<Tile>();
         estimate
+    }
+
+    #[inline]
+    pub fn pool_capacity(&self) -> usize {
+        self.pool.slab.capacity()
     }
 
     #[inline]
@@ -1575,9 +1583,9 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile(&mut self,
                           target_cell: Cell,
                           tile_def_to_place: &'tile_sets TileDef) -> Option<&mut Tile<'tile_sets>> {
-        placement::try_place_tile_in_layer(
-            self.layer_mut(tile_def_to_place.layer_kind()), // Guess layer from TileDef.
+        self.try_place_tile_in_layer(
             target_cell,
+            tile_def_to_place.layer_kind(), // Guess layer from TileDef.
             tile_def_to_place)
     }
 
@@ -1586,7 +1594,16 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                    target_cell: Cell,
                                    layer_kind: TileMapLayerKind,
                                    tile_def_to_place: &'tile_sets TileDef) -> Option<&mut Tile<'tile_sets>> {
-        placement::try_place_tile_in_layer(self.layer_mut(layer_kind), target_cell, tile_def_to_place)
+
+        let layer = self.layer_mut(layer_kind);
+        let prev_pool_capacity = layer.pool_capacity();
+
+        placement::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
+            .map(|(tile, new_pool_capacity)| {
+                let did_reallocate = new_pool_capacity != prev_pool_capacity;
+                TileEditor::invoke_tile_placed_callback(tile, did_reallocate);
+                tile
+            })
     }
 
     #[inline]
@@ -1594,13 +1611,31 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                     cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform,
                                     tile_def_to_place: &'tile_sets TileDef) -> Option<&mut Tile<'tile_sets>> {
+
+        let prev_pool_capacity = {
+            let layer = self.layer(tile_def_to_place.layer_kind());
+            layer.pool_capacity()
+        };
+
         placement::try_place_tile_at_cursor(self, cursor_screen_pos, transform, tile_def_to_place)
+            .map(|(tile, new_pool_capacity)| {
+                let did_reallocate = new_pool_capacity != prev_pool_capacity;
+                TileEditor::invoke_tile_placed_callback(tile, did_reallocate);
+                tile
+            })
     }
 
     #[inline]
     pub fn try_clear_tile_from_layer(&mut self,
                                      target_cell: Cell,
                                      layer_kind: TileMapLayerKind) -> bool {
+
+        if TileEditor::has_removing_tile_callback() {
+            if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
+                TileEditor::invoke_removing_tile_callback(tile);
+            }
+        }
+
         placement::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell)
     }
 
@@ -1608,11 +1643,26 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_clear_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform) -> bool {
+
+        if TileEditor::has_removing_tile_callback() {
+            for layer_kind in TileMapLayerKind::iter().rev() {
+                let target_cell = self.find_exact_cell_for_point(layer_kind, cursor_screen_pos, transform);
+                if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
+                    TileEditor::invoke_removing_tile_callback(tile);
+                    break;
+                }
+            }
+        }
+
         placement::try_clear_tile_at_cursor(self, cursor_screen_pos, transform)
     }
 
     // Move tile from one cell to another if destination is free.
     pub fn try_move_tile(&mut self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
+        if from == to {
+            return false;
+        }
+
         if !self.is_cell_within_bounds(from) ||
            !self.is_cell_within_bounds(to) {
             return false;
@@ -1706,6 +1756,21 @@ impl<'tile_sets> TileMap<'tile_sets> {
 }
 
 // ----------------------------------------------
+// Optional callbacks used for editing and dev
+// ----------------------------------------------
+
+type TilePlacedCallback   = std::cell::OnceCell<Box<dyn Fn(&mut Tile, bool) + 'static>>;
+type RemovingTileCallback = std::cell::OnceCell<Box<dyn Fn(&mut Tile) + 'static>>;
+
+std::thread_local! {
+    // Called *after* a tile is placed with the new tile instance.
+    static ON_TILE_PLACED_CALLBACK: TilePlacedCallback = TilePlacedCallback::new();
+
+    // Called *before* the tile is removed with the instance about to be removed.
+    static ON_REMOVING_TILE_CALLBACK: RemovingTileCallback = RemovingTileCallback::new();
+}
+
+// ----------------------------------------------
 // TileEditor
 // ----------------------------------------------
 
@@ -1756,5 +1821,44 @@ impl<'tile_sets> TileEditor<'tile_sets> {
             return true;
         }
         false
+    }
+
+    // These callbacks can only be set once and will stay set globally.
+
+    pub fn set_tile_placed_callback(callback: impl Fn(&mut Tile, bool) + 'static) {
+        ON_TILE_PLACED_CALLBACK.with(|cb| {
+            cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_TILE_PLACED_CALLBACK was already set!"));
+        });
+    }
+
+    pub fn set_removing_tile_callback(callback: impl Fn(&mut Tile) + 'static) {
+        ON_REMOVING_TILE_CALLBACK.with(|cb| {
+            cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_REMOVING_TILE_CALLBACK was already set!"));
+        });
+    }
+
+    #[inline]
+    fn invoke_tile_placed_callback(tile: &mut Tile, did_reallocate: bool) {
+        ON_TILE_PLACED_CALLBACK.with(|cb| {
+            if let Some(callback) = cb.get() {
+                callback(tile, did_reallocate);
+            }
+        });
+    }
+
+    #[inline]
+    fn invoke_removing_tile_callback(tile: &mut Tile) {
+        ON_REMOVING_TILE_CALLBACK.with(|cb| {
+            if let Some(callback) = cb.get() {
+                callback(tile);
+            }
+        });
+    }
+
+    #[inline]
+    fn has_removing_tile_callback() -> bool {
+        ON_REMOVING_TILE_CALLBACK.with(|cb| -> bool {
+            cb.get().is_some()
+        })
     }
 }

@@ -80,6 +80,11 @@ impl Cell {
     pub fn is_valid(&self) -> bool {
         self.x >= 0 && self.y >= 0
     }
+
+    #[inline]
+    pub fn to_vec2(self) -> Vec2 {
+        Vec2::new(self.x as f32, self.y as f32)
+    }
 }
 
 impl std::fmt::Display for Cell {

@@ -1,4 +1,3 @@
-use slab::Slab;
 use rand::Rng;
 use bitflags::{bitflags, Flags};
 use strum::{EnumCount, IntoDiscriminant};
@@ -90,6 +89,21 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
+    pub fn name(&self) -> &str {
+        self.name
+    }
+
+    #[inline]
+    pub fn cell_range(&self) -> CellRange {
+        self.map_cells
+    }
+
+    pub fn set_cell_range(&mut self, new_map_cells: CellRange) {
+        debug_assert!(new_map_cells.is_valid());
+        self.map_cells = new_map_cells;
+    }
+
+    #[inline]
     pub fn kind(&self) -> BuildingKind {
         self.kind
     }
@@ -110,11 +124,6 @@ impl<'config> Building<'config> {
                                  query);
 
         self.archetype.update(&mut context, delta_time_secs);
-    }
-
-    pub fn set_cell_range(&mut self, new_map_cells: CellRange) {
-        debug_assert!(new_map_cells.is_valid());
-        self.map_cells = new_map_cells;
     }
 
     pub fn draw_debug_ui(&mut self, query: &mut Query<'config, '_, '_, '_>, ui_sys: &UiSystem) {
@@ -172,91 +181,6 @@ impl<'config> Building<'config> {
             visible_range,
             delta_time_secs,
             show_popup_messages);
-    }
-}
-
-// ----------------------------------------------
-// BuildingList
-// ----------------------------------------------
-
-pub struct BuildingList<'config> {
-    archetype_kind: BuildingArchetypeKind,
-    buildings: Slab<Building<'config>>, // All share the same archetype.
-}
-
-impl<'config> BuildingList<'config> {
-    #[inline]
-    pub fn new(archetype_kind: BuildingArchetypeKind) -> Self {
-        Self {
-            archetype_kind,
-            buildings: Slab::new(),
-        }
-    }
-
-    #[inline]
-    pub fn clear(&mut self) {
-        self.buildings.clear();
-    }
-
-    #[inline]
-    pub fn archetype_kind(&self) -> BuildingArchetypeKind {
-        self.archetype_kind
-    }
-
-    #[inline]
-    pub fn try_get(&self, index: usize) -> Option<&Building<'config>> {
-        self.buildings.get(index)
-    }
-
-    #[inline]
-    pub fn try_get_mut(&mut self, index: usize) -> Option<&mut Building<'config>> {
-        self.buildings.get_mut(index)
-    }
-
-    #[inline]
-    pub fn add(&mut self, building: Building<'config>) -> usize {
-        debug_assert!(building.archetype_kind() == self.archetype_kind);
-        self.buildings.insert(building)
-    }
-
-    #[inline]
-    pub fn remove(&mut self, index: usize) -> bool {
-        if self.buildings.try_remove(index).is_none() {
-            return false;
-        }
-        true
-    }
-
-    #[inline]
-    pub fn for_each<F>(&self, mut visitor_fn: F)
-        where F: FnMut(usize, &Building<'config>) -> bool
-    {
-        for (index, building) in &self.buildings {
-            let should_continue = visitor_fn(index, building);
-            if !should_continue {
-                break;
-            }
-        }
-    }
-
-    #[inline]
-    pub fn for_each_mut<F>(&mut self, mut visitor_fn: F)
-        where F: FnMut(usize, &mut Building<'config>) -> bool
-    {
-        for (index, building) in &mut self.buildings {
-            let should_continue = visitor_fn(index, building);
-            if !should_continue {
-                break;
-            }
-        }
-    }
-
-    #[inline]
-    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
-        for (_, building) in &mut self.buildings {
-            debug_assert!(building.archetype_kind() == self.archetype_kind);
-            building.update(query, delta_time_secs);
-        }
     }
 }
 
@@ -575,13 +499,14 @@ impl<'config, 'query, 'sim, 'tile_map, 'tile_sets> BuildingContext<'config, 'que
         let storage_buildings =
             self.query.world.buildings_list_mut(BuildingArchetypeKind::Storage);
 
-        storage_buildings.for_each_mut(|_, building| {
+        for (_, building) in storage_buildings.iter_mut() {
             if building.kind().intersects(storage_kinds) {
-                visitor_fn(building.archetype.as_storage_mut())
-            } else {
-                true // continue
+                let should_continue = visitor_fn(building.archetype.as_storage_mut());
+                if !should_continue {
+                    break;
+                }
             }
-        });
+        };
     }
 }
 

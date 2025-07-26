@@ -128,6 +128,10 @@ pub struct TileSprite {
     // Name of the tile texture. Resolved into a TextureHandle post load.
     pub name: String,
 
+    // Hash of `name`, computed post-load.
+    #[serde(skip)]
+    pub hash: StringHash,
+    
     // Not stored in serialized data.
     #[serde(skip)]
     pub tex_info: TileTexInfo,
@@ -141,6 +145,10 @@ pub struct TileSprite {
 pub struct TileAnimSet {
     #[serde(default)]
     pub name: String,
+
+    // Hash of `name`, computed post-load.
+    #[serde(skip)]
+    pub hash: StringHash,
 
     // Duration of the whole anim in seconds.
     // Optional, can be zero if there's only a single frame.
@@ -181,6 +189,10 @@ pub struct TileVariation {
     #[serde(default)]
     pub name: String,
 
+    // Hash of `name`, computed post-load.
+    #[serde(skip)]
+    pub hash: StringHash,
+    
     // AnimSet may contain one or more animation frames.
     pub anim_sets: SmallVec<[TileAnimSet; 1]>,
 }
@@ -435,11 +447,15 @@ impl TileDef {
 
         // Validate deserialized data and resolve texture handles:
         for variation in &mut self.variations {
+            variation.hash = hash::fnv1a_from_str(&variation.name);
+
             for anim_set in &mut variation.anim_sets {
                 if anim_set.frames.is_empty() {
                     eprintln!("At least one animation frame is required! TileDef: '{}' - '{}'", self.kind, self.name);
                     return false;
                 }
+
+                anim_set.hash = hash::fnv1a_from_str(&anim_set.name);
 
                 for (frame_index, frame) in anim_set.frames.iter_mut().enumerate() {
                     if frame.name.is_empty() {
@@ -449,6 +465,8 @@ impl TileDef {
                                   self.name);
                         return false;
                     }
+
+                    frame.hash = hash::fnv1a_from_str(&frame.name);
 
                     // Path formats:
                     //  terrain/<category>/<tile>.png

@@ -33,7 +33,8 @@ pub enum PlacementOp<'tile_sets> {
 
 pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut TileMapLayer<'tile_sets>,
                                                       target_cell: Cell,
-                                                      tile_def_to_place: &'tile_sets TileDef) -> Option<&'tile_map mut Tile<'tile_sets>> {
+                                                      tile_def_to_place: &'tile_sets TileDef)
+                                                      -> Option<(&'tile_map mut Tile<'tile_sets>, usize)> {
 
     debug_assert!(tile_def_to_place.is_valid());
     debug_assert!(tile_def_to_place.layer_kind() == layer.kind());
@@ -74,7 +75,9 @@ pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut Tile
     }
 
     // Placement successful.
-    layer.try_tile_mut(target_cell)
+    let new_pool_capacity = layer.pool_capacity();
+    let new_tile = layer.try_tile_mut(target_cell).unwrap();
+    Some((new_tile, new_pool_capacity))
 }
 
 pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
@@ -96,7 +99,8 @@ pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
 pub fn try_place_tile_at_cursor<'tile_map, 'tile_sets>(tile_map: &'tile_map mut TileMap<'tile_sets>,
                                                        cursor_screen_pos: Vec2,
                                                        transform: &WorldToScreenTransform,
-                                                       tile_def_to_place: &'tile_sets TileDef) -> Option<&'tile_map mut Tile<'tile_sets>> {
+                                                       tile_def_to_place: &'tile_sets TileDef)
+                                                       -> Option<(&'tile_map mut Tile<'tile_sets>, usize)> {
 
     debug_assert!(transform.is_valid());
     debug_assert!(tile_def_to_place.is_valid());
