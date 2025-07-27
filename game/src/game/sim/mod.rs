@@ -155,6 +155,12 @@ impl Simulation {
     }
 }
 
+impl Default for Simulation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ----------------------------------------------
 // UpdateTimer
 // ----------------------------------------------

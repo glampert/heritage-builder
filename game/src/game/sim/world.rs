@@ -312,6 +312,12 @@ impl<'config> World<'config> {
     }
 }
 
+impl Default for World<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ----------------------------------------------
 // BuildingList
 // ----------------------------------------------

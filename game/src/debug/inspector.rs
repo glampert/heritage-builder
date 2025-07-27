@@ -13,6 +13,7 @@ use crate::{
         Color,
         Seconds,
         UnsafeWeakRef,
+        coords::Cell,
     },
     tile::{
         map::{Tile, TileFlags, TileMapLayerKind, TileEditor},
@@ -69,15 +70,20 @@ impl TileWeakRef {
 pub struct TileInspectorMenu {
     is_open: bool,
     selected: Option<TileWeakRef>,
+    last_tile_cell: Cell,
 }
 
 impl TileInspectorMenu {
-    pub const fn new() -> Self {
-        Self { is_open: false, selected: None }
+    pub fn new() -> Self {
+        Self {
+            last_tile_cell: Cell::invalid(),
+            ..Default::default()
+        }
     }
 
     pub fn close(&mut self) {
-        *self = Self::new();
+        self.is_open  = false;
+        self.selected = None;
     }
 
     pub fn on_mouse_click(&mut self,
@@ -94,18 +100,28 @@ impl TileInspectorMenu {
         }
     }
 
-    pub fn on_tile_placed(&mut self, _: &Tile, did_reallocate: bool) {
+    pub fn on_tile_placed(&mut self, tile: &Tile, did_reallocate: bool) {
         if did_reallocate {
             // Tidy any local Tile references if the tile map has
             // reallocated its slab as a result of the new tile added.
             self.close();
         }
+
+        // Handle the case where we remove a tile and re-add something to the
+        // same cell, like when upgrading a building. Re-open with the new tile.
+        if self.last_tile_cell == tile.base_cell() {
+            self.is_open  = true;
+            self.selected = Some(TileWeakRef::new(tile));
+        }
+
+        self.last_tile_cell = Cell::invalid();
     }
 
     pub fn on_removing_tile(&mut self, tile: &Tile) {
-        // Tidy cached tile reference if it's been removed.
+        // Tidy cached tile reference if it is being removed.
         if let Some(selected_tile) = self.try_get_selected_tile() {
             if selected_tile.base_cell() == tile.base_cell() {
+                self.last_tile_cell = selected_tile.base_cell();
                 self.close();
             }
         }
