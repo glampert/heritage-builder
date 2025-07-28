@@ -240,28 +240,39 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                 }
             };
 
-            let slider = {
+            let (slider, button) = {
                 if let Some(widget) = attrs.widget {
                     if widget == "slider" {
-                        true
+                        (true, false)
+                    } else if widget == "button" {
+                        if field_kind != FieldKind::Bool {
+                            panic!("Button widget only works with bool fields!");
+                        }
+                        (false, true)
                     } else {
-                        panic!("Invalid value '{widget}' for 'widget' attribute! Expected 'slider'.")
+                        panic!("Invalid value '{widget}' for 'widget' attribute! Expected 'slider' or 'button'.")
                     }
                 } else {
-                    false
+                    (false, false)
                 }
             };
 
             let field_tokens = match field_kind {
                 FieldKind::Bool => {
                     if read_only {
-                        quote! {
-                            {
-                                // Write into a local variable so any change will be discarded.
-                                let mut b_curr_value_ = self.#field_name;
-                                ui.checkbox(#label_str, &mut b_curr_value_);
+                        if button {
+                            quote! { ui.button(#label_str); }
+                        } else {
+                            quote! {
+                                {
+                                    // Write into a local variable so any change will be discarded.
+                                    let mut b_curr_value_ = self.#field_name;
+                                    ui.checkbox(#label_str, &mut b_curr_value_);
+                                }
                             }
                         }
+                    } else if button {
+                        quote! { self.#field_name = ui.button(#label_str); }
                     } else {
                         quote! { ui.checkbox(#label_str, &mut self.#field_name); }
                     }

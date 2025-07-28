@@ -16,7 +16,7 @@ use crate::{
         coords::Cell,
     },
     tile::{
-        map::{Tile, TileFlags, TileMapLayerKind, TileEditor},
+        map::{Tile, TileFlags, TileMapLayerKind},
         sets::{TileKind, BASE_TILE_SIZE}
     }
 };
@@ -267,28 +267,24 @@ impl TileInspectorMenu {
         debug_vars.draw_debug_ui(context.ui_sys);
         ui.separator();
 
-        // Editable properties:
-        let mut tile_editor = TileEditor::new(context.tile_map, tile.layer_kind(), tile.base_cell());
-
-        // Editing the cell only for single cell Tiles for now; no building blockers support.
+        // Editing the cell only for single cell Object Tiles for now; no building blockers/terrain support.
         let read_only_cell = tile.occupies_multiple_cells() || tile.is(TileKind::Terrain);
+
+        // Editable properties:
         let mut start_cell = tile.cell_range().start;
-        if imgui_ui::input_i32_xy(ui, "Start Cell:", &mut start_cell, read_only_cell, None, None)
-           && tile_editor.set_base_cell(start_cell) {
-
-            // If we've moved the tile, update the game-side state.
-            debug_assert!(tile.base_cell() == start_cell);
-
+        if imgui_ui::input_i32_xy(ui, "Start Cell:", &mut start_cell, read_only_cell, None, None) {
+            // If we've moved the tile, update the game-side state:
             if tile.is(TileKind::Building) {
                 if let Some(building) = context.world.find_building_for_tile_mut(tile) {
-                    building.set_cell_range(tile.cell_range());
+                    building.teleport(context.tile_map, start_cell);
                 }
-            }
-
-            if tile.is(TileKind::Unit) {
+            } else if tile.is(TileKind::Unit) {
                 if let Some(unit) = context.world.find_unit_for_tile_mut(tile) {
-                    unit.set_cell(tile.base_cell());
+                    unit.teleport(context.tile_map, start_cell);
                 }
+            } else {
+                // No associated game object to update, just try to move the tile alone.
+                context.tile_map.try_move_tile(tile.base_cell(), start_cell, tile.layer_kind());
             }
         }
 
@@ -296,11 +292,8 @@ impl TileInspectorMenu {
         imgui_ui::input_i32_xy(ui, "End Cell:", &mut end_cell, true, None, None);
 
         let mut iso_coords = tile.iso_coords();
-        imgui_ui::input_i32_xy(ui, "Iso Coords:", &mut iso_coords, true, None, None);
-
-        let mut iso_adjusted = tile.adjusted_iso_coords();
-        if imgui_ui::input_i32_xy(ui, "Adjusted Iso Coords:", &mut iso_adjusted, false, None, None) {
-            tile_editor.set_adjusted_iso_coords(iso_adjusted);
+        if imgui_ui::input_i32_xy(ui, "Iso Coords:", &mut iso_coords, false, None, None) {
+            tile.set_iso_coords(iso_coords);
         }
 
         let mut screen_coords = tile.screen_rect(&context.transform).position();
@@ -308,7 +301,7 @@ impl TileInspectorMenu {
 
         let mut z_sort_key = tile.z_sort_key();
         if imgui_ui::input_i32(ui, "Z Sort Key:", &mut z_sort_key, false, None) {
-            tile_editor.set_z_sort_key(z_sort_key);
+            tile.set_z_sort_key(z_sort_key);
         }
     }
 

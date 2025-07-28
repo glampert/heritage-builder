@@ -496,7 +496,7 @@
                                 {
                                     "name": "walk_ne",
                                     "looping": true,
-                                    "duration": 5.0,
+                                    "duration": 2.0,
                                     "frames": [
                                         {
                                             "name": "frame0"
@@ -530,7 +530,7 @@
                                 {
                                     "name": "walk_nw",
                                     "looping": true,
-                                    "duration": 5.0,
+                                    "duration": 2.0,
                                     "frames": [
                                         {
                                             "name": "frame0"
@@ -564,7 +564,7 @@
                                 {
                                     "name": "walk_se",
                                     "looping": true,
-                                    "duration": 5.0,
+                                    "duration": 2.0,
                                     "frames": [
                                         {
                                             "name": "frame0"
@@ -598,7 +598,7 @@
                                 {
                                     "name": "walk_sw",
                                     "looping": true,
-                                    "duration": 5.0,
+                                    "duration": 2.0,
                                     "frames": [
                                         {
                                             "name": "frame0"

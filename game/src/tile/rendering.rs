@@ -197,7 +197,7 @@ impl TileMapRenderer {
                 Self::draw_tile(render_sys,
                                 &mut self.stats,
                                 ui_sys,
-                                tile.adjusted_iso_coords(),
+                                tile.iso_coords(),
                                 transform,
                                 tile,
                                 flags);
@@ -282,7 +282,7 @@ impl TileMapRenderer {
             Self::draw_tile(render_sys,
                             &mut self.stats,
                             ui_sys,
-                            tile.adjusted_iso_coords(),
+                            tile.iso_coords(),
                             transform,
                             tile,
                             flags);

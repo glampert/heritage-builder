@@ -97,6 +97,7 @@ fn main() {
         frame_clock.begin_frame();
 
         let cursor_screen_pos = input_sys.cursor_pos();
+        let delta_time_secs = frame_clock.delta_time();
 
         for event in app.poll_events() {
             match event {
@@ -158,20 +159,20 @@ fn main() {
             }
         }
 
-        sim.update(&mut world, &mut tile_map, &tile_sets, frame_clock.delta_time());
+        sim.update(&mut world, &mut tile_map, &tile_sets, delta_time_secs);
 
-        camera.update_zooming(frame_clock.delta_time());
+        camera.update_zooming(delta_time_secs);
 
         // Map scrolling:
         if !ui_sys.is_handling_mouse_input() {
-            camera.update_scrolling(cursor_screen_pos, frame_clock.delta_time());
+            camera.update_scrolling(cursor_screen_pos, delta_time_secs);
         }
 
         let visible_range = camera.visible_cells_range();
 
-        tile_map.update_anims(visible_range, frame_clock.delta_time());
+        tile_map.update_anims(visible_range, delta_time_secs);
 
-        ui_sys.begin_frame(&app, &input_sys, frame_clock.delta_time());
+        ui_sys.begin_frame(&app, &input_sys, delta_time_secs);
         render_sys.begin_frame();
 
         let selected_render_flags =
@@ -205,7 +206,7 @@ fn main() {
                 tile_map: &mut tile_map,
                 tile_sets: &tile_sets,
                 transform: *camera.transform(),
-                delta_time_secs: frame_clock.delta_time().as_secs_f32(),
+                delta_time_secs,
             },
             sim: &mut sim,
             camera: &mut camera,

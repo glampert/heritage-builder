@@ -10,11 +10,11 @@ use crate::{
     utils::{
         Seconds,
         hash::StringHash,
-        coords::{CellRange, WorldToScreenTransform}
+        coords::{Cell, CellRange, WorldToScreenTransform}
     },
     tile::{
         sets::{TileDef, TileKind, OBJECTS_BUILDINGS_CATEGORY},
-        map::{GameStateHandle, Tile, TileMapLayerKind}
+        map::{GameStateHandle, Tile, TileMap, TileMapLayerKind}
     }
 };
 
@@ -98,11 +98,6 @@ impl<'config> Building<'config> {
         self.map_cells
     }
 
-    pub fn set_cell_range(&mut self, new_map_cells: CellRange) {
-        debug_assert!(new_map_cells.is_valid());
-        self.map_cells = new_map_cells;
-    }
-
     #[inline]
     pub fn kind(&self) -> BuildingKind {
         self.kind
@@ -124,6 +119,25 @@ impl<'config> Building<'config> {
                                  query);
 
         self.archetype.update(&mut context, delta_time_secs);
+    }
+
+    pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
+        debug_assert!(destination_cell.is_valid());
+
+        if tile_map.try_move_tile(self.map_cells.start, destination_cell, TileMapLayerKind::Objects) {
+            let tile = tile_map.find_tile_mut(
+                destination_cell,
+                TileMapLayerKind::Objects,
+                TileKind::Building)
+                .unwrap();
+
+            debug_assert!(destination_cell == tile.base_cell());
+            self.map_cells = tile.cell_range();
+
+            return true;
+        }
+
+        false
     }
 
     pub fn draw_debug_ui(&mut self, query: &mut Query<'config, '_, '_, '_>, ui_sys: &UiSystem) {

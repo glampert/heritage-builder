@@ -1,4 +1,3 @@
-use std::time::{self};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
@@ -60,20 +59,22 @@ impl Simulation {
                               world: &mut World,
                               tile_map: &mut TileMap<'tile_sets>,
                               tile_sets: &'tile_sets TileSets,
-                              delta_time: time::Duration) {
+                              delta_time_secs: Seconds) {
+
+        let mut query = Query::new(
+            &mut self.rng,
+            world,
+            tile_map,
+            tile_sets);
 
         // Fixed step update.
         let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
-
-        if self.update_timer.tick(delta_time.as_secs_f32()).should_update() {
-            let mut query = Query::new(
-                &mut self.rng,
-                world,
-                tile_map,
-                tile_sets);
-
+        if self.update_timer.tick(delta_time_secs).should_update() {
             world.update(&mut query, world_update_delta_time_secs);
         }
+
+        // Units movement needs to be smooth, so it updates every frame.
+        world.update_unit_movement(&mut query, delta_time_secs);
     }
 
     // ----------------------

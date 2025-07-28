@@ -294,7 +294,7 @@ impl DivAssign for Vec2 {
 
 impl std::fmt::Display for Vec2 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[{},{}]", self.x, self.y)
+        write!(f, "[{:.2},{:.2}]", self.x, self.y)
     }
 }
 
@@ -803,8 +803,8 @@ impl FrameClock {
 
     #[inline]
     #[must_use]
-    pub fn delta_time(&self) -> time::Duration {
-        self.delta_time
+    pub fn delta_time(&self) -> Seconds {
+        self.delta_time.as_secs_f32()
     }
 }
 

@@ -10,7 +10,7 @@ use crate::{
         DPadDirection
     },
     tile::{
-        map::{Tile, TileMapLayerKind},
+        map::{Tile, TileMap, TileMapLayerKind},
         sets::{TileDef, TileKind},
     },
     utils::{
@@ -20,6 +20,7 @@ use crate::{
         coords::{
             Cell,
             CellRange,
+            IsoPoint,
             WorldToScreenTransform
         },
         hash::{
@@ -39,6 +40,21 @@ use super::{
 
 pub mod config;
 use config::UnitConfig;
+
+// TEMP
+use crate::utils::{coords::{self}, Size};
+use crate::tile::sets::BASE_TILE_SIZE;
+fn my_calc_object_adjusted_iso_coords(base_cell: Cell, draw_size: Size) -> IsoPoint {
+    // Convert the anchor (bottom tile for buildings) to isometric coordinates:
+    let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
+
+    // Adjust to center the unit sprite:
+    tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
+    tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2);
+
+    tile_iso_coords
+}
+// TEMP
 
 // ----------------------------------------------
 // Helper macros
@@ -77,25 +93,25 @@ Common Unit Behavior:
 */
 pub struct Unit<'config> {
     name: &'config str,
-    map_cell: Cell,
     config: &'config UnitConfig,
+    map_cell: Cell,
+    anim_sets: UnitAnimSets,
     inventory: UnitInventory,
     navigation: UnitNavigation,
     direction: UnitDirection,
-    anim_sets: UnitAnimSets,
     debug: UnitDebug,
 }
 
 impl<'config> Unit<'config> {
-    pub fn new(name: &'config str, map_cell: Cell, config: &'config UnitConfig) -> Self {
+    pub fn new(name: &'config str, tile: &mut Tile, config: &'config UnitConfig) -> Self {
         Self {
             name,
-            map_cell,
             config,
+            map_cell: tile.base_cell(),
+            anim_sets: UnitAnimSets::new(tile, UnitAnimSets::IDLE),
             inventory: UnitInventory::default(),
             navigation: UnitNavigation::default(),
             direction: UnitDirection::default(),
-            anim_sets: UnitAnimSets::default(),
             debug: UnitDebug::default(),
         }
     }
@@ -111,43 +127,77 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
-    pub fn set_cell(&mut self, new_map_cell: Cell) {
-        debug_assert!(new_map_cell.is_valid());
-        self.map_cell = new_map_cell;
-    }
-
-    #[inline]
     pub fn follow_path(&mut self, path: Option<&Path>) {
         self.navigation.reset(path);
     }
 
-    pub fn update(&mut self, query: &mut Query, delta_time_secs: Seconds) {
+    // Teleports to new tile cell and updates direction and animation.
+    pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
+        debug_assert!(destination_cell.is_valid());
 
-        //TODO: need a separate update for movement that runs more frequently since simulation time step is fixed.
+        if tile_map.try_move_tile(self.map_cell, destination_cell, TileMapLayerKind::Objects) {
+            let tile = tile_map.find_tile_mut(
+                destination_cell,
+                TileMapLayerKind::Objects,
+                TileKind::Unit)
+                .unwrap();
 
+            let new_direction =
+                direction_between(self.map_cell, destination_cell);
+    
+            self.update_direction_and_anim(tile, new_direction);
+            debug_assert!(destination_cell == tile.base_cell());
+            self.map_cell = destination_cell;
+
+            return true;
+        }
+
+        false
+    }
+
+    pub fn update_movement(&mut self, query: &mut Query, delta_time_secs: Seconds) {
         // Path following and movement:
         match self.navigation.update(delta_time_secs) {
             UnitNavResult::NoPath => {
                 // Nothing.
             },
             UnitNavResult::ReachedGoal(cell, direction) => {
-                self.move_to_cell(query, cell);
-                self.set_direction(query, direction);
-                self.set_anim(query, UnitAnimSets::IDLE);
-                self.navigation.reset(None);
+                let tile = find_unit_tile!(&mut self, query);
+                debug_assert!(self.direction == direction);
+                debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
+                self.follow_path(None);
+                self.update_direction_and_anim(tile, UnitDirection::Idle);
             },
             UnitNavResult::AdvancedCell(cell, direction) => {
-                self.move_to_cell(query, cell);
-                self.set_direction(query, direction);
+                let did_teleport = self.teleport(query.tile_map, cell);
+                let tile = find_unit_tile!(&mut self, query);
+                self.update_direction_and_anim(tile, direction);
+                debug_assert!(did_teleport && self.direction == direction);
+                debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
             },
-            UnitNavResult::Moving => {
-                // TODO: interpolate within tile position.
+            UnitNavResult::Moving(direction) => {
+                let tile = find_unit_tile!(&mut self, query);
+
+                // TEMP: Should use f32 position instead?
+                let draw_size = tile.draw_size();
+                let from_iso = my_calc_object_adjusted_iso_coords(self.navigation.from_node, draw_size).to_vec2();
+                let to_iso = my_calc_object_adjusted_iso_coords(self.navigation.to_node, draw_size).to_vec2();
+                let new_iso = utils::lerp(from_iso, to_iso, self.navigation.progress);
+
+                // FIXME: rounding to int here causes some jitter.
+                tile.set_iso_coords(IsoPoint::new(new_iso.x as i32, new_iso.y as i32));
+                self.update_direction_and_anim(tile, direction);
             },
         }
     }
 
+    pub fn update(&mut self, _query: &mut Query, _delta_time_secs: Seconds) {
+        // TODO
+    }
+
     pub fn draw_debug_ui(&mut self, query: &mut Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
+
         /* TODO
         if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
             self.config.draw_debug_ui(ui_sys);
@@ -158,20 +208,37 @@ impl<'config> Unit<'config> {
 
         if ui.collapsing_header("Movement", imgui::TreeNodeFlags::empty()) {
             if let Some(dir) = imgui_ui::dpad_buttons(ui) {
-                let current_cell = self.map_cell;
                 match dir {
-                    DPadDirection::NE => self.move_to_cell(query, Cell::new(current_cell.x + 1, current_cell.y)),
-                    DPadDirection::NW => self.move_to_cell(query, Cell::new(current_cell.x, current_cell.y + 1)),
-                    DPadDirection::SE => self.move_to_cell(query, Cell::new(current_cell.x, current_cell.y - 1)),
-                    DPadDirection::SW => self.move_to_cell(query, Cell::new(current_cell.x - 1, current_cell.y)),
+                    DPadDirection::NE => {
+                        self.teleport(query.tile_map, Cell::new(self.map_cell.x + 1, self.map_cell.y));
+                    },
+                    DPadDirection::NW => {
+                        self.teleport(query.tile_map, Cell::new(self.map_cell.x, self.map_cell.y + 1));
+                    },
+                    DPadDirection::SE => {
+                        self.teleport(query.tile_map, Cell::new(self.map_cell.x, self.map_cell.y - 1));
+                    },
+                    DPadDirection::SW => {
+                        self.teleport(query.tile_map, Cell::new(self.map_cell.x - 1, self.map_cell.y));
+                    },
                 }
             }
 
             ui.separator();
-            ui.text(format!("Cell {}:", self.map_cell));
-            ui.indent_by(5.0);
+
+            ui.text(format!("Cell       : {}", self.map_cell));
+            ui.text(format!("Iso Coords : {}", find_unit_tile!(&self, query).iso_coords()));
+            ui.text(format!("Direction  : {}", self.direction));
+            ui.text(format!("Anim       : {}", self.anim_sets.current_anim_set_key.string));
+
+            if ui.button("Force Idle Anim") {
+                self.update_direction_and_anim(find_unit_tile!(&mut self, query), UnitDirection::Idle);
+            }
+
+            ui.separator();
+
+            ui.text("Path Navigation:");
             self.navigation.draw_debug_ui(ui_sys);
-            ui.unindent_by(5.0);
         }
     }
 
@@ -196,39 +263,11 @@ impl<'config> Unit<'config> {
     // Internal:
     // ----------------------
 
-    fn set_anim(&mut self, query: &mut Query, anim_set_name_hash: StrHashPair) {
-        if self.anim_sets.current_anim_set_hash != anim_set_name_hash.hash {
-            self.anim_sets.current_anim_set_hash = anim_set_name_hash.hash;
-
-            let tile = find_unit_tile!(&mut self, query);
-            if let Some(index) = self.anim_sets.find_index(tile, anim_set_name_hash) {
-                tile.set_anim_set_index(index);
-            }
-        }
-    }
-
-    fn set_direction(&mut self, query: &mut Query, new_direction: UnitDirection) {
+    fn update_direction_and_anim(&mut self, tile: &mut Tile, new_direction: UnitDirection) {
         if self.direction != new_direction {
             self.direction = new_direction;
-
-            let new_anim_set = match new_direction {
-                UnitDirection::NE => UnitAnimSets::WALK_NE,
-                UnitDirection::NW => UnitAnimSets::WALK_NW,
-                UnitDirection::SE => UnitAnimSets::WALK_SE,
-                UnitDirection::SW => UnitAnimSets::WALK_SW,
-                UnitDirection::None => StrHashPair::empty(),
-            };
-
-            self.set_anim(query, new_anim_set);
-        }
-    }
-
-    // Moves to new tile and updates direction and animation.
-    fn move_to_cell(&mut self, query: &mut Query, destination_cell: Cell) {
-        if query.tile_map.try_move_tile(self.map_cell, destination_cell, TileMapLayerKind::Objects) {
-            let new_direction = direction_between(self.map_cell, destination_cell);
-            self.set_cell(destination_cell);
-            self.set_direction(query, new_direction);
+            let new_anim_set_key = anim_set_for_direction(new_direction);
+            self.anim_sets.set_anim(tile, new_anim_set_key);
         }
     }
 }
@@ -237,29 +276,46 @@ impl<'config> Unit<'config> {
 // UnitAnimSets
 // ----------------------------------------------
 
+type UnitAnimSetKey = StrHashPair;
+
 #[derive(Default)]
 struct UnitAnimSets {
     // Hash of current anim set we're playing.
-    current_anim_set_hash: StringHash,
+    current_anim_set_key: UnitAnimSetKey,
 
     // Maps from anim set name hash to anim set index.
     anim_set_index_map: PreHashedKeyMap<StringHash, usize>,
 }
 
 impl UnitAnimSets {
-    const IDLE:    StrHashPair = StrHashPair::from_str("idle");
-    const WALK_NE: StrHashPair = StrHashPair::from_str("walk_ne");
-    const WALK_NW: StrHashPair = StrHashPair::from_str("walk_nw");
-    const WALK_SE: StrHashPair = StrHashPair::from_str("walk_se");
-    const WALK_SW: StrHashPair = StrHashPair::from_str("walk_sw");
+    const IDLE:    UnitAnimSetKey = UnitAnimSetKey::from_str("idle");
+    const WALK_NE: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_ne");
+    const WALK_NW: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_nw");
+    const WALK_SE: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_se");
+    const WALK_SW: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_sw");
 
-    fn find_index(&mut self, tile: &Tile, anim_set_name_hash: StrHashPair) -> Option<usize> {
+    fn new(tile: &mut Tile, new_anim_set_key: UnitAnimSetKey) -> Self {
+        let mut anim_set = Self::default();
+        anim_set.set_anim(tile, new_anim_set_key);
+        anim_set
+    }
+
+    fn set_anim(&mut self, tile: &mut Tile, new_anim_set_key: UnitAnimSetKey) {
+        if self.current_anim_set_key.hash != new_anim_set_key.hash {
+            self.current_anim_set_key = new_anim_set_key;
+            if let Some(index) = self.find_index(tile, new_anim_set_key) {
+                tile.set_anim_set_index(index);
+            }
+        }
+    }
+
+    fn find_index(&mut self, tile: &Tile, anim_set_key: UnitAnimSetKey) -> Option<usize> {
         if self.anim_set_index_map.is_empty() {
             // Lazily init on demand.
             self.build_mapping(tile.tile_def(), tile.variation_index());
         }
 
-        self.anim_set_index_map.get(&anim_set_name_hash.hash).copied()
+        self.anim_set_index_map.get(&anim_set_key.hash).copied()
     }
 
     fn build_mapping(&mut self, tile_def: &TileDef, variation_index: usize) {
@@ -288,7 +344,7 @@ impl UnitAnimSets {
 #[derive(Copy, Clone, PartialEq, Eq, Default, Display)]
 enum UnitDirection {
     #[default]
-    None,
+    Idle,
     NE,
     NW,
     SE,
@@ -302,7 +358,18 @@ fn direction_between(a: Cell, b: Cell) -> UnitDirection {
         ( 0,  1 ) => UnitDirection::NW,
         ( 0, -1 ) => UnitDirection::SE,
         (-1,  0 ) => UnitDirection::SW,
-        _ => UnitDirection::None,
+        _ => UnitDirection::Idle,
+    }
+}
+
+#[inline]
+fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
+    match direction {
+        UnitDirection::Idle => UnitAnimSets::IDLE,
+        UnitDirection::NE   => UnitAnimSets::WALK_NE,
+        UnitDirection::NW   => UnitAnimSets::WALK_NW,
+        UnitDirection::SE   => UnitAnimSets::WALK_SE,
+        UnitDirection::SW   => UnitAnimSets::WALK_SW,
     }
 }
 
@@ -315,26 +382,51 @@ struct UnitNavigation {
     #[debug_ui(skip)]
     path: Path,
     path_index: usize,
-    progress: f32, // 0.0 to 1.0 for the current segment
+
+    progress: f32,  // 0.0 to 1.0 for the current segment
     position: Vec2, // f32 position for rendering
+
+    #[debug_ui(separator)]
     direction: UnitDirection,
+
+    // Debug:
+    #[debug_ui(edit)]
+    single_step: bool,
+    #[debug_ui(edit, step = "0.01")]
+    step_size: f32,
+    #[debug_ui(edit, widget = "button")]
+    advance_one_step: bool,
+
+    // TEMP
+    from_node: Cell,
+    to_node: Cell,
+    // TEMP
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum UnitNavResult {
     NoPath,
-    Moving,
+    Moving(UnitDirection),
     ReachedGoal(Cell, UnitDirection),  // Goal Cell, current direction.
     AdvancedCell(Cell, UnitDirection), // Cell we've just entered, new direction to turn.
 }
 
 impl UnitNavigation {
     // TODO: Make this part of UnitConfig:
-    //  config.speed = 2.5; // tiles per second
+    //  config.speed = 1.5; // tiles per second
     //  config.segment_duration = 1.0 / config.speed;
-    const SEGMENT_DURATION: f32 = 0.4;
+    const SEGMENT_DURATION: f32 = 0.6;
 
-    fn update(&mut self, delta_time_secs: Seconds) -> UnitNavResult {
+    fn update(&mut self, mut delta_time_secs: Seconds) -> UnitNavResult {
+        // Single step debug:
+        if self.single_step {
+            if !self.advance_one_step {
+                return UnitNavResult::NoPath;
+            }
+            self.advance_one_step = false;
+            delta_time_secs = self.step_size;
+        }
+
         if self.path.is_empty() {
             // No path to follow.
             return UnitNavResult::NoPath;
@@ -357,10 +449,7 @@ impl UnitNavigation {
 
             // Look ahead for next turn:
             if self.path_index + 1 < self.path.len() {
-                let dir = direction_between(to.cell, self.path[self.path_index + 1].cell);
-                if dir != self.direction {
-                    self.direction = dir;
-                }
+                self.direction = direction_between(to.cell, self.path[self.path_index + 1].cell);
             }
 
             return UnitNavResult::AdvancedCell(to.cell, self.direction);
@@ -371,15 +460,34 @@ impl UnitNavigation {
         let to_pos = to.cell.to_vec2();
         self.position = utils::lerp(from_pos, to_pos, self.progress);
 
-        UnitNavResult::Moving
+        // TEMP
+        self.from_node = from.cell;
+        self.to_node = to.cell;
+        // TEMP
+
+        // Make sure we start off with the correct heading.
+        if self.path_index == 0 {
+            self.direction = direction_between(from.cell, to.cell);
+        }
+
+        UnitNavResult::Moving(self.direction)
     }
 
-    fn reset(&mut self, path: Option<&Path>) {
+    fn reset(&mut self, new_path: Option<&Path>) {
         self.path.clear();
         self.path_index = 0;
+        self.progress   = 0.0;
+        self.position   = Vec2::default();
+        self.direction  = UnitDirection::default();
 
-        if let Some(new_path) = path {
-            // Use extend() instead of direct assignment so
+        // TEMP
+        self.from_node = Cell::default();
+        self.to_node = Cell::default();
+        // TEMP
+
+        if let Some(new_path) = new_path {
+            debug_assert!(!new_path.is_empty());
+            // NOTE: Use extend() instead of direct assignment so
             // we can reuse the previous allocation of `self.path`.
             self.path.extend(new_path.iter().copied());
         }

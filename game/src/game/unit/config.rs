@@ -44,8 +44,8 @@ impl UnitConfigs {
 // Helper functions
 // ----------------------------------------------
 
-pub fn instantiate<'config>(tile: &Tile, configs: &'config UnitConfigs) -> Option<Unit<'config>> {
+pub fn instantiate<'config>(tile: &mut Tile, configs: &'config UnitConfigs) -> Option<Unit<'config>> {
     let tile_name_hash = tile.tile_def().hash;
     let config = configs.find_config_by_hash(tile_name_hash);
-    Some(Unit::new("Ped", tile.base_cell(), config))
+    Some(Unit::new("Ped", tile, config))
 }

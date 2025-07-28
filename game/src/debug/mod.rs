@@ -18,7 +18,7 @@ use crate::{
         placement::PlacementOp,
         selection::TileSelection,
         sets::{TileSets, TileKind},
-        map::{TileMap, TileMapLayerKind, TileEditor, TileFlags},
+        map::{self, TileMap, TileMapLayerKind, TileFlags},
         rendering::{TileMapRenderer, TileMapRenderStats, TileMapRenderFlags},
     },
     game::{
@@ -93,19 +93,19 @@ impl DebugMenusSystem {
         init_singleton(tex_cache, DEBUG_SETTINGS_OPEN, TILE_PALETTE_OPEN);
 
         // Register TileMap global callbacks:
-        TileEditor::set_tile_placed_callback(|tile, did_reallocate| {
+        map::set_tile_placed_callback(|tile, did_reallocate| {
             use_singleton(|instance| {
                 instance.tile_inspector_menu.on_tile_placed(tile, did_reallocate);
             });
         });
 
-        TileEditor::set_removing_tile_callback(|tile| {
+        map::set_removing_tile_callback(|tile| {
             use_singleton(|instance| {
                 instance.tile_inspector_menu.on_removing_tile(tile);
             });
         });
 
-        TileEditor::set_map_reset_callback(|_| {
+        map::set_map_reset_callback(|_| {
             use_singleton(|instance| {
                 instance.tile_inspector_menu.close();
             });
@@ -220,6 +220,7 @@ impl DebugMenusSingleton {
             match search.find_path(&graph, &heuristic, traversable_node_kinds, start, goal) {
                 SearchResult::PathFound(path) => {
                     println!("Found a path with {} nodes.", path.len());
+                    debug_assert!(!path.is_empty());
 
                     // Highlight path tiles:
                     for node in path {
@@ -230,6 +231,8 @@ impl DebugMenusSingleton {
 
                     // Make unit follow path:
                     if let Some(ped) = args.world.find_unit_by_name_mut("Ped") {
+                        // First teleport it to the start cell of the path:
+                        ped.teleport(args.tile_map, path[0].cell);
                         ped.follow_path(Some(path));
                     }
                 },

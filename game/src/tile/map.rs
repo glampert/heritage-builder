@@ -1,4 +1,3 @@
-use std::time::{self};
 use slab::Slab;
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
@@ -191,13 +190,13 @@ macro_rules! delegate_to_archetype {
 trait TileBehavior<'tile_sets> {
     fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
     fn set_base_cell(&mut self, cell: Cell);
-    fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint);
+    fn set_iso_coords(&mut self, iso_coords: IsoPoint);
 
     fn game_state_handle(&self) -> GameStateHandle;
     fn set_game_state_handle(&mut self, handle: GameStateHandle);
 
     fn z_sort_key(&self) -> i32;
-    fn adjusted_iso_coords(&self) -> IsoPoint;
+    fn iso_coords(&self) -> IsoPoint;
 
     fn actual_base_cell(&self) -> Cell;
     fn cell_range(&self) -> CellRange;
@@ -228,7 +227,7 @@ struct TerrainTile<'tile_sets> {
     // Terrain tiles always occupy a single cell (of BASE_TILE_SIZE size).
     cell: Cell,
 
-    // Cached from the cell, since it never changes.
+    // Cached on construction.
     iso_coords: IsoPoint,
 }
 
@@ -254,13 +253,13 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
         self.iso_coords = coords::cell_to_iso(cell, BASE_TILE_SIZE);
     }
 
-    #[inline] fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint) { self.iso_coords = iso_coords; }
+    #[inline] fn set_iso_coords(&mut self, iso_coords: IsoPoint) { self.iso_coords = iso_coords; }
 
     #[inline] fn game_state_handle(&self) -> GameStateHandle { GameStateHandle::invalid() }
     #[inline] fn set_game_state_handle(&mut self, _handle: GameStateHandle) {}
 
     #[inline] fn z_sort_key(&self) -> i32 { self.iso_coords.y }
-    #[inline] fn adjusted_iso_coords(&self) -> IsoPoint { self.iso_coords }
+    #[inline] fn iso_coords(&self) -> IsoPoint { self.iso_coords }
 
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
     #[inline] fn cell_range(&self) -> CellRange { CellRange::new(self.cell, self.cell) }
@@ -302,8 +301,8 @@ struct ObjectTile<'tile_sets> {
     game_state: GameStateHandle,
     anim_state: TileAnimState,
 
-    // Cached upon construction.
-    adjusted_iso_coords: IsoPoint,
+    // Cached on construction.
+    iso_coords: IsoPoint,
 }
 
 impl<'tile_sets> ObjectTile<'tile_sets> {
@@ -316,7 +315,7 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
             cell_range: tile_def.cell_range(cell),
             game_state: GameStateHandle::default(),
             anim_state: TileAnimState::default(),
-            adjusted_iso_coords: calc_object_adjusted_iso_coords(tile_def.kind(), cell, tile_def.logical_size, tile_def.draw_size),
+            iso_coords: calc_object_iso_coords(tile_def.kind(), cell, tile_def.logical_size, tile_def.draw_size),
         }
     }
 }
@@ -334,16 +333,16 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     #[inline]
     fn set_base_cell(&mut self, cell: Cell) {
         self.cell_range = self.def.cell_range(cell);
-        self.adjusted_iso_coords = calc_object_adjusted_iso_coords(self.def.kind(), cell, self.def.logical_size, self.def.draw_size);
+        self.iso_coords = calc_object_iso_coords(self.def.kind(), cell, self.def.logical_size, self.def.draw_size);
     }
 
-    #[inline] fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint) { self.adjusted_iso_coords = iso_coords; }
+    #[inline] fn set_iso_coords(&mut self, iso_coords: IsoPoint) { self.iso_coords = iso_coords; }
 
     #[inline] fn game_state_handle(&self) -> GameStateHandle { self.game_state }
     #[inline] fn set_game_state_handle(&mut self, handle: GameStateHandle) { self.game_state = handle; }
 
     #[inline] fn z_sort_key(&self) -> i32 { calc_object_z_sort_key(self.cell_range.start, self.def.logical_size.height) }
-    #[inline] fn adjusted_iso_coords(&self) -> IsoPoint { self.adjusted_iso_coords }
+    #[inline] fn iso_coords(&self) -> IsoPoint { self.iso_coords }
 
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell_range.start }
     #[inline] fn cell_range(&self) -> CellRange { self.cell_range }
@@ -356,7 +355,7 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     #[inline] fn anim_state_mut_ref(&mut self) -> &mut TileAnimState { &mut self.anim_state }
 }
 
-fn calc_object_adjusted_iso_coords(kind: TileKind, base_cell: Cell, logical_size: Size, draw_size: Size) -> IsoPoint {
+fn calc_object_iso_coords(kind: TileKind, base_cell: Cell, logical_size: Size, draw_size: Size) -> IsoPoint {
     // Convert the anchor (bottom tile for buildings) to isometric coordinates:
     let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
 
@@ -377,6 +376,7 @@ fn calc_object_adjusted_iso_coords(kind: TileKind, base_cell: Cell, logical_size
     tile_iso_coords
 }
 
+#[inline]
 fn calc_object_z_sort_key(base_cell: Cell, logical_height: i32) -> i32 {
     coords::cell_to_iso(base_cell, BASE_TILE_SIZE).y - logical_height
 }
@@ -439,13 +439,13 @@ impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
     }
 
     #[inline] fn set_base_cell(&mut self, _cell: Cell) { panic!("Not implemented for BlockerTile!"); }
-    #[inline] fn set_adjusted_iso_coords(&mut self, _iso_coords: IsoPoint) { panic!("Not implemented for BlockerTile!"); }
+    #[inline] fn set_iso_coords(&mut self, _iso_coords: IsoPoint) { panic!("Not implemented for BlockerTile!"); }
 
     #[inline] fn game_state_handle(&self) -> GameStateHandle { self.owner().game_state_handle() }
     #[inline] fn set_game_state_handle(&mut self, handle: GameStateHandle) { self.owner_mut().set_game_state_handle(handle); }
 
     #[inline] fn z_sort_key(&self) -> i32 { self.owner().z_sort_key() }
-    #[inline] fn adjusted_iso_coords(&self) -> IsoPoint { self.owner().adjusted_iso_coords() }
+    #[inline] fn iso_coords(&self) -> IsoPoint { self.owner().iso_coords() }
 
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
     #[inline] fn cell_range(&self) -> CellRange { self.owner().cell_range() }
@@ -591,22 +591,31 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn iso_coords(&self) -> IsoPoint {
-        // Isometric coordinates of the base cell, assuming a single tile of BASE_TILE_SIZE.
-        // This is the same as adjusted_iso_coords() for Terrain tiles. For objects
-        // normally you'll want to use adjusted_iso_coords() instead.
-        coords::cell_to_iso(self.base_cell(), BASE_TILE_SIZE)
+    pub fn set_z_sort_key(&mut self, z_sort_key: i32) {
+        self.cached_z_sort_key = z_sort_key;
     }
 
     #[inline]
-    pub fn adjusted_iso_coords(&self) -> IsoPoint {
-        delegate_to_archetype!(self, adjusted_iso_coords)
+    pub fn iso_coords(&self) -> IsoPoint {
+        delegate_to_archetype!(self, iso_coords)
+    }
+
+    #[inline]
+    pub fn set_iso_coords(&mut self, iso_coords: IsoPoint) {
+        delegate_to_archetype!(self, set_iso_coords, iso_coords);
+
+        // Terrain z-sort is derived from iso coords. For Objects it
+        // is derived from the cell, so no need to update it here.
+        if self.is(TileKind::Terrain) {
+            let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
+            self.set_z_sort_key(new_z_sort_key);
+        }
     }
 
     #[inline]
     pub fn screen_rect(&self, transform: &WorldToScreenTransform) -> Rect {
         let draw_size = self.draw_size();
-        let iso_position = self.adjusted_iso_coords();
+        let iso_position = self.iso_coords();
         coords::iso_to_screen_rect(iso_position, draw_size, transform)
     }
 
@@ -840,19 +849,6 @@ impl<'tile_sets> Tile<'tile_sets> {
 
         // We would have to update all blocker cells here and point its owner cell back to the new cell.
         assert!(!self.occupies_multiple_cells(), "This does not support multi-cell tiles yet!");
-    }
-
-    #[inline]
-    fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint) {
-        delegate_to_archetype!(self, set_adjusted_iso_coords, iso_coords);
-
-        let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
-        self.set_z_sort_key(new_z_sort_key);
-    }
-
-    #[inline]
-    fn set_z_sort_key(&mut self, z_sort_key: i32) {
-        self.cached_z_sort_key = z_sort_key;
     }
 }
 
@@ -1413,7 +1409,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     pub fn reset(&mut self, fill_with_def: Option<&'tile_sets TileDef>) {
         self.layers.clear();
-        TileEditor::invoke_map_reset_callback(self);
+        invoke_map_reset_callback(self);
 
         for layer_kind in TileMapLayerKind::iter() {
             // Find which layer this tile belong to if we're not just setting everything to empty.
@@ -1569,9 +1565,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     }
 
     #[inline]
-    pub fn update_anims(&mut self, visible_range: CellRange, delta_time: time::Duration) {
-        let delta_time_secs = delta_time.as_secs_f32();
-
+    pub fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: Seconds) {
         // NOTE: Terrain layer is not animated by design. Only objects animate.
         let objects_layer = self.layer_mut(TileMapLayerKind::Objects);
         objects_layer.update_anims(visible_range, delta_time_secs);
@@ -1603,7 +1597,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
         placement::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
             .map(|(tile, new_pool_capacity)| {
                 let did_reallocate = new_pool_capacity != prev_pool_capacity;
-                TileEditor::invoke_tile_placed_callback(tile, did_reallocate);
+                invoke_tile_placed_callback(tile, did_reallocate);
                 tile
             })
     }
@@ -1622,7 +1616,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
         placement::try_place_tile_at_cursor(self, cursor_screen_pos, transform, tile_def_to_place)
             .map(|(tile, new_pool_capacity)| {
                 let did_reallocate = new_pool_capacity != prev_pool_capacity;
-                TileEditor::invoke_tile_placed_callback(tile, did_reallocate);
+                invoke_tile_placed_callback(tile, did_reallocate);
                 tile
             })
     }
@@ -1632,9 +1626,9 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                      target_cell: Cell,
                                      layer_kind: TileMapLayerKind) -> bool {
 
-        if TileEditor::has_removing_tile_callback() {
+        if has_removing_tile_callback() {
             if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
-                TileEditor::invoke_removing_tile_callback(tile);
+                invoke_removing_tile_callback(tile);
             }
         }
 
@@ -1646,11 +1640,11 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                     cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform) -> bool {
 
-        if TileEditor::has_removing_tile_callback() {
+        if has_removing_tile_callback() {
             for layer_kind in TileMapLayerKind::iter().rev() {
                 let target_cell = self.find_exact_cell_for_point(layer_kind, cursor_screen_pos, transform);
                 if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
-                    TileEditor::invoke_removing_tile_callback(tile);
+                    invoke_removing_tile_callback(tile);
                     break;
                 }
             }
@@ -1776,110 +1770,56 @@ std::thread_local! {
     static ON_MAP_RESET_CALLBACK: MapResetCallback = const { MapResetCallback::new() };
 }
 
-// ----------------------------------------------
-// TileEditor
-// ----------------------------------------------
+// The callbacks can only be set once and will stay set globally (per-thread).
 
-pub struct TileEditor<'tile_sets> {
-    // SAFETY: This should only be used for debug editing from the ImGui widgets,
-    // so we'll tolerate holding an UnsafeWeakRef here and casting-away const.
-    tile_map: UnsafeWeakRef<TileMap<'tile_sets>>,
-    layer_kind: TileMapLayerKind,
-    cell: Cell,
+pub fn set_tile_placed_callback(callback: impl Fn(&mut Tile, bool) + 'static) {
+    ON_TILE_PLACED_CALLBACK.with(|cb| {
+        cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_TILE_PLACED_CALLBACK was already set!"));
+    });
 }
 
-impl<'tile_sets> TileEditor<'tile_sets> {
-    pub fn new(tile_map: &TileMap<'tile_sets>, layer_kind: TileMapLayerKind, cell: Cell) -> Self {
-        Self {
-            tile_map: UnsafeWeakRef::new(tile_map),
-            layer_kind,
-            cell,
+pub fn set_removing_tile_callback(callback: impl Fn(&mut Tile) + 'static) {
+    ON_REMOVING_TILE_CALLBACK.with(|cb| {
+        cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_REMOVING_TILE_CALLBACK was already set!"));
+    });
+}
+
+pub fn set_map_reset_callback(callback: impl Fn(&mut TileMap) + 'static) {
+    ON_MAP_RESET_CALLBACK.with(|cb| {
+        cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_MAP_RESET_CALLBACK was already set!"));
+    });
+}
+
+#[inline]
+fn invoke_tile_placed_callback(tile: &mut Tile, did_reallocate: bool) {
+    ON_TILE_PLACED_CALLBACK.with(|cb| {
+        if let Some(callback) = cb.get() {
+            callback(tile, did_reallocate);
         }
-    }
+    });
+}
 
-    pub fn try_tile(&self) -> Option<&Tile> {
-        self.tile_map.try_tile_from_layer(self.cell, self.layer_kind)
-    }
-
-    pub fn try_tile_mut(&mut self) -> Option<&mut Tile<'tile_sets>> {
-        self.tile_map.try_tile_from_layer_mut(self.cell, self.layer_kind)
-    }
-
-    pub fn set_adjusted_iso_coords(&mut self, iso_coords: IsoPoint) -> bool {
-        if let Some(tile) = self.try_tile_mut() {
-            tile.set_adjusted_iso_coords(iso_coords);
-            return true;
+#[inline]
+fn invoke_removing_tile_callback(tile: &mut Tile) {
+    ON_REMOVING_TILE_CALLBACK.with(|cb| {
+        if let Some(callback) = cb.get() {
+            callback(tile);
         }
-        false
-    }
+    });
+}
 
-    pub fn set_z_sort_key(&mut self, z_sort_key: i32) -> bool {
-        if let Some(tile) = self.try_tile_mut() {
-            tile.set_z_sort_key(z_sort_key);
-            return true;
+#[inline]
+fn invoke_map_reset_callback(tile_map: &mut TileMap) {
+    ON_MAP_RESET_CALLBACK.with(|cb| {
+        if let Some(callback) = cb.get() {
+            callback(tile_map);
         }
-        false
-    }
+    });
+}
 
-    pub fn set_base_cell(&mut self, new_cell: Cell) -> bool {
-        if self.tile_map.try_move_tile(self.cell, new_cell, self.layer_kind) {
-            self.cell = new_cell;
-            return true;
-        }
-        false
-    }
-
-    // These callbacks can only be set once and will stay set globally.
-
-    pub fn set_tile_placed_callback(callback: impl Fn(&mut Tile, bool) + 'static) {
-        ON_TILE_PLACED_CALLBACK.with(|cb| {
-            cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_TILE_PLACED_CALLBACK was already set!"));
-        });
-    }
-
-    pub fn set_removing_tile_callback(callback: impl Fn(&mut Tile) + 'static) {
-        ON_REMOVING_TILE_CALLBACK.with(|cb| {
-            cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_REMOVING_TILE_CALLBACK was already set!"));
-        });
-    }
-
-    pub fn set_map_reset_callback(callback: impl Fn(&mut TileMap) + 'static) {
-        ON_MAP_RESET_CALLBACK.with(|cb| {
-            cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_MAP_RESET_CALLBACK was already set!"));
-        });
-    }
-
-    #[inline]
-    fn invoke_tile_placed_callback(tile: &mut Tile, did_reallocate: bool) {
-        ON_TILE_PLACED_CALLBACK.with(|cb| {
-            if let Some(callback) = cb.get() {
-                callback(tile, did_reallocate);
-            }
-        });
-    }
-
-    #[inline]
-    fn invoke_removing_tile_callback(tile: &mut Tile) {
-        ON_REMOVING_TILE_CALLBACK.with(|cb| {
-            if let Some(callback) = cb.get() {
-                callback(tile);
-            }
-        });
-    }
-
-    #[inline]
-    fn invoke_map_reset_callback(tile_map: &mut TileMap) {
-        ON_MAP_RESET_CALLBACK.with(|cb| {
-            if let Some(callback) = cb.get() {
-                callback(tile_map);
-            }
-        });
-    }
-
-    #[inline]
-    fn has_removing_tile_callback() -> bool {
-        ON_REMOVING_TILE_CALLBACK.with(|cb| -> bool {
-            cb.get().is_some()
-        })
-    }
+#[inline]
+fn has_removing_tile_callback() -> bool {
+    ON_REMOVING_TILE_CALLBACK.with(|cb| -> bool {
+        cb.get().is_some()
+    })
 }

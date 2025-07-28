@@ -81,6 +81,12 @@ impl<'config> World<'config> {
         }
     }
 
+    pub fn update_unit_movement(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
+        for (_, unit) in self.units_list.iter_mut() {
+            unit.update_movement(query, delta_time_secs);
+        } 
+    }
+
     // ----------------------
     // Buildings API:
     // ----------------------

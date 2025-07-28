@@ -48,7 +48,7 @@ pub type FNV1aHash = u64;
 pub type StringHash = FNV1aHash;
 pub const NULL_HASH: FNV1aHash = 0;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct StrHashPair {
     pub string: &'static str,
     pub hash: StringHash,

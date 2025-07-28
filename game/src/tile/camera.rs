@@ -1,8 +1,6 @@
-use std::time::{self};
-
 use crate::{
     utils::{
-        self, Size, Vec2, Rect,
+        self, Seconds, Size, Vec2, Rect,
         coords::{
             CellRange,
             WorldToScreenTransform
@@ -169,11 +167,10 @@ impl Camera {
     }
 
     #[inline]
-    pub fn update_zooming(&mut self, delta_time: time::Duration) {
+    pub fn update_zooming(&mut self, delta_time_secs: Seconds) {
         if self.is_zooming {
             if !utils::approx_equal(self.current_zoom, self.target_zoom, 0.001) {
-                let delta_seconds = delta_time.as_secs_f32();
-                self.current_zoom = utils::lerp(self.current_zoom, self.target_zoom, delta_seconds * ZOOM_SPEED);
+                self.current_zoom = utils::lerp(self.current_zoom, self.target_zoom, delta_time_secs * ZOOM_SPEED);
             } else {
                 self.current_zoom = self.target_zoom;
                 self.is_zooming = false;
@@ -207,13 +204,11 @@ impl Camera {
     }
 
     #[inline]
-    pub fn update_scrolling(&mut self, cursor_screen_pos: Vec2, delta_time: time::Duration) {
-        let delta_seconds = delta_time.as_secs_f32();
-
+    pub fn update_scrolling(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
         let scroll_delta = calc_scroll_delta(cursor_screen_pos, self.viewport_size);
         let scroll_speed  = calc_scroll_speed(cursor_screen_pos, self.viewport_size);
 
-        let offset_change = scroll_delta * scroll_speed * delta_seconds;
+        let offset_change = scroll_delta * scroll_speed * delta_time_secs;
         let current = self.current_scroll();
 
         self.set_scroll(Vec2::new(current.x + offset_change.x, current.y + offset_change.y));

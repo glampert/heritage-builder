@@ -98,7 +98,7 @@ impl TileSelection {
             for cell in &range {
                 if let Some(base_tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                     let tile_iso_coords =
-                        base_tile.adjusted_iso_coords();
+                        base_tile.iso_coords();
 
                     let tile_screen_rect = coords::iso_to_screen_rect(
                         tile_iso_coords,

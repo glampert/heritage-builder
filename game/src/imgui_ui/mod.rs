@@ -1,5 +1,4 @@
 use std::ptr::null;
-use std::time::{self};
 
 use imgui::{
     Context as ImGuiContext,
@@ -13,7 +12,7 @@ pub use imgui::FontId as UiFontHandle;
 pub use imgui::TextureId as UiTextureHandle;
 
 use crate::{
-    utils::{self, Vec2, Color, FieldAccessorXY},
+    utils::{self, Seconds, Vec2, Color, FieldAccessorXY},
     render::{TextureCache, TextureHandle},
     app::{self, Application, input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton}}
 };
@@ -59,9 +58,9 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time: time::Duration) {
+    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time_secs: Seconds) {
         debug_assert!(self.builder_ptr.is_null());
-        let ui_builder = self.context.begin_frame(app, input_sys, delta_time);
+        let ui_builder = self.context.begin_frame(app, input_sys, delta_time_secs);
         self.builder_ptr = ui_builder as *const imgui::Ui;
     }
 
@@ -218,11 +217,11 @@ impl UiContext {
         }
     }
 
-    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time: time::Duration) -> &imgui::Ui {
+    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time_secs: Seconds) -> &imgui::Ui {
         debug_assert!(!self.frame_started);
     
         let io = self.imgui_ctx.io_mut();
-        io.update_delta_time(delta_time);
+        io.update_delta_time(std::time::Duration::from_secs_f32(delta_time_secs));
 
         let fb_size = app.framebuffer_size().to_vec2();
         let content_scale = app.content_scale();
