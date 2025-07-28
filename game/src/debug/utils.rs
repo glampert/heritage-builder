@@ -6,7 +6,6 @@ use crate::{
         coords::{
             self,
             Cell,
-            IsoPoint,
             WorldToScreenTransform
         }
     },
@@ -23,7 +22,6 @@ use crate::{
 
 pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
                        ui_sys: &UiSystem,
-                       tile_iso_pos: IsoPoint,
                        tile_screen_rect: Rect,
                        transform: &WorldToScreenTransform,
                        tile: &Tile,
@@ -44,12 +42,7 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
         flags.contains(TileMapRenderFlags::DrawDebugBounds);
 
     if draw_debug_info {
-        draw_tile_info(
-            render_sys,
-            ui_sys,
-            tile_screen_rect,
-            tile_iso_pos,
-            tile);
+        draw_tile_info(render_sys, ui_sys, tile_screen_rect, tile);
     }
 
     if draw_debug_bounds {
@@ -200,7 +193,6 @@ pub fn draw_render_stats(ui_sys: &UiSystem,
 fn draw_tile_overlay_text(ui_sys: &UiSystem,
                           debug_overlay_pos: Vec2,
                           tile_screen_pos: Vec2,
-                          tile_iso_pos: IsoPoint,
                           tile: &Tile) {
 
     // Make the window background transparent and remove decorations:
@@ -215,7 +207,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
     // NOTE: Label has to be unique for each tile because it will be used as the ImGui ID for this widget.
     let cell = tile.actual_base_cell();
     let label = format!("{}_{}_{}", tile.name(), cell.x, cell.y);
-    let position = [ debug_overlay_pos.x, debug_overlay_pos.y ];
+    let position = [debug_overlay_pos.x, debug_overlay_pos.y];
 
     let bg_color = {
         if tile.is(TileKind::Blocker) {
@@ -255,9 +247,10 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
         .always_auto_resize(true)
         .bg_alpha(0.4) // Semi-transparent
         .build(|| {
+            let tile_iso_pos = tile.iso_coords_f32();
             ui.text(format!("C:{},{}", cell.x, cell.y)); // Cell position
             ui.text(format!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
-            ui.text(format!("I:{},{}", tile_iso_pos.x, tile_iso_pos.y)); // 2D isometric position
+            ui.text(format!("I:{:.1},{:.1}", tile_iso_pos.x, tile_iso_pos.y)); // 2D isometric position
             ui.text(format!("Z:{}", tile.z_sort_key())); // Z-sort
         });
 }
@@ -265,7 +258,6 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
 fn draw_tile_info(render_sys: &mut impl RenderSystem,
                   ui_sys: &UiSystem,
                   tile_screen_rect: Rect,
-                  tile_iso_pos: IsoPoint,
                   tile: &Tile) {
 
     let tile_screen_pos = tile_screen_rect.position();
@@ -280,7 +272,6 @@ fn draw_tile_info(render_sys: &mut impl RenderSystem,
         ui_sys,
         debug_overlay_pos,
         tile_screen_pos,
-        tile_iso_pos,
         tile);
 
     // Put a dot at the tile's center.

@@ -12,7 +12,6 @@ use crate::{
         coords::{
             self,
             CellRange,
-            IsoPoint,
             WorldToScreenTransform
         }
     }
@@ -197,7 +196,6 @@ impl TileMapRenderer {
                 Self::draw_tile(render_sys,
                                 &mut self.stats,
                                 ui_sys,
-                                tile.iso_coords(),
                                 transform,
                                 tile,
                                 flags);
@@ -253,7 +251,6 @@ impl TileMapRenderer {
                 debug::utils::draw_tile_debug(
                     render_sys,
                     ui_sys,
-                    tile_iso_pos,
                     tile_screen_rect,
                     transform,
                     tile,
@@ -282,7 +279,6 @@ impl TileMapRenderer {
             Self::draw_tile(render_sys,
                             &mut self.stats,
                             ui_sys,
-                            tile.iso_coords(),
                             transform,
                             tile,
                             flags);
@@ -352,7 +348,6 @@ impl TileMapRenderer {
     fn draw_tile(render_sys: &mut impl RenderSystem,
                  stats: &mut TileMapRenderStats,
                  ui_sys: &UiSystem,
-                 tile_iso_pos: IsoPoint,
                  transform: &WorldToScreenTransform,
                  tile: &Tile,
                  flags: TileMapRenderFlags) {
@@ -387,7 +382,6 @@ impl TileMapRenderer {
         debug::utils::draw_tile_debug(
             render_sys,
             ui_sys,
-            tile_iso_pos,
             tile_screen_rect,
             transform,
             tile,

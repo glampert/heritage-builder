@@ -10,17 +10,15 @@ use crate::{
         DPadDirection
     },
     tile::{
-        map::{Tile, TileMap, TileMapLayerKind},
+        map::{self, Tile, TileMap, TileMapLayerKind},
         sets::{TileDef, TileKind},
     },
     utils::{
         self,
-        Vec2,
         Seconds,
         coords::{
             Cell,
             CellRange,
-            IsoPoint,
             WorldToScreenTransform
         },
         hash::{
@@ -40,21 +38,6 @@ use super::{
 
 pub mod config;
 use config::UnitConfig;
-
-// TEMP
-use crate::utils::{coords::{self}, Size};
-use crate::tile::sets::BASE_TILE_SIZE;
-fn my_calc_object_adjusted_iso_coords(base_cell: Cell, draw_size: Size) -> IsoPoint {
-    // Convert the anchor (bottom tile for buildings) to isometric coordinates:
-    let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
-
-    // Adjust to center the unit sprite:
-    tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
-    tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2);
-
-    tile_iso_coords
-}
-// TEMP
 
 // ----------------------------------------------
 // Helper macros
@@ -158,9 +141,6 @@ impl<'config> Unit<'config> {
     pub fn update_movement(&mut self, query: &mut Query, delta_time_secs: Seconds) {
         // Path following and movement:
         match self.navigation.update(delta_time_secs) {
-            UnitNavResult::NoPath => {
-                // Nothing.
-            },
             UnitNavResult::ReachedGoal(cell, direction) => {
                 let tile = find_unit_tile!(&mut self, query);
                 debug_assert!(self.direction == direction);
@@ -175,18 +155,17 @@ impl<'config> Unit<'config> {
                 debug_assert!(did_teleport && self.direction == direction);
                 debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
             },
-            UnitNavResult::Moving(direction) => {
+            UnitNavResult::Moving(from_cell, to_cell, progress, direction) => {
                 let tile = find_unit_tile!(&mut self, query);
-
-                // TEMP: Should use f32 position instead?
                 let draw_size = tile.draw_size();
-                let from_iso = my_calc_object_adjusted_iso_coords(self.navigation.from_node, draw_size).to_vec2();
-                let to_iso = my_calc_object_adjusted_iso_coords(self.navigation.to_node, draw_size).to_vec2();
-                let new_iso = utils::lerp(from_iso, to_iso, self.navigation.progress);
-
-                // FIXME: rounding to int here causes some jitter.
-                tile.set_iso_coords(IsoPoint::new(new_iso.x as i32, new_iso.y as i32));
+                let from_iso = map::calc_unit_iso_coords(from_cell, draw_size);
+                let to_iso = map::calc_unit_iso_coords(to_cell, draw_size);
+                let new_iso_coords = utils::lerp(from_iso, to_iso, progress);
+                tile.set_iso_coords_f32(new_iso_coords);
                 self.update_direction_and_anim(tile, direction);
+            },
+            UnitNavResult::None => {
+                // Nothing.
             },
         }
     }
@@ -382,33 +361,28 @@ struct UnitNavigation {
     #[debug_ui(skip)]
     path: Path,
     path_index: usize,
-
-    progress: f32,  // 0.0 to 1.0 for the current segment
-    position: Vec2, // f32 position for rendering
+    progress: f32, // 0.0 to 1.0 for the current segment.
 
     #[debug_ui(separator)]
     direction: UnitDirection,
 
     // Debug:
     #[debug_ui(edit)]
+    pause_current_path: bool,
+    #[debug_ui(edit)]
     single_step: bool,
     #[debug_ui(edit, step = "0.01")]
     step_size: f32,
     #[debug_ui(edit, widget = "button")]
     advance_one_step: bool,
-
-    // TEMP
-    from_node: Cell,
-    to_node: Cell,
-    // TEMP
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 enum UnitNavResult {
-    NoPath,
-    Moving(UnitDirection),
-    ReachedGoal(Cell, UnitDirection),  // Goal Cell, current direction.
-    AdvancedCell(Cell, UnitDirection), // Cell we've just entered, new direction to turn.
+    None,                                   // Do nothing (also returned when no path).
+    Moving(Cell, Cell, f32, UnitDirection), // From -> To cells and progress between them.
+    ReachedGoal(Cell, UnitDirection),       // Goal Cell, current direction.
+    AdvancedCell(Cell, UnitDirection),      // Cell we've just entered, new direction to turn.
 }
 
 impl UnitNavigation {
@@ -418,18 +392,18 @@ impl UnitNavigation {
     const SEGMENT_DURATION: f32 = 0.6;
 
     fn update(&mut self, mut delta_time_secs: Seconds) -> UnitNavResult {
+        if self.pause_current_path || self.path.is_empty() {
+            // No path to follow.
+            return UnitNavResult::None;
+        }
+
         // Single step debug:
         if self.single_step {
             if !self.advance_one_step {
-                return UnitNavResult::NoPath;
+                return UnitNavResult::None;
             }
             self.advance_one_step = false;
             delta_time_secs = self.step_size;
-        }
-
-        if self.path.is_empty() {
-            // No path to follow.
-            return UnitNavResult::NoPath;
         }
 
         if self.path_index + 1 >= self.path.len() {
@@ -445,7 +419,6 @@ impl UnitNavigation {
         if self.progress >= 1.0 {
             self.path_index += 1;
             self.progress = 0.0;
-            self.position = to.cell.to_vec2(); // Snap to cell center.
 
             // Look ahead for next turn:
             if self.path_index + 1 < self.path.len() {
@@ -455,35 +428,19 @@ impl UnitNavigation {
             return UnitNavResult::AdvancedCell(to.cell, self.direction);
         }
 
-        // Smooth interpolation:
-        let from_pos = from.cell.to_vec2();
-        let to_pos = to.cell.to_vec2();
-        self.position = utils::lerp(from_pos, to_pos, self.progress);
-
-        // TEMP
-        self.from_node = from.cell;
-        self.to_node = to.cell;
-        // TEMP
-
         // Make sure we start off with the correct heading.
         if self.path_index == 0 {
             self.direction = direction_between(from.cell, to.cell);
         }
 
-        UnitNavResult::Moving(self.direction)
+        UnitNavResult::Moving(from.cell, to.cell, self.progress, self.direction)
     }
 
     fn reset(&mut self, new_path: Option<&Path>) {
         self.path.clear();
         self.path_index = 0;
         self.progress   = 0.0;
-        self.position   = Vec2::default();
         self.direction  = UnitDirection::default();
-
-        // TEMP
-        self.from_node = Cell::default();
-        self.to_node = Cell::default();
-        // TEMP
 
         if let Some(new_path) = new_path {
             debug_assert!(!new_path.is_empty());

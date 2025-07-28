@@ -140,7 +140,7 @@ pub struct Tile<'tile_sets> {
     kind: TileKind,
     flags: TileFlags,
     variation_index: u16,
-    cached_z_sort_key: i32,
+    z_sort_key: i32,
     archetype: TileArchetype<'tile_sets>,
 }
 
@@ -190,13 +190,13 @@ macro_rules! delegate_to_archetype {
 trait TileBehavior<'tile_sets> {
     fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
     fn set_base_cell(&mut self, cell: Cell);
-    fn set_iso_coords(&mut self, iso_coords: IsoPoint);
+    fn set_iso_coords_f32(&mut self, iso_coords: Vec2);
 
     fn game_state_handle(&self) -> GameStateHandle;
     fn set_game_state_handle(&mut self, handle: GameStateHandle);
 
     fn z_sort_key(&self) -> i32;
-    fn iso_coords(&self) -> IsoPoint;
+    fn iso_coords_f32(&self) -> Vec2;
 
     fn actual_base_cell(&self) -> Cell;
     fn cell_range(&self) -> CellRange;
@@ -228,7 +228,7 @@ struct TerrainTile<'tile_sets> {
     cell: Cell,
 
     // Cached on construction.
-    iso_coords: IsoPoint,
+    iso_coords_f32: Vec2,
 }
 
 impl<'tile_sets> TerrainTile<'tile_sets> {
@@ -236,7 +236,7 @@ impl<'tile_sets> TerrainTile<'tile_sets> {
         Self {
             def: tile_def,
             cell,
-            iso_coords: coords::cell_to_iso(cell, BASE_TILE_SIZE),
+            iso_coords_f32: coords::cell_to_iso(cell, BASE_TILE_SIZE).to_vec2(),
         }
     }
 }
@@ -250,16 +250,16 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
     #[inline]
     fn set_base_cell(&mut self, cell: Cell) {
         self.cell = cell;
-        self.iso_coords = coords::cell_to_iso(cell, BASE_TILE_SIZE);
+        self.iso_coords_f32 = coords::cell_to_iso(cell, BASE_TILE_SIZE).to_vec2();
     }
 
-    #[inline] fn set_iso_coords(&mut self, iso_coords: IsoPoint) { self.iso_coords = iso_coords; }
+    #[inline] fn set_iso_coords_f32(&mut self, iso_coords: Vec2) { self.iso_coords_f32 = iso_coords; }
 
     #[inline] fn game_state_handle(&self) -> GameStateHandle { GameStateHandle::invalid() }
     #[inline] fn set_game_state_handle(&mut self, _handle: GameStateHandle) {}
 
-    #[inline] fn z_sort_key(&self) -> i32 { self.iso_coords.y }
-    #[inline] fn iso_coords(&self) -> IsoPoint { self.iso_coords }
+    #[inline] fn z_sort_key(&self) -> i32 { self.iso_coords_f32.y as i32 }
+    #[inline] fn iso_coords_f32(&self) -> Vec2 { self.iso_coords_f32 }
 
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
     #[inline] fn cell_range(&self) -> CellRange { CellRange::new(self.cell, self.cell) }
@@ -302,7 +302,7 @@ struct ObjectTile<'tile_sets> {
     anim_state: TileAnimState,
 
     // Cached on construction.
-    iso_coords: IsoPoint,
+    iso_coords_f32: Vec2,
 }
 
 impl<'tile_sets> ObjectTile<'tile_sets> {
@@ -315,7 +315,7 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
             cell_range: tile_def.cell_range(cell),
             game_state: GameStateHandle::default(),
             anim_state: TileAnimState::default(),
-            iso_coords: calc_object_iso_coords(tile_def.kind(), cell, tile_def.logical_size, tile_def.draw_size),
+            iso_coords_f32: calc_object_iso_coords(tile_def.kind(), cell, tile_def.logical_size, tile_def.draw_size),
         }
     }
 }
@@ -333,16 +333,16 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     #[inline]
     fn set_base_cell(&mut self, cell: Cell) {
         self.cell_range = self.def.cell_range(cell);
-        self.iso_coords = calc_object_iso_coords(self.def.kind(), cell, self.def.logical_size, self.def.draw_size);
+        self.iso_coords_f32 = calc_object_iso_coords(self.def.kind(), cell, self.def.logical_size, self.def.draw_size);
     }
 
-    #[inline] fn set_iso_coords(&mut self, iso_coords: IsoPoint) { self.iso_coords = iso_coords; }
+    #[inline] fn set_iso_coords_f32(&mut self, iso_coords: Vec2) { self.iso_coords_f32 = iso_coords; }
 
     #[inline] fn game_state_handle(&self) -> GameStateHandle { self.game_state }
     #[inline] fn set_game_state_handle(&mut self, handle: GameStateHandle) { self.game_state = handle; }
 
     #[inline] fn z_sort_key(&self) -> i32 { calc_object_z_sort_key(self.cell_range.start, self.def.logical_size.height) }
-    #[inline] fn iso_coords(&self) -> IsoPoint { self.iso_coords }
+    #[inline] fn iso_coords_f32(&self) -> Vec2 { self.iso_coords_f32 }
 
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell_range.start }
     #[inline] fn cell_range(&self) -> CellRange { self.cell_range }
@@ -355,7 +355,12 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     #[inline] fn anim_state_mut_ref(&mut self) -> &mut TileAnimState { &mut self.anim_state }
 }
 
-fn calc_object_iso_coords(kind: TileKind, base_cell: Cell, logical_size: Size, draw_size: Size) -> IsoPoint {
+#[inline]
+fn calc_object_z_sort_key(base_cell: Cell, logical_height: i32) -> i32 {
+    coords::cell_to_iso(base_cell, BASE_TILE_SIZE).y - logical_height
+}
+
+pub fn calc_object_iso_coords(kind: TileKind, base_cell: Cell, logical_size: Size, draw_size: Size) -> Vec2 {
     // Convert the anchor (bottom tile for buildings) to isometric coordinates:
     let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
 
@@ -373,12 +378,18 @@ fn calc_object_iso_coords(kind: TileKind, base_cell: Cell, logical_size: Size, d
         tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2);
     }
 
-    tile_iso_coords
+    tile_iso_coords.to_vec2()
 }
 
-#[inline]
-fn calc_object_z_sort_key(base_cell: Cell, logical_height: i32) -> i32 {
-    coords::cell_to_iso(base_cell, BASE_TILE_SIZE).y - logical_height
+pub fn calc_unit_iso_coords(base_cell: Cell, draw_size: Size) -> Vec2 {
+    // Convert the anchor (bottom tile for buildings) to isometric coordinates:
+    let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
+
+    // Adjust to center the unit sprite:
+    tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
+    tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2);
+
+    tile_iso_coords.to_vec2()
 }
 
 // ----------------------------------------------
@@ -439,13 +450,13 @@ impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
     }
 
     #[inline] fn set_base_cell(&mut self, _cell: Cell) { panic!("Not implemented for BlockerTile!"); }
-    #[inline] fn set_iso_coords(&mut self, _iso_coords: IsoPoint) { panic!("Not implemented for BlockerTile!"); }
+    #[inline] fn set_iso_coords_f32(&mut self, _iso_coords: Vec2) { panic!("Not implemented for BlockerTile!"); }
 
     #[inline] fn game_state_handle(&self) -> GameStateHandle { self.owner().game_state_handle() }
     #[inline] fn set_game_state_handle(&mut self, handle: GameStateHandle) { self.owner_mut().set_game_state_handle(handle); }
 
     #[inline] fn z_sort_key(&self) -> i32 { self.owner().z_sort_key() }
-    #[inline] fn iso_coords(&self) -> IsoPoint { self.owner().iso_coords() }
+    #[inline] fn iso_coords_f32(&self) -> Vec2 { self.owner().iso_coords_f32() }
 
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
     #[inline] fn cell_range(&self) -> CellRange { self.owner().cell_range() }
@@ -484,7 +495,7 @@ impl<'tile_sets> Tile<'tile_sets> {
             kind: tile_def.kind(),
             flags: tile_def.flags(),
             variation_index: 0,
-            cached_z_sort_key: z_sort_key,
+            z_sort_key,
             archetype
         }
     }
@@ -498,8 +509,8 @@ impl<'tile_sets> Tile<'tile_sets> {
         Self {
             kind: TileKind::Object | TileKind::Blocker,
             flags: owner_flags,
-            variation_index: 0,   // unused
-            cached_z_sort_key: 0, // unused
+            variation_index: 0, // unused
+            z_sort_key:      0, // unused
             archetype: TileArchetype::new_blocker(BlockerTile::new(blocker_cell, owner_cell, layer))
         }
     }
@@ -587,22 +598,35 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn z_sort_key(&self) -> i32 {
-        self.cached_z_sort_key
+        self.z_sort_key
     }
 
     #[inline]
     pub fn set_z_sort_key(&mut self, z_sort_key: i32) {
-        self.cached_z_sort_key = z_sort_key;
+        self.z_sort_key = z_sort_key;
     }
 
     #[inline]
     pub fn iso_coords(&self) -> IsoPoint {
-        delegate_to_archetype!(self, iso_coords)
+        let coords_f32 = delegate_to_archetype!(self, iso_coords_f32);
+        IsoPoint::new(coords_f32.x as i32, coords_f32.y as i32)
+    }
+
+    #[inline]
+    pub fn iso_coords_f32(&self) -> Vec2 {
+        delegate_to_archetype!(self, iso_coords_f32)
     }
 
     #[inline]
     pub fn set_iso_coords(&mut self, iso_coords: IsoPoint) {
-        delegate_to_archetype!(self, set_iso_coords, iso_coords);
+        let coords_f32 = iso_coords.to_vec2();
+        self.set_iso_coords_f32(coords_f32);
+    }
+
+    #[inline]
+    pub fn set_iso_coords_f32(&mut self, iso_coords: Vec2) {
+        // Native internal format is f32.
+        delegate_to_archetype!(self, set_iso_coords_f32, iso_coords);
 
         // Terrain z-sort is derived from iso coords. For Objects it
         // is derived from the cell, so no need to update it here.
@@ -615,8 +639,8 @@ impl<'tile_sets> Tile<'tile_sets> {
     #[inline]
     pub fn screen_rect(&self, transform: &WorldToScreenTransform) -> Rect {
         let draw_size = self.draw_size();
-        let iso_position = self.iso_coords();
-        coords::iso_to_screen_rect(iso_position, draw_size, transform)
+        let iso_position = self.iso_coords_f32();
+        coords::iso_to_screen_rect_f32(iso_position, draw_size, transform)
     }
 
     // Base cell without resolving blocker tiles into their owner cell.
@@ -840,15 +864,15 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     fn set_base_cell(&mut self, cell: Cell) {
+        // We would have to update all blocker cells here and point its owner cell back to the new cell.
+        assert!(!self.occupies_multiple_cells(), "This does not support multi-cell tiles yet!");
+
         // This will also update the cached iso coords in the archetype.
         delegate_to_archetype!(self, set_base_cell, cell);
 
         // Z-sort key is derived from cell and iso coords so it needs to be recomputed.
         let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
         self.set_z_sort_key(new_z_sort_key);
-
-        // We would have to update all blocker cells here and point its owner cell back to the new cell.
-        assert!(!self.occupies_multiple_cells(), "This does not support multi-cell tiles yet!");
     }
 }
 

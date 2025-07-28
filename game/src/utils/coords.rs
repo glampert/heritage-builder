@@ -412,6 +412,21 @@ pub fn iso_to_screen_rect(iso_position: IsoPoint,
     transform.apply_to_rect(iso_position, size)
 }
 
+// Same as iso_to_screen_rect() but the position is already in floating point.
+#[inline]
+pub fn iso_to_screen_rect_f32(iso_position: Vec2,
+                              size: Size,
+                              transform: &WorldToScreenTransform) -> Rect {
+    // Apply offset and scaling:
+    let screen_x = (iso_position.x * transform.scaling) + transform.offset.x;
+    let screen_y = (iso_position.y * transform.scaling) + transform.offset.y;
+
+    // Apply scaling:
+    let screen_width  = (size.width  as f32) * transform.scaling;
+    let screen_height = (size.height as f32) * transform.scaling;
+    Rect::new(Vec2::new(screen_x, screen_y), Vec2::new(screen_width, screen_height))
+}
+
 #[inline]
 pub fn is_screen_point_inside_diamond(p: Vec2, points: &[Vec2; 4]) -> bool {
     // Triangle 1: top, right, bottom
