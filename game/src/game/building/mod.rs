@@ -122,8 +122,6 @@ impl<'config> Building<'config> {
     }
 
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
-        debug_assert!(destination_cell.is_valid());
-
         if tile_map.try_move_tile(self.map_cells.start, destination_cell, TileMapLayerKind::Objects) {
             let tile = tile_map.find_tile_mut(
                 destination_cell,
@@ -133,10 +131,8 @@ impl<'config> Building<'config> {
 
             debug_assert!(destination_cell == tile.base_cell());
             self.map_cells = tile.cell_range();
-
             return true;
         }
-
         false
     }
 

@@ -11,7 +11,7 @@ mod utils;
 
 use imgui_ui::*;
 use render::*;
-use utils::{*, hash::*};
+use utils::*;
 use app::{*, input::*};
 use debug::*;
 use tile::{
@@ -60,22 +60,26 @@ fn main() {
 
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
 
-    /*
-    let mut tile_map = debug::utils::create_test_tile_map(&tile_sets);
+    // Test map with preset tiles:
+    //*
+    let mut tile_map = debug::utils::create_test_tile_map_preset_1(&tile_sets);
     tile_map.for_each_tile_mut(TileMapLayerKind::Objects, TileKind::Building, |tile| {
-        // NOTE: This is temporary while testing only. Map should start empty.
+        // NOTE: This is temporary while testing only. Map should always start empty.
         if let Some(building) = game::building::config::instantiate(tile, &building_configs) {
             world.add_building(tile, building);
         }
     });
-    */
+    //*/
 
+    // Empty map:
+    /*
     let mut tile_map = TileMap::with_terrain_tile(
         Size::new(64, 64),
         &tile_sets,
         TERRAIN_GROUND_CATEGORY,
-        StrHashPair::from_str("dirt")
+        utils::hash::StrHashPair::from_str("dirt")
     );
+    */
 
     let mut tile_selection = TileSelection::new();
     let mut tile_map_renderer = TileMapRenderer::new(

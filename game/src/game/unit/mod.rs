@@ -116,8 +116,6 @@ impl<'config> Unit<'config> {
 
     // Teleports to new tile cell and updates direction and animation.
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
-        debug_assert!(destination_cell.is_valid());
-
         if tile_map.try_move_tile(self.map_cell, destination_cell, TileMapLayerKind::Objects) {
             let tile = tile_map.find_tile_mut(
                 destination_cell,
@@ -125,16 +123,13 @@ impl<'config> Unit<'config> {
                 TileKind::Unit)
                 .unwrap();
 
-            let new_direction =
-                direction_between(self.map_cell, destination_cell);
-    
+            let new_direction = direction_between(self.map_cell, destination_cell);    
             self.update_direction_and_anim(tile, new_direction);
+
             debug_assert!(destination_cell == tile.base_cell());
             self.map_cell = destination_cell;
-
             return true;
         }
-
         false
     }
 

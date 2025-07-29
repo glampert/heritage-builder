@@ -1,3 +1,5 @@
+use paste::paste;
+
 use crate::{
     imgui_ui::UiSystem,
     render::{RenderSystem, RenderStats},
@@ -10,7 +12,7 @@ use crate::{
         }
     },
     tile::{
-        sets::{TileKind, TileSets, BASE_TILE_SIZE},
+        sets::{TileKind, TileSets, TileDef, BASE_TILE_SIZE},
         map::{Tile, TileFlags, TileMap, TileMapLayerKind},
         rendering::{TileMapRenderFlags, TileMapRenderStats}
     }
@@ -321,81 +323,157 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
 }
 
 // ----------------------------------------------
-// Built-in test TileMap
+// Built-in test TileMaps
 // ----------------------------------------------
 
-pub fn create_test_tile_map(tile_sets: &TileSets) -> TileMap {
-    println!("Creating test tile map...");
+mod test_maps {
+    use super::*;
 
-    const MAP_WIDTH:  i32 = 8;
-    const MAP_HEIGHT: i32 = 8;
-
-    const G: i32 = 0; // grass
-    const D: i32 = 1; // dirt
-    const H: i32 = 2; // house
-    const W: i32 = 3; // well_small
-    const B: i32 = 4; // well_big
-    const M: i32 = 5; // market
-
-    const TILE_NAMES: [&str; 6] = [ "grass", "dirt", "house0", "well_small", "well_big", "market" ];
-    const TILE_CATEGORIES: [&str; 6] = [ "ground", "ground", "buildings", "buildings", "buildings", "buildings" ];
-
-    let find_tile = |layer_kind: TileMapLayerKind, tile_id: i32| {
-        let tile_name = TILE_NAMES[tile_id as usize];
-        let category_name = TILE_CATEGORIES[tile_id as usize];
-        tile_sets.find_tile_def_by_name(layer_kind, category_name, tile_name)
-    };
-
-    const TERRAIN_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
-        D,D,D,D,D,D,D,D, // <-- start, tile zero is the leftmost (top-left)
-        D,G,G,G,G,G,G,D,
-        D,G,G,G,G,G,G,D,
-        D,G,G,G,G,G,G,D,
-        D,G,G,G,G,G,G,D,
-        D,G,G,G,G,G,G,D,
-        D,G,G,G,G,G,G,D,
-        D,D,D,D,D,D,D,D,
-    ];
-
-    const BUILDINGS_LAYER_MAP: [i32; (MAP_WIDTH * MAP_HEIGHT) as usize] = [
-        D,D,D,D,D,D,D,D, // <-- start, tile zero is the leftmost (top-left)
-        D,H,G,B,G,M,G,D,
-        D,G,G,G,G,G,G,D,
-        D,G,W,G,G,G,G,D,
-        D,G,G,G,G,G,G,D,
-        D,G,G,G,G,G,G,D,
-        D,G,G,G,G,G,G,D,
-        D,D,D,D,D,D,D,D,
-    ];
-
-    let mut tile_map = TileMap::new(Size::new(MAP_WIDTH, MAP_HEIGHT), None);
-
-    // Terrain:
-    for y in 0..MAP_HEIGHT {
-        for x in 0..MAP_WIDTH {
-            let tile_id = TERRAIN_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-            if let Some(tile_def) = find_tile(TileMapLayerKind::Terrain, tile_id) {
-                let place_result = tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Terrain, tile_def);
-                debug_assert!(place_result.is_some());
-            }
-        }
+    pub struct PresetTiles {
+        map_size_in_cells: Size,
+        terrain_tiles:  &'static [i32],
+        building_tiles: &'static [i32],
     }
 
-    // Buildings:
-    for y in 0..MAP_HEIGHT {
-        for x in 0..MAP_WIDTH {
-            let tile_id = BUILDINGS_LAYER_MAP[(x + (y * MAP_WIDTH)) as usize];
-            if tile_id == G || tile_id == D {
-                    // ground/dirt
-            } else {
-                // building tile
-                if let Some(tile_def) = find_tile(TileMapLayerKind::Objects, tile_id) {
-                    let place_result = tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Objects, tile_def);
-                    debug_assert!(place_result.is_some());
+    // TERRAIN:
+    const G: i32 = 0; // grass
+    const D: i32 = 1; // dirt
+    const R: i32 = 2; // stone_path (road)
+    const TERRAIN_TILE_NAMES: [&str; 3] = [
+        "grass",
+        "dirt",
+        "stone_path",
+    ];
+
+    // BUILDINGS:
+    const X: i32 = -1; // empty (dummy value)
+    const H: i32 = 0;  // house0
+    const W: i32 = 1;  // well_small
+    const B: i32 = 2;  // well_big
+    const M: i32 = 3;  // market
+    const F: i32 = 4;  // rice_farm
+    const S: i32 = 5;  // storage (granary)
+    const BUILDING_TILE_NAMES: [&str; 6] = [
+        "house0",
+        "well_small",
+        "well_big",
+        "market",
+        "rice_farm",
+        "granary",
+    ];
+
+    // 1 house, 2 wells, 1 market, 1 farm, 1 storage (granary)
+    pub const PRESET_TILES_0: PresetTiles = PresetTiles {
+        map_size_in_cells: Size::new(9, 9),
+        terrain_tiles: &[
+            R,R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,R,G,G,G,G,G,G,R,
+            R,G,G,G,G,R,R,R,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,R,R,R,R,R,R,R,R,
+        ],
+        building_tiles: &[
+            X,X,X,X,X,X,X,X,X, // <-- start, tile zero is the leftmost (top-left)
+            X,H,X,B,X,M,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,W,X,X,X,X,X,X,
+            X,F,X,X,X,X,X,X,X,
+            X,X,X,X,X,S,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+        ],
+    };
+
+    // 1 farm, 1 storage (granary)
+    pub const PRESET_TILES_1: PresetTiles = PresetTiles {
+        map_size_in_cells: Size::new(9, 9),
+        terrain_tiles: &[
+            R,R,R,R,R,R,R,R,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,R,R,R,R,R,R,R,R,
+        ],
+        building_tiles: &[
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,S,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,F,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+        ],
+    };
+
+    fn find_tile(tile_sets: &TileSets, layer_kind: TileMapLayerKind, tile_id: i32) -> Option<&TileDef> {
+        if tile_id < 0 {
+            return None;
+        }
+
+        let category_name = match layer_kind {
+            TileMapLayerKind::Terrain => "ground",
+            TileMapLayerKind::Objects => "buildings",
+        };
+
+        let tile_name = match layer_kind {
+            TileMapLayerKind::Terrain => TERRAIN_TILE_NAMES[tile_id as usize],
+            TileMapLayerKind::Objects => BUILDING_TILE_NAMES[tile_id as usize],
+        };
+
+        tile_sets.find_tile_def_by_name(layer_kind, category_name, tile_name)
+    }
+
+    pub fn build_tile_map<'tile_sets>(preset: &'static PresetTiles, tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
+        let map_size_in_cells = preset.map_size_in_cells;
+        let mut tile_map = TileMap::new(map_size_in_cells, None);
+
+        // Terrain:
+        for y in 0..map_size_in_cells.height {
+            for x in 0..map_size_in_cells.width {
+                let tile_id = preset.terrain_tiles[(x + (y * map_size_in_cells.width)) as usize];
+                if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Terrain, tile_id) {
+                    tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Terrain, tile_def)
+                        .expect("Failed to place tile");
                 }
             }
         }
-    }
 
-    tile_map
+        // Buildings (Objects):
+        for y in 0..map_size_in_cells.height {
+            for x in 0..map_size_in_cells.width {
+                let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
+                if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Objects, tile_id) {
+                    tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Objects, tile_def)
+                        .expect("Failed to place tile");
+                }
+            }
+        }
+
+        tile_map
+    }
 }
+
+macro_rules! declare_preset_tile_map {
+    ($preset_number:literal) => {
+        paste! {
+            pub fn [<create_test_tile_map_preset_ $preset_number>](tile_sets: &TileSets) -> TileMap {
+                println!("Creating test tile map: PRESET {} ...", $preset_number);
+                test_maps::build_tile_map(&test_maps::[<PRESET_TILES_ $preset_number>], tile_sets)
+            }
+        }
+    };
+}
+
+declare_preset_tile_map!(0);
+declare_preset_tile_map!(1);

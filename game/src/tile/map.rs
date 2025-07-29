@@ -1602,7 +1602,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_place_tile(&mut self,
                           target_cell: Cell,
-                          tile_def_to_place: &'tile_sets TileDef) -> Option<&mut Tile<'tile_sets>> {
+                          tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, &'static str> {
         self.try_place_tile_in_layer(
             target_cell,
             tile_def_to_place.layer_kind(), // Guess layer from TileDef.
@@ -1613,7 +1613,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile_in_layer(&mut self,
                                    target_cell: Cell,
                                    layer_kind: TileMapLayerKind,
-                                   tile_def_to_place: &'tile_sets TileDef) -> Option<&mut Tile<'tile_sets>> {
+                                   tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, &'static str> {
 
         let layer = self.layer_mut(layer_kind);
         let prev_pool_capacity = layer.pool_capacity();
@@ -1630,7 +1630,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform,
-                                    tile_def_to_place: &'tile_sets TileDef) -> Option<&mut Tile<'tile_sets>> {
+                                    tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, &'static str> {
 
         let prev_pool_capacity = {
             let layer = self.layer(tile_def_to_place.layer_kind());

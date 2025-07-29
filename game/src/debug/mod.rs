@@ -325,7 +325,7 @@ impl DebugMenusSingleton {
                         &args.transform,
                         tile_def);
 
-                    if let Some(tile) = place_result {
+                    if let Ok(tile) = place_result {
                         if tile_def.is(TileKind::Building) {
                             if let Some(building) = building::config::instantiate(tile, args.building_configs) {
                                 args.world.add_building(tile, building);
