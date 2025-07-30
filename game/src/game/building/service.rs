@@ -23,7 +23,8 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    config::BuildingConfigs
+    config::BuildingConfigs,
+    unit::Unit
 };
 
 // ----------------------------------------------
@@ -73,7 +74,7 @@ pub struct ServiceBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
-    fn update(&mut self, context: &mut BuildingContext, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &BuildingContext, delta_time_secs: Seconds) {
         // Procure resources from storage periodically if we need them.
         if self.stock.accepts_any() &&
            self.stock_update_timer.tick(delta_time_secs).should_update() &&
@@ -82,7 +83,10 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         }
     }
 
-    fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
+    fn visited(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
+    }
+
+    fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
         if ui_sys.builder().collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
             self.config.draw_debug_ui(ui_sys);
         }
@@ -146,7 +150,7 @@ impl<'config> ServiceBuilding<'config> {
         kinds_added_to_basked
     }
 
-    fn stock_update(&mut self, context: &mut BuildingContext) {
+    fn stock_update(&mut self, context: &BuildingContext) {
         let resources_required = &self.config.resources_required;
         let mut shopping_list = ResourceKinds::none();
 
@@ -161,10 +165,10 @@ impl<'config> ServiceBuilding<'config> {
             BuildingKind::Granary |
             BuildingKind::StorageYard;
 
-        context.for_each_storage(storage_kinds, |storage| {
+        context.for_each_storage_mut(storage_kinds, |building| {
             let all_or_nothing = false;
             let resource_kinds_got =
-                storage.shop(&mut self.stock, &shopping_list, all_or_nothing);
+                building.as_storage_mut().shop(&mut self.stock, &shopping_list, all_or_nothing);
             self.debug.log_resources_gained(resource_kinds_got, 1);
 
             let mut continue_search = false;

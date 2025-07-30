@@ -6,6 +6,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     game_object_debug_options,
     imgui_ui::UiSystem,
+    pathfind::{Node, NodeKind as PathNodeKind},
     utils::{
         Color,
         Seconds,
@@ -16,25 +17,24 @@ use crate::{
         map::TileMapLayerKind,
         sets::TileDef
     },
-    game::{
-        building::BuildingKind,
-        sim::{
-            UpdateTimer,
-            resources::{
-                ResourceStock,
-                ResourceKind,
-                ResourceKinds,
-                ServiceKind,
-                ServiceKinds
-            }
+    game::sim::{
+        UpdateTimer,
+        resources::{
+            ResourceStock,
+            ResourceKind,
+            ResourceKinds,
+            ServiceKind,
+            ServiceKinds
         }
     }
 };
 
 use super::{
+    BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    config::BuildingConfigs
+    config::BuildingConfigs,
+    unit::Unit
 };
 
 // ----------------------------------------------
@@ -111,7 +111,7 @@ pub struct HouseBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
-    fn update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &BuildingContext<'config, '_, '_>, delta_time_secs: Seconds) {
         // Update house states:
         if self.stock_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_stock_update() {
             self.stock_update(context);
@@ -122,7 +122,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         }
     }
 
-    fn draw_debug_ui(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
+    fn visited(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
+    }
+
+    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_level_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_upgrade_state(context, ui_sys);
@@ -165,7 +168,7 @@ impl<'config> HouseBuilding<'config> {
         self.upgrade_state.is_upgrade_available(context)
     }
 
-    fn stock_update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>) {
+    fn stock_update(&mut self, context: &BuildingContext) {
         // Consume resources from the stock periodically and shop for more as needed.
 
         let curr_level_resources_required =
@@ -186,11 +189,11 @@ impl<'config> HouseBuilding<'config> {
                 true
             });
 
-            let upgrade_available = self.is_upgrade_available(context);
-
             // Go shopping:
-            if let Some(market) =
-                context.find_nearest_service(BuildingKind::Market) {
+            if let Some(building) =
+                context.find_nearest_service_mut(BuildingKind::Market) {
+
+                let market = building.as_service_mut();
 
                 // Shop for resources needed for this level.
                 let all_or_nothing = false;
@@ -201,7 +204,7 @@ impl<'config> HouseBuilding<'config> {
                 // And if we have space to upgrade, shop for resources needed for the next level, so we can advance.
                 // But only take any if we have the whole shopping list. No point in shopping partially since we
                 // wouldn't be able to upgrade and would wasted those resources.
-                if upgrade_available {
+                if self.is_upgrade_available(context) {
                     let mut next_level_shopping_list = ResourceKinds::none();
 
                     // We've already shopped for resources in the current level list,
@@ -221,9 +224,9 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
-    fn upgrade_update(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>) {
+    fn upgrade_update(&mut self, context: &BuildingContext<'config, '_, '_>) {
         // Attempt to upgrade or downgrade based on services and resources availability.
-        self.upgrade_state.update(context, &mut self.debug, &self.stock);
+        self.upgrade_state.update(context, &self.stock, &mut self.debug);
     }
 }
 
@@ -378,9 +381,9 @@ impl<'config> HouseUpgradeState<'config> {
     }
 
     fn update(&mut self,
-              context: &mut BuildingContext<'config, '_, '_, '_, '_>,
-              debug: &mut HouseDebug,
-              stock: &ResourceStock) {
+              context: &BuildingContext<'config, '_, '_>,
+              stock: &ResourceStock,
+              debug: &mut HouseDebug) {
 
         if self.can_upgrade(context, stock) {
             self.try_upgrade(context, debug);
@@ -390,7 +393,7 @@ impl<'config> HouseUpgradeState<'config> {
     }
 
     fn can_upgrade(&mut self,
-                   context: &BuildingContext<'config, '_, '_, '_, '_>,
+                   context: &BuildingContext,
                    stock: &ResourceStock) -> bool {
         if self.level.is_max() {
             return false;
@@ -405,7 +408,7 @@ impl<'config> HouseUpgradeState<'config> {
     }
 
     fn can_downgrade(&mut self,
-                     context: &BuildingContext<'config, '_, '_, '_, '_>,
+                     context: &BuildingContext,
                      stock: &ResourceStock) -> bool {
         if self.level.is_min() {
             return false;
@@ -419,7 +422,7 @@ impl<'config> HouseUpgradeState<'config> {
         !curr_level_requirements.has_required_resources()
     }
 
-    fn try_upgrade(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, debug: &mut HouseDebug) {
+    fn try_upgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) {
         let mut tile_placed_successfully = false;
 
         let next_level = self.level.next();
@@ -451,7 +454,7 @@ impl<'config> HouseUpgradeState<'config> {
         self.has_room_to_upgrade = tile_placed_successfully;
     }
 
-    fn try_downgrade(&mut self, context: &mut BuildingContext<'config, '_, '_, '_, '_>, debug: &mut HouseDebug) {
+    fn try_downgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) {
         let mut tile_placed_successfully = false;
 
         let prev_level = self.level.prev();
@@ -479,18 +482,19 @@ impl<'config> HouseUpgradeState<'config> {
         }
     }
 
-    fn try_replace_tile<'tile_sets>(context: &mut BuildingContext<'_, '_, '_, '_, 'tile_sets>,
+    fn try_replace_tile<'tile_sets>(context: &BuildingContext<'config, 'tile_sets, '_>,
                                     tile_def_to_place: &'tile_sets TileDef) -> bool {
 
         // Replaces the give tile if the placement is valid,
         // fails and leaves the map unchanged otherwise.
+        let tile_map = context.query.tile_map();
 
         // First check if we have space to place this tile.
-        let cell_range = tile_def_to_place.cell_range(context.map_cells.start);
-        for cell in &cell_range {
+        let new_cell_range = tile_def_to_place.cell_range(context.base_cell());
+        for cell in &new_cell_range {
             if let Some(tile) =
-                context.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                let is_self = tile.base_cell() == context.map_cells.start;
+                tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                let is_self = tile.base_cell() == context.base_cell();
                 if !is_self {
                     // Cannot expand here.
                     return false;
@@ -499,28 +503,55 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         // We'll need to restore this to the new tile.
-        let prev_tile_game_state = {
+        let (prev_game_state, prev_cell_range) = {
             let prev_tile = context.find_tile();
+
+            let cell_range = prev_tile.cell_range();
+            debug_assert!(context.map_cells == cell_range);
+
             let game_state = prev_tile.game_state_handle();
             debug_assert!(game_state.is_valid(), "Building tile doesn't have a valid associated GameStateHandle!");
-            game_state
+
+            (game_state, cell_range)
         };
 
+        debug_assert!(prev_cell_range.start == new_cell_range.start);
+
         // Now we must clear the previous tile.
-        if !context.query.tile_map.try_clear_tile_from_layer(
-            context.map_cells.start, TileMapLayerKind::Objects) {
+        if !tile_map.try_clear_tile_from_layer(
+            prev_cell_range.start,
+            TileMapLayerKind::Objects) {
             panic!("Failed to clear previous tile! This is unexpected...");
         }
 
         // And place the new one.
-        let new_tile = context.query.tile_map.try_place_tile_in_layer(
-            context.map_cells.start,
+        let new_tile = tile_map.try_place_tile_in_layer(
+            new_cell_range.start,
             TileMapLayerKind::Objects,
             tile_def_to_place)
             .expect("Failed to place new tile! This is unexpected...");
 
+        debug_assert!(new_tile.cell_range() == new_cell_range);
+
         // Update game state handle:
-        new_tile.set_game_state_handle(prev_tile_game_state);
+        new_tile.set_game_state_handle(prev_game_state);
+
+        if new_cell_range != prev_cell_range {
+            let world = context.query.world();
+            let graph = context.query.graph();
+
+            // Update cell range cached in the building.
+            let this_building = world.find_building_for_tile_mut(new_tile).unwrap();
+            this_building.map_cells = new_cell_range;
+
+            // Update path finding graph:
+            for cell in &prev_cell_range {
+                graph.set_node_kind(Node::new(cell), PathNodeKind::Ground); // Traversable
+            }
+            for cell in &new_cell_range {
+                graph.set_node_kind(Node::new(cell), PathNodeKind::empty()); // Not Traversable
+            }  
+        }
 
         true
     }
@@ -539,11 +570,12 @@ impl<'config> HouseUpgradeState<'config> {
             None => return false,
         };
 
-        let cell_range = tile_def.cell_range(context.map_cells.start);
+        let tile_map = context.query.tile_map();
+        let cell_range = tile_def.cell_range(context.base_cell());
 
         for cell in &cell_range {
-            if let Some(tile) = context.query.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                let is_self = tile.base_cell() == context.map_cells.start;
+            if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                let is_self = tile.base_cell() == context.base_cell();
                 if !is_self {
                     // Cannot expand here.
                     return false;
@@ -567,7 +599,7 @@ impl HouseBuilding<'_> {
         }
     }
 
-    fn draw_debug_ui_upgrade_state(&mut self, context: &mut BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_upgrade_state(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if !ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.

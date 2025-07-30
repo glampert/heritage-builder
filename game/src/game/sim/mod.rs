@@ -1,8 +1,16 @@
-use rand::SeedableRng;
+use rand::{distr::uniform::{SampleRange, SampleUniform}, Rng, SeedableRng};
 use rand_pcg::Pcg64;
 
 use crate::{
     imgui_ui::UiSystem,
+    pathfind::{
+        Graph,
+        Search,
+        SearchResult,
+        AStarUniformCostHeuristic,
+        NodeKind as PathNodeKind,
+        Node,
+    },
     utils::{
         coords::{Cell, CellRange},
         hash::StringHash,
@@ -45,13 +53,19 @@ const DEFAULT_SIM_UPDATE_FREQUENCY_SECS: Seconds = 0.5;
 pub struct Simulation {
     update_timer: UpdateTimer,
     rng: RandomGenerator,
+
+    // Path finding:
+    graph: Graph,
+    search: Search,
 }
 
 impl Simulation {
-    pub fn new() -> Self {
+    pub fn new(tile_map: &TileMap) -> Self {
         Self {
             update_timer: UpdateTimer::new(DEFAULT_SIM_UPDATE_FREQUENCY_SECS),
             rng: RandomGenerator::seed_from_u64(DEFAULT_RANDOM_SEED),
+            graph: Graph::from_tile_map(tile_map),
+            search: Search::with_grid_size(tile_map.size_in_cells()),
         }
     }
 
@@ -61,20 +75,26 @@ impl Simulation {
                               tile_sets: &'tile_sets TileSets,
                               delta_time_secs: Seconds) {
 
-        let mut query = Query::new(
+        // Rebuild the search graph once every frame so any
+        // add/remove tile changes will be reflected on the graph.
+        self.graph.rebuild_from_tile_map(tile_map);
+
+        let query = Query::new(
             &mut self.rng,
+            &mut self.graph,
+            &mut self.search,
             world,
             tile_map,
             tile_sets);
 
+        // Units movement needs to be smooth, so it updates every frame.
+        world.update_unit_movement(&query, delta_time_secs);
+
         // Fixed step update.
         let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
         if self.update_timer.tick(delta_time_secs).should_update() {
-            world.update(&mut query, world_update_delta_time_secs);
+            world.update(&query, world_update_delta_time_secs);
         }
-
-        // Units movement needs to be smooth, so it updates every frame.
-        world.update_unit_movement(&mut query, delta_time_secs);
     }
 
     // ----------------------
@@ -87,14 +107,16 @@ impl Simulation {
                                       visible_range: CellRange,
                                       show_popup_messages: bool) {
 
-        let mut query = Query::new(
+        let query = Query::new(
             &mut self.rng,
+            &mut self.graph,
+            &mut self.search,
             context.world,
             context.tile_map,
             context.tile_sets);
 
         context.world.draw_building_debug_popups(
-            &mut query,
+            &query,
             context.ui_sys,
             &context.transform,
             visible_range,
@@ -106,14 +128,16 @@ impl Simulation {
                                   context: &mut debug::DebugContext,
                                   selected_cell: Cell) {
 
-        let mut query = Query::new(
+        let query = Query::new(
             &mut self.rng,
+            &mut self.graph,
+            &mut self.search,
             context.world,
             context.tile_map,
             context.tile_sets);
 
         context.world.draw_building_debug_ui(
-            &mut query,
+            &query,
             context.ui_sys,
             selected_cell);
     }
@@ -124,14 +148,16 @@ impl Simulation {
                                   visible_range: CellRange,
                                   show_popup_messages: bool) {
 
-        let mut query = Query::new(
+        let query = Query::new(
             &mut self.rng,
+            &mut self.graph,
+            &mut self.search,
             context.world,
             context.tile_map,
             context.tile_sets);
 
         context.world.draw_unit_debug_popups(
-            &mut query,
+            &query,
             context.ui_sys,
             &context.transform,
             visible_range,
@@ -143,22 +169,18 @@ impl Simulation {
                               context: &mut debug::DebugContext,
                               selected_cell: Cell) {
 
-        let mut query = Query::new(
+        let query = Query::new(
             &mut self.rng,
+            &mut self.graph,
+            &mut self.search,
             context.world,
             context.tile_map,
             context.tile_sets);
 
         context.world.draw_unit_debug_ui(
-            &mut query,
+            &query,
             context.ui_sys,
             selected_cell);
-    }
-}
-
-impl Default for Simulation {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -238,30 +260,95 @@ impl UpdateTimer {
 // Query
 // ----------------------------------------------
 
-pub struct Query<'config, 'sim, 'tile_map, 'tile_sets> {
-    pub rng: &'sim mut RandomGenerator,
-    pub tile_map: &'tile_map mut TileMap<'tile_sets>,
-    pub tile_sets: &'tile_sets TileSets,
+pub struct Query<'config, 'tile_sets> {
+    // SAFETY: Queries are local variables in the Simulation::update() stack,
+    // so none of the references stored here will persist or leak outside the
+    // update call stack. Storing weak references here makes things easier
+    // since Query is only a container of references to external objects,
+    // so we don't want any of these lifetimes to be associated with the
+    // Query's lifetime. It also allows us to pass immutable Query refs.
 
-    // SAFETY: Queries are local variables in the Simulation::update() stack, so none
-    // of the references stored here will persist or leak outside the call stack.
-    // The reason we store this as a weak reference is because we cannot take another
-    // reference to the world while we are also invoking update() on it, however,
-    // a reference is required in some cases to look up other buildings.
-    pub world: UnsafeWeakRef<World<'config>>,
+    // Random generator:
+    rng: UnsafeWeakRef<RandomGenerator>,
+
+    // Path finding:
+    graph: UnsafeWeakRef<Graph>,
+    search: UnsafeWeakRef<Search>,
+
+    // World & Tile Map:
+    world: UnsafeWeakRef<World<'config>>,
+    tile_map: UnsafeWeakRef<TileMap<'tile_sets>>,
+    tile_sets: &'tile_sets TileSets,
 }
 
-impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile_sets> {
-    fn new(rng: &'sim mut RandomGenerator,
+impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
+    fn new(rng: &mut RandomGenerator,
+           graph: &mut Graph,
+           search: &mut Search,
            world: &mut World<'config>,
-           tile_map: &'tile_map mut TileMap<'tile_sets>,
+           tile_map: &mut TileMap<'tile_sets>,
            tile_sets: &'tile_sets TileSets) -> Self {
         Self {
-            rng,
-            tile_map,
-            tile_sets,
+            rng: UnsafeWeakRef::new(rng),
+            graph: UnsafeWeakRef::new(graph),
+            search: UnsafeWeakRef::new(search),
             world: UnsafeWeakRef::new(world),
+            tile_map: UnsafeWeakRef::new(tile_map),
+            tile_sets,
         }
+    }
+
+    #[inline]
+    fn calc_search_radius(start_cells: CellRange, radius_in_cells: i32) -> CellRange {
+        debug_assert!(start_cells.is_valid());
+        debug_assert!(radius_in_cells > 0);
+        let start_x = start_cells.start.x - radius_in_cells;
+        let start_y = start_cells.start.y - radius_in_cells;
+        let end_x   = start_cells.end.x   + radius_in_cells;
+        let end_y   = start_cells.end.y   + radius_in_cells;
+        CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))
+    }
+
+    #[inline(always)]
+    fn rng(&self) -> &mut RandomGenerator {
+        self.rng.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    fn search(&self) -> &mut Search {
+        self.search.mut_ref_cast()
+    }
+
+    // --------------
+    //   Public API
+    // --------------
+
+    #[inline(always)]
+    pub fn graph(&self) -> &mut Graph {
+        self.graph.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    pub fn world(&self) -> &mut World<'config> {
+        self.world.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    pub fn tile_map(&self) -> &mut TileMap<'tile_sets> {
+        self.tile_map.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    pub fn tile_sets(&self) -> &'tile_sets TileSets {
+        self.tile_sets
+    }
+
+    #[inline(always)]
+    pub fn random_in_range<T, R>(&self, range: R) -> T
+        where T: SampleUniform,
+              R: SampleRange<T>
+    {
+        self.rng().random_range(range)
     }
 
     #[inline]
@@ -270,7 +357,7 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
                          category_name_hash: StringHash,
                          tile_def_name_hash: StringHash) -> Option<&'tile_sets TileDef> {
 
-        self.tile_sets.find_tile_def_by_hash(layer, category_name_hash, tile_def_name_hash)
+        self.tile_sets().find_tile_def_by_hash(layer, category_name_hash, tile_def_name_hash)
     }
 
     #[inline]
@@ -279,16 +366,53 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
                      layer: TileMapLayerKind,
                      tile_kinds: TileKind) -> Option<&Tile<'tile_sets>> {
 
-        self.tile_map.find_tile(cell, layer, tile_kinds)
+        self.tile_map().find_tile(cell, layer, tile_kinds)
     }
 
     #[inline]
-    pub fn find_tile_mut(&mut self,
+    pub fn find_tile_mut(&self,
                          cell: Cell,
                          layer: TileMapLayerKind,
                          tile_kinds: TileKind) -> Option<&mut Tile<'tile_sets>> {
 
-        self.tile_map.find_tile_mut(cell, layer, tile_kinds)
+        self.tile_map().find_tile_mut(cell, layer, tile_kinds)
+    }
+
+    #[inline]
+    pub fn find_path(&self, traversable_node_kinds: PathNodeKind, start: Cell, goal: Cell) -> SearchResult {
+        self.search().find_path(self.graph(),
+                                &AStarUniformCostHeuristic::new(),
+                                traversable_node_kinds,
+                                Node::new(start),
+                                Node::new(goal))
+    }
+
+    pub fn find_nearest_road_link(&self, start_cells: CellRange) -> Cell {
+        let start_x = start_cells.start.x - 1;
+        let start_y = start_cells.start.y - 1;
+        let end_x   = start_cells.end.x   + 1;
+        let end_y   = start_cells.end.y   + 1;
+        let expanded_range = CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y));
+
+        for cell in &expanded_range {
+            // Skip diagonal corners.
+            #[allow(clippy::nonminimal_bool)] // Current code is more verbose but simple. Ignore this lint.
+            let is_corner =
+                (cell.x == start_x && cell.y == start_y) ||
+                (cell.x == start_x && cell.y == end_y)   ||
+                (cell.x == end_x   && cell.y == start_y) ||
+                (cell.x == end_x   && cell.y == end_y);
+
+            if !is_corner {
+                if let Some(node_kind) = self.graph().node_kind(Node::new(cell)) {
+                    if node_kind == PathNodeKind::Road {
+                        return cell;
+                    }
+                }
+            }
+        }
+
+        Cell::invalid()
     }
 
     pub fn is_near_building(&self,
@@ -296,11 +420,11 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
                             kind: BuildingKind,
                             radius_in_cells: i32) -> bool {
 
-        let search_range = Self::calc_search_range(start_cells, radius_in_cells);
+        let search_range = Self::calc_search_radius(start_cells, radius_in_cells);
 
         for search_cell in &search_range {
             if let Some(search_tile) =
-                self.tile_map.find_tile(search_cell, TileMapLayerKind::Objects, TileKind::Building) {
+                self.tile_map().find_tile(search_cell, TileMapLayerKind::Objects, TileKind::Building) {
                 let game_state = search_tile.game_state_handle();
                 if game_state.is_valid() {
                     let building_kind = BuildingKind::from_game_state_handle(game_state);
@@ -314,38 +438,28 @@ impl<'config, 'sim, 'tile_map, 'tile_sets> Query<'config, 'sim, 'tile_map, 'tile
         false
     }
 
-    pub fn find_nearest_building(&mut self,
-                                 start_cells: CellRange,
-                                 kind: BuildingKind,
-                                 radius_in_cells: i32) -> Option<&mut Building<'config>> {
+    pub fn find_nearest_building_mut(&self,
+                                     start_cells: CellRange,
+                                     kind: BuildingKind,
+                                     radius_in_cells: i32) -> Option<&mut Building<'config>> {
 
-        let search_range = Self::calc_search_range(start_cells, radius_in_cells);
+        let world = self.world();
+        let tile_map = self.tile_map();
+        let search_range = Self::calc_search_radius(start_cells, radius_in_cells);
 
         for search_cell in &search_range {
             if let Some(search_tile) =
-                self.tile_map.find_tile(search_cell, TileMapLayerKind::Objects, TileKind::Building) {
+                tile_map.find_tile(search_cell, TileMapLayerKind::Objects, TileKind::Building) {
                 let game_state = search_tile.game_state_handle();
                 if game_state.is_valid() {
                     let building_kind = BuildingKind::from_game_state_handle(game_state);
                     if building_kind == kind {
-                        return self.world.find_building_for_tile_mut(search_tile);
+                        return world.find_building_for_tile_mut(search_tile);
                     }
                 }
             }
         }
 
         None
-    }
-
-    #[inline]
-    fn calc_search_range(start_cells: CellRange, radius_in_cells: i32) -> CellRange {
-        debug_assert!(start_cells.is_valid());
-        debug_assert!(radius_in_cells > 0);
-
-        let start_x = start_cells.start.x - radius_in_cells;
-        let start_y = start_cells.start.y - radius_in_cells;
-        let end_x   = start_cells.end.x   + radius_in_cells;
-        let end_y   = start_cells.end.y   + radius_in_cells;
-        CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))
     }
 }

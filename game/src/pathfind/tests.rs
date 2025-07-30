@@ -4,7 +4,7 @@ use super::*;
 fn test_invalid_paths() {
     let graph = Graph::with_node_kind(Size::new(8, 8), NodeKind::Ground);
     let heuristic = AStarUniformCostHeuristic::new();
-    let mut search = Search::new(&graph);
+    let mut search = Search::with_graph(&graph);
 
     // Invalid start node:
     {
@@ -57,7 +57,7 @@ fn test_straight_line_paths() {
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
     let heuristic = AStarUniformCostHeuristic::new();
-    let mut search = Search::new(&graph);
+    let mut search = Search::with_graph(&graph);
 
     // Vertical path across the grid:
     {
@@ -141,7 +141,7 @@ fn test_diagonal_paths() {
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
     let heuristic = AStarUniformCostHeuristic::new();
-    let mut search = Search::new(&graph);
+    let mut search = Search::with_graph(&graph);
 
     // start=goal:
     {

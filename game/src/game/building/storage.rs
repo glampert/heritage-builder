@@ -24,7 +24,8 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    config::BuildingConfigs
+    config::BuildingConfigs,
+    unit::Unit
 };
 
 // ----------------------------------------------
@@ -72,11 +73,34 @@ pub struct StorageBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
-    fn update(&mut self, _context: &mut BuildingContext, _delta_time_secs: Seconds) {
+    fn update(&mut self, _context: &BuildingContext, _delta_time_secs: Seconds) {
         // Nothing for now.
     }
 
-    fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
+    fn visited(&mut self, unit: &mut Unit, context: &BuildingContext) {
+        self.debug.popup_msg(format!("Visited by {}", unit.name()));
+
+        // Try unload cargo:
+        if let Some(item) = unit.peek_inventory() {
+            let received_count = self.receive_resources(item.kind, item.count);
+            if received_count != 0 {
+                let given_count = unit.give_resources(item.kind, received_count);
+                debug_assert!(given_count == received_count);
+            }
+
+            // Unit finished delivering its cargo.
+            if unit.peek_inventory().is_none() {
+                context.despawn_unit(unit);
+            }
+        }
+
+        // TODO
+        // If unit managed to unload all resources, despawn it, else it needs
+        // to try another storage building. Keep going until all is unloaded.
+        // If nothing can be found, wait in place at current location.
+    }
+
+    fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
         if ui_sys.builder().collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
             self.config.draw_debug_ui(ui_sys);
         }
@@ -85,7 +109,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     }
 
     fn draw_debug_popups(&mut self,
-                         context: &BuildingContext<'config, '_, '_, '_, '_>,
+                         context: &BuildingContext,
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
                          visible_range: CellRange,
@@ -117,17 +141,26 @@ impl<'config> StorageBuilding<'config> {
         }
     }
 
+    #[inline]
     pub fn is_full(&self) -> bool {
         self.storage_slots.are_all_slots_full()
     }
 
-    // Returns number of received resources.
-    pub fn receive_resources(&mut self, item: StockItem) -> u32 {
-        let added = self.storage_slots.try_add_resources(item);
-        if added != 0 {
-            self.debug.log_resources_gained(item.kind, added);
+    // How many resources of this kind can we receive?
+    #[inline]
+    pub fn how_many_can_fit(&self, resource_kind: ResourceKind) -> u32 {
+        // TODO: If we are not operating (no workers), make this return zero so storage search will ignore it.
+        self.storage_slots.how_many_can_fit(resource_kind)
+    }
+
+    // Returns number of resources it was able to accommodate.
+    #[inline]
+    pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        let received_count = self.storage_slots.receive_resources(kind, count);
+        if received_count != 0 {
+            self.debug.log_resources_gained(kind, received_count);
         }
-        added
+        received_count
     }
 
     pub fn shop(&mut self,
@@ -198,6 +231,15 @@ impl StorageSlot {
             }
         }
         false
+    }
+
+    fn remaining_capacity(&self, slot_capacity: u32) -> u32 {
+        if let Some(kind) = self.allocated_resource_kind {
+            let count = self.stock.count(kind);
+            debug_assert!(count <= slot_capacity);
+            return slot_capacity - count;
+        }
+        slot_capacity // free
     }
 
     fn resource_index_and_count(&self, kind: ResourceKind) -> (usize, u32) {
@@ -293,16 +335,19 @@ impl StorageSlots {
 
     #[inline]
     fn slot_resource_count(&self, slot_index: usize, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
         self.slots[slot_index].resource_index_and_count(kind).1
     }
 
     #[inline]
     fn increment_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, add_amount: u32) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
         self.slots[slot_index].increment_resource_count(kind, add_amount, self.slot_capacity)
     }
 
     #[inline]
     fn decrement_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, sub_amount: u32) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
         self.slots[slot_index].decrement_resource_count(kind, sub_amount)
     }
 
@@ -328,6 +373,9 @@ impl StorageSlots {
 
     #[inline]
     fn find_resource_slot(&self, kind: ResourceKind) -> Option<usize> {
+        // Should be a single kind, never multiple ORed flags.
+        debug_assert!(kind.bits().count_ones() == 1);
+
         for (slot_index, slot) in self.slots.iter().enumerate() {
             if let Some(allocated_kind) = slot.allocated_resource_kind {
                 if allocated_kind == kind {
@@ -355,11 +403,26 @@ impl StorageSlots {
         self.find_free_slot()
     }
 
-    // Returns number of added resources.
-    fn try_add_resources(&mut self, item: StockItem) -> u32 {
-        let kind = item.kind;
-        let add_amount = item.count;
+    fn how_many_can_fit(&self, kind: ResourceKind) -> u32 {
+        // Should be a single kind, never multiple ORed flags.
+        debug_assert!(kind.bits().count_ones() == 1);
+        let mut count = 0;
 
+        for slot in &self.slots {
+            if slot.is_free() {
+                count += self.slot_capacity;
+            } else if let Some(allocated_kind) = slot.allocated_resource_kind {
+                if allocated_kind == kind {
+                    count += slot.remaining_capacity(self.slot_capacity);
+                }
+            }
+        }
+
+        count
+    }
+
+    // Returns number of added resources.
+    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         let slot_index = match self.alloc_resource_slot(kind) {
             Some(slot_index) => slot_index,
             None => return 0,
@@ -369,7 +432,7 @@ impl StorageSlots {
             self.slot_resource_count(slot_index, kind);
 
         let new_count =
-            self.increment_slot_resource_count(slot_index, kind, add_amount);
+            self.increment_slot_resource_count(slot_index, kind, count);
 
         new_count - prev_count
     }

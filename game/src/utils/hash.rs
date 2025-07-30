@@ -70,6 +70,11 @@ impl StrHashPair {
             hash: fnv1a_from_str(string),
         }
     }
+
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.hash != NULL_HASH
+    }
 }
 
 pub const fn fnv1a_from_str(s: &str) -> FNV1aHash {

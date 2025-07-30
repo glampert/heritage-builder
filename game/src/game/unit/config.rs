@@ -1,11 +1,25 @@
 use crate::{
     tile::map::Tile,
-    utils::hash::{self, StringHash}
+    utils::hash::{
+        self,
+        StringHash,
+        StrHashPair
+    }
 };
 
 use super::{
     Unit
 };
+
+// ----------------------------------------------
+// Constants
+// ----------------------------------------------
+
+pub type UnitConfigKey = StrHashPair;
+
+// TODO: For now these are all the same until we have more unit sprites to work with.
+pub const UNIT_PED: UnitConfigKey = UnitConfigKey::from_str("ped");
+pub const UNIT_RUNNER: UnitConfigKey = UnitConfigKey::from_str("ped");
 
 // ----------------------------------------------
 // UnitConfig
@@ -21,7 +35,7 @@ pub struct UnitConfig {
 
 pub struct UnitConfigs {
     // TODO: Temporary. Should be loaded from a file.
-    dummy: UnitConfig,
+    pub dummy: UnitConfig,
 }
 
 impl UnitConfigs {

@@ -188,6 +188,13 @@ impl Graph {
 
     pub fn from_tile_map(tile_map: &TileMap) -> Self {
         let mut graph = Self::with_empty_grid(tile_map.size_in_cells());
+        graph.rebuild_from_tile_map(tile_map);
+        graph
+    }
+
+    pub fn rebuild_from_tile_map(&mut self, tile_map: &TileMap) {
+        // We assume size hasn't changed.
+        debug_assert!(self.grid_size() == tile_map.size_in_cells());
 
         // Construct our search graph from the terrain tiles.
         // Any building or prop is considered non-traversable
@@ -203,11 +210,11 @@ impl Graph {
 
                 if !tile_map.has_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds) {
                     let path_kind = tile.tile_def().path_kind;
-                    graph.grid[node] = path_kind;
+                    self.grid[node] = path_kind;
+                } else {
+                    self.grid[node] = NodeKind::empty();
                 }
             });
-
-        graph
     }
 
     #[inline]
@@ -311,8 +318,11 @@ pub struct Search {
 }
 
 impl Search {
-    pub fn new(graph: &Graph) -> Self {
-        let grid_size = graph.grid_size();
+    pub fn with_graph(graph: &Graph) -> Self {
+        Self::with_grid_size(graph.grid_size())
+    }
+
+    pub fn with_grid_size(grid_size: Size) -> Self {
         let node_count = (grid_size.width * grid_size.height) as usize;
         Self {
             path: Path::new(),

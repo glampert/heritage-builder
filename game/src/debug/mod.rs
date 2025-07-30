@@ -10,6 +10,7 @@ use crate::{
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
     utils::{
         Vec2,
+        UnsafeWeakRef,
         UnsafeMutable,
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
@@ -85,12 +86,14 @@ pub struct DebugMenusEndFrameArgs<'rs, 'cam, 'sim, 'ui, 'world, 'config, 'tile_m
 pub struct DebugMenusSystem;
 
 impl DebugMenusSystem {
-    pub fn new(tex_cache: &mut impl TextureCache) -> Self {
+    pub fn new(tile_map: &TileMap, tex_cache: &mut impl TextureCache) -> Self {
         const DEBUG_SETTINGS_OPEN: bool = false;
         const TILE_PALETTE_OPEN: bool = true;
 
         // Initialize the singleton exactly once:
         init_singleton(tex_cache, DEBUG_SETTINGS_OPEN, TILE_PALETTE_OPEN);
+
+        init_tile_map_debug_ref(tile_map);
 
         // Register TileMap global callbacks:
         map::set_tile_placed_callback(|tile, did_reallocate| {
@@ -142,6 +145,12 @@ impl DebugMenusSystem {
     pub fn end_frame(&mut self, args: &mut DebugMenusEndFrameArgs<impl RenderSystem>) {
         use_singleton(|instance| {
             instance.end_frame(args)
+        })
+    }
+
+    pub fn set_show_popup_messages(&mut self, show: bool) {
+        use_singleton(|instance| {
+            instance.debug_settings_menu.set_show_popup_messages(show);
         })
     }
 }
@@ -215,7 +224,7 @@ impl DebugMenusSingleton {
             let traversable_node_kinds = NodeKind::Road;
             let start = Node::new(self.search_test_start);
             let goal = Node::new(self.search_test_goal);
-            let mut search = Search::new(&graph);
+            let mut search = Search::with_graph(&graph);
 
             match search.find_path(&graph, &heuristic, traversable_node_kinds, start, goal) {
                 SearchResult::PathFound(path) => {
@@ -440,5 +449,46 @@ fn use_singleton<F, R>(mut closure: F) -> R
         } else {
             panic!("DebugMenusSystem singleton instance is not initialized!")
         }
+    })
+}
+
+pub fn show_popup_messages() -> bool {
+    DEBUG_MENUS_SINGLETON.with(|once_cell| {
+        if let Some(instance) = once_cell.get() {
+            instance.debug_settings_menu.show_popup_messages()
+        } else {
+            false
+        }
+    })
+}
+
+// ----------------------------------------------
+// Global TileMap debug ref
+// ----------------------------------------------
+
+std::thread_local! {
+    // Using this to get tile names from cells directly for debugging & logging.
+    // SAFETY: Must make sure the tile map instance set on initialization stays valid until app termination.
+    static TILE_MAP_DEBUG_REF: OnceCell<UnsafeWeakRef<TileMap<'static>>> = const { OnceCell::new() };
+}
+
+fn init_tile_map_debug_ref(tile_map: &TileMap) {
+    // Strip away lifetime (pretend it is static).
+    #[allow(clippy::unnecessary_cast)] // cast to TileMap<'_> is needed to then cast away lifetime as 'static.
+    let tile_map_ptr = tile_map as *const TileMap<'_> as *const TileMap<'static>;
+    let weak_ref = UnsafeWeakRef::from_ptr(tile_map_ptr);
+
+    TILE_MAP_DEBUG_REF.with(|once_cell| {
+        once_cell.set(weak_ref).unwrap_or_else(|_| panic!("TILE_MAP_DEBUG_REF was already set!"));
+    });
+}
+
+pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {
+    TILE_MAP_DEBUG_REF.with(|once_cell| {
+        if let Some(tile_map) = once_cell.get() {
+            return tile_map.try_tile_from_layer(cell, layer)
+                .map_or("", |tile| tile.name());
+        }
+        ""
     })
 }

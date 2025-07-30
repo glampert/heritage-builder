@@ -13,6 +13,7 @@ use crate::{
     },
     tile::map::{
         Tile,
+        TileMap,
         TileMapLayerKind,
         GameStateHandle
     },
@@ -67,7 +68,7 @@ impl<'config> World<'config> {
         self.units_list.clear();
     }
 
-    pub fn update(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
+    pub fn update(&mut self, query: &Query<'config, '_>, delta_time_secs: Seconds) {
         for buildings in &mut self.buildings_list {
             let list_archetype = buildings.archetype_kind();
             for (_, building) in buildings.iter_mut() {
@@ -81,7 +82,7 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn update_unit_movement(&mut self, query: &mut Query<'config, '_, '_, '_>, delta_time_secs: Seconds) {
+    pub fn update_unit_movement(&mut self, query: &Query<'config, '_>, delta_time_secs: Seconds) {
         for (_, unit) in self.units_list.iter_mut() {
             unit.update_movement(query, delta_time_secs);
         } 
@@ -147,6 +148,20 @@ impl<'config> World<'config> {
         None
     }
 
+    pub fn find_building_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Building<'config>> {
+        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building) {
+            return self.find_building_for_tile(tile);
+        }
+        None
+    }
+
+    pub fn find_building_for_cell_mut(&mut self, cell: Cell, tile_map: &mut TileMap) -> Option<&mut Building<'config>> {
+        if let Some(tile) = tile_map.find_tile_mut(cell, TileMapLayerKind::Objects, TileKind::Building) {
+            return self.find_building_for_tile_mut(tile);
+        }
+        None
+    }
+
     pub fn find_building_by_name(&self, name: &str, archetype_kind: BuildingArchetypeKind) -> Option<&Building<'config>> {
         self.buildings_list(archetype_kind)
             .iter()
@@ -176,7 +191,7 @@ impl<'config> World<'config> {
     // ----------------------
 
     pub fn draw_building_debug_popups(&mut self,
-                                      query: &mut Query<'config, '_, '_, '_>,
+                                      query: &Query<'config, '_>,
                                       ui_sys: &UiSystem,
                                       transform: &WorldToScreenTransform,
                                       visible_range: CellRange,
@@ -199,7 +214,7 @@ impl<'config> World<'config> {
     }
 
     pub fn draw_building_debug_ui(&mut self,
-                                  query: &mut Query<'config, '_, '_, '_>,
+                                  query: &Query<'config, '_>,
                                   ui_sys: &UiSystem,
                                   selected_cell: Cell) {
 
@@ -263,6 +278,20 @@ impl<'config> World<'config> {
         None
     }
 
+    pub fn find_unit_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Unit<'config>> {
+        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Unit) {
+            return self.find_unit_for_tile(tile);
+        }
+        None
+    }
+
+    pub fn find_unit_for_cell_mut(&mut self, cell: Cell, tile_map: &mut TileMap) -> Option<&mut Unit<'config>> {
+        if let Some(tile) = tile_map.find_tile_mut(cell, TileMapLayerKind::Objects, TileKind::Unit) {
+            return self.find_unit_for_tile_mut(tile);
+        }
+        None
+    }
+
     pub fn find_unit_by_name(&self, name: &str) -> Option<&Unit<'config>> {
         self.units_list
             .iter()
@@ -282,7 +311,7 @@ impl<'config> World<'config> {
     // ----------------------
 
     pub fn draw_unit_debug_popups(&mut self,
-                                  query: &mut Query<'config, '_, '_, '_>,
+                                  query: &Query<'config, '_>,
                                   ui_sys: &UiSystem,
                                   transform: &WorldToScreenTransform,
                                   visible_range: CellRange,
@@ -301,7 +330,7 @@ impl<'config> World<'config> {
     }
 
     pub fn draw_unit_debug_ui(&mut self,
-                              query: &mut Query<'config, '_, '_, '_>,
+                              query: &Query<'config, '_>,
                               ui_sys: &UiSystem,
                               selected_cell: Cell) {
 

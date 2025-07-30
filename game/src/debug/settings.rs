@@ -113,6 +113,10 @@ impl DebugSettingsMenu {
         flags
     }
 
+    pub fn set_show_popup_messages(&mut self, show: bool) {
+        self.show_popup_messages = show;
+    }
+
     pub fn draw(&mut self,
                 context: &mut sim::debug::DebugContext,
                 camera: &mut Camera,

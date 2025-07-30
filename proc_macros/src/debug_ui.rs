@@ -148,6 +148,11 @@ fn infer_field_kind(field: &Field) -> FieldKind {
 fn calc_field_name_padding(fields: &Punctuated<Field, Comma>) -> usize {
     let mut longest_field_name = 0;
     for field in fields.iter() {
+        let attrs = parse_debug_ui_attrs(&field.attrs);
+        if attrs.skip || attrs.edit.is_some() { // edit fields use imgui input widgets.
+            continue;
+        }
+
         let name_str = field.ident.as_ref().unwrap().to_string();
         longest_field_name = longest_field_name.max(name_str.len());
     }

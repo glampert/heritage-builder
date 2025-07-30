@@ -54,11 +54,9 @@ fn main() {
 
     let building_configs = BuildingConfigs::load();
     let unit_configs = UnitConfigs::load();
-
-    let mut sim = Simulation::new();
-    let mut world = World::new();
-
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
+
+    let mut world = World::new();
 
     // Test map with preset tiles:
     //*
@@ -81,6 +79,8 @@ fn main() {
     );
     */
 
+    let mut sim = Simulation::new(&tile_map);
+
     let mut tile_selection = TileSelection::new();
     let mut tile_map_renderer = TileMapRenderer::new(
         rendering::DEFAULT_GRID_COLOR,
@@ -92,7 +92,8 @@ fn main() {
         camera::MIN_ZOOM,
         camera::Offset::Center);
 
-    let mut debug_menus = DebugMenusSystem::new(render_sys.texture_cache_mut());
+    let mut debug_menus = DebugMenusSystem::new(&tile_map, render_sys.texture_cache_mut());
+    debug_menus.set_show_popup_messages(true);
 
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();

@@ -85,6 +85,11 @@ impl Cell {
     pub fn to_vec2(self) -> Vec2 {
         Vec2::new(self.x as f32, self.y as f32)
     }
+
+    #[inline]
+    pub fn manhattan_distance(self, other: Cell) -> i32 {
+        (self.x - other.x).abs() + (self.y - other.y).abs()
+    }
 }
 
 impl std::fmt::Display for Cell {
@@ -99,7 +104,7 @@ field_accessor_xy! { Cell, i32, x, y }
 // CellRange
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct CellRange {
     // Inclusive rage, e.g.: [start..=end]
     pub start: Cell,

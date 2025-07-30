@@ -4,11 +4,12 @@ use proc_macros::DrawDebugUi;
 use crate::{
     game_object_debug_options,
     imgui_ui::UiSystem,
+    pathfind::{SearchResult, NodeKind as PathNodeKind},
     utils::{
         Color,
         Seconds,
         hash::StringHash,
-        coords::{CellRange, WorldToScreenTransform}
+        coords::{Cell, CellRange, WorldToScreenTransform}
     },
     game::sim::{
         UpdateTimer,
@@ -26,13 +27,14 @@ use super::{
     BuildingBehavior,
     BuildingContext,
     config::BuildingConfigs,
-    storage::StorageBuilding,
+    unit::{self, Unit}
 };
 
 // ----------------------------------------------
 // TODO List
 // ----------------------------------------------
 
+// - Ship production to nearest storage (send unit out with cargo).
 // - Get raw materials from storage OR from other producers directly.
 
 // ----------------------------------------------
@@ -93,7 +95,7 @@ pub struct ProducerBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
-    fn update(&mut self, context: &mut BuildingContext, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &BuildingContext, delta_time_secs: Seconds) {
         // Update producer states:
         if self.production_update_timer.tick(delta_time_secs).should_update() {
             if !self.debug.freeze_production() {
@@ -105,7 +107,10 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         }
     }
 
-    fn draw_debug_ui(&mut self, _context: &mut BuildingContext, ui_sys: &UiSystem) {
+    fn visited(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
+    }
+
+    fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
         if ui_sys.builder().collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
             self.config.draw_debug_ui(ui_sys);
         }
@@ -169,31 +174,85 @@ impl<'config> ProducerBuilding<'config> {
 
             // Produce one item and store it locally:
             if produce_one_item {
-                self.production_output_stock.add_item();
-                self.debug.log_resources_gained(self.production_output_stock.item.kind, 1);
+                self.production_output_stock.store_item();
+                self.debug.log_resources_gained(self.production_output_stock.resource_kind(), 1);
             }
         }
     }
 
-    fn ship_to_storage(&mut self, context: &mut BuildingContext) {
+    fn ship_to_storage(&mut self, context: &BuildingContext) {
+        if self.production_output_stock.is_empty() {
+            return; // Nothing to ship.
+        }
+
+        let this_building_road_link = context.find_nearest_road_link();
+        if !this_building_road_link.is_valid() {
+            return; // We are not connected to a road. No shipping possible!
+        }
+
         let storage_kinds = self.config.storage_buildings_accepted;
+        let resource_kind = self.production_output_stock.resource_kind();
 
-        // Try to find a storage building that can accept our goods.
-        context.for_each_storage(storage_kinds, |storage| {
-            let mut continue_search = true;
+        const MAX_CANDIDATES: usize = 4;
+        let mut available_storages: SmallVec<[(Cell, Cell, i32, u32); MAX_CANDIDATES]> = SmallVec::new();
 
-            if !storage.is_full() {
-                let shipped = self.production_output_stock.ship_to_storage(storage);
-                if shipped != 0 {
-                    // Storage accepted at least some of our items, stop.
-                    continue_search = false;
-                    self.debug.log_resources_lost(self.production_output_stock.item.kind, shipped);
+        // Try to find storage buildings that can accept our goods.
+        context.for_each_storage(storage_kinds, |building| {
+            let storage = building.as_storage();
+            let slots_available = storage.how_many_can_fit(resource_kind);
+            if slots_available != 0 {
+                let storage_building_road_link = context.query.find_nearest_road_link(building.cell_range());
+                if storage_building_road_link.is_valid() {
+                    let storage_building_base_cell = building.base_cell();
+                    let distance = this_building_road_link.manhattan_distance(storage_building_road_link);
+                    available_storages.push((storage_building_road_link, storage_building_base_cell, distance, slots_available));
+                    if available_storages.len() == MAX_CANDIDATES {
+                        // We've collected enough candidate storage buildings, stop the search.
+                        return false;
+                    }
                 }
             }
             // Else we couldn't find a single free slot in this storage, try again with another one.
-
-            continue_search
+            true
         });
+
+        if available_storages.is_empty() {
+            // Couldn't find any suitable storage building.
+            return;
+        }
+
+        // Sort by closest storage buildings first. Tie breaker is the number of slots available, highest first.
+        available_storages.sort_by_key(|(_, _, distance, slots_available)| {
+            (*distance, std::cmp::Reverse(*slots_available))
+        });
+
+        // Try our best candidates first:
+        for (storage_building_road_link, storage_building_base_cell, _, _) in available_storages {
+            match context.query.find_path(PathNodeKind::Road, this_building_road_link, storage_building_road_link) {
+                SearchResult::PathFound(path) => {
+                    // If found a path, spawn a unit, give it the resources and make it follow the path to a storage building.
+                    if let Some(unit) = context.try_spawn_unit_at(
+                        this_building_road_link,
+                        unit::config::UNIT_RUNNER) {
+
+                        let items_to_ship_count = self.production_output_stock.remove_items();
+                        self.debug.log_resources_lost(resource_kind, items_to_ship_count);
+
+                        let start_building_cell = context.base_cell();
+                        let goal_building_cell  = storage_building_base_cell;
+
+                        unit.receive_resources(resource_kind, items_to_ship_count);
+                        unit.go_to_building(path, start_building_cell, goal_building_cell);
+                    }
+                    break;
+                },
+                SearchResult::PathNotFound => {
+                    // Building is not reachable (lacks road access?).
+                    // Try another candidate.
+                    continue;
+                },
+            }
+        }
     }
 
     fn is_production_halted(&self) -> bool {
@@ -222,6 +281,7 @@ struct ProducerOutputLocalStock {
 
 impl ProducerOutputLocalStock {
     fn new(output_kind: ResourceKind, capacity: u32) -> Self {
+        debug_assert!(output_kind.bits().count_ones() == 1); // One flag (kind) only.
         Self {
             item: StockItem { kind: output_kind, count: 0 },
             capacity,
@@ -234,16 +294,26 @@ impl ProducerOutputLocalStock {
     }
 
     #[inline]
-    fn add_item(&mut self) {
+    fn is_empty(&self) -> bool {
+        self.item.count == 0
+    }
+
+    #[inline]
+    fn resource_kind(&self) -> ResourceKind {
+        self.item.kind
+    }
+
+    #[inline]
+    fn store_item(&mut self) {
         debug_assert!(self.item.count < self.capacity);
         self.item.count += 1;
     }
 
     #[inline]
-    fn ship_to_storage(&mut self, storage: &mut StorageBuilding) -> u32 {
-        let received = storage.receive_resources(self.item);
-        self.item.count -= received;
-        received
+    fn remove_items(&mut self) -> u32 {
+        let prev_count = self.item.count;
+        self.item.count = 0;
+        prev_count
     }
 }
 

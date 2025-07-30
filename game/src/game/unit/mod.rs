@@ -4,6 +4,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     game_object_debug_options,
     pathfind::Path,
+    debug::{self},
     imgui_ui::{
         self,
         UiSystem,
@@ -15,6 +16,7 @@ use crate::{
     },
     utils::{
         self,
+        Color,
         Seconds,
         coords::{
             Cell,
@@ -32,7 +34,7 @@ use crate::{
 use super::{
     sim::{
         Query,
-        resources::ResourceStock
+        resources::{ResourceKind, StockItem}
     }
 };
 
@@ -111,7 +113,16 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn follow_path(&mut self, path: Option<&Path>) {
-        self.navigation.reset(path);
+        self.navigation.reset(path, None);
+        if path.is_some() {
+            self.debug.popup_msg("New Goal");
+        }
+    }
+
+    #[inline]
+    pub fn go_to_building(&mut self, path: &Path, start_building_cell: Cell, goal_building_cell: Cell) {
+        self.navigation.reset(Some(path), Some((start_building_cell, goal_building_cell)));
+        self.log_going_to(start_building_cell, goal_building_cell);
     }
 
     // Teleports to new tile cell and updates direction and animation.
@@ -133,18 +144,32 @@ impl<'config> Unit<'config> {
         false
     }
 
-    pub fn update_movement(&mut self, query: &mut Query, delta_time_secs: Seconds) {
+    pub fn update_movement(&mut self, query: &Query, delta_time_secs: Seconds) {
         // Path following and movement:
         match self.navigation.update(delta_time_secs) {
             UnitNavResult::ReachedGoal(cell, direction) => {
                 let tile = find_unit_tile!(&mut self, query);
+
+                let goal_building_cell = self.navigation.target_buildings.map_or(
+                    Cell::invalid(), |(_, goal_building_cell)| goal_building_cell);
+
                 debug_assert!(self.direction == direction);
                 debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
-                self.follow_path(None);
+
+                self.follow_path(None); // Clear current path.
                 self.update_direction_and_anim(tile, UnitDirection::Idle);
+                self.debug.popup_msg("Reached Goal");
+
+                if goal_building_cell.is_valid() {
+                    let world = query.world();
+                    let tile_map = query.tile_map();
+                    if let Some(building) = world.find_building_for_cell_mut(goal_building_cell, tile_map) {
+                        building.visited(self, query);
+                    }
+                }
             },
             UnitNavResult::AdvancedCell(cell, direction) => {
-                let did_teleport = self.teleport(query.tile_map, cell);
+                let did_teleport = self.teleport(query.tile_map(), cell);
                 let tile = find_unit_tile!(&mut self, query);
                 self.update_direction_and_anim(tile, direction);
                 debug_assert!(did_teleport && self.direction == direction);
@@ -165,72 +190,38 @@ impl<'config> Unit<'config> {
         }
     }
 
-    pub fn update(&mut self, _query: &mut Query, _delta_time_secs: Seconds) {
+    pub fn update(&mut self, _query: &Query, _delta_time_secs: Seconds) {
         // TODO
+        // Unit behavior should be here:
+        // - If it has a goal to deliver goods to a building, go to the building and deliver.
+        //   - If the building we are delivering to is a storage building:
+        //     - If it can accept all our goods, unload them and despawn.
+        //     - Else, move to another storage building and try again.
+        //     - If no building can be found that will accept our goods, stop and wait, retry next update.
+        //   - Else if we are delivering directly to a service or producer:
+        //     - If it cannot accept our goods, try another building of the same kind.
+        //     - If no building can be found that will accept our goods, stop and wait, retry next update.
+        // Despawn only when all goods are delivered.
+
+        // Unit might have these methods:
+        // 
+        // fn ship_to_storage(storage_kinds, resource_kind, resource_count, from_building_cell, starting_cell)
+        // fn ship_to_producer(producer_kind, resource_kind, resource_count, from_building_cell, starting_cell)
+        // fn ship_to_service(service_kind, resource_kind, resource_count, from_building_cell, starting_cell)
     }
 
-    pub fn draw_debug_ui(&mut self, query: &mut Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-
-        /* TODO
-        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
-        */
-
-        self.debug.draw_debug_ui(ui_sys);
-
-        if ui.collapsing_header("Movement", imgui::TreeNodeFlags::empty()) {
-            if let Some(dir) = imgui_ui::dpad_buttons(ui) {
-                match dir {
-                    DPadDirection::NE => {
-                        self.teleport(query.tile_map, Cell::new(self.map_cell.x + 1, self.map_cell.y));
-                    },
-                    DPadDirection::NW => {
-                        self.teleport(query.tile_map, Cell::new(self.map_cell.x, self.map_cell.y + 1));
-                    },
-                    DPadDirection::SE => {
-                        self.teleport(query.tile_map, Cell::new(self.map_cell.x, self.map_cell.y - 1));
-                    },
-                    DPadDirection::SW => {
-                        self.teleport(query.tile_map, Cell::new(self.map_cell.x - 1, self.map_cell.y));
-                    },
-                }
-            }
-
-            ui.separator();
-
-            ui.text(format!("Cell       : {}", self.map_cell));
-            ui.text(format!("Iso Coords : {}", find_unit_tile!(&self, query).iso_coords()));
-            ui.text(format!("Direction  : {}", self.direction));
-            ui.text(format!("Anim       : {}", self.anim_sets.current_anim_set_key.string));
-
-            if ui.button("Force Idle Anim") {
-                self.update_direction_and_anim(find_unit_tile!(&mut self, query), UnitDirection::Idle);
-            }
-
-            ui.separator();
-
-            ui.text("Path Navigation:");
-            self.navigation.draw_debug_ui(ui_sys);
-        }
+    pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) {
+        self.debug.log_resources_gained(kind, count);
+        self.inventory.receive_resources(kind, count);
     }
 
-    pub fn draw_debug_popups(&mut self,
-                             query: &mut Query,
-                             ui_sys: &UiSystem,
-                             transform: &WorldToScreenTransform,
-                             visible_range: CellRange,
-                             delta_time_secs: Seconds,
-                             show_popup_messages: bool) {
+    pub fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        self.debug.log_resources_lost(kind, count);
+        self.inventory.give_resources(kind, count)
+    }
 
-        self.debug.draw_popup_messages(
-            || find_unit_tile!(&self, query),
-            ui_sys,
-            transform,
-            visible_range,
-            delta_time_secs,
-            show_popup_messages);
+    pub fn peek_inventory(&self) -> Option<StockItem> {
+        self.inventory.peek()
     }
 
     // ----------------------
@@ -243,6 +234,15 @@ impl<'config> Unit<'config> {
             let new_anim_set_key = anim_set_for_direction(new_direction);
             self.anim_sets.set_anim(tile, new_anim_set_key);
         }
+    }
+
+    fn log_going_to(&mut self, start_building_cell: Cell, goal_building_cell: Cell) {
+        if !self.debug.show_popups() {
+            return;
+        }
+        let start_building_name = debug::tile_name_at(start_building_cell, TileMapLayerKind::Objects);
+        let goal_building_name  = debug::tile_name_at(goal_building_cell,  TileMapLayerKind::Objects);
+        self.debug.popup_msg(format!("Goto: {} -> {}", start_building_name, goal_building_name));
     }
 }
 
@@ -361,6 +361,9 @@ struct UnitNavigation {
     #[debug_ui(separator)]
     direction: UnitDirection,
 
+    #[debug_ui(skip)]
+    target_buildings: Option<(Cell, Cell)>,
+
     // Debug:
     #[debug_ui(edit)]
     pause_current_path: bool,
@@ -370,6 +373,13 @@ struct UnitNavigation {
     step_size: f32,
     #[debug_ui(edit, widget = "button")]
     advance_one_step: bool,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum UnitNavStatus {
+    Idle,
+    Moving,
+    Paused,
 }
 
 #[derive(Copy, Clone)]
@@ -431,11 +441,12 @@ impl UnitNavigation {
         UnitNavResult::Moving(from.cell, to.cell, self.progress, self.direction)
     }
 
-    fn reset(&mut self, new_path: Option<&Path>) {
+    fn reset(&mut self, new_path: Option<&Path>, target_buildings: Option<(Cell, Cell)>) {
         self.path.clear();
         self.path_index = 0;
         self.progress   = 0.0;
         self.direction  = UnitDirection::default();
+        self.target_buildings = target_buildings;
 
         if let Some(new_path) = new_path {
             debug_assert!(!new_path.is_empty());
@@ -443,6 +454,18 @@ impl UnitNavigation {
             // we can reuse the previous allocation of `self.path`.
             self.path.extend(new_path.iter().copied());
         }
+    }
+
+    fn status(&self) -> UnitNavStatus {
+        if self.pause_current_path || (self.single_step && !self.advance_one_step) {
+            // Paused/waiting on single step.
+            return UnitNavStatus::Paused;
+        }
+        if self.path.is_empty() || (self.path_index + 1 >= self.path.len()) {
+            // No path to follow or reached destination.
+            return UnitNavStatus::Idle;
+        }
+        UnitNavStatus::Moving
     }
 }
 
@@ -452,6 +475,144 @@ impl UnitNavigation {
 
 #[derive(Default)]
 struct UnitInventory {
-    resources: Option<ResourceStock>,
-    // WIP
+    // Unit can carry only one resource kind at a time.
+    item: Option<StockItem>,
+}
+
+impl UnitInventory {
+    #[inline]
+    fn peek(&self) -> Option<StockItem> {
+        self.item
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.item.is_none()
+    }
+
+    #[inline]
+    fn receive_resources(&mut self, kind: ResourceKind, count: u32) {
+        if let Some(item) = &mut self.item {
+            debug_assert!(item.kind == kind && item.count != 0);
+            item.count += count;
+        } else {
+            self.item = Some(StockItem { kind, count });
+        }
+    }
+
+    // Returns number of items decremented, which can be <= count.
+    #[inline]
+    fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        if let Some(item) = &mut self.item {
+            debug_assert!(item.kind == kind && item.count != 0);
+
+            let given_count = {
+                if count <= item.count {
+                    item.count -= count;
+                    count
+                } else {
+                    let prev_count = item.count;
+                    item.count = 0;
+                    prev_count
+                }
+            };
+
+            if item.count == 0 {
+                self.item = None; // Gave away everything.
+            }
+
+            given_count
+        } else {
+            0
+        }
+    }
+}
+
+// ----------------------------------------------
+// Debug UI
+// ----------------------------------------------
+
+impl Unit<'_> {
+    pub fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        /* TODO
+        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+            self.config.draw_debug_ui(ui_sys);
+        }
+
+        if ui.collapsing_header("Inventory", imgui::TreeNodeFlags::empty()) {
+            self.inventory.draw_debug_ui(ui_sys);
+        }
+        */
+
+        self.debug.draw_debug_ui(ui_sys);
+
+        if ui.collapsing_header("Navigation", imgui::TreeNodeFlags::empty()) {
+            if let Some(dir) = imgui_ui::dpad_buttons(ui) {
+                let tile_map = query.tile_map();
+                match dir {
+                    DPadDirection::NE => {
+                        self.teleport(tile_map, Cell::new(self.map_cell.x + 1, self.map_cell.y));
+                    },
+                    DPadDirection::NW => {
+                        self.teleport(tile_map, Cell::new(self.map_cell.x, self.map_cell.y + 1));
+                    },
+                    DPadDirection::SE => {
+                        self.teleport(tile_map, Cell::new(self.map_cell.x, self.map_cell.y - 1));
+                    },
+                    DPadDirection::SW => {
+                        self.teleport(tile_map, Cell::new(self.map_cell.x - 1, self.map_cell.y));
+                    },
+                }
+            }
+
+            ui.separator();
+
+            ui.text(format!("Cell       : {}", self.map_cell));
+            ui.text(format!("Iso Coords : {}", find_unit_tile!(&self, query).iso_coords()));
+            ui.text(format!("Direction  : {}", self.direction));
+            ui.text(format!("Anim       : {}", self.anim_sets.current_anim_set_key.string));
+
+            if ui.button("Force Idle Anim") {
+                self.update_direction_and_anim(find_unit_tile!(&mut self, query), UnitDirection::Idle);
+            }
+
+            ui.separator();
+
+            let color = match self.navigation.status() {
+                UnitNavStatus::Idle   => Color::yellow(),
+                UnitNavStatus::Paused => Color::red(),
+                UnitNavStatus::Moving => Color::green(),
+            };
+
+            ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation.status()));
+
+            if let Some((start_building_cell, goal_building_cell)) = self.navigation.target_buildings {
+                let start_building_name = debug::tile_name_at(start_building_cell, TileMapLayerKind::Objects);
+                let goal_building_name  = debug::tile_name_at(goal_building_cell,  TileMapLayerKind::Objects);
+                ui.text(format!("Start Building : {}, {}", start_building_cell, start_building_name));
+                ui.text(format!("Goal Building  : {}, {}", goal_building_cell, goal_building_name));
+            }
+
+            self.navigation.draw_debug_ui(ui_sys);
+        }
+    }
+
+    pub fn draw_debug_popups(&mut self,
+                             query: &Query,
+                             ui_sys: &UiSystem,
+                             transform: &WorldToScreenTransform,
+                             visible_range: CellRange,
+                             delta_time_secs: Seconds,
+                             show_popup_messages: bool) {
+
+        self.debug.draw_popup_messages(
+            || find_unit_tile!(&self, query),
+            ui_sys,
+            transform,
+            visible_range,
+            delta_time_secs,
+            show_popup_messages);
+    }
 }

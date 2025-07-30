@@ -3,7 +3,7 @@ use smallvec::SmallVec;
 
 use crate::{
     imgui_ui::UiSystem,
-    debug::popups::PopupMessages,
+    debug::{self, popups::PopupMessages},
     utils::{
         self,
         Color,
@@ -81,10 +81,18 @@ impl<'a> GameObjectDebugVar<'a> {
 // GameObjectDebugPopups
 // ----------------------------------------------
 
-#[derive(Default)]
 pub struct GameObjectDebugPopups {
     messages: PopupMessages,
     show: bool,
+}
+
+impl Default for GameObjectDebugPopups {
+    fn default() -> Self {
+        Self {
+            messages: PopupMessages::default(),
+            show: debug::show_popup_messages(),
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -94,6 +102,11 @@ pub struct GameObjectDebugPopups {
 pub trait GameObjectDebugOptions {
     fn get_popups(&mut self) -> &mut GameObjectDebugPopups;
     fn get_vars(&mut self) -> SmallVec<[GameObjectDebugVar; 16]>;
+
+    #[inline]
+    fn show_popups(&mut self) -> bool {
+        self.get_popups().show
+    }
 
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let mut vars = self.get_vars();

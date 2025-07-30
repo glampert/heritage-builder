@@ -849,6 +849,12 @@ impl<T> UnsafeWeakRef<T> {
     pub fn as_mut(&mut self) -> &mut T {
         unsafe { self.ptr.as_mut() }
     }
+
+    #[inline(always)]
+    #[allow(clippy::mut_from_ref)] // mut-cast is intentional.
+    pub fn mut_ref_cast(&self) -> &mut T {
+        unsafe { &mut *self.ptr.as_ptr() }
+    }
 }
 
 // Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
@@ -905,6 +911,13 @@ impl<T> UnsafeMutable<T> {
     #[allow(clippy::mut_from_ref)] // mut-cast is intentional.
     pub fn as_mut(&self) -> &mut T {
         unsafe { &mut *self.cell.get() }
+    }
+
+    #[inline(always)]
+    #[allow(clippy::mut_from_ref)] // mut-cast is intentional.
+    pub fn mut_ref_cast(reference: &T) -> &mut T {
+        let ptr = reference as *const T as *mut T;
+        unsafe { ptr.as_mut().unwrap() }
     }
 }
 
