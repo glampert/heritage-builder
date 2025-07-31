@@ -66,6 +66,7 @@ pub struct HouseConfig {
 
 #[derive(DrawDebugUi)]
 pub struct HouseLevelConfig {
+    pub name: String,
     pub tile_def_name: String,
 
     #[debug_ui(skip)]
@@ -111,6 +112,10 @@ pub struct HouseBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
+    fn name(&self) -> &str {
+        &self.upgrade_state.curr_level_config.name
+    }
+
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>, delta_time_secs: Seconds) {
         // Update house states:
         if self.stock_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_stock_update() {
@@ -122,7 +127,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         }
     }
 
-    fn visited(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
+    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
     }
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
@@ -150,11 +155,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 }
 
 impl<'config> HouseBuilding<'config> {
-    pub fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
-        let config = configs.find_house_config();
+    pub fn new(level: HouseLevel, house_config: &'config HouseConfig, configs: &'config BuildingConfigs) -> Self {
         Self {
-            stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
-            upgrade_update_timer: UpdateTimer::new(config.upgrade_update_frequency_secs),
+            stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
+            upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
             upgrade_state: HouseUpgradeState::new(level, configs),
             stock: ResourceStock::with_accepted_kinds(ResourceKind::foods()),
             debug: HouseDebug::default(),
@@ -426,7 +430,7 @@ impl<'config> HouseUpgradeState<'config> {
         let mut tile_placed_successfully = false;
 
         let next_level = self.level.next();
-        let next_level_config = context.configs.find_house_level_config(next_level);
+        let next_level_config = context.query.building_configs().find_house_level_config(next_level);
 
         if let Some(new_tile_def) = context.find_tile_def(next_level_config.tile_def_name_hash) {
             // Try placing new. Might fail if there isn't enough space.
@@ -436,7 +440,7 @@ impl<'config> HouseUpgradeState<'config> {
 
                 self.curr_level_config = next_level_config;
                 if !next_level.is_max() {
-                    self.next_level_config = context.configs.find_house_level_config(next_level.next());
+                    self.next_level_config = context.query.building_configs().find_house_level_config(next_level.next());
                 }
 
                 // Set a random variation for the new building tile:
@@ -458,7 +462,7 @@ impl<'config> HouseUpgradeState<'config> {
         let mut tile_placed_successfully = false;
 
         let prev_level = self.level.prev();
-        let prev_level_config = context.configs.find_house_level_config(prev_level);
+        let prev_level_config = context.query.building_configs().find_house_level_config(prev_level);
 
         if let Some(new_tile_def) = context.find_tile_def(prev_level_config.tile_def_name_hash) {
             // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
@@ -467,7 +471,7 @@ impl<'config> HouseUpgradeState<'config> {
                 debug_assert!(self.level == prev_level);
 
                 self.curr_level_config = prev_level_config;
-                self.next_level_config = context.configs.find_house_level_config(prev_level.next());
+                self.next_level_config = context.query.building_configs().find_house_level_config(prev_level.next());
 
                 // Set a random variation for the new building:
                 context.set_random_building_variation();
@@ -518,11 +522,8 @@ impl<'config> HouseUpgradeState<'config> {
         debug_assert!(prev_cell_range.start == new_cell_range.start);
 
         // Now we must clear the previous tile.
-        if !tile_map.try_clear_tile_from_layer(
-            prev_cell_range.start,
-            TileMapLayerKind::Objects) {
-            panic!("Failed to clear previous tile! This is unexpected...");
-        }
+        tile_map.try_clear_tile_from_layer(prev_cell_range.start, TileMapLayerKind::Objects)
+            .expect("Failed to clear previous tile! This is unexpected...");
 
         // And place the new one.
         let new_tile = tile_map.try_place_tile_in_layer(
@@ -563,7 +564,7 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         let next_level = self.level.next();
-        let next_level_config = context.configs.find_house_level_config(next_level);
+        let next_level_config = context.query.building_configs().find_house_level_config(next_level);
 
         let tile_def = match context.find_tile_def(next_level_config.tile_def_name_hash) {
             Some(tile_def) => tile_def,

@@ -3,6 +3,7 @@ use paste::paste;
 use crate::{
     imgui_ui::UiSystem,
     render::{RenderSystem, RenderStats},
+    game::sim::world::World,
     utils::{
         Color, Size, Vec2, Rect,
         coords::{
@@ -434,7 +435,7 @@ mod test_maps {
         tile_sets.find_tile_def_by_name(layer_kind, category_name, tile_name)
     }
 
-    pub fn build_tile_map<'tile_sets>(preset: &'static PresetTiles, tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
+    pub fn build_tile_map<'tile_sets>(preset: &'static PresetTiles, world: &mut World, tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
         let map_size_in_cells = preset.map_size_in_cells;
         let mut tile_map = TileMap::new(map_size_in_cells, None);
 
@@ -444,7 +445,7 @@ mod test_maps {
                 let tile_id = preset.terrain_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Terrain, tile_id) {
                     tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Terrain, tile_def)
-                        .expect("Failed to place tile");
+                        .expect("Failed to place Terrain tile!");
                 }
             }
         }
@@ -454,8 +455,8 @@ mod test_maps {
             for x in 0..map_size_in_cells.width {
                 let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Objects, tile_id) {
-                    tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Objects, tile_def)
-                        .expect("Failed to place tile");
+                    world.try_spawn_building_with_tile_def(&mut tile_map, Cell::new(x, y), tile_def)
+                        .expect("Failed to place Building tile!");
                 }
             }
         }
@@ -467,9 +468,9 @@ mod test_maps {
 macro_rules! declare_preset_tile_map {
     ($preset_number:literal) => {
         paste! {
-            pub fn [<create_test_tile_map_preset_ $preset_number>](tile_sets: &TileSets) -> TileMap {
+            pub fn [<create_test_tile_map_preset_ $preset_number>]<'tile_sets>(world: &mut World, tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
                 println!("Creating test tile map: PRESET {} ...", $preset_number);
-                test_maps::build_tile_map(&test_maps::[<PRESET_TILES_ $preset_number>], tile_sets)
+                test_maps::build_tile_map(&test_maps::[<PRESET_TILES_ $preset_number>], world, tile_sets)
             }
         }
     };

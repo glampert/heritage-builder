@@ -25,7 +25,7 @@ use super::{
 // DebugContext
 // ----------------------------------------------
 
-pub struct DebugContext<'ui, 'world, 'config, 'tile_map, 'tile_sets> {
+pub struct DebugContext<'config, 'ui, 'world, 'tile_map, 'tile_sets> {
     pub ui_sys: &'ui UiSystem,
     pub world: &'world mut World<'config>,
     pub tile_map: &'tile_map mut TileMap<'tile_sets>,
@@ -81,6 +81,7 @@ impl<'a> GameObjectDebugVar<'a> {
 // GameObjectDebugPopups
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct GameObjectDebugPopups {
     messages: PopupMessages,
     show: bool,
@@ -95,6 +96,12 @@ impl Default for GameObjectDebugPopups {
     }
 }
 
+impl GameObjectDebugPopups {
+    fn clear(&mut self) {
+        self.messages.clear();
+    }
+}
+
 // ----------------------------------------------
 // GameObjectDebugOptions
 // ----------------------------------------------
@@ -106,6 +113,11 @@ pub trait GameObjectDebugOptions {
     #[inline]
     fn show_popups(&mut self) -> bool {
         self.get_popups().show
+    }
+
+    #[inline]
+    fn clear_popups(&mut self) {
+        self.get_popups().clear();
     }
 
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
@@ -212,7 +224,7 @@ macro_rules! game_object_debug_options {
         };
 
         paste! {
-            #[derive(Default)]
+            #[derive(Clone, Default)]
             struct $struct_name {
                 popups: GameObjectDebugPopups,
                 $(

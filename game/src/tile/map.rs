@@ -1109,8 +1109,10 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
                     assert!(did_insert_tile);
                 }
             }
+        } else {
+            // Else layer is left empty. Pre-reserve some memory for future tile placements.
+            layer.pool.slab.reserve(256);
         }
-        // else layer is left empty.
 
         layer
     }
@@ -1602,7 +1604,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_place_tile(&mut self,
                           target_cell: Cell,
-                          tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, &'static str> {
+                          tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
         self.try_place_tile_in_layer(
             target_cell,
             tile_def_to_place.layer_kind(), // Guess layer from TileDef.
@@ -1613,7 +1615,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile_in_layer(&mut self,
                                    target_cell: Cell,
                                    layer_kind: TileMapLayerKind,
-                                   tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, &'static str> {
+                                   tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
 
         let layer = self.layer_mut(layer_kind);
         let prev_pool_capacity = layer.pool_capacity();
@@ -1630,7 +1632,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform,
-                                    tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, &'static str> {
+                                    tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
 
         let prev_pool_capacity = {
             let layer = self.layer(tile_def_to_place.layer_kind());
@@ -1648,7 +1650,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_clear_tile_from_layer(&mut self,
                                      target_cell: Cell,
-                                     layer_kind: TileMapLayerKind) -> bool {
+                                     layer_kind: TileMapLayerKind) -> Result<(), String> {
 
         if has_removing_tile_callback() {
             if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
@@ -1662,7 +1664,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_clear_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Vec2,
-                                    transform: &WorldToScreenTransform) -> bool {
+                                    transform: &WorldToScreenTransform) -> Result<(), String> {
 
         if has_removing_tile_callback() {
             for layer_kind in TileMapLayerKind::iter().rev() {

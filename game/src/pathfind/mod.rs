@@ -188,13 +188,17 @@ impl Graph {
 
     pub fn from_tile_map(tile_map: &TileMap) -> Self {
         let mut graph = Self::with_empty_grid(tile_map.size_in_cells());
-        graph.rebuild_from_tile_map(tile_map);
+        graph.rebuild_from_tile_map(tile_map, false);
         graph
     }
 
-    pub fn rebuild_from_tile_map(&mut self, tile_map: &TileMap) {
+    pub fn rebuild_from_tile_map(&mut self, tile_map: &TileMap, full_reset_to_empty: bool) {
         // We assume size hasn't changed.
         debug_assert!(self.grid_size() == tile_map.size_in_cells());
+
+        if full_reset_to_empty {
+            self.grid.fill(NodeKind::empty());
+        }
 
         // Construct our search graph from the terrain tiles.
         // Any building or prop is considered non-traversable
@@ -208,11 +212,10 @@ impl Graph {
                     TileKind::Prop     |
                     TileKind::Vegetation;
 
+                // If there's no building/prop over this cell, set it's path kind.
                 if !tile_map.has_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds) {
                     let path_kind = tile.tile_def().path_kind;
                     self.grid[node] = path_kind;
-                } else {
-                    self.grid[node] = NodeKind::empty();
                 }
             });
     }

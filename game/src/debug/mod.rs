@@ -23,9 +23,7 @@ use crate::{
         rendering::{TileMapRenderer, TileMapRenderStats, TileMapRenderFlags},
     },
     game::{
-        sim::{self, Simulation, world::World},
-        building::{self, config::BuildingConfigs},
-        unit::{self, config::UnitConfigs}
+        sim::{self, Simulation, world::World}
     },
     pathfind::{
         Node,
@@ -60,15 +58,13 @@ pub struct DebugMenusBeginFrameArgs<'ui, 'world, 'config, 'tile_map, 'tile_sets>
     pub tile_map: &'tile_map mut TileMap<'tile_sets>,
     pub tile_selection: &'tile_map mut TileSelection,
     pub tile_sets: &'tile_sets TileSets,
-    pub building_configs: &'config BuildingConfigs,
-    pub unit_configs: &'config UnitConfigs,
     pub transform: WorldToScreenTransform,
     pub cursor_screen_pos: Vec2,
 }
 
 pub struct DebugMenusEndFrameArgs<'rs, 'cam, 'sim, 'ui, 'world, 'config, 'tile_map, 'tile_sets, RS: RenderSystem> {
-    pub context: sim::debug::DebugContext<'ui, 'world, 'config, 'tile_map, 'tile_sets>,
-    pub sim: &'sim mut Simulation,
+    pub context: sim::debug::DebugContext<'config, 'ui, 'world, 'tile_map, 'tile_sets>,
+    pub sim: &'sim mut Simulation<'config>,
     pub camera: &'cam mut Camera,
     pub render_sys: &'rs mut RS,
     pub render_sys_stats: &'rs RenderStats,
@@ -329,37 +325,38 @@ impl DebugMenusSingleton {
             let did_place_or_clear = {
                 // If we have a selection place it, otherwise we want to try clearing the tile under the cursor.
                 if let Some(tile_def) = placement_candidate {
-                    let place_result = args.tile_map.try_place_tile_at_cursor(
+                    let target_cell = args.tile_map.find_exact_cell_for_point(
+                        tile_def.layer_kind(),
                         args.cursor_screen_pos,
-                        &args.transform,
-                        tile_def);
+                        &args.transform);
 
-                    if let Ok(tile) = place_result {
+                    if target_cell.is_valid() {
                         if tile_def.is(TileKind::Building) {
-                            if let Some(building) = building::config::instantiate(tile, args.building_configs) {
-                                args.world.add_building(tile, building);
-                            }
+                            args.world.try_spawn_building_with_tile_def(args.tile_map, target_cell, tile_def).is_ok()
                         } else if tile_def.is(TileKind::Unit) {
-                            if let Some(unit) = unit::config::instantiate(tile, args.unit_configs) {
-                                args.world.add_unit(tile, unit);
-                            }
+                            args.world.try_spawn_unit_with_tile_def(args.tile_map, target_cell, tile_def).is_ok()
+                        } else {
+                            // No associated world state, place plain tile.
+                            args.tile_map.try_place_tile(target_cell, tile_def).is_ok()
                         }
-                        true
                     } else {
                         false
                     }
-                } else {
-                    if let Some(tile) = args.tile_map.topmost_tile_at_cursor(args.cursor_screen_pos, &args.transform) {
-                        if tile.is(TileKind::Building | TileKind::Blocker) {
-                            args.world.remove_building(tile);
-                        } else if tile.is(TileKind::Unit) {
-                            args.world.remove_unit(tile);
-                        }
+                } else if let Some(tile) = args.tile_map.topmost_tile_at_cursor(args.cursor_screen_pos, &args.transform) {
+                    if tile.is(TileKind::Building | TileKind::Blocker) {
+                        args.world.despawn_building_at_cell(args.tile_map, tile.base_cell())
+                            .expect("Tile removal failed!");
+                    } else if tile.is(TileKind::Unit) {
+                        args.world.despawn_unit_at_cell(args.tile_map, tile.base_cell())
+                            .expect("Tile removal failed!");
+                    } else {
+                        // No world state, just remove the tile directly.
+                        args.tile_map.try_clear_tile_at_cursor(args.cursor_screen_pos, &args.transform)
+                            .expect("Tile removal failed!");
                     }
-
-                    args.tile_map.try_clear_tile_at_cursor(
-                        args.cursor_screen_pos,
-                        &args.transform)
+                    true
+                } else {
+                    false
                 }
             };
 

@@ -61,6 +61,7 @@ impl BuildingConfigs {
                 upgrade_update_frequency_secs: 10.0,
             },
             house0: HouseLevelConfig {
+                name: "House Level 0".to_string(),
                 tile_def_name: "house0".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("house0"),
                 max_residents: 2,
@@ -69,6 +70,7 @@ impl BuildingConfigs {
                 resources_required: ResourceKinds::none(),        
             },
             house1: HouseLevelConfig {
+                name: "House Level 1".to_string(),
                 tile_def_name: "house1".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("house1"),
                 max_residents: 4,
@@ -79,6 +81,7 @@ impl BuildingConfigs {
                 resources_required: ResourceKinds::with_slice(&[ResourceKind::foods()]),
             },
             house2: HouseLevelConfig {
+                name: "House Level 2".to_string(),
                 tile_def_name: "house2".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("house2"),
                 max_residents: 6,
@@ -88,6 +91,7 @@ impl BuildingConfigs {
                 resources_required: ResourceKinds::with_slice(&[ResourceKind::Rice, ResourceKind::Meat | ResourceKind::Fish]),
             },
             service_well_small: ServiceConfig {
+                name: "Well Small".to_string(),
                 tile_def_name: "well_small".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("well_small"),
                 min_workers: 0,
@@ -97,6 +101,7 @@ impl BuildingConfigs {
                 resources_required: ResourceKinds::none(),
             },
             service_well_big: ServiceConfig {
+                name: "Well Big".to_string(),
                 tile_def_name: "well_big".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("well_big"),
                 min_workers: 0,
@@ -106,6 +111,7 @@ impl BuildingConfigs {
                 resources_required: ResourceKinds::none(),
             },
             service_market: ServiceConfig {
+                name: "Market".to_string(),
                 tile_def_name: "market".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("market"),
                 min_workers: 0,
@@ -115,6 +121,7 @@ impl BuildingConfigs {
                 resources_required: ResourceKinds::with_kinds(ResourceKind::foods()),
             },
             producer_rice_farm: ProducerConfig {
+                name: "Rice Farm".to_string(),
                 tile_def_name: "rice_farm".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
                 min_workers: 0,
@@ -127,6 +134,7 @@ impl BuildingConfigs {
                 storage_buildings_accepted: BuildingKind::Granary,
             },
             producer_livestock_farm: ProducerConfig {
+                name: "Livestock Farm".to_string(),
                 tile_def_name: "livestock_farm".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("livestock_farm"),
                 min_workers: 0,
@@ -139,6 +147,7 @@ impl BuildingConfigs {
                 storage_buildings_accepted: BuildingKind::Granary,
             },
             storage_yard: StorageConfig {
+                name: "Storage Yard".to_string(),
                 tile_def_name: "storage_yard".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("storage_yard"),
                 min_workers: 0,
@@ -148,6 +157,7 @@ impl BuildingConfigs {
                 slot_capacity: 4,
             },
             storage_granary: StorageConfig {
+                name: "Granary".to_string(),
                 tile_def_name: "granary".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("granary"),
                 min_workers: 0,
@@ -208,60 +218,53 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> O
     // TODO: Temporary
     let tile_name_hash = tile.tile_def().hash;
     if tile.name() == "well_small" {
+        let config = configs.find_service_config(BuildingKind::WellSmall);
         Some(Building::new(
-            "Well Small",
             BuildingKind::WellSmall,
             tile.cell_range(),
-            configs,
-            BuildingArchetype::new_service(ServiceBuilding::new(BuildingKind::WellSmall, configs))
+            BuildingArchetype::new_service(ServiceBuilding::new(config))
         ))
     } else if tile.name() == "well_big" {
+        let config = configs.find_service_config(BuildingKind::WellBig);
         Some(Building::new(
-            "Well Big",
             BuildingKind::WellBig,
             tile.cell_range(),
-            configs,
-            BuildingArchetype::new_service(ServiceBuilding::new(BuildingKind::WellSmall, configs))
+            BuildingArchetype::new_service(ServiceBuilding::new(config))
         ))
     } else if tile.name() == "market" {
+        let config = configs.find_service_config(BuildingKind::Market);
         Some(Building::new(
-            "Market",
             BuildingKind::Market,
             tile.cell_range(),
-            configs,
-            BuildingArchetype::new_service(ServiceBuilding::new(BuildingKind::Market, configs))
+            BuildingArchetype::new_service(ServiceBuilding::new(config))
         ))
     } else if tile.name() == "house0" {
+        let config = configs.find_house_config();
         Some(Building::new(
-            "House",
             BuildingKind::House,
             tile.cell_range(),
-            configs,
-            BuildingArchetype::new_house(HouseBuilding::new(HouseLevel::Level0, configs))
+            BuildingArchetype::new_house(HouseBuilding::new(HouseLevel::Level0, config, configs))
         ))
     } else if tile.name() == "rice_farm" || tile.name() == "livestock_farm" {
+        let config = configs.find_producer_config(BuildingKind::Farm, tile.name(), tile_name_hash);
         Some(Building::new(
-            "Rice Farm",
             BuildingKind::Farm,
             tile.cell_range(),
-            configs,
-            BuildingArchetype::new_producer(ProducerBuilding::new(BuildingKind::Farm, tile.name(), tile_name_hash, configs))
+            BuildingArchetype::new_producer(ProducerBuilding::new(config))
         ))
     } else if tile.name() == "granary" {
+        let config = configs.find_storage_config(BuildingKind::Granary);
         Some(Building::new(
-            "Granary",
             BuildingKind::Granary,
             tile.cell_range(),
-            configs,
-            BuildingArchetype::new_storage(StorageBuilding::new(BuildingKind::Granary, configs))
+            BuildingArchetype::new_storage(StorageBuilding::new(config))
         ))
     } else if tile.name() == "storage_yard" {
+        let config = configs.find_storage_config(BuildingKind::StorageYard);
         Some(Building::new(
-            "Storage Yard",
             BuildingKind::StorageYard,
             tile.cell_range(),
-            configs,
-            BuildingArchetype::new_storage(StorageBuilding::new(BuildingKind::StorageYard, configs))
+            BuildingArchetype::new_storage(StorageBuilding::new(config))
         ))
     } else {
         eprintln!("Unknown building tile!");

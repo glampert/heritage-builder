@@ -12,7 +12,7 @@ use crate::{
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
     tile::{
-        sets::{TileDef, TileKind, OBJECTS_BUILDINGS_CATEGORY, OBJECTS_UNITS_CATEGORY},
+        sets::{TileDef, TileKind, OBJECTS_BUILDINGS_CATEGORY},
         map::{GameStateHandle, Tile, TileMap, TileMapLayerKind}
     }
 };
@@ -20,10 +20,6 @@ use crate::{
 use super::{
     sim::Query,
     unit::{self, Unit, config::UnitConfigKey}
-};
-
-use config::{
-    BuildingConfigs
 };
 
 pub mod producer;
@@ -66,31 +62,25 @@ pub mod config;
 // ----------------------------------------------
 
 pub struct Building<'config> {
-    name: &'config str,
     kind: BuildingKind,
     map_cells: CellRange,
-    configs: &'config BuildingConfigs,
     archetype: BuildingArchetype<'config>,
 }
 
 impl<'config> Building<'config> {
-    pub fn new(name: &'config str,
-               kind: BuildingKind,
+    pub fn new(kind: BuildingKind,
                map_cells: CellRange,
-               configs: &'config BuildingConfigs,
                archetype: BuildingArchetype<'config>) -> Self {
         Self {
-            name,
             kind,
             map_cells,
-            configs,
             archetype,
         }
     }
 
     #[inline]
     pub fn name(&self) -> &str {
-        self.name
+        self.archetype.name()
     }
 
     #[inline]
@@ -156,27 +146,23 @@ impl<'config> Building<'config> {
     #[inline]
     pub fn update(&mut self, query: &Query<'config, '_>, delta_time_secs: Seconds) {
         let context =
-            BuildingContext::new(self.name,
-                                 self.kind,
+            BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
-                                 self.configs,
                                  query);
 
         self.archetype.update(&context, delta_time_secs);
     }
 
     #[inline]
-    pub fn visited(&mut self, unit: &mut Unit, query: &Query<'config, '_>) {
+    pub fn visited_by(&mut self, unit: &mut Unit, query: &Query<'config, '_>) {
         let context =
-            BuildingContext::new(self.name,
-                                 self.kind,
+            BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
-                                 self.configs,
                                  query);
 
-        self.archetype.visited(unit, &context);
+        self.archetype.visited_by(unit, &context);
     }
 
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
@@ -207,7 +193,7 @@ impl<'config> Building<'config> {
                 cells: CellRange,
             }
             let debug_vars = DrawDebugUiVariables {
-                name: self.name,
+                name: self.name(),
                 kind: self.kind,
                 archetype: self.archetype_kind(),
                 cells: self.map_cells,
@@ -216,11 +202,9 @@ impl<'config> Building<'config> {
         }
 
         let context =
-            BuildingContext::new(self.name,
-                                 self.kind,
+            BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
-                                 self.configs,
                                  query);
 
         self.archetype.draw_debug_ui(&context, ui_sys);
@@ -235,11 +219,9 @@ impl<'config> Building<'config> {
                              show_popup_messages: bool) {
 
         let context =
-            BuildingContext::new(self.name,
-                                 self.kind,
+            BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
-                                 self.configs,
                                  query);
 
         self.archetype.draw_debug_popups(
@@ -446,19 +428,36 @@ impl<'config> BuildingArchetype<'config> {
     }
 
     #[inline]
-    fn visited(&mut self, unit: &mut Unit, context: &BuildingContext<'config, '_, '_>) {
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext<'config, '_, '_>) {
         match self {
             Self::Producer(state) => {
-                state.visited(unit, context);
+                state.visited_by(unit, context);
             }
             Self::Storage(state) => {
-                state.visited(unit, context);
+                state.visited_by(unit, context);
             }
             Self::Service(state) => {
-                state.visited(unit, context);
+                state.visited_by(unit, context);
             }
             Self::House(state) => {
-                state.visited(unit, context);
+                state.visited_by(unit, context);
+            }
+        }
+    }
+
+    fn name(&self) -> &str {
+        match self {
+            Self::Producer(state) => {
+                state.name()
+            }
+            Self::Storage(state) => {
+                state.name()
+            }
+            Self::Service(state) => {
+                state.name()
+            }
+            Self::House(state) => {
+                state.name()
             }
         }
     }
@@ -510,13 +509,15 @@ impl<'config> BuildingArchetype<'config> {
 
 // Common behavior for all Building archetypes.
 pub trait BuildingBehavior<'config> {
+    fn name(&self) -> &str;
+
     fn update(&mut self,
               context: &BuildingContext<'config, '_, '_>,
               delta_time_secs: Seconds);
 
-    fn visited(&mut self,
-               unit: &mut Unit,
-               context: &BuildingContext<'config, '_, '_>);
+    fn visited_by(&mut self,
+                  unit: &mut Unit,
+                  context: &BuildingContext<'config, '_, '_>);
 
     fn draw_debug_ui(&mut self,
                      context: &BuildingContext<'config, '_, '_>,
@@ -536,27 +537,21 @@ pub trait BuildingBehavior<'config> {
 // ----------------------------------------------
 
 pub struct BuildingContext<'config, 'tile_sets, 'query> {
-    name: &'config str,
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
     map_cells: CellRange,
-    configs: &'config BuildingConfigs,
     query: &'query Query<'config, 'tile_sets>,
 }
 
 impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
-    fn new(name: &'config str,
-           kind: BuildingKind,
+    fn new(kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
            map_cells: CellRange,
-           configs: &'config BuildingConfigs,
            query: &'query Query<'config, 'tile_sets>) -> Self {
         Self {
-            name,
             kind,
             archetype_kind,
             map_cells,
-            configs,
             query,
         }
     }
@@ -601,19 +596,19 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     #[inline]
     fn has_access_to_service(&self, service_kind: BuildingKind) -> bool {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::Service);
-        let config = self.configs.find_service_config(service_kind);
+        let config = self.query.building_configs().find_service_config(service_kind);
         self.query.is_near_building(self.map_cells, service_kind, config.effect_radius)
     }
 
     fn find_nearest_service_mut(&self, service_kind: BuildingKind) -> Option<&mut Building<'config>> {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::Service);
-        let config = self.configs.find_service_config(service_kind);
+        let config = self.query.building_configs().find_service_config(service_kind);
 
         if let Some(building) =
             self.query.find_nearest_building_mut(self.map_cells, service_kind, config.effect_radius) {
             if building.archetype_kind() != BuildingArchetypeKind::Service || building.kind() != service_kind {
                 panic!("Building '{}' ({}|{}): Expected archetype to be Service ({service_kind})!",
-                       building.name, building.archetype_kind(), building.kind());
+                       building.name(), building.archetype_kind(), building.kind());
             }
             return Some(building);
         }
@@ -629,7 +624,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         let world = self.query.world();
         let storage_buildings = world.buildings_list(BuildingArchetypeKind::Storage);
 
-        for (_, building) in storage_buildings.iter() {
+        for building in storage_buildings.iter() {
             if building.kind().intersects(storage_kinds) {
                 let should_continue = visitor_fn(building);
                 if !should_continue {
@@ -647,7 +642,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         let world = self.query.world();
         let storage_buildings = world.buildings_list_mut(BuildingArchetypeKind::Storage);
 
-        for (_, building) in storage_buildings.iter_mut() {
+        for building in storage_buildings.iter_mut() {
             if building.kind().intersects(storage_kinds) {
                 let should_continue = visitor_fn(building);
                 if !should_continue {
@@ -657,63 +652,19 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         };
     }
 
-    // TODO: This is only for prototyping. Should move to keeping an actual pool of
-    // constructed units instead of creating/destroying on the spot.
-
-    fn try_spawn_unit_at(&self, target_cell: Cell, unit_config_key: UnitConfigKey) -> Option<&mut Unit<'config>> {
-        debug_assert!(target_cell.is_valid() && unit_config_key.is_valid());
-
+    fn try_spawn_unit(&self, target_cell: Cell, unit_config_key: UnitConfigKey) -> Option<&mut Unit<'config>> {
         let world = self.query.world();
         let tile_map = self.query.tile_map();
         let tile_sets = self.query.tile_sets();
-
-        // TODO: TEMP/WIP
-        if let Some(unit_tile_def) = tile_sets.find_tile_def_by_hash(
-            TileMapLayerKind::Objects,
-            OBJECTS_UNITS_CATEGORY.hash,
-            unit_config_key.hash) {
-
-            if let Ok(unit_tile) = tile_map.try_place_tile(
-                target_cell,
-                unit_tile_def) {
-
-                // TODO: Need to get this from elsewhere!
-                static DUMMY_UNIT_CONFIGS: unit::config::UnitConfigs = unit::config::UnitConfigs {
-                    dummy: unit::config::UnitConfig {}
-                };
-
-                if let Some(unit) = unit::config::instantiate(unit_tile, &DUMMY_UNIT_CONFIGS) {
-                    world.add_unit(unit_tile, unit);
-                    return world.find_unit_for_tile_mut(unit_tile);
-                }
-            }
-        }
-
-        None
+        let unit = world.try_spawn_unit_with_config(tile_map, tile_sets, target_cell, unit_config_key)
+            .expect("Spawn Unit Failed");
+        Some(unit)
     }
 
     fn despawn_unit(&self, unit: &mut Unit) {
         let world = self.query.world();
         let tile_map = self.query.tile_map();
-        let target_cell = unit.cell();
-
-        let unit_tile =
-            tile_map.find_tile(target_cell, TileMapLayerKind::Objects, TileKind::Unit)
-                .expect("Unit must be linked to a Tile!");
-
-        world.remove_unit(unit_tile);
-
-        let did_remove_tile = tile_map.try_clear_tile_from_layer(target_cell, TileMapLayerKind::Objects);
-        assert!(did_remove_tile);
-    }
-}
-
-impl std::fmt::Display for BuildingContext<'_, '_, '_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Building '{}' ({}|{}) {}",
-               self.name,
-               self.archetype_kind,
-               self.kind,
-               self.base_cell())
+        world.despawn_unit(tile_map, unit)
+            .expect("Despawn Unit Failed")
     }
 }

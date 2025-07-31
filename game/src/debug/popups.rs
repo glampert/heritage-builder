@@ -13,7 +13,7 @@ use crate::{
 
 type PopupMessageList = SmallVec<[PopupMessage; 6]>;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PopupMessages {
     list: Option<Box<PopupMessageList>>, // Initialized on demand.
 }
@@ -28,6 +28,12 @@ impl PopupMessages {
     pub fn push_message(&mut self, message: PopupMessage) {
         let list = self.get_or_init_list();
         list.push(message);
+    }
+
+    pub fn clear(&mut self) {
+        if let Some(list) = self.try_get_list_mut() {
+            list.clear();
+        }
     }
 
     pub fn for_each<F>(&self, visitor_fn: F)
@@ -112,6 +118,7 @@ impl PopupMessages {
 // PopupMessage
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct PopupMessage {
     // One lifetime reaches zero the message expires.
     pub lifetime: Option<(Seconds, Seconds)>, // (lifetime, time_left)

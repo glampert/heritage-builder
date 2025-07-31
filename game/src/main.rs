@@ -18,8 +18,7 @@ use tile::{
     camera::{self, *},
     rendering::{self, *},
     selection::*,
-    sets::*,
-    map::*
+    sets::*
 };
 use game::{
     sim::{self, *},
@@ -56,22 +55,14 @@ fn main() {
     let unit_configs = UnitConfigs::load();
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
 
-    let mut world = World::new();
+    let mut world = World::new(&building_configs, &unit_configs);
 
     // Test map with preset tiles:
-    //*
-    let mut tile_map = debug::utils::create_test_tile_map_preset_1(&tile_sets);
-    tile_map.for_each_tile_mut(TileMapLayerKind::Objects, TileKind::Building, |tile| {
-        // NOTE: This is temporary while testing only. Map should always start empty.
-        if let Some(building) = game::building::config::instantiate(tile, &building_configs) {
-            world.add_building(tile, building);
-        }
-    });
-    //*/
+    let mut tile_map = debug::utils::create_test_tile_map_preset_1(&mut world, &tile_sets);
 
-    // Empty map:
+    // Empty map (dirt tiles):
     /*
-    let mut tile_map = TileMap::with_terrain_tile(
+    let mut tile_map = tile::map::TileMap::with_terrain_tile(
         Size::new(64, 64),
         &tile_sets,
         TERRAIN_GROUND_CATEGORY,
@@ -79,7 +70,7 @@ fn main() {
     );
     */
 
-    let mut sim = Simulation::new(&tile_map);
+    let mut sim = Simulation::new(&tile_map, &building_configs, &unit_configs);
 
     let mut tile_selection = TileSelection::new();
     let mut tile_map_renderer = TileMapRenderer::new(
@@ -187,8 +178,6 @@ fn main() {
                 tile_map: &mut tile_map,
                 tile_selection: &mut tile_selection,
                 tile_sets: &tile_sets,
-                building_configs: &building_configs,
-                unit_configs: &unit_configs,
                 transform: *camera.transform(),
                 cursor_screen_pos,
             });

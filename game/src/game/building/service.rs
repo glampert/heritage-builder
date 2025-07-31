@@ -23,7 +23,6 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    config::BuildingConfigs,
     unit::Unit
 };
 
@@ -33,6 +32,7 @@ use super::{
 
 #[derive(DrawDebugUi)]
 pub struct ServiceConfig {
+    pub name: String,
     pub tile_def_name: String,
 
     #[debug_ui(skip)]
@@ -74,6 +74,10 @@ pub struct ServiceBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
+    fn name(&self) -> &str {
+        &self.config.name
+    }
+
     fn update(&mut self, context: &BuildingContext, delta_time_secs: Seconds) {
         // Procure resources from storage periodically if we need them.
         if self.stock.accepts_any() &&
@@ -83,7 +87,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         }
     }
 
-    fn visited(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
+    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
     }
 
     fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
@@ -113,8 +117,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
 }
 
 impl<'config> ServiceBuilding<'config> {
-    pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
-        let config = configs.find_service_config(kind);
+    pub fn new(config: &'config ServiceConfig) -> Self {
         Self {
             config,
             workers: Workers::new(config.min_workers, config.max_workers),

@@ -1,14 +1,9 @@
 use crate::{
-    tile::map::Tile,
     utils::hash::{
         self,
         StringHash,
         StrHashPair
     }
-};
-
-use super::{
-    Unit
 };
 
 // ----------------------------------------------
@@ -26,6 +21,11 @@ pub const UNIT_RUNNER: UnitConfigKey = UnitConfigKey::from_str("ped");
 // ----------------------------------------------
 
 pub struct UnitConfig {
+    pub name: String,
+
+    pub tile_def_name: String,
+    pub tile_def_name_hash: StringHash,
+
     // TODO
 }
 
@@ -34,14 +34,18 @@ pub struct UnitConfig {
 // ----------------------------------------------
 
 pub struct UnitConfigs {
-    // TODO: Temporary. Should be loaded from a file.
-    pub dummy: UnitConfig,
+    // TODO: Temporary. Should be loaded from a file eventually.
+    pub ped_config: UnitConfig,
 }
 
 impl UnitConfigs {
     pub fn load() -> Self {
         Self {
-            dummy: UnitConfig {}
+            ped_config: UnitConfig {
+                name: "Ped".to_string(),
+                tile_def_name: "ped".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("ped"),
+            },
         }
     }
 
@@ -50,16 +54,6 @@ impl UnitConfigs {
     }
 
     pub fn find_config_by_hash(&self, _tile_name_hash: StringHash) -> &UnitConfig {
-        &self.dummy
+        &self.ped_config
     }
-}
-
-// ----------------------------------------------
-// Helper functions
-// ----------------------------------------------
-
-pub fn instantiate<'config>(tile: &mut Tile, configs: &'config UnitConfigs) -> Option<Unit<'config>> {
-    let tile_name_hash = tile.tile_def().hash;
-    let config = configs.find_config_by_hash(tile_name_hash);
-    Some(Unit::new("Ped", tile, config))
 }

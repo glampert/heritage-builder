@@ -21,10 +21,8 @@ use crate::{
 };
 
 use super::{
-    BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    config::BuildingConfigs,
     unit::Unit
 };
 
@@ -34,6 +32,7 @@ use super::{
 
 #[derive(DrawDebugUi)]
 pub struct StorageConfig {
+    pub name: String,
     pub tile_def_name: String,
 
     #[debug_ui(skip)]
@@ -73,11 +72,15 @@ pub struct StorageBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
+    fn name(&self) -> &str {
+        &self.config.name
+    }
+
     fn update(&mut self, _context: &BuildingContext, _delta_time_secs: Seconds) {
         // Nothing for now.
     }
 
-    fn visited(&mut self, unit: &mut Unit, context: &BuildingContext) {
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
         self.debug.popup_msg(format!("Visited by {}", unit.name()));
 
         // Try unload cargo:
@@ -89,7 +92,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
             }
 
             // Unit finished delivering its cargo.
-            if unit.peek_inventory().is_none() {
+            if unit.is_inventory_empty() {
                 context.despawn_unit(unit);
             }
         }
@@ -127,8 +130,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
 }
 
 impl<'config> StorageBuilding<'config> {
-    pub fn new(kind: BuildingKind, configs: &'config BuildingConfigs) -> Self {
-        let config = configs.find_storage_config(kind);
+    pub fn new(config: &'config StorageConfig) -> Self {
         Self {
             config,
             workers: Workers::new(config.min_workers, config.max_workers),

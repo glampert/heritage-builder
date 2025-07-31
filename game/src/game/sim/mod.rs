@@ -24,12 +24,12 @@ use crate::{
 };
 
 use super::{
+    sim::world::World,
+    unit::config::UnitConfigs,
     building::{
         Building,
-        BuildingKind
-    },
-    sim::world::{
-        World
+        BuildingKind,
+        config::BuildingConfigs
     }
 };
 
@@ -50,34 +50,41 @@ pub type RandomGenerator = Pcg64;
 
 const DEFAULT_SIM_UPDATE_FREQUENCY_SECS: Seconds = 0.5;
 
-pub struct Simulation {
+pub struct Simulation<'config> {
     update_timer: UpdateTimer,
     rng: RandomGenerator,
 
     // Path finding:
     graph: Graph,
     search: Search,
+
+    building_configs: &'config BuildingConfigs,
+    unit_configs: &'config UnitConfigs,
 }
 
-impl Simulation {
-    pub fn new(tile_map: &TileMap) -> Self {
+impl<'config> Simulation<'config> {
+    pub fn new(tile_map: &TileMap,
+               building_configs: &'config BuildingConfigs,
+               unit_configs: &'config UnitConfigs) -> Self {
         Self {
             update_timer: UpdateTimer::new(DEFAULT_SIM_UPDATE_FREQUENCY_SECS),
             rng: RandomGenerator::seed_from_u64(DEFAULT_RANDOM_SEED),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
+            building_configs,
+            unit_configs,
         }
     }
 
     pub fn update<'tile_sets>(&mut self,
-                              world: &mut World,
+                              world: &mut World<'config>,
                               tile_map: &mut TileMap<'tile_sets>,
                               tile_sets: &'tile_sets TileSets,
                               delta_time_secs: Seconds) {
 
         // Rebuild the search graph once every frame so any
         // add/remove tile changes will be reflected on the graph.
-        self.graph.rebuild_from_tile_map(tile_map);
+        self.graph.rebuild_from_tile_map(tile_map, true);
 
         let query = Query::new(
             &mut self.rng,
@@ -85,10 +92,12 @@ impl Simulation {
             &mut self.search,
             world,
             tile_map,
-            tile_sets);
+            tile_sets,
+            self.building_configs,
+            self.unit_configs);
 
         // Units movement needs to be smooth, so it updates every frame.
-        world.update_unit_movement(&query, delta_time_secs);
+        world.update_unit_navigation(&query, delta_time_secs);
 
         // Fixed step update.
         let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
@@ -103,7 +112,7 @@ impl Simulation {
 
     // Buildings:
     pub fn draw_building_debug_popups(&mut self,
-                                      context: &mut debug::DebugContext,
+                                      context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                                       visible_range: CellRange,
                                       show_popup_messages: bool) {
 
@@ -113,7 +122,9 @@ impl Simulation {
             &mut self.search,
             context.world,
             context.tile_map,
-            context.tile_sets);
+            context.tile_sets,
+            self.building_configs,
+            self.unit_configs);
 
         context.world.draw_building_debug_popups(
             &query,
@@ -125,7 +136,7 @@ impl Simulation {
     }
 
     pub fn draw_building_debug_ui(&mut self,
-                                  context: &mut debug::DebugContext,
+                                  context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                                   selected_cell: Cell) {
 
         let query = Query::new(
@@ -134,7 +145,9 @@ impl Simulation {
             &mut self.search,
             context.world,
             context.tile_map,
-            context.tile_sets);
+            context.tile_sets,
+            self.building_configs,
+            self.unit_configs);
 
         context.world.draw_building_debug_ui(
             &query,
@@ -144,7 +157,7 @@ impl Simulation {
 
     // Units:
     pub fn draw_unit_debug_popups(&mut self,
-                                  context: &mut debug::DebugContext,
+                                  context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                                   visible_range: CellRange,
                                   show_popup_messages: bool) {
 
@@ -154,7 +167,9 @@ impl Simulation {
             &mut self.search,
             context.world,
             context.tile_map,
-            context.tile_sets);
+            context.tile_sets,
+            self.building_configs,
+            self.unit_configs);
 
         context.world.draw_unit_debug_popups(
             &query,
@@ -166,7 +181,7 @@ impl Simulation {
     }
 
     pub fn draw_unit_debug_ui(&mut self,
-                              context: &mut debug::DebugContext,
+                              context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                               selected_cell: Cell) {
 
         let query = Query::new(
@@ -175,7 +190,9 @@ impl Simulation {
             &mut self.search,
             context.world,
             context.tile_map,
-            context.tile_sets);
+            context.tile_sets,
+            self.building_configs,
+            self.unit_configs);
 
         context.world.draw_unit_debug_ui(
             &query,
@@ -279,15 +296,21 @@ pub struct Query<'config, 'tile_sets> {
     world: UnsafeWeakRef<World<'config>>,
     tile_map: UnsafeWeakRef<TileMap<'tile_sets>>,
     tile_sets: &'tile_sets TileSets,
+
+    building_configs: &'config BuildingConfigs,
+    unit_configs: &'config UnitConfigs,
 }
 
 impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
+    #[allow(clippy::too_many_arguments)]
     fn new(rng: &mut RandomGenerator,
            graph: &mut Graph,
            search: &mut Search,
            world: &mut World<'config>,
            tile_map: &mut TileMap<'tile_sets>,
-           tile_sets: &'tile_sets TileSets) -> Self {
+           tile_sets: &'tile_sets TileSets,
+           building_configs: &'config BuildingConfigs,
+           unit_configs: &'config UnitConfigs) -> Self {
         Self {
             rng: UnsafeWeakRef::new(rng),
             graph: UnsafeWeakRef::new(graph),
@@ -295,6 +318,8 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             world: UnsafeWeakRef::new(world),
             tile_map: UnsafeWeakRef::new(tile_map),
             tile_sets,
+            building_configs,
+            unit_configs,
         }
     }
 
@@ -319,9 +344,9 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         self.search.mut_ref_cast()
     }
 
-    // --------------
-    //   Public API
-    // --------------
+    // ----------------------
+    // Public API:
+    // ----------------------
 
     #[inline(always)]
     pub fn graph(&self) -> &mut Graph {
@@ -341,6 +366,16 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     #[inline(always)]
     pub fn tile_sets(&self) -> &'tile_sets TileSets {
         self.tile_sets
+    }
+
+    #[inline(always)]
+    pub fn building_configs(&self) -> &'config BuildingConfigs {
+        self.building_configs
+    }
+
+    #[inline(always)]
+    pub fn unit_configs(&self) -> &'config UnitConfigs {
+        self.unit_configs
     }
 
     #[inline(always)]

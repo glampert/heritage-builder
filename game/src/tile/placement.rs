@@ -34,13 +34,13 @@ pub enum PlacementOp<'tile_sets> {
 pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut TileMapLayer<'tile_sets>,
                                                       target_cell: Cell,
                                                       tile_def_to_place: &'tile_sets TileDef)
-                                                      -> Result<(&'tile_map mut Tile<'tile_sets>, usize), &'static str> {
+                                                      -> Result<(&'tile_map mut Tile<'tile_sets>, usize), String> {
 
     debug_assert!(tile_def_to_place.is_valid());
     debug_assert!(tile_def_to_place.layer_kind() == layer.kind());
 
     if !layer.is_cell_within_bounds(target_cell) {
-        return Err("Target cell is out of bounds");
+        return Err(format!("Target cell {} is out of bounds", target_cell));
     }
 
     // Terrain tiles are always allowed to replace existing tiles,
@@ -54,11 +54,11 @@ pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut Tile
     let cell_range = tile_def_to_place.cell_range(target_cell);
     for cell in &cell_range {
         if !layer.is_cell_within_bounds(cell) {
-            return Err("One or more cells for this tile fall outside of the map bounds");
+            return Err("One or more cells for this tile fall outside of the map bounds".into());
         }
 
         if layer.try_tile(cell).is_some() {
-            return Err("One of the target cells for this tile is already occupied");
+            return Err("One of the target cells for this tile is already occupied".into());
         }
     }
 
@@ -79,7 +79,7 @@ pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut Tile
 }
 
 pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
-                                 target_cell: Cell) -> bool {
+                                 target_cell: Cell) -> Result<(), String> {
 
     if let Some(tile) = layer.try_tile(target_cell) {
         // Make sure we clear the base tile + any child blockers.
@@ -87,10 +87,10 @@ pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
             let did_remove_tile = layer.remove_tile(cell);
             assert!(did_remove_tile);
         }
-        true
+        Ok(())
     } else {
         // Already empty.
-        false
+        Err(format!("Cell {} in layer {} is already empty.", target_cell, layer.kind()))
     }
 }
 
@@ -98,7 +98,7 @@ pub fn try_place_tile_at_cursor<'tile_map, 'tile_sets>(tile_map: &'tile_map mut 
                                                        cursor_screen_pos: Vec2,
                                                        transform: &WorldToScreenTransform,
                                                        tile_def_to_place: &'tile_sets TileDef)
-                                                       -> Result<(&'tile_map mut Tile<'tile_sets>, usize), &'static str> {
+                                                       -> Result<(&'tile_map mut Tile<'tile_sets>, usize), String> {
 
     debug_assert!(transform.is_valid());
     debug_assert!(tile_def_to_place.is_valid());
@@ -115,7 +115,7 @@ pub fn try_place_tile_at_cursor<'tile_map, 'tile_sets>(tile_map: &'tile_map mut 
 
 pub fn try_clear_tile_at_cursor(tile_map: &mut TileMap,
                                 cursor_screen_pos: Vec2,
-                                transform: &WorldToScreenTransform) -> bool {
+                                transform: &WorldToScreenTransform) -> Result<(), String> {
 
     debug_assert!(transform.is_valid());
 
@@ -127,10 +127,12 @@ pub fn try_clear_tile_at_cursor(tile_map: &mut TileMap,
             cursor_screen_pos,
             transform);
 
-        if try_clear_tile_from_layer(layer, target_cell) {
-            return true;
+        match try_clear_tile_from_layer(layer, target_cell) {
+            Ok(_) => return Ok(()),
+            _ => continue,
         }
     }
 
-    false // Nothing removed.
+    // Nothing removed.
+    Err(format!("No tile found at cursor position {}", cursor_screen_pos))
 }

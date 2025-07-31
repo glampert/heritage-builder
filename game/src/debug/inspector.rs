@@ -127,7 +127,10 @@ impl TileInspectorMenu {
         }
     }
 
-    pub fn draw(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation) {
+    pub fn draw<'config>(&mut self,
+                         context: &mut sim::debug::DebugContext<'config, '_, '_, '_, '_>,
+                         sim: &mut Simulation<'config>) {
+
         let tile = match self.try_get_selected_tile() {
             Some(tile) => tile,
             None => {

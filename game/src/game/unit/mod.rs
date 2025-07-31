@@ -42,7 +42,7 @@ pub mod config;
 use config::UnitConfig;
 
 // ----------------------------------------------
-// Helper macros
+// Helper Macros / Types
 // ----------------------------------------------
 
 macro_rules! find_unit_tile {
@@ -54,6 +54,15 @@ macro_rules! find_unit_tile {
         $query.find_tile_mut($unit.map_cell, TileMapLayerKind::Objects, TileKind::Unit)
             .expect("Unit should have an associated Tile in the TileMap!")
     };
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+struct UnitSpawnPoolIndex(u32);
+
+const INVALID_SPAWN_POOL_INDEX: UnitSpawnPoolIndex = UnitSpawnPoolIndex(u32::MAX);
+
+impl Default for UnitSpawnPoolIndex {
+    #[inline] fn default() -> Self { INVALID_SPAWN_POOL_INDEX }
 }
 
 // ----------------------------------------------
@@ -76,43 +85,76 @@ Common Unit Behavior:
  - Patrols an area around its building to provide a service to households.
  - Most units will only walk on paved roads. Some units may go off-road.
 */
+#[derive(Clone, Default)]
 pub struct Unit<'config> {
-    name: &'config str,
-    config: &'config UnitConfig,
+    config: Option<&'config UnitConfig>,
+    pool_index: UnitSpawnPoolIndex,
     map_cell: Cell,
+    direction: UnitDirection,
     anim_sets: UnitAnimSets,
     inventory: UnitInventory,
     navigation: UnitNavigation,
-    direction: UnitDirection,
     debug: UnitDebug,
 }
 
 impl<'config> Unit<'config> {
-    pub fn new(name: &'config str, tile: &mut Tile, config: &'config UnitConfig) -> Self {
-        Self {
-            name,
-            config,
-            map_cell: tile.base_cell(),
-            anim_sets: UnitAnimSets::new(tile, UnitAnimSets::IDLE),
-            inventory: UnitInventory::default(),
-            navigation: UnitNavigation::default(),
-            direction: UnitDirection::default(),
-            debug: UnitDebug::default(),
-        }
+    pub fn new(tile: &mut Tile, config: &'config UnitConfig, pool_index: usize) -> Self {
+        let mut unit = Unit::default();
+        unit.spawned(tile, config, pool_index);
+        unit
+    }
+
+    pub fn spawned(&mut self, tile: &mut Tile, config: &'config UnitConfig, pool_index: usize) {
+        debug_assert!(!self.is_spawned());
+        debug_assert!(tile.is_valid());
+
+        self.config     = Some(config);
+        self.pool_index = UnitSpawnPoolIndex(pool_index.try_into().expect("Index cannot fit into u32!"));
+        self.map_cell   = tile.base_cell();
+        self.direction  = UnitDirection::Idle;
+
+        self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
+    }
+
+    pub fn despawned(&mut self) {
+        debug_assert!(self.is_spawned());
+        debug_assert!(self.inventory.is_empty()); // Should be empty, otherwise we might be losing resources!
+
+        self.config     = None;
+        self.pool_index = INVALID_SPAWN_POOL_INDEX;
+        self.map_cell   = Cell::invalid();
+        self.direction  = UnitDirection::default();
+
+        self.anim_sets.reset();
+        self.navigation.reset(None, None);
+        self.debug.clear_popups();
+    }
+
+    #[inline]
+    pub fn is_spawned(&self) -> bool {
+        self.pool_index != INVALID_SPAWN_POOL_INDEX
+    }
+
+    #[inline]
+    pub fn spawn_pool_index(&self) -> usize {
+        self.pool_index.0 as usize
     }
 
     #[inline]
     pub fn name(&self) -> &str {
-        self.name
+        debug_assert!(self.is_spawned());
+        &self.config.unwrap().name
     }
 
     #[inline]
     pub fn cell(&self) -> Cell {
+        debug_assert!(self.is_spawned());
         self.map_cell
     }
 
     #[inline]
     pub fn follow_path(&mut self, path: Option<&Path>) {
+        debug_assert!(self.is_spawned());
         self.navigation.reset(path, None);
         if path.is_some() {
             self.debug.popup_msg("New Goal");
@@ -121,12 +163,14 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn go_to_building(&mut self, path: &Path, start_building_cell: Cell, goal_building_cell: Cell) {
+        debug_assert!(self.is_spawned());
         self.navigation.reset(Some(path), Some((start_building_cell, goal_building_cell)));
         self.log_going_to(start_building_cell, goal_building_cell);
     }
 
     // Teleports to new tile cell and updates direction and animation.
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
+        debug_assert!(self.is_spawned());
         if tile_map.try_move_tile(self.map_cell, destination_cell, TileMapLayerKind::Objects) {
             let tile = tile_map.find_tile_mut(
                 destination_cell,
@@ -144,7 +188,8 @@ impl<'config> Unit<'config> {
         false
     }
 
-    pub fn update_movement(&mut self, query: &Query, delta_time_secs: Seconds) {
+    pub fn update_navigation(&mut self, query: &Query, delta_time_secs: Seconds) {
+        debug_assert!(self.is_spawned());
         // Path following and movement:
         match self.navigation.update(delta_time_secs) {
             UnitNavResult::ReachedGoal(cell, direction) => {
@@ -164,7 +209,7 @@ impl<'config> Unit<'config> {
                     let world = query.world();
                     let tile_map = query.tile_map();
                     if let Some(building) = world.find_building_for_cell_mut(goal_building_cell, tile_map) {
-                        building.visited(self, query);
+                        building.visited_by(self, query);
                     }
                 }
             },
@@ -191,6 +236,8 @@ impl<'config> Unit<'config> {
     }
 
     pub fn update(&mut self, _query: &Query, _delta_time_secs: Seconds) {
+        debug_assert!(self.is_spawned());
+
         // TODO
         // Unit behavior should be here:
         // - If it has a goal to deliver goods to a building, go to the building and deliver.
@@ -211,17 +258,25 @@ impl<'config> Unit<'config> {
     }
 
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) {
+        debug_assert!(self.is_spawned());
         self.debug.log_resources_gained(kind, count);
         self.inventory.receive_resources(kind, count);
     }
 
     pub fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(self.is_spawned());
         self.debug.log_resources_lost(kind, count);
         self.inventory.give_resources(kind, count)
     }
 
     pub fn peek_inventory(&self) -> Option<StockItem> {
+        debug_assert!(self.is_spawned());
         self.inventory.peek()
+    }
+
+    pub fn is_inventory_empty(&self) -> bool {
+        debug_assert!(self.is_spawned());
+        self.inventory.is_empty()
     }
 
     // ----------------------
@@ -252,7 +307,7 @@ impl<'config> Unit<'config> {
 
 type UnitAnimSetKey = StrHashPair;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct UnitAnimSets {
     // Hash of current anim set we're playing.
     current_anim_set_key: UnitAnimSetKey,
@@ -272,6 +327,11 @@ impl UnitAnimSets {
         let mut anim_set = Self::default();
         anim_set.set_anim(tile, new_anim_set_key);
         anim_set
+    }
+
+    fn reset(&mut self) {
+        self.current_anim_set_key = UnitAnimSetKey::default();
+        self.anim_set_index_map.clear();
     }
 
     fn set_anim(&mut self, tile: &mut Tile, new_anim_set_key: UnitAnimSetKey) {
@@ -351,7 +411,7 @@ fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
 // UnitNavigation
 // ----------------------------------------------
 
-#[derive(Default, DrawDebugUi)]
+#[derive(Clone, Default, DrawDebugUi)]
 struct UnitNavigation {
     #[debug_ui(skip)]
     path: Path,
@@ -473,7 +533,7 @@ impl UnitNavigation {
 // UnitInventory
 // ----------------------------------------------
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct UnitInventory {
     // Unit can carry only one resource kind at a time.
     item: Option<StockItem>,

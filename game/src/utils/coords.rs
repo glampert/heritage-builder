@@ -54,7 +54,7 @@ field_accessor_xy! { IsoPoint, i32, x, y }
 // ----------------------------------------------
 
 // X,Y position in the tile map grid of cells.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Cell {
     pub x: i32,
     pub y: i32,
@@ -90,6 +90,11 @@ impl Cell {
     pub fn manhattan_distance(self, other: Cell) -> i32 {
         (self.x - other.x).abs() + (self.y - other.y).abs()
     }
+}
+
+impl Default for Cell {
+    #[inline]
+    fn default() -> Self { Cell::invalid() }
 }
 
 impl std::fmt::Display for Cell {

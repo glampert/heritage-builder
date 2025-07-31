@@ -26,7 +26,6 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    config::BuildingConfigs,
     unit::{self, Unit}
 };
 
@@ -43,6 +42,7 @@ use super::{
 
 #[derive(DrawDebugUi)]
 pub struct ProducerConfig {
+    pub name: String,
     pub tile_def_name: String,
 
     #[debug_ui(skip)]
@@ -95,6 +95,10 @@ pub struct ProducerBuilding<'config> {
 }
 
 impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
+    fn name(&self) -> &str {
+        &self.config.name
+    }
+
     fn update(&mut self, context: &BuildingContext, delta_time_secs: Seconds) {
         // Update producer states:
         if self.production_update_timer.tick(delta_time_secs).should_update() {
@@ -107,7 +111,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         }
     }
 
-    fn visited(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
+    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
     }
 
     fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
@@ -138,8 +142,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
 }
 
 impl<'config> ProducerBuilding<'config> {
-    pub fn new(kind: BuildingKind, tile_name: &str, tile_name_hash: StringHash, configs: &'config BuildingConfigs) -> Self {
-        let config = configs.find_producer_config(kind, tile_name, tile_name_hash);
+    pub fn new(config: &'config ProducerConfig) -> Self {
         Self {
             config,
             workers: Workers::new(config.min_workers, config.max_workers),
@@ -231,7 +234,7 @@ impl<'config> ProducerBuilding<'config> {
             match context.query.find_path(PathNodeKind::Road, this_building_road_link, storage_building_road_link) {
                 SearchResult::PathFound(path) => {
                     // If found a path, spawn a unit, give it the resources and make it follow the path to a storage building.
-                    if let Some(unit) = context.try_spawn_unit_at(
+                    if let Some(unit) = context.try_spawn_unit(
                         this_building_road_link,
                         unit::config::UNIT_RUNNER) {
 
