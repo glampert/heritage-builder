@@ -18,8 +18,12 @@ use crate::{
 };
 
 use super::{
-    sim::Query,
-    unit::{self, Unit, config::UnitConfigKey}
+    unit::{self, Unit},
+    sim::{
+        Query,
+        resources::ResourceKind,
+        world::GenerationalIndex,
+    }
 };
 
 pub mod producer;
@@ -64,6 +68,7 @@ pub mod config;
 pub struct Building<'config> {
     kind: BuildingKind,
     map_cells: CellRange,
+    id: GenerationalIndex,
     archetype: BuildingArchetype<'config>,
 }
 
@@ -74,8 +79,16 @@ impl<'config> Building<'config> {
         Self {
             kind,
             map_cells,
+            id: GenerationalIndex::default(), // Set after construction by Building::placed().
             archetype,
         }
+    }
+
+    #[inline]
+    pub fn placed(&mut self, id: GenerationalIndex) {
+        debug_assert!(id.is_valid());
+        debug_assert!(!self.id.is_valid());
+        self.id = id;
     }
 
     #[inline]
@@ -94,6 +107,11 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
+    pub fn is(&self, kinds: BuildingKind) -> bool {
+        self.kind.intersects(kinds)
+    }
+
+    #[inline]
     pub fn kind(&self) -> BuildingKind {
         self.kind
     }
@@ -102,6 +120,13 @@ impl<'config> Building<'config> {
     pub fn archetype_kind(&self) -> BuildingArchetypeKind {
         self.archetype.discriminant()
     }
+
+    #[inline]
+    pub fn id(&self) -> GenerationalIndex {
+        self.id
+    }
+
+    // TODO: Get rid of these downcasts and rely solely on BuildingBehavior trait.
 
     #[inline]
     pub fn as_producer(&self) -> &producer::ProducerBuilding<'config> {
@@ -149,6 +174,7 @@ impl<'config> Building<'config> {
             BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
+                                 self.id,
                                  query);
 
         self.archetype.update(&context, delta_time_secs);
@@ -160,9 +186,28 @@ impl<'config> Building<'config> {
             BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
+                                 self.id,
                                  query);
 
         self.archetype.visited_by(unit, &context);
+    }
+
+    #[inline]
+    pub fn receivable_amount(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
+        self.archetype.receivable_amount(kind)
+    }
+
+    #[inline]
+    pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
+        self.archetype.receive_resources(kind, count)
+    }
+
+    #[inline]
+    pub fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
+        self.archetype.give_resources(kind, count)
     }
 
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
@@ -191,12 +236,14 @@ impl<'config> Building<'config> {
                 kind: BuildingKind,
                 archetype: BuildingArchetypeKind,
                 cells: CellRange,
+                id: GenerationalIndex,
             }
             let debug_vars = DrawDebugUiVariables {
                 name: self.name(),
                 kind: self.kind,
                 archetype: self.archetype_kind(),
                 cells: self.map_cells,
+                id: self.id,
             };
             debug_vars.draw_debug_ui(ui_sys);
         }
@@ -205,6 +252,7 @@ impl<'config> Building<'config> {
             BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
+                                 self.id,
                                  query);
 
         self.archetype.draw_debug_ui(&context, ui_sys);
@@ -215,13 +263,13 @@ impl<'config> Building<'config> {
                              ui_sys: &UiSystem,
                              transform: &WorldToScreenTransform,
                              visible_range: CellRange,
-                             delta_time_secs: Seconds,
-                             show_popup_messages: bool) {
+                             delta_time_secs: Seconds) {
 
         let context =
             BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
+                                 self.id,
                                  query);
 
         self.archetype.draw_debug_popups(
@@ -229,8 +277,7 @@ impl<'config> Building<'config> {
             ui_sys,
             transform,
             visible_range,
-            delta_time_secs,
-            show_popup_messages);
+            delta_time_secs);
     }
 }
 
@@ -410,6 +457,24 @@ impl<'config> BuildingArchetype<'config> {
     }
 
     #[inline]
+    fn name(&self) -> &str {
+        match self {
+            Self::Producer(state) => {
+                state.name()
+            }
+            Self::Storage(state) => {
+                state.name()
+            }
+            Self::Service(state) => {
+                state.name()
+            }
+            Self::House(state) => {
+                state.name()
+            }
+        }
+    }
+
+    #[inline]
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>, delta_time_secs: Seconds) {
         match self {
             Self::Producer(state) => {
@@ -445,19 +510,56 @@ impl<'config> BuildingArchetype<'config> {
         }
     }
 
-    fn name(&self) -> &str {
+    #[inline]
+    fn receivable_amount(&self, kind: ResourceKind) -> u32 {
         match self {
             Self::Producer(state) => {
-                state.name()
+                state.receivable_amount(kind)
             }
             Self::Storage(state) => {
-                state.name()
+                state.receivable_amount(kind)
             }
             Self::Service(state) => {
-                state.name()
+                state.receivable_amount(kind)
             }
             Self::House(state) => {
-                state.name()
+                state.receivable_amount(kind)
+            }
+        }
+    }
+
+    #[inline]
+    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        match self {
+            Self::Producer(state) => {
+                state.receive_resources(kind, count)
+            }
+            Self::Storage(state) => {
+                state.receive_resources(kind, count)
+            }
+            Self::Service(state) => {
+                state.receive_resources(kind, count)
+            }
+            Self::House(state) => {
+                state.receive_resources(kind, count)
+            }
+        }
+    }
+
+    #[inline]
+    fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        match self {
+            Self::Producer(state) => {
+                state.give_resources(kind, count)
+            }
+            Self::Storage(state) => {
+                state.give_resources(kind, count)
+            }
+            Self::Service(state) => {
+                state.give_resources(kind, count)
+            }
+            Self::House(state) => {
+                state.give_resources(kind, count)
             }
         }
     }
@@ -484,20 +586,19 @@ impl<'config> BuildingArchetype<'config> {
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
                          visible_range: CellRange,
-                         delta_time_secs: Seconds,
-                         show_popup_messages: bool) {
+                         delta_time_secs: Seconds) {
         match self {
             Self::Producer(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs);
             }
             Self::Storage(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs);
             }
             Self::Service(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs);
             }
             Self::House(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs, show_popup_messages);
+                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs);
             }
         }
     }
@@ -519,6 +620,25 @@ pub trait BuildingBehavior<'config> {
                   unit: &mut Unit,
                   context: &BuildingContext<'config, '_, '_>);
 
+    // ----------------------
+    // Resources / Stock:
+    // ----------------------
+
+    // How many resources of this kind can we receive currently?
+    fn receivable_amount(&self, kind: ResourceKind) -> u32;
+
+    // Returns number of resources it was able to accommodate,
+    // which can be less or equal to `count`.
+    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32;
+
+    // Tries to gives away up to `count` resources. Returns the number
+    // of resources it was able to give, which can be less or equal to `count`.
+    fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32;
+
+    // ----------------------
+    // Debug:
+    // ----------------------
+
     fn draw_debug_ui(&mut self,
                      context: &BuildingContext<'config, '_, '_>,
                      ui_sys: &UiSystem);
@@ -528,8 +648,38 @@ pub trait BuildingBehavior<'config> {
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
                          visible_range: CellRange,
-                         delta_time_secs: Seconds,
-                         show_popup_messages: bool);
+                         delta_time_secs: Seconds);
+}
+
+// ----------------------------------------------
+// BuildingKindAndId / BuildingTileInfo
+// ----------------------------------------------
+
+#[derive(Copy, Clone)]
+pub struct BuildingKindAndId {
+    pub kind: BuildingKind,
+    pub id: GenerationalIndex,
+}
+
+#[derive(Copy, Clone)]
+pub struct BuildingTileInfo {
+    pub kind: BuildingKind,
+    pub road_link: Cell,
+    pub base_cell: Cell,
+}
+
+impl BuildingKindAndId {
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        !self.kind.is_empty() && self.id.is_valid()
+    }
+}
+
+impl BuildingTileInfo {
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        !self.kind.is_empty() && self.road_link.is_valid() && self.base_cell.is_valid()
+    }
 }
 
 // ----------------------------------------------
@@ -540,6 +690,7 @@ pub struct BuildingContext<'config, 'tile_sets, 'query> {
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
     map_cells: CellRange,
+    id: GenerationalIndex,
     query: &'query Query<'config, 'tile_sets>,
 }
 
@@ -547,11 +698,13 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     fn new(kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
            map_cells: CellRange,
+           id: GenerationalIndex,
            query: &'query Query<'config, 'tile_sets>) -> Self {
         Self {
             kind,
             archetype_kind,
             map_cells,
+            id,
             query,
         }
     }
@@ -589,7 +742,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     }
 
     #[inline]
-    fn find_nearest_road_link(&self) -> Cell {
+    fn find_nearest_road_link(&self) -> Option<Cell> {
         self.query.find_nearest_road_link(self.map_cells)
     }
 
@@ -599,6 +752,8 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         let config = self.query.building_configs().find_service_config(service_kind);
         self.query.is_near_building(self.map_cells, service_kind, config.effect_radius)
     }
+
+    // TODO: Get rid of mutable access to building here is possible!
 
     fn find_nearest_service_mut(&self, service_kind: BuildingKind) -> Option<&mut Building<'config>> {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::Service);
@@ -634,6 +789,8 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         };
     }
 
+    // TODO: Get rid of mutable access to building here is possible!
+
     fn for_each_storage_mut<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&mut Building<'config>) -> bool
     {
@@ -650,21 +807,5 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
                 }
             }
         };
-    }
-
-    fn try_spawn_unit(&self, target_cell: Cell, unit_config_key: UnitConfigKey) -> Option<&mut Unit<'config>> {
-        let world = self.query.world();
-        let tile_map = self.query.tile_map();
-        let tile_sets = self.query.tile_sets();
-        let unit = world.try_spawn_unit_with_config(tile_map, tile_sets, target_cell, unit_config_key)
-            .expect("Spawn Unit Failed");
-        Some(unit)
-    }
-
-    fn despawn_unit(&self, unit: &mut Unit) {
-        let world = self.query.world();
-        let tile_map = self.query.tile_map();
-        world.despawn_unit(tile_map, unit)
-            .expect("Despawn Unit Failed")
     }
 }

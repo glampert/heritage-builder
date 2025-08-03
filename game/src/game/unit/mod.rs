@@ -1,9 +1,10 @@
+use smallvec::SmallVec;
 use strum_macros::Display;
 use proc_macros::DrawDebugUi;
 
 use crate::{
     game_object_debug_options,
-    pathfind::Path,
+    pathfind::{SearchResult, Path, NodeKind as PathNodeKind},
     debug::{self},
     imgui_ui::{
         self,
@@ -34,7 +35,13 @@ use crate::{
 use super::{
     sim::{
         Query,
+        world::GenerationalIndex,
         resources::{ResourceKind, StockItem}
+    },
+    building::{
+        Building,
+        BuildingKind,
+        BuildingTileInfo
     }
 };
 
@@ -42,7 +49,7 @@ pub mod config;
 use config::UnitConfig;
 
 // ----------------------------------------------
-// Helper Macros / Types
+// Helper Macros
 // ----------------------------------------------
 
 macro_rules! find_unit_tile {
@@ -54,15 +61,6 @@ macro_rules! find_unit_tile {
         $query.find_tile_mut($unit.map_cell, TileMapLayerKind::Objects, TileKind::Unit)
             .expect("Unit should have an associated Tile in the TileMap!")
     };
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-struct UnitSpawnPoolIndex(u32);
-
-const INVALID_SPAWN_POOL_INDEX: UnitSpawnPoolIndex = UnitSpawnPoolIndex(u32::MAX);
-
-impl Default for UnitSpawnPoolIndex {
-    #[inline] fn default() -> Self { INVALID_SPAWN_POOL_INDEX }
 }
 
 // ----------------------------------------------
@@ -84,34 +82,41 @@ Common Unit Behavior:
  - Transports resources from A to B (has a start point and a destination).
  - Patrols an area around its building to provide a service to households.
  - Most units will only walk on paved roads. Some units may go off-road.
+ - Has an inventory that can cary a single ResourceKind at a time, any amount.
 */
 #[derive(Clone, Default)]
 pub struct Unit<'config> {
     config: Option<&'config UnitConfig>,
-    pool_index: UnitSpawnPoolIndex,
     map_cell: Cell,
+    id: GenerationalIndex,
     direction: UnitDirection,
     anim_sets: UnitAnimSets,
     inventory: UnitInventory,
     navigation: UnitNavigation,
+    next_task: UnitInternalTask,
     debug: UnitDebug,
 }
 
 impl<'config> Unit<'config> {
-    pub fn new(tile: &mut Tile, config: &'config UnitConfig, pool_index: usize) -> Self {
+    // ----------------------
+    // Spawning / Despawning:
+    // ----------------------
+
+    pub fn new(tile: &mut Tile, config: &'config UnitConfig, id: GenerationalIndex) -> Self {
         let mut unit = Unit::default();
-        unit.spawned(tile, config, pool_index);
+        unit.spawned(tile, config, id);
         unit
     }
 
-    pub fn spawned(&mut self, tile: &mut Tile, config: &'config UnitConfig, pool_index: usize) {
+    pub fn spawned(&mut self, tile: &mut Tile, config: &'config UnitConfig, id: GenerationalIndex) {
         debug_assert!(!self.is_spawned());
         debug_assert!(tile.is_valid());
+        debug_assert!(id.is_valid());
 
-        self.config     = Some(config);
-        self.pool_index = UnitSpawnPoolIndex(pool_index.try_into().expect("Index cannot fit into u32!"));
-        self.map_cell   = tile.base_cell();
-        self.direction  = UnitDirection::Idle;
+        self.config    = Some(config);
+        self.map_cell  = tile.base_cell();
+        self.id        = id;
+        self.direction = UnitDirection::Idle;
 
         self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
     }
@@ -121,9 +126,10 @@ impl<'config> Unit<'config> {
         debug_assert!(self.inventory.is_empty()); // Should be empty, otherwise we might be losing resources!
 
         self.config     = None;
-        self.pool_index = INVALID_SPAWN_POOL_INDEX;
-        self.map_cell   = Cell::invalid();
+        self.map_cell   = Cell::default();
+        self.id         = GenerationalIndex::default();
         self.direction  = UnitDirection::default();
+        self.next_task  = UnitInternalTask::default();
 
         self.anim_sets.reset();
         self.navigation.reset(None, None);
@@ -132,13 +138,17 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn is_spawned(&self) -> bool {
-        self.pool_index != INVALID_SPAWN_POOL_INDEX
+        self.id.is_valid()
     }
 
     #[inline]
-    pub fn spawn_pool_index(&self) -> usize {
-        self.pool_index.0 as usize
+    pub fn id(&self) -> GenerationalIndex {
+        self.id
     }
+
+    // ----------------------
+    // Utilities:
+    // ----------------------
 
     #[inline]
     pub fn name(&self) -> &str {
@@ -150,22 +160,6 @@ impl<'config> Unit<'config> {
     pub fn cell(&self) -> Cell {
         debug_assert!(self.is_spawned());
         self.map_cell
-    }
-
-    #[inline]
-    pub fn follow_path(&mut self, path: Option<&Path>) {
-        debug_assert!(self.is_spawned());
-        self.navigation.reset(path, None);
-        if path.is_some() {
-            self.debug.popup_msg("New Goal");
-        }
-    }
-
-    #[inline]
-    pub fn go_to_building(&mut self, path: &Path, start_building_cell: Cell, goal_building_cell: Cell) {
-        debug_assert!(self.is_spawned());
-        self.navigation.reset(Some(path), Some((start_building_cell, goal_building_cell)));
-        self.log_going_to(start_building_cell, goal_building_cell);
     }
 
     // Teleports to new tile cell and updates direction and animation.
@@ -188,55 +182,195 @@ impl<'config> Unit<'config> {
         false
     }
 
+    // ----------------------
+    // Path Navigation:
+    // ----------------------
+
+    #[inline]
+    pub fn follow_path(&mut self, path: Option<&Path>) {
+        debug_assert!(self.is_spawned());
+        self.navigation.reset(path, None);
+        if path.is_some() {
+            self.debug.popup_msg("New Goal");
+        }
+    }
+
+    #[inline]
+    pub fn go_to_building(&mut self, path: &Path, origin: Cell, destination: Cell) {
+        debug_assert!(self.is_spawned());
+        self.navigation.reset(Some(path), Some((origin, destination)));
+        self.log_going_to(origin, destination);
+    }
+
     pub fn update_navigation(&mut self, query: &Query, delta_time_secs: Seconds) {
         debug_assert!(self.is_spawned());
+
         // Path following and movement:
         match self.navigation.update(delta_time_secs) {
-            UnitNavResult::ReachedGoal(cell, direction) => {
+            UnitNavResult::Idle => {
+                // Nothing.
+            },
+            UnitNavResult::Moving(from_cell, to_cell, progress, direction) => {
                 let tile = find_unit_tile!(&mut self, query);
 
-                let goal_building_cell = self.navigation.target_buildings.map_or(
-                    Cell::invalid(), |(_, goal_building_cell)| goal_building_cell);
+                let draw_size = tile.draw_size();
+                let from_iso = map::calc_unit_iso_coords(from_cell, draw_size);
+                let to_iso = map::calc_unit_iso_coords(to_cell, draw_size);
+
+                let new_iso_coords = utils::lerp(from_iso, to_iso, progress);
+                tile.set_iso_coords_f32(new_iso_coords);
+
+                self.update_direction_and_anim(tile, direction);
+            },
+            UnitNavResult::AdvancedCell(cell, direction) => {
+                let did_teleport = self.teleport(query.tile_map(), cell);
+                debug_assert!(did_teleport, "Failed to advance unit tile cell!");
+
+                let tile = find_unit_tile!(&mut self, query);
+                debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
+
+                self.update_direction_and_anim(tile, direction);
+            },
+            UnitNavResult::ReachedGoal(cell, direction) => {
+                let tile = find_unit_tile!(&mut self, query);
 
                 debug_assert!(self.direction == direction);
                 debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
 
-                self.follow_path(None); // Clear current path.
-                self.update_direction_and_anim(tile, UnitDirection::Idle);
                 self.debug.popup_msg("Reached Goal");
 
-                if goal_building_cell.is_valid() {
-                    let world = query.world();
-                    let tile_map = query.tile_map();
-                    if let Some(building) = world.find_building_for_cell_mut(goal_building_cell, tile_map) {
-                        building.visited_by(self, query);
-                    }
-                }
-            },
-            UnitNavResult::AdvancedCell(cell, direction) => {
-                let did_teleport = self.teleport(query.tile_map(), cell);
-                let tile = find_unit_tile!(&mut self, query);
-                self.update_direction_and_anim(tile, direction);
-                debug_assert!(did_teleport && self.direction == direction);
-                debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
-            },
-            UnitNavResult::Moving(from_cell, to_cell, progress, direction) => {
-                let tile = find_unit_tile!(&mut self, query);
-                let draw_size = tile.draw_size();
-                let from_iso = map::calc_unit_iso_coords(from_cell, draw_size);
-                let to_iso = map::calc_unit_iso_coords(to_cell, draw_size);
-                let new_iso_coords = utils::lerp(from_iso, to_iso, progress);
-                tile.set_iso_coords_f32(new_iso_coords);
-                self.update_direction_and_anim(tile, direction);
-            },
-            UnitNavResult::None => {
-                // Nothing.
-            },
+                // Clear current path.
+                self.follow_path(None);
+
+                // Go idle.
+                self.update_direction_and_anim(tile, UnitDirection::Idle);
+            }
         }
     }
 
-    pub fn update(&mut self, _query: &Query, _delta_time_secs: Seconds) {
+    // ----------------------
+    // Unit Behavior / Tasks:
+    // ----------------------
+
+    pub fn update(&mut self, query: &Query, _delta_time_secs: Seconds) {
         debug_assert!(self.is_spawned());
+
+        // FIXME: borrow issues...
+        let current_task = self.next_task.clone();
+
+        match &current_task {
+            UnitInternalTask::Retry { task } => {
+                match task.as_ref() {
+                    UnitInternalTask::DeliverToStorage {
+                        unit_starting_cell,
+                        storage_buildings_accepted,
+                        resource_kind_to_deliver,
+                        ..
+                    } => {
+                        match find_storage(query, *unit_starting_cell, *storage_buildings_accepted, *resource_kind_to_deliver) {
+                            Some((destination, path)) => {
+
+                                // TODO: unit_starting_cell should be same as self.cell(), we also don't use resource_count.
+                                // should push a different enum for retry (e.g. RetryDeliverToStorage).
+                                self.go_to_building(path, *unit_starting_cell, destination.base_cell);
+
+                                self.assign_next_task(UnitInternalTask::VisitBuilding { root_task: Box::new(*task.clone()), destination });
+                            },
+                            None => {
+                                // Stay in the Retry state.
+                            },
+                        }
+                    },
+                    _ => panic!("Invalid retry task!"),
+                }
+            },
+            UnitInternalTask::VisitBuilding { root_task, destination } => {
+                if self.has_reached_building(destination) {
+                    let mut completed_task = false;
+
+                    let world = query.world();
+                    let tile_map = query.tile_map();
+
+                    if let Some(building) = world.find_building_for_cell_mut(destination.base_cell, tile_map) {
+                        // NOTE: No need to check for a generation match here. If the destination building
+                        // is still the same kind of building we where looking for, it doesn't matter if it
+                        // was destroyed and recreated since we started the task.
+                        if building.kind() == destination.kind {
+                            building.visited_by(self, query);
+    
+                            // If we've delivered our goods, we're done.
+                            // Otherwise we were not able to offload everything, so reroute.
+                            if self.is_inventory_empty() {
+
+                                // TODO: this termination condition actually depends on what the root_task was!
+                                completed_task = true;
+                            }
+                        }
+                    }
+
+                    if completed_task {
+                        match root_task.as_ref() {
+                            UnitInternalTask::DeliverToStorage {
+                                origin_building_kind,
+                                origin_building_id,
+                                origin_building_base_cell,
+                                completion_callback,
+                                ..
+                            } => {
+                                // Notify source building of task completion.
+                                if let Some(on_completion) = completion_callback {
+                                    if let Some(building) = world.find_building_for_cell_mut(*origin_building_base_cell, tile_map) {
+                                        debug_assert!(building.id().is_valid());
+                                        debug_assert!(origin_building_id.is_valid());
+                                        // NOTE: Only invoke the completion callback if the original base cell still contains the
+                                        // exact same building that initiated this task. We don't want to accidentally invoke the
+                                        // callback on a different building, even if the type of building there is the same.
+                                        if building.kind() == *origin_building_kind &&
+                                           building.id() == *origin_building_id {
+                                            on_completion(self, building);
+                                        }
+                                    }
+                                }
+                            },
+                            _ => {},
+                        }
+
+                        // TODO Make despawn the completion followup task instead.
+                        query.despawn_unit(self);
+                    } else {
+                        let retry_task = match root_task.as_ref() {
+                            UnitInternalTask::DeliverToStorage {
+                                origin_building_kind,
+                                origin_building_id,
+                                origin_building_base_cell,
+                                storage_buildings_accepted,
+                                resource_kind_to_deliver,
+                                completion_callback,
+                                ..
+                            } => {
+                                debug_assert!(!self.is_inventory_empty());
+                                Box::new(UnitInternalTask::DeliverToStorage {
+                                    origin_building_kind: *origin_building_kind,
+                                    origin_building_id: *origin_building_id,
+                                    origin_building_base_cell: *origin_building_base_cell,
+                                    unit_starting_cell: self.cell(),
+                                    storage_buildings_accepted: *storage_buildings_accepted,
+                                    resource_kind_to_deliver: *resource_kind_to_deliver,
+                                    resource_count: self.inventory.count(),
+                                    completion_callback: *completion_callback
+                                })
+                            },
+                            _ => panic!("Invalid root task!"),
+                        };
+                        self.assign_next_task(UnitInternalTask::Retry { task: retry_task });
+                    }
+                }
+            },
+            _ => {},
+        }
+
+        // DeliverToStorage -> VisitBuilding -> Despawn | Retry
+        // NOTE: Retry with a possibly decremented resource_count
 
         // TODO
         // Unit behavior should be here:
@@ -249,25 +383,69 @@ impl<'config> Unit<'config> {
         //     - If it cannot accept our goods, try another building of the same kind.
         //     - If no building can be found that will accept our goods, stop and wait, retry next update.
         // Despawn only when all goods are delivered.
-
-        // Unit might have these methods:
-        // 
-        // fn ship_to_storage(storage_kinds, resource_kind, resource_count, from_building_cell, starting_cell)
-        // fn ship_to_producer(producer_kind, resource_kind, resource_count, from_building_cell, starting_cell)
-        // fn ship_to_service(service_kind, resource_kind, resource_count, from_building_cell, starting_cell)
     }
 
-    pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) {
-        debug_assert!(self.is_spawned());
-        self.debug.log_resources_gained(kind, count);
-        self.inventory.receive_resources(kind, count);
+    // TODO
+    // Unit::try_spawn_with_task could have a fallback:
+    // e.g., if we fail to deliver to storage, fallback to DeliverToProducer?
+    //
+    // fallback_task: Option<UnitTask>,
+    //
+    // also a completion task, no need to hardcode it to despawn.
+    // 
+    // completion_task: Option<UnitTask>
+    //
+    pub fn try_spawn_with_task(query: &Query, owner_id: GenerationalIndex, task: UnitTask) -> Result<GenerationalIndex, String> {
+        debug_assert!(owner_id.is_valid());
+
+        // Handle root tasks here. These will start the task chain and might take some time to complete.
+        match task {
+            UnitTask::DeliverToStorage {
+                origin_building_kind,
+                origin_building_base_cell,
+                unit_starting_cell,
+                storage_buildings_accepted,
+                resource_kind_to_deliver,
+                resource_count,
+                completion_callback
+            } => {
+                let (destination, path) =
+                    match find_storage(query, unit_starting_cell, storage_buildings_accepted, resource_kind_to_deliver) {
+                    Some(result) => result,
+                    None => return Err("Couldn't find a storage building!".into()),
+                };
+
+                let unit =
+                    match query.try_spawn_unit(unit_starting_cell, config::UNIT_RUNNER) {
+                    Some(unit) => unit,
+                    None => return Err("Couldn't spawn new unit!".into()),
+                };
+
+                unit.receive_resources(resource_kind_to_deliver, resource_count);
+                unit.go_to_building(path, origin_building_base_cell, destination.base_cell);
+
+                unit.assign_next_task(UnitInternalTask::VisitBuilding {
+                    root_task: Box::new(UnitInternalTask::DeliverToStorage {
+                        origin_building_kind,
+                        origin_building_id: owner_id,
+                        origin_building_base_cell,
+                        unit_starting_cell,
+                        storage_buildings_accepted,
+                        resource_kind_to_deliver,
+                        resource_count,
+                        completion_callback
+                    }),
+                    destination
+                });
+
+                Ok(unit.id())
+            }
+        }
     }
 
-    pub fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        debug_assert!(self.is_spawned());
-        self.debug.log_resources_lost(kind, count);
-        self.inventory.give_resources(kind, count)
-    }
+    // ----------------------
+    // Inventory / Resources:
+    // ----------------------
 
     pub fn peek_inventory(&self) -> Option<StockItem> {
         debug_assert!(self.is_spawned());
@@ -279,9 +457,39 @@ impl<'config> Unit<'config> {
         self.inventory.is_empty()
     }
 
+    // Returns number of resources it was able to accommodate.
+    // Unit inventories can always accommodate all resources received.
+    pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(self.is_spawned());
+        debug_assert!(kind.bits().count_ones() == 1);
+
+        self.debug.log_resources_gained(kind, count);
+        self.inventory.receive_resources(kind, count)
+    }
+
+    // Tries to gives away up to `count` resources. Returns the number
+    // of resources it was able to give, which can be less or equal to `count`.
+    pub fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(self.is_spawned());
+        debug_assert!(kind.bits().count_ones() == 1);
+
+        self.debug.log_resources_lost(kind, count);
+        self.inventory.give_resources(kind, count)
+    }
+
     // ----------------------
-    // Internal:
+    // Internal helpers:
     // ----------------------
+
+    #[inline]
+    fn assign_next_task(&mut self, task: UnitInternalTask) {
+        self.next_task = task;
+    }
+
+    #[inline]
+    fn has_reached_building(&self, destination: &BuildingTileInfo) -> bool {
+        self.map_cell == destination.road_link
+    }
 
     fn update_direction_and_anim(&mut self, tile: &mut Tile, new_direction: UnitDirection) {
         if self.direction != new_direction {
@@ -291,13 +499,81 @@ impl<'config> Unit<'config> {
         }
     }
 
-    fn log_going_to(&mut self, start_building_cell: Cell, goal_building_cell: Cell) {
+    fn log_going_to(&mut self, origin: Cell, destination: Cell) {
         if !self.debug.show_popups() {
             return;
         }
-        let start_building_name = debug::tile_name_at(start_building_cell, TileMapLayerKind::Objects);
-        let goal_building_name  = debug::tile_name_at(goal_building_cell,  TileMapLayerKind::Objects);
-        self.debug.popup_msg(format!("Goto: {} -> {}", start_building_name, goal_building_name));
+        let origin_building_name = debug::tile_name_at(origin, TileMapLayerKind::Objects);
+        let destination_building_name = debug::tile_name_at(destination, TileMapLayerKind::Objects);
+        self.debug.popup_msg(format!("Goto: {} -> {}", origin_building_name, destination_building_name));
+    }
+}
+
+// ----------------------------------------------
+// UnitInventory
+// ----------------------------------------------
+
+#[derive(Clone, Default)]
+struct UnitInventory {
+    // Unit can carry only one resource kind at a time.
+    item: Option<StockItem>,
+}
+
+impl UnitInventory {
+    #[inline]
+    fn peek(&self) -> Option<StockItem> {
+        self.item
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.item.is_none()
+    }
+
+    #[inline]
+    fn count(&self) -> u32 {
+        match &self.item {
+            Some(item) => item.count,
+            None => 0,
+        }
+    }
+
+    #[inline]
+    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        if let Some(item) = &mut self.item {
+            debug_assert!(item.kind == kind && item.count != 0);
+            item.count += count;
+        } else {
+            self.item = Some(StockItem { kind, count });
+        }
+        count
+    }
+
+    // Returns number of items decremented, which can be <= `count`.
+    #[inline]
+    fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        if let Some(item) = &mut self.item {
+            debug_assert!(item.kind == kind && item.count != 0);
+
+            let given_count = {
+                if count <= item.count {
+                    item.count -= count;
+                    count
+                } else {
+                    let prev_count = item.count;
+                    item.count = 0;
+                    prev_count
+                }
+            };
+
+            if item.count == 0 {
+                self.item = None; // Gave away everything.
+            }
+
+            given_count
+        } else {
+            0
+        }
     }
 }
 
@@ -421,9 +697,6 @@ struct UnitNavigation {
     #[debug_ui(separator)]
     direction: UnitDirection,
 
-    #[debug_ui(skip)]
-    target_buildings: Option<(Cell, Cell)>,
-
     // Debug:
     #[debug_ui(edit)]
     pause_current_path: bool,
@@ -433,6 +706,8 @@ struct UnitNavigation {
     step_size: f32,
     #[debug_ui(edit, widget = "button")]
     advance_one_step: bool,
+    #[debug_ui(skip)]
+    goals: Option<(Cell, Cell)>, // (origin_cell, destination_cell), may be different from path start/end.
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -444,10 +719,10 @@ enum UnitNavStatus {
 
 #[derive(Copy, Clone)]
 enum UnitNavResult {
-    None,                                   // Do nothing (also returned when no path).
+    Idle,                                   // Do nothing (also returned when no path).
     Moving(Cell, Cell, f32, UnitDirection), // From -> To cells and progress between them.
-    ReachedGoal(Cell, UnitDirection),       // Goal Cell, current direction.
     AdvancedCell(Cell, UnitDirection),      // Cell we've just entered, new direction to turn.
+    ReachedGoal(Cell, UnitDirection),       // Goal Cell, current direction.
 }
 
 impl UnitNavigation {
@@ -459,13 +734,13 @@ impl UnitNavigation {
     fn update(&mut self, mut delta_time_secs: Seconds) -> UnitNavResult {
         if self.pause_current_path || self.path.is_empty() {
             // No path to follow.
-            return UnitNavResult::None;
+            return UnitNavResult::Idle;
         }
 
         // Single step debug:
         if self.single_step {
             if !self.advance_one_step {
-                return UnitNavResult::None;
+                return UnitNavResult::Idle;
             }
             self.advance_one_step = false;
             delta_time_secs = self.step_size;
@@ -501,12 +776,12 @@ impl UnitNavigation {
         UnitNavResult::Moving(from.cell, to.cell, self.progress, self.direction)
     }
 
-    fn reset(&mut self, new_path: Option<&Path>, target_buildings: Option<(Cell, Cell)>) {
+    fn reset(&mut self, new_path: Option<&Path>, optional_goals: Option<(Cell, Cell)>) {
         self.path.clear();
         self.path_index = 0;
         self.progress   = 0.0;
         self.direction  = UnitDirection::default();
-        self.target_buildings = target_buildings;
+        self.goals      = optional_goals;
 
         if let Some(new_path) = new_path {
             debug_assert!(!new_path.is_empty());
@@ -530,62 +805,160 @@ impl UnitNavigation {
 }
 
 // ----------------------------------------------
-// UnitInventory
+// UnitTasks
 // ----------------------------------------------
 
-#[derive(Clone, Default)]
-struct UnitInventory {
-    // Unit can carry only one resource kind at a time.
-    item: Option<StockItem>,
+// Root tasks.
+pub enum UnitTask {
+    // Producer -> Storage
+    DeliverToStorage {
+        origin_building_kind: BuildingKind,
+        origin_building_base_cell: Cell,
+        unit_starting_cell: Cell,
+        storage_buildings_accepted: BuildingKind,
+        resource_kind_to_deliver: ResourceKind,
+        resource_count: u32,
+        completion_callback: Option<fn(&mut Unit, &mut Building)>,
+    },
+
+    // TODO: Other tasks
+
+    // Storage -> Producer | Producer -> Producer
+    //DeliverToProducer {},
+
+    // Producer|Service -> Fetch Storage -> Producer|Service
+    //FetchFromStorage {},
 }
 
-impl UnitInventory {
-    #[inline]
-    fn peek(&self) -> Option<StockItem> {
-        self.item
+// Expanded internal tasks.
+#[derive(Clone, Default)]
+enum UnitInternalTask {
+    #[default]
+    Idle,
+
+    Retry {
+        task: Box<UnitInternalTask>,
+    },
+
+    VisitBuilding { 
+        destination: BuildingTileInfo,
+        root_task: Box<UnitInternalTask>,
+    },
+
+    // TODO: maybe just one generic delivery task if possible?
+    DeliverToStorage {
+        // TODO use BuildingKindAndId
+        origin_building_kind: BuildingKind,
+        origin_building_id: GenerationalIndex,
+        origin_building_base_cell: Cell,
+        unit_starting_cell: Cell, // TODO probably dont need this
+        storage_buildings_accepted: BuildingKind,
+        resource_kind_to_deliver: ResourceKind,
+        resource_count: u32, // TODO probably dont need this
+
+        completion_callback: Option<fn(&mut Unit, &mut Building)>,
+    }
+}
+
+struct DeliverToStorageTaskData {
+}   //data
+
+impl DeliverToStorageTaskData {
+    fn is_completed(&self) {}
+    fn execute(&self) {}
+    fn retry(&self) {}
+    fn terminate(&self) {}
+}
+
+// etc...
+
+impl UnitInternalTask {
+    // TODO
+    // - should have a member .execute() and a .is_completed() to tidy up the match code.
+    // - can we maybe just keep a vector with all the current tasks running, to avoid the 
+    //   Box<> for the root/retry? Then just hold an index to the vector. Vector gets cleared
+    //   once all tasks completed.
+
+    //fn is_completed() {}
+    //fn execute() {}
+    //fn retry() {}
+    //fn terminate() {}
+}
+
+// ----------------------------------------------
+// Path finding helpers:
+// ----------------------------------------------
+
+fn find_storage<'search>(query: &'search Query,
+                         origin: Cell,
+                         storage_buildings_accepted: BuildingKind,
+                         resource_kind_to_deliver: ResourceKind) -> Option<(BuildingTileInfo, &'search Path)> {
+    // Only one resource kind at a time.
+    debug_assert!(resource_kind_to_deliver.bits().count_ones() == 1);
+
+    struct StorageInfo {
+        kind: BuildingKind,
+        road_link: Cell,
+        base_cell: Cell,
+        distance: i32,
+        slots_available: u32,
     }
 
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.item.is_none()
-    }
+    const MAX_CANDIDATES: usize = 4;
+    let mut storage_candidates: SmallVec<[StorageInfo; MAX_CANDIDATES]> = SmallVec::new();
 
-    #[inline]
-    fn receive_resources(&mut self, kind: ResourceKind, count: u32) {
-        if let Some(item) = &mut self.item {
-            debug_assert!(item.kind == kind && item.count != 0);
-            item.count += count;
-        } else {
-            self.item = Some(StockItem { kind, count });
-        }
-    }
-
-    // Returns number of items decremented, which can be <= count.
-    #[inline]
-    fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        if let Some(item) = &mut self.item {
-            debug_assert!(item.kind == kind && item.count != 0);
-
-            let given_count = {
-                if count <= item.count {
-                    item.count -= count;
-                    count
-                } else {
-                    let prev_count = item.count;
-                    item.count = 0;
-                    prev_count
+    // Try to find storage buildings that can accept our delivery.
+    query.for_each_storage_building(storage_buildings_accepted, |storage| {
+        let slots_available = storage.receivable_amount(resource_kind_to_deliver);
+        if slots_available != 0 {
+            if let Some(storage_road_link) = query.find_nearest_road_link(storage.cell_range()) {
+                storage_candidates.push(StorageInfo {
+                    kind: storage.kind(),
+                    road_link: storage_road_link,
+                    base_cell: storage.base_cell(),
+                    distance: origin.manhattan_distance(storage_road_link),
+                    slots_available,
+                });
+                if storage_candidates.len() == MAX_CANDIDATES {
+                    // We've collected enough candidate storage buildings, stop the search.
+                    return false;
                 }
-            };
-
-            if item.count == 0 {
-                self.item = None; // Gave away everything.
             }
+        }
+        // Else we couldn't find a single free slot in this storage, try again with another one.
+        true
+    });
 
-            given_count
-        } else {
-            0
+    if storage_candidates.is_empty() {
+        // Couldn't find any suitable storage building.
+        return None;
+    }
+
+    // Sort by closest storage buildings first. Tie breaker is the number of slots available, highest first.
+    storage_candidates.sort_by_key(|storage| {
+        (storage.distance, std::cmp::Reverse(storage.slots_available))
+    });
+
+    // Find a road path to a storage building. Try our best candidates first.
+    for storage in &storage_candidates {
+        match query.find_path(PathNodeKind::Road, origin, storage.road_link) {
+            SearchResult::PathFound(path) => {
+                let destination = BuildingTileInfo {
+                    kind: storage.kind,
+                    road_link: storage.road_link,
+                    base_cell: storage.base_cell,
+                };
+                return Some((destination, path));
+            },
+            SearchResult::PathNotFound => {
+                // Building is not reachable (lacks road access?).
+                // Try another candidate.
+                continue;
+            },
         }
     }
+
+    None
 }
 
 // ----------------------------------------------
@@ -603,6 +976,10 @@ impl Unit<'_> {
 
         if ui.collapsing_header("Inventory", imgui::TreeNodeFlags::empty()) {
             self.inventory.draw_debug_ui(ui_sys);
+        }
+
+        if ui.collapsing_header("Tasks", imgui::TreeNodeFlags::empty()) {
+            self.tasks.draw_debug_ui(ui_sys);
         }
         */
 
@@ -648,11 +1025,11 @@ impl Unit<'_> {
 
             ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation.status()));
 
-            if let Some((start_building_cell, goal_building_cell)) = self.navigation.target_buildings {
-                let start_building_name = debug::tile_name_at(start_building_cell, TileMapLayerKind::Objects);
-                let goal_building_name  = debug::tile_name_at(goal_building_cell,  TileMapLayerKind::Objects);
-                ui.text(format!("Start Building : {}, {}", start_building_cell, start_building_name));
-                ui.text(format!("Goal Building  : {}, {}", goal_building_cell, goal_building_name));
+            if let Some((origin, destination)) = self.navigation.goals {
+                let origin_building_name = debug::tile_name_at(origin, TileMapLayerKind::Objects);
+                let destination_building_name = debug::tile_name_at(destination, TileMapLayerKind::Objects);
+                ui.text(format!("Start Building : {}, {}", origin, origin_building_name));
+                ui.text(format!("Dest  Building : {}, {}", destination, destination_building_name));
             }
 
             self.navigation.draw_debug_ui(ui_sys);
@@ -664,15 +1041,13 @@ impl Unit<'_> {
                              ui_sys: &UiSystem,
                              transform: &WorldToScreenTransform,
                              visible_range: CellRange,
-                             delta_time_secs: Seconds,
-                             show_popup_messages: bool) {
+                             delta_time_secs: Seconds) {
 
         self.debug.draw_popup_messages(
             || find_unit_tile!(&self, query),
             ui_sys,
             transform,
             visible_range,
-            delta_time_secs,
-            show_popup_messages);
+            delta_time_secs);
     }
 }

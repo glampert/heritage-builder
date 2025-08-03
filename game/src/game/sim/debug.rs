@@ -152,11 +152,10 @@ pub trait GameObjectDebugOptions {
                                ui_sys: &UiSystem,
                                transform: &WorldToScreenTransform,
                                visible_range: CellRange,
-                               delta_time_secs: Seconds,
-                               show_popup_messages: bool) {
+                               delta_time_secs: Seconds) {
 
         let popups = self.get_popups();
-        popups.show = show_popup_messages;
+        popups.show = debug::show_popup_messages();
 
         const LIFETIME_MULTIPLIER: f32 = 3.0;
         popups.messages.update(LIFETIME_MULTIPLIER, delta_time_secs);

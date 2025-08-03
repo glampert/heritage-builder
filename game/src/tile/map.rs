@@ -69,26 +69,29 @@ impl GameStateHandle {
     }
 
     #[inline]
-    pub fn is_valid(&self) -> bool {
+    pub fn is_valid(self) -> bool {
         self.index < u32::MAX &&
         self.kind  < u32::MAX
     }
 
     #[inline]
-    pub fn index(&self) -> usize {
+    pub fn index(self) -> usize {
         debug_assert!(self.is_valid());
         self.index as usize
     }
 
     #[inline]
-    pub fn kind(&self) -> u32 {
+    pub fn kind(self) -> u32 {
         debug_assert!(self.is_valid());
         self.kind
     }
 }
 
 impl Default for GameStateHandle {
-    fn default() -> Self { GameStateHandle::invalid() }
+    #[inline]
+    fn default() -> Self {
+        GameStateHandle::invalid()
+    }
 }
 
 // ----------------------------------------------
@@ -948,17 +951,51 @@ impl<'tile_sets> TileMapLayerMutRefs<'tile_sets> {
 }
 
 // ----------------------------------------------
-// TilePool
+// TilePoolIndex
 // ----------------------------------------------
 
-const INVALID_TILE_INDEX: usize = usize::MAX;
+#[derive(Copy, Clone, PartialEq, Eq)]
+struct TilePoolIndex {
+    value: u32,
+}
+
+impl TilePoolIndex {
+    #[inline]
+    fn new(index: usize) -> Self {
+        debug_assert!(index < u32::MAX as usize);
+        Self {
+            value: index.try_into().expect("Index cannot fit into u32!"),
+        }
+    }
+
+    #[inline]
+    const fn invalid() -> Self {
+        Self { value: u32::MAX }
+    }
+
+    #[inline]
+    fn is_valid(self) -> bool {
+        self.value < u32::MAX
+    }
+
+    #[inline]
+    fn into(self) -> usize {
+        self.value as usize
+    }
+}
+
+const INVALID_TILE_INDEX: TilePoolIndex = TilePoolIndex::invalid();
+
+// ----------------------------------------------
+// TilePool
+// ----------------------------------------------
 
 struct TilePool<'tile_sets> {
     layer_kind: TileMapLayerKind,
     layer_size_in_cells: Size,
 
     // WxH tiles, INVALID_TILE_INDEX if empty. Idx to 1st tile in the tiles Slab pool.
-    cell_to_slab_idx: Vec<usize>,
+    cell_to_slab_idx: Vec<TilePoolIndex>,
     slab: Slab<Tile<'tile_sets>>,
 }
 
@@ -1003,7 +1040,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
             return None; // empty cell.
         }
 
-        let tile = &self.slab[slab_index];
+        let tile = &self.slab[slab_index.into()];
 
         debug_assert!(tile.layer_kind() == self.layer_kind);
         debug_assert!(tile.actual_base_cell() == cell);
@@ -1024,7 +1061,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
             return None; // empty cell.
         }
 
-        let tile_mut = &mut self.slab[slab_index];
+        let tile_mut = &mut self.slab[slab_index.into()];
 
         debug_assert!(tile_mut.layer_kind() == self.layer_kind);
         debug_assert!(tile_mut.actual_base_cell() == cell);
@@ -1043,7 +1080,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
 
         if slab_index == INVALID_TILE_INDEX {
             // Empty cell; allocate new tile.
-            slab_index = self.slab.insert(new_tile);
+            slab_index = TilePoolIndex::new(self.slab.insert(new_tile));
             self.cell_to_slab_idx[cell_index] = slab_index;
         } else {
             // Cell is already occupied.
@@ -1068,7 +1105,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
         }
 
         self.cell_to_slab_idx[cell_index] = INVALID_TILE_INDEX;
-        self.slab.remove(slab_index);
+        self.slab.remove(slab_index.into());
 
         true
     }
@@ -1711,7 +1748,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
         layer.pool.cell_to_slab_idx[to_cell_index]   = from_slab_index;
 
         // Update cached tile states:
-        let tile = &mut layer.pool.slab[from_slab_index];
+        let tile = &mut layer.pool.slab[from_slab_index.into()];
         tile.set_base_cell(to);
 
         true

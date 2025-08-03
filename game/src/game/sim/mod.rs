@@ -25,10 +25,17 @@ use crate::{
 
 use super::{
     sim::world::World,
-    unit::config::UnitConfigs,
+    unit::{
+        Unit,
+        config::{
+            UnitConfigs,
+            UnitConfigKey
+        }
+    },
     building::{
         Building,
         BuildingKind,
+        BuildingArchetypeKind,
         config::BuildingConfigs
     }
 };
@@ -113,8 +120,7 @@ impl<'config> Simulation<'config> {
     // Buildings:
     pub fn draw_building_debug_popups(&mut self,
                                       context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                                      visible_range: CellRange,
-                                      show_popup_messages: bool) {
+                                      visible_range: CellRange) {
 
         let query = Query::new(
             &mut self.rng,
@@ -131,8 +137,7 @@ impl<'config> Simulation<'config> {
             context.ui_sys,
             &context.transform,
             visible_range,
-            context.delta_time_secs,
-            show_popup_messages);
+            context.delta_time_secs);
     }
 
     pub fn draw_building_debug_ui(&mut self,
@@ -158,8 +163,7 @@ impl<'config> Simulation<'config> {
     // Units:
     pub fn draw_unit_debug_popups(&mut self,
                                   context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                                  visible_range: CellRange,
-                                  show_popup_messages: bool) {
+                                  visible_range: CellRange) {
 
         let query = Query::new(
             &mut self.rng,
@@ -176,8 +180,7 @@ impl<'config> Simulation<'config> {
             context.ui_sys,
             &context.transform,
             visible_range,
-            context.delta_time_secs,
-            show_popup_messages);
+            context.delta_time_secs);
     }
 
     pub fn draw_unit_debug_ui(&mut self,
@@ -422,7 +425,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                 Node::new(goal))
     }
 
-    pub fn find_nearest_road_link(&self, start_cells: CellRange) -> Cell {
+    pub fn find_nearest_road_link(&self, start_cells: CellRange) -> Option<Cell> {
         let start_x = start_cells.start.x - 1;
         let start_y = start_cells.start.y - 1;
         let end_x   = start_cells.end.x   + 1;
@@ -441,13 +444,13 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             if !is_corner {
                 if let Some(node_kind) = self.graph().node_kind(Node::new(cell)) {
                     if node_kind == PathNodeKind::Road {
-                        return cell;
+                        return Some(cell);
                     }
                 }
             }
         }
 
-        Cell::invalid()
+        None
     }
 
     pub fn is_near_building(&self,
@@ -496,5 +499,41 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         }
 
         None
+    }
+
+    // Visitor function should return true to continue iterating or false to stop.
+    // `storage_kinds` can be a combination of ORed flags.
+    pub fn for_each_storage_building<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
+        where F: FnMut(&Building<'config>) -> bool
+    {
+        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
+
+        let world = self.world();
+        let storage_buildings = world.buildings_list(BuildingArchetypeKind::Storage);
+
+        for building in storage_buildings.iter() {
+            if building.kind().intersects(storage_kinds) {
+                if !visitor_fn(building) {
+                    break;
+                }
+            }
+        }
+    }
+
+    pub fn try_spawn_unit(&self, target_cell: Cell, unit_config_key: UnitConfigKey) -> Option<&mut Unit<'config>> {
+        let world = self.world();
+        let tile_map = self.tile_map();
+        let tile_sets = self.tile_sets();
+        // TODO: Should make spawning failure a soft error in Release builds. Only panic on debug builds.
+        let unit = world.try_spawn_unit_with_config(tile_map, tile_sets, target_cell, unit_config_key)
+            .expect("Spawn Unit Failed");
+        Some(unit)
+    }
+
+    pub fn despawn_unit(&self, unit: &mut Unit) {
+        let world = self.world();
+        let tile_map = self.tile_map();
+        world.despawn_unit(tile_map, unit)
+            .expect("Despawn Unit Failed")
     }
 }

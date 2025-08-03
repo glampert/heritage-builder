@@ -4,12 +4,11 @@ use proc_macros::DrawDebugUi;
 use crate::{
     game_object_debug_options,
     imgui_ui::UiSystem,
-    pathfind::{SearchResult, NodeKind as PathNodeKind},
     utils::{
         Color,
         Seconds,
         hash::StringHash,
-        coords::{Cell, CellRange, WorldToScreenTransform}
+        coords::{CellRange, WorldToScreenTransform},
     },
     game::sim::{
         UpdateTimer,
@@ -26,7 +25,7 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    unit::{self, Unit}
+    unit::{Unit, UnitTask}
 };
 
 // ----------------------------------------------
@@ -112,6 +111,19 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     }
 
     fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
+        todo!();
+    }
+
+    fn receivable_amount(&self, _kind: ResourceKind) -> u32 {
+        todo!();
+    }
+
+    fn receive_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
+        todo!();
+    }
+
+    fn give_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
+        todo!();
     }
 
     fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
@@ -128,16 +140,14 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
                          visible_range: CellRange,
-                         delta_time_secs: Seconds,
-                         show_popup_messages: bool) {
+                         delta_time_secs: Seconds) {
 
         self.debug.draw_popup_messages(
             || context.find_tile(),
             ui_sys,
             transform,
             visible_range,
-            delta_time_secs,
-            show_popup_messages);
+            delta_time_secs);
     }
 }
 
@@ -177,8 +187,8 @@ impl<'config> ProducerBuilding<'config> {
 
             // Produce one item and store it locally:
             if produce_one_item {
-                self.production_output_stock.store_item();
-                self.debug.log_resources_gained(self.production_output_stock.resource_kind(), 1);
+                self.production_output_stock.store(1);
+                self.debug.log_resources_gained(self.production_output_stock.kind(), 1);
             }
         }
     }
@@ -188,74 +198,56 @@ impl<'config> ProducerBuilding<'config> {
             return; // Nothing to ship.
         }
 
-        let this_building_road_link = context.find_nearest_road_link();
-        if !this_building_road_link.is_valid() {
-            return; // We are not connected to a road. No shipping possible!
-        }
+        // Unit spawns at the nearest road link.
+        let unit_starting_cell = match context.find_nearest_road_link() {
+            Some(road_link) => road_link,
+            None => return, // We are not connected to a road. No shipping possible!
+        };  
 
-        let storage_kinds = self.config.storage_buildings_accepted;
-        let resource_kind = self.production_output_stock.resource_kind();
+        let storage_buildings_accepted = self.config.storage_buildings_accepted;
+        let resource_kind_to_deliver = self.production_output_stock.kind();
+        let resource_count = self.production_output_stock.count();
 
-        const MAX_CANDIDATES: usize = 4;
-        let mut available_storages: SmallVec<[(Cell, Cell, i32, u32); MAX_CANDIDATES]> = SmallVec::new();
+        let result = Unit::try_spawn_with_task(
+            context.query,
+            context.id,
+            UnitTask::DeliverToStorage {
+                origin_building_kind: context.kind,
+                origin_building_base_cell: context.base_cell(),
+                unit_starting_cell,
+                storage_buildings_accepted,
+                resource_kind_to_deliver,
+                resource_count,
+                completion_callback: Some(|unit, building| {
+                    // TODO notify us that cargo was delivered.
+                    // building = self,
+                    // unit = runner we've spawned
+                    debug_assert!(building.is(BuildingKind::producers()));
+                    println!("Unit {} finished delivering cargo from Producer {}", unit.name(), building.name());
 
-        // Try to find storage buildings that can accept our goods.
-        context.for_each_storage(storage_kinds, |building| {
-            let storage = building.as_storage();
-            let slots_available = storage.how_many_can_fit(resource_kind);
-            if slots_available != 0 {
-                let storage_building_road_link = context.query.find_nearest_road_link(building.cell_range());
-                if storage_building_road_link.is_valid() {
-                    let storage_building_base_cell = building.base_cell();
-                    let distance = this_building_road_link.manhattan_distance(storage_building_road_link);
-                    available_storages.push((storage_building_road_link, storage_building_base_cell, distance, slots_available));
-                    if available_storages.len() == MAX_CANDIDATES {
-                        // We've collected enough candidate storage buildings, stop the search.
-                        return false;
-                    }
-                }
-            }
-            // Else we couldn't find a single free slot in this storage, try again with another one.
-            true
-        });
+                    // TODO: need to stop sending out runners while there is already one in flight.
+                    // We need to be notified when our runner has completed the delivery!
+                })
+            });
 
-        if available_storages.is_empty() {
-            // Couldn't find any suitable storage building.
-            return;
-        }
+        match result {
+            Ok(runner_unit_id) => {
+                let runner_unit = context.query.world().find_unit(runner_unit_id).unwrap();
+                debug_assert!(runner_unit.peek_inventory().unwrap().kind  == resource_kind_to_deliver);
+                debug_assert!(runner_unit.peek_inventory().unwrap().count == resource_count);
 
-        // Sort by closest storage buildings first. Tie breaker is the number of slots available, highest first.
-        available_storages.sort_by_key(|(_, _, distance, slots_available)| {
-            (*distance, std::cmp::Reverse(*slots_available))
-        });
-
-        // Try our best candidates first:
-        for (storage_building_road_link, storage_building_base_cell, _, _) in available_storages {
-            match context.query.find_path(PathNodeKind::Road, this_building_road_link, storage_building_road_link) {
-                SearchResult::PathFound(path) => {
-                    // If found a path, spawn a unit, give it the resources and make it follow the path to a storage building.
-                    if let Some(unit) = context.try_spawn_unit(
-                        this_building_road_link,
-                        unit::config::UNIT_RUNNER) {
-
-                        let items_to_ship_count = self.production_output_stock.remove_items();
-                        self.debug.log_resources_lost(resource_kind, items_to_ship_count);
-
-                        let start_building_cell = context.base_cell();
-                        let goal_building_cell  = storage_building_base_cell;
-
-                        unit.receive_resources(resource_kind, items_to_ship_count);
-                        unit.go_to_building(path, start_building_cell, goal_building_cell);
-                    }
-                    break;
-                },
-                SearchResult::PathNotFound => {
-                    // Building is not reachable (lacks road access?).
-                    // Try another candidate.
-                    continue;
-                },
+                // We've handed over our resources to the spawned unit, clear the stock.
+                self.production_output_stock.clear();
+                self.debug.log_resources_lost(resource_kind_to_deliver, resource_count);
+            },
+            Err(err) => {
+                eprintln!("{} {}: Failed to ship production: {}", self.name(), context.base_cell(), err);
             }
         }
+
+        // TODO: If we failed to ship to storage we could try shipping directly to another producer
+        // that uses our output. E.g. farm -> factory.
+        // Maybe DeliverToStorage task can have a fallback task?
     }
 
     fn is_production_halted(&self) -> bool {
@@ -302,21 +294,24 @@ impl ProducerOutputLocalStock {
     }
 
     #[inline]
-    fn resource_kind(&self) -> ResourceKind {
+    fn kind(&self) -> ResourceKind {
         self.item.kind
     }
 
     #[inline]
-    fn store_item(&mut self) {
-        debug_assert!(self.item.count < self.capacity);
-        self.item.count += 1;
+    fn count(&self) -> u32 {
+        self.item.count
     }
 
     #[inline]
-    fn remove_items(&mut self) -> u32 {
-        let prev_count = self.item.count;
+    fn store(&mut self, count: u32) {
+        debug_assert!(self.item.count + count <= self.capacity);
+        self.item.count += count;
+    }
+
+    #[inline]
+    fn clear(&mut self) {
         self.item.count = 0;
-        prev_count
     }
 }
 

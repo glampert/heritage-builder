@@ -1,3 +1,4 @@
+use rand::seq::IteratorRandom;
 use arrayvec::ArrayVec;
 use smallvec::{smallvec, SmallVec};
 use proc_macros::DrawDebugUi;
@@ -80,7 +81,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         // Nothing for now.
     }
 
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
+    fn visited_by(&mut self, unit: &mut Unit, _context: &BuildingContext) {
         self.debug.popup_msg(format!("Visited by {}", unit.name()));
 
         // Try unload cargo:
@@ -92,15 +93,34 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
             }
 
             // Unit finished delivering its cargo.
-            if unit.is_inventory_empty() {
-                context.despawn_unit(unit);
-            }
+            //if unit.is_inventory_empty() {
+                //context.query.despawn_unit(unit);
+            //}
         }
 
         // TODO
         // If unit managed to unload all resources, despawn it, else it needs
         // to try another storage building. Keep going until all is unloaded.
         // If nothing can be found, wait in place at current location.
+    }
+
+    fn receivable_amount(&self, kind: ResourceKind) -> u32 {
+        // TODO: If we are not operating (no workers),
+        // make this return zero so storage search will ignore it.
+        self.storage_slots.receivable_amount(kind)
+    }
+
+    // Returns number of resources it was able to accommodate, which can be less than `count`.
+    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        let received_count = self.storage_slots.receive_resources(kind, count);
+        if received_count != 0 {
+            self.debug.log_resources_gained(kind, received_count);
+        }
+        received_count
+    }
+
+    fn give_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
+        todo!();
     }
 
     fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
@@ -116,16 +136,14 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
                          visible_range: CellRange,
-                         delta_time_secs: Seconds,
-                         show_popup_messages: bool) {
+                         delta_time_secs: Seconds) {
 
         self.debug.draw_popup_messages(
             || context.find_tile(),
             ui_sys,
             transform,
             visible_range,
-            delta_time_secs,
-            show_popup_messages);
+            delta_time_secs);
     }
 }
 
@@ -141,28 +159,6 @@ impl<'config> StorageBuilding<'config> {
             ),
             debug: StorageDebug::default(),
         }
-    }
-
-    #[inline]
-    pub fn is_full(&self) -> bool {
-        self.storage_slots.are_all_slots_full()
-    }
-
-    // How many resources of this kind can we receive?
-    #[inline]
-    pub fn how_many_can_fit(&self, resource_kind: ResourceKind) -> u32 {
-        // TODO: If we are not operating (no workers), make this return zero so storage search will ignore it.
-        self.storage_slots.how_many_can_fit(resource_kind)
-    }
-
-    // Returns number of resources it was able to accommodate.
-    #[inline]
-    pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let received_count = self.storage_slots.receive_resources(kind, count);
-        if received_count != 0 {
-            self.debug.log_resources_gained(kind, received_count);
-        }
-        received_count
     }
 
     pub fn shop(&mut self,
@@ -244,13 +240,19 @@ impl StorageSlot {
         slot_capacity // free
     }
 
+    fn clear(&mut self) {
+        self.stock.clear();
+        self.allocated_resource_kind = None;
+    }
+
     fn resource_index_and_count(&self, kind: ResourceKind) -> (usize, u32) {
+        debug_assert!(kind.bits().count_ones() == 1);
         let (index, item) = self.stock.find(kind)
             .unwrap_or_else(|| panic!("Resource kind '{}' expected to exist in the stock!", kind));
         (index, item.count)
     }
 
-    fn set_resource_count(&mut self, index: usize, count: u32) {
+    fn set_resource_count_internal(&mut self, index: usize, count: u32) {
         let kind = self.allocated_resource_kind.unwrap();
         self.stock.set(index, StockItem { kind, count });
     }
@@ -271,7 +273,7 @@ impl StorageSlot {
         }
 
         if count != prev_count {
-            self.set_resource_count(index, count);
+            self.set_resource_count_internal(index, count);
         }
 
         count
@@ -288,7 +290,7 @@ impl StorageSlot {
                 panic!("Storage slot can only accept '{}'!", kind);
             }
 
-            self.set_resource_count(index, count);
+            self.set_resource_count_internal(index, count);
 
             if count == 0 {
                 self.allocated_resource_kind = None;
@@ -405,7 +407,7 @@ impl StorageSlots {
         self.find_free_slot()
     }
 
-    fn how_many_can_fit(&self, kind: ResourceKind) -> u32 {
+    fn receivable_amount(&self, kind: ResourceKind) -> u32 {
         // Should be a single kind, never multiple ORed flags.
         debug_assert!(kind.bits().count_ones() == 1);
         let mut count = 0;
@@ -451,71 +453,103 @@ impl StorageSlots {
         }
 
         let ui = ui_sys.builder();
-
-        if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
-            let mut display_slots: SmallVec<[SmallVec<[ResourceKind; 8]>; MAX_STORAGE_SLOTS]> =
-                smallvec![SmallVec::new(); MAX_STORAGE_SLOTS];
-
-            for (slot_index, slot) in self.slots.iter().enumerate() {
-                if let Some(allocated_kind) = slot.allocated_resource_kind {
-                    // Display only the allocated resource kind.
-                    display_slots[slot_index].push(allocated_kind);
-                } else {
-                    // No resource allocated for the slot, display all possible resource kinds accepted.
-                    slot.for_each_resource_kind(|kind| {
-                        display_slots[slot_index].push(kind);
-                    });
-                }
-            }
-
-            ui.indent_by(10.0);
-            for (slot_index, slot) in display_slots.iter().enumerate() {
-                let slot_label = {
-                    if self.is_slot_free(slot_index) {
-                        format!("Slot {} (Free)", slot_index)
-                    } else {
-                        format!("Slot {} ({})", slot_index, display_slots[slot_index].last().unwrap())
-                    }
-                };
-
-                let header_label =
-                    format!("{}##_stock_slot_{}", slot_label, slot_index);
-
-                if ui.collapsing_header(header_label, imgui::TreeNodeFlags::DEFAULT_OPEN) {
-                    for (res_index, res_kind) in slot.iter().enumerate() {
-                        let res_label =
-                            format!("{}##_stock_item_{}_slot_{}", res_kind, res_index, slot_index);
-
-                        let prev_count = self.slot_resource_count(slot_index, *res_kind);
-                        let mut new_count = prev_count;
-
-                        if ui.input_scalar(res_label, &mut new_count).step(1).build() {
-                            match new_count.cmp(&prev_count) {
-                                std::cmp::Ordering::Greater => {
-                                    new_count = self.increment_slot_resource_count(
-                                        slot_index, *res_kind, new_count - prev_count);
-                                },
-                                std::cmp::Ordering::Less => {
-                                    new_count = self.decrement_slot_resource_count(
-                                        slot_index, *res_kind, prev_count - new_count);
-                                },
-                                std::cmp::Ordering::Equal => {} // nothing
-                            }
-                        }
-
-                        let capacity_left = self.slot_capacity - new_count;
-                        let is_full = new_count >= self.slot_capacity;
-
-                        ui.same_line();
-                        if is_full {
-                            ui.text_colored(Color::red().to_array(), "(full)");
-                        } else {
-                            ui.text(format!("({} left)", capacity_left));
-                        }
-                    }
-                }
-            }
-            ui.unindent_by(10.0);
+        if !ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
         }
+
+        if ui.button("Fill up all slots") {
+            let add_amount = self.slot_capacity;
+            let slot_capacity = self.slot_capacity;
+
+            for slot in &mut self.slots {
+                if let Some(allocated_kind) = slot.allocated_resource_kind {
+                    // Fill up slot with existing resource.
+                    slot.increment_resource_count(allocated_kind, add_amount, slot_capacity);    
+                } else {
+                    let accepted_kinds = slot.stock.accepted_kinds();
+    
+                    // Pick a random resource kind from the accepted kinds.
+                    let mut rng = rand::rng();
+                    let random_kind = accepted_kinds
+                        .iter()
+                        .choose(&mut rng)
+                        .unwrap_or(ResourceKind::Rice);
+
+                    slot.increment_resource_count(random_kind, add_amount, slot_capacity);
+                }
+            }
+        }
+
+        if ui.button("Clear all slots") {
+            for slot in &mut self.slots {
+                slot.clear();
+            }
+        }
+
+        ui.separator();
+
+        let mut display_slots: SmallVec<[SmallVec<[ResourceKind; 8]>; MAX_STORAGE_SLOTS]> =
+            smallvec![SmallVec::new(); MAX_STORAGE_SLOTS];
+
+        for (slot_index, slot) in self.slots.iter().enumerate() {
+            if let Some(allocated_kind) = slot.allocated_resource_kind {
+                // Display only the allocated resource kind.
+                display_slots[slot_index].push(allocated_kind);
+            } else {
+                // No resource allocated for the slot, display all possible resource kinds accepted.
+                slot.for_each_resource_kind(|kind| {
+                    display_slots[slot_index].push(kind);
+                });
+            }
+        }
+
+        ui.indent_by(10.0);
+        for (slot_index, slot) in display_slots.iter().enumerate() {
+            let slot_label = {
+                if self.is_slot_free(slot_index) {
+                    format!("Slot {} (Free)", slot_index)
+                } else {
+                    format!("Slot {} ({})", slot_index, display_slots[slot_index].last().unwrap())
+                }
+            };
+
+            let header_label =
+                format!("{}##_stock_slot_{}", slot_label, slot_index);
+
+            if ui.collapsing_header(header_label, imgui::TreeNodeFlags::DEFAULT_OPEN) {
+                for (res_index, res_kind) in slot.iter().enumerate() {
+                    let res_label =
+                        format!("{}##_stock_item_{}_slot_{}", res_kind, res_index, slot_index);
+
+                    let prev_count = self.slot_resource_count(slot_index, *res_kind);
+                    let mut new_count = prev_count;
+
+                    if ui.input_scalar(res_label, &mut new_count).step(1).build() {
+                        match new_count.cmp(&prev_count) {
+                            std::cmp::Ordering::Greater => {
+                                new_count = self.increment_slot_resource_count(
+                                    slot_index, *res_kind, new_count - prev_count);
+                            },
+                            std::cmp::Ordering::Less => {
+                                new_count = self.decrement_slot_resource_count(
+                                    slot_index, *res_kind, prev_count - new_count);
+                            },
+                            std::cmp::Ordering::Equal => {} // nothing
+                        }
+                    }
+
+                    let capacity_left = self.slot_capacity - new_count;
+                    let is_full = new_count >= self.slot_capacity;
+
+                    ui.same_line();
+                    if is_full {
+                        ui.text_colored(Color::red().to_array(), "(full)");
+                    } else {
+                        ui.text(format!("({} left)", capacity_left));
+                    }
+                }
+            }
+        }
+        ui.unindent_by(10.0);
     }
 }

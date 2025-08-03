@@ -4,6 +4,9 @@ pub mod popups;
 pub mod settings;
 pub mod utils;
 
+use std::cell::OnceCell;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use crate::{
     imgui_ui::{UiSystem, UiInputEvent},
     render::{RenderStats, RenderSystem, TextureCache},
@@ -35,7 +38,6 @@ use crate::{
     }
 };
 
-use std::cell::OnceCell;
 use inspector::TileInspectorMenu;
 use palette::TilePaletteMenu;
 use settings::DebugSettingsMenu;
@@ -141,12 +143,6 @@ impl DebugMenusSystem {
     pub fn end_frame(&mut self, args: &mut DebugMenusEndFrameArgs<impl RenderSystem>) {
         use_singleton(|instance| {
             instance.end_frame(args)
-        })
-    }
-
-    pub fn set_show_popup_messages(&mut self, show: bool) {
-        use_singleton(|instance| {
-            instance.debug_settings_menu.set_show_popup_messages(show);
         })
     }
 }
@@ -377,7 +373,6 @@ impl DebugMenusSingleton {
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
         let show_render_stats = self.debug_settings_menu.show_render_stats();
-        let show_popup_messages = self.debug_settings_menu.show_popup_messages();
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
         let has_valid_placement = args.tile_selection.has_valid_placement();
 
@@ -397,8 +392,8 @@ impl DebugMenusSingleton {
             args.camera,
             args.tile_map_renderer);
 
-        args.sim.draw_building_debug_popups(&mut args.context, args.visible_range, show_popup_messages);
-        args.sim.draw_unit_debug_popups(&mut args.context, args.visible_range, show_popup_messages);
+        args.sim.draw_building_debug_popups(&mut args.context, args.visible_range);
+        args.sim.draw_unit_debug_popups(&mut args.context, args.visible_range);
 
         if self.search_test_mode {
             self::utils::draw_cursor_overlay(
@@ -449,14 +444,14 @@ fn use_singleton<F, R>(mut closure: F) -> R
     })
 }
 
+static SHOW_DEBUG_POPUP_MESSAGES: AtomicBool = AtomicBool::new(false);
+
+pub fn set_show_popup_messages(show: bool) {
+    SHOW_DEBUG_POPUP_MESSAGES.store(show, Ordering::SeqCst);
+}
+
 pub fn show_popup_messages() -> bool {
-    DEBUG_MENUS_SINGLETON.with(|once_cell| {
-        if let Some(instance) = once_cell.get() {
-            instance.debug_settings_menu.show_popup_messages()
-        } else {
-            false
-        }
-    })
+    SHOW_DEBUG_POPUP_MESSAGES.load(Ordering::SeqCst)
 }
 
 // ----------------------------------------------

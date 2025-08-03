@@ -128,6 +128,19 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     }
 
     fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
+        todo!();
+    }
+
+    fn receivable_amount(&self, _kind: ResourceKind) -> u32 {
+        todo!();
+    }
+
+    fn receive_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
+        todo!();
+    }
+
+    fn give_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
+        todo!();
     }
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
@@ -141,16 +154,14 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
                          visible_range: CellRange,
-                         delta_time_secs: Seconds,
-                         show_popup_messages: bool) {
+                         delta_time_secs: Seconds) {
 
         self.debug.draw_popup_messages(
             || context.find_tile(),
             ui_sys,
             transform,
             visible_range,
-            delta_time_secs,
-            show_popup_messages);
+            delta_time_secs);
     }
 }
 

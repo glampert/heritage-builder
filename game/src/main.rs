@@ -51,6 +51,8 @@ fn main() {
 
     let mut ui_sys = UiSystem::new(&app);
 
+    debug::set_show_popup_messages(true);
+
     let building_configs = BuildingConfigs::load();
     let unit_configs = UnitConfigs::load();
     let tile_sets = TileSets::load(render_sys.texture_cache_mut());
@@ -84,7 +86,6 @@ fn main() {
         camera::Offset::Center);
 
     let mut debug_menus = DebugMenusSystem::new(&tile_map, render_sys.texture_cache_mut());
-    debug_menus.set_show_popup_messages(true);
 
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();

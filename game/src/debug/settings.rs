@@ -58,7 +58,6 @@ pub struct DebugSettingsMenu {
     #[debug_ui(edit)] show_cursor_pos: bool,
     #[debug_ui(edit)] show_screen_origin: bool,
     #[debug_ui(edit)] show_render_stats: bool,
-    #[debug_ui(edit)] show_popup_messages: bool,
 }
 
 impl DebugSettingsMenu {
@@ -72,10 +71,6 @@ impl DebugSettingsMenu {
             draw_vegetation: true,
             ..Default::default()
         }
-    }
-
-    pub fn show_popup_messages(&self) -> bool {
-        self.show_popup_messages
     }
 
     pub fn show_selection_bounds(&self) -> bool {
@@ -111,10 +106,6 @@ impl DebugSettingsMenu {
         if self.show_vegetation_debug    { flags.insert(TileMapRenderFlags::DrawVegetationTileDebug); }
         if self.show_blocker_tiles_debug { flags.insert(TileMapRenderFlags::DrawBlockersTileDebug); }
         flags
-    }
-
-    pub fn set_show_popup_messages(&mut self, show: bool) {
-        self.show_popup_messages = show;
     }
 
     pub fn draw(&mut self,
@@ -201,6 +192,11 @@ impl DebugSettingsMenu {
         }
 
         self.draw_debug_ui(ui_sys);
+
+        let mut show_popup_messages = super::show_popup_messages();
+        if ui.checkbox("Show Popup Messages", &mut show_popup_messages) {
+            super::set_show_popup_messages(show_popup_messages);
+        }
     }
 
     fn reset_map_dropdown<'tile_sets>(&self,

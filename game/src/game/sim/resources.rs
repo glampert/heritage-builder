@@ -139,6 +139,11 @@ impl ResourceStock {
     }
 
     #[inline]
+    pub fn accepted_kinds(&self) -> ResourceKind {
+        self.kinds
+    }
+
+    #[inline]
     pub fn accepts_any(&self) -> bool {
         !self.kinds.is_empty()
     }
