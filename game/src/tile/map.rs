@@ -46,17 +46,30 @@ use super::{
 #[derive(Copy, Clone)]
 pub struct GameStateHandle {
     index: u32,
-    kind:  u32,
+    // For buildings this holds the BuildingKind, for Units the generation count.
+    kind_or_generation: u32,
 }
 
 impl GameStateHandle {
     #[inline]
-    pub fn new(index: usize, kind: u32) -> Self {
+    pub fn new_building(index: usize, kind: u32) -> Self {
+        // Reserved value for invalid.
         debug_assert!(index < u32::MAX as usize);
-        debug_assert!(kind  < u32::MAX); // Reserved value for invalid.
+        debug_assert!(kind  < u32::MAX);
         Self {
-            index: index as u32,
-            kind,
+            index: index.try_into().expect("Index cannot fit into u32!"),
+            kind_or_generation: kind,
+        }
+    }
+
+    #[inline]
+    pub fn new_unit(index: usize, generation: u32) -> Self {
+        // Reserved value for invalid.
+        debug_assert!(index < u32::MAX as usize);
+        debug_assert!(generation < u32::MAX);
+        Self {
+            index: index.try_into().expect("Index cannot fit into u32!"),
+            kind_or_generation: generation,
         }
     }
 
@@ -64,26 +77,31 @@ impl GameStateHandle {
     pub const fn invalid() -> Self {
         Self {
             index: u32::MAX,
-            kind:  u32::MAX,
+            kind_or_generation: u32::MAX,
         }
     }
 
     #[inline]
     pub fn is_valid(self) -> bool {
-        self.index < u32::MAX &&
-        self.kind  < u32::MAX
+        self.index < u32::MAX && self.kind_or_generation < u32::MAX
     }
 
     #[inline]
     pub fn index(self) -> usize {
-        debug_assert!(self.is_valid());
+        debug_assert!(self.index < u32::MAX);
         self.index as usize
     }
 
     #[inline]
     pub fn kind(self) -> u32 {
-        debug_assert!(self.is_valid());
-        self.kind
+        debug_assert!(self.kind_or_generation < u32::MAX);
+        self.kind_or_generation
+    }
+
+    #[inline]
+    pub fn generation(self) -> u32 {
+        debug_assert!(self.kind_or_generation < u32::MAX);
+        self.kind_or_generation
     }
 }
 
@@ -979,7 +997,8 @@ impl TilePoolIndex {
     }
 
     #[inline]
-    fn into(self) -> usize {
+    fn as_usize(self) -> usize {
+        debug_assert!(self.is_valid());
         self.value as usize
     }
 }
@@ -1040,7 +1059,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
             return None; // empty cell.
         }
 
-        let tile = &self.slab[slab_index.into()];
+        let tile = &self.slab[slab_index.as_usize()];
 
         debug_assert!(tile.layer_kind() == self.layer_kind);
         debug_assert!(tile.actual_base_cell() == cell);
@@ -1061,7 +1080,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
             return None; // empty cell.
         }
 
-        let tile_mut = &mut self.slab[slab_index.into()];
+        let tile_mut = &mut self.slab[slab_index.as_usize()];
 
         debug_assert!(tile_mut.layer_kind() == self.layer_kind);
         debug_assert!(tile_mut.actual_base_cell() == cell);
@@ -1105,7 +1124,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
         }
 
         self.cell_to_slab_idx[cell_index] = INVALID_TILE_INDEX;
-        self.slab.remove(slab_index.into());
+        self.slab.remove(slab_index.as_usize());
 
         true
     }
@@ -1748,7 +1767,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
         layer.pool.cell_to_slab_idx[to_cell_index]   = from_slab_index;
 
         // Update cached tile states:
-        let tile = &mut layer.pool.slab[from_slab_index.into()];
+        let tile = &mut layer.pool.slab[from_slab_index.as_usize()];
         tile.set_base_cell(to);
 
         true

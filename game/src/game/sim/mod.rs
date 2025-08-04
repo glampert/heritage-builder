@@ -524,16 +524,34 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         let world = self.world();
         let tile_map = self.tile_map();
         let tile_sets = self.tile_sets();
-        // TODO: Should make spawning failure a soft error in Release builds. Only panic on debug builds.
-        let unit = world.try_spawn_unit_with_config(tile_map, tile_sets, target_cell, unit_config_key)
-            .expect("Spawn Unit Failed");
-        Some(unit)
+
+        match world.try_spawn_unit_with_config(tile_map, tile_sets, target_cell, unit_config_key) {
+            Ok(unit) => Some(unit),
+            Err(err) => {
+                if cfg!(debug_assertions) {
+                    // Make spawn failures fatal in debug builds.
+                    panic!("Spawn Unit Failed: {}", err);
+                } else {
+                    eprintln!("Spawn Unit Failed: {}", err);
+                    None
+                }
+            }
+        }
     }
 
     pub fn despawn_unit(&self, unit: &mut Unit) {
         let world = self.world();
         let tile_map = self.tile_map();
-        world.despawn_unit(tile_map, unit)
-            .expect("Despawn Unit Failed")
+
+        match world.despawn_unit(tile_map, unit) {
+            Ok(_) => return,
+            Err(err) => {
+                if cfg!(debug_assertions) {
+                    panic!("Despawn Unit Failed: {}", err);
+                } else {
+                    eprintln!("Despawn Unit Failed: {}", err);
+                }
+            }
+        }
     }
 }

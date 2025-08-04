@@ -395,7 +395,7 @@ impl<'config> Unit<'config> {
     // 
     // completion_task: Option<UnitTask>
     //
-    pub fn try_spawn_with_task(query: &Query, owner_id: GenerationalIndex, task: UnitTask) -> Result<GenerationalIndex, String> {
+    pub fn try_spawn_with_task(query: &'config Query, owner_id: GenerationalIndex, task: UnitTask) -> Result<&'config mut Unit<'config>, String> {
         debug_assert!(owner_id.is_valid());
 
         // Handle root tasks here. These will start the task chain and might take some time to complete.
@@ -438,7 +438,7 @@ impl<'config> Unit<'config> {
                     destination
                 });
 
-                Ok(unit.id())
+                Ok(unit)
             }
         }
     }

@@ -231,10 +231,9 @@ impl<'config> ProducerBuilding<'config> {
             });
 
         match result {
-            Ok(runner_unit_id) => {
-                let runner_unit = context.query.world().find_unit(runner_unit_id).unwrap();
-                debug_assert!(runner_unit.peek_inventory().unwrap().kind  == resource_kind_to_deliver);
-                debug_assert!(runner_unit.peek_inventory().unwrap().count == resource_count);
+            Ok(spawned_unit) => {
+                debug_assert!(spawned_unit.peek_inventory().unwrap().kind  == resource_kind_to_deliver);
+                debug_assert!(spawned_unit.peek_inventory().unwrap().count == resource_count);
 
                 // We've handed over our resources to the spawned unit, clear the stock.
                 self.production_output_stock.clear();

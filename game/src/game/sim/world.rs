@@ -116,6 +116,21 @@ impl<'config> World<'config> {
         }
     }
 
+    // Increment generation count, return previous.
+    #[inline]
+    fn next_building_generation(&mut self) -> u32 {
+        let generation = self.building_generation_count;
+        self.building_generation_count += 1;
+        generation
+    }
+
+    #[inline]
+    fn next_unit_generation(&mut self) -> u32 {
+        let generation = self.unit_generation_count;
+        self.unit_generation_count += 1;
+        generation
+    }
+
     // ----------------------
     // Buildings API:
     // ----------------------
@@ -132,8 +147,7 @@ impl<'config> World<'config> {
         match tile_map.try_place_tile(target_cell, tile_def) {
             Ok(tile) => {
                 // Increment generation count:
-                let generation = self.building_generation_count;
-                self.building_generation_count += 1;
+                let generation = self.next_building_generation();
 
                 // Instantiate new Building:
                 if let Some(building) = building::config::instantiate(tile, self.building_configs) {
@@ -145,7 +159,7 @@ impl<'config> World<'config> {
 
                     // Update tile & building handles:
                     instance.placed(GenerationalIndex::new(generation, list_index));
-                    tile.set_game_state_handle(GameStateHandle::new(list_index, building_kind.bits()));
+                    tile.set_game_state_handle(GameStateHandle::new_building(list_index, building_kind.bits()));
 
                     Ok(instance)
                 } else {
@@ -362,15 +376,14 @@ impl<'config> World<'config> {
             match tile_map.try_place_tile(target_cell, tile_def) {
                 Ok(tile) => {
                     // Increment generation count:
-                    let generation = self.unit_generation_count;
-                    self.unit_generation_count += 1;
+                    let generation = self.next_unit_generation();
 
                     // Spawn unit:
                     let unit = self.unit_spawn_pool.spawn_instance(tile, config, generation);
                     debug_assert!(unit.is_spawned());
 
                     // Store unit index so we can refer back to it from the Tile instance.
-                    tile.set_game_state_handle(GameStateHandle::new(unit.id().index(), unit.id().generation()));
+                    tile.set_game_state_handle(GameStateHandle::new_unit(unit.id().index(), unit.id().generation()));
                     Ok(unit)
                 },
                 Err(err) => {
@@ -398,15 +411,14 @@ impl<'config> World<'config> {
                 let config = self.unit_configs.find_config_by_hash(tile_def.hash);
 
                 // Increment generation count:
-                let generation = self.unit_generation_count;
-                self.unit_generation_count += 1;
+                let generation = self.next_unit_generation();
 
                 // Spawn unit:
                 let unit = self.unit_spawn_pool.spawn_instance(tile, config, generation);
                 debug_assert!(unit.is_spawned());
 
                 // Store unit index so we can refer back to it from the Tile instance.
-                tile.set_game_state_handle(GameStateHandle::new(unit.id().index(), unit.id().generation()));
+                tile.set_game_state_handle(GameStateHandle::new_unit(unit.id().index(), unit.id().generation()));
                 Ok(unit)
             },
             Err(err) => {
@@ -432,7 +444,7 @@ impl<'config> World<'config> {
         }
 
         debug_assert!(game_state.index() == unit.id().index());
-        debug_assert!(game_state.kind()  == unit.id().generation());
+        debug_assert!(game_state.generation() == unit.id().generation());
 
         // First remove the associated Tile:
         tile_map.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
@@ -454,11 +466,11 @@ impl<'config> World<'config> {
             return Err(format!("Unit tile '{}' {} should have a valid game state!", tile.name(), tile_base_cell));
         }
 
-        let unit = self.unit_spawn_pool.try_get(GenerationalIndex::new(game_state.kind(), game_state.index()))
+        let unit = self.unit_spawn_pool.try_get(GenerationalIndex::new(game_state.generation(), game_state.index()))
             .ok_or("Unit tile GameStateHandle is invalid!")?;
 
         debug_assert!(game_state.index() == unit.id().index());
-        debug_assert!(game_state.kind()  == unit.id().generation());
+        debug_assert!(game_state.generation() == unit.id().generation());
 
         // First remove the associated Tile:
         tile_map.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
@@ -482,7 +494,7 @@ impl<'config> World<'config> {
     pub fn find_unit_for_tile(&self, tile: &Tile) -> Option<&Unit<'config>> {
         let game_state = tile.game_state_handle();
         if game_state.is_valid() {
-            let id = GenerationalIndex::new(game_state.kind(), game_state.index());
+            let id = GenerationalIndex::new(game_state.generation(), game_state.index());
             return self.unit_spawn_pool.try_get(id);
         }
         None
@@ -492,7 +504,7 @@ impl<'config> World<'config> {
     pub fn find_unit_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Unit<'config>> {
         let game_state = tile.game_state_handle();
         if game_state.is_valid() {
-            let id = GenerationalIndex::new(game_state.kind(), game_state.index());
+            let id = GenerationalIndex::new(game_state.generation(), game_state.index());
             return self.unit_spawn_pool.try_get_mut(id);
         }
         None
@@ -508,7 +520,7 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_unit_for_cell_mut(&mut self, cell: Cell, tile_map: &mut TileMap) -> Option<&mut Unit<'config>> {
-        if let Some(tile) = tile_map.find_tile_mut(cell, TileMapLayerKind::Objects, TileKind::Unit) {
+        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Unit) {
             return self.find_unit_for_tile_mut(tile);
         }
         None
@@ -599,8 +611,7 @@ impl GenerationalIndex {
 
     #[inline]
     pub fn is_valid(self) -> bool {
-        self.generation < u32::MAX &&
-        self.index < u32::MAX
+        self.generation < u32::MAX && self.index < u32::MAX
     }
 
     #[inline]
