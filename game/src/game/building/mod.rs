@@ -7,7 +7,6 @@ use crate::{
     bitflags_with_display,
     imgui_ui::UiSystem,
     utils::{
-        Seconds,
         hash::StringHash,
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
@@ -22,7 +21,7 @@ use super::{
     sim::{
         Query,
         resources::ResourceKind,
-        world::GenerationalIndex,
+        world::BuildingId,
     }
 };
 
@@ -68,7 +67,7 @@ pub mod config;
 pub struct Building<'config> {
     kind: BuildingKind,
     map_cells: CellRange,
-    id: GenerationalIndex,
+    id: BuildingId,
     archetype: BuildingArchetype<'config>,
 }
 
@@ -79,13 +78,13 @@ impl<'config> Building<'config> {
         Self {
             kind,
             map_cells,
-            id: GenerationalIndex::default(), // Set after construction by Building::placed().
+            id: BuildingId::default(), // Set after construction by Building::placed().
             archetype,
         }
     }
 
     #[inline]
-    pub fn placed(&mut self, id: GenerationalIndex) {
+    pub fn placed(&mut self, id: BuildingId) {
         debug_assert!(id.is_valid());
         debug_assert!(!self.id.is_valid());
         self.id = id;
@@ -122,11 +121,9 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    pub fn id(&self) -> GenerationalIndex {
+    pub fn id(&self) -> BuildingId {
         self.id
     }
-
-    // TODO: Get rid of these downcasts and rely solely on BuildingBehavior trait.
 
     #[inline]
     pub fn as_producer(&self) -> &producer::ProducerBuilding<'config> {
@@ -169,7 +166,7 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    pub fn update(&mut self, query: &Query<'config, '_>, delta_time_secs: Seconds) {
+    pub fn update(&mut self, query: &Query<'config, '_>) {
         let context =
             BuildingContext::new(self.kind,
                                  self.archetype_kind(),
@@ -177,7 +174,7 @@ impl<'config> Building<'config> {
                                  self.id,
                                  query);
 
-        self.archetype.update(&context, delta_time_secs);
+        self.archetype.update(&context);
     }
 
     #[inline]
@@ -236,7 +233,7 @@ impl<'config> Building<'config> {
                 kind: BuildingKind,
                 archetype: BuildingArchetypeKind,
                 cells: CellRange,
-                id: GenerationalIndex,
+                id: BuildingId,
             }
             let debug_vars = DrawDebugUiVariables {
                 name: self.name(),
@@ -262,8 +259,7 @@ impl<'config> Building<'config> {
                              query: &Query<'config, '_>,
                              ui_sys: &UiSystem,
                              transform: &WorldToScreenTransform,
-                             visible_range: CellRange,
-                             delta_time_secs: Seconds) {
+                             visible_range: CellRange) {
 
         let context =
             BuildingContext::new(self.kind,
@@ -276,8 +272,7 @@ impl<'config> Building<'config> {
             &context,
             ui_sys,
             transform,
-            visible_range,
-            delta_time_secs);
+            visible_range);
     }
 }
 
@@ -475,19 +470,19 @@ impl<'config> BuildingArchetype<'config> {
     }
 
     #[inline]
-    fn update(&mut self, context: &BuildingContext<'config, '_, '_>, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &BuildingContext<'config, '_, '_>) {
         match self {
             Self::Producer(state) => {
-                state.update(context, delta_time_secs);
+                state.update(context);
             }
             Self::Storage(state) => {
-                state.update(context, delta_time_secs);
+                state.update(context);
             }
             Self::Service(state) => {
-                state.update(context, delta_time_secs);
+                state.update(context);
             }
             Self::House(state) => {
-                state.update(context, delta_time_secs);
+                state.update(context);
             }
         }
     }
@@ -585,20 +580,19 @@ impl<'config> BuildingArchetype<'config> {
                          context: &BuildingContext<'config, '_, '_>,
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
-                         visible_range: CellRange,
-                         delta_time_secs: Seconds) {
+                         visible_range: CellRange) {
         match self {
             Self::Producer(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs);
+                state.draw_debug_popups(context, ui_sys, transform, visible_range);
             }
             Self::Storage(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs);
+                state.draw_debug_popups(context, ui_sys, transform, visible_range);
             }
             Self::Service(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs);
+                state.draw_debug_popups(context, ui_sys, transform, visible_range);
             }
             Self::House(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range, delta_time_secs);
+                state.draw_debug_popups(context, ui_sys, transform, visible_range);
             }
         }
     }
@@ -612,9 +606,7 @@ impl<'config> BuildingArchetype<'config> {
 pub trait BuildingBehavior<'config> {
     fn name(&self) -> &str;
 
-    fn update(&mut self,
-              context: &BuildingContext<'config, '_, '_>,
-              delta_time_secs: Seconds);
+    fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
 
     fn visited_by(&mut self,
                   unit: &mut Unit,
@@ -647,8 +639,7 @@ pub trait BuildingBehavior<'config> {
                          context: &BuildingContext<'config, '_, '_>,
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
-                         visible_range: CellRange,
-                         delta_time_secs: Seconds);
+                         visible_range: CellRange);
 }
 
 // ----------------------------------------------
@@ -658,7 +649,7 @@ pub trait BuildingBehavior<'config> {
 #[derive(Copy, Clone)]
 pub struct BuildingKindAndId {
     pub kind: BuildingKind,
-    pub id: GenerationalIndex,
+    pub id: BuildingId,
 }
 
 #[derive(Copy, Clone)]
@@ -690,7 +681,7 @@ pub struct BuildingContext<'config, 'tile_sets, 'query> {
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
     map_cells: CellRange,
-    id: GenerationalIndex,
+    id: BuildingId,
     query: &'query Query<'config, 'tile_sets>,
 }
 
@@ -698,7 +689,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     fn new(kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
            map_cells: CellRange,
-           id: GenerationalIndex,
+           id: BuildingId,
            query: &'query Query<'config, 'tile_sets>) -> Self {
         Self {
             kind,
@@ -712,6 +703,23 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     #[inline]
     fn base_cell(&self) -> Cell {
         self.map_cells.start
+    }
+
+    #[inline]
+    fn kind_and_id(&self) -> BuildingKindAndId {
+        BuildingKindAndId {
+            kind: self.kind,
+            id: self.id,
+        }
+    }
+
+    #[inline]
+    fn tile_info(&self) -> BuildingTileInfo {
+        BuildingTileInfo {
+            kind: self.kind,
+            road_link: self.find_nearest_road_link().unwrap_or_default(),
+            base_cell: self.base_cell(),
+        }
     }
 
     #[inline]
@@ -753,7 +761,38 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         self.query.is_near_building(self.map_cells, service_kind, config.effect_radius)
     }
 
-    // TODO: Get rid of mutable access to building here is possible!
+    // `storage_kinds` can be a combination of ORed BuildingKind flags.
+    fn for_each_storage<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
+        where F: FnMut(&Building<'config>) -> bool
+    {
+        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
+
+        let world = self.query.world();
+        let storage_buildings = world.buildings_list(BuildingArchetypeKind::Storage);
+
+        for building in storage_buildings.iter() {
+            if building.kind().intersects(storage_kinds) && !visitor_fn(building) {
+                break;
+            }
+        }
+    }
+
+    // TODO: Get rid of mutable access to building here if possible!
+
+    fn for_each_storage_mut<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
+        where F: FnMut(&mut Building<'config>) -> bool
+    {
+        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
+
+        let world = self.query.world();
+        let storage_buildings = world.buildings_list_mut(BuildingArchetypeKind::Storage);
+
+        for building in storage_buildings.iter_mut() {
+            if building.kind().intersects(storage_kinds) && !visitor_fn(building) {
+                break;
+            }
+        }
+    }
 
     fn find_nearest_service_mut(&self, service_kind: BuildingKind) -> Option<&mut Building<'config>> {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::Service);
@@ -768,44 +807,5 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
             return Some(building);
         }
         None
-    }
-
-    // `storage_kinds` can be a combination of ORed flags.
-    fn for_each_storage<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
-        where F: FnMut(&Building<'config>) -> bool
-    {
-        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
-
-        let world = self.query.world();
-        let storage_buildings = world.buildings_list(BuildingArchetypeKind::Storage);
-
-        for building in storage_buildings.iter() {
-            if building.kind().intersects(storage_kinds) {
-                let should_continue = visitor_fn(building);
-                if !should_continue {
-                    break;
-                }
-            }
-        };
-    }
-
-    // TODO: Get rid of mutable access to building here is possible!
-
-    fn for_each_storage_mut<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
-        where F: FnMut(&mut Building<'config>) -> bool
-    {
-        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
-
-        let world = self.query.world();
-        let storage_buildings = world.buildings_list_mut(BuildingArchetypeKind::Storage);
-
-        for building in storage_buildings.iter_mut() {
-            if building.kind().intersects(storage_kinds) {
-                let should_continue = visitor_fn(building);
-                if !should_continue {
-                    break;
-                }
-            }
-        };
     }
 }

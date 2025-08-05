@@ -78,7 +78,9 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         &self.config.name
     }
 
-    fn update(&mut self, context: &BuildingContext, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &BuildingContext) {
+        let delta_time_secs = context.query.delta_time_secs();
+
         // Procure resources from storage periodically if we need them.
         if self.stock.accepts_any() &&
            self.stock_update_timer.tick(delta_time_secs).should_update() &&
@@ -115,15 +117,14 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
                          context: &BuildingContext,
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
-                         visible_range: CellRange,
-                         delta_time_secs: Seconds) {
+                         visible_range: CellRange) {
 
         self.debug.draw_popup_messages(
             || context.find_tile(),
             ui_sys,
             transform,
             visible_range,
-            delta_time_secs);
+            context.query.delta_time_secs());
     }
 }
 

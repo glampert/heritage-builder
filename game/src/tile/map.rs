@@ -1735,8 +1735,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
         placement::try_clear_tile_at_cursor(self, cursor_screen_pos, transform)
     }
 
-    // Move tile from one cell to another if destination is free.
-    pub fn try_move_tile(&mut self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
+    pub fn can_move_tile(&self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
         if from == to {
             return false;
         }
@@ -1746,13 +1745,25 @@ impl<'tile_sets> TileMap<'tile_sets> {
             return false;
         }
 
-        let layer = self.layer_mut(layer_kind);
+        let layer = self.layer(layer_kind);
+
         if layer.try_tile(from).is_none() {
             return false; // No tile at 'from' cell!
         }
         if layer.try_tile(to).is_some() {
             return false; // 'to' tile is occupied!
         }
+
+        true
+    }
+
+    // Move tile from one cell to another if destination is free.
+    pub fn try_move_tile(&mut self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
+        if !self.can_move_tile(from, to, layer_kind) {
+            return false;
+        }
+
+        let layer = self.layer_mut(layer_kind);
 
         let from_cell_index = layer.pool.map_cell_to_index(from);
         let from_slab_index = layer.pool.cell_to_slab_idx[from_cell_index];

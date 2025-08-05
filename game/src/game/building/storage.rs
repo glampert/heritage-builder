@@ -8,7 +8,6 @@ use crate::{
     imgui_ui::UiSystem,
     utils::{
         Color,
-        Seconds,
         hash::StringHash,
         coords::{CellRange, WorldToScreenTransform}
     },
@@ -77,7 +76,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         &self.config.name
     }
 
-    fn update(&mut self, _context: &BuildingContext, _delta_time_secs: Seconds) {
+    fn update(&mut self, _context: &BuildingContext) {
         // Nothing for now.
     }
 
@@ -91,17 +90,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
                 let given_count = unit.give_resources(item.kind, received_count);
                 debug_assert!(given_count == received_count);
             }
-
-            // Unit finished delivering its cargo.
-            //if unit.is_inventory_empty() {
-                //context.query.despawn_unit(unit);
-            //}
         }
-
-        // TODO
-        // If unit managed to unload all resources, despawn it, else it needs
-        // to try another storage building. Keep going until all is unloaded.
-        // If nothing can be found, wait in place at current location.
     }
 
     fn receivable_amount(&self, kind: ResourceKind) -> u32 {
@@ -135,15 +124,14 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
                          context: &BuildingContext,
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
-                         visible_range: CellRange,
-                         delta_time_secs: Seconds) {
+                         visible_range: CellRange) {
 
         self.debug.draw_popup_messages(
             || context.find_tile(),
             ui_sys,
             transform,
             visible_range,
-            delta_time_secs);
+            context.query.delta_time_secs());
     }
 }
 

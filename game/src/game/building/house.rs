@@ -116,7 +116,9 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         &self.upgrade_state.curr_level_config.name
     }
 
-    fn update(&mut self, context: &BuildingContext<'config, '_, '_>, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &BuildingContext<'config, '_, '_>) {
+        let delta_time_secs = context.query.delta_time_secs();
+
         // Update house states:
         if self.stock_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_stock_update() {
             self.stock_update(context);
@@ -153,15 +155,14 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
                          context: &BuildingContext,
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
-                         visible_range: CellRange,
-                         delta_time_secs: Seconds) {
+                         visible_range: CellRange) {
 
         self.debug.draw_popup_messages(
             || context.find_tile(),
             ui_sys,
             transform,
             visible_range,
-            delta_time_secs);
+            context.query.delta_time_secs());
     }
 }
 

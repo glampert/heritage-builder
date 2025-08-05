@@ -27,6 +27,7 @@ use super::{
     sim::world::World,
     unit::{
         Unit,
+        task::UnitTaskManager,
         config::{
             UnitConfigs,
             UnitConfigKey
@@ -65,8 +66,11 @@ pub struct Simulation<'config> {
     graph: Graph,
     search: Search,
 
+    // Configs:
     building_configs: &'config BuildingConfigs,
     unit_configs: &'config UnitConfigs,
+
+    task_manager: UnitTaskManager,
 }
 
 impl<'config> Simulation<'config> {
@@ -80,7 +84,27 @@ impl<'config> Simulation<'config> {
             search: Search::with_grid_size(tile_map.size_in_cells()),
             building_configs,
             unit_configs,
+            task_manager: UnitTaskManager::new(),
         }
+    }
+
+    #[inline]
+    fn make_query<'tile_sets>(&mut self,
+                              world: &mut World<'config>,
+                              tile_map: &mut TileMap<'tile_sets>,
+                              tile_sets: &'tile_sets TileSets,
+                              delta_time_secs: Seconds) -> Query<'config, 'tile_sets> {
+        Query::new(
+            &mut self.rng,
+            &mut self.graph,
+            &mut self.search,
+            &mut self.task_manager,
+            world,
+            tile_map,
+            tile_sets,
+            self.building_configs,
+            self.unit_configs,
+            delta_time_secs)
     }
 
     pub fn update<'tile_sets>(&mut self,
@@ -93,23 +117,19 @@ impl<'config> Simulation<'config> {
         // add/remove tile changes will be reflected on the graph.
         self.graph.rebuild_from_tile_map(tile_map, true);
 
-        let query = Query::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
-            world,
-            tile_map,
-            tile_sets,
-            self.building_configs,
-            self.unit_configs);
-
         // Units movement needs to be smooth, so it updates every frame.
-        world.update_unit_navigation(&query, delta_time_secs);
+        {
+            let query = self.make_query(world, tile_map, tile_sets, delta_time_secs);
+            world.update_unit_navigation(&query);
+        }
 
-        // Fixed step update.
-        let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
-        if self.update_timer.tick(delta_time_secs).should_update() {
-            world.update(&query, world_update_delta_time_secs);
+        // Fixed step world update.
+        {
+            let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
+            if self.update_timer.tick(delta_time_secs).should_update() {
+                let query = self.make_query(world, tile_map, tile_sets, world_update_delta_time_secs);
+                world.update(&query);
+            }
         }
     }
 
@@ -122,37 +142,28 @@ impl<'config> Simulation<'config> {
                                       context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                                       visible_range: CellRange) {
 
-        let query = Query::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
+        let query = self.make_query(
             context.world,
             context.tile_map,
             context.tile_sets,
-            self.building_configs,
-            self.unit_configs);
+            context.delta_time_secs);
 
         context.world.draw_building_debug_popups(
             &query,
             context.ui_sys,
             &context.transform,
-            visible_range,
-            context.delta_time_secs);
+            visible_range);
     }
 
     pub fn draw_building_debug_ui(&mut self,
                                   context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                                   selected_cell: Cell) {
 
-        let query = Query::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
+        let query = self.make_query(
             context.world,
             context.tile_map,
             context.tile_sets,
-            self.building_configs,
-            self.unit_configs);
+            context.delta_time_secs);
 
         context.world.draw_building_debug_ui(
             &query,
@@ -165,37 +176,28 @@ impl<'config> Simulation<'config> {
                                   context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                                   visible_range: CellRange) {
 
-        let query = Query::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
+        let query = self.make_query(
             context.world,
             context.tile_map,
             context.tile_sets,
-            self.building_configs,
-            self.unit_configs);
+            context.delta_time_secs);
 
         context.world.draw_unit_debug_popups(
             &query,
             context.ui_sys,
             &context.transform,
-            visible_range,
-            context.delta_time_secs);
+            visible_range);
     }
 
     pub fn draw_unit_debug_ui(&mut self,
                               context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                               selected_cell: Cell) {
 
-        let query = Query::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
+        let query = self.make_query(
             context.world,
             context.tile_map,
             context.tile_sets,
-            self.building_configs,
-            self.unit_configs);
+            context.delta_time_secs);
 
         context.world.draw_unit_debug_ui(
             &query,
@@ -295,6 +297,8 @@ pub struct Query<'config, 'tile_sets> {
     graph: UnsafeWeakRef<Graph>,
     search: UnsafeWeakRef<Search>,
 
+    task_manager: UnsafeWeakRef<UnitTaskManager>,
+
     // World & Tile Map:
     world: UnsafeWeakRef<World<'config>>,
     tile_map: UnsafeWeakRef<TileMap<'tile_sets>>,
@@ -302,6 +306,8 @@ pub struct Query<'config, 'tile_sets> {
 
     building_configs: &'config BuildingConfigs,
     unit_configs: &'config UnitConfigs,
+
+    delta_time_secs: Seconds,
 }
 
 impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
@@ -309,20 +315,24 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     fn new(rng: &mut RandomGenerator,
            graph: &mut Graph,
            search: &mut Search,
+           task_manager: &mut UnitTaskManager,
            world: &mut World<'config>,
            tile_map: &mut TileMap<'tile_sets>,
            tile_sets: &'tile_sets TileSets,
            building_configs: &'config BuildingConfigs,
-           unit_configs: &'config UnitConfigs) -> Self {
+           unit_configs: &'config UnitConfigs,
+           delta_time_secs: Seconds) -> Self {
         Self {
             rng: UnsafeWeakRef::new(rng),
             graph: UnsafeWeakRef::new(graph),
             search: UnsafeWeakRef::new(search),
+            task_manager: UnsafeWeakRef::new(task_manager),
             world: UnsafeWeakRef::new(world),
             tile_map: UnsafeWeakRef::new(tile_map),
             tile_sets,
             building_configs,
             unit_configs,
+            delta_time_secs,
         }
     }
 
@@ -350,6 +360,11 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     // ----------------------
     // Public API:
     // ----------------------
+
+    #[inline(always)]
+    pub fn task_manager(&self) -> &mut UnitTaskManager {
+        self.task_manager.mut_ref_cast()
+    }
 
     #[inline(always)]
     pub fn graph(&self) -> &mut Graph {
@@ -387,6 +402,11 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
               R: SampleRange<T>
     {
         self.rng().random_range(range)
+    }
+
+    #[inline(always)]
+    pub fn delta_time_secs(&self) -> Seconds {
+        self.delta_time_secs
     }
 
     #[inline]
@@ -512,20 +532,18 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         let storage_buildings = world.buildings_list(BuildingArchetypeKind::Storage);
 
         for building in storage_buildings.iter() {
-            if building.kind().intersects(storage_kinds) {
-                if !visitor_fn(building) {
-                    break;
-                }
+            if building.kind().intersects(storage_kinds) && !visitor_fn(building) {
+                break;
             }
         }
     }
 
-    pub fn try_spawn_unit(&self, target_cell: Cell, unit_config_key: UnitConfigKey) -> Option<&mut Unit<'config>> {
+    pub fn try_spawn_unit(&self, unit_origin: Cell, unit_config_key: UnitConfigKey) -> Option<&mut Unit<'config>> {
         let world = self.world();
         let tile_map = self.tile_map();
         let tile_sets = self.tile_sets();
 
-        match world.try_spawn_unit_with_config(tile_map, tile_sets, target_cell, unit_config_key) {
+        match world.try_spawn_unit_with_config(tile_map, tile_sets, unit_origin, unit_config_key) {
             Ok(unit) => Some(unit),
             Err(err) => {
                 if cfg!(debug_assertions) {
@@ -544,7 +562,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         let tile_map = self.tile_map();
 
         match world.despawn_unit(tile_map, unit) {
-            Ok(_) => return,
+            Ok(_) => {},
             Err(err) => {
                 if cfg!(debug_assertions) {
                     panic!("Despawn Unit Failed: {}", err);

@@ -8,10 +8,11 @@ use crate::{
         Color,
         Seconds,
         hash::StringHash,
-        coords::{CellRange, WorldToScreenTransform},
+        coords::{CellRange, WorldToScreenTransform}
     },
     game::sim::{
         UpdateTimer,
+        world::UnitId,
         resources::{
             ResourceKind,
             ResourceKinds,
@@ -25,7 +26,15 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    unit::{Unit, UnitTask}
+    unit::{
+        self,
+        Unit,
+        task::{
+            UnitTaskDespawn,
+            UnitTaskDeliverToStorage,
+            UnitTaskCompletionCallback
+        }
+    }
 };
 
 // ----------------------------------------------
@@ -90,6 +99,10 @@ pub struct ProducerBuilding<'config> {
     production_input_stock:  ProducerInputsLocalStock, // Local stock of required raw materials.
     production_output_stock: ProducerOutputLocalStock, // Local production output storage.
 
+    // Runner we've sent out to deliver our production.
+    // Invalid if no runner in-flight.
+    runner_id: UnitId,
+
     debug: ProducerDebug,
 }
 
@@ -98,7 +111,9 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         &self.config.name
     }
 
-    fn update(&mut self, context: &BuildingContext, delta_time_secs: Seconds) {
+    fn update(&mut self, context: &BuildingContext) {
+        let delta_time_secs = context.query.delta_time_secs();
+
         // Update producer states:
         if self.production_update_timer.tick(delta_time_secs).should_update() {
             if !self.debug.freeze_production() {
@@ -139,15 +154,14 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
                          context: &BuildingContext,
                          ui_sys: &UiSystem,
                          transform: &WorldToScreenTransform,
-                         visible_range: CellRange,
-                         delta_time_secs: Seconds) {
+                         visible_range: CellRange) {
 
         self.debug.draw_popup_messages(
             || context.find_tile(),
             ui_sys,
             transform,
             visible_range,
-            delta_time_secs);
+            context.query.delta_time_secs());
     }
 }
 
@@ -165,6 +179,7 @@ impl<'config> ProducerBuilding<'config> {
                 config.production_output,
                 config.production_capacity
             ),
+            runner_id: UnitId::default(),
             debug: ProducerDebug::default(),
         }
     }
@@ -198,42 +213,62 @@ impl<'config> ProducerBuilding<'config> {
             return; // Nothing to ship.
         }
 
+        if self.is_runner_out_delivering_resources() {
+            return; // A runner is already out delivering resources. Try again later.
+        }
+
         // Unit spawns at the nearest road link.
-        let unit_starting_cell = match context.find_nearest_road_link() {
+        let unit_origin = match context.find_nearest_road_link() {
             Some(road_link) => road_link,
             None => return, // We are not connected to a road. No shipping possible!
-        };  
+        };
+
+        // Send out a runner.
+        let unit_config = unit::config::UNIT_RUNNER;
 
         let storage_buildings_accepted = self.config.storage_buildings_accepted;
         let resource_kind_to_deliver = self.production_output_stock.kind();
         let resource_count = self.production_output_stock.count();
+    
+        let on_resources_delivered: UnitTaskCompletionCallback = |unit, building| {
+            debug_assert!(unit.is_inventory_empty(), "Unit should have delivered all resourced by now!");
+            debug_assert!(building.is(BuildingKind::producers()));
 
-        let result = Unit::try_spawn_with_task(
+            let producer = building.as_producer_mut();
+
+            debug_assert!(producer.is_runner_out_delivering_resources(), "No runner was sent out by this building!");
+            producer.runner_id = UnitId::default();
+
+            producer.debug.popup_msg_color(Color::cyan(), "Delivery completed");
+        };
+
+        let task_manager = context.query.task_manager();
+
+        // TODO: If we fail to ship to a Storage we could try shipping directly to another Producer.
+        // However, the fallback task might also fail, in which case we would want to revert back to
+        // the original... Maybe just have a different task instead that can try both would be better...
+        // E.g.: UnitTaskDeliverToStorageOrProducer -> Favours sending to storage, falls back to other Producers.
+        let fallback_task = None;
+
+        let spawn_result = Unit::try_spawn_with_task(
             context.query,
-            context.id,
-            UnitTask::DeliverToStorage {
-                origin_building_kind: context.kind,
-                origin_building_base_cell: context.base_cell(),
-                unit_starting_cell,
+            unit_origin,
+            unit_config,
+            UnitTaskDeliverToStorage {
+                origin_building: context.kind_and_id(),
+                origin_building_tile: context.tile_info(),
                 storage_buildings_accepted,
                 resource_kind_to_deliver,
                 resource_count,
-                completion_callback: Some(|unit, building| {
-                    // TODO notify us that cargo was delivered.
-                    // building = self,
-                    // unit = runner we've spawned
-                    debug_assert!(building.is(BuildingKind::producers()));
-                    println!("Unit {} finished delivering cargo from Producer {}", unit.name(), building.name());
-
-                    // TODO: need to stop sending out runners while there is already one in flight.
-                    // We need to be notified when our runner has completed the delivery!
-                })
+                completion_callback: Some(on_resources_delivered),
+                completion_task: task_manager.new_task(UnitTaskDespawn),
+                fallback_task,
             });
 
-        match result {
-            Ok(spawned_unit) => {
-                debug_assert!(spawned_unit.peek_inventory().unwrap().kind  == resource_kind_to_deliver);
-                debug_assert!(spawned_unit.peek_inventory().unwrap().count == resource_count);
+        match spawn_result {
+            Ok(runner) => {
+                // We'll stop any further shipping until the runner completes this delivery.
+                self.runner_id = runner.id();
 
                 // We've handed over our resources to the spawned unit, clear the stock.
                 self.production_output_stock.clear();
@@ -243,10 +278,10 @@ impl<'config> ProducerBuilding<'config> {
                 eprintln!("{} {}: Failed to ship production: {}", self.name(), context.base_cell(), err);
             }
         }
+    }
 
-        // TODO: If we failed to ship to storage we could try shipping directly to another producer
-        // that uses our output. E.g. farm -> factory.
-        // Maybe DeliverToStorage task can have a fallback task?
+    fn is_runner_out_delivering_resources(&self) -> bool {
+        self.runner_id.is_valid()
     }
 
     fn is_production_halted(&self) -> bool {
@@ -452,9 +487,14 @@ impl ProducerBuilding<'_> {
     fn draw_debug_ui_production_output(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header("Production Output", imgui::TreeNodeFlags::empty()) {
+            if self.is_runner_out_delivering_resources() {
+                ui.text_colored(Color::yellow().to_array(), "Runner sent out...");
+            }
+
             if self.is_production_halted() {
                 ui.text_colored(Color::red().to_array(), "Production Halted!");
             }
+
             self.production_update_timer.draw_debug_ui("Update", 0, ui_sys);
             self.production_output_stock.draw_debug_ui(ui_sys);
         }
