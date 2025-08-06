@@ -17,14 +17,17 @@ use crate::{
         TileMapLayerKind,
         sets::TileDef
     },
-    game::sim::{
-        UpdateTimer,
-        resources::{
-            ResourceStock,
-            ResourceKind,
-            ResourceKinds,
-            ServiceKind,
-            ServiceKinds
+    game::{
+        unit::Unit,
+        sim::{
+            UpdateTimer,
+            resources::{
+                ResourceStock,
+                ResourceKind,
+                ResourceKinds,
+                ServiceKind,
+                ServiceKinds
+            }
         }
     }
 };
@@ -33,8 +36,7 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    config::BuildingConfigs,
-    unit::Unit
+    config::BuildingConfigs
 };
 
 // ----------------------------------------------

@@ -23,7 +23,7 @@ use crate::{
 };
 
 use super::{
-    unit::{self, Unit},
+    unit::Unit,
     sim::{
         Query,
         world::BuildingId,

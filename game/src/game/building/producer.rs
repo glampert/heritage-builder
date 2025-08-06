@@ -10,14 +10,21 @@ use crate::{
         hash::StringHash,
         coords::{CellRange, WorldToScreenTransform}
     },
-    game::sim::{
-        UpdateTimer,
-        world::UnitId,
-        resources::{
-            ResourceKind,
-            ResourceKinds,
-            StockItem,
-            Workers
+    game::{
+        unit::{
+            self,
+            Unit,
+            task::{UnitTaskDespawn, UnitTaskDeliverToStorage}
+        },
+        sim::{
+            UpdateTimer,
+            world::UnitId,
+            resources::{
+                ResourceKind,
+                ResourceKinds,
+                StockItem,
+                Workers
+            }
         }
     }
 };
@@ -26,15 +33,7 @@ use super::{
     Building,
     BuildingKind,
     BuildingBehavior,
-    BuildingContext,
-    unit::{
-        self,
-        Unit,
-        task::{
-            UnitTaskDespawn,
-            UnitTaskDeliverToStorage
-        }
-    }
+    BuildingContext
 };
 
 // ----------------------------------------------
@@ -229,8 +228,6 @@ impl<'config> ProducerBuilding<'config> {
         let storage_buildings_accepted = self.config.storage_buildings_accepted;
         let resource_kind_to_deliver = self.production_output_stock.kind();
         let resource_count = self.production_output_stock.count();
-    
-        let task_manager = context.query.task_manager();
 
         // TODO: If we fail to ship to a Storage we could try shipping directly to another Producer.
         // However, the fallback task might also fail, in which case we would want to revert back to
@@ -249,14 +246,14 @@ impl<'config> ProducerBuilding<'config> {
                 resource_kind_to_deliver,
                 resource_count,
                 completion_callback: Some(Self::on_resources_delivered),
-                completion_task: task_manager.new_task(UnitTaskDespawn),
+                completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
                 fallback_task,
             });
 
         match spawn_result {
-            Ok(runner) => {
+            Ok(runner_unit) => {
                 // We'll stop any further shipping until the runner completes this delivery.
-                self.runner_id = runner.id();
+                self.runner_id = runner_unit.id();
 
                 // We've handed over our resources to the spawned unit, clear the stock.
                 self.production_output_stock.clear();
@@ -486,12 +483,12 @@ impl ProducerBuilding<'_> {
     fn draw_debug_ui_production_output(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header("Production Output", imgui::TreeNodeFlags::empty()) {
-            if self.is_runner_out_delivering_resources() {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent out...");
-            }
-
             if self.is_production_halted() {
                 ui.text_colored(Color::red().to_array(), "Production Halted!");
+            }
+
+            if self.is_runner_out_delivering_resources() {
+                ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
             }
 
             self.production_update_timer.draw_debug_ui("Update", 0, ui_sys);

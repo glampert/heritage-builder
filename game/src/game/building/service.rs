@@ -8,13 +8,16 @@ use crate::{
         hash::StringHash,
         coords::{CellRange, WorldToScreenTransform}
     },
-    game::sim::{
-        UpdateTimer,
-        resources::{
-            ResourceKind,
-            ResourceKinds,
-            ResourceStock,
-            Workers
+    game::{
+        unit::Unit,
+        sim::{
+            UpdateTimer,
+            resources::{
+                ResourceKind,
+                ResourceKinds,
+                ResourceStock,
+                Workers
+            }
         }
     }
 };
@@ -22,8 +25,7 @@ use crate::{
 use super::{
     BuildingKind,
     BuildingBehavior,
-    BuildingContext,
-    unit::Unit
+    BuildingContext
 };
 
 // ----------------------------------------------

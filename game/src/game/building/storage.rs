@@ -11,19 +11,21 @@ use crate::{
         hash::StringHash,
         coords::{CellRange, WorldToScreenTransform}
     },
-    game::sim::resources::{
-        ResourceKind,
-        ResourceKinds,
-        ResourceStock,
-        StockItem,
-        Workers
+    game::{
+        unit::Unit,
+        sim::resources::{
+            ResourceKind,
+            ResourceKinds,
+            ResourceStock,
+            StockItem,
+            Workers
+        }
     }
 };
 
 use super::{
     BuildingBehavior,
-    BuildingContext,
-    unit::Unit
+    BuildingContext
 };
 
 // ----------------------------------------------
