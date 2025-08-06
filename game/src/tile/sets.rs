@@ -1,16 +1,10 @@
-use bitflags::bitflags;
 use arrayvec::ArrayVec;
 use smallvec::SmallVec;
 use strum::IntoEnumIterator;
 use serde::Deserialize;
-
-use std::{
-    fs,
-    path::{Path, MAIN_SEPARATOR, MAIN_SEPARATOR_STR}
-};
+use std::{fs, path::{Path, MAIN_SEPARATOR, MAIN_SEPARATOR_STR}};
 
 use crate::{
-    bitflags_with_display,
     pathfind::NodeKind as PathNodeKind,
     render::{
         TextureCache,
@@ -36,18 +30,16 @@ use crate::{
 };
 
 use super::{
-    map::{
-        TileMapLayerKind,
-        TileFlags,
-        TILE_MAP_LAYER_COUNT
-    }
+    TileFlags,
+    TileKind,
+    TileMapLayerKind,
+    BASE_TILE_SIZE,
+    TILE_MAP_LAYER_COUNT
 };
 
 // ----------------------------------------------
 // Constants
 // ----------------------------------------------
-
-pub const BASE_TILE_SIZE: Size = Size{ width: 64, height: 32 };
 
 // Terrain Layer:
 pub const TERRAIN_GROUND_CATEGORY: StrHashPair = StrHashPair::from_str("ground");
@@ -58,43 +50,6 @@ pub const OBJECTS_BUILDINGS_CATEGORY:  StrHashPair = StrHashPair::from_str("buil
 pub const OBJECTS_PROPS_CATEGORY:      StrHashPair = StrHashPair::from_str("props");
 pub const OBJECTS_UNITS_CATEGORY:      StrHashPair = StrHashPair::from_str("units");
 pub const OBJECTS_VEGETATION_CATEGORY: StrHashPair = StrHashPair::from_str("vegetation");
-
-// ----------------------------------------------
-// TileKind
-// ----------------------------------------------
-
-bitflags_with_display! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-    pub struct TileKind: u8 {
-        // Base Archetypes:
-        const Terrain    = 1 << 0;
-        const Object     = 1 << 1;
-        const Blocker    = 1 << 2; // Draws nothing; blocker for multi-tile buildings, placed in the Objects layer.
-
-        // Specialized tile kinds (Object Archetype & Objects Layer):
-        const Building   = 1 << 3;
-        const Prop       = 1 << 4;
-        const Unit       = 1 << 5;
-        const Vegetation = 1 << 6;
-    }
-}
-
-impl TileKind {
-    #[inline]
-    fn specialized_kind_for_category(category_hash: StringHash) -> Self {
-        if category_hash == OBJECTS_BUILDINGS_CATEGORY.hash {
-            TileKind::Building
-        } else if category_hash == OBJECTS_PROPS_CATEGORY.hash {
-            TileKind::Prop
-        } else if category_hash == OBJECTS_UNITS_CATEGORY.hash {
-            TileKind::Unit
-        } else if category_hash == OBJECTS_VEGETATION_CATEGORY.hash {
-            TileKind::Vegetation
-        } else {
-            panic!("Unknown Tile Category hash!");
-        }
-    }
-}
 
 // ----------------------------------------------
 // TileTexInfo

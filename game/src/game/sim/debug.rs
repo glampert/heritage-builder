@@ -8,11 +8,12 @@ use crate::{
         self,
         Color,
         Seconds,
-        coords::{CellRange, WorldToScreenTransform},
+        coords::{CellRange, WorldToScreenTransform}
     },
     tile::{
-        sets::TileSets,
-        map::{Tile, TileMap}
+        Tile,
+        TileMap,
+        sets::TileSets
     }
 };
 

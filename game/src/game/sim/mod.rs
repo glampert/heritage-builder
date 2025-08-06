@@ -12,14 +12,17 @@ use crate::{
         Node,
     },
     utils::{
-        coords::{Cell, CellRange},
-        hash::StringHash,
+        Seconds,
         UnsafeWeakRef,
-        Seconds
+        hash::StringHash,
+        coords::{Cell, CellRange}
     },
     tile::{
-        map::{Tile, TileMap, TileMapLayerKind},
-        sets::{TileDef, TileKind, TileSets}
+        Tile,
+        TileKind,
+        TileMap,
+        TileMapLayerKind,
+        sets::{TileDef, TileSets}
     }
 };
 
@@ -28,10 +31,7 @@ use super::{
     unit::{
         Unit,
         task::UnitTaskManager,
-        config::{
-            UnitConfigs,
-            UnitConfigKey
-        }
+        config::{UnitConfigs, UnitConfigKey}
     },
     building::{
         Building,

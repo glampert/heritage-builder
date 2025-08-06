@@ -1,11 +1,13 @@
 use smallvec::SmallVec;
 
 use crate::{
-    imgui_ui::UiInputEvent,
     render::RenderSystem,
+    imgui_ui::UiInputEvent,
     app::input::{InputAction, MouseButton},
     utils::{
-        Size, Rect, Vec2,
+        Size,
+        Rect,
+        Vec2,
         coords::{
             self,
             Cell,
@@ -15,11 +17,15 @@ use crate::{
     }
 };
 
-use super::{
+use super::{    
+    Tile,
+    TileKind,
+    TileFlags,
+    TileMapLayerKind,
+    TileMapLayerMutRefs,
+    BASE_TILE_SIZE,
     placement::PlacementOp,
-    rendering::SELECTION_RECT_COLOR,
-    sets::{TileKind, BASE_TILE_SIZE},
-    map::{Tile, TileFlags, TileMapLayerKind, TileMapLayerMutRefs}
+    rendering::SELECTION_RECT_COLOR
 };
 
 // ----------------------------------------------

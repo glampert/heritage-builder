@@ -1,5 +1,5 @@
-use bitflags::{bitflags, Flags};
 use paste::paste;
+use bitflags::{bitflags, Flags};
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
 use enum_dispatch::enum_dispatch;
@@ -13,8 +13,12 @@ use crate::{
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
     tile::{
-        sets::{TileDef, TileKind, OBJECTS_BUILDINGS_CATEGORY},
-        map::{GameStateHandle, Tile, TileMap, TileMapLayerKind}
+        Tile,
+        TileKind,
+        TileMap,
+        TileMapLayerKind,
+        TileGameStateHandle,
+        sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}
     }
 };
 
@@ -22,21 +26,21 @@ use super::{
     unit::{self, Unit},
     sim::{
         Query,
-        resources::ResourceKind,
         world::BuildingId,
+        resources::ResourceKind
     }
 };
-
-pub mod config;
-pub mod producer;
-pub mod storage;
-pub mod service;
-pub mod house;
 
 use producer::ProducerBuilding;
 use storage::StorageBuilding;
 use service::ServiceBuilding;
 use house::HouseBuilding;
+
+pub mod config;
+mod producer;
+mod storage;
+mod service;
+mod house;
 
 /*
 -----------------------
@@ -325,9 +329,9 @@ impl BuildingKind {
     }
 
     #[inline]
-    pub fn from_game_state_handle(handle: GameStateHandle) -> Self {
+    pub fn from_game_state_handle(handle: TileGameStateHandle) -> Self {
         Self::from_bits(handle.kind())
-            .expect("GameStateHandle does not contain a valid BuildingKind enum value!")
+            .expect("TileGameStateHandle does not contain a valid BuildingKind enum value!")
     }
 
     #[inline]

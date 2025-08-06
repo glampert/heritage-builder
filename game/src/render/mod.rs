@@ -1,9 +1,9 @@
-// Internal implementation.
-mod opengl;
-
 use crate::{
     utils::{Vec2, Color, Size, Rect, RectTexCoords}
 };
+
+// Internal implementation.
+mod opengl;
 
 // ----------------------------------------------
 // RenderStats

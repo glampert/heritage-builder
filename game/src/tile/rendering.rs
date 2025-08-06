@@ -6,8 +6,8 @@ use crate::{
     imgui_ui::UiSystem,
     render::RenderSystem,
     utils::{
-        Color,
         Vec2,
+        Color,
         UnsafeWeakRef,
         coords::{
             self,
@@ -18,16 +18,12 @@ use crate::{
 };
 
 use super::{
-    sets::{
-        TileKind,
-        BASE_TILE_SIZE
-    },
-    map::{
-        Tile,
-        TileFlags,
-        TileMap,
-        TileMapLayerKind
-    }
+    Tile,
+    TileKind,
+    TileFlags,
+    TileMap,
+    TileMapLayerKind,
+    BASE_TILE_SIZE
 };
 
 // ----------------------------------------------

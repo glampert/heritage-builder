@@ -8,8 +8,11 @@ use crate::{
         DPadDirection
     },
     tile::{
-        sets::TileKind,
-        map::{self, Tile, TileMap, TileMapLayerKind},
+        self,
+        Tile,
+        TileKind,
+        TileMap,
+        TileMapLayerKind
     },
     utils::{
         self,
@@ -31,17 +34,17 @@ use super::{
     }
 };
 
-pub mod anim;
-pub mod config;
-pub mod inventory;
-pub mod navigation;
-pub mod task;
-
-use anim::*;
 use config::*;
+use task::*;
+use anim::*;
 use inventory::*;
 use navigation::*;
-use task::*;
+
+pub mod config;
+pub mod task;
+mod anim;
+mod inventory;
+mod navigation;
 
 // ----------------------------------------------
 // Helper Macros
@@ -230,8 +233,8 @@ impl<'config> Unit<'config> {
                 let tile = find_unit_tile!(&mut self, query);
 
                 let draw_size = tile.draw_size();
-                let from_iso = map::calc_unit_iso_coords(from_cell, draw_size);
-                let to_iso = map::calc_unit_iso_coords(to_cell, draw_size);
+                let from_iso = tile::calc_unit_iso_coords(from_cell, draw_size);
+                let to_iso = tile::calc_unit_iso_coords(to_cell, draw_size);
 
                 let new_iso_coords = utils::lerp(from_iso, to_iso, progress);
                 tile.set_iso_coords_f32(new_iso_coords);

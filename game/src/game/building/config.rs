@@ -1,6 +1,6 @@
 use crate::{
+    tile::Tile,
     utils::hash::{self, StringHash},
-    tile::map::Tile,
     game::sim::resources::{
         ResourceKind,
         ResourceKinds,

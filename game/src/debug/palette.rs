@@ -14,8 +14,10 @@ use crate::{
         coords::WorldToScreenTransform
     },
     tile::{
+        TileKind,
+        BASE_TILE_SIZE,
         rendering::INVALID_TILE_COLOR,
-        sets::{TileKind, TileDef, TileDefHandle, TileSets, BASE_TILE_SIZE}
+        sets::{TileDef, TileDefHandle, TileSets}
     }
 };
 

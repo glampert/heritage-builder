@@ -11,8 +11,9 @@ use crate::{
         coords::Cell
     },
     tile::{
-        map::{TileMap, TileMapLayerKind},
-        sets::TileKind
+        TileKind,
+        TileMap,
+        TileMapLayerKind
     }
 };
 

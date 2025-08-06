@@ -5,26 +5,24 @@ use core::slice::{self};
 
 use crate::{
     imgui_ui::UiSystem,
-    tile::sets::TileKind,
     utils::coords::{
         Cell,
         CellRange,
         WorldToScreenTransform
     },
     tile::{
+        Tile,
+        TileKind,
+        TileMap,
+        TileMapLayerKind,
+        TileGameStateHandle,
         sets::{
-            TileSets,
             TileDef,
+            TileSets,
             OBJECTS_UNITS_CATEGORY
-        },
-        map::{
-            Tile,
-            TileMap,
-            TileMapLayerKind,
-            GameStateHandle
         }
     },
-    game:: {
+    game::{
         building::{
             self,
             Building,
@@ -157,7 +155,7 @@ impl<'config> World<'config> {
 
                     // Update tile & building handles:
                     instance.placed(BuildingId::new(generation, list_index));
-                    tile.set_game_state_handle(GameStateHandle::new_building(list_index, building_kind.bits()));
+                    tile.set_game_state_handle(TileGameStateHandle::new_building(list_index, building_kind.bits()));
 
                     Ok(instance)
                 } else {
@@ -379,7 +377,7 @@ impl<'config> World<'config> {
                     debug_assert!(unit.is_spawned());
 
                     // Store unit index so we can refer back to it from the Tile instance.
-                    tile.set_game_state_handle(GameStateHandle::new_unit(unit.id().index(), unit.id().generation()));
+                    tile.set_game_state_handle(TileGameStateHandle::new_unit(unit.id().index(), unit.id().generation()));
                     Ok(unit)
                 },
                 Err(err) => {
@@ -414,7 +412,7 @@ impl<'config> World<'config> {
                 debug_assert!(unit.is_spawned());
 
                 // Store unit index so we can refer back to it from the Tile instance.
-                tile.set_game_state_handle(GameStateHandle::new_unit(unit.id().index(), unit.id().generation()));
+                tile.set_game_state_handle(TileGameStateHandle::new_unit(unit.id().index(), unit.id().generation()));
                 Ok(unit)
             },
             Err(err) => {

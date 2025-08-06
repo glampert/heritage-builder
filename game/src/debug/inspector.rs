@@ -4,20 +4,20 @@ use crate::{
     app::input::{InputAction, MouseButton},
     imgui_ui::{self, UiInputEvent, UiSystem},
     pathfind::NodeKind as PathNodeKind,
-    game::sim::{
-        self,
-        Simulation
-    },
+    game::sim::{self, Simulation},
     utils::{
         Size,
         Color,
         Seconds,
         UnsafeWeakRef,
-        coords::Cell,
+        coords::Cell
     },
     tile::{
-        map::{Tile, TileFlags, TileMapLayerKind},
-        sets::{TileKind, BASE_TILE_SIZE}
+        Tile,
+        TileKind,
+        TileFlags,
+        TileMapLayerKind,
+        BASE_TILE_SIZE
     }
 };
 

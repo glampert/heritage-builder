@@ -5,6 +5,7 @@ use crate::{
     imgui_ui::{UiSystem, UiInputEvent},
     render::{RenderStats, RenderSystem, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
+    game::sim::{self, Simulation, world::World},
     utils::{
         Vec2,
         UnsafeWeakRef,
@@ -12,15 +13,15 @@ use crate::{
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
     tile::{
+        TileMap,
+        TileFlags,
+        TileKind,
+        TileMapLayerKind,
+        sets::TileSets,
         camera::Camera,
         placement::PlacementOp,
         selection::TileSelection,
-        sets::{TileSets, TileKind},
-        map::{TileMap, TileMapLayerKind, TileFlags},
-        rendering::{TileMapRenderer, TileMapRenderStats, TileMapRenderFlags},
-    },
-    game::{
-        sim::{self, Simulation, world::World}
+        rendering::{TileMapRenderer, TileMapRenderStats, TileMapRenderFlags}
     },
     pathfind::{
         Node,
@@ -32,15 +33,15 @@ use crate::{
     }
 };
 
-pub mod inspector;
-pub mod palette;
-pub mod popups;
-pub mod settings;
-pub mod utils;
-
 use inspector::TileInspectorMenu;
 use palette::TilePaletteMenu;
 use settings::DebugSettingsMenu;
+
+pub mod utils;
+pub mod popups;
+mod inspector;
+mod palette;
+mod settings;
 
 // ----------------------------------------------
 // Args helper structs

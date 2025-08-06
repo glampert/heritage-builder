@@ -1,9 +1,3 @@
-pub mod input;
-
-// Internal implementation.
-mod glfw;
-pub use glfw::load_gl_func;
-
 use smallvec::SmallVec;
 
 use crate::{
@@ -11,8 +5,18 @@ use crate::{
 };
 
 use input::{
-    InputAction, InputKey, InputModifiers, InputSystem, MouseButton
+    InputAction,
+    InputKey,
+    InputModifiers,
+    InputSystem,
+    MouseButton
 };
+
+pub mod input;
+
+// Internal implementation.
+mod glfw;
+pub use glfw::load_gl_func;
 
 // ----------------------------------------------
 // Application

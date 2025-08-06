@@ -14,7 +14,7 @@ use crate::{
         coords::{CellRange, WorldToScreenTransform}
     },
     tile::{
-        map::TileMapLayerKind,
+        TileMapLayerKind,
         sets::TileDef
     },
     game::sim::{

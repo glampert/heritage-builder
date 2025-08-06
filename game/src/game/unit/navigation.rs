@@ -5,8 +5,8 @@ use crate::{
     pathfind::Path,
     imgui_ui::UiSystem,
     game::building::BuildingKind,
-    tile::map::{TileMap, TileMapLayerKind},
     utils::{Seconds, coords::Cell},
+    tile::{TileMap, TileMapLayerKind}
 };
 
 use super::{

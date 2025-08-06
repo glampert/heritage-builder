@@ -1,5 +1,5 @@
 use crate::{
-    tile::{map::Tile, sets::TileDef},
+    tile::{Tile, sets::TileDef},
     utils::hash::{
         StrHashPair,
         StringHash,

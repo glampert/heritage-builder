@@ -1,16 +1,18 @@
-use crate::{
-    utils::{
-        self, Seconds, Size, Vec2, Rect,
-        coords::{
-            CellRange,
-            WorldToScreenTransform
-        }
+use crate::utils::{
+    self,
+    Vec2,
+    Size,
+    Rect,
+    Seconds,
+    coords::{
+        CellRange,
+        WorldToScreenTransform
     }
 };
 
 use super::{
     selection::{self},
-    sets::BASE_TILE_SIZE
+    BASE_TILE_SIZE
 };
 
 // ----------------------------------------------

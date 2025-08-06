@@ -11,13 +11,12 @@ use crate::{
 };
 
 use super::{
-    sets::{TileDef, TileKind},
-    map::{
-        Tile,
-        TileMap,
-        TileMapLayer,
-        TileMapLayerKind
-    }
+    Tile,
+    TileKind,
+    TileMap,
+    TileMapLayer,
+    TileMapLayerKind,
+    sets::TileDef
 };
 
 // ----------------------------------------------

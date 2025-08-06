@@ -2,8 +2,8 @@ use std::ffi::c_void;
 use glfw::Context;
 
 use crate::{
-    utils::{self, Size, Vec2},
-    app::{Application, ApplicationEvent, ApplicationEventList},
+    utils::{self, Size, Vec2, UnsafeWeakRef},
+    app::{Application, ApplicationEvent, ApplicationEventList}
 };
 
 use super::{
@@ -198,20 +198,19 @@ fn confine_cursor_to_window(window: &mut glfw::Window) {
 }
 
 #[inline]
-fn get_glfw_window_ptr<T: Application>(app: &T) -> *mut glfw::PWindow {
+fn get_glfw_window_ref<T: Application>(app: &T) -> UnsafeWeakRef<glfw::PWindow> {
     unsafe {
         // SAFETY: Type `T` is always GlfwApplication, there's only one implementation of the Application trait.
         debug_assert!(std::mem::size_of::<T>() == std::mem::size_of::<GlfwApplication>());
         let glfw_app_ptr = app as *const T as *const GlfwApplication;
-        &(*glfw_app_ptr).window as *const glfw::PWindow as *mut glfw::PWindow
+        UnsafeWeakRef::new(&(*glfw_app_ptr).window)
     }
 }
 
 // For the ImGui OpenGL backend.
 pub fn load_gl_func<T: Application>(app: &T, func_name: &'static str) -> *const c_void {
-    let window_ptr = get_glfw_window_ptr(app);
-    debug_assert!(!window_ptr.is_null());
-    unsafe { (*window_ptr).get_proc_address(func_name) }
+    let mut window_ref = get_glfw_window_ref(app);
+    window_ref.get_proc_address(func_name)
 }
 
 // ----------------------------------------------
@@ -219,21 +218,20 @@ pub fn load_gl_func<T: Application>(app: &T, func_name: &'static str) -> *const 
 // ----------------------------------------------
 
 pub struct GlfwInputSystem {
-    window_ptr: *const glfw::PWindow,
+    window_ref: UnsafeWeakRef<glfw::PWindow>,
 }
 
 impl GlfwInputSystem {
     pub fn new<T: Application>(app: &T) -> Self {
         Self {
             // SAFETY: Application will persist for as long at InputSystem.
-            window_ptr: get_glfw_window_ptr(app),
+            window_ref: get_glfw_window_ref(app),
         }
     }
 
     #[inline]
     fn get_window(&self) -> &glfw::PWindow {
-        debug_assert!(!self.window_ptr.is_null());
-        unsafe { &(*self.window_ptr) }
+        &self.window_ref
     }
 }
 

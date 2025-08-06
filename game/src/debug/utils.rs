@@ -2,19 +2,23 @@ use paste::paste;
 
 use crate::{
     imgui_ui::UiSystem,
-    render::{RenderSystem, RenderStats},
     game::sim::world::World,
+    render::{RenderSystem, RenderStats},
     utils::{
-        Color, Size, Vec2, Rect,
-        coords::{
-            self,
-            Cell,
-            WorldToScreenTransform
-        }
+        Color,
+        Size,
+        Vec2,
+        Rect,
+        coords::{self, Cell, WorldToScreenTransform}
     },
     tile::{
-        sets::{TileKind, TileSets, TileDef, BASE_TILE_SIZE},
-        map::{Tile, TileFlags, TileMap, TileMapLayerKind},
+        Tile,
+        TileKind,
+        TileFlags,
+        TileMap,
+        TileMapLayerKind,
+        BASE_TILE_SIZE,
+        sets::{TileSets, TileDef},
         rendering::{TileMapRenderFlags, TileMapRenderStats}
     }
 };

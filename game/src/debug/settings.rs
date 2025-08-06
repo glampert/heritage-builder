@@ -4,8 +4,8 @@ use crate::{
     imgui_ui::UiSystem,
     utils::hash::{self},
     tile::{
+        TileMapLayerKind,
         camera::Camera,
-        map::TileMapLayerKind,
         sets::TERRAIN_GROUND_CATEGORY,
         rendering::{
             TileMapRenderFlags,

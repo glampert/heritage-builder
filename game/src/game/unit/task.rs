@@ -7,7 +7,7 @@ use enum_dispatch::enum_dispatch;
 use crate::{
     debug::{self},
     imgui_ui::UiSystem,
-    tile::map::TileMapLayerKind,
+    tile::TileMapLayerKind,
     pathfind::{
         Path,
         SearchResult,
