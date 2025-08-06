@@ -1457,12 +1457,29 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 }
 
 // ----------------------------------------------
+// Optional callbacks used for editing and dev
+// ----------------------------------------------
+
+pub type TilePlacedCallback   = fn(&mut Tile, bool);
+pub type RemovingTileCallback = fn(&mut Tile);
+pub type MapResetCallback     = fn(&mut TileMap);
+
+// ----------------------------------------------
 // TileMap
 // ----------------------------------------------
 
 pub struct TileMap<'tile_sets> {
     size_in_cells: Size,
     layers: ArrayVec<Box<TileMapLayer<'tile_sets>>, TILE_MAP_LAYER_COUNT>,
+
+    // Called *after* a tile is placed with the new tile instance.
+    on_tile_placed_callback: Option<TilePlacedCallback>,
+
+    // Called *before* the tile is removed with the instance about to be removed.
+    on_removing_tile_callback: Option<RemovingTileCallback>,
+
+    // Called *after* the TileMap has been reset. Any existing tile references/cells are invalidated.
+    on_map_reset_callback: Option<MapResetCallback>,
 }
 
 impl<'tile_sets> TileMap<'tile_sets> {
@@ -1471,6 +1488,9 @@ impl<'tile_sets> TileMap<'tile_sets> {
         let mut tile_map = Self {
             size_in_cells,
             layers: ArrayVec::new(),
+            on_tile_placed_callback: None,
+            on_removing_tile_callback: None,
+            on_map_reset_callback: None,
         };
         tile_map.reset(fill_with_def);
         tile_map
@@ -1491,7 +1511,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     pub fn reset(&mut self, fill_with_def: Option<&'tile_sets TileDef>) {
         self.layers.clear();
-        invoke_map_reset_callback(self);
+
+        if let Some(callback) = self.on_map_reset_callback {
+            callback(self);
+        }
 
         for layer_kind in TileMapLayerKind::iter() {
             // Find which layer this tile belong to if we're not just setting everything to empty.
@@ -1673,13 +1696,16 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                    layer_kind: TileMapLayerKind,
                                    tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
 
+        let tile_placed_callback = self.on_tile_placed_callback;
         let layer = self.layer_mut(layer_kind);
         let prev_pool_capacity = layer.pool_capacity();
 
         placement::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
             .map(|(tile, new_pool_capacity)| {
-                let did_reallocate = new_pool_capacity != prev_pool_capacity;
-                invoke_tile_placed_callback(tile, did_reallocate);
+                if let Some(callback) = tile_placed_callback {
+                    let did_reallocate = new_pool_capacity != prev_pool_capacity;
+                    callback(tile, did_reallocate);
+                }
                 tile
             })
     }
@@ -1690,6 +1716,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                     transform: &WorldToScreenTransform,
                                     tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
 
+        let tile_placed_callback = self.on_tile_placed_callback;
         let prev_pool_capacity = {
             let layer = self.layer(tile_def_to_place.layer_kind());
             layer.pool_capacity()
@@ -1697,8 +1724,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
         placement::try_place_tile_at_cursor(self, cursor_screen_pos, transform, tile_def_to_place)
             .map(|(tile, new_pool_capacity)| {
-                let did_reallocate = new_pool_capacity != prev_pool_capacity;
-                invoke_tile_placed_callback(tile, did_reallocate);
+                if let Some(callback) = tile_placed_callback {
+                    let did_reallocate = new_pool_capacity != prev_pool_capacity;
+                    callback(tile, did_reallocate);
+                }
                 tile
             })
     }
@@ -1708,9 +1737,9 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                      target_cell: Cell,
                                      layer_kind: TileMapLayerKind) -> Result<(), String> {
 
-        if has_removing_tile_callback() {
+        if let Some(callback) = self.on_removing_tile_callback {
             if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
-                invoke_removing_tile_callback(tile);
+                callback(tile);
             }
         }
 
@@ -1722,11 +1751,11 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                     cursor_screen_pos: Vec2,
                                     transform: &WorldToScreenTransform) -> Result<(), String> {
 
-        if has_removing_tile_callback() {
+        if let Some(callback) = self.on_removing_tile_callback {
             for layer_kind in TileMapLayerKind::iter().rev() {
                 let target_cell = self.find_exact_cell_for_point(layer_kind, cursor_screen_pos, transform);
                 if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
-                    invoke_removing_tile_callback(tile);
+                    callback(tile);
                     break;
                 }
             }
@@ -1842,77 +1871,20 @@ impl<'tile_sets> TileMap<'tile_sets> {
         }
         None
     }
-}
 
-// ----------------------------------------------
-// Optional callbacks used for editing and dev
-// ----------------------------------------------
+    // ----------------------
+    // Editor callbacks:
+    // ----------------------
 
-type TilePlacedCallback   = std::cell::OnceCell<Box<dyn Fn(&mut Tile, bool) + 'static>>;
-type RemovingTileCallback = std::cell::OnceCell<Box<dyn Fn(&mut Tile) + 'static>>;
-type MapResetCallback     = std::cell::OnceCell<Box<dyn Fn(&mut TileMap) + 'static>>;
+    pub fn set_tile_placed_callback(&mut self, callback: Option<TilePlacedCallback>) {
+        self.on_tile_placed_callback = callback;
+    }
 
-std::thread_local! {
-    // Called *after* a tile is placed with the new tile instance.
-    static ON_TILE_PLACED_CALLBACK: TilePlacedCallback = const { TilePlacedCallback::new() };
+    pub fn set_removing_tile_callback(&mut self, callback: Option<RemovingTileCallback>) {
+        self.on_removing_tile_callback = callback;
+    }
 
-    // Called *before* the tile is removed with the instance about to be removed.
-    static ON_REMOVING_TILE_CALLBACK: RemovingTileCallback = const { RemovingTileCallback::new() };
-
-    // Called *after* the TileMap has been reset. Any existing tile references/cells are invalidated.
-    static ON_MAP_RESET_CALLBACK: MapResetCallback = const { MapResetCallback::new() };
-}
-
-// The callbacks can only be set once and will stay set globally (per-thread).
-
-pub fn set_tile_placed_callback(callback: impl Fn(&mut Tile, bool) + 'static) {
-    ON_TILE_PLACED_CALLBACK.with(|cb| {
-        cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_TILE_PLACED_CALLBACK was already set!"));
-    });
-}
-
-pub fn set_removing_tile_callback(callback: impl Fn(&mut Tile) + 'static) {
-    ON_REMOVING_TILE_CALLBACK.with(|cb| {
-        cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_REMOVING_TILE_CALLBACK was already set!"));
-    });
-}
-
-pub fn set_map_reset_callback(callback: impl Fn(&mut TileMap) + 'static) {
-    ON_MAP_RESET_CALLBACK.with(|cb| {
-        cb.set(Box::new(callback)).unwrap_or_else(|_| panic!("ON_MAP_RESET_CALLBACK was already set!"));
-    });
-}
-
-#[inline]
-fn invoke_tile_placed_callback(tile: &mut Tile, did_reallocate: bool) {
-    ON_TILE_PLACED_CALLBACK.with(|cb| {
-        if let Some(callback) = cb.get() {
-            callback(tile, did_reallocate);
-        }
-    });
-}
-
-#[inline]
-fn invoke_removing_tile_callback(tile: &mut Tile) {
-    ON_REMOVING_TILE_CALLBACK.with(|cb| {
-        if let Some(callback) = cb.get() {
-            callback(tile);
-        }
-    });
-}
-
-#[inline]
-fn invoke_map_reset_callback(tile_map: &mut TileMap) {
-    ON_MAP_RESET_CALLBACK.with(|cb| {
-        if let Some(callback) = cb.get() {
-            callback(tile_map);
-        }
-    });
-}
-
-#[inline]
-fn has_removing_tile_callback() -> bool {
-    ON_REMOVING_TILE_CALLBACK.with(|cb| -> bool {
-        cb.get().is_some()
-    })
+    pub fn set_map_reset_callback(&mut self, callback: Option<MapResetCallback>) {
+        self.on_map_reset_callback = callback;
+    }
 }

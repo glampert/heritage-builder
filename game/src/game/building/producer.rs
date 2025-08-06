@@ -23,6 +23,7 @@ use crate::{
 };
 
 use super::{
+    Building,
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
@@ -31,8 +32,7 @@ use super::{
         Unit,
         task::{
             UnitTaskDespawn,
-            UnitTaskDeliverToStorage,
-            UnitTaskCompletionCallback
+            UnitTaskDeliverToStorage
         }
     }
 };
@@ -230,18 +230,6 @@ impl<'config> ProducerBuilding<'config> {
         let resource_kind_to_deliver = self.production_output_stock.kind();
         let resource_count = self.production_output_stock.count();
     
-        let on_resources_delivered: UnitTaskCompletionCallback = |unit, building| {
-            debug_assert!(unit.is_inventory_empty(), "Unit should have delivered all resourced by now!");
-            debug_assert!(building.is(BuildingKind::producers()));
-
-            let producer = building.as_producer_mut();
-
-            debug_assert!(producer.is_runner_out_delivering_resources(), "No runner was sent out by this building!");
-            producer.runner_id = UnitId::default();
-
-            producer.debug.popup_msg_color(Color::cyan(), "Delivery completed");
-        };
-
         let task_manager = context.query.task_manager();
 
         // TODO: If we fail to ship to a Storage we could try shipping directly to another Producer.
@@ -260,7 +248,7 @@ impl<'config> ProducerBuilding<'config> {
                 storage_buildings_accepted,
                 resource_kind_to_deliver,
                 resource_count,
-                completion_callback: Some(on_resources_delivered),
+                completion_callback: Some(Self::on_resources_delivered),
                 completion_task: task_manager.new_task(UnitTaskDespawn),
                 fallback_task,
             });
@@ -278,6 +266,17 @@ impl<'config> ProducerBuilding<'config> {
                 eprintln!("{} {}: Failed to ship production: {}", self.name(), context.base_cell(), err);
             }
         }
+    }
+
+    fn on_resources_delivered(this_building: &mut Building, runner_unit: &mut Unit) {
+        debug_assert!(runner_unit.is_inventory_empty(), "Unit should have delivered all resourced by now!");
+
+        let producer = this_building.as_producer_mut();
+
+        debug_assert!(producer.is_runner_out_delivering_resources(), "No runner was sent out by this building!");
+        producer.runner_id = UnitId::default();
+
+        producer.debug.popup_msg_color(Color::cyan(), "Delivery completed");
     }
 
     fn is_runner_out_delivering_resources(&self) -> bool {

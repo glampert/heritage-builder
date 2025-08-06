@@ -1,9 +1,3 @@
-pub mod inspector;
-pub mod palette;
-pub mod popups;
-pub mod settings;
-pub mod utils;
-
 use std::cell::OnceCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -22,7 +16,7 @@ use crate::{
         placement::PlacementOp,
         selection::TileSelection,
         sets::{TileSets, TileKind},
-        map::{self, TileMap, TileMapLayerKind, TileFlags},
+        map::{TileMap, TileMapLayerKind, TileFlags},
         rendering::{TileMapRenderer, TileMapRenderStats, TileMapRenderFlags},
     },
     game::{
@@ -37,6 +31,12 @@ use crate::{
         SearchResult
     }
 };
+
+pub mod inspector;
+pub mod palette;
+pub mod popups;
+pub mod settings;
+pub mod utils;
 
 use inspector::TileInspectorMenu;
 use palette::TilePaletteMenu;
@@ -85,7 +85,7 @@ pub struct DebugMenusEndFrameArgs<'rs, 'cam, 'sim, 'ui, 'world, 'config, 'tile_m
 pub struct DebugMenusSystem;
 
 impl DebugMenusSystem {
-    pub fn new(tile_map: &TileMap, tex_cache: &mut impl TextureCache) -> Self {
+    pub fn new(tile_map: &mut TileMap, tex_cache: &mut impl TextureCache) -> Self {
         const DEBUG_SETTINGS_OPEN: bool = false;
         const TILE_PALETTE_OPEN: bool = true;
 
@@ -95,23 +95,23 @@ impl DebugMenusSystem {
         init_tile_map_debug_ref(tile_map);
 
         // Register TileMap global callbacks:
-        map::set_tile_placed_callback(|tile, did_reallocate| {
+        tile_map.set_tile_placed_callback(Some(|tile, did_reallocate| {
             use_singleton(|instance| {
                 instance.tile_inspector_menu.on_tile_placed(tile, did_reallocate);
             });
-        });
+        }));
 
-        map::set_removing_tile_callback(|tile| {
+        tile_map.set_removing_tile_callback(Some(|tile| {
             use_singleton(|instance| {
                 instance.tile_inspector_menu.on_removing_tile(tile);
             });
-        });
+        }));
 
-        map::set_map_reset_callback(|_| {
+        tile_map.set_map_reset_callback(Some(|_| {
             use_singleton(|instance| {
                 instance.tile_inspector_menu.close();
             });
-        });
+        }));
 
         Self
     }

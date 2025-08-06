@@ -85,7 +85,7 @@ fn main() {
         camera::MIN_ZOOM,
         camera::Offset::Center);
 
-    let mut debug_menus = DebugMenusSystem::new(&tile_map, render_sys.texture_cache_mut());
+    let mut debug_menus = DebugMenusSystem::new(&mut tile_map, render_sys.texture_cache_mut());
 
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();

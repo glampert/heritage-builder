@@ -42,7 +42,7 @@ use super::{
 // ----------------------------------------------
 
 pub type UnitTaskId = GenerationalIndex;
-pub type UnitTaskCompletionCallback = fn(&mut Unit, &mut Building);
+pub type UnitTaskCompletionCallback = fn(&mut Building, &mut Unit);
 
 #[derive(Display, PartialEq, Eq)]
 pub enum UnitTaskState {
@@ -275,7 +275,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
                     // callback on a different building, even if the type of building there is the same.
                     debug_assert!(origin_building.kind() == self.origin_building.kind);
                     debug_assert!(origin_building.id()   == self.origin_building.id);
-                    on_completion(unit, origin_building);
+                    on_completion(origin_building, unit);
                 }
             }
         }
