@@ -116,19 +116,21 @@ impl<'config> Unit<'config> {
         self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
     }
 
-    pub fn despawned(&mut self) {
+    pub fn despawned(&mut self, task_manager: &mut UnitTaskManager) {
         debug_assert!(self.is_spawned());
-        debug_assert!(self.inventory.is_empty()); // Should be empty, otherwise we might be losing resources!
-        debug_assert!(!self.current_task_id.is_valid()); // Shouldn't be running any task by now.
 
         self.config    = None;
         self.map_cell  = Cell::default();
         self.id        = UnitId::default();
         self.direction = UnitDirection::default();
 
-        self.anim_sets.reset();
+        self.anim_sets.clear();
+        self.inventory.clear();
         self.navigation.reset(None, None);
         self.debug.clear_popups();
+
+        task_manager.free_task(self.current_task_id);
+        self.current_task_id = UnitTaskId::default();
     }
 
     #[inline]
@@ -296,8 +298,9 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
-    pub fn assign_task(&mut self, task_id: Option<UnitTaskId>) {
+    pub fn assign_task(&mut self, task_manager: &mut UnitTaskManager, task_id: Option<UnitTaskId>) {
         debug_assert!(self.is_spawned());
+        task_manager.free_task(self.current_task_id);
         self.current_task_id = task_id.unwrap_or_default();
     }
 
@@ -306,7 +309,8 @@ impl<'config> Unit<'config> {
                                      unit_config: UnitConfigKey,
                                      task: Task) -> Result<&'config mut Unit<'config>, &'static str>
         where
-            Task: UnitTask
+            Task: UnitTask,
+            UnitTaskArchetype: From<Task>
     {
         // Handle root tasks here. These will start the task chain and might take some time to complete.
 
@@ -315,8 +319,9 @@ impl<'config> Unit<'config> {
             None => return Err("Couldn't spawn new unit!"),
         };
 
-        let new_task_id = query.task_manager().new_task(task);
-        unit.assign_task(new_task_id);
+        let task_manager = query.task_manager();
+        let new_task_id = task_manager.new_task(task);
+        unit.assign_task(task_manager, new_task_id);
 
         Ok(unit)
     }

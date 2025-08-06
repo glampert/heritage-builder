@@ -54,8 +54,9 @@ pub struct DebugMenusOnInputArgs<'world, 'config, 'tile_map, 'tile_sets> {
     pub cursor_screen_pos: Vec2,
 }
 
-pub struct DebugMenusBeginFrameArgs<'ui, 'world, 'config, 'tile_map, 'tile_sets> {
+pub struct DebugMenusBeginFrameArgs<'sim, 'ui, 'world, 'config, 'tile_map, 'tile_sets> {
     pub ui_sys: &'ui UiSystem,
+    pub sim: &'sim mut Simulation<'config>,
     pub world: &'world mut World<'config>,
     pub tile_map: &'tile_map mut TileMap<'tile_sets>,
     pub tile_selection: &'tile_map mut TileSelection,
@@ -343,7 +344,7 @@ impl DebugMenusSingleton {
                         args.world.despawn_building_at_cell(args.tile_map, tile.base_cell())
                             .expect("Tile removal failed!");
                     } else if tile.is(TileKind::Unit) {
-                        args.world.despawn_unit_at_cell(args.tile_map, tile.base_cell())
+                        args.world.despawn_unit_at_cell(args.tile_map, args.sim.task_manager(), tile.base_cell())
                             .expect("Tile removal failed!");
                     } else {
                         // No world state, just remove the tile directly.
@@ -389,6 +390,7 @@ impl DebugMenusSingleton {
 
         self.debug_settings_menu.draw(
             &mut args.context,
+            args.sim,
             args.camera,
             args.tile_map_renderer);
 

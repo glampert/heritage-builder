@@ -33,6 +33,11 @@ impl UnitInventory {
     }
 
     #[inline]
+    pub fn clear(&mut self) {
+        self.item = None;
+    }
+
+    #[inline]
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if let Some(item) = &mut self.item {
             debug_assert!(item.kind == kind && item.count != 0);

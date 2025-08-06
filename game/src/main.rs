@@ -175,6 +175,7 @@ fn main() {
         let selected_render_flags =
             debug_menus.begin_frame(&mut DebugMenusBeginFrameArgs {
                 ui_sys: &ui_sys,
+                sim: &mut sim,
                 world: &mut world,
                 tile_map: &mut tile_map,
                 tile_selection: &mut tile_selection,
@@ -221,4 +222,6 @@ fn main() {
 
         frame_clock.end_frame();
     }
+
+    sim.reset(&mut world);
 }

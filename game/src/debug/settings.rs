@@ -5,14 +5,8 @@ use crate::{
     utils::hash::{self},
     tile::{
         camera::Camera,
-        sets::{
-            TileSets,
-            TERRAIN_GROUND_CATEGORY
-        },
-        map::{
-            TileMap,
-            TileMapLayerKind
-        },
+        map::TileMapLayerKind,
+        sets::TERRAIN_GROUND_CATEGORY,
         rendering::{
             TileMapRenderFlags,
             TileMapRenderer,
@@ -22,7 +16,7 @@ use crate::{
     },
     game::sim::{
         self,
-        world::World
+        Simulation
     }
 };
 
@@ -108,10 +102,11 @@ impl DebugSettingsMenu {
         flags
     }
 
-    pub fn draw(&mut self,
-                context: &mut sim::debug::DebugContext,
-                camera: &mut Camera,
-                tile_map_renderer: &mut TileMapRenderer) {
+    pub fn draw<'config>(&mut self,
+                         context: &mut sim::debug::DebugContext<'config, '_, '_, '_, '_>,
+                         sim: &mut Simulation<'config>,
+                         camera: &mut Camera,
+                         tile_map_renderer: &mut TileMapRenderer) {
 
         let window_flags =
             imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
@@ -128,7 +123,7 @@ impl DebugSettingsMenu {
                 self.camera_dropdown(context.ui_sys, camera);
                 self.map_grid_dropdown(context.ui_sys, tile_map_renderer);
                 self.debug_draw_dropdown(context.ui_sys);
-                self.reset_map_dropdown(context.ui_sys, context.world, context.tile_map, context.tile_sets);
+                self.reset_map_dropdown(context, sim);
             });
     }
 
@@ -199,38 +194,36 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn reset_map_dropdown<'tile_sets>(&self,
-                                      ui_sys: &UiSystem,
-                                      world: &mut World,
-                                      tile_map: &mut TileMap<'tile_sets>,
-                                      tile_sets: &'tile_sets TileSets) {
+    fn reset_map_dropdown<'config>(&self,
+                                   context: &mut sim::debug::DebugContext<'config, '_, '_, '_, '_>,
+                                   sim: &mut Simulation<'config>) {
 
-        let ui = ui_sys.builder();
+        let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Reset Map", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.                    
         }
 
         if ui.button("Reset empty") {
-            tile_map.reset(None);
-            world.reset();
+            context.tile_map.reset(None);
+            sim.reset(context.world);
         }
 
         if ui.button("Reset to dirt tiles") {
-            let dirt_tile_def = tile_sets.find_tile_def_by_hash(
+            let dirt_tile_def = context.tile_sets.find_tile_def_by_hash(
                 TileMapLayerKind::Terrain,
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("dirt"));
-            tile_map.reset(dirt_tile_def);
-            world.reset();
+            context.tile_map.reset(dirt_tile_def);
+            sim.reset(context.world);
         }
 
         if ui.button("Reset to grass tiles") {
-            let grass_tile_def = tile_sets.find_tile_def_by_hash(
+            let grass_tile_def = context.tile_sets.find_tile_def_by_hash(
                 TileMapLayerKind::Terrain,
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("grass"));
-            tile_map.reset(grass_tile_def);
-            world.reset();
+            context.tile_map.reset(grass_tile_def);
+            sim.reset(context.world);
         }
     }
 }

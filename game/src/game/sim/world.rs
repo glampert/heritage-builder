@@ -35,6 +35,7 @@ use crate::{
         },
         unit::{
             Unit,
+            task::UnitTaskManager,
             config::{
                 UnitConfig,
                 UnitConfigs,
@@ -71,10 +72,10 @@ impl<'config> World<'config> {
         Self {
             // Buildings:
             building_lists: [
-                BuildingList::new(BuildingArchetypeKind::Producer, 32),
-                BuildingList::new(BuildingArchetypeKind::Storage,  32),
-                BuildingList::new(BuildingArchetypeKind::Service,  128),
-                BuildingList::new(BuildingArchetypeKind::House,    256),
+                BuildingList::new(BuildingArchetypeKind::ProducerBuilding, 32),
+                BuildingList::new(BuildingArchetypeKind::StorageBuilding,  32),
+                BuildingList::new(BuildingArchetypeKind::ServiceBuilding,  128),
+                BuildingList::new(BuildingArchetypeKind::HouseBuilding,    256),
             ],
             building_configs,
             building_generation_count: 0,
@@ -85,12 +86,12 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, task_manager: &mut UnitTaskManager) {
         for buildings in &mut self.building_lists {
             buildings.clear();
         }
 
-        self.unit_spawn_pool.clear();
+        self.unit_spawn_pool.clear(task_manager);
     }
 
     pub fn update_unit_navigation(&mut self, query: &Query<'config, '_>) {
@@ -423,7 +424,7 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn despawn_unit(&mut self, tile_map: &mut TileMap, unit: &mut Unit) -> Result<(), String> {
+    pub fn despawn_unit(&mut self, tile_map: &mut TileMap, task_manager: &mut UnitTaskManager, unit: &mut Unit) -> Result<(), String> {
         debug_assert!(unit.is_spawned());
 
         let tile_cell = unit.cell();
@@ -445,11 +446,11 @@ impl<'config> World<'config> {
         tile_map.try_clear_tile_from_layer(tile_cell, TileMapLayerKind::Objects)?;
 
         // Put the unit instance back into the spawn pool.
-        self.unit_spawn_pool.despawn_instance(unit);
+        self.unit_spawn_pool.despawn_instance(task_manager, unit);
         Ok(())
     }
 
-    pub fn despawn_unit_at_cell(&mut self, tile_map: &mut TileMap, tile_cell: Cell) -> Result<(), String> {
+    pub fn despawn_unit_at_cell(&mut self, tile_map: &mut TileMap, task_manager: &mut UnitTaskManager, tile_cell: Cell) -> Result<(), String> {
         debug_assert!(tile_cell.is_valid());
 
         // Find and validate associated Tile:
@@ -471,7 +472,7 @@ impl<'config> World<'config> {
         tile_map.try_clear_tile_from_layer(tile_cell, TileMapLayerKind::Objects)?;
 
         // Put the unit instance back into the spawn pool.
-        self.unit_spawn_pool.despawn_by_id(unit.id());
+        self.unit_spawn_pool.despawn_by_id(task_manager, unit.id());
         Ok(())
     }
 
@@ -815,11 +816,11 @@ impl<'config> UnitSpawnPool<'config> {
     }
 
     #[inline]
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, task_manager: &mut UnitTaskManager) {
         debug_assert!(self.is_valid());
 
         for unit in self.iter_mut() {
-            unit.despawned();
+            unit.despawned(task_manager);
         }
 
         self.pool.fill(Unit::default());
@@ -885,7 +886,7 @@ impl<'config> UnitSpawnPool<'config> {
         &mut self.pool[new_pool_index]
     }
 
-    pub fn despawn_instance(&mut self, unit: &mut Unit) {
+    pub fn despawn_instance(&mut self, task_manager: &mut UnitTaskManager, unit: &mut Unit) {
         debug_assert!(self.is_valid());
         debug_assert!(unit.is_spawned());
 
@@ -893,22 +894,22 @@ impl<'config> UnitSpawnPool<'config> {
         debug_assert!(self.is_spawned_flags[pool_index]);
         debug_assert!(std::ptr::eq(&self.pool[pool_index], unit)); // Ensure addresses are the same.
 
-        unit.despawned();
+        unit.despawned(task_manager);
         self.is_spawned_flags.set(pool_index, false);
     }
 
-    pub fn despawn_by_id(&mut self, id: UnitId) {
+    pub fn despawn_by_id(&mut self, task_manager: &mut UnitTaskManager, unit_id: UnitId) {
         debug_assert!(self.is_valid());
-        debug_assert!(id.is_valid());
+        debug_assert!(unit_id.is_valid());
 
-        let pool_index = id.index();
+        let pool_index = unit_id.index();
         debug_assert!(self.is_spawned_flags[pool_index]);
 
         let unit = &mut self.pool[pool_index];
         debug_assert!(unit.is_spawned());
-        debug_assert!(unit.id() == id);
+        debug_assert!(unit.id() == unit_id);
 
-        unit.despawned();
+        unit.despawned(task_manager);
         self.is_spawned_flags.set(pool_index, false);
     }
 }

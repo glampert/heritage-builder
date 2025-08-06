@@ -35,7 +35,7 @@ impl UnitAnimSets {
         anim_set
     }
 
-    pub fn reset(&mut self) {
+    pub fn clear(&mut self) {
         self.current_anim_set_key = UnitAnimSetKey::default();
         self.anim_set_index_map.clear();
     }

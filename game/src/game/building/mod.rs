@@ -1,6 +1,8 @@
 use bitflags::{bitflags, Flags};
+use paste::paste;
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
+use enum_dispatch::enum_dispatch;
 use proc_macros::DrawDebugUi;
 
 use crate::{
@@ -25,11 +27,16 @@ use super::{
     }
 };
 
+pub mod config;
 pub mod producer;
 pub mod storage;
 pub mod service;
 pub mod house;
-pub mod config;
+
+use producer::ProducerBuilding;
+use storage::StorageBuilding;
+use service::ServiceBuilding;
+use house::HouseBuilding;
 
 /*
 -----------------------
@@ -59,6 +66,31 @@ pub mod config;
  - May consume resources (food, goods, etc) from storage (e.g.: a Market).
  - Provides services to neighborhood.
 */
+
+// ----------------------------------------------
+// Helper Macros
+// ----------------------------------------------
+
+macro_rules! building_type_casts {
+    ($derived_mod:ident, $derived_struct:ident) => {
+        paste! {
+            #[inline]
+            pub fn [<as_ $derived_mod>](&self) -> &$derived_struct<'config> {
+                match &self.archetype {
+                    BuildingArchetype::$derived_struct(state) => state,
+                    _ => panic!("Building archetype is not {}!", stringify!($derived_struct))
+                }
+            }
+            #[inline]
+            pub fn [<as_ $derived_mod _mut>](&mut self) -> &mut $derived_struct<'config> {
+                match &mut self.archetype {
+                    BuildingArchetype::$derived_struct(state) => state,
+                    _ => panic!("Building archetype is not {}!", stringify!($derived_struct))
+                }
+            }
+        }
+    };
+}
 
 // ----------------------------------------------
 // Building
@@ -125,45 +157,10 @@ impl<'config> Building<'config> {
         self.id
     }
 
-    #[inline]
-    pub fn as_producer(&self) -> &producer::ProducerBuilding<'config> {
-        self.archetype.as_producer()
-    }
-
-    #[inline]
-    pub fn as_producer_mut(&mut self) -> &mut producer::ProducerBuilding<'config> {
-        self.archetype.as_producer_mut()
-    }
-
-    #[inline]
-    pub fn as_storage(&self) -> &storage::StorageBuilding<'config> {
-        self.archetype.as_storage()
-    }
-
-    #[inline]
-    pub fn as_storage_mut(&mut self) -> &mut storage::StorageBuilding<'config> {
-        self.archetype.as_storage_mut()
-    }
-
-    #[inline]
-    pub fn as_service(&self) -> &service::ServiceBuilding<'config> {
-        self.archetype.as_service()
-    }
-
-    #[inline]
-    pub fn as_service_mut(&mut self) -> &mut service::ServiceBuilding<'config> {
-        self.archetype.as_service_mut()
-    }
-
-    #[inline]
-    pub fn as_house(&self) -> &house::HouseBuilding<'config> {
-        self.archetype.as_house()
-    }
-
-    #[inline]
-    pub fn as_house_mut(&mut self) -> &mut house::HouseBuilding<'config> {
-        self.archetype.as_house_mut()
-    }
+    building_type_casts! { producer, ProducerBuilding } // as_producer()
+    building_type_casts! { storage,  StorageBuilding  } // as_storage()
+    building_type_casts! { service,  ServiceBuilding  } // as_service()
+    building_type_casts! { house,    HouseBuilding    } // as_house()
 
     #[inline]
     pub fn update(&mut self, query: &Query<'config, '_>) {
@@ -336,13 +333,13 @@ impl BuildingKind {
     #[inline]
     pub fn archetype_kind(self) -> BuildingArchetypeKind {
         if self.intersects(Self::producers()) {
-            BuildingArchetypeKind::Producer
+            BuildingArchetypeKind::ProducerBuilding
         } else if self.intersects(Self::storage()) {
-            BuildingArchetypeKind::Storage
+            BuildingArchetypeKind::StorageBuilding
         } else if self.intersects(Self::services()) {
-            BuildingArchetypeKind::Service
+            BuildingArchetypeKind::ServiceBuilding
         } else if self.intersects(Self::House) {
-            BuildingArchetypeKind::House
+            BuildingArchetypeKind::HouseBuilding
         } else {
             panic!("Unknown archetype for building kind: {:?}", self);
         }
@@ -353,256 +350,25 @@ impl BuildingKind {
 // BuildingArchetype / BuildingArchetypeKind
 // ----------------------------------------------
 
+#[enum_dispatch]
 #[derive(EnumDiscriminants)]
-#[strum_discriminants(repr(u32))]
-#[strum_discriminants(name(BuildingArchetypeKind))]
-#[strum_discriminants(derive(Display, EnumCount, EnumIter))]
+#[strum_discriminants(repr(u32), name(BuildingArchetypeKind), derive(Display, EnumCount, EnumIter))]
+#[allow(clippy::enum_variant_names)]
 pub enum BuildingArchetype<'config> {
-    Producer(producer::ProducerBuilding<'config>),
-    Storage(storage::StorageBuilding<'config>),
-    Service(service::ServiceBuilding<'config>),
-    House(house::HouseBuilding<'config>),
+    ProducerBuilding(ProducerBuilding<'config>),
+    StorageBuilding(StorageBuilding<'config>),
+    ServiceBuilding(ServiceBuilding<'config>),
+    HouseBuilding(HouseBuilding<'config>),
 }
 
 pub const BUILDING_ARCHETYPE_COUNT: usize = BuildingArchetypeKind::COUNT;
-
-impl<'config> BuildingArchetype<'config> {
-    #[inline]
-    fn new_producer(state: producer::ProducerBuilding<'config>) -> Self {
-        Self::Producer(state)
-    }
-
-    #[inline]
-    fn new_storage(state: storage::StorageBuilding<'config>) -> Self {
-        Self::Storage(state)
-    }
-
-    #[inline]
-    fn new_service(state: service::ServiceBuilding<'config>) -> Self {
-        Self::Service(state)
-    }
-
-    #[inline]
-    fn new_house(state: house::HouseBuilding<'config>) -> Self {
-        Self::House(state)
-    }
-
-    #[inline]
-    fn as_producer(&self) -> &producer::ProducerBuilding<'config> {
-        match self {
-            Self::Producer(state) => state,
-            _ => panic!("Building archetype is not Producer!")
-        }
-    }
-
-    #[inline]
-    fn as_producer_mut(&mut self) -> &mut producer::ProducerBuilding<'config> {
-        match self {
-            Self::Producer(state) => state,
-            _ => panic!("Building archetype is not Producer!")
-        }
-    }
-
-    #[inline]
-    fn as_storage(&self) -> &storage::StorageBuilding<'config> {
-        match self {
-            Self::Storage(state) => state,
-            _ => panic!("Building archetype is not Storage!")
-        }
-    }
-
-    #[inline]
-    fn as_storage_mut(&mut self) -> &mut storage::StorageBuilding<'config> {
-        match self {
-            Self::Storage(state) => state,
-            _ => panic!("Building archetype is not Storage!")
-        }
-    }
-
-    #[inline]
-    fn as_service(&self) -> &service::ServiceBuilding<'config> {
-        match self {
-            Self::Service(state) => state,
-            _ => panic!("Building archetype is not Service!")
-        }
-    }
-
-    #[inline]
-    fn as_service_mut(&mut self) -> &mut service::ServiceBuilding<'config> {
-        match self {
-            Self::Service(state) => state,
-            _ => panic!("Building archetype is not Service!")
-        }
-    }
-
-    #[inline]
-    fn as_house(&self) -> &house::HouseBuilding<'config> {
-        match self {
-            Self::House(state) => state,
-            _ => panic!("Building archetype is not House!")
-        }
-    }
-
-    #[inline]
-    fn as_house_mut(&mut self) -> &mut house::HouseBuilding<'config> {
-        match self {
-            Self::House(state) => state,
-            _ => panic!("Building archetype is not House!")
-        }
-    }
-
-    #[inline]
-    fn name(&self) -> &str {
-        match self {
-            Self::Producer(state) => {
-                state.name()
-            }
-            Self::Storage(state) => {
-                state.name()
-            }
-            Self::Service(state) => {
-                state.name()
-            }
-            Self::House(state) => {
-                state.name()
-            }
-        }
-    }
-
-    #[inline]
-    fn update(&mut self, context: &BuildingContext<'config, '_, '_>) {
-        match self {
-            Self::Producer(state) => {
-                state.update(context);
-            }
-            Self::Storage(state) => {
-                state.update(context);
-            }
-            Self::Service(state) => {
-                state.update(context);
-            }
-            Self::House(state) => {
-                state.update(context);
-            }
-        }
-    }
-
-    #[inline]
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext<'config, '_, '_>) {
-        match self {
-            Self::Producer(state) => {
-                state.visited_by(unit, context);
-            }
-            Self::Storage(state) => {
-                state.visited_by(unit, context);
-            }
-            Self::Service(state) => {
-                state.visited_by(unit, context);
-            }
-            Self::House(state) => {
-                state.visited_by(unit, context);
-            }
-        }
-    }
-
-    #[inline]
-    fn receivable_amount(&self, kind: ResourceKind) -> u32 {
-        match self {
-            Self::Producer(state) => {
-                state.receivable_amount(kind)
-            }
-            Self::Storage(state) => {
-                state.receivable_amount(kind)
-            }
-            Self::Service(state) => {
-                state.receivable_amount(kind)
-            }
-            Self::House(state) => {
-                state.receivable_amount(kind)
-            }
-        }
-    }
-
-    #[inline]
-    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        match self {
-            Self::Producer(state) => {
-                state.receive_resources(kind, count)
-            }
-            Self::Storage(state) => {
-                state.receive_resources(kind, count)
-            }
-            Self::Service(state) => {
-                state.receive_resources(kind, count)
-            }
-            Self::House(state) => {
-                state.receive_resources(kind, count)
-            }
-        }
-    }
-
-    #[inline]
-    fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        match self {
-            Self::Producer(state) => {
-                state.give_resources(kind, count)
-            }
-            Self::Storage(state) => {
-                state.give_resources(kind, count)
-            }
-            Self::Service(state) => {
-                state.give_resources(kind, count)
-            }
-            Self::House(state) => {
-                state.give_resources(kind, count)
-            }
-        }
-    }
-
-    fn draw_debug_ui(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
-        match self {
-            Self::Producer(state) => {
-                state.draw_debug_ui(context, ui_sys);
-            }
-            Self::Storage(state) => {
-                state.draw_debug_ui(context, ui_sys);
-            }
-            Self::Service(state) => {
-                state.draw_debug_ui(context, ui_sys);
-            }
-            Self::House(state) => {
-                state.draw_debug_ui(context, ui_sys);
-            }
-        }
-    }
-
-    fn draw_debug_popups(&mut self,
-                         context: &BuildingContext<'config, '_, '_>,
-                         ui_sys: &UiSystem,
-                         transform: &WorldToScreenTransform,
-                         visible_range: CellRange) {
-        match self {
-            Self::Producer(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range);
-            }
-            Self::Storage(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range);
-            }
-            Self::Service(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range);
-            }
-            Self::House(state) => {
-                state.draw_debug_popups(context, ui_sys, transform, visible_range);
-            }
-        }
-    }
-}
 
 // ----------------------------------------------
 // BuildingBehavior
 // ----------------------------------------------
 
 // Common behavior for all Building archetypes.
+#[enum_dispatch(BuildingArchetype)]
 pub trait BuildingBehavior<'config> {
     fn name(&self) -> &str;
 
@@ -756,7 +522,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
 
     #[inline]
     fn has_access_to_service(&self, service_kind: BuildingKind) -> bool {
-        debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::Service);
+        debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
         let config = self.query.building_configs().find_service_config(service_kind);
         self.query.is_near_building(self.map_cells, service_kind, config.effect_radius)
     }
@@ -765,10 +531,10 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     fn for_each_storage<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&Building<'config>) -> bool
     {
-        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
+        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::StorageBuilding);
 
         let world = self.query.world();
-        let storage_buildings = world.buildings_list(BuildingArchetypeKind::Storage);
+        let storage_buildings = world.buildings_list(BuildingArchetypeKind::StorageBuilding);
 
         for building in storage_buildings.iter() {
             if building.kind().intersects(storage_kinds) && !visitor_fn(building) {
@@ -782,10 +548,10 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     fn for_each_storage_mut<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&mut Building<'config>) -> bool
     {
-        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
+        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::StorageBuilding);
 
         let world = self.query.world();
-        let storage_buildings = world.buildings_list_mut(BuildingArchetypeKind::Storage);
+        let storage_buildings = world.buildings_list_mut(BuildingArchetypeKind::StorageBuilding);
 
         for building in storage_buildings.iter_mut() {
             if building.kind().intersects(storage_kinds) && !visitor_fn(building) {
@@ -795,12 +561,12 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     }
 
     fn find_nearest_service_mut(&self, service_kind: BuildingKind) -> Option<&mut Building<'config>> {
-        debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::Service);
+        debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
         let config = self.query.building_configs().find_service_config(service_kind);
 
         if let Some(building) =
             self.query.find_nearest_building_mut(self.map_cells, service_kind, config.effect_radius) {
-            if building.archetype_kind() != BuildingArchetypeKind::Service || building.kind() != service_kind {
+            if building.archetype_kind() != BuildingArchetypeKind::ServiceBuilding || building.kind() != service_kind {
                 panic!("Building '{}' ({}|{}): Expected archetype to be Service ({service_kind})!",
                        building.name(), building.archetype_kind(), building.kind());
             }

@@ -1,5 +1,8 @@
 use slab::Slab;
 use smallvec::SmallVec;
+use std::any::{Any, TypeId};
+use strum_macros::Display;
+use enum_dispatch::enum_dispatch;
 
 use crate::{
     debug::{self},
@@ -12,14 +15,14 @@ use crate::{
     },
     utils::{
         Color,
+        UnsafeWeakRef,
         coords::Cell
     },
     game::{
         sim::{
             Query,
             resources::ResourceKind,
-            world::GenerationalIndex,
-            debug::GameObjectDebugOptions
+            world::GenerationalIndex
         },
         building::{
             Building,
@@ -41,74 +44,76 @@ use super::{
 pub type UnitTaskId = GenerationalIndex;
 pub type UnitTaskCompletionCallback = fn(&mut Unit, &mut Building);
 
-#[derive(Copy, Clone, PartialEq, Eq, strum_macros::Display)]
+#[derive(Display, PartialEq, Eq)]
 pub enum UnitTaskState {
     Uninitialized,
     Running,
     Completed,
-    Despawn,
+    TerminateAndDespawn,
 }
 
-pub enum UnitTaskUpdateResult {
+#[derive(Display)]
+pub enum UnitTaskResult {
     Running,
-    Completed(Option<UnitTaskId>), // Optional next task to run.
-    Despawn,
+    Retry,
+    Completed { next_task: UnitTaskForwarded }, // Optional next task to run.
+    TerminateAndDespawn,
 }
 
-pub enum UnitTaskCompletedResult {
-    Retry,
-    Completed(Option<UnitTaskId>), // Optional next task to run.
+pub struct UnitTaskForwarded(Option<UnitTaskId>);
+
+#[inline]
+fn forward_task(task: &mut Option<UnitTaskId>) -> UnitTaskForwarded {
+    let mut forwarded = None;
+    std::mem::swap(&mut forwarded, task);
+    UnitTaskForwarded(forwarded)
 }
 
 // ----------------------------------------------
 // UnitTask
 // ----------------------------------------------
 
-pub trait UnitTask {
-    // Convert task into its internal archetype.
-    fn into_archetype(self) -> UnitTaskArchetype;
-
+#[enum_dispatch(UnitTaskArchetype)]
+pub trait UnitTask: Any {
     // Performs one time initialization before the task is first run.
-    fn initialize(&mut self, _unit: &mut Unit, _query: &Query) {}
+    fn initialize(&mut self, _unit: &mut Unit, _query: &Query) {
+    }
+
+    // Cleans up any other task handles this task may have.
+    // Called just before the task instance is freed.
+    fn terminate(&mut self, _task_pool: &mut UnitTaskPool) {
+    }
 
     // Returns the next state to move to.
-    fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState;
-
-    // Logic to execute once the task is marked as completed.
-    // Returns the next task to run when completed or `None` if the task chain is over.
-    fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskCompletedResult;
-
-    // Task ImGui debug. Optional override.
-    fn draw_debug_ui(&self, _query: &Query, _ui_sys: &UiSystem) {}
-}
-
-// ----------------------------------------------
-// UnitTaskDebugEcho
-// ----------------------------------------------
-
-// Dummy debug task that just echoes what the unit is doing.
-pub struct UnitTaskDebugEcho {
-    pub message: String,
-}
-
-impl UnitTask for UnitTaskDebugEcho {
-    fn into_archetype(self) -> UnitTaskArchetype {
-        UnitTaskArchetype::DebugEcho(self)
-    }
-
-    fn initialize(&mut self, unit: &mut Unit, _query: &Query) {
-        unit.debug.popup_msg_color(Color::cyan(), format!("{}: Initialize", self.message));
-    }
-
-    fn update(&mut self, unit: &mut Unit, _query: &Query) -> UnitTaskState {
-        unit.debug.popup_msg_color(Color::red(), format!("{}: Update", self.message));
+    fn update(&mut self, _unit: &mut Unit, _query: &Query) -> UnitTaskState {
         UnitTaskState::Completed
     }
 
-    fn completed(&mut self, unit: &mut Unit, _query: &Query) -> UnitTaskCompletedResult {
-        unit.debug.popup_msg_color(Color::green(), format!("{}: Completed", self.message));
-        UnitTaskCompletedResult::Completed(None)
+    // Logic to execute once the task is marked as completed.
+    // Returns the next task to run when completed or `None` if the task chain is over.
+    fn completed(&mut self, _unit: &mut Unit, _query: &Query) -> UnitTaskResult {
+        UnitTaskResult::Completed { next_task: UnitTaskForwarded(None) }
     }
+
+    // Task ImGui debug. Optional override.
+    fn draw_debug_ui(&self, _query: &Query, _ui_sys: &UiSystem) {
+    }
+
+    // TypeId for RTTI.
+    fn get_type(&self) -> TypeId {
+        self.type_id()
+    }
+}
+
+// ----------------------------------------------
+// UnitTaskArchetype
+// ----------------------------------------------
+
+#[enum_dispatch]
+#[derive(Display)]
+pub enum UnitTaskArchetype {
+    UnitTaskDespawn,
+    UnitTaskDeliverToStorage,
 }
 
 // ----------------------------------------------
@@ -118,19 +123,17 @@ impl UnitTask for UnitTaskDebugEcho {
 pub struct UnitTaskDespawn;
 
 impl UnitTask for UnitTaskDespawn {
-    #[inline]
-    fn into_archetype(self) -> UnitTaskArchetype {
-        UnitTaskArchetype::Despawn(self)
-    }
+    fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
+        let current_task = unit.current_task()
+            .expect("Unit should have a despawn task!");
 
-    #[inline]
-    fn update(&mut self, _unit: &mut Unit, _query: &Query) -> UnitTaskState {
-        UnitTaskState::Despawn
-    }
+        debug_assert!(query.task_manager().is_task::<UnitTaskDespawn>(current_task),
+                      "Unit should have a despawn task!");
 
-    #[inline]
-    fn completed(&mut self, _unit: &mut Unit, _query: &Query) -> UnitTaskCompletedResult {
-        UnitTaskCompletedResult::Completed(None)
+        debug_assert!(unit.is_inventory_empty(),
+                      "Unit inventory should be empty before despawning!");
+
+        UnitTaskState::TerminateAndDespawn
     }
 }
 
@@ -163,11 +166,6 @@ pub struct UnitTaskDeliverToStorage {
 }
 
 impl UnitTask for UnitTaskDeliverToStorage {
-    #[inline]
-    fn into_archetype(self) -> UnitTaskArchetype {
-        UnitTaskArchetype::DeliverToStorage(self)
-    }
-
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
         // Sanity check:
         debug_assert!(self.origin_building.is_valid());
@@ -191,6 +189,15 @@ impl UnitTask for UnitTaskDeliverToStorage {
                 unit.go_to_building(path, &self.origin_building_tile, &destination_building_tile);
             },
             None => {} // No path or storage building found. Try again later.
+        }
+    }
+
+    fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
+        if let Some(task_id) = self.completion_task {
+            task_pool.free(task_id);
+        }
+        if let Some(task_id) = self.fallback_task {
+            task_pool.free(task_id);
         }
     }
 
@@ -223,7 +230,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         }
     }
 
-    fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskCompletedResult {
+    fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskResult {
         let unit_goal = match unit.goal() {
             Some(goal) => goal,
             None => {
@@ -231,14 +238,9 @@ impl UnitTask for UnitTaskDeliverToStorage {
                 // to pathfind to a storage building, so we'll switch to the fallback
                 // task if there's one. If there's no fallback we'll keep retrying indefinitely.
                 if self.fallback_task.is_some() {
-                    if let Some(completion_task_id) = self.completion_task {
-                        // Free any completion task we may have, since it will never execute.
-                        // Fallback task must have its own completion task instead.
-                        query.task_manager().task_pool.free(completion_task_id);
-                    }
-                    return UnitTaskCompletedResult::Completed(self.fallback_task);
+                    return UnitTaskResult::Completed { next_task: forward_task(&mut self.fallback_task) };
                 } else {
-                    return UnitTaskCompletedResult::Retry;
+                    return UnitTaskResult::Retry;
                 }
             }
         };
@@ -284,9 +286,9 @@ impl UnitTask for UnitTaskDeliverToStorage {
         // Otherwise we were not able to offload everything,
         // so we'll retry with another storage building later.
         if task_completed {
-            UnitTaskCompletedResult::Completed(self.completion_task)
+            UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) }
         } else {
-            UnitTaskCompletedResult::Retry
+            UnitTaskResult::Retry
         }
     }
 
@@ -310,79 +312,6 @@ impl UnitTask for UnitTaskDeliverToStorage {
 }
 
 // ----------------------------------------------
-// UnitTaskArchetype
-// ----------------------------------------------
-
-#[derive(strum_macros::Display)]
-pub enum UnitTaskArchetype {
-    DebugEcho(UnitTaskDebugEcho),
-    Despawn(UnitTaskDespawn),
-    DeliverToStorage(UnitTaskDeliverToStorage),
-}
-
-impl UnitTaskArchetype {
-    #[inline]
-    fn initialize(&mut self, unit: &mut Unit, query: &Query) {
-        match self {
-            Self::DebugEcho(task) => {
-                task.initialize(unit, query);
-            },
-            Self::Despawn(task) => {
-                task.initialize(unit, query);
-            },
-            Self::DeliverToStorage(task) => {
-                task.initialize(unit, query);
-            },
-        }
-    }
-
-    #[inline]
-    fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
-        match self {
-            Self::DebugEcho(task) => {
-                task.update(unit, query)
-            },
-            Self::Despawn(task) => {
-                task.update(unit, query)
-            },
-            Self::DeliverToStorage(task) => {
-                task.update(unit, query)
-            },
-        }
-    }
-
-    #[inline]
-    fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskCompletedResult {
-        match self {
-            Self::DebugEcho(task) => {
-                task.completed(unit, query)
-            },
-            Self::Despawn(task) => {
-                task.completed(unit, query)
-            },
-            Self::DeliverToStorage(task) => {
-                task.completed(unit, query)
-            },
-        }
-    }
-
-    #[inline]
-    fn draw_debug_ui(&self, query: &Query, ui_sys: &UiSystem) {
-        match self {
-            Self::DebugEcho(task) => {
-                task.draw_debug_ui(query, ui_sys);
-            },
-            Self::Despawn(task) => {
-                task.draw_debug_ui(query, ui_sys);
-            },
-            Self::DeliverToStorage(task) => {
-                task.draw_debug_ui(query, ui_sys);
-            },
-        }
-    }
-}
-
-// ----------------------------------------------
 // UnitTaskInstance
 // ----------------------------------------------
 
@@ -402,7 +331,7 @@ impl UnitTaskInstance {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskUpdateResult {
+    fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskResult {
         debug_assert!(self.state == UnitTaskState::Uninitialized ||
                       self.state == UnitTaskState::Running);
 
@@ -412,45 +341,48 @@ impl UnitTaskInstance {
             self.state = UnitTaskState::Running;
         }
 
-        let next_state = self.archetype.update(unit, query);
-        debug_assert!(next_state != UnitTaskState::Uninitialized,
-                      "Task update cannot return Uninitialized!");
-
-        self.state = next_state;
+        self.state = self.archetype.update(unit, query);
 
         match self.state {
+            UnitTaskState::Running => {
+                UnitTaskResult::Running
+            },
             UnitTaskState::Completed => {
                 // Completed may ask for a retry, in which case we revert back to Running.
                 match self.archetype.completed(unit, query) {
-                    UnitTaskCompletedResult::Retry => {
+                    UnitTaskResult::Retry => {
                         self.state = UnitTaskState::Running;
+                        UnitTaskResult::Running
                     },
-                    UnitTaskCompletedResult::Completed(next_task) => {
-                        return UnitTaskUpdateResult::Completed(next_task);
+                    completed @ UnitTaskResult::Completed { .. } => {
+                        completed
+                    },
+                    invalid => {
+                        panic!("Invalid task completion result: {}", invalid);
                     }
                 }
             },
-            UnitTaskState::Despawn => {
-                return UnitTaskUpdateResult::Despawn;
+            UnitTaskState::TerminateAndDespawn => {
+                UnitTaskResult::TerminateAndDespawn
             },
-            _ => {}
+            UnitTaskState::Uninitialized => {
+                panic!("Invalid task state: Uninitialized");
+            }
         }
-
-        UnitTaskUpdateResult::Running
     }
 
     fn draw_debug_ui(&self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         let status_color = match self.state {
-            UnitTaskState::Uninitialized => Color::yellow(),
-            UnitTaskState::Running       => Color::green(),
-            UnitTaskState::Completed     => Color::magenta(),
-            UnitTaskState::Despawn       => Color::red(),
+            UnitTaskState::Uninitialized       => Color::yellow(),
+            UnitTaskState::Running             => Color::green(),
+            UnitTaskState::Completed           => Color::magenta(),
+            UnitTaskState::TerminateAndDespawn => Color::red(),
         };
 
-        let archetype_text = format!("Archetype : {}", self.archetype);
-        let status_text    = format!("Status    : {}", self.state);
+        let archetype_text = format!("Task   : {}", self.archetype);
+        let status_text    = format!("Status : {}", self.state);
 
         ui.text(archetype_text);
         ui.text_colored(status_color.to_array(), status_text);
@@ -465,7 +397,7 @@ impl UnitTaskInstance {
 // UnitTaskPool
 // ----------------------------------------------
 
-struct UnitTaskPool {
+pub struct UnitTaskPool {
     tasks: Slab<UnitTaskInstance>,
     generation: u32,
 }
@@ -503,6 +435,11 @@ impl UnitTaskPool {
                 if task.id != task_id {
                     return; // Slot reused, not same item.
                 }
+
+                // Borrow checker hack so we can pass self to terminate()...
+                let weak_ref = UnsafeWeakRef::new(task);
+                let mut_task = weak_ref.mut_ref_cast();
+                mut_task.archetype.terminate(self);
             },
             None => return, // Already free.
         }
@@ -574,27 +511,47 @@ impl UnitTaskManager {
     #[inline]
     pub fn new_task<Task>(&mut self, task: Task) -> Option<UnitTaskId>
         where
-            Task: UnitTask
+            Task: UnitTask,
+            UnitTaskArchetype: From<Task>
     {
-        Some(self.task_pool.allocate(task.into_archetype()))
+        Some(self.task_pool.allocate(UnitTaskArchetype::from(task)))
+    }
+
+    #[inline]
+    pub fn free_task(&mut self, task_id: UnitTaskId) {
+        self.task_pool.free(task_id);
+    }
+
+    #[inline]
+    pub fn is_task<Task>(&self, task_id: UnitTaskId) -> bool
+        where
+            Task: UnitTask + 'static
+    {
+        let task = match self.task_pool.try_get(task_id) {
+            Some(task) => task,
+            None => return false,
+        };
+
+        task.archetype.get_type() == TypeId::of::<Task>()
     }
 
     pub fn run_unit_tasks(&mut self, unit: &mut Unit, query: &Query) {
         if let Some(current_task_id) = unit.current_task() {
             if let Some(task) = self.task_pool.try_get_mut(current_task_id) {
                 match task.update(unit, query) {
-                    UnitTaskUpdateResult::Running => {
+                    UnitTaskResult::Running => {
                         // Stay on current task and run it again next update.
                     },
-                    UnitTaskUpdateResult::Completed(next_task) => {
-                        unit.assign_task(next_task);
-                        self.task_pool.free(current_task_id);
+                    UnitTaskResult::Completed { next_task } => {
+                        unit.assign_task(self, next_task.0);
                     },
-                    UnitTaskUpdateResult::Despawn => {
-                        unit.assign_task(None);
-                        self.task_pool.free(current_task_id);
+                    UnitTaskResult::TerminateAndDespawn => {
+                        unit.assign_task(self, None);
                         query.despawn_unit(unit);
                     },
+                    invalid => {
+                        panic!("Invalid task completion result: {}", invalid);
+                    }
                 }
             } else if cfg!(debug_assertions) {
                 panic!("Unit '{}' current TaskId is invalid: {}", unit.name(), current_task_id);

@@ -133,6 +133,14 @@ impl<'config> Simulation<'config> {
         }
     }
 
+    pub fn reset(&mut self, world: &mut World<'config>) {
+        world.reset(&mut self.task_manager);
+    }
+
+    pub fn task_manager(&mut self) -> &mut UnitTaskManager {
+        &mut self.task_manager
+    }
+
     // ----------------------
     // Debug:
     // ----------------------
@@ -526,10 +534,10 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     pub fn for_each_storage_building<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&Building<'config>) -> bool
     {
-        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::Storage);
+        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::StorageBuilding);
 
         let world = self.world();
-        let storage_buildings = world.buildings_list(BuildingArchetypeKind::Storage);
+        let storage_buildings = world.buildings_list(BuildingArchetypeKind::StorageBuilding);
 
         for building in storage_buildings.iter() {
             if building.kind().intersects(storage_kinds) && !visitor_fn(building) {
@@ -561,7 +569,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         let world = self.world();
         let tile_map = self.tile_map();
 
-        match world.despawn_unit(tile_map, unit) {
+        match world.despawn_unit(tile_map, self.task_manager(), unit) {
             Ok(_) => {},
             Err(err) => {
                 if cfg!(debug_assertions) {
