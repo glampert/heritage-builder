@@ -177,7 +177,7 @@ pub trait GameObjectDebugOptions {
     fn popup_msg(&mut self, text: impl Into<Cow<'static, str>>) {
         let popups = self.get_popups();
         if popups.show {
-            const LIFETIME: Seconds = 6.0;
+            const LIFETIME: Seconds = 9.0;
             popups.messages.push_with_args(LIFETIME, Color::default(), text);
         }
     }
@@ -186,7 +186,7 @@ pub trait GameObjectDebugOptions {
     fn popup_msg_color(&mut self, color: Color, text: impl Into<Cow<'static, str>>) {
         let popups = self.get_popups();
         if popups.show {
-            const LIFETIME: Seconds = 6.0;
+            const LIFETIME: Seconds = 9.0;
             popups.messages.push_with_args(LIFETIME, color, text);
         }
     }

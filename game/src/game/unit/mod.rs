@@ -1,3 +1,5 @@
+use proc_macros::DrawDebugUi;
+
 use crate::{
     game_object_debug_options,
     pathfind::Path,
@@ -128,7 +130,7 @@ impl<'config> Unit<'config> {
 
         self.anim_sets.clear();
         self.inventory.clear();
-        self.navigation.reset(None, None);
+        self.navigation.reset_path_and_goal(None, None);
         self.debug.clear_popups();
 
         task_manager.free_task(self.current_task_id);
@@ -188,7 +190,7 @@ impl<'config> Unit<'config> {
     #[inline]
     pub fn follow_path(&mut self, path: Option<&Path>) {
         debug_assert!(self.is_spawned());
-        self.navigation.reset(path, None);
+        self.navigation.reset_path_and_goal(path, None);
         if path.is_some() {
             self.debug.popup_msg("New Goal");
         }
@@ -197,17 +199,19 @@ impl<'config> Unit<'config> {
     #[inline]
     pub fn go_to_building(&mut self, path: &Path, goal: UnitNavGoal) {
         debug_assert!(self.is_spawned());
-        self.navigation.reset(Some(path), Some(goal));
+        self.navigation.reset_path_and_goal(Some(path), Some(goal));
         self.log_going_to(goal.origin_base_cell, goal.destination_base_cell);
     }
 
     #[inline]
     pub fn has_reached_goal(&self) -> bool {
-        self.navigation.goal().is_some_and(|goal| self.map_cell == goal.destination_road_link)
+        debug_assert!(self.is_spawned());
+        self.navigation.goal().is_some_and(|goal| self.cell() == goal.destination_road_link)
     }
 
     #[inline]
     pub fn goal(&self) -> Option<&UnitNavGoal> {
+        debug_assert!(self.is_spawned());
         self.navigation.goal()
     }
 
@@ -232,43 +236,39 @@ impl<'config> Unit<'config> {
                 self.update_direction_and_anim(tile, direction);
             },
             UnitNavResult::AdvancedCell(cell, direction) => {
-                let tile = find_unit_tile!(&mut self, query);
-                if self.teleport(query.tile_map(), cell) {
-                    debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
-                    self.update_direction_and_anim(tile, direction);
-                } else {
-                    // Clear path and re-route.
-                    self.follow_path(None);
-                    self.update_direction_and_anim(tile, UnitDirection::Idle);
-                    self.debug.popup_msg_color(Color::red(), "Blocked!");
-                    eprintln!("{} {}: Failed to advance tile cell! From {} to {}", self.name(), self.id(), self.cell(), cell);
+                if !self.teleport(query.tile_map(), cell) {
+                    // This would normally happen if two units try to move to the
+                    // same tile, so they will bump into each other for one frame.
+                    // Not a critical failure, the unit can recover next update.
+                    self.debug.popup_msg_color(Color::yellow(), "Bump!");
                 }
+
+                self.update_direction_and_anim(find_unit_tile!(&mut self, query), direction);
             },
-            UnitNavResult::ReachedGoal(cell, direction) => {
-                let tile = find_unit_tile!(&mut self, query);
+            UnitNavResult::ReachedGoal(cell, _) => {
+                self.teleport(query.tile_map(), cell);
 
-                debug_assert!(self.direction == direction);
-                debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
+                if cell == self.cell() {
+                    // Goal reached, clear current path.
+                    // NOTE: Not using follow_path(None) here to preserve the nav goal for unit tasks.
+                    self.navigation.reset_path_only();
+                    self.debug.popup_msg_color(Color::green(), "Reached Goal!");
+                } else {
+                    // Path was blocked, retry task.
+                    self.follow_path(None);
+                    self.debug.popup_msg_color(Color::red(), "Goal Blocked!");
+                }
 
-                self.debug.popup_msg("Reached Goal");
-
-                // Clear current path.
-                // NOTE: Not using follow_path(None) here to preserve the nav goals for the unit tasks.
-                self.navigation.reset_path();
-
-                // Go idle.
-                self.update_direction_and_anim(tile, UnitDirection::Idle);
+                self.go_idle(query);
             },
             UnitNavResult::PathBlocked => {
-                let tile = find_unit_tile!(&mut self, query);
-
                 // Failed to move to another tile, possibly because it has been
                 // blocked since we've traced the path. Clear the navigation and stop.
                 // If a task is running it should now re-route the path and retry.
                 self.follow_path(None);
-                self.update_direction_and_anim(tile, UnitDirection::Idle);
+                self.go_idle(query);
 
-                self.debug.popup_msg_color(Color::red(), "Blocked!");
+                self.debug.popup_msg_color(Color::red(), "Path Blocked!");
             },
         }
     }
@@ -380,6 +380,10 @@ impl<'config> Unit<'config> {
     // Internal helpers:
     // ----------------------
 
+    fn go_idle(&mut self, query: &Query) {
+        self.update_direction_and_anim(find_unit_tile!(&mut self, query), UnitDirection::Idle);
+    }
+
     fn update_direction_and_anim(&mut self, tile: &mut Tile, new_direction: UnitDirection) {
         if self.direction != new_direction {
             self.direction = new_direction;
@@ -404,71 +408,12 @@ impl<'config> Unit<'config> {
 
 impl Unit<'_> {
     pub fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-
-        /* TODO
-        if ui.collapsing_header("Properties", imgui::TreeNodeFlags::empty()) {
-            ...
-        }
-
-        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
-        */
-
+        self.draw_debug_ui_properties(ui_sys);
+        self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
         self.inventory.draw_debug_ui(ui_sys);
         query.task_manager().draw_tasks_debug_ui(self, ui_sys);
-
-        if ui.collapsing_header("Navigation", imgui::TreeNodeFlags::empty()) {
-            if let Some(dir) = imgui_ui::dpad_buttons(ui) {
-                let tile_map = query.tile_map();
-                match dir {
-                    DPadDirection::NE => {
-                        self.teleport(tile_map, Cell::new(self.map_cell.x + 1, self.map_cell.y));
-                    },
-                    DPadDirection::NW => {
-                        self.teleport(tile_map, Cell::new(self.map_cell.x, self.map_cell.y + 1));
-                    },
-                    DPadDirection::SE => {
-                        self.teleport(tile_map, Cell::new(self.map_cell.x, self.map_cell.y - 1));
-                    },
-                    DPadDirection::SW => {
-                        self.teleport(tile_map, Cell::new(self.map_cell.x - 1, self.map_cell.y));
-                    },
-                }
-            }
-
-            ui.separator();
-
-            ui.text(format!("Cell       : {}", self.map_cell));
-            ui.text(format!("Iso Coords : {}", find_unit_tile!(&self, query).iso_coords()));
-            ui.text(format!("Direction  : {}", self.direction));
-            ui.text(format!("Anim       : {}", self.anim_sets.current_anim().string));
-
-            if ui.button("Force Idle Anim") {
-                self.update_direction_and_anim(find_unit_tile!(&mut self, query), UnitDirection::Idle);
-            }
-
-            ui.separator();
-
-            let color = match self.navigation.status() {
-                UnitNavStatus::Idle   => Color::yellow(),
-                UnitNavStatus::Paused => Color::red(),
-                UnitNavStatus::Moving => Color::green(),
-            };
-
-            ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation.status()));
-
-            if let Some(goals) = self.navigation.goal() {
-                let origin_building_name = debug::tile_name_at(goals.origin_base_cell, TileMapLayerKind::Objects);
-                let destination_building_name = debug::tile_name_at(goals.destination_base_cell, TileMapLayerKind::Objects);
-                ui.text(format!("Start Building : {}, {}", goals.origin_base_cell, origin_building_name));
-                ui.text(format!("Dest  Building : {}, {}", goals.destination_base_cell, destination_building_name));
-            }
-
-            self.navigation.draw_debug_ui(ui_sys);
-        }
+        self.draw_debug_ui_navigation(query, ui_sys);
     }
 
     pub fn draw_debug_popups(&mut self,
@@ -476,12 +421,103 @@ impl Unit<'_> {
                              ui_sys: &UiSystem,
                              transform: &WorldToScreenTransform,
                              visible_range: CellRange) {
-
         self.debug.draw_popup_messages(
             || find_unit_tile!(&self, query),
             ui_sys,
             transform,
             visible_range,
             query.delta_time_secs());
+    }
+
+    fn draw_debug_ui_properties(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
+        if !ui.collapsing_header("Properties##_unit_properties", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        #[derive(DrawDebugUi)]
+        struct DrawDebugUiVariables<'a> {
+            name: &'a str,
+            cell: Cell,
+            id: UnitId,
+        }
+        let debug_vars = DrawDebugUiVariables {
+            name: self.name(),
+            cell: self.cell(),
+            id: self.id(),
+        };
+        debug_vars.draw_debug_ui(ui_sys);
+
+        if ui.button("Say Hello") {
+            self.debug.popup_msg("Hello!");
+        }
+    }
+
+    fn draw_debug_ui_config(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        if let Some(config) = self.config {
+            if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+                config.draw_debug_ui(ui_sys);
+            }
+        }
+    }
+
+    fn draw_debug_ui_navigation(&mut self, query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        if !ui.collapsing_header("Navigation", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if let Some(dir) = imgui_ui::dpad_buttons(ui) {
+            let tile_map = query.tile_map();
+            match dir {
+                DPadDirection::NE => {
+                    self.teleport(tile_map, Cell::new(self.cell().x + 1, self.cell().y));
+                },
+                DPadDirection::NW => {
+                    self.teleport(tile_map, Cell::new(self.cell().x, self.cell().y + 1));
+                },
+                DPadDirection::SE => {
+                    self.teleport(tile_map, Cell::new(self.cell().x, self.cell().y - 1));
+                },
+                DPadDirection::SW => {
+                    self.teleport(tile_map, Cell::new(self.cell().x - 1, self.cell().y));
+                },
+            }
+        }
+
+        ui.separator();
+
+        ui.text(format!("Cell       : {}", self.cell()));
+        ui.text(format!("Iso Coords : {}", find_unit_tile!(&self, query).iso_coords()));
+        ui.text(format!("Direction  : {}", self.direction));
+        ui.text(format!("Anim       : {}", self.anim_sets.current_anim().string));
+
+        if ui.button("Force Idle Anim") {
+            self.go_idle(query);
+        }
+
+        ui.separator();
+
+        let color = match self.navigation.status() {
+            UnitNavStatus::Idle   => Color::yellow(),
+            UnitNavStatus::Paused => Color::red(),
+            UnitNavStatus::Moving => Color::green(),
+        };
+
+        ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation.status()));
+
+        if let Some(goals) = self.navigation.goal() {
+            let origin_building_name = debug::tile_name_at(goals.origin_base_cell, TileMapLayerKind::Objects);
+            let destination_building_name = debug::tile_name_at(goals.destination_base_cell, TileMapLayerKind::Objects);
+            ui.text(format!("Start Building : {}, {}", goals.origin_base_cell, origin_building_name));
+            ui.text(format!("Dest  Building : {}, {}", goals.destination_base_cell, destination_building_name));
+        }
+
+        self.navigation.draw_debug_ui(ui_sys);
     }
 }

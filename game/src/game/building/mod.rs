@@ -540,6 +540,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         }
     }
 
+    // TODO: Deprecate.
     // TODO: Get rid of mutable access to building here if possible!
     fn for_each_storage_mut<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&mut Building<'config>) -> bool

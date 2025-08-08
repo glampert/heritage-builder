@@ -189,6 +189,7 @@ impl<'config> StorageBuilding<'config> {
         }
     }
 
+    // TODO: Deprecate.
     pub fn shop(&mut self,
                 shopping_basket: &mut ResourceStock,
                 shopping_list: &ResourceKinds,
@@ -394,16 +395,6 @@ impl StorageSlots {
     }
 
     #[inline]
-    fn find_free_slot(&self) -> Option<usize> {
-        for (slot_index, slot) in self.slots.iter().enumerate() {
-            if slot.is_free() {
-                return Some(slot_index);
-            }
-        }
-        None
-    }
-
-    #[inline]
     fn find_resource_slot(&self, kind: ResourceKind) -> Option<usize> {
         // Should be a single kind, never multiple ORed flags.
         debug_assert!(kind.bits().count_ones() == 1);
@@ -413,6 +404,16 @@ impl StorageSlots {
                 if allocated_kind == kind {
                     return Some(slot_index);
                 }
+            }
+        }
+        None
+    }
+
+    #[inline]
+    fn find_free_slot(&self) -> Option<usize> {
+        for (slot_index, slot) in self.slots.iter().enumerate() {
+            if slot.is_free() {
+                return Some(slot_index);
             }
         }
         None

@@ -157,15 +157,15 @@ impl UnitNavigation {
         UnitNavResult::Moving(from.cell, to.cell, self.progress, self.direction)
     }
 
-    pub fn reset_path(&mut self) {
+    pub fn reset_path_only(&mut self) {
         self.path.clear();
         self.path_index = 0;
         self.progress   = 0.0;
         self.direction  = UnitDirection::default();
     }
 
-    pub fn reset(&mut self, new_path: Option<&Path>, optional_goal: Option<UnitNavGoal>) {
-        self.reset_path();
+    pub fn reset_path_and_goal(&mut self, new_path: Option<&Path>, optional_goal: Option<UnitNavGoal>) {
+        self.reset_path_only();
         self.goal = optional_goal;
 
         if let Some(new_path) = new_path {

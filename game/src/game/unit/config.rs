@@ -1,4 +1,7 @@
+use proc_macros::DrawDebugUi;
+
 use crate::{
+    imgui_ui::UiSystem,
     utils::hash::{
         self,
         StringHash,
@@ -20,10 +23,12 @@ pub const UNIT_RUNNER: UnitConfigKey = UnitConfigKey::from_str("ped");
 // UnitConfig
 // ----------------------------------------------
 
+#[derive(DrawDebugUi)]
 pub struct UnitConfig {
     pub name: String,
-
     pub tile_def_name: String,
+
+    #[debug_ui(skip)]
     pub tile_def_name_hash: StringHash,
 
     // TODO

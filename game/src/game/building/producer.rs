@@ -105,6 +105,7 @@ pub struct ProducerBuilding<'config> {
     // Runner we've sent out to deliver our production.
     // Invalid if no runner in-flight.
     runner_id: UnitId,
+    has_failed_to_spawn_runner: bool,
 
     debug: ProducerDebug,
 }
@@ -219,6 +220,7 @@ impl<'config> ProducerBuilding<'config> {
                 config.production_capacity
             ),
             runner_id: UnitId::default(),
+            has_failed_to_spawn_runner: false,
             debug: ProducerDebug::default(),
         }
     }
@@ -289,6 +291,7 @@ impl<'config> ProducerBuilding<'config> {
             Ok(runner_unit) => {
                 // We'll stop any further shipping until the runner completes this delivery.
                 self.runner_id = runner_unit.id();
+                self.has_failed_to_spawn_runner = false;
 
                 // We've handed over our resources to the spawned unit, clear the stock.
                 let removed_count = self.remove_resources(resource_kind_to_deliver, resource_count);
@@ -296,6 +299,7 @@ impl<'config> ProducerBuilding<'config> {
             },
             Err(err) => {
                 eprintln!("{} {}: Failed to deliver production: {}", self.name(), context.base_cell(), err);
+                self.has_failed_to_spawn_runner = true;
             }
         }
     }
@@ -344,9 +348,11 @@ impl<'config> ProducerBuilding<'config> {
             Ok(runner_unit) => {
                 // We'll stop any further shipping until the runner completes this task.
                 self.runner_id = runner_unit.id();
+                self.has_failed_to_spawn_runner = false;
             },
             Err(err) => {
                 eprintln!("{} {}: Failed to send runner: {}", self.name(), context.base_cell(), err);
+                self.has_failed_to_spawn_runner = true;
             }
         }
     }
@@ -451,6 +457,14 @@ impl ProducerOutputLocalStock {
         }
     }
 
+    fn fill(&mut self) {
+        self.item.count = self.capacity;
+    }
+
+    fn clear(&mut self) {
+        self.item.count = 0;
+    }
+
     #[inline]
     fn is_full(&self) -> bool {
         self.item.count >= self.capacity
@@ -518,9 +532,16 @@ impl ProducerInputsLocalStock {
         Self { slots, capacity }
     }
 
-    #[inline]
-    fn capacity(&self) -> u32 {
-        self.capacity
+    fn fill(&mut self) {
+        for slot in &mut self.slots {
+            slot.count = self.capacity;
+        }
+    }
+
+    fn clear(&mut self) {
+        for slot in &mut self.slots {
+            slot.count = 0;
+        }
     }
 
     #[inline]
@@ -531,6 +552,21 @@ impl ProducerInputsLocalStock {
             }
         }
         true
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        for slot in &self.slots {
+            if slot.count != 0 {
+                return false;
+            }
+        }
+        true
+    }
+
+    #[inline]
+    fn capacity(&self) -> u32 {
+        self.capacity
     }
 
     #[inline]
@@ -653,6 +689,13 @@ impl ProducerBuilding<'_> {
             let ui = ui_sys.builder();
             if ui.collapsing_header("Raw Materials In Stock", imgui::TreeNodeFlags::empty()) {
                 self.production_input_stock.draw_debug_ui(ui_sys);
+
+                if ui.button("Fill Stock##_fill_input_stock") {
+                    self.production_input_stock.fill();
+                }
+                if ui.button("Clear Stock##_clear_input_stock") {
+                    self.production_input_stock.clear();
+                }
             }
         }
     }
@@ -664,13 +707,17 @@ impl ProducerBuilding<'_> {
                 ui.text_colored(Color::red().to_array(), "Production Halted:");
                 ui.same_line();
                 if self.production_output_stock.is_full() {
-                    ui.text_colored(Color::red().to_array(), "Output Stock Full!");
+                    ui.text_colored(Color::red().to_array(), "Local Stock Full!");
                 } else if self.production_input_stock.requires_any_resource() &&
                          !self.production_input_stock.has_required_resources() {
                     ui.text_colored(Color::red().to_array(), "Missing Resources!");
                 } else {
                     ui.text_colored(Color::red().to_array(), "Production Frozen.");
                 }
+            }
+
+            if self.has_failed_to_spawn_runner {
+                ui.text_colored(Color::red().to_array(), "Failed to spawn last Runner!");
             }
 
             if self.is_waiting_on_runner() {
@@ -681,10 +728,22 @@ impl ProducerBuilding<'_> {
                 } else {
                     ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
                 }
+
+                if ui.button("Forget Runner") {
+                    self.runner_id = UnitId::default();
+                    self.has_failed_to_spawn_runner = false;
+                }
             }
 
             self.production_update_timer.draw_debug_ui("Update", 0, ui_sys);
             self.production_output_stock.draw_debug_ui(ui_sys);
+
+            if ui.button("Fill Stock##_fill_output_stock") {
+                self.production_output_stock.fill();
+            }
+            if ui.button("Clear Stock##_clear_output_stock") {
+                self.production_output_stock.clear();
+            }
         }
     }
 }

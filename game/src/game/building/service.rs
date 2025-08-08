@@ -145,6 +145,7 @@ impl<'config> ServiceBuilding<'config> {
         }
     }
 
+    // TODO: Deprecate.
     pub fn shop(&mut self,
                 shopping_basket: &mut ResourceStock,
                 shopping_list: &ResourceKinds,
