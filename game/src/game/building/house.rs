@@ -132,19 +132,23 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     }
 
     fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
-        todo!();
+        todo!(); // TODO
     }
 
-    fn receivable_amount(&self, _kind: ResourceKind) -> u32 {
-        todo!();
+    fn available_resources(&self, _kind: ResourceKind) -> u32 {
+        todo!(); // TODO
+    }
+
+    fn receivable_resources(&self, _kind: ResourceKind) -> u32 {
+        todo!(); // TODO
     }
 
     fn receive_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
-        todo!();
+        todo!(); // TODO
     }
 
-    fn give_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
-        todo!();
+    fn remove_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
+        todo!(); // TODO
     }
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
@@ -174,7 +178,7 @@ impl<'config> HouseBuilding<'config> {
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
             upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
             upgrade_state: HouseUpgradeState::new(level, configs),
-            stock: ResourceStock::with_accepted_kinds(ResourceKind::foods()),
+            stock: ResourceStock::with_accepted_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
             debug: HouseDebug::default(),
         }
     }

@@ -92,19 +92,23 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     }
 
     fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
-        todo!()
+        todo!(); // TODO
     }
 
-    fn receivable_amount(&self, _kind: ResourceKind) -> u32 {
-        todo!();
+    fn available_resources(&self, _kind: ResourceKind) -> u32 {
+        todo!(); // TODO
+    }
+
+    fn receivable_resources(&self, _kind: ResourceKind) -> u32 {
+        todo!(); // TODO
     }
 
     fn receive_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
-        todo!();
+        todo!(); // TODO
     }
 
-    fn give_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
-        todo!();
+    fn remove_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
+        todo!(); // TODO
     }
 
     fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {

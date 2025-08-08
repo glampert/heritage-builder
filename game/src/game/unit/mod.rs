@@ -26,7 +26,6 @@ use crate::{
 };
 
 use super::{
-    building::BuildingTileInfo,
     sim::{
         Query,
         world::UnitId,
@@ -196,19 +195,10 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
-    pub fn go_to_building(&mut self, path: &Path, origin: &BuildingTileInfo, destination: &BuildingTileInfo) {
+    pub fn go_to_building(&mut self, path: &Path, goal: UnitNavGoal) {
         debug_assert!(self.is_spawned());
-
-        let goal = UnitNavGoal {
-            origin_kind: origin.kind,
-            origin_cell: origin.base_cell,
-            destination_kind: destination.kind,
-            destination_cell: destination.base_cell,
-            destination_road_link: destination.road_link,
-        };
-
         self.navigation.reset(Some(path), Some(goal));
-        self.log_going_to(origin.base_cell, destination.base_cell);
+        self.log_going_to(goal.origin_base_cell, goal.destination_base_cell);
     }
 
     #[inline]
@@ -225,7 +215,7 @@ impl<'config> Unit<'config> {
         debug_assert!(self.is_spawned());
 
         // Path following and movement:
-        match self.navigation.update(query.tile_map(), query.delta_time_secs()) {
+        match self.navigation.update(query.graph(), query.delta_time_secs()) {
             UnitNavResult::Idle => {
                 // Nothing.
             },
@@ -242,13 +232,17 @@ impl<'config> Unit<'config> {
                 self.update_direction_and_anim(tile, direction);
             },
             UnitNavResult::AdvancedCell(cell, direction) => {
-                let did_teleport = self.teleport(query.tile_map(), cell);
-                debug_assert!(did_teleport, "Failed to advance unit tile cell!");
-
                 let tile = find_unit_tile!(&mut self, query);
-                debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
-
-                self.update_direction_and_anim(tile, direction);
+                if self.teleport(query.tile_map(), cell) {
+                    debug_assert!(self.map_cell == cell && tile.base_cell() == cell);
+                    self.update_direction_and_anim(tile, direction);
+                } else {
+                    // Clear path and re-route.
+                    self.follow_path(None);
+                    self.update_direction_and_anim(tile, UnitDirection::Idle);
+                    self.debug.popup_msg_color(Color::red(), "Blocked!");
+                    eprintln!("{} {}: Failed to advance tile cell! From {} to {}", self.name(), self.id(), self.cell(), cell);
+                }
             },
             UnitNavResult::ReachedGoal(cell, direction) => {
                 let tile = find_unit_tile!(&mut self, query);
@@ -291,6 +285,24 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
+    pub fn is_running_task<Task>(&self, task_manager: &UnitTaskManager) -> bool
+        where
+            Task: UnitTask + 'static
+    {
+        debug_assert!(self.is_spawned());
+        task_manager.is_task::<Task>(self.current_task_id)
+    }
+
+    #[inline]
+    pub fn current_task_as<'task, Task>(&self, task_manager: &'task UnitTaskManager) -> Option<&'task Task>
+        where
+            Task: UnitTask + 'static
+    {
+        debug_assert!(self.is_spawned());
+        task_manager.try_get_task::<Task>(self.current_task_id)
+    }
+
+    #[inline]
     pub fn current_task(&self) -> Option<UnitTaskId> {
         debug_assert!(self.is_spawned());
         if self.current_task_id.is_valid() {
@@ -310,18 +322,14 @@ impl<'config> Unit<'config> {
     pub fn try_spawn_with_task<Task>(query: &'config Query,
                                      unit_origin: Cell,
                                      unit_config: UnitConfigKey,
-                                     task: Task) -> Result<&'config mut Unit<'config>, &'static str>
+                                     task: Task) -> Result<&'config mut Unit<'config>, String>
         where
             Task: UnitTask,
             UnitTaskArchetype: From<Task>
     {
+        let unit = query.try_spawn_unit(unit_origin, unit_config)?;
+
         // Handle root tasks here. These will start the task chain and might take some time to complete.
-
-        let unit = match query.try_spawn_unit(unit_origin, unit_config) {
-            Some(unit) => unit,
-            None => return Err("Couldn't spawn new unit!"),
-        };
-
         let task_manager = query.task_manager();
         let new_task_id = task_manager.new_task(task);
         unit.assign_task(task_manager, new_task_id);
@@ -340,7 +348,7 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
-    pub fn is_inventory_empty(&self) -> bool {
+    pub fn inventory_is_empty(&self) -> bool {
         debug_assert!(self.is_spawned());
         self.inventory.is_empty()
     }
@@ -355,14 +363,17 @@ impl<'config> Unit<'config> {
         self.inventory.receive_resources(kind, count)
     }
 
-    // Tries to gives away up to `count` resources. Returns the number
-    // of resources it was able to give, which can be less or equal to `count`.
-    pub fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+    // Tries to relinquish up to `count` resources. Returns the number of
+    // resources it was able to relinquish, which can be less or equal to `count`.
+    pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(self.is_spawned());
         debug_assert!(kind.bits().count_ones() == 1);
 
-        self.debug.log_resources_lost(kind, count);
-        self.inventory.give_resources(kind, count)
+        let removed_count = self.inventory.remove_resources(kind, count);
+        if removed_count != 0 {
+            self.debug.log_resources_lost(kind, removed_count);
+        }
+        removed_count
     }
 
     // ----------------------
@@ -407,7 +418,7 @@ impl Unit<'_> {
 
         self.debug.draw_debug_ui(ui_sys);
         self.inventory.draw_debug_ui(ui_sys);
-        query.task_manager().draw_tasks_debug_ui(self, query, ui_sys);
+        query.task_manager().draw_tasks_debug_ui(self, ui_sys);
 
         if ui.collapsing_header("Navigation", imgui::TreeNodeFlags::empty()) {
             if let Some(dir) = imgui_ui::dpad_buttons(ui) {
@@ -450,10 +461,10 @@ impl Unit<'_> {
             ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation.status()));
 
             if let Some(goals) = self.navigation.goal() {
-                let origin_building_name = debug::tile_name_at(goals.origin_cell, TileMapLayerKind::Objects);
-                let destination_building_name = debug::tile_name_at(goals.destination_cell, TileMapLayerKind::Objects);
-                ui.text(format!("Start Building : {}, {}", goals.origin_cell, origin_building_name));
-                ui.text(format!("Dest  Building : {}, {}", goals.destination_cell, destination_building_name));
+                let origin_building_name = debug::tile_name_at(goals.origin_base_cell, TileMapLayerKind::Objects);
+                let destination_building_name = debug::tile_name_at(goals.destination_base_cell, TileMapLayerKind::Objects);
+                ui.text(format!("Start Building : {}, {}", goals.origin_base_cell, origin_building_name));
+                ui.text(format!("Dest  Building : {}, {}", goals.destination_base_cell, destination_building_name));
             }
 
             self.navigation.draw_debug_ui(ui_sys);

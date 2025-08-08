@@ -191,9 +191,15 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    pub fn receivable_amount(&self, kind: ResourceKind) -> u32 {
+    pub fn available_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.bits().count_ones() == 1);
-        self.archetype.receivable_amount(kind)
+        self.archetype.available_resources(kind)
+    }
+
+    #[inline]
+    pub fn receivable_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
+        self.archetype.receivable_resources(kind)
     }
 
     #[inline]
@@ -203,9 +209,9 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    pub fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+    pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.bits().count_ones() == 1);
-        self.archetype.give_resources(kind, count)
+        self.archetype.remove_resources(kind, count)
     }
 
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
@@ -289,15 +295,16 @@ bitflags_with_display! {
 
         // Archetype: Producer
         const Farm        = 1 << 1;
+        const Factory     = 1 << 2;
 
         // Archetype: Storage
-        const Granary     = 1 << 2;
-        const StorageYard = 1 << 3;
+        const Granary     = 1 << 3;
+        const StorageYard = 1 << 4;
 
         // Archetype: Service
-        const WellSmall   = 1 << 4;
-        const WellBig     = 1 << 5;
-        const Market      = 1 << 6;
+        const WellSmall   = 1 << 5;
+        const WellBig     = 1 << 6;
+        const Market      = 1 << 7;
     }
 }
 
@@ -307,7 +314,8 @@ impl BuildingKind {
     #[inline] pub const fn producer_count() -> usize { Self::producers().bits().count_ones() as usize }
     #[inline] pub const fn producers() -> Self {
         Self::from_bits_retain(
-            Self::Farm.bits()
+            Self::Farm.bits() |
+            Self::Factory.bits()
         )
     }
 
@@ -386,16 +394,19 @@ pub trait BuildingBehavior<'config> {
     // Resources / Stock:
     // ----------------------
 
-    // How many resources of this kind can we receive currently?
-    fn receivable_amount(&self, kind: ResourceKind) -> u32;
+    // How many resources of this kind do we currently hold?
+    fn available_resources(&self, kind: ResourceKind) -> u32;
 
-    // Returns number of resources it was able to accommodate,
-    // which can be less or equal to `count`.
+    // How many resources of this kind can we receive?
+    fn receivable_resources(&self, kind: ResourceKind) -> u32;
+
+    // Receive resources. Returns number of resources it was able
+    // to accommodate, which can be less or equal to `count`.
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32;
 
-    // Tries to gives away up to `count` resources. Returns the number
-    // of resources it was able to give, which can be less or equal to `count`.
-    fn give_resources(&mut self, kind: ResourceKind, count: u32) -> u32;
+    // Tries to relinquish up to `count` resources. Returns the number of
+    // resources it was able to relinquish, which can be less or equal to `count`.
+    fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32;
 
     // ----------------------
     // Debug:
@@ -424,7 +435,6 @@ pub struct BuildingKindAndId {
 
 #[derive(Copy, Clone)]
 pub struct BuildingTileInfo {
-    pub kind: BuildingKind,
     pub road_link: Cell,
     pub base_cell: Cell,
 }
@@ -439,7 +449,7 @@ impl BuildingKindAndId {
 impl BuildingTileInfo {
     #[inline]
     pub fn is_valid(&self) -> bool {
-        !self.kind.is_empty() && self.road_link.is_valid() && self.base_cell.is_valid()
+        self.road_link.is_valid() && self.base_cell.is_valid()
     }
 }
 
@@ -486,7 +496,6 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     #[inline]
     fn tile_info(&self) -> BuildingTileInfo {
         BuildingTileInfo {
-            kind: self.kind,
             road_link: self.find_nearest_road_link().unwrap_or_default(),
             base_cell: self.base_cell(),
         }
@@ -510,16 +519,6 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     }
 
     #[inline]
-    fn set_random_building_variation(&self) {
-        let tile = self.find_tile_mut();
-        let variation_count = tile.variation_count();
-        if variation_count > 1 {
-            let rand_variation_index = self.query.random_in_range(0..variation_count);
-            tile.set_variation_index(rand_variation_index);
-        }
-    }
-
-    #[inline]
     fn find_nearest_road_link(&self) -> Option<Cell> {
         self.query.find_nearest_road_link(self.map_cells)
     }
@@ -531,24 +530,17 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         self.query.is_near_building(self.map_cells, service_kind, config.effect_radius)
     }
 
-    // `storage_kinds` can be a combination of ORed BuildingKind flags.
-    fn for_each_storage<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
-        where F: FnMut(&Building<'config>) -> bool
-    {
-        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::StorageBuilding);
-
-        let world = self.query.world();
-        let storage_buildings = world.buildings_list(BuildingArchetypeKind::StorageBuilding);
-
-        for building in storage_buildings.iter() {
-            if building.kind().intersects(storage_kinds) && !visitor_fn(building) {
-                break;
-            }
+    #[inline]
+    fn set_random_building_variation(&self) {
+        let tile = self.find_tile_mut();
+        let variation_count = tile.variation_count();
+        if variation_count > 1 {
+            let rand_variation_index = self.query.random_in_range(0..variation_count);
+            tile.set_variation_index(rand_variation_index);
         }
     }
 
     // TODO: Get rid of mutable access to building here if possible!
-
     fn for_each_storage_mut<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&mut Building<'config>) -> bool
     {
@@ -564,12 +556,13 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         }
     }
 
+    // TODO: Deprecate.
     fn find_nearest_service_mut(&self, service_kind: BuildingKind) -> Option<&mut Building<'config>> {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
         let config = self.query.building_configs().find_service_config(service_kind);
 
         if let Some(building) =
-            self.query.find_nearest_building_mut(self.map_cells, service_kind, config.effect_radius) {
+            self.query.find_nearest_building(self.map_cells, service_kind, config.effect_radius) {
             if building.archetype_kind() != BuildingArchetypeKind::ServiceBuilding || building.kind() != service_kind {
                 panic!("Building '{}' ({}|{}): Expected archetype to be Service ({service_kind})!",
                        building.name(), building.archetype_kind(), building.kind());

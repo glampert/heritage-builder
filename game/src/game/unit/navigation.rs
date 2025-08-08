@@ -2,11 +2,10 @@ use strum_macros::Display;
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    pathfind::Path,
     imgui_ui::UiSystem,
     game::building::BuildingKind,
     utils::{Seconds, coords::Cell},
-    tile::{TileMap, TileMapLayerKind}
+    pathfind::{Graph, Path, NodeKind as PathNodeKind},
 };
 
 use super::{
@@ -72,10 +71,10 @@ pub enum UnitNavResult {
 #[derive(Copy, Clone)]
 pub struct UnitNavGoal {
     pub origin_kind: BuildingKind,
-    pub origin_cell: Cell,
+    pub origin_base_cell: Cell,
 
     pub destination_kind: BuildingKind,
-    pub destination_cell: Cell,
+    pub destination_base_cell: Cell,
     pub destination_road_link: Cell,
 }
 
@@ -109,7 +108,7 @@ impl UnitNavigation {
     //  config.segment_duration = 1.0 / config.speed;
     const SEGMENT_DURATION: f32 = 0.6;
 
-    pub fn update(&mut self, tile_map: &TileMap, mut delta_time_secs: Seconds) -> UnitNavResult {
+    pub fn update(&mut self, graph: &Graph, mut delta_time_secs: Seconds) -> UnitNavResult {
         if self.pause_current_path || self.path.is_empty() {
             // No path to follow.
             return UnitNavResult::Idle;
@@ -132,7 +131,7 @@ impl UnitNavigation {
         let from = self.path[self.path_index];
         let to   = self.path[self.path_index + 1];
 
-        if !tile_map.can_move_tile(from.cell, to.cell, TileMapLayerKind::Objects) {
+        if graph.node_kind(to).is_none_or(|kind| kind != PathNodeKind::Road) {
             return UnitNavResult::PathBlocked;
         }
 

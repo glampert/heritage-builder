@@ -12,7 +12,13 @@ use crate::{
         coords::{CellRange, WorldToScreenTransform}
     },
     game::{
-        unit::Unit,
+        unit::{
+            Unit,
+            task::{
+                UnitTaskDeliverToStorage,
+                UnitTaskFetchFromStorage,
+            }
+        },
         sim::resources::{
             ResourceKind,
             ResourceKinds,
@@ -82,23 +88,51 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         // Nothing for now.
     }
 
-    fn visited_by(&mut self, unit: &mut Unit, _context: &BuildingContext) {
-        self.debug.popup_msg(format!("Visited by {}", unit.name()));
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
+        let task_manager = context.query.task_manager();
 
-        // Try unload cargo:
-        if let Some(item) = unit.peek_inventory() {
-            let received_count = self.receive_resources(item.kind, item.count);
-            if received_count != 0 {
-                let given_count = unit.give_resources(item.kind, received_count);
-                debug_assert!(given_count == received_count);
+        if let Some(task) = unit.current_task_as::<UnitTaskDeliverToStorage>(task_manager) {
+            debug_assert!(context.kind.intersects(task.storage_buildings_accepted));
+
+            // Try unload cargo:
+            if let Some(item) = unit.peek_inventory() {
+                let received_count = self.receive_resources(item.kind, item.count);
+                if received_count != 0 {
+                    let removed_count = unit.remove_resources(item.kind, received_count);
+                    debug_assert!(removed_count == received_count);
+
+                    self.debug.popup_msg(format!("{} delivered {} {}", unit.name(), received_count, item.kind));
+                }
             }
+        } else if let Some(task) = unit.current_task_as::<UnitTaskFetchFromStorage>(task_manager) {
+            debug_assert!(context.kind.intersects(task.storage_buildings_accepted));
+
+            // Try give resources:
+            let resource_kind = task.resource_kind_to_fetch;
+            let available_count = self.available_resources(resource_kind);
+
+            if available_count != 0 {
+                let max_fetch_count = available_count.min(task.max_resources_to_fetch);
+                let removed_count  = self.remove_resources(resource_kind, max_fetch_count);
+
+                unit.receive_resources(resource_kind, removed_count);
+                debug_assert!(removed_count == max_fetch_count);
+
+                self.debug.popup_msg(format!("{} fetched {} {}", unit.name(), max_fetch_count, resource_kind));
+            }
+        } else {
+            panic!("Unhandled Unit Task in StorageBuilding::visited_by()!");
         }
     }
 
-    fn receivable_amount(&self, kind: ResourceKind) -> u32 {
+    fn available_resources(&self, kind: ResourceKind) -> u32 {
+        self.storage_slots.available_resources(kind)
+    }
+
+    fn receivable_resources(&self, kind: ResourceKind) -> u32 {
         // TODO: If we are not operating (no workers),
         // make this return zero so storage search will ignore it.
-        self.storage_slots.receivable_amount(kind)
+        self.storage_slots.receivable_resources(kind)
     }
 
     // Returns number of resources it was able to accommodate, which can be less than `count`.
@@ -110,8 +144,12 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         received_count
     }
 
-    fn give_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
-        todo!();
+    fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+       let removed_count = self.storage_slots.remove_resources(kind, count);
+        if removed_count != 0 {
+            self.debug.log_resources_lost(kind, removed_count);
+        }
+        removed_count
     }
 
     fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
@@ -397,7 +435,15 @@ impl StorageSlots {
         self.find_free_slot()
     }
 
-    fn receivable_amount(&self, kind: ResourceKind) -> u32 {
+    fn available_resources(&self, kind: ResourceKind) -> u32 {
+        if let Some(slot_index) = self.find_resource_slot(kind) {
+            self.slot_resource_count(slot_index, kind)
+        } else {
+            0
+        }
+    }
+
+    fn receivable_resources(&self, kind: ResourceKind) -> u32 {
         // Should be a single kind, never multiple ORed flags.
         debug_assert!(kind.bits().count_ones() == 1);
         let mut count = 0;
@@ -415,7 +461,6 @@ impl StorageSlots {
         count
     }
 
-    // Returns number of added resources.
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         let slot_index = match self.alloc_resource_slot(kind) {
             Some(slot_index) => slot_index,
@@ -429,6 +474,21 @@ impl StorageSlots {
             self.increment_slot_resource_count(slot_index, kind, count);
 
         new_count - prev_count
+    }
+
+    fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        let slot_index = match self.find_resource_slot(kind) {
+            Some(slot_index) => slot_index,
+            None => return 0,
+        };
+
+        let prev_count =
+            self.slot_resource_count(slot_index, kind);
+
+        let new_count =
+            self.decrement_slot_resource_count(slot_index, kind, count);
+
+        prev_count - new_count
     }
 }
 

@@ -290,6 +290,30 @@
                             ]
                         }
                     ]
+                },
+                {
+                    "name": "distillery",
+                    "logical_size": {
+                        "width": 192,
+                        "height": 96
+                    },
+                    "draw_size": {
+                        "width": 200,
+                        "height": 165
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
                 }
             ]
         },

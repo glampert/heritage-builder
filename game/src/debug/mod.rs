@@ -334,21 +334,22 @@ impl DebugMenusSingleton {
                         } else if tile_def.is(TileKind::Unit) {
                             args.world.try_spawn_unit_with_tile_def(args.tile_map, target_cell, tile_def).is_ok()
                         } else {
-                            // No associated world state, place plain tile.
+                            // No associated game state, place plain tile.
                             args.tile_map.try_place_tile(target_cell, tile_def).is_ok()
                         }
                     } else {
                         false
                     }
                 } else if let Some(tile) = args.tile_map.topmost_tile_at_cursor(args.cursor_screen_pos, &args.transform) {
-                    if tile.is(TileKind::Building | TileKind::Blocker) {
+                    let has_game_state = tile.game_state_handle().is_valid();
+                    if tile.is(TileKind::Building | TileKind::Blocker) && has_game_state {
                         args.world.despawn_building_at_cell(args.tile_map, tile.base_cell())
                             .expect("Tile removal failed!");
-                    } else if tile.is(TileKind::Unit) {
+                    } else if tile.is(TileKind::Unit) && has_game_state {
                         args.world.despawn_unit_at_cell(args.tile_map, args.sim.task_manager(), tile.base_cell())
                             .expect("Tile removal failed!");
                     } else {
-                        // No world state, just remove the tile directly.
+                        // No game state, just remove the tile directly.
                         args.tile_map.try_clear_tile_at_cursor(args.cursor_screen_pos, &args.transform)
                             .expect("Tile removal failed!");
                     }

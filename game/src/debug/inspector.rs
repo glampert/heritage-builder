@@ -445,6 +445,7 @@ impl TileInspectorMenu {
             if let Some(editable_def) = tile.try_get_editable_tile_def(context.tile_sets) {
                 if draw_size.is_valid() {
                     editable_def.draw_size = draw_size;
+                    tile.on_tile_def_edited();
                 }
             }
         }
@@ -470,6 +471,7 @@ impl TileInspectorMenu {
                     && (logical_size.width  % BASE_TILE_SIZE.width)  == 0
                     && (logical_size.height % BASE_TILE_SIZE.height) == 0 {
                     editable_def.logical_size = logical_size;
+                    tile.on_tile_def_edited();
                 }
             }
         }

@@ -21,9 +21,12 @@ bitflags_with_display! {
         const Meat  = 1 << 1;
         const Fish  = 1 << 2;
 
+        // Consumer Goods:
+        const Wine  = 1 << 3;
+
         // Raw materials:
-        const Wood  = 1 << 3;
-        const Metal = 1 << 4;
+        const Wood  = 1 << 4;
+        const Metal = 1 << 5;
     }
 }
 
@@ -39,6 +42,13 @@ impl ResourceKind {
             Self::Rice.bits() |
             Self::Meat.bits() |
             Self::Fish.bits()
+        )
+    }
+
+    #[inline]
+    pub const fn consumer_goods() -> Self {
+        Self::from_bits_retain(
+            Self::Wine.bits()
         )
     }
 }

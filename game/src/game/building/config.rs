@@ -47,6 +47,7 @@ pub struct BuildingConfigs {
     service_market: ServiceConfig,
     producer_rice_farm: ProducerConfig,
     producer_livestock_farm: ProducerConfig,
+    producer_distillery: ProducerConfig,
     storage_yard: StorageConfig,
     storage_granary: StorageConfig,
 }
@@ -118,7 +119,7 @@ impl BuildingConfigs {
                 max_workers: 1,
                 stock_update_frequency_secs: 20.0,
                 effect_radius: 5,
-                resources_required: ResourceKinds::with_kinds(ResourceKind::foods()),
+                resources_required: ResourceKinds::with_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
             },
             producer_rice_farm: ProducerConfig {
                 name: "Rice Farm".to_string(),
@@ -131,7 +132,8 @@ impl BuildingConfigs {
                 production_capacity: 5,
                 resources_required: ResourceKinds::none(),
                 resources_capacity: 0,
-                storage_buildings_accepted: BuildingKind::Granary,
+                deliver_to_storage_kinds: BuildingKind::Granary,
+                fetch_from_storage_kinds: BuildingKind::Granary,
             },
             producer_livestock_farm: ProducerConfig {
                 name: "Livestock Farm".to_string(),
@@ -144,7 +146,22 @@ impl BuildingConfigs {
                 production_capacity: 5,
                 resources_required: ResourceKinds::none(),
                 resources_capacity: 0,
-                storage_buildings_accepted: BuildingKind::Granary,
+                deliver_to_storage_kinds: BuildingKind::Granary,
+                fetch_from_storage_kinds: BuildingKind::Granary,
+            },
+            producer_distillery: ProducerConfig {
+                name: "Distillery".to_string(),
+                tile_def_name: "distillery".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("distillery"),
+                min_workers: 0,
+                max_workers: 1,
+                production_output_frequency_secs: 20.0,
+                production_output: ResourceKind::Wine,
+                production_capacity: 5,
+                resources_required: ResourceKinds::with_kinds(ResourceKind::Rice),
+                resources_capacity: 8,
+                deliver_to_storage_kinds: BuildingKind::StorageYard,
+                fetch_from_storage_kinds: BuildingKind::Granary,
             },
             storage_yard: StorageConfig {
                 name: "Storage Yard".to_string(),
@@ -188,6 +205,10 @@ impl BuildingConfigs {
             } else if tile_name_hash == hash::fnv1a_from_str("livestock_farm") {
                 &self.producer_livestock_farm
             } else { panic!("Unknown farm tile: '{}'", tile_name) }
+        } else if kind == BuildingKind::Factory {
+            if tile_name_hash == hash::fnv1a_from_str("distillery") {
+                &self.producer_distillery
+            } else { panic!("Unknown factory tile: '{}'", tile_name) }
         } else { panic!("No producer!") }
     }
 
@@ -249,6 +270,13 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> O
         let config = configs.find_producer_config(BuildingKind::Farm, tile.name(), tile_name_hash);
         Some(Building::new(
             BuildingKind::Farm,
+            tile.cell_range(),
+            BuildingArchetype::from(ProducerBuilding::new(config))
+        ))
+    } else if tile.name() == "distillery" {
+        let config = configs.find_producer_config(BuildingKind::Factory, tile.name(), tile_name_hash);
+        Some(Building::new(
+            BuildingKind::Factory,
             tile.cell_range(),
             BuildingArchetype::from(ProducerBuilding::new(config))
         ))

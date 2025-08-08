@@ -1,5 +1,3 @@
-use paste::paste;
-
 use crate::{
     imgui_ui::UiSystem,
     game::sim::world::World,
@@ -334,7 +332,7 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
 mod test_maps {
     use super::*;
 
-    pub struct PresetTiles {
+    struct PresetTiles {
         map_size_in_cells: Size,
         terrain_tiles:  &'static [i32],
         building_tiles: &'static [i32],
@@ -357,18 +355,22 @@ mod test_maps {
     const B: i32 = 2;  // well_big
     const M: i32 = 3;  // market
     const F: i32 = 4;  // rice_farm
-    const S: i32 = 5;  // storage (granary)
-    const BUILDING_TILE_NAMES: [&str; 6] = [
+    const S: i32 = 5;  // granary
+    const Y: i32 = 6;  // storage_yard
+    const A: i32 = 7;  // distillery
+    const BUILDING_TILE_NAMES: [&str; 8] = [
         "house0",
         "well_small",
         "well_big",
         "market",
         "rice_farm",
         "granary",
+        "storage_yard",
+        "distillery",
     ];
 
     // 1 house, 2 wells, 1 market, 1 farm, 1 storage (granary)
-    pub const PRESET_TILES_0: PresetTiles = PresetTiles {
+    const PRESET_TILES_0: PresetTiles = PresetTiles {
         map_size_in_cells: Size::new(9, 9),
         terrain_tiles: &[
             R,R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
@@ -395,7 +397,7 @@ mod test_maps {
     };
 
     // 1 farm, 1 storage (granary)
-    pub const PRESET_TILES_1: PresetTiles = PresetTiles {
+    const PRESET_TILES_1: PresetTiles = PresetTiles {
         map_size_in_cells: Size::new(9, 9),
         terrain_tiles: &[
             R,R,R,R,R,R,R,R,R,
@@ -421,6 +423,45 @@ mod test_maps {
         ],
     };
 
+    // 1 farm, 2 storages (granary, storage yard), 1 factory (distillery)
+    const PRESET_TILES_2: PresetTiles = PresetTiles {
+        map_size_in_cells: Size::new(12, 12),
+        terrain_tiles: &[
+            R,R,R,R,R,R,R,R,R,R,R,R,
+            R,G,G,G,G,G,G,R,G,G,G,R,
+            R,G,G,G,G,G,G,R,G,G,G,R,
+            R,G,G,G,G,G,G,R,G,G,G,R,
+            R,G,G,G,G,G,G,R,G,G,G,R,
+            R,G,G,G,G,G,G,R,G,G,G,R,
+            R,R,R,R,R,R,R,R,G,G,G,R,
+            R,G,G,G,G,G,G,R,G,G,G,R,
+            R,G,G,G,G,G,G,R,G,G,G,R,
+            R,G,G,G,G,G,G,R,G,G,G,R,
+            R,G,G,G,G,G,G,R,G,G,G,R,
+            R,R,R,R,R,R,R,R,R,R,R,R,
+        ],
+        building_tiles: &[
+            X,X,X,X,X,X,X,X,X,X,X,X,
+            X,A,X,X,X,X,X,X,S,X,X,X,
+            X,X,X,X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,X,X,X,
+            X,F,X,X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,Y,X,X,X,
+            X,X,X,X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,X,X,X,
+        ],
+    };
+
+    const PRESET_TILES: [&PresetTiles; 3] = [
+        &PRESET_TILES_0,
+        &PRESET_TILES_1,
+        &PRESET_TILES_2,
+    ];
+
     fn find_tile(tile_sets: &TileSets, layer_kind: TileMapLayerKind, tile_id: i32) -> Option<&TileDef> {
         if tile_id < 0 {
             return None;
@@ -439,8 +480,16 @@ mod test_maps {
         tile_sets.find_tile_def_by_name(layer_kind, category_name, tile_name)
     }
 
-    pub fn build_tile_map<'tile_sets>(preset: &'static PresetTiles, world: &mut World, tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
+    fn build_tile_map<'tile_sets>(preset: &'static PresetTiles,
+                                  world: &mut World,
+                                  tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
+
         let map_size_in_cells = preset.map_size_in_cells;
+
+        let tile_count = (map_size_in_cells.width * map_size_in_cells.height) as usize;
+        debug_assert!(preset.terrain_tiles.len()  == tile_count);
+        debug_assert!(preset.building_tiles.len() == tile_count);
+
         let mut tile_map = TileMap::new(map_size_in_cells, None);
 
         // Terrain:
@@ -467,18 +516,13 @@ mod test_maps {
 
         tile_map
     }
+
+    pub fn create_test_tile_map_preset<'tile_sets>(world: &mut World,
+                                                   tile_sets: &'tile_sets TileSets,
+                                                   preset_number: usize) -> TileMap<'tile_sets> {
+        println!("Creating test tile map: PRESET {} ...", preset_number);
+        build_tile_map(PRESET_TILES[preset_number], world, tile_sets)
+    }
 }
 
-macro_rules! declare_preset_tile_map {
-    ($preset_number:literal) => {
-        paste! {
-            pub fn [<create_test_tile_map_preset_ $preset_number>]<'tile_sets>(world: &mut World, tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
-                println!("Creating test tile map: PRESET {} ...", $preset_number);
-                test_maps::build_tile_map(&test_maps::[<PRESET_TILES_ $preset_number>], world, tile_sets)
-            }
-        }
-    };
-}
-
-declare_preset_tile_map!(0);
-declare_preset_tile_map!(1);
+pub use test_maps::create_test_tile_map_preset;

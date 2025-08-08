@@ -60,7 +60,7 @@ fn main() {
     let mut world = World::new(&building_configs, &unit_configs);
 
     // Test map with preset tiles:
-    let mut tile_map = debug::utils::create_test_tile_map_preset_1(&mut world, &tile_sets);
+    let mut tile_map = debug::utils::create_test_tile_map_preset(&mut world, &tile_sets, 2);
 
     // Empty map (dirt tiles):
     /*

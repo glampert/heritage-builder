@@ -918,6 +918,17 @@ impl<'tile_sets> Tile<'tile_sets> {
     // Internal helpers:
     // ----------------------
 
+    // Update cached states when the underlying TileDef is edited.
+    pub fn on_tile_def_edited(&mut self) {
+        // Re-setting the base cell takes care of updating cached iso coords.
+        let base_cell = self.base_cell();
+        delegate_to_archetype!(self, set_base_cell, base_cell);
+
+        // Update cached z-sort too.
+        let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
+        self.set_z_sort_key(new_z_sort_key);
+    }
+
     #[inline]
     fn is_animated_archetype(&self) -> bool {
         !self.is(TileKind::Terrain | TileKind::Blocker)

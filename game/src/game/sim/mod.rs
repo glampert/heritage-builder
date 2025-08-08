@@ -36,7 +36,6 @@ use super::{
     building::{
         Building,
         BuildingKind,
-        BuildingArchetypeKind,
         config::BuildingConfigs
     }
 };
@@ -504,10 +503,10 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         false
     }
 
-    pub fn find_nearest_building_mut(&self,
-                                     start_cells: CellRange,
-                                     kind: BuildingKind,
-                                     radius_in_cells: i32) -> Option<&mut Building<'config>> {
+    pub fn find_nearest_building(&self,
+                                 start_cells: CellRange,
+                                 kind: BuildingKind,
+                                 radius_in_cells: i32) -> Option<&mut Building<'config>> {
 
         let world = self.world();
         let tile_map = self.tile_map();
@@ -530,46 +529,25 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     }
 
     // Visitor function should return true to continue iterating or false to stop.
-    // `storage_kinds` can be a combination of ORed flags.
-    pub fn for_each_storage_building<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
+    // `building_kinds` can be a combination of ORed BuildingKind flags.
+    pub fn for_each_building<F>(&self, building_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&Building<'config>) -> bool
     {
-        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::StorageBuilding);
-
-        let world = self.world();
-        let storage_buildings = world.buildings_list(BuildingArchetypeKind::StorageBuilding);
-
-        for building in storage_buildings.iter() {
-            if building.kind().intersects(storage_kinds) && !visitor_fn(building) {
+        let buildings = self.world().buildings_list(building_kinds.archetype_kind());
+        for building in buildings.iter() {
+            if building.kind().intersects(building_kinds) && !visitor_fn(building) {
                 break;
             }
         }
     }
 
-    pub fn try_spawn_unit(&self, unit_origin: Cell, unit_config_key: UnitConfigKey) -> Option<&mut Unit<'config>> {
-        let world = self.world();
-        let tile_map = self.tile_map();
-        let tile_sets = self.tile_sets();
-
-        match world.try_spawn_unit_with_config(tile_map, tile_sets, unit_origin, unit_config_key) {
-            Ok(unit) => Some(unit),
-            Err(err) => {
-                if cfg!(debug_assertions) {
-                    // Make spawn failures fatal in debug builds.
-                    panic!("Spawn Unit Failed: {}", err);
-                } else {
-                    eprintln!("Spawn Unit Failed: {}", err);
-                    None
-                }
-            }
-        }
+    #[inline]
+    pub fn try_spawn_unit(&self, unit_origin: Cell, unit_config_key: UnitConfigKey) -> Result<&mut Unit<'config>, String> {
+        self.world().try_spawn_unit_with_config(self.tile_map(), self.tile_sets(), unit_origin, unit_config_key)
     }
 
     pub fn despawn_unit(&self, unit: &mut Unit) {
-        let world = self.world();
-        let tile_map = self.tile_map();
-
-        match world.despawn_unit(tile_map, self.task_manager(), unit) {
+        match self.world().despawn_unit(self.tile_map(), self.task_manager(), unit) {
             Ok(_) => {},
             Err(err) => {
                 if cfg!(debug_assertions) {

@@ -142,11 +142,11 @@ impl<'config> World<'config> {
         // Allocate & place a Tile:
         match tile_map.try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
-                // Increment generation count:
-                let generation = self.next_building_generation();
-
                 // Instantiate new Building:
                 if let Some(building) = building::config::instantiate(tile, self.building_configs) {
+                    // Increment generation count:
+                    let generation = self.next_building_generation();
+
                     let building_kind = building.kind();
                     let archetype_kind = building.archetype_kind();
                     let buildings = self.buildings_list_mut(archetype_kind);
