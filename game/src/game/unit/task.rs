@@ -422,8 +422,10 @@ impl UnitTask for UnitTaskFetchFromStorage {
                 if !self.try_return_to_origin(unit, query) {
                     // If we couldn't find a path back to the origin, maybe because the origin building
                     // was destroyed, we'll have to abort the task. Any resources collected will be lost.
-                    task_completed = true;
                     eprintln!("Aborting TaskFetchFromStorage. Unable to return to origin building...");
+
+                    // TODO: We can recover from this and ship the resources back to storage.
+                    todo!("Switch to a UnitTaskDeliverToStorage and return the resources");
                 }
             }
         }
@@ -622,7 +624,7 @@ impl Drop for UnitTaskPool {
         eprintln!("-----------------------");
 
         for (index, task) in &self.tasks {
-            eprintln!("Leaked Task[{index}]: {}", task.archetype);
+            eprintln!("Leaked Task[{index}]: {}, {}, {}", task.archetype, task.id, task.state);
         }
 
         if cfg!(debug_assertions) {

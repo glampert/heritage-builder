@@ -280,17 +280,17 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_building_by_name(&self, name: &str, archetype_kind: BuildingArchetypeKind) -> Option<&Building<'config>> {
-        self.buildings_list(archetype_kind)
+    pub fn find_building_by_name(&self, name: &str, kind: BuildingKind) -> Option<&Building<'config>> {
+        self.buildings_list(kind.archetype_kind())
             .iter()
-            .find(|building| building.name() == name)
+            .find(|building| building.name() == name && building.kind().intersects(kind))
     }
 
     #[inline]
-    pub fn find_building_by_name_mut(&mut self, name: &str, archetype_kind: BuildingArchetypeKind) -> Option<&mut Building<'config>> {
-        self.buildings_list_mut(archetype_kind)
+    pub fn find_building_by_name_mut(&mut self, name: &str, kind: BuildingKind) -> Option<&mut Building<'config>> {
+        self.buildings_list_mut(kind.archetype_kind())
             .iter_mut()
-            .find(|building| building.name() == name)
+            .find(|building| building.name() == name && building.kind().intersects(kind))
     }
 
     #[inline]

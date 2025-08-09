@@ -40,7 +40,7 @@ impl UnitInventory {
     #[inline]
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if let Some(item) = &mut self.item {
-            debug_assert!(item.kind == kind && item.count != 0);
+            debug_assert!(item.kind == kind && item.count != 0, "item.kind {} != {}, item.count = {}", item.kind, kind, item.count);
             item.count += count;
         } else {
             self.item = Some(StockItem { kind, count });
@@ -52,7 +52,7 @@ impl UnitInventory {
     #[inline]
     pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if let Some(item) = &mut self.item {
-            debug_assert!(item.kind == kind && item.count != 0);
+            debug_assert!(item.kind == kind && item.count != 0, "item.kind {} != {}, item.count = {}", item.kind, kind, item.count);
 
             let removed_count = {
                 if count <= item.count {

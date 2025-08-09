@@ -1,3 +1,4 @@
+use rand::Rng;
 use proc_macros::DrawDebugUi;
 
 use crate::{
@@ -28,10 +29,20 @@ use crate::{
 };
 
 use super::{
+    building::{
+        BuildingKind,
+        BuildingKindAndId,
+        BuildingTileInfo
+    },
     sim::{
         Query,
         world::UnitId,
-        resources::{ResourceKind, StockItem}
+        resources::{
+            RESOURCE_KIND_COUNT,
+            ResourceKind,
+            ShoppingList,
+            StockItem
+        }
     }
 };
 
@@ -260,14 +271,14 @@ impl<'config> Unit<'config> {
                     self.debug.popup_msg_color(Color::red(), "Goal Blocked!");
                 }
 
-                self.go_idle(query);
+                self.idle(query);
             },
             UnitNavResult::PathBlocked => {
                 // Failed to move to another tile, possibly because it has been
                 // blocked since we've traced the path. Clear the navigation and stop.
                 // If a task is running it should now re-route the path and retry.
                 self.follow_path(None);
-                self.go_idle(query);
+                self.idle(query);
 
                 self.debug.popup_msg_color(Color::red(), "Path Blocked!");
             },
@@ -320,21 +331,27 @@ impl<'config> Unit<'config> {
         self.current_task_id = task_id.unwrap_or_default();
     }
 
-    pub fn try_spawn_with_task<Task>(query: &'config Query,
-                                     unit_origin: Cell,
-                                     unit_config: UnitConfigKey,
-                                     task: Task) -> Result<&'config mut Unit<'config>, String>
-        where
-            Task: UnitTask,
-            UnitTaskArchetype: From<Task>
-    {
-        let unit = query.try_spawn_unit(unit_origin, unit_config)?;
+    pub fn try_spawn_with_task(query: &'config Query,
+                               unit_origin: Cell,
+                               unit_config: UnitConfigKey,
+                               task_id: UnitTaskId) -> Result<&'config mut Unit<'config>, String> {
 
-        // Handle root tasks here. These will start the task chain and might take some time to complete.
+        debug_assert!(unit_origin.is_valid());
+        debug_assert!(unit_config.is_valid());
+        debug_assert!(task_id.is_valid());
+
         let task_manager = query.task_manager();
-        let new_task_id = task_manager.new_task(task);
-        unit.assign_task(task_manager, new_task_id);
 
+        let unit = match query.try_spawn_unit(unit_origin, unit_config) {
+            Ok(unit) => unit,
+            error @ Err(_) => {
+                task_manager.free_task(task_id);
+                return error;
+            },
+        };
+
+        // These will start the task chain and might take some time to complete.
+        unit.assign_task(task_manager, Some(task_id));
         Ok(unit)
     }
 
@@ -381,7 +398,7 @@ impl<'config> Unit<'config> {
     // Internal helpers:
     // ----------------------
 
-    fn go_idle(&mut self, query: &Query) {
+    fn idle(&mut self, query: &Query) {
         self.update_direction_and_anim(find_unit_tile!(&mut self, query), UnitDirection::Idle);
     }
 
@@ -415,6 +432,7 @@ impl Unit<'_> {
         self.inventory.draw_debug_ui(ui_sys);
         query.task_manager().draw_tasks_debug_ui(self, ui_sys);
         self.draw_debug_ui_navigation(query, ui_sys);
+        self.draw_debug_ui_misc(query, ui_sys);
     }
 
     pub fn draw_debug_popups(&mut self,
@@ -450,10 +468,6 @@ impl Unit<'_> {
             id: self.id(),
         };
         debug_vars.draw_debug_ui(ui_sys);
-
-        if ui.button("Say Hello") {
-            self.debug.popup_msg("Hello!");
-        }
     }
 
     fn draw_debug_ui_config(&mut self, ui_sys: &UiSystem) {
@@ -499,7 +513,7 @@ impl Unit<'_> {
         ui.text(format!("Anim       : {}", self.anim_sets.current_anim().string));
 
         if ui.button("Force Idle Anim") {
-            self.go_idle(query);
+            self.idle(query);
         }
 
         ui.separator();
@@ -520,5 +534,95 @@ impl Unit<'_> {
         }
 
         self.navigation.draw_debug_ui(ui_sys);
+    }
+
+    fn draw_debug_ui_misc(&mut self, query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if ui.button("Say Hello") {
+            self.debug.popup_msg("Hello!");
+        }
+
+        let task_manager = query.task_manager();
+        let world = query.world();
+
+        if ui.button("Clear Current Task") {
+            self.assign_task(task_manager, None);
+        }
+
+        if ui.button("Give Deliver Resources Task") {
+            // We need a building to own the task, so this assumes there's at least one of these placed in the map.
+            if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
+                let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
+                if self.teleport(query.tile_map(), start_cell) {
+                    let completion_task = task_manager.new_task(UnitTaskDespawn);
+                    let task = task_manager.new_task(UnitTaskDeliverToStorage {
+                        origin_building: BuildingKindAndId {
+                            kind: building.kind(),
+                            id: building.id(),
+                        },
+                        origin_building_tile: BuildingTileInfo {
+                            road_link: start_cell,
+                            base_cell: building.base_cell(),
+                        },
+                        storage_buildings_accepted: BuildingKind::storage(), // any storage
+                        resource_kind_to_deliver: ResourceKind::random(&mut rand::rng()),
+                        resource_count: 1,
+                        completion_callback: Some(|_, _, _| {
+                            println!("Deliver Resources Task Completed.");
+                        }),
+                        completion_task,
+                        allow_producer_fallback: true,
+                    });
+                    self.assign_task(task_manager, task);
+                }
+            }
+        }
+
+        if ui.button("Give Fetch Resources Task") {
+            // We need a building to own the task, so this assumes there's at least one of these placed in the map.
+            if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
+                let mut rng = rand::rng();
+                let resources_to_fetch = ShoppingList::from(
+                    [StockItem { kind: ResourceKind::random(&mut rng), count: rng.random_range(1..5) }; RESOURCE_KIND_COUNT]
+                );
+                let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
+                if self.teleport(query.tile_map(), start_cell) {
+                    let completion_task = task_manager.new_task(UnitTaskDespawn);
+                    let task = task_manager.new_task(UnitTaskFetchFromStorage {
+                        origin_building: BuildingKindAndId {
+                            kind: building.kind(),
+                            id: building.id(),
+                        },
+                        origin_building_tile: BuildingTileInfo {
+                            road_link: start_cell,
+                            base_cell: building.base_cell(),
+                        },
+                        storage_buildings_accepted: BuildingKind::storage(), // any storage
+                        resources_to_fetch,
+                        completion_callback: Some(|_, unit, _| {
+                            let item = unit.inventory.peek().unwrap();
+                            println!("Fetch Resources Task Completed. Got {}, {}", item.kind, item.count);
+                            unit.inventory.clear();
+                        }),
+                        completion_task,
+                    });
+                    self.assign_task(task_manager, task);
+                }
+            }
+        }
+
+        if ui.button("Give Despawn Task") {
+            let task = task_manager.new_task(UnitTaskDespawn);
+            self.assign_task(task_manager, task);
+        }
+
+        if ui.button("Force Despawn Immediately") {
+            query.despawn_unit(self);
+        }
     }
 }

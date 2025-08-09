@@ -1,3 +1,5 @@
+use rand::Rng;
+use rand::seq::IteratorRandom;
 use core::slice::Iter;
 use arrayvec::ArrayVec;
 use bitflags::{bitflags, Flags};
@@ -58,6 +60,14 @@ impl ResourceKind {
             Self::Wood.bits() |
             Self::Metal.bits()
         )
+    }
+
+    #[inline]
+    pub fn random<R: Rng>(rng: &mut R) -> Self {
+        Self::all()
+            .iter()
+            .choose(rng)
+            .unwrap_or(ResourceKind::Rice)
     }
 }
 

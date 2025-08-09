@@ -257,7 +257,7 @@ impl<'config> ServiceBuilding<'config> {
 
             if !runner_unit.inventory_is_empty() {
                 // TODO: We have to ship back to storage if we couldn't receive everything!
-                todo!("Implement fallback task for this!");
+                todo!("Couldn't receive all resources. Implement fallback task for this!");
             }
         }
 

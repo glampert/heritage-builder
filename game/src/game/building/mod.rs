@@ -161,6 +161,11 @@ impl<'config> Building<'config> {
         self.id
     }
 
+    #[inline]
+    pub fn find_nearest_road_link(&self, query: &Query) -> Option<Cell> {
+        query.find_nearest_road_link(self.map_cells)
+    }
+
     building_type_casts! { producer, ProducerBuilding } // as_producer()
     building_type_casts! { storage,  StorageBuilding  } // as_storage()
     building_type_casts! { service,  ServiceBuilding  } // as_service()
