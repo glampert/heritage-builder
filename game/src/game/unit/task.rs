@@ -21,8 +21,12 @@ use crate::{
     game::{
         sim::{
             Query,
-            resources::ResourceKind,
-            world::{GenerationalIndex, BuildingId}
+            world::{GenerationalIndex, BuildingId},
+            resources::{
+                self,
+                ShoppingList,
+                ResourceKind
+            }
         },
         building::{
             Building,
@@ -288,8 +292,7 @@ pub struct UnitTaskFetchFromStorage {
 
     // Resources to fetch:
     pub storage_buildings_accepted: BuildingKind,
-    pub resource_kind_to_fetch: ResourceKind,
-    pub max_resources_to_fetch: u32,
+    pub resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
 
     // Called on the origin building once resources are delivered.
     // `|origin_building, runner_unit, query|`
@@ -301,16 +304,21 @@ pub struct UnitTaskFetchFromStorage {
 
 impl UnitTaskFetchFromStorage {
     fn try_find_goal(&self, unit: &mut Unit, query: &Query) {
-        let path_find_result = find_storage_fetch_candidate(query,
-                                                            self.origin_building.kind,
-                                                            unit.cell(),
-                                                            self.storage_buildings_accepted,
-                                                            self.resource_kind_to_fetch);
+        for resource_to_fetch in &self.resources_to_fetch {
+            debug_assert!(resource_to_fetch.kind.bits().count_ones() == 1);
 
-        if let PathFindResult::Success { path, goal } = path_find_result {
-            unit.go_to_building(path, goal);
+            let path_find_result = find_storage_fetch_candidate(query,
+                                                                self.origin_building.kind,
+                                                                unit.cell(),
+                                                                self.storage_buildings_accepted,
+                                                                resource_to_fetch.kind);
+
+            if let PathFindResult::Success { path, goal } = path_find_result {
+                unit.go_to_building(path, goal);
+                break;
+            }
+            // Else no path or Storage building found. Try again.
         }
-        // Else no path or Storage building found. Try again later.
     }
 
     fn try_return_to_origin(&self, unit: &mut Unit, query: &Query) -> bool {
@@ -358,7 +366,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         debug_assert!(self.origin_building.is_valid());
         debug_assert!(self.origin_building_tile.is_valid());
         debug_assert!(!self.storage_buildings_accepted.is_empty());
-        debug_assert!(self.resource_kind_to_fetch.bits().count_ones() == 1);
+        debug_assert!(!self.resources_to_fetch.is_empty());
 
         self.try_find_goal(unit, query);
     }
@@ -391,7 +399,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
             // We've reached our origin building with the resources we were supposed to fetch.
             // Invoke the completion callback and end the task.
             debug_assert!(!unit.inventory_is_empty());
-            debug_assert!(unit.peek_inventory().unwrap().kind == self.resource_kind_to_fetch);
+            debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == unit.peek_inventory().unwrap().kind));
             invoke_completion_callback(unit,
                                        query,
                                        self.origin_building.kind,
@@ -409,7 +417,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
             // we are done and can return to our origin building.
             if let Some(item) = unit.peek_inventory() {
                 debug_assert!(item.count != 0);
-                debug_assert!(item.kind  == self.resource_kind_to_fetch);
+                debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == item.kind));
 
                 if !self.try_return_to_origin(unit, query) {
                     // If we couldn't find a path back to the origin, maybe because the origin building
@@ -439,8 +447,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         ui.text(format!("Origin Building            : {}, '{}', {}", building_kind, building_name, building_cell));
         ui.separator();
         ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
-        ui.text(format!("Resource Kind To Fetch     : {}", self.resource_kind_to_fetch));
-        ui.text(format!("Max Resources To Fetch     : {}", self.max_resources_to_fetch));
+        ui.text(format!("Resources To Fetch         : {}", resources::shopping_list_debug_string(&self.resources_to_fetch)));
         ui.separator();
         ui.text(format!("Has Completion Callback    : {}", self.completion_callback.is_some()));
         ui.text(format!("Has Completion Task        : {}", self.completion_task.is_some()));

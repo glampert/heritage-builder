@@ -1,21 +1,30 @@
+use std::cmp::Reverse;
 use proc_macros::DrawDebugUi;
 
 use crate::{
     game_object_debug_options,
     imgui_ui::UiSystem,
     utils::{
+        Color,
         Seconds,
         hash::StringHash,
         coords::{CellRange, WorldToScreenTransform}
     },
     game::{
-        unit::Unit,
+        unit::{
+            Unit,
+            runner::Runner,
+            task::UnitTaskFetchFromStorage
+        },
         sim::{
+            Query,
             UpdateTimer,
             resources::{
+                ShoppingList,
                 ResourceKind,
                 ResourceKinds,
                 ResourceStock,
+                StockItem,
                 Workers
             }
         }
@@ -23,6 +32,7 @@ use crate::{
 };
 
 use super::{
+    Building,
     BuildingKind,
     BuildingBehavior,
     BuildingContext
@@ -43,8 +53,10 @@ pub struct ServiceConfig {
     pub min_workers: u32,
     pub max_workers: u32,
 
-    pub stock_update_frequency_secs: Seconds,
     pub effect_radius: i32,
+
+    pub stock_update_frequency_secs: Seconds,
+    pub stock_capacity: u32, // Capacity for each resource kind it accepts.
 
     // Kinds of resources required for the service to run, if any.
     pub resources_required: ResourceKinds,
@@ -70,7 +82,11 @@ pub struct ServiceBuilding<'config> {
     workers: Workers,
 
     stock_update_timer: UpdateTimer,
+    stock_capacity: u32,
     stock: ResourceStock, // Current local stock of resources.
+
+    // Runner Unit we may send out to fetch resources from storage.
+    runner: Runner,
 
     debug: ServiceDebug,
 }
@@ -95,28 +111,36 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         todo!(); // TODO
     }
 
-    fn available_resources(&self, _kind: ResourceKind) -> u32 {
-        todo!(); // TODO
+    fn available_resources(&self, kind: ResourceKind) -> u32 {
+        self.stock.count(kind)
     }
 
-    fn receivable_resources(&self, _kind: ResourceKind) -> u32 {
-        todo!(); // TODO
-    }
-
-    fn receive_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
-        todo!(); // TODO
-    }
-
-    fn remove_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
-        todo!(); // TODO
-    }
-
-    fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
-        if ui_sys.builder().collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
+    fn receivable_resources(&self, kind: ResourceKind) -> u32 {
+        let mut capacity_left = 0;
+        if let Some((_, item)) = self.stock.find(kind) {
+            capacity_left = self.stock_capacity - item.count;
         }
+        capacity_left
+    }
+
+    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        let capacity_left = self.receivable_resources(kind);
+        let add_count = count.min(capacity_left);
+        self.stock.add(kind, add_count);
+        add_count
+    }
+
+    fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        let available_count = self.available_resources(kind);
+        let remove_count = count.min(available_count);
+        self.stock.remove(kind, remove_count);
+        remove_count
+    }
+
+    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+        self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
-        self.draw_debug_ui_resources_stock(ui_sys);
+        self.draw_debug_ui_resources_stock(context, ui_sys);
     }
 
     fn draw_debug_popups(&mut self,
@@ -140,7 +164,9 @@ impl<'config> ServiceBuilding<'config> {
             config,
             workers: Workers::new(config.min_workers, config.max_workers),
             stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
+            stock_capacity: config.stock_capacity,
             stock: ResourceStock::with_accepted_list(&config.resources_required),
+            runner: Runner::default(),
             debug: ServiceDebug::default(),
         }
     }
@@ -162,8 +188,8 @@ impl<'config> ServiceBuilding<'config> {
         let mut kinds_added_to_basked = ResourceKind::empty();
 
         for wanted_resource in shopping_list.iter() {
-            if let Some(resource) = self.stock.remove(*wanted_resource) {
-                shopping_basket.add(resource);
+            if let Some(resource) = self.stock.remove(*wanted_resource, 1) {
+                shopping_basket.add(resource, 1);
                 kinds_added_to_basked.insert(resource);
                 self.debug.log_resources_lost(resource, 1);
             }
@@ -173,39 +199,82 @@ impl<'config> ServiceBuilding<'config> {
     }
 
     fn stock_update(&mut self, context: &BuildingContext) {
-        let resources_required = &self.config.resources_required;
-        let mut shopping_list = ResourceKinds::none();
+        if !self.stock.accepts_any() {
+            return; // We don't require any resources.
+        }
 
-        resources_required.for_each(|resource| {
-            if !self.stock.has(resource) {
-                shopping_list.add(resource);
+        if self.is_waiting_on_runner() {
+            return; // A runner is already out fetching resources. Try again later.
+        }
+
+        // Unit spawns at the nearest road link.
+        let unit_origin = match context.find_nearest_road_link() {
+            Some(road_link) => road_link,
+            None => return, // We are not connected to a road. No stock update possible!
+        };
+
+        // Send out a runner:
+        let storage_buildings_accepted = BuildingKind::storage(); // Search all storage building kinds.
+        let resources_to_fetch = self.resource_fetch_list();
+        if resources_to_fetch.is_empty() {
+            return;
+        }
+
+        self.runner.try_fetch_from_storage(
+            context,
+            unit_origin,
+            storage_buildings_accepted,
+            resources_to_fetch,
+            Some(Self::on_resources_fetched));
+    }
+
+    #[inline]
+    fn is_waiting_on_runner(&self) -> bool {
+        self.runner.is_spawned()
+    }
+
+    #[inline]
+    fn is_runner_fetching_resources(&self, query: &Query) -> bool {
+        self.runner.is_running_task::<UnitTaskFetchFromStorage>(query)
+    }
+
+    fn on_resources_fetched(this_building: &mut Building, runner_unit: &mut Unit, query: &Query) {
+        let this_service = this_building.as_service_mut();
+
+        debug_assert!(!runner_unit.inventory_is_empty(), "Runner Unit inventory shouldn't be empty!");
+        debug_assert!(this_service.is_runner_fetching_resources(query), "No Runner was sent out by this building!");
+        debug_assert!(this_service.runner.unit_id() == runner_unit.id());
+
+        // Try unload cargo:
+        if let Some(item) = runner_unit.peek_inventory() {
+            debug_assert!(item.count <= this_service.stock_capacity);
+
+            let received_count = this_service.receive_resources(item.kind, item.count);
+            if received_count != 0 {
+                let removed_count = runner_unit.remove_resources(item.kind, received_count);
+                debug_assert!(removed_count == received_count);
             }
-            true
+
+            if !runner_unit.inventory_is_empty() {
+                // TODO: We have to ship back to storage if we couldn't receive everything!
+                todo!("Implement fallback task for this!");
+            }
+        }
+
+        this_service.runner.reset();
+        this_service.debug.popup_msg_color(Color::cyan(), "Fetch Task complete");
+    }
+
+    fn resource_fetch_list(&self) -> ShoppingList {
+        let mut list = ShoppingList::new();
+
+        self.stock.for_each(|_, item| {
+            list.push(StockItem { kind: item.kind, count: self.stock_capacity - item.count });
         });
 
-        let storage_kinds =
-            BuildingKind::Granary |
-            BuildingKind::StorageYard;
-
-        context.for_each_storage_mut(storage_kinds, |building| {
-            let all_or_nothing = false;
-            let resource_kinds_got =
-                building.as_storage_mut().shop(&mut self.stock, &shopping_list, all_or_nothing);
-            self.debug.log_resources_gained(resource_kinds_got, 1);
-
-            let mut continue_search = false;
-
-            resources_required.for_each(|resource| {
-                if !self.stock.has(resource) {
-                    continue_search = true;
-                } else {
-                    shopping_list.remove(resource);
-                }
-                true
-            });
-
-            continue_search
-        });
+        // Items with the highest capacity first.
+        list.sort_by_key(|item: &StockItem| Reverse(item.count));
+        list
     }
 }
 
@@ -214,13 +283,49 @@ impl<'config> ServiceBuilding<'config> {
 // ----------------------------------------------
 
 impl ServiceBuilding<'_> {
-    fn draw_debug_ui_resources_stock(&mut self, ui_sys: &UiSystem) {
-        if self.stock.accepts_any() {
-            let ui = ui_sys.builder();
-            if ui.collapsing_header("Stock", imgui::TreeNodeFlags::empty()) {
-                self.stock_update_timer.draw_debug_ui("Update", 0, ui_sys);
-                self.stock.draw_debug_ui("Resources", ui_sys);
+    fn draw_debug_ui_config(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+            self.config.draw_debug_ui(ui_sys);
+        }
+    }
+
+    fn draw_debug_ui_resources_stock(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+        if !self.stock.accepts_any() {
+            return;
+        }
+
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header("Stock", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if self.runner.failed_to_spawn() {
+            ui.text_colored(Color::red().to_array(), "Failed to spawn last Runner!");
+        }
+
+        if self.is_waiting_on_runner() {
+            if self.is_runner_fetching_resources(context.query) {
+                ui.text_colored(Color::yellow().to_array(), "Runner sent on Fetch Task.");
+            } else {
+                ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
+            }
+
+            if ui.button("Forget Runner") {
+                self.runner.reset();
             }
         }
+
+        self.stock_update_timer.draw_debug_ui("Update", 0, ui_sys);
+
+        if ui.button("Fill Stock") {
+            // Set all to capacity.
+            self.stock.for_each_mut(|_, item| item.count = self.stock_capacity);
+        }
+        if ui.button("Clear Stock") {
+            self.stock.clear();
+        }
+
+        self.stock.draw_debug_ui_clamped_counts("Resources", 0, self.stock_capacity, ui_sys);
     }
 }

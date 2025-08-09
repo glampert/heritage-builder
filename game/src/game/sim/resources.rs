@@ -51,6 +51,14 @@ impl ResourceKind {
             Self::Wine.bits()
         )
     }
+
+    #[inline]
+    pub const fn raw_materials() -> Self {
+        Self::from_bits_retain(
+            Self::Wood.bits() |
+            Self::Metal.bits()
+        )
+    }
 }
 
 pub const RESOURCE_KIND_COUNT: usize = ResourceKind::count();
@@ -170,9 +178,7 @@ impl ResourceStock {
 
     #[inline]
     pub fn clear(&mut self) {
-        for count in &mut self.counts {
-            *count = 0;
-        }
+        self.counts = [0; RESOURCE_KIND_COUNT];
     }
 
     #[inline]
@@ -216,16 +222,19 @@ impl ResourceStock {
     }
 
     #[inline]
-    pub fn add(&mut self, kind: ResourceKind) {
+    pub fn add(&mut self, kind: ResourceKind, count: u32) {
         if !self.kinds.intersects(kind) {
             panic!("Failed to add resource of kind '{}' to Stock! Kind not accepted.", kind);
         }
+        let add_amount: u16 = count.try_into().expect("Value cannot fit into a u16!");
         let index = bit_index(kind);
-        self.counts[index] += 1;
+        self.counts[index] += add_amount;
     }
 
     #[inline]
-    pub fn remove(&mut self, kinds: ResourceKind) -> Option<ResourceKind> {
+    pub fn remove(&mut self, kinds: ResourceKind, count: u32) -> Option<ResourceKind> {
+        let sub_amount: u16 = count.try_into().expect("Value cannot fit into a u16!");
+
         // Break down flags that are ORed together (since T is bitflags),
         // so that remove() can work with multiple wanted kinds, e.g.:
         // remove(A | B | C) -> will remove the first of A|B|C that is
@@ -237,7 +246,7 @@ impl ResourceStock {
                 if count == 0 {
                     continue;
                 }
-                self.counts[index] = count - 1;
+                self.counts[index] = count.saturating_sub(sub_amount);
                 return Some(single_kind);
             }
         }
@@ -280,16 +289,12 @@ impl ResourceStock {
         }
     }
 
-    pub fn draw_debug_ui_filtered<F>(&mut self, label: &str, ui_sys: &UiSystem, filter_fn: F)
-        where F: Fn(&StockItem) -> bool
-    {
+    pub fn draw_debug_ui_clamped_counts(&mut self, label: &str, min: u32, max: u32, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
             self.for_each_mut(|index, item| {
-                if filter_fn(item) {
-                    ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count)
-                        .step(1)
-                        .build();
+                if ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count).step(1).build() {
+                    item.count = item.count.clamp(min, max);
                 }
             });
         }
@@ -439,4 +444,28 @@ impl<T, const CAPACITY: usize> Display for ResourceList<T, CAPACITY>
         write!(f, "]")?;
         Ok(())
     }
+}
+
+// ----------------------------------------------
+// ShoppingList
+// ----------------------------------------------
+
+// List of resources to fetch + desired count.
+pub type ShoppingList = ArrayVec<StockItem, RESOURCE_KIND_COUNT>;
+
+pub fn shopping_list_debug_string(list: &ShoppingList) -> String {
+    let mut string = String::new();
+    string += "[";
+
+    let mut first = true;
+    for item in list {
+        if !first {
+            string += ", ";
+        }
+        string += &format!("({},{})", item.kind, item.count);
+        first = false
+    }
+
+    string += "]";
+    string
 }

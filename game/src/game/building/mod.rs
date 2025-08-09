@@ -462,7 +462,7 @@ pub struct BuildingContext<'config, 'tile_sets, 'query> {
     archetype_kind: BuildingArchetypeKind,
     map_cells: CellRange,
     id: BuildingId,
-    query: &'query Query<'config, 'tile_sets>,
+    pub query: &'query Query<'config, 'tile_sets>,
 }
 
 impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
@@ -481,12 +481,12 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     }
 
     #[inline]
-    fn base_cell(&self) -> Cell {
+    pub fn base_cell(&self) -> Cell {
         self.map_cells.start
     }
 
     #[inline]
-    fn kind_and_id(&self) -> BuildingKindAndId {
+    pub fn kind_and_id(&self) -> BuildingKindAndId {
         BuildingKindAndId {
             kind: self.kind,
             id: self.id,
@@ -494,7 +494,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     }
 
     #[inline]
-    fn tile_info(&self) -> BuildingTileInfo {
+    pub fn tile_info(&self) -> BuildingTileInfo {
         BuildingTileInfo {
             road_link: self.find_nearest_road_link().unwrap_or_default(),
             base_cell: self.base_cell(),
@@ -540,21 +540,14 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         }
     }
 
-    // TODO: Deprecate.
-    // TODO: Get rid of mutable access to building here if possible!
-    fn for_each_storage_mut<F>(&self, storage_kinds: BuildingKind, mut visitor_fn: F)
-        where F: FnMut(&mut Building<'config>) -> bool
-    {
-        debug_assert!(storage_kinds.archetype_kind() == BuildingArchetypeKind::StorageBuilding);
-
-        let world = self.query.world();
-        let storage_buildings = world.buildings_list_mut(BuildingArchetypeKind::StorageBuilding);
-
-        for building in storage_buildings.iter_mut() {
-            if building.kind().intersects(storage_kinds) && !visitor_fn(building) {
-                break;
+    #[inline]
+    pub fn debug_name(&self) -> &str {
+        if cfg!(debug_assertions) {
+            if let Some(building) = self.query.world().find_building(self.kind, self.id) {
+                return building.name();
             }
         }
+        "<unavailable>"
     }
 
     // TODO: Deprecate.

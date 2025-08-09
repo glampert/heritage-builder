@@ -108,17 +108,18 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
             debug_assert!(context.kind.intersects(task.storage_buildings_accepted));
 
             // Try give resources:
-            let resource_kind = task.resource_kind_to_fetch;
-            let available_count = self.available_resources(resource_kind);
+            for item in task.resources_to_fetch.iter() {
+                let available_count = self.available_resources(item.kind);
+                if available_count != 0 {
+                    let max_fetch_count = available_count.min(item.count);
+                    let removed_count = self.remove_resources(item.kind, max_fetch_count);
 
-            if available_count != 0 {
-                let max_fetch_count = available_count.min(task.max_resources_to_fetch);
-                let removed_count  = self.remove_resources(resource_kind, max_fetch_count);
+                    unit.receive_resources(item.kind, removed_count);
+                    debug_assert!(removed_count == max_fetch_count);
 
-                unit.receive_resources(resource_kind, removed_count);
-                debug_assert!(removed_count == max_fetch_count);
-
-                self.debug.popup_msg(format!("{} fetched {} {}", unit.name(), max_fetch_count, resource_kind));
+                    self.debug.popup_msg(format!("{} fetched {} {}", unit.name(), max_fetch_count, item.kind));
+                    break;
+                }
             }
         } else {
             panic!("Unhandled Unit Task in StorageBuilding::visited_by()!");
@@ -153,9 +154,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
-        if ui_sys.builder().collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
+        self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
         self.storage_slots.draw_debug_ui("Stock Slots", ui_sys);
     }
@@ -218,7 +217,7 @@ impl<'config> StorageBuilding<'config> {
             let new_count  = self.storage_slots.decrement_slot_resource_count(slot_index, wanted_resource, 1);
 
             if new_count < prev_count {
-                shopping_basket.add(wanted_resource);
+                shopping_basket.add(wanted_resource, 1);
                 kinds_added_to_basked.insert(wanted_resource);
                 self.debug.log_resources_lost(wanted_resource, 1);
             }
@@ -496,6 +495,15 @@ impl StorageSlots {
 // ----------------------------------------------
 // Debug UI
 // ----------------------------------------------
+
+impl StorageBuilding<'_> {
+    fn draw_debug_ui_config(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+            self.config.draw_debug_ui(ui_sys);
+        }
+    }
+}
 
 impl StorageSlots {
     fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {

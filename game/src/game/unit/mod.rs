@@ -42,6 +42,7 @@ use inventory::*;
 use navigation::*;
 
 pub mod config;
+pub mod runner;
 pub mod task;
 mod anim;
 mod inventory;

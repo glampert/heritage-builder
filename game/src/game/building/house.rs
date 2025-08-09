@@ -202,7 +202,7 @@ impl<'config> HouseBuilding<'config> {
         if !curr_level_resources_required.is_empty() || !next_level_resources_required.is_empty() {
             // Consume one of each resources this level uses.
             curr_level_resources_required.for_each(|resource| {
-                if let Some(resource_consumed) = self.stock.remove(resource) {
+                if let Some(resource_consumed) = self.stock.remove(resource, 1) {
                     // We consumed one, done.
                     // E.g.: resource = Meat|Fish, consume one of either.
                     self.debug.log_resources_lost(resource_consumed, 1);

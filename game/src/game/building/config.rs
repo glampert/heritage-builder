@@ -97,8 +97,9 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("well_small"),
                 min_workers: 0,
                 max_workers: 1,
-                stock_update_frequency_secs: 0.0,
                 effect_radius: 3,
+                stock_update_frequency_secs: 0.0,
+                stock_capacity: 0,
                 resources_required: ResourceKinds::none(),
             },
             service_well_big: ServiceConfig {
@@ -107,8 +108,9 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("well_big"),
                 min_workers: 0,
                 max_workers: 1,
-                stock_update_frequency_secs: 0.0,
                 effect_radius: 5,
+                stock_update_frequency_secs: 0.0,
+                stock_capacity: 0,
                 resources_required: ResourceKinds::none(),
             },
             service_market: ServiceConfig {
@@ -117,8 +119,9 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("market"),
                 min_workers: 0,
                 max_workers: 1,
-                stock_update_frequency_secs: 20.0,
                 effect_radius: 5,
+                stock_update_frequency_secs: 20.0,
+                stock_capacity: 10,
                 resources_required: ResourceKinds::with_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
             },
             producer_rice_farm: ProducerConfig {

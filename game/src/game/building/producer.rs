@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
 
@@ -12,10 +13,9 @@ use crate::{
     },
     game::{
         unit::{
-            self,
             Unit,
+            runner::Runner,
             task::{
-                UnitTaskDespawn,
                 UnitTaskDeliverToStorage,
                 UnitTaskFetchFromStorage
             }
@@ -23,8 +23,8 @@ use crate::{
         sim::{
             Query,
             UpdateTimer,
-            world::UnitId,
             resources::{
+                ShoppingList,
                 ResourceKind,
                 ResourceKinds,
                 StockItem,
@@ -102,10 +102,8 @@ pub struct ProducerBuilding<'config> {
     production_input_stock:  ProducerInputsLocalStock, // Local stock of required raw materials.
     production_output_stock: ProducerOutputLocalStock, // Local production output storage.
 
-    // Runner we've sent out to deliver our production.
-    // Invalid if no runner in-flight.
-    runner_id: UnitId,
-    has_failed_to_spawn_runner: bool,
+    // Runner Unit we may send out to deliver our production or fetch raw materials.
+    runner: Runner,
 
     debug: ProducerDebug,
 }
@@ -137,8 +135,8 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         debug_assert!(unit.is_running_task::<UnitTaskDeliverToStorage>(context.query.task_manager()));
 
         if self.is_runner_fetching_resources(context.query) {
-            // If we've already sent out a runner to fetch some resources we'll refuse any deliveries.
-            // Let this runner ship the resources somewhere else.
+            // If we've already sent out a runner to fetch some resources we'll refuse deliveries.
+            // Let this runner deliver the resources somewhere else.
             return;
         }
 
@@ -182,9 +180,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        if ui_sys.builder().collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
+        self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_input_stock(ui_sys);
         self.draw_debug_ui_production_output(context, ui_sys);
@@ -219,8 +215,7 @@ impl<'config> ProducerBuilding<'config> {
                 config.production_output,
                 config.production_capacity
             ),
-            runner_id: UnitId::default(),
-            has_failed_to_spawn_runner: false,
+            runner: Runner::default(),
             debug: ProducerDebug::default(),
         }
     }
@@ -264,43 +259,21 @@ impl<'config> ProducerBuilding<'config> {
             None => return, // We are not connected to a road. No delivery possible!
         };
 
-        // Send out a runner.
-        let unit_config = unit::config::UNIT_RUNNER;
-
+        // Send out a runner:
         let storage_buildings_accepted = self.config.deliver_to_storage_kinds;
         let resource_kind_to_deliver = self.production_output_stock.kind();
         let resource_count = self.production_output_stock.count();
 
-        let spawn_result = Unit::try_spawn_with_task(
-            context.query,
+        if self.runner.try_deliver_to_storage(
+            context,
             unit_origin,
-            unit_config,
-            UnitTaskDeliverToStorage {
-                origin_building: context.kind_and_id(),
-                origin_building_tile: context.tile_info(),
-                storage_buildings_accepted,
-                resource_kind_to_deliver,
-                resource_count,
-                completion_callback: Some(Self::on_resources_delivered),
-                completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
-                allow_producer_fallback: true, // If we can't find a Storage that will take our goods,
-                                               // try delivering directly to other Producers.
-            });
-
-        match spawn_result {
-            Ok(runner_unit) => {
-                // We'll stop any further shipping until the runner completes this delivery.
-                self.runner_id = runner_unit.id();
-                self.has_failed_to_spawn_runner = false;
-
-                // We've handed over our resources to the spawned unit, clear the stock.
-                let removed_count = self.remove_resources(resource_kind_to_deliver, resource_count);
-                debug_assert!(removed_count == resource_count);
-            },
-            Err(err) => {
-                eprintln!("{} {}: Failed to deliver production: {}", self.name(), context.base_cell(), err);
-                self.has_failed_to_spawn_runner = true;
-            }
+            storage_buildings_accepted,
+            resource_kind_to_deliver,
+            resource_count,
+            Some(Self::on_resources_delivered)) {
+            // We've handed over our resources to the spawned unit, clear the stock.
+            let removed_count = self.remove_resources(resource_kind_to_deliver, resource_count);
+            debug_assert!(removed_count == resource_count);
         }
     }
 
@@ -323,64 +296,44 @@ impl<'config> ProducerBuilding<'config> {
             None => return, // We are not connected to a road. No fetching possible!
         };
 
-        // Send out a runner.
-        let unit_config = unit::config::UNIT_RUNNER;
-
+        // Send out a runner:
         let storage_buildings_accepted = self.config.fetch_from_storage_kinds;
-        let resource_kind_to_fetch = self.production_input_stock.next_resource_kind_to_fetch();
-        let max_resources_to_fetch = self.production_input_stock.capacity();
-
-        let spawn_result = Unit::try_spawn_with_task(
-            context.query,
-            unit_origin,
-            unit_config,
-            UnitTaskFetchFromStorage {
-                origin_building: context.kind_and_id(),
-                origin_building_tile: context.tile_info(),
-                storage_buildings_accepted,
-                resource_kind_to_fetch,
-                max_resources_to_fetch,
-                completion_callback: Some(Self::on_resources_fetched),
-                completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
-            });
-
-        match spawn_result {
-            Ok(runner_unit) => {
-                // We'll stop any further shipping until the runner completes this task.
-                self.runner_id = runner_unit.id();
-                self.has_failed_to_spawn_runner = false;
-            },
-            Err(err) => {
-                eprintln!("{} {}: Failed to send runner: {}", self.name(), context.base_cell(), err);
-                self.has_failed_to_spawn_runner = true;
-            }
+        let resources_to_fetch = self.production_input_stock.resource_fetch_list();
+        if resources_to_fetch.is_empty() {
+            return;
         }
+
+        self.runner.try_fetch_from_storage(
+            context,
+            unit_origin,
+            storage_buildings_accepted,
+            resources_to_fetch,
+            Some(Self::on_resources_fetched));
     }
 
     fn on_resources_delivered(this_building: &mut Building, runner_unit: &mut Unit, query: &Query) {
-        debug_assert!(runner_unit.inventory_is_empty(), "Unit should have delivered all resourced by now!");
+        let this_producer = this_building.as_producer_mut();
 
-        let producer = this_building.as_producer_mut();
+        debug_assert!(runner_unit.inventory_is_empty(), "Runner Unit should have delivered all resourced by now!");
+        debug_assert!(this_producer.is_runner_delivering_resources(query), "No Runner was sent out by this building!");
+        debug_assert!(this_producer.runner.unit_id() == runner_unit.id());
 
-        debug_assert!(producer.is_runner_delivering_resources(query), "No runner was sent out by this building!");
-        producer.runner_id = UnitId::default();
-
-        producer.debug.popup_msg_color(Color::cyan(), "Delivery Task complete");
+        this_producer.runner.reset();
+        this_producer.debug.popup_msg_color(Color::cyan(), "Delivery Task complete");
     }
 
     fn on_resources_fetched(this_building: &mut Building, runner_unit: &mut Unit, query: &Query) {
-        debug_assert!(!runner_unit.inventory_is_empty(), "Unit inventory shouldn't be empty!");
+        let this_producer = this_building.as_producer_mut();
 
-        let producer = this_building.as_producer_mut();
-
-        debug_assert!(producer.is_runner_fetching_resources(query), "No runner was sent out by this building!");
-        producer.runner_id = UnitId::default();
+        debug_assert!(!runner_unit.inventory_is_empty(), "Runner Unit inventory shouldn't be empty!");
+        debug_assert!(this_producer.is_runner_fetching_resources(query), "No Runner was sent out by this building!");
+        debug_assert!(this_producer.runner.unit_id() == runner_unit.id());
 
         // Try unload cargo:
         if let Some(item) = runner_unit.peek_inventory() {
-            debug_assert!(item.count <= producer.production_input_stock.capacity());
+            debug_assert!(item.count <= this_producer.production_input_stock.capacity());
 
-            let received_count = producer.receive_resources(item.kind, item.count);
+            let received_count = this_producer.receive_resources(item.kind, item.count);
             if received_count != 0 {
                 let removed_count = runner_unit.remove_resources(item.kind, received_count);
                 debug_assert!(removed_count == received_count);
@@ -388,40 +341,27 @@ impl<'config> ProducerBuilding<'config> {
 
             if !runner_unit.inventory_is_empty() {
                 // TODO: We have to ship back to storage if we couldn't receive everything!
-                todo!();
+                todo!("Implement fallback task for this!");
             }
         }
 
-        producer.debug.popup_msg_color(Color::cyan(), "Fetch Task complete");
+        this_producer.runner.reset();
+        this_producer.debug.popup_msg_color(Color::cyan(), "Fetch Task complete");
     }
 
+    #[inline]
     fn is_waiting_on_runner(&self) -> bool {
-        // If we have a valid runner id it means we've sent our one to fetch/deliver goods.
-        self.runner_id.is_valid()
+        self.runner.is_spawned()
     }
 
-    fn try_get_runner_unit<'query>(&self, query: &'query Query<'config, '_>) -> Option<&'query Unit<'config>> {
-        if self.runner_id.is_valid() {
-            query.world().find_unit(self.runner_id)
-        } else {
-            None
-        }
-    }
-
+    #[inline]
     fn is_runner_delivering_resources(&self, query: &Query) -> bool {
-        let runner_unit = match self.try_get_runner_unit(query) {
-            Some(unit) => unit,
-            None => return false,
-        };
-        runner_unit.is_running_task::<UnitTaskDeliverToStorage>(query.task_manager())
+        self.runner.is_running_task::<UnitTaskDeliverToStorage>(query)
     }
 
+    #[inline]
     fn is_runner_fetching_resources(&self, query: &Query) -> bool {
-        let runner_unit = match self.try_get_runner_unit(query) {
-            Some(unit) => unit,
-            None => return false,
-        };
-        runner_unit.is_running_task::<UnitTaskFetchFromStorage>(query.task_manager())
+        self.runner.is_running_task::<UnitTaskFetchFromStorage>(query)
     }
 
     fn is_production_halted(&self) -> bool {
@@ -570,6 +510,19 @@ impl ProducerInputsLocalStock {
     }
 
     #[inline]
+    fn resource_fetch_list(&self) -> ShoppingList {
+        let mut list = ShoppingList::new();
+
+        for slot in &self.slots {
+            list.push(StockItem { kind: slot.kind, count: self.capacity - slot.count });
+        }
+
+        // Items with the highest capacity first.
+        list.sort_by_key(|item: &StockItem| Reverse(item.count));
+        list
+    }
+
+    #[inline]
     fn requires_any_resource(&self) -> bool {
         !self.slots.is_empty()
     }
@@ -590,20 +543,6 @@ impl ProducerInputsLocalStock {
             debug_assert!(slot.count != 0);
             slot.count -= 1;
             debug.log_resources_lost(slot.kind, 1);
-        }
-    }
-
-    #[inline]
-    fn next_resource_kind_to_fetch(&self) -> ResourceKind {
-        // Find the item with the lowest count.
-        let maybe_min_index = self.slots.iter()
-            .enumerate()
-            .min_by_key(|&(_, value)| value.count)
-            .map(|(index, _)| index);
-        if let Some(index) = maybe_min_index {
-            self.slots[index].kind
-        } else {
-            panic!("No resources required!");
         }
     }
 
@@ -684,6 +623,13 @@ impl ProducerInputsLocalStock {
 }
 
 impl ProducerBuilding<'_> {
+    fn draw_debug_ui_config(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+            self.config.draw_debug_ui(ui_sys);
+        }
+    }
+
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
         if self.production_input_stock.requires_any_resource() {
             let ui = ui_sys.builder();
@@ -716,7 +662,7 @@ impl ProducerBuilding<'_> {
                 }
             }
 
-            if self.has_failed_to_spawn_runner {
+            if self.runner.failed_to_spawn() {
                 ui.text_colored(Color::red().to_array(), "Failed to spawn last Runner!");
             }
 
@@ -730,8 +676,7 @@ impl ProducerBuilding<'_> {
                 }
 
                 if ui.button("Forget Runner") {
-                    self.runner_id = UnitId::default();
-                    self.has_failed_to_spawn_runner = false;
+                    self.runner.reset();
                 }
             }
 
