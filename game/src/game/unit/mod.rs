@@ -331,27 +331,30 @@ impl<'config> Unit<'config> {
         self.current_task_id = task_id.unwrap_or_default();
     }
 
-    pub fn try_spawn_with_task(query: &'config Query,
-                               unit_origin: Cell,
-                               unit_config: UnitConfigKey,
-                               task_id: UnitTaskId) -> Result<&'config mut Unit<'config>, String> {
-
+    pub fn try_spawn_with_task<Task>(query: &'config Query,
+                                     unit_origin: Cell,
+                                     unit_config: UnitConfigKey,
+                                     task: Task) -> Result<&'config mut Unit<'config>, String>
+        where
+            Task: UnitTask,
+            UnitTaskArchetype: From<Task>
+    {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(unit_config.is_valid());
-        debug_assert!(task_id.is_valid());
 
         let task_manager = query.task_manager();
+        let task_id = task_manager.new_task(task);
 
         let unit = match query.try_spawn_unit(unit_origin, unit_config) {
             Ok(unit) => unit,
             error @ Err(_) => {
-                task_manager.free_task(task_id);
+                task_manager.free_task(task_id.unwrap());
                 return error;
             },
         };
 
-        // These will start the task chain and might take some time to complete.
-        unit.assign_task(task_manager, Some(task_id));
+        // This will start the task chain and might take some time to complete.
+        unit.assign_task(task_manager, task_id);
         Ok(unit)
     }
 

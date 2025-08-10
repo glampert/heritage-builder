@@ -108,11 +108,10 @@ impl Runner {
     {
         debug_assert!(!self.is_spawned(), "Runner Unit already spawned! Call reset() first.");
 
-        let task_id = query.task_manager().new_task(task).unwrap();
-
-        match Unit::try_spawn_with_task(query, unit_origin, config::UNIT_RUNNER, task_id) {
+        match Unit::try_spawn_with_task(query, unit_origin, config::UNIT_RUNNER, task) {
             Ok(unit) => {
                 self.unit_id = unit.id();
+                self.failed_to_spawn = false;
                 true
             },
             Err(err) => {

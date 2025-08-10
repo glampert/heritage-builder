@@ -64,7 +64,7 @@ fn main() {
 
     // Empty map (dirt tiles):
     /*
-    let mut tile_map = tile::map::TileMap::with_terrain_tile(
+    let mut tile_map = tile::TileMap::with_terrain_tile(
         Size::new(64, 64),
         &tile_sets,
         TERRAIN_GROUND_CATEGORY,

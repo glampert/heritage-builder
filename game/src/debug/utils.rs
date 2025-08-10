@@ -517,12 +517,16 @@ mod test_maps {
         tile_map
     }
 
-    pub fn create_test_tile_map_preset<'tile_sets>(world: &mut World,
-                                                   tile_sets: &'tile_sets TileSets,
-                                                   preset_number: usize) -> TileMap<'tile_sets> {
+    pub fn create_test_tile_map_preset_internal<'tile_sets>(world: &mut World,
+                                                            tile_sets: &'tile_sets TileSets,
+                                                            preset_number: usize) -> TileMap<'tile_sets> {
         println!("Creating test tile map: PRESET {} ...", preset_number);
         build_tile_map(PRESET_TILES[preset_number], world, tile_sets)
     }
 }
 
-pub use test_maps::create_test_tile_map_preset;
+pub fn create_test_tile_map_preset<'tile_sets>(world: &mut World,
+                                               tile_sets: &'tile_sets TileSets,
+                                               preset_number: usize) -> TileMap<'tile_sets> {
+    test_maps::create_test_tile_map_preset_internal(world, tile_sets, preset_number)
+}
