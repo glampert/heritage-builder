@@ -385,6 +385,53 @@ impl Search {
         SearchResult::PathNotFound
     }
 
+    // Finds any destination within the given max distance.
+    // Path endpoint can be up to start+distance nodes.
+    #[must_use]
+    pub fn find_waypoint(&mut self,
+                         graph: &Graph,
+                         heuristic: &impl Heuristic,
+                         traversable_node_kinds: NodeKind,
+                         start: Node,
+                         max_distance: i32) -> SearchResult {
+
+        debug_assert!(!traversable_node_kinds.is_empty());
+        debug_assert!(max_distance > 0);
+
+        if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
+            // Start node is invalid or not traversable!
+            return SearchResult::PathNotFound;
+        }
+
+        self.reset(start);
+
+        while let Some((current, _)) = self.frontier.pop() {
+            if current.manhattan_distance(start) >= max_distance {
+                // We've explored far enough, stop here.
+                return self.reconstruct_path(start, current);
+            }
+
+            let neighbors = graph.neighbors(current, traversable_node_kinds);
+
+            for neighbor in neighbors {
+                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
+
+                // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper node to explore, we'll visit it.
+                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
+                    self.cost_so_far[neighbor] = new_cost;
+
+                    let priority = new_cost; // No estimate cost (no explicit goal), same as Dijkstra's search.
+                    self.frontier.push(neighbor, Reverse(priority));
+
+                    // Remember how we got here so we can backtrack.
+                    self.came_from[neighbor] = current;
+                }
+            }
+        }
+
+        SearchResult::PathNotFound
+    }
+
     fn reset(&mut self, start: Node) {
         if !self.first_run {
             // If we're reusing the Search instance, reset these to defaults.

@@ -116,6 +116,7 @@ pub trait UnitTask: Any {
 #[allow(clippy::enum_variant_names)]
 pub enum UnitTaskArchetype {
     UnitTaskDespawn,
+    UnitTaskPatrol,
     UnitTaskDeliverToStorage,
     UnitTaskFetchFromStorage,
 }
@@ -140,6 +141,41 @@ impl UnitTask for UnitTaskDespawn {
                       "Unit inventory should be empty before despawning!");
 
         UnitTaskState::TerminateAndDespawn
+    }
+}
+
+// ----------------------------------------------
+// UnitTaskPatrol
+// ----------------------------------------------
+
+pub struct UnitTaskPatrol;
+
+// - Unit walks up to a certain distance away from the origin building.
+// - Once max distance reached, start walking back to origin.
+// - Visit any buildings it is interested on along the way.
+impl UnitTask for UnitTaskPatrol {
+    fn as_any(&self) -> &dyn Any { self }
+
+    fn initialize(&mut self, _unit: &mut Unit, _query: &Query) {
+        // TODO
+    }
+
+    fn terminate(&mut self, _task_pool: &mut UnitTaskPool) {
+        // TODO
+    }
+
+    fn update(&mut self, _unit: &mut Unit, _query: &Query) -> UnitTaskState {
+        // TODO
+        UnitTaskState::Completed
+    }
+
+    fn completed(&mut self, _unit: &mut Unit, _query: &Query) -> UnitTaskResult {
+        // TODO
+        UnitTaskResult::Completed { next_task: UnitTaskForwarded(None) }
+    }
+
+    fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
+        // TODO
     }
 }
 

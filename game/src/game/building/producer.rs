@@ -239,7 +239,7 @@ impl<'config> ProducerBuilding<'config> {
             // Produce one item and store it locally:
             if produce_one_item {
                 self.production_output_stock.store_resources(1);
-                self.debug.log_resources_gained(self.production_output_stock.kind(), 1);
+                self.debug.log_resources_gained(self.production_output_stock.resource_kind(), 1);
             }
         }
     }
@@ -261,8 +261,8 @@ impl<'config> ProducerBuilding<'config> {
 
         // Send out a runner:
         let storage_buildings_accepted = self.config.deliver_to_storage_kinds;
-        let resource_kind_to_deliver = self.production_output_stock.kind();
-        let resource_count = self.production_output_stock.count();
+        let resource_kind_to_deliver = self.production_output_stock.resource_kind();
+        let resource_count = self.production_output_stock.resource_count();
 
         if self.runner.try_deliver_to_storage(
             context,
@@ -416,12 +416,12 @@ impl ProducerOutputLocalStock {
     }
 
     #[inline]
-    fn kind(&self) -> ResourceKind {
+    fn resource_kind(&self) -> ResourceKind {
         self.item.kind
     }
 
     #[inline]
-    fn count(&self) -> u32 {
+    fn resource_count(&self) -> u32 {
         self.item.count
     }
 

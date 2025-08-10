@@ -183,3 +183,55 @@ fn test_diagonal_paths() {
         }
     }
 }
+
+#[test]
+fn test_find_waypoint() {
+    const R: NodeKind = NodeKind::Road;
+    const W: NodeKind = NodeKind::Water;
+
+    // Two vertical and horizontal crossing road paths.
+    let nodes = vec![
+        W,W,W,R,W,W,W,W,
+        W,W,W,R,W,W,W,W,
+        W,W,W,R,W,W,W,W,
+        R,R,R,R,R,R,R,R,
+        W,W,W,R,W,W,W,W,
+        W,W,W,R,W,W,W,W,
+        W,W,W,R,W,W,W,W,
+        W,W,W,R,W,W,W,W,
+    ];
+
+    let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
+    let heuristic = AStarUniformCostHeuristic::new();
+    let mut search = Search::with_graph(&graph);
+
+    // Vertical path:
+    {
+        let start = Node::new(Cell::new(3, 0));
+        let max_distance = 5;
+
+        let path = search.find_waypoint(&graph, &heuristic, NodeKind::Road, start, max_distance);
+        match path {
+            SearchResult::PathFound(path) => {
+                let expected_path: Vec<Node> = (0..=5).map(|i| Node::new(Cell::new(3, i))).collect();
+                assert_eq!(path, &expected_path); // goal=[3,5]
+            },
+            _ => panic!("Expected a path!")
+        }
+    }
+
+    // Horizontal path:
+    {
+        let start = Node::new(Cell::new(0, 3));
+        let max_distance = 7;
+
+        let path = search.find_waypoint(&graph, &heuristic, NodeKind::Road, start, max_distance);
+        match path {
+            SearchResult::PathFound(path) => {
+                let expected_path: Vec<Node> = (0..=7).map(|i| Node::new(Cell::new(i, 3))).collect();
+                assert_eq!(path, &expected_path); // goal=[7,3]
+            },
+            _ => panic!("Expected a path!")
+        }
+    }
+}
