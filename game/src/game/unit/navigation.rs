@@ -69,13 +69,19 @@ pub enum UnitNavResult {
 }
 
 #[derive(Copy, Clone)]
-pub struct UnitNavGoal {
-    pub origin_kind: BuildingKind,
-    pub origin_base_cell: Cell,
+pub enum UnitNavGoal {
+    Building {
+        origin_kind: BuildingKind,
+        origin_base_cell: Cell,
 
-    pub destination_kind: BuildingKind,
-    pub destination_base_cell: Cell,
-    pub destination_road_link: Cell,
+        destination_kind: BuildingKind,
+        destination_base_cell: Cell,
+        destination_road_link: Cell,
+    },
+    Tile {
+        origin_cell: Cell,
+        destination_cell: Cell,
+    }
 }
 
 #[derive(Clone, Default, DrawDebugUi)]
@@ -186,6 +192,15 @@ impl UnitNavigation {
             return UnitNavStatus::Idle;
         }
         UnitNavStatus::Moving
+    }
+
+    #[inline]
+    pub fn is_following_path(&self) -> bool {
+        if self.path.is_empty() || (self.path_index + 1 >= self.path.len()) {
+            // No path to follow or reached destination.
+            return false;
+        }
+        true
     }
 
     #[inline]

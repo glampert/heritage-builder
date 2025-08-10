@@ -27,6 +27,7 @@ use crate::{
 };
 
 use super::{
+    constants::*,
     sim::world::World,
     unit::{
         Unit,
@@ -61,6 +62,8 @@ pub struct Simulation<'config> {
     update_timer: UpdateTimer,
     rng: RandomGenerator,
 
+    task_manager: UnitTaskManager,
+
     // Path finding:
     graph: Graph,
     search: Search,
@@ -68,8 +71,6 @@ pub struct Simulation<'config> {
     // Configs:
     building_configs: &'config BuildingConfigs,
     unit_configs: &'config UnitConfigs,
-
-    task_manager: UnitTaskManager,
 }
 
 impl<'config> Simulation<'config> {
@@ -79,11 +80,11 @@ impl<'config> Simulation<'config> {
         Self {
             update_timer: UpdateTimer::new(DEFAULT_SIM_UPDATE_FREQUENCY_SECS),
             rng: RandomGenerator::seed_from_u64(DEFAULT_RANDOM_SEED),
+            task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
             building_configs,
             unit_configs,
-            task_manager: UnitTaskManager::new(),
         }
     }
 
@@ -450,6 +451,15 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                 traversable_node_kinds,
                                 Node::new(start),
                                 Node::new(goal))
+    }
+
+    #[inline]
+    pub fn find_waypoint(&self, traversable_node_kinds: PathNodeKind, start: Cell, max_distance: i32) -> SearchResult {
+        self.search().find_waypoint(self.graph(),
+                                    &AStarUniformCostHeuristic::new(),
+                                    traversable_node_kinds,
+                                    Node::new(start),
+                                    max_distance)
     }
 
     pub fn find_nearest_road_link(&self, start_cells: CellRange) -> Option<Cell> {

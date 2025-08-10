@@ -48,6 +48,7 @@ use super::{
 
 pub type UnitTaskId = GenerationalIndex;
 pub type UnitTaskCompletionCallback = fn(&mut Building, &mut Unit, &Query);
+pub type UnitTaskCompletionCallbackWithResult = fn(&mut Building, &mut Unit, &Query) -> bool;
 
 #[derive(Display, PartialEq, Eq)]
 pub enum UnitTaskState {
@@ -148,34 +149,156 @@ impl UnitTask for UnitTaskDespawn {
 // UnitTaskPatrol
 // ----------------------------------------------
 
-pub struct UnitTaskPatrol;
-
-// - Unit walks up to a certain distance away from the origin building.
-// - Once max distance reached, start walking back to origin.
+// - Unit walks up to a certain distance away from the origin.
+// - Once max distance is reached, start walking back to origin.
 // - Visit any buildings it is interested on along the way.
+pub struct UnitTaskPatrol {
+    // Origin building info:
+    pub origin_building: BuildingKindAndId,
+    pub origin_building_tile: BuildingTileInfo,
+
+    // Max distance from origin to move to.
+    pub max_distance: i32,
+
+    // Called on the origin building once the unit has completed its patrol and returned.
+    // `|origin_building, patrol_unit, query| -> bool`: Returns if the task should complete or retry.
+    pub completion_callback: Option<UnitTaskCompletionCallbackWithResult>,
+
+    // Optional completion task to run after this task.
+    pub completion_task: Option<UnitTaskId>,
+}
+
+impl UnitTaskPatrol {
+    fn try_find_goal(&self, unit: &mut Unit, query: &Query) {
+        let start = unit.cell();
+        match query.find_waypoint(PathNodeKind::Road, start, self.max_distance) {
+            SearchResult::PathFound(path) => {
+                let goal = UnitNavGoal::Tile {
+                    origin_cell: start,
+                    destination_cell: path.last().unwrap().cell,
+                };
+                unit.move_to_goal(path, goal);
+            },
+            SearchResult::PathNotFound => {
+                // Didn't find a possible path. Retry next update.
+            },
+        }
+    }
+
+    fn try_return_to_origin(&self, unit: &mut Unit, query: &Query) -> bool {
+        if query.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
+            eprintln!("Origin building is no longer valid! TaskPatrol will abort.");
+            return false;
+        }
+
+        let start = unit.cell();
+        let goal  = self.origin_building_tile.road_link;
+
+        match query.find_path(PathNodeKind::Road, start, goal) {
+            SearchResult::PathFound(path) => {
+                let goal = UnitNavGoal::Building {
+                    origin_kind: self.origin_building.kind,
+                    origin_base_cell: self.origin_building_tile.base_cell,
+                    destination_kind: self.origin_building.kind,
+                    destination_base_cell: self.origin_building_tile.base_cell,
+                    destination_road_link: self.origin_building_tile.road_link,
+                };
+                unit.move_to_goal(path, goal);
+                true
+            },
+            SearchResult::PathNotFound => {
+                eprintln!("Origin building is no longer reachable! (no road access?) TaskPatrol will abort.");
+                false
+            },
+        }
+    }
+
+    fn is_returning_to_origin(&self, unit_goal: &UnitNavGoal) -> bool {
+        match unit_goal {
+            UnitNavGoal::Building { destination_kind, destination_base_cell, .. } => {
+                *destination_kind == self.origin_building.kind &&
+                *destination_base_cell == self.origin_building_tile.base_cell
+            },
+            UnitNavGoal::Tile { .. } => false,
+        }
+    }
+}
+
 impl UnitTask for UnitTaskPatrol {
     fn as_any(&self) -> &dyn Any { self }
 
-    fn initialize(&mut self, _unit: &mut Unit, _query: &Query) {
-        // TODO
+    fn initialize(&mut self, unit: &mut Unit, query: &Query) {
+        // Sanity check:
+        debug_assert!(unit.goal().is_none());
+        debug_assert!(unit.cell() == self.origin_building_tile.road_link); // We start at the nearest building road link.
+        debug_assert!(self.origin_building.is_valid());
+        debug_assert!(self.origin_building_tile.is_valid());
+
+        self.try_find_goal(unit, query);
     }
 
-    fn terminate(&mut self, _task_pool: &mut UnitTaskPool) {
-        // TODO
+    fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
+        if let Some(task_id) = self.completion_task {
+            task_pool.free(task_id);
+        }
     }
 
-    fn update(&mut self, _unit: &mut Unit, _query: &Query) -> UnitTaskState {
-        // TODO
-        UnitTaskState::Completed
+    fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
+        // If we have a goal we're already moving somewhere,
+        // otherwise we may need to pathfind again.
+        if unit.goal().is_none() {
+            self.try_find_goal(unit, query);
+        }
+
+        if unit.has_reached_goal() {
+            UnitTaskState::Completed
+        } else {
+            UnitTaskState::Running
+        }
     }
 
-    fn completed(&mut self, _unit: &mut Unit, _query: &Query) -> UnitTaskResult {
-        // TODO
-        UnitTaskResult::Completed { next_task: UnitTaskForwarded(None) }
+    fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskResult {
+        let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
+        let mut task_completed = false;
+
+        if self.is_returning_to_origin(unit_goal) {
+            task_completed = invoke_completion_callback(unit,
+                                                        query,
+                                                        self.origin_building.kind,
+                                                        self.origin_building.id,
+                                                        self.completion_callback)
+                                                        .unwrap_or(true);
+            unit.follow_path(None);
+        } else {
+            // Reached end of path, reroute bach to origin.
+            unit.follow_path(None);
+
+            if !self.try_return_to_origin(unit, query) {
+                eprintln!("Aborting TaskPatrol. Unable to return to origin building...");
+                task_completed = true;
+            }
+        }
+
+        if task_completed {
+            UnitTaskResult::Completed {
+                next_task: forward_task(&mut self.completion_task)
+            }
+        } else {
+            UnitTaskResult::Retry
+        }
     }
 
-    fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
-        // TODO
+    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        let building_kind = self.origin_building.kind;
+        let building_cell = self.origin_building_tile.base_cell;
+        let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
+
+        ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
+        ui.text(format!("Max Distance            : {}", self.max_distance));
+        ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_some()));
+        ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
     }
 }
 
@@ -229,7 +352,7 @@ impl UnitTaskDeliverToStorage {
         }
 
         if let PathFindResult::Success { path, goal } = path_find_result {
-            unit.go_to_building(path, goal);
+            unit.move_to_goal(path, goal);
         }
         // Else no path or Storage/Producer building found. Try again later.
     }
@@ -262,7 +385,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
     }
 
     fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
-        // If we have goals we're already moving somewhere,
+        // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
         if unit.goal().is_none() {
             self.try_find_goal(unit, query);
@@ -330,7 +453,7 @@ pub struct UnitTaskFetchFromStorage {
     pub storage_buildings_accepted: BuildingKind,
     pub resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
 
-    // Called on the origin building once resources are delivered.
+    // Called on the origin building once the unit has returned with resources.
     // `|origin_building, runner_unit, query|`
     pub completion_callback: Option<UnitTaskCompletionCallback>,
 
@@ -350,7 +473,7 @@ impl UnitTaskFetchFromStorage {
                                                                 resource_to_fetch.kind);
 
             if let PathFindResult::Success { path, goal } = path_find_result {
-                unit.go_to_building(path, goal);
+                unit.move_to_goal(path, goal);
                 break;
             }
             // Else no path or Storage building found. Try again.
@@ -368,14 +491,14 @@ impl UnitTaskFetchFromStorage {
 
         match query.find_path(PathNodeKind::Road, start, goal) {
             SearchResult::PathFound(path) => {
-                let goal = UnitNavGoal {
+                let goal = UnitNavGoal::Building {
                     origin_kind: self.origin_building.kind,
                     origin_base_cell: self.origin_building_tile.base_cell,
                     destination_kind: self.origin_building.kind,
                     destination_base_cell: self.origin_building_tile.base_cell,
                     destination_road_link: self.origin_building_tile.road_link,
                 };
-                unit.go_to_building(path, goal);
+                unit.move_to_goal(path, goal);
                 true
             },
             SearchResult::PathNotFound => {
@@ -386,8 +509,13 @@ impl UnitTaskFetchFromStorage {
     }
 
     fn is_returning_to_origin(&self, unit_goal: &UnitNavGoal) -> bool {
-        unit_goal.destination_base_cell == self.origin_building_tile.base_cell &&
-        unit_goal.destination_kind == self.origin_building.kind
+        let (destination_kind, destination_cell) = match unit_goal {
+            UnitNavGoal::Building { destination_kind, destination_base_cell, .. } => {
+                (*destination_kind, *destination_base_cell)
+            },
+            _ => panic!("Expected unit goal to be a building!"),
+        };
+        destination_kind == self.origin_building.kind && destination_cell == self.origin_building_tile.base_cell
     }
 }
 
@@ -414,7 +542,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
     }
 
     fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
-        // If we have goals we're already moving somewhere,
+        // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
         if unit.goal().is_none() {
             self.try_find_goal(unit, query);
@@ -682,9 +810,9 @@ pub struct UnitTaskManager {
 }
 
 impl UnitTaskManager {
-    pub fn new() -> Self {
+    pub fn new(pool_capacity: usize) -> Self {
         Self {
-            task_pool: UnitTaskPool::new(64),
+            task_pool: UnitTaskPool::new(pool_capacity),
         }
     }
 
@@ -773,8 +901,12 @@ impl UnitTaskManager {
 fn visit_destination(unit: &mut Unit, query: &Query) {
     let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
 
-    let destination_cell = unit_goal.destination_base_cell;
-    let destination_kind = unit_goal.destination_kind;
+    let (destination_kind, destination_cell) = match unit_goal {
+        UnitNavGoal::Building { destination_kind, destination_base_cell, .. } => {
+            (*destination_kind, *destination_base_cell)
+        },
+        _ => panic!("Expected unit goal to be a building!"),
+    };
 
     debug_assert!(destination_cell.is_valid());
     debug_assert!(destination_kind.bits().count_ones() == 1);
@@ -793,11 +925,14 @@ fn visit_destination(unit: &mut Unit, query: &Query) {
     }
 }
 
-fn invoke_completion_callback(unit: &mut Unit,
-                              query: &Query,
-                              origin_building_kind: BuildingKind,
-                              origin_building_id: BuildingId,
-                              completion_callback: Option<UnitTaskCompletionCallback>) {
+fn invoke_completion_callback<F, R>(unit: &mut Unit,
+                                    query: &Query,
+                                    origin_building_kind: BuildingKind,
+                                    origin_building_id: BuildingId,
+                                    completion_callback: Option<F>) -> Option<R>
+    where F:
+        FnOnce(&mut Building, &mut Unit, &Query) -> R
+{
     if let Some(on_completion) = completion_callback {
         if let Some(origin_building) = query.world().find_building_mut(origin_building_kind, origin_building_id) {
             // NOTE: Only invoke the completion callback if the original base cell still contains the
@@ -805,9 +940,10 @@ fn invoke_completion_callback(unit: &mut Unit,
             // callback on a different building, even if the type of building there is the same.
             debug_assert!(origin_building.kind() == origin_building_kind);
             debug_assert!(origin_building.id()   == origin_building_id);
-            on_completion(origin_building, unit, query);
+            return Some(on_completion(origin_building, unit, query));
         }
     }
+    None
 }
 
 // ----------------------------------------------
@@ -885,7 +1021,7 @@ fn find_delivery_candidate<'search>(query: &'search Query,
     for candidate in &candidates {
         match query.find_path(PathNodeKind::Road, origin_base_cell, candidate.road_link) {
             SearchResult::PathFound(path) => {
-                let goal = UnitNavGoal {
+                let goal = UnitNavGoal::Building {
                     origin_kind,
                     origin_base_cell,
                     destination_kind: candidate.kind,
@@ -962,7 +1098,7 @@ fn find_storage_fetch_candidate<'search>(query: &'search Query,
     for candidate in &candidates {
         match query.find_path(PathNodeKind::Road, origin_base_cell, candidate.road_link) {
             SearchResult::PathFound(path) => {
-                let goal = UnitNavGoal {
+                let goal = UnitNavGoal::Building {
                     origin_kind,
                     origin_base_cell,
                     destination_kind: candidate.kind,

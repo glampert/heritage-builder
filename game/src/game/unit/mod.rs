@@ -204,27 +204,38 @@ impl<'config> Unit<'config> {
         debug_assert!(self.is_spawned());
         self.navigation.reset_path_and_goal(path, None);
         if path.is_some() {
-            self.debug.popup_msg("New Goal");
+            self.debug.popup_msg("New Path");
         }
     }
 
     #[inline]
-    pub fn go_to_building(&mut self, path: &Path, goal: UnitNavGoal) {
-        debug_assert!(self.is_spawned());
-        self.navigation.reset_path_and_goal(Some(path), Some(goal));
-        self.log_going_to(goal.origin_base_cell, goal.destination_base_cell);
+    pub fn is_following_path(&self) -> bool {
+        self.navigation.is_following_path()
     }
 
     #[inline]
-    pub fn has_reached_goal(&self) -> bool {
+    pub fn move_to_goal(&mut self, path: &Path, goal: UnitNavGoal) {
         debug_assert!(self.is_spawned());
-        self.navigation.goal().is_some_and(|goal| self.cell() == goal.destination_road_link)
+        self.navigation.reset_path_and_goal(Some(path), Some(goal));
+        self.log_going_to(&goal);
     }
 
     #[inline]
     pub fn goal(&self) -> Option<&UnitNavGoal> {
         debug_assert!(self.is_spawned());
         self.navigation.goal()
+    }
+
+    #[inline]
+    pub fn has_reached_goal(&self) -> bool {
+        debug_assert!(self.is_spawned());
+        self.navigation.goal().is_some_and(|goal| {
+            let destination_cell = match goal {
+                UnitNavGoal::Building { destination_road_link, .. } => *destination_road_link,
+                UnitNavGoal::Tile { destination_cell, .. } => *destination_cell,
+            };
+            self.cell() == destination_cell
+        })
     }
 
     pub fn update_navigation(&mut self, query: &Query) {
@@ -413,13 +424,24 @@ impl<'config> Unit<'config> {
         }
     }
 
-    fn log_going_to(&mut self, origin: Cell, destination: Cell) {
+    fn log_going_to(&mut self, goal: &UnitNavGoal) {
         if !self.debug.show_popups() {
             return;
         }
-        let origin_building_name = debug::tile_name_at(origin, TileMapLayerKind::Objects);
-        let destination_building_name = debug::tile_name_at(destination, TileMapLayerKind::Objects);
-        self.debug.popup_msg(format!("Goto: {} -> {}", origin_building_name, destination_building_name));
+
+        let (origin_cell, destination_cell, layer) = match goal {
+            UnitNavGoal::Building { origin_base_cell, destination_base_cell, .. } => {
+                (*origin_base_cell, *destination_base_cell, TileMapLayerKind::Objects)
+            },
+            UnitNavGoal::Tile { origin_cell, destination_cell } => {
+                (*origin_cell, *destination_cell, TileMapLayerKind::Terrain)
+            },
+        };
+
+        let origin_tile_name = debug::tile_name_at(origin_cell, layer);
+        let destination_tile_name = debug::tile_name_at(destination_cell, layer);
+
+        self.debug.popup_msg(format!("Goto: {} -> {}", origin_tile_name, destination_tile_name));
     }
 }
 
@@ -529,11 +551,21 @@ impl Unit<'_> {
 
         ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation.status()));
 
-        if let Some(goals) = self.navigation.goal() {
-            let origin_building_name = debug::tile_name_at(goals.origin_base_cell, TileMapLayerKind::Objects);
-            let destination_building_name = debug::tile_name_at(goals.destination_base_cell, TileMapLayerKind::Objects);
-            ui.text(format!("Start Building : {}, {}", goals.origin_base_cell, origin_building_name));
-            ui.text(format!("Dest  Building : {}, {}", goals.destination_base_cell, destination_building_name));
+        if let Some(goal) = self.navigation.goal() {
+            let (origin_cell, destination_cell, layer) = match goal {
+                UnitNavGoal::Building { origin_base_cell, destination_base_cell, .. } => {
+                    (*origin_base_cell, *destination_base_cell, TileMapLayerKind::Objects)
+                },
+                UnitNavGoal::Tile { origin_cell, destination_cell } => {
+                    (*origin_cell, *destination_cell, TileMapLayerKind::Terrain)
+                },
+            };
+
+            let origin_tile_name = debug::tile_name_at(origin_cell, layer);
+            let destination_tile_name = debug::tile_name_at(destination_cell, layer);
+
+            ui.text(format!("Start Tile : {}, {}", origin_cell, origin_tile_name));
+            ui.text(format!("Dest  Tile : {}, {}", destination_cell, destination_tile_name));
         }
 
         self.navigation.draw_debug_ui(ui_sys);
@@ -555,10 +587,11 @@ impl Unit<'_> {
 
         if ui.button("Clear Current Task") {
             self.assign_task(task_manager, None);
+            self.follow_path(None);
         }
 
         if ui.button("Give Deliver Resources Task") {
-            // We need a building to own the task, so this assumes there's at least one of these placed in the map.
+            // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
                 if self.teleport(query.tile_map(), start_cell) {
@@ -587,7 +620,7 @@ impl Unit<'_> {
         }
 
         if ui.button("Give Fetch Resources Task") {
-            // We need a building to own the task, so this assumes there's at least one of these placed in the map.
+            // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let mut rng = rand::rng();
                 let resources_to_fetch = ShoppingList::from(
@@ -611,6 +644,37 @@ impl Unit<'_> {
                             let item = unit.inventory.peek().unwrap();
                             println!("Fetch Resources Task Completed. Got {}, {}", item.kind, item.count);
                             unit.inventory.clear();
+                        }),
+                        completion_task,
+                    });
+                    self.assign_task(task_manager, task);
+                }
+            }
+        }
+
+        if ui.button("Give Patrol Task") {
+            use std::sync::atomic::{AtomicI32, Ordering};
+            static PATROL_ROUNDS: AtomicI32 = AtomicI32::new(0);
+
+            // We need a building to own the task, so this assumes there's at least one of these placed on the map.
+            if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
+                let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
+                if self.teleport(query.tile_map(), start_cell) {
+                    let completion_task = task_manager.new_task(UnitTaskDespawn);
+                    let task = task_manager.new_task(UnitTaskPatrol {
+                        origin_building: BuildingKindAndId {
+                            kind: building.kind(),
+                            id: building.id(),
+                        },
+                        origin_building_tile: BuildingTileInfo {
+                            road_link: start_cell,
+                            base_cell: building.base_cell(),
+                        },
+                        max_distance: 10,
+                        completion_callback: Some(|_, _, _| {
+                            println!("Patrol Task Round Completed.");
+                            PATROL_ROUNDS.fetch_add(1, Ordering::SeqCst);
+                            PATROL_ROUNDS.load(Ordering::SeqCst) >= 5 // Run the task a few times...
                         }),
                         completion_task,
                     });

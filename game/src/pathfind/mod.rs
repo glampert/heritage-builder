@@ -405,8 +405,14 @@ impl Search {
 
         self.reset(start);
 
+        let mut last_node_explored = Node::invalid();
+        let mut last_node_explored_dist_from_start = NODE_COST_INFINITE;
+
         while let Some((current, _)) = self.frontier.pop() {
-            if current.manhattan_distance(start) >= max_distance {
+            last_node_explored = current;
+            last_node_explored_dist_from_start = current.manhattan_distance(start);
+
+            if last_node_explored_dist_from_start >= max_distance {
                 // We've explored far enough, stop here.
                 return self.reconstruct_path(start, current);
             }
@@ -427,6 +433,12 @@ impl Search {
                     self.came_from[neighbor] = current;
                 }
             }
+        }
+
+        // If we've reached the end we never found a path >= max_distance, but a shorter path may still exit.
+        if last_node_explored.is_valid() {
+            debug_assert!(last_node_explored_dist_from_start < max_distance);
+            return self.reconstruct_path(start, last_node_explored);
         }
 
         SearchResult::PathNotFound

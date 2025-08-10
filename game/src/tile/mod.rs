@@ -1228,7 +1228,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
             }
         } else {
             // Else layer is left empty. Pre-reserve some memory for future tile placements.
-            layer.pool.slab.reserve(256);
+            layer.pool.slab.reserve(512);
         }
 
         layer

@@ -23,6 +23,7 @@ use crate::{
         }
     },
     game::{
+        constants::*,
         building::{
             self,
             Building,
@@ -70,15 +71,15 @@ impl<'config> World<'config> {
         Self {
             // Buildings:
             building_lists: [
-                BuildingList::new(BuildingArchetypeKind::ProducerBuilding, 32),
-                BuildingList::new(BuildingArchetypeKind::StorageBuilding,  32),
-                BuildingList::new(BuildingArchetypeKind::ServiceBuilding,  128),
-                BuildingList::new(BuildingArchetypeKind::HouseBuilding,    256),
+                BuildingList::new(BuildingArchetypeKind::ProducerBuilding, PRODUCER_BUILDINGS_POOL_CAPACITY),
+                BuildingList::new(BuildingArchetypeKind::StorageBuilding,  STORAGE_BUILDINGS_POOL_CAPACITY),
+                BuildingList::new(BuildingArchetypeKind::ServiceBuilding,  SERVICE_BUILDINGS_POOL_CAPACITY),
+                BuildingList::new(BuildingArchetypeKind::HouseBuilding,    HOUSE_BUILDINGS_POOL_CAPACITY),
             ],
             building_configs,
             building_generation_count: 0,
             // Units:
-            unit_spawn_pool: UnitSpawnPool::new(256),
+            unit_spawn_pool: UnitSpawnPool::new(UNIT_SPAWN_POOL_CAPACITY),
             unit_configs,
             unit_generation_count: 0,
         }
