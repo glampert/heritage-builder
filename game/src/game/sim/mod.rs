@@ -4,12 +4,14 @@ use rand_pcg::Pcg64;
 use crate::{
     imgui_ui::UiSystem,
     pathfind::{
+        Path,
         Graph,
         Search,
         SearchResult,
         AStarUniformCostHeuristic,
         NodeKind as PathNodeKind,
         Node,
+        Bias
     },
     utils::{
         Seconds,
@@ -49,7 +51,7 @@ pub mod world;
 // RandomGenerator
 // ----------------------------------------------
 
-const DEFAULT_RANDOM_SEED: u64 = 0xCAFE0CAFE0CAFE03;
+const DEFAULT_RANDOM_SEED: u64 = 0xCAFE1CAFE2CAFE3A;
 pub type RandomGenerator = Pcg64;
 
 // ----------------------------------------------
@@ -356,11 +358,6 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     }
 
     #[inline(always)]
-    fn rng(&self) -> &mut RandomGenerator {
-        self.rng.mut_ref_cast()
-    }
-
-    #[inline(always)]
     fn search(&self) -> &mut Search {
         self.search.mut_ref_cast()
     }
@@ -368,6 +365,11 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     // ----------------------
     // Public API:
     // ----------------------
+
+    #[inline(always)]
+    pub fn rng(&self) -> &mut RandomGenerator {
+        self.rng.mut_ref_cast()
+    }
 
     #[inline(always)]
     pub fn task_manager(&self) -> &mut UnitTaskManager {
@@ -405,7 +407,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     }
 
     #[inline(always)]
-    pub fn random_in_range<T, R>(&self, range: R) -> T
+    pub fn random_range<T, R>(&self, range: R) -> T
         where T: SampleUniform,
               R: SampleRange<T>
     {
@@ -454,9 +456,46 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     }
 
     #[inline]
-    pub fn find_waypoint(&self, traversable_node_kinds: PathNodeKind, start: Cell, max_distance: i32) -> SearchResult {
+    pub fn find_paths<PathFilter>(&self,
+                                  path_filter_fn: PathFilter,
+                                  max_paths: usize,
+                                  with_fallback: bool,
+                                  traversable_node_kinds: PathNodeKind,
+                                  start: Cell,
+                                  goal: Cell) -> SearchResult
+        where
+            PathFilter: Fn(&Path) -> bool
+    {
+        self.search().find_paths(self.graph(),
+                                 &AStarUniformCostHeuristic::new(),
+                                 path_filter_fn,
+                                 max_paths,
+                                 with_fallback,
+                                 traversable_node_kinds,
+                                 Node::new(start),
+                                 Node::new(goal))
+    }
+
+    #[inline]
+    pub fn find_waypoint<PathFilter, FallbackPath>(&self,
+                                                   bias: &impl Bias,
+                                                   path_filter_fn: PathFilter,
+                                                   fallback_path_index_fn: FallbackPath,
+                                                   traversable_node_kinds: PathNodeKind,
+                                                   start: Cell,
+                                                   max_distance: i32) -> SearchResult
+        where
+            PathFilter: Fn(usize, &Path) -> bool,
+            FallbackPath: Fn() -> Option<usize>
+    {
+        const RANDOMIZE: bool = true; // Pick random path variations.
         self.search().find_waypoint(self.graph(),
                                     &AStarUniformCostHeuristic::new(),
+                                    bias,
+                                    path_filter_fn,
+                                    fallback_path_index_fn,
+                                    self.rng(),
+                                    RANDOMIZE,
                                     traversable_node_kinds,
                                     Node::new(start),
                                     max_distance)

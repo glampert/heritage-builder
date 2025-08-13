@@ -203,6 +203,7 @@ fn test_find_waypoint() {
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
     let heuristic = AStarUniformCostHeuristic::new();
+    let bias = Unbiased::new();
     let mut search = Search::with_graph(&graph);
 
     // Vertical path:
@@ -210,7 +211,18 @@ fn test_find_waypoint() {
         let start = Node::new(Cell::new(3, 0));
         let max_distance = 5;
 
-        let path = search.find_waypoint(&graph, &heuristic, NodeKind::Road, start, max_distance);
+        let path = search.find_waypoint(
+            &graph,
+            &heuristic,
+            &bias,
+            default_path_filter,
+            default_fallback_path_index,
+            &mut rand::rng(),
+            false,
+            NodeKind::Road,
+            start,
+            max_distance);
+
         match path {
             SearchResult::PathFound(path) => {
                 let expected_path: Vec<Node> = (0..=5).map(|i| Node::new(Cell::new(3, i))).collect();
@@ -225,7 +237,18 @@ fn test_find_waypoint() {
         let start = Node::new(Cell::new(0, 3));
         let max_distance = 7;
 
-        let path = search.find_waypoint(&graph, &heuristic, NodeKind::Road, start, max_distance);
+        let path = search.find_waypoint(
+            &graph,
+            &heuristic,
+            &bias,
+            default_path_filter,
+            default_fallback_path_index,
+            &mut rand::rng(),
+            false,
+            NodeKind::Road,
+            start,
+            max_distance);
+
         match path {
             SearchResult::PathFound(path) => {
                 let expected_path: Vec<Node> = (0..=7).map(|i| Node::new(Cell::new(i, 3))).collect();
@@ -254,12 +277,24 @@ fn test_find_waypoint_shorter_distance() {
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
     let heuristic = AStarUniformCostHeuristic::new();
+    let bias = Unbiased::new();
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(3, 0));
     let max_distance = 7; // Max distance is bigger than length of only available path.
 
-    let path = search.find_waypoint(&graph, &heuristic, NodeKind::Road, start, max_distance);
+    let path = search.find_waypoint(
+        &graph,
+        &heuristic,
+        &bias,
+        default_path_filter,
+        default_fallback_path_index,
+        &mut rand::rng(),
+        false,
+        NodeKind::Road,
+        start,
+        max_distance);
+
     match path {
         SearchResult::PathFound(path) => {
             // We only have traversable nodes up to distance=4.

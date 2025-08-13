@@ -455,7 +455,7 @@ impl Unit<'_> {
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
         self.inventory.draw_debug_ui(ui_sys);
-        query.task_manager().draw_tasks_debug_ui(self, ui_sys);
+        query.task_manager().draw_tasks_debug_ui(self, query, ui_sys);
         self.draw_debug_ui_navigation(query, ui_sys);
         self.draw_debug_ui_misc(query, ui_sys);
     }
@@ -590,6 +590,9 @@ impl Unit<'_> {
             self.follow_path(None);
         }
 
+        ui.separator();
+        ui.text("Runner Tasks:");
+
         if ui.button("Give Deliver Resources Task") {
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
@@ -652,36 +655,56 @@ impl Unit<'_> {
             }
         }
 
-        if ui.button("Give Patrol Task") {
-            use std::sync::atomic::{AtomicI32, Ordering};
-            static PATROL_ROUNDS: AtomicI32 = AtomicI32::new(0);
+        ui.separator();
+        ui.text("Patrol Task:");
 
-            // We need a building to own the task, so this assumes there's at least one of these placed on the map.
-            if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
-                let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
-                if self.teleport(query.tile_map(), start_cell) {
-                    let completion_task = task_manager.new_task(UnitTaskDespawn);
-                    let task = task_manager.new_task(UnitTaskPatrol {
-                        origin_building: BuildingKindAndId {
-                            kind: building.kind(),
-                            id: building.id(),
-                        },
-                        origin_building_tile: BuildingTileInfo {
-                            road_link: start_cell,
-                            base_cell: building.base_cell(),
-                        },
-                        max_distance: 10,
-                        completion_callback: Some(|_, _, _| {
-                            println!("Patrol Task Round Completed.");
-                            PATROL_ROUNDS.fetch_add(1, Ordering::SeqCst);
-                            PATROL_ROUNDS.load(Ordering::SeqCst) >= 5 // Run the task a few times...
-                        }),
-                        completion_task,
-                    });
-                    self.assign_task(task_manager, task);
+        #[allow(static_mut_refs)]
+        unsafe {
+            // SAFETY: Debug code only called from the main thread (ImGui is inherently single-threaded).
+            static mut PATROL_ROUNDS: i32 = 5;
+            static mut MAX_DISTANCE:  i32 = 10;
+            static mut BIAS_MIN: f32 = 0.1;
+            static mut BIAS_MAX: f32 = 0.5;
+
+            ui.input_int("Patrol Rounds", &mut PATROL_ROUNDS).step(1).build();
+            ui.input_int("Patrol Max Distance", &mut MAX_DISTANCE).step(1).build();
+            ui.input_float("Patrol Path Bias Min", &mut BIAS_MIN).display_format("%.2f").step(0.1).build();
+            ui.input_float("Patrol Path Bias Max", &mut BIAS_MAX).display_format("%.2f").step(0.1).build();
+
+            if ui.button("Give Patrol Task") {
+                // We need a building to own the task, so this assumes there's at least one of these placed on the map.
+                if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
+                    let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
+                    if self.teleport(query.tile_map(), start_cell) {
+                        let completion_task = task_manager.new_task(UnitTaskDespawn);
+                        let task = task_manager.new_task(UnitTaskPatrol {
+                            origin_building: BuildingKindAndId {
+                                kind: building.kind(),
+                                id: building.id(),
+                            },
+                            origin_building_tile: BuildingTileInfo {
+                                road_link: start_cell,
+                                base_cell: building.base_cell(),
+                            },
+                            max_distance: MAX_DISTANCE,
+                            path_bias_min: BIAS_MIN,
+                            path_bias_max: BIAS_MAX,
+                            path_record: UnitPatrolPathRecord::default(),
+                            completion_callback: Some(|_, _, _| {
+                                println!("Patrol Task Round {} Completed.", PATROL_ROUNDS);
+                                PATROL_ROUNDS -= 1;
+                                PATROL_ROUNDS <= 0 // Run the task a few times.
+                            }),
+                            completion_task,
+                        });
+                        self.assign_task(task_manager, task);
+                    }
                 }
             }
         }
+
+        ui.separator();
+        ui.text("Despawn Task:");
 
         if ui.button("Give Despawn Task") {
             let task = task_manager.new_task(UnitTaskDespawn);

@@ -2,7 +2,8 @@ use arrayvec::ArrayVec;
 use bitflags::bitflags;
 use serde::Deserialize;
 use priority_queue::PriorityQueue;
-use std::{cmp::Reverse, ops::{Index, IndexMut}};
+use rand::{Rng, seq::SliceRandom, prelude::IndexedRandom};
+use std::{cmp::Reverse, ops::{Index, IndexMut}, hash::{Hash, Hasher, DefaultHasher}};
 
 use crate::{
     bitflags_with_display,
@@ -253,6 +254,13 @@ impl Graph {
         }
         nodes
     }
+
+    #[inline]
+    fn neighbors_shuffled<R: Rng>(&self, rng: &mut R, node: Node, wanted_node_kinds: NodeKind) -> ArrayVec<Node, 4> {
+        let mut nodes = self.neighbors(node, wanted_node_kinds);
+        nodes.shuffle(rng);
+        nodes
+    }
 }
 
 // ----------------------------------------------
@@ -272,8 +280,7 @@ pub trait Heuristic {
 pub struct AStarUniformCostHeuristic;
 
 impl AStarUniformCostHeuristic {
-    #[inline]
-    pub fn new() -> Self { Self }
+    #[inline] pub fn new() -> Self { Self }
 }
 
 impl Heuristic for AStarUniformCostHeuristic {
@@ -288,6 +295,152 @@ impl Heuristic for AStarUniformCostHeuristic {
         // Uniform movement cost.
         // Could be a dynamic cost based on terrain kind in the future.
         1
+    }
+}
+
+// ----------------------------------------------
+// Bias
+// ----------------------------------------------
+
+// Bias search towards a direction.
+pub trait Bias {
+    fn cost_for(&self, start: Node, node: Node) -> f32;
+}
+
+pub struct Unbiased;
+
+impl Unbiased {
+    #[inline] pub fn new() -> Self { Self }
+}
+
+impl Bias for Unbiased {
+    #[inline] fn cost_for(&self, _start: Node, _node: Node) -> f32 { 0.0 } // unbiased default.
+}
+
+pub struct RandomDirectionalBias {
+    dir_x: f32,
+    dir_y: f32,
+    strength: f32,
+}
+
+impl RandomDirectionalBias {
+    pub fn new<R: Rng>(rng: &mut R, min: f32, max: f32) -> Self {
+        debug_assert!(min <= max);
+        let angle = rng.random_range(0.0..std::f32::consts::TAU);
+        let strength = rng.random_range(min..max);
+        Self {
+            dir_x: angle.cos(),
+            dir_y: angle.sin(),
+            strength,
+        }
+    }
+}
+
+impl Bias for RandomDirectionalBias {
+    fn cost_for(&self, start: Node, node: Node) -> f32 {
+        let dx = (node.cell.x - start.cell.x) as f32;
+        let dy = (node.cell.y - start.cell.y) as f32;
+
+        // Alignment with preferred direction.
+        let alignment = (dx * self.dir_x) + (dy * self.dir_y);
+
+        // Subtract a small amount if aligned (makes it cheaper).
+        -alignment * self.strength
+    }
+}
+
+// ----------------------------------------------
+// Path History / Path Filtering
+// ----------------------------------------------
+
+#[inline] pub fn default_path_filter(_: usize, _: &Path) -> bool { true } // Accepts all paths.
+#[inline] pub fn default_fallback_path_index() -> Option<usize>  { None }
+
+const PATH_HISTORY_MAX_SIZE: usize = 4;
+
+#[derive(Clone, Default)]
+pub struct PathHistory {
+    hashes: ArrayVec<u64, PATH_HISTORY_MAX_SIZE>,
+}
+
+impl PathHistory {
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.hashes.is_empty()
+    }
+
+    #[inline]
+    pub fn add_path(&mut self, path: &Path) {
+        let path_hash = Self::hash_path(path);
+
+        // Add unique entries only.
+        for prev_hash in &self.hashes {
+            if *prev_hash == path_hash {
+                return;
+            }
+        }
+
+        if self.hashes.len() == PATH_HISTORY_MAX_SIZE {
+            // Pop front:
+            self.hashes.swap_remove(0);
+        }
+
+        self.hashes.push(path_hash);
+    }
+
+    #[inline]
+    pub fn has_path(&self, path: &Path) -> bool {
+        if !self.hashes.is_empty() {
+            let path_hash = Self::hash_path(path);
+            for prev_hash in &self.hashes {
+                if *prev_hash == path_hash {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    #[inline]
+    pub fn is_last_path_hash(&self, path_hash: u64) -> bool {
+        if let Some(last_hash) = self.hashes.last() {
+            if *last_hash == path_hash {
+                return true;
+            }
+        }
+        false
+    }
+
+    #[inline]
+    pub fn hash_path(path: &Path) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        path.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    #[inline]
+    pub fn hash_path_reverse(path: &Path) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        hasher.write_usize(path.len()); // Vec::hash includes the length.
+        for node in path.iter().rev() {
+            node.hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+}
+
+impl std::fmt::Display for PathHistory {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[")?;
+        let mut first = true;
+        for hash in &self.hashes {
+            if !first {
+                write!(f, ", ")?;
+            }
+            write!(f, "{:x}", *hash)?;
+            first = false
+        }
+        write!(f, "]")
     }
 }
 
@@ -318,6 +471,9 @@ pub struct Search {
     came_from: Grid<Node>,
     cost_so_far: Grid<NodeCost>,
 
+    // Scratchpad for find_waypoint().
+    possible_waypoints: Vec<Node>,
+
     first_run: bool,
 }
 
@@ -333,14 +489,14 @@ impl Search {
             frontier: PriorityQueue::new(),
             came_from: Grid::new(grid_size, vec![Node::invalid(); node_count]),
             cost_so_far: Grid::new(grid_size, vec![NODE_COST_INFINITE; node_count]),
+            possible_waypoints: Vec::with_capacity(64),
             first_run: true,
         }
     }
 
-    // A* graph search.
+    // A* graph search for the shortest path to goal.
     // Only nodes of `traversable_node_kinds` will be considered by the search.
     // Anything else is assumed not traversable and ignored.
-    #[must_use]
     pub fn find_path(&mut self,
                      graph: &Graph,
                      heuristic: &impl Heuristic,
@@ -385,16 +541,102 @@ impl Search {
         SearchResult::PathNotFound
     }
 
+    // Searches for all paths leading to the goal.
+    // Returns the first path for which path_filter_fn returns true.
+    #[allow(clippy::too_many_arguments)]
+    pub fn find_paths<PathFilter>(&mut self,
+                                  graph: &Graph,
+                                  heuristic: &impl Heuristic,
+                                  path_filter_fn: PathFilter,
+                                  max_paths: usize,
+                                  with_fallback: bool,
+                                  traversable_node_kinds: NodeKind,
+                                  start: Node,
+                                  goal: Node) -> SearchResult
+        where
+            PathFilter: Fn(&Path) -> bool
+    {
+        debug_assert!(!traversable_node_kinds.is_empty());
+
+        if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds)) ||
+           !graph.node_kind(goal ).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
+            // Start/end nodes are invalid or not traversable!
+            return SearchResult::PathNotFound;
+        }
+
+        self.reset(start);
+
+        let mut paths_found: usize = 0;
+
+        while let Some((current, _)) = self.frontier.pop() {
+            // Found a viable path.
+            if current == goal {
+                let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, goal);
+                if valid_path && path_filter_fn(&self.path) {
+                    // Filter accepted this path, we're done.
+                    return SearchResult::PathFound(&self.path);
+                }
+
+                // Else try a different path.
+                self.path.clear();
+
+                paths_found += 1;
+                if paths_found >= max_paths {
+                    break;
+                }
+
+                continue;
+            }
+
+            let neighbors = graph.neighbors(current, traversable_node_kinds);
+
+            for neighbor in neighbors {
+                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
+
+                if neighbor == goal ||
+                   self.cost_so_far[neighbor] == NODE_COST_INFINITE ||
+                   new_cost < self.cost_so_far[neighbor] {
+
+                    self.cost_so_far[neighbor] = new_cost;
+
+                    let priority = new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
+                    self.frontier.push(neighbor, Reverse(priority));
+
+                    // Remember how we got here so we can backtrack.
+                    self.came_from[neighbor] = current;
+                }
+            }
+        }
+
+        // There is at least one viable path but the filter predicate refused all paths. 
+        if with_fallback && paths_found != 0 {
+            return self.reconstruct_path(start, goal);
+        }
+
+        SearchResult::PathNotFound
+    }
+
     // Finds any destination within the given max distance.
     // Path endpoint can be up to start+distance nodes.
-    #[must_use]
-    pub fn find_waypoint(&mut self,
-                         graph: &Graph,
-                         heuristic: &impl Heuristic,
-                         traversable_node_kinds: NodeKind,
-                         start: Node,
-                         max_distance: i32) -> SearchResult {
-
+    // Waypoint selection can optionally be biased and randomized to
+    // produce different paths with the same start and max distance.
+    #[allow(clippy::too_many_arguments)]
+    pub fn find_waypoint<PathFilter, FallbackPath, R>(&mut self,
+                                                      graph: &Graph,
+                                                      heuristic: &impl Heuristic,
+                                                      bias: &impl Bias,
+                                                      path_filter_fn: PathFilter,
+                                                      fallback_path_index_fn: FallbackPath,
+                                                      rng: &mut R,
+                                                      randomize: bool,
+                                                      traversable_node_kinds: NodeKind,
+                                                      start: Node,
+                                                      max_distance: i32) -> SearchResult
+        where
+            PathFilter: Fn(usize, &Path) -> bool,
+            FallbackPath: Fn() -> Option<usize>,
+            R: Rng
+    {
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(max_distance > 0);
 
@@ -405,19 +647,28 @@ impl Search {
 
         self.reset(start);
 
-        let mut last_node_explored = Node::invalid();
-        let mut last_node_explored_dist_from_start = NODE_COST_INFINITE;
+        debug_assert!(self.possible_waypoints.is_empty());
 
         while let Some((current, _)) = self.frontier.pop() {
-            last_node_explored = current;
-            last_node_explored_dist_from_start = current.manhattan_distance(start);
+            let dist_from_start = current.manhattan_distance(start);
 
-            if last_node_explored_dist_from_start >= max_distance {
-                // We've explored far enough, stop here.
-                return self.reconstruct_path(start, current);
+            // Skip if already beyond allowed range.
+            if dist_from_start > max_distance {
+                continue;
             }
 
-            let neighbors = graph.neighbors(current, traversable_node_kinds);
+            // Keep track of all reachable nodes within the range.
+            if current != start {
+                self.possible_waypoints.push(current);
+            }
+
+            let neighbors = {
+                if randomize {
+                    graph.neighbors_shuffled(rng, current, traversable_node_kinds)
+                } else {
+                    graph.neighbors(current, traversable_node_kinds)
+                }
+            };
 
             for neighbor in neighbors {
                 let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
@@ -426,7 +677,12 @@ impl Search {
                 if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
                     self.cost_so_far[neighbor] = new_cost;
 
-                    let priority = new_cost; // No estimate cost (no explicit goal), same as Dijkstra's search.
+                    // Apply optional directional bias:
+                    // If no bias uses only node cost, i.e. Dijkstra's search, no heuristic / explicit goal.
+                    let bias_amount = bias.cost_for(start, neighbor);
+                    let biased_priority = (new_cost as f32) + bias_amount;
+                    let priority = biased_priority.round() as i32;
+
                     self.frontier.push(neighbor, Reverse(priority));
 
                     // Remember how we got here so we can backtrack.
@@ -435,14 +691,44 @@ impl Search {
             }
         }
 
-        // If we've reached the end we never found a path >= max_distance, but a shorter path may still exit.
-        if last_node_explored.is_valid() {
-            debug_assert!(last_node_explored_dist_from_start < max_distance);
-            return self.reconstruct_path(start, last_node_explored);
+        if self.possible_waypoints.is_empty() {
+            return SearchResult::PathNotFound;
         }
 
-        SearchResult::PathNotFound
+        // Put most distant nodes first.
+        self.possible_waypoints.sort_by_key(|node| Reverse(start.manhattan_distance(*node)));
+
+        for (index, node) in self.possible_waypoints.iter().enumerate() {
+            let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, *node);
+            if valid_path && path_filter_fn(index, &self.path) {
+                // Filter accepted this path, we're done.
+                return SearchResult::PathFound(&self.path);
+            }
+
+            // Else try a different path.
+            self.path.clear();
+        }
+
+        let fallback_path_index = fallback_path_index_fn();
+
+        if randomize && fallback_path_index.is_none() {
+            // Fallback: Randomly choose a waypoint, biased towards the most distant.
+            let node = self.possible_waypoints
+                .choose_weighted(rng, |node| start.manhattan_distance(*node) as f32 + 1.0)
+                .unwrap();
+
+            return self.reconstruct_path(start, *node);
+        }
+
+        // Fallback: Pick from the now sorted list (longest distance from start first).
+        // Caller can provide a preferred fallback index or we default to the first item.
+        let waypoint_index = fallback_path_index.unwrap_or(0).min(self.possible_waypoints.len() - 1);
+        self.reconstruct_path(start, self.possible_waypoints[waypoint_index])
     }
+
+    // ----------------------
+    // Internal:
+    // ----------------------
 
     fn reset(&mut self, start: Node) {
         if !self.first_run {
@@ -451,6 +737,7 @@ impl Search {
             self.frontier.clear();
             self.came_from.fill(Node::invalid());
             self.cost_so_far.fill(NODE_COST_INFINITE);
+            self.possible_waypoints.clear();
         }
         self.first_run = false;
 
@@ -459,22 +746,30 @@ impl Search {
         self.cost_so_far[start] = NODE_COST_ZERO;
     }
 
-    fn reconstruct_path(&mut self, start: Node, goal: Node) -> SearchResult {
-        if !self.came_from[goal].is_valid() {
-            return SearchResult::PathNotFound;
-        }
+    fn try_reconstruct_path(path: &mut Path, came_from: &Grid<Node>, start: Node, goal: Node) -> bool {
+        debug_assert!(path.is_empty());
 
-        debug_assert!(self.path.is_empty());
+        if !came_from[goal].is_valid() {
+            return false;
+        }
 
         let mut current = goal;
         while current != start {
-            self.path.push(current);
-            current = self.came_from[current];
+            path.push(current);
+            current = came_from[current];
         }
 
-        self.path.push(start);
-        self.path.reverse();
+        path.push(start);
+        path.reverse();
+        true
+    }
 
-        SearchResult::PathFound(&self.path)
+    #[inline]
+    fn reconstruct_path(&mut self, start: Node, goal: Node) -> SearchResult {
+        if Self::try_reconstruct_path(&mut self.path, &self.came_from, start, goal) {
+            SearchResult::PathFound(&self.path)
+        } else {
+            SearchResult::PathNotFound
+        }
     }
 }

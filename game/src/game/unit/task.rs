@@ -10,12 +10,15 @@ use crate::{
     tile::TileMapLayerKind,
     pathfind::{
         Path,
+        PathHistory,
         SearchResult,
-        NodeKind as PathNodeKind
+        NodeKind as PathNodeKind,
+        RandomDirectionalBias
     },
     utils::{
         Color,
         UnsafeWeakRef,
+        UnsafeMutable,
         coords::Cell
     },
     game::{
@@ -39,7 +42,7 @@ use crate::{
 
 use super::{
     Unit,
-    navigation::UnitNavGoal
+    navigation::{self, UnitNavGoal, UnitDirection}
 };
 
 // ----------------------------------------------
@@ -104,7 +107,7 @@ pub trait UnitTask: Any {
     }
 
     // Task ImGui debug. Optional override.
-    fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, _ui_sys: &UiSystem) {
     }
 }
 
@@ -159,6 +162,9 @@ pub struct UnitTaskPatrol {
 
     // Max distance from origin to move to.
     pub max_distance: i32,
+    pub path_bias_min: f32,
+    pub path_bias_max: f32,
+    pub path_record: UnitPatrolPathRecord,
 
     // Called on the origin building once the unit has completed its patrol and returned.
     // `|origin_building, patrol_unit, query| -> bool`: Returns if the task should complete or retry.
@@ -168,16 +174,97 @@ pub struct UnitTaskPatrol {
     pub completion_task: Option<UnitTaskId>,
 }
 
+#[derive(Clone, Default)]
+pub struct UnitPatrolPathRecord {
+    history: PathHistory,
+    current_length: u32,
+    current_direction: UnitDirection,
+    repeated_axis_count: i32,
+}
+
+impl UnitPatrolPathRecord {
+    fn update(&mut self, path: &Path) {
+        self.history.add_path(path);
+
+        let prev_direction = self.current_direction;
+        let new_direction  = path_direction(path);
+
+        if navigation::same_axis(new_direction, prev_direction) {
+            self.repeated_axis_count += 1;
+        } else {
+            self.repeated_axis_count = 0;
+        }
+
+        self.current_length = path.len() as u32;
+        self.current_direction = new_direction;
+    }
+}
+
+fn path_direction(path: &Path) -> UnitDirection {
+    let start = path.first().unwrap();
+    let goal  = path.last().unwrap();
+    navigation::direction_between(start.cell, goal.cell)
+}
+
+const MAX_REPEATED_DIRECTION_AXIS: i32 = 2;
+const MIN_PREFERRED_PATH_LEN: usize = 4;
+
 impl UnitTaskPatrol {
-    fn try_find_goal(&self, unit: &mut Unit, query: &Query) {
+    fn try_find_goal(&mut self, unit: &mut Unit, query: &Query) {
+        let preferred_fallback_path_index = UnsafeMutable::new(None);
+
+        let path_filter = |index: usize, path: &Path| {
+            if self.path_record.history.has_path(path) {
+                // We've taken this path recently, reject it.
+                return false; 
+            }
+
+            let prev_direction = self.path_record.current_direction;
+            let new_direction  = path_direction(path);
+
+            // Try picking a different direction.
+            if new_direction == prev_direction {
+                return false;
+            }
+
+            // Remember a "good enough" fallback path. Not taken recently and different direction,
+            // but might still be in the same axis, so if we can't find any better direction
+            // we'll take this one rather than a randomized fallback.
+            if preferred_fallback_path_index.is_none() {
+                *preferred_fallback_path_index.as_mut() = Some(index);
+            }
+
+            // If we've taken the same axis (N/S/E/W) multiple times in a row,
+            // try finding a new path on an opposite axis.
+            if navigation::same_axis(new_direction, prev_direction) &&
+               self.path_record.repeated_axis_count >= MAX_REPEATED_DIRECTION_AXIS {
+                return false;
+            }
+
+            // Avoid very short paths, use the fallback instead.
+            if path.len() <= MIN_PREFERRED_PATH_LEN {
+                return false;
+            }
+
+            true // Accept path.
+        };
+
         let start = unit.cell();
-        match query.find_waypoint(PathNodeKind::Road, start, self.max_distance) {
+        let bias = RandomDirectionalBias::new(query.rng(), self.path_bias_min, self.path_bias_max);
+
+        match query.find_waypoint(&bias,
+                                  path_filter,
+                                  || *preferred_fallback_path_index,
+                                  PathNodeKind::Road,
+                                  start,
+                                  self.max_distance) {
             SearchResult::PathFound(path) => {
                 let goal = UnitNavGoal::Tile {
                     origin_cell: start,
                     destination_cell: path.last().unwrap().cell,
                 };
                 unit.move_to_goal(path, goal);
+                self.path_record.update(path); // Path taken.
             },
             SearchResult::PathNotFound => {
                 // Didn't find a possible path. Retry next update.
@@ -191,10 +278,29 @@ impl UnitTaskPatrol {
             return false;
         }
 
+        let path_filter = |path: &Path| {
+            let path_hash = PathHistory::hash_path_reverse(path);
+            if self.path_record.history.is_last_path_hash(path_hash) {
+                // This is the same as the last path we've taken to get here, try a different path to return home.
+                return false; 
+            }
+            true // Accept path.
+        };
+
         let start = unit.cell();
         let goal  = self.origin_building_tile.road_link;
 
-        match query.find_path(PathNodeKind::Road, start, goal) {
+        // Try up to two paths, one of them should be a different path from the one we came from.
+        // If there's no second path we only have one way of getting here, so fallback to the same path.
+        const MAX_PATHS: usize = 2;
+        const WITH_FALLBACK: bool = true;
+
+        match query.find_paths(path_filter,
+                               MAX_PATHS,
+                               WITH_FALLBACK,
+                               PathNodeKind::Road,
+                               start,
+                               goal) {
             SearchResult::PathFound(path) => {
                 let goal = UnitNavGoal::Building {
                     origin_kind: self.origin_building.kind,
@@ -233,6 +339,8 @@ impl UnitTask for UnitTaskPatrol {
         debug_assert!(unit.cell() == self.origin_building_tile.road_link); // We start at the nearest building road link.
         debug_assert!(self.origin_building.is_valid());
         debug_assert!(self.origin_building_tile.is_valid());
+        debug_assert!(self.max_distance > 0);
+        debug_assert!(self.path_bias_min <= self.path_bias_max);
 
         self.try_find_goal(unit, query);
     }
@@ -288,7 +396,7 @@ impl UnitTask for UnitTaskPatrol {
         }
     }
 
-    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, unit: &mut Unit, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         let building_kind = self.origin_building.kind;
@@ -297,8 +405,26 @@ impl UnitTask for UnitTaskPatrol {
 
         ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
         ui.text(format!("Max Distance            : {}", self.max_distance));
+        ui.text(format!("Min Path Bias           : {}", self.path_bias_min));
+        ui.text(format!("Max Path Bias           : {}", self.path_bias_max));
+        ui.text(format!("Previous Path Hashes    : {}", self.path_record.history));
+        ui.text(format!("Current Path Length     : {}", self.path_record.current_length));
+        ui.text(format!("Current Path Direction  : {}", self.path_record.current_direction));
+        ui.text(format!("Path History Same Axis  : {}", self.path_record.repeated_axis_count));
         ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_some()));
         ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
+
+        ui.separator();
+
+        if ui.button("Return to Origin") {
+            unit.follow_path(None);
+            self.try_return_to_origin(unit, query);
+        }
+
+        if ui.button("Find New Goal") {
+            unit.follow_path(None);
+            self.try_find_goal(unit, query);
+        }
     }
 }
 
@@ -419,7 +545,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         }
     }
 
-    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         let building_kind = self.origin_building.kind;
@@ -603,7 +729,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         }
     }
 
-    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         let building_kind = self.origin_building.kind;
@@ -680,7 +806,7 @@ impl UnitTaskInstance {
         }
     }
 
-    fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, unit: &mut Unit, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         let status_color = match self.state {
@@ -698,7 +824,7 @@ impl UnitTaskInstance {
 
         ui.separator();
 
-        self.archetype.draw_debug_ui(ui_sys);
+        self.archetype.draw_debug_ui(unit, query, ui_sys);
     }
 }
 
@@ -875,7 +1001,7 @@ impl UnitTaskManager {
         }
     }
 
-    pub fn draw_tasks_debug_ui(&self, unit: &Unit, ui_sys: &UiSystem) {
+    pub fn draw_tasks_debug_ui(&mut self, unit: &mut Unit, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         if !ui.collapsing_header("Tasks", imgui::TreeNodeFlags::empty()) {
@@ -883,8 +1009,8 @@ impl UnitTaskManager {
         }
 
         if let Some(current_task_id) = unit.current_task() {
-            if let Some(task) = self.task_pool.try_get(current_task_id) {
-                task.draw_debug_ui(ui_sys);
+            if let Some(task) = self.task_pool.try_get_mut(current_task_id) {
+                task.draw_debug_ui(unit, query, ui_sys);
             } else if cfg!(debug_assertions) {
                 panic!("Unit '{}' current TaskId is invalid: {}", unit.name(), current_task_id);
             }

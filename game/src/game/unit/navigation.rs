@@ -26,14 +26,57 @@ pub enum UnitDirection {
     SW,
 }
 
+impl UnitDirection {
+    #[inline]
+    pub fn is_north(self) -> bool {
+        matches!(self, Self::NE | Self::NW)
+    }
+
+    #[inline]
+    pub fn is_south(self) -> bool {
+        matches!(self, Self::SE | Self::SW)
+    }
+
+    #[inline]
+    pub fn is_east(self) -> bool {
+        matches!(self, Self::NE | Self::SE)
+    }
+
+    #[inline]
+    pub fn is_west(self) -> bool {
+        matches!(self, Self::NW | Self::SW)
+    }
+}
+
+#[inline]
+pub fn same_axis(a: UnitDirection, b: UnitDirection) -> bool {
+    (a.is_north() && b.is_north()) ||
+    (a.is_south() && b.is_south()) ||
+    (a.is_east()  && b.is_east())  ||
+    (a.is_west()  && b.is_west())
+}
+
 #[inline]
 pub fn direction_between(a: Cell, b: Cell) -> UnitDirection {
-    match (b.x - a.x, b.y - a.y) {
-        ( 1,  0 ) => UnitDirection::NE,
-        ( 0,  1 ) => UnitDirection::NW,
-        ( 0, -1 ) => UnitDirection::SE,
-        (-1,  0 ) => UnitDirection::SW,
-        _ => UnitDirection::Idle,
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+
+    if dx.abs() > dy.abs() {
+        // Move horizontally in grid space
+        if dx > 0 {
+            UnitDirection::NE
+        } else {
+            UnitDirection::SW
+        }
+    } else if dy != 0 {
+        // Move vertically in grid space
+        if dy > 0 {
+            UnitDirection::NW
+        } else {
+            UnitDirection::SE
+        }
+    } else {
+        UnitDirection::Idle
     }
 }
 
