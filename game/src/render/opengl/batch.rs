@@ -22,7 +22,11 @@ pub struct DrawBatchEntry {
     pub color: Color,
 }
 
-pub struct DrawBatch<V: VertexTrait + Copy, I: IndexTrait + Copy + TryFrom<usize> + Into<usize>> {
+pub struct DrawBatch<V, I>
+    where
+        V: VertexTrait + Copy,
+        I: IndexTrait  + Copy + TryFrom<usize> + Into<usize>
+{
     vertices: Vec<V>,
     indices: Vec<I>,
     entries: Vec<DrawBatchEntry>,
@@ -31,7 +35,11 @@ pub struct DrawBatch<V: VertexTrait + Copy, I: IndexTrait + Copy + TryFrom<usize
     needs_sync: bool,
 }
 
-impl<V: VertexTrait + Copy, I: IndexTrait + Copy + TryFrom<usize> + Into<usize>> DrawBatch<V, I> {
+impl<V, I> DrawBatch<V, I>
+    where
+        V: VertexTrait + Copy,
+        I: IndexTrait  + Copy + TryFrom<usize> + Into<usize>
+{
     pub fn new(vertices_capacity: u32,
                indices_capacity: u32,
                entries_capacity: u32,
@@ -123,8 +131,9 @@ impl<V: VertexTrait + Copy, I: IndexTrait + Copy + TryFrom<usize> + Into<usize>>
                            render_context: &mut RenderContext,
                            shader_program: &ShaderProgram,
                            mut set_shader_vars_fn: F)
-                           where F: FnMut(&mut RenderContext, &DrawBatchEntry) {
-
+        where
+            F: FnMut(&mut RenderContext, &DrawBatchEntry)
+    {
         if self.entries.is_empty() {
             return;
         }
