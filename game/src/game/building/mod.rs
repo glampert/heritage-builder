@@ -15,6 +15,7 @@ use crate::{
     tile::{
         Tile,
         TileKind,
+        TileFlags,
         TileMap,
         TileMapLayerKind,
         TileGameStateHandle,
@@ -245,6 +246,7 @@ impl<'config> Building<'config> {
                 kind: BuildingKind,
                 archetype: BuildingArchetypeKind,
                 cells: CellRange,
+                road_link: Cell,
                 id: BuildingId,
             }
             let debug_vars = DrawDebugUiVariables {
@@ -252,9 +254,17 @@ impl<'config> Building<'config> {
                 kind: self.kind,
                 archetype: self.archetype_kind(),
                 cells: self.map_cells,
+                road_link: self.find_nearest_road_link(query).unwrap_or_default(),
                 id: self.id,
             };
+
             debug_vars.draw_debug_ui(ui_sys);
+            ui.separator();
+
+            let mut show_road_link = self.is_showing_debug_road_link(query);
+            if ui.checkbox("Show Road Link", &mut show_road_link) {
+                self.set_show_debug_road_link(query, show_road_link);
+            }
         }
 
         let context =
@@ -285,6 +295,23 @@ impl<'config> Building<'config> {
             ui_sys,
             transform,
             visible_range);
+    }
+
+    fn set_show_debug_road_link(&self, query: &Query, show: bool) {
+        if let Some(road_link_cell) = self.find_nearest_road_link(query) {
+            if let Some(road_link_tile) = query.find_tile_mut(road_link_cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
+                road_link_tile.set_flags(TileFlags::DrawDebugInfoAlt, show);
+            }
+        }
+    }
+
+    fn is_showing_debug_road_link(&self, query: &Query) -> bool {
+        if let Some(road_link_cell) = self.find_nearest_road_link(query) {
+            if let Some(road_link_tile) = query.find_tile(road_link_cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
+                return road_link_tile.has_flags(TileFlags::DrawDebugInfoAlt);
+            }
+        }
+        false
     }
 }
 

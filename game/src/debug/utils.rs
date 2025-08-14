@@ -51,7 +51,11 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
     }
 
     if draw_debug_bounds {
-        draw_tile_bounds(render_sys, tile_screen_rect, transform, tile);
+        draw_tile_bounds(render_sys, tile_screen_rect, transform, tile, true, true);
+    }
+
+    if !draw_debug_bounds && !draw_debug_info && tile.has_flags(TileFlags::DrawDebugInfoAlt) {
+        draw_tile_info_alt(render_sys, tile_screen_rect, transform, tile);
     }
 }
 
@@ -281,13 +285,27 @@ fn draw_tile_info(render_sys: &mut impl RenderSystem,
 
     // Put a dot at the tile's center.
     let center_pt_color = if tile.is(TileKind::Blocker) { Color::white() } else { Color::red() };
-    render_sys.draw_point_fast(tile_center, center_pt_color, 10.0);
+    render_sys.draw_point_fast(tile_center - Vec2::new(2.5, 2.5), center_pt_color, 10.0);
+}
+
+// Alternate debug info (used for displaying building road link tiles).
+fn draw_tile_info_alt(render_sys: &mut impl RenderSystem,
+                      tile_screen_rect: Rect,
+                      transform: &WorldToScreenTransform,
+                      tile: &Tile) {
+
+    draw_tile_bounds(render_sys, tile_screen_rect, transform, tile, true, false);
+
+    let tile_center = tile_screen_rect.center();
+    render_sys.draw_point_fast(tile_center - Vec2::new(2.5, 2.5), Color::red(), 10.0);
 }
 
 fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
                     tile_screen_rect: Rect,
                     transform: &WorldToScreenTransform,
-                    tile: &Tile) {
+                    tile: &Tile,
+                    diamond_iso: bool,
+                    sprite_aabb: bool) {
 
     let color = {
         if tile.is(TileKind::Blocker) {
@@ -306,23 +324,27 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
     };
 
     // Tile isometric "diamond" bounding box:
-    let diamond_points = coords::cell_to_screen_diamond_points(
-        tile.base_cell(),
-        tile.logical_size(),
-        BASE_TILE_SIZE,
-        transform);
+    if diamond_iso {
+        let diamond_points = coords::cell_to_screen_diamond_points(
+            tile.base_cell(),
+            tile.logical_size(),
+            BASE_TILE_SIZE,
+            transform);
 
-    render_sys.draw_line_fast(diamond_points[0], diamond_points[1], color, color);
-    render_sys.draw_line_fast(diamond_points[1], diamond_points[2], color, color);
-    render_sys.draw_line_fast(diamond_points[2], diamond_points[3], color, color);
-    render_sys.draw_line_fast(diamond_points[3], diamond_points[0], color, color);
+        render_sys.draw_line_fast(diamond_points[0], diamond_points[1], color, color);
+        render_sys.draw_line_fast(diamond_points[1], diamond_points[2], color, color);
+        render_sys.draw_line_fast(diamond_points[2], diamond_points[3], color, color);
+        render_sys.draw_line_fast(diamond_points[3], diamond_points[0], color, color);
 
-    for point in diamond_points {
-        render_sys.draw_point_fast(point, Color::green(), 10.0);
+        for point in diamond_points {
+            render_sys.draw_point_fast(point, Color::green(), 10.0);
+        }
     }
 
     // Tile axis-aligned bounding rectangle of the actual sprite image:
-    render_sys.draw_wireframe_rect_fast(tile_screen_rect, color);
+    if sprite_aabb {
+        render_sys.draw_wireframe_rect_fast(tile_screen_rect, color);
+    }
 }
 
 // ----------------------------------------------

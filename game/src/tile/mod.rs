@@ -95,15 +95,16 @@ impl TileKind {
 bitflags_with_display! {
     #[derive(Copy, Clone, Default, PartialEq, Eq)]
     pub struct TileFlags: u8 {
-        const Hidden          = 1 << 0;
-        const Highlighted     = 1 << 1;
-        const Invalidated     = 1 << 2;
-        const OccludesTerrain = 1 << 3;
-    
+        const Hidden           = 1 << 0;
+        const Highlighted      = 1 << 1;
+        const Invalidated      = 1 << 2;
+        const OccludesTerrain  = 1 << 3;
+
         // Debug flags:
-        const DrawDebugInfo   = 1 << 4;
-        const DrawDebugBounds = 1 << 5;
-        const DrawBlockerInfo = 1 << 6;
+        const DrawDebugInfo    = 1 << 4;
+        const DrawDebugInfoAlt = 1 << 5;
+        const DrawDebugBounds  = 1 << 6;
+        const DrawBlockerInfo  = 1 << 7;
     }
 }
 

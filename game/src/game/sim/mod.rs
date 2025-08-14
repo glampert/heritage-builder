@@ -526,6 +526,8 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                             kind: BuildingKind,
                             radius_in_cells: i32) -> bool {
 
+        debug_assert!(kind.bits().count_ones() == 1); // No ORed flags.
+
         let search_range = Self::calc_search_radius(start_cells, radius_in_cells);
 
         for search_cell in &search_range {
@@ -548,6 +550,8 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                  start_cells: CellRange,
                                  kind: BuildingKind,
                                  radius_in_cells: i32) -> Option<&mut Building<'config>> {
+
+        debug_assert!(kind.bits().count_ones() == 1); // No ORed flags.
 
         let world = self.world();
         let tile_map = self.tile_map();
@@ -582,11 +586,16 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         }
     }
 
+    // ----------------------
+    // Unit Spawning:
+    // ----------------------
+
     #[inline]
     pub fn try_spawn_unit(&self, unit_origin: Cell, unit_config_key: UnitConfigKey) -> Result<&mut Unit<'config>, String> {
         self.world().try_spawn_unit_with_config(self.tile_map(), self.tile_sets(), unit_origin, unit_config_key)
     }
 
+    #[inline]
     pub fn despawn_unit(&self, unit: &mut Unit) {
         match self.world().despawn_unit(self.tile_map(), self.task_manager(), unit) {
             Ok(_) => {},
