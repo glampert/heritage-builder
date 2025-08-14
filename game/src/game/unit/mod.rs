@@ -677,7 +677,7 @@ impl Unit<'_> {
                     let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
                     if self.teleport(query.tile_map(), start_cell) {
                         let completion_task = task_manager.new_task(UnitTaskDespawn);
-                        let task = task_manager.new_task(UnitTaskPatrol {
+                        let task = task_manager.new_task(UnitTaskRandomizedPatrol {
                             origin_building: BuildingKindAndId {
                                 kind: building.kind(),
                                 id: building.id(),

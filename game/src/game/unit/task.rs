@@ -1,3 +1,4 @@
+use rand::{seq::SliceRandom, Rng};
 use std::any::Any;
 use slab::Slab;
 use smallvec::SmallVec;
@@ -9,8 +10,10 @@ use crate::{
     imgui_ui::UiSystem,
     tile::TileMapLayerKind,
     pathfind::{
+        Node,
         Path,
         PathHistory,
+        PathFilter,
         SearchResult,
         NodeKind as PathNodeKind,
         RandomDirectionalBias
@@ -18,7 +21,6 @@ use crate::{
     utils::{
         Color,
         UnsafeWeakRef,
-        UnsafeMutable,
         coords::Cell
     },
     game::{
@@ -120,7 +122,7 @@ pub trait UnitTask: Any {
 #[allow(clippy::enum_variant_names)]
 pub enum UnitTaskArchetype {
     UnitTaskDespawn,
-    UnitTaskPatrol,
+    UnitTaskRandomizedPatrol,
     UnitTaskDeliverToStorage,
     UnitTaskFetchFromStorage,
 }
@@ -149,30 +151,8 @@ impl UnitTask for UnitTaskDespawn {
 }
 
 // ----------------------------------------------
-// UnitTaskPatrol
+// UnitPatrolPathRecord
 // ----------------------------------------------
-
-// - Unit walks up to a certain distance away from the origin.
-// - Once max distance is reached, start walking back to origin.
-// - Visit any buildings it is interested on along the way.
-pub struct UnitTaskPatrol {
-    // Origin building info:
-    pub origin_building: BuildingKindAndId,
-    pub origin_building_tile: BuildingTileInfo,
-
-    // Max distance from origin to move to.
-    pub max_distance: i32,
-    pub path_bias_min: f32,
-    pub path_bias_max: f32,
-    pub path_record: UnitPatrolPathRecord,
-
-    // Called on the origin building once the unit has completed its patrol and returned.
-    // `|origin_building, patrol_unit, query| -> bool`: Returns if the task should complete or retry.
-    pub completion_callback: Option<UnitTaskCompletionCallbackWithResult>,
-
-    // Optional completion task to run after this task.
-    pub completion_task: Option<UnitTaskId>,
-}
 
 #[derive(Clone, Default)]
 pub struct UnitPatrolPathRecord {
@@ -206,58 +186,147 @@ fn path_direction(path: &Path) -> UnitDirection {
     navigation::direction_between(start.cell, goal.cell)
 }
 
-const MAX_REPEATED_DIRECTION_AXIS: i32 = 2;
-const MIN_PREFERRED_PATH_LEN: usize = 4;
+// ----------------------------------------------
+// UnitPatrolWaypointFilter
+// ----------------------------------------------
 
-impl UnitTaskPatrol {
+const PATROL_MIN_PREFERRED_PATH_LEN: i32 = 4;
+const PATROL_MAX_REPEATED_DIR_AXIS:  i32 = 2;
+
+struct UnitPatrolWaypointFilter<'task, R: Rng> {
+    rng: &'task mut R,
+    path_record: &'task UnitPatrolPathRecord,
+    preferred_fallback_path_index: Option<usize>,
+}
+
+impl<'task, R: Rng> UnitPatrolWaypointFilter<'task, R> {
+    fn new(rng: &'task mut R, path_record: &'task UnitPatrolPathRecord) -> Self {
+        Self {
+            rng,
+            path_record,
+            preferred_fallback_path_index: None
+        }
+    }
+}
+
+impl<R: Rng> PathFilter for UnitPatrolWaypointFilter<'_, R> {
+    const TAKE_FALLBACK_PATH: bool = true;
+
+    fn accepts(&mut self, index: usize, path: &Path) -> bool {
+        if self.path_record.history.has_path(path) {
+            // We've taken this path recently, reject it.
+            return false; 
+        }
+
+        let prev_direction = self.path_record.current_direction;
+        let new_direction  = path_direction(path);
+
+        // Try picking a different direction.
+        if new_direction == prev_direction {
+            return false;
+        }
+
+        // Remember a "good enough" fallback path. Not taken recently and different
+        // direction, but might still be in the same axis. If we can't find a better
+        // alternative we'll take this one as fallback.
+        if self.preferred_fallback_path_index.is_none() {
+            self.preferred_fallback_path_index = Some(index);
+        }
+
+        // If we've taken the same axis (N/S/E/W) multiple times in a row,
+        // try finding a new path on an opposite axis.
+        if navigation::same_axis(new_direction, prev_direction) &&
+            self.path_record.repeated_axis_count >= PATROL_MAX_REPEATED_DIR_AXIS {
+            return false;
+        }
+
+        // Avoid very short paths, use the fallback path instead.
+        if path.len() <= (PATROL_MIN_PREFERRED_PATH_LEN as usize) {
+            return false;
+        }
+
+        true // Accept path.
+    }
+
+    #[inline]
+    fn shuffle(&mut self, nodes: &mut [Node]) {
+        nodes.shuffle(self.rng);
+    }
+
+    #[inline]
+    fn choose_fallback(&mut self, nodes: &[Node]) -> Option<Node> {
+        if let Some(index) = self.preferred_fallback_path_index {
+            return Some(nodes[index]);
+        }
+        None
+    }
+}
+
+// ----------------------------------------------
+// UnitPatrolReturnPathFilter
+// ----------------------------------------------
+
+struct UnitPatrolReturnPathFilter<'task> {
+    path_record: &'task UnitPatrolPathRecord,
+}
+
+impl<'task> UnitPatrolReturnPathFilter<'task> {
+    fn new(path_record: &'task UnitPatrolPathRecord) -> Self {
+        Self { path_record }
+    }
+}
+
+impl PathFilter for UnitPatrolReturnPathFilter<'_> {
+    const TAKE_FALLBACK_PATH: bool = true;
+
+    #[inline]
+    fn accepts(&mut self, _index: usize, path: &Path) -> bool {
+        let path_hash = PathHistory::hash_path_reverse(path);
+
+        if self.path_record.history.is_last_path_hash(path_hash) {
+            // This is the same as the last path we've taken to get here,
+            // try a different path to return home.
+            return false; 
+        }
+
+        true // Accept path.
+    }
+}
+
+// ----------------------------------------------
+// UnitTaskRandomizedPatrol
+// ----------------------------------------------
+
+// - Unit walks up to a certain distance away from the origin.
+// - Once max distance is reached, start walking back to origin.
+// - Visit any buildings it is interested on along the way.
+pub struct UnitTaskRandomizedPatrol {
+    // Origin building info:
+    pub origin_building: BuildingKindAndId,
+    pub origin_building_tile: BuildingTileInfo,
+
+    // Max distance from origin to move to.
+    pub max_distance: i32,
+    pub path_bias_min: f32,
+    pub path_bias_max: f32,
+    pub path_record: UnitPatrolPathRecord,
+
+    // Called on the origin building once the unit has completed its patrol and returned.
+    // `|origin_building, patrol_unit, query| -> bool`: Returns if the task should complete or retry.
+    pub completion_callback: Option<UnitTaskCompletionCallbackWithResult>,
+
+    // Optional completion task to run after this task.
+    pub completion_task: Option<UnitTaskId>,
+}
+
+impl UnitTaskRandomizedPatrol {
     fn try_find_goal(&mut self, unit: &mut Unit, query: &Query) {
-        let preferred_fallback_path_index = UnsafeMutable::new(None);
-
-        let path_filter = |index: usize, path: &Path| {
-            if self.path_record.history.has_path(path) {
-                // We've taken this path recently, reject it.
-                return false; 
-            }
-
-            let prev_direction = self.path_record.current_direction;
-            let new_direction  = path_direction(path);
-
-            // Try picking a different direction.
-            if new_direction == prev_direction {
-                return false;
-            }
-
-            // Remember a "good enough" fallback path. Not taken recently and different direction,
-            // but might still be in the same axis, so if we can't find any better direction
-            // we'll take this one rather than a randomized fallback.
-            if preferred_fallback_path_index.is_none() {
-                *preferred_fallback_path_index.as_mut() = Some(index);
-            }
-
-            // If we've taken the same axis (N/S/E/W) multiple times in a row,
-            // try finding a new path on an opposite axis.
-            if navigation::same_axis(new_direction, prev_direction) &&
-               self.path_record.repeated_axis_count >= MAX_REPEATED_DIRECTION_AXIS {
-                return false;
-            }
-
-            // Avoid very short paths, use the fallback instead.
-            if path.len() <= MIN_PREFERRED_PATH_LEN {
-                return false;
-            }
-
-            true // Accept path.
-        };
-
         let start = unit.cell();
-        let bias = RandomDirectionalBias::new(query.rng(), self.path_bias_min, self.path_bias_max);
 
-        match query.find_waypoint(&bias,
-                                  path_filter,
-                                  || *preferred_fallback_path_index,
-                                  PathNodeKind::Road,
-                                  start,
-                                  self.max_distance) {
+        let bias = RandomDirectionalBias::new(query.rng(), self.path_bias_min, self.path_bias_max);
+        let mut filter = UnitPatrolWaypointFilter::new(query.rng(), &self.path_record);
+
+        match query.find_waypoints(&bias, &mut filter, PathNodeKind::Road, start, self.max_distance) {
             SearchResult::PathFound(path) => {
                 let goal = UnitNavGoal::Tile {
                     origin_cell: start,
@@ -278,29 +347,15 @@ impl UnitTaskPatrol {
             return false;
         }
 
-        let path_filter = |path: &Path| {
-            let path_hash = PathHistory::hash_path_reverse(path);
-            if self.path_record.history.is_last_path_hash(path_hash) {
-                // This is the same as the last path we've taken to get here, try a different path to return home.
-                return false; 
-            }
-            true // Accept path.
-        };
-
         let start = unit.cell();
         let goal  = self.origin_building_tile.road_link;
 
         // Try up to two paths, one of them should be a different path from the one we came from.
         // If there's no second path we only have one way of getting here, so fallback to the same path.
         const MAX_PATHS: usize = 2;
-        const WITH_FALLBACK: bool = true;
+        let mut filter = UnitPatrolReturnPathFilter::new(&self.path_record);
 
-        match query.find_paths(path_filter,
-                               MAX_PATHS,
-                               WITH_FALLBACK,
-                               PathNodeKind::Road,
-                               start,
-                               goal) {
+        match query.find_paths(&mut filter, MAX_PATHS, PathNodeKind::Road, start, goal) {
             SearchResult::PathFound(path) => {
                 let goal = UnitNavGoal::Building {
                     origin_kind: self.origin_building.kind,
@@ -330,7 +385,7 @@ impl UnitTaskPatrol {
     }
 }
 
-impl UnitTask for UnitTaskPatrol {
+impl UnitTask for UnitTaskRandomizedPatrol {
     fn as_any(&self) -> &dyn Any { self }
 
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
@@ -339,7 +394,7 @@ impl UnitTask for UnitTaskPatrol {
         debug_assert!(unit.cell() == self.origin_building_tile.road_link); // We start at the nearest building road link.
         debug_assert!(self.origin_building.is_valid());
         debug_assert!(self.origin_building_tile.is_valid());
-        debug_assert!(self.max_distance > 0);
+        debug_assert!(self.max_distance > PATROL_MIN_PREFERRED_PATH_LEN);
         debug_assert!(self.path_bias_min <= self.path_bias_max);
 
         self.try_find_goal(unit, query);

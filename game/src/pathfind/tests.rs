@@ -204,6 +204,7 @@ fn test_find_waypoint() {
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
     let heuristic = AStarUniformCostHeuristic::new();
     let bias = Unbiased::new();
+    let mut filter = DefaultPathFilter::new();
     let mut search = Search::with_graph(&graph);
 
     // Vertical path:
@@ -211,14 +212,11 @@ fn test_find_waypoint() {
         let start = Node::new(Cell::new(3, 0));
         let max_distance = 5;
 
-        let path = search.find_waypoint(
+        let path = search.find_waypoints(
             &graph,
             &heuristic,
             &bias,
-            default_path_filter,
-            default_fallback_path_index,
-            &mut rand::rng(),
-            false,
+            &mut filter,
             NodeKind::Road,
             start,
             max_distance);
@@ -237,14 +235,11 @@ fn test_find_waypoint() {
         let start = Node::new(Cell::new(0, 3));
         let max_distance = 7;
 
-        let path = search.find_waypoint(
+        let path = search.find_waypoints(
             &graph,
             &heuristic,
             &bias,
-            default_path_filter,
-            default_fallback_path_index,
-            &mut rand::rng(),
-            false,
+            &mut filter,
             NodeKind::Road,
             start,
             max_distance);
@@ -278,19 +273,17 @@ fn test_find_waypoint_shorter_distance() {
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
     let heuristic = AStarUniformCostHeuristic::new();
     let bias = Unbiased::new();
+    let mut filter = DefaultPathFilter::new();
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(3, 0));
     let max_distance = 7; // Max distance is bigger than length of only available path.
 
-    let path = search.find_waypoint(
+    let path = search.find_waypoints(
         &graph,
         &heuristic,
         &bias,
-        default_path_filter,
-        default_fallback_path_index,
-        &mut rand::rng(),
-        false,
+        &mut filter,
         NodeKind::Road,
         start,
         max_distance);

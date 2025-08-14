@@ -4,14 +4,14 @@ use rand_pcg::Pcg64;
 use crate::{
     imgui_ui::UiSystem,
     pathfind::{
-        Path,
+        Node,
+        NodeKind as PathNodeKind,
         Graph,
         Search,
         SearchResult,
-        AStarUniformCostHeuristic,
-        NodeKind as PathNodeKind,
-        Node,
-        Bias
+        Bias,
+        PathFilter,
+        AStarUniformCostHeuristic
     },
     utils::{
         Seconds,
@@ -456,49 +456,41 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     }
 
     #[inline]
-    pub fn find_paths<PathFilter>(&self,
-                                  path_filter_fn: PathFilter,
-                                  max_paths: usize,
-                                  with_fallback: bool,
-                                  traversable_node_kinds: PathNodeKind,
-                                  start: Cell,
-                                  goal: Cell) -> SearchResult
+    pub fn find_paths<Filter>(&self,
+                              path_filter: &mut Filter,
+                              max_paths: usize,
+                              traversable_node_kinds: PathNodeKind,
+                              start: Cell,
+                              goal: Cell) -> SearchResult
         where
-            PathFilter: Fn(&Path) -> bool
+            Filter: PathFilter
     {
         self.search().find_paths(self.graph(),
                                  &AStarUniformCostHeuristic::new(),
-                                 path_filter_fn,
+                                 path_filter,
                                  max_paths,
-                                 with_fallback,
                                  traversable_node_kinds,
                                  Node::new(start),
                                  Node::new(goal))
     }
 
     #[inline]
-    pub fn find_waypoint<PathFilter, FallbackPath>(&self,
-                                                   bias: &impl Bias,
-                                                   path_filter_fn: PathFilter,
-                                                   fallback_path_index_fn: FallbackPath,
-                                                   traversable_node_kinds: PathNodeKind,
-                                                   start: Cell,
-                                                   max_distance: i32) -> SearchResult
+    pub fn find_waypoints<Filter>(&self,
+                                  bias: &impl Bias,
+                                  path_filter: &mut Filter,
+                                  traversable_node_kinds: PathNodeKind,
+                                  start: Cell,
+                                  max_distance: i32) -> SearchResult
         where
-            PathFilter: Fn(usize, &Path) -> bool,
-            FallbackPath: Fn() -> Option<usize>
+            Filter: PathFilter
     {
-        const RANDOMIZE: bool = true; // Pick random path variations.
-        self.search().find_waypoint(self.graph(),
-                                    &AStarUniformCostHeuristic::new(),
-                                    bias,
-                                    path_filter_fn,
-                                    fallback_path_index_fn,
-                                    self.rng(),
-                                    RANDOMIZE,
-                                    traversable_node_kinds,
-                                    Node::new(start),
-                                    max_distance)
+        self.search().find_waypoints(self.graph(),
+                                     &AStarUniformCostHeuristic::new(),
+                                     bias,
+                                     path_filter,
+                                     traversable_node_kinds,
+                                     Node::new(start),
+                                     max_distance)
     }
 
     pub fn find_nearest_road_link(&self, start_cells: CellRange) -> Option<Cell> {
