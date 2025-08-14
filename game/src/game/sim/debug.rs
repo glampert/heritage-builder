@@ -149,7 +149,7 @@ pub trait GameObjectDebugOptions {
     }
 
     fn draw_popup_messages<'a>(&mut self,
-                               find_tile_fn: impl Fn() -> &'a Tile<'a>,
+                               find_tile_fn: impl FnOnce() -> &'a Tile<'a>,
                                ui_sys: &UiSystem,
                                transform: &WorldToScreenTransform,
                                visible_range: CellRange,
