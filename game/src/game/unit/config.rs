@@ -15,9 +15,9 @@ use crate::{
 
 pub type UnitConfigKey = StrHashPair;
 
-// TODO: For now these are all the same until we have more unit sprites to work with.
-pub const UNIT_PED: UnitConfigKey = UnitConfigKey::from_str("ped");
-pub const UNIT_RUNNER: UnitConfigKey = UnitConfigKey::from_str("ped");
+pub const UNIT_PED:    UnitConfigKey = UnitConfigKey::from_str("ped");
+pub const UNIT_RUNNER: UnitConfigKey = UnitConfigKey::from_str("runner");
+pub const UNIT_PATROL: UnitConfigKey = UnitConfigKey::from_str("patrol");
 
 // ----------------------------------------------
 // UnitConfig
