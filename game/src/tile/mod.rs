@@ -1,9 +1,12 @@
+#![allow(clippy::enum_variant_names)]
+
 use slab::Slab;
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
 use serde::Deserialize;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumProperty, EnumIter};
+use enum_dispatch::enum_dispatch;
 
 use crate::{
     bitflags_with_display,
@@ -216,42 +219,11 @@ pub struct Tile<'tile_sets> {
     archetype: TileArchetype<'tile_sets>,
 }
 
-// NOTE: Using a raw union here to avoid some padding and since we can
-// derive the tile archetype from the `Tile::kind` field.
-#[repr(C)]
-union TileArchetype<'tile_sets> {
-    terrain: TerrainTile<'tile_sets>,
-    object:  ObjectTile<'tile_sets>,
-    blocker: BlockerTile<'tile_sets>,
-}
-
-impl<'tile_sets> TileArchetype<'tile_sets> {
-    #[inline]
-    fn new_terrain(terrain: TerrainTile<'tile_sets>) -> Self {
-        Self { terrain }
-    }
-
-    #[inline]
-    fn new_object(object: ObjectTile<'tile_sets>) -> Self {
-        Self { object }
-    }
-
-    #[inline]
-    fn new_blocker(blocker: BlockerTile<'tile_sets>) -> Self {
-        Self { blocker }
-    }
-}
-
-// Call the specified method in the active member of the union.
-macro_rules! delegate_to_archetype {
-    ( $self:ident, $method:ident $(, $arg:expr )* ) => {
-        unsafe {
-            if      $self.is(TileKind::Terrain) { $self.archetype.terrain.$method( $( $arg ),* ) }
-            else if $self.is(TileKind::Blocker) { $self.archetype.blocker.$method( $( $arg ),* ) }
-            else if $self.is(TileKind::Object)  { $self.archetype.object.$method(  $( $arg ),* ) }
-            else { panic!("Invalid TileKind!"); }
-        }
-    };
+#[enum_dispatch]
+enum TileArchetype<'tile_sets> {
+    TerrainTile(TerrainTile<'tile_sets>),
+    ObjectTile(ObjectTile<'tile_sets>),
+    BlockerTile(BlockerTile<'tile_sets>),
 }
 
 // ----------------------------------------------
@@ -259,6 +231,7 @@ macro_rules! delegate_to_archetype {
 // ----------------------------------------------
 
 // Common behavior for all Tile archetypes.
+#[enum_dispatch(TileArchetype)]
 trait TileBehavior<'tile_sets> {
     fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
     fn set_base_cell(&mut self, cell: Cell);
@@ -554,12 +527,12 @@ impl<'tile_sets> Tile<'tile_sets> {
             TileMapLayerKind::Terrain => {
                 debug_assert!(tile_def.kind() == TileKind::Terrain); // Only Terrain.
                 let terrain = TerrainTile::new(cell, tile_def);
-                (terrain.z_sort_key(), TileArchetype::new_terrain(terrain))
+                (terrain.z_sort_key(), TileArchetype::from(terrain))
             },
             TileMapLayerKind::Objects => {
                 debug_assert!(tile_def.kind().intersects(TileKind::Object)); // Object | Building, Prop, etc...
                 let object = ObjectTile::new(cell, tile_def, layer);
-                (object.z_sort_key(), TileArchetype::new_object(object))
+                (object.z_sort_key(), TileArchetype::from(object))
             }
         };
 
@@ -583,13 +556,13 @@ impl<'tile_sets> Tile<'tile_sets> {
             flags: owner_flags,
             variation_index: 0, // unused
             z_sort_key:      0, // unused
-            archetype: TileArchetype::new_blocker(BlockerTile::new(blocker_cell, owner_cell, layer))
+            archetype: TileArchetype::from(BlockerTile::new(blocker_cell, owner_cell, layer))
         }
     }
 
     #[inline]
     pub fn set_flags(&mut self, new_flags: TileFlags, value: bool) {
-        delegate_to_archetype!(self, set_flags, &mut self.flags, new_flags, value);
+        self.archetype.set_flags(&mut self.flags, new_flags, value);
         debug_assert!(self.has_flags(new_flags) == value);
     }
 
@@ -610,7 +583,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        !self.kind.is_empty() && delegate_to_archetype!(self, is_valid)
+        !self.kind.is_empty() && self.archetype.is_valid()
     }
 
     #[inline]
@@ -625,17 +598,17 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn game_state_handle(&self) -> TileGameStateHandle {
-        delegate_to_archetype!(self, game_state_handle)
+        self.archetype.game_state_handle()
     }
 
     #[inline]
     pub fn set_game_state_handle(&mut self, handle: TileGameStateHandle) {
-        delegate_to_archetype!(self, set_game_state_handle, handle)
+        self.archetype.set_game_state_handle(handle);
     }
 
     #[inline]
     pub fn tile_def(&self) -> &'tile_sets TileDef {
-        delegate_to_archetype!(self, tile_def)
+        self.archetype.tile_def()
     }
 
     #[inline]
@@ -680,13 +653,13 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn iso_coords(&self) -> IsoPoint {
-        let coords_f32 = delegate_to_archetype!(self, iso_coords_f32);
+        let coords_f32 = self.iso_coords_f32();
         IsoPoint::new(coords_f32.x as i32, coords_f32.y as i32)
     }
 
     #[inline]
     pub fn iso_coords_f32(&self) -> Vec2 {
-        delegate_to_archetype!(self, iso_coords_f32)
+        self.archetype.iso_coords_f32()
     }
 
     #[inline]
@@ -698,12 +671,12 @@ impl<'tile_sets> Tile<'tile_sets> {
     #[inline]
     pub fn set_iso_coords_f32(&mut self, iso_coords: Vec2) {
         // Native internal format is f32.
-        delegate_to_archetype!(self, set_iso_coords_f32, iso_coords);
+        self.archetype.set_iso_coords_f32(iso_coords);
 
         // Terrain z-sort is derived from iso coords. For Objects it
         // is derived from the cell, so no need to update it here.
         if self.is(TileKind::Terrain) {
-            let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
+            let new_z_sort_key = self.archetype.z_sort_key();
             self.set_z_sort_key(new_z_sort_key);
         }
     }
@@ -718,7 +691,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     // Base cell without resolving blocker tiles into their owner cell.
     #[inline]
     pub fn actual_base_cell(&self) -> Cell {
-        delegate_to_archetype!(self, actual_base_cell)
+        self.archetype.actual_base_cell()
     }
 
     #[inline]
@@ -728,7 +701,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn cell_range(&self) -> CellRange {
-        delegate_to_archetype!(self, cell_range)
+        self.archetype.cell_range()
     }
 
     #[inline]
@@ -923,10 +896,10 @@ impl<'tile_sets> Tile<'tile_sets> {
     pub fn on_tile_def_edited(&mut self) {
         // Re-setting the base cell takes care of updating cached iso coords.
         let base_cell = self.base_cell();
-        delegate_to_archetype!(self, set_base_cell, base_cell);
+        self.archetype.set_base_cell(base_cell);
 
         // Update cached z-sort too.
-        let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
+        let new_z_sort_key = self.archetype.z_sort_key();
         self.set_z_sort_key(new_z_sort_key);
     }
 
@@ -937,12 +910,12 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     fn anim_state_ref(&self) -> &TileAnimState {
-        delegate_to_archetype!(self, anim_state_ref)
+        self.archetype.anim_state_ref()
     }
 
     #[inline]
     fn anim_state_mut_ref(&mut self) -> &mut TileAnimState {
-        delegate_to_archetype!(self, anim_state_mut_ref)
+        self.archetype.anim_state_mut_ref()
     }
 
     #[inline]
@@ -951,10 +924,10 @@ impl<'tile_sets> Tile<'tile_sets> {
         assert!(!self.occupies_multiple_cells(), "This does not support multi-cell tiles yet!");
 
         // This will also update the cached iso coords in the archetype.
-        delegate_to_archetype!(self, set_base_cell, cell);
+        self.archetype.set_base_cell(cell);
 
         // Z-sort key is derived from cell and iso coords so it needs to be recomputed.
-        let new_z_sort_key = delegate_to_archetype!(self, z_sort_key);
+        let new_z_sort_key = self.archetype.z_sort_key();
         self.set_z_sort_key(new_z_sort_key);
     }
 }
@@ -1204,9 +1177,6 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     fn new(layer_kind: TileMapLayerKind,
            size_in_cells: Size,
            fill_with_def: Option<&'tile_sets TileDef>) -> Box<TileMapLayer<'tile_sets>> {
-
-        // Keeping it within one CPU cache line for best runtime performance.
-        debug_assert!(std::mem::size_of::<Tile>() == 64);
 
         let mut layer = Box::new(Self {
             pool: TilePool::new(layer_kind, size_in_cells),
