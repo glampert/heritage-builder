@@ -387,23 +387,21 @@ impl<'config> Building<'config> {
 
     fn update_road_link(&mut self, query: &Query) {
         if let Some(new_road_link) = query.find_nearest_road_link(self.map_cells) {
-            if new_road_link != *self.road_link.as_ref() {
-                debug_assert!(new_road_link.is_valid());
+            debug_assert!(new_road_link.is_valid());
 
-                if self.road_link.is_valid() {
-                    // Clear previous underlying tile flag:
-                    if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell(query, *self.road_link.as_ref()) {
-                        prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
-                    }
+            if new_road_link != *self.road_link.as_ref() && self.road_link.is_valid() {
+                // Clear previous underlying tile flag:
+                if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell(query, *self.road_link.as_ref()) {
+                    prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
                 }
-
-                // Set new underlying tile flag:
-                if let Some(new_road_link_tile) =  Self::find_road_link_tile_for_cell(query, new_road_link) {
-                    new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
-                }
-
-                *self.road_link.as_mut() = new_road_link;
             }
+
+            // Set new underlying tile flag:
+            if let Some(new_road_link_tile) =  Self::find_road_link_tile_for_cell(query, new_road_link) {
+                new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
+            }
+
+            *self.road_link.as_mut() = new_road_link;
         } else {
             // Building not connected to a road.
             *self.road_link.as_mut() = Cell::invalid();

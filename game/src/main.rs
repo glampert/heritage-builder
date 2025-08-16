@@ -60,17 +60,17 @@ fn main() {
     let mut world = World::new(&building_configs, &unit_configs);
 
     // Test map with preset tiles:
-    let mut tile_map = debug::utils::create_test_tile_map_preset(&mut world, &tile_sets, 2);
+    //let mut tile_map = debug::utils::create_test_tile_map_preset(&mut world, &tile_sets, 2);
 
     // Empty map (dirt tiles):
-    /*
+    //*
     let mut tile_map = tile::TileMap::with_terrain_tile(
         Size::new(64, 64),
         &tile_sets,
         TERRAIN_GROUND_CATEGORY,
         utils::hash::StrHashPair::from_str("dirt")
     );
-    */
+    //*/
 
     let mut sim = Simulation::new(&tile_map, &building_configs, &unit_configs);
 
