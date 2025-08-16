@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::cell::OnceCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -470,7 +472,6 @@ std::thread_local! {
 
 fn init_tile_map_debug_ref(tile_map: &TileMap) {
     // Strip away lifetime (pretend it is static).
-    #[allow(clippy::unnecessary_cast)] // cast to TileMap<'_> is needed to then cast away lifetime as 'static.
     let tile_map_ptr = tile_map as *const TileMap<'_> as *const TileMap<'static>;
     let weak_ref = UnsafeWeakRef::from_ptr(tile_map_ptr);
 

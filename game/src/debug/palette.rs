@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::collections::HashMap;
 
 use crate::{
@@ -247,7 +249,6 @@ impl TilePaletteMenu {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn draw_tile_list(&mut self,
                       tile_kind: TileKind,
                       ui_sys: &UiSystem,

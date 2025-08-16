@@ -99,10 +99,10 @@ bitflags_with_display! {
         const Highlighted      = 1 << 1;
         const Invalidated      = 1 << 2;
         const OccludesTerrain  = 1 << 3;
+        const BuildingRoadLink = 1 << 4;
 
         // Debug flags:
-        const DrawDebugInfo    = 1 << 4;
-        const DrawDebugInfoAlt = 1 << 5;
+        const DrawDebugInfo    = 1 << 5;
         const DrawDebugBounds  = 1 << 6;
         const DrawBlockerInfo  = 1 << 7;
     }

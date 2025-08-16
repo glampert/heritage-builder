@@ -1,3 +1,5 @@
+#![allow(clippy::enum_variant_names)]
+
 use rand::{seq::SliceRandom, Rng};
 use std::any::Any;
 use slab::Slab;
@@ -119,7 +121,6 @@ pub trait UnitTask: Any {
 
 #[enum_dispatch]
 #[derive(Display)]
-#[allow(clippy::enum_variant_names)]
 pub enum UnitTaskArchetype {
     UnitTaskDespawn,
     UnitTaskRandomizedPatrol,
@@ -212,7 +213,7 @@ impl<'task, R: Rng> UnitPatrolWaypointFilter<'task, R> {
 impl<R: Rng> PathFilter for UnitPatrolWaypointFilter<'_, R> {
     const TAKE_FALLBACK_PATH: bool = true;
 
-    fn accepts(&mut self, index: usize, path: &Path) -> bool {
+    fn accepts(&mut self, index: usize, path: &Path, _goal: &Node) -> bool {
         if self.path_record.history.has_path(path) {
             // We've taken this path recently, reject it.
             return false; 
@@ -280,7 +281,7 @@ impl PathFilter for UnitPatrolReturnPathFilter<'_> {
     const TAKE_FALLBACK_PATH: bool = true;
 
     #[inline]
-    fn accepts(&mut self, _index: usize, path: &Path) -> bool {
+    fn accepts(&mut self, _index: usize, path: &Path, _goal: &Node) -> bool {
         let path_hash = PathHistory::hash_path_reverse(path);
 
         if self.path_record.history.is_last_path_hash(path_hash) {
@@ -1170,7 +1171,7 @@ fn find_delivery_candidate<'search>(query: &'search Query,
     query.for_each_building(building_kinds_accepted, |building| {
         let receivable_resources = building.receivable_resources(resource_kind_to_deliver);
         if receivable_resources != 0 {
-            if let Some(road_link) = query.find_nearest_road_link(building.cell_range()) {
+            if let Some(road_link) = building.road_link(query) {
                 candidates.push(DeliveryCandidate {
                     kind: building.kind(),
                     road_link,
@@ -1247,7 +1248,7 @@ fn find_storage_fetch_candidate<'search>(query: &'search Query,
     query.for_each_building(storage_buildings_accepted, |building| {
         let available_resources = building.available_resources(resource_kind_to_fetch);
         if available_resources != 0 {
-            if let Some(road_link) = query.find_nearest_road_link(building.cell_range()) {
+            if let Some(road_link) = building.road_link(query) {
                 candidates.push(StorageCandidate {
                     kind: building.kind(),
                     road_link,

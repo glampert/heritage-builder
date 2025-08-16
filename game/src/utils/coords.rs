@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_else_if)]
+
 use std::ops::RangeInclusive;
 use std::iter::FusedIterator;
 
@@ -99,7 +101,11 @@ impl Default for Cell {
 
 impl std::fmt::Display for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[{},{}]", self.x, self.y)
+        if self.is_valid() {
+            write!(f, "[{},{}]", self.x, self.y)
+        } else {
+            write!(f, "[invalid]")
+        }
     }
 }
 
@@ -109,7 +115,7 @@ field_accessor_xy! { Cell, i32, x, y }
 // CellRange
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct CellRange {
     // Inclusive rage, e.g.: [start..=end]
     pub start: Cell,
@@ -162,11 +168,7 @@ impl CellRange {
 
 impl std::fmt::Display for CellRange {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[{},{}; {},{}]",
-               self.start.x,
-               self.start.y,
-               self.end.x,
-               self.end.y)
+        write!(f, "[{}; {}]", self.start, self.end)
     }
 }
 
@@ -200,7 +202,6 @@ impl<const REVERSED: bool> Iterator for CellRangeIter<REVERSED> {
     type Item = Cell;
 
     #[inline]
-    #[allow(clippy::collapsible_else_if)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
             return None;

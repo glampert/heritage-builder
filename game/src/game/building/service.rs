@@ -208,7 +208,7 @@ impl<'config> ServiceBuilding<'config> {
         }
 
         // Unit spawns at the nearest road link.
-        let unit_origin = match context.find_nearest_road_link() {
+        let unit_origin = match context.road_link {
             Some(road_link) => road_link,
             None => return, // We are not connected to a road. No stock update possible!
         };

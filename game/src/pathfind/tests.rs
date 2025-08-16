@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn test_invalid_paths() {
-    let graph = Graph::with_node_kind(Size::new(8, 8), NodeKind::Ground);
+    let graph = Graph::with_node_kind(Size::new(8, 8), NodeKind::Dirt);
     let heuristic = AStarUniformCostHeuristic::new();
     let mut search = Search::with_graph(&graph);
 
@@ -10,7 +10,7 @@ fn test_invalid_paths() {
     {
         let start = Node::new(Cell::new(-1, -1));
         let goal  = Node::new(Cell::new(0, 0));
-        let path = search.find_path(&graph, &heuristic, NodeKind::Ground, start, goal);
+        let path = search.find_path(&graph, &heuristic, NodeKind::Dirt, start, goal);
         assert!(path.not_found());
     }
     
@@ -18,7 +18,7 @@ fn test_invalid_paths() {
     {
         let start = Node::new(Cell::new(0, 0));
         let goal  = Node::new(Cell::new(8, 8));
-        let path = search.find_path(&graph, &heuristic, NodeKind::Ground, start, goal);
+        let path = search.find_path(&graph, &heuristic, NodeKind::Dirt, start, goal);
         assert!(path.not_found());
     }
 

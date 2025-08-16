@@ -51,11 +51,11 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
     }
 
     if draw_debug_bounds {
-        draw_tile_bounds(render_sys, tile_screen_rect, transform, tile, true, true);
-    }
-
-    if !draw_debug_bounds && !draw_debug_info && tile.has_flags(TileFlags::DrawDebugInfoAlt) {
-        draw_tile_info_alt(render_sys, tile_screen_rect, transform, tile);
+        if tile.has_flags(TileFlags::BuildingRoadLink) {
+            draw_road_link_bounds(render_sys, tile_screen_rect, transform, tile);
+        } else {
+            draw_tile_bounds(render_sys, tile_screen_rect, transform, tile, true, true);
+        }
     }
 }
 
@@ -288,16 +288,16 @@ fn draw_tile_info(render_sys: &mut impl RenderSystem,
     render_sys.draw_point_fast(tile_center - Vec2::new(2.5, 2.5), center_pt_color, 10.0);
 }
 
-// Alternate debug info (used for displaying building road link tiles).
-fn draw_tile_info_alt(render_sys: &mut impl RenderSystem,
-                      tile_screen_rect: Rect,
-                      transform: &WorldToScreenTransform,
-                      tile: &Tile) {
+// Alternate debug info used for displaying building road link tiles.
+fn draw_road_link_bounds(render_sys: &mut impl RenderSystem,
+                         tile_screen_rect: Rect,
+                         transform: &WorldToScreenTransform,
+                         tile: &Tile) {
 
     draw_tile_bounds(render_sys, tile_screen_rect, transform, tile, true, false);
 
     let tile_center = tile_screen_rect.center();
-    render_sys.draw_point_fast(tile_center - Vec2::new(2.5, 2.5), Color::red(), 10.0);
+    render_sys.draw_point_fast(tile_center - Vec2::new(2.5, 2.5), Color::blue(), 10.0);
 }
 
 fn draw_tile_bounds(render_sys: &mut impl RenderSystem,

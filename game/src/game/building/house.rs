@@ -565,10 +565,10 @@ impl<'config> HouseUpgradeState<'config> {
 
             // Update path finding graph:
             for cell in &prev_cell_range {
-                graph.set_node_kind(Node::new(cell), PathNodeKind::Ground); // Traversable
+                graph.set_node_kind(Node::new(cell), PathNodeKind::Dirt); // Traversable
             }
             for cell in &new_cell_range {
-                graph.set_node_kind(Node::new(cell), PathNodeKind::empty()); // Not Traversable
+                graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
             }  
         }
 

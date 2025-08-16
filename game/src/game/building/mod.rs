@@ -1,3 +1,5 @@
+#![allow(clippy::enum_variant_names)]
+
 use paste::paste;
 use bitflags::{bitflags, Flags};
 use strum::{EnumCount, IntoDiscriminant};
@@ -9,6 +11,7 @@ use crate::{
     bitflags_with_display,
     imgui_ui::UiSystem,
     utils::{
+        UnsafeMutable,
         hash::StringHash,
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
@@ -104,6 +107,7 @@ macro_rules! building_type_casts {
 pub struct Building<'config> {
     kind: BuildingKind,
     map_cells: CellRange,
+    road_link: UnsafeMutable<Cell>,
     id: BuildingId,
     archetype: BuildingArchetype<'config>,
 }
@@ -115,7 +119,10 @@ impl<'config> Building<'config> {
         Self {
             kind,
             map_cells,
-            id: BuildingId::default(), // Set after construction by Building::placed().
+            // Road link cached on first access and refreshed every building update.
+            road_link: UnsafeMutable::new(Cell::invalid()),
+            // Id is set after construction by Building::placed().
+            id: BuildingId::default(),
             archetype,
         }
     }
@@ -125,6 +132,16 @@ impl<'config> Building<'config> {
         debug_assert!(id.is_valid());
         debug_assert!(!self.id.is_valid());
         self.id = id;
+    }
+
+    #[inline]
+    pub fn removed(&mut self, tile_map: &mut TileMap) {
+        debug_assert!(self.id.is_valid()); // Should be placed.
+
+        self.id = BuildingId::default();
+        self.map_cells = CellRange::default();
+
+        self.clear_road_link(tile_map);
     }
 
     #[inline]
@@ -162,11 +179,6 @@ impl<'config> Building<'config> {
         self.id
     }
 
-    #[inline]
-    pub fn find_nearest_road_link(&self, query: &Query) -> Option<Cell> {
-        query.find_nearest_road_link(self.map_cells)
-    }
-
     building_type_casts! { producer, ProducerBuilding } // as_producer()
     building_type_casts! { storage,  StorageBuilding  } // as_storage()
     building_type_casts! { service,  ServiceBuilding  } // as_service()
@@ -174,10 +186,16 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn update(&mut self, query: &Query<'config, '_>) {
+        debug_assert!(self.id.is_valid());
+
+        // Refresh cached road link cell:
+        self.update_road_link(query);
+
         let context =
             BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
+                                 self.road_link(query),
                                  self.id,
                                  query);
 
@@ -186,15 +204,38 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn visited_by(&mut self, unit: &mut Unit, query: &Query<'config, '_>) {
+        debug_assert!(self.id.is_valid());
+
         let context =
             BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
+                                 self.road_link(query),
                                  self.id,
                                  query);
 
         self.archetype.visited_by(unit, &context);
     }
+
+    pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
+        debug_assert!(self.id.is_valid());
+        if tile_map.try_move_tile(self.base_cell(), destination_cell, TileMapLayerKind::Objects) {
+            let tile = tile_map.find_tile_mut(
+                destination_cell,
+                TileMapLayerKind::Objects,
+                TileKind::Building)
+                .unwrap();
+
+            debug_assert!(destination_cell == tile.base_cell());
+            self.map_cells = tile.cell_range();
+            return true;
+        }
+        false
+    }
+
+    // ----------------------
+    // Building Resources:
+    // ----------------------
 
     #[inline]
     pub fn available_resources(&self, kind: ResourceKind) -> u32 {
@@ -220,20 +261,9 @@ impl<'config> Building<'config> {
         self.archetype.remove_resources(kind, count)
     }
 
-    pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
-        if tile_map.try_move_tile(self.base_cell(), destination_cell, TileMapLayerKind::Objects) {
-            let tile = tile_map.find_tile_mut(
-                destination_cell,
-                TileMapLayerKind::Objects,
-                TileKind::Building)
-                .unwrap();
-
-            debug_assert!(destination_cell == tile.base_cell());
-            self.map_cells = tile.cell_range();
-            return true;
-        }
-        false
-    }
+    // ----------------------
+    // Building Debug:
+    // ----------------------
 
     pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
@@ -254,16 +284,16 @@ impl<'config> Building<'config> {
                 kind: self.kind,
                 archetype: self.archetype_kind(),
                 cells: self.map_cells,
-                road_link: self.find_nearest_road_link(query).unwrap_or_default(),
+                road_link: self.road_link(query).unwrap_or_default(),
                 id: self.id,
             };
 
             debug_vars.draw_debug_ui(ui_sys);
             ui.separator();
 
-            let mut show_road_link = self.is_showing_debug_road_link(query);
+            let mut show_road_link = self.is_showing_road_link_debug(query);
             if ui.checkbox("Show Road Link", &mut show_road_link) {
-                self.set_show_debug_road_link(query, show_road_link);
+                self.set_show_road_link_debug(query, show_road_link);
             }
         }
 
@@ -271,6 +301,7 @@ impl<'config> Building<'config> {
             BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
+                                 self.road_link(query),
                                  self.id,
                                  query);
 
@@ -287,6 +318,7 @@ impl<'config> Building<'config> {
             BuildingContext::new(self.kind,
                                  self.archetype_kind(),
                                  self.map_cells,
+                                 self.road_link(query),
                                  self.id,
                                  query);
 
@@ -297,21 +329,95 @@ impl<'config> Building<'config> {
             visible_range);
     }
 
-    fn set_show_debug_road_link(&self, query: &Query, show: bool) {
-        if let Some(road_link_cell) = self.find_nearest_road_link(query) {
-            if let Some(road_link_tile) = query.find_tile_mut(road_link_cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
-                road_link_tile.set_flags(TileFlags::DrawDebugInfoAlt, show);
+    // ----------------------
+    // Building Road Link:
+    // ----------------------
+
+    #[inline]
+    pub fn is_linked_to_road(&self, query: &Query) -> bool {
+        self.road_link(query).is_some()
+    }
+
+    #[inline]
+    pub fn road_link(&self, query: &Query) -> Option<Cell> {
+        if self.road_link.is_valid() {
+            return Some(*self.road_link.as_ref());
+        }
+
+        // Lazily cache the road link cell on demand:
+        if let Some(road_link) = query.find_nearest_road_link(self.map_cells) {
+            // Cache road link cell:
+            debug_assert!(road_link.is_valid());
+            *self.road_link.as_mut() = road_link;
+
+            // Set underlying tile flag:
+            if let Some(road_link_tile) = Self::find_road_link_tile_for_cell(query, road_link) {
+                road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
             }
+
+            return Some(road_link);
+        }
+
+        None
+    }
+
+    pub fn find_road_link_tile<'a>(&self, query: &'a Query) -> Option<&'a mut Tile<'a>> {
+        if let Some(road_link) = self.road_link(query) {
+            return Self::find_road_link_tile_for_cell(query, road_link);
+        }
+        None
+    }
+
+    fn find_road_link_tile_for_cell<'a>(query: &'a Query, road_link: Cell) -> Option<&'a mut Tile<'a>> {
+        query.find_tile_mut(road_link, TileMapLayerKind::Terrain, TileKind::Terrain)
+    }
+
+    fn is_showing_road_link_debug(&self, query: &Query) -> bool {
+        if let Some(road_link_tile) = self.find_road_link_tile(query) {
+            return road_link_tile.has_flags(TileFlags::DrawDebugBounds);
+        }
+        false
+    }
+
+    fn set_show_road_link_debug(&mut self, query: &Query, show: bool) {
+        if let Some(road_link_tile) = self.find_road_link_tile(query) {
+            road_link_tile.set_flags(TileFlags::DrawDebugBounds, show);
         }
     }
 
-    fn is_showing_debug_road_link(&self, query: &Query) -> bool {
-        if let Some(road_link_cell) = self.find_nearest_road_link(query) {
-            if let Some(road_link_tile) = query.find_tile(road_link_cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
-                return road_link_tile.has_flags(TileFlags::DrawDebugInfoAlt);
+    fn update_road_link(&mut self, query: &Query) {
+        if let Some(new_road_link) = query.find_nearest_road_link(self.map_cells) {
+            if new_road_link != *self.road_link.as_ref() {
+                debug_assert!(new_road_link.is_valid());
+
+                if self.road_link.is_valid() {
+                    // Clear previous underlying tile flag:
+                    if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell(query, *self.road_link.as_ref()) {
+                        prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
+                    }
+                }
+
+                // Set new underlying tile flag:
+                if let Some(new_road_link_tile) =  Self::find_road_link_tile_for_cell(query, new_road_link) {
+                    new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
+                }
+
+                *self.road_link.as_mut() = new_road_link;
+            }
+        } else {
+            // Building not connected to a road.
+            *self.road_link.as_mut() = Cell::invalid();
+        }
+    }
+
+    fn clear_road_link(&mut self, tile_map: &mut TileMap) {
+        let road_link = self.road_link.as_mut();
+        if road_link.is_valid() {
+            if let Some(road_link_tile) = tile_map.try_tile_from_layer_mut(*road_link, TileMapLayerKind::Terrain) {
+                road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
             }
         }
-        false
+        *road_link = Cell::invalid();
     }
 }
 
@@ -397,7 +503,6 @@ impl BuildingKind {
 #[enum_dispatch]
 #[derive(EnumDiscriminants)]
 #[strum_discriminants(repr(u32), name(BuildingArchetypeKind), derive(Display, EnumCount, EnumIter))]
-#[allow(clippy::enum_variant_names)]
 pub enum BuildingArchetype<'config> {
     ProducerBuilding(ProducerBuilding<'config>),
     StorageBuilding(StorageBuilding<'config>),
@@ -493,6 +598,7 @@ pub struct BuildingContext<'config, 'tile_sets, 'query> {
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
     map_cells: CellRange,
+    road_link: Option<Cell>,
     id: BuildingId,
     pub query: &'query Query<'config, 'tile_sets>,
 }
@@ -501,12 +607,14 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     fn new(kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
            map_cells: CellRange,
+           road_link: Option<Cell>,
            id: BuildingId,
            query: &'query Query<'config, 'tile_sets>) -> Self {
         Self {
             kind,
             archetype_kind,
             map_cells,
+            road_link,
             id,
             query,
         }
@@ -528,9 +636,24 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     #[inline]
     pub fn tile_info(&self) -> BuildingTileInfo {
         BuildingTileInfo {
-            road_link: self.find_nearest_road_link().unwrap_or_default(),
+            road_link: self.road_link.unwrap_or_default(), // We may or may not be connected to a road.
             base_cell: self.base_cell(),
         }
+    }
+
+    #[inline]
+    pub fn is_linked_to_road(&self) -> bool {
+        self.road_link.is_some()
+    }
+
+    #[inline]
+    pub fn debug_name(&self) -> &str {
+        if cfg!(debug_assertions) {
+            if let Some(building) = self.query.world().find_building(self.kind, self.id) {
+                return building.name();
+            }
+        }
+        "<unavailable>"
     }
 
     #[inline]
@@ -551,11 +674,6 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     }
 
     #[inline]
-    fn find_nearest_road_link(&self) -> Option<Cell> {
-        self.query.find_nearest_road_link(self.map_cells)
-    }
-
-    #[inline]
     fn has_access_to_service(&self, service_kind: BuildingKind) -> bool {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
         let config = self.query.building_configs().find_service_config(service_kind);
@@ -570,16 +688,6 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
             let rand_variation_index = self.query.random_range(0..variation_count);
             tile.set_variation_index(rand_variation_index);
         }
-    }
-
-    #[inline]
-    pub fn debug_name(&self) -> &str {
-        if cfg!(debug_assertions) {
-            if let Some(building) = self.query.world().find_building(self.kind, self.id) {
-                return building.name();
-            }
-        }
-        "<unavailable>"
     }
 
     // TODO: Deprecate.

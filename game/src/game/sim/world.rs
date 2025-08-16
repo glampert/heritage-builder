@@ -195,6 +195,8 @@ impl<'config> World<'config> {
         debug_assert!(list_index == building.id().index());
 
         // Remove the building instance:
+        building.removed(tile_map);
+
         buildings.remove_instance_at(list_index).map_err(|err| {
             format!("Failed to remove Building index [{}], cell {}: {}", list_index, tile_base_cell, err)
         })
@@ -221,6 +223,10 @@ impl<'config> World<'config> {
         let buildings = self.buildings_list_mut(archetype_kind);
 
         // Remove the building instance:
+        buildings.try_get_at_mut(list_index)
+            .unwrap()
+            .removed(tile_map);
+
         buildings.remove_instance_at(list_index).map_err(|err| {
             format!("Failed to remove Building index [{}], cell {}: {}", list_index, tile_base_cell, err)
         })
@@ -284,14 +290,14 @@ impl<'config> World<'config> {
     pub fn find_building_by_name(&self, name: &str, kind: BuildingKind) -> Option<&Building<'config>> {
         self.buildings_list(kind.archetype_kind())
             .iter()
-            .find(|building| building.name() == name && building.kind().intersects(kind))
+            .find(|building| building.name() == name && building.is(kind))
     }
 
     #[inline]
     pub fn find_building_by_name_mut(&mut self, name: &str, kind: BuildingKind) -> Option<&mut Building<'config>> {
         self.buildings_list_mut(kind.archetype_kind())
             .iter_mut()
-            .find(|building| building.name() == name && building.kind().intersects(kind))
+            .find(|building| building.name() == name && building.is(kind))
     }
 
     #[inline]
@@ -668,12 +674,30 @@ impl<'a, 'config> Iterator for BuildingListIterMut<'a, 'config> {
 }
 
 impl<'config> BuildingList<'config> {
-    #[inline]
-    pub fn new(archetype_kind: BuildingArchetypeKind, capacity: usize) -> Self {
+    fn new(archetype_kind: BuildingArchetypeKind, capacity: usize) -> Self {
         Self {
             archetype_kind,
             buildings: Slab::with_capacity(capacity),
         }
+    }
+
+    fn clear(&mut self) {
+        self.buildings.clear();
+    }
+
+    #[inline]
+    fn add_instance(&mut self, building: Building<'config>) -> (usize, &mut Building<'config>) {
+        debug_assert!(building.archetype_kind() == self.archetype_kind);
+        let list_index = self.buildings.insert(building);
+        (list_index, &mut self.buildings[list_index])
+    }
+
+    #[inline]
+    fn remove_instance_at(&mut self, list_index: usize) -> Result<(), String> {
+        if self.buildings.try_remove(list_index).is_none() {
+            return Err(format!("BuildingList slot [{}] is already vacant!", list_index));
+        }
+        Ok(())
     }
 
     #[inline]
@@ -684,11 +708,6 @@ impl<'config> BuildingList<'config> {
     #[inline]
     pub fn iter_mut(&mut self) -> BuildingListIterMut<'_, 'config> {
         BuildingListIterMut { inner: self.buildings.iter_mut() }
-    }
-
-    #[inline]
-    pub fn clear(&mut self) {
-        self.buildings.clear();
     }
 
     #[inline]
@@ -719,38 +738,23 @@ impl<'config> BuildingList<'config> {
     pub fn try_get_at_mut(&mut self, index: usize) -> Option<&mut Building<'config>> {
         self.buildings.get_mut(index)
     }
-
-    #[inline]
-    pub fn add_instance(&mut self, building: Building<'config>) -> (usize, &mut Building<'config>) {
-        debug_assert!(building.archetype_kind() == self.archetype_kind);
-        let list_index = self.buildings.insert(building);
-        (list_index, &mut self.buildings[list_index])
-    }
-
-    #[inline]
-    pub fn remove_instance_at(&mut self, list_index: usize) -> Result<(), String> {
-        if self.buildings.try_remove(list_index).is_none() {
-            return Err(format!("BuildingList slot [{}] is already vacant!", list_index));
-        }
-        Ok(())
-    }
 }
 
 // ----------------------------------------------
 // UnitSpawnPool
 // ----------------------------------------------
 
-pub struct UnitSpawnPool<'config> {
+struct UnitSpawnPool<'config> {
     pool: Vec<Unit<'config>>,
     is_spawned_flags: BitVec,
 }
 
-pub struct UnitSpawnPoolIter<'a, 'config> {
+struct UnitSpawnPoolIter<'a, 'config> {
     entries: iter::Enumerate<slice::Iter<'a, Unit<'config>>>,
     is_spawned_flags: &'a BitVec,
 }
 
-pub struct UnitSpawnPoolIterMut<'a, 'config> {
+struct UnitSpawnPoolIterMut<'a, 'config> {
     entries: iter::Enumerate<slice::IterMut<'a, Unit<'config>>>,
     is_spawned_flags: &'a BitVec,
 }
@@ -784,8 +788,7 @@ impl<'a, 'config> Iterator for UnitSpawnPoolIterMut<'a, 'config> {
 }
 
 impl<'config> UnitSpawnPool<'config> {
-    #[inline]
-    pub fn new(capacity: usize) -> Self {
+    fn new(capacity: usize) -> Self {
         let despawned_unit = Unit::default();
         Self {
             pool: vec![despawned_unit; capacity],
@@ -793,29 +796,7 @@ impl<'config> UnitSpawnPool<'config> {
         }
     }
 
-    #[inline]
-    pub fn is_valid(&self) -> bool {
-        self.pool.len() == self.is_spawned_flags.len()
-    }
-
-    #[inline]
-    pub fn iter(&self) -> UnitSpawnPoolIter<'_, 'config> {
-        UnitSpawnPoolIter {
-            entries: self.pool.iter().enumerate(),
-            is_spawned_flags: &self.is_spawned_flags,
-        }
-    }
-
-    #[inline]
-    pub fn iter_mut(&mut self) -> UnitSpawnPoolIterMut<'_, 'config> {
-        UnitSpawnPoolIterMut {
-            entries: self.pool.iter_mut().enumerate(),
-            is_spawned_flags: &self.is_spawned_flags,
-        }
-    }
-
-    #[inline]
-    pub fn clear(&mut self, task_manager: &mut UnitTaskManager) {
+    fn clear(&mut self, task_manager: &mut UnitTaskManager) {
         debug_assert!(self.is_valid());
 
         for unit in self.iter_mut() {
@@ -826,8 +807,75 @@ impl<'config> UnitSpawnPool<'config> {
         self.is_spawned_flags.fill(false);
     }
 
+    fn spawn_instance(&mut self, tile: &mut Tile, config: &'config UnitConfig, generation: u32) -> &mut Unit<'config> {
+        debug_assert!(self.is_valid());
+
+        // Try find a free slot to reuse:
+        if let Some(recycled_pool_index) = self.is_spawned_flags.first_zero() {
+            let recycled_unit = &mut self.pool[recycled_pool_index];
+            debug_assert!(!recycled_unit.is_spawned());
+            recycled_unit.spawned(tile, config, UnitId::new(generation, recycled_pool_index));
+            self.is_spawned_flags.set(recycled_pool_index, true);
+            return recycled_unit;
+        }
+
+        // Need to instantiate a new one.
+        let new_pool_index = self.pool.len();
+        self.pool.push(Unit::new(tile, config, UnitId::new(generation, new_pool_index)));
+        self.is_spawned_flags.push(true);
+        &mut self.pool[new_pool_index]
+    }
+
+    fn despawn_instance(&mut self, task_manager: &mut UnitTaskManager, unit: &mut Unit) {
+        debug_assert!(self.is_valid());
+        debug_assert!(unit.is_spawned());
+
+        let pool_index = unit.id().index();
+        debug_assert!(self.is_spawned_flags[pool_index]);
+        debug_assert!(std::ptr::eq(&self.pool[pool_index], unit)); // Ensure addresses are the same.
+
+        unit.despawned(task_manager);
+        self.is_spawned_flags.set(pool_index, false);
+    }
+
+    fn despawn_by_id(&mut self, task_manager: &mut UnitTaskManager, unit_id: UnitId) {
+        debug_assert!(self.is_valid());
+        debug_assert!(unit_id.is_valid());
+
+        let pool_index = unit_id.index();
+        debug_assert!(self.is_spawned_flags[pool_index]);
+
+        let unit = &mut self.pool[pool_index];
+        debug_assert!(unit.is_spawned());
+        debug_assert!(unit.id() == unit_id);
+
+        unit.despawned(task_manager);
+        self.is_spawned_flags.set(pool_index, false);
+    }
+
     #[inline]
-    pub fn try_get(&self, id: UnitId) -> Option<&Unit<'config>> {
+    fn is_valid(&self) -> bool {
+        self.pool.len() == self.is_spawned_flags.len()
+    }
+
+    #[inline]
+    fn iter(&self) -> UnitSpawnPoolIter<'_, 'config> {
+        UnitSpawnPoolIter {
+            entries: self.pool.iter().enumerate(),
+            is_spawned_flags: &self.is_spawned_flags,
+        }
+    }
+
+    #[inline]
+    fn iter_mut(&mut self) -> UnitSpawnPoolIterMut<'_, 'config> {
+        UnitSpawnPoolIterMut {
+            entries: self.pool.iter_mut().enumerate(),
+            is_spawned_flags: &self.is_spawned_flags,
+        }
+    }
+
+    #[inline]
+    fn try_get(&self, id: UnitId) -> Option<&Unit<'config>> {
         debug_assert!(self.is_valid());
         debug_assert!(id.is_valid());
 
@@ -847,7 +895,7 @@ impl<'config> UnitSpawnPool<'config> {
     }
 
     #[inline]
-    pub fn try_get_mut(&mut self, id: UnitId) -> Option<&mut Unit<'config>> {
+    fn try_get_mut(&mut self, id: UnitId) -> Option<&mut Unit<'config>> {
         debug_assert!(self.is_valid());
         debug_assert!(id.is_valid());
 
@@ -864,51 +912,5 @@ impl<'config> UnitSpawnPool<'config> {
         }
 
         Some(unit)
-    }
-
-    pub fn spawn_instance(&mut self, tile: &mut Tile, config: &'config UnitConfig, generation: u32) -> &mut Unit<'config> {
-        debug_assert!(self.is_valid());
-
-        // Try find a free slot to reuse:
-        if let Some(recycled_pool_index) = self.is_spawned_flags.first_zero() {
-            let recycled_unit = &mut self.pool[recycled_pool_index];
-            debug_assert!(!recycled_unit.is_spawned());
-            recycled_unit.spawned(tile, config, UnitId::new(generation, recycled_pool_index));
-            self.is_spawned_flags.set(recycled_pool_index, true);
-            return recycled_unit;
-        }
-
-        // Need to instantiate a new one.
-        let new_pool_index = self.pool.len();
-        self.pool.push(Unit::new(tile, config, UnitId::new(generation, new_pool_index)));
-        self.is_spawned_flags.push(true);
-        &mut self.pool[new_pool_index]
-    }
-
-    pub fn despawn_instance(&mut self, task_manager: &mut UnitTaskManager, unit: &mut Unit) {
-        debug_assert!(self.is_valid());
-        debug_assert!(unit.is_spawned());
-
-        let pool_index = unit.id().index();
-        debug_assert!(self.is_spawned_flags[pool_index]);
-        debug_assert!(std::ptr::eq(&self.pool[pool_index], unit)); // Ensure addresses are the same.
-
-        unit.despawned(task_manager);
-        self.is_spawned_flags.set(pool_index, false);
-    }
-
-    pub fn despawn_by_id(&mut self, task_manager: &mut UnitTaskManager, unit_id: UnitId) {
-        debug_assert!(self.is_valid());
-        debug_assert!(unit_id.is_valid());
-
-        let pool_index = unit_id.index();
-        debug_assert!(self.is_spawned_flags[pool_index]);
-
-        let unit = &mut self.pool[pool_index];
-        debug_assert!(unit.is_spawned());
-        debug_assert!(unit.id() == unit_id);
-
-        unit.despawned(task_manager);
-        self.is_spawned_flags.set(pool_index, false);
     }
 }

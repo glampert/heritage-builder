@@ -6,7 +6,7 @@
             "tile_defs": [
                 {
                     "name": "dirt",
-                    "path_kind": "Ground",
+                    "path_kind": "Dirt",
                     "draw_size": {
                         "width": 67,
                         "height": 36
@@ -27,7 +27,7 @@
                 },
                 {
                     "name": "grass",
-                    "path_kind": "Ground",
+                    "path_kind": "Dirt",
                     "draw_size": {
                         "width": 69,
                         "height": 38

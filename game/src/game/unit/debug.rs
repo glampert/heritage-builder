@@ -3,7 +3,8 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     debug::{self as debug_utils},
-    tile::TileMapLayerKind,
+    tile::{TileMapLayerKind, TileKind, TileFlags},
+    pathfind::{Path, NodeKind as PathNodeKind},
     imgui_ui::{
         self,
         UiSystem,
@@ -19,6 +20,7 @@ use crate::{
     },
     game::{
         building::{
+            Building,
             BuildingKind,
             BuildingKindAndId,
             BuildingTileInfo
@@ -195,7 +197,7 @@ impl Unit<'_> {
         if ui.button("Give Deliver Resources Task") {
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
-                let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
+                let start_cell = building.road_link(query).unwrap_or_default();
                 if self.teleport(query.tile_map(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskDeliverToStorage {
@@ -228,7 +230,7 @@ impl Unit<'_> {
                 let resources_to_fetch = ShoppingList::from(
                     [StockItem { kind: ResourceKind::random(&mut rng), count: rng.random_range(1..5) }; RESOURCE_KIND_COUNT]
                 );
-                let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
+                let start_cell = building.road_link(query).unwrap_or_default();
                 if self.teleport(query.tile_map(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskFetchFromStorage {
@@ -273,7 +275,7 @@ impl Unit<'_> {
             if ui.button("Give Patrol Task") {
                 // We need a building to own the task, so this assumes there's at least one of these placed on the map.
                 if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
-                    let start_cell = building.find_nearest_road_link(query).unwrap_or_default();
+                    let start_cell = building.road_link(query).unwrap_or_default();
                     if self.teleport(query.tile_map(), start_cell) {
                         let completion_task = task_manager.new_task(UnitTaskDespawn);
                         let task = task_manager.new_task(UnitTaskRandomizedPatrol {
@@ -312,6 +314,36 @@ impl Unit<'_> {
 
         if ui.button("Force Despawn Immediately") {
             query.despawn_unit(self);
+        }
+
+        ui.separator();
+        ui.text("Path Finding:");
+
+        if ui.button("Path To Nearest Building") {
+            let start = self.cell();
+
+            // WIP
+            let visit_building = |building: &Building, path: &Path| -> bool {
+                debug_assert!(building.is(BuildingKind::Market));
+
+                // TODO: could pass distance from start to avoid recomputing it!
+                println!("BUILDING FOUND: {} - path len: {}", building.name(), path.len());
+
+                for node in path {
+                    if let Some(tile) = query.find_tile_mut(node.cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
+                        tile.set_flags(TileFlags::Highlighted, true);
+                    }
+                }
+
+                self.follow_path(Some(path));
+                false // done
+            };
+
+            query.find_nearest_buildings(start,
+                                         BuildingKind::Market,
+                                         PathNodeKind::Road,
+                                         50,
+                                         visit_building);
         }
     }
 }

@@ -1,3 +1,6 @@
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::nonminimal_bool)]
+
 use arrayvec::ArrayVec;
 use bitflags::bitflags;
 use serde::Deserialize;
@@ -9,7 +12,7 @@ use crate::{
     bitflags_with_display,
     utils::{
         Size,
-        coords::Cell
+        coords::{Cell, CellRange}
     },
     tile::{
         TileKind,
@@ -34,9 +37,10 @@ mod tests;
 bitflags_with_display! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
     pub struct NodeKind: u8 {
-        const Ground = 1 << 0;
-        const Road   = 1 << 1;
-        const Water  = 1 << 2;
+        const Dirt     = 1 << 0;
+        const Road     = 1 << 1;
+        const Water    = 1 << 2;
+        const Building = 1 << 3;
     }
 }
 
@@ -203,19 +207,26 @@ impl Graph {
         }
 
         // Construct our search graph from the terrain tiles.
-        // Any building or prop is considered non-traversable
-        // and is not added to the graph.
+        // Any building or prop is considered non-traversable.
+        // Building tiles are handled specially since we need
+        // then for building searches.
         tile_map.for_each_tile(TileMapLayerKind::Terrain, TileKind::Terrain,
             |tile| {
                 let node = Node::new(tile.base_cell());
                 let blocker_kinds =
-                    TileKind::Blocker  |
                     TileKind::Building |
+                    TileKind::Blocker  |
                     TileKind::Prop     |
                     TileKind::Vegetation;
 
-                // If there's no building/prop over this cell, set it's path kind.
-                if !tile_map.has_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds) {
+                if let Some(tile) = tile_map.find_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds) {
+                    if tile.is(TileKind::Building | TileKind::Blocker) {
+                        // Buildings have a node kind for building searches, but they are not traversable.
+                        self.grid[node] = NodeKind::Building;
+                    }
+                    // Else leave it empty.
+                } else {
+                    // If there's no blocker over this cell, set its path kind.
                     let path_kind = tile.tile_def().path_kind;
                     self.grid[node] = path_kind;
                 }
@@ -349,7 +360,7 @@ pub trait PathFilter {
     // If not paths are accepted, PathFilter::choose will be called at the end to
     // optionally choose a fallback.
     #[inline]
-    fn accepts(&mut self, _index: usize, _path: &Path) -> bool {
+    fn accepts(&mut self, _index: usize, _path: &Path, _goal: &Node) -> bool {
         true // accept all.
     }
 
@@ -571,7 +582,6 @@ impl Search {
 
     // Searches for all paths leading to the goal.
     // Returns the first path which PathFilter accepts.
-    #[allow(clippy::too_many_arguments)]
     pub fn find_paths<Filter>(&mut self,
                               graph: &Graph,
                               heuristic: &impl Heuristic,
@@ -599,7 +609,7 @@ impl Search {
             // Found a viable path.
             if current == goal {
                 let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, goal);
-                if valid_path && path_filter.accepts(paths_found, &self.path) {
+                if valid_path && path_filter.accepts(paths_found, &self.path, &goal) {
                     // Filter accepted this path, we're done.
                     return SearchResult::PathFound(&self.path);
                 }
@@ -647,7 +657,6 @@ impl Search {
     // Path endpoint can be up to start+distance nodes.
     // Waypoint selection can optionally be biased and randomized to
     // produce different paths with the same start and max distance.
-    #[allow(clippy::too_many_arguments)]
     pub fn find_waypoints<Filter>(&mut self,
                                   graph: &Graph,
                                   heuristic: &impl Heuristic,
@@ -717,7 +726,7 @@ impl Search {
 
         for (index, node) in self.possible_waypoints.iter().enumerate() {
             let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, *node);
-            if valid_path && path_filter.accepts(index, &self.path) {
+            if valid_path && path_filter.accepts(index, &self.path, node) {
                 // Filter accepted this path, we're done.
                 return SearchResult::PathFound(&self.path);
             }
@@ -729,6 +738,93 @@ impl Search {
         if Filter::TAKE_FALLBACK_PATH {
             if let Some(node) = path_filter.choose_fallback(&self.possible_waypoints) {
                 return self.reconstruct_path(start, node);
+            }
+        }
+
+        SearchResult::PathNotFound
+    }
+
+    // TODO: WIP
+    pub fn find_buildings<Filter>(&mut self,
+                                  graph: &Graph,
+                                  heuristic: &impl Heuristic,
+                                  bias: &impl Bias,
+                                  path_filter: &mut Filter,
+                                  traversable_node_kinds: NodeKind,
+                                  start: Node,
+                                  max_distance: i32) -> SearchResult
+        where
+            Filter: PathFilter
+    {
+        debug_assert!(!traversable_node_kinds.is_empty());
+        debug_assert!(max_distance > 0);
+
+        if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
+            // Start node is invalid or not traversable!
+            return SearchResult::PathNotFound;
+        }
+
+        self.reset(start);
+
+        let mut paths_found: usize = 0;
+
+        while let Some((current, _)) = self.frontier.pop() {
+            let dist_from_start = current.manhattan_distance(start);
+
+            // Skip if already beyond allowed range.
+            if dist_from_start > max_distance {
+                continue;
+            }
+
+            // Keep track of all reachable nodes within the range.
+            if current != start {
+                let node_kind = graph.node_kind(current).unwrap();
+                if node_kind == NodeKind::Building {
+
+                    // TODO: we actually want to find the building's road link, if traversable_node_kinds == road
+
+                    let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
+
+                    if !self.path.is_empty() {
+                        // End node is the building, which is not traversable.
+                        self.path.pop();
+                    }
+
+                    if valid_path && path_filter.accepts(paths_found, &self.path, &current) {
+                        // Filter accepted this path, we're done.
+                        return SearchResult::PathFound(&self.path);
+                    }
+
+                    paths_found += 1;
+
+                    self.path.clear(); // Else keep going.
+                }
+            }
+
+            // TODO / FIXME: This is not currect, we don't want building nodes to be part of the path...
+            let wanted_neighbor_kinds = NodeKind::Building | traversable_node_kinds;
+
+            let mut neighbors = graph.neighbors(current, wanted_neighbor_kinds);
+            path_filter.shuffle(neighbors.as_mut_slice());
+
+            for neighbor in neighbors {
+                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
+
+                // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper node to explore, we'll visit it.
+                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
+                    self.cost_so_far[neighbor] = new_cost;
+
+                    // Apply optional directional bias:
+                    // If no bias uses only node cost, i.e. Dijkstra's search, no heuristic / explicit goal.
+                    let bias_amount = bias.cost_for(start, neighbor);
+                    let biased_priority = (new_cost as f32) + bias_amount;
+                    let priority = biased_priority.round() as i32;
+
+                    self.frontier.push(neighbor, Reverse(priority));
+
+                    // Remember how we got here so we can backtrack.
+                    self.came_from[neighbor] = current;
+                }
             }
         }
 
@@ -781,4 +877,35 @@ impl Search {
             SearchResult::PathNotFound
         }
     }
+}
+
+// ----------------------------------------------
+// Search Utilities
+// ----------------------------------------------
+
+pub fn find_nearest_road_link(graph: &Graph, start_cells: CellRange) -> Option<Cell> {
+    let start_x = start_cells.start.x - 1;
+    let start_y = start_cells.start.y - 1;
+    let end_x   = start_cells.end.x   + 1;
+    let end_y   = start_cells.end.y   + 1;
+    let expanded_range = CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y));
+
+    for cell in &expanded_range {
+        // Skip diagonal corners.
+        let is_corner =
+            (cell.x == start_x && cell.y == start_y) ||
+            (cell.x == start_x && cell.y == end_y)   ||
+            (cell.x == end_x   && cell.y == start_y) ||
+            (cell.x == end_x   && cell.y == end_y);
+
+        if !is_corner {
+            if let Some(node_kind) = graph.node_kind(Node::new(cell)) {
+                if node_kind == NodeKind::Road {
+                    return Some(cell);
+                }
+            }
+        }
+    }
+
+    None
 }

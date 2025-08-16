@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)] // cast to Tile<'_> is needed to then cast away lifetime as 'static.
+
 use bitflags::bitflags;
 use smallvec::SmallVec;
 
@@ -426,7 +428,6 @@ impl TileDrawListEntry {
     #[inline]
     fn new(tile: &Tile) -> Self {
         // Strip away lifetime (pretend it is static).
-        #[allow(clippy::unnecessary_cast)] // cast to Tile<'_> is needed to then cast away lifetime as 'static.
         let tile_ptr = tile as *const Tile<'_> as *const Tile<'static>;
         Self {
             tile_ref: UnsafeWeakRef::from_ptr(tile_ptr),

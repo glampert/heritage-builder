@@ -1,15 +1,20 @@
+#![allow(clippy::too_many_arguments)]
+
 use rand::{distr::uniform::{SampleRange, SampleUniform}, Rng, SeedableRng};
 use rand_pcg::Pcg64;
 
 use crate::{
     imgui_ui::UiSystem,
     pathfind::{
+        self,
         Node,
         NodeKind as PathNodeKind,
         Graph,
         Search,
         SearchResult,
+        Path,
         Bias,
+        Unbiased,
         PathFilter,
         AStarUniformCostHeuristic
     },
@@ -321,7 +326,6 @@ pub struct Query<'config, 'tile_sets> {
 }
 
 impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
-    #[allow(clippy::too_many_arguments)]
     fn new(rng: &mut RandomGenerator,
            graph: &mut Graph,
            search: &mut Search,
@@ -344,17 +348,6 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             unit_configs,
             delta_time_secs,
         }
-    }
-
-    #[inline]
-    fn calc_search_radius(start_cells: CellRange, radius_in_cells: i32) -> CellRange {
-        debug_assert!(start_cells.is_valid());
-        debug_assert!(radius_in_cells > 0);
-        let start_x = start_cells.start.x - radius_in_cells;
-        let start_y = start_cells.start.y - radius_in_cells;
-        let end_x   = start_cells.end.x   + radius_in_cells;
-        let end_y   = start_cells.end.y   + radius_in_cells;
-        CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))
     }
 
     #[inline(always)]
@@ -446,8 +439,21 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         self.tile_map().find_tile_mut(cell, layer, tile_kinds)
     }
 
+    // ----------------------
+    // World Searches:
+    // ----------------------
+
     #[inline]
-    pub fn find_path(&self, traversable_node_kinds: PathNodeKind, start: Cell, goal: Cell) -> SearchResult {
+    pub fn find_nearest_road_link(&self, start_cells: CellRange) -> Option<Cell> {
+        pathfind::find_nearest_road_link(self.graph(), start_cells)
+    }
+
+    #[inline]
+    pub fn find_path(&self,
+                     traversable_node_kinds: PathNodeKind,
+                     start: Cell,
+                     goal: Cell) -> SearchResult {
+
         self.search().find_path(self.graph(),
                                 &AStarUniformCostHeuristic::new(),
                                 traversable_node_kinds,
@@ -493,34 +499,75 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                      max_distance)
     }
 
-    pub fn find_nearest_road_link(&self, start_cells: CellRange) -> Option<Cell> {
-        let start_x = start_cells.start.x - 1;
-        let start_y = start_cells.start.y - 1;
-        let end_x   = start_cells.end.x   + 1;
-        let end_y   = start_cells.end.y   + 1;
-        let expanded_range = CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y));
+    pub fn find_nearest_buildings<F>(&self,
+                                     start: Cell,
+                                     building_kinds: BuildingKind,
+                                     traversable_node_kinds: PathNodeKind,
+                                     max_distance: i32,
+                                     visitor_fn: F)
+        where
+            F: FnMut(&Building, &Path) -> bool
+    {
+        debug_assert!(start.is_valid());
+        debug_assert!(!building_kinds.is_empty());
+        debug_assert!(!traversable_node_kinds.is_empty());
+        debug_assert!(max_distance > 0);
 
-        for cell in &expanded_range {
-            // Skip diagonal corners.
-            #[allow(clippy::nonminimal_bool)] // Current code is more verbose but simple. Ignore this lint.
-            let is_corner =
-                (cell.x == start_x && cell.y == start_y) ||
-                (cell.x == start_x && cell.y == end_y)   ||
-                (cell.x == end_x   && cell.y == start_y) ||
-                (cell.x == end_x   && cell.y == end_y);
+        struct BuildingPathFilter<'a, F> {
+            world: &'a World<'a>,
+            tile_map: &'a TileMap<'a>,
+            building_kinds: BuildingKind,
+            visitor_fn: F,
+        }
 
-            if !is_corner {
-                if let Some(node_kind) = self.graph().node_kind(Node::new(cell)) {
-                    if node_kind == PathNodeKind::Road {
-                        return Some(cell);
+        impl<F> PathFilter for BuildingPathFilter<'_, F>
+            where
+                F: FnMut(&Building, &Path) -> bool
+        {
+            fn accepts(&mut self, _index: usize, path: &Path, goal: &Node) -> bool {
+                if let Some(building) = self.world.find_building_for_cell(goal.cell, self.tile_map) {
+                    if building.is(self.building_kinds) && !(self.visitor_fn)(building, path) {
+                        // Accept this path/goal pair and stop searching.
+                        return true;
                     }
                 }
+                // Refuse path/goal pair and continue searching.
+                false
             }
         }
 
-        None
+        let mut building_filter = BuildingPathFilter {
+            world: self.world(),
+            tile_map: self.tile_map(),
+            building_kinds,
+            visitor_fn
+        };
+
+        self.search().find_buildings(self.graph(),
+                                     &AStarUniformCostHeuristic::new(),
+                                     &Unbiased::new(),
+                                     &mut building_filter,
+                                     traversable_node_kinds,
+                                     Node::new(start),
+                                     max_distance);
     }
 
+    // Iterates *all* buildings of a kind in the world, in unspecified order.
+    // Visitor function should return true to continue iterating or false to stop.
+    // `building_kinds` can be a combination of ORed BuildingKind flags.
+    pub fn for_each_building<F>(&self, building_kinds: BuildingKind, mut visitor_fn: F)
+        where
+            F: FnMut(&Building<'config>) -> bool
+    {
+        let buildings = self.world().buildings_list(building_kinds.archetype_kind());
+        for building in buildings.iter() {
+            if building.is(building_kinds) && !visitor_fn(building) {
+                break;
+            }
+        }
+    }
+
+    // TODO: Deprecate. Replace with find_nearest_buildings.
     pub fn is_near_building(&self,
                             start_cells: CellRange,
                             kind: BuildingKind,
@@ -546,6 +593,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         false
     }
 
+    // TODO: Deprecate. Replace with find_nearest_buildings.
     pub fn find_nearest_building(&self,
                                  start_cells: CellRange,
                                  kind: BuildingKind,
@@ -573,17 +621,16 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         None
     }
 
-    // Visitor function should return true to continue iterating or false to stop.
-    // `building_kinds` can be a combination of ORed BuildingKind flags.
-    pub fn for_each_building<F>(&self, building_kinds: BuildingKind, mut visitor_fn: F)
-        where F: FnMut(&Building<'config>) -> bool
-    {
-        let buildings = self.world().buildings_list(building_kinds.archetype_kind());
-        for building in buildings.iter() {
-            if building.kind().intersects(building_kinds) && !visitor_fn(building) {
-                break;
-            }
-        }
+    // TODO: Deprecate.
+    #[inline]
+    fn calc_search_radius(start_cells: CellRange, radius_in_cells: i32) -> CellRange {
+        debug_assert!(start_cells.is_valid());
+        debug_assert!(radius_in_cells > 0);
+        let start_x = start_cells.start.x - radius_in_cells;
+        let start_y = start_cells.start.y - radius_in_cells;
+        let end_x   = start_cells.end.x   + radius_in_cells;
+        let end_y   = start_cells.end.y   + radius_in_cells;
+        CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))
     }
 
     // ----------------------
