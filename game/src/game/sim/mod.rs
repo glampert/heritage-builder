@@ -505,15 +505,14 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                      start: Cell,
                                      building_kinds: BuildingKind,
                                      traversable_node_kinds: PathNodeKind,
-                                     max_distance: i32,
-                                     visitor_fn: F)
+                                     max_distance: Option<i32>,
+                                     visitor_fn: F) -> Option<(&Building, &Path)>
         where
             F: FnMut(&Building, &Path) -> bool
     {
         debug_assert!(start.is_valid());
         debug_assert!(!building_kinds.is_empty());
         debug_assert!(!traversable_node_kinds.is_empty());
-        debug_assert!(max_distance > 0);
 
         struct BuildingPathFilter<'a, F> {
             graph: &'a Graph,
@@ -521,6 +520,8 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             tile_map: &'a TileMap<'a>,
             building_kinds: BuildingKind,
             visitor_fn: F,
+            maybe_building: Option<&'a Building<'a>>, // Search result.
+            maybe_path: Option<UnsafeWeakRef<Path>>,  // Saved for result debug validation.
             visited: SmallVec<[Node; 32]>,
         }
 
@@ -542,11 +543,13 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                 let neighbors = self.graph.neighbors(goal, PathNodeKind::Building);
                 for neighbor in neighbors {
                     if let Some(building) = self.world.find_building_for_cell(neighbor.cell, self.tile_map) {
-                        self.visited.push(neighbor);
                         if building.is(self.building_kinds) && !(self.visitor_fn)(building, path) {
                             // Accept this path/goal pair and stop searching.
+                            self.maybe_building = Some(building);
+                            self.maybe_path = Some(UnsafeWeakRef::new(path));
                             return true;
                         }
+                        self.visited.push(neighbor);
                     }
                 }
 
@@ -561,16 +564,35 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             tile_map: self.tile_map(),
             building_kinds,
             visitor_fn,
+            maybe_building: None,
+            maybe_path: None,
             visited: SmallVec::new()
         };
 
-        self.search().find_buildings(self.graph(),
-                                     &AStarUniformCostHeuristic::new(),
-                                     &Unbiased::new(),
-                                     &mut building_filter,
-                                     traversable_node_kinds,
-                                     Node::new(start),
-                                     max_distance);
+        let result =
+            self.search().find_buildings(self.graph(),
+                                         &AStarUniformCostHeuristic::new(),
+                                         &Unbiased::new(),
+                                         &mut building_filter,
+                                         traversable_node_kinds,
+                                         Node::new(start),
+                                         max_distance.unwrap_or(i32::MAX));
+
+        match result {
+            SearchResult::PathFound(path_found) => {
+                debug_assert!(!path_found.is_empty());
+
+                let building = building_filter.maybe_building
+                    .expect("If we've found a path we should have found a building too!");
+
+                let path = building_filter.maybe_path
+                    .expect("Path should be valid for SearchResult::PathFound!");
+
+                debug_assert!(path.as_ref() == path_found); // Must be the same.
+                Some((building, path_found))
+            },
+            SearchResult::PathNotFound => None,
+        }
     }
 
     // ----------------------

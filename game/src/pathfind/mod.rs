@@ -786,18 +786,21 @@ impl Search {
 
         self.reset(start);
 
-        let wanted_neighbor_kinds = {
+        let (wanted_neighbor_kinds, destination_kinds) = {
             if traversable_node_kinds.intersects(NodeKind::Road) &&
               !traversable_node_kinds.intersects(NodeKind::Dirt) {
                 // Paved road paths only.
-                traversable_node_kinds | NodeKind::BuildingRoadLink
+                (traversable_node_kinds | NodeKind::BuildingRoadLink,
+                 NodeKind::BuildingRoadLink)
             } else if traversable_node_kinds.intersects(NodeKind::Dirt) &&
                      !traversable_node_kinds.intersects(NodeKind::Road) {
                 // Dirt paths only.
-                traversable_node_kinds | NodeKind::BuildingAccess
+                (traversable_node_kinds | NodeKind::BuildingAccess,
+                 NodeKind::BuildingAccess)
             } else if traversable_node_kinds.intersects(NodeKind::Road | NodeKind::Dirt) {
                 // Road or dirt paths accepted.
-                traversable_node_kinds | NodeKind::BuildingRoadLink | NodeKind::BuildingAccess
+                (traversable_node_kinds | NodeKind::BuildingRoadLink | NodeKind::BuildingAccess,
+                 NodeKind::BuildingRoadLink | NodeKind::BuildingAccess)
             } else {
                 panic!("Unsupported traversable node kinds: {}", traversable_node_kinds);
             }
@@ -816,8 +819,8 @@ impl Search {
             if current != start {
                 let current_node_kind = graph.node_kind(current).unwrap();
 
-                // Found a possible building or its road link tile.
-                if current_node_kind.intersects(NodeKind::BuildingRoadLink | NodeKind::BuildingAccess) {
+                // Found a possible building or its road link/access tile.
+                if current_node_kind.intersects(destination_kinds) {
                     let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
                     if valid_path && path_filter.accepts(paths_found, &self.path, current) {
                         // Filter accepted this path, we're done.

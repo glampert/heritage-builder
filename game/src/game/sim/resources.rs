@@ -69,6 +69,30 @@ impl ResourceKind {
             .choose(rng)
             .unwrap_or(ResourceKind::Rice)
     }
+
+    #[inline]
+    pub fn random_food<R: Rng>(rng: &mut R) -> Self {
+        Self::foods()
+            .iter()
+            .choose(rng)
+            .unwrap_or(ResourceKind::Rice)
+    }
+
+    #[inline]
+    pub fn random_consumer_good<R: Rng>(rng: &mut R) -> Self {
+        Self::consumer_goods()
+            .iter()
+            .choose(rng)
+            .unwrap_or(ResourceKind::Wine)
+    }
+
+    #[inline]
+    pub fn random_raw_material<R: Rng>(rng: &mut R) -> Self {
+        Self::raw_materials()
+            .iter()
+            .choose(rng)
+            .unwrap_or(ResourceKind::Wood)
+    }
 }
 
 pub const RESOURCE_KIND_COUNT: usize = ResourceKind::count();

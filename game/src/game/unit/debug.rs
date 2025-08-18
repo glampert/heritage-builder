@@ -1,4 +1,6 @@
+use bitflags::Flags;
 use rand::Rng;
+use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
 
 use crate::{
@@ -191,6 +193,13 @@ impl Unit<'_> {
             self.follow_path(None);
         }
 
+        let teleport_if_needed = |unit: &mut Unit, destination_cell: Cell| {
+            if unit.cell() == destination_cell {
+                return true;
+            }
+            unit.teleport(query.tile_map(), destination_cell)
+        };
+
         ui.separator();
         ui.text("Runner Tasks:");
 
@@ -198,7 +207,7 @@ impl Unit<'_> {
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link(query).unwrap_or_default();
-                if self.teleport(query.tile_map(), start_cell) {
+                if teleport_if_needed(self, start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskDeliverToStorage {
                         origin_building: BuildingKindAndId {
@@ -210,7 +219,7 @@ impl Unit<'_> {
                             base_cell: building.base_cell(),
                         },
                         storage_buildings_accepted: BuildingKind::storage(), // any storage
-                        resource_kind_to_deliver: ResourceKind::random(&mut rand::rng()),
+                        resource_kind_to_deliver: ResourceKind::random_food(&mut rand::rng()),
                         resource_count: 1,
                         completion_callback: Some(|_, _, _| {
                             println!("Deliver Resources Task Completed.");
@@ -231,7 +240,7 @@ impl Unit<'_> {
                     [StockItem { kind: ResourceKind::random(&mut rng), count: rng.random_range(1..5) }; RESOURCE_KIND_COUNT]
                 );
                 let start_cell = building.road_link(query).unwrap_or_default();
-                if self.teleport(query.tile_map(), start_cell) {
+                if teleport_if_needed(self, start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskFetchFromStorage {
                         origin_building: BuildingKindAndId {
@@ -276,7 +285,7 @@ impl Unit<'_> {
                 // We need a building to own the task, so this assumes there's at least one of these placed on the map.
                 if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                     let start_cell = building.road_link(query).unwrap_or_default();
-                    if self.teleport(query.tile_map(), start_cell) {
+                    if teleport_if_needed(self, start_cell) {
                         let completion_task = task_manager.new_task(UnitTaskDespawn);
                         let task = task_manager.new_task(UnitTaskRandomizedPatrol {
                             origin_building: BuildingKindAndId {
@@ -320,15 +329,24 @@ impl Unit<'_> {
         ui.text("Path Finding:");
 
         #[allow(static_mut_refs)]
-        let (use_road_paths, use_dirt_paths, max_distance) = unsafe {
+        let (use_road_paths, use_dirt_paths, max_distance, building_kind) = unsafe {
             // SAFETY: Debug code only called from the main thread (ImGui is inherently single-threaded).
             static mut ROAD_PATHS: bool = true;
             static mut DIRT_PATHS: bool = false;
             static mut MAX_DISTANCE: i32 = 50;
+            static mut BUILDING_KIND_IDX: usize = 0;
+
+            let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
+            for kind in BuildingKind::FLAGS {
+                building_kind_names.push(kind.name());
+            }
+
             ui.checkbox("Road Paths", &mut ROAD_PATHS);
             ui.checkbox("Dirt Paths", &mut DIRT_PATHS);
             ui.input_int("Max Distance", &mut MAX_DISTANCE).step(1).build();
-            (ROAD_PATHS, DIRT_PATHS, MAX_DISTANCE)
+            ui.combo_simple_string("Building Kind", &mut BUILDING_KIND_IDX, &building_kind_names);
+
+            (ROAD_PATHS, DIRT_PATHS, MAX_DISTANCE, *BuildingKind::FLAGS[BUILDING_KIND_IDX].value())
         };
 
         if ui.button("Path To Nearest Building (Market)") {
@@ -348,7 +366,7 @@ impl Unit<'_> {
                     let tile_map = query.tile_map();
 
                     println!("{} '{}' found. Path len: {}", building.kind(), building.name(), path.len());
-                    debug_assert!(building.is(BuildingKind::Market)); // The building we're looking for.
+                    debug_assert!(building.is(building_kind)); // The building we're looking for.
 
                     // Highlight the path to take:
                     pathfind::highlight_path_tiles(tile_map, path);
@@ -362,9 +380,9 @@ impl Unit<'_> {
                 };
 
                 query.find_nearest_buildings(start,
-                                             BuildingKind::Market,
+                                             building_kind,
                                              traversable_node_kinds,
-                                             max_distance,
+                                             Some(max_distance),
                                              visit_building);
             }
         }

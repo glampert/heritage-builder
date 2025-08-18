@@ -3,7 +3,6 @@
 use rand::{seq::SliceRandom, Rng};
 use std::any::Any;
 use slab::Slab;
-use smallvec::SmallVec;
 use strum_macros::Display;
 use enum_dispatch::enum_dispatch;
 
@@ -1144,6 +1143,32 @@ impl PathFindResult<'_> {
     fn not_found(&self) -> bool {
         matches!(self, Self::NotFound)
     }
+
+    fn from_query_result<'search>(query: &'search Query,
+                                  origin_kind: BuildingKind,
+                                  origin_base_cell: Cell,
+                                  result: Option<(&Building, &'search Path)>) -> PathFindResult<'search> {
+        match result {
+            Some((building, path)) => {
+                let destination_road_link = building.road_link(query)
+                    .expect("Building should have a road link tile!");
+
+                debug_assert!(!path.is_empty());
+                debug_assert!(path.last().unwrap().cell == destination_road_link);
+
+                let goal = UnitNavGoal::Building {
+                    origin_kind,
+                    origin_base_cell,
+                    destination_kind: building.kind(),
+                    destination_base_cell: building.base_cell(),
+                    destination_road_link,
+                };
+
+                PathFindResult::Success { path, goal }
+            },
+            None => PathFindResult::NotFound,
+        }
+    }
 }
 
 fn find_delivery_candidate<'search>(query: &'search Query,
@@ -1156,71 +1181,23 @@ fn find_delivery_candidate<'search>(query: &'search Query,
     debug_assert!(!building_kinds_accepted.is_empty());
     debug_assert!(resource_kind_to_deliver.bits().count_ones() == 1); // Only one resource kind at a time.
 
-    struct DeliveryCandidate {
-        kind: BuildingKind,
-        road_link: Cell,
-        base_cell: Cell,
-        distance: i32,
-        receivable_resources: u32,
-    }
-
-    const MAX_CANDIDATES: usize = 4;
-    let mut candidates: SmallVec<[DeliveryCandidate; MAX_CANDIDATES]> = SmallVec::new();
-
-    // Try to find buildings that can accept our delivery.
-    query.world().for_each_building(building_kinds_accepted, |building| {
-        let receivable_resources = building.receivable_resources(resource_kind_to_deliver);
-        if receivable_resources != 0 {
-            if let Some(road_link) = building.road_link(query) {
-                candidates.push(DeliveryCandidate {
-                    kind: building.kind(),
-                    road_link,
-                    base_cell: building.base_cell(),
-                    distance: origin_base_cell.manhattan_distance(road_link),
-                    receivable_resources,
-                });
-                if candidates.len() == MAX_CANDIDATES {
-                    // We've collected enough candidate buildings, stop the search now.
-                    return false;
-                }
+    // Try to find a building that can accept our delivery:
+    let result = query.find_nearest_buildings(
+        origin_base_cell,
+        building_kinds_accepted,
+        PathNodeKind::Road,
+        None,
+        |building, _path| {
+            if building.receivable_resources(resource_kind_to_deliver) != 0 &&
+               building.is_linked_to_road(query) {
+                return false; // Accept this building and end the search.
             }
-        }
-        // Else we couldn't find a single free slot in this building, try again with another one.
-        true
-    });
+            // Else we couldn't find a free slot in this building or it
+            // is not connected to a road. Try again with another one.
+            true
+        });
 
-    if candidates.is_empty() {
-        // Couldn't find any suitable building.
-        return PathFindResult::NotFound;
-    }
-
-    // Sort by closest buildings first. Tie breaker is the number of storage slots available, highest first.
-    candidates.sort_by_key(|candidate| {
-        (candidate.distance, std::cmp::Reverse(candidate.receivable_resources))
-    });
-
-    // Find a road path to the building. Try our best candidates first.
-    for candidate in &candidates {
-        match query.find_path(PathNodeKind::Road, origin_base_cell, candidate.road_link) {
-            SearchResult::PathFound(path) => {
-                let goal = UnitNavGoal::Building {
-                    origin_kind,
-                    origin_base_cell,
-                    destination_kind: candidate.kind,
-                    destination_base_cell: candidate.base_cell,
-                    destination_road_link: candidate.road_link,
-                };
-                return PathFindResult::Success { path, goal };
-            },
-            SearchResult::PathNotFound => {
-                // Building is not reachable (lacks road access?).
-                // Try another candidate.
-                continue;
-            },
-        }
-    }
-
-    PathFindResult::NotFound
+    PathFindResult::from_query_result(query, origin_kind, origin_base_cell, result)
 }
 
 fn find_storage_fetch_candidate<'search>(query: &'search Query,
@@ -1233,69 +1210,21 @@ fn find_storage_fetch_candidate<'search>(query: &'search Query,
     debug_assert!(!storage_buildings_accepted.is_empty());
     debug_assert!(resource_kind_to_fetch.bits().count_ones() == 1); // Only one resource kind at a time.
 
-    struct StorageCandidate {
-        kind: BuildingKind,
-        road_link: Cell,
-        base_cell: Cell,
-        distance: i32,
-        available_resources: u32,
-    }
-
-    const MAX_CANDIDATES: usize = 4;
-    let mut candidates: SmallVec<[StorageCandidate; MAX_CANDIDATES]> = SmallVec::new();
-
-    // Try to find storage buildings that can accept our delivery.
-    query.world().for_each_building(storage_buildings_accepted, |building| {
-        let available_resources = building.available_resources(resource_kind_to_fetch);
-        if available_resources != 0 {
-            if let Some(road_link) = building.road_link(query) {
-                candidates.push(StorageCandidate {
-                    kind: building.kind(),
-                    road_link,
-                    base_cell: building.base_cell(),
-                    distance: origin_base_cell.manhattan_distance(road_link),
-                    available_resources,
-                });
-                if candidates.len() == MAX_CANDIDATES {
-                    // We've collected enough candidate buildings, stop the search now.
-                    return false;
-                }
+    // Try to find a storage building that has the resource we want:
+    let result = query.find_nearest_buildings(
+        origin_base_cell,
+        storage_buildings_accepted,
+        PathNodeKind::Road,
+        None,
+        |building, _path| {
+            if building.available_resources(resource_kind_to_fetch) != 0 &&
+               building.is_linked_to_road(query) {
+                return false; // Accept this building and end the search.
             }
-        }
-        // Else we couldn't find the resource we're looking for in this building, try another one.
-        true
-    });
+            // Else we couldn't find the resource we're looking for in this building
+            // or it is not connected to a road. Try again with another one.
+            true
+        });
 
-    if candidates.is_empty() {
-        // Couldn't find any suitable building.
-        return PathFindResult::NotFound;
-    }
-
-    // Sort by closest buildings first. Tie breaker is the number of resources available, highest first.
-    candidates.sort_by_key(|candidate| {
-        (candidate.distance, std::cmp::Reverse(candidate.available_resources))
-    });
-
-    // Find a road path to the building. Try our best candidates first.
-    for candidate in &candidates {
-        match query.find_path(PathNodeKind::Road, origin_base_cell, candidate.road_link) {
-            SearchResult::PathFound(path) => {
-                let goal = UnitNavGoal::Building {
-                    origin_kind,
-                    origin_base_cell,
-                    destination_kind: candidate.kind,
-                    destination_base_cell: candidate.base_cell,
-                    destination_road_link: candidate.road_link,
-                };
-                return PathFindResult::Success { path, goal };
-            },
-            SearchResult::PathNotFound => {
-                // Building is not reachable (lacks road access?).
-                // Try another candidate.
-                continue;
-            },
-        }
-    }
-
-    PathFindResult::NotFound
+    PathFindResult::from_query_result(query, origin_kind, origin_base_cell, result)
 }
