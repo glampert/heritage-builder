@@ -213,7 +213,7 @@ impl<'task, R: Rng> UnitPatrolWaypointFilter<'task, R> {
 impl<R: Rng> PathFilter for UnitPatrolWaypointFilter<'_, R> {
     const TAKE_FALLBACK_PATH: bool = true;
 
-    fn accepts(&mut self, index: usize, path: &Path, _goal: &Node) -> bool {
+    fn accepts(&mut self, index: usize, path: &Path, _goal: Node) -> bool {
         if self.path_record.history.has_path(path) {
             // We've taken this path recently, reject it.
             return false; 
@@ -281,7 +281,7 @@ impl PathFilter for UnitPatrolReturnPathFilter<'_> {
     const TAKE_FALLBACK_PATH: bool = true;
 
     #[inline]
-    fn accepts(&mut self, _index: usize, path: &Path, _goal: &Node) -> bool {
+    fn accepts(&mut self, _index: usize, path: &Path, _goal: Node) -> bool {
         let path_hash = PathHistory::hash_path_reverse(path);
 
         if self.path_record.history.is_last_path_hash(path_hash) {
@@ -1168,7 +1168,7 @@ fn find_delivery_candidate<'search>(query: &'search Query,
     let mut candidates: SmallVec<[DeliveryCandidate; MAX_CANDIDATES]> = SmallVec::new();
 
     // Try to find buildings that can accept our delivery.
-    query.for_each_building(building_kinds_accepted, |building| {
+    query.world().for_each_building(building_kinds_accepted, |building| {
         let receivable_resources = building.receivable_resources(resource_kind_to_deliver);
         if receivable_resources != 0 {
             if let Some(road_link) = building.road_link(query) {
@@ -1245,7 +1245,7 @@ fn find_storage_fetch_candidate<'search>(query: &'search Query,
     let mut candidates: SmallVec<[StorageCandidate; MAX_CANDIDATES]> = SmallVec::new();
 
     // Try to find storage buildings that can accept our delivery.
-    query.for_each_building(storage_buildings_accepted, |building| {
+    query.world().for_each_building(storage_buildings_accepted, |building| {
         let available_resources = building.available_resources(resource_kind_to_fetch);
         if available_resources != 0 {
             if let Some(road_link) = building.road_link(query) {

@@ -16,6 +16,7 @@ use crate::{
     },
     tile::{
         TileKind,
+        TileFlags,
         TileMap,
         TileMapLayerKind
     }
@@ -37,10 +38,18 @@ mod tests;
 bitflags_with_display! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
     pub struct NodeKind: u8 {
-        const Dirt     = 1 << 0;
-        const Road     = 1 << 1;
-        const Water    = 1 << 2;
-        const Building = 1 << 3;
+        const Dirt             = 1 << 0;
+        const Road             = 1 << 1;
+        const Water            = 1 << 2;
+        const Building         = 1 << 3;
+        const BuildingRoadLink = 1 << 4;
+        const BuildingAccess   = 1 << 5;
+    }
+}
+
+impl Default for NodeKind {
+    fn default() -> Self {
+        NodeKind::Road // Most units will only navigate on roads.
     }
 }
 
@@ -75,7 +84,7 @@ impl Node {
 
     // 4 neighbor cells of this node's cell.
     #[inline]
-    fn neighbors(self) -> [Node; 4] {
+    pub fn neighbors(self) -> [Node; 4] {
         [
             Node::new(Cell::new(self.cell.x + 1, self.cell.y)), // right
             Node::new(Cell::new(self.cell.x - 1, self.cell.y)), // left
@@ -85,7 +94,7 @@ impl Node {
     }
 
     #[inline]
-    fn manhattan_distance(self, other: Node) -> i32 {
+    pub fn manhattan_distance(self, other: Node) -> i32 {
         (self.cell.x - other.cell.x).abs() + (self.cell.y - other.cell.y).abs()
     }
 }
@@ -219,15 +228,24 @@ impl Graph {
                     TileKind::Prop     |
                     TileKind::Vegetation;
 
-                if let Some(tile) = tile_map.find_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds) {
-                    if tile.is(TileKind::Building | TileKind::Blocker) {
+                if let Some(blocker_tile) = tile_map.find_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds) {
+                    if blocker_tile.is(TileKind::Building | TileKind::Blocker) {
                         // Buildings have a node kind for building searches, but they are not traversable.
                         self.grid[node] = NodeKind::Building;
+
+                        for_each_surrounding_cell(blocker_tile.cell_range(), |cell| {
+                            if !tile_map.has_tile(cell, TileMapLayerKind::Objects, blocker_kinds) {
+                                self.grid[Node::new(cell)] |= NodeKind::BuildingAccess;
+                            }
+                        });
                     }
                     // Else leave it empty.
                 } else {
                     // If there's no blocker over this cell, set its path kind.
-                    let path_kind = tile.tile_def().path_kind;
+                    let mut path_kind = tile.tile_def().path_kind;
+                    if tile.has_flags(TileFlags::BuildingRoadLink) {
+                        path_kind |= NodeKind::BuildingRoadLink;
+                    }
                     self.grid[node] = path_kind;
                 }
             });
@@ -254,7 +272,7 @@ impl Graph {
     }
 
     #[inline]
-    fn neighbors(&self, node: Node, wanted_node_kinds: NodeKind) -> ArrayVec<Node, 4> {
+    pub fn neighbors(&self, node: Node, wanted_node_kinds: NodeKind) -> ArrayVec<Node, 4> {
         let mut nodes = ArrayVec::new();
         for neighbor in node.neighbors() {
             if let Some(node_kind) = self.node_kind(neighbor) {
@@ -360,7 +378,7 @@ pub trait PathFilter {
     // If not paths are accepted, PathFilter::choose will be called at the end to
     // optionally choose a fallback.
     #[inline]
-    fn accepts(&mut self, _index: usize, _path: &Path, _goal: &Node) -> bool {
+    fn accepts(&mut self, _index: usize, _path: &Path, _goal: Node) -> bool {
         true // accept all.
     }
 
@@ -609,7 +627,7 @@ impl Search {
             // Found a viable path.
             if current == goal {
                 let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, goal);
-                if valid_path && path_filter.accepts(paths_found, &self.path, &goal) {
+                if valid_path && path_filter.accepts(paths_found, &self.path, goal) {
                     // Filter accepted this path, we're done.
                     return SearchResult::PathFound(&self.path);
                 }
@@ -726,7 +744,7 @@ impl Search {
 
         for (index, node) in self.possible_waypoints.iter().enumerate() {
             let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, *node);
-            if valid_path && path_filter.accepts(index, &self.path, node) {
+            if valid_path && path_filter.accepts(index, &self.path, *node) {
                 // Filter accepted this path, we're done.
                 return SearchResult::PathFound(&self.path);
             }
@@ -744,7 +762,9 @@ impl Search {
         SearchResult::PathNotFound
     }
 
-    // TODO: WIP
+    // Search for buildings within a max distance from a starting node.
+    // Path filter is invoked for each building access tile or building
+    // road link found, depending on the requested traversable node kinds.
     pub fn find_buildings<Filter>(&mut self,
                                   graph: &Graph,
                                   heuristic: &impl Heuristic,
@@ -766,6 +786,23 @@ impl Search {
 
         self.reset(start);
 
+        let wanted_neighbor_kinds = {
+            if traversable_node_kinds.intersects(NodeKind::Road) &&
+              !traversable_node_kinds.intersects(NodeKind::Dirt) {
+                // Paved road paths only.
+                traversable_node_kinds | NodeKind::BuildingRoadLink
+            } else if traversable_node_kinds.intersects(NodeKind::Dirt) &&
+                     !traversable_node_kinds.intersects(NodeKind::Road) {
+                // Dirt paths only.
+                traversable_node_kinds | NodeKind::BuildingAccess
+            } else if traversable_node_kinds.intersects(NodeKind::Road | NodeKind::Dirt) {
+                // Road or dirt paths accepted.
+                traversable_node_kinds | NodeKind::BuildingRoadLink | NodeKind::BuildingAccess
+            } else {
+                panic!("Unsupported traversable node kinds: {}", traversable_node_kinds);
+            }
+        };
+
         let mut paths_found: usize = 0;
 
         while let Some((current, _)) = self.frontier.pop() {
@@ -776,33 +813,21 @@ impl Search {
                 continue;
             }
 
-            // Keep track of all reachable nodes within the range.
             if current != start {
-                let node_kind = graph.node_kind(current).unwrap();
-                if node_kind == NodeKind::Building {
+                let current_node_kind = graph.node_kind(current).unwrap();
 
-                    // TODO: we actually want to find the building's road link, if traversable_node_kinds == road
-
+                // Found a possible building or its road link tile.
+                if current_node_kind.intersects(NodeKind::BuildingRoadLink | NodeKind::BuildingAccess) {
                     let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
-
-                    if !self.path.is_empty() {
-                        // End node is the building, which is not traversable.
-                        self.path.pop();
-                    }
-
-                    if valid_path && path_filter.accepts(paths_found, &self.path, &current) {
+                    if valid_path && path_filter.accepts(paths_found, &self.path, current) {
                         // Filter accepted this path, we're done.
                         return SearchResult::PathFound(&self.path);
                     }
 
                     paths_found += 1;
-
-                    self.path.clear(); // Else keep going.
+                    self.path.clear(); // Else keep searching.
                 }
             }
-
-            // TODO / FIXME: This is not currect, we don't want building nodes to be part of the path...
-            let wanted_neighbor_kinds = NodeKind::Building | traversable_node_kinds;
 
             let mut neighbors = graph.neighbors(current, wanted_neighbor_kinds);
             path_filter.shuffle(neighbors.as_mut_slice());
@@ -898,14 +923,56 @@ pub fn find_nearest_road_link(graph: &Graph, start_cells: CellRange) -> Option<C
             (cell.x == end_x   && cell.y == start_y) ||
             (cell.x == end_x   && cell.y == end_y);
 
-        if !is_corner {
-            if let Some(node_kind) = graph.node_kind(Node::new(cell)) {
-                if node_kind == NodeKind::Road {
-                    return Some(cell);
-                }
+        if is_corner {
+            continue;
+        }
+
+        if let Some(node_kind) = graph.node_kind(Node::new(cell)) {
+            if node_kind.intersects(NodeKind::Road) {
+                return Some(cell);
             }
         }
     }
 
     None
+}
+
+// Visits each cell around the center cell block, skipping the diagonal corners.
+pub fn for_each_surrounding_cell(start_cells: CellRange, mut visitor_fn: impl FnMut(Cell)) {
+    let start_x = start_cells.start.x - 1;
+    let start_y = start_cells.start.y - 1;
+    let end_x   = start_cells.end.x   + 1;
+    let end_y   = start_cells.end.y   + 1;
+    let expanded_range = CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y));
+
+    for cell in &expanded_range {
+        // Skip diagonal corners.
+        let is_corner =
+            (cell.x == start_x && cell.y == start_y) ||
+            (cell.x == start_x && cell.y == end_y)   ||
+            (cell.x == end_x   && cell.y == start_y) ||
+            (cell.x == end_x   && cell.y == end_y);
+
+        if is_corner {
+            continue;
+        }
+
+        visitor_fn(cell);
+    }
+}
+
+pub fn highlight_path_tiles(tile_map: &mut TileMap, path: &Path) {
+    for node in path {
+        if let Some(tile) = tile_map.try_tile_from_layer_mut(node.cell, TileMapLayerKind::Terrain) {
+            tile.set_flags(TileFlags::Highlighted, true);
+        }
+    }
+}
+
+pub fn highlight_building_access_tiles(tile_map: &mut TileMap, start_cells: CellRange) {
+    for_each_surrounding_cell(start_cells, |cell| {
+        if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {
+            tile.set_flags(TileFlags::Invalidated, true);
+        }
+    });
 }

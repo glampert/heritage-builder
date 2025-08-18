@@ -2,6 +2,7 @@
 
 use rand::{distr::uniform::{SampleRange, SampleUniform}, Rng, SeedableRng};
 use rand_pcg::Pcg64;
+use smallvec::SmallVec;
 
 use crate::{
     imgui_ui::UiSystem,
@@ -44,6 +45,7 @@ use super::{
     building::{
         Building,
         BuildingKind,
+        BuildingArchetypeKind,
         config::BuildingConfigs
     }
 };
@@ -514,33 +516,52 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         debug_assert!(max_distance > 0);
 
         struct BuildingPathFilter<'a, F> {
+            graph: &'a Graph,
             world: &'a World<'a>,
             tile_map: &'a TileMap<'a>,
             building_kinds: BuildingKind,
             visitor_fn: F,
+            visited: SmallVec<[Node; 32]>,
         }
 
         impl<F> PathFilter for BuildingPathFilter<'_, F>
             where
                 F: FnMut(&Building, &Path) -> bool
         {
-            fn accepts(&mut self, _index: usize, path: &Path, goal: &Node) -> bool {
-                if let Some(building) = self.world.find_building_for_cell(goal.cell, self.tile_map) {
-                    if building.is(self.building_kinds) && !(self.visitor_fn)(building, path) {
-                        // Accept this path/goal pair and stop searching.
-                        return true;
+            fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {
+                if self.visited.iter().any(|node| *node == goal) {
+                    // Already visited, continue searching.
+                    return false;
+                }
+
+                let node_kind = self.graph.node_kind(goal).unwrap();
+                if !node_kind.intersects(PathNodeKind::BuildingRoadLink | PathNodeKind::BuildingAccess) {
+                    panic!("Unexpected PathNodeKind: {}", node_kind);
+                }
+
+                let neighbors = self.graph.neighbors(goal, PathNodeKind::Building);
+                for neighbor in neighbors {
+                    if let Some(building) = self.world.find_building_for_cell(neighbor.cell, self.tile_map) {
+                        self.visited.push(neighbor);
+                        if building.is(self.building_kinds) && !(self.visitor_fn)(building, path) {
+                            // Accept this path/goal pair and stop searching.
+                            return true;
+                        }
                     }
                 }
+
                 // Refuse path/goal pair and continue searching.
                 false
             }
         }
 
         let mut building_filter = BuildingPathFilter {
+            graph: self.graph(),
             world: self.world(),
             tile_map: self.tile_map(),
             building_kinds,
-            visitor_fn
+            visitor_fn,
+            visited: SmallVec::new()
         };
 
         self.search().find_buildings(self.graph(),
@@ -552,20 +573,32 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                      max_distance);
     }
 
-    // Iterates *all* buildings of a kind in the world, in unspecified order.
-    // Visitor function should return true to continue iterating or false to stop.
-    // `building_kinds` can be a combination of ORed BuildingKind flags.
-    pub fn for_each_building<F>(&self, building_kinds: BuildingKind, mut visitor_fn: F)
-        where
-            F: FnMut(&Building<'config>) -> bool
-    {
-        let buildings = self.world().buildings_list(building_kinds.archetype_kind());
-        for building in buildings.iter() {
-            if building.is(building_kinds) && !visitor_fn(building) {
-                break;
+    // ----------------------
+    // Unit Spawning:
+    // ----------------------
+
+    #[inline]
+    pub fn try_spawn_unit(&self, unit_origin: Cell, unit_config_key: UnitConfigKey) -> Result<&mut Unit<'config>, String> {
+        self.world().try_spawn_unit_with_config(self.tile_map(), self.tile_sets(), unit_origin, unit_config_key)
+    }
+
+    #[inline]
+    pub fn despawn_unit(&self, unit: &mut Unit) {
+        match self.world().despawn_unit(self.tile_map(), self.task_manager(), unit) {
+            Ok(_) => {},
+            Err(err) => {
+                if cfg!(debug_assertions) {
+                    panic!("Despawn Unit Failed: {}", err);
+                } else {
+                    eprintln!("Despawn Unit Failed: {}", err);
+                }
             }
         }
     }
+
+    // ----------------------
+    // DEPRECATED APIs
+    // ----------------------
 
     // TODO: Deprecate. Replace with find_nearest_buildings.
     pub fn is_near_building(&self,
@@ -576,7 +609,6 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         debug_assert!(kind.bits().count_ones() == 1); // No ORed flags.
 
         let search_range = Self::calc_search_radius(start_cells, radius_in_cells);
-
         for search_cell in &search_range {
             if let Some(search_tile) =
                 self.tile_map().find_tile(search_cell, TileMapLayerKind::Objects, TileKind::Building) {
@@ -621,8 +653,23 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         None
     }
 
+    // TODO: Deprecate. Replace with find_nearest_buildings.
+    pub fn find_nearest_service(&self, start_cells: CellRange, service_kind: BuildingKind) -> Option<&mut Building<'config>> {
+        debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
+        let config = self.building_configs().find_service_config(service_kind);
+
+        if let Some(building) =
+            self.find_nearest_building(start_cells, service_kind, config.effect_radius) {
+            if building.archetype_kind() != BuildingArchetypeKind::ServiceBuilding || building.kind() != service_kind {
+                panic!("Building '{}' ({}|{}): Expected archetype to be Service ({service_kind})!",
+                       building.name(), building.archetype_kind(), building.kind());
+            }
+            return Some(building);
+        }
+        None
+    }
+
     // TODO: Deprecate.
-    #[inline]
     fn calc_search_radius(start_cells: CellRange, radius_in_cells: i32) -> CellRange {
         debug_assert!(start_cells.is_valid());
         debug_assert!(radius_in_cells > 0);
@@ -631,28 +678,5 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         let end_x   = start_cells.end.x   + radius_in_cells;
         let end_y   = start_cells.end.y   + radius_in_cells;
         CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))
-    }
-
-    // ----------------------
-    // Unit Spawning:
-    // ----------------------
-
-    #[inline]
-    pub fn try_spawn_unit(&self, unit_origin: Cell, unit_config_key: UnitConfigKey) -> Result<&mut Unit<'config>, String> {
-        self.world().try_spawn_unit_with_config(self.tile_map(), self.tile_sets(), unit_origin, unit_config_key)
-    }
-
-    #[inline]
-    pub fn despawn_unit(&self, unit: &mut Unit) {
-        match self.world().despawn_unit(self.tile_map(), self.task_manager(), unit) {
-            Ok(_) => {},
-            Err(err) => {
-                if cfg!(debug_assertions) {
-                    panic!("Despawn Unit Failed: {}", err);
-                } else {
-                    eprintln!("Despawn Unit Failed: {}", err);
-                }
-            }
-        }
     }
 }

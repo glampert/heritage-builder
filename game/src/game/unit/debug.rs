@@ -3,8 +3,8 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     debug::{self as debug_utils},
-    tile::{TileMapLayerKind, TileKind, TileFlags},
-    pathfind::{Path, NodeKind as PathNodeKind},
+    tile::TileMapLayerKind,
+    pathfind::{self, Path, NodeKind as PathNodeKind},
     imgui_ui::{
         self,
         UiSystem,
@@ -319,31 +319,54 @@ impl Unit<'_> {
         ui.separator();
         ui.text("Path Finding:");
 
-        if ui.button("Path To Nearest Building") {
-            let start = self.cell();
+        #[allow(static_mut_refs)]
+        let (use_road_paths, use_dirt_paths, max_distance) = unsafe {
+            // SAFETY: Debug code only called from the main thread (ImGui is inherently single-threaded).
+            static mut ROAD_PATHS: bool = true;
+            static mut DIRT_PATHS: bool = false;
+            static mut MAX_DISTANCE: i32 = 50;
+            ui.checkbox("Road Paths", &mut ROAD_PATHS);
+            ui.checkbox("Dirt Paths", &mut DIRT_PATHS);
+            ui.input_int("Max Distance", &mut MAX_DISTANCE).step(1).build();
+            (ROAD_PATHS, DIRT_PATHS, MAX_DISTANCE)
+        };
 
-            // WIP
-            let visit_building = |building: &Building, path: &Path| -> bool {
-                debug_assert!(building.is(BuildingKind::Market));
+        if ui.button("Path To Nearest Building (Market)") {
+            let mut traversable_node_kinds = PathNodeKind::empty();
+            if use_road_paths {
+                traversable_node_kinds |= PathNodeKind::Road;
+            }
+            if use_dirt_paths {
+                traversable_node_kinds |= PathNodeKind::Dirt;
+            }
 
-                // TODO: could pass distance from start to avoid recomputing it!
-                println!("BUILDING FOUND: {} - path len: {}", building.name(), path.len());
+            if !traversable_node_kinds.is_empty() {
+                let start = self.cell();
+                self.navigation.set_traversable_node_kinds(traversable_node_kinds);
 
-                for node in path {
-                    if let Some(tile) = query.find_tile_mut(node.cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
-                        tile.set_flags(TileFlags::Highlighted, true);
-                    }
-                }
+                let visit_building = |building: &Building, path: &Path| -> bool {
+                    let tile_map = query.tile_map();
 
-                self.follow_path(Some(path));
-                false // done
-            };
+                    println!("{} '{}' found. Path len: {}", building.kind(), building.name(), path.len());
+                    debug_assert!(building.is(BuildingKind::Market)); // The building we're looking for.
 
-            query.find_nearest_buildings(start,
-                                         BuildingKind::Market,
-                                         PathNodeKind::Road,
-                                         50,
-                                         visit_building);
+                    // Highlight the path to take:
+                    pathfind::highlight_path_tiles(tile_map, path);
+
+                    // Highlight building access tiles and road link:
+                    pathfind::highlight_building_access_tiles(tile_map, building.cell_range());
+                    building.set_show_road_link_debug(query, true);
+
+                    self.follow_path(Some(path));
+                    false // done
+                };
+
+                query.find_nearest_buildings(start,
+                                             BuildingKind::Market,
+                                             traversable_node_kinds,
+                                             max_distance,
+                                             visit_building);
+            }
         }
     }
 }

@@ -133,9 +133,10 @@ pub struct UnitNavigation {
     path: Path,
     path_index: usize,
     progress: f32, // 0.0 to 1.0 for the current segment.
+    direction: UnitDirection,
 
     #[debug_ui(separator)]
-    direction: UnitDirection,
+    traversable_node_kinds: PathNodeKind, // TODO: This should come from UnitConfig.
 
     #[debug_ui(skip)]
     goal: Option<UnitNavGoal>, // (origin_cell, destination_cell) may be different from path start/end.
@@ -180,7 +181,7 @@ impl UnitNavigation {
         let from = self.path[self.path_index];
         let to   = self.path[self.path_index + 1];
 
-        if graph.node_kind(to).is_none_or(|kind| kind != PathNodeKind::Road) {
+        if graph.node_kind(to).is_none_or(|kind| !kind.intersects(self.traversable_node_kinds)) {
             return UnitNavResult::PathBlocked;
         }
 
@@ -223,6 +224,11 @@ impl UnitNavigation {
             // we can reuse the previous allocation of `self.path`.
             self.path.extend(new_path.iter().copied());
         }
+    }
+
+    pub fn set_traversable_node_kinds(&mut self, traversable_node_kinds: PathNodeKind) {
+        debug_assert!(!traversable_node_kinds.is_empty());
+        self.traversable_node_kinds = traversable_node_kinds;
     }
 
     pub fn status(&self) -> UnitNavStatus {

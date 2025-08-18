@@ -272,7 +272,7 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_building_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Building<'config>> {
-        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building) {
+        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building | TileKind::Blocker) {
             return self.find_building_for_tile(tile);
         }
         None
@@ -280,7 +280,7 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_building_for_cell_mut(&mut self, cell: Cell, tile_map: &TileMap) -> Option<&mut Building<'config>> {
-        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building) {
+        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building | TileKind::Blocker) {
             return self.find_building_for_tile_mut(tile);
         }
         None
@@ -300,15 +300,44 @@ impl<'config> World<'config> {
             .find(|building| building.name() == name && building.is(kind))
     }
 
+    // Iterates *all* buildings of a kind in the world, in unspecified order.
+    // Visitor function should return true to continue iterating or false to stop.
+    // `building_kinds` can be a combination of ORed BuildingKind flags.
     #[inline]
-    pub fn buildings_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
+    pub fn for_each_building<F>(&self, building_kinds: BuildingKind, mut visitor_fn: F)
+        where
+            F: FnMut(&Building<'config>) -> bool
+    {
+        let buildings = self.buildings_list(building_kinds.archetype_kind());
+        for building in buildings.iter() {
+            if building.is(building_kinds) && !visitor_fn(building) {
+                break;
+            }
+        }
+    }
+
+    #[inline]
+    pub fn for_each_building_mut<F>(&mut self, building_kinds: BuildingKind, mut visitor_fn: F)
+        where
+            F: FnMut(&mut Building<'config>) -> bool
+    {
+        let buildings = self.buildings_list_mut(building_kinds.archetype_kind());
+        for building in buildings.iter_mut() {
+            if building.is(building_kinds) && !visitor_fn(building) {
+                break;
+            }
+        }
+    }
+
+    #[inline]
+    fn buildings_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
         let buildings = &self.building_lists[archetype_kind as usize];
         debug_assert!(buildings.archetype_kind() == archetype_kind);
         buildings
     }
 
     #[inline]
-    pub fn buildings_list_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
+    fn buildings_list_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
         let buildings = &mut self.building_lists[archetype_kind as usize];
         debug_assert!(buildings.archetype_kind() == archetype_kind);
         buildings
@@ -541,6 +570,30 @@ impl<'config> World<'config> {
             .find(|unit| unit.name() == name)
     }
 
+    #[inline]
+    pub fn for_each_unit<F>(&self, mut visitor_fn: F)
+        where
+            F: FnMut(&Unit<'config>) -> bool
+    {
+        for unit in self.unit_spawn_pool.iter() {
+            if !visitor_fn(unit) {
+                break;
+            }
+        }
+    }
+
+    #[inline]
+    pub fn for_each_unit_mut<F>(&mut self, mut visitor_fn: F)
+        where
+            F: FnMut(&mut Unit<'config>) -> bool
+    {
+        for unit in self.unit_spawn_pool.iter_mut() {
+            if !visitor_fn(unit) {
+                break;
+            }
+        }
+    }
+
     // ----------------------
     // Units debug:
     // ----------------------
@@ -644,16 +697,16 @@ pub type UnitId = GenerationalIndex;
 // BuildingList
 // ----------------------------------------------
 
-pub struct BuildingList<'config> {
+struct BuildingList<'config> {
     archetype_kind: BuildingArchetypeKind,
     buildings: Slab<Building<'config>>, // All share the same archetype.
 }
 
-pub struct BuildingListIter<'a, 'config> {
+struct BuildingListIter<'a, 'config> {
     inner: slab::Iter<'a, Building<'config>>,
 }
 
-pub struct BuildingListIterMut<'a, 'config> {
+struct BuildingListIterMut<'a, 'config> {
     inner: slab::IterMut<'a, Building<'config>>,
 }
 
@@ -701,41 +754,41 @@ impl<'config> BuildingList<'config> {
     }
 
     #[inline]
-    pub fn iter(&self) -> BuildingListIter<'_, 'config> {
+    fn iter(&self) -> BuildingListIter<'_, 'config> {
         BuildingListIter { inner: self.buildings.iter() }
     }
 
     #[inline]
-    pub fn iter_mut(&mut self) -> BuildingListIterMut<'_, 'config> {
+    fn iter_mut(&mut self) -> BuildingListIterMut<'_, 'config> {
         BuildingListIterMut { inner: self.buildings.iter_mut() }
     }
 
     #[inline]
-    pub fn archetype_kind(&self) -> BuildingArchetypeKind {
+    fn archetype_kind(&self) -> BuildingArchetypeKind {
         self.archetype_kind
     }
 
     #[inline]
-    pub fn try_get(&self, id: BuildingId) -> Option<&Building<'config>> {
+    fn try_get(&self, id: BuildingId) -> Option<&Building<'config>> {
         debug_assert!(id.is_valid());
         self.buildings.get(id.index())
             .filter(|building| building.id().generation() == id.generation())
     }
 
     #[inline]
-    pub fn try_get_mut(&mut self, id: BuildingId) -> Option<&mut Building<'config>> {
+    fn try_get_mut(&mut self, id: BuildingId) -> Option<&mut Building<'config>> {
         debug_assert!(id.is_valid());
         self.buildings.get_mut(id.index())
             .filter(|building| building.id().generation() == id.generation()) 
     }
 
     #[inline]
-    pub fn try_get_at(&self, index: usize) -> Option<&Building<'config>> {
+    fn try_get_at(&self, index: usize) -> Option<&Building<'config>> {
         self.buildings.get(index)
     }
 
     #[inline]
-    pub fn try_get_at_mut(&mut self, index: usize) -> Option<&mut Building<'config>> {
+    fn try_get_at_mut(&mut self, index: usize) -> Option<&mut Building<'config>> {
         self.buildings.get_mut(index)
     }
 }

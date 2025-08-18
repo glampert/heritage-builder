@@ -10,6 +10,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     bitflags_with_display,
     imgui_ui::UiSystem,
+    pathfind::{self},
     utils::{
         UnsafeMutable,
         hash::StringHash,
@@ -291,6 +292,10 @@ impl<'config> Building<'config> {
             debug_vars.draw_debug_ui(ui_sys);
             ui.separator();
 
+            if ui.button("Highlight Access Tiles") {
+                pathfind::highlight_building_access_tiles(query.tile_map(), self.map_cells);
+            }
+
             let mut show_road_link = self.is_showing_road_link_debug(query);
             if ui.checkbox("Show Road Link", &mut show_road_link) {
                 self.set_show_road_link_debug(query, show_road_link);
@@ -361,6 +366,19 @@ impl<'config> Building<'config> {
         None
     }
 
+    pub fn is_showing_road_link_debug(&self, query: &Query) -> bool {
+        if let Some(road_link_tile) = self.find_road_link_tile(query) {
+            return road_link_tile.has_flags(TileFlags::DrawDebugBounds);
+        }
+        false
+    }
+
+    pub fn set_show_road_link_debug(&self, query: &Query, show: bool) {
+        if let Some(road_link_tile) = self.find_road_link_tile(query) {
+            road_link_tile.set_flags(TileFlags::DrawDebugBounds, show);
+        }
+    }
+
     pub fn find_road_link_tile<'a>(&self, query: &'a Query) -> Option<&'a mut Tile<'a>> {
         if let Some(road_link) = self.road_link(query) {
             return Self::find_road_link_tile_for_cell(query, road_link);
@@ -370,19 +388,6 @@ impl<'config> Building<'config> {
 
     fn find_road_link_tile_for_cell<'a>(query: &'a Query, road_link: Cell) -> Option<&'a mut Tile<'a>> {
         query.find_tile_mut(road_link, TileMapLayerKind::Terrain, TileKind::Terrain)
-    }
-
-    fn is_showing_road_link_debug(&self, query: &Query) -> bool {
-        if let Some(road_link_tile) = self.find_road_link_tile(query) {
-            return road_link_tile.has_flags(TileFlags::DrawDebugBounds);
-        }
-        false
-    }
-
-    fn set_show_road_link_debug(&mut self, query: &Query, show: bool) {
-        if let Some(road_link_tile) = self.find_road_link_tile(query) {
-            road_link_tile.set_flags(TileFlags::DrawDebugBounds, show);
-        }
     }
 
     fn update_road_link(&mut self, query: &Query) {
@@ -686,21 +691,5 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
             let rand_variation_index = self.query.random_range(0..variation_count);
             tile.set_variation_index(rand_variation_index);
         }
-    }
-
-    // TODO: Deprecate.
-    fn find_nearest_service_mut(&self, service_kind: BuildingKind) -> Option<&mut Building<'config>> {
-        debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
-        let config = self.query.building_configs().find_service_config(service_kind);
-
-        if let Some(building) =
-            self.query.find_nearest_building(self.map_cells, service_kind, config.effect_radius) {
-            if building.archetype_kind() != BuildingArchetypeKind::ServiceBuilding || building.kind() != service_kind {
-                panic!("Building '{}' ({}|{}): Expected archetype to be Service ({service_kind})!",
-                       building.name(), building.archetype_kind(), building.kind());
-            }
-            return Some(building);
-        }
-        None
     }
 }

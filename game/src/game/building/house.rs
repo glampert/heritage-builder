@@ -213,7 +213,7 @@ impl<'config> HouseBuilding<'config> {
 
             // Go shopping:
             if let Some(building) =
-                context.find_nearest_service_mut(BuildingKind::Market) {
+                context.query.find_nearest_service(context.map_cells, BuildingKind::Market) {
 
                 let market = building.as_service_mut();
 

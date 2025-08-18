@@ -26,6 +26,7 @@ use crate::{
         rendering::{TileMapRenderer, TileMapRenderStats, TileMapRenderFlags}
     },
     pathfind::{
+        self,
         Node,
         NodeKind,
         Graph,
@@ -228,11 +229,7 @@ impl DebugMenusSingleton {
                     debug_assert!(!path.is_empty());
 
                     // Highlight path tiles:
-                    for node in path {
-                        if let Some(tile) = args.tile_map.try_tile_from_layer_mut(node.cell, TileMapLayerKind::Terrain) {
-                            tile.set_flags(TileFlags::Highlighted, true);
-                        }
-                    }
+                    pathfind::highlight_path_tiles(args.tile_map, path);
 
                     // Make unit follow path:
                     if let Some(ped) = args.world.find_unit_by_name_mut("Ped") {
