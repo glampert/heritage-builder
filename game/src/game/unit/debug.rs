@@ -272,7 +272,7 @@ impl Unit<'_> {
         unsafe {
             // SAFETY: Debug code only called from the main thread (ImGui is inherently single-threaded).
             static mut PATROL_ROUNDS: i32 = 5;
-            static mut MAX_DISTANCE:  i32 = 10;
+            static mut MAX_DISTANCE:  i32 = 50;
             static mut BIAS_MIN: f32 = 0.1;
             static mut BIAS_MAX: f32 = 0.5;
 
@@ -300,6 +300,7 @@ impl Unit<'_> {
                             path_bias_min: BIAS_MIN,
                             path_bias_max: BIAS_MAX,
                             path_record: UnitPatrolPathRecord::default(),
+                            buildings_to_visit: Some(BuildingKind::House),
                             completion_callback: Some(|_, _, _| {
                                 println!("Patrol Task Round {} Completed.", PATROL_ROUNDS);
                                 PATROL_ROUNDS -= 1;
@@ -344,12 +345,12 @@ impl Unit<'_> {
             ui.checkbox("Road Paths", &mut ROAD_PATHS);
             ui.checkbox("Dirt Paths", &mut DIRT_PATHS);
             ui.input_int("Max Distance", &mut MAX_DISTANCE).step(1).build();
-            ui.combo_simple_string("Building Kind", &mut BUILDING_KIND_IDX, &building_kind_names);
+            ui.combo_simple_string("Dest Building Kind", &mut BUILDING_KIND_IDX, &building_kind_names);
 
             (ROAD_PATHS, DIRT_PATHS, MAX_DISTANCE, *BuildingKind::FLAGS[BUILDING_KIND_IDX].value())
         };
 
-        if ui.button("Path To Nearest Building (Market)") {
+        if ui.button(format!("Path To Nearest Building ({})", building_kind)) {
             let mut traversable_node_kinds = PathNodeKind::empty();
             if use_road_paths {
                 traversable_node_kinds |= PathNodeKind::Road;

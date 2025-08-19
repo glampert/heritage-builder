@@ -258,6 +258,12 @@ impl<R: Rng> PathFilter for UnitPatrolWaypointFilter<'_, R> {
         if let Some(index) = self.preferred_fallback_path_index {
             return Some(nodes[index]);
         }
+
+        // Secondary fallback if we never found a preferred fallback path.
+        if !nodes.is_empty() {
+            return Some(nodes[0]);
+        }
+
         None
     }
 }
@@ -310,6 +316,10 @@ pub struct UnitTaskRandomizedPatrol {
     pub path_bias_min: f32,
     pub path_bias_max: f32,
     pub path_record: UnitPatrolPathRecord,
+
+    // If this is not None, will invoke Building::visited_by() on each
+    // building of these kinds that we may come across while patrolling.
+    pub buildings_to_visit: Option<BuildingKind>,
 
     // Called on the origin building once the unit has completed its patrol and returned.
     // `|origin_building, patrol_unit, query| -> bool`: Returns if the task should complete or retry.
@@ -413,6 +423,33 @@ impl UnitTask for UnitTaskRandomizedPatrol {
             self.try_find_goal(unit, query);
         }
 
+        if let Some(buildings_to_visit) = self.buildings_to_visit {
+            let current_node = Node::new(unit.cell());
+            let graph = query.graph();
+
+            if let Some(node_kind) = graph.node_kind(current_node) {
+                if node_kind.intersects(PathNodeKind::BuildingRoadLink) {
+                    let world = query.world();
+                    let tile_map = query.tile_map();
+                    let neighbors = graph.neighbors(current_node, PathNodeKind::Building);
+
+                    for neighbor in neighbors {
+                        if let Some(building) = world.find_building_for_cell_mut(neighbor.cell, tile_map) {
+                            if building.is(buildings_to_visit) {
+                                // TODO: Buildings have to handle unit visit.
+                                //building.visited_by(unit, query);
+                                // TEMP: Debug logging:
+                                use crate::game::sim::debug::GameObjectDebugOptions;
+                                let debug_msg = format!("Visit Building: {} @ {}", building.name(), building.base_cell());
+                                println!("{debug_msg}");
+                                unit.debug.popup_msg(debug_msg);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if unit.has_reached_goal() {
             UnitTaskState::Completed
         } else {
@@ -466,6 +503,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         ui.text(format!("Current Path Length     : {}", self.path_record.current_length));
         ui.text(format!("Current Path Direction  : {}", self.path_record.current_direction));
         ui.text(format!("Path History Same Axis  : {}", self.path_record.repeated_axis_count));
+        ui.text(format!("Buildings To Visit      : {}", self.buildings_to_visit.unwrap_or(BuildingKind::empty())));
         ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_some()));
         ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
 
