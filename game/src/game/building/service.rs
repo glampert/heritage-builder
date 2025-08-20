@@ -317,6 +317,7 @@ impl<'config> ServiceBuilding<'config> {
             None => return, // We are not connected to a road!
         };
 
+        // Look for houses to visit:
         self.patrol.start_randomized_patrol(
             context,
             unit_origin,

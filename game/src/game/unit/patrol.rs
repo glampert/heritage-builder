@@ -103,18 +103,18 @@ impl Patrol {
     pub fn start_randomized_patrol(&mut self,
                                    context: &BuildingContext,
                                    unit_origin: Cell,
-                                   max_distance: i32,
+                                   max_patrol_distance: i32,
                                    buildings_to_visit: Option<BuildingKind>,
                                    completion_callback: Option<UnitTaskCompletionCallbackWithResult>) -> bool {
 
         debug_assert!(unit_origin.is_valid());
-        debug_assert!(max_distance > 0, "Patrol max distance cannot be zero!");
+        debug_assert!(max_patrol_distance > 0, "Patrol max distance cannot be zero!");
         debug_assert!(!self.is_spawned(), "Patrol Unit already spawned! reset() first.");
 
-        let (path_bias_min, path_bias_max, path_record) = {
-            let state = self.get_or_init_state(max_distance);
+        let (max_distance, path_bias_min, path_bias_max, path_record) = {
+            let state = self.get_or_init_state(max_patrol_distance);
             state.completion_callback = completion_callback;
-            (state.path_bias_min, state.path_bias_max, state.path_record.clone())
+            (state.max_distance, state.path_bias_min, state.path_bias_max, state.path_record.clone())
         };
 
         self.try_spawn_with_task(
