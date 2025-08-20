@@ -45,7 +45,6 @@ use super::{
     building::{
         Building,
         BuildingKind,
-        BuildingArchetypeKind,
         config::BuildingConfigs
     }
 };
@@ -672,22 +671,6 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             }
         }
 
-        None
-    }
-
-    // TODO: Deprecate. Replace with find_nearest_buildings.
-    pub fn find_nearest_service(&self, start_cells: CellRange, service_kind: BuildingKind) -> Option<&mut Building<'config>> {
-        debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
-        let config = self.building_configs().find_service_config(service_kind);
-
-        if let Some(building) =
-            self.find_nearest_building(start_cells, service_kind, config.effect_radius) {
-            if building.archetype_kind() != BuildingArchetypeKind::ServiceBuilding || building.kind() != service_kind {
-                panic!("Building '{}' ({}|{}): Expected archetype to be Service ({service_kind})!",
-                       building.name(), building.archetype_kind(), building.kind());
-            }
-            return Some(building);
-        }
         None
     }
 

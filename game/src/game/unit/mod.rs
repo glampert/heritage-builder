@@ -17,6 +17,7 @@ use crate::{
 };
 
 use super::{
+    building::{Building, BuildingKind},
     sim::{
         Query,
         world::UnitId,
@@ -159,6 +160,27 @@ impl<'config> Unit<'config> {
             return true;
         }
         false
+    }
+
+    #[inline]
+    pub fn patrol_service_building(&self, query: &'config Query) -> Option<&mut Building<'config>> {
+        if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
+            return query.world().find_building_mut(task.origin_building.kind, task.origin_building.id);
+        }
+        None
+    }
+
+    #[inline]
+    pub fn patrol_service_kind(&self, query: &Query) -> Option<BuildingKind> {
+        if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
+            return Some(task.origin_building.kind)
+        }
+        None
+    }
+
+    #[inline]
+    pub fn is_market_patrol(&self, query: &Query) -> bool {
+        self.patrol_service_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
     }
 
     // ----------------------

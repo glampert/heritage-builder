@@ -443,13 +443,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
                     for neighbor in neighbors {
                         if let Some(building) = world.find_building_for_cell_mut(neighbor.cell, tile_map) {
                             if building.is(buildings_to_visit) {
-                                // TODO: Buildings have to handle unit visit.
-                                //building.visited_by(unit, query);
-                                // TEMP: Debug logging:
-                                use crate::game::sim::debug::GameObjectDebugOptions;
-                                let debug_msg = format!("Visit Building: {} @ {}", building.name(), building.base_cell());
-                                println!("{debug_msg}");
-                                unit.debug.popup_msg(debug_msg);
+                                building.visited_by(unit, query);
                             }
                         }
                     }
@@ -805,8 +799,8 @@ impl UnitTask for UnitTaskFetchFromStorage {
             // If we've collected resources from the visited destination
             // we are done and can return to our origin building.
             if let Some(item) = unit.peek_inventory() {
-                debug_assert!(item.count != 0);
-                debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == item.kind));
+                debug_assert!(item.count != 0, "item.kind = {}, item.count = {}", item.kind, item.count);
+                debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == item.kind), "Expected to have item.kind = {}", item.kind);
 
                 if !self.try_return_to_origin(unit, query) {
                     // If we couldn't find a path back to the origin, maybe because the origin building

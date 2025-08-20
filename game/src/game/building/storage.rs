@@ -187,44 +187,6 @@ impl<'config> StorageBuilding<'config> {
             debug: StorageDebug::default(),
         }
     }
-
-    // TODO: Deprecate.
-    pub fn shop(&mut self,
-                shopping_basket: &mut ResourceStock,
-                shopping_list: &ResourceKinds,
-                all_or_nothing: bool) -> ResourceKind {
-
-        if all_or_nothing {
-            for &wanted_resource in shopping_list.iter() {
-                let slot_index = match self.storage_slots.find_resource_slot(wanted_resource) {
-                    Some(slot_index) => slot_index,
-                    None => return ResourceKind::empty(),
-                };
-                // If we have a slot allocated for this resource its count must not be zero.
-                debug_assert!(self.storage_slots.slot_resource_count(slot_index, wanted_resource) != 0);
-            }      
-        }
-
-        let mut kinds_added_to_basked = ResourceKind::empty();
-
-        for &wanted_resource in shopping_list.iter() {
-            let slot_index = match self.storage_slots.find_resource_slot(wanted_resource) {
-                Some(slot_index) => slot_index,
-                None => continue,
-            };
-
-            let prev_count = self.storage_slots.slot_resource_count(slot_index, wanted_resource);
-            let new_count  = self.storage_slots.decrement_slot_resource_count(slot_index, wanted_resource, 1);
-
-            if new_count < prev_count {
-                shopping_basket.add(wanted_resource, 1);
-                kinds_added_to_basked.insert(wanted_resource);
-                self.debug.log_resources_lost(wanted_resource, 1);
-            }
-        }
-
-        kinds_added_to_basked
-    }
 }
 
 // ----------------------------------------------

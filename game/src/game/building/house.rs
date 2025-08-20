@@ -33,6 +33,7 @@ use crate::{
 };
 
 use super::{
+    Building,
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
@@ -122,33 +123,69 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         let delta_time_secs = context.query.delta_time_secs();
 
         // Update house states:
-        if self.stock_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_stock_update() {
-            self.stock_update(context);
+        if self.stock_update_timer.tick(delta_time_secs).should_update() &&
+          !self.debug.freeze_stock_update() {
+            self.stock_update();
         }
 
-        if self.upgrade_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_upgrade_update() {
+        if self.upgrade_update_timer.tick(delta_time_secs).should_update() &&
+          !self.debug.freeze_upgrade_update() {
             self.upgrade_update(context);
         }
     }
 
-    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
-        todo!(); // TODO
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
+        // Shop from market vendor:
+        if unit.is_market_patrol(context.query) && !self.debug.freeze_stock_update() {
+            if let Some(building) = unit.patrol_service_building(context.query) {
+                self.shop_from_market(building, context);
+                self.debug.popup_msg_color(Color::green(), "Visited by market vendor");
+            }
+        }
     }
 
-    fn available_resources(&self, _kind: ResourceKind) -> u32 {
-        todo!(); // TODO
+    fn available_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
+        self.stock.count(kind)
     }
 
-    fn receivable_resources(&self, _kind: ResourceKind) -> u32 {
-        todo!(); // TODO
+    fn receivable_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
+        let mut capacity_left = 0;
+        if let Some((_, item)) = self.stock.find(kind) {
+            // TODO: Implement house stock capacities!
+            capacity_left = u32::MAX - item.count;
+        }
+        capacity_left
     }
 
-    fn receive_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
-        todo!(); // TODO
+    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
+        if count != 0 {
+            let capacity_left = self.receivable_resources(kind);
+            if capacity_left != 0 {
+                let add_count = count.min(capacity_left);
+                self.stock.add(kind, add_count);
+                self.debug.log_resources_gained(kind, add_count);
+                return add_count;
+            }
+        }
+        0
     }
 
-    fn remove_resources(&mut self, _kind: ResourceKind, _count: u32) -> u32 {
-        todo!(); // TODO
+    fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
+        if count != 0 {
+            let available_count = self.available_resources(kind);
+            if available_count != 0 {
+                let remove_count = count.min(available_count);
+                if let Some(removed) = self.stock.remove(kind, remove_count) {
+                    self.debug.log_resources_lost(removed, remove_count);
+                    return remove_count;
+                }
+            }
+        }
+        0
     }
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
@@ -183,72 +220,96 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
+    // ----------------------
+    // Stock Update:
+    // ----------------------
+
+    fn stock_update(&mut self) {
+        // Consume resources from the stock periodically:
+        let curr_level_resources_required =
+            &self.upgrade_state.curr_level_config.resources_required;
+
+        // Consume one of each resources this level uses.
+        curr_level_resources_required.for_each(|resource| {
+            if self.remove_resources(resource, 1) != 0 {
+                // We consumed one, done.
+                // E.g.: resource = Meat|Fish, consume one of either.
+                return false;
+            }
+            true
+        });
+    }
+
+    fn shop_from_market(&mut self, market: &mut Building, context: &BuildingContext) {
+        debug_assert!(market.is(BuildingKind::Market));
+
+        // Shop for resources needed for this level.
+        let current_level_shopping_list =
+            &self.upgrade_state.curr_level_config.resources_required;
+
+        const ALL_OR_NOTHING: bool = false;
+        self.shop(market, current_level_shopping_list, ALL_OR_NOTHING);
+
+        // And if we have space to upgrade, shop for resources needed for the next level, so we can advance.
+        // But only take any if we have the whole shopping list. No point in shopping partially since we
+        // wouldn't be able to upgrade and would wasted those resources.
+        if self.is_upgrade_available(context) {
+            let mut next_level_shopping_list = ResourceKinds::none();
+
+            // We've already shopped for resources in the current level list,
+            // so take only the ones that are exclusive to the next level.
+            for &resource in self.upgrade_state.next_level_config.resources_required.iter() {
+                if !self.stock.has(resource) {
+                    next_level_shopping_list.add(resource);
+                }
+            }
+
+            // Only succeed if we can shop all required items.
+            const ALL_OR_NOTHING: bool = true;
+            self.shop(market, &next_level_shopping_list, ALL_OR_NOTHING);
+        }
+    }
+
+    fn shop(&mut self, market: &mut Building, shopping_list: &ResourceKinds, all_or_nothing: bool) {
+        if all_or_nothing {
+            for wanted_resources in shopping_list.iter() {
+                let mut has_any = false;
+
+                for single_resource in wanted_resources.iter() {
+                    if market.available_resources(single_resource) != 0 {
+                        has_any = true;
+                        break;
+                    }
+                }
+
+                // If any resource is unavailable we take nothing.
+                if !has_any {
+                    return;
+                }
+            }
+        }
+
+        shopping_list.for_each(|resource| {
+            let removed_count = market.remove_resources(resource, 1);
+            self.receive_resources(resource, removed_count);
+            true
+        });
+    }
+
+    // ----------------------
+    // Upgrade Update:
+    // ----------------------
+
+    fn upgrade_update(&mut self, context: &BuildingContext<'config, '_, '_>) {
+        // Attempt to upgrade or downgrade based on services and resources availability.
+        self.upgrade_state.update(context, &self.stock, &mut self.debug);
+    }
+
     fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
         if self.debug.freeze_upgrade_update() {
             return false;
         }
         self.upgrade_state.is_upgrade_available(context)
-    }
-
-    fn stock_update(&mut self, context: &BuildingContext) {
-        // Consume resources from the stock periodically and shop for more as needed.
-
-        let curr_level_resources_required =
-            &self.upgrade_state.curr_level_config.resources_required;
-
-        let next_level_resources_required =
-            &self.upgrade_state.next_level_config.resources_required;
-
-        if !curr_level_resources_required.is_empty() || !next_level_resources_required.is_empty() {
-            // Consume one of each resources this level uses.
-            curr_level_resources_required.for_each(|resource| {
-                if let Some(resource_consumed) = self.stock.remove(resource, 1) {
-                    // We consumed one, done.
-                    // E.g.: resource = Meat|Fish, consume one of either.
-                    self.debug.log_resources_lost(resource_consumed, 1);
-                    return false;
-                }
-                true
-            });
-
-            // Go shopping:
-            if let Some(building) =
-                context.query.find_nearest_service(context.map_cells, BuildingKind::Market) {
-
-                let market = building.as_service_mut();
-
-                // Shop for resources needed for this level.
-                let all_or_nothing = false;
-                let resource_kinds_got =
-                    market.shop(&mut self.stock, curr_level_resources_required, all_or_nothing);
-                self.debug.log_resources_gained(resource_kinds_got, 1);
-
-                // And if we have space to upgrade, shop for resources needed for the next level, so we can advance.
-                // But only take any if we have the whole shopping list. No point in shopping partially since we
-                // wouldn't be able to upgrade and would wasted those resources.
-                if self.is_upgrade_available(context) {
-                    let mut next_level_shopping_list = ResourceKinds::none();
-
-                    // We've already shopped for resources in the current level list,
-                    // so take only the ones that are exclusive to the next level.
-                    for &resources in next_level_resources_required.iter() {
-                        if !self.stock.has(resources) {
-                            next_level_shopping_list.add(resources);
-                        }
-                    }
-
-                    let all_or_nothing = true;
-                    let resource_kinds_got =
-                        market.shop(&mut self.stock, &next_level_shopping_list, all_or_nothing);
-                    self.debug.log_resources_gained(resource_kinds_got, 1);
-                }
-            }
-        }
-    }
-
-    fn upgrade_update(&mut self, context: &BuildingContext<'config, '_, '_>) {
-        // Attempt to upgrade or downgrade based on services and resources availability.
-        self.upgrade_state.update(context, &self.stock, &mut self.debug);
     }
 }
 

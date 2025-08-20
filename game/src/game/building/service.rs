@@ -122,14 +122,17 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     }
 
     fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
-        todo!(); // TODO
+        // TODO: Do we need anything here? Deliveries are handled by the task completion callback...
+        unimplemented!("ServiceBuilding::visited_by() not yet implemented!");
     }
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
         self.stock.count(kind)
     }
 
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
         let mut capacity_left = 0;
         if let Some((_, item)) = self.stock.find(kind) {
             capacity_left = self.stock_capacity - item.count;
@@ -138,17 +141,32 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     }
 
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let capacity_left = self.receivable_resources(kind);
-        let add_count = count.min(capacity_left);
-        self.stock.add(kind, add_count);
-        add_count
+        debug_assert!(kind.bits().count_ones() == 1);
+        if count != 0 {
+            let capacity_left = self.receivable_resources(kind);
+            if capacity_left != 0 {
+                let add_count = count.min(capacity_left);
+                self.stock.add(kind, add_count);
+                self.debug.log_resources_gained(kind, add_count);
+                return add_count;
+            }
+        }
+        0
     }
 
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let available_count = self.available_resources(kind);
-        let remove_count = count.min(available_count);
-        self.stock.remove(kind, remove_count);
-        remove_count
+        debug_assert!(kind.bits().count_ones() == 1);
+        if count != 0 {
+            let available_count = self.available_resources(kind);
+            if available_count != 0 {
+                let remove_count = count.min(available_count);
+                if let Some(removed) = self.stock.remove(kind, remove_count) {
+                    self.debug.log_resources_lost(removed, remove_count);
+                    return remove_count;
+                }
+            }
+        }
+        0
     }
 
     fn active_patrol(&mut self) -> Option<&mut Patrol> {
@@ -194,33 +212,6 @@ impl<'config> ServiceBuilding<'config> {
             patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
             debug: ServiceDebug::default(),
         }
-    }
-
-    // TODO: Deprecate.
-    pub fn shop(&mut self,
-                shopping_basket: &mut ResourceStock,
-                shopping_list: &ResourceKinds,
-                all_or_nothing: bool) -> ResourceKind {
-
-        if all_or_nothing {
-            for wanted_resource in shopping_list.iter() {
-                if !self.stock.has(*wanted_resource) {
-                    return ResourceKind::empty(); // If any item is missing we take nothing.
-                }
-            }      
-        }
-
-        let mut kinds_added_to_basked = ResourceKind::empty();
-
-        for wanted_resource in shopping_list.iter() {
-            if let Some(resource) = self.stock.remove(*wanted_resource, 1) {
-                shopping_basket.add(resource, 1);
-                kinds_added_to_basked.insert(resource);
-                self.debug.log_resources_lost(resource, 1);
-            }
-        }
-
-        kinds_added_to_basked
     }
 
     // ----------------------
@@ -409,6 +400,10 @@ impl ServiceBuilding<'_> {
         let ui = ui_sys.builder();
         if !ui.collapsing_header("Patrol", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
+        }
+
+        if self.patrol.failed_to_spawn() {
+            ui.text_colored(Color::red().to_array(), "Failed to spawn last Patrol!");
         }
 
         if self.is_waiting_on_patrol() {
