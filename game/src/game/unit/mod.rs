@@ -31,6 +31,7 @@ use inventory::*;
 use navigation::*;
 
 pub mod config;
+pub mod patrol;
 pub mod runner;
 pub mod task;
 
@@ -419,5 +420,86 @@ impl<'config> Unit<'config> {
         let destination_tile_name = debug_utils::tile_name_at(destination_cell, layer);
 
         self.debug.popup_msg(format!("Goto: {} -> {}", origin_tile_name, destination_tile_name));
+    }
+}
+
+// ----------------------------------------------
+// UnitTaskHelper  
+// ----------------------------------------------
+
+pub trait UnitTaskHelper {
+    fn reset(&mut self);
+    fn on_unit_spawn(&mut self, unit_id: UnitId, failed_to_spawn: bool);
+
+    fn unit_id(&self) -> UnitId;
+    fn failed_to_spawn(&self) -> bool;
+
+    #[inline]
+    fn is_spawned(&self) -> bool {
+        self.unit_id().is_valid()
+    }
+
+    #[inline]
+    fn try_unit<'config>(&self, query: &'config Query) -> Option<&'config Unit<'config>> {
+        if self.unit_id().is_valid() {
+            query.world().find_unit(self.unit_id())
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn try_unit_mut<'config>(&mut self, query: &'config Query) -> Option<&'config mut Unit<'config>> {
+        if self.unit_id().is_valid() {
+            query.world().find_unit_mut(self.unit_id())
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn unit<'config>(&self, query: &'config Query) -> &'config Unit<'config> {
+        self.try_unit(query).unwrap()
+    }
+
+    #[inline]
+    fn unit_mut<'config>(&mut self, query: &'config Query) -> &'config mut Unit<'config> {
+        self.try_unit_mut(query).unwrap()
+    }
+
+    #[inline]
+    fn is_running_task<Task>(&self, query: &Query) -> bool
+        where
+            Task: UnitTask + 'static
+    {
+        self.try_unit(query).is_some_and(|unit| {
+            unit.is_running_task::<Task>(query.task_manager())
+        })
+    }
+
+    #[inline]
+    fn try_spawn_with_task<Task>(&mut self,
+                                 spawner_name: &str,
+                                 query: &Query,
+                                 unit_origin: Cell,
+                                 unit_config: UnitConfigKey,
+                                 task: Task) -> bool
+        where
+            Task: UnitTask,
+            UnitTaskArchetype: From<Task>
+    {
+        debug_assert!(!self.is_spawned(), "Unit already spawned! reset() first.");
+
+        match Unit::try_spawn_with_task(query, unit_origin, unit_config, task) {
+            Ok(unit) => {
+                self.on_unit_spawn(unit.id(), false);
+                true
+            },
+            Err(err) => {
+                eprintln!("{}: Failed to spawn Unit at cell {}: {}", spawner_name, unit_origin, err);
+                self.on_unit_spawn(UnitId::invalid(), true);
+                false
+            },
+        }
     }
 }

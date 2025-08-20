@@ -4,6 +4,7 @@ use core::slice::Iter;
 use arrayvec::ArrayVec;
 use bitflags::{bitflags, Flags};
 use std::fmt::Display;
+use std::ops::{Deref, DerefMut};
 
 use crate::{
     bitflags_with_display,
@@ -485,21 +486,41 @@ impl<T, const CAPACITY: usize> Display for ResourceList<T, CAPACITY>
 // ----------------------------------------------
 
 // List of resources to fetch + desired count.
-pub type ShoppingList = ArrayVec<StockItem, RESOURCE_KIND_COUNT>;
+// Implemented as a transparent newtype proxy over an ArrayVec.
+#[derive(Default)]
+pub struct ShoppingList(ArrayVec<StockItem, RESOURCE_KIND_COUNT>);
 
-pub fn shopping_list_debug_string(list: &ShoppingList) -> String {
-    let mut string = String::new();
-    string += "[";
-
-    let mut first = true;
-    for item in list {
-        if !first {
-            string += ", ";
-        }
-        string += &format!("({},{})", item.kind, item.count);
-        first = false
+impl ShoppingList {
+    pub fn from_items(items: &[StockItem]) -> Self {
+        Self(ArrayVec::try_from(items).expect("Cannot fit all items in ShoppingList!"))
     }
+}
 
-    string += "]";
-    string
+impl Deref for ShoppingList {
+    type Target = ArrayVec<StockItem, RESOURCE_KIND_COUNT>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for ShoppingList {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Display for ShoppingList {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut first = true;
+        write!(f, "[")?;
+        for item in self.iter() {
+            if !first {
+                write!(f, ", ")?;
+            }
+            write!(f, "({},{})", item.kind, item.count)?;
+            first = false
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
 }

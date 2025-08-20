@@ -29,7 +29,6 @@ use crate::{
             Query,
             world::{GenerationalIndex, BuildingId},
             resources::{
-                self,
                 ShoppingList,
                 ResourceKind
             }
@@ -177,6 +176,14 @@ impl UnitPatrolPathRecord {
 
         self.current_length = path.len() as u32;
         self.current_direction = new_direction;
+    }
+
+    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        ui.text(format!("Previous Path Hashes    : {}", self.history));
+        ui.text(format!("Current Path Length     : {}", self.current_length));
+        ui.text(format!("Current Path Direction  : {}", self.current_direction));
+        ui.text(format!("Path History Same Axis  : {}", self.repeated_axis_count));
     }
 }
 
@@ -499,10 +506,9 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         ui.text(format!("Max Distance            : {}", self.max_distance));
         ui.text(format!("Min Path Bias           : {}", self.path_bias_min));
         ui.text(format!("Max Path Bias           : {}", self.path_bias_max));
-        ui.text(format!("Previous Path Hashes    : {}", self.path_record.history));
-        ui.text(format!("Current Path Length     : {}", self.path_record.current_length));
-        ui.text(format!("Current Path Direction  : {}", self.path_record.current_direction));
-        ui.text(format!("Path History Same Axis  : {}", self.path_record.repeated_axis_count));
+
+        self.path_record.draw_debug_ui(ui_sys);
+
         ui.text(format!("Buildings To Visit      : {}", self.buildings_to_visit.unwrap_or(BuildingKind::empty())));
         ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_some()));
         ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
@@ -682,7 +688,7 @@ pub struct UnitTaskFetchFromStorage {
 
 impl UnitTaskFetchFromStorage {
     fn try_find_goal(&self, unit: &mut Unit, query: &Query) {
-        for resource_to_fetch in &self.resources_to_fetch {
+        for resource_to_fetch in self.resources_to_fetch.iter() {
             debug_assert!(resource_to_fetch.kind.bits().count_ones() == 1);
 
             let path_find_result = find_storage_fetch_candidate(query,
@@ -832,7 +838,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         ui.text(format!("Origin Building            : {}, '{}', {}", building_kind, building_name, building_cell));
         ui.separator();
         ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
-        ui.text(format!("Resources To Fetch         : {}", resources::shopping_list_debug_string(&self.resources_to_fetch)));
+        ui.text(format!("Resources To Fetch         : {}", self.resources_to_fetch));
         ui.separator();
         ui.text(format!("Has Completion Callback    : {}", self.completion_callback.is_some()));
         ui.text(format!("Has Completion Task        : {}", self.completion_task.is_some()));

@@ -13,8 +13,10 @@ use crate::{
     game::{
         unit::{
             Unit,
+            UnitTaskHelper,
+            patrol::Patrol,
             runner::Runner,
-            task::UnitTaskFetchFromStorage
+            task::{UnitTaskFetchFromStorage, UnitTaskRandomizedPatrol}
         },
         sim::{
             Query,
@@ -53,7 +55,9 @@ pub struct ServiceConfig {
     pub min_workers: u32,
     pub max_workers: u32,
 
-    pub effect_radius: i32,
+    pub effect_radius: i32, // How far our patrol unit can go.
+    pub has_patrol_unit: bool,
+    pub patrol_frequency_secs: Seconds,
 
     pub stock_update_frequency_secs: Seconds,
     pub stock_capacity: u32, // Capacity for each resource kind it accepts.
@@ -71,6 +75,9 @@ game_object_debug_options! {
 
     // Stops fetching resources from storage.
     freeze_stock_update: bool,
+
+    // Stops sending out units on patrol.
+    freeze_patrol: bool,
 }
 
 // ----------------------------------------------
@@ -85,8 +92,9 @@ pub struct ServiceBuilding<'config> {
     stock_capacity: u32,
     stock: ResourceStock, // Current local stock of resources.
 
-    // Runner Unit we may send out to fetch resources from storage.
-    runner: Runner,
+    runner: Runner, // Runner Unit we may send out to fetch resources from storage.
+    patrol: Patrol, // Unit we may send out on patrol to provide the service.
+    patrol_timer: UpdateTimer, // Min time before we can send out a new patrol unit.
 
     debug: ServiceDebug,
 }
@@ -104,6 +112,12 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
            self.stock_update_timer.tick(delta_time_secs).should_update() &&
           !self.debug.freeze_stock_update() {
             self.stock_update(context);
+        }
+
+        if self.has_patrol_unit() &&
+           self.patrol_timer.tick(delta_time_secs).should_update() &&
+          !self.debug.freeze_patrol() {
+            self.send_out_patrol_unit(context);
         }
     }
 
@@ -137,10 +151,19 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         remove_count
     }
 
+    fn active_patrol(&mut self) -> Option<&mut Patrol> {
+        Some(&mut self.patrol)
+    }
+
+    fn active_runner(&mut self) -> Option<&mut Runner> {
+        Some(&mut self.runner)
+    }
+
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_resources_stock(context, ui_sys);
+        self.draw_debug_ui_patrol(ui_sys);
     }
 
     fn draw_debug_popups(&mut self,
@@ -167,6 +190,8 @@ impl<'config> ServiceBuilding<'config> {
             stock_capacity: config.stock_capacity,
             stock: ResourceStock::with_accepted_list(&config.resources_required),
             runner: Runner::default(),
+            patrol: Patrol::default(),
+            patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
             debug: ServiceDebug::default(),
         }
     }
@@ -198,11 +223,11 @@ impl<'config> ServiceBuilding<'config> {
         kinds_added_to_basked
     }
 
-    fn stock_update(&mut self, context: &BuildingContext) {
-        if !self.stock.accepts_any() {
-            return; // We don't require any resources.
-        }
+    // ----------------------
+    // Stock Update:
+    // ----------------------
 
+    fn stock_update(&mut self, context: &BuildingContext) {
         if self.is_waiting_on_runner() {
             return; // A runner is already out fetching resources. Try again later.
         }
@@ -266,7 +291,7 @@ impl<'config> ServiceBuilding<'config> {
     }
 
     fn resource_fetch_list(&self) -> ShoppingList {
-        let mut list = ShoppingList::new();
+        let mut list = ShoppingList::default();
 
         self.stock.for_each(|_, item| {
             list.push(StockItem { kind: item.kind, count: self.stock_capacity - item.count });
@@ -275,6 +300,52 @@ impl<'config> ServiceBuilding<'config> {
         // Items with the highest capacity first.
         list.sort_by_key(|item: &StockItem| Reverse(item.count));
         list
+    }
+
+    // ----------------------
+    // Patrol Update:
+    // ----------------------
+
+    fn send_out_patrol_unit(&mut self, context: &BuildingContext) {
+        if self.is_waiting_on_patrol() {
+            return; // A patrol unit is already out. Try again later.
+        }
+
+        // Unit spawns at the nearest road link.
+        let unit_origin = match context.road_link {
+            Some(road_link) => road_link,
+            None => return, // We are not connected to a road!
+        };
+
+        self.patrol.start_randomized_patrol(
+            context,
+            unit_origin,
+            self.config.effect_radius,
+            Some(BuildingKind::House),
+            Some(Self::on_patrol_completed));
+    }
+
+    #[inline]
+    fn has_patrol_unit(&self) -> bool {
+        self.config.has_patrol_unit
+    }
+
+    #[inline]
+    fn is_waiting_on_patrol(&self) -> bool {
+        self.patrol.is_spawned()
+    }
+
+    fn on_patrol_completed(this_building: &mut Building, patrol_unit: &mut Unit, query: &Query) -> bool {
+        let this_service = this_building.as_service_mut();
+
+        debug_assert!(this_service.patrol.unit_id() == patrol_unit.id());
+        debug_assert!(this_service.patrol.is_running_task::<UnitTaskRandomizedPatrol>(query),
+                      "No Patrol was sent out by this building!");
+
+        this_service.patrol.reset();
+        this_service.debug.popup_msg_color(Color::magenta(), "Patrol complete");
+
+        true
     }
 }
 
@@ -327,5 +398,26 @@ impl ServiceBuilding<'_> {
         }
 
         self.stock.draw_debug_ui_clamped_counts("Resources", 0, self.stock_capacity, ui_sys);
+    }
+
+    fn draw_debug_ui_patrol(&mut self, ui_sys: &UiSystem) {
+        if !self.has_patrol_unit() {
+            return;
+        }
+
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header("Patrol", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if self.is_waiting_on_patrol() {
+            ui.text_colored(Color::yellow().to_array(), "Patrol sent out. Waiting...");
+            if ui.button("Forget Patrol") {
+                self.patrol.reset();
+            }
+        }
+
+        self.patrol_timer.draw_debug_ui("Patrol", 0, ui_sys);
+        self.patrol.draw_debug_ui("Patrol Params", ui_sys);
     }
 }

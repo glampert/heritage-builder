@@ -28,7 +28,11 @@ use crate::{
 };
 
 use super::{
-    unit::Unit,
+    unit::{
+        Unit,
+        patrol::Patrol,
+        runner::Runner,
+    },
     sim::{
         Query,
         world::BuildingId,
@@ -422,6 +426,20 @@ impl<'config> Building<'config> {
         }
         *road_link = Cell::invalid();
     }
+
+    // ----------------------
+    // Patrol/Runner Units:
+    // ----------------------
+
+    #[inline]
+    pub fn active_patrol(&mut self) -> Option<&mut Patrol> {
+        self.archetype.active_patrol()
+    }
+
+    #[inline]
+    pub fn active_runner(&mut self) -> Option<&mut Runner> {
+        self.archetype.active_runner()
+    }
 }
 
 // ----------------------------------------------
@@ -531,7 +549,7 @@ pub trait BuildingBehavior<'config> {
                   context: &BuildingContext<'config, '_, '_>);
 
     // ----------------------
-    // Resources / Stock:
+    // Resources/Stock:
     // ----------------------
 
     // How many resources of this kind do we currently hold?
@@ -547,6 +565,13 @@ pub trait BuildingBehavior<'config> {
     // Tries to relinquish up to `count` resources. Returns the number of
     // resources it was able to relinquish, which can be less or equal to `count`.
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32;
+
+    // ----------------------
+    // Patrol/Runner Units:
+    // ----------------------
+
+    fn active_patrol(&mut self) -> Option<&mut Patrol> { None }
+    fn active_runner(&mut self) -> Option<&mut Runner> { None }
 
     // ----------------------
     // Debug:

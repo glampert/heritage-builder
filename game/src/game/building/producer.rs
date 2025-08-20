@@ -14,6 +14,7 @@ use crate::{
     game::{
         unit::{
             Unit,
+            UnitTaskHelper,
             runner::Runner,
             task::{
                 UnitTaskDeliverToStorage,
@@ -177,6 +178,10 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
             self.debug.log_resources_lost(kind, removed_count);
         }
         removed_count
+    }
+
+    fn active_runner(&mut self) -> Option<&mut Runner> {
+        Some(&mut self.runner)
     }
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
@@ -511,7 +516,7 @@ impl ProducerInputsLocalStock {
 
     #[inline]
     fn resource_fetch_list(&self) -> ShoppingList {
-        let mut list = ShoppingList::new();
+        let mut list = ShoppingList::default();
 
         for slot in &self.slots {
             list.push(StockItem { kind: slot.kind, count: self.capacity - slot.count });

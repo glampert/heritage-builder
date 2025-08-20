@@ -39,8 +39,10 @@ pub struct UnitConfig {
 // ----------------------------------------------
 
 pub struct UnitConfigs {
-    // TODO: Temporary. Should be loaded from a file eventually.
-    pub ped_config: UnitConfig,
+    // TODO: Temporary. These should be loaded from a file eventually.
+    ped_config: UnitConfig,
+    runner_config: UnitConfig,
+    patrol_config: UnitConfig,
 }
 
 impl UnitConfigs {
@@ -51,6 +53,16 @@ impl UnitConfigs {
                 tile_def_name: "ped".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("ped"),
             },
+            runner_config: UnitConfig {
+                name: "Runner".to_string(),
+                tile_def_name: "runner".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("runner"),
+            },
+            patrol_config: UnitConfig {
+                name: "Patrol".to_string(),
+                tile_def_name: "patrol".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("patrol"),
+            },
         }
     }
 
@@ -58,7 +70,13 @@ impl UnitConfigs {
         self.find_config_by_hash(hash::fnv1a_from_str(tile_name))
     }
 
-    pub fn find_config_by_hash(&self, _tile_name_hash: StringHash) -> &UnitConfig {
-        &self.ped_config
+    pub fn find_config_by_hash(&self, tile_name_hash: StringHash) -> &UnitConfig {
+        if tile_name_hash == hash::fnv1a_from_str("ped") {
+            &self.ped_config
+        } else if tile_name_hash == hash::fnv1a_from_str("runner") {
+            &self.runner_config
+        } else if tile_name_hash == hash::fnv1a_from_str("patrol") {
+            &self.patrol_config
+        } else { panic!("Unknown unit config!") }
     }
 }

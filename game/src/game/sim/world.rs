@@ -686,7 +686,11 @@ impl Default for GenerationalIndex {
 
 impl std::fmt::Display for GenerationalIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[{},{}]", self.generation, self.index)
+        if self.is_valid() {
+            write!(f, "[{},{}]", self.generation, self.index)
+        } else {
+            write!(f, "[invalid]")
+        }
     }
 }
 

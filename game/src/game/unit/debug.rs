@@ -32,7 +32,6 @@ use crate::{
             world::UnitId,
             debug::GameObjectDebugOptions,
             resources::{
-                RESOURCE_KIND_COUNT,
                 ResourceKind,
                 ShoppingList,
                 StockItem
@@ -236,8 +235,8 @@ impl Unit<'_> {
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let mut rng = rand::rng();
-                let resources_to_fetch = ShoppingList::from(
-                    [StockItem { kind: ResourceKind::random(&mut rng), count: rng.random_range(1..5) }; RESOURCE_KIND_COUNT]
+                let resources_to_fetch = ShoppingList::from_items(
+                    &[StockItem { kind: ResourceKind::random(&mut rng), count: rng.random_range(1..5) }]
                 );
                 let start_cell = building.road_link(query).unwrap_or_default();
                 if teleport_if_needed(self, start_cell) {
@@ -268,48 +267,54 @@ impl Unit<'_> {
         ui.separator();
         ui.text("Patrol Task:");
 
+        static mut PATROL_ROUNDS: i32 = 5;
+
         #[allow(static_mut_refs)]
-        unsafe {
+        let (max_patrol_distance, path_bias_min, path_bias_max) = unsafe {
             // SAFETY: Debug code only called from the main thread (ImGui is inherently single-threaded).
-            static mut PATROL_ROUNDS: i32 = 5;
-            static mut MAX_DISTANCE:  i32 = 50;
-            static mut BIAS_MIN: f32 = 0.1;
-            static mut BIAS_MAX: f32 = 0.5;
+            static mut MAX_PATROL_DISTANCE: i32 = 50;
+            static mut PATH_BIAS_MIN: f32 = 0.1;
+            static mut PATH_BIAS_MAX: f32 = 0.5;
 
             ui.input_int("Patrol Rounds", &mut PATROL_ROUNDS).step(1).build();
-            ui.input_int("Patrol Max Distance", &mut MAX_DISTANCE).step(1).build();
-            ui.input_float("Patrol Path Bias Min", &mut BIAS_MIN).display_format("%.2f").step(0.1).build();
-            ui.input_float("Patrol Path Bias Max", &mut BIAS_MAX).display_format("%.2f").step(0.1).build();
+            ui.input_int("Patrol Max Distance", &mut MAX_PATROL_DISTANCE).step(1).build();
+            ui.input_float("Patrol Path Bias Min", &mut PATH_BIAS_MIN).display_format("%.2f").step(0.1).build();
+            ui.input_float("Patrol Path Bias Max", &mut PATH_BIAS_MAX).display_format("%.2f").step(0.1).build();
 
-            if ui.button("Give Patrol Task") {
-                // We need a building to own the task, so this assumes there's at least one of these placed on the map.
-                if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
-                    let start_cell = building.road_link(query).unwrap_or_default();
-                    if teleport_if_needed(self, start_cell) {
-                        let completion_task = task_manager.new_task(UnitTaskDespawn);
-                        let task = task_manager.new_task(UnitTaskRandomizedPatrol {
-                            origin_building: BuildingKindAndId {
-                                kind: building.kind(),
-                                id: building.id(),
-                            },
-                            origin_building_tile: BuildingTileInfo {
-                                road_link: start_cell,
-                                base_cell: building.base_cell(),
-                            },
-                            max_distance: MAX_DISTANCE,
-                            path_bias_min: BIAS_MIN,
-                            path_bias_max: BIAS_MAX,
-                            path_record: UnitPatrolPathRecord::default(),
-                            buildings_to_visit: Some(BuildingKind::House),
-                            completion_callback: Some(|_, _, _| {
-                                println!("Patrol Task Round {} Completed.", PATROL_ROUNDS);
+            (MAX_PATROL_DISTANCE, PATH_BIAS_MIN, PATH_BIAS_MAX)
+        };
+
+        if ui.button("Give Patrol Task") {
+            // We need a building to own the task, so this assumes there's at least one of these placed on the map.
+            if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
+                let start_cell = building.road_link(query).unwrap_or_default();
+                if teleport_if_needed(self, start_cell) {
+                    let completion_task = task_manager.new_task(UnitTaskDespawn);
+                    let task = task_manager.new_task(UnitTaskRandomizedPatrol {
+                        origin_building: BuildingKindAndId {
+                            kind: building.kind(),
+                            id: building.id(),
+                        },
+                        origin_building_tile: BuildingTileInfo {
+                            road_link: start_cell,
+                            base_cell: building.base_cell(),
+                        },
+                        max_distance: max_patrol_distance,
+                        path_bias_min,
+                        path_bias_max,
+                        path_record: UnitPatrolPathRecord::default(),
+                        buildings_to_visit: Some(BuildingKind::House),
+                        completion_callback: Some(|_, _, _| {
+                            unsafe {
+                                let patrol_round = PATROL_ROUNDS;
+                                println!("Patrol Task Round {patrol_round} Completed.");
                                 PATROL_ROUNDS -= 1;
                                 PATROL_ROUNDS <= 0 // Run the task a few times.
-                            }),
-                            completion_task,
-                        });
-                        self.assign_task(task_manager, task);
-                    }
+                            }
+                        }),
+                        completion_task,
+                    });
+                    self.assign_task(task_manager, task);
                 }
             }
         }
@@ -330,11 +335,11 @@ impl Unit<'_> {
         ui.text("Path Finding:");
 
         #[allow(static_mut_refs)]
-        let (use_road_paths, use_dirt_paths, max_distance, building_kind) = unsafe {
+        let (use_road_paths, use_dirt_paths, max_search_distance, building_kind) = unsafe {
             // SAFETY: Debug code only called from the main thread (ImGui is inherently single-threaded).
-            static mut ROAD_PATHS: bool = true;
-            static mut DIRT_PATHS: bool = false;
-            static mut MAX_DISTANCE: i32 = 50;
+            static mut USE_ROAD_PATHS: bool = true;
+            static mut USE_DIRT_PATHS: bool = false;
+            static mut MAX_SEARCH_DISTANCE: i32 = 50;
             static mut BUILDING_KIND_IDX: usize = 0;
 
             let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
@@ -342,12 +347,12 @@ impl Unit<'_> {
                 building_kind_names.push(kind.name());
             }
 
-            ui.checkbox("Road Paths", &mut ROAD_PATHS);
-            ui.checkbox("Dirt Paths", &mut DIRT_PATHS);
-            ui.input_int("Max Distance", &mut MAX_DISTANCE).step(1).build();
+            ui.checkbox("Road Paths", &mut USE_ROAD_PATHS);
+            ui.checkbox("Dirt Paths", &mut USE_DIRT_PATHS);
+            ui.input_int("Max Search Distance", &mut MAX_SEARCH_DISTANCE).step(1).build();
             ui.combo_simple_string("Dest Building Kind", &mut BUILDING_KIND_IDX, &building_kind_names);
 
-            (ROAD_PATHS, DIRT_PATHS, MAX_DISTANCE, *BuildingKind::FLAGS[BUILDING_KIND_IDX].value())
+            (USE_ROAD_PATHS, USE_DIRT_PATHS, Some(MAX_SEARCH_DISTANCE), *BuildingKind::FLAGS[BUILDING_KIND_IDX].value())
         };
 
         if ui.button(format!("Path To Nearest Building ({})", building_kind)) {
@@ -383,7 +388,7 @@ impl Unit<'_> {
                 query.find_nearest_buildings(start,
                                              building_kind,
                                              traversable_node_kinds,
-                                             Some(max_distance),
+                                             max_search_distance,
                                              visit_building);
             }
         }
