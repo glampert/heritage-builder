@@ -79,7 +79,15 @@ pub struct StorageBuilding<'config> {
     debug: StorageDebug,
 }
 
+// ----------------------------------------------
+// BuildingBehavior for StorageBuilding
+// ----------------------------------------------
+
 impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
+    // ----------------------
+    // World Callbacks:
+    // ----------------------
+
     fn name(&self) -> &str {
         &self.config.name
     }
@@ -126,6 +134,10 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         }
     }
 
+    // ----------------------
+    // Resources/Stock:
+    // ----------------------
+
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         self.storage_slots.available_resources(kind)
     }
@@ -138,20 +150,30 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
 
     // Returns number of resources it was able to accommodate, which can be less than `count`.
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let received_count = self.storage_slots.receive_resources(kind, count);
-        if received_count != 0 {
-            self.debug.log_resources_gained(kind, received_count);
+        if count != 0 {
+            let received_count = self.storage_slots.receive_resources(kind, count);
+            if received_count != 0 {
+                self.debug.log_resources_gained(kind, received_count);
+            }
+            return received_count;
         }
-        received_count
+        0
     }
 
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-       let removed_count = self.storage_slots.remove_resources(kind, count);
-        if removed_count != 0 {
-            self.debug.log_resources_lost(kind, removed_count);
+        if count != 0 {
+            let removed_count = self.storage_slots.remove_resources(kind, count);
+            if removed_count != 0 {
+                self.debug.log_resources_lost(kind, removed_count);
+            }
+            return removed_count;
         }
-        removed_count
+        0
     }
+
+    // ----------------------
+    // Debug:
+    // ----------------------
 
     fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_config(ui_sys);
@@ -173,6 +195,10 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
             context.query.delta_time_secs());
     }
 }
+
+// ----------------------------------------------
+// StorageBuilding
+// ----------------------------------------------
 
 impl<'config> StorageBuilding<'config> {
     pub fn new(config: &'config StorageConfig) -> Self {

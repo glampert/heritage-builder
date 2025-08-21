@@ -799,8 +799,8 @@ impl UnitTask for UnitTaskFetchFromStorage {
             // If we've collected resources from the visited destination
             // we are done and can return to our origin building.
             if let Some(item) = unit.peek_inventory() {
-                debug_assert!(item.count != 0, "item.kind = {}, item.count = {}", item.kind, item.count);
-                debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == item.kind), "Expected to have item.kind = {}", item.kind);
+                debug_assert!(item.count != 0, "{item}");
+                debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == item.kind), "Expected to have item kind {}", item.kind);
 
                 if !self.try_return_to_origin(unit, query) {
                     // If we couldn't find a path back to the origin, maybe because the origin building

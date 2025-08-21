@@ -336,6 +336,12 @@ impl ResourceStock {
     }
 }
 
+impl Display for StockItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Item(kind: {}, count: {})", self.kind, self.count)
+    }
+}
+
 // ----------------------------------------------
 // ResourceList generic
 // ----------------------------------------------

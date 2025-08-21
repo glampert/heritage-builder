@@ -109,7 +109,15 @@ pub struct ProducerBuilding<'config> {
     debug: ProducerDebug,
 }
 
+// ----------------------------------------------
+// BuildingBehavior for ProducerBuilding
+// ----------------------------------------------
+
 impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
+    // ----------------------
+    // World Callbacks:
+    // ----------------------
+
     fn name(&self) -> &str {
         &self.config.name
     }
@@ -143,6 +151,8 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
 
         // Try unload cargo:
         if let Some(item) = unit.peek_inventory() {
+            debug_assert!(item.count != 0, "{item}");
+
             let received_count = self.receive_resources(item.kind, item.count);
             if received_count != 0 {
                 let removed_count = unit.remove_resources(item.kind, received_count);
@@ -152,6 +162,10 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
             }
         }
     }
+
+    // ----------------------
+    // Resources/Stock:
+    // ----------------------
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         self.production_output_stock.available_resources(kind)
@@ -165,24 +179,38 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
 
     // Returns number of resources it was able to accommodate, which can be less than `count`.
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let received_count = self.production_input_stock.receive_resources(kind, count);
-        if received_count != 0 {
-            self.debug.log_resources_gained(kind, received_count);
+        if count != 0 {
+            let received_count = self.production_input_stock.receive_resources(kind, count);
+            if received_count != 0 {
+                self.debug.log_resources_gained(kind, received_count);
+            }
+            return received_count;
         }
-        received_count
+        0
     }
 
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-       let removed_count = self.production_output_stock.remove_resources(kind, count);
-        if removed_count != 0 {
-            self.debug.log_resources_lost(kind, removed_count);
+        if count != 0 {
+            let removed_count = self.production_output_stock.remove_resources(kind, count);
+            if removed_count != 0 {
+                self.debug.log_resources_lost(kind, removed_count);
+            }
+            return removed_count;
         }
-        removed_count
+        0
     }
+
+    // ----------------------
+    // Patrol/Runner Units:
+    // ----------------------
 
     fn active_runner(&mut self) -> Option<&mut Runner> {
         Some(&mut self.runner)
     }
+
+    // ----------------------
+    // Debug:
+    // ----------------------
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_config(ui_sys);
@@ -205,6 +233,10 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
             context.query.delta_time_secs());
     }
 }
+
+// ----------------------------------------------
+// ProducerBuilding
+// ----------------------------------------------
 
 impl<'config> ProducerBuilding<'config> {
     pub fn new(config: &'config ProducerConfig) -> Self {
@@ -336,7 +368,8 @@ impl<'config> ProducerBuilding<'config> {
 
         // Try unload cargo:
         if let Some(item) = runner_unit.peek_inventory() {
-            debug_assert!(item.count <= this_producer.production_input_stock.capacity());
+            debug_assert!(item.count != 0, "{item}");
+            debug_assert!(item.count <= this_producer.production_input_stock.capacity(), "{item}");
 
             let received_count = this_producer.receive_resources(item.kind, item.count);
             if received_count != 0 {
@@ -432,6 +465,7 @@ impl ProducerOutputLocalStock {
 
     #[inline]
     fn available_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
         if self.item.kind == kind {
             self.item.count
         } else {
@@ -441,6 +475,7 @@ impl ProducerOutputLocalStock {
 
     #[inline]
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
         if self.item.kind == kind {
             let prev_count = self.item.count;
             let new_count  = prev_count.saturating_sub(count);
@@ -553,6 +588,7 @@ impl ProducerInputsLocalStock {
 
     #[inline]
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
         for slot in &self.slots {
             if slot.kind == kind {
                 return self.capacity - slot.count;
@@ -563,6 +599,7 @@ impl ProducerInputsLocalStock {
 
     #[inline]
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.bits().count_ones() == 1);
         for slot in &mut self.slots {
             if slot.kind == kind {
                 let prev_count = slot.count;

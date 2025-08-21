@@ -99,7 +99,15 @@ pub struct ServiceBuilding<'config> {
     debug: ServiceDebug,
 }
 
+// ----------------------------------------------
+// BuildingBehavior for ServiceBuilding
+// ----------------------------------------------
+
 impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
+    // ----------------------
+    // World Callbacks:
+    // ----------------------
+
     fn name(&self) -> &str {
         &self.config.name
     }
@@ -125,6 +133,10 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         // TODO: Do we need anything here? Deliveries are handled by the task completion callback...
         unimplemented!("ServiceBuilding::visited_by() not yet implemented!");
     }
+
+    // ----------------------
+    // Resources/Stock:
+    // ----------------------
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.bits().count_ones() == 1);
@@ -169,6 +181,10 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         0
     }
 
+    // ----------------------
+    // Patrol/Runner Units:
+    // ----------------------
+
     fn active_patrol(&mut self) -> Option<&mut Patrol> {
         Some(&mut self.patrol)
     }
@@ -176,6 +192,10 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     fn active_runner(&mut self) -> Option<&mut Runner> {
         Some(&mut self.runner)
     }
+
+    // ----------------------
+    // Debug:
+    // ----------------------
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_config(ui_sys);
@@ -198,6 +218,10 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
             context.query.delta_time_secs());
     }
 }
+
+// ----------------------------------------------
+// ServiceBuilding
+// ----------------------------------------------
 
 impl<'config> ServiceBuilding<'config> {
     pub fn new(config: &'config ServiceConfig) -> Self {

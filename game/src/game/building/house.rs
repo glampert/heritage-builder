@@ -114,7 +114,15 @@ pub struct HouseBuilding<'config> {
     debug: HouseDebug,
 }
 
+// ----------------------------------------------
+// BuildingBehavior for HouseBuilding
+// ----------------------------------------------
+
 impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
+    // ----------------------
+    // World Callbacks:
+    // ----------------------
+
     fn name(&self) -> &str {
         &self.upgrade_state.curr_level_config.name
     }
@@ -143,6 +151,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
             }
         }
     }
+
+    // ----------------------
+    // Resources/Stock:
+    // ----------------------
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.bits().count_ones() == 1);
@@ -188,6 +200,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         0
     }
 
+    // ----------------------
+    // Debug:
+    // ----------------------
+
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_level_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
@@ -208,6 +224,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
             context.query.delta_time_secs());
     }
 }
+
+// ----------------------------------------------
+// HouseBuilding
+// ----------------------------------------------
 
 impl<'config> HouseBuilding<'config> {
     pub fn new(level: HouseLevel, house_config: &'config HouseConfig, configs: &'config BuildingConfigs) -> Self {

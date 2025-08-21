@@ -51,34 +51,80 @@ mod storage;
 mod service;
 mod house;
 
-/*
------------------------
-  Building Archetypes  
------------------------
+// ----------------------------------------------
+// BuildingKind
+// ----------------------------------------------
 
-* Population Building (AKA House/Household):
- - Consumes resources (water, food, goods, etc).
- - Needs access to certain services in the neighborhood.
- - Adds a population number (workers).
- - Pays tax (income).
- - Can evolve/expand (more population capacity).
- - Only evolves if it has required resources and services.
+bitflags_with_display! {
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    pub struct BuildingKind: u32 {
+        // Archetype: House
+        const House       = 1 << 0;
 
-* Producer Building:
- - Produces a resource/consumer good (farm, fishing wharf, factory) or raw material (mine, logging camp).
- - Uses workers (min, max workers needed). Production output depends on number of workers.
- - May need other raw materials to function (factory needs wood, metal, etc).
- - Needs Storage Buildings to store production.
+        // Archetype: Producer
+        const Farm        = 1 << 1;
+        const Factory     = 1 << 2;
 
-* Storage Building:
- - Stores production from Producer Buildings (granary, storage yard).
- - Uses workers (min, max workers needed).
+        // Archetype: Storage
+        const Granary     = 1 << 3;
+        const StorageYard = 1 << 4;
 
-* Service Building:
- - Uses workers (min, max workers needed).
- - May consume resources (food, goods, etc) from storage (e.g.: a Market).
- - Provides services to neighborhood.
-*/
+        // Archetype: Service
+        const WellSmall   = 1 << 5;
+        const WellBig     = 1 << 6;
+        const Market      = 1 << 7;
+    }
+}
+
+impl BuildingKind {
+    #[inline] pub const fn count() -> usize { Self::FLAGS.len() }
+
+    #[inline] pub const fn producer_count() -> usize { Self::producers().bits().count_ones() as usize }
+    #[inline] pub const fn producers() -> Self {
+        Self::from_bits_retain(
+            Self::Farm.bits() |
+            Self::Factory.bits()
+        )
+    }
+
+    #[inline] pub const fn storage_count() -> usize { Self::storage().bits().count_ones() as usize }
+    #[inline] pub const fn storage() -> Self {
+        Self::from_bits_retain(
+            Self::Granary.bits() |
+            Self::StorageYard.bits()
+        )
+    }
+
+    #[inline] pub const fn services_count() -> usize { Self::services().bits().count_ones() as usize }
+    #[inline] pub const fn services() -> Self {
+        Self::from_bits_retain(
+            Self::WellSmall.bits() |
+            Self::WellBig.bits() |
+            Self::Market.bits()
+        )
+    }
+
+    #[inline]
+    pub fn from_game_state_handle(handle: TileGameStateHandle) -> Self {
+        Self::from_bits(handle.kind())
+            .expect("TileGameStateHandle does not contain a valid BuildingKind enum value!")
+    }
+
+    #[inline]
+    pub fn archetype_kind(self) -> BuildingArchetypeKind {
+        if self.intersects(Self::producers()) {
+            BuildingArchetypeKind::ProducerBuilding
+        } else if self.intersects(Self::storage()) {
+            BuildingArchetypeKind::StorageBuilding
+        } else if self.intersects(Self::services()) {
+            BuildingArchetypeKind::ServiceBuilding
+        } else if self.intersects(Self::House) {
+            BuildingArchetypeKind::HouseBuilding
+        } else {
+            panic!("Unknown archetype for building kind: {:?}", self);
+        }
+    }
+}
 
 // ----------------------------------------------
 // Helper Macros
@@ -118,6 +164,10 @@ pub struct Building<'config> {
 }
 
 impl<'config> Building<'config> {
+    // ----------------------
+    // Creation/Placement:
+    // ----------------------
+
     pub fn new(kind: BuildingKind,
                map_cells: CellRange,
                archetype: BuildingArchetype<'config>) -> Self {
@@ -148,6 +198,10 @@ impl<'config> Building<'config> {
 
         self.clear_road_link(tile_map);
     }
+
+    // ----------------------
+    // Utilities:
+    // ----------------------
 
     #[inline]
     pub fn name(&self) -> &str {
@@ -188,6 +242,10 @@ impl<'config> Building<'config> {
     building_type_casts! { storage,  StorageBuilding  } // as_storage()
     building_type_casts! { service,  ServiceBuilding  } // as_service()
     building_type_casts! { house,    HouseBuilding    } // as_house()
+
+    // ----------------------
+    // World Update:
+    // ----------------------
 
     #[inline]
     pub fn update(&mut self, query: &Query<'config, '_>) {
@@ -267,75 +325,17 @@ impl<'config> Building<'config> {
     }
 
     // ----------------------
-    // Building Debug:
+    // Patrol/Runner Units:
     // ----------------------
 
-    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-
-        // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
-        if ui.collapsing_header("Properties##_building_properties", imgui::TreeNodeFlags::empty()) {
-            #[derive(DrawDebugUi)]
-            struct DrawDebugUiVariables<'a> {
-                name: &'a str,
-                kind: BuildingKind,
-                archetype: BuildingArchetypeKind,
-                cells: CellRange,
-                road_link: Cell,
-                id: BuildingId,
-            }
-            let debug_vars = DrawDebugUiVariables {
-                name: self.name(),
-                kind: self.kind,
-                archetype: self.archetype_kind(),
-                cells: self.map_cells,
-                road_link: self.road_link(query).unwrap_or_default(),
-                id: self.id,
-            };
-
-            debug_vars.draw_debug_ui(ui_sys);
-            ui.separator();
-
-            if ui.button("Highlight Access Tiles") {
-                pathfind::highlight_building_access_tiles(query.tile_map(), self.map_cells);
-            }
-
-            let mut show_road_link = self.is_showing_road_link_debug(query);
-            if ui.checkbox("Show Road Link", &mut show_road_link) {
-                self.set_show_road_link_debug(query, show_road_link);
-            }
-        }
-
-        let context =
-            BuildingContext::new(self.kind,
-                                 self.archetype_kind(),
-                                 self.map_cells,
-                                 self.road_link(query),
-                                 self.id,
-                                 query);
-
-        self.archetype.draw_debug_ui(&context, ui_sys);
+    #[inline]
+    pub fn active_patrol(&mut self) -> Option<&mut Patrol> {
+        self.archetype.active_patrol()
     }
 
-    pub fn draw_debug_popups(&mut self,
-                             query: &Query<'config, '_>,
-                             ui_sys: &UiSystem,
-                             transform: &WorldToScreenTransform,
-                             visible_range: CellRange) {
-
-        let context =
-            BuildingContext::new(self.kind,
-                                 self.archetype_kind(),
-                                 self.map_cells,
-                                 self.road_link(query),
-                                 self.id,
-                                 query);
-
-        self.archetype.draw_debug_popups(
-            &context,
-            ui_sys,
-            transform,
-            visible_range);
+    #[inline]
+    pub fn active_runner(&mut self) -> Option<&mut Runner> {
+        self.archetype.active_runner()
     }
 
     // ----------------------
@@ -428,99 +428,105 @@ impl<'config> Building<'config> {
     }
 
     // ----------------------
-    // Patrol/Runner Units:
+    // Building Debug:
     // ----------------------
 
-    #[inline]
-    pub fn active_patrol(&mut self) -> Option<&mut Patrol> {
-        self.archetype.active_patrol()
-    }
+    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
 
-    #[inline]
-    pub fn active_runner(&mut self) -> Option<&mut Runner> {
-        self.archetype.active_runner()
-    }
-}
+        // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
+        if ui.collapsing_header("Properties##_building_properties", imgui::TreeNodeFlags::empty()) {
+            #[derive(DrawDebugUi)]
+            struct DrawDebugUiVariables<'a> {
+                name: &'a str,
+                kind: BuildingKind,
+                archetype: BuildingArchetypeKind,
+                cells: CellRange,
+                road_link: Cell,
+                id: BuildingId,
+            }
+            let debug_vars = DrawDebugUiVariables {
+                name: self.name(),
+                kind: self.kind,
+                archetype: self.archetype_kind(),
+                cells: self.map_cells,
+                road_link: self.road_link(query).unwrap_or_default(),
+                id: self.id,
+            };
 
-// ----------------------------------------------
-// BuildingKind
-// ----------------------------------------------
+            debug_vars.draw_debug_ui(ui_sys);
+            ui.separator();
 
-bitflags_with_display! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    pub struct BuildingKind: u32 {
-        // Archetype: House
-        const House       = 1 << 0;
+            if ui.button("Highlight Access Tiles") {
+                pathfind::highlight_building_access_tiles(query.tile_map(), self.map_cells);
+            }
 
-        // Archetype: Producer
-        const Farm        = 1 << 1;
-        const Factory     = 1 << 2;
-
-        // Archetype: Storage
-        const Granary     = 1 << 3;
-        const StorageYard = 1 << 4;
-
-        // Archetype: Service
-        const WellSmall   = 1 << 5;
-        const WellBig     = 1 << 6;
-        const Market      = 1 << 7;
-    }
-}
-
-impl BuildingKind {
-    #[inline] pub const fn count() -> usize { Self::FLAGS.len() }
-
-    #[inline] pub const fn producer_count() -> usize { Self::producers().bits().count_ones() as usize }
-    #[inline] pub const fn producers() -> Self {
-        Self::from_bits_retain(
-            Self::Farm.bits() |
-            Self::Factory.bits()
-        )
-    }
-
-    #[inline] pub const fn storage_count() -> usize { Self::storage().bits().count_ones() as usize }
-    #[inline] pub const fn storage() -> Self {
-        Self::from_bits_retain(
-            Self::Granary.bits() |
-            Self::StorageYard.bits()
-        )
-    }
-
-    #[inline] pub const fn services_count() -> usize { Self::services().bits().count_ones() as usize }
-    #[inline] pub const fn services() -> Self {
-        Self::from_bits_retain(
-            Self::WellSmall.bits() |
-            Self::WellBig.bits() |
-            Self::Market.bits()
-        )
-    }
-
-    #[inline]
-    pub fn from_game_state_handle(handle: TileGameStateHandle) -> Self {
-        Self::from_bits(handle.kind())
-            .expect("TileGameStateHandle does not contain a valid BuildingKind enum value!")
-    }
-
-    #[inline]
-    pub fn archetype_kind(self) -> BuildingArchetypeKind {
-        if self.intersects(Self::producers()) {
-            BuildingArchetypeKind::ProducerBuilding
-        } else if self.intersects(Self::storage()) {
-            BuildingArchetypeKind::StorageBuilding
-        } else if self.intersects(Self::services()) {
-            BuildingArchetypeKind::ServiceBuilding
-        } else if self.intersects(Self::House) {
-            BuildingArchetypeKind::HouseBuilding
-        } else {
-            panic!("Unknown archetype for building kind: {:?}", self);
+            let mut show_road_link = self.is_showing_road_link_debug(query);
+            if ui.checkbox("Show Road Link", &mut show_road_link) {
+                self.set_show_road_link_debug(query, show_road_link);
+            }
         }
+
+        let context =
+            BuildingContext::new(self.kind,
+                                 self.archetype_kind(),
+                                 self.map_cells,
+                                 self.road_link(query),
+                                 self.id,
+                                 query);
+
+        self.archetype.draw_debug_ui(&context, ui_sys);
+    }
+
+    pub fn draw_debug_popups(&mut self,
+                             query: &Query<'config, '_>,
+                             ui_sys: &UiSystem,
+                             transform: &WorldToScreenTransform,
+                             visible_range: CellRange) {
+
+        let context =
+            BuildingContext::new(self.kind,
+                                 self.archetype_kind(),
+                                 self.map_cells,
+                                 self.road_link(query),
+                                 self.id,
+                                 query);
+
+        self.archetype.draw_debug_popups(
+            &context,
+            ui_sys,
+            transform,
+            visible_range);
     }
 }
 
 // ----------------------------------------------
-// BuildingArchetype / BuildingArchetypeKind
+// Building Archetypes  
 // ----------------------------------------------
+/*
+* Population Building (AKA House/Household):
+ - Consumes resources (water, food, goods, etc).
+ - Needs access to certain services in the neighborhood.
+ - Adds a population number (workers).
+ - Pays tax (income).
+ - Can evolve/expand (more population capacity).
+ - Only evolves if it has required resources and services.
 
+* Producer Building:
+ - Produces a resource/consumer good (farm, fishing wharf, factory) or raw material (mine, logging camp).
+ - Uses workers (min, max workers needed). Production output depends on number of workers.
+ - May need other raw materials to function (factory needs wood, metal, etc).
+ - Needs Storage Buildings to store production.
+
+* Storage Building:
+ - Stores production from Producer Buildings (granary, storage yard).
+ - Uses workers (min, max workers needed).
+
+* Service Building:
+ - Uses workers (min, max workers needed).
+ - May consume resources (food, goods, etc) from storage (e.g.: a Market).
+ - Provides services to neighborhood.
+*/
 #[enum_dispatch]
 #[derive(EnumDiscriminants)]
 #[strum_discriminants(repr(u32), name(BuildingArchetypeKind), derive(Display, EnumCount, EnumIter))]
@@ -540,6 +546,10 @@ pub const BUILDING_ARCHETYPE_COUNT: usize = BuildingArchetypeKind::COUNT;
 // Common behavior for all Building archetypes.
 #[enum_dispatch(BuildingArchetype)]
 pub trait BuildingBehavior<'config> {
+    // ----------------------
+    // World Callbacks:
+    // ----------------------
+
     fn name(&self) -> &str;
 
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
