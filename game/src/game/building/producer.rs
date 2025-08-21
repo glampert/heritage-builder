@@ -181,9 +181,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 {
             let received_count = self.production_input_stock.receive_resources(kind, count);
-            if received_count != 0 {
-                self.debug.log_resources_gained(kind, received_count);
-            }
+            self.debug.log_resources_gained(kind, received_count);
             return received_count;
         }
         0
@@ -192,9 +190,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 {
             let removed_count = self.production_output_stock.remove_resources(kind, count);
-            if removed_count != 0 {
-                self.debug.log_resources_lost(kind, removed_count);
-            }
+            self.debug.log_resources_lost(kind, removed_count);
             return removed_count;
         }
         0
@@ -428,7 +424,7 @@ struct ProducerOutputLocalStock {
 
 impl ProducerOutputLocalStock {
     fn new(output_kind: ResourceKind, capacity: u32) -> Self {
-        debug_assert!(output_kind.bits().count_ones() == 1); // One flag (kind) only.
+        debug_assert!(output_kind.is_single_resource()); // One flag (kind) only.
         Self {
             item: StockItem { kind: output_kind, count: 0 },
             capacity,
@@ -465,7 +461,7 @@ impl ProducerOutputLocalStock {
 
     #[inline]
     fn available_resources(&self, kind: ResourceKind) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         if self.item.kind == kind {
             self.item.count
         } else {
@@ -475,7 +471,7 @@ impl ProducerOutputLocalStock {
 
     #[inline]
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         if self.item.kind == kind {
             let prev_count = self.item.count;
             let new_count  = prev_count.saturating_sub(count);
@@ -588,7 +584,7 @@ impl ProducerInputsLocalStock {
 
     #[inline]
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         for slot in &self.slots {
             if slot.kind == kind {
                 return self.capacity - slot.count;
@@ -599,7 +595,7 @@ impl ProducerInputsLocalStock {
 
     #[inline]
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         for slot in &mut self.slots {
             if slot.kind == kind {
                 let prev_count = slot.count;

@@ -35,6 +35,11 @@ bitflags_with_display! {
 
 impl ResourceKind {
     #[inline]
+    pub const fn is_single_resource(self) -> bool {
+        self.bits().count_ones() == 1
+    }
+
+    #[inline]
     pub const fn count() -> usize {
         Self::FLAGS.len()
     }
@@ -146,9 +151,8 @@ pub struct ResourceStock {
 
 #[inline(always)]
 fn bit_index(kind: ResourceKind) -> usize {
-    let bits: u32 = kind.bits();
-    debug_assert!(bits.count_ones() == 1);
-    bits.trailing_zeros() as usize
+    debug_assert!(kind.is_single_resource());
+    kind.bits().trailing_zeros() as usize
 }
 
 impl ResourceStock {

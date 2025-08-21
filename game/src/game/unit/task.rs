@@ -587,7 +587,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         debug_assert!(self.origin_building.is_valid());
         debug_assert!(self.origin_building_tile.is_valid());
         debug_assert!(!self.storage_buildings_accepted.is_empty());
-        debug_assert!(self.resource_kind_to_deliver.bits().count_ones() == 1);
+        debug_assert!(self.resource_kind_to_deliver.is_single_resource());
         debug_assert!(self.resource_count != 0);
 
         // Give the unit the resources we want to deliver:
@@ -683,7 +683,7 @@ pub struct UnitTaskFetchFromStorage {
 impl UnitTaskFetchFromStorage {
     fn try_find_goal(&self, unit: &mut Unit, query: &Query) {
         for resource_to_fetch in self.resources_to_fetch.iter() {
-            debug_assert!(resource_to_fetch.kind.bits().count_ones() == 1);
+            debug_assert!(resource_to_fetch.kind.is_single_resource());
 
             let path_find_result = find_storage_fetch_candidate(query,
                                                                 self.origin_building.kind,
@@ -1128,7 +1128,7 @@ fn visit_destination(unit: &mut Unit, query: &Query) {
     };
 
     debug_assert!(destination_cell.is_valid());
-    debug_assert!(destination_kind.bits().count_ones() == 1);
+    debug_assert!(destination_kind.is_single_building());
 
     let world = query.world();
     let tile_map = query.tile_map();
@@ -1217,7 +1217,7 @@ fn find_delivery_candidate<'search>(query: &'search Query,
 
     debug_assert!(origin_base_cell.is_valid());
     debug_assert!(!building_kinds_accepted.is_empty());
-    debug_assert!(resource_kind_to_deliver.bits().count_ones() == 1); // Only one resource kind at a time.
+    debug_assert!(resource_kind_to_deliver.is_single_resource()); // Only one resource kind at a time.
 
     // Try to find a building that can accept our delivery:
     let result = query.find_nearest_buildings(
@@ -1246,7 +1246,7 @@ fn find_storage_fetch_candidate<'search>(query: &'search Query,
 
     debug_assert!(origin_base_cell.is_valid());
     debug_assert!(!storage_buildings_accepted.is_empty());
-    debug_assert!(resource_kind_to_fetch.bits().count_ones() == 1); // Only one resource kind at a time.
+    debug_assert!(resource_kind_to_fetch.is_single_resource()); // Only one resource kind at a time.
 
     // Try to find a storage building that has the resource we want:
     let result = query.find_nearest_buildings(

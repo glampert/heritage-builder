@@ -377,22 +377,21 @@ impl<'config> Unit<'config> {
     // Unit inventories can always accommodate all resources received.
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(self.is_spawned());
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
 
-        self.debug.log_resources_gained(kind, count);
-        self.inventory.receive_resources(kind, count)
+        let received_count = self.inventory.receive_resources(kind, count);
+        self.debug.log_resources_gained(kind, received_count);
+        received_count
     }
 
     // Tries to relinquish up to `count` resources. Returns the number of
     // resources it was able to relinquish, which can be less or equal to `count`.
     pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(self.is_spawned());
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
 
         let removed_count = self.inventory.remove_resources(kind, count);
-        if removed_count != 0 {
-            self.debug.log_resources_lost(kind, removed_count);
-        }
+        self.debug.log_resources_lost(kind, removed_count);
         removed_count
     }
 

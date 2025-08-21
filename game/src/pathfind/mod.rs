@@ -47,6 +47,13 @@ bitflags_with_display! {
     }
 }
 
+impl NodeKind {
+    #[inline]
+    pub const fn is_single_kind(self) -> bool {
+        self.bits().count_ones() == 1
+    }
+}
+
 impl Default for NodeKind {
     fn default() -> Self {
         NodeKind::Road // Most units will only navigate on roads.
@@ -190,7 +197,7 @@ impl Graph {
 
     pub fn with_node_kind(grid_size: Size, node_kind: NodeKind) -> Self {
         debug_assert!(grid_size.is_valid());
-        debug_assert!(node_kind.bits().count_ones() == 1, "Expected single node kind flag!");
+        debug_assert!(node_kind.is_single_kind(), "Expected single node kind flag!");
         let node_count = (grid_size.width * grid_size.height) as usize;
         Self { grid: Grid::new(grid_size, vec![node_kind; node_count]) }
     }

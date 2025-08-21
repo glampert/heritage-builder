@@ -68,7 +68,8 @@ impl BuildingConfigs {
                 max_residents: 2,
                 tax_generated: 0,
                 services_required: ServiceKinds::none(),
-                resources_required: ResourceKinds::none(),        
+                resources_required: ResourceKinds::none(),
+                stock_capacity: 5,
             },
             house1: HouseLevelConfig {
                 name: "House Level 1".to_string(),
@@ -80,6 +81,7 @@ impl BuildingConfigs {
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
                 // Any 1 kind of food.
                 resources_required: ResourceKinds::with_slice(&[ResourceKind::foods()]),
+                stock_capacity: 10,
             },
             house2: HouseLevelConfig {
                 name: "House Level 2".to_string(),
@@ -90,6 +92,7 @@ impl BuildingConfigs {
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
                 // 2 kinds of food required: Rice AND Meat OR Fish.
                 resources_required: ResourceKinds::with_slice(&[ResourceKind::Rice, ResourceKind::Meat | ResourceKind::Fish]),
+                stock_capacity: 15,
             },
             service_well_small: ServiceConfig {
                 name: "Well Small".to_string(),

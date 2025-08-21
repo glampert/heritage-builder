@@ -22,7 +22,6 @@ use crate::{
         sim::{
             UpdateTimer,
             resources::{
-                ResourceStock,
                 ResourceKind,
                 ResourceKinds,
                 ServiceKind,
@@ -37,6 +36,7 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
+    BuildingStock,
     config::BuildingConfigs
 };
 
@@ -83,6 +83,7 @@ pub struct HouseLevelConfig {
 
     // Kinds of resources required for the house level to be obtained and maintained.
     pub resources_required: ResourceKinds,
+    pub stock_capacity: u32,
 }
 
 // ----------------------------------------------
@@ -109,7 +110,7 @@ pub struct HouseBuilding<'config> {
     upgrade_update_timer: UpdateTimer,
 
     upgrade_state: HouseUpgradeState<'config>,
-    stock: ResourceStock,
+    stock: BuildingStock,
 
     debug: HouseDebug,
 }
@@ -157,47 +158,23 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     // ----------------------
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
-        self.stock.count(kind)
+        self.stock.available_resources(kind)
     }
 
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
-        let mut capacity_left = 0;
-        if let Some((_, item)) = self.stock.find(kind) {
-            // TODO: Implement house stock capacities!
-            capacity_left = u32::MAX - item.count;
-        }
-        capacity_left
+        self.stock.receivable_resources(kind)
     }
 
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
-        if count != 0 {
-            let capacity_left = self.receivable_resources(kind);
-            if capacity_left != 0 {
-                let add_count = count.min(capacity_left);
-                self.stock.add(kind, add_count);
-                self.debug.log_resources_gained(kind, add_count);
-                return add_count;
-            }
-        }
-        0
+        let received_count = self.stock.receive_resources(kind, count);
+        self.debug.log_resources_gained(kind, received_count);
+        received_count
     }
 
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
-        if count != 0 {
-            let available_count = self.available_resources(kind);
-            if available_count != 0 {
-                let remove_count = count.min(available_count);
-                if let Some(removed) = self.stock.remove(kind, remove_count) {
-                    self.debug.log_resources_lost(removed, remove_count);
-                    return remove_count;
-                }
-            }
-        }
-        0
+        let removed_count = self.stock.remove_resources(kind, count);
+        self.debug.log_resources_lost(kind, removed_count);
+        removed_count
     }
 
     // ----------------------
@@ -231,11 +208,17 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 
 impl<'config> HouseBuilding<'config> {
     pub fn new(level: HouseLevel, house_config: &'config HouseConfig, configs: &'config BuildingConfigs) -> Self {
+        let upgrade_state = HouseUpgradeState::new(level, configs);
+
+        let stock = BuildingStock::with_accepted_kinds_and_capacity(
+            ResourceKind::foods() | ResourceKind::consumer_goods(),
+            upgrade_state.curr_level_config.stock_capacity);
+
         Self {
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
             upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
-            upgrade_state: HouseUpgradeState::new(level, configs),
-            stock: ResourceStock::with_accepted_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
+            upgrade_state,
+            stock,
             debug: HouseDebug::default(),
         }
     }
@@ -279,7 +262,7 @@ impl<'config> HouseBuilding<'config> {
             // We've already shopped for resources in the current level list,
             // so take only the ones that are exclusive to the next level.
             for &resource in self.upgrade_state.next_level_config.resources_required.iter() {
-                if !self.stock.has(resource) {
+                if !self.stock.has_any_of(resource) {
                     next_level_shopping_list.add(resource);
                 }
             }
@@ -322,7 +305,7 @@ impl<'config> HouseBuilding<'config> {
 
     fn upgrade_update(&mut self, context: &BuildingContext<'config, '_, '_>) {
         // Attempt to upgrade or downgrade based on services and resources availability.
-        self.upgrade_state.update(context, &self.stock, &mut self.debug);
+        self.upgrade_state.update(context, &mut self.stock, &mut self.debug);
     }
 
     fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
@@ -398,7 +381,7 @@ struct HouseLevelRequirements<'config> {
 impl<'config> HouseLevelRequirements<'config> {
     fn new(context: &BuildingContext,
            level_config: &'config HouseLevelConfig,
-           stock: &ResourceStock) -> Self {
+           stock: &BuildingStock) -> Self {
 
         let mut reqs = Self {
             level_config,
@@ -414,7 +397,7 @@ impl<'config> HouseLevelRequirements<'config> {
         });
 
         level_config.resources_required.for_each(|resource| {
-            if stock.has(resource) {
+            if stock.has_any_of(resource) {
                 reqs.resources_available.insert(resource);
             }
             true
@@ -485,19 +468,26 @@ impl<'config> HouseUpgradeState<'config> {
 
     fn update(&mut self,
               context: &BuildingContext<'config, '_, '_>,
-              stock: &ResourceStock,
+              stock: &mut BuildingStock,
               debug: &mut HouseDebug) {
 
+        let mut upgraded = false;
+        let mut downgraded = false;
+
         if self.can_upgrade(context, stock) {
-            self.try_upgrade(context, debug);
+            upgraded = self.try_upgrade(context, debug);
         } else if self.can_downgrade(context, stock) {
-            self.try_downgrade(context, debug);
+            downgraded = self.try_downgrade(context, debug);
+        }
+
+        if upgraded || downgraded {
+            stock.update_capacities(self.curr_level_config.stock_capacity);   
         }
     }
 
     fn can_upgrade(&mut self,
                    context: &BuildingContext,
-                   stock: &ResourceStock) -> bool {
+                   stock: &BuildingStock) -> bool {
         if self.level.is_max() {
             return false;
         }
@@ -512,7 +502,7 @@ impl<'config> HouseUpgradeState<'config> {
 
     fn can_downgrade(&mut self,
                      context: &BuildingContext,
-                     stock: &ResourceStock) -> bool {
+                     stock: &BuildingStock) -> bool {
         if self.level.is_min() {
             return false;
         }
@@ -525,7 +515,7 @@ impl<'config> HouseUpgradeState<'config> {
         !curr_level_requirements.has_required_resources()
     }
 
-    fn try_upgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) {
+    fn try_upgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) -> bool {
         let mut tile_placed_successfully = false;
 
         let next_level = self.level.next();
@@ -555,9 +545,10 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         self.has_room_to_upgrade = tile_placed_successfully;
+        tile_placed_successfully
     }
 
-    fn try_downgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) {
+    fn try_downgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) -> bool {
         let mut tile_placed_successfully = false;
 
         let prev_level = self.level.prev();
@@ -583,6 +574,8 @@ impl<'config> HouseUpgradeState<'config> {
         if !tile_placed_successfully {
             debug.popup_msg_color(Color::red(), format!("[D] {}: Failed!", self.curr_level_config.tile_def_name));
         }
+
+        tile_placed_successfully
     }
 
     fn try_replace_tile<'tile_sets>(context: &BuildingContext<'config, 'tile_sets, '_>,

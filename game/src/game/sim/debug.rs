@@ -193,14 +193,14 @@ pub trait GameObjectDebugOptions {
 
     #[inline]
     fn log_resources_gained(&mut self, kind: ResourceKind, count: u32) {
-        if self.get_popups().show && !kind.is_empty() {
+        if self.get_popups().show && !kind.is_empty() && count != 0 {
             self.popup_msg_color(Color::green(), format!("+{count} {kind}"));
         }
     }
 
     #[inline]
     fn log_resources_lost(&mut self, kind: ResourceKind, count: u32) {
-        if self.get_popups().show && !kind.is_empty() {
+        if self.get_popups().show && !kind.is_empty() && count != 0 {
             self.popup_msg_color(Color::red(), format!("-{count} {kind}"));
         }
     }

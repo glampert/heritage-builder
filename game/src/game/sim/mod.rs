@@ -627,7 +627,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                             kind: BuildingKind,
                             radius_in_cells: i32) -> bool {
 
-        debug_assert!(kind.bits().count_ones() == 1); // No ORed flags.
+        debug_assert!(kind.is_single_building()); // No ORed flags.
 
         let search_range = Self::calc_search_radius(start_cells, radius_in_cells);
         for search_cell in &search_range {
@@ -652,7 +652,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                  kind: BuildingKind,
                                  radius_in_cells: i32) -> Option<&mut Building<'config>> {
 
-        debug_assert!(kind.bits().count_ones() == 1); // No ORed flags.
+        debug_assert!(kind.is_single_building()); // No ORed flags.
 
         let world = self.world();
         let tile_map = self.tile_map();

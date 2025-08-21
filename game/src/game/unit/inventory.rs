@@ -39,6 +39,8 @@ impl UnitInventory {
 
     #[inline]
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.is_single_resource());
+
         if let Some(item) = &mut self.item {
             debug_assert!(item.kind == kind && item.count != 0, "item.kind {} != {}, item.count = {}", item.kind, kind, item.count);
             item.count += count;
@@ -51,6 +53,8 @@ impl UnitInventory {
     // Returns number of items decremented, which can be <= `count`.
     #[inline]
     pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.is_single_resource());
+
         if let Some(item) = &mut self.item {
             debug_assert!(item.kind == kind && item.count != 0, "item.kind {} != {}, item.count = {}", item.kind, kind, item.count);
 

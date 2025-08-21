@@ -152,9 +152,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 {
             let received_count = self.storage_slots.receive_resources(kind, count);
-            if received_count != 0 {
-                self.debug.log_resources_gained(kind, received_count);
-            }
+            self.debug.log_resources_gained(kind, received_count);
             return received_count;
         }
         0
@@ -163,9 +161,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 {
             let removed_count = self.storage_slots.remove_resources(kind, count);
-            if removed_count != 0 {
-                self.debug.log_resources_lost(kind, removed_count);
-            }
+            self.debug.log_resources_lost(kind, removed_count);
             return removed_count;
         }
         0
@@ -262,7 +258,7 @@ impl StorageSlot {
     }
 
     fn resource_index_and_count(&self, kind: ResourceKind) -> (usize, u32) {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         let (index, item) = self.stock.find(kind)
             .unwrap_or_else(|| panic!("Resource kind '{}' expected to exist in the stock!", kind));
         (index, item.count)
@@ -355,19 +351,19 @@ impl StorageSlots {
 
     #[inline]
     fn slot_resource_count(&self, slot_index: usize, kind: ResourceKind) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         self.slots[slot_index].resource_index_and_count(kind).1
     }
 
     #[inline]
     fn increment_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, add_amount: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         self.slots[slot_index].increment_resource_count(kind, add_amount, self.slot_capacity)
     }
 
     #[inline]
     fn decrement_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, sub_amount: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         self.slots[slot_index].decrement_resource_count(kind, sub_amount)
     }
 
@@ -384,7 +380,7 @@ impl StorageSlots {
     #[inline]
     fn find_resource_slot(&self, kind: ResourceKind) -> Option<usize> {
         // Should be a single kind, never multiple ORed flags.
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
 
         for (slot_index, slot) in self.slots.iter().enumerate() {
             if let Some(allocated_kind) = slot.allocated_resource_kind {
@@ -408,7 +404,7 @@ impl StorageSlots {
 
     fn alloc_resource_slot(&mut self, kind: ResourceKind) -> Option<usize> {
         // Should be a single kind, never multiple ORed flags.
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
 
         // See if this resource kind is already being stored somewhere:
         for (slot_index, slot) in self.slots.iter().enumerate() {
@@ -433,7 +429,7 @@ impl StorageSlots {
 
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
         // Should be a single kind, never multiple ORed flags.
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         let mut count = 0;
 
         for slot in &self.slots {

@@ -12,6 +12,7 @@ use crate::{
     imgui_ui::UiSystem,
     pathfind::{self},
     utils::{
+        Color,
         UnsafeMutable,
         hash::StringHash,
         coords::{Cell, CellRange, WorldToScreenTransform}
@@ -36,7 +37,13 @@ use super::{
     sim::{
         Query,
         world::BuildingId,
-        resources::ResourceKind
+        resources::{
+            StockItem,
+            ResourceKind,
+            ResourceKinds,
+            ResourceStock,
+            RESOURCE_KIND_COUNT
+        }
     }
 };
 
@@ -77,6 +84,11 @@ bitflags_with_display! {
 }
 
 impl BuildingKind {
+    #[inline]
+    pub const fn is_single_building(self) -> bool {
+        self.bits().count_ones() == 1
+    }
+
     #[inline] pub const fn count() -> usize { Self::FLAGS.len() }
 
     #[inline] pub const fn producer_count() -> usize { Self::producers().bits().count_ones() as usize }
@@ -302,25 +314,25 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn available_resources(&self, kind: ResourceKind) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         self.archetype.available_resources(kind)
     }
 
     #[inline]
     pub fn receivable_resources(&self, kind: ResourceKind) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         self.archetype.receivable_resources(kind)
     }
 
     #[inline]
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         self.archetype.receive_resources(kind, count)
     }
 
     #[inline]
     pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
+        debug_assert!(kind.is_single_resource());
         self.archetype.remove_resources(kind, count)
     }
 
@@ -726,5 +738,157 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
             let rand_variation_index = self.query.random_range(0..variation_count);
             tile.set_variation_index(rand_variation_index);
         }
+    }
+}
+
+// ----------------------------------------------
+// BuildingStock
+// ----------------------------------------------
+
+pub struct BuildingStock {
+    resources: ResourceStock,
+    capacities: [u8; RESOURCE_KIND_COUNT],
+}
+
+impl BuildingStock {
+    pub fn with_accepted_list_and_capacity(accepted_resources: &ResourceKinds, capacity: u32) -> Self {
+        let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
+        Self {
+            resources: ResourceStock::with_accepted_list(accepted_resources),
+            capacities: [capacity_u8; RESOURCE_KIND_COUNT],
+        }
+    }
+
+    pub fn with_accepted_kinds_and_capacity(accepted_kinds: ResourceKind, capacity: u32) -> Self {
+        let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
+        Self {
+            resources: ResourceStock::with_accepted_kinds(accepted_kinds),
+            capacities: [capacity_u8; RESOURCE_KIND_COUNT],
+        }
+    }
+
+    pub fn available_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.is_single_resource());
+        self.resources.count(kind)
+    }
+
+    pub fn receivable_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.is_single_resource());
+        if let Some((index, item)) = self.resources.find(kind) {
+            debug_assert!(item.count <= self.capacity_at(index), "{item}");
+            return self.capacity_at(index) - item.count;
+        }
+        0
+    }
+
+    pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.is_single_resource());
+        if count != 0 {
+            let capacity_left = self.receivable_resources(kind);
+            if capacity_left != 0 {
+                let add_count = count.min(capacity_left);
+                self.resources.add(kind, add_count);
+                return add_count;
+            }
+        }
+        0
+    }
+
+    pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.is_single_resource());
+        if count != 0 {
+            let available_count = self.available_resources(kind);
+            if available_count != 0 {
+                let remove_count = count.min(available_count);
+                if self.resources.remove(kind, remove_count).is_some() {
+                    return remove_count;
+                }
+            }
+        }
+        0
+    }
+
+    pub fn update_capacities(&mut self, capacity: u32) {
+        let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
+        self.capacities = [capacity_u8; RESOURCE_KIND_COUNT];
+
+        // Clamp any existing resources to the new capacity.
+        self.resources.for_each_mut(|index, item| {
+            item.count = item.count.min(self.capacities[index] as u32);
+        });
+    }
+
+    #[inline]
+    pub fn has_any_of(&self, kinds: ResourceKind) -> bool {
+        self.resources.has(kinds)
+    }
+
+    #[inline]
+    pub fn capacity_for(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.is_single_resource());
+        if let Some((index, _)) = self.resources.find(kind) {
+            return self.capacity_at(index);
+        }
+        0
+    }
+
+    #[inline]
+    pub fn capacity_at(&self, index: usize) -> u32 {
+        self.capacities[index] as u32
+    }
+
+    #[inline]
+    pub fn accepts_any(&self) -> bool {
+        self.resources.accepts_any()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.resources.is_empty()
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.resources.clear();
+    }
+
+    #[inline]
+    pub fn fill(&mut self) {
+        self.resources.for_each_mut(|index, item| {
+            item.count = self.capacities[index] as u32;
+        });
+    }
+
+    #[inline]
+    pub fn for_each<F>(&self, visitor_fn: F)
+        where F: FnMut(usize, &StockItem)
+    {
+        self.resources.for_each(visitor_fn);
+    }
+
+    pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        self.resources.for_each_mut(|index, item| {
+            let item_label = format!("{}##_stock_item_{}", item.kind, index);
+            let item_capacity = self.capacities[index] as u32;
+
+            if ui.input_scalar(item_label, &mut item.count).step(1).build() {
+                item.count = item.count.min(item_capacity);
+            }
+
+            let capacity_left = item_capacity - item.count;
+            let is_full = item.count >= item_capacity;
+
+            ui.same_line();
+            if is_full {
+                ui.text_colored(Color::red().to_array(), "(full)");
+            } else {
+                ui.text(format!("({} left)", capacity_left));
+            }
+        });
     }
 }

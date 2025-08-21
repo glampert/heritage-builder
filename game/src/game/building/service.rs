@@ -25,7 +25,6 @@ use crate::{
                 ShoppingList,
                 ResourceKind,
                 ResourceKinds,
-                ResourceStock,
                 StockItem,
                 Workers
             }
@@ -37,7 +36,8 @@ use super::{
     Building,
     BuildingKind,
     BuildingBehavior,
-    BuildingContext
+    BuildingContext,
+    BuildingStock
 };
 
 // ----------------------------------------------
@@ -89,8 +89,7 @@ pub struct ServiceBuilding<'config> {
     workers: Workers,
 
     stock_update_timer: UpdateTimer,
-    stock_capacity: u32,
-    stock: ResourceStock, // Current local stock of resources.
+    stock: BuildingStock, // Current local stock of resources.
 
     runner: Runner, // Runner Unit we may send out to fetch resources from storage.
     patrol: Patrol, // Unit we may send out on patrol to provide the service.
@@ -139,46 +138,23 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     // ----------------------
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
-        self.stock.count(kind)
+        self.stock.available_resources(kind)
     }
 
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
-        let mut capacity_left = 0;
-        if let Some((_, item)) = self.stock.find(kind) {
-            capacity_left = self.stock_capacity - item.count;
-        }
-        capacity_left
+        self.stock.receivable_resources(kind)
     }
 
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
-        if count != 0 {
-            let capacity_left = self.receivable_resources(kind);
-            if capacity_left != 0 {
-                let add_count = count.min(capacity_left);
-                self.stock.add(kind, add_count);
-                self.debug.log_resources_gained(kind, add_count);
-                return add_count;
-            }
-        }
-        0
+        let received_count = self.stock.receive_resources(kind, count);
+        self.debug.log_resources_gained(kind, received_count);
+        received_count
     }
 
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        debug_assert!(kind.bits().count_ones() == 1);
-        if count != 0 {
-            let available_count = self.available_resources(kind);
-            if available_count != 0 {
-                let remove_count = count.min(available_count);
-                if let Some(removed) = self.stock.remove(kind, remove_count) {
-                    self.debug.log_resources_lost(removed, remove_count);
-                    return remove_count;
-                }
-            }
-        }
-        0
+        let removed_count = self.stock.remove_resources(kind, count);
+        self.debug.log_resources_lost(kind, removed_count);
+        removed_count
     }
 
     // ----------------------
@@ -229,8 +205,7 @@ impl<'config> ServiceBuilding<'config> {
             config,
             workers: Workers::new(config.min_workers, config.max_workers),
             stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
-            stock_capacity: config.stock_capacity,
-            stock: ResourceStock::with_accepted_list(&config.resources_required),
+            stock: BuildingStock::with_accepted_list_and_capacity(&config.resources_required, config.stock_capacity),
             runner: Runner::default(),
             patrol: Patrol::default(),
             patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
@@ -287,7 +262,7 @@ impl<'config> ServiceBuilding<'config> {
 
         // Try unload cargo:
         if let Some(item) = runner_unit.peek_inventory() {
-            debug_assert!(item.count <= this_service.stock_capacity);
+            debug_assert!(item.count <= this_service.stock.capacity_for(item.kind));
 
             let received_count = this_service.receive_resources(item.kind, item.count);
             if received_count != 0 {
@@ -308,8 +283,9 @@ impl<'config> ServiceBuilding<'config> {
     fn resource_fetch_list(&self) -> ShoppingList {
         let mut list = ShoppingList::default();
 
-        self.stock.for_each(|_, item| {
-            list.push(StockItem { kind: item.kind, count: self.stock_capacity - item.count });
+        self.stock.for_each(|index, item| {
+            debug_assert!(item.count <= self.stock.capacity_at(index), "{item}");
+            list.push(StockItem { kind: item.kind, count: self.stock.capacity_at(index) - item.count });
         });
 
         // Items with the highest capacity first.
@@ -407,13 +383,13 @@ impl ServiceBuilding<'_> {
 
         if ui.button("Fill Stock") {
             // Set all to capacity.
-            self.stock.for_each_mut(|_, item| item.count = self.stock_capacity);
+            self.stock.fill();
         }
         if ui.button("Clear Stock") {
             self.stock.clear();
         }
 
-        self.stock.draw_debug_ui_clamped_counts("Resources", 0, self.stock_capacity, ui_sys);
+        self.stock.draw_debug_ui("Resources", ui_sys);
     }
 
     fn draw_debug_ui_patrol(&mut self, ui_sys: &UiSystem) {
