@@ -4,6 +4,7 @@ use crate::{
     game::sim::resources::{
         ResourceKind,
         ResourceKinds,
+        ServiceKind,
         ServiceKinds
     }
 };
@@ -227,7 +228,7 @@ impl BuildingConfigs {
         } else { panic!("No producer!") }
     }
 
-    pub fn find_service_config(&self, kind: BuildingKind) -> &ServiceConfig {
+    pub fn find_service_config(&self, kind: ServiceKind) -> &ServiceConfig {
         if kind == BuildingKind::WellSmall {
             &self.service_well_small
         } else if kind == BuildingKind::WellBig {

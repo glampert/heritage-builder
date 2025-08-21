@@ -469,8 +469,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                               traversable_node_kinds: PathNodeKind,
                               start: Cell,
                               goal: Cell) -> SearchResult
-        where
-            Filter: PathFilter
+        where Filter: PathFilter
     {
         self.search().find_paths(self.graph(),
                                  &AStarUniformCostHeuristic::new(),
@@ -488,8 +487,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                   traversable_node_kinds: PathNodeKind,
                                   start: Cell,
                                   max_distance: i32) -> SearchResult
-        where
-            Filter: PathFilter
+        where Filter: PathFilter
     {
         self.search().find_waypoints(self.graph(),
                                      &AStarUniformCostHeuristic::new(),
@@ -506,8 +504,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                      traversable_node_kinds: PathNodeKind,
                                      max_distance: Option<i32>,
                                      visitor_fn: F) -> Option<(&Building, &Path)>
-        where
-            F: FnMut(&Building, &Path) -> bool
+        where F: FnMut(&Building, &Path) -> bool
     {
         debug_assert!(start.is_valid());
         debug_assert!(!building_kinds.is_empty());
@@ -525,8 +522,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         }
 
         impl<F> PathFilter for BuildingPathFilter<'_, F>
-            where
-                F: FnMut(&Building, &Path) -> bool
+            where F: FnMut(&Building, &Path) -> bool
         {
             fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {
                 if self.visited.iter().any(|node| *node == goal) {

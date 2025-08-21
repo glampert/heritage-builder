@@ -38,6 +38,7 @@ use super::{
         Query,
         world::BuildingId,
         resources::{
+            ServiceKind,
             StockItem,
             ResourceKind,
             ResourceKinds,
@@ -730,7 +731,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     }
 
     #[inline]
-    fn has_access_to_service(&self, service_kind: BuildingKind) -> bool {
+    fn has_access_to_service(&self, service_kind: ServiceKind) -> bool {
         debug_assert!(service_kind.is_single_building());
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
 

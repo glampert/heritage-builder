@@ -305,8 +305,7 @@ impl<'config> World<'config> {
     // `building_kinds` can be a combination of ORed BuildingKind flags.
     #[inline]
     pub fn for_each_building<F>(&self, building_kinds: BuildingKind, mut visitor_fn: F)
-        where
-            F: FnMut(&Building<'config>) -> bool
+        where F: FnMut(&Building<'config>) -> bool
     {
         let buildings = self.buildings_list(building_kinds.archetype_kind());
         for building in buildings.iter() {
@@ -318,8 +317,7 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn for_each_building_mut<F>(&mut self, building_kinds: BuildingKind, mut visitor_fn: F)
-        where
-            F: FnMut(&mut Building<'config>) -> bool
+        where F: FnMut(&mut Building<'config>) -> bool
     {
         let buildings = self.buildings_list_mut(building_kinds.archetype_kind());
         for building in buildings.iter_mut() {
@@ -572,8 +570,7 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn for_each_unit<F>(&self, mut visitor_fn: F)
-        where
-            F: FnMut(&Unit<'config>) -> bool
+        where F: FnMut(&Unit<'config>) -> bool
     {
         for unit in self.unit_spawn_pool.iter() {
             if !visitor_fn(unit) {
@@ -584,8 +581,7 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn for_each_unit_mut<F>(&mut self, mut visitor_fn: F)
-        where
-            F: FnMut(&mut Unit<'config>) -> bool
+        where F: FnMut(&mut Unit<'config>) -> bool
     {
         for unit in self.unit_spawn_pool.iter_mut() {
             if !visitor_fn(unit) {

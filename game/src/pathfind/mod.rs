@@ -615,8 +615,7 @@ impl Search {
                               traversable_node_kinds: NodeKind,
                               start: Node,
                               goal: Node) -> SearchResult
-        where
-            Filter: PathFilter
+        where Filter: PathFilter
     {
         debug_assert!(!traversable_node_kinds.is_empty());
 
@@ -690,8 +689,7 @@ impl Search {
                                   traversable_node_kinds: NodeKind,
                                   start: Node,
                                   max_distance: i32) -> SearchResult
-        where
-            Filter: PathFilter
+        where Filter: PathFilter
     {
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(max_distance > 0);
@@ -780,8 +778,7 @@ impl Search {
                                   traversable_node_kinds: NodeKind,
                                   start: Node,
                                   max_distance: i32) -> SearchResult
-        where
-            Filter: PathFilter
+        where Filter: PathFilter
     {
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(max_distance > 0);

@@ -455,8 +455,7 @@ pub fn input_i32_xy<T>(ui: &imgui::Ui,
                        read_only: bool,
                        steps: Option<[i32; 2]>, 
                        field_labels: Option<[&str; 2]>) -> bool
-    where T:
-        FieldAccessorXY<i32>
+    where T: FieldAccessorXY<i32>
 {
     let s = steps.unwrap_or([ 1, 1 ]);
     let l = field_labels.unwrap_or([ "X", "Y" ]);
@@ -503,8 +502,7 @@ pub fn input_f32_xy<T>(ui: &imgui::Ui,
                        read_only: bool,
                        steps: Option<[f32; 2]>, 
                        field_labels: Option<[&str; 2]>) -> bool
-    where T:
-        FieldAccessorXY<f32>
+    where T: FieldAccessorXY<f32>
 {
     let s = steps.unwrap_or([ 1.0, 1.0 ]);
     let l = field_labels.unwrap_or([ "X", "Y" ]);

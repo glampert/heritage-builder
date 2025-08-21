@@ -435,8 +435,7 @@ fn init_singleton(tex_cache: &mut impl TextureCache, debug_settings_open: bool, 
 }
 
 fn use_singleton<F, R>(mut closure: F) -> R
-    where F:
-        FnMut(&mut DebugMenusSingleton) -> R
+    where F: FnMut(&mut DebugMenusSingleton) -> R
 {
     DEBUG_MENUS_SINGLETON.with(|once_cell| {
         if let Some(instance) = once_cell.get() {

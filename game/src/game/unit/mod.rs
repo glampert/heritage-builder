@@ -17,11 +17,11 @@ use crate::{
 };
 
 use super::{
-    building::{Building, BuildingKind},
+    building::Building,
     sim::{
         Query,
         world::UnitId,
-        resources::{ResourceKind, StockItem}
+        resources::{ResourceKind, ServiceKind, StockItem}
     }
 };
 
@@ -171,7 +171,7 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
-    pub fn patrol_service_kind(&self, query: &Query) -> Option<BuildingKind> {
+    pub fn patrol_service_kind(&self, query: &Query) -> Option<ServiceKind> {
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
             return Some(task.origin_building.kind)
         }
@@ -180,7 +180,7 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn is_market_patrol(&self, query: &Query) -> bool {
-        self.patrol_service_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
+        self.patrol_service_kind(query).is_some_and(|kind| kind == ServiceKind::Market)
     }
 
     // ----------------------
@@ -297,8 +297,7 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn is_running_task<Task>(&self, task_manager: &UnitTaskManager) -> bool
-        where
-            Task: UnitTask + 'static
+        where Task: UnitTask + 'static
     {
         debug_assert!(self.is_spawned());
         task_manager.is_task::<Task>(self.current_task_id)
@@ -306,8 +305,7 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn current_task_as<'task, Task>(&self, task_manager: &'task UnitTaskManager) -> Option<&'task Task>
-        where
-            Task: UnitTask + 'static
+        where Task: UnitTask + 'static
     {
         debug_assert!(self.is_spawned());
         task_manager.try_get_task::<Task>(self.current_task_id)
@@ -334,9 +332,8 @@ impl<'config> Unit<'config> {
                                      unit_origin: Cell,
                                      unit_config: UnitConfigKey,
                                      task: Task) -> Result<&'config mut Unit<'config>, String>
-        where
-            Task: UnitTask,
-            UnitTaskArchetype: From<Task>
+        where Task: UnitTask,
+              UnitTaskArchetype: From<Task>
     {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(unit_config.is_valid());
@@ -490,8 +487,7 @@ pub trait UnitTaskHelper {
 
     #[inline]
     fn is_running_task<Task>(&self, query: &Query) -> bool
-        where
-            Task: UnitTask + 'static
+        where Task: UnitTask + 'static
     {
         self.try_unit(query).is_some_and(|unit| {
             unit.is_running_task::<Task>(query.task_manager())
@@ -505,9 +501,8 @@ pub trait UnitTaskHelper {
                                  unit_origin: Cell,
                                  unit_config: UnitConfigKey,
                                  task: Task) -> bool
-        where
-            Task: UnitTask,
-            UnitTaskArchetype: From<Task>
+        where Task: UnitTask,
+              UnitTaskArchetype: From<Task>
     {
         debug_assert!(!self.is_spawned(), "Unit already spawned! reset() first.");
 

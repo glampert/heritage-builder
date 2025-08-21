@@ -23,9 +23,8 @@ pub struct DrawBatchEntry {
 }
 
 pub struct DrawBatch<V, I>
-    where
-        V: VertexTrait + Copy,
-        I: IndexTrait  + Copy + TryFrom<usize> + Into<usize>
+    where V: VertexTrait + Copy,
+          I: IndexTrait  + Copy + TryFrom<usize> + Into<usize>
 {
     vertices: Vec<V>,
     indices: Vec<I>,
@@ -36,9 +35,8 @@ pub struct DrawBatch<V, I>
 }
 
 impl<V, I> DrawBatch<V, I>
-    where
-        V: VertexTrait + Copy,
-        I: IndexTrait  + Copy + TryFrom<usize> + Into<usize>
+    where V: VertexTrait + Copy,
+          I: IndexTrait  + Copy + TryFrom<usize> + Into<usize>
 {
     pub fn new(vertices_capacity: u32,
                indices_capacity: u32,
@@ -77,8 +75,8 @@ impl<V, I> DrawBatch<V, I>
                      indices: &[I],
                      texture: TextureHandle,
                      color: Color)
-                     where <I as TryFrom<usize>>::Error: Debug {
-
+        where <I as TryFrom<usize>>::Error: Debug
+    {
         let ib_slice_start = self.add_fast(vertices, indices);
 
         self.entries.push(DrawBatchEntry {
@@ -92,8 +90,8 @@ impl<V, I> DrawBatch<V, I>
     }
 
     pub fn add_fast(&mut self, vertices: &[V], indices: &[I]) -> usize
-                    where <I as TryFrom<usize>>::Error: Debug {
-
+        where <I as TryFrom<usize>>::Error: Debug
+    {
         let new_vb_size = self.vertices.len() + vertices.len();
         if new_vb_size > self.vertex_array.vertex_buffer().count() as usize {
             self.vertices.reserve(vertices.len());
@@ -131,8 +129,7 @@ impl<V, I> DrawBatch<V, I>
                            render_context: &mut RenderContext,
                            shader_program: &ShaderProgram,
                            mut set_shader_vars_fn: F)
-        where
-            F: FnMut(&mut RenderContext, &DrawBatchEntry)
+        where F: FnMut(&mut RenderContext, &DrawBatchEntry)
     {
         if self.entries.is_empty() {
             return;

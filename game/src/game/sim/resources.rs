@@ -327,17 +327,6 @@ impl ResourceStock {
             });
         }
     }
-
-    pub fn draw_debug_ui_clamped_counts(&mut self, label: &str, min: u32, max: u32, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
-            self.for_each_mut(|index, item| {
-                if ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count).step(1).build() {
-                    item.count = item.count.clamp(min, max);
-                }
-            });
-        }
-    }
 }
 
 impl Display for StockItem {
@@ -347,7 +336,7 @@ impl Display for StockItem {
 }
 
 // ----------------------------------------------
-// ResourceList generic
+// ResourceList
 // ----------------------------------------------
 
 pub struct ResourceList<T, const CAPACITY: usize> {
