@@ -56,6 +56,7 @@ pub struct ServiceConfig {
     pub max_workers: u32,
 
     pub effect_radius: i32, // How far our patrol unit can go.
+    pub requires_road_access: bool,
     pub has_patrol_unit: bool,
     pub patrol_frequency_secs: Seconds,
 

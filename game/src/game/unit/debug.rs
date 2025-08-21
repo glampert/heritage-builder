@@ -352,7 +352,7 @@ impl Unit<'_> {
             ui.input_int("Max Search Distance", &mut MAX_SEARCH_DISTANCE).step(1).build();
             ui.combo_simple_string("Dest Building Kind", &mut BUILDING_KIND_IDX, &building_kind_names);
 
-            (USE_ROAD_PATHS, USE_DIRT_PATHS, Some(MAX_SEARCH_DISTANCE), *BuildingKind::FLAGS[BUILDING_KIND_IDX].value())
+            (USE_ROAD_PATHS, USE_DIRT_PATHS, MAX_SEARCH_DISTANCE, *BuildingKind::FLAGS[BUILDING_KIND_IDX].value())
         };
 
         if ui.button(format!("Path To Nearest Building ({})", building_kind)) {
@@ -388,8 +388,21 @@ impl Unit<'_> {
                 query.find_nearest_buildings(start,
                                              building_kind,
                                              traversable_node_kinds,
-                                             max_search_distance,
+                                             Some(max_search_distance),
                                              visit_building);
+            }
+        }
+
+        if ui.button(format!("Test Is Near Building ({})", building_kind)) {
+            let connected_to_road_only = use_road_paths && !use_dirt_paths;
+            let is_near = query.is_near_building(self.cell(),
+                                                 building_kind,
+                                                 connected_to_road_only,
+                                                 max_search_distance);
+            if is_near {
+                self.debug.popup_msg_color(Color::green(), format!("{}: Near {}!", self.cell(), building_kind));
+            } else {
+                self.debug.popup_msg_color(Color::red(), format!("{}: Not near {}!", self.cell(), building_kind));
             }
         }
     }

@@ -594,6 +594,41 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         }
     }
 
+    pub fn is_near_building(&self,
+                            start: Cell, // -> Cell must be traversable!
+                            building_kinds: BuildingKind,
+                            connected_to_road_only: bool,
+                            effect_radius: i32) -> bool {
+
+        debug_assert!(start.is_valid());
+        debug_assert!(!building_kinds.is_empty());
+        debug_assert!(effect_radius > 0);
+
+        let traversable_node_kinds = {
+            if connected_to_road_only {
+                PathNodeKind::Road
+            } else {
+                PathNodeKind::Dirt | PathNodeKind::Road
+            }
+        };
+
+        if !self.graph().node_kind(Node::new(start))
+            .is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
+            eprintln!("Near building search: start cell {start} is not traversable!");
+            return false;
+        }
+
+        self.find_nearest_buildings(
+            start,
+            building_kinds,
+            traversable_node_kinds,
+            Some(effect_radius),
+            |_building, _path| {
+                false // Stop iterating, we'll take the first match.
+            }
+        ).is_some()
+    }
+
     // ----------------------
     // Unit Spawning:
     // ----------------------
@@ -615,73 +650,5 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                 }
             }
         }
-    }
-
-    // ----------------------
-    // DEPRECATED APIs
-    // ----------------------
-
-    // TODO: Deprecate. Replace with find_nearest_buildings.
-    pub fn is_near_building(&self,
-                            start_cells: CellRange,
-                            kind: BuildingKind,
-                            radius_in_cells: i32) -> bool {
-
-        debug_assert!(kind.is_single_building()); // No ORed flags.
-
-        let search_range = Self::calc_search_radius(start_cells, radius_in_cells);
-        for search_cell in &search_range {
-            if let Some(search_tile) =
-                self.tile_map().find_tile(search_cell, TileMapLayerKind::Objects, TileKind::Building) {
-                let game_state = search_tile.game_state_handle();
-                if game_state.is_valid() {
-                    let building_kind = BuildingKind::from_game_state_handle(game_state);
-                    if building_kind == kind {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        false
-    }
-
-    // TODO: Deprecate. Replace with find_nearest_buildings.
-    pub fn find_nearest_building(&self,
-                                 start_cells: CellRange,
-                                 kind: BuildingKind,
-                                 radius_in_cells: i32) -> Option<&mut Building<'config>> {
-
-        debug_assert!(kind.is_single_building()); // No ORed flags.
-
-        let world = self.world();
-        let tile_map = self.tile_map();
-        let search_range = Self::calc_search_radius(start_cells, radius_in_cells);
-
-        for search_cell in &search_range {
-            if let Some(search_tile) =
-                tile_map.find_tile(search_cell, TileMapLayerKind::Objects, TileKind::Building) {
-                let game_state = search_tile.game_state_handle();
-                if game_state.is_valid() {
-                    let building_kind = BuildingKind::from_game_state_handle(game_state);
-                    if building_kind == kind {
-                        return world.find_building_for_tile_mut(search_tile);
-                    }
-                }
-            }
-        }
-
-        None
-    }
-
-    // TODO: Deprecate.
-    fn calc_search_radius(start_cells: CellRange, radius_in_cells: i32) -> CellRange {
-        debug_assert!(start_cells.is_valid());
-        debug_assert!(radius_in_cells > 0);
-        let start_x = start_cells.start.x - radius_in_cells;
-        let start_y = start_cells.start.y - radius_in_cells;
-        let end_x   = start_cells.end.x   + radius_in_cells;
-        let end_y   = start_cells.end.y   + radius_in_cells;
-        CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y))
     }
 }

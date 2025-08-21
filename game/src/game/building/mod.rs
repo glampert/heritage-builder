@@ -477,6 +477,12 @@ impl<'config> Building<'config> {
             if ui.checkbox("Show Road Link", &mut show_road_link) {
                 self.set_show_road_link_debug(query, show_road_link);
             }
+
+            if self.is_linked_to_road(query) {
+                ui.text_colored(Color::green().to_array(), "Has road access.");
+            } else {
+                ui.text_colored(Color::red().to_array(), "No road access!");
+            }
         }
 
         let context =
@@ -725,9 +731,18 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
 
     #[inline]
     fn has_access_to_service(&self, service_kind: BuildingKind) -> bool {
+        debug_assert!(service_kind.is_single_building());
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
-        let config = self.query.building_configs().find_service_config(service_kind);
-        self.query.is_near_building(self.map_cells, service_kind, config.effect_radius)
+
+        if let Some(road_link) = self.road_link {
+            let config = self.query.building_configs().find_service_config(service_kind);
+            return self.query.is_near_building(road_link,
+                                               service_kind,
+                                               config.requires_road_access,
+                                               config.effect_radius);
+        }
+
+        false
     }
 
     #[inline]

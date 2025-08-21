@@ -40,12 +40,16 @@ impl UnitInventory {
     #[inline]
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
+        if count != 0 {
+            if let Some(item) = &mut self.item {
+                debug_assert!(item.kind == kind && item.count != 0,
+                              "item.kind {} != {}, item.count = {}",
+                              item.kind, kind, item.count);
 
-        if let Some(item) = &mut self.item {
-            debug_assert!(item.kind == kind && item.count != 0, "item.kind {} != {}, item.count = {}", item.kind, kind, item.count);
-            item.count += count;
-        } else {
-            self.item = Some(StockItem { kind, count });
+                item.count += count;
+            } else {
+                self.item = Some(StockItem { kind, count });
+            }
         }
         count
     }
@@ -54,29 +58,23 @@ impl UnitInventory {
     #[inline]
     pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
+        if count != 0 {
+            if let Some(mut item) = self.item.take() {
+                debug_assert!(item.kind == kind && item.count != 0,
+                              "item.kind {} != {}, item.count = {}",
+                              item.kind, kind, item.count);
 
-        if let Some(item) = &mut self.item {
-            debug_assert!(item.kind == kind && item.count != 0, "item.kind {} != {}, item.count = {}", item.kind, kind, item.count);
+                let removed = count.min(item.count);
+                item.count -= removed;
 
-            let removed_count = {
-                if count <= item.count {
-                    item.count -= count;
-                    count
-                } else {
-                    let prev_count = item.count;
-                    item.count = 0;
-                    prev_count
+                if item.count > 0 {
+                    self.item = Some(item);
                 }
-            };
 
-            if item.count == 0 {
-                self.item = None; // Gave away everything.
+                return removed;
             }
-
-            removed_count
-        } else {
-            0
         }
+        0
     }
 
     pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {

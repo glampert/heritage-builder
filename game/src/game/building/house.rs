@@ -771,9 +771,10 @@ impl HouseBuilding<'_> {
             HouseLevelRequirements::new(context, upgrade_state.next_level_config, &self.stock);
 
         ui.text(format!("Level: {:?}", upgrade_state.level));
-        color_text(" - Has room      :", upgrade_state.has_room_to_upgrade);
-        color_text(" - Has services  :", next_level_requirements.has_required_services());
-        color_text(" - Has resources :", next_level_requirements.has_required_resources());
+        color_text(" - Has room        :", upgrade_state.has_room_to_upgrade);
+        color_text(" - Has services    :", next_level_requirements.has_required_services());
+        color_text(" - Has resources   :", next_level_requirements.has_required_resources());
+        color_text(" - Has road access :", context.is_linked_to_road());
         ui.separator();
 
         self.upgrade_update_timer.draw_debug_ui("Upgrade", 0, ui_sys);
