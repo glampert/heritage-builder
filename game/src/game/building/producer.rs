@@ -9,8 +9,7 @@ use crate::{
     utils::{
         Color,
         Seconds,
-        hash::StringHash,
-        coords::{CellRange, WorldToScreenTransform}
+        hash::StringHash
     },
     game::{
         unit::{
@@ -227,20 +226,6 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_input_stock(ui_sys);
         self.draw_debug_ui_production_output(context, ui_sys);
-    }
-
-    fn draw_debug_popups(&mut self,
-                         context: &BuildingContext,
-                         ui_sys: &UiSystem,
-                         transform: &WorldToScreenTransform,
-                         visible_range: CellRange) {
-
-        self.debug.draw_popup_messages(
-            context.find_tile(),
-            ui_sys,
-            transform,
-            visible_range,
-            context.query.delta_time_secs());
     }
 }
 

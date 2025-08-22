@@ -544,20 +544,17 @@ impl<'config> Building<'config> {
                              ui_sys: &UiSystem,
                              transform: &WorldToScreenTransform,
                              visible_range: CellRange) {
+        let tile = query.find_tile(
+            self.base_cell(),
+            TileMapLayerKind::Objects,
+            TileKind::Building).unwrap();
 
-        let context =
-            BuildingContext::new(self.kind,
-                                 self.archetype_kind(),
-                                 self.map_cells,
-                                 self.road_link(query),
-                                 self.id,
-                                 query);
-
-        self.archetype.draw_debug_popups(
-            &context,
+        self.debug_options().draw_popup_messages(
+            tile,
             ui_sys,
             transform,
-            visible_range);
+            visible_range,
+            query.delta_time_secs());
     }
 }
 
@@ -661,12 +658,6 @@ pub trait BuildingBehavior<'config> {
     fn draw_debug_ui(&mut self,
                      context: &BuildingContext<'config, '_, '_>,
                      ui_sys: &UiSystem);
-
-    fn draw_debug_popups(&mut self,
-                         context: &BuildingContext<'config, '_, '_>,
-                         ui_sys: &UiSystem,
-                         transform: &WorldToScreenTransform,
-                         visible_range: CellRange);
 }
 
 // ----------------------------------------------

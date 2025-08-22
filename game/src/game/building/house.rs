@@ -11,8 +11,7 @@ use crate::{
     utils::{
         Color,
         Seconds,
-        hash::StringHash,
-        coords::{CellRange, WorldToScreenTransform}
+        hash::StringHash
     },
     tile::{
         TileMapLayerKind,
@@ -209,20 +208,6 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_upgrade_state(context, ui_sys);
-    }
-
-    fn draw_debug_popups(&mut self,
-                         context: &BuildingContext,
-                         ui_sys: &UiSystem,
-                         transform: &WorldToScreenTransform,
-                         visible_range: CellRange) {
-
-        self.debug.draw_popup_messages(
-            context.find_tile(),
-            ui_sys,
-            transform,
-            visible_range,
-            context.query.delta_time_secs());
     }
 }
 
