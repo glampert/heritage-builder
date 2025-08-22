@@ -19,17 +19,21 @@ use crate::{
                 UnitTaskFetchFromStorage,
             }
         },
-        sim::resources::{
-            ResourceKind,
-            ResourceKinds,
-            ResourceStock,
-            StockItem,
-            Workers
+        sim::{
+            world::WorldStats,
+            resources::{
+                ResourceKind,
+                ResourceKinds,
+                ResourceStock,
+                StockItem,
+                Workers
+            }
         }
     }
 };
 
 use super::{
+    BuildingKind,
     BuildingBehavior,
     BuildingContext,
     config::BuildingConfig
@@ -174,6 +178,20 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         0
     }
 
+    fn tally(&self, stats: &mut WorldStats, kind: BuildingKind) {
+        if kind.intersects(BuildingKind::StorageYard) {
+            self.storage_slots.for_each_resource(|item| {
+                stats.add_storage_yard_resources(item.kind, item.count);
+            });
+        } else if kind.intersects(BuildingKind::Granary) {
+            self.storage_slots.for_each_resource(|item| {
+                stats.add_granary_resources(item.kind, item.count);
+            });
+        } else {
+            unimplemented!("Missing resource tally for storage kind {kind}.");
+        }
+    }
+
     // ----------------------
     // Workers:
     // ----------------------
@@ -315,7 +333,7 @@ impl StorageSlot {
         count
     }
 
-    fn for_each_resource_kind<F>(&self, mut visitor_fn: F)
+    fn for_each_accepted_resource<F>(&self, mut visitor_fn: F)
         where F: FnMut(ResourceKind)
     {
         self.stock.for_each(|_, item| {
@@ -477,6 +495,17 @@ impl StorageSlots {
 
         prev_count - new_count
     }
+
+    fn for_each_resource<F>(&self, mut visitor_fn: F)
+        where F: FnMut(&StockItem)
+    {
+        for slot in &self.slots {
+            if let Some(allocated_kind) = slot.allocated_resource_kind {
+                let (_, item) = slot.stock.find(allocated_kind).unwrap();
+                visitor_fn(&item);
+            }
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -534,7 +563,7 @@ impl StorageSlots {
                 display_slots[slot_index].push(allocated_kind);
             } else {
                 // No resource allocated for the slot, display all possible resource kinds accepted.
-                slot.for_each_resource_kind(|kind| {
+                slot.for_each_accepted_resource(|kind| {
                     display_slots[slot_index].push(kind);
                 });
             }

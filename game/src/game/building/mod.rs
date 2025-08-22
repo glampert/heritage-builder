@@ -36,8 +36,8 @@ use super::{
     },
     sim::{
         Query,
-        world::BuildingId,
         debug::GameObjectDebugOptions,
+        world::{BuildingId, WorldStats},
         resources::{
             Workers,
             Population,
@@ -348,6 +348,20 @@ impl<'config> Building<'config> {
         self.archetype.remove_resources(kind, count)
     }
 
+    pub fn tally(&self, stats: &mut WorldStats) {
+        debug_assert!(self.id.is_valid());
+
+        if let Some(population) = self.population() {
+            stats.population += population.count;
+        }
+
+        if let Some(workers) = self.workers() {
+            stats.workers += workers.count;
+        }
+
+        self.archetype.tally(stats, self.kind);
+    }
+
     // ----------------------
     // Patrol/Runner Units:
     // ----------------------
@@ -634,6 +648,8 @@ pub trait BuildingBehavior<'config> {
     // Tries to relinquish up to `count` resources. Returns the number of
     // resources it was able to relinquish, which can be less or equal to `count`.
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32;
+
+    fn tally(&self, stats: &mut WorldStats, kind: BuildingKind);
 
     // ----------------------
     // Patrol/Runner Units:

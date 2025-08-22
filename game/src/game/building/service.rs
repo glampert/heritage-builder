@@ -21,6 +21,7 @@ use crate::{
         sim::{
             Query,
             UpdateTimer,
+            world::WorldStats,
             resources::{
                 ShoppingList,
                 ResourceKind,
@@ -163,6 +164,18 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         let removed_count = self.stock.remove_resources(kind, count);
         self.debug.log_resources_lost(kind, removed_count);
         removed_count
+    }
+
+    fn tally(&self, stats: &mut WorldStats, kind: BuildingKind) {
+        if kind.intersects(BuildingKind::Market) {
+            self.stock.for_each(|_, item| {
+                stats.add_market_resources(item.kind, item.count);
+            });
+        } else {
+            self.stock.for_each(|_, item| {
+                stats.add_service_resources(item.kind, item.count);
+            });
+        }
     }
 
     // ----------------------

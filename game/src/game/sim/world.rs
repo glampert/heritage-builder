@@ -56,7 +56,7 @@ use super::{
 
 // Holds the world state and provides queries.
 pub struct World<'config> {
-    resource_stats: WorldResourceStats,
+    stats: WorldStats,
 
     // One list per building archetype.
     building_lists: [BuildingList<'config>; BUILDING_ARCHETYPE_COUNT],
@@ -73,7 +73,7 @@ pub struct World<'config> {
 impl<'config> World<'config> {
     pub fn new(building_configs: &'config BuildingConfigs, unit_configs: &'config UnitConfigs) -> Self {
         Self {
-            resource_stats: WorldResourceStats::new(),
+            stats: WorldStats::new(),
             // Buildings:
             building_lists: [
                 BuildingList::new(BuildingArchetypeKind::ProducerBuilding, PRODUCER_BUILDINGS_POOL_CAPACITY),
@@ -105,11 +105,11 @@ impl<'config> World<'config> {
     }
 
     pub fn update(&mut self, query: &Query<'config, '_>) {
-        self.resource_stats.reset();
+        self.stats.reset();
 
         for unit in self.unit_spawn_pool.iter_mut() {
             unit.update(query);
-            self.resource_stats.tally_unit(unit);
+            unit.tally(&mut self.stats);
         }
 
         for buildings in &mut self.building_lists {
@@ -117,7 +117,7 @@ impl<'config> World<'config> {
             for building in buildings.iter_mut() {
                 debug_assert!(building.archetype_kind() == list_archetype);
                 building.update(query);
-                self.resource_stats.tally_building(building);
+                building.tally(&mut self.stats);
             }
         }
     }
@@ -641,8 +641,8 @@ impl<'config> World<'config> {
 
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if let Some(_tab_bar) = ui.tab_bar("World Debug Tab Bar") {
-            self.resource_stats.draw_debug_ui(ui_sys);
+        if let Some(_tab_bar) = ui.tab_bar("World Stats Tab Bar") {
+            self.stats.draw_debug_ui(ui_sys);
         }
     }
 }
@@ -989,48 +989,55 @@ impl<'config> UnitSpawnPool<'config> {
 }
 
 // ----------------------------------------------
-// WorldResourceStats
+// GlobalResourceCounts / WorldStats
 // ----------------------------------------------
 
-struct WorldResourceStats {
-    // Global counts:
-    population: u32,
-    workers: u32,
-
-    // Housing stats:
-    lowest_house_level: HouseLevel,
-    highest_house_level: HouseLevel,
+struct GlobalResourceCounts {
+    // Combined sum of resources (all units + all buildings).
+    all: ResourceStock,
 
     // Resources held by spawned units.
     units: ResourceStock,
-
-    // Combined sum of resources (units + all buildings).
-    all: ResourceStock,
 
     // Resources held by each kind of building.
     storage_yards: ResourceStock,
     granaries: ResourceStock,
     houses: ResourceStock,
+    markets: ResourceStock,
     producers: ResourceStock,
     services: ResourceStock,
-    markets: ResourceStock,
 }
 
-impl WorldResourceStats {
+pub struct WorldStats {
+    // Global counts:
+    pub population: u32,
+    pub workers: u32,
+
+    // Housing stats:
+    lowest_house_level: HouseLevel,
+    highest_house_level: HouseLevel,
+
+    // Global resource tally:
+    resources: GlobalResourceCounts,
+}
+
+impl WorldStats {
     fn new() -> Self {
         Self {
             population: 0,
             workers: 0,
             lowest_house_level: HouseLevel::max(),
             highest_house_level: HouseLevel::min(),
-            units: ResourceStock::accept_all(),
-            all: ResourceStock::accept_all(),
-            storage_yards: ResourceStock::accept_all(),
-            granaries: ResourceStock::with_accepted_kinds(ResourceKind::foods()),
-            houses: ResourceStock::with_accepted_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
-            producers: ResourceStock::accept_all(),
-            services: ResourceStock::accept_all(),
-            markets: ResourceStock::with_accepted_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
+            resources: GlobalResourceCounts {
+                all: ResourceStock::accept_all(),
+                units: ResourceStock::accept_all(),
+                storage_yards: ResourceStock::accept_all(),
+                granaries: ResourceStock::with_accepted_kinds(ResourceKind::foods()),
+                houses: ResourceStock::with_accepted_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
+                markets: ResourceStock::with_accepted_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
+                producers: ResourceStock::accept_all(),
+                services: ResourceStock::accept_all(),
+            }
         }
     }
 
@@ -1039,68 +1046,62 @@ impl WorldResourceStats {
         *self = Self::new();
     }
 
-    fn tally_unit(&mut self, unit: &Unit) {
-        if !unit.is_spawned() {
-            return;
-        }
-
-        if let Some(item) = unit.peek_inventory() {
-            self.units.add(item.kind, item.count);
-            self.all.add(item.kind, item.count);
+    pub fn add_unit_resources(&mut self, kind: ResourceKind, count: u32) {
+        if count != 0 {
+            self.resources.units.add(kind, count);
+            self.resources.all.add(kind, count);
         }
     }
 
-    fn tally_building(&mut self, building: &Building) {
-        if let Some(population) = building.population() {
-            self.population += population.count;
+    pub fn add_storage_yard_resources(&mut self, kind: ResourceKind, count: u32) {
+        if count != 0 {
+            self.resources.storage_yards.add(kind, count);
+            self.resources.all.add(kind, count);
         }
+    }
 
-        if let Some(workers) = building.workers() {
-            self.workers += workers.count;
+    pub fn add_granary_resources(&mut self, kind: ResourceKind, count: u32) {
+        if count != 0 {
+            self.resources.granaries.add(kind, count);
+            self.resources.all.add(kind, count);
         }
+    }
 
-        if building.is(BuildingKind::House) {
-            let level = building.as_house().level();
-            if level < self.lowest_house_level {
-                self.lowest_house_level = level;
-            }
-            if level > self.highest_house_level {
-                self.highest_house_level = level;
-            }
+    pub fn add_house_resources(&mut self, kind: ResourceKind, count: u32) {
+        if count != 0 {
+            self.resources.houses.add(kind, count);
+            self.resources.all.add(kind, count);
         }
+    }
 
-        // Resource counts:
-        for kind in ResourceKind::all() {
-            let count = building.available_resources(kind);
-            if count == 0 {
-                continue;
-            }
+    pub fn add_market_resources(&mut self, kind: ResourceKind, count: u32) {
+        if count != 0 {
+            self.resources.markets.add(kind, count);
+            self.resources.services.add(kind, count);
+            self.resources.all.add(kind, count);
+        }
+    }
 
-            match building.archetype_kind() {
-                BuildingArchetypeKind::ProducerBuilding => {
-                    self.producers.add(kind, count);
-                },
-                BuildingArchetypeKind::StorageBuilding => {
-                    if building.is(BuildingKind::StorageYard) {
-                        self.storage_yards.add(kind, count);
-                    } else if building.is(BuildingKind::Granary) {
-                        self.granaries.add(kind, count);
-                    } else {
-                        unimplemented!("Unhandled storage building kind!");
-                    }
-                },
-                BuildingArchetypeKind::ServiceBuilding => {
-                    self.services.add(kind, count);
-                    if building.is(BuildingKind::Market) {
-                        self.markets.add(kind, count);
-                    }
-                },
-                BuildingArchetypeKind::HouseBuilding => {
-                    self.houses.add(kind, count);
-                },
-            }
+    pub fn add_producer_resources(&mut self, kind: ResourceKind, count: u32) {
+        if count != 0 {
+            self.resources.producers.add(kind, count);
+            self.resources.all.add(kind, count);
+        }
+    }
 
-            self.all.add(kind, count);
+    pub fn add_service_resources(&mut self, kind: ResourceKind, count: u32) {
+        if count != 0 {
+            self.resources.services.add(kind, count);
+            self.resources.all.add(kind, count);
+        }
+    }
+
+    pub fn update_house_level(&mut self, level: HouseLevel) {
+        if level < self.lowest_house_level {
+            self.lowest_house_level = level;
+        }
+        if level > self.highest_house_level {
+            self.highest_house_level = level;
         }
     }
 
@@ -1119,26 +1120,27 @@ impl WorldResourceStats {
         }
 
         if let Some(_tab) = ui.tab_item("Resources") {
-            self.all.draw_debug_ui("All Resources", ui_sys);
+            let resources = &self.resources;
+            resources.all.draw_debug_ui("All Resources", ui_sys);
 
             ui.separator();
 
             ui.text("In Storage:");
-            self.storage_yards.draw_debug_ui("Storage Yards", ui_sys);
-            self.granaries.draw_debug_ui("Granaries", ui_sys);
+            resources.storage_yards.draw_debug_ui("Storage Yards", ui_sys);
+            resources.granaries.draw_debug_ui("Granaries", ui_sys);
 
             ui.separator();
 
             ui.text("Buildings:");
-            self.houses.draw_debug_ui("Houses", ui_sys);
-            self.producers.draw_debug_ui("Producers", ui_sys);
-            self.services.draw_debug_ui("Services", ui_sys);
+            resources.houses.draw_debug_ui("Houses", ui_sys);
+            resources.producers.draw_debug_ui("Producers", ui_sys);
+            resources.services.draw_debug_ui("Services", ui_sys);
 
             ui.separator();
 
             ui.text("Other:");
-            self.units.draw_debug_ui("Units", ui_sys);
-            self.markets.draw_debug_ui("Markets", ui_sys);
+            resources.units.draw_debug_ui("Units", ui_sys);
+            resources.markets.draw_debug_ui("Markets", ui_sys);
         }
     }
 }

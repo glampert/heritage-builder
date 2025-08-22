@@ -24,6 +24,7 @@ use crate::{
         sim::{
             Query,
             UpdateTimer,
+            world::WorldStats,
             resources::{
                 ShoppingList,
                 ResourceKind,
@@ -201,6 +202,15 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
             return removed_count;
         }
         0
+    }
+
+    fn tally(&self, stats: &mut WorldStats, _kind: BuildingKind) {
+        for item in &self.production_input_stock.slots {
+            stats.add_producer_resources(item.kind, item.count);
+        }
+
+        let item = &self.production_output_stock.item;
+        stats.add_producer_resources(item.kind, item.count);
     }
 
     // ----------------------

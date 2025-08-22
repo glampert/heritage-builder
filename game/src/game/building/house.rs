@@ -21,6 +21,7 @@ use crate::{
         unit::Unit,
         sim::{
             UpdateTimer,
+            world::WorldStats,
             resources::{
                 Population,
                 ResourceKind,
@@ -188,6 +189,14 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         let removed_count = self.stock.remove_resources(kind, count);
         self.debug.log_resources_lost(kind, removed_count);
         removed_count
+    }
+
+    fn tally(&self, stats: &mut WorldStats, _kind: BuildingKind) {
+        stats.update_house_level(self.level());
+
+        self.stock.for_each(|_, item| {
+            stats.add_house_resources(item.kind, item.count);
+        });
     }
 
     // ----------------------

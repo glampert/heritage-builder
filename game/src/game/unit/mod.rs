@@ -20,7 +20,7 @@ use super::{
     building::Building,
     sim::{
         Query,
-        world::UnitId,
+        world::{UnitId, WorldStats},
         resources::{ResourceKind, ServiceKind, StockItem}
     }
 };
@@ -390,6 +390,16 @@ impl<'config> Unit<'config> {
         let removed_count = self.inventory.remove_resources(kind, count);
         self.debug.log_resources_lost(kind, removed_count);
         removed_count
+    }
+
+    pub fn tally(&self, stats: &mut WorldStats) {
+        if !self.is_spawned() {
+            return;
+        }
+
+        if let Some(item) = self.inventory.peek() {
+            stats.add_unit_resources(item.kind, item.count);
+        }
     }
 
     // ----------------------
