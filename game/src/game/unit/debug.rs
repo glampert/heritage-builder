@@ -30,7 +30,10 @@ use crate::{
         sim::{
             Query,
             world::UnitId,
-            debug::GameObjectDebugOptions,
+            debug::{
+                GameObjectDebugOptions,
+                GameObjectDebugOptionsExt
+            },
             resources::{
                 ResourceKind,
                 ShoppingList,
@@ -56,7 +59,7 @@ impl Unit<'_> {
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
         self.inventory.draw_debug_ui(ui_sys);
-        query.task_manager().draw_tasks_debug_ui(self, query, ui_sys);
+        self.draw_debug_ui_tasks(query, ui_sys);
         self.draw_debug_ui_navigation(query, ui_sys);
         self.draw_debug_ui_misc(query, ui_sys);
     }
@@ -66,9 +69,8 @@ impl Unit<'_> {
                              ui_sys: &UiSystem,
                              transform: &WorldToScreenTransform,
                              visible_range: CellRange) {
-        let tile = self.find_tile(query);
         self.debug.draw_popup_messages(
-            || tile,
+            self.find_tile(query),
             ui_sys,
             transform,
             visible_range,
@@ -105,6 +107,10 @@ impl Unit<'_> {
                 config.draw_debug_ui(ui_sys);
             }
         }
+    }
+
+    fn draw_debug_ui_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+        query.task_manager().draw_tasks_debug_ui(self, query, ui_sys);
     }
 
     fn draw_debug_ui_navigation(&mut self, query: &Query, ui_sys: &UiSystem) {

@@ -4,6 +4,7 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     game_object_debug_options,
+    building_config_impl,
     imgui_ui::UiSystem,
     utils::{
         Color,
@@ -39,7 +40,8 @@ use super::{
     Building,
     BuildingKind,
     BuildingBehavior,
-    BuildingContext
+    BuildingContext,
+    config::BuildingConfig
 };
 
 // ----------------------------------------------
@@ -73,6 +75,8 @@ pub struct ProducerConfig {
     // Where to find out production input raw materials.
     pub fetch_from_storage_kinds: BuildingKind,
 }
+
+building_config_impl!(ProducerConfig);
 
 // ----------------------------------------------
 // ProducerDebug
@@ -120,6 +124,10 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
 
     fn name(&self) -> &str {
         &self.config.name
+    }
+
+    fn configs(&self) -> &dyn BuildingConfig {
+        self.config
     }
 
     fn update(&mut self, context: &BuildingContext) {
@@ -197,20 +205,26 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     }
 
     // ----------------------
-    // Patrol/Runner Units:
+    // Runner Unit / Workers:
     // ----------------------
 
     fn active_runner(&mut self) -> Option<&mut Runner> {
         Some(&mut self.runner)
     }
 
+    fn workers(&self) -> Option<&Workers> {
+        Some(&self.workers)
+    }
+
     // ----------------------
     // Debug:
     // ----------------------
 
+    fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions {
+        &mut self.debug
+    }
+
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        self.draw_debug_ui_config(ui_sys);
-        self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_input_stock(ui_sys);
         self.draw_debug_ui_production_output(context, ui_sys);
     }
@@ -222,7 +236,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
                          visible_range: CellRange) {
 
         self.debug.draw_popup_messages(
-            || context.find_tile(),
+            context.find_tile(),
             ui_sys,
             transform,
             visible_range,
@@ -661,13 +675,6 @@ impl ProducerInputsLocalStock {
 }
 
 impl ProducerBuilding<'_> {
-    fn draw_debug_ui_config(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
-    }
-
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
         if self.production_input_stock.requires_any_resource() {
             let ui = ui_sys.builder();

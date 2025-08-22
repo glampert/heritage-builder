@@ -1,5 +1,6 @@
 use crate::{
     tile::Tile,
+    imgui_ui::UiSystem,
     utils::hash::{self, StringHash},
     game::sim::resources::{
         ResourceKind,
@@ -32,6 +33,28 @@ use super::{
         StorageBuilding
     }
 };
+
+// ----------------------------------------------
+// BuildingConfig
+// ----------------------------------------------
+
+pub trait BuildingConfig {
+    fn draw_debug_ui(&self, ui_sys: &UiSystem);
+}
+
+#[macro_export]
+macro_rules! building_config_impl {
+    ($config_struct:ident) => {
+        impl BuildingConfig for $config_struct {
+            fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+                let ui = ui_sys.builder();
+                if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
+                    $config_struct::draw_debug_ui(self, ui_sys);
+                }
+            }
+        }
+    };
+}
 
 // ----------------------------------------------
 // BuildingConfigs
@@ -100,7 +123,7 @@ impl BuildingConfigs {
                 tile_def_name: "well_small".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("well_small"),
                 min_workers: 0,
-                max_workers: 1,
+                max_workers: 0,
                 effect_radius: 5,
                 requires_road_access: false,
                 has_patrol_unit: false,

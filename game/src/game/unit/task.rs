@@ -1037,9 +1037,8 @@ impl UnitTaskManager {
 
     #[inline]
     pub fn new_task<Task>(&mut self, task: Task) -> Option<UnitTaskId>
-        where
-            Task: UnitTask,
-            UnitTaskArchetype: From<Task>
+        where Task: UnitTask,
+              UnitTaskArchetype: From<Task>
     {
         Some(self.task_pool.allocate(UnitTaskArchetype::from(task)))
     }
@@ -1051,8 +1050,7 @@ impl UnitTaskManager {
 
     #[inline]
     pub fn is_task<Task>(&self, task_id: UnitTaskId) -> bool
-        where
-            Task: UnitTask + 'static
+        where Task: UnitTask + 'static
     {
         let task = match self.task_pool.try_get(task_id) {
             Some(task) => task,
@@ -1063,8 +1061,7 @@ impl UnitTaskManager {
 
     #[inline]
     pub fn try_get_task<Task>(&self, task_id: UnitTaskId) -> Option<&Task>
-        where
-            Task: UnitTask + 'static
+        where Task: UnitTask + 'static
     {
         let task = self.task_pool.try_get(task_id)?;
         task.archetype.as_any().downcast_ref::<Task>()
@@ -1149,8 +1146,7 @@ fn invoke_completion_callback<F, R>(unit: &mut Unit,
                                     origin_building_kind: BuildingKind,
                                     origin_building_id: BuildingId,
                                     completion_callback: Option<F>) -> Option<R>
-    where F:
-        FnOnce(&mut Building, &mut Unit, &Query) -> R
+    where F: FnOnce(&mut Building, &mut Unit, &Query) -> R
 {
     if let Some(on_completion) = completion_callback {
         if let Some(origin_building) = query.world().find_building_mut(origin_building_kind, origin_building_id) {

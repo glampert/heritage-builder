@@ -5,6 +5,7 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     game_object_debug_options,
+    building_config_impl,
     imgui_ui::UiSystem,
     utils::{
         Color,
@@ -31,7 +32,8 @@ use crate::{
 
 use super::{
     BuildingBehavior,
-    BuildingContext
+    BuildingContext,
+    config::BuildingConfig
 };
 
 // ----------------------------------------------
@@ -56,6 +58,8 @@ pub struct StorageConfig {
     pub num_slots: u32,
     pub slot_capacity: u32,
 }
+
+building_config_impl!(StorageConfig);
 
 // ----------------------------------------------
 // StorageDebug
@@ -90,6 +94,10 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
 
     fn name(&self) -> &str {
         &self.config.name
+    }
+
+    fn configs(&self) -> &dyn BuildingConfig {
+        self.config
     }
 
     fn update(&mut self, _context: &BuildingContext) {
@@ -168,12 +176,22 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     }
 
     // ----------------------
+    // Workers:
+    // ----------------------
+
+    fn workers(&self) -> Option<&Workers> {
+        Some(&self.workers)
+    }
+
+    // ----------------------
     // Debug:
     // ----------------------
 
+    fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions {
+        &mut self.debug
+    }
+
     fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
-        self.draw_debug_ui_config(ui_sys);
-        self.debug.draw_debug_ui(ui_sys);
         self.storage_slots.draw_debug_ui("Stock Slots", ui_sys);
     }
 
@@ -184,7 +202,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
                          visible_range: CellRange) {
 
         self.debug.draw_popup_messages(
-            || context.find_tile(),
+            context.find_tile(),
             ui_sys,
             transform,
             visible_range,
@@ -479,15 +497,6 @@ impl StorageSlots {
 // ----------------------------------------------
 // Debug UI
 // ----------------------------------------------
-
-impl StorageBuilding<'_> {
-    fn draw_debug_ui_config(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
-    }
-}
 
 impl StorageSlots {
     fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {

@@ -37,7 +37,10 @@ use super::{
     sim::{
         Query,
         world::BuildingId,
+        debug::GameObjectDebugOptions,
         resources::{
+            Workers,
+            Population,
             ServiceKind,
             StockItem,
             ResourceKind,
@@ -48,12 +51,15 @@ use super::{
     }
 };
 
+use config::BuildingConfig;
 use producer::ProducerBuilding;
 use storage::StorageBuilding;
 use service::ServiceBuilding;
 use house::HouseBuilding;
 
 pub mod config;
+pub use house::HouseLevel;
+
 mod producer;
 mod storage;
 mod service;
@@ -222,6 +228,11 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
+    pub fn configs(&self) -> &dyn BuildingConfig {
+        self.archetype.configs()
+    }
+
+    #[inline]
     pub fn cell_range(&self) -> CellRange {
         self.map_cells
     }
@@ -352,6 +363,20 @@ impl<'config> Building<'config> {
     }
 
     // ----------------------
+    // Population/Workers:
+    // ----------------------
+
+    #[inline]
+    pub fn population(&self) -> Option<&Population> {
+        self.archetype.population()
+    }
+
+    #[inline]
+    pub fn workers(&self) -> Option<&Workers> {
+        self.archetype.workers()
+    }
+
+    // ----------------------
     // Building Road Link:
     // ----------------------
 
@@ -444,6 +469,11 @@ impl<'config> Building<'config> {
     // Building Debug:
     // ----------------------
 
+    #[inline]
+    pub fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions {
+        self.archetype.debug_options()
+    }
+
     pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
@@ -485,6 +515,18 @@ impl<'config> Building<'config> {
                 ui.text_colored(Color::red().to_array(), "No road access!");
             }
         }
+
+        self.configs().draw_debug_ui(ui_sys);
+
+        if let Some(population) = self.population() {
+            population.draw_debug_ui(ui_sys);
+        }
+
+        if let Some(workers) = self.workers() {
+            workers.draw_debug_ui(ui_sys);
+        }
+
+        self.debug_options().draw_debug_ui(ui_sys);
 
         let context =
             BuildingContext::new(self.kind,
@@ -570,6 +612,7 @@ pub trait BuildingBehavior<'config> {
     // ----------------------
 
     fn name(&self) -> &str;
+    fn configs(&self) -> &dyn BuildingConfig;
 
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
 
@@ -603,8 +646,17 @@ pub trait BuildingBehavior<'config> {
     fn active_runner(&mut self) -> Option<&mut Runner> { None }
 
     // ----------------------
+    // Population/Workers:
+    // ----------------------
+
+    fn population(&self) -> Option<&Population> { None }
+    fn workers(&self)    -> Option<&Workers>    { None }
+
+    // ----------------------
     // Debug:
     // ----------------------
+
+    fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions;
 
     fn draw_debug_ui(&mut self,
                      context: &BuildingContext<'config, '_, '_>,
@@ -761,13 +813,13 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
 // BuildingStock
 // ----------------------------------------------
 
-pub struct BuildingStock {
+struct BuildingStock {
     resources: ResourceStock,
     capacities: [u8; RESOURCE_KIND_COUNT],
 }
 
 impl BuildingStock {
-    pub fn with_accepted_list_and_capacity(accepted_resources: &ResourceKinds, capacity: u32) -> Self {
+    fn with_accepted_list_and_capacity(accepted_resources: &ResourceKinds, capacity: u32) -> Self {
         let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
         Self {
             resources: ResourceStock::with_accepted_list(accepted_resources),
@@ -775,7 +827,7 @@ impl BuildingStock {
         }
     }
 
-    pub fn with_accepted_kinds_and_capacity(accepted_kinds: ResourceKind, capacity: u32) -> Self {
+    fn with_accepted_kinds_and_capacity(accepted_kinds: ResourceKind, capacity: u32) -> Self {
         let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
         Self {
             resources: ResourceStock::with_accepted_kinds(accepted_kinds),
@@ -783,12 +835,12 @@ impl BuildingStock {
         }
     }
 
-    pub fn available_resources(&self, kind: ResourceKind) -> u32 {
+    fn available_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
         self.resources.count(kind)
     }
 
-    pub fn receivable_resources(&self, kind: ResourceKind) -> u32 {
+    fn receivable_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
         if let Some((index, item)) = self.resources.find(kind) {
             debug_assert!(item.count <= self.capacity_at(index), "{item}");
@@ -797,7 +849,7 @@ impl BuildingStock {
         0
     }
 
-    pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
         if count != 0 {
             let capacity_left = self.receivable_resources(kind);
@@ -810,7 +862,7 @@ impl BuildingStock {
         0
     }
 
-    pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+    fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
         if count != 0 {
             let available_count = self.available_resources(kind);
@@ -824,7 +876,7 @@ impl BuildingStock {
         0
     }
 
-    pub fn update_capacities(&mut self, capacity: u32) {
+    fn update_capacities(&mut self, capacity: u32) {
         let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
         self.capacities = [capacity_u8; RESOURCE_KIND_COUNT];
 
@@ -835,12 +887,12 @@ impl BuildingStock {
     }
 
     #[inline]
-    pub fn has_any_of(&self, kinds: ResourceKind) -> bool {
-        self.resources.has(kinds)
+    fn has_any_of(&self, kinds: ResourceKind) -> bool {
+        self.resources.has_any_of(kinds)
     }
 
     #[inline]
-    pub fn capacity_for(&self, kind: ResourceKind) -> u32 {
+    fn capacity_for(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
         if let Some((index, _)) = self.resources.find(kind) {
             return self.capacity_at(index);
@@ -849,40 +901,40 @@ impl BuildingStock {
     }
 
     #[inline]
-    pub fn capacity_at(&self, index: usize) -> u32 {
+    fn capacity_at(&self, index: usize) -> u32 {
         self.capacities[index] as u32
     }
 
     #[inline]
-    pub fn accepts_any(&self) -> bool {
+    fn accepts_any(&self) -> bool {
         self.resources.accepts_any()
     }
 
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.resources.is_empty()
     }
 
     #[inline]
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.resources.clear();
     }
 
     #[inline]
-    pub fn fill(&mut self) {
+    fn fill(&mut self) {
         self.resources.for_each_mut(|index, item| {
             item.count = self.capacities[index] as u32;
         });
     }
 
     #[inline]
-    pub fn for_each<F>(&self, visitor_fn: F)
+    fn for_each<F>(&self, visitor_fn: F)
         where F: FnMut(usize, &StockItem)
     {
         self.resources.for_each(visitor_fn);
     }
 
-    pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if !ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
             return; // collapsed.

@@ -16,7 +16,8 @@ use crate::{
     },
     game::sim::{
         self,
-        Simulation
+        Simulation,
+        world::World
     }
 };
 
@@ -52,6 +53,7 @@ pub struct DebugSettingsMenu {
     #[debug_ui(edit)] show_cursor_pos: bool,
     #[debug_ui(edit)] show_screen_origin: bool,
     #[debug_ui(edit)] show_render_stats: bool,
+    #[debug_ui(edit)] show_world_stats: bool,
 }
 
 impl DebugSettingsMenu {
@@ -125,6 +127,10 @@ impl DebugSettingsMenu {
                 self.debug_draw_dropdown(context.ui_sys);
                 self.reset_map_dropdown(context, sim);
             });
+
+        if self.show_world_stats {
+            self.draw_world_stats_window(context.world, context.ui_sys);
+        }
     }
 
     fn camera_dropdown(&self, ui_sys: &UiSystem, camera: &mut Camera) {
@@ -225,5 +231,14 @@ impl DebugSettingsMenu {
             context.tile_map.reset(grass_tile_def);
             sim.reset(context.world);
         }
+    }
+
+    fn draw_world_stats_window(&mut self, world: &World, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        ui.window("World Stats")
+            .opened(&mut self.show_world_stats)
+            .position([250.0, 5.0], imgui::Condition::FirstUseEver)
+            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
+            .build(|| world.draw_debug_ui(ui_sys));
     }
 }

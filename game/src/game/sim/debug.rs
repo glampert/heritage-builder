@@ -148,12 +148,12 @@ pub trait GameObjectDebugOptions {
         }
     }
 
-    fn draw_popup_messages<'a>(&mut self,
-                               find_tile_fn: impl FnOnce() -> &'a Tile<'a>,
-                               ui_sys: &UiSystem,
-                               transform: &WorldToScreenTransform,
-                               visible_range: CellRange,
-                               delta_time_secs: Seconds) {
+    fn draw_popup_messages(&mut self,
+                           tile: &Tile,
+                           ui_sys: &UiSystem,
+                           transform: &WorldToScreenTransform,
+                           visible_range: CellRange,
+                           delta_time_secs: Seconds) {
 
         let popups = self.get_popups();
         popups.show = debug::show_popup_messages();
@@ -161,20 +161,17 @@ pub trait GameObjectDebugOptions {
         const LIFETIME_MULTIPLIER: f32 = 3.0;
         popups.messages.update(LIFETIME_MULTIPLIER, delta_time_secs);
 
-        if popups.show {
-            let tile = find_tile_fn();
-            if visible_range.contains(tile.base_cell()) {
-                let screen_pos = tile.screen_rect(transform).center();
-                const SCROLL_DIST: f32 = 5.0;
-                const SCROLL_SPEED: f32 = 12.0;
-                const START_BG_ALPHA: f32 = 0.6;
-                popups.messages.draw(ui_sys, screen_pos, SCROLL_DIST, SCROLL_SPEED, START_BG_ALPHA);
-            }
+        if popups.show && visible_range.contains(tile.base_cell()){
+            let screen_pos = tile.screen_rect(transform).center();
+            const SCROLL_DIST: f32 = 5.0;
+            const SCROLL_SPEED: f32 = 12.0;
+            const START_BG_ALPHA: f32 = 0.6;
+            popups.messages.draw(ui_sys, screen_pos, SCROLL_DIST, SCROLL_SPEED, START_BG_ALPHA);
         }
     }
 
     #[inline]
-    fn popup_msg(&mut self, text: impl Into<Cow<'static, str>>) {
+    fn popup_msg_inner(&mut self, text: Cow<'static, str>) {
         let popups = self.get_popups();
         if popups.show {
             const LIFETIME: Seconds = 9.0;
@@ -183,7 +180,7 @@ pub trait GameObjectDebugOptions {
     }
 
     #[inline]
-    fn popup_msg_color(&mut self, color: Color, text: impl Into<Cow<'static, str>>) {
+    fn popup_msg_color_inner(&mut self, color: Color, text: Cow<'static, str>) {
         let popups = self.get_popups();
         if popups.show {
             const LIFETIME: Seconds = 9.0;
@@ -194,16 +191,24 @@ pub trait GameObjectDebugOptions {
     #[inline]
     fn log_resources_gained(&mut self, kind: ResourceKind, count: u32) {
         if self.get_popups().show && !kind.is_empty() && count != 0 {
-            self.popup_msg_color(Color::green(), format!("+{count} {kind}"));
+            self.popup_msg_color_inner(Color::green(), format!("+{count} {kind}").into());
         }
     }
 
     #[inline]
     fn log_resources_lost(&mut self, kind: ResourceKind, count: u32) {
         if self.get_popups().show && !kind.is_empty() && count != 0 {
-            self.popup_msg_color(Color::red(), format!("-{count} {kind}"));
+            self.popup_msg_color_inner(Color::red(), format!("-{count} {kind}").into());
         }
     }
+}
+
+pub trait GameObjectDebugOptionsExt {
+    fn popup_msg<T>(&mut self, text: T)
+        where T: Into<Cow<'static, str>>;
+
+    fn popup_msg_color<T>(&mut self, color: Color, text: T)
+        where T: Into<Cow<'static, str>>;
 }
 
 // ----------------------------------------------
@@ -217,10 +222,12 @@ macro_rules! game_object_debug_options {
         $($field_name:ident : $field_type:ty),* $(,)?
     ) => {
         use paste::paste;
+        use std::borrow::Cow;
         use $crate::game::sim::debug::{
             GameObjectDebugVar,
             GameObjectDebugPopups,
-            GameObjectDebugOptions
+            GameObjectDebugOptions,
+            GameObjectDebugOptionsExt
         };
 
         paste! {
@@ -255,6 +262,22 @@ macro_rules! game_object_debug_options {
                             GameObjectDebugVar::new(stringify!($field_name), &mut self.[<opt_ $field_name>]),
                         )*
                     ]
+                }
+            }
+
+            impl GameObjectDebugOptionsExt for $struct_name {
+                #[inline]
+                fn popup_msg<T>(&mut self, text: T)
+                    where T: Into<Cow<'static, str>>
+                {
+                    GameObjectDebugOptions::popup_msg_inner(self, text.into());
+                }
+
+                #[inline]
+                fn popup_msg_color<T>(&mut self, color: Color, text: T)
+                    where T: Into<Cow<'static, str>>
+                {
+                    GameObjectDebugOptions::popup_msg_color_inner(self, color, text.into());
                 }
             }
         }

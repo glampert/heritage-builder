@@ -5,6 +5,7 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     game_object_debug_options,
+    building_config_impl,
     imgui_ui::UiSystem,
     pathfind::{Node, NodeKind as PathNodeKind},
     utils::{
@@ -22,6 +23,7 @@ use crate::{
         sim::{
             UpdateTimer,
             resources::{
+                Population,
                 ResourceKind,
                 ResourceKinds,
                 ServiceKind,
@@ -37,7 +39,7 @@ use super::{
     BuildingBehavior,
     BuildingContext,
     BuildingStock,
-    config::BuildingConfigs
+    config::{BuildingConfig, BuildingConfigs}
 };
 
 // ----------------------------------------------
@@ -86,6 +88,8 @@ pub struct HouseLevelConfig {
     pub stock_capacity: u32,
 }
 
+building_config_impl!(HouseLevelConfig);
+
 // ----------------------------------------------
 // HouseDebug
 // ----------------------------------------------
@@ -106,11 +110,13 @@ game_object_debug_options! {
 // ----------------------------------------------
 
 pub struct HouseBuilding<'config> {
-    stock_update_timer: UpdateTimer,
-    upgrade_update_timer: UpdateTimer,
+    population: Population,
 
-    upgrade_state: HouseUpgradeState<'config>,
+    stock_update_timer: UpdateTimer,
     stock: BuildingStock,
+
+    upgrade_update_timer: UpdateTimer,
+    upgrade_state: HouseUpgradeState<'config>,
 
     debug: HouseDebug,
 }
@@ -126,6 +132,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 
     fn name(&self) -> &str {
         &self.upgrade_state.curr_level_config.name
+    }
+
+    fn configs(&self) -> &dyn BuildingConfig {
+        self.upgrade_state.curr_level_config
     }
 
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>) {
@@ -151,6 +161,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
                 self.debug.popup_msg_color(Color::green(), "Visited by market vendor");
             }
         }
+
+        // TODO: Should we make house access to services depend on it being visited by the
+        // service patrol unit? Right now access to a service is simply based on proximity
+        // to the building, measured from the house's road link tile.
     }
 
     // ----------------------
@@ -178,12 +192,22 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     }
 
     // ----------------------
+    // Population:
+    // ----------------------
+
+    fn population(&self) -> Option<&Population> {
+        Some(&self.population)
+    }
+
+    // ----------------------
     // Debug:
     // ----------------------
 
+    fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions {
+        &mut self.debug
+    }
+
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        self.draw_debug_ui_level_config(ui_sys);
-        self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_upgrade_state(context, ui_sys);
     }
 
@@ -194,7 +218,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
                          visible_range: CellRange) {
 
         self.debug.draw_popup_messages(
-            || context.find_tile(),
+            context.find_tile(),
             ui_sys,
             transform,
             visible_range,
@@ -215,12 +239,18 @@ impl<'config> HouseBuilding<'config> {
             upgrade_state.curr_level_config.stock_capacity);
 
         Self {
+            population: Population::new(upgrade_state.curr_level_config.max_residents),
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
+            stock,
             upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
             upgrade_state,
-            stock,
             debug: HouseDebug::default(),
         }
+    }
+
+    #[inline]
+    pub fn level(&self) -> HouseLevel {
+        self.upgrade_state.level
     }
 
     // ----------------------
@@ -305,7 +335,7 @@ impl<'config> HouseBuilding<'config> {
 
     fn upgrade_update(&mut self, context: &BuildingContext<'config, '_, '_>) {
         // Attempt to upgrade or downgrade based on services and resources availability.
-        self.upgrade_state.update(context, &mut self.stock, &mut self.debug);
+        self.upgrade_state.update(&mut self.population, &mut self.stock, &mut self.debug, context);
     }
 
     fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
@@ -321,7 +351,7 @@ impl<'config> HouseBuilding<'config> {
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, IntoPrimitive, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, EnumCount, IntoPrimitive, TryFromPrimitive)]
 pub enum HouseLevel {
     Level0,
     Level1,
@@ -330,15 +360,25 @@ pub enum HouseLevel {
 
 impl HouseLevel {
     #[inline]
+    #[must_use]
+    pub fn min() -> HouseLevel {
+        Self::try_from_primitive(0).unwrap()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn max() -> HouseLevel {
+        Self::try_from_primitive((HouseLevel::COUNT - 1) as u32).unwrap()
+    }
+
+    #[inline]
     fn is_max(self) -> bool {
-        let curr: u32 = self.into();
-        (curr as usize) == (HouseLevel::COUNT - 1)
+        self == Self::max()
     }
 
     #[inline]
     fn is_min(self) -> bool {
-        let curr: u32 = self.into();
-        curr == 0
+        self == Self::min()
     }
 
     #[inline]
@@ -467,9 +507,10 @@ impl<'config> HouseUpgradeState<'config> {
     }
 
     fn update(&mut self,
-              context: &BuildingContext<'config, '_, '_>,
+              population: &mut Population,
               stock: &mut BuildingStock,
-              debug: &mut HouseDebug) {
+              debug: &mut HouseDebug,
+              context: &BuildingContext<'config, '_, '_>) {
 
         let mut upgraded = false;
         let mut downgraded = false;
@@ -481,6 +522,7 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         if upgraded || downgraded {
+            population.update_max(self.curr_level_config.max_residents);
             stock.update_capacities(self.curr_level_config.stock_capacity);   
         }
     }
@@ -685,13 +727,6 @@ impl<'config> HouseUpgradeState<'config> {
 // ----------------------------------------------
 
 impl HouseBuilding<'_> {
-    fn draw_debug_ui_level_config(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header(format!("Config ({:?})", self.upgrade_state.level), imgui::TreeNodeFlags::empty()) {
-            self.upgrade_state.curr_level_config.draw_debug_ui(ui_sys);
-        }
-    }
-
     fn draw_debug_ui_upgrade_state(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if !ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {

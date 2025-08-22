@@ -3,6 +3,7 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     game_object_debug_options,
+    building_config_impl,
     imgui_ui::UiSystem,
     utils::{
         Color,
@@ -37,7 +38,8 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    BuildingStock
+    BuildingStock,
+    config::BuildingConfig
 };
 
 // ----------------------------------------------
@@ -66,6 +68,8 @@ pub struct ServiceConfig {
     // Kinds of resources required for the service to run, if any.
     pub resources_required: ResourceKinds,
 }
+
+building_config_impl!(ServiceConfig);
 
 // ----------------------------------------------
 // ServiceDebug
@@ -110,6 +114,10 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
 
     fn name(&self) -> &str {
         &self.config.name
+    }
+
+    fn configs(&self) -> &dyn BuildingConfig {
+        self.config
     }
 
     fn update(&mut self, context: &BuildingContext) {
@@ -159,7 +167,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     }
 
     // ----------------------
-    // Patrol/Runner Units:
+    // Patrol/Runner/Workers:
     // ----------------------
 
     fn active_patrol(&mut self) -> Option<&mut Patrol> {
@@ -170,13 +178,19 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         Some(&mut self.runner)
     }
 
+    fn workers(&self) -> Option<&Workers> {
+        Some(&self.workers)
+    }
+
     // ----------------------
     // Debug:
     // ----------------------
 
+    fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions {
+        &mut self.debug
+    }
+
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        self.draw_debug_ui_config(ui_sys);
-        self.debug.draw_debug_ui(ui_sys);
         self.draw_debug_ui_resources_stock(context, ui_sys);
         self.draw_debug_ui_patrol(ui_sys);
     }
@@ -188,7 +202,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
                          visible_range: CellRange) {
 
         self.debug.draw_popup_messages(
-            || context.find_tile(),
+            context.find_tile(),
             ui_sys,
             transform,
             visible_range,
@@ -303,6 +317,11 @@ impl<'config> ServiceBuilding<'config> {
             return; // A patrol unit is already out. Try again later.
         }
 
+        if context.kind == BuildingKind::Market && self.stock.is_empty() {
+            // Markets will only send out a patrol if there are goods in stock.
+            return;
+        }
+
         // Unit spawns at the nearest road link.
         let unit_origin = match context.road_link {
             Some(road_link) => road_link,
@@ -347,13 +366,6 @@ impl<'config> ServiceBuilding<'config> {
 // ----------------------------------------------
 
 impl ServiceBuilding<'_> {
-    fn draw_debug_ui_config(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-            self.config.draw_debug_ui(ui_sys);
-        }
-    }
-
     fn draw_debug_ui_resources_stock(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         if !self.stock.accepts_any() {
             return;

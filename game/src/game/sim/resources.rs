@@ -132,6 +132,47 @@ impl Workers {
             max,
         }
     }
+
+    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
+            ui.text(format!("Workers      : {}", self.count));
+            ui.text(format!("Min Required : {}", self.min));
+            ui.text(format!("Max Employed : {}", self.max));
+        }
+    }
+}
+
+// ----------------------------------------------
+// Population
+// ----------------------------------------------
+
+pub struct Population {
+    pub count: u32, // Current population number for household.
+    pub max: u32,   // Maximum population it can accommodate.
+}
+
+impl Population {
+    pub fn new(max: u32) -> Self {
+        debug_assert!(max > 0);
+        Self {
+            count: 0,
+            max,
+        }
+    }
+
+    pub fn update_max(&mut self, new_max: u32) {
+        self.count = self.count.min(new_max); // Clamp to new maximum.
+        self.max = new_max;
+    }
+
+    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if ui.collapsing_header("Population", imgui::TreeNodeFlags::empty()) {
+            ui.text(format!("Population    : {}", self.count));
+            ui.text(format!("Max Residents : {}", self.max));
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -207,12 +248,7 @@ impl ResourceStock {
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        for count in self.counts {
-            if count != 0 {
-                return false;
-            }
-        }
-        true
+        self.counts.iter().all(|count| *count == 0)
     }
 
     #[inline]
@@ -221,10 +257,10 @@ impl ResourceStock {
     }
 
     #[inline]
-    pub fn has(&self, kinds: ResourceKind) -> bool {
+    pub fn has_any_of(&self, kinds: ResourceKind) -> bool {
         // Break down flags that are ORed together (since T is bitflags),
-        // so that has() can work with multiple wanted kinds, e.g.:
-        // has(A | B | C) -> returns true if any A|B|C is non-zero
+        // so that has_any_of() can work with multiple wanted kinds, e.g.:
+        // has_any_of(A | B | C) -> returns true if any A|B|C is non-zero
         for single_kind in kinds.iter() {
             if self.count(single_kind) != 0 {
                 return true;
@@ -317,14 +353,17 @@ impl ResourceStock {
         }
     }
 
-    pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
+    // Read-only debug display.
+    pub fn draw_debug_ui(&self, label: &str, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
-            self.for_each_mut(|index, item| {
-                ui.input_scalar(format!("{}##_stock_item_{}", item.kind, index), &mut item.count)
-                    .step(1)
+            ui.indent_by(5.0);
+            self.for_each(|index, item| {
+                ui.input_text(format!("{}##_stock_item_{}", item.kind, index), &mut format!("{}", item.count))
+                    .read_only(true)
                     .build();
             });
+            ui.unindent_by(5.0);
         }
     }
 }
@@ -413,7 +452,7 @@ impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
 
     #[inline]
     pub fn add(&mut self, kind: T) {
-        debug_assert!(!self.has(kind));
+        debug_assert!(!self.has_any_of(kind));
         self.kinds.push(kind);
     }
 
@@ -435,13 +474,8 @@ impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
     }
 
     #[inline]
-    pub fn has(&self, kinds: T) -> bool {
-        for kind in &self.kinds {
-            if kind.intersects(kinds) {
-                return true;
-            }
-        }
-        false
+    pub fn has_any_of(&self, kinds: T) -> bool {
+        self.kinds.iter().any(|kind| kind.intersects(kinds))
     }
 
     // This will break down any flags that are ORed together into
@@ -451,7 +485,7 @@ impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
     pub fn for_each<F>(&self, mut visitor_fn: F)
         where F: FnMut(T) -> bool
     {
-        for kinds in &self.kinds {
+        for kinds in self.kinds.iter() {
             // Break down flags that are ORed together (T is bitflags).
             for single_kind in kinds.iter() {
                 if !visitor_fn(single_kind) {
