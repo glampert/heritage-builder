@@ -1,3 +1,4 @@
+use rand::Rng;
 use strum::EnumCount;
 use strum_macros::EnumCount;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -65,6 +66,7 @@ use super::{
 // ----------------------------------------------
 
 pub struct HouseConfig {
+    pub population_update_frequency_secs: Seconds,
     pub stock_update_frequency_secs: Seconds,
     pub upgrade_update_frequency_secs: Seconds,
 }
@@ -79,6 +81,9 @@ pub struct HouseLevelConfig {
 
     pub max_residents: u32,
     pub tax_generated: u32,
+
+    // Percentage of chance that the house population will increase on population updates; [0,100].
+    pub population_increase_chance: u32,
 
     // Types of services provided by these kinds of buildings for the house level to be obtained and maintained.
     pub services_required: ServiceKinds,
@@ -97,6 +102,8 @@ building_config_impl!(HouseLevelConfig);
 game_object_debug_options! {
     HouseDebug,
 
+    freeze_population_update: bool,
+    
     // Stops any resources from being consumed.
     // Also stops refreshing resources stock from a market.
     freeze_stock_update: bool,
@@ -110,6 +117,7 @@ game_object_debug_options! {
 // ----------------------------------------------
 
 pub struct HouseBuilding<'config> {
+    population_update_timer: UpdateTimer,
     population: Population,
 
     stock_update_timer: UpdateTimer,
@@ -131,11 +139,11 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     // ----------------------
 
     fn name(&self) -> &str {
-        &self.upgrade_state.curr_level_config.name
+        &self.current_level_config().name
     }
 
     fn configs(&self) -> &dyn BuildingConfig {
-        self.upgrade_state.curr_level_config
+        self.current_level_config()
     }
 
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>) {
@@ -151,6 +159,11 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
           !self.debug.freeze_upgrade_update() {
             self.upgrade_update(context);
         }
+
+        if self.population_update_timer.tick(delta_time_secs).should_update() &&
+          !self.debug.freeze_population_update() {
+            self.population_update(context);
+        } 
     }
 
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
@@ -233,6 +246,7 @@ impl<'config> HouseBuilding<'config> {
             upgrade_state.curr_level_config.stock_capacity);
 
         Self {
+            population_update_timer: UpdateTimer::new(house_config.population_update_frequency_secs),
             population: Population::new(upgrade_state.curr_level_config.max_residents),
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
             stock,
@@ -243,8 +257,18 @@ impl<'config> HouseBuilding<'config> {
     }
 
     #[inline]
-    pub fn level(&self) -> HouseLevel {
+    fn level(&self) -> HouseLevel {
         self.upgrade_state.level
+    }
+
+    #[inline]
+    fn current_level_config(&self) -> &HouseLevelConfig {
+        self.upgrade_state.curr_level_config
+    }
+
+    #[inline]
+    fn next_level_config(&self) -> &HouseLevelConfig {
+        self.upgrade_state.next_level_config
     }
 
     // ----------------------
@@ -285,7 +309,7 @@ impl<'config> HouseBuilding<'config> {
 
             // We've already shopped for resources in the current level list,
             // so take only the ones that are exclusive to the next level.
-            for &resource in self.upgrade_state.next_level_config.resources_required.iter() {
+            for &resource in self.next_level_config().resources_required.iter() {
                 if !self.stock.has_any_of(resource) {
                     next_level_shopping_list.add(resource);
                 }
@@ -337,6 +361,25 @@ impl<'config> HouseBuilding<'config> {
             return false;
         }
         self.upgrade_state.is_upgrade_available(context)
+    }
+
+    // ----------------------
+    // Population Update:
+    // ----------------------
+
+    fn population_update(&mut self, context: &BuildingContext) {
+        if self.population.is_maxed() {
+            return;
+        }
+
+        let rng = context.query.rng();
+        let chance = self.current_level_config().population_increase_chance.min(100);
+        let increase_population = rng.random_ratio(chance, 100);
+
+        if increase_population {
+            self.population.add(1);
+            self.debug.popup_msg_color(Color::green(), "+1 Population");
+        }
     }
 }
 
@@ -516,8 +559,15 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         if upgraded || downgraded {
-            population.update_max(self.curr_level_config.max_residents);
-            stock.update_capacities(self.curr_level_config.stock_capacity);   
+            stock.update_capacities(self.curr_level_config.stock_capacity);
+
+            let prev_population = population.count;
+            let new_population  = population.update_max(self.curr_level_config.max_residents);
+
+            if new_population < prev_population {
+                let evicted = prev_population - new_population;
+                debug.popup_msg_color(Color::red(), format!("Evicted {evicted} residents"));
+            }
         }
     }
 
@@ -806,8 +856,10 @@ impl HouseBuilding<'_> {
         color_text(" - Has road access :", context.is_linked_to_road());
         ui.separator();
 
-        self.upgrade_update_timer.draw_debug_ui("Upgrade", 0, ui_sys);
-        self.stock_update_timer.draw_debug_ui("Stock Update", 1, ui_sys);
+        self.population_update_timer.draw_debug_ui("Population Update", 0, ui_sys);
+        self.upgrade_update_timer.draw_debug_ui("Upgrade Update", 1, ui_sys);
+        self.stock_update_timer.draw_debug_ui("Stock Update", 2, ui_sys);
+
         self.stock.draw_debug_ui("Resources In Stock", ui_sys);
 
         draw_level_requirements(

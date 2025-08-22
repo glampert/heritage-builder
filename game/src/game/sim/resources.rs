@@ -161,9 +161,19 @@ impl Population {
         }
     }
 
-    pub fn update_max(&mut self, new_max: u32) {
+    pub fn add(&mut self, count: u32) {
+        let new_count = (self.count + count).min(self.max);
+        self.count = new_count;
+    }
+
+    pub fn update_max(&mut self, new_max: u32) -> u32 {
         self.count = self.count.min(new_max); // Clamp to new maximum.
         self.max = new_max;
+        self.count
+    }
+
+    pub fn is_maxed(&self) -> bool {
+        self.count == self.max
     }
 
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {

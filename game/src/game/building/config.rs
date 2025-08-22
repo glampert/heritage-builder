@@ -82,6 +82,7 @@ impl BuildingConfigs {
         Self {
             house_cfg: HouseConfig {
                 // General configuration parameters for all house buildings & levels.
+                population_update_frequency_secs: 60.0,
                 stock_update_frequency_secs: 20.0,
                 upgrade_update_frequency_secs: 10.0,
             },
@@ -91,6 +92,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house0"),
                 max_residents: 2,
                 tax_generated: 0,
+                population_increase_chance: 80,
                 services_required: ServiceKinds::none(),
                 resources_required: ResourceKinds::none(),
                 stock_capacity: 5,
@@ -101,6 +103,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house1"),
                 max_residents: 4,
                 tax_generated: 1,
+                population_increase_chance: 70,
                 // Any water source (small well OR big well) AND a market.
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
                 // Any 1 kind of food.
@@ -113,6 +116,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house2"),
                 max_residents: 6,
                 tax_generated: 2,
+                population_increase_chance: 60,
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
                 // 2 kinds of food required: Rice AND Meat OR Fish.
                 resources_required: ResourceKinds::with_slice(&[ResourceKind::Rice, ResourceKind::Meat | ResourceKind::Fish]),
