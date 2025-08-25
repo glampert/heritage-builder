@@ -144,6 +144,10 @@ impl<'config> Unit<'config> {
     // Teleports to new tile cell and updates direction and animation.
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
         debug_assert!(self.is_spawned());
+        if self.map_cell == destination_cell {
+            return true;
+        }
+
         if tile_map.try_move_tile(self.map_cell, destination_cell, TileMapLayerKind::Objects) {
             let tile = tile_map.find_tile_mut(
                 destination_cell,
@@ -154,10 +158,11 @@ impl<'config> Unit<'config> {
             let new_direction = direction_between(self.map_cell, destination_cell);    
             self.update_direction_and_anim(tile, new_direction);
 
-            debug_assert!(destination_cell == tile.base_cell());
+            debug_assert!(tile.base_cell() == destination_cell);
             self.map_cell = destination_cell;
             return true;
         }
+
         false
     }
 
@@ -180,6 +185,11 @@ impl<'config> Unit<'config> {
     #[inline]
     pub fn is_market_patrol(&self, query: &Query) -> bool {
         self.patrol_service_kind(query).is_some_and(|kind| kind == ServiceKind::Market)
+    }
+
+    #[inline]
+    pub fn is_settler(&self, query: &Query) -> bool {
+        self.find_tile(query).tile_def().hash == utils::hash::fnv1a_from_str("settler")
     }
 
     // ----------------------

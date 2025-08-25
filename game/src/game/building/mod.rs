@@ -314,6 +314,10 @@ impl<'config> Building<'config> {
 
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
         debug_assert!(self.id.is_valid());
+        if self.base_cell() == destination_cell {
+            return true;
+        }
+
         if tile_map.try_move_tile(self.base_cell(), destination_cell, TileMapLayerKind::Objects) {
             let tile = tile_map.find_tile_mut(
                 destination_cell,
@@ -321,10 +325,11 @@ impl<'config> Building<'config> {
                 TileKind::Building)
                 .unwrap();
 
-            debug_assert!(destination_cell == tile.base_cell());
+            debug_assert!(tile.base_cell() == destination_cell);
             self.map_cells = tile.cell_range();
             return true;
         }
+
         false
     }
 
@@ -394,8 +399,18 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
+    pub fn population_count(&self) -> u32 {
+        self.population().map_or(0, |population| population.count)
+    }
+
+    #[inline]
     pub fn workers(&self) -> Option<&Workers> {
         self.archetype.workers()
+    }
+
+    #[inline]
+    pub fn workers_count(&self) -> u32 {
+        self.workers().map_or(0, |workers| workers.count)
     }
 
     // ----------------------

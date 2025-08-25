@@ -9,7 +9,7 @@ use enum_dispatch::enum_dispatch;
 use crate::{
     debug::{self},
     imgui_ui::UiSystem,
-    tile::{Tile, TileMapLayerKind},
+    tile::{Tile, TileKind, TileMapLayerKind},
     pathfind::{
         Node,
         Path,
@@ -58,7 +58,7 @@ pub enum UnitTaskState {
     Uninitialized,
     Running,
     Completed,
-    TerminateAndDespawn { post_despawn_callback: Option<fn(&Query, Cell)> },
+    TerminateAndDespawn { post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>)> },
 }
 
 #[derive(Display)]
@@ -66,7 +66,7 @@ pub enum UnitTaskResult {
     Running,
     Retry,
     Completed { next_task: UnitTaskForwarded }, // Optional next task to run.
-    TerminateAndDespawn { post_despawn_callback: Option<fn(&Query, Cell)> },
+    TerminateAndDespawn { post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>)> },
 }
 
 pub struct UnitTaskForwarded(Option<UnitTaskId>);
@@ -147,8 +147,8 @@ impl UnitTask for UnitTaskDespawn {
 
 pub struct UnitTaskDespawnWithCallback {
     // Callback invoked *after* the unit has despawned.
-    // |query, unit_prev_cell|
-    pub callback: Option<fn(&Query, Cell)>,
+    // |query, unit_prev_cell, unit_prev_goal|
+    pub callback: Option<fn(&Query, Cell, Option<UnitNavGoal>)>,
 }
 
 impl UnitTask for UnitTaskDespawnWithCallback {
@@ -871,6 +871,9 @@ pub struct UnitTaskFindVacantHouseLot {
 
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
+
+    // If true and we can't find an empty lot, try to find any house with room that will take the settler.
+    pub fallback_to_houses_with_room: bool,
 }
 
 impl UnitTaskFindVacantHouseLot {
@@ -879,6 +882,7 @@ impl UnitTaskFindVacantHouseLot {
         let traversable_node_kinds = unit.traversable_node_kinds();
         let bias = RandomDirectionalBias::new(query.rng(), 0.1, 0.5);
 
+        // First try to find an empty lot we can settle:
         let result = query.find_path_to_node(
             &bias,
             traversable_node_kinds,
@@ -887,6 +891,35 @@ impl UnitTaskFindVacantHouseLot {
 
         if let SearchResult::PathFound(path) = result {
             unit.move_to_goal(path, UnitNavGoal::tile(start, path));
+            return;
+        }
+
+        // Alternatively try to find a house with room that can take this settler.
+        if self.fallback_to_houses_with_room {
+            let result = query.find_nearest_buildings(
+                start,
+                BuildingKind::House,
+                traversable_node_kinds,
+                None,
+                |building, _path| {
+                    if let Some(population) = building.population() {
+                        if !population.is_maxed() && building.is_linked_to_road(query) {
+                            return false; // Accept this building and end the search.
+                        }
+                    }
+                    true // Continue search.
+                });
+
+            if let Some((building, path)) = result {
+                unit.move_to_goal(
+                    path,
+                    UnitNavGoal::building(
+                        BuildingKind::empty(), // Unused.
+                        start,
+                        building.kind(),
+                        building.tile_info(query))
+                );
+            }
         }
     }
 }
@@ -918,25 +951,70 @@ impl UnitTask for UnitTaskFindVacantHouseLot {
 
     fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskResult {
         let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
-
-        let destination_cell = unit_goal.tile_destination();
-        debug_assert!(destination_cell.is_valid());
-
         let tile_map = query.tile_map();
 
-        if let Some(vacant_lot) = tile_map.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
-            if vacant_lot.tile_def().path_kind.intersects(PathNodeKind::VacantLot) {
-                // Notify completion:
-                if let Some(on_completion) = self.completion_callback {
-                    on_completion(unit, vacant_lot, query);
+        if unit_goal.is_tile() {
+            // Moving to a vacant lot:
+            let destination_cell = unit_goal.tile_destination();
+            debug_assert!(destination_cell.is_valid());
+
+            if let Some(vacant_lot) = tile_map.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
+                if vacant_lot.tile_def().path_kind.intersects(PathNodeKind::VacantLot) {
+                    // Notify completion:
+                    if let Some(on_completion) = self.completion_callback {
+                        on_completion(unit, vacant_lot, query);
+                    }
+
+                    return UnitTaskResult::Completed {
+                        next_task: forward_task(&mut self.completion_task)
+                    };
+                }
+            }
+        } else if unit_goal.is_building() {
+            // Moving to a house with room to take a new settler:
+            debug_assert!(self.fallback_to_houses_with_room);
+
+            let (destination_kind, destination_cell) = unit_goal.building_destination();
+
+            debug_assert!(destination_kind == BuildingKind::House);
+            debug_assert!(destination_cell.is_valid());
+
+            if let Some(house_tile) = tile_map.find_tile(
+                destination_cell,
+                TileMapLayerKind::Objects,
+                TileKind::Building)
+            {
+                let world = query.world();
+                let mut task_completed = false;
+
+                // Visit destination building:
+                if let Some(house_building) = world.find_building_for_cell_mut(destination_cell, tile_map) {
+                    if house_building.kind() == destination_kind {
+                        let prev_population = house_building.population_count();
+                        house_building.visited_by(unit, query);
+                        let curr_population = house_building.population_count();
+
+                        // House accepted the setter. Task finished.
+                        if curr_population > prev_population {
+                            task_completed = true;
+                        }
+                    }
                 }
 
-                return UnitTaskResult::Completed {
-                    next_task: forward_task(&mut self.completion_task)
-                };
+                if task_completed {
+                    // Notify completion:
+                    if let Some(on_completion) = self.completion_callback {
+                        on_completion(unit, house_tile, query);
+                    }
+
+                    return UnitTaskResult::Completed {
+                        next_task: forward_task(&mut self.completion_task)
+                    };
+                }
             }
         }
 
+        // Failed; retry.
         unit.follow_path(None);
         UnitTaskResult::Retry
     }
@@ -1182,12 +1260,13 @@ impl UnitTaskManager {
                     },
                     UnitTaskResult::TerminateAndDespawn { post_despawn_callback } => {
                         let unit_prev_cell = unit.cell();
+                        let unit_prev_goal = unit.goal().cloned();
 
                         unit.assign_task(self, None);
                         query.despawn_unit(unit);
 
                         if let Some(callback) = post_despawn_callback {
-                            callback(query, unit_prev_cell);
+                            callback(query, unit_prev_cell, unit_prev_goal);
                         }
                     },
                     invalid => {

@@ -597,7 +597,9 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                 let path = building_filter.maybe_path
                     .expect("Path should be valid for SearchResult::PathFound!");
 
+                debug_assert!(building.is(building_kinds));
                 debug_assert!(path.as_ref() == path_found); // Must be the same.
+
                 Some((building, path_found))
             },
             SearchResult::PathNotFound => None,

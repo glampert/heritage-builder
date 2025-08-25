@@ -187,13 +187,6 @@ impl Unit<'_> {
         self.debug_dropdown_pathfinding_tasks(query, ui_sys);
     }
 
-    fn teleport_if_needed(&mut self, query: &Query, destination_cell: Cell) -> bool {
-        if self.cell() == destination_cell {
-            return true;
-        }
-        self.teleport(query.tile_map(), destination_cell)
-    }
-
     fn debug_dropdown_despawn_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if !ui.collapsing_header("Despawn Tasks", imgui::TreeNodeFlags::empty()) {
@@ -223,7 +216,7 @@ impl Unit<'_> {
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link(query).unwrap_or_default();
-                if self.teleport_if_needed(query, start_cell) {
+                if self.teleport(query.tile_map(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskDeliverToStorage {
                         origin_building: BuildingKindAndId {
@@ -256,7 +249,7 @@ impl Unit<'_> {
                     &[StockItem { kind: ResourceKind::random(&mut rng), count: rng.random_range(1..5) }]
                 );
                 let start_cell = building.road_link(query).unwrap_or_default();
-                if self.teleport_if_needed(query, start_cell) {
+                if self.teleport(query.tile_map(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskFetchFromStorage {
                         origin_building: BuildingKindAndId {
@@ -312,7 +305,7 @@ impl Unit<'_> {
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link(query).unwrap_or_default();
-                if self.teleport_if_needed(query, start_cell) {
+                if self.teleport(query.tile_map(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskRandomizedPatrol {
                         origin_building: BuildingKindAndId {
@@ -407,7 +400,7 @@ impl Unit<'_> {
                                          visit_building);
         }
 
-        if ui.button(format!("Test Is Near Building ({})", search_building_kind)) {
+        if ui.button(format!("Test Is Near Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
             let connected_to_road_only =
                  traversable_node_kinds.intersects(PathNodeKind::Road) &&
                 !traversable_node_kinds.intersects(PathNodeKind::Dirt);
@@ -423,6 +416,8 @@ impl Unit<'_> {
             }
         }
 
+        ui.separator();
+
         let task_manager = query.task_manager();
 
         if ui.button("Find Vacant House Lot") && !traversable_node_kinds.is_empty() {
@@ -432,33 +427,49 @@ impl Unit<'_> {
             let task = task_manager.new_task(UnitTaskFindVacantHouseLot {
                 completion_callback: Some(|unit, vacant_lot, _| {
                     println!("Unit {} reached {}.", unit.name(), vacant_lot.name());
-                    unit.debug.popup_msg("Reached vacant lot");
+                    unit.debug.popup_msg(format!("Reached {}", vacant_lot.name()));
                 }),
                 completion_task,
+                fallback_to_houses_with_room: false,
             });
 
             self.assign_task(task_manager, task);
         }
 
-        if ui.button("Find & Settle Vacant House Lot") && !traversable_node_kinds.is_empty() {
+        if ui.button("Find & Settle Vacant Lot | House") && !traversable_node_kinds.is_empty() {
             self.set_traversable_node_kinds(traversable_node_kinds | PathNodeKind::VacantLot);
 
+            // Need to spawn the house building *after* the unit has despawned since we can't place a building over the unit tile.
             let completion_task = task_manager.new_task(UnitTaskDespawnWithCallback {
-                callback: Some(|query, unit_prev_cell| {
-                    if let Some(tile_def) = query.tile_sets().find_tile_def_by_name(
-                        TileMapLayerKind::Objects,
-                        tile::sets::OBJECTS_BUILDINGS_CATEGORY.string,
-                        "house0")
-                    {
-                        if let Err(err) = query.world().try_spawn_building_with_tile_def(
-                            query.tile_map(),
-                            unit_prev_cell,
-                            tile_def)
+                callback: Some(|query, unit_prev_cell, unit_prev_goal| {
+                    let settle_new_vacant_lot = unit_prev_goal.is_some_and(|goal| {
+                        goal.is_tile() &&
+                            query.tile_map().try_tile_from_layer(goal.tile_destination(), TileMapLayerKind::Terrain)
+                                .is_some_and(|tile| tile.tile_def().path_kind == PathNodeKind::VacantLot)
+                    });
+
+                    if settle_new_vacant_lot {
+                        if let Some(tile_def) = query.tile_sets().find_tile_def_by_name(
+                            TileMapLayerKind::Objects,
+                            tile::sets::OBJECTS_BUILDINGS_CATEGORY.string,
+                            "house0")
                         {
-                            eprintln!("Failed to place House Level 0: {err}");
+                            match query.world().try_spawn_building_with_tile_def(
+                                query.tile_map(),
+                                unit_prev_cell,
+                                tile_def)
+                            {
+                                Ok(building) => {
+                                    let house = building.as_house_mut();
+                                    house.add_population(1);  
+                                },
+                                Err(err) => eprintln!("Failed to place House Level 0: {err}"),
+                            }
+                        } else {
+                            eprintln!("House Level 0 TileDef not found!");
                         }
                     } else {
-                        eprintln!("House Level 0 TileDef not found!");
+                        println!("Unit settled into existing household.");
                     }
                 })
             });
@@ -466,9 +477,10 @@ impl Unit<'_> {
             let task = task_manager.new_task(UnitTaskFindVacantHouseLot {
                 completion_callback: Some(|unit, vacant_lot, _| {
                     println!("Unit {} reached {}.", unit.name(), vacant_lot.name());
-                    unit.debug.popup_msg("Reached vacant lot");
+                    unit.debug.popup_msg(format!("Reached {}", vacant_lot.name()));
                 }),
                 completion_task,
+                fallback_to_houses_with_room: true,
             });
 
             self.assign_task(task_manager, task);

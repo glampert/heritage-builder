@@ -166,18 +166,18 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         } 
     }
 
+    // TODO: Should we make house access to services depend on it being visited by the
+    // service patrol unit? Right now access to a service is simply based on proximity
+    // to the building, measured from the house's road link tile.
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
-        // Shop from market vendor:
         if unit.is_market_patrol(context.query) && !self.debug.freeze_stock_update() {
-            if let Some(building) = unit.patrol_service_building(context.query) {
-                self.shop_from_market(building, context);
+            if let Some(market) = unit.patrol_service_building(context.query) {
+                self.shop_from_market(market, context);
                 self.debug.popup_msg_color(Color::green(), "Visited by market vendor");
             }
+        } else if unit.is_settler(context.query) && self.add_population(1) == 0 {
+            self.debug.popup_msg_color(Color::red(), "Refused settler");
         }
-
-        // TODO: Should we make house access to services depend on it being visited by the
-        // service patrol unit? Right now access to a service is simply based on proximity
-        // to the building, measured from the house's road link tile.
     }
 
     // ----------------------
@@ -352,8 +352,22 @@ impl<'config> HouseBuilding<'config> {
     // ----------------------
 
     fn upgrade_update(&mut self, context: &BuildingContext<'config, '_, '_>) {
+        let mut upgraded = false;
+        let mut downgraded = false;
+
         // Attempt to upgrade or downgrade based on services and resources availability.
-        self.upgrade_state.update(&mut self.population, &mut self.stock, &mut self.debug, context);
+        let upgrade = &mut self.upgrade_state;
+
+        if upgrade.can_upgrade(context, &self.stock) {
+            upgraded = upgrade.try_upgrade(context, &mut self.debug);
+        } else if upgrade.can_downgrade(context, &self.stock) {
+            downgraded = upgrade.try_downgrade(context, &mut self.debug);
+        }
+
+        if upgraded || downgraded {
+            self.stock.update_capacities(self.current_level_config().stock_capacity);
+            self.evict_residents(self.current_level_config().max_residents);
+        }
     }
 
     fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
@@ -377,9 +391,28 @@ impl<'config> HouseBuilding<'config> {
         let increase_population = rng.random_ratio(chance, 100);
 
         if increase_population {
-            self.population.add(1);
-            self.debug.popup_msg_color(Color::green(), "+1 Population");
+            self.add_population(1);
         }
+    }
+
+    pub fn add_population(&mut self, count: u32) -> u32 {
+        if count != 0 && !self.population.is_maxed() {
+            let amount_added = self.population.add(count);
+            self.debug.popup_msg_color(Color::green(), format!("+{amount_added} Population"));
+            return amount_added;
+        }
+        0
+    }
+
+    pub fn evict_residents(&mut self, new_max: u32) -> u32 {
+        let prev_population = self.population.count;
+        let new_population  = self.population.update_max(new_max);
+        if new_population < prev_population {
+            let amount_evicted = prev_population - new_population;
+            self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_evicted} residents"));
+            return amount_evicted;
+        }
+        0
     }
 }
 
@@ -540,34 +573,6 @@ impl<'config> HouseUpgradeState<'config> {
             curr_level_config: configs.find_house_level_config(level),
             next_level_config: configs.find_house_level_config(level.next()),
             has_room_to_upgrade: true,
-        }
-    }
-
-    fn update(&mut self,
-              population: &mut Population,
-              stock: &mut BuildingStock,
-              debug: &mut HouseDebug,
-              context: &BuildingContext<'config, '_, '_>) {
-
-        let mut upgraded = false;
-        let mut downgraded = false;
-
-        if self.can_upgrade(context, stock) {
-            upgraded = self.try_upgrade(context, debug);
-        } else if self.can_downgrade(context, stock) {
-            downgraded = self.try_downgrade(context, debug);
-        }
-
-        if upgraded || downgraded {
-            stock.update_capacities(self.curr_level_config.stock_capacity);
-
-            let prev_population = population.count;
-            let new_population  = population.update_max(self.curr_level_config.max_residents);
-
-            if new_population < prev_population {
-                let evicted = prev_population - new_population;
-                debug.popup_msg_color(Color::red(), format!("Evicted {evicted} residents"));
-            }
         }
     }
 
