@@ -2,10 +2,12 @@ use crate::{
     utils::coords::Cell,
     game::{
         building::{
+            Building,
             BuildingKind,
             BuildingContext
         },
         sim::{
+            Query,
             world::UnitId,
             resources::{ShoppingList, ResourceKind}
         }
@@ -13,13 +15,13 @@ use crate::{
 };
 
 use super::{
+    Unit,
     UnitTaskHelper,
     config::{self},
     task::{
         UnitTaskDespawn,
         UnitTaskDeliverToStorage,
-        UnitTaskFetchFromStorage,
-        UnitTaskCompletionCallback
+        UnitTaskFetchFromStorage
     }
 };
 
@@ -64,7 +66,7 @@ impl Runner {
                                   storage_buildings_accepted: BuildingKind,
                                   resource_kind_to_deliver: ResourceKind,
                                   resource_count: u32,
-                                  completion_callback: Option<UnitTaskCompletionCallback>) -> bool {
+                                  completion_callback: Option<fn(&mut Building, &mut Unit, &Query)>) -> bool {
         self.try_spawn_with_task(
             context.debug_name(),
             context.query,
@@ -89,7 +91,7 @@ impl Runner {
                                   unit_origin: Cell,
                                   storage_buildings_accepted: BuildingKind,
                                   resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
-                                  completion_callback: Option<UnitTaskCompletionCallback>) -> bool {
+                                  completion_callback: Option<fn(&mut Building, &mut Unit, &Query)>) -> bool {
         self.try_spawn_with_task(
             context.debug_name(),
             context.query,

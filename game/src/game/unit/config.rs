@@ -15,9 +15,10 @@ use crate::{
 
 pub type UnitConfigKey = StrHashPair;
 
-pub const UNIT_PED:    UnitConfigKey = UnitConfigKey::from_str("ped");
-pub const UNIT_RUNNER: UnitConfigKey = UnitConfigKey::from_str("runner");
-pub const UNIT_PATROL: UnitConfigKey = UnitConfigKey::from_str("patrol");
+pub const UNIT_PED:     UnitConfigKey = UnitConfigKey::from_str("ped");
+pub const UNIT_RUNNER:  UnitConfigKey = UnitConfigKey::from_str("runner");
+pub const UNIT_PATROL:  UnitConfigKey = UnitConfigKey::from_str("patrol");
+pub const UNIT_SETTLER: UnitConfigKey = UnitConfigKey::from_str("settler");
 
 // ----------------------------------------------
 // UnitConfig
@@ -43,6 +44,7 @@ pub struct UnitConfigs {
     ped_config: UnitConfig,
     runner_config: UnitConfig,
     patrol_config: UnitConfig,
+    settler_config: UnitConfig,
 }
 
 impl UnitConfigs {
@@ -63,6 +65,11 @@ impl UnitConfigs {
                 tile_def_name: "patrol".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("patrol"),
             },
+            settler_config: UnitConfig {
+                name: "Settler".to_string(),
+                tile_def_name: "settler".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("settler"),
+            },
         }
     }
 
@@ -77,6 +84,8 @@ impl UnitConfigs {
             &self.runner_config
         } else if tile_name_hash == hash::fnv1a_from_str("patrol") {
             &self.patrol_config
+        } else if tile_name_hash == hash::fnv1a_from_str("settler") {
+            &self.settler_config
         } else { panic!("Unknown unit config!") }
     }
 }

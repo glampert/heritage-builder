@@ -1,7 +1,6 @@
 use crate::{
     game_object_debug_options,
-    debug::{self as debug_utils},
-    pathfind::Path,
+    pathfind::{Path, NodeKind as PathNodeKind},
     tile::{
         self,
         Tile,
@@ -188,6 +187,16 @@ impl<'config> Unit<'config> {
     // ----------------------
 
     #[inline]
+    pub fn traversable_node_kinds(&self) -> PathNodeKind {
+        self.navigation.traversable_node_kinds()
+    }
+
+    #[inline]
+    pub fn set_traversable_node_kinds(&mut self, traversable_node_kinds: PathNodeKind) {
+        self.navigation.set_traversable_node_kinds(traversable_node_kinds);
+    }
+
+    #[inline]
     pub fn follow_path(&mut self, path: Option<&Path>) {
         debug_assert!(self.is_spawned());
         self.navigation.reset_path_and_goal(path, None);
@@ -217,13 +226,7 @@ impl<'config> Unit<'config> {
     #[inline]
     pub fn has_reached_goal(&self) -> bool {
         debug_assert!(self.is_spawned());
-        self.navigation.goal().is_some_and(|goal| {
-            let destination_cell = match goal {
-                UnitNavGoal::Building { destination_road_link, .. } => *destination_road_link,
-                UnitNavGoal::Tile { destination_cell, .. } => *destination_cell,
-            };
-            self.cell() == destination_cell
-        })
+        self.navigation.goal().is_some_and(|goal| self.cell() == goal.destination_cell())
     }
 
     pub fn update_navigation(&mut self, query: &Query) {
@@ -434,20 +437,7 @@ impl<'config> Unit<'config> {
         if !self.debug.show_popups() {
             return;
         }
-
-        let (origin_cell, destination_cell, layer) = match goal {
-            UnitNavGoal::Building { origin_base_cell, destination_base_cell, .. } => {
-                (*origin_base_cell, *destination_base_cell, TileMapLayerKind::Objects)
-            },
-            UnitNavGoal::Tile { origin_cell, destination_cell } => {
-                (*origin_cell, *destination_cell, TileMapLayerKind::Terrain)
-            },
-        };
-
-        let origin_tile_name = debug_utils::tile_name_at(origin_cell, layer);
-        let destination_tile_name = debug_utils::tile_name_at(destination_cell, layer);
-
-        self.debug.popup_msg(format!("Goto: {} -> {}", origin_tile_name, destination_tile_name));
+        self.debug.popup_msg(format!("Goto: {} -> {}", goal.origin_debug_name(), goal.destination_debug_name()));
     }
 }
 

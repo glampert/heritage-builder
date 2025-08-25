@@ -23,7 +23,6 @@ use super::{
     task::{
         UnitTaskDespawn,
         UnitTaskRandomizedPatrol,
-        UnitTaskCompletionCallbackWithResult,
         UnitPatrolPathRecord
     }
 };
@@ -43,7 +42,7 @@ struct PatrolInternalState {
     path_record: UnitPatrolPathRecord,
 
     #[debug_ui(skip)]
-    completion_callback: Option<UnitTaskCompletionCallbackWithResult>,
+    completion_callback: Option<fn(&mut Building, &mut Unit, &Query) -> bool>,
 
     #[debug_ui(skip)]
     failed_to_spawn: bool,
@@ -105,7 +104,7 @@ impl Patrol {
                                    unit_origin: Cell,
                                    max_patrol_distance: i32,
                                    buildings_to_visit: Option<BuildingKind>,
-                                   completion_callback: Option<UnitTaskCompletionCallbackWithResult>) -> bool {
+                                   completion_callback: Option<fn(&mut Building, &mut Unit, &Query) -> bool>) -> bool {
 
         debug_assert!(unit_origin.is_valid());
         debug_assert!(max_patrol_distance > 0, "Patrol max distance cannot be zero!");

@@ -3,9 +3,11 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     imgui_ui::UiSystem,
-    game::building::BuildingKind,
+    tile::TileMapLayerKind,
+    debug::{self as debug_utils},
     utils::{Seconds, coords::Cell},
     pathfind::{Graph, Path, NodeKind as PathNodeKind},
+    game::building::{BuildingKind, BuildingTileInfo}
 };
 
 use super::{
@@ -92,6 +94,122 @@ pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
 }
 
 // ----------------------------------------------
+// UnitNavGoal
+// ----------------------------------------------
+
+#[derive(Copy, Clone)]
+pub enum UnitNavGoal {
+    Building {
+        origin_kind: BuildingKind,
+        origin_base_cell: Cell,
+        destination_kind: BuildingKind,
+        destination_base_cell: Cell,
+        destination_road_link: Cell,
+    },
+    Tile {
+        origin_cell: Cell,
+        destination_cell: Cell,
+    }
+}
+
+impl UnitNavGoal {
+    pub fn origin_cell(&self) -> Cell {
+        match self {
+            UnitNavGoal::Building { origin_base_cell, .. } => *origin_base_cell,
+            UnitNavGoal::Tile     { origin_cell, .. }      => *origin_cell,
+        }
+    }
+
+    pub fn destination_cell(&self) -> Cell {
+        match self {
+            UnitNavGoal::Building { destination_road_link, .. } => *destination_road_link,
+            UnitNavGoal::Tile     { destination_cell, .. }      => *destination_cell,
+        }
+    }
+
+    pub fn origin_debug_name(&self) -> &str {
+        let (origin_cell, layer) = match self {
+            Self::Building { origin_base_cell, .. } => (*origin_base_cell, TileMapLayerKind::Objects),
+            Self::Tile     { origin_cell, .. }      => (*origin_cell,      TileMapLayerKind::Terrain),
+        };
+        debug_utils::tile_name_at(origin_cell, layer)
+    }
+
+    pub fn destination_debug_name(&self) -> &str {
+        let (destination_cell, layer) = match self {
+            UnitNavGoal::Building { destination_base_cell, .. } => (*destination_base_cell, TileMapLayerKind::Objects),
+            UnitNavGoal::Tile     { destination_cell, .. }      => (*destination_cell,      TileMapLayerKind::Terrain),
+        };
+        debug_utils::tile_name_at(destination_cell, layer)
+    }
+
+    // Building Goal:
+
+    pub fn building(origin_kind: BuildingKind,
+                    origin_base_cell: Cell,
+                    destination_kind: BuildingKind,
+                    destination_tile: BuildingTileInfo) -> Self {
+        Self::Building {
+            origin_kind,
+            origin_base_cell,
+            destination_kind,
+            destination_base_cell: destination_tile.base_cell,
+            destination_road_link: destination_tile.road_link,
+        }
+    }
+
+    pub fn is_building(&self) -> bool {
+        matches!(self, Self::Building { .. })
+    }
+
+    pub fn building_origin(&self) -> (BuildingKind, Cell) {
+        match self {
+            Self::Building { origin_kind, origin_base_cell, .. } => {
+                (*origin_kind, *origin_base_cell)
+            },
+            _ => panic!("UnitNavGoal not a Building goal!"),
+        }
+    }
+
+    pub fn building_destination(&self) -> (BuildingKind, Cell) {
+        match self {
+            Self::Building { destination_kind, destination_base_cell, .. } => {
+                (*destination_kind, *destination_base_cell)
+            },
+            _ => panic!("UnitNavGoal not a Building goal!"),
+        }
+    }
+
+    // Tile Goal:
+
+    pub fn tile(origin_cell: Cell, path: &Path) -> Self {
+        debug_assert!(!path.is_empty());
+        Self::Tile {
+            origin_cell,
+            destination_cell: path.last().unwrap().cell,
+        }
+    }
+
+    pub fn is_tile(&self) -> bool {
+        matches!(self, Self::Tile { .. })
+    }
+
+    pub fn tile_origin(&self) -> Cell {
+        match self {
+            Self::Tile { origin_cell, .. } => *origin_cell,
+            _ => panic!("UnitNavGoal not a Tile goal!"),
+        }
+    }
+
+    pub fn tile_destination(&self) -> Cell {
+        match self {
+            Self::Tile { destination_cell, .. } => *destination_cell,
+            _ => panic!("UnitNavGoal not a Tile goal!"),
+        }
+    }
+}
+
+// ----------------------------------------------
 // UnitNavigation
 // ----------------------------------------------
 
@@ -109,22 +227,6 @@ pub enum UnitNavResult {
     AdvancedCell(Cell, UnitDirection),      // Cell we've just entered, new direction to turn.
     ReachedGoal(Cell, UnitDirection),       // Goal Cell, current direction.
     PathBlocked,
-}
-
-#[derive(Copy, Clone)]
-pub enum UnitNavGoal {
-    Building {
-        origin_kind: BuildingKind,
-        origin_base_cell: Cell,
-
-        destination_kind: BuildingKind,
-        destination_base_cell: Cell,
-        destination_road_link: Cell,
-    },
-    Tile {
-        origin_cell: Cell,
-        destination_cell: Cell,
-    }
 }
 
 #[derive(Clone, Default, DrawDebugUi)]
@@ -226,11 +328,6 @@ impl UnitNavigation {
         }
     }
 
-    pub fn set_traversable_node_kinds(&mut self, traversable_node_kinds: PathNodeKind) {
-        debug_assert!(!traversable_node_kinds.is_empty());
-        self.traversable_node_kinds = traversable_node_kinds;
-    }
-
     pub fn status(&self) -> UnitNavStatus {
         if self.pause_current_path || (self.single_step && !self.advance_one_step) {
             // Paused/waiting on single step.
@@ -255,5 +352,16 @@ impl UnitNavigation {
     #[inline]
     pub fn goal(&self) -> Option<&UnitNavGoal> {
         self.goal.as_ref()
+    }
+
+    #[inline]
+    pub fn traversable_node_kinds(&self) -> PathNodeKind {
+        self.traversable_node_kinds
+    }
+
+    #[inline]
+    pub fn set_traversable_node_kinds(&mut self, traversable_node_kinds: PathNodeKind) {
+        debug_assert!(!traversable_node_kinds.is_empty());
+        self.traversable_node_kinds = traversable_node_kinds;
     }
 }

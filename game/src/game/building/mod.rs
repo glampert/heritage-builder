@@ -243,6 +243,14 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
+    pub fn tile_info(&self, query: &Query) -> BuildingTileInfo {
+        BuildingTileInfo {
+            road_link: self.road_link(query).unwrap_or_default(), // We may or may not be connected to a road.
+            base_cell: self.base_cell(),
+        }
+    }
+
+    #[inline]
     pub fn is(&self, kinds: BuildingKind) -> bool {
         self.kind.intersects(kinds)
     }

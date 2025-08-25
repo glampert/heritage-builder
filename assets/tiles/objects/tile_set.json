@@ -996,6 +996,176 @@
                             ]
                         }
                     ]
+                },
+                {
+                    "name": "settler",
+                    "color": { "r": 0.8,  "g": 0.4,  "b": 0.4,  "a": 1.0 },
+                    "occludes_terrain": false,
+                    "draw_size": {
+                        "width": 26,
+                        "height": 40
+                    },
+                    "variations": [
+                        {
+                            "anim_sets": [
+                                {
+                                    "name": "idle",
+                                    "looping": true,
+                                    "duration": 15.0,
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        },
+                                        {
+                                            "name": "frame1"
+                                        },
+                                        {
+                                            "name": "frame2"
+                                        },
+                                        {
+                                            "name": "frame3"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "walk_ne",
+                                    "looping": true,
+                                    "duration": 2.0,
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        },
+                                        {
+                                            "name": "frame1"
+                                        },
+                                        {
+                                            "name": "frame2"
+                                        },
+                                        {
+                                            "name": "frame3"
+                                        },
+                                        {
+                                            "name": "frame4"
+                                        },
+                                        {
+                                            "name": "frame5"
+                                        },
+                                        {
+                                            "name": "frame6"
+                                        },
+                                        {
+                                            "name": "frame7"
+                                        },
+                                        {
+                                            "name": "frame8"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "walk_nw",
+                                    "looping": true,
+                                    "duration": 2.0,
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        },
+                                        {
+                                            "name": "frame1"
+                                        },
+                                        {
+                                            "name": "frame2"
+                                        },
+                                        {
+                                            "name": "frame3"
+                                        },
+                                        {
+                                            "name": "frame4"
+                                        },
+                                        {
+                                            "name": "frame5"
+                                        },
+                                        {
+                                            "name": "frame6"
+                                        },
+                                        {
+                                            "name": "frame7"
+                                        },
+                                        {
+                                            "name": "frame8"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "walk_se",
+                                    "looping": true,
+                                    "duration": 2.0,
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        },
+                                        {
+                                            "name": "frame1"
+                                        },
+                                        {
+                                            "name": "frame2"
+                                        },
+                                        {
+                                            "name": "frame3"
+                                        },
+                                        {
+                                            "name": "frame4"
+                                        },
+                                        {
+                                            "name": "frame5"
+                                        },
+                                        {
+                                            "name": "frame6"
+                                        },
+                                        {
+                                            "name": "frame7"
+                                        },
+                                        {
+                                            "name": "frame8"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "walk_sw",
+                                    "looping": true,
+                                    "duration": 2.0,
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        },
+                                        {
+                                            "name": "frame1"
+                                        },
+                                        {
+                                            "name": "frame2"
+                                        },
+                                        {
+                                            "name": "frame3"
+                                        },
+                                        {
+                                            "name": "frame4"
+                                        },
+                                        {
+                                            "name": "frame5"
+                                        },
+                                        {
+                                            "name": "frame6"
+                                        },
+                                        {
+                                            "name": "frame7"
+                                        },
+                                        {
+                                            "name": "frame8"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
                 }
             ]
         }

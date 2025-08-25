@@ -498,6 +498,21 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                      max_distance)
     }
 
+    #[inline]
+    pub fn find_path_to_node(&self,
+                             bias: &impl Bias,
+                             traversable_node_kinds: PathNodeKind,
+                             start: Cell,
+                             goal_node_kinds: PathNodeKind) -> SearchResult {
+
+        self.search().find_path_to_node(self.graph(),
+                                        &AStarUniformCostHeuristic::new(),
+                                        bias,
+                                        traversable_node_kinds,
+                                        Node::new(start),
+                                        goal_node_kinds)
+    }
+
     pub fn find_nearest_buildings<F>(&self,
                                      start: Cell,
                                      building_kinds: BuildingKind,
@@ -531,9 +546,8 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                 }
 
                 let node_kind = self.graph.node_kind(goal).unwrap();
-                if !node_kind.intersects(PathNodeKind::BuildingRoadLink | PathNodeKind::BuildingAccess) {
-                    panic!("Unexpected PathNodeKind: {}", node_kind);
-                }
+                debug_assert!(node_kind.intersects(PathNodeKind::BuildingRoadLink | PathNodeKind::BuildingAccess),
+                              "Unexpected PathNodeKind: {}", node_kind);
 
                 let neighbors = self.graph.neighbors(goal, PathNodeKind::Building);
                 for neighbor in neighbors {

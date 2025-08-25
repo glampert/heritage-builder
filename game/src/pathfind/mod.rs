@@ -44,6 +44,7 @@ bitflags_with_display! {
         const Building         = 1 << 3;
         const BuildingRoadLink = 1 << 4;
         const BuildingAccess   = 1 << 5;
+        const VacantLot        = 1 << 6;
     }
 }
 
@@ -790,25 +791,18 @@ impl Search {
 
         self.reset(start);
 
-        let (wanted_neighbor_kinds, destination_kinds) = {
-            if traversable_node_kinds.intersects(NodeKind::Road) &&
-              !traversable_node_kinds.intersects(NodeKind::Dirt) {
-                // Paved road paths only.
-                (traversable_node_kinds | NodeKind::BuildingRoadLink,
-                 NodeKind::BuildingRoadLink)
-            } else if traversable_node_kinds.intersects(NodeKind::Dirt) &&
-                     !traversable_node_kinds.intersects(NodeKind::Road) {
-                // Dirt paths only.
-                (traversable_node_kinds | NodeKind::BuildingAccess,
-                 NodeKind::BuildingAccess)
-            } else if traversable_node_kinds.intersects(NodeKind::Road | NodeKind::Dirt) {
-                // Road or dirt paths accepted.
-                (traversable_node_kinds | NodeKind::BuildingRoadLink | NodeKind::BuildingAccess,
-                 NodeKind::BuildingRoadLink | NodeKind::BuildingAccess)
-            } else {
-                panic!("Unsupported traversable node kinds: {}", traversable_node_kinds);
-            }
-        };
+        let mut destination_kinds = NodeKind::empty();
+        if traversable_node_kinds.intersects(NodeKind::Road) {
+            // Paved road paths:
+            destination_kinds |= NodeKind::BuildingRoadLink;
+        }
+        if traversable_node_kinds.intersects(NodeKind::Dirt) {
+            // Dirt paths:
+            destination_kinds |= NodeKind::BuildingAccess;
+        }
+
+        debug_assert!(!destination_kinds.is_empty(), "Unsupported traversable node kinds: {}", traversable_node_kinds);
+        let wanted_neighbor_kinds = traversable_node_kinds | destination_kinds;
 
         let mut paths_found: usize = 0;
 
@@ -838,6 +832,60 @@ impl Search {
 
             let mut neighbors = graph.neighbors(current, wanted_neighbor_kinds);
             path_filter.shuffle(neighbors.as_mut_slice());
+
+            for neighbor in neighbors {
+                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
+
+                // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper node to explore, we'll visit it.
+                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
+                    self.cost_so_far[neighbor] = new_cost;
+
+                    // Apply optional directional bias:
+                    // If no bias uses only node cost, i.e. Dijkstra's search, no heuristic / explicit goal.
+                    let bias_amount = bias.cost_for(start, neighbor);
+                    let biased_priority = (new_cost as f32) + bias_amount;
+                    let priority = biased_priority.round() as i32;
+
+                    self.frontier.push(neighbor, Reverse(priority));
+
+                    // Remember how we got here so we can backtrack.
+                    self.came_from[neighbor] = current;
+                }
+            }
+        }
+
+        SearchResult::PathNotFound
+    }
+
+    // Find path to first node matching any of the NodeKinds.
+    pub fn find_path_to_node(&mut self,
+                             graph: &Graph,
+                             heuristic: &impl Heuristic,
+                             bias: &impl Bias,
+                             traversable_node_kinds: NodeKind,
+                             start: Node,
+                             goal_node_kinds: NodeKind) -> SearchResult {
+
+        debug_assert!(!traversable_node_kinds.is_empty());
+        debug_assert!(!goal_node_kinds.is_empty() && goal_node_kinds.intersects(traversable_node_kinds));
+
+        if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
+            // Start/end nodes are invalid or not traversable!
+            return SearchResult::PathNotFound;
+        }
+
+        self.reset(start);
+
+        while let Some((current, _)) = self.frontier.pop() {
+            if current != start {
+                let current_node_kind = graph.node_kind(current).unwrap();
+                if current_node_kind.intersects(goal_node_kinds) {
+                    // Found a desired goal node kind.
+                    return self.reconstruct_path(start, current);
+                }
+            }
+
+            let neighbors = graph.neighbors(current, traversable_node_kinds);
 
             for neighbor in neighbors {
                 let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);

@@ -4,9 +4,8 @@ use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    debug::{self as debug_utils},
-    tile::TileMapLayerKind,
     pathfind::{self, Path, NodeKind as PathNodeKind},
+    tile::{self, TileMapLayerKind},
     imgui_ui::{
         self,
         UiSystem,
@@ -160,20 +159,8 @@ impl Unit<'_> {
         ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation.status()));
 
         if let Some(goal) = self.navigation.goal() {
-            let (origin_cell, destination_cell, layer) = match goal {
-                UnitNavGoal::Building { origin_base_cell, destination_base_cell, .. } => {
-                    (*origin_base_cell, *destination_base_cell, TileMapLayerKind::Objects)
-                },
-                UnitNavGoal::Tile { origin_cell, destination_cell } => {
-                    (*origin_cell, *destination_cell, TileMapLayerKind::Terrain)
-                },
-            };
-
-            let origin_tile_name = debug_utils::tile_name_at(origin_cell, layer);
-            let destination_tile_name = debug_utils::tile_name_at(destination_cell, layer);
-
-            ui.text(format!("Start Tile : {}, {}", origin_cell, origin_tile_name));
-            ui.text(format!("Dest  Tile : {}, {}", destination_cell, destination_tile_name));
+            ui.text(format!("Start Tile : {}, {}", goal.origin_cell(), goal.origin_debug_name()));
+            ui.text(format!("Dest  Tile : {}, {}", goal.destination_cell(), goal.destination_debug_name()));
         }
 
         self.navigation.draw_debug_ui(ui_sys);
@@ -181,7 +168,6 @@ impl Unit<'_> {
 
     fn draw_debug_ui_misc(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-
         if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -190,29 +176,54 @@ impl Unit<'_> {
             self.debug.popup_msg("Hello!");
         }
 
-        let task_manager = query.task_manager();
-        let world = query.world();
-
         if ui.button("Clear Current Task") {
-            self.assign_task(task_manager, None);
+            self.assign_task(query.task_manager(), None);
             self.follow_path(None);
         }
 
-        let teleport_if_needed = |unit: &mut Unit, destination_cell: Cell| {
-            if unit.cell() == destination_cell {
-                return true;
-            }
-            unit.teleport(query.tile_map(), destination_cell)
-        };
+        self.debug_dropdown_despawn_tasks(query, ui_sys);
+        self.debug_dropdown_runner_tasks(query, ui_sys);
+        self.debug_dropdown_patrol_tasks(query, ui_sys);
+        self.debug_dropdown_pathfinding_tasks(query, ui_sys);
+    }
 
-        ui.separator();
-        ui.text("Runner Tasks:");
+    fn teleport_if_needed(&mut self, query: &Query, destination_cell: Cell) -> bool {
+        if self.cell() == destination_cell {
+            return true;
+        }
+        self.teleport(query.tile_map(), destination_cell)
+    }
+
+    fn debug_dropdown_despawn_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header("Despawn Tasks", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if ui.button("Give Despawn Task") {
+            let task = query.task_manager().new_task(UnitTaskDespawn);
+            self.assign_task(query.task_manager(), task);
+        }
+
+        if ui.button("Force Despawn Immediately") {
+            query.despawn_unit(self);
+        }
+    }
+
+    fn debug_dropdown_runner_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header("Runner Tasks", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        let task_manager = query.task_manager();
+        let world = query.world();
 
         if ui.button("Give Deliver Resources Task") {
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link(query).unwrap_or_default();
-                if teleport_if_needed(self, start_cell) {
+                if self.teleport_if_needed(query, start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskDeliverToStorage {
                         origin_building: BuildingKindAndId {
@@ -245,7 +256,7 @@ impl Unit<'_> {
                     &[StockItem { kind: ResourceKind::random(&mut rng), count: rng.random_range(1..5) }]
                 );
                 let start_cell = building.road_link(query).unwrap_or_default();
-                if teleport_if_needed(self, start_cell) {
+                if self.teleport_if_needed(query, start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskFetchFromStorage {
                         origin_building: BuildingKindAndId {
@@ -269,9 +280,13 @@ impl Unit<'_> {
                 }
             }
         }
+    }
 
-        ui.separator();
-        ui.text("Patrol Task:");
+    fn debug_dropdown_patrol_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header("Patrol Tasks", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
 
         static mut PATROL_ROUNDS: i32 = 5;
 
@@ -290,11 +305,14 @@ impl Unit<'_> {
             (MAX_PATROL_DISTANCE, PATH_BIAS_MIN, PATH_BIAS_MAX)
         };
 
+        let task_manager = query.task_manager();
+        let world = query.world();
+
         if ui.button("Give Patrol Task") {
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link(query).unwrap_or_default();
-                if teleport_if_needed(self, start_cell) {
+                if self.teleport_if_needed(query, start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskRandomizedPatrol {
                         origin_building: BuildingKindAndId {
@@ -324,24 +342,16 @@ impl Unit<'_> {
                 }
             }
         }
+    }
 
-        ui.separator();
-        ui.text("Despawn Task:");
-
-        if ui.button("Give Despawn Task") {
-            let task = task_manager.new_task(UnitTaskDespawn);
-            self.assign_task(task_manager, task);
+    fn debug_dropdown_pathfinding_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header("Pathfind Tasks", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
         }
-
-        if ui.button("Force Despawn Immediately") {
-            query.despawn_unit(self);
-        }
-
-        ui.separator();
-        ui.text("Path Finding:");
 
         #[allow(static_mut_refs)]
-        let (use_road_paths, use_dirt_paths, max_search_distance, building_kind) = unsafe {
+        let (traversable_node_kinds, max_search_distance, search_building_kind) = unsafe {
             // SAFETY: Debug code only called from the main thread (ImGui is inherently single-threaded).
             static mut USE_ROAD_PATHS: bool = true;
             static mut USE_DIRT_PATHS: bool = false;
@@ -358,58 +368,110 @@ impl Unit<'_> {
             ui.input_int("Max Search Distance", &mut MAX_SEARCH_DISTANCE).step(1).build();
             ui.combo_simple_string("Dest Building Kind", &mut BUILDING_KIND_IDX, &building_kind_names);
 
-            (USE_ROAD_PATHS, USE_DIRT_PATHS, MAX_SEARCH_DISTANCE, *BuildingKind::FLAGS[BUILDING_KIND_IDX].value())
-        };
-
-        if ui.button(format!("Path To Nearest Building ({})", building_kind)) {
             let mut traversable_node_kinds = PathNodeKind::empty();
-            if use_road_paths {
+            if USE_ROAD_PATHS {
                 traversable_node_kinds |= PathNodeKind::Road;
             }
-            if use_dirt_paths {
+            if USE_DIRT_PATHS {
                 traversable_node_kinds |= PathNodeKind::Dirt;
             }
 
-            if !traversable_node_kinds.is_empty() {
-                let start = self.cell();
-                self.navigation.set_traversable_node_kinds(traversable_node_kinds);
+            (traversable_node_kinds, MAX_SEARCH_DISTANCE, *BuildingKind::FLAGS[BUILDING_KIND_IDX].value())
+        };
 
-                let visit_building = |building: &Building, path: &Path| -> bool {
-                    let tile_map = query.tile_map();
+        if ui.button(format!("Path To Nearest Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
+            let start = self.cell();
+            self.set_traversable_node_kinds(traversable_node_kinds);
 
-                    println!("{} '{}' found. Path len: {}", building.kind(), building.name(), path.len());
-                    debug_assert!(building.is(building_kind)); // The building we're looking for.
+            let visit_building = |building: &Building, path: &Path| -> bool {
+                let tile_map = query.tile_map();
 
-                    // Highlight the path to take:
-                    pathfind::highlight_path_tiles(tile_map, path);
+                println!("{} '{}' found. Path len: {}", building.kind(), building.name(), path.len());
+                debug_assert!(building.is(search_building_kind)); // The building we're looking for.
 
-                    // Highlight building access tiles and road link:
-                    pathfind::highlight_building_access_tiles(tile_map, building.cell_range());
-                    building.set_show_road_link_debug(query, true);
+                // Highlight the path to take:
+                pathfind::highlight_path_tiles(tile_map, path);
 
-                    self.follow_path(Some(path));
-                    false // done
-                };
+                // Highlight building access tiles and road link:
+                pathfind::highlight_building_access_tiles(tile_map, building.cell_range());
+                building.set_show_road_link_debug(query, true);
 
-                query.find_nearest_buildings(start,
-                                             building_kind,
-                                             traversable_node_kinds,
-                                             Some(max_search_distance),
-                                             visit_building);
-            }
+                self.follow_path(Some(path));
+                false // done
+            };
+
+            query.find_nearest_buildings(start,
+                                         search_building_kind,
+                                         traversable_node_kinds,
+                                         Some(max_search_distance),
+                                         visit_building);
         }
 
-        if ui.button(format!("Test Is Near Building ({})", building_kind)) {
-            let connected_to_road_only = use_road_paths && !use_dirt_paths;
+        if ui.button(format!("Test Is Near Building ({})", search_building_kind)) {
+            let connected_to_road_only =
+                 traversable_node_kinds.intersects(PathNodeKind::Road) &&
+                !traversable_node_kinds.intersects(PathNodeKind::Dirt);
+
             let is_near = query.is_near_building(self.cell(),
-                                                 building_kind,
+                                                 search_building_kind,
                                                  connected_to_road_only,
                                                  max_search_distance);
             if is_near {
-                self.debug.popup_msg_color(Color::green(), format!("{}: Near {}!", self.cell(), building_kind));
+                self.debug.popup_msg_color(Color::green(), format!("{}: Near {}!", self.cell(), search_building_kind));
             } else {
-                self.debug.popup_msg_color(Color::red(), format!("{}: Not near {}!", self.cell(), building_kind));
+                self.debug.popup_msg_color(Color::red(), format!("{}: Not near {}!", self.cell(), search_building_kind));
             }
+        }
+
+        let task_manager = query.task_manager();
+
+        if ui.button("Find Vacant House Lot") && !traversable_node_kinds.is_empty() {
+            self.set_traversable_node_kinds(traversable_node_kinds | PathNodeKind::VacantLot);
+
+            let completion_task = task_manager.new_task(UnitTaskDespawn);
+            let task = task_manager.new_task(UnitTaskFindVacantHouseLot {
+                completion_callback: Some(|unit, vacant_lot, _| {
+                    println!("Unit {} reached {}.", unit.name(), vacant_lot.name());
+                    unit.debug.popup_msg("Reached vacant lot");
+                }),
+                completion_task,
+            });
+
+            self.assign_task(task_manager, task);
+        }
+
+        if ui.button("Find & Settle Vacant House Lot") && !traversable_node_kinds.is_empty() {
+            self.set_traversable_node_kinds(traversable_node_kinds | PathNodeKind::VacantLot);
+
+            let completion_task = task_manager.new_task(UnitTaskDespawnWithCallback {
+                callback: Some(|query, unit_prev_cell| {
+                    if let Some(tile_def) = query.tile_sets().find_tile_def_by_name(
+                        TileMapLayerKind::Objects,
+                        tile::sets::OBJECTS_BUILDINGS_CATEGORY.string,
+                        "house0")
+                    {
+                        if let Err(err) = query.world().try_spawn_building_with_tile_def(
+                            query.tile_map(),
+                            unit_prev_cell,
+                            tile_def)
+                        {
+                            eprintln!("Failed to place House Level 0: {err}");
+                        }
+                    } else {
+                        eprintln!("House Level 0 TileDef not found!");
+                    }
+                })
+            });
+
+            let task = task_manager.new_task(UnitTaskFindVacantHouseLot {
+                completion_callback: Some(|unit, vacant_lot, _| {
+                    println!("Unit {} reached {}.", unit.name(), vacant_lot.name());
+                    unit.debug.popup_msg("Reached vacant lot");
+                }),
+                completion_task,
+            });
+
+            self.assign_task(task_manager, task);
         }
     }
 }
