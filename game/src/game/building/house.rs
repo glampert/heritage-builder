@@ -47,7 +47,7 @@ use super::{
 // TODO List
 // ----------------------------------------------
 
-// - Implement house population & tax income.
+// - Implement house population, workers pool & tax income.
 //
 // - Merge neighboring houses into larger ones when upgrading.
 //   Also have to update is_upgrade_available() to handle this!
@@ -60,6 +60,14 @@ use super::{
 //
 // - Allow houses to stock up on more than 1 unit of each kind of resources?
 //   Could allow stocking up to a maximum number of units.
+//
+// - When house downgrades we may evict some residents:
+//   - Spawn new unit with FindVacantHouseLot task.
+//   - Unit either settles a new lot or moves into an existing house with enough room.
+//     If neither can be satisfied, unit travels back to the settler's spawn point and despawns.
+//
+// - If houses stay without access to basic resources for too long (food/water),
+//   settlers may decide to leave (house may downgrade back to vacant lot).
 
 // ----------------------------------------------
 // HouseConfig & HouseLevelConfig

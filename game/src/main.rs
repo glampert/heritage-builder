@@ -28,28 +28,6 @@ use game::{
     unit::{config::UnitConfigs},
 };
 
-/*
-Population model:
-
-- Add new house level (Level0), empty housing lot.
-- Once a unit moves in, upgrade to first "real" level (1)
-
-if there are empty lots:
- - Periodically spawns a unit ("settler") at the edge of the map (NOTE: could define a special tile as spawn point). Unit is off-road.
- - Assign new unit task "find empty lot" or "find house with room".
- - Once unit reaches the empty lot, immediately upgrade to first house level.
-
-When a house downgrades:
- - Must evict excess population: Spawn new unit with "find empty lot" or "find house with room" task.
- - Unit either settles a new lot or moves into an existing house with enough room.
-
-Population must also grow periodically, besides new settlers.
- - Every so often, each house has a random chance to grow its population by a fixed factor.
-
-If houses stay without access to basic resources for too long (food/water),
-settlers may decide to leave (hose downgrades back to vacant lot).
-*/
-
 // ----------------------------------------------
 // main()
 // ----------------------------------------------
