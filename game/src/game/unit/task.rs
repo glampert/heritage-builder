@@ -702,20 +702,21 @@ pub struct UnitTaskFetchFromStorage {
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
 
-    // Debug...
-    pub storage_buildings_visited: u32,
-    pub returning_to_origin: bool,
+    pub is_returning_to_origin: bool,
 }
 
 impl UnitTaskFetchFromStorage {
     fn try_find_goal(&self, unit: &mut Unit, query: &Query) {
+        let origin_cell = unit.cell();
+        let traversable_node_kinds = unit.traversable_node_kinds();
+
         for resource_to_fetch in self.resources_to_fetch.iter() {
             debug_assert!(resource_to_fetch.kind.is_single_resource());
 
             let path_find_result = find_storage_fetch_candidate(query,
                                                                 self.origin_building.kind,
-                                                                unit.cell(),
-                                                                unit.traversable_node_kinds(),
+                                                                origin_cell,
+                                                                traversable_node_kinds,
                                                                 self.storage_buildings_accepted,
                                                                 resource_to_fetch.kind);
 
@@ -727,7 +728,7 @@ impl UnitTaskFetchFromStorage {
         }
     }
 
-    fn try_return_to_origin(&self, unit: &mut Unit, query: &Query) -> bool {
+    fn try_return_to_origin(&mut self, unit: &mut Unit, query: &Query) -> bool {
         if query.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
             eprintln!("Origin building is no longer valid! TaskFetchFromStorage will abort.");
             return false;
@@ -746,20 +747,13 @@ impl UnitTaskFetchFromStorage {
                     self.origin_building_tile
                 );
                 unit.move_to_goal(path, goal);
+                self.is_returning_to_origin = true;
                 true
             },
             SearchResult::PathNotFound => {
                 eprintln!("Origin building is no longer reachable! (no road access?) TaskFetchFromStorage will abort.");
                 false
             },
-        }
-    }
-
-    fn is_returning_to_origin(&self, unit_goal: &UnitNavGoal) -> bool {
-        if unit_goal.is_building() {
-            unit_goal.building_destination() == (self.origin_building.kind, self.origin_building_tile.base_cell)
-        } else {
-            false
         }
     }
 }
@@ -776,7 +770,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         debug_assert!(self.origin_building_tile.is_valid());
         debug_assert!(!self.storage_buildings_accepted.is_empty());
         debug_assert!(!self.resources_to_fetch.is_empty());
-        debug_assert!(self.storage_buildings_visited == 0 && !self.returning_to_origin);
+        debug_assert!(!self.is_returning_to_origin);
 
         self.try_find_goal(unit, query);
     }
@@ -791,7 +785,14 @@ impl UnitTask for UnitTaskFetchFromStorage {
         // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
         if unit.goal().is_none() {
-            self.try_find_goal(unit, query);
+            if self.is_returning_to_origin {
+                if !self.try_return_to_origin(unit, query) {
+                    // TODO: We can recover from this and ship the resources back to storage.
+                    todo!("Aborting TaskFetchFromStorage. Unable to return to origin building...");
+                }
+            } else {
+                self.try_find_goal(unit, query);
+            }
         }
 
         if unit.has_reached_goal() {
@@ -802,11 +803,12 @@ impl UnitTask for UnitTaskFetchFromStorage {
     }
 
     fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskResult {
-        let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
         let mut task_completed = false;
 
-        if self.is_returning_to_origin(unit_goal) {
-            debug_assert!(self.returning_to_origin);
+        if self.is_returning_to_origin {
+            debug_assert!(unit.goal().is_some_and(|goal| {
+                goal.is_building() && goal.building_destination() == (self.origin_building.kind, self.origin_building_tile.base_cell)
+            }), "Unit goal is not its origin building!");
 
             // We've reached our origin building with the resources we were supposed to fetch.
             // Invoke the completion callback and end the task.
@@ -826,23 +828,17 @@ impl UnitTask for UnitTaskFetchFromStorage {
             visit_destination(unit, query);
             unit.follow_path(None);
 
-            self.storage_buildings_visited += 1;
-
             // If we've collected resources from the visited destination
             // we are done and can return to our origin building.
             if let Some(item) = unit.peek_inventory() {
                 debug_assert!(item.count != 0, "{item}");
                 debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == item.kind), "Expected to have item kind {}", item.kind);
 
+                // If we couldn't find a path back to the origin, maybe because the origin building
+                // was destroyed, we'll have to abort the task. Any resources collected will be lost.
                 if !self.try_return_to_origin(unit, query) {
-                    // If we couldn't find a path back to the origin, maybe because the origin building
-                    // was destroyed, we'll have to abort the task. Any resources collected will be lost.
-                    eprintln!("Aborting TaskFetchFromStorage. Unable to return to origin building...");
-
                     // TODO: We can recover from this and ship the resources back to storage.
-                    todo!("Switch to a UnitTaskDeliverToStorage and return the resources");
-                } else {
-                    self.returning_to_origin = true;
+                    todo!("Aborting TaskFetchFromStorage. Unable to return to origin building...");
                 }
             }
         }
@@ -864,6 +860,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
         ui.text(format!("Origin Building            : {}, '{}', {}", building_kind, building_name, building_cell));
+        ui.text(format!("Is Returning To Origin     : {}", self.is_returning_to_origin));
         ui.separator();
         ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
         ui.text(format!("Resources To Fetch         : {}", self.resources_to_fetch));

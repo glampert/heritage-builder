@@ -269,8 +269,7 @@ impl Unit<'_> {
                             unit.inventory.clear();
                         }),
                         completion_task,
-                        storage_buildings_visited: 0,
-                        returning_to_origin: false,
+                        is_returning_to_origin: false,
                     });
                     self.assign_task(task_manager, task);
                 }
