@@ -298,7 +298,7 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    pub fn visited_by(&mut self, unit: &mut Unit, query: &Query<'config, '_>) {
+    pub fn visited_by(&mut self, unit: &mut Unit, query: &Query) {
         debug_assert!(self.id.is_valid());
 
         let context =
@@ -511,7 +511,7 @@ impl<'config> Building<'config> {
         self.archetype.debug_options()
     }
 
-    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
@@ -577,7 +577,7 @@ impl<'config> Building<'config> {
     }
 
     pub fn draw_debug_popups(&mut self,
-                             query: &Query<'config, '_>,
+                             query: &Query,
                              ui_sys: &UiSystem,
                              transform: &WorldToScreenTransform,
                              visible_range: CellRange) {
@@ -649,10 +649,7 @@ pub trait BuildingBehavior<'config> {
     fn configs(&self) -> &dyn BuildingConfig;
 
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
-
-    fn visited_by(&mut self,
-                  unit: &mut Unit,
-                  context: &BuildingContext<'config, '_, '_>);
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);
 
     // ----------------------
     // Resources/Stock:
@@ -693,10 +690,7 @@ pub trait BuildingBehavior<'config> {
     // ----------------------
 
     fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions;
-
-    fn draw_debug_ui(&mut self,
-                     context: &BuildingContext<'config, '_, '_>,
-                     ui_sys: &UiSystem);
+    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem);
 }
 
 // ----------------------------------------------

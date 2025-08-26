@@ -23,9 +23,32 @@ use tile::{
 use game::{
     sim::{self, *},
     sim::world::*,
+    system::*,
     building::{config::BuildingConfigs},
     unit::{config::UnitConfigs},
 };
+
+/*
+Population model:
+
+- Add new house level (Level0), empty housing lot.
+- Once a unit moves in, upgrade to first "real" level (1)
+
+if there are empty lots:
+ - Periodically spawns a unit ("settler") at the edge of the map (NOTE: could define a special tile as spawn point). Unit is off-road.
+ - Assign new unit task "find empty lot" or "find house with room".
+ - Once unit reaches the empty lot, immediately upgrade to first house level.
+
+When a house downgrades:
+ - Must evict excess population: Spawn new unit with "find empty lot" or "find house with room" task.
+ - Unit either settles a new lot or moves into an existing house with enough room.
+
+Population must also grow periodically, besides new settlers.
+ - Every so often, each house has a random chance to grow its population by a fixed factor.
+
+If houses stay without access to basic resources for too long (food/water),
+settlers may decide to leave (hose downgrades back to vacant lot).
+*/
 
 // ----------------------------------------------
 // main()
@@ -60,17 +83,22 @@ fn main() {
     let mut world = World::new(&building_configs, &unit_configs);
 
     // Test map with preset tiles:
-    let mut tile_map = debug::utils::create_test_tile_map_preset(&mut world, &tile_sets, 0);
+    //let mut tile_map = debug::utils::create_test_tile_map_preset(&mut world, &tile_sets, 0);
 
     // Empty map (dirt tiles):
-    /*
+    //*
     let mut tile_map = tile::TileMap::with_terrain_tile(
         Size::new(64, 64),
         &tile_sets,
         TERRAIN_GROUND_CATEGORY,
         utils::hash::StrHashPair::from_str("dirt")
     );
-    */
+    //*/
+
+    let mut systems = GameSystems::new();
+
+    // TODO
+    //systems.register(SettlersSpawnSystem...);
 
     let mut sim = Simulation::new(&tile_map, &building_configs, &unit_configs);
 
@@ -156,7 +184,7 @@ fn main() {
             }
         }
 
-        sim.update(&mut world, &mut tile_map, &tile_sets, delta_time_secs);
+        sim.update(&mut world, &mut systems, &mut tile_map, &tile_sets, delta_time_secs);
 
         camera.update_zooming(delta_time_secs);
 
@@ -199,6 +227,7 @@ fn main() {
             context: sim::debug::DebugContext {
                 ui_sys: &ui_sys,
                 world: &mut world,
+                systems: &mut systems,
                 tile_map: &mut tile_map,
                 tile_sets: &tile_sets,
                 transform: *camera.transform(),
@@ -223,5 +252,5 @@ fn main() {
         frame_clock.end_frame();
     }
 
-    sim.reset(&mut world);
+    sim.reset(&mut world, &mut systems);
 }

@@ -37,6 +37,7 @@ use crate::{
 use super::{
     constants::*,
     sim::world::World,
+    system::GameSystems,
     unit::{
         Unit,
         task::UnitTaskManager,
@@ -57,14 +58,11 @@ pub mod world;
 // RandomGenerator
 // ----------------------------------------------
 
-const DEFAULT_RANDOM_SEED: u64 = 0xCAFE1CAFE2CAFE3A;
 pub type RandomGenerator = Pcg64;
 
 // ----------------------------------------------
 // Simulation
 // ----------------------------------------------
-
-const DEFAULT_SIM_UPDATE_FREQUENCY_SECS: Seconds = 0.5;
 
 pub struct Simulation<'config> {
     update_timer: UpdateTimer,
@@ -117,6 +115,7 @@ impl<'config> Simulation<'config> {
 
     pub fn update<'tile_sets>(&mut self,
                               world: &mut World<'config>,
+                              systems: &mut GameSystems,
                               tile_map: &mut TileMap<'tile_sets>,
                               tile_sets: &'tile_sets TileSets,
                               delta_time_secs: Seconds) {
@@ -131,18 +130,20 @@ impl<'config> Simulation<'config> {
             world.update_unit_navigation(&query);
         }
 
-        // Fixed step world update.
+        // Fixed step world & systems update.
         {
             let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
             if self.update_timer.tick(delta_time_secs).should_update() {
                 let query = self.make_query(world, tile_map, tile_sets, world_update_delta_time_secs);
                 world.update(&query);
+                systems.update(&query);
             }
         }
     }
 
-    pub fn reset(&mut self, world: &mut World<'config>) {
+    pub fn reset(&mut self, world: &mut World<'config>, systems: &mut GameSystems,) {
         world.reset(&mut self.task_manager);
+        systems.reset();
     }
 
     pub fn task_manager(&mut self) -> &mut UnitTaskManager {
@@ -152,6 +153,22 @@ impl<'config> Simulation<'config> {
     // ----------------------
     // Debug:
     // ----------------------
+
+    // World:
+    pub fn draw_world_debug_ui(&mut self, context: &mut debug::DebugContext) {
+        context.world.draw_debug_ui(context.ui_sys);
+    }
+
+    // Game Systems:
+    pub fn draw_game_systems_debug_ui(&mut self, context: &mut debug::DebugContext<'config, '_, '_, '_, '_>) {
+        let query = self.make_query(
+            context.world,
+            context.tile_map,
+            context.tile_sets,
+            context.delta_time_secs);
+
+        context.systems.draw_debug_ui(&query, context.ui_sys);
+    }
 
     // Buildings:
     pub fn draw_building_debug_popups(&mut self,

@@ -61,13 +61,13 @@ pub struct World<'config> {
     // One list per building archetype.
     building_lists: [BuildingList<'config>; BUILDING_ARCHETYPE_COUNT],
     building_configs: &'config BuildingConfigs,
-    building_generation_count: u32,
+    building_generation: u32,
 
     // All units, spawned ones and despawned ones waiting to be recycled.
     // List iteration yields only *spawned* units.
     unit_spawn_pool: UnitSpawnPool<'config>,
     unit_configs: &'config UnitConfigs,
-    unit_generation_count: u32,
+    unit_generation: u32,
 }
 
 impl<'config> World<'config> {
@@ -82,11 +82,11 @@ impl<'config> World<'config> {
                 BuildingList::new(BuildingArchetypeKind::HouseBuilding,    HOUSE_BUILDINGS_POOL_CAPACITY),
             ],
             building_configs,
-            building_generation_count: 0,
+            building_generation: 0,
             // Units:
             unit_spawn_pool: UnitSpawnPool::new(UNIT_SPAWN_POOL_CAPACITY),
             unit_configs,
-            unit_generation_count: 0,
+            unit_generation: 0,
         }
     }
 
@@ -98,7 +98,7 @@ impl<'config> World<'config> {
         self.unit_spawn_pool.clear(task_manager);
     }
 
-    pub fn update_unit_navigation(&mut self, query: &Query<'config, '_>) {
+    pub fn update_unit_navigation(&mut self, query: &Query) {
         for unit in self.unit_spawn_pool.iter_mut() {
             unit.update_navigation(query);
         } 
@@ -125,15 +125,15 @@ impl<'config> World<'config> {
     // Increment generation count, return previous.
     #[inline]
     fn next_building_generation(&mut self) -> u32 {
-        let generation = self.building_generation_count;
-        self.building_generation_count += 1;
+        let generation = self.building_generation;
+        self.building_generation += 1;
         generation
     }
 
     #[inline]
     fn next_unit_generation(&mut self) -> u32 {
-        let generation = self.unit_generation_count;
-        self.unit_generation_count += 1;
+        let generation = self.unit_generation;
+        self.unit_generation += 1;
         generation
     }
 
@@ -355,7 +355,7 @@ impl<'config> World<'config> {
     // ----------------------
 
     pub fn draw_building_debug_popups(&mut self,
-                                      query: &Query<'config, '_>,
+                                      query: &Query,
                                       ui_sys: &UiSystem,
                                       transform: &WorldToScreenTransform,
                                       visible_range: CellRange) {
@@ -604,7 +604,7 @@ impl<'config> World<'config> {
     // ----------------------
 
     pub fn draw_unit_debug_popups(&mut self,
-                                  query: &Query<'config, '_>,
+                                  query: &Query,
                                   ui_sys: &UiSystem,
                                   transform: &WorldToScreenTransform,
                                   visible_range: CellRange) {

@@ -3,6 +3,7 @@ use smallvec::SmallVec;
 
 use crate::{
     imgui_ui::UiSystem,
+    game::system::GameSystems,
     debug::{self, popups::PopupMessages},
     utils::{
         self,
@@ -29,6 +30,7 @@ use super::{
 pub struct DebugContext<'config, 'ui, 'world, 'tile_map, 'tile_sets> {
     pub ui_sys: &'ui UiSystem,
     pub world: &'world mut World<'config>,
+    pub systems: &'world mut GameSystems,
     pub tile_map: &'tile_map mut TileMap<'tile_sets>,
     pub tile_sets: &'tile_sets TileSets,
     pub transform: WorldToScreenTransform,

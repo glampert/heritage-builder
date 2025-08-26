@@ -3,6 +3,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     imgui_ui::UiSystem,
     utils::hash::{self},
+    game::sim::{self, Simulation},
     tile::{
         TileMapLayerKind,
         camera::Camera,
@@ -13,11 +14,6 @@ use crate::{
             MAX_GRID_LINE_THICKNESS,
             MIN_GRID_LINE_THICKNESS
         }
-    },
-    game::sim::{
-        self,
-        Simulation,
-        world::World
     }
 };
 
@@ -53,7 +49,8 @@ pub struct DebugSettingsMenu {
     #[debug_ui(edit)] show_cursor_pos: bool,
     #[debug_ui(edit)] show_screen_origin: bool,
     #[debug_ui(edit)] show_render_stats: bool,
-    #[debug_ui(edit)] show_world_stats: bool,
+    #[debug_ui(edit)] show_world_debug: bool,
+    #[debug_ui(edit)] show_game_systems_debug: bool,
 }
 
 impl DebugSettingsMenu {
@@ -128,8 +125,12 @@ impl DebugSettingsMenu {
                 self.reset_map_dropdown(context, sim);
             });
 
-        if self.show_world_stats {
-            self.draw_world_stats_window(context.world, context.ui_sys);
+        if self.show_world_debug {
+            self.draw_world_debug_window(context, sim);
+        }
+
+        if self.show_game_systems_debug {
+            self.draw_game_systems_debug_window(context, sim);
         }
     }
 
@@ -211,7 +212,7 @@ impl DebugSettingsMenu {
 
         if ui.button("Reset empty") {
             context.tile_map.reset(None);
-            sim.reset(context.world);
+            sim.reset(context.world, context.systems);
         }
 
         if ui.button("Reset to dirt tiles") {
@@ -220,7 +221,7 @@ impl DebugSettingsMenu {
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("dirt"));
             context.tile_map.reset(dirt_tile_def);
-            sim.reset(context.world);
+            sim.reset(context.world, context.systems);
         }
 
         if ui.button("Reset to grass tiles") {
@@ -229,16 +230,31 @@ impl DebugSettingsMenu {
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("grass"));
             context.tile_map.reset(grass_tile_def);
-            sim.reset(context.world);
+            sim.reset(context.world, context.systems);
         }
     }
 
-    fn draw_world_stats_window(&mut self, world: &World, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        ui.window("World Stats")
-            .opened(&mut self.show_world_stats)
+    fn draw_world_debug_window(&mut self,
+                               context: &mut sim::debug::DebugContext,
+                               sim: &mut Simulation) {
+
+        let ui = context.ui_sys.builder();
+        ui.window("World Debug")
+            .opened(&mut self.show_world_debug)
             .position([250.0, 5.0], imgui::Condition::FirstUseEver)
             .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-            .build(|| world.draw_debug_ui(ui_sys));
+            .build(|| sim.draw_world_debug_ui(context));
+    }
+
+    fn draw_game_systems_debug_window<'config>(&mut self,
+                                               context: &mut sim::debug::DebugContext<'config, '_, '_, '_, '_>,
+                                               sim: &mut Simulation<'config>) {
+
+        let ui = context.ui_sys.builder();
+        ui.window("Game Systems Debug")
+            .opened(&mut self.show_game_systems_debug)
+            .position([400.0, 5.0], imgui::Condition::FirstUseEver)
+            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
+            .build(|| sim.draw_game_systems_debug_ui(context));
     }
 }
