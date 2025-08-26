@@ -96,9 +96,7 @@ fn main() {
     //*/
 
     let mut systems = GameSystems::new();
-
-    // TODO
-    //systems.register(SettlersSpawnSystem...);
+    systems.register("Settlers Spawn System", settlers::SettlersSpawnSystem::new());
 
     let mut sim = Simulation::new(&tile_map, &building_configs, &unit_configs);
 

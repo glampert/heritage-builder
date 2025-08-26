@@ -1014,6 +1014,7 @@ pub struct WorldStats {
     pub workers: u32,
 
     // Housing stats:
+    houses: u32,
     lowest_house_level: HouseLevel,
     highest_house_level: HouseLevel,
 
@@ -1026,6 +1027,7 @@ impl WorldStats {
         Self {
             population: 0,
             workers: 0,
+            houses: 0,
             lowest_house_level: HouseLevel::max(),
             highest_house_level: HouseLevel::min(),
             resources: GlobalResourceCounts {
@@ -1103,6 +1105,7 @@ impl WorldStats {
         if level > self.highest_house_level {
             self.highest_house_level = level;
         }
+        self.houses += 1;
     }
 
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
@@ -1114,9 +1117,12 @@ impl WorldStats {
 
             ui.separator();
 
-            ui.text("Housing:");
-            ui.text(format!("Lowest House Level  : {}", Into::<u32>::into(self.lowest_house_level)));
-            ui.text(format!("Highest House Level : {}", Into::<u32>::into(self.highest_house_level)));
+            if self.houses != 0 {
+                ui.text("Housing:");
+                ui.text(format!("Number Of Houses    : {}", self.houses));
+                ui.text(format!("Lowest House Level  : {}", Into::<u32>::into(self.lowest_house_level)));
+                ui.text(format!("Highest House Level : {}", Into::<u32>::into(self.highest_house_level)));
+            }
         }
 
         if let Some(_tab) = ui.tab_item("Resources") {

@@ -605,6 +605,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
         // Sanity check:
         debug_assert!(unit.goal().is_none());
+        debug_assert!(unit.inventory_is_empty());
         debug_assert!(unit.cell() == self.origin_building_tile.road_link); // We start at the nearest building road link.
         debug_assert!(self.origin_building.is_valid());
         debug_assert!(self.origin_building_tile.is_valid());
@@ -700,6 +701,10 @@ pub struct UnitTaskFetchFromStorage {
 
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
+
+    // Debug...
+    pub storage_buildings_visited: u32,
+    pub returning_to_origin: bool,
 }
 
 impl UnitTaskFetchFromStorage {
@@ -771,6 +776,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         debug_assert!(self.origin_building_tile.is_valid());
         debug_assert!(!self.storage_buildings_accepted.is_empty());
         debug_assert!(!self.resources_to_fetch.is_empty());
+        debug_assert!(self.storage_buildings_visited == 0 && !self.returning_to_origin);
 
         self.try_find_goal(unit, query);
     }
@@ -800,6 +806,8 @@ impl UnitTask for UnitTaskFetchFromStorage {
         let mut task_completed = false;
 
         if self.is_returning_to_origin(unit_goal) {
+            debug_assert!(self.returning_to_origin);
+
             // We've reached our origin building with the resources we were supposed to fetch.
             // Invoke the completion callback and end the task.
             debug_assert!(!unit.inventory_is_empty());
@@ -814,8 +822,11 @@ impl UnitTask for UnitTaskFetchFromStorage {
         } else {
             // We've reached a destination to visit and attempt to fetch some resources.
             // We may fail and try again with another building or start returning to the origin.
+            debug_assert!(unit.inventory_is_empty());
             visit_destination(unit, query);
             unit.follow_path(None);
+
+            self.storage_buildings_visited += 1;
 
             // If we've collected resources from the visited destination
             // we are done and can return to our origin building.
@@ -830,6 +841,8 @@ impl UnitTask for UnitTaskFetchFromStorage {
 
                     // TODO: We can recover from this and ship the resources back to storage.
                     todo!("Switch to a UnitTaskDeliverToStorage and return the resources");
+                } else {
+                    self.returning_to_origin = true;
                 }
             }
         }
@@ -1366,9 +1379,16 @@ impl PathFindResult<'_> {
                                   result: Option<(&Building, &'search Path)>) -> PathFindResult<'search> {
         match result {
             Some((destination_building, path)) => {
-                debug_assert!(!path.is_empty() &&
-                              path.last().unwrap().cell == destination_building.road_link(query)
-                              .expect("Building should have a road link tile!"));
+                debug_assert!(!path.is_empty());
+
+                let destination_road_link = destination_building.road_link(query)
+                    .expect("Dest building should have a road link tile!");
+
+                if destination_road_link != path.last().unwrap().cell {
+                    eprintln!("Dest building road link does not match path goal!: {} != {}, path length = {}",
+                              destination_road_link, path.last().unwrap().cell, path.len());
+                    return PathFindResult::NotFound;
+                }
 
                 PathFindResult::Success {
                     path,
@@ -1394,6 +1414,7 @@ fn find_delivery_candidate<'search>(query: &'search Query,
     debug_assert!(origin_base_cell.is_valid());
     debug_assert!(!building_kinds_accepted.is_empty());
     debug_assert!(resource_kind_to_deliver.is_single_resource()); // Only one resource kind at a time.
+    debug_assert!(traversable_node_kinds == PathNodeKind::Road, "Traversable Nodes={traversable_node_kinds}");
 
     // Try to find a building that can accept our delivery:
     let result = query.find_nearest_buildings(
@@ -1424,6 +1445,7 @@ fn find_storage_fetch_candidate<'search>(query: &'search Query,
     debug_assert!(origin_base_cell.is_valid());
     debug_assert!(!storage_buildings_accepted.is_empty());
     debug_assert!(resource_kind_to_fetch.is_single_resource()); // Only one resource kind at a time.
+    debug_assert!(traversable_node_kinds == PathNodeKind::Road, "Traversable Nodes={traversable_node_kinds}");
 
     // Try to find a storage building that has the resource we want:
     let result = query.find_nearest_buildings(

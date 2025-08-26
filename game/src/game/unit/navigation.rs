@@ -7,7 +7,10 @@ use crate::{
     debug::{self as debug_utils},
     utils::{Seconds, coords::Cell},
     pathfind::{Graph, Path, NodeKind as PathNodeKind},
-    game::building::{BuildingKind, BuildingTileInfo}
+    game::{
+        sim::Query,
+        building::{BuildingKind, BuildingTileInfo}
+    }
 };
 
 use super::{
@@ -207,6 +210,15 @@ impl UnitNavGoal {
             _ => panic!("UnitNavGoal not a Tile goal!"),
         }
     }
+}
+
+pub fn is_goal_vacant_lot_tile(goal: &UnitNavGoal, query: &Query) -> bool {
+    if goal.is_tile() {    
+        let maybe_tile = query.tile_map()
+            .try_tile_from_layer(goal.tile_destination(), TileMapLayerKind::Terrain);
+        return maybe_tile.is_some_and(|tile| tile.tile_def().path_kind == PathNodeKind::VacantLot);
+    }
+    false
 }
 
 // ----------------------------------------------

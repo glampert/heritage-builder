@@ -171,11 +171,11 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     // to the building, measured from the house's road link tile.
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
         if unit.is_market_patrol(context.query) && !self.debug.freeze_stock_update() {
-            if let Some(market) = unit.patrol_service_building(context.query) {
+            if let Some(market) = unit.patrol_task_origin_building(context.query) {
                 self.shop_from_market(market, context);
                 self.debug.popup_msg_color(Color::green(), "Visited by market vendor");
             }
-        } else if unit.is_settler(context.query) && self.add_population(1) == 0 {
+        } else if unit.is_settler() && self.add_population(1) == 0 {
             self.debug.popup_msg_color(Color::red(), "Refused settler");
         }
     }

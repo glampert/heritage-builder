@@ -13,6 +13,7 @@ use crate::{
     },
     utils::{
         Color,
+        hash::{self},
         coords::{
             Cell,
             CellRange,
@@ -45,7 +46,7 @@ use crate::{
 use super::{
     Unit,
     task::*,
-    navigation::*
+    navigation::{self, *}
 };
 
 // ----------------------------------------------
@@ -268,6 +269,8 @@ impl Unit<'_> {
                             unit.inventory.clear();
                         }),
                         completion_task,
+                        storage_buildings_visited: 0,
+                        returning_to_origin: false,
                     });
                     self.assign_task(task_manager, task);
                 }
@@ -439,20 +442,18 @@ impl Unit<'_> {
         if ui.button("Find & Settle Vacant Lot | House") && !traversable_node_kinds.is_empty() {
             self.set_traversable_node_kinds(traversable_node_kinds | PathNodeKind::VacantLot);
 
-            // Need to spawn the house building *after* the unit has despawned since we can't place a building over the unit tile.
+            // NOTE: We have to spawn the house building *after* the unit has
+            // despawned since we can't place a building over the unit tile.
             let completion_task = task_manager.new_task(UnitTaskDespawnWithCallback {
                 callback: Some(|query, unit_prev_cell, unit_prev_goal| {
-                    let settle_new_vacant_lot = unit_prev_goal.is_some_and(|goal| {
-                        goal.is_tile() &&
-                            query.tile_map().try_tile_from_layer(goal.tile_destination(), TileMapLayerKind::Terrain)
-                                .is_some_and(|tile| tile.tile_def().path_kind == PathNodeKind::VacantLot)
-                    });
+                    let settle_new_vacant_lot = unit_prev_goal
+                        .is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, query) );
 
                     if settle_new_vacant_lot {
-                        if let Some(tile_def) = query.tile_sets().find_tile_def_by_name(
+                        if let Some(tile_def) = query.find_tile_def(
                             TileMapLayerKind::Objects,
-                            tile::sets::OBJECTS_BUILDINGS_CATEGORY.string,
-                            "house0")
+                            tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
+                            hash::fnv1a_from_str("house0"))
                         {
                             match query.world().try_spawn_building_with_tile_def(
                                 query.tile_map(),

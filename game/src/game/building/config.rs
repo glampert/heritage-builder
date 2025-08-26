@@ -83,7 +83,7 @@ impl BuildingConfigs {
             house_cfg: HouseConfig {
                 // General configuration parameters for all house buildings & levels.
                 population_update_frequency_secs: 60.0,
-                stock_update_frequency_secs: 20.0,
+                stock_update_frequency_secs: 60.0,
                 upgrade_update_frequency_secs: 10.0,
             },
             house0: HouseLevelConfig {

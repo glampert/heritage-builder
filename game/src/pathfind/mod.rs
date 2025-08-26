@@ -38,13 +38,14 @@ mod tests;
 bitflags_with_display! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
     pub struct NodeKind: u8 {
-        const Dirt             = 1 << 0;
-        const Road             = 1 << 1;
-        const Water            = 1 << 2;
-        const Building         = 1 << 3;
-        const BuildingRoadLink = 1 << 4;
-        const BuildingAccess   = 1 << 5;
-        const VacantLot        = 1 << 6;
+        const Dirt               = 1 << 0;
+        const Road               = 1 << 1;
+        const Water              = 1 << 2;
+        const Building           = 1 << 3;
+        const BuildingRoadLink   = 1 << 4;
+        const BuildingAccess     = 1 << 5;
+        const VacantLot          = 1 << 6;
+        const SettlersSpawnPoint = 1 << 7;
     }
 }
 
@@ -242,7 +243,8 @@ impl Graph {
                         self.grid[node] = NodeKind::Building;
 
                         for_each_surrounding_cell(blocker_tile.cell_range(), |cell| {
-                            if !tile_map.has_tile(cell, TileMapLayerKind::Objects, blocker_kinds) {
+                            if !tile_map.has_tile(cell, TileMapLayerKind::Objects, blocker_kinds) &&
+                                tile_map.is_cell_within_bounds(cell) {
                                 self.grid[Node::new(cell)] |= NodeKind::BuildingAccess;
                             }
                         });
@@ -290,6 +292,23 @@ impl Graph {
             }
         }
         nodes
+    }
+
+    #[inline]
+    pub fn find_node_with_kinds(&self, kinds: NodeKind) -> Option<Node> {
+        let width  = self.grid.size.width;
+        let height = self.grid.size.height;
+
+        for y in 0..height {
+            for x in 0..width {
+                let node = Node::new(Cell::new(x, y));
+                if self.grid[node].intersects(kinds) {
+                    return Some(node);
+                }
+            }
+        }
+
+        None
     }
 }
 

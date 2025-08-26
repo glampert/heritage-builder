@@ -35,6 +35,13 @@ pub struct UnitConfig {
     // TODO
 }
 
+impl UnitConfig {
+    #[inline]
+    pub fn is(&self, key: UnitConfigKey) -> bool {
+        self.tile_def_name_hash == key.hash
+    }
+}
+
 // ----------------------------------------------
 // UnitConfigs
 // ----------------------------------------------

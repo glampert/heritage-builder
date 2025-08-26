@@ -16,11 +16,11 @@ use crate::{
 };
 
 use super::{
-    building::Building,
+    building::{Building, BuildingKind},
     sim::{
         Query,
         world::{UnitId, WorldStats},
-        resources::{ResourceKind, ServiceKind, StockItem}
+        resources::{ResourceKind, StockItem}
     }
 };
 
@@ -31,14 +31,14 @@ use inventory::*;
 use navigation::*;
 
 pub mod config;
+pub mod task;
 pub mod patrol;
 pub mod runner;
-pub mod task;
+pub mod navigation;
 
 mod anim;
 mod debug;
 mod inventory;
-mod navigation;
 
 // ----------------------------------------------
 // UnitDebug
@@ -109,6 +109,7 @@ impl<'config> Unit<'config> {
         self.anim_sets.clear();
         self.inventory.clear();
         self.navigation.reset_path_and_goal(None, None);
+        self.navigation.set_traversable_node_kinds(PathNodeKind::default());
         self.debug.clear_popups();
 
         task_manager.free_task(self.current_task_id);
@@ -167,7 +168,7 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
-    pub fn patrol_service_building(&self, query: &'config Query) -> Option<&mut Building<'config>> {
+    pub fn patrol_task_origin_building(&self, query: &'config Query) -> Option<&mut Building<'config>> {
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
             return query.world().find_building_mut(task.origin_building.kind, task.origin_building.id);
         }
@@ -175,7 +176,7 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
-    pub fn patrol_service_kind(&self, query: &Query) -> Option<ServiceKind> {
+    pub fn patrol_task_building_kind(&self, query: &Query) -> Option<BuildingKind> {
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
             return Some(task.origin_building.kind)
         }
@@ -183,13 +184,36 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
-    pub fn is_market_patrol(&self, query: &Query) -> bool {
-        self.patrol_service_kind(query).is_some_and(|kind| kind == ServiceKind::Market)
+    pub fn is(&self, config_key: UnitConfigKey) -> bool {
+        if let Some(config) = self.config {
+            return config.is(config_key);
+        }
+        false
     }
 
     #[inline]
-    pub fn is_settler(&self, query: &Query) -> bool {
-        self.find_tile(query).tile_def().hash == utils::hash::fnv1a_from_str("settler")
+    pub fn is_ped(&self) -> bool {
+        self.is(config::UNIT_PED)
+    }
+
+    #[inline]
+    pub fn is_runner(&self) -> bool {
+        self.is(config::UNIT_RUNNER)
+    }
+
+    #[inline]
+    pub fn is_patrol(&self) -> bool {
+        self.is(config::UNIT_PATROL)
+    }
+
+    #[inline]
+    pub fn is_settler(&self) -> bool {
+        self.is(config::UNIT_SETTLER)
+    }
+
+    #[inline]
+    pub fn is_market_patrol(&self, query: &Query) -> bool {
+        self.is_patrol() && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
     }
 
     // ----------------------

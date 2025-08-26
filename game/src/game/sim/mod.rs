@@ -84,8 +84,8 @@ impl<'config> Simulation<'config> {
                building_configs: &'config BuildingConfigs,
                unit_configs: &'config UnitConfigs) -> Self {
         Self {
-            update_timer: UpdateTimer::new(DEFAULT_SIM_UPDATE_FREQUENCY_SECS),
-            rng: RandomGenerator::seed_from_u64(DEFAULT_RANDOM_SEED),
+            update_timer: UpdateTimer::new(SIM_UPDATE_FREQUENCY_SECS),
+            rng: RandomGenerator::seed_from_u64(SIM_DEFAULT_RANDOM_SEED),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
@@ -542,18 +542,17 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         debug_assert!(!building_kinds.is_empty());
         debug_assert!(!traversable_node_kinds.is_empty());
 
-        struct BuildingPathFilter<'a, F> {
-            graph: &'a Graph,
-            world: &'a World<'a>,
-            tile_map: &'a TileMap<'a>,
+        struct BuildingPathFilter<'sim, 'config, 'tile_sets, F> {
+            query: &'sim Query<'config, 'tile_sets>,
             building_kinds: BuildingKind,
+            traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
-            maybe_building: Option<&'a Building<'a>>, // Search result.
-            maybe_path: Option<UnsafeWeakRef<Path>>,  // Saved for result debug validation.
+            maybe_building: Option<&'sim Building<'config>>, // Search result.
+            maybe_path: Option<UnsafeWeakRef<Path>>,         // Saved for result debug validation.
             visited: SmallVec<[Node; 32]>,
         }
 
-        impl<F> PathFilter for BuildingPathFilter<'_, F>
+        impl<F> PathFilter for BuildingPathFilter<'_, '_, '_, F>
             where F: FnMut(&Building, &Path) -> bool
         {
             fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {
@@ -562,19 +561,37 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                     return false;
                 }
 
-                let node_kind = self.graph.node_kind(goal).unwrap();
+                debug_assert!(!path.is_empty());
+                debug_assert!(path.last().unwrap().cell == goal.cell);
+
+                let node_kind = self.query.graph().node_kind(goal).unwrap();
                 debug_assert!(node_kind.intersects(PathNodeKind::BuildingRoadLink | PathNodeKind::BuildingAccess),
                               "Unexpected PathNodeKind: {}", node_kind);
 
-                let neighbors = self.graph.neighbors(goal, PathNodeKind::Building);
+                let neighbors = self.query.graph().neighbors(goal, PathNodeKind::Building);
                 for neighbor in neighbors {
-                    if let Some(building) = self.world.find_building_for_cell(neighbor.cell, self.tile_map) {
-                        if building.is(self.building_kinds) && !(self.visitor_fn)(building, path) {
-                            // Accept this path/goal pair and stop searching.
-                            self.maybe_building = Some(building);
-                            self.maybe_path = Some(UnsafeWeakRef::new(path));
-                            return true;
+                    if let Some(building) = self.query.world().find_building_for_cell(neighbor.cell, self.query.tile_map()) {
+                        if building.is(self.building_kinds) {
+                            let mut accept_building = false;
+
+                            // If we're looking for buildings connected to roads, check that this road link
+                            // goal actually belongs to this building. Buildings can share the same road link tile.
+                            if self.traversable_node_kinds.intersects(PathNodeKind::Road) {
+                                if building.road_link(self.query).is_some_and(|link| link == goal.cell) {
+                                    accept_building = !(self.visitor_fn)(building, path);
+                                }
+                            } else {
+                                accept_building = !(self.visitor_fn)(building, path);
+                            }
+
+                            if accept_building {
+                                // Accept this path/goal pair and stop searching.
+                                self.maybe_building = Some(building);
+                                self.maybe_path = Some(UnsafeWeakRef::new(path));
+                                return true;
+                            }
                         }
+
                         self.visited.push(neighbor);
                     }
                 }
@@ -585,10 +602,9 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
         }
 
         let mut building_filter = BuildingPathFilter {
-            graph: self.graph(),
-            world: self.world(),
-            tile_map: self.tile_map(),
+            query: self,
             building_kinds,
+            traversable_node_kinds,
             visitor_fn,
             maybe_building: None,
             maybe_path: None,

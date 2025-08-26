@@ -104,6 +104,8 @@ impl Runner {
                 resources_to_fetch,
                 completion_callback,
                 completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
+                storage_buildings_visited: 0,
+                returning_to_origin: false,
             }
         )
     }
