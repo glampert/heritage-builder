@@ -260,7 +260,7 @@ impl TileInspectorMenu {
             category: tile.category_name(context.tile_sets),
             kind: tile.kind(),
             flags: tile.flags(),
-            path_kind: tile.tile_def().path_kind,
+            path_kind: tile.path_kind(),
             has_game_state: tile.game_state_handle().is_valid(),
             size_in_cells: tile.size_in_cells(),
             draw_size: tile.draw_size(),

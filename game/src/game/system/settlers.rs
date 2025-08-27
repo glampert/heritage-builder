@@ -141,7 +141,7 @@ impl Settler {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(population_to_add != 0);
 
-        let success = self.try_spawn_with_task(
+        self.try_spawn_with_task(
             "SettlersSpawnSystem",
             query,
             unit_origin,
@@ -155,15 +155,9 @@ impl Settler {
                     callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(population_to_add)]),
                 }),
                 fallback_to_houses_with_room: true,
+                return_to_spawn_point_if_failed: true,
                 population_to_add,
-            });
-
-        if success {
-            let settler = self.unit_mut(query);
-            settler.set_traversable_node_kinds(PathNodeKind::Dirt | PathNodeKind::Road | PathNodeKind::VacantLot);
-        }
-
-        success
+            })
     }
 
     fn on_settled(query: &Query, unit_prev_cell: Cell, unit_prev_goal: Option<UnitNavGoal>, extra_args: &[UnitTaskArg]) {
@@ -173,9 +167,7 @@ impl Settler {
         if settle_new_vacant_lot {
             if let Some(tile_def) = Self::find_house_tile_def(query) {
                 let world = query.world();
-                let tile_map = query.tile_map();
-
-                match world.try_spawn_building_with_tile_def(tile_map, unit_prev_cell, tile_def) {
+                match world.try_spawn_building_with_tile_def(query, unit_prev_cell, tile_def) {
                     Ok(building) => {
                         let population_to_add = extra_args[0].as_u32();
                         let house = building.as_house_mut();

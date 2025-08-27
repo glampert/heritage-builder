@@ -253,7 +253,7 @@ impl Graph {
                     // Else leave it empty.
                 } else {
                     // If there's no blocker over this cell, set its path kind.
-                    let mut path_kind = tile.tile_def().path_kind;
+                    let mut path_kind = tile.path_kind();
                     if tile.has_flags(TileFlags::BuildingRoadLink) {
                         path_kind |= NodeKind::BuildingRoadLink;
                     }

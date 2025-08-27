@@ -202,20 +202,40 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    pub fn placed(&mut self, id: BuildingId) {
+    pub fn placed(&mut self, query: &Query, id: BuildingId) {
         debug_assert!(id.is_valid());
         debug_assert!(!self.id.is_valid());
+
         self.id = id;
+
+        let context = self.new_context(query);
+        self.archetype.placed(&context);
     }
 
     #[inline]
-    pub fn removed(&mut self, tile_map: &mut TileMap) {
+    pub fn removed(&mut self, query: &Query) {
         debug_assert!(self.id.is_valid()); // Should be placed.
+
+        let context = self.new_context(query);
+        self.archetype.removed(&context);
 
         self.id = BuildingId::default();
         self.map_cells = CellRange::default();
 
-        self.clear_road_link(tile_map);
+        self.clear_road_link(query.tile_map());
+    }
+
+    #[inline]
+    fn new_context<'query, 'tile_sets>(&self,
+                                       query: &'query Query<'config, 'tile_sets>)
+                                       -> BuildingContext<'config, 'tile_sets, 'query> {
+        BuildingContext::new(
+            self.kind,
+            self.archetype_kind(),
+            self.map_cells,
+            self.road_link(query),
+            self.id,
+            query)
     }
 
     // ----------------------
@@ -286,14 +306,7 @@ impl<'config> Building<'config> {
         // Refresh cached road link cell:
         self.update_road_link(query);
 
-        let context =
-            BuildingContext::new(self.kind,
-                                 self.archetype_kind(),
-                                 self.map_cells,
-                                 self.road_link(query),
-                                 self.id,
-                                 query);
-
+        let context = self.new_context(query);
         self.archetype.update(&context);
     }
 
@@ -301,14 +314,7 @@ impl<'config> Building<'config> {
     pub fn visited_by(&mut self, unit: &mut Unit, query: &Query) {
         debug_assert!(self.id.is_valid());
 
-        let context =
-            BuildingContext::new(self.kind,
-                                 self.archetype_kind(),
-                                 self.map_cells,
-                                 self.road_link(query),
-                                 self.id,
-                                 query);
-
+        let context = self.new_context(query);
         self.archetype.visited_by(unit, &context);
     }
 
@@ -365,11 +371,11 @@ impl<'config> Building<'config> {
         debug_assert!(self.id.is_valid());
 
         if let Some(population) = self.population() {
-            stats.population += population.count;
+            stats.population += population.count();
         }
 
         if let Some(workers) = self.workers() {
-            stats.workers += workers.count;
+            stats.workers += workers.count();
         }
 
         self.archetype.tally(stats, self.kind);
@@ -400,7 +406,7 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn population_count(&self) -> u32 {
-        self.population().map_or(0, |population| population.count)
+        self.population().map_or(0, |population| population.count())
     }
 
     #[inline]
@@ -410,7 +416,7 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn workers_count(&self) -> u32 {
-        self.workers().map_or(0, |workers| workers.count)
+        self.workers().map_or(0, |workers| workers.count())
     }
 
     // ----------------------
@@ -565,14 +571,7 @@ impl<'config> Building<'config> {
 
         self.debug_options().draw_debug_ui(ui_sys);
 
-        let context =
-            BuildingContext::new(self.kind,
-                                 self.archetype_kind(),
-                                 self.map_cells,
-                                 self.road_link(query),
-                                 self.id,
-                                 query);
-
+        let context = self.new_context(query);
         self.archetype.draw_debug_ui(&context, ui_sys);
     }
 
@@ -647,6 +646,9 @@ pub trait BuildingBehavior<'config> {
 
     fn name(&self) -> &str;
     fn configs(&self) -> &dyn BuildingConfig;
+
+    fn placed(&mut self, _context: &BuildingContext) {}
+    fn removed(&mut self, _context: &BuildingContext) {}
 
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);

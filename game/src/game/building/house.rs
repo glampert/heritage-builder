@@ -12,11 +12,11 @@ use crate::{
     utils::{
         Color,
         Seconds,
-        hash::StringHash
+        hash::{StrHashPair, StringHash},
     },
     tile::{
         TileMapLayerKind,
-        sets::TileDef
+        sets::{TileDef, TERRAIN_GROUND_CATEGORY}
     },
     game::{
         unit::Unit,
@@ -61,13 +61,6 @@ use super::{
 //
 // - Allow houses to stock up on more than 1 unit of each kind of resources?
 //   Could allow stocking up to a maximum number of units.
-//
-// - When house downgrades we may evict some residents:
-//   - Spawn new unit with FindVacantHouseLot task.
-//   - Unit either settles a new lot or moves into an existing house with enough room.
-//     If neither can be satisfied, unit travels back to the settler's spawn point and despawns.
-//
-// - When house is destroyed/removed, also must evict residents.
 //
 // - If houses stay without access to basic resources for too long (food/water),
 //   settlers may decide to leave (house may downgrade back to vacant lot).
@@ -155,6 +148,49 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 
     fn configs(&self) -> &dyn BuildingConfig {
         self.current_level_config()
+    }
+
+    fn placed(&mut self, context: &BuildingContext) {
+        debug_assert!(context.base_cell().is_valid());
+
+        let cell = context.base_cell();
+        let tile_map = context.query.tile_map();
+
+        const LAYER_KIND: TileMapLayerKind = TileMapLayerKind::Terrain;
+        const TILE_DEF_NAME: StrHashPair = StrHashPair::from_str("dirt");
+
+        // Clear the vacant lot tile this house was placed over.
+        if let Some(tile) = tile_map.try_tile_from_layer(cell, LAYER_KIND) {
+            if tile.path_kind().intersects(PathNodeKind::VacantLot) {
+                match tile_map.try_clear_tile_from_layer(cell, LAYER_KIND) {
+                    Ok(_) => {
+                        let tile_sets = context.query.tile_sets();
+                        if let Some(tile_def_to_place) = tile_sets.find_tile_def_by_hash(
+                            LAYER_KIND,
+                            TERRAIN_GROUND_CATEGORY.hash,
+                            TILE_DEF_NAME.hash)
+                        {
+                            let _ = tile_map.try_place_tile_in_layer(cell, LAYER_KIND, tile_def_to_place)
+                                .inspect_err(|err| {
+                                    eprintln!("Failed to place new tile: {err}")
+                                });
+                        } else {
+                            eprintln!("Couldn't find '{}' TileDef!", TILE_DEF_NAME.string);
+                        }
+                    },
+                    Err(err) => {
+                        eprintln!("Failed to clear VacantLot tile: {err}");
+                    }
+                }
+            }
+        }
+    }
+
+    fn removed(&mut self, context: &BuildingContext) {
+        if self.population.count() != 0 {
+            // House is being destroyed, evict all residents.
+            self.adjust_population(context, 0, 0);
+        }
     }
 
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>) {
@@ -386,7 +422,7 @@ impl<'config> HouseBuilding<'config> {
 
         if upgraded || downgraded {
             self.stock.update_capacities(self.current_level_config().stock_capacity);
-            self.evict_residents(context, self.current_level_config().max_residents);
+            self.adjust_population(context, self.population.count(), self.current_level_config().max_residents);
         }
     }
 
@@ -423,12 +459,13 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
-    fn evict_residents(&mut self, context: &BuildingContext, new_max: u32) -> u32 {
-        let prev_population = self.population.count;
-        let new_population  = self.population.update_max(new_max);
+    fn adjust_population(&mut self, context: &BuildingContext, new_population: u32, new_max: u32) -> u32 {
+        let prev_population = self.population.count();
+        self.population.set_count(new_population);
+        let curr_population = self.population.set_max(new_max);
 
-        if new_population < prev_population {
-            let amount_evicted = prev_population - new_population;
+        if curr_population < prev_population {
+            let amount_evicted = prev_population - curr_population;
             self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_evicted} residents"));
 
             let mut settler = Settler::default();
@@ -895,7 +932,7 @@ impl<'config> HouseBuilding<'config> {
                     std::cmp::Ordering::Equal => {} // nothing
                 }
                 self.stock.update_capacities(self.current_level_config().stock_capacity);
-                self.evict_residents(context, self.current_level_config().max_residents);
+                self.adjust_population(context, self.population.count(), self.current_level_config().max_residents);
             }
         }
 
@@ -940,12 +977,12 @@ impl<'config> HouseBuilding<'config> {
             self.add_population(1);
         }
 
-        if ui.button("Evict 1 Resident (New Max)") && self.population.count != 0 {
-            self.evict_residents(context, self.population.count - 1);
+        if ui.button("Evict 1 Resident") && self.population.count() != 0 {
+            self.adjust_population(context, self.population.count() - 1, self.population.max());
         }
 
-        if ui.button("Evict All Residents (New Max)") && self.population.count != 0 {
-            self.evict_residents(context, 0);
+        if ui.button("Evict All Residents") && self.population.count() != 0 {
+            self.adjust_population(context, 0, self.population.max());
         }
     }
 }

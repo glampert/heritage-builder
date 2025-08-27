@@ -10,6 +10,7 @@ use enum_dispatch::enum_dispatch;
 
 use crate::{
     bitflags_with_display,
+    pathfind::NodeKind as PathNodeKind,
     utils::{
         Vec2,
         Size,
@@ -609,6 +610,11 @@ impl<'tile_sets> Tile<'tile_sets> {
     #[inline]
     pub fn tile_def(&self) -> &'tile_sets TileDef {
         self.archetype.tile_def()
+    }
+
+    #[inline]
+    pub fn path_kind(&self) -> PathNodeKind {
+        self.archetype.tile_def().path_kind
     }
 
     #[inline]

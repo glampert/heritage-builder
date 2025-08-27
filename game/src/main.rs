@@ -186,6 +186,7 @@ fn main() {
                 tile_sets: &tile_sets,
                 transform: *camera.transform(),
                 cursor_screen_pos,
+                delta_time_secs,
             });
 
         let tile_render_stats =
@@ -228,5 +229,5 @@ fn main() {
         frame_clock.end_frame();
     }
 
-    sim.reset(&mut world, &mut systems);
+    sim.reset(&mut world, &mut systems, &mut tile_map, &tile_sets);
 }

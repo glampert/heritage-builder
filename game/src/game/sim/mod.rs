@@ -20,6 +20,7 @@ use crate::{
         AStarUniformCostHeuristic
     },
     utils::{
+        Size,
         Seconds,
         UnsafeWeakRef,
         hash::StringHash,
@@ -95,11 +96,11 @@ impl<'config> Simulation<'config> {
     }
 
     #[inline]
-    fn make_query<'tile_sets>(&mut self,
-                              world: &mut World<'config>,
-                              tile_map: &mut TileMap<'tile_sets>,
-                              tile_sets: &'tile_sets TileSets,
-                              delta_time_secs: Seconds) -> Query<'config, 'tile_sets> {
+    pub fn new_query<'tile_sets>(&mut self,
+                                 world: &mut World<'config>,
+                                 tile_map: &mut TileMap<'tile_sets>,
+                                 tile_sets: &'tile_sets TileSets,
+                                 delta_time_secs: Seconds) -> Query<'config, 'tile_sets> {
         Query::new(
             &mut self.rng,
             &mut self.graph,
@@ -126,7 +127,7 @@ impl<'config> Simulation<'config> {
 
         // Units movement needs to be smooth, so it updates every frame.
         {
-            let query = self.make_query(world, tile_map, tile_sets, delta_time_secs);
+            let query = self.new_query(world, tile_map, tile_sets, delta_time_secs);
             world.update_unit_navigation(&query);
         }
 
@@ -134,15 +135,21 @@ impl<'config> Simulation<'config> {
         {
             let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
             if self.update_timer.tick(delta_time_secs).should_update() {
-                let query = self.make_query(world, tile_map, tile_sets, world_update_delta_time_secs);
+                let query = self.new_query(world, tile_map, tile_sets, world_update_delta_time_secs);
                 world.update(&query);
                 systems.update(&query);
             }
         }
     }
 
-    pub fn reset(&mut self, world: &mut World<'config>, systems: &mut GameSystems,) {
-        world.reset(&mut self.task_manager);
+    pub fn reset<'tile_sets>(&mut self,
+                             world: &mut World<'config>,
+                             systems: &mut GameSystems,
+                             tile_map: &mut TileMap<'tile_sets>,
+                             tile_sets: &'tile_sets TileSets) {
+
+        let query = self.new_query(world, tile_map, tile_sets, 0.0);
+        world.reset(&query);
         systems.reset();
     }
 
@@ -161,7 +168,7 @@ impl<'config> Simulation<'config> {
 
     // Game Systems:
     pub fn draw_game_systems_debug_ui(&mut self, context: &mut debug::DebugContext<'config, '_, '_, '_, '_>) {
-        let query = self.make_query(
+        let query = self.new_query(
             context.world,
             context.tile_map,
             context.tile_sets,
@@ -175,7 +182,7 @@ impl<'config> Simulation<'config> {
                                       context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                                       visible_range: CellRange) {
 
-        let query = self.make_query(
+        let query = self.new_query(
             context.world,
             context.tile_map,
             context.tile_sets,
@@ -192,7 +199,7 @@ impl<'config> Simulation<'config> {
                                   context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                                   selected_cell: Cell) {
 
-        let query = self.make_query(
+        let query = self.new_query(
             context.world,
             context.tile_map,
             context.tile_sets,
@@ -209,7 +216,7 @@ impl<'config> Simulation<'config> {
                                   context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                                   visible_range: CellRange) {
 
-        let query = self.make_query(
+        let query = self.new_query(
             context.world,
             context.tile_map,
             context.tile_sets,
@@ -226,7 +233,7 @@ impl<'config> Simulation<'config> {
                               context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
                               selected_cell: Cell) {
 
-        let query = self.make_query(
+        let query = self.new_query(
             context.world,
             context.tile_map,
             context.tile_sets,
@@ -680,12 +687,12 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
 
     #[inline]
     pub fn try_spawn_unit(&self, unit_origin: Cell, unit_config_key: UnitConfigKey) -> Result<&mut Unit<'config>, String> {
-        self.world().try_spawn_unit_with_config(self.tile_map(), self.tile_sets(), unit_origin, unit_config_key)
+        self.world().try_spawn_unit_with_config(self, unit_origin, unit_config_key)
     }
 
     #[inline]
     pub fn despawn_unit(&self, unit: &mut Unit) {
-        match self.world().despawn_unit(self.tile_map(), self.task_manager(), unit) {
+        match self.world().despawn_unit(self, unit) {
             Ok(_) => {},
             Err(err) => {
                 if cfg!(debug_assertions) {
@@ -695,5 +702,45 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                 }
             }
         }
+    }
+}
+
+// ----------------------------------------------
+// DebugQueryBuilder
+// ----------------------------------------------
+
+// Dummy Query for unit tests/debug.
+pub struct DebugQueryBuilder {
+    rng: RandomGenerator,
+    graph: Graph,
+    search: Search,
+    task_manager: UnitTaskManager,
+}
+
+impl DebugQueryBuilder {
+    pub fn new(map_size_in_cells: Size) -> Self {
+        Self {
+            rng: RandomGenerator::seed_from_u64(SIM_DEFAULT_RANDOM_SEED),
+            graph: Graph::with_empty_grid(map_size_in_cells),
+            search: Search::with_grid_size(map_size_in_cells),
+            task_manager: UnitTaskManager::new(1),
+        }
+    }
+
+    pub fn new_query<'config, 'tile_sets>(&mut self,
+                                          world: &mut World<'config>,
+                                          tile_map: &mut TileMap<'tile_sets>,
+                                          tile_sets: &'tile_sets TileSets) -> Query<'config, 'tile_sets> {
+        Query::new(
+            &mut self.rng,
+            &mut self.graph,
+            &mut self.search,
+            &mut self.task_manager,
+            world,
+            tile_map,
+            tile_sets,
+            world.building_configs(),
+            world.unit_configs(),
+            0.0)
     }
 }

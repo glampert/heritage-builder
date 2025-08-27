@@ -16,11 +16,7 @@ use crate::{
         TileMap,
         TileMapLayerKind,
         TileGameStateHandle,
-        sets::{
-            TileDef,
-            TileSets,
-            OBJECTS_UNITS_CATEGORY
-        }
+        sets::{TileDef, OBJECTS_UNITS_CATEGORY}
     },
     game::{
         constants::*,
@@ -35,7 +31,6 @@ use crate::{
         },
         unit::{
             Unit,
-            task::UnitTaskManager,
             config::{
                 UnitConfig,
                 UnitConfigs,
@@ -90,12 +85,12 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn reset(&mut self, task_manager: &mut UnitTaskManager) {
+    pub fn reset(&mut self, query: &Query) {
         for buildings in &mut self.building_lists {
             buildings.clear();
         }
 
-        self.unit_spawn_pool.clear(task_manager);
+        self.unit_spawn_pool.clear(query);
     }
 
     pub fn update_unit_navigation(&mut self, query: &Query) {
@@ -122,6 +117,14 @@ impl<'config> World<'config> {
         }
     }
 
+    pub fn building_configs(&self) -> &'config BuildingConfigs {
+        self.building_configs
+    }
+
+    pub fn unit_configs(&self) -> &'config UnitConfigs {
+        self.unit_configs
+    }
+
     // Increment generation count, return previous.
     #[inline]
     fn next_building_generation(&mut self) -> u32 {
@@ -141,16 +144,17 @@ impl<'config> World<'config> {
     // Buildings API:
     // ----------------------
 
-    pub fn try_spawn_building_with_tile_def<'tile_sets>(&mut self,
-                                                        tile_map: &mut TileMap<'tile_sets>,
-                                                        tile_base_cell: Cell,
-                                                        tile_def: &'tile_sets TileDef) -> Result<&mut Building<'config>, String> {
+    pub fn try_spawn_building_with_tile_def(&mut self,
+                                            query: &Query,
+                                            tile_base_cell: Cell,
+                                            tile_def: &TileDef) -> Result<&mut Building<'config>, String> {
+
         debug_assert!(tile_base_cell.is_valid());
         debug_assert!(tile_def.is_valid());
         debug_assert!(tile_def.is(TileKind::Building));
 
         // Allocate & place a Tile:
-        match tile_map.try_place_tile(tile_base_cell, tile_def) {
+        match query.tile_map().try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
                 // Instantiate new Building:
                 if let Some(building) = building::config::instantiate(tile, self.building_configs) {
@@ -164,7 +168,7 @@ impl<'config> World<'config> {
                     let (list_index, instance) = buildings.add_instance(building);
 
                     // Update tile & building handles:
-                    instance.placed(BuildingId::new(generation, list_index));
+                    instance.placed(query, BuildingId::new(generation, list_index));
                     tile.set_game_state_handle(TileGameStateHandle::new_building(list_index, building_kind.bits()));
 
                     Ok(instance)
@@ -180,9 +184,11 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn despawn_building(&mut self, tile_map: &mut TileMap, building: &mut Building<'config>) -> Result<(), String> {
+    pub fn despawn_building(&mut self, query: &Query, building: &mut Building<'config>) -> Result<(), String> {
         let tile_base_cell = building.base_cell();
         debug_assert!(tile_base_cell.is_valid());
+
+        let tile_map = query.tile_map();
 
         // Find and validate associated Tile:
         let tile = tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Building)
@@ -204,41 +210,22 @@ impl<'config> World<'config> {
         debug_assert!(list_index == building.id().index());
 
         // Remove the building instance:
-        building.removed(tile_map);
+        building.removed(query);
 
-        buildings.remove_instance_at(list_index).map_err(|err| {
+        buildings.remove_instance(list_index).map_err(|err| {
             format!("Failed to remove Building index [{}], cell {}: {}", list_index, tile_base_cell, err)
         })
     }
 
-    pub fn despawn_building_at_cell(&mut self, tile_map: &mut TileMap, tile_base_cell: Cell) -> Result<(), String> {
+    #[inline]
+    pub fn despawn_building_at_cell(&mut self, query: &Query<'config, '_>, tile_base_cell: Cell) -> Result<(), String> {
         debug_assert!(tile_base_cell.is_valid());
 
-        // Find and validate associated Tile:
-        let tile = tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Building)
-            .ok_or("Building should have an associated Tile in the TileMap!")?;
+        let building =
+            query.world().find_building_for_cell_mut(tile_base_cell, query.tile_map())
+                .expect("Tile cell does not contain a Building!");
 
-        let game_state = tile.game_state_handle();
-        if !game_state.is_valid() {
-            return Err(format!("Building tile '{}' {} should have a valid game state!", tile.name(), tile_base_cell));
-        }
-
-        // Remove the associated Tile:
-        tile_map.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
-
-        let list_index = game_state.index();
-        let building_kind = BuildingKind::from_game_state_handle(game_state);
-        let archetype_kind = building_kind.archetype_kind();
-        let buildings = self.buildings_list_mut(archetype_kind);
-
-        // Remove the building instance:
-        buildings.try_get_at_mut(list_index)
-            .unwrap()
-            .removed(tile_map);
-
-        buildings.remove_instance_at(list_index).map_err(|err| {
-            format!("Failed to remove Building index [{}], cell {}: {}", list_index, tile_base_cell, err)
-        })
+        self.despawn_building(query, building)
     }
 
     #[inline]
@@ -394,23 +381,23 @@ impl<'config> World<'config> {
     // Units API:
     // ----------------------
 
-    pub fn try_spawn_unit_with_config<'tile_sets>(&mut self,
-                                                  tile_map: &mut TileMap<'tile_sets>,
-                                                  tile_sets: &'tile_sets TileSets,
-                                                  unit_origin: Cell,
-                                                  unit_config_key: UnitConfigKey) -> Result<&mut Unit<'config>, String> {
+    pub fn try_spawn_unit_with_config(&mut self,
+                                      query: &Query,
+                                      unit_origin: Cell,
+                                      unit_config_key: UnitConfigKey) -> Result<&mut Unit<'config>, String> {
+
         debug_assert!(unit_origin.is_valid());
         debug_assert!(unit_config_key.is_valid());
 
         let config = self.unit_configs.find_config_by_hash(unit_config_key.hash);
 
         // Find TileDef:
-        if let Some(tile_def) = tile_sets.find_tile_def_by_hash(
+        if let Some(tile_def) = query.tile_sets().find_tile_def_by_hash(
             TileMapLayerKind::Objects,
             OBJECTS_UNITS_CATEGORY.hash,
             config.tile_def_name_hash) {
             // Allocate & place a Tile:
-            match tile_map.try_place_tile(unit_origin, tile_def) {
+            match query.tile_map().try_place_tile(unit_origin, tile_def) {
                 Ok(tile) => {
                     // Increment generation count:
                     let generation = self.next_unit_generation();
@@ -434,16 +421,17 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn try_spawn_unit_with_tile_def<'tile_sets>(&mut self,
-                                                    tile_map: &mut TileMap<'tile_sets>,
-                                                    unit_origin: Cell,
-                                                    tile_def: &'tile_sets TileDef) -> Result<&mut Unit<'config>, String> {
+    pub fn try_spawn_unit_with_tile_def(&mut self,
+                                        query: &Query,
+                                        unit_origin: Cell,
+                                        tile_def: &TileDef) -> Result<&mut Unit<'config>, String> {
+
         debug_assert!(unit_origin.is_valid());
         debug_assert!(tile_def.is_valid());
         debug_assert!(tile_def.is(TileKind::Unit));
 
         // Allocate & place a Tile:
-        match tile_map.try_place_tile(unit_origin, tile_def) {
+        match query.tile_map().try_place_tile(unit_origin, tile_def) {
             Ok(tile) => {
                 let config = self.unit_configs.find_config_by_hash(tile_def.hash);
 
@@ -465,8 +453,9 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn despawn_unit(&mut self, tile_map: &mut TileMap, task_manager: &mut UnitTaskManager, unit: &mut Unit) -> Result<(), String> {
+    pub fn despawn_unit(&mut self, query: &Query, unit: &mut Unit) -> Result<(), String> {
         debug_assert!(unit.is_spawned());
+        let tile_map = query.tile_map();
 
         let tile_cell = unit.cell();
         debug_assert!(tile_cell.is_valid());
@@ -487,34 +476,19 @@ impl<'config> World<'config> {
         tile_map.try_clear_tile_from_layer(tile_cell, TileMapLayerKind::Objects)?;
 
         // Put the unit instance back into the spawn pool.
-        self.unit_spawn_pool.despawn_instance(task_manager, unit);
+        self.unit_spawn_pool.despawn_instance(query, unit);
         Ok(())
     }
 
-    pub fn despawn_unit_at_cell(&mut self, tile_map: &mut TileMap, task_manager: &mut UnitTaskManager, tile_cell: Cell) -> Result<(), String> {
-        debug_assert!(tile_cell.is_valid());
+    #[inline]
+    pub fn despawn_unit_at_cell(&mut self, query: &Query, tile_base_cell: Cell) -> Result<(), String> {
+        debug_assert!(tile_base_cell.is_valid());
 
-        // Find and validate associated Tile:
-        let tile = tile_map.find_tile(tile_cell, TileMapLayerKind::Objects, TileKind::Unit)
-            .ok_or("Unit should have an associated Tile in the TileMap!")?;
+        let unit =
+            query.world().find_unit_for_cell_mut(tile_base_cell, query.tile_map())
+                .expect("Tile cell does not contain a Unit!");
 
-        let game_state = tile.game_state_handle();
-        if !game_state.is_valid() {
-            return Err(format!("Unit tile '{}' {} should have a valid game state!", tile.name(), tile_cell));
-        }
-
-        let unit = self.unit_spawn_pool.try_get(UnitId::new(game_state.generation(), game_state.index()))
-            .ok_or("Unit tile GameStateHandle is invalid!")?;
-
-        debug_assert!(game_state.index() == unit.id().index());
-        debug_assert!(game_state.generation() == unit.id().generation());
-
-        // First remove the associated Tile:
-        tile_map.try_clear_tile_from_layer(tile_cell, TileMapLayerKind::Objects)?;
-
-        // Put the unit instance back into the spawn pool.
-        self.unit_spawn_pool.despawn_by_id(task_manager, unit.id());
-        Ok(())
+        self.despawn_unit(query, unit)
     }
 
     #[inline]
@@ -766,7 +740,7 @@ impl<'config> BuildingList<'config> {
     }
 
     #[inline]
-    fn remove_instance_at(&mut self, list_index: usize) -> Result<(), String> {
+    fn remove_instance(&mut self, list_index: usize) -> Result<(), String> {
         if self.buildings.try_remove(list_index).is_none() {
             return Err(format!("BuildingList slot [{}] is already vacant!", list_index));
         }
@@ -869,11 +843,11 @@ impl<'config> UnitSpawnPool<'config> {
         }
     }
 
-    fn clear(&mut self, task_manager: &mut UnitTaskManager) {
+    fn clear(&mut self, query: &Query) {
         debug_assert!(self.is_valid());
 
         for unit in self.iter_mut() {
-            unit.despawned(task_manager);
+            unit.despawned(query);
         }
 
         self.pool.fill(Unit::default());
@@ -899,7 +873,7 @@ impl<'config> UnitSpawnPool<'config> {
         &mut self.pool[new_pool_index]
     }
 
-    fn despawn_instance(&mut self, task_manager: &mut UnitTaskManager, unit: &mut Unit) {
+    fn despawn_instance(&mut self, query: &Query, unit: &mut Unit) {
         debug_assert!(self.is_valid());
         debug_assert!(unit.is_spawned());
 
@@ -907,22 +881,7 @@ impl<'config> UnitSpawnPool<'config> {
         debug_assert!(self.is_spawned_flags[pool_index]);
         debug_assert!(std::ptr::eq(&self.pool[pool_index], unit)); // Ensure addresses are the same.
 
-        unit.despawned(task_manager);
-        self.is_spawned_flags.set(pool_index, false);
-    }
-
-    fn despawn_by_id(&mut self, task_manager: &mut UnitTaskManager, unit_id: UnitId) {
-        debug_assert!(self.is_valid());
-        debug_assert!(unit_id.is_valid());
-
-        let pool_index = unit_id.index();
-        debug_assert!(self.is_spawned_flags[pool_index]);
-
-        let unit = &mut self.pool[pool_index];
-        debug_assert!(unit.is_spawned());
-        debug_assert!(unit.id() == unit_id);
-
-        unit.despawned(task_manager);
+        unit.despawned(query);
         self.is_spawned_flags.set(pool_index, false);
     }
 

@@ -98,7 +98,7 @@ impl<'config> Unit<'config> {
         self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
     }
 
-    pub fn despawned(&mut self, task_manager: &mut UnitTaskManager) {
+    pub fn despawned(&mut self, query: &Query) {
         debug_assert!(self.is_spawned());
 
         self.config    = None;
@@ -112,7 +112,7 @@ impl<'config> Unit<'config> {
         self.navigation.set_traversable_node_kinds(PathNodeKind::default());
         self.debug.clear_popups();
 
-        task_manager.free_task(self.current_task_id);
+        query.task_manager().free_task(self.current_task_id);
         self.current_task_id = UnitTaskId::default();
     }
 

@@ -1,6 +1,6 @@
 use crate::{
     imgui_ui::UiSystem,
-    game::sim::world::World,
+    game::sim::{DebugQueryBuilder, world::World},
     render::{RenderSystem, RenderStats},
     utils::{
         Color,
@@ -514,6 +514,9 @@ mod test_maps {
 
         let mut tile_map = TileMap::new(map_size_in_cells, None);
 
+        let mut query_builder = DebugQueryBuilder::new(map_size_in_cells);
+        let query = query_builder.new_query(world, &mut tile_map, tile_sets);
+
         // Terrain:
         for y in 0..map_size_in_cells.height {
             for x in 0..map_size_in_cells.width {
@@ -530,7 +533,7 @@ mod test_maps {
             for x in 0..map_size_in_cells.width {
                 let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Objects, tile_id) {
-                    world.try_spawn_building_with_tile_def(&mut tile_map, Cell::new(x, y), tile_def)
+                    world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def)
                         .expect("Failed to place Building tile!");
                 }
             }

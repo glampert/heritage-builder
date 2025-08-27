@@ -118,9 +118,9 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // ----------------------------------------------
 
 pub struct Workers {
-    pub count: u32, // Current number of workers employed.
-    pub min: u32,   // Minimum number of workers for service/production to run (at lower capacity).
-    pub max: u32,   // Maximum number of workers it can employ (to run at full capacity).
+    count: u32, // Current number of workers employed.
+    min: u32,   // Minimum number of workers for service/production to run (at lower capacity).
+    max: u32,   // Maximum number of workers it can employ (to run at full capacity).
 }
 
 impl Workers {
@@ -131,6 +131,18 @@ impl Workers {
             min,
             max,
         }
+    }
+
+    pub fn count(&self) -> u32 {
+        self.count
+    }
+
+    pub fn min(&self) -> u32 {
+        self.min
+    }
+
+    pub fn max(&self) -> u32 {
+        self.max
     }
 
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
@@ -148,8 +160,8 @@ impl Workers {
 // ----------------------------------------------
 
 pub struct Population {
-    pub count: u32, // Current population number for household.
-    pub max: u32,   // Maximum population it can accommodate.
+    count: u32, // Current population number for household.
+    max: u32,   // Maximum population it can accommodate.
 }
 
 impl Population {
@@ -161,22 +173,34 @@ impl Population {
         }
     }
 
+    pub fn count(&self) -> u32 {
+        self.count
+    }
+
+    pub fn max(&self) -> u32 {
+        self.max
+    }
+
+    pub fn is_maxed(&self) -> bool {
+        self.count >= self.max
+    }
+
+    pub fn set_count(&mut self, count: u32) {
+        self.count = count.min(self.max);
+    }
+
+    pub fn set_max(&mut self, new_max: u32) -> u32 {
+        self.count = self.count.min(new_max); // Clamp to new maximum.
+        self.max = new_max;
+        self.count
+    }
+
     pub fn add(&mut self, count: u32) -> u32 {
         let prev_count = self.count;
         let new_count  = (prev_count + count).min(self.max);
         let amount_added = new_count - prev_count;
         self.count = new_count;
         amount_added
-    }
-
-    pub fn update_max(&mut self, new_max: u32) -> u32 {
-        self.count = self.count.min(new_max); // Clamp to new maximum.
-        self.max = new_max;
-        self.count
-    }
-
-    pub fn is_maxed(&self) -> bool {
-        self.count >= self.max
     }
 
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {

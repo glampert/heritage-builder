@@ -956,7 +956,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
 
 pub struct UnitTaskSettler {
     // Optional completion callback. Invoke with the empty house lot building we've visited.
-    // |unit, vacant_lot, population_to_add, query|
+    // |unit, dest_tile, population_to_add, query|
     pub completion_callback: Option<fn(&mut Unit, &Tile, u32, &Query)>,
 
     // Optional completion task to run after this task.
@@ -964,6 +964,9 @@ pub struct UnitTaskSettler {
 
     // If true and we can't find an empty lot, try to find any house with room that will take the settler.
     pub fallback_to_houses_with_room: bool,
+
+    // If we can't find either an empty lot or a house, find a way back to the spawn point and leave.
+    pub return_to_spawn_point_if_failed: bool,
 
     // Amount to add once settled into a new lot or house.
     pub population_to_add: u32,
@@ -976,15 +979,17 @@ impl UnitTaskSettler {
         let bias = RandomDirectionalBias::new(query.rng(), 0.1, 0.5);
 
         // First try to find an empty lot we can settle:
-        let result = query.find_path_to_node(
-            &bias,
-            traversable_node_kinds,
-            start,
-            PathNodeKind::VacantLot);
+        {
+            let result = query.find_path_to_node(
+                &bias,
+                traversable_node_kinds,
+                start,
+                PathNodeKind::VacantLot);
 
-        if let SearchResult::PathFound(path) = result {
-            unit.move_to_goal(path, UnitNavGoal::tile(start, path));
-            return;
+            if let SearchResult::PathFound(path) = result {
+                unit.move_to_goal(path, UnitNavGoal::tile(start, path));
+                return;
+            }
         }
 
         // Alternatively try to find a house with room that can take this settler.
@@ -1012,6 +1017,20 @@ impl UnitTaskSettler {
                         building.kind(),
                         building.tile_info(query))
                 );
+                return;
+            }
+        }
+
+        // If we can't find any viable destination, move back to the settler spawn point and abort.
+        if self.return_to_spawn_point_if_failed {
+            let result = query.find_path_to_node(
+                &bias,
+                traversable_node_kinds,
+                start,
+                PathNodeKind::SettlersSpawnPoint);
+
+            if let SearchResult::PathFound(path) = result {
+                unit.move_to_goal(path, UnitNavGoal::tile(start, path));
             }
         }
     }
@@ -1022,6 +1041,15 @@ impl UnitTask for UnitTaskSettler {
 
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
         debug_assert!(self.population_to_add != 0);
+
+        let current_node_kinds = unit.traversable_node_kinds();
+        unit.set_traversable_node_kinds(
+            current_node_kinds |
+            PathNodeKind::Dirt |
+            PathNodeKind::Road |
+            PathNodeKind::VacantLot |
+            PathNodeKind::SettlersSpawnPoint);
+
         self.try_find_goal(unit, query);
     }
 
@@ -1048,15 +1076,15 @@ impl UnitTask for UnitTaskSettler {
         let tile_map = query.tile_map();
 
         if unit_goal.is_tile() {
-            // Moving to a vacant lot:
+            // Moving to a vacant lot or back to spawn point:
             let destination_cell = unit_goal.tile_destination();
             debug_assert!(destination_cell.is_valid());
 
-            if let Some(vacant_lot) = tile_map.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
-                if vacant_lot.tile_def().path_kind.intersects(PathNodeKind::VacantLot) {
+            if let Some(tile) = tile_map.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
+                if tile.path_kind().intersects(PathNodeKind::VacantLot | PathNodeKind::SettlersSpawnPoint) {
                     // Notify completion:
                     if let Some(on_completion) = self.completion_callback {
-                        on_completion(unit, vacant_lot, self.population_to_add, query);
+                        on_completion(unit, tile, self.population_to_add, query);
                     }
 
                     return UnitTaskResult::Completed {

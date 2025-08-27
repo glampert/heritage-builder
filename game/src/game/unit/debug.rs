@@ -423,16 +423,17 @@ impl Unit<'_> {
         let task_manager = query.task_manager();
 
         if ui.button("Find Vacant House Lot") && !traversable_node_kinds.is_empty() {
-            self.set_traversable_node_kinds(traversable_node_kinds | PathNodeKind::VacantLot);
+            self.set_traversable_node_kinds(traversable_node_kinds);
 
             let completion_task = task_manager.new_task(UnitTaskDespawn);
             let task = task_manager.new_task(UnitTaskSettler {
-                completion_callback: Some(|unit, vacant_lot, _, _| {
-                    println!("Unit {} reached {}.", unit.name(), vacant_lot.name());
-                    unit.debug.popup_msg(format!("Reached {}", vacant_lot.name()));
+                completion_callback: Some(|unit, dest_tile, _, _| {
+                    println!("Unit {} reached {}.", unit.name(), dest_tile.name());
+                    unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
                 }),
                 completion_task,
                 fallback_to_houses_with_room: false,
+                return_to_spawn_point_if_failed: false,
                 population_to_add: 1,
             });
 
@@ -440,7 +441,7 @@ impl Unit<'_> {
         }
 
         if ui.button("Find & Settle Vacant Lot | House") && !traversable_node_kinds.is_empty() {
-            self.set_traversable_node_kinds(traversable_node_kinds | PathNodeKind::VacantLot);
+            self.set_traversable_node_kinds(traversable_node_kinds);
 
             // NOTE: We have to spawn the house building *after* the unit has
             // despawned since we can't place a building over the unit tile.
@@ -455,11 +456,7 @@ impl Unit<'_> {
                             tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
                             hash::fnv1a_from_str("house0"))
                         {
-                            match query.world().try_spawn_building_with_tile_def(
-                                query.tile_map(),
-                                unit_prev_cell,
-                                tile_def)
-                            {
+                            match query.world().try_spawn_building_with_tile_def(query, unit_prev_cell, tile_def) {
                                 Ok(building) => {
                                     let population_to_add = extra_args[0].as_u32();
                                     debug_assert!(population_to_add == 1);
@@ -480,13 +477,14 @@ impl Unit<'_> {
             });
 
             let task = task_manager.new_task(UnitTaskSettler {
-                completion_callback: Some(|unit, vacant_lot, population_to_add, _| {
+                completion_callback: Some(|unit, dest_tile, population_to_add, _| {
                     debug_assert!(population_to_add == 1);
-                    println!("Unit {} reached {}.", unit.name(), vacant_lot.name());
-                    unit.debug.popup_msg(format!("Reached {}", vacant_lot.name()));
+                    println!("Unit {} reached {}.", unit.name(), dest_tile.name());
+                    unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
                 }),
                 completion_task,
                 fallback_to_houses_with_room: true,
+                return_to_spawn_point_if_failed: false,
                 population_to_add: 1,
             });
 

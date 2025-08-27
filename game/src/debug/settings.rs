@@ -212,7 +212,7 @@ impl DebugSettingsMenu {
 
         if ui.button("Reset empty") {
             context.tile_map.reset(None);
-            sim.reset(context.world, context.systems);
+            sim.reset(context.world, context.systems, context.tile_map, context.tile_sets);
         }
 
         if ui.button("Reset to dirt tiles") {
@@ -221,7 +221,7 @@ impl DebugSettingsMenu {
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("dirt"));
             context.tile_map.reset(dirt_tile_def);
-            sim.reset(context.world, context.systems);
+            sim.reset(context.world, context.systems, context.tile_map, context.tile_sets);
         }
 
         if ui.button("Reset to grass tiles") {
@@ -230,7 +230,7 @@ impl DebugSettingsMenu {
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("grass"));
             context.tile_map.reset(grass_tile_def);
-            sim.reset(context.world, context.systems);
+            sim.reset(context.world, context.systems, context.tile_map, context.tile_sets);
         }
     }
 

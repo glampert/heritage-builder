@@ -67,6 +67,7 @@ pub struct DebugMenusBeginFrameArgs<'sim, 'ui, 'world, 'config, 'tile_map, 'tile
     pub tile_sets: &'tile_sets TileSets,
     pub transform: WorldToScreenTransform,
     pub cursor_screen_pos: Vec2,
+    pub delta_time_secs: f32,
 }
 
 pub struct DebugMenusEndFrameArgs<'rs, 'cam, 'sim, 'ui, 'world, 'config, 'tile_map, 'tile_sets, RS: RenderSystem> {
@@ -328,33 +329,37 @@ impl DebugMenusSingleton {
                         &args.transform);
 
                     if target_cell.is_valid() {
+                        let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
                         if tile_def.is(TileKind::Building) {
-                            args.world.try_spawn_building_with_tile_def(args.tile_map, target_cell, tile_def).is_ok()
+                            query.world().try_spawn_building_with_tile_def(&query, target_cell, tile_def).is_ok()
                         } else if tile_def.is(TileKind::Unit) {
-                            args.world.try_spawn_unit_with_tile_def(args.tile_map, target_cell, tile_def).is_ok()
+                            query.world().try_spawn_unit_with_tile_def(&query, target_cell, tile_def).is_ok()
                         } else {
                             // No associated game state, place plain tile.
-                            args.tile_map.try_place_tile(target_cell, tile_def).is_ok()
+                            query.tile_map().try_place_tile(target_cell, tile_def).is_ok()
                         }
                     } else {
                         false
                     }
-                } else if let Some(tile) = args.tile_map.topmost_tile_at_cursor(args.cursor_screen_pos, &args.transform) {
-                    let has_game_state = tile.game_state_handle().is_valid();
-                    if tile.is(TileKind::Building | TileKind::Blocker) && has_game_state {
-                        args.world.despawn_building_at_cell(args.tile_map, tile.base_cell())
-                            .expect("Tile removal failed!");
-                    } else if tile.is(TileKind::Unit) && has_game_state {
-                        args.world.despawn_unit_at_cell(args.tile_map, args.sim.task_manager(), tile.base_cell())
-                            .expect("Tile removal failed!");
-                    } else {
-                        // No game state, just remove the tile directly.
-                        args.tile_map.try_clear_tile_at_cursor(args.cursor_screen_pos, &args.transform)
-                            .expect("Tile removal failed!");
-                    }
-                    true
                 } else {
-                    false
+                    let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
+                    if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, &args.transform) {
+                        let has_game_state = tile.game_state_handle().is_valid();
+                        if tile.is(TileKind::Building | TileKind::Blocker) && has_game_state {
+                            query.world().despawn_building_at_cell(&query, tile.base_cell())
+                                .expect("Tile removal failed!");
+                        } else if tile.is(TileKind::Unit) && has_game_state {
+                            query.world().despawn_unit_at_cell(&query, tile.base_cell())
+                                .expect("Tile removal failed!");
+                        } else {
+                            // No game state, just remove the tile directly.
+                            query.tile_map().try_clear_tile_at_cursor(args.cursor_screen_pos, &args.transform)
+                                .expect("Tile removal failed!");
+                        }
+                        true
+                    } else {
+                        false
+                    }
                 }
             };
 
