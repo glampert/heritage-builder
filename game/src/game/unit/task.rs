@@ -1,4 +1,5 @@
 #![allow(clippy::enum_variant_names)]
+#![allow(clippy::type_complexity)]
 
 use std::any::Any;
 use slab::Slab;
@@ -53,20 +54,28 @@ use super::{
 
 pub type UnitTaskId = GenerationalIndex;
 
-#[derive(Display, PartialEq, Eq)]
+#[derive(Display, PartialEq)]
 pub enum UnitTaskState {
     Uninitialized,
     Running,
     Completed,
-    TerminateAndDespawn { post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>)> },
+    TerminateAndDespawn {
+        post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>, &[UnitTaskArg])>,
+        callback_extra_args:   UnitTaskArgs,
+    },
 }
 
 #[derive(Display)]
 pub enum UnitTaskResult {
     Running,
     Retry,
-    Completed { next_task: UnitTaskForwarded }, // Optional next task to run.
-    TerminateAndDespawn { post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>)> },
+    Completed {
+        next_task: UnitTaskForwarded // Optional next task to run.
+    },
+    TerminateAndDespawn {
+        post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>, &[UnitTaskArg])>,
+        callback_extra_args:   UnitTaskArgs
+    },
 }
 
 pub struct UnitTaskForwarded(Option<UnitTaskId>);
@@ -76,6 +85,68 @@ fn forward_task(task: &mut Option<UnitTaskId>) -> UnitTaskForwarded {
     let mut forwarded = None;
     std::mem::swap(&mut forwarded, task);
     UnitTaskForwarded(forwarded)
+}
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum UnitTaskArg {
+    None,
+    Bool(bool),
+    I32(i32),
+    U32(u32),
+    F32(f32),
+}
+
+impl UnitTaskArg {
+    pub fn as_bool(self) -> bool {
+        match self {
+            Self::Bool(value) => value,
+            _ => panic!("UnitTaskArg does not hold bool!"),
+        }
+    }
+
+    pub fn as_i32(self) -> i32 {
+        match self {
+            Self::I32(value) => value,
+            _ => panic!("UnitTaskArg does not hold i32!"),
+        }
+    }
+
+    pub fn as_u32(self) -> u32 {
+        match self {
+            Self::U32(value) => value,
+            _ => panic!("UnitTaskArg does not hold u32!"),
+        }
+    }
+
+    pub fn as_f32(self) -> f32 {
+        match self {
+            Self::F32(value) => value,
+            _ => panic!("UnitTaskArg does not hold f32!"),
+        }
+    }
+}
+
+const MAX_TASK_EXTRA_ARGS: usize = 1;
+
+#[derive(Copy, Clone, PartialEq)]
+pub struct UnitTaskArgs {
+    args: Option<[UnitTaskArg; MAX_TASK_EXTRA_ARGS]>,
+}
+
+impl UnitTaskArgs {
+    pub fn empty() -> Self {
+        Self { args: None }
+    }
+
+    pub fn new(args: &[UnitTaskArg]) -> Self {
+        let len = args.len();
+        debug_assert!(len > 0 && len <= MAX_TASK_EXTRA_ARGS);
+
+        let mut arr = [UnitTaskArg::None; MAX_TASK_EXTRA_ARGS];
+        arr[..len].copy_from_slice(&args[..len]);
+
+        Self { args: Some(arr) }
+    }
 }
 
 // ----------------------------------------------
@@ -123,7 +194,7 @@ pub enum UnitTaskArchetype {
     UnitTaskRandomizedPatrol,
     UnitTaskDeliverToStorage,
     UnitTaskFetchFromStorage,
-    UnitTaskFindVacantHouseLot,
+    UnitTaskSettler,
 }
 
 // ----------------------------------------------
@@ -137,7 +208,10 @@ impl UnitTask for UnitTaskDespawn {
 
     fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
         check_unit_despawn_state::<UnitTaskDespawn>(unit, query);
-        UnitTaskState::TerminateAndDespawn { post_despawn_callback: None }
+        UnitTaskState::TerminateAndDespawn {
+            post_despawn_callback: None,
+            callback_extra_args: UnitTaskArgs::empty(),
+        }
     }
 }
 
@@ -147,8 +221,11 @@ impl UnitTask for UnitTaskDespawn {
 
 pub struct UnitTaskDespawnWithCallback {
     // Callback invoked *after* the unit has despawned.
-    // |query, unit_prev_cell, unit_prev_goal|
-    pub callback: Option<fn(&Query, Cell, Option<UnitNavGoal>)>,
+    // |query, unit_prev_cell, unit_prev_goal, extra_args|
+    pub post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>, &[UnitTaskArg])>,
+
+    // Extra arguments for the callback.
+    pub callback_extra_args: UnitTaskArgs,
 }
 
 impl UnitTask for UnitTaskDespawnWithCallback {
@@ -156,7 +233,10 @@ impl UnitTask for UnitTaskDespawnWithCallback {
 
     fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
         check_unit_despawn_state::<UnitTaskDespawnWithCallback>(unit, query);
-        UnitTaskState::TerminateAndDespawn { post_despawn_callback: self.callback }
+        UnitTaskState::TerminateAndDespawn {
+            post_despawn_callback: self.post_despawn_callback,
+            callback_extra_args: self.callback_extra_args,
+        }
     }
 }
 
@@ -871,22 +951,25 @@ impl UnitTask for UnitTaskFetchFromStorage {
 }
 
 // ----------------------------------------------
-// UnitTaskFindVacantHouseLot
+// UnitTaskSettler
 // ----------------------------------------------
 
-pub struct UnitTaskFindVacantHouseLot {
+pub struct UnitTaskSettler {
     // Optional completion callback. Invoke with the empty house lot building we've visited.
-    // |unit, vacant_lot, query|
-    pub completion_callback: Option<fn(&mut Unit, &Tile, &Query)>,
+    // |unit, vacant_lot, population_to_add, query|
+    pub completion_callback: Option<fn(&mut Unit, &Tile, u32, &Query)>,
 
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
 
     // If true and we can't find an empty lot, try to find any house with room that will take the settler.
     pub fallback_to_houses_with_room: bool,
+
+    // Amount to add once settled into a new lot or house.
+    pub population_to_add: u32,
 }
 
-impl UnitTaskFindVacantHouseLot {
+impl UnitTaskSettler {
     fn try_find_goal(&self, unit: &mut Unit, query: &Query) {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
@@ -934,10 +1017,11 @@ impl UnitTaskFindVacantHouseLot {
     }
 }
 
-impl UnitTask for UnitTaskFindVacantHouseLot {
+impl UnitTask for UnitTaskSettler {
     fn as_any(&self) -> &dyn Any { self }
 
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
+        debug_assert!(self.population_to_add != 0);
         self.try_find_goal(unit, query);
     }
 
@@ -972,7 +1056,7 @@ impl UnitTask for UnitTaskFindVacantHouseLot {
                 if vacant_lot.tile_def().path_kind.intersects(PathNodeKind::VacantLot) {
                     // Notify completion:
                     if let Some(on_completion) = self.completion_callback {
-                        on_completion(unit, vacant_lot, query);
+                        on_completion(unit, vacant_lot, self.population_to_add, query);
                     }
 
                     return UnitTaskResult::Completed {
@@ -1014,7 +1098,7 @@ impl UnitTask for UnitTaskFindVacantHouseLot {
                 if task_completed {
                     // Notify completion:
                     if let Some(on_completion) = self.completion_callback {
-                        on_completion(unit, house_tile, query);
+                        on_completion(unit, house_tile, self.population_to_add, query);
                     }
 
                     return UnitTaskResult::Completed {
@@ -1027,6 +1111,11 @@ impl UnitTask for UnitTaskFindVacantHouseLot {
         // Failed; retry.
         unit.follow_path(None);
         UnitTaskResult::Retry
+    }
+
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        ui.text(format!("Population To Add : {}", self.population_to_add));
     }
 }
 
@@ -1081,8 +1170,14 @@ impl UnitTaskInstance {
                     }
                 }
             },
-            UnitTaskState::TerminateAndDespawn { post_despawn_callback } => {
-                UnitTaskResult::TerminateAndDespawn { post_despawn_callback }
+            UnitTaskState::TerminateAndDespawn {
+                post_despawn_callback,
+                callback_extra_args } => {
+
+                UnitTaskResult::TerminateAndDespawn {
+                    post_despawn_callback,
+                    callback_extra_args
+                }
             },
             UnitTaskState::Uninitialized => {
                 panic!("Invalid task state: Uninitialized");
@@ -1268,7 +1363,10 @@ impl UnitTaskManager {
                     UnitTaskResult::Completed { next_task } => {
                         unit.assign_task(self, next_task.0);
                     },
-                    UnitTaskResult::TerminateAndDespawn { post_despawn_callback } => {
+                    UnitTaskResult::TerminateAndDespawn {
+                        post_despawn_callback,
+                        callback_extra_args } => {
+
                         let unit_prev_cell = unit.cell();
                         let unit_prev_goal = unit.goal().cloned();
 
@@ -1276,7 +1374,12 @@ impl UnitTaskManager {
                         query.despawn_unit(unit);
 
                         if let Some(callback) = post_despawn_callback {
-                            callback(query, unit_prev_cell, unit_prev_goal);
+                            let args: &[UnitTaskArg] = callback_extra_args.args
+                                .as_ref()
+                                .map(|arr| &arr[..])
+                                .unwrap_or(&[]);
+
+                            callback(query, unit_prev_cell, unit_prev_goal, args);
                         }
                     },
                     invalid => {

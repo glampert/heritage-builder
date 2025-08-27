@@ -207,13 +207,21 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
+    pub fn is_market_patrol(&self, query: &Query) -> bool {
+        self.is_patrol() && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
+    }
+
+    #[inline]
     pub fn is_settler(&self) -> bool {
         self.is(config::UNIT_SETTLER)
     }
 
     #[inline]
-    pub fn is_market_patrol(&self, query: &Query) -> bool {
-        self.is_patrol() && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
+    pub fn settler_population(&self, query: &Query) -> u32 {
+        debug_assert!(self.is_settler());
+        let task = self.current_task_as::<UnitTaskSettler>(query.task_manager())
+            .expect("Expected unit to be running a UnitTaskSettler!");
+        task.population_to_add
     }
 
     // ----------------------

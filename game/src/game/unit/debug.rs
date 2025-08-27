@@ -426,13 +426,14 @@ impl Unit<'_> {
             self.set_traversable_node_kinds(traversable_node_kinds | PathNodeKind::VacantLot);
 
             let completion_task = task_manager.new_task(UnitTaskDespawn);
-            let task = task_manager.new_task(UnitTaskFindVacantHouseLot {
-                completion_callback: Some(|unit, vacant_lot, _| {
+            let task = task_manager.new_task(UnitTaskSettler {
+                completion_callback: Some(|unit, vacant_lot, _, _| {
                     println!("Unit {} reached {}.", unit.name(), vacant_lot.name());
                     unit.debug.popup_msg(format!("Reached {}", vacant_lot.name()));
                 }),
                 completion_task,
                 fallback_to_houses_with_room: false,
+                population_to_add: 1,
             });
 
             self.assign_task(task_manager, task);
@@ -444,7 +445,7 @@ impl Unit<'_> {
             // NOTE: We have to spawn the house building *after* the unit has
             // despawned since we can't place a building over the unit tile.
             let completion_task = task_manager.new_task(UnitTaskDespawnWithCallback {
-                callback: Some(|query, unit_prev_cell, unit_prev_goal| {
+                post_despawn_callback: Some(|query, unit_prev_cell, unit_prev_goal, extra_args| {
                     let settle_new_vacant_lot = unit_prev_goal
                         .is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, query) );
 
@@ -460,8 +461,11 @@ impl Unit<'_> {
                                 tile_def)
                             {
                                 Ok(building) => {
+                                    let population_to_add = extra_args[0].as_u32();
+                                    debug_assert!(population_to_add == 1);
+
                                     let house = building.as_house_mut();
-                                    house.add_population(1);  
+                                    house.add_population(population_to_add);  
                                 },
                                 Err(err) => eprintln!("Failed to place House Level 0: {err}"),
                             }
@@ -471,16 +475,19 @@ impl Unit<'_> {
                     } else {
                         println!("Unit settled into existing household.");
                     }
-                })
+                }),
+                callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(1)]), // population_to_add
             });
 
-            let task = task_manager.new_task(UnitTaskFindVacantHouseLot {
-                completion_callback: Some(|unit, vacant_lot, _| {
+            let task = task_manager.new_task(UnitTaskSettler {
+                completion_callback: Some(|unit, vacant_lot, population_to_add, _| {
+                    debug_assert!(population_to_add == 1);
                     println!("Unit {} reached {}.", unit.name(), vacant_lot.name());
                     unit.debug.popup_msg(format!("Reached {}", vacant_lot.name()));
                 }),
                 completion_task,
                 fallback_to_houses_with_room: true,
+                population_to_add: 1,
             });
 
             self.assign_task(task_manager, task);

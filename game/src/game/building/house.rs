@@ -20,6 +20,7 @@ use crate::{
     },
     game::{
         unit::Unit,
+        system::settlers::Settler,
         sim::{
             UpdateTimer,
             world::WorldStats,
@@ -65,6 +66,8 @@ use super::{
 //   - Spawn new unit with FindVacantHouseLot task.
 //   - Unit either settles a new lot or moves into an existing house with enough room.
 //     If neither can be satisfied, unit travels back to the settler's spawn point and despawns.
+//
+// - When house is destroyed/removed, also must evict residents.
 //
 // - If houses stay without access to basic resources for too long (food/water),
 //   settlers may decide to leave (house may downgrade back to vacant lot).
@@ -178,13 +181,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     // service patrol unit? Right now access to a service is simply based on proximity
     // to the building, measured from the house's road link tile.
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
-        if unit.is_market_patrol(context.query) && !self.debug.freeze_stock_update() {
-            if let Some(market) = unit.patrol_task_origin_building(context.query) {
-                self.shop_from_market(market, context);
-                self.debug.popup_msg_color(Color::green(), "Visited by market vendor");
-            }
-        } else if unit.is_settler() && self.add_population(1) == 0 {
-            self.debug.popup_msg_color(Color::red(), "Refused settler");
+        if unit.is_market_patrol(context.query) {
+            self.visited_by_market_vendor(unit, context);
+        } else if unit.is_settler() {
+            self.visited_by_settler(unit, context);
         }
     }
 
@@ -236,8 +236,9 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
         self.draw_debug_ui_upgrade_state(context, ui_sys);
+        self.draw_debug_ui_misc(context, ui_sys);
     }
 }
 
@@ -297,6 +298,17 @@ impl<'config> HouseBuilding<'config> {
             }
             true
         });
+    }
+
+    fn visited_by_market_vendor(&mut self, unit: &mut Unit, context: &BuildingContext) {
+        if self.debug.freeze_stock_update() {
+            return;
+        }
+
+        if let Some(market) = unit.patrol_task_origin_building(context.query) {
+            self.shop_from_market(market, context);
+            self.debug.popup_msg_color(Color::green(), "Visited by market vendor");
+        }
     }
 
     fn shop_from_market(&mut self, market: &mut Building, context: &BuildingContext) {
@@ -374,7 +386,7 @@ impl<'config> HouseBuilding<'config> {
 
         if upgraded || downgraded {
             self.stock.update_capacities(self.current_level_config().stock_capacity);
-            self.evict_residents(self.current_level_config().max_residents);
+            self.evict_residents(context, self.current_level_config().max_residents);
         }
     }
 
@@ -403,22 +415,38 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
+    fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) {
+        let population_to_add = unit.settler_population(context.query);
+        let population_added  = self.add_population(population_to_add);
+        if population_added == 0 {
+            self.debug.popup_msg_color(Color::red(), "Refused settler");
+        }
+    }
+
+    fn evict_residents(&mut self, context: &BuildingContext, new_max: u32) -> u32 {
+        let prev_population = self.population.count;
+        let new_population  = self.population.update_max(new_max);
+
+        if new_population < prev_population {
+            let amount_evicted = prev_population - new_population;
+            self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_evicted} residents"));
+
+            let mut settler = Settler::default();
+            settler.try_spawn(
+                context.query,
+                context.road_link_or_building_access_tile(),
+                amount_evicted);
+
+            return amount_evicted;
+        }
+        0
+    }
+
     pub fn add_population(&mut self, count: u32) -> u32 {
         if count != 0 && !self.population.is_maxed() {
             let amount_added = self.population.add(count);
             self.debug.popup_msg_color(Color::green(), format!("+{amount_added} Population"));
             return amount_added;
-        }
-        0
-    }
-
-    pub fn evict_residents(&mut self, new_max: u32) -> u32 {
-        let prev_population = self.population.count;
-        let new_population  = self.population.update_max(new_max);
-        if new_population < prev_population {
-            let amount_evicted = prev_population - new_population;
-            self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_evicted} residents"));
-            return amount_evicted;
         }
         0
     }
@@ -783,8 +811,8 @@ impl<'config> HouseUpgradeState<'config> {
 // Debug UI
 // ----------------------------------------------
 
-impl HouseBuilding<'_> {
-    fn draw_debug_ui_upgrade_state(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+impl<'config> HouseBuilding<'config> {
+    fn draw_debug_ui_upgrade_state(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if !ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -854,6 +882,23 @@ impl HouseBuilding<'_> {
             }
         };
 
+        let mut level_num: u32 = self.upgrade_state.level.into();
+        if ui.input_scalar("Level", &mut level_num).step(1).build() {
+            if let Ok(level) = HouseLevel::try_from_primitive(level_num) {
+                match level.cmp(&self.upgrade_state.level) {
+                    std::cmp::Ordering::Greater => {
+                        self.upgrade_state.try_upgrade(context, &mut self.debug);
+                    },
+                    std::cmp::Ordering::Less => {
+                        self.upgrade_state.try_downgrade(context, &mut self.debug);
+                    },
+                    std::cmp::Ordering::Equal => {} // nothing
+                }
+                self.stock.update_capacities(self.current_level_config().stock_capacity);
+                self.evict_residents(context, self.current_level_config().max_residents);
+            }
+        }
+
         let upgrade_state = &self.upgrade_state;
 
         let curr_level_requirements =
@@ -862,7 +907,6 @@ impl HouseBuilding<'_> {
         let next_level_requirements =
             HouseLevelRequirements::new(context, upgrade_state.next_level_config, &self.stock);
 
-        ui.text(format!("Level: {:?}", upgrade_state.level));
         color_text(" - Has room        :", upgrade_state.has_room_to_upgrade);
         color_text(" - Has services    :", next_level_requirements.has_required_services());
         color_text(" - Has resources   :", next_level_requirements.has_required_resources());
@@ -883,6 +927,25 @@ impl HouseBuilding<'_> {
             draw_level_requirements(
                 &format!("Next level reqs ({:?}):", upgrade_state.level.next()),
                 &next_level_requirements, 1);
+        }
+    }
+
+    fn draw_debug_ui_misc(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if ui.button("Increase Population") {
+            self.add_population(1);
+        }
+
+        if ui.button("Evict 1 Resident (New Max)") && self.population.count != 0 {
+            self.evict_residents(context, self.population.count - 1);
+        }
+
+        if ui.button("Evict All Residents (New Max)") && self.population.count != 0 {
+            self.evict_residents(context, 0);
         }
     }
 }

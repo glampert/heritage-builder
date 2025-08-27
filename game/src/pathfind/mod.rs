@@ -247,6 +247,7 @@ impl Graph {
                                 tile_map.is_cell_within_bounds(cell) {
                                 self.grid[Node::new(cell)] |= NodeKind::BuildingAccess;
                             }
+                            true
                         });
                     }
                     // Else leave it empty.
@@ -1012,7 +1013,7 @@ pub fn find_nearest_road_link(graph: &Graph, start_cells: CellRange) -> Option<C
 }
 
 // Visits each cell around the center cell block, skipping the diagonal corners.
-pub fn for_each_surrounding_cell(start_cells: CellRange, mut visitor_fn: impl FnMut(Cell)) {
+pub fn for_each_surrounding_cell(start_cells: CellRange, mut visitor_fn: impl FnMut(Cell) -> bool) {
     let start_x = start_cells.start.x - 1;
     let start_y = start_cells.start.y - 1;
     let end_x   = start_cells.end.x   + 1;
@@ -1031,7 +1032,9 @@ pub fn for_each_surrounding_cell(start_cells: CellRange, mut visitor_fn: impl Fn
             continue;
         }
 
-        visitor_fn(cell);
+        if !visitor_fn(cell) {
+            return;
+        }
     }
 }
 
@@ -1048,5 +1051,6 @@ pub fn highlight_building_access_tiles(tile_map: &mut TileMap, start_cells: Cell
         if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {
             tile.set_flags(TileFlags::Invalidated, true);
         }
+        true
     });
 }

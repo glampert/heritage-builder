@@ -511,7 +511,7 @@ impl<'config> Building<'config> {
         self.archetype.debug_options()
     }
 
-    pub fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
@@ -690,7 +690,7 @@ pub trait BuildingBehavior<'config> {
     // ----------------------
 
     fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions;
-    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem);
+    fn draw_debug_ui(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem);
 }
 
 // ----------------------------------------------
@@ -830,6 +830,29 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
             let rand_variation_index = self.query.random_range(0..variation_count);
             tile.set_variation_index(rand_variation_index);
         }
+    }
+
+    // Road link if valid, any unobstructed surrounding cell otherwise.
+    fn road_link_or_building_access_tile(&self) -> Cell {
+        if let Some(road_link) = self.road_link {
+            if road_link.is_valid() {
+                return road_link;
+            }
+        }
+
+        let tile_map = self.query.tile_map();
+        let mut access_cell = Cell::invalid();
+
+        pathfind::for_each_surrounding_cell(self.map_cells, |cell| {
+            // Take any surrounding cell that is not obstructed by another object.
+            if tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects).is_none() {
+                access_cell = cell;
+                return false;
+            }
+            true
+        });
+
+        access_cell
     }
 }
 
