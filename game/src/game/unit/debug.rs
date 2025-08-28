@@ -4,6 +4,7 @@ use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
 
 use crate::{
+    log,
     pathfind::{self, Path, NodeKind as PathNodeKind},
     tile::{self, TileMapLayerKind},
     imgui_ui::{
@@ -232,7 +233,7 @@ impl Unit<'_> {
                         resource_kind_to_deliver: ResourceKind::random_food(&mut rand::rng()),
                         resource_count: 1,
                         completion_callback: Some(|_, _, _| {
-                            println!("Deliver Resources Task Completed.");
+                            log::info!("Deliver Resources Task Completed.");
                         }),
                         completion_task,
                         allow_producer_fallback: true,
@@ -265,7 +266,7 @@ impl Unit<'_> {
                         resources_to_fetch,
                         completion_callback: Some(|_, unit, _| {
                             let item = unit.inventory.peek().unwrap();
-                            println!("Fetch Resources Task Completed. Got {}, {}", item.kind, item.count);
+                            log::info!("Fetch Resources Task Completed. Got {}, {}", item.kind, item.count);
                             unit.inventory.clear();
                         }),
                         completion_task,
@@ -326,7 +327,7 @@ impl Unit<'_> {
                         completion_callback: Some(|_, _, _| {
                             unsafe {
                                 let patrol_round = PATROL_ROUNDS;
-                                println!("Patrol Task Round {patrol_round} Completed.");
+                                log::info!("Patrol Task Round {patrol_round} Completed.");
                                 PATROL_ROUNDS -= 1;
                                 PATROL_ROUNDS <= 0 // Run the task a few times.
                             }
@@ -381,7 +382,7 @@ impl Unit<'_> {
             let visit_building = |building: &Building, path: &Path| -> bool {
                 let tile_map = query.tile_map();
 
-                println!("{} '{}' found. Path len: {}", building.kind(), building.name(), path.len());
+                log::info!("{} '{}' found. Path len: {}", building.kind(), building.name(), path.len());
                 debug_assert!(building.is(search_building_kind)); // The building we're looking for.
 
                 // Highlight the path to take:
@@ -428,7 +429,7 @@ impl Unit<'_> {
             let completion_task = task_manager.new_task(UnitTaskDespawn);
             let task = task_manager.new_task(UnitTaskSettler {
                 completion_callback: Some(|unit, dest_tile, _, _| {
-                    println!("Unit {} reached {}.", unit.name(), dest_tile.name());
+                    log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
                     unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
                 }),
                 completion_task,
@@ -464,13 +465,13 @@ impl Unit<'_> {
                                     let house = building.as_house_mut();
                                     house.add_population(population_to_add);  
                                 },
-                                Err(err) => eprintln!("Failed to place House Level 0: {err}"),
+                                Err(err) => log::error!(log::channel!("unit"), "Failed to place House Level 0: {err}"),
                             }
                         } else {
-                            eprintln!("House Level 0 TileDef not found!");
+                            log::error!(log::channel!("unit"), "House Level 0 TileDef not found!");
                         }
                     } else {
-                        println!("Unit settled into existing household.");
+                        log::info!("Unit settled into existing household.");
                     }
                 }),
                 callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(1)]), // population_to_add
@@ -479,7 +480,7 @@ impl Unit<'_> {
             let task = task_manager.new_task(UnitTaskSettler {
                 completion_callback: Some(|unit, dest_tile, population_to_add, _| {
                     debug_assert!(population_to_add == 1);
-                    println!("Unit {} reached {}.", unit.name(), dest_tile.name());
+                    log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
                     unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
                 }),
                 completion_task,

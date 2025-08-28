@@ -2,6 +2,7 @@ use std::ffi::c_void;
 use glfw::Context;
 
 use crate::{
+    log,
     utils::{self, Size, Vec2, UnsafeWeakRef},
     app::{Application, ApplicationEvent, ApplicationEventList}
 };
@@ -50,7 +51,7 @@ impl GlfwApplication {
         // TODO: Handle fullscreen window (need to select a monitor).
         let window_mode = glfw::WindowMode::Windowed;
         if fullscreen {
-            eprintln!("GLFW fullscreen window support not implemented!");
+            log::error!(log::channel!("app"), "GLFW fullscreen window support not implemented!");
         }
 
         let (mut window, event_receiver) = glfw_instance
@@ -128,7 +129,7 @@ impl Application for GlfwApplication {
                     translated_events.push(ApplicationEvent::MouseButton(button, action, modifiers));
                 }
                 unhandled_event => {
-                    eprintln!("Unhandled GLFW window event: {:?}", unhandled_event);
+                    log::error!(log::channel!("app"), "Unhandled GLFW window event: {:?}", unhandled_event);
                 }
             }
         }

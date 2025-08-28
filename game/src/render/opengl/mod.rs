@@ -1,5 +1,6 @@
 use std::ffi::CStr;
 use std::os::raw::c_char;
+use crate::log;
 
 pub mod system;
 pub mod context;
@@ -13,20 +14,20 @@ pub fn log_gl_info() {
     unsafe {
         let gl_version = gl::GetString(gl::VERSION);
         if !gl_version.is_null() {
-            println!("GL_VERSION: {}",
-                     CStr::from_ptr(gl_version as *const c_char).to_str().unwrap());
+            log::info!(log::channel!("render"), "GL_VERSION: {}",
+                       CStr::from_ptr(gl_version as *const c_char).to_str().unwrap());
         }
 
         let gl_vendor = gl::GetString(gl::VENDOR);
         if !gl_vendor.is_null() {
-            println!("GL_VENDOR: {}",
-                     CStr::from_ptr(gl_vendor as *const c_char).to_str().unwrap());
+            log::info!(log::channel!("render"), "GL_VENDOR: {}",
+                       CStr::from_ptr(gl_vendor as *const c_char).to_str().unwrap());
         }
 
         let glsl_version = gl::GetString(gl::SHADING_LANGUAGE_VERSION);
         if !glsl_version.is_null() {
-            println!("GLSL_VERSION: {}",
-                     CStr::from_ptr(glsl_version as *const c_char).to_str().unwrap());
+            log::info!(log::channel!("render"), "GLSL_VERSION: {}",
+                       CStr::from_ptr(glsl_version as *const c_char).to_str().unwrap());
         }
     }
 }

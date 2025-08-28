@@ -1,4 +1,5 @@
 use crate::{
+    log,
     tile::Tile,
     imgui_ui::UiSystem,
     utils::hash::{self, StringHash},
@@ -338,7 +339,7 @@ pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> O
             BuildingArchetype::from(StorageBuilding::new(config))
         ))
     } else {
-        eprintln!("Unknown building tile!");
+        log::error!("Unknown building tile!");
         None
     }
 }

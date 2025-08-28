@@ -3,6 +3,7 @@ use bitflags::bitflags;
 use image::GenericImageView;
 
 use crate::{
+    log,
     utils::Size,
     render::{self, TextureHandle, NativeTextureHandle}
 };
@@ -339,7 +340,7 @@ impl TextureCache {
                                                             gen_mipmaps) {
             Ok(texture) => texture,
             Err(err) => {
-                eprintln!("TextureCache Load Error: {err}");
+                log::error!(log::channel!("render"), "TextureCache Load Error: {err}");
                 return self.dummy_texture_handle;
             },
         };

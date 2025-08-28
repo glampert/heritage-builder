@@ -5,6 +5,7 @@ use serde::Deserialize;
 use std::{fs, path::{Path, MAIN_SEPARATOR, MAIN_SEPARATOR_STR}};
 
 use crate::{
+    log,
     pathfind::NodeKind as PathNodeKind,
     render::{
         TextureCache,
@@ -359,32 +360,32 @@ impl TileDef {
         self.kind = archetype | specialized_type;
 
         if self.name.is_empty() {
-            eprintln!("TileDef '{}' name is missing! A name is required.", self.kind);
+            log::error!(log::channel!("tileset"), "TileDef '{}' name is missing! A name is required.", self.kind);
             return false;
         }
 
         if !self.logical_size.is_valid() {
-            eprintln!("Invalid/missing TileDef logical size: '{}' - '{}'",
-                      self.kind,
-                      self.name);
+            log::error!(log::channel!("tileset"), "Invalid/missing TileDef logical size: '{}' - '{}'",
+                        self.kind,
+                        self.name);
             return false;
         }
 
         if (self.logical_size.width  % BASE_TILE_SIZE.width)  != 0 ||
            (self.logical_size.height % BASE_TILE_SIZE.height) != 0 {
-            eprintln!("Invalid TileDef logical size ({:?})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
-                      self.logical_size,
-                      self.kind,
-                      self.name);
+            log::error!(log::channel!("tileset"), "Invalid TileDef logical size ({:?})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
+                        self.logical_size,
+                        self.kind,
+                        self.name);
             return false;
         }
 
         if self.is(TileKind::Terrain) {
             // For terrain logical_size must be BASE_TILE_SIZE.
             if self.logical_size != BASE_TILE_SIZE {
-                eprintln!("Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
-                          self.kind,
-                          self.name);
+                log::error!(log::channel!("tileset"), "Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
+                            self.kind,
+                            self.name);
                 return false;
             }
             self.occludes_terrain = false;
@@ -396,7 +397,7 @@ impl TileDef {
         }
 
         if self.variations.is_empty() {
-            eprintln!("At least one variation is required! TileDef: '{}' - '{}'", self.kind, self.name);
+            log::error!(log::channel!("tileset"), "At least one variation is required! TileDef: '{}' - '{}'", self.kind, self.name);
             return false;
         }
 
@@ -406,7 +407,7 @@ impl TileDef {
 
             for anim_set in &mut variation.anim_sets {
                 if anim_set.frames.is_empty() {
-                    eprintln!("At least one animation frame is required! TileDef: '{}' - '{}'", self.kind, self.name);
+                    log::error!(log::channel!("tileset"), "At least one animation frame is required! TileDef: '{}' - '{}'", self.kind, self.name);
                     return false;
                 }
 
@@ -414,10 +415,10 @@ impl TileDef {
 
                 for (frame_index, frame) in anim_set.frames.iter_mut().enumerate() {
                     if frame.name.is_empty() {
-                        eprintln!("Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{}' - '{}'",
-                                  anim_set.name,
-                                  self.kind,
-                                  self.name);
+                        log::error!(log::channel!("tileset"), "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{}' - '{}'",
+                                    anim_set.name,
+                                    self.kind,
+                                    self.name);
                         return false;
                     }
 
@@ -529,7 +530,7 @@ impl TileCategory {
         let entry_index = match self.mapping.get(&tile_name_hash) {
             Some(entry_index) => *entry_index,
             None => {
-                eprintln!("TileCategory '{}': Couldn't find TileDef for '{}'.", self.name, tile_name);
+                log::error!(log::channel!("tileset"), "TileCategory '{}': Couldn't find TileDef for '{}'.", self.name, tile_name);
                 return None;
             }
         };
@@ -540,7 +541,7 @@ impl TileCategory {
         let entry_index = match self.mapping.get(&tile_name_hash) {
             Some(entry_index) => *entry_index,
             None => {
-                eprintln!("TileCategory '{}': Couldn't find TileDef for '{:#X}'.", self.name, tile_name_hash);
+                log::error!(log::channel!("tileset"), "TileCategory '{}': Couldn't find TileDef for '{:#X}'.", self.name, tile_name_hash);
                 return None;
             }
         };
@@ -556,7 +557,7 @@ impl TileCategory {
         debug_assert!(self.hash != NULL_HASH);
 
         if self.name.is_empty() {
-            eprintln!("TileCategory name is missing! A name is required.");
+            log::error!(log::channel!("tileset"), "TileCategory name is missing! A name is required.");
             return false;
         }
 
@@ -567,9 +568,9 @@ impl TileCategory {
             let tile_def = editable_def.as_mut();
 
             if tile_def.name.is_empty() {
-                eprintln!("TileCategory '{}': Invalid empty TileDef name! Index: [{}]",
-                          self.name,
-                          entry_index);
+                log::error!(log::channel!("tileset"), "TileCategory '{}': Invalid empty TileDef name! Index: [{}]",
+                            self.name,
+                            entry_index);
                 return false;   
             }
 
@@ -586,11 +587,11 @@ impl TileCategory {
             debug_assert!(!tile_def.kind.is_empty(), "Missing TileKind flags!");
 
             if self.mapping.insert(tile_name_hash, entry_index).is_some() {
-                eprintln!("TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
-                          self.name,
-                          tile_def.name,
-                          tile_name_hash,
-                          entry_index);
+                log::error!(log::channel!("tileset"), "TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
+                            self.name,
+                            tile_def.name,
+                            tile_name_hash,
+                            entry_index);
                 return false;
             }
         }
@@ -627,9 +628,9 @@ impl TileSet {
         let entry_index = match self.mapping.get(&category_name_hash) {
             Some(entry_index) => *entry_index,
             None => {
-                eprintln!("TileSet '{}': Couldn't find TileCategory for '{}'.",
-                          self.layer,
-                          category_name);
+                log::error!(log::channel!("tileset"), "TileSet '{}': Couldn't find TileCategory for '{}'.",
+                            self.layer,
+                            category_name);
                 return None;
             }
         };
@@ -640,9 +641,9 @@ impl TileSet {
         let entry_index = match self.mapping.get(&category_name_hash) {
             Some(entry_index) => *entry_index,
             None => {
-                eprintln!("TileSet '{}': Couldn't find TileCategory for '{:#X}'.",
-                          self.layer,
-                          category_name_hash);
+                log::error!(log::channel!("tileset"), "TileSet '{}': Couldn't find TileCategory for '{:#X}'.",
+                            self.layer,
+                            category_name_hash);
                 return None;
             }
         };
@@ -654,9 +655,9 @@ impl TileSet {
 
         for (entry_index, category) in self.categories.iter_mut().enumerate() {
             if category.name.is_empty() {
-                eprintln!("TileSet '{}': Invalid empty category name! Index: [{}]",
-                          self.layer,
-                          entry_index);
+                log::error!(log::channel!("tileset"), "TileSet '{}': Invalid empty category name! Index: [{}]",
+                            self.layer,
+                            entry_index);
                 return false;   
             }
 
@@ -670,11 +671,11 @@ impl TileSet {
             }
 
             if self.mapping.insert(category_name_hash, entry_index).is_some() {
-                eprintln!("TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
-                          self.layer,
-                          category.name,
-                          category_name_hash,
-                          entry_index);
+                log::error!(log::channel!("tileset"), "TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
+                            self.layer,
+                            category.name,
+                            category_name_hash,
+                            entry_index);
                 return false;
             }
         }
@@ -924,7 +925,7 @@ impl TileSets {
         for layer in TileMapLayerKind::iter() {
             let tile_set_path = layer.assets_path();
             if !self.load_tile_set(tex_cache, tile_set_path, layer) {
-                eprintln!("TileSet '{layer}' ({tile_set_path}) didn't load!");
+                log::error!(log::channel!("tileset"), "TileSet '{layer}' ({tile_set_path}) didn't load!");
             }
         }
     }
@@ -940,7 +941,7 @@ impl TileSets {
         let json = match fs::read_to_string(&tile_set_json_path) {
             Ok(json) => json,
             Err(err) => {
-                eprintln!("Failed to read TileSet json file from path {:?}: {}", tile_set_json_path, err);
+                log::error!(log::channel!("tileset"), "Failed to read TileSet json file from path {:?}: {}", tile_set_json_path, err);
                 return false;
             }
         };
@@ -948,26 +949,26 @@ impl TileSets {
         let mut tile_set: TileSet = match serde_json::from_str(&json) {
             Ok(tile_set) => tile_set,
             Err(err) => {
-                eprintln!("Failed to deserialize TileSet from path {:?}: {}", tile_set_json_path, err);
+                log::error!(log::channel!("tileset"), "Failed to deserialize TileSet from path {:?}: {}", tile_set_json_path, err);
                 return false;
             }
         };
 
         if tile_set.layer != layer {
-            eprintln!("TileSet layer kind mismatch! Json specifies '{}' but expected '{}' for this set.",
-                      tile_set.layer,
-                      layer);
+            log::error!(log::channel!("tileset"), "TileSet layer kind mismatch! Json specifies '{}' but expected '{}' for this set.",
+                        tile_set.layer,
+                        layer);
             return false;
         }
 
         if !tile_set.post_load(tex_cache, tile_set_path) {
-            eprintln!("Post load failed for TileSet '{}' - {:?}!", layer, tile_set_json_path);
+            log::error!(log::channel!("tileset"), "Post load failed for TileSet '{}' - {:?}!", layer, tile_set_json_path);
             return false;
         }
 
         debug_assert!(self.sets.len() == (layer as usize));
 
-        println!("Successfully loaded TileSet '{layer}' from path {:?}.", tile_set_json_path);
+        log::info!(log::channel!("tileset"), "Successfully loaded TileSet '{layer}' from path {:?}.", tile_set_json_path);
     
         self.sets.push(tile_set);
 

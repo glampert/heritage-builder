@@ -1,5 +1,6 @@
 use crate::{
     game_object_debug_options,
+    log,
     pathfind::{Path, NodeKind as PathNodeKind},
     tile::{
         self,
@@ -554,7 +555,7 @@ pub trait UnitTaskHelper {
                 true
             },
             Err(err) => {
-                eprintln!("{}: Failed to spawn Unit at cell {}: {}", spawner_name, unit_origin, err);
+                log::error!(log::channel!("unit"), "{}: Failed to spawn Unit at cell {}: {}", spawner_name, unit_origin, err);
                 self.on_unit_spawn(UnitId::invalid(), true);
                 false
             },

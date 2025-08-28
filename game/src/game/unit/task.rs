@@ -8,6 +8,7 @@ use strum_macros::Display;
 use enum_dispatch::enum_dispatch;
 
 use crate::{
+    log,
     debug::{self},
     imgui_ui::UiSystem,
     tile::{Tile, TileKind, TileMapLayerKind},
@@ -461,7 +462,7 @@ impl UnitTaskRandomizedPatrol {
 
     fn try_return_to_origin(&self, unit: &mut Unit, query: &Query) -> bool {
         if query.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
-            eprintln!("Origin building is no longer valid! TaskPatrol will abort.");
+            log::error!(log::channel!("task"), "Origin building is no longer valid! TaskPatrol will abort.");
             return false;
         }
 
@@ -486,7 +487,7 @@ impl UnitTaskRandomizedPatrol {
                 true
             },
             SearchResult::PathNotFound => {
-                eprintln!("Origin building is no longer reachable! (no road access?) TaskPatrol will abort.");
+                log::error!(log::channel!("task"), "Origin building is no longer reachable! (no road access?) TaskPatrol will abort.");
                 false
             },
         }
@@ -574,7 +575,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
             unit.follow_path(None);
 
             if !self.try_return_to_origin(unit, query) {
-                eprintln!("Aborting TaskPatrol. Unable to return to origin building...");
+                log::error!(log::channel!("task"), "Aborting TaskPatrol. Unable to return to origin building...");
                 task_completed = true;
             }
         }
@@ -810,7 +811,7 @@ impl UnitTaskFetchFromStorage {
 
     fn try_return_to_origin(&mut self, unit: &mut Unit, query: &Query) -> bool {
         if query.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
-            eprintln!("Origin building is no longer valid! TaskFetchFromStorage will abort.");
+            log::error!(log::channel!("task"), "Origin building is no longer valid! TaskFetchFromStorage will abort.");
             return false;
         }
 
@@ -831,7 +832,7 @@ impl UnitTaskFetchFromStorage {
                 true
             },
             SearchResult::PathNotFound => {
-                eprintln!("Origin building is no longer reachable! (no road access?) TaskFetchFromStorage will abort.");
+                log::error!(log::channel!("task"), "Origin building is no longer reachable! (no road access?) TaskFetchFromStorage will abort.");
                 false
             },
         }
@@ -1316,20 +1317,20 @@ impl Drop for UnitTaskPool {
             return;
         }
 
-        eprintln!("-----------------------");
-        eprintln!("    TASK POOL LEAKS    ");
-        eprintln!("-----------------------");
+        log::error!("-----------------------");
+        log::error!("    TASK POOL LEAKS    ");
+        log::error!("-----------------------");
 
         for (index, task) in &self.tasks {
-            eprintln!("Leaked Task[{index}]: {}, {}, {}", task.archetype, task.id, task.state);
+            log::error!("Leaked Task[{index}]: {}, {}, {}", task.archetype, task.id, task.state);
         }
 
         if cfg!(debug_assertions) {
             panic!("UnitTaskAllocator dropped with {} remaining tasks (generation: {}).",
                    self.tasks.len(), self.generation);
         } else {
-            eprintln!("UnitTaskAllocator dropped with {} remaining tasks (generation: {}).",
-                      self.tasks.len(), self.generation);
+            log::error!("UnitTaskAllocator dropped with {} remaining tasks (generation: {}).",
+                        self.tasks.len(), self.generation);
         }
     }
 }
@@ -1513,8 +1514,8 @@ impl PathFindResult<'_> {
                     .expect("Dest building should have a road link tile!");
 
                 if destination_road_link != path.last().unwrap().cell {
-                    eprintln!("Dest building road link does not match path goal!: {} != {}, path length = {}",
-                              destination_road_link, path.last().unwrap().cell, path.len());
+                    log::error!(log::channel!("task"), "Dest building road link does not match path goal!: {} != {}, path length = {}",
+                                destination_road_link, path.last().unwrap().cell, path.len());
                     return PathFindResult::NotFound;
                 }
 

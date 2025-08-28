@@ -7,6 +7,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     game_object_debug_options,
     building_config_impl,
+    log,
     imgui_ui::UiSystem,
     pathfind::{Node, NodeKind as PathNodeKind},
     utils::{
@@ -172,14 +173,14 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
                         {
                             let _ = tile_map.try_place_tile_in_layer(cell, LAYER_KIND, tile_def_to_place)
                                 .inspect_err(|err| {
-                                    eprintln!("Failed to place new tile: {err}")
+                                    log::error!(log::channel!("house"), "Failed to place new tile: {err}")
                                 });
                         } else {
-                            eprintln!("Couldn't find '{}' TileDef!", TILE_DEF_NAME.string);
+                            log::error!(log::channel!("house"), "Couldn't find '{}' TileDef!", TILE_DEF_NAME.string);
                         }
                     },
                     Err(err) => {
-                        eprintln!("Failed to clear VacantLot tile: {err}");
+                        log::error!(log::channel!("house"), "Failed to clear VacantLot tile: {err}");
                     }
                 }
             }

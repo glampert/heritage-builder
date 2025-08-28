@@ -1,4 +1,5 @@
 use crate::{
+    log,
     imgui_ui::UiSystem,
     pathfind::{Node, NodeKind as PathNodeKind},
     sim::{Query, UpdateTimer, world::UnitId},
@@ -174,11 +175,11 @@ impl Settler {
                         house.add_population(population_to_add);
                     },
                     Err(err) => {
-                        eprintln!("SettlersSpawnSystem: Failed to place House Level 0: {err}");
+                        log::error!(log::channel!("unit"), "SettlersSpawnSystem: Failed to place House Level 0: {err}");
                     },
                 }
             } else {
-                eprintln!("SettlersSpawnSystem: House Level 0 TileDef not found!");
+                log::error!(log::channel!("unit"), "SettlersSpawnSystem: House Level 0 TileDef not found!");
             }
         }
         // Else unit settled into existing household.

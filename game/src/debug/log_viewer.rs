@@ -9,6 +9,7 @@ use crate::{log, imgui_ui::UiSystem};
 struct LogViewerSingleton {
     is_window_open: bool,
     is_channel_filter_window_open: bool,
+    auto_scroll: bool,
     max_lines: usize,
     lines: VecDeque<log::Record>,
     channel_filter: HashMap<log::Channel, bool>,
@@ -19,6 +20,7 @@ impl LogViewerSingleton {
         Self {
             is_window_open: start_open,
             is_channel_filter_window_open: false,
+            auto_scroll: false,
             max_lines,
             lines: VecDeque::with_capacity(max_lines),
             channel_filter: HashMap::new(),
@@ -38,6 +40,7 @@ impl LogViewerSingleton {
         }
 
         self.lines.push_back(line);
+        self.auto_scroll = true;
     }
 
     fn is_channel_enabled(&self, channel: &Option<log::Channel>) -> bool {
@@ -68,6 +71,7 @@ impl LogViewerSingleton {
             .opened(&mut is_window_open)
             .position([250.0, 5.0], imgui::Condition::FirstUseEver)
             .size([550.0, 350.0], imgui::Condition::FirstUseEver)
+            .horizontal_scrollbar(true)
             .menu_bar(true)
             .build(|| {
                 // Draw menu bar:
@@ -92,8 +96,9 @@ impl LogViewerSingleton {
                 }
 
                 // Auto-scroll to bottom if we just added something.
-                if ui.is_window_focused() {
+                if ui.is_window_focused() && self.auto_scroll {
                     ui.set_scroll_here_y_with_ratio(1.0);
+                    self.auto_scroll = false;
                 }
 
                 if self.is_channel_filter_window_open {

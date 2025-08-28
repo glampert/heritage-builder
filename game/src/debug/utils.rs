@@ -1,4 +1,5 @@
 use crate::{
+    log,
     imgui_ui::UiSystem,
     game::sim::{DebugQueryBuilder, world::World},
     render::{RenderSystem, RenderStats},
@@ -545,7 +546,7 @@ mod test_maps {
     pub fn create_test_tile_map_preset_internal<'tile_sets>(world: &mut World,
                                                             tile_sets: &'tile_sets TileSets,
                                                             preset_number: usize) -> TileMap<'tile_sets> {
-        println!("Creating test tile map: PRESET {} ...", preset_number);
+        log::info!("Creating test tile map: PRESET {} ...", preset_number);
         build_tile_map(PRESET_TILES[preset_number], world, tile_sets)
     }
 }

@@ -1,4 +1,5 @@
 use crate::{
+    log,
     tile::{Tile, sets::TileDef},
     utils::hash::{
         StrHashPair,
@@ -72,10 +73,10 @@ impl UnitAnimSets {
         let variation = &tile_def.variations[variation_index];
         for (index, anim_set) in variation.anim_sets.iter().enumerate() {
             if self.anim_set_index_map.insert(anim_set.hash, index).is_some() {
-                eprintln!("Unit '{}': An entry for anim set '{}' ({:#X}) already exists at index: {index}!",
-                          tile_def.name,
-                          anim_set.name,
-                          anim_set.hash);
+                log::error!(log::channel!("unit"), "Unit '{}': An entry for anim set '{}' ({:#X}) already exists at index: {index}!",
+                            tile_def.name,
+                            anim_set.name,
+                            anim_set.hash);
             }
         }
     }

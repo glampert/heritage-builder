@@ -5,6 +5,7 @@ use rand_pcg::Pcg64;
 use smallvec::SmallVec;
 
 use crate::{
+    log,
     imgui_ui::UiSystem,
     pathfind::{
         self,
@@ -666,7 +667,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
 
         if !self.graph().node_kind(Node::new(start))
             .is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
-            eprintln!("Near building search: start cell {start} is not traversable!");
+            log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
             return false;
         }
 
@@ -698,7 +699,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                 if cfg!(debug_assertions) {
                     panic!("Despawn Unit Failed: {}", err);
                 } else {
-                    eprintln!("Despawn Unit Failed: {}", err);
+                    log::error!(log::channel!("sim"), "Despawn Unit Failed: {}", err);
                 }
             }
         }

@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use crate::log;
 
 // ----------------------------------------------
 // collect_files / collect_sub_dirs
@@ -26,7 +27,7 @@ pub fn collect_dir_entries(path: &Path, filter: CollectDirEntriesFilter) -> Vec<
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(err) => {
-            eprintln!("Failed to read directory '{}': {}", path.display(), err);
+            log::error!(log::channel!("fs"), "Failed to read directory '{}': {}", path.display(), err);
             return result;
         },
     };
@@ -41,7 +42,7 @@ pub fn collect_dir_entries(path: &Path, filter: CollectDirEntriesFilter) -> Vec<
                 }
             },
             Err(err) => {
-                eprintln!("Error reading directory entry: {}", err);
+                log::error!(log::channel!("fs"), "Error reading directory entry: {}", err);
                 continue;
             }
         }

@@ -4,6 +4,7 @@ use std::cell::OnceCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
+    log,
     imgui_ui::{UiSystem, UiInputEvent},
     render::{RenderStats, RenderSystem, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
@@ -229,7 +230,7 @@ impl DebugMenusSingleton {
 
             match search.find_path(&graph, &heuristic, traversable_node_kinds, start, goal) {
                 SearchResult::PathFound(path) => {
-                    println!("Found a path with {} nodes.", path.len());
+                    log::info!("Found a path with {} nodes.", path.len());
                     debug_assert!(!path.is_empty());
 
                     // Highlight path tiles:
@@ -242,7 +243,7 @@ impl DebugMenusSingleton {
                         ped.follow_path(Some(path));
                     }
                 },
-                SearchResult::PathNotFound => println!("No path could be found."),
+                SearchResult::PathNotFound => log::info!("No path could be found."),
             }
 
             return UiInputEvent::Handled;
