@@ -221,8 +221,8 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         Some(&mut self.runner)
     }
 
-    fn workers(&self) -> Option<&Workers> {
-        Some(&self.workers)
+    fn workers(&self) -> Option<Workers> {
+        Some(self.workers)
     }
 
     // ----------------------

@@ -196,8 +196,8 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     // Workers:
     // ----------------------
 
-    fn workers(&self) -> Option<&Workers> {
-        Some(&self.workers)
+    fn workers(&self) -> Option<Workers> {
+        Some(self.workers)
     }
 
     // ----------------------

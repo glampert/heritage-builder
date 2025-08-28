@@ -190,8 +190,8 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         Some(&mut self.runner)
     }
 
-    fn workers(&self) -> Option<&Workers> {
-        Some(&self.workers)
+    fn workers(&self) -> Option<Workers> {
+        Some(self.workers)
     }
 
     // ----------------------

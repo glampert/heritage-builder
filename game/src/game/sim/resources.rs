@@ -117,6 +117,7 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // Workers
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
 pub struct Workers {
     count: u8, // Current number of workers employed.
     min: u8,   // Minimum number of workers for service/production to run (at lower capacity).
@@ -125,24 +126,56 @@ pub struct Workers {
 
 impl Workers {
     pub fn new(min: u32, max: u32) -> Self {
+        Self::with(0, min, max)
+    }
+
+    pub fn with(count: u32, min: u32, max: u32) -> Self {
         debug_assert!(min <= max);
         Self {
-            count: 0,
+            // NOTE: count can go below min.
+            // min is the minimum number of workers a service requires.
+            // count can be anywhere between 0 and max.
+            count: count.min(max).try_into().expect("Workers count must be < 256"),
             min: min.try_into().expect("Min workers must be < 256"),
             max: max.try_into().expect("Max workers must be < 256"),
         }
     }
 
+    #[inline]
     pub fn count(&self) -> u32 {
         self.count as u32
     }
 
+    #[inline]
     pub fn min(&self) -> u32 {
         self.min as u32
     }
 
+    #[inline]
+    pub fn is_min(&self) -> bool {
+        self.count == self.min
+    }
+
+    #[inline]
     pub fn max(&self) -> u32 {
         self.max as u32
+    }
+
+    #[inline]
+    pub fn is_max(&self) -> bool {
+        self.count == self.max
+    }
+
+    pub fn set_count(&mut self, count: u32) -> u32 {
+        let count_u8: u8 = count.try_into().expect("Workers count must be < 256");
+        self.count = count_u8.min(self.max); // Clamp to maximum
+        self.count() // Return new count
+    }
+
+    pub fn add(&mut self, amount: u32) -> u32 {
+        let prev_count = self.count();
+        let new_count  = self.set_count(prev_count + amount);
+        new_count - prev_count // Return amount added
     }
 
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
@@ -159,6 +192,7 @@ impl Workers {
 // Population
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
 pub struct Population {
     count: u8, // Current population number for household.
     max: u8,   // Maximum population it can accommodate.
@@ -166,42 +200,53 @@ pub struct Population {
 
 impl Population {
     pub fn new(max: u32) -> Self {
+        Self::with(0, max)
+    }
+
+    pub fn with(count: u32, max: u32) -> Self {
         debug_assert!(max > 0);
         Self {
-            count: 0,
+            count: count.min(max).try_into().expect("Population count must be < 256"),
             max: max.try_into().expect("Max population must be < 256"),
         }
     }
 
+    #[inline]
     pub fn count(&self) -> u32 {
         self.count as u32
     }
 
+    #[inline]
     pub fn max(&self) -> u32 {
         self.max as u32
     }
 
-    pub fn is_maxed(&self) -> bool {
-        self.count >= self.max
+    #[inline]
+    pub fn is_max(&self) -> bool {
+        self.count == self.max
     }
 
-    pub fn set_count(&mut self, count: u32) {
+    pub fn set_count(&mut self, count: u32) -> u32 {
         let count_u8: u8 = count.try_into().expect("Population count must be < 256");
-        self.count = count_u8.min(self.max);
+        self.count = count_u8.min(self.max); // Clamp to maximum
+        self.count() // Return new count
     }
 
-    pub fn set_max(&mut self, new_max: u32) -> u32 {
-        self.max = new_max.try_into().expect("Max population must be < 256");
-        self.count = self.count.min(self.max); // Clamp to new maximum.
-        self.count as u32 // New count.
+    pub fn set_max(&mut self, max: u32) -> u32 {
+        self.max = max.try_into().expect("Max population must be < 256");
+        self.count = self.count.min(self.max); // Clamp to new maximum
+        self.count() // Return new count
     }
 
-    pub fn add(&mut self, count: u32) -> u32 {
-        let count_u8: u8 = count.try_into().expect("Population count must be < 256");
-        let new_count  = (self.count + count_u8).min(self.max);
-        let amount_added = new_count - self.count;
-        self.count = new_count;
-        amount_added as u32
+    pub fn set_max_and_count(&mut self, max: u32, count: u32) -> u32 {
+        self.set_max(max);
+        self.set_count(count) // Return new count
+    }
+
+    pub fn add(&mut self, amount: u32) -> u32 {
+        let prev_count = self.count();
+        let new_count  = self.set_count(prev_count + amount);
+        new_count - prev_count // Return amount added
     }
 
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {

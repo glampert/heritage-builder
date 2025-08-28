@@ -26,6 +26,7 @@ use crate::{
             UpdateTimer,
             world::WorldStats,
             resources::{
+                Workers,
                 Population,
                 ResourceKind,
                 ResourceKinds,
@@ -65,6 +66,14 @@ use super::{
 //
 // - If houses stay without access to basic resources for too long (food/water),
 //   settlers may decide to leave (house may downgrade back to vacant lot).
+//
+// - Services should look for houses in their vicinity to find workers.
+//   Services will then allocate workers from a nearby house, taking from
+//   the house's worker pool. If the house is destroyed, we have to take
+//   those workers away and the building has to find new ones. If the
+//   building is destroyed, the house gains workers back into its pool.
+//    - Buildings hold ids to the houses they source their workers from?
+//    - Houses hold ids to the buildings they supply workers to?
 
 // ----------------------------------------------
 // HouseConfig & HouseLevelConfig
@@ -86,6 +95,9 @@ pub struct HouseLevelConfig {
 
     pub max_residents: u32,
     pub tax_generated: u32,
+
+    // What percentage of the house population is available as workers; [0,100].
+    pub worker_percentage: u32,
 
     // Percentage of chance that the house population will increase on population updates; [0,100].
     pub population_increase_chance: u32,
@@ -258,11 +270,19 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     }
 
     // ----------------------
-    // Population:
+    // Population/Workers:
     // ----------------------
 
-    fn population(&self) -> Option<&Population> {
-        Some(&self.population)
+    fn population(&self) -> Option<Population> {
+        Some(self.population)
+    }
+
+    fn workers(&self) -> Option<Workers> {
+        // Percentage of current household residents that are workers: [0,100].
+        let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
+        let curr_population = self.population.count() as f32;
+        let worker_count = (curr_population * worker_percentage).round() as u32;
+        Some(Workers::with(worker_count, worker_count, worker_count))
     }
 
     // ----------------------
@@ -439,7 +459,7 @@ impl<'config> HouseBuilding<'config> {
     // ----------------------
 
     fn population_update(&mut self, context: &BuildingContext) {
-        if self.population.is_maxed() {
+        if self.population.is_max() {
             return;
         }
 
@@ -462,8 +482,7 @@ impl<'config> HouseBuilding<'config> {
 
     fn adjust_population(&mut self, context: &BuildingContext, new_population: u32, new_max: u32) -> u32 {
         let prev_population = self.population.count();
-        self.population.set_count(new_population);
-        let curr_population = self.population.set_max(new_max);
+        let curr_population = self.population.set_max_and_count(new_max, new_population);
 
         if curr_population < prev_population {
             let amount_evicted = prev_population - curr_population;
@@ -481,7 +500,7 @@ impl<'config> HouseBuilding<'config> {
     }
 
     pub fn add_population(&mut self, count: u32) -> u32 {
-        if count != 0 && !self.population.is_maxed() {
+        if count != 0 && !self.population.is_max() {
             let amount_added = self.population.add(count);
             self.debug.popup_msg_color(Color::green(), format!("+{amount_added} Population"));
             return amount_added;

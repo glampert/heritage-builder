@@ -1002,7 +1002,7 @@ impl UnitTaskSettler {
                 None,
                 |building, _path| {
                     if let Some(population) = building.population() {
-                        if !population.is_maxed() && building.is_linked_to_road(query) {
+                        if !population.is_max() && building.is_linked_to_road(query) {
                             return false; // Accept this building and end the search.
                         }
                     }

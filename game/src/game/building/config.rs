@@ -93,6 +93,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house0"),
                 max_residents: 2,
                 tax_generated: 0,
+                worker_percentage: 100,
                 population_increase_chance: 80,
                 services_required: ServiceKinds::none(),
                 resources_required: ResourceKinds::none(),
@@ -104,6 +105,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house1"),
                 max_residents: 4,
                 tax_generated: 1,
+                worker_percentage: 75,
                 population_increase_chance: 70,
                 // Any water source (small well OR big well) AND a market.
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
@@ -117,6 +119,7 @@ impl BuildingConfigs {
                 tile_def_name_hash: hash::fnv1a_from_str("house2"),
                 max_residents: 6,
                 tax_generated: 2,
+                worker_percentage: 50,
                 population_increase_chance: 60,
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
                 // 2 kinds of food required: Rice AND Meat OR Fish.

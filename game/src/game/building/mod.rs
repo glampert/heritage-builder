@@ -400,7 +400,7 @@ impl<'config> Building<'config> {
     // ----------------------
 
     #[inline]
-    pub fn population(&self) -> Option<&Population> {
+    pub fn population(&self) -> Option<Population> {
         self.archetype.population()
     }
 
@@ -410,7 +410,7 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    pub fn workers(&self) -> Option<&Workers> {
+    pub fn workers(&self) -> Option<Workers> {
         self.archetype.workers()
     }
 
@@ -684,8 +684,8 @@ pub trait BuildingBehavior<'config> {
     // Population/Workers:
     // ----------------------
 
-    fn population(&self) -> Option<&Population> { None }
-    fn workers(&self)    -> Option<&Workers>    { None }
+    fn population(&self) -> Option<Population> { None }
+    fn workers(&self)    -> Option<Workers>    { None }
 
     // ----------------------
     // Debug:
