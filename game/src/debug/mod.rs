@@ -42,6 +42,8 @@ use settings::DebugSettingsMenu;
 
 pub mod utils;
 pub mod popups;
+pub mod log_viewer;
+
 mod inspector;
 mod palette;
 mod settings;
@@ -73,6 +75,7 @@ pub struct DebugMenusBeginFrameArgs<'sim, 'ui, 'world, 'config, 'tile_map, 'tile
 pub struct DebugMenusEndFrameArgs<'rs, 'cam, 'sim, 'ui, 'world, 'config, 'tile_map, 'tile_sets, RS: RenderSystem> {
     pub context: sim::debug::DebugContext<'config, 'ui, 'world, 'tile_map, 'tile_sets>,
     pub sim: &'sim mut Simulation<'config>,
+    pub log_viewer: &'sim log_viewer::LogViewerWindow,
     pub camera: &'cam mut Camera,
     pub render_sys: &'rs mut RS,
     pub render_sys_stats: &'rs RenderStats,
@@ -377,11 +380,17 @@ impl DebugMenusSingleton {
     }
 
     fn end_frame(&mut self, args: &mut DebugMenusEndFrameArgs<impl RenderSystem>) {
+        let has_valid_placement = args.tile_selection.has_valid_placement();
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
         let show_render_stats = self.debug_settings_menu.show_render_stats();
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
-        let has_valid_placement = args.tile_selection.has_valid_placement();
+        let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
+
+        if *show_log_viewer_window {
+            args.log_viewer.show(true);
+            *show_log_viewer_window = args.log_viewer.draw(args.context.ui_sys);
+        }
 
         self.tile_palette_menu.draw(
             &mut args.context,
@@ -450,6 +459,10 @@ fn use_singleton<F, R>(mut closure: F) -> R
         }
     })
 }
+
+// ----------------------------------------------
+// Global debug popups switch
+// ----------------------------------------------
 
 static SHOW_DEBUG_POPUP_MESSAGES: AtomicBool = AtomicBool::new(false);
 

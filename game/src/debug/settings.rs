@@ -51,6 +51,7 @@ pub struct DebugSettingsMenu {
     #[debug_ui(edit)] show_render_stats: bool,
     #[debug_ui(edit)] show_world_debug: bool,
     #[debug_ui(edit)] show_game_systems_debug: bool,
+    #[debug_ui(edit)] show_log_viewer_window: bool,
 }
 
 impl DebugSettingsMenu {
@@ -80,6 +81,10 @@ impl DebugSettingsMenu {
 
     pub fn show_render_stats(&self) -> bool {
         self.show_render_stats
+    }
+
+    pub fn show_log_viewer_window(&mut self) -> &mut bool {
+        &mut self.show_log_viewer_window
     }
 
     pub fn selected_render_flags(&self) -> TileMapRenderFlags {
@@ -121,8 +126,8 @@ impl DebugSettingsMenu {
             .build(|| {
                 self.camera_dropdown(context.ui_sys, camera);
                 self.map_grid_dropdown(context.ui_sys, tile_map_renderer);
-                self.debug_draw_dropdown(context.ui_sys);
                 self.reset_map_dropdown(context, sim);
+                self.debug_draw_dropdown(context.ui_sys);
             });
 
         if self.show_world_debug {

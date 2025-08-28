@@ -4,6 +4,7 @@ mod app;
 mod debug;
 mod game;
 mod imgui_ui;
+mod log;
 mod pathfind;
 mod render;
 mod tile;
@@ -33,8 +34,10 @@ use game::{
 // ----------------------------------------------
 
 fn main() {
+    let log_viewer = log_viewer::LogViewerWindow::new(false, 32);
+
     let cwd = std::env::current_dir().unwrap();
-    println!("The current directory is \"{}\".", cwd.display());
+    log::info!("The current directory is \"{}\".", cwd.display());
 
     let mut app = ApplicationBuilder::new()
         .window_title("CitySim")
@@ -211,6 +214,7 @@ fn main() {
                 delta_time_secs,
             },
             sim: &mut sim,
+            log_viewer: &log_viewer,
             camera: &mut camera,
             render_sys: &mut render_sys,
             render_sys_stats: &render_sys_stats,
