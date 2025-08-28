@@ -555,7 +555,7 @@ pub trait UnitTaskHelper {
                 true
             },
             Err(err) => {
-                log::error!(log::channel!("unit"), "{}: Failed to spawn Unit at cell {}: {}", spawner_name, unit_origin, err);
+                log::error!(log::channel!("unit"), "{}: {}", spawner_name, err);
                 self.on_unit_spawn(UnitId::invalid(), true);
                 false
             },

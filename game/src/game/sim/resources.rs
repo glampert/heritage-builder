@@ -118,9 +118,9 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // ----------------------------------------------
 
 pub struct Workers {
-    count: u32, // Current number of workers employed.
-    min: u32,   // Minimum number of workers for service/production to run (at lower capacity).
-    max: u32,   // Maximum number of workers it can employ (to run at full capacity).
+    count: u8, // Current number of workers employed.
+    min: u8,   // Minimum number of workers for service/production to run (at lower capacity).
+    max: u8,   // Maximum number of workers it can employ (to run at full capacity).
 }
 
 impl Workers {
@@ -128,21 +128,21 @@ impl Workers {
         debug_assert!(min <= max);
         Self {
             count: 0,
-            min,
-            max,
+            min: min.try_into().expect("Min workers must be < 256"),
+            max: max.try_into().expect("Max workers must be < 256"),
         }
     }
 
     pub fn count(&self) -> u32 {
-        self.count
+        self.count as u32
     }
 
     pub fn min(&self) -> u32 {
-        self.min
+        self.min as u32
     }
 
     pub fn max(&self) -> u32 {
-        self.max
+        self.max as u32
     }
 
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
@@ -160,8 +160,8 @@ impl Workers {
 // ----------------------------------------------
 
 pub struct Population {
-    count: u32, // Current population number for household.
-    max: u32,   // Maximum population it can accommodate.
+    count: u8, // Current population number for household.
+    max: u8,   // Maximum population it can accommodate.
 }
 
 impl Population {
@@ -169,16 +169,16 @@ impl Population {
         debug_assert!(max > 0);
         Self {
             count: 0,
-            max,
+            max: max.try_into().expect("Max population must be < 256"),
         }
     }
 
     pub fn count(&self) -> u32 {
-        self.count
+        self.count as u32
     }
 
     pub fn max(&self) -> u32 {
-        self.max
+        self.max as u32
     }
 
     pub fn is_maxed(&self) -> bool {
@@ -186,21 +186,22 @@ impl Population {
     }
 
     pub fn set_count(&mut self, count: u32) {
-        self.count = count.min(self.max);
+        let count_u8: u8 = count.try_into().expect("Population count must be < 256");
+        self.count = count_u8.min(self.max);
     }
 
     pub fn set_max(&mut self, new_max: u32) -> u32 {
-        self.count = self.count.min(new_max); // Clamp to new maximum.
-        self.max = new_max;
-        self.count
+        self.max = new_max.try_into().expect("Max population must be < 256");
+        self.count = self.count.min(self.max); // Clamp to new maximum.
+        self.count as u32 // New count.
     }
 
     pub fn add(&mut self, count: u32) -> u32 {
-        let prev_count = self.count;
-        let new_count  = (prev_count + count).min(self.max);
-        let amount_added = new_count - prev_count;
+        let count_u8: u8 = count.try_into().expect("Population count must be < 256");
+        let new_count  = (self.count + count_u8).min(self.max);
+        let amount_added = new_count - self.count;
         self.count = new_count;
-        amount_added
+        amount_added as u32
     }
 
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {

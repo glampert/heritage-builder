@@ -494,7 +494,7 @@ impl<'config> HouseBuilding<'config> {
 // HouseLevel
 // ----------------------------------------------
 
-#[repr(u32)]
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, EnumCount, IntoPrimitive, TryFromPrimitive)]
 pub enum HouseLevel {
     Level0,
@@ -512,7 +512,7 @@ impl HouseLevel {
     #[inline]
     #[must_use]
     pub fn max() -> HouseLevel {
-        Self::try_from_primitive((HouseLevel::COUNT - 1) as u32).unwrap()
+        Self::try_from_primitive((HouseLevel::COUNT - 1) as u8).unwrap()
     }
 
     #[inline]
@@ -528,7 +528,7 @@ impl HouseLevel {
     #[inline]
     #[must_use]
     fn next(self) -> HouseLevel {
-        let curr: u32 = self.into();
+        let curr: u8 = self.into();
         let next = curr + 1;
         HouseLevel::try_from(next).expect("Max HouseLevel exceeded!")
     }
@@ -536,7 +536,7 @@ impl HouseLevel {
     #[inline]
     #[must_use]
     fn prev(self) -> HouseLevel {
-        let curr: u32 = self.into();
+        let curr: u8 = self.into();
         let next = curr - 1;
         HouseLevel::try_from(next).expect("Min HouseLevel exceeded!")
     }
@@ -920,7 +920,7 @@ impl<'config> HouseBuilding<'config> {
             }
         };
 
-        let mut level_num: u32 = self.upgrade_state.level.into();
+        let mut level_num: u8 = self.upgrade_state.level.into();
         if ui.input_scalar("Level", &mut level_num).step(1).build() {
             if let Ok(level) = HouseLevel::try_from_primitive(level_num) {
                 match level.cmp(&self.upgrade_state.level) {

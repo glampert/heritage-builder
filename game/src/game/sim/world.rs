@@ -1079,8 +1079,8 @@ impl WorldStats {
             if self.houses != 0 {
                 ui.text("Housing:");
                 ui.text(format!("Number Of Houses    : {}", self.houses));
-                ui.text(format!("Lowest House Level  : {}", Into::<u32>::into(self.lowest_house_level)));
-                ui.text(format!("Highest House Level : {}", Into::<u32>::into(self.highest_house_level)));
+                ui.text(format!("Lowest House Level  : {}", self.lowest_house_level  as u32));
+                ui.text(format!("Highest House Level : {}", self.highest_house_level as u32));
             }
         }
 
