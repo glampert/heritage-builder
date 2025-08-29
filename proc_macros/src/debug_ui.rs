@@ -153,8 +153,11 @@ fn calc_field_name_padding(fields: &Punctuated<Field, Comma>) -> usize {
             continue;
         }
 
-        let name_str = field.ident.as_ref().unwrap().to_string();
-        longest_field_name = longest_field_name.max(name_str.len());
+        let label_str = attrs.label.unwrap_or_else(|| {
+            field.ident.as_ref().unwrap().to_string()
+        });
+
+        longest_field_name = longest_field_name.max(label_str.len());
     }
     longest_field_name + 1
 }
