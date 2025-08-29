@@ -587,7 +587,7 @@ impl<'config> Building<'config> {
             if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
                 workers.draw_debug_ui(ui_sys);
 
-                if !workers.has_flags(WorkersFlags::ReadOnly) {
+                if !workers.has_flags(WorkersFlags::ReadOnlyDebugUi) {
                     if ui.button("Add Worker (+1)") {
                         self.archetype.add_workers(&context, 1);
                     }

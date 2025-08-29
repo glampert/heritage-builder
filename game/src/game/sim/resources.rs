@@ -135,9 +135,9 @@ pub struct Workers {
 bitflags! {
     #[derive(Copy, Clone)]
     pub struct WorkersFlags: u8 {
-        const ReadOnly   = 1 << 0;
-        const WorkerPool = 1 << 1;
-        const Employer   = 1 << 2;
+        const Household       = 1 << 0;
+        const Employer        = 1 << 1;
+        const ReadOnlyDebugUi = 1 << 2;
     }
 }
 

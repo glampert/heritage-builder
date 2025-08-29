@@ -302,7 +302,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         let curr_population = self.population.count() as f32;
         let worker_count = (curr_population * worker_percentage).round() as u32;
         Some(Workers::new(
-            WorkersFlags::ReadOnly,
+            WorkersFlags::ReadOnlyDebugUi,
             worker_count,
             worker_count,
             worker_count
