@@ -1,10 +1,10 @@
-use rand::Rng;
-use rand::seq::IteratorRandom;
 use core::slice::Iter;
-use arrayvec::ArrayVec;
-use bitflags::{bitflags, Flags};
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
+use rand::{Rng, seq::IteratorRandom};
+use arrayvec::ArrayVec;
+use bitflags::{bitflags, Flags};
+use proc_macros::DrawDebugUi;
 
 use crate::{
     bitflags_with_display,
@@ -117,19 +117,20 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // Workers
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, DrawDebugUi)]
 pub struct Workers {
+    #[debug_ui(label = "Workers")]
     count: u8, // Current number of workers employed.
-    min: u8,   // Minimum number of workers for service/production to run (at lower capacity).
-    max: u8,   // Maximum number of workers it can employ (to run at full capacity).
+
+    #[debug_ui(label = "Min Required")]
+    min: u8, // Minimum number of workers for service/production to run (at lower capacity).
+
+    #[debug_ui(label = "Max Employed")]
+    max: u8, // Maximum number of workers it can employ (to run at full capacity).
 }
 
 impl Workers {
-    pub fn new(min: u32, max: u32) -> Self {
-        Self::with(0, min, max)
-    }
-
-    pub fn with(count: u32, min: u32, max: u32) -> Self {
+    pub fn new(count: u32, min: u32, max: u32) -> Self {
         debug_assert!(min <= max);
         Self {
             // NOTE: count can go below min.
@@ -166,25 +167,25 @@ impl Workers {
         self.count == self.max
     }
 
+    #[inline]
     pub fn set_count(&mut self, count: u32) -> u32 {
         let count_u8: u8 = count.try_into().expect("Workers count must be < 256");
         self.count = count_u8.min(self.max); // Clamp to maximum
         self.count() // Return new count
     }
 
+    #[inline]
     pub fn add(&mut self, amount: u32) -> u32 {
         let prev_count = self.count();
         let new_count  = self.set_count(prev_count + amount);
         new_count - prev_count // Return amount added
     }
 
-    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
-            ui.text(format!("Workers      : {}", self.count));
-            ui.text(format!("Min Required : {}", self.min));
-            ui.text(format!("Max Employed : {}", self.max));
-        }
+    #[inline]
+    pub fn subtract(&mut self, amount: u32) -> u32 {
+        let prev_count = self.count();
+        let new_count  = self.set_count(prev_count.saturating_sub(amount));
+        new_count - prev_count // Return amount subtracted
     }
 }
 
@@ -192,18 +193,17 @@ impl Workers {
 // Population
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, DrawDebugUi)]
 pub struct Population {
+    #[debug_ui(label = "Population")]
     count: u8, // Current population number for household.
-    max: u8,   // Maximum population it can accommodate.
+
+    #[debug_ui(label = "Max Residents")]
+    max: u8, // Maximum population it can accommodate.
 }
 
 impl Population {
-    pub fn new(max: u32) -> Self {
-        Self::with(0, max)
-    }
-
-    pub fn with(count: u32, max: u32) -> Self {
+    pub fn new(count: u32, max: u32) -> Self {
         debug_assert!(max > 0);
         Self {
             count: count.min(max).try_into().expect("Population count must be < 256"),
@@ -226,35 +226,38 @@ impl Population {
         self.count == self.max
     }
 
+    #[inline]
     pub fn set_count(&mut self, count: u32) -> u32 {
         let count_u8: u8 = count.try_into().expect("Population count must be < 256");
         self.count = count_u8.min(self.max); // Clamp to maximum
         self.count() // Return new count
     }
 
+    #[inline]
     pub fn set_max(&mut self, max: u32) -> u32 {
         self.max = max.try_into().expect("Max population must be < 256");
         self.count = self.count.min(self.max); // Clamp to new maximum
         self.count() // Return new count
     }
 
+    #[inline]
     pub fn set_max_and_count(&mut self, max: u32, count: u32) -> u32 {
         self.set_max(max);
         self.set_count(count) // Return new count
     }
 
+    #[inline]
     pub fn add(&mut self, amount: u32) -> u32 {
         let prev_count = self.count();
         let new_count  = self.set_count(prev_count + amount);
         new_count - prev_count // Return amount added
     }
 
-    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if ui.collapsing_header("Population", imgui::TreeNodeFlags::empty()) {
-            ui.text(format!("Population    : {}", self.count));
-            ui.text(format!("Max Residents : {}", self.max));
-        }
+    #[inline]
+    pub fn subtract(&mut self, amount: u32) -> u32 {
+        let prev_count = self.count();
+        let new_count  = self.set_count(prev_count.saturating_sub(amount));
+        new_count - prev_count // Return amount subtracted
     }
 }
 

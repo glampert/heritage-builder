@@ -216,7 +216,7 @@ impl<'config> ServiceBuilding<'config> {
     pub fn new(config: &'config ServiceConfig) -> Self {
         Self {
             config,
-            workers: Workers::new(config.min_workers, config.max_workers),
+            workers: Workers::new(0, config.min_workers, config.max_workers),
             stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
             stock: BuildingStock::with_accepted_list_and_capacity(&config.resources_required, config.stock_capacity),
             runner: Runner::default(),

@@ -282,7 +282,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
         let curr_population = self.population.count() as f32;
         let worker_count = (curr_population * worker_percentage).round() as u32;
-        Some(Workers::with(worker_count, worker_count, worker_count))
+        Some(Workers::new(worker_count, worker_count, worker_count))
     }
 
     // ----------------------
@@ -313,7 +313,7 @@ impl<'config> HouseBuilding<'config> {
 
         Self {
             population_update_timer: UpdateTimer::new(house_config.population_update_frequency_secs),
-            population: Population::new(upgrade_state.curr_level_config.max_residents),
+            population: Population::new(0, upgrade_state.curr_level_config.max_residents),
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
             stock,
             upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),

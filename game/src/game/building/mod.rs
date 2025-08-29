@@ -562,11 +562,15 @@ impl<'config> Building<'config> {
         self.configs().draw_debug_ui(ui_sys);
 
         if let Some(population) = self.population() {
-            population.draw_debug_ui(ui_sys);
+            if ui.collapsing_header("Population", imgui::TreeNodeFlags::empty()) {
+                population.draw_debug_ui(ui_sys);
+            }
         }
 
         if let Some(workers) = self.workers() {
-            workers.draw_debug_ui(ui_sys);
+            if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
+                workers.draw_debug_ui(ui_sys);
+            }
         }
 
         self.debug_options().draw_debug_ui(ui_sys);
