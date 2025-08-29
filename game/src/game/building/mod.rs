@@ -40,6 +40,7 @@ use super::{
         world::{BuildingId, WorldStats},
         resources::{
             Workers,
+            WorkersFlags,
             Population,
             ServiceKind,
             StockItem,
@@ -70,7 +71,7 @@ mod house;
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    #[derive(Copy, Clone, PartialEq, Eq)]
     pub struct BuildingKind: u32 {
         // Archetype: House
         const House       = 1 << 0;
@@ -140,7 +141,7 @@ impl BuildingKind {
         } else if self.intersects(Self::House) {
             BuildingArchetypeKind::HouseBuilding
         } else {
-            panic!("Unknown archetype for building kind: {:?}", self);
+            panic!("Unknown archetype for building kind: {}", self);
         }
     }
 }
@@ -410,6 +411,18 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
+    pub fn add_population(&mut self, query: &Query, count: u32) -> u32 {
+        let context = self.new_context(query);
+        self.archetype.add_population(&context, count)
+    }
+
+    #[inline]
+    pub fn remove_population(&mut self, query: &Query, count: u32) -> u32 {
+        let context = self.new_context(query);
+        self.archetype.remove_population(&context, count)
+    }
+
+    #[inline]
     pub fn workers(&self) -> Option<Workers> {
         self.archetype.workers()
     }
@@ -417,6 +430,18 @@ impl<'config> Building<'config> {
     #[inline]
     pub fn workers_count(&self) -> u32 {
         self.workers().map_or(0, |workers| workers.count())
+    }
+
+    #[inline]
+    pub fn add_workers(&mut self, query: &Query, count: u32) -> u32 {
+        let context = self.new_context(query);
+        self.archetype.add_workers(&context, count)
+    }
+
+    #[inline]
+    pub fn remove_workers(&mut self, query: &Query, count: u32) -> u32 {
+        let context = self.new_context(query);
+        self.archetype.remove_workers(&context, count)
     }
 
     // ----------------------
@@ -512,11 +537,6 @@ impl<'config> Building<'config> {
     // Building Debug:
     // ----------------------
 
-    #[inline]
-    pub fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions {
-        self.archetype.debug_options()
-    }
-
     pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
@@ -539,43 +559,70 @@ impl<'config> Building<'config> {
                 road_link: self.road_link(query).unwrap_or_default(),
                 id: self.id,
             };
-
             debug_vars.draw_debug_ui(ui_sys);
-            ui.separator();
-
-            if ui.button("Highlight Access Tiles") {
-                pathfind::highlight_building_access_tiles(query.tile_map(), self.map_cells);
-            }
-
-            let mut show_road_link = self.is_showing_road_link_debug(query);
-            if ui.checkbox("Show Road Link", &mut show_road_link) {
-                self.set_show_road_link_debug(query, show_road_link);
-            }
-
-            if self.is_linked_to_road(query) {
-                ui.text_colored(Color::green().to_array(), "Has road access.");
-            } else {
-                ui.text_colored(Color::red().to_array(), "No road access!");
-            }
         }
 
         self.configs().draw_debug_ui(ui_sys);
+        let context = self.new_context(query);
 
         if let Some(population) = self.population() {
             if ui.collapsing_header("Population", imgui::TreeNodeFlags::empty()) {
                 population.draw_debug_ui(ui_sys);
+
+                if ui.button("Increase Population (+1)") {
+                    self.archetype.add_population(&context, 1);
+                }
+
+                if ui.button("Evict Resident (-1)") {
+                    self.archetype.remove_population(&context, 1);
+                }
+
+                if ui.button("Evict All Residents") {
+                    self.archetype.remove_population(&context, self.population_count());
+                }
             }
         }
 
         if let Some(workers) = self.workers() {
             if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
                 workers.draw_debug_ui(ui_sys);
+
+                if !workers.has_flags(WorkersFlags::ReadOnly) {
+                    if ui.button("Add Worker (+1)") {
+                        self.archetype.add_workers(&context, 1);
+                    }
+
+                    if ui.button("Remove Worker (-1)") {
+                        self.archetype.remove_workers(&context, 1);
+                    }
+
+                    if ui.button("Remove All Workers") {
+                        self.archetype.remove_workers(&context, self.workers_count());
+                    }
+                }
             }
         }
 
-        self.debug_options().draw_debug_ui(ui_sys);
+        if ui.collapsing_header("Access", imgui::TreeNodeFlags::empty()) {
+            if self.is_linked_to_road(query) {
+                ui.text_colored(Color::green().to_array(), "Has road access.");
+            } else {
+                ui.text_colored(Color::red().to_array(), "No road access!");
+            }
 
-        let context = self.new_context(query);
+            ui.text(format!("Road Link Tile : {}", self.road_link(query).unwrap_or_default()));
+
+            let mut show_road_link = self.is_showing_road_link_debug(query);
+            if ui.checkbox("Show Road Link", &mut show_road_link) {
+                self.set_show_road_link_debug(query, show_road_link);
+            }
+
+            if ui.button("Highlight Access Tiles") {
+                pathfind::highlight_building_access_tiles(query.tile_map(), self.map_cells);
+            }
+        }
+
+        self.archetype.debug_options().draw_debug_ui(ui_sys);
         self.archetype.draw_debug_ui(&context, ui_sys);
     }
 
@@ -589,7 +636,7 @@ impl<'config> Building<'config> {
             TileMapLayerKind::Objects,
             TileKind::Building).unwrap();
 
-        self.debug_options().draw_popup_messages(
+        self.archetype.debug_options().draw_popup_messages(
             tile,
             ui_sys,
             transform,
@@ -675,6 +722,7 @@ pub trait BuildingBehavior<'config> {
     // resources it was able to relinquish, which can be less or equal to `count`.
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32;
 
+    // Add to the world resource counts.
     fn tally(&self, stats: &mut WorldStats, kind: BuildingKind);
 
     // ----------------------
@@ -690,6 +738,13 @@ pub trait BuildingBehavior<'config> {
 
     fn population(&self) -> Option<Population> { None }
     fn workers(&self)    -> Option<Workers>    { None }
+
+    // These return the amount added/removed, which can be <= the `count` parameter.
+    fn add_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
+    fn remove_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
+
+    fn add_workers(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
+    fn remove_workers(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
 
     // ----------------------
     // Debug:

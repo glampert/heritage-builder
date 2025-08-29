@@ -17,7 +17,7 @@ use crate::{
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    #[derive(Copy, Clone, PartialEq, Eq)]
     pub struct ResourceKind: u32 {
         // Foods:
         const Rice  = 1 << 0;
@@ -119,6 +119,9 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 
 #[derive(Copy, Clone, DrawDebugUi)]
 pub struct Workers {
+    #[debug_ui(skip)]
+    flags: WorkersFlags,
+
     #[debug_ui(label = "Workers")]
     count: u8, // Current number of workers employed.
 
@@ -129,17 +132,32 @@ pub struct Workers {
     max: u8, // Maximum number of workers it can employ (to run at full capacity).
 }
 
+bitflags! {
+    #[derive(Copy, Clone)]
+    pub struct WorkersFlags: u8 {
+        const ReadOnly   = 1 << 0;
+        const WorkerPool = 1 << 1;
+        const Employer   = 1 << 2;
+    }
+}
+
 impl Workers {
-    pub fn new(count: u32, min: u32, max: u32) -> Self {
+    pub fn new(flags: WorkersFlags, count: u32, min: u32, max: u32) -> Self {
         debug_assert!(min <= max);
         Self {
             // NOTE: count can go below min.
             // min is the minimum number of workers a service requires.
             // count can be anywhere between 0 and max.
+            flags,
             count: count.min(max).try_into().expect("Workers count must be < 256"),
             min: min.try_into().expect("Min workers must be < 256"),
             max: max.try_into().expect("Max workers must be < 256"),
         }
+    }
+
+    #[inline]
+    pub fn has_flags(&self, flags: WorkersFlags) -> bool {
+        self.flags.intersects(flags)
     }
 
     #[inline]
@@ -185,7 +203,7 @@ impl Workers {
     pub fn subtract(&mut self, amount: u32) -> u32 {
         let prev_count = self.count();
         let new_count  = self.set_count(prev_count.saturating_sub(amount));
-        new_count - prev_count // Return amount subtracted
+        prev_count - new_count // Return amount subtracted
     }
 }
 
@@ -257,7 +275,7 @@ impl Population {
     pub fn subtract(&mut self, amount: u32) -> u32 {
         let prev_count = self.count();
         let new_count  = self.set_count(prev_count.saturating_sub(amount));
-        new_count - prev_count // Return amount subtracted
+        prev_count - new_count // Return amount subtracted
     }
 }
 

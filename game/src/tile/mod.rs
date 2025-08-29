@@ -60,7 +60,7 @@ pub const BASE_TILE_SIZE: Size = Size { width: 64, height: 32 };
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+    #[derive(Copy, Clone, PartialEq, Eq, Hash)]
     pub struct TileKind: u8 {
         // Base Archetypes:
         const Terrain    = 1 << 0;
@@ -97,7 +97,7 @@ impl TileKind {
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, Default, PartialEq, Eq)]
+    #[derive(Copy, Clone, PartialEq, Eq)]
     pub struct TileFlags: u8 {
         const Hidden           = 1 << 0;
         const Highlighted      = 1 << 1;

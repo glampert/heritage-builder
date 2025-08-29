@@ -36,7 +36,7 @@ mod tests;
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
+    #[derive(Copy, Clone, PartialEq, Eq, Deserialize)]
     pub struct NodeKind: u8 {
         const Dirt               = 1 << 0;
         const Road               = 1 << 1;

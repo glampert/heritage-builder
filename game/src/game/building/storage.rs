@@ -26,7 +26,8 @@ use crate::{
                 ResourceKinds,
                 ResourceStock,
                 StockItem,
-                Workers
+                Workers,
+                WorkersFlags
             }
         }
     }
@@ -221,7 +222,7 @@ impl<'config> StorageBuilding<'config> {
     pub fn new(config: &'config StorageConfig) -> Self {
         Self {
             config,
-            workers: Workers::new(0, config.min_workers, config.max_workers),
+            workers: Workers::new(WorkersFlags::Employer, 0, config.min_workers, config.max_workers),
             storage_slots: StorageSlots::new(
                 &config.resources_accepted,
                 config.num_slots,

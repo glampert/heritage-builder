@@ -7,6 +7,7 @@ use crate::{
     tile::{TileMapLayerKind, sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}},
     game::{
         constants::*,
+        building::BuildingKind,
         unit::{
             UnitTaskHelper,
             config::{self},
@@ -170,9 +171,16 @@ impl Settler {
                 let world = query.world();
                 match world.try_spawn_building_with_tile_def(query, unit_prev_cell, tile_def) {
                     Ok(building) => {
+                        debug_assert!(building.is(BuildingKind::House));
+
                         let population_to_add = extra_args[0].as_u32();
-                        let house = building.as_house_mut();
-                        house.add_population(population_to_add);
+                        debug_assert!(population_to_add != 0);
+
+                        let population_added = building.add_population(query, population_to_add);
+                        if population_added != population_to_add {
+                            log::error!(log::channel!("unit"),
+                                        "Settler carried population of {population_to_add} but house accommodated {population_added}.");
+                        }
                     },
                     Err(err) => {
                         log::error!(log::channel!("unit"), "SettlersSpawnSystem: Failed to place House Level 0: {err}");

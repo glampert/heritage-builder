@@ -27,6 +27,7 @@ use crate::{
             world::WorldStats,
             resources::{
                 Workers,
+                WorkersFlags,
                 Population,
                 ResourceKind,
                 ResourceKinds,
@@ -93,7 +94,7 @@ pub struct HouseLevelConfig {
     #[debug_ui(skip)]
     pub tile_def_name_hash: StringHash,
 
-    pub max_residents: u32,
+    pub max_population: u32,
     pub tax_generated: u32,
 
     // What percentage of the house population is available as workers; [0,100].
@@ -277,12 +278,35 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         Some(self.population)
     }
 
+    fn add_population(&mut self, _context: &BuildingContext, count: u32) -> u32 {
+        if count != 0 && !self.population.is_max() {
+            let amount_added = self.population.add(count);
+            self.debug.popup_msg_color(Color::green(), format!("+{amount_added} Population"));
+            return amount_added;
+        }
+        0
+    }
+
+    fn remove_population(&mut self, context: &BuildingContext, count: u32) -> u32 {
+        if count != 0 && self.population.count() != 0 {
+            let amount_removed = self.population.subtract(count);
+            self.evict(context, amount_removed);
+            return amount_removed;
+        }
+        0
+    }
+
     fn workers(&self) -> Option<Workers> {
         // Percentage of current household residents that are workers: [0,100].
         let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
         let curr_population = self.population.count() as f32;
         let worker_count = (curr_population * worker_percentage).round() as u32;
-        Some(Workers::new(worker_count, worker_count, worker_count))
+        Some(Workers::new(
+            WorkersFlags::ReadOnly,
+            worker_count,
+            worker_count,
+            worker_count
+        ))
     }
 
     // ----------------------
@@ -295,7 +319,6 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 
     fn draw_debug_ui(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
         self.draw_debug_ui_upgrade_state(context, ui_sys);
-        self.draw_debug_ui_misc(context, ui_sys);
     }
 }
 
@@ -313,7 +336,7 @@ impl<'config> HouseBuilding<'config> {
 
         Self {
             population_update_timer: UpdateTimer::new(house_config.population_update_frequency_secs),
-            population: Population::new(0, upgrade_state.curr_level_config.max_residents),
+            population: Population::new(0, upgrade_state.curr_level_config.max_population),
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
             stock,
             upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
@@ -443,7 +466,7 @@ impl<'config> HouseBuilding<'config> {
 
         if upgraded || downgraded {
             self.stock.update_capacities(self.current_level_config().stock_capacity);
-            self.adjust_population(context, self.population.count(), self.current_level_config().max_residents);
+            self.adjust_population(context, self.population.count(), self.current_level_config().max_population);
         }
     }
 
@@ -468,44 +491,44 @@ impl<'config> HouseBuilding<'config> {
         let increase_population = rng.random_ratio(chance, 100);
 
         if increase_population {
-            self.add_population(1);
+            let population_added = self.add_population(context, 1);
+            debug_assert!(population_added == 1);
         }
     }
 
     fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) {
         let population_to_add = unit.settler_population(context.query);
-        let population_added  = self.add_population(population_to_add);
+        let population_added  = self.add_population(context, population_to_add);
         if population_added == 0 {
             self.debug.popup_msg_color(Color::red(), "Refused settler");
         }
     }
 
-    fn adjust_population(&mut self, context: &BuildingContext, new_population: u32, new_max: u32) -> u32 {
+    fn adjust_population(&mut self, context: &BuildingContext, new_population: u32, new_max: u32) {
         let prev_population = self.population.count();
         let curr_population = self.population.set_max_and_count(new_max, new_population);
 
         if curr_population < prev_population {
-            let amount_evicted = prev_population - curr_population;
-            self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_evicted} residents"));
-
-            let mut settler = Settler::default();
-            settler.try_spawn(
-                context.query,
-                context.road_link_or_building_access_tile(),
-                amount_evicted);
-
-            return amount_evicted;
+            let amount_to_evict = prev_population - curr_population;
+            self.evict(context, amount_to_evict);
         }
-        0
     }
 
-    pub fn add_population(&mut self, count: u32) -> u32 {
-        if count != 0 && !self.population.is_max() {
-            let amount_added = self.population.add(count);
-            self.debug.popup_msg_color(Color::green(), format!("+{amount_added} Population"));
-            return amount_added;
+    fn evict(&mut self, context: &BuildingContext, amount_to_evict: u32) {
+        let unit_origin = context.road_link_or_building_access_tile();
+        if !unit_origin.is_valid() {
+            log::error!(log::channel!("house"), "Failed to find a vacant cell to spawn evicted unit!");
+            return;
         }
-        0
+
+        let mut settler = Settler::default();
+
+        settler.try_spawn(
+            context.query,
+            unit_origin,
+            amount_to_evict);
+
+        self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_to_evict} residents"));
     }
 }
 
@@ -952,7 +975,7 @@ impl<'config> HouseBuilding<'config> {
                     std::cmp::Ordering::Equal => {} // nothing
                 }
                 self.stock.update_capacities(self.current_level_config().stock_capacity);
-                self.adjust_population(context, self.population.count(), self.current_level_config().max_residents);
+                self.adjust_population(context, self.population.count(), self.current_level_config().max_population);
             }
         }
 
@@ -984,25 +1007,6 @@ impl<'config> HouseBuilding<'config> {
             draw_level_requirements(
                 &format!("Next level reqs ({:?}):", upgrade_state.level.next()),
                 &next_level_requirements, 1);
-        }
-    }
-
-    fn draw_debug_ui_misc(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-        if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        if ui.button("Increase Population") {
-            self.add_population(1);
-        }
-
-        if ui.button("Evict 1 Resident") && self.population.count() != 0 {
-            self.adjust_population(context, self.population.count() - 1, self.population.max());
-        }
-
-        if ui.button("Evict All Residents") && self.population.count() != 0 {
-            self.adjust_population(context, 0, self.population.max());
         }
     }
 }
