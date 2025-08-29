@@ -117,93 +117,165 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // Workers
 // ----------------------------------------------
 
-#[derive(Copy, Clone, DrawDebugUi)]
-pub struct Workers {
-    #[debug_ui(skip)]
-    flags: WorkersFlags,
-
-    #[debug_ui(label = "Workers")]
-    count: u8, // Current number of workers employed.
-
-    #[debug_ui(label = "Min Required")]
-    min: u8, // Minimum number of workers for service/production to run (at lower capacity).
-
-    #[debug_ui(label = "Max Employed")]
-    max: u8, // Maximum number of workers it can employ (to run at full capacity).
-}
-
-bitflags! {
-    #[derive(Copy, Clone)]
-    pub struct WorkersFlags: u8 {
-        const Household       = 1 << 0;
-        const Employer        = 1 << 1;
-        const ReadOnlyDebugUi = 1 << 2;
+#[derive(Copy, Clone)]
+pub enum Workers {
+    Household {
+        // total = employed + unemployed
+        employed: u8,
+        unemployed: u8,
+    },
+    Employer {
+        count: u8, // Current number of workers employed.
+        min: u8,   // Minimum number of workers for service/production to run (at lower capacity).
+        max: u8,   // Maximum number of workers it can employ (to run at full capacity).
     }
 }
 
 impl Workers {
-    pub fn new(flags: WorkersFlags, count: u32, min: u32, max: u32) -> Self {
+    pub fn household(employed: u32, unemployed: u32) -> Self {
+        Self::Household {
+            employed: employed.try_into().expect("Workers count must be < 256"),
+            unemployed: unemployed.try_into().expect("Workers count must be < 256"),
+        }
+    }
+
+    pub fn employer(min: u32, max: u32) -> Self {
         debug_assert!(min <= max);
-        Self {
-            // NOTE: count can go below min.
-            // min is the minimum number of workers a service requires.
-            // count can be anywhere between 0 and max.
-            flags,
-            count: count.min(max).try_into().expect("Workers count must be < 256"),
+        Self::Employer {
+            count: 0,
             min: min.try_into().expect("Min workers must be < 256"),
             max: max.try_into().expect("Max workers must be < 256"),
         }
     }
 
     #[inline]
-    pub fn has_flags(&self, flags: WorkersFlags) -> bool {
-        self.flags.intersects(flags)
+    pub fn is_household(&self) -> bool {
+        matches!(self, Self::Household { .. })
+    }
+
+    #[inline]
+    pub fn is_employer(&self) -> bool {
+        matches!(self, Self::Employer { .. })
     }
 
     #[inline]
     pub fn count(&self) -> u32 {
-        self.count as u32
+        match self {
+            Self::Household { unemployed, .. } => *unemployed as u32,
+            Self::Employer  { count, .. } => *count as u32,
+        }
     }
 
     #[inline]
     pub fn min(&self) -> u32 {
-        self.min as u32
+        match self {
+            Self::Household { .. } => 0,
+            Self::Employer  { min, .. } => *min as u32,
+        }
     }
 
     #[inline]
     pub fn is_min(&self) -> bool {
-        self.count == self.min
+        self.count() == self.min()
     }
 
     #[inline]
     pub fn max(&self) -> u32 {
-        self.max as u32
+        match self {
+            Self::Household { employed, unemployed } => (employed + unemployed) as u32,
+            Self::Employer  { max, .. } => *max as u32,
+        }
     }
 
     #[inline]
     pub fn is_max(&self) -> bool {
-        self.count == self.max
+        self.count() == self.max()
     }
 
-    #[inline]
-    pub fn set_count(&mut self, count: u32) -> u32 {
-        let count_u8: u8 = count.try_into().expect("Workers count must be < 256");
-        self.count = count_u8.min(self.max); // Clamp to maximum
-        self.count() // Return new count
-    }
-
-    #[inline]
     pub fn add(&mut self, amount: u32) -> u32 {
-        let prev_count = self.count();
-        let new_count  = self.set_count(prev_count + amount);
-        new_count - prev_count // Return amount added
+        let amount_u8: u8 = amount.try_into().expect("Workers count must be < 256");
+        match self {
+            Self::Household { employed, unemployed } => {
+                let prev_employed = *employed;
+                let new_employed  = employed.saturating_sub(amount_u8);
+
+                let prev_unemployed = *unemployed;
+                let new_unemployed  = unemployed.saturating_add(amount_u8);
+
+                if new_employed + new_unemployed <= prev_employed + prev_unemployed {
+                    *employed   = new_employed;
+                    *unemployed = new_unemployed;
+                    (new_unemployed - prev_unemployed) as u32 // Return amount added to unemployed count
+                } else {
+                    0
+                }
+            },
+            Self::Employer { count, max, .. } => {
+                let prev_count = *count;
+                let new_count  = (prev_count + amount_u8).min(*max);
+                *count = new_count;
+                (new_count - prev_count) as u32 // Return amount added
+            },
+        }
+    }
+
+    pub fn subtract(&mut self, amount: u32) -> u32 {
+        let amount_u8: u8 = amount.try_into().expect("Workers count must be < 256");
+        match self {
+            Self::Household { employed, unemployed } => {
+                let prev_employed = *employed;
+                let new_employed  = employed.saturating_add(amount_u8);
+
+                let prev_unemployed = *unemployed;
+                let new_unemployed  = unemployed.saturating_sub(amount_u8);
+
+                if new_employed + new_unemployed <= prev_employed + prev_unemployed {
+                    *employed   = new_employed;
+                    *unemployed = new_unemployed;
+                    (prev_unemployed - new_unemployed) as u32 // Return amount taken from unemployed count
+                } else {
+                    0
+                }
+            },
+            Self::Employer { count, .. } => {
+                let prev_count = *count;
+                let new_count  = prev_count.saturating_sub(amount_u8);
+                *count = new_count;
+                (prev_count - new_count) as u32 // Return amount subtracted
+            },
+        }
     }
 
     #[inline]
-    pub fn subtract(&mut self, amount: u32) -> u32 {
-        let prev_count = self.count();
-        let new_count  = self.set_count(prev_count.saturating_sub(amount));
-        prev_count - new_count // Return amount subtracted
+    pub fn employed(&self) -> u32 {
+        if let Self::Household { employed, .. } = self {
+            return *employed as u32;
+        }
+        panic!("Not a Workers::Household!")
+    }
+
+    #[inline]
+    pub fn unemployed(&self) -> u32 {
+        if let Self::Household { unemployed, .. } = self {
+            return *unemployed as u32;
+        }
+        panic!("Not a Workers::Household!")
+    }
+
+    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        match self {
+            Self::Household { employed, unemployed } => {
+                ui.text(format!("Employed   : {}", employed));
+                ui.text(format!("Unemployed : {}", unemployed));
+                ui.text(format!("Total      : {}", *employed + *unemployed));
+            },
+            Self::Employer { count, min, max } => {
+                ui.text(format!("Workers      : {}", count));
+                ui.text(format!("Min Required : {}", min));
+                ui.text(format!("Max Employed : {}", max));
+            },
+        }
     }
 }
 

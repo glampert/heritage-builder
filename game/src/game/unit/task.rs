@@ -1505,7 +1505,7 @@ impl PathFindResult<'_> {
     fn from_query_result<'search>(query: &'search Query,
                                   origin_kind: BuildingKind,
                                   origin_base_cell: Cell,
-                                  result: Option<(&Building, &'search Path)>) -> PathFindResult<'search> {
+                                  result: Option<(&mut Building, &'search Path)>) -> PathFindResult<'search> {
         match result {
             Some((destination_building, path)) => {
                 debug_assert!(!path.is_empty());

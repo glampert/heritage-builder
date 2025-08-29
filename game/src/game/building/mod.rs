@@ -10,7 +10,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     bitflags_with_display,
     imgui_ui::UiSystem,
-    pathfind::{self},
+    pathfind::{self, NodeKind as PathNodeKind},
     utils::{
         Color,
         UnsafeMutable,
@@ -29,6 +29,7 @@ use crate::{
 };
 
 use super::{
+    constants::{WORKERS_SEARCH_RADIUS, WORKERS_UPDATE_FREQUENCY_SECS},
     unit::{
         Unit,
         patrol::Patrol,
@@ -36,11 +37,11 @@ use super::{
     },
     sim::{
         Query,
+        UpdateTimer,
         debug::GameObjectDebugOptions,
         world::{BuildingId, WorldStats},
         resources::{
             Workers,
-            WorkersFlags,
             Population,
             ServiceKind,
             StockItem,
@@ -180,6 +181,7 @@ pub struct Building<'config> {
     map_cells: CellRange,
     road_link: UnsafeMutable<Cell>,
     id: BuildingId,
+    workers_update_timer: UpdateTimer,
     archetype: BuildingArchetype<'config>,
 }
 
@@ -198,6 +200,7 @@ impl<'config> Building<'config> {
             road_link: UnsafeMutable::new(Cell::invalid()),
             // Id is set after construction by Building::placed().
             id: BuildingId::default(),
+            workers_update_timer: UpdateTimer::new(WORKERS_UPDATE_FREQUENCY_SECS),
             archetype,
         }
     }
@@ -304,8 +307,12 @@ impl<'config> Building<'config> {
     pub fn update(&mut self, query: &Query<'config, '_>) {
         debug_assert!(self.id.is_valid());
 
-        // Refresh cached road link cell:
+        // Refresh cached road link cell.
         self.update_road_link(query);
+
+        if self.workers_update_timer.tick(query.delta_time_secs()).should_update() {
+            self.update_workers(query);
+        }
 
         let context = self.new_context(query);
         self.archetype.update(&context);
@@ -397,7 +404,7 @@ impl<'config> Building<'config> {
     }
 
     // ----------------------
-    // Population/Workers:
+    // Population:
     // ----------------------
 
     #[inline]
@@ -422,6 +429,10 @@ impl<'config> Building<'config> {
         self.archetype.remove_population(&context, count)
     }
 
+    // ----------------------
+    // Workers:
+    // ----------------------
+
     #[inline]
     pub fn workers(&self) -> Option<Workers> {
         self.archetype.workers()
@@ -432,16 +443,61 @@ impl<'config> Building<'config> {
         self.workers().map_or(0, |workers| workers.count())
     }
 
+    // These return the amount added/removed, which can be <= the `count` parameter.
     #[inline]
-    pub fn add_workers(&mut self, query: &Query, count: u32) -> u32 {
-        let context = self.new_context(query);
-        self.archetype.add_workers(&context, count)
+    pub fn add_workers(&mut self, count: u32) -> u32 {
+        if let Some(workers) = self.archetype.workers_mut() {
+            return workers.add(count);
+        }
+        0
     }
 
     #[inline]
-    pub fn remove_workers(&mut self, query: &Query, count: u32) -> u32 {
-        let context = self.new_context(query);
-        self.archetype.remove_workers(&context, count)
+    pub fn remove_workers(&mut self, count: u32) -> u32 {
+        if let Some(workers) = self.archetype.workers_mut() {
+            return workers.subtract(count);
+        }
+        0
+    }
+
+    fn update_workers(&mut self, query: &Query) {
+        if !self.is_linked_to_road(query) {
+            return;
+        }
+
+        // TODO: WIP
+
+        if let Some(workers) = self.workers() {
+            if workers.is_employer() && !workers.is_max() {
+                if let Some(house) = self.find_house_with_available_workers(query) {
+                    let workers_available = house.workers_count();
+                    let workers_added = self.add_workers(workers_available);
+                    let workers_removed = house.remove_workers(workers_added);
+                    debug_assert!(workers_removed == workers_added);
+                }
+            }
+        }
+    }
+
+    fn find_house_with_available_workers(&self, query: &'config Query) -> Option<&'config mut Building<'config>> {
+        let result = query.find_nearest_buildings(
+            self.road_link(query).unwrap(),
+            BuildingKind::House,
+            PathNodeKind::Road,
+            Some(WORKERS_SEARCH_RADIUS),
+            |house, _path| {
+                if house.workers_count() != 0 {
+                    return false; // Accept and stop search.
+                }
+                true // Continue searching.
+            });
+
+        if let Some((house, _path)) = result {
+            debug_assert!(house.is(BuildingKind::House));
+            debug_assert!(house.workers_count() != 0);
+            return Some(house);
+        }
+        None
     }
 
     // ----------------------
@@ -578,7 +634,7 @@ impl<'config> Building<'config> {
                 }
 
                 if ui.button("Evict All Residents") {
-                    self.archetype.remove_population(&context, self.population_count());
+                    self.archetype.remove_population(&context, population.max());
                 }
             }
         }
@@ -587,18 +643,18 @@ impl<'config> Building<'config> {
             if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
                 workers.draw_debug_ui(ui_sys);
 
-                if !workers.has_flags(WorkersFlags::ReadOnlyDebugUi) {
-                    if ui.button("Add Worker (+1)") {
-                        self.archetype.add_workers(&context, 1);
-                    }
+                self.workers_update_timer.draw_debug_ui("Update", 0, ui_sys);
 
-                    if ui.button("Remove Worker (-1)") {
-                        self.archetype.remove_workers(&context, 1);
-                    }
+                if ui.button("Add Worker (+1)") {
+                    self.add_workers(1);
+                }
 
-                    if ui.button("Remove All Workers") {
-                        self.archetype.remove_workers(&context, self.workers_count());
-                    }
+                if ui.button("Remove Worker (-1)") {
+                    self.remove_workers(1);
+                }
+
+                if ui.button("Remove All Workers") {
+                    self.remove_workers(workers.max());
                 }
             }
         }
@@ -733,18 +789,21 @@ pub trait BuildingBehavior<'config> {
     fn active_runner(&mut self) -> Option<&mut Runner> { None }
 
     // ----------------------
-    // Population/Workers:
+    // Population:
     // ----------------------
 
     fn population(&self) -> Option<Population> { None }
-    fn workers(&self)    -> Option<Workers>    { None }
 
     // These return the amount added/removed, which can be <= the `count` parameter.
     fn add_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
     fn remove_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
 
-    fn add_workers(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
-    fn remove_workers(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
+    // ----------------------
+    // Workers:
+    // ----------------------
+
+    fn workers(&self) -> Option<Workers> { None }
+    fn workers_mut(&mut self) -> Option<&mut Workers> { None }
 
     // ----------------------
     // Debug:

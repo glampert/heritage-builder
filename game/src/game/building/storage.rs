@@ -26,8 +26,7 @@ use crate::{
                 ResourceKinds,
                 ResourceStock,
                 StockItem,
-                Workers,
-                WorkersFlags
+                Workers
             }
         }
     }
@@ -197,9 +196,8 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     // Workers:
     // ----------------------
 
-    fn workers(&self) -> Option<Workers> {
-        Some(self.workers)
-    }
+    fn workers(&self) -> Option<Workers> { Some(self.workers) }
+    fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
 
     // ----------------------
     // Debug:
@@ -222,7 +220,7 @@ impl<'config> StorageBuilding<'config> {
     pub fn new(config: &'config StorageConfig) -> Self {
         Self {
             config,
-            workers: Workers::new(WorkersFlags::Employer, 0, config.min_workers, config.max_workers),
+            workers: Workers::employer(config.min_workers, config.max_workers),
             storage_slots: StorageSlots::new(
                 &config.resources_accepted,
                 config.num_slots,

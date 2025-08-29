@@ -587,7 +587,7 @@ impl Search {
                      heuristic: &impl Heuristic,
                      traversable_node_kinds: NodeKind,
                      start: Node,
-                     goal: Node) -> SearchResult {
+                     goal: Node) -> SearchResult<'_> {
 
         debug_assert!(!traversable_node_kinds.is_empty());
 
@@ -635,7 +635,7 @@ impl Search {
                               max_paths: usize,
                               traversable_node_kinds: NodeKind,
                               start: Node,
-                              goal: Node) -> SearchResult
+                              goal: Node) -> SearchResult<'_>
         where Filter: PathFilter
     {
         debug_assert!(!traversable_node_kinds.is_empty());
@@ -709,7 +709,7 @@ impl Search {
                                   path_filter: &mut Filter,
                                   traversable_node_kinds: NodeKind,
                                   start: Node,
-                                  max_distance: i32) -> SearchResult
+                                  max_distance: i32) -> SearchResult<'_>
         where Filter: PathFilter
     {
         debug_assert!(!traversable_node_kinds.is_empty());
@@ -798,7 +798,7 @@ impl Search {
                                   path_filter: &mut Filter,
                                   traversable_node_kinds: NodeKind,
                                   start: Node,
-                                  max_distance: i32) -> SearchResult
+                                  max_distance: i32) -> SearchResult<'_>
         where Filter: PathFilter
     {
         debug_assert!(!traversable_node_kinds.is_empty());
@@ -884,7 +884,7 @@ impl Search {
                              bias: &impl Bias,
                              traversable_node_kinds: NodeKind,
                              start: Node,
-                             goal_node_kinds: NodeKind) -> SearchResult {
+                             goal_node_kinds: NodeKind) -> SearchResult<'_> {
 
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(!goal_node_kinds.is_empty() && goal_node_kinds.intersects(traversable_node_kinds));
@@ -970,7 +970,7 @@ impl Search {
     }
 
     #[inline]
-    fn reconstruct_path(&mut self, start: Node, goal: Node) -> SearchResult {
+    fn reconstruct_path(&mut self, start: Node, goal: Node) -> SearchResult<'_> {
         if Self::try_reconstruct_path(&mut self.path, &self.came_from, start, goal) {
             SearchResult::PathFound(&self.path)
         } else {

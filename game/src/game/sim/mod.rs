@@ -543,28 +543,34 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                                      building_kinds: BuildingKind,
                                      traversable_node_kinds: PathNodeKind,
                                      max_distance: Option<i32>,
-                                     visitor_fn: F) -> Option<(&Building, &Path)>
+                                     visitor_fn: F) -> Option<(&mut Building, &Path)>
         where F: FnMut(&Building, &Path) -> bool
     {
         debug_assert!(start.is_valid());
         debug_assert!(!building_kinds.is_empty());
         debug_assert!(!traversable_node_kinds.is_empty());
 
+        if !self.graph().node_kind(Node::new(start))
+            .is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
+            log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
+            return None;
+        }
+
         struct BuildingPathFilter<'sim, 'config, 'tile_sets, F> {
             query: &'sim Query<'config, 'tile_sets>,
             building_kinds: BuildingKind,
             traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
-            maybe_building: Option<&'sim Building<'config>>, // Search result.
-            maybe_path: Option<UnsafeWeakRef<Path>>,         // Saved for result debug validation.
-            visited: SmallVec<[Node; 32]>,
+            result_building: Option<&'sim mut Building<'config>>, // Search result.
+            result_path: Option<UnsafeWeakRef<Path>>, // SAFETY: Saved for result debug validation only.
+            visited_nodes: SmallVec<[Node; 32]>,
         }
 
         impl<F> PathFilter for BuildingPathFilter<'_, '_, '_, F>
             where F: FnMut(&Building, &Path) -> bool
         {
             fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {
-                if self.visited.iter().any(|node| *node == goal) {
+                if self.visited_nodes.iter().any(|node| *node == goal) {
                     // Already visited, continue searching.
                     return false;
                 }
@@ -578,7 +584,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
 
                 let neighbors = self.query.graph().neighbors(goal, PathNodeKind::Building);
                 for neighbor in neighbors {
-                    if let Some(building) = self.query.world().find_building_for_cell(neighbor.cell, self.query.tile_map()) {
+                    if let Some(building) = self.query.world().find_building_for_cell_mut(neighbor.cell, self.query.tile_map()) {
                         if building.is(self.building_kinds) {
                             let mut accept_building = false;
 
@@ -594,13 +600,13 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
 
                             if accept_building {
                                 // Accept this path/goal pair and stop searching.
-                                self.maybe_building = Some(building);
-                                self.maybe_path = Some(UnsafeWeakRef::new(path));
+                                self.result_building = Some(building);
+                                self.result_path = Some(UnsafeWeakRef::new(path));
                                 return true;
                             }
                         }
 
-                        self.visited.push(neighbor);
+                        self.visited_nodes.push(neighbor);
                     }
                 }
 
@@ -614,9 +620,9 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             building_kinds,
             traversable_node_kinds,
             visitor_fn,
-            maybe_building: None,
-            maybe_path: None,
-            visited: SmallVec::new()
+            result_building: None,
+            result_path: None,
+            visited_nodes: SmallVec::new()
         };
 
         let result =
@@ -632,16 +638,16 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             SearchResult::PathFound(path_found) => {
                 debug_assert!(!path_found.is_empty());
 
-                let building = building_filter.maybe_building
+                let result_building = building_filter.result_building
                     .expect("If we've found a path we should have found a building too!");
 
-                let path = building_filter.maybe_path
+                let result_path = building_filter.result_path
                     .expect("Path should be valid for SearchResult::PathFound!");
 
-                debug_assert!(building.is(building_kinds));
-                debug_assert!(path.as_ref() == path_found); // Must be the same.
+                debug_assert!(result_building.is(building_kinds));
+                debug_assert!(result_path.as_ref() == path_found); // Must be the same.
 
-                Some((building, path_found))
+                Some((result_building, path_found))
             },
             SearchResult::PathNotFound => None,
         }

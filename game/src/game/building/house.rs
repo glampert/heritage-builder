@@ -27,7 +27,6 @@ use crate::{
             world::WorldStats,
             resources::{
                 Workers,
-                WorkersFlags,
                 Population,
                 ResourceKind,
                 ResourceKinds,
@@ -135,6 +134,8 @@ game_object_debug_options! {
 // ----------------------------------------------
 
 pub struct HouseBuilding<'config> {
+    workers: Workers, // Workers this household provides (employed + unemployed).
+
     population_update_timer: UpdateTimer,
     population: Population,
 
@@ -282,6 +283,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         if count != 0 && !self.population.is_max() {
             let amount_added = self.population.add(count);
             self.debug.popup_msg_color(Color::green(), format!("+{amount_added} Population"));
+            self.adjust_workers_available();
             return amount_added;
         }
         0
@@ -290,24 +292,19 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     fn remove_population(&mut self, context: &BuildingContext, count: u32) -> u32 {
         if count != 0 && self.population.count() != 0 {
             let amount_removed = self.population.subtract(count);
-            self.evict(context, amount_removed);
+            self.evict_population(context, amount_removed);
+            self.adjust_workers_available();
             return amount_removed;
         }
         0
     }
 
-    fn workers(&self) -> Option<Workers> {
-        // Percentage of current household residents that are workers: [0,100].
-        let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
-        let curr_population = self.population.count() as f32;
-        let worker_count = (curr_population * worker_percentage).round() as u32;
-        Some(Workers::new(
-            WorkersFlags::ReadOnlyDebugUi,
-            worker_count,
-            worker_count,
-            worker_count
-        ))
-    }
+    // ----------------------
+    // Workers:
+    // ----------------------
+
+    fn workers(&self) -> Option<Workers> { Some(self.workers) }
+    fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
 
     // ----------------------
     // Debug:
@@ -335,6 +332,7 @@ impl<'config> HouseBuilding<'config> {
             upgrade_state.curr_level_config.stock_capacity);
 
         Self {
+            workers: Workers::household(0, 0),
             population_update_timer: UpdateTimer::new(house_config.population_update_frequency_secs),
             population: Population::new(0, upgrade_state.curr_level_config.max_population),
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
@@ -399,7 +397,7 @@ impl<'config> HouseBuilding<'config> {
             &self.upgrade_state.curr_level_config.resources_required;
 
         const ALL_OR_NOTHING: bool = false;
-        self.shop(market, current_level_shopping_list, ALL_OR_NOTHING);
+        self.shop_items(market, current_level_shopping_list, ALL_OR_NOTHING);
 
         // And if we have space to upgrade, shop for resources needed for the next level, so we can advance.
         // But only take any if we have the whole shopping list. No point in shopping partially since we
@@ -417,11 +415,11 @@ impl<'config> HouseBuilding<'config> {
 
             // Only succeed if we can shop all required items.
             const ALL_OR_NOTHING: bool = true;
-            self.shop(market, &next_level_shopping_list, ALL_OR_NOTHING);
+            self.shop_items(market, &next_level_shopping_list, ALL_OR_NOTHING);
         }
     }
 
-    fn shop(&mut self, market: &mut Building, shopping_list: &ResourceKinds, all_or_nothing: bool) {
+    fn shop_items(&mut self, market: &mut Building, shopping_list: &ResourceKinds, all_or_nothing: bool) {
         if all_or_nothing {
             for wanted_resources in shopping_list.iter() {
                 let mut has_any = false;
@@ -508,13 +506,28 @@ impl<'config> HouseBuilding<'config> {
         let prev_population = self.population.count();
         let curr_population = self.population.set_max_and_count(new_max, new_population);
 
-        if curr_population < prev_population {
-            let amount_to_evict = prev_population - curr_population;
-            self.evict(context, amount_to_evict);
+        if curr_population != prev_population {
+            self.adjust_workers_available();
+
+            if curr_population < prev_population {
+                let amount_to_evict = prev_population - curr_population;
+                self.evict_population(context, amount_to_evict);
+            }
         }
     }
 
-    fn evict(&mut self, context: &BuildingContext, amount_to_evict: u32) {
+    fn adjust_workers_available(&mut self) {
+        // Percentage of current household residents that are workers: [0,100].
+        let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
+        let curr_population   = self.population.count() as f32;
+        let workers_available = (curr_population * worker_percentage).round() as u32;
+
+        let curr_employed  = self.workers.employed().min(workers_available);
+        let new_unemployed = workers_available - curr_employed;
+        self.workers = Workers::household(curr_employed, new_unemployed);
+    }
+
+    fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {
         let unit_origin = context.road_link_or_building_access_tile();
         if !unit_origin.is_valid() {
             log::error!(log::channel!("house"), "Failed to find a vacant cell to spawn evicted unit!");

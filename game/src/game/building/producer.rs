@@ -30,8 +30,7 @@ use crate::{
                 ResourceKind,
                 ResourceKinds,
                 StockItem,
-                Workers,
-                WorkersFlags
+                Workers
             }
         }
     }
@@ -218,13 +217,10 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     // Runner Unit / Workers:
     // ----------------------
 
-    fn active_runner(&mut self) -> Option<&mut Runner> {
-        Some(&mut self.runner)
-    }
+    fn active_runner(&mut self) -> Option<&mut Runner> { Some(&mut self.runner) }
 
-    fn workers(&self) -> Option<Workers> {
-        Some(self.workers)
-    }
+    fn workers(&self) -> Option<Workers> { Some(self.workers) }
+    fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
 
     // ----------------------
     // Debug:
@@ -248,7 +244,7 @@ impl<'config> ProducerBuilding<'config> {
     pub fn new(config: &'config ProducerConfig) -> Self {
         Self {
             config,
-            workers: Workers::new(WorkersFlags::Employer, 0, config.min_workers, config.max_workers),
+            workers: Workers::employer(config.min_workers, config.max_workers),
             production_update_timer: UpdateTimer::new(config.production_output_frequency_secs),
             production_input_stock: ProducerInputsLocalStock::new(
                 &config.resources_required,
