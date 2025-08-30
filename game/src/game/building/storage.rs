@@ -196,7 +196,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     // Workers:
     // ----------------------
 
-    fn workers(&self) -> Option<Workers> { Some(self.workers) }
+    fn workers(&self) -> Option<&Workers> { Some(&self.workers) }
     fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
 
     // ----------------------

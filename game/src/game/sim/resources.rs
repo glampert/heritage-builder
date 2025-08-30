@@ -1,15 +1,23 @@
+#![allow(clippy::blocks_in_conditions)]
+
 use core::slice::Iter;
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
+use std::collections::{HashMap, hash_map::Entry};
 use rand::{Rng, seq::IteratorRandom};
 use arrayvec::ArrayVec;
 use bitflags::{bitflags, Flags};
 use proc_macros::DrawDebugUi;
 
 use crate::{
+    log,
     bitflags_with_display,
     imgui_ui::UiSystem,
-    game::building::BuildingKind
+    utils::Color,
+    game::{
+        sim::world::{World, BuildingId},
+        building::{Building, BuildingKind, BuildingKindAndId}
+    }
 };
 
 // ----------------------------------------------
@@ -117,40 +125,71 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // Workers
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
 pub enum Workers {
     Household {
         // total = employed + unemployed
         employed: u8,
         unemployed: u8,
+        employers: HashMap<BuildingKindAndId, u8>,
     },
     Employer {
         count: u8, // Current number of workers employed.
         min: u8,   // Minimum number of workers for service/production to run (at lower capacity).
         max: u8,   // Maximum number of workers it can employ (to run at full capacity).
+        households: HashMap<BuildingId, u8>,
     }
 }
 
 impl Workers {
+    #[inline]
     pub fn household(employed: u32, unemployed: u32) -> Self {
         Self::Household {
             employed: employed.try_into().expect("Workers count must be < 256"),
             unemployed: unemployed.try_into().expect("Workers count must be < 256"),
-        }
-    }
-
-    pub fn employer(min: u32, max: u32) -> Self {
-        debug_assert!(min <= max);
-        Self::Employer {
-            count: 0,
-            min: min.try_into().expect("Min workers must be < 256"),
-            max: max.try_into().expect("Max workers must be < 256"),
+            employers: HashMap::new(),
         }
     }
 
     #[inline]
     pub fn is_household(&self) -> bool {
         matches!(self, Self::Household { .. })
+    }
+
+    #[inline]
+    pub fn employed(&self) -> u32 {
+        if let Self::Household { employed, .. } = self {
+            return *employed as u32;
+        }
+        panic!("Not a Workers::Household!")
+    }
+
+    #[inline]
+    pub fn unemployed(&self) -> u32 {
+        if let Self::Household { unemployed, .. } = self {
+            return *unemployed as u32;
+        }
+        panic!("Not a Workers::Household!")
+    }
+
+    #[inline]
+    pub fn set_household_counts(&mut self, new_employed: u32, new_unemployed: u32) {
+        if let Self::Household { employed, unemployed, .. } = self {
+            *employed = new_employed.try_into().expect("Workers count must be < 256");
+            *unemployed = new_unemployed.try_into().expect("Workers count must be < 256");
+        } else {
+            panic!("Not a Workers::Household!");
+        }
+    }
+
+    #[inline]
+    pub fn employer(min: u32, max: u32) -> Self {
+        debug_assert!(min <= max);
+        Self::Employer {
+            count: 0,
+            min: min.try_into().expect("Min workers must be < 256"),
+            max: max.try_into().expect("Max workers must be < 256"),
+            households: HashMap::new(),
+        }
     }
 
     #[inline]
@@ -182,7 +221,7 @@ impl Workers {
     #[inline]
     pub fn max(&self) -> u32 {
         match self {
-            Self::Household { employed, unemployed } => (employed + unemployed) as u32,
+            Self::Household { employed, unemployed, .. } => (*employed + *unemployed) as u32,
             Self::Employer  { max, .. } => *max as u32,
         }
     }
@@ -192,88 +231,223 @@ impl Workers {
         self.count() == self.max()
     }
 
-    pub fn add(&mut self, amount: u32) -> u32 {
-        let amount_u8: u8 = amount.try_into().expect("Workers count must be < 256");
+    pub fn reset(&mut self) {
         match self {
-            Self::Household { employed, unemployed } => {
+            Self::Household { employed, unemployed, employers } => {
+                let total = *employed + *unemployed;
+                *employed = 0;
+                *unemployed = total;
+                employers.clear();
+            },
+            Self::Employer { count, households, .. } => {
+                *count = 0;
+                households.clear();
+            },
+        }
+    }
+
+    pub fn add(&mut self, amount: u32, source: BuildingKindAndId) -> u32 {
+        let amount_u8: u8 = amount.try_into().expect("Workers count must be < 256");
+        debug_assert!(amount_u8 != 0);
+        debug_assert!(source.is_valid());
+
+        match self {
+            Self::Household { employed, unemployed, employers } => {
                 let prev_employed = *employed;
-                let new_employed  = employed.saturating_sub(amount_u8);
+                let new_employed  = prev_employed.saturating_sub(amount_u8);
 
                 let prev_unemployed = *unemployed;
-                let new_unemployed  = unemployed.saturating_add(amount_u8);
+                let new_unemployed  = prev_unemployed + amount_u8;
 
                 if new_employed + new_unemployed <= prev_employed + prev_unemployed {
                     *employed   = new_employed;
                     *unemployed = new_unemployed;
-                    (new_unemployed - prev_unemployed) as u32 // Return amount added to unemployed count
+
+                    let unemployed_amount = new_unemployed - prev_unemployed;
+                    if let Entry::Occupied(mut e) = employers.entry(source) {
+                        if { *e.get_mut() = *e.get() - unemployed_amount; *e.get() == 0 } {
+                            e.remove_entry();
+                        }
+                    } else {
+                        panic!("Household: Expected to have an entry for ({}, {}); add({})", source.kind, source.id, amount);
+                    }
+                    unemployed_amount as u32 // Return amount added to unemployed count.
                 } else {
                     0
                 }
             },
-            Self::Employer { count, max, .. } => {
+            Self::Employer { count, max, households, .. } => {
+                debug_assert!(source.kind == BuildingKind::House);
+
                 let prev_count = *count;
                 let new_count  = (prev_count + amount_u8).min(*max);
                 *count = new_count;
-                (new_count - prev_count) as u32 // Return amount added
+
+                let employed_amount = new_count - prev_count;
+                if employed_amount != 0 {
+                    *households.entry(source.id).or_insert(0) += employed_amount;
+                }
+                employed_amount as u32 // Return amount added to employees.
             },
         }
     }
 
-    pub fn subtract(&mut self, amount: u32) -> u32 {
+    pub fn subtract(&mut self, amount: u32, source: BuildingKindAndId) -> u32 {
         let amount_u8: u8 = amount.try_into().expect("Workers count must be < 256");
+        debug_assert!(amount_u8 != 0);
+        debug_assert!(source.is_valid());
+
         match self {
-            Self::Household { employed, unemployed } => {
+            Self::Household { employed, unemployed, employers } => {
                 let prev_employed = *employed;
-                let new_employed  = employed.saturating_add(amount_u8);
+                let new_employed  = prev_employed + amount_u8;
 
                 let prev_unemployed = *unemployed;
-                let new_unemployed  = unemployed.saturating_sub(amount_u8);
+                let new_unemployed  = prev_unemployed.saturating_sub(amount_u8);
 
                 if new_employed + new_unemployed <= prev_employed + prev_unemployed {
                     *employed   = new_employed;
                     *unemployed = new_unemployed;
-                    (prev_unemployed - new_unemployed) as u32 // Return amount taken from unemployed count
+
+                    let employed_amount = prev_unemployed - new_unemployed;
+                    if employed_amount != 0 {
+                        *employers.entry(source).or_insert(0) += employed_amount;
+                    }
+                    employed_amount as u32 // Return amount taken from unemployed count. i.e., amount employed.
                 } else {
                     0
                 }
             },
-            Self::Employer { count, .. } => {
+            Self::Employer { count, households, .. } => {
+                debug_assert!(source.kind == BuildingKind::House);
+
                 let prev_count = *count;
                 let new_count  = prev_count.saturating_sub(amount_u8);
                 *count = new_count;
-                (prev_count - new_count) as u32 // Return amount subtracted
+
+                let unemployed_amount = prev_count - new_count;
+                if let Entry::Occupied(mut e) = households.entry(source.id) {
+                    if { *e.get_mut() = *e.get() - unemployed_amount; *e.get() == 0 } {
+                        e.remove_entry();
+                    }
+                } else {
+                    panic!("Employer: Expected to have an entry for ({}, {}); subtract({})", source.kind, source.id, amount);
+                }
+                unemployed_amount as u32 // Return amount subtracted from employees.
             },
         }
     }
 
-    #[inline]
-    pub fn employed(&self) -> u32 {
-        if let Self::Household { employed, .. } = self {
-            return *employed as u32;
+    pub fn for_each<F>(&self, world: &mut World, mut visitor_fn: F)
+        where F: FnMut(&mut Building, u32) -> bool
+    {
+        match self {
+            Self::Household { employers, .. } => {
+                for (employer_info, employed_count) in employers {
+                    if let Some(employer) = world.find_building_mut(employer_info.kind, employer_info.id) {
+                        if !visitor_fn(employer, *employed_count as u32) {
+                            return;
+                        }
+                    } else {
+                        log::error!("Household: Unknown employer record: ({}, {}); employed_count={}",
+                                    employer_info.kind, employer_info.id, employed_count);
+                    }
+                }
+            },
+            Self::Employer { households, .. } => {
+                for (house_id, employee_count) in households {
+                    if let Some(house) = world.find_building_mut(BuildingKind::House, *house_id) {
+                        if !visitor_fn(house, *employee_count as u32) {
+                            return;
+                        }
+                    } else {
+                        log::error!("Employer: Unknown employee household: {house_id}; employee_count={employee_count}");
+                    }
+                }
+            },
         }
-        panic!("Not a Workers::Household!")
     }
 
-    #[inline]
-    pub fn unemployed(&self) -> u32 {
-        if let Self::Household { unemployed, .. } = self {
-            return *unemployed as u32;
+    pub fn for_each_mut<F>(&mut self, world: &mut World, mut visitor_fn: F)
+        where F: FnMut(&mut Building, &mut u32) -> bool
+    {
+        match self {
+            Self::Household { employers, .. } => {
+                for (employer_info, employed_count) in &mut *employers {
+                    if let Some(employer) = world.find_building_mut(employer_info.kind, employer_info.id) {
+                        let mut count = *employed_count as u32;
+                        let should_continue = visitor_fn(employer, &mut count);
+                        *employed_count = count.try_into().unwrap();
+                        if !should_continue {
+                            break;
+                        }
+                    } else {
+                        log::error!("Household: Unknown employer record: ({}, {}); employed_count={}",
+                                    employer_info.kind, employer_info.id, employed_count);
+                    }
+                }
+                employers.retain(|_key, val| *val != 0);
+            },
+            Self::Employer { households, .. } => {
+                for (house_id, employee_count) in &mut *households {
+                    if let Some(house) = world.find_building_mut(BuildingKind::House, *house_id) {
+                        let mut count = *employee_count as u32;
+                        let should_continue = visitor_fn(house, &mut count);
+                        *employee_count = count.try_into().unwrap();
+                        if !should_continue {
+                            break;
+                        }
+                    } else {
+                        log::error!("Employer: Unknown employee household: {house_id}; employee_count={employee_count}");
+                    }
+                }
+                households.retain(|_key, val| *val != 0);
+            },
         }
-        panic!("Not a Workers::Household!")
     }
 
-    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         match self {
-            Self::Household { employed, unemployed } => {
+            Self::Household { employed, unemployed, employers } => {
                 ui.text(format!("Employed   : {}", employed));
                 ui.text(format!("Unemployed : {}", unemployed));
                 ui.text(format!("Total      : {}", *employed + *unemployed));
+
+                if !employers.is_empty() {
+                    ui.text("Employers:");
+                    ui.indent_by(10.0);
+
+                    for (employer_info, employed_count) in employers {
+                        if let Some(employer) = world.find_building(employer_info.kind, employer_info.id) {
+                            ui.text(format!("- {} c={} id={}: {}", employer.name(), employer.base_cell(), employer.id(), employed_count));
+                        } else {
+                            ui.text_colored(Color::red().to_array(), "<unknown employer record>");
+                        }
+                    }
+
+                    ui.unindent_by(10.0);
+                }
             },
-            Self::Employer { count, min, max } => {
+            Self::Employer { count, min, max, households } => {
                 ui.text(format!("Workers      : {}", count));
                 ui.text(format!("Min Required : {}", min));
                 ui.text(format!("Max Employed : {}", max));
+
+                if !households.is_empty() {
+                    ui.text("Households:");
+                    ui.indent_by(10.0);
+
+                    for (house_id, employee_count) in households {
+                        if let Some(house) = world.find_building(BuildingKind::House, *house_id) {
+                            ui.text(format!("- {} c={} id={}: {}", house.name(), house.base_cell(), house.id(), employee_count));
+                        } else {
+                            ui.text_colored(Color::red().to_array(), "<unknown employee household>");
+                        }
+                    }
+
+                    ui.unindent_by(10.0);
+                }
             },
         }
     }

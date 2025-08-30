@@ -625,7 +625,7 @@ impl<'config> World<'config> {
 // GenerationalIndex
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct GenerationalIndex {
     generation: u32,
     index: u32, // Index into pool/list; u32::MAX = invalid.

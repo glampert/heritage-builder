@@ -279,11 +279,11 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         Some(self.population)
     }
 
-    fn add_population(&mut self, _context: &BuildingContext, count: u32) -> u32 {
+    fn add_population(&mut self, context: &BuildingContext, count: u32) -> u32 {
         if count != 0 && !self.population.is_max() {
             let amount_added = self.population.add(count);
             self.debug.popup_msg_color(Color::green(), format!("+{amount_added} Population"));
-            self.adjust_workers_available();
+            self.adjust_workers_available(context);
             return amount_added;
         }
         0
@@ -293,7 +293,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         if count != 0 && self.population.count() != 0 {
             let amount_removed = self.population.subtract(count);
             self.evict_population(context, amount_removed);
-            self.adjust_workers_available();
+            self.adjust_workers_available(context);
             return amount_removed;
         }
         0
@@ -303,7 +303,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     // Workers:
     // ----------------------
 
-    fn workers(&self) -> Option<Workers> { Some(self.workers) }
+    fn workers(&self) -> Option<&Workers> { Some(&self.workers) }
     fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
 
     // ----------------------
@@ -507,7 +507,7 @@ impl<'config> HouseBuilding<'config> {
         let curr_population = self.population.set_max_and_count(new_max, new_population);
 
         if curr_population != prev_population {
-            self.adjust_workers_available();
+            self.adjust_workers_available(context);
 
             if curr_population < prev_population {
                 let amount_to_evict = prev_population - curr_population;
@@ -516,15 +516,36 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
-    fn adjust_workers_available(&mut self) {
+    fn adjust_workers_available(&mut self, context: &BuildingContext) {
         // Percentage of current household residents that are workers: [0,100].
         let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
         let curr_population   = self.population.count() as f32;
         let workers_available = (curr_population * worker_percentage).round() as u32;
 
-        let curr_employed  = self.workers.employed().min(workers_available);
-        let new_unemployed = workers_available - curr_employed;
-        self.workers = Workers::household(curr_employed, new_unemployed);
+        let curr_employed  = self.workers.employed(); 
+        let new_employed   = curr_employed.min(workers_available);
+        let new_unemployed = workers_available - new_employed;
+
+        if new_employed < curr_employed {
+            let mut difference = curr_employed - new_employed;
+            self.debug.popup_msg_color(Color::magenta(), format!("-{difference} workers"));
+
+            self.workers.for_each_mut(context.query.world(), |employer, employed_count| {
+                let removed_count = employer.remove_workers(
+                    (*employed_count).min(difference),
+                    context.kind_and_id());
+
+                *employed_count -= removed_count;
+
+                difference = difference.saturating_sub(removed_count);
+                if difference == 0 {
+                    return false; // stop
+                }
+                true // continue
+            });
+        }
+
+        self.workers.set_household_counts(new_employed, new_unemployed);
     }
 
     fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {

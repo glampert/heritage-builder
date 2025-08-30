@@ -215,7 +215,7 @@ impl BuildingConfigs {
                 tile_def_name: "storage_yard".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("storage_yard"),
                 min_workers: 0,
-                max_workers: 2,
+                max_workers: 4,
                 resources_accepted: ResourceKinds::all(),
                 num_slots: 8,
                 slot_capacity: 4,

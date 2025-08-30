@@ -219,7 +219,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
 
     fn active_runner(&mut self) -> Option<&mut Runner> { Some(&mut self.runner) }
 
-    fn workers(&self) -> Option<Workers> { Some(self.workers) }
+    fn workers(&self) -> Option<&Workers> { Some(&self.workers) }
     fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
 
     // ----------------------
