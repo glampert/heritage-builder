@@ -207,7 +207,6 @@ impl<'config> Building<'config> {
         }
     }
 
-    #[inline]
     pub fn placed(&mut self, query: &Query, id: BuildingId) {
         debug_assert!(id.is_valid());
         debug_assert!(!self.id.is_valid());
@@ -218,11 +217,11 @@ impl<'config> Building<'config> {
         self.archetype.placed(&context);
     }
 
-    #[inline]
     pub fn removed(&mut self, query: &Query) {
         debug_assert!(self.id.is_valid()); // Should be placed.
 
         self.remove_all_workers(query);
+        self.remove_all_population(query);
 
         let context = self.new_context(query);
         self.archetype.removed(&context);
@@ -315,7 +314,6 @@ impl<'config> Building<'config> {
     // World Update:
     // ----------------------
 
-    #[inline]
     pub fn update(&mut self, query: &Query<'config, '_>) {
         debug_assert!(self.id.is_valid());
 
@@ -330,7 +328,6 @@ impl<'config> Building<'config> {
         self.archetype.update(&context);
     }
 
-    #[inline]
     pub fn visited_by(&mut self, unit: &mut Unit, query: &Query) {
         debug_assert!(self.id.is_valid());
 
@@ -446,6 +443,11 @@ impl<'config> Building<'config> {
         self.archetype.remove_population(&context, count)
     }
 
+    #[inline]
+    fn remove_all_population(&mut self, query: &Query) {
+        self.remove_population(query, self.population_count());
+    }
+
     // ----------------------
     // Workers:
     // ----------------------
@@ -468,7 +470,7 @@ impl<'config> Building<'config> {
     // These return the amount added/removed, which can be <= the `count` parameter.
     pub fn add_workers(&mut self, count: u32, source: BuildingKindAndId) -> u32 {
         let mut workers_added = 0;
-        if count != 0 {
+        if count != 0 && !self.workers_is_maxed() {
             if let Some(workers) = self.archetype.workers_mut() {
                 workers_added = workers.add(count, source);
             }
@@ -483,9 +485,9 @@ impl<'config> Building<'config> {
 
     pub fn remove_workers(&mut self, count: u32, source: BuildingKindAndId) -> u32 {
         let mut workers_removed = 0;
-        if count != 0 {
+        if count != 0 && self.workers_count() != 0 {
             if let Some(workers) = self.archetype.workers_mut() {
-                workers_removed = workers.subtract(count, source);
+                workers_removed = workers.remove(count, source);
             }
 
             if workers_removed != 0 {
@@ -498,14 +500,14 @@ impl<'config> Building<'config> {
 
     fn remove_all_workers(&mut self, query: &Query) {
         if let Some(workers) = self.archetype.workers() {
-            if workers.is_employer() {
-                workers.for_each(query.world(), |house, employee_count| {
+            if let Ok(employer) = workers.as_employer() {
+                employer.for_each_employee_household(query.world(), |household, employee_count| {
                     // Put worker back into the house's worker pool.
-                    house.add_workers(employee_count, self.kind_and_id());
+                    household.add_workers(employee_count, self.kind_and_id());
                     true
                 });
-            } else if workers.is_household() {
-                workers.for_each(query.world(), |employer, employed_count| {
+            } else if let Ok(household) = workers.as_household_worker_pool() {
+                household.for_each_employer(query.world(), |employer, employed_count| {
                     // Tell employer workers are no longer available from this household.
                     employer.remove_workers(employed_count, self.kind_and_id());
                     true
@@ -525,38 +527,19 @@ impl<'config> Building<'config> {
             return;
         }
 
-        // TODO: WIP
-        //
-        // Employer: Remember the Id of every house we've sourced workers from, so when the building 
-        // is destroyed, we can return those workers to the house. If the house no longer exists
-        // or has downgraded, we just drop those workers.
-        //
-        // building destroyed:
-        // for h in building.workers.houses {
-        //    h.add_workers(amount_fired, source=building.id)
-        // }
-        //
-        // Household: Remember the Id of every building that has sourced workers from it.
-        // if the house downgrades or is destroyed, it must notify every building that workers
-        // have been lost.
-        //
-        // house destroyed/downgraded:
-        // for b in house.workers.buildings {
-        //    b.remove_workers(amount_lost, source=house.id)
-        // }
-        //
-        /*
+        // Search for employees if we're an Employer and not already at max capacity.
         if let Some(workers) = self.archetype.workers() {
-            if workers.is_employer() && !workers.is_max() {
-                if let Some(house) = self.find_house_with_available_workers(query) {
-                    let workers_available = house.workers_count();
-                    let workers_added = self.add_workers(workers_available);
-                    let workers_removed = house.remove_workers(workers_added);
-                    debug_assert!(workers_removed == workers_added);
+            if let Ok(employer) = workers.as_employer() {
+                if !employer.is_at_max_capacity() {
+                    if let Some(house) = self.find_house_with_available_workers(query) {
+                        let workers_available = house.workers_count();
+                        let workers_added = self.add_workers(workers_available, house.kind_and_id());
+                        let workers_removed = house.remove_workers(workers_added, self.kind_and_id());
+                        debug_assert!(workers_added == workers_removed);
+                    }
                 }
             }
         }
-        */
     }
 
     fn find_house_with_available_workers(&self, query: &'config Query) -> Option<&'config mut Building<'config>> {
@@ -714,13 +697,16 @@ impl<'config> Building<'config> {
                 }
 
                 if ui.button("Evict All Residents") {
-                    self.archetype.remove_population(&context, population.max());
+                    self.remove_all_population(query);
                 }
             }
         }
 
         if let Some(workers) = self.archetype.workers() {
             if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
+                let is_household_worker_pool = workers.is_household_worker_pool();
+                let is_employer = workers.is_employer();
+
                 workers.draw_debug_ui(query.world(), ui_sys);
                 ui.separator();
 
@@ -730,10 +716,15 @@ impl<'config> Building<'config> {
                     static mut BUILDING_GEN: u32 = 0;
                     static mut BUILDING_ID: usize = 0;
 
-                    ui.text("Source Building:");
+                    if is_household_worker_pool {
+                        ui.text("Select Employer:");
+                    } else {
+                        ui.text("Select Worker Household:");
+                    }
 
                     let kind = {
-                        if workers.is_employer() {
+                        if is_employer {
+                            // Employers only source workers from houses.
                             BUILDING_KIND_IDX = 0;
                             ui.combo_simple_string("Kind", &mut BUILDING_KIND_IDX, &["House"]);
                             BuildingKind::House
@@ -758,7 +749,8 @@ impl<'config> Building<'config> {
                 if ui.button("Add Worker (+1)") && !self.workers_is_maxed() {
                     if let Some(building) = query.world().find_building_mut(source.kind, source.id) {
                         let removed_count = building.remove_workers(1, self.kind_and_id());
-                        self.add_workers(removed_count, source);
+                        let added_count = self.add_workers(removed_count, source);
+                        debug_assert!(removed_count == added_count);
                     } else {
                         log::error!("Add Worker: Invalid source building id!");
                     }
@@ -767,7 +759,8 @@ impl<'config> Building<'config> {
                 if ui.button("Remove Worker (-1)") && self.workers_count() != 0 {
                     if let Some(building) = query.world().find_building_mut(source.kind, source.id) {
                         let added_count = building.add_workers(1, self.kind_and_id());
-                        self.remove_workers(added_count, source);
+                        let removed_count = self.remove_workers(added_count, source);
+                        debug_assert!(added_count == removed_count);
                     } else {
                         log::error!("Remove Worker: Invalid source building id!");
                     }
@@ -777,7 +770,10 @@ impl<'config> Building<'config> {
                     self.remove_all_workers(query);
                 }
 
-                self.workers_update_timer.draw_debug_ui("Update", 0, ui_sys);
+                if is_employer {
+                    // Only employers need to search for workers.
+                    self.workers_update_timer.draw_debug_ui("Update", 0, ui_sys);
+                }
             }
         }
 

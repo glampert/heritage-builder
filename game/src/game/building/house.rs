@@ -50,7 +50,7 @@ use super::{
 // TODO List
 // ----------------------------------------------
 
-// - Implement house population, workers pool & tax income.
+// - Implement household tax income.
 //
 // - Merge neighboring houses into larger ones when upgrading.
 //   Also have to update is_upgrade_available() to handle this!
@@ -66,14 +66,6 @@ use super::{
 //
 // - If houses stay without access to basic resources for too long (food/water),
 //   settlers may decide to leave (house may downgrade back to vacant lot).
-//
-// - Services should look for houses in their vicinity to find workers.
-//   Services will then allocate workers from a nearby house, taking from
-//   the house's worker pool. If the house is destroyed, we have to take
-//   those workers away and the building has to find new ones. If the
-//   building is destroyed, the house gains workers back into its pool.
-//    - Buildings hold ids to the houses they source their workers from?
-//    - Houses hold ids to the buildings they supply workers to?
 
 // ----------------------------------------------
 // HouseConfig & HouseLevelConfig
@@ -201,13 +193,6 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         }
     }
 
-    fn removed(&mut self, context: &BuildingContext) {
-        if self.population.count() != 0 {
-            // House is being destroyed, evict all residents.
-            self.adjust_population(context, 0, 0);
-        }
-    }
-
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>) {
         let delta_time_secs = context.query.delta_time_secs();
 
@@ -291,7 +276,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 
     fn remove_population(&mut self, context: &BuildingContext, count: u32) -> u32 {
         if count != 0 && self.population.count() != 0 {
-            let amount_removed = self.population.subtract(count);
+            let amount_removed = self.population.remove(count);
             self.evict_population(context, amount_removed);
             self.adjust_workers_available(context);
             return amount_removed;
@@ -332,7 +317,7 @@ impl<'config> HouseBuilding<'config> {
             upgrade_state.curr_level_config.stock_capacity);
 
         Self {
-            workers: Workers::household(0, 0),
+            workers: Workers::household_worker_pool(0, 0),
             population_update_timer: UpdateTimer::new(house_config.population_update_frequency_secs),
             population: Population::new(0, upgrade_state.curr_level_config.max_population),
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
@@ -522,7 +507,9 @@ impl<'config> HouseBuilding<'config> {
         let curr_population   = self.population.count() as f32;
         let workers_available = (curr_population * worker_percentage).round() as u32;
 
-        let curr_employed  = self.workers.employed(); 
+        let workers = self.workers.as_household_worker_pool_mut().unwrap();
+
+        let curr_employed  = workers.employed_count(); 
         let new_employed   = curr_employed.min(workers_available);
         let new_unemployed = workers_available - new_employed;
 
@@ -530,7 +517,7 @@ impl<'config> HouseBuilding<'config> {
             let mut difference = curr_employed - new_employed;
             self.debug.popup_msg_color(Color::magenta(), format!("-{difference} workers"));
 
-            self.workers.for_each_mut(context.query.world(), |employer, employed_count| {
+            workers.for_each_employer_mut(context.query.world(), |employer, employed_count| {
                 let removed_count = employer.remove_workers(
                     (*employed_count).min(difference),
                     context.kind_and_id());
@@ -545,7 +532,7 @@ impl<'config> HouseBuilding<'config> {
             });
         }
 
-        self.workers.set_household_counts(new_employed, new_unemployed);
+        workers.set_counts(new_employed, new_unemployed);
     }
 
     fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {
