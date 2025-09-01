@@ -12,6 +12,7 @@ use crate::{
         hash::StringHash
     },
     game::{
+        cheats,
         unit::{
             Unit,
             task::{
@@ -108,6 +109,10 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     }
 
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
+        if !self.has_min_required_workers() {
+            return;
+        }
+
         let task_manager = context.query.task_manager();
 
         if let Some(task) = unit.current_task_as::<UnitTaskDeliverToStorage>(task_manager) {
@@ -150,18 +155,22 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     // ----------------------
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
-        self.storage_slots.available_resources(kind)
+        if self.has_min_required_workers() {
+            return self.storage_slots.available_resources(kind);
+        }
+        0
     }
 
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
-        // TODO: If we are not operating (no workers),
-        // make this return zero so storage search will ignore it.
-        self.storage_slots.receivable_resources(kind)
+        if self.has_min_required_workers() {
+            return self.storage_slots.receivable_resources(kind);
+        }
+        0
     }
 
     // Returns number of resources it was able to accommodate, which can be less than `count`.
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        if count != 0 {
+        if count != 0 && self.has_min_required_workers() {
             let received_count = self.storage_slots.receive_resources(kind, count);
             self.debug.log_resources_gained(kind, received_count);
             return received_count;
@@ -170,7 +179,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     }
 
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        if count != 0 {
+        if count != 0 && self.has_min_required_workers() {
             let removed_count = self.storage_slots.remove_resources(kind, count);
             self.debug.log_resources_lost(kind, removed_count);
             return removed_count;
@@ -228,6 +237,14 @@ impl<'config> StorageBuilding<'config> {
             ),
             debug: StorageDebug::default(),
         }
+    }
+
+    #[inline]
+    fn has_min_required_workers(&self) -> bool {
+        if cheats::get().ignore_worker_requirements {
+            return true;
+        }
+        self.workers.as_employer().unwrap().has_min_required()
     }
 }
 

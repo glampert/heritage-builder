@@ -11,6 +11,7 @@ use crate::{
         hash::StringHash
     },
     game::{
+        cheats,
         unit::{
             Unit,
             UnitTaskHelper,
@@ -122,17 +123,18 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
 
     fn update(&mut self, context: &BuildingContext) {
         let delta_time_secs = context.query.delta_time_secs();
+        let has_min_required_workers = self.has_min_required_workers();
 
         // Procure resources from storage periodically if we need them.
         if self.stock.accepts_any() &&
            self.stock_update_timer.tick(delta_time_secs).should_update() &&
-          !self.debug.freeze_stock_update() {
+           has_min_required_workers && !self.debug.freeze_stock_update() {
             self.stock_update(context);
         }
 
         if self.has_patrol_unit() &&
            self.patrol_timer.tick(delta_time_secs).should_update() &&
-          !self.debug.freeze_patrol() {
+           has_min_required_workers && !self.debug.freeze_patrol() {
             self.send_out_patrol_unit(context);
         }
     }
@@ -147,23 +149,35 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     // ----------------------
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
-        self.stock.available_resources(kind)
+        if self.has_min_required_workers() {
+            return self.stock.available_resources(kind);
+        }
+        0
     }
 
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
-        self.stock.receivable_resources(kind)
+        if self.has_min_required_workers() {
+            return self.stock.receivable_resources(kind);
+        }
+        0
     }
 
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let received_count = self.stock.receive_resources(kind, count);
-        self.debug.log_resources_gained(kind, received_count);
-        received_count
+        if count != 0 && self.has_min_required_workers() {
+            let received_count = self.stock.receive_resources(kind, count);
+            self.debug.log_resources_gained(kind, received_count);
+            return received_count;
+        }
+        0
     }
 
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let removed_count = self.stock.remove_resources(kind, count);
-        self.debug.log_resources_lost(kind, removed_count);
-        removed_count
+        if count != 0 && self.has_min_required_workers() {
+            let removed_count = self.stock.remove_resources(kind, count);
+            self.debug.log_resources_lost(kind, removed_count);
+            return removed_count;
+        }
+        0
     }
 
     fn tally(&self, stats: &mut WorldStats, kind: BuildingKind) {
@@ -218,6 +232,14 @@ impl<'config> ServiceBuilding<'config> {
             patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
             debug: ServiceDebug::default(),
         }
+    }
+
+    #[inline]
+    fn has_min_required_workers(&self) -> bool {
+        if cheats::get().ignore_worker_requirements {
+            return true;
+        }
+        self.workers.as_employer().unwrap().has_min_required()
     }
 
     // ----------------------

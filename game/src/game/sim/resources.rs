@@ -15,6 +15,7 @@ use crate::{
     imgui_ui::UiSystem,
     utils::Color,
     game::{
+        cheats,
         sim::world::{World, BuildingId},
         building::{Building, BuildingKind, BuildingKindAndId}
     }
@@ -330,6 +331,11 @@ impl Employer {
         self.employee_count < self.min_employees
     }
 
+    #[inline]
+    pub fn has_min_required(&self) -> bool {
+        self.employee_count >= self.min_employees
+    }
+
     pub fn for_each_employee_household<F>(&self, world: &mut World, mut visitor_fn: F)
         where F: FnMut(&mut Building, u32) -> bool
     {
@@ -414,7 +420,9 @@ impl Employer {
         ui.text(format!("Min Required     : {}", self.min_employees));
         ui.text(format!("Max Employed     : {}", self.max_employees));
 
-        if self.is_below_min_required() {
+        if cheats::get().ignore_worker_requirements {
+            ui.text_colored(Color::green().to_array(), "CHEAT ignore_worker_requirements ON");
+        } else if self.is_below_min_required() {
             ui.text_colored(Color::red().to_array(), "Below Min Required Workers");
         } else if self.is_at_max_capacity() {
             ui.text_colored(Color::green().to_array(), "Has All Required Workers");

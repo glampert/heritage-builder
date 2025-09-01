@@ -12,6 +12,7 @@ use crate::{
         hash::StringHash
     },
     game::{
+        cheats,
         unit::{
             Unit,
             UnitTaskHelper,
@@ -134,7 +135,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         let delta_time_secs = context.query.delta_time_secs();
 
         // Update producer states:
-        if self.production_update_timer.tick(delta_time_secs).should_update() {
+        if self.production_update_timer.tick(delta_time_secs).should_update() && self.has_min_required_workers() {
             if !self.debug.freeze_production() {
                 self.production_update();
             }
@@ -151,9 +152,11 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         // We can only accept resource deliveries here.
         debug_assert!(unit.is_running_task::<UnitTaskDeliverToStorage>(context.query.task_manager()));
 
-        if self.is_runner_fetching_resources(context.query) {
-            // If we've already sent out a runner to fetch some resources we'll refuse deliveries.
-            // Let this runner deliver the resources somewhere else.
+        if self.is_runner_fetching_resources(context.query) || !self.has_min_required_workers() {
+            // If we've already sent out a runner to fetch some resources we'll refuse deliveries,
+            // let this runner deliver the resources somewhere else.
+            //
+            // Additionally, if we don't have enough workers we cannot receive the delivery.
             return;
         }
 
@@ -176,18 +179,22 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     // ----------------------
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
-        self.production_output_stock.available_resources(kind)
+        if self.has_min_required_workers() {
+            return self.production_output_stock.available_resources(kind);
+        }
+        0
     }
 
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
-        // TODO: If we are not operating (no workers),
-        // make this return zero so storage search will ignore it.
-        self.production_input_stock.receivable_resources(kind)
+        if self.has_min_required_workers() {
+            return self.production_input_stock.receivable_resources(kind);
+        }
+        0
     }
 
     // Returns number of resources it was able to accommodate, which can be less than `count`.
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        if count != 0 {
+        if count != 0 && self.has_min_required_workers() {
             let received_count = self.production_input_stock.receive_resources(kind, count);
             self.debug.log_resources_gained(kind, received_count);
             return received_count;
@@ -196,7 +203,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     }
 
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        if count != 0 {
+        if count != 0 && self.has_min_required_workers() {
             let removed_count = self.production_output_stock.remove_resources(kind, count);
             self.debug.log_resources_lost(kind, removed_count);
             return removed_count;
@@ -257,6 +264,14 @@ impl<'config> ProducerBuilding<'config> {
             runner: Runner::default(),
             debug: ProducerDebug::default(),
         }
+    }
+
+    #[inline]
+    fn has_min_required_workers(&self) -> bool {
+        if cheats::get().ignore_worker_requirements {
+            return true;
+        }
+        self.workers.as_employer().unwrap().has_min_required()
     }
 
     fn production_update(&mut self) {
@@ -404,6 +419,7 @@ impl<'config> ProducerBuilding<'config> {
         self.runner.is_running_task::<UnitTaskFetchFromStorage>(query)
     }
 
+    #[inline]
     fn is_production_halted(&self) -> bool {
         if self.debug.freeze_production() {
             return true;
