@@ -458,18 +458,18 @@ impl Workers {
     }
 
     #[inline]
-    pub fn as_household_worker_pool(&self) -> Result<&HouseholdWorkerPool, &str> {
+    pub fn as_household_worker_pool(&self) -> Option<&HouseholdWorkerPool> {
         match self {
-            Self::HouseholdWorkerPool(state) => Ok(state),
-            _ => Err("Not a HouseholdWorkerPool!"),
+            Self::HouseholdWorkerPool(state) => Some(state),
+            _ => None,
         }
     }
 
     #[inline]
-    pub fn as_household_worker_pool_mut(&mut self) -> Result<&mut HouseholdWorkerPool, &str> {
+    pub fn as_household_worker_pool_mut(&mut self) -> Option<&mut HouseholdWorkerPool> {
         match self {
-            Self::HouseholdWorkerPool(state) => Ok(state),
-            _ => Err("Not a HouseholdWorkerPool!"),
+            Self::HouseholdWorkerPool(state) => Some(state),
+            _ => None,
         }
     }
 
@@ -484,18 +484,18 @@ impl Workers {
     }
 
     #[inline]
-    pub fn as_employer(&self) -> Result<&Employer, &str> {
+    pub fn as_employer(&self) -> Option<&Employer> {
         match self {
-            Self::Employer(state) => Ok(state),
-            _ => Err("Not an Employer!"),
+            Self::Employer(state) => Some(state),
+            _ => None,
         }
     }
 
     #[inline]
-    pub fn as_employer_mut(&mut self) -> Result<&mut Employer, &str> {
+    pub fn as_employer_mut(&mut self) -> Option<&mut Employer> {
         match self {
-            Self::Employer(state) => Ok(state),
-            _ => Err("Not an Employer!"),
+            Self::Employer(state) => Some(state),
+            _ => None,
         }
     }
 

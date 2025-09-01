@@ -500,13 +500,13 @@ impl<'config> Building<'config> {
 
     fn remove_all_workers(&mut self, query: &Query) {
         if let Some(workers) = self.archetype.workers() {
-            if let Ok(employer) = workers.as_employer() {
+            if let Some(employer) = workers.as_employer() {
                 employer.for_each_employee_household(query.world(), |household, employee_count| {
                     // Put worker back into the house's worker pool.
                     household.add_workers(employee_count, self.kind_and_id());
                     true
                 });
-            } else if let Ok(household) = workers.as_household_worker_pool() {
+            } else if let Some(household) = workers.as_household_worker_pool() {
                 household.for_each_employer(query.world(), |employer, employed_count| {
                     // Tell employer workers are no longer available from this household.
                     employer.remove_workers(employed_count, self.kind_and_id());
@@ -529,7 +529,7 @@ impl<'config> Building<'config> {
 
         // Search for employees if we're an Employer and not already at max capacity.
         if let Some(workers) = self.archetype.workers() {
-            if let Ok(employer) = workers.as_employer() {
+            if let Some(employer) = workers.as_employer() {
                 if !employer.is_at_max_capacity() {
                     if let Some(house) = self.find_house_with_available_workers(query) {
                         let workers_available = house.workers_count();

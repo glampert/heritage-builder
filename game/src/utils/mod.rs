@@ -6,6 +6,8 @@ use arrayvec::ArrayString;
 use std::{
     time::{self},
     cell::UnsafeCell,
+    sync::OnceLock,
+    thread::ThreadId,
     ops::{
         Add,
         AddAssign,
@@ -947,5 +949,78 @@ impl<'de, T> Deserialize<'de> for UnsafeMutable<T>
         where D: Deserializer<'de>
     {
         T::deserialize(deserializer).map(UnsafeMutable::new)
+    }
+}
+
+// ----------------------------------------------
+// SingleThreadStatic
+// ----------------------------------------------
+
+// A single-threaded mutable global static variable.
+// Safe as long as only one thread ever touches it.
+// If another thread tries, it will panic (not UB).
+// First thread to access the instance claims ownership.
+pub struct SingleThreadStatic<T> {
+    value: UnsafeCell<T>,
+    owner: OnceLock<ThreadId>,
+}
+
+impl<T> SingleThreadStatic<T> {
+    #[inline]
+    pub const fn new(value: T) -> Self {
+        Self {
+            value: UnsafeCell::new(value),
+            owner: OnceLock::new(),
+        }
+    }
+
+    #[inline]
+    pub fn set(&self, value: T) {
+        *self.as_mut() = value;
+    }
+
+    #[inline]
+    pub fn as_ref(&self) -> &T {
+        self.assert_owner();
+        unsafe { &*self.value.get() }
+    }
+
+    #[inline]
+    pub fn as_mut(&self) -> &mut T {
+        self.assert_owner();
+        unsafe { &mut *self.value.get() }
+    }
+
+    fn assert_owner(&self) {
+        let this_thread = std::thread::current().id();
+        match self.owner.get() {
+            Some(owner) if *owner == this_thread => {}, // Same thread, no action.
+            Some(_) => panic!("SingleThreadStatic accessed from non-owner thread!"),
+            None => {
+                // First access claims ownership:
+                self.owner.set(this_thread)
+                    .unwrap_or_else(|_| panic!("Failed to set owner thread id!"));
+            }
+        }
+    }
+}
+
+// SAFETY: Safe to share references because we enforce single-threaded access with assert_owner().
+unsafe impl<T> Sync for SingleThreadStatic<T> {}
+
+// Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
+impl<T> Deref for SingleThreadStatic<T> {
+    type Target = T;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+impl<T> DerefMut for SingleThreadStatic<T> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_mut()
     }
 }

@@ -1,6 +1,5 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::cell::OnceCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
@@ -12,7 +11,7 @@ use crate::{
     utils::{
         Vec2,
         UnsafeWeakRef,
-        UnsafeMutable,
+        SingleThreadStatic,
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
     tile::{
@@ -438,27 +437,26 @@ impl DebugMenusSingleton {
 // DebugMenusSingleton Instance
 // ----------------------------------------------
 
-std::thread_local! {
-    static DEBUG_MENUS_SINGLETON: OnceCell<UnsafeMutable<DebugMenusSingleton>> = const { OnceCell::new() };
-}
+static DEBUG_MENUS_SINGLETON: SingleThreadStatic<Option<DebugMenusSingleton>> = SingleThreadStatic::new(None);
 
 fn init_singleton(tex_cache: &mut impl TextureCache, debug_settings_open: bool, tile_palette_open: bool) {
-    DEBUG_MENUS_SINGLETON.with(|once_cell| {
-        once_cell.set(UnsafeMutable::new(DebugMenusSingleton::new(tex_cache, debug_settings_open, tile_palette_open)))
-            .unwrap_or_else(|_| panic!("DebugMenusSystem was already initialized! Only one instance permitted."));
-    });
+    if DEBUG_MENUS_SINGLETON.is_some() {
+        panic!("DebugMenusSystem was already initialized! Only one instance permitted.");
+    }
+
+    DEBUG_MENUS_SINGLETON.set(Some(
+        DebugMenusSingleton::new(tex_cache, debug_settings_open, tile_palette_open)
+    ));
 }
 
 fn use_singleton<F, R>(mut closure: F) -> R
     where F: FnMut(&mut DebugMenusSingleton) -> R
 {
-    DEBUG_MENUS_SINGLETON.with(|once_cell| {
-        if let Some(instance) = once_cell.get() {
-            closure(instance.as_mut())
-        } else {
-            panic!("DebugMenusSystem singleton instance is not initialized!")
-        }
-    })
+    if let Some(instance) = DEBUG_MENUS_SINGLETON.as_mut() {
+        return closure(instance);
+    }
+
+    panic!("DebugMenusSystem singleton instance is not initialized!");
 }
 
 // ----------------------------------------------
@@ -468,39 +466,43 @@ fn use_singleton<F, R>(mut closure: F) -> R
 static SHOW_DEBUG_POPUP_MESSAGES: AtomicBool = AtomicBool::new(false);
 
 pub fn set_show_popup_messages(show: bool) {
-    SHOW_DEBUG_POPUP_MESSAGES.store(show, Ordering::SeqCst);
+    SHOW_DEBUG_POPUP_MESSAGES.store(show, Ordering::Relaxed);
 }
 
 pub fn show_popup_messages() -> bool {
-    SHOW_DEBUG_POPUP_MESSAGES.load(Ordering::SeqCst)
+    SHOW_DEBUG_POPUP_MESSAGES.load(Ordering::Relaxed)
 }
 
 // ----------------------------------------------
 // Global TileMap debug ref
 // ----------------------------------------------
 
-std::thread_local! {
-    // Using this to get tile names from cells directly for debugging & logging.
-    // SAFETY: Must make sure the tile map instance set on initialization stays valid until app termination.
-    static TILE_MAP_DEBUG_REF: OnceCell<UnsafeWeakRef<TileMap<'static>>> = const { OnceCell::new() };
+struct TileMapWeakRef(UnsafeWeakRef<TileMap<'static>>);
+
+impl TileMapWeakRef {
+    fn new(tile_map: &TileMap) -> Self {
+        // Strip away lifetime (pretend it is static).
+        let tile_map_ptr = tile_map as *const TileMap<'_> as *const TileMap<'static>;
+        Self(UnsafeWeakRef::from_ptr(tile_map_ptr))
+    }
 }
 
-fn init_tile_map_debug_ref(tile_map: &TileMap) {
-    // Strip away lifetime (pretend it is static).
-    let tile_map_ptr = tile_map as *const TileMap<'_> as *const TileMap<'static>;
-    let weak_ref = UnsafeWeakRef::from_ptr(tile_map_ptr);
+// Using this to get tile names from cells directly for debugging & logging.
+// SAFETY: Must make sure the tile map instance set on initialization stays valid until app termination.
+static TILE_MAP_DEBUG_REF: SingleThreadStatic<Option<TileMapWeakRef>> = SingleThreadStatic::new(None);
 
-    TILE_MAP_DEBUG_REF.with(|once_cell| {
-        once_cell.set(weak_ref).unwrap_or_else(|_| panic!("TILE_MAP_DEBUG_REF was already set!"));
-    });
+fn init_tile_map_debug_ref(tile_map: &TileMap) {
+    if TILE_MAP_DEBUG_REF.is_some() {
+        panic!("TILE_MAP_DEBUG_REF was already set!");
+    }
+
+    TILE_MAP_DEBUG_REF.set(Some(TileMapWeakRef::new(tile_map)));
 }
 
 pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {
-    TILE_MAP_DEBUG_REF.with(|once_cell| {
-        if let Some(tile_map) = once_cell.get() {
-            return tile_map.try_tile_from_layer(cell, layer)
-                .map_or("", |tile| tile.name());
-        }
-        ""
-    })
+    if let Some(tile_map) = TILE_MAP_DEBUG_REF.as_ref() {
+        return tile_map.0.try_tile_from_layer(cell, layer)
+            .map_or("", |tile| tile.name());
+    }
+    ""
 }
