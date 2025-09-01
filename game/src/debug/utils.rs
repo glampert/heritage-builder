@@ -1,7 +1,10 @@
 use crate::{
     log,
     imgui_ui::UiSystem,
-    game::sim::{DebugQueryBuilder, world::World},
+    game::{
+        cheats::{self, Cheats},
+        sim::{DebugQueryBuilder, world::World}
+    },
     render::{RenderSystem, RenderStats},
     utils::{
         Color,
@@ -359,6 +362,7 @@ mod test_maps {
         map_size_in_cells: Size,
         terrain_tiles:  &'static [i32],
         building_tiles: &'static [i32],
+        enable_cheats_fn: Option<fn(&mut Cheats)>,
     }
 
     // TERRAIN:
@@ -417,6 +421,9 @@ mod test_maps {
             X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
         ],
+        enable_cheats_fn: Some(|cheats| {
+            cheats.ignore_worker_requirements = true
+        })
     };
 
     // 1 farm, 1 storage (granary)
@@ -444,6 +451,9 @@ mod test_maps {
             X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
         ],
+        enable_cheats_fn: Some(|cheats| {
+            cheats.ignore_worker_requirements = true
+        })
     };
 
     // 1 farm, 2 storages (granary, storage yard), 1 factory (distillery)
@@ -477,6 +487,9 @@ mod test_maps {
             X,X,X,X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,X,X,X,
         ],
+        enable_cheats_fn: Some(|cheats| {
+            cheats.ignore_worker_requirements = true
+        })
     };
 
     const PRESET_TILES: [&PresetTiles; 3] = [
@@ -547,7 +560,11 @@ mod test_maps {
                                                             tile_sets: &'tile_sets TileSets,
                                                             preset_number: usize) -> TileMap<'tile_sets> {
         log::info!("Creating test tile map: PRESET {} ...", preset_number);
-        build_tile_map(PRESET_TILES[preset_number], world, tile_sets)
+        let preset = PRESET_TILES[preset_number];
+        if let Some(enable_cheats_fn) = preset.enable_cheats_fn {
+            enable_cheats_fn(cheats::get_mut());
+        }
+        build_tile_map(preset, world, tile_sets)
     }
 }
 

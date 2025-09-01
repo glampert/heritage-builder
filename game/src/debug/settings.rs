@@ -4,7 +4,7 @@ use crate::{
     imgui_ui::UiSystem,
     utils::hash::{self},
     game::{
-        cheats::{self},
+        cheats,
         sim::{self, Simulation},
     },
     tile::{
