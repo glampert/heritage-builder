@@ -67,6 +67,7 @@ pub struct BuildingConfigs {
     house0: HouseLevelConfig,
     house1: HouseLevelConfig,
     house2: HouseLevelConfig,
+    house3: HouseLevelConfig,
     service_well_small: ServiceConfig,
     service_well_big: ServiceConfig,
     service_market: ServiceConfig,
@@ -124,6 +125,19 @@ impl BuildingConfigs {
                 services_required: ServiceKinds::with_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
                 // 2 kinds of food required: Rice AND Meat OR Fish.
                 resources_required: ResourceKinds::with_slice(&[ResourceKind::Rice, ResourceKind::Meat | ResourceKind::Fish]),
+                stock_capacity: 15,
+            },
+            house3: HouseLevelConfig {
+                name: "House Level 3".to_string(),
+                tile_def_name: "house3".to_string(),
+                tile_def_name_hash: hash::fnv1a_from_str("house3"),
+                max_population: 8,
+                tax_generated: 3,
+                worker_percentage: 50,
+                population_increase_chance: 50,
+                services_required: ServiceKinds::with_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
+                // 2 kinds of food required: Rice AND Meat OR Fish.
+                resources_required: ResourceKinds::with_slice(&[ResourceKind::Rice, ResourceKind::Meat | ResourceKind::Fish, ResourceKind::Wine]),
                 stock_capacity: 15,
             },
             service_well_small: ServiceConfig {
@@ -242,6 +256,7 @@ impl BuildingConfigs {
             HouseLevel::Level0 => &self.house0,
             HouseLevel::Level1 => &self.house1,
             HouseLevel::Level2 => &self.house2,
+            HouseLevel::Level3 => &self.house3,
         }
     }
 

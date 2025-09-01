@@ -563,6 +563,7 @@ pub enum HouseLevel {
     Level0,
     Level1,
     Level2,
+    Level3,
 }
 
 impl HouseLevel {
@@ -906,6 +907,60 @@ impl<'config> HouseUpgradeState<'config> {
 
         true
     }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+    // Replaces the give tile if the placement is valid, fails and leaves the map unchanged otherwise.
+    fn try_replace_tile_v2<'tile_sets>(context: &BuildingContext<'config, 'tile_sets, '_>,
+                                       tile_def_to_place: &'tile_sets TileDef) -> bool {
+
+        //TODO
+
+        // NOTE: merged houses should combine the resources, population and workers of all merged!
+
+        true
+    }
+
+    // Check if we can increment the level and if there's enough space to expand the house.
+    fn is_upgrade_available_v2(&self, context: &BuildingContext) -> bool {
+        if self.level.is_max() {
+            return false;
+        }
+
+        //TODO
+
+        true
+    }
+
+    fn has_enough_room_for_level_tile(level: HouseLevel, context: &BuildingContext) -> bool {
+        let level_config = context.query.building_configs().find_house_level_config(level);
+
+        let tile_def = match context.find_tile_def(level_config.tile_def_name_hash) {
+            Some(tile_def) => tile_def,
+            None => {
+                log::error!(log::channel!("house"), "Failed to find TileDef '{}' for level: {:?}",
+                            level_config.tile_def_name, level);
+                return false;
+            },
+        };
+
+        let tile_map = context.query.tile_map();
+        let cell_range = tile_def.cell_range(context.base_cell());
+
+        for cell in &cell_range {
+            if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                let is_self = tile.base_cell() == context.base_cell();
+                if !is_self {
+                    // Cannot expand here.
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+*/
 }
 
 // ----------------------------------------------
@@ -986,17 +1041,23 @@ impl<'config> HouseBuilding<'config> {
         let mut level_num: u8 = self.upgrade_state.level.into();
         if ui.input_scalar("Level", &mut level_num).step(1).build() {
             if let Ok(level) = HouseLevel::try_from_primitive(level_num) {
+                let mut upgraded = false;
+                let mut downgraded = false;
+
                 match level.cmp(&self.upgrade_state.level) {
                     std::cmp::Ordering::Greater => {
-                        self.upgrade_state.try_upgrade(context, &mut self.debug);
+                        upgraded = self.upgrade_state.try_upgrade(context, &mut self.debug);
                     },
                     std::cmp::Ordering::Less => {
-                        self.upgrade_state.try_downgrade(context, &mut self.debug);
+                        downgraded = self.upgrade_state.try_downgrade(context, &mut self.debug);
                     },
                     std::cmp::Ordering::Equal => {} // nothing
                 }
-                self.stock.update_capacities(self.current_level_config().stock_capacity);
-                self.adjust_population(context, self.population.count(), self.current_level_config().max_population);
+
+                if upgraded || downgraded {
+                    self.stock.update_capacities(self.current_level_config().stock_capacity);
+                    self.adjust_population(context, self.population.count(), self.current_level_config().max_population);
+                }
             }
         }
 

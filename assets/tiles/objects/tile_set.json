@@ -128,6 +128,43 @@
                     ]
                 },
                 {
+                    "name": "house3",
+                    "logical_size": {
+                        "width": 192,
+                        "height": 96
+                    },
+                    "draw_size": {
+                        "width": 204,
+                        "height": 124
+                    },
+                    "variations": [
+                        {
+                            "name": "var0",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "var1",
+                            "anim_sets": [
+                                {
+                                    "frames": [
+                                        {
+                                            "name": "frame0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
                     "name": "market",
                     "logical_size": {
                         "width": 192,
