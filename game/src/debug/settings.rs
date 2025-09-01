@@ -3,7 +3,10 @@ use proc_macros::DrawDebugUi;
 use crate::{
     imgui_ui::UiSystem,
     utils::hash::{self},
-    game::sim::{self, Simulation},
+    game::{
+        cheats::{self},
+        sim::{self, Simulation},
+    },
     tile::{
         TileMapLayerKind,
         camera::Camera,
@@ -128,6 +131,7 @@ impl DebugSettingsMenu {
                 self.map_grid_dropdown(context.ui_sys, tile_map_renderer);
                 self.reset_map_dropdown(context, sim);
                 self.debug_draw_dropdown(context.ui_sys);
+                cheats::draw_debug_ui(context.ui_sys);
             });
 
         if self.show_world_debug {
