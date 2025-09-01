@@ -477,7 +477,7 @@ impl<'config> Building<'config> {
 
             if workers_added != 0 {
                 self.archetype.debug_options()
-                    .popup_msg_color_inner(Color::cyan(), format!("+{workers_added} workers").into());
+                    .popup_msg_color_string(Color::cyan(), format!("+{workers_added} workers").into());
             }
         }
         workers_added
@@ -492,7 +492,7 @@ impl<'config> Building<'config> {
 
             if workers_removed != 0 {
                 self.archetype.debug_options()
-                    .popup_msg_color_inner(Color::magenta(), format!("-{workers_removed} workers").into());
+                    .popup_msg_color_string(Color::magenta(), format!("-{workers_removed} workers").into());
             }
         }
         workers_removed

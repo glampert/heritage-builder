@@ -173,7 +173,7 @@ pub trait GameObjectDebugOptions {
     }
 
     #[inline]
-    fn popup_msg_inner(&mut self, text: Cow<'static, str>) {
+    fn popup_msg_string(&mut self, text: Cow<'static, str>) {
         let popups = self.get_popups();
         if popups.show {
             const LIFETIME: Seconds = 9.0;
@@ -182,7 +182,7 @@ pub trait GameObjectDebugOptions {
     }
 
     #[inline]
-    fn popup_msg_color_inner(&mut self, color: Color, text: Cow<'static, str>) {
+    fn popup_msg_color_string(&mut self, color: Color, text: Cow<'static, str>) {
         let popups = self.get_popups();
         if popups.show {
             const LIFETIME: Seconds = 9.0;
@@ -193,14 +193,14 @@ pub trait GameObjectDebugOptions {
     #[inline]
     fn log_resources_gained(&mut self, kind: ResourceKind, count: u32) {
         if self.get_popups().show && !kind.is_empty() && count != 0 {
-            self.popup_msg_color_inner(Color::green(), format!("+{count} {kind}").into());
+            self.popup_msg_color_string(Color::green(), format!("+{count} {kind}").into());
         }
     }
 
     #[inline]
     fn log_resources_lost(&mut self, kind: ResourceKind, count: u32) {
         if self.get_popups().show && !kind.is_empty() && count != 0 {
-            self.popup_msg_color_inner(Color::red(), format!("-{count} {kind}").into());
+            self.popup_msg_color_string(Color::red(), format!("-{count} {kind}").into());
         }
     }
 }
@@ -272,14 +272,14 @@ macro_rules! game_object_debug_options {
                 fn popup_msg<T>(&mut self, text: T)
                     where T: Into<Cow<'static, str>>
                 {
-                    GameObjectDebugOptions::popup_msg_inner(self, text.into());
+                    GameObjectDebugOptions::popup_msg_string(self, text.into());
                 }
 
                 #[inline]
                 fn popup_msg_color<T>(&mut self, color: Color, text: T)
                     where T: Into<Cow<'static, str>>
                 {
-                    GameObjectDebugOptions::popup_msg_color_inner(self, color, text.into());
+                    GameObjectDebugOptions::popup_msg_color_string(self, color, text.into());
                 }
             }
         }
