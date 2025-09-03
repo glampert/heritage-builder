@@ -9,7 +9,7 @@ use crate::{
     building_config_impl,
     log,
     imgui_ui::UiSystem,
-    pathfind::{Node, NodeKind as PathNodeKind},
+    pathfind::{NodeKind as PathNodeKind},
     utils::{
         Color,
         Seconds,
@@ -39,7 +39,7 @@ use crate::{
 };
 
 use super::{
-    upgrade_helpers,
+    house_upgrade,
     Building,
     BuildingKind,
     BuildingBehavior,
@@ -299,7 +299,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
-        upgrade_helpers::draw_debug_ui(context, ui_sys);
+        house_upgrade::draw_debug_ui(context, ui_sys);
         self.draw_debug_ui_upgrade_state(context, ui_sys);
     }
 }
@@ -568,7 +568,7 @@ impl<'config> HouseBuilding<'config> {
 // ----------------------------------------------
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, Display, PartialOrd, Ord, PartialEq, Eq, EnumCount, EnumIter, IntoPrimitive, TryFromPrimitive)]
+#[derive(Copy, Clone, Display, PartialOrd, Ord, PartialEq, Eq, EnumCount, EnumIter, IntoPrimitive, TryFromPrimitive)]
 pub enum HouseLevel {
     Level0,
     Level1,
@@ -763,14 +763,14 @@ impl<'config> HouseUpgradeState<'config> {
     }
 
     fn try_upgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) -> bool {
-        let mut tile_placed_successfully = false;
+        let mut upgraded_successfully = false;
 
         let next_level = self.level.next();
         let next_level_config = context.query.building_configs().find_house_level_config(next_level);
 
         if let Some(new_tile_def) = context.find_tile_def(next_level_config.tile_def_name_hash) {
             // Try placing new. Might fail if there isn't enough space.
-            if Self::try_replace_tile(context, new_tile_def) {
+            if self.try_replace_tile(context, self.level, next_level, new_tile_def) {
                 self.level.upgrade();
                 debug_assert!(self.level == next_level);
 
@@ -782,28 +782,31 @@ impl<'config> HouseUpgradeState<'config> {
                 // Set a random variation for the new building tile:
                 context.set_random_building_variation();
 
-                tile_placed_successfully = true;
-                debug.popup_msg(format!("[U] {} -> {:?}", self.curr_level_config.tile_def_name, self.level));
+                debug.popup_msg(format!("[U] {} -> {}", self.curr_level_config.tile_def_name, self.level));
+                upgraded_successfully = true;
             }
+        } else {
+            log::error!(log::channel!("house"), "Cannot find TileDef '{}' for house level {}.",
+                        next_level_config.tile_def_name, next_level);
         }
 
-        if !tile_placed_successfully {
+        if !upgraded_successfully {
             debug.popup_msg_color(Color::yellow(), format!("[U] {}: No space", self.curr_level_config.tile_def_name));
         }
 
-        self.has_room_to_upgrade = tile_placed_successfully;
-        tile_placed_successfully
+        self.has_room_to_upgrade = upgraded_successfully;
+        upgraded_successfully
     }
 
     fn try_downgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) -> bool {
-        let mut tile_placed_successfully = false;
+        let mut downgraded_successfully = false;
 
         let prev_level = self.level.prev();
         let prev_level_config = context.query.building_configs().find_house_level_config(prev_level);
 
         if let Some(new_tile_def) = context.find_tile_def(prev_level_config.tile_def_name_hash) {
             // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
-            if Self::try_replace_tile(context, new_tile_def) {
+            if self.try_replace_tile(context, self.level, prev_level, new_tile_def) {
                 self.level.downgrade();
                 debug_assert!(self.level == prev_level);
 
@@ -813,88 +816,48 @@ impl<'config> HouseUpgradeState<'config> {
                 // Set a random variation for the new building:
                 context.set_random_building_variation();
 
-                tile_placed_successfully = true;
-                debug.popup_msg(format!("[D] {} -> {:?}", self.curr_level_config.tile_def_name, self.level));
+                debug.popup_msg(format!("[D] {} -> {}", self.curr_level_config.tile_def_name, self.level));
+                downgraded_successfully = true;
             }
+        } else {
+            log::error!(log::channel!("house"), "Cannot find TileDef '{}' for house level {}.",
+                        prev_level_config.tile_def_name, prev_level);
         }
 
-        if !tile_placed_successfully {
+        if !downgraded_successfully {
             debug.popup_msg_color(Color::red(), format!("[D] {}: Failed!", self.curr_level_config.tile_def_name));
         }
 
-        self.has_room_to_upgrade = tile_placed_successfully;
-        tile_placed_successfully
+        self.has_room_to_upgrade = downgraded_successfully;
+        downgraded_successfully
     }
 
-    fn try_replace_tile<'tile_sets>(context: &BuildingContext<'config, 'tile_sets, '_>,
-                                    tile_def_to_place: &'tile_sets TileDef) -> bool {
+    // Replaces the give tile if the placement is valid, fails and leaves the map unchanged otherwise.
+    fn try_replace_tile(&self,
+                        context: &BuildingContext,
+                        current_level: HouseLevel,
+                        target_level: HouseLevel,
+                        target_tile_def: &TileDef) -> bool {
 
-        // Replaces the give tile if the placement is valid,
-        // fails and leaves the map unchanged otherwise.
-        let tile_map = context.query.tile_map();
+        debug_assert!(current_level != target_level);
+        debug_assert!(target_tile_def.is_valid());
 
-        // First check if we have space to place this tile.
-        let new_cell_range = tile_def_to_place.cell_range(context.base_cell());
-        for cell in &new_cell_range {
-            if let Some(tile) =
-                tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                let is_self = tile.base_cell() == context.base_cell();
-                if !is_self {
-                    // Cannot expand here.
-                    return false;
-                }
-            }
+        let wants_to_expand =
+            target_level > current_level &&
+                house_upgrade::requires_expansion(context, current_level, target_level);
+
+        if wants_to_expand {
+            // Upgrade to larger tile:
+            let house_id   = context.id;
+            let current_cell_range = context.cell_range();
+            house_upgrade::try_expand_house(context, house_id, current_level, target_level, current_cell_range)
+        } else {
+            // Downgrade or upgrade to same size:
+            // - No expansion required, but we still have to place a new tile.
+            let dest_id = context.id;
+            let new_cell_range  = target_tile_def.cell_range(context.base_cell());
+            house_upgrade::replace_tile(context, dest_id, target_tile_def, new_cell_range)
         }
-
-        // We'll need to restore this to the new tile.
-        let (prev_game_state, prev_cell_range) = {
-            let prev_tile = context.find_tile();
-
-            let cell_range = prev_tile.cell_range();
-            debug_assert!(context.cell_range() == cell_range);
-
-            let game_state = prev_tile.game_state_handle();
-            debug_assert!(game_state.is_valid(), "Building tile doesn't have a valid associated GameStateHandle!");
-
-            (game_state, cell_range)
-        };
-
-        debug_assert!(prev_cell_range.start == new_cell_range.start);
-
-        // Now we must clear the previous tile.
-        tile_map.try_clear_tile_from_layer(prev_cell_range.start, TileMapLayerKind::Objects)
-            .expect("Failed to clear previous tile! This is unexpected...");
-
-        // And place the new one.
-        let new_tile = tile_map.try_place_tile_in_layer(
-            new_cell_range.start,
-            TileMapLayerKind::Objects,
-            tile_def_to_place)
-            .expect("Failed to place new tile! This is unexpected...");
-
-        debug_assert!(new_tile.cell_range() == new_cell_range);
-
-        // Update game state handle:
-        new_tile.set_game_state_handle(prev_game_state);
-
-        if new_cell_range != prev_cell_range {
-            let world = context.query.world();
-            let graph = context.query.graph();
-
-            // Update cell range cached in the building.
-            let this_building = world.find_building_for_tile_mut(new_tile).unwrap();
-            this_building.map_cells = new_cell_range;
-
-            // Update path finding graph:
-            for cell in &prev_cell_range {
-                graph.set_node_kind(Node::new(cell), PathNodeKind::Dirt); // Traversable
-            }
-            for cell in &new_cell_range {
-                graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
-            }  
-        }
-
-        true
     }
 
     // Check if we can increment the level and if there's enough space to expand the house.
@@ -903,28 +866,18 @@ impl<'config> HouseUpgradeState<'config> {
             return false;
         }
 
-        let next_level = self.level.next();
-        let next_level_config = context.query.building_configs().find_house_level_config(next_level);
+        let current_level = self.level;
+        let target_level  = current_level.next();
 
-        let tile_def = match context.find_tile_def(next_level_config.tile_def_name_hash) {
-            Some(tile_def) => tile_def,
-            None => return false,
-        };
-
-        let tile_map = context.query.tile_map();
-        let cell_range = tile_def.cell_range(context.base_cell());
-
-        for cell in &cell_range {
-            if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                let is_self = tile.base_cell() == context.base_cell();
-                if !is_self {
-                    // Cannot expand here.
-                    return false;
-                }
-            }
+        if !house_upgrade::requires_expansion(context, current_level, target_level) {
+            return true; // No expansion required, upgrade is possible.
         }
 
-        true
+        let house_id   = context.id;
+        let current_cell_range = context.cell_range();
+
+        // Check if we have enough space to expand this house to a larger tile size (possibly merging with others).
+        house_upgrade::can_expand_house(context, house_id, current_level, target_level, current_cell_range)
     }
 }
 
@@ -1047,12 +1000,12 @@ impl<'config> HouseBuilding<'config> {
         self.stock.draw_debug_ui("Resources In Stock", ui_sys);
 
         draw_level_requirements(
-            &format!("Curr level reqs ({:?}):", upgrade_state.level),
+            &format!("Curr level reqs ({}):", upgrade_state.level),
             &curr_level_requirements, 0);
 
         if !upgrade_state.level.is_max() {
             draw_level_requirements(
-                &format!("Next level reqs ({:?}):", upgrade_state.level.next()),
+                &format!("Next level reqs ({}):", upgrade_state.level.next()),
                 &next_level_requirements, 1);
         }
     }

@@ -68,7 +68,7 @@ mod producer;
 mod storage;
 mod service;
 mod house;
-mod upgrade_helpers;
+mod house_upgrade;
 
 // ----------------------------------------------
 // BuildingKind

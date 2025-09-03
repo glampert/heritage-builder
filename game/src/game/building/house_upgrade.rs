@@ -1,8 +1,8 @@
 use heapless;
-use num_enum::TryFromPrimitive;
 use small_map;
 use smallvec::SmallVec;
 use strum::IntoEnumIterator;
+use num_enum::TryFromPrimitive;
 
 use crate::{
     log,
@@ -29,6 +29,19 @@ use super::{
 // ----------------------------------------------
 // Public API
 // ----------------------------------------------
+
+pub fn requires_expansion(context: &BuildingContext, current_level: HouseLevel, target_level: HouseLevel) -> bool {
+    debug_assert!(target_level > current_level);
+
+    if let (Some(current_level_tile_def), Some(target_level_tile_def)) =
+           (find_tile_def_for_level(context, current_level), find_tile_def_for_level(context, target_level)) {
+
+        return target_level_tile_def.size_in_cells() > current_level_tile_def.size_in_cells();
+    }
+
+    log::error!(log::channel!("house"), "Missing TileDefs for house levels {current_level} and {target_level}.");
+    false
+}
 
 // Can the house expand one cell & upgrade one level? E.g.: 1x1 -> 2x2.
 pub fn can_expand_house(context: &BuildingContext,
@@ -89,7 +102,7 @@ pub fn try_expand_house(context: &BuildingContext,
     let target_tile_def = match context.find_tile_def(target_level_config.tile_def_name_hash) {
         Some(tile_def) => tile_def,
         None => {
-            log::error!(log::channel!("house"), "Missing TileDef for house level {:?}: {}",
+            log::error!(log::channel!("house"), "Missing TileDef for house level {}: {}",
                         target_level, target_level_config.tile_def_name);
             return false;
         },
@@ -103,6 +116,70 @@ pub fn try_expand_house(context: &BuildingContext,
         current_cell_range.size(),
         house_id,
         &house_ids_to_merge);
+
+    true
+}
+
+// Replaces house tile with a new (possibly bigger) tile.
+// Assumes there is enough room to place the new tile
+// (neighboring houses already merged and cleared).
+pub fn replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
+                                dest_id: BuildingId,
+                                target_tile_def: &'tile_sets TileDef,
+                                new_cell_range: CellRange) -> bool {
+
+    debug_assert!(dest_id.is_valid());
+    debug_assert!(target_tile_def.is_valid());
+    debug_assert!(new_cell_range.is_valid());
+
+    let dest_house = house_for_id_mut(context, dest_id);
+    let tile_map = context.query.tile_map();
+
+    // We'll have to restore the game_state on the new tile.
+    let (prev_game_state, prev_cell_range) = {
+        let prev_tile = tile_map.find_tile_mut(dest_house.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+            .expect("House building should have an associated Tile in the TileMap!");
+
+        let game_state = prev_tile.game_state_handle();
+        let cell_range = prev_tile.cell_range();
+
+        debug_assert!(game_state.is_valid(), "House tile doesn't have a valid associated TileGameStateHandle!");
+        debug_assert!(dest_house.kind() == BuildingKind::from_game_state_handle(game_state));
+        debug_assert!(dest_house.id().index() == game_state.index());
+
+        (game_state, cell_range)
+    };
+
+    // Clear the previous tile:
+    tile_map.try_clear_tile_from_layer(prev_cell_range.start, TileMapLayerKind::Objects)
+        .expect("Failed to clear previous house tile! This is unexpected...");
+
+    // And place the new one:
+    let new_tile = tile_map.try_place_tile_in_layer(
+        new_cell_range.start,
+        TileMapLayerKind::Objects,
+        target_tile_def)
+        .expect("Failed to place new house tile! This is unexpected...");
+
+    debug_assert!(new_tile.cell_range() == new_cell_range);
+
+    // Update game state handle:
+    new_tile.set_game_state_handle(prev_game_state);
+
+    if new_cell_range != prev_cell_range {
+        // Update cell range cached in the building & context.
+        dest_house.map_cells = new_cell_range;
+        *context.map_cells.as_mut() = new_cell_range;
+
+        // Update path finding graph:
+        let graph = context.query.graph();
+        for cell in &prev_cell_range {
+            graph.set_node_kind(Node::new(cell), PathNodeKind::Dirt); // Traversable
+        }
+        for cell in &new_cell_range {
+            graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
+        }  
+    }
 
     true
 }
@@ -392,68 +469,6 @@ fn merge_and_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, 
     replace_tile(context, dest_id, target_tile_def, new_cell_range);
 }
 
-// Replaces house tile with a new (possibly bigger) tile.
-// Assumes there is enough room to place the new tile
-// (neighboring houses already merged and cleared).
-fn replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
-                            dest_id: BuildingId,
-                            target_tile_def: &'tile_sets TileDef,
-                            new_cell_range: CellRange) {
-
-    debug_assert!(dest_id.is_valid());
-    debug_assert!(target_tile_def.is_valid());
-    debug_assert!(new_cell_range.is_valid());
-
-    let dest_house = house_for_id_mut(context, dest_id);
-    let tile_map = context.query.tile_map();
-
-    // We'll have to restore the game_state on the new tile.
-    let (prev_game_state, prev_cell_range) = {
-        let prev_tile = tile_map.find_tile_mut(dest_house.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
-            .expect("House building should have an associated Tile in the TileMap!");
-
-        let game_state = prev_tile.game_state_handle();
-        let cell_range = prev_tile.cell_range();
-
-        debug_assert!(game_state.is_valid(), "House tile doesn't have a valid associated TileGameStateHandle!");
-        debug_assert!(dest_house.kind() == BuildingKind::from_game_state_handle(game_state));
-        debug_assert!(dest_house.id().index() == game_state.index());
-
-        (game_state, cell_range)
-    };
-
-    // Clear the previous tile:
-    tile_map.try_clear_tile_from_layer(prev_cell_range.start, TileMapLayerKind::Objects)
-        .expect("Failed to clear previous house tile! This is unexpected...");
-
-    // And place the new one:
-    let new_tile = tile_map.try_place_tile_in_layer(
-        new_cell_range.start,
-        TileMapLayerKind::Objects,
-        target_tile_def)
-        .expect("Failed to place new house tile! This is unexpected...");
-
-    debug_assert!(new_tile.cell_range() == new_cell_range);
-
-    // Update game state handle:
-    new_tile.set_game_state_handle(prev_game_state);
-
-    if new_cell_range != prev_cell_range {
-        // Update cell range cached in the building & context.
-        dest_house.map_cells = new_cell_range;
-        *context.map_cells.as_mut() = new_cell_range;
-
-        // Update path finding graph:
-        let graph = context.query.graph();
-        for cell in &prev_cell_range {
-            graph.set_node_kind(Node::new(cell), PathNodeKind::Dirt); // Traversable
-        }
-        for cell in &new_cell_range {
-            graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
-        }  
-    }
-}
-
 // Merges `ids_to_merge` houses into `dest_id` house and destroys all
 // `ids_to_merge` houses. Ids are assumed to be all valid house buildings.
 fn merge_houses(context: &BuildingContext,
@@ -500,7 +515,7 @@ fn merge_house(context: &BuildingContext,
     dest_house.worker_pool_mut().merge(house_to_merge.worker_pool_ref());
 
     // Employers of `house_to_merge` workers must now point to `dest_house`.
-    dest_house.worker_pool_mut()
+    house_to_merge.worker_pool_ref()
         .for_each_employer(context.query.world(), |employer, employed_count| {
             let prev_popups = employer.archetype.debug_options().set_show_popups(false);
 
@@ -644,7 +659,7 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
             let target_tile_def  = find_tile_def_for_level(context, target_level);
 
             if let (Some(current_tile_def), Some(target_tile_def)) = (current_tile_def, target_tile_def) {
-                log::info!("Expanding house from {current_level:?} to {target_level:?} ...");
+                log::info!("Expanding house from {current_level} to {target_level} ...");
 
                 if target_tile_def.size_in_cells() == current_tile_def.size_in_cells() + 1 {
                     let current_cell_range = context.cell_range();
@@ -653,20 +668,20 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
                        try_expand_house(context, house_id, current_level, target_level, current_cell_range) {
                         *level_idx_mut_ref += 1;
                     } else {
-                        log::error!("Failed to expand house '{}' from {current_level:?} to {target_level:?}.", house.name());
+                        log::error!("Failed to expand house '{}' from {current_level} to {target_level}.", house.name());
                     }
                 } else {
                     // One cell increase per level assumed.
                     if target_tile_def.size_in_cells() > current_tile_def.size_in_cells() + 1 {
-                        log::error!("House level {target_level:?} increases house size by more than one cell: {} vs {}",
+                        log::error!("House level {target_level} increases house size by more than one cell: {} vs {}",
                                     current_tile_def.size_in_cells(), target_tile_def.size_in_cells());
                     } else {
-                        log::error!("House level {target_level:?} does not increase house size by one cell: {} vs {}",
+                        log::error!("House level {target_level} does not increase house size by one cell: {} vs {}",
                                     current_tile_def.size_in_cells(), target_tile_def.size_in_cells());
                     }
                 }
             } else {
-                log::error!("Missing TileDefs for house levels {current_level:?} and {target_level:?}.");
+                log::error!("Missing TileDefs for house levels {current_level} and {target_level}.");
             }
         } else {
             log::info!("House level already maxed!");
