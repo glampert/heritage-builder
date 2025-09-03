@@ -1,6 +1,6 @@
 use rand::Rng;
 use strum::EnumCount;
-use strum_macros::EnumCount;
+use strum_macros::{EnumCount, EnumIter, Display};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use proc_macros::DrawDebugUi;
 
@@ -27,6 +27,7 @@ use crate::{
             world::WorldStats,
             resources::{
                 Workers,
+                HouseholdWorkerPool,
                 Population,
                 ResourceKind,
                 ResourceKinds,
@@ -38,6 +39,7 @@ use crate::{
 };
 
 use super::{
+    upgrade_helpers,
     Building,
     BuildingKind,
     BuildingBehavior,
@@ -47,13 +49,10 @@ use super::{
 };
 
 // ----------------------------------------------
-// TODO List
+// TODO List For Houses:
 // ----------------------------------------------
 
 // - Implement household tax income.
-//
-// - Merge neighboring houses into larger ones when upgrading.
-//   Also have to update is_upgrade_available() to handle this!
 //
 // - Resources should have individual rates of consumption. Some
 //   kinds of resources are consumed slower/faster than others.
@@ -300,6 +299,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     }
 
     fn draw_debug_ui(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
+        upgrade_helpers::draw_debug_ui(context, ui_sys);
         self.draw_debug_ui_upgrade_state(context, ui_sys);
     }
 }
@@ -326,11 +326,6 @@ impl<'config> HouseBuilding<'config> {
             upgrade_state,
             debug: HouseDebug::default(),
         }
-    }
-
-    #[inline]
-    fn level(&self) -> HouseLevel {
-        self.upgrade_state.level
     }
 
     #[inline]
@@ -461,6 +456,21 @@ impl<'config> HouseBuilding<'config> {
     }
 
     // ----------------------
+    // Upgrade Helpers:
+    // ----------------------
+
+    #[inline] pub fn level(&self) -> HouseLevel { self.upgrade_state.level }
+
+    #[inline] pub fn stock_ref(&self) -> &BuildingStock { &self.stock }
+    #[inline] pub fn stock_mut(&mut self) -> &mut BuildingStock { &mut self.stock }
+
+    #[inline] pub fn population_ref(&self) -> &Population { &self.population }
+    #[inline] pub fn population_mut(&mut self) -> &mut Population { &mut self.population }
+
+    #[inline] pub fn worker_pool_ref(&self) -> &HouseholdWorkerPool { self.workers.as_household_worker_pool().unwrap() }
+    #[inline] pub fn worker_pool_mut(&mut self) -> &mut HouseholdWorkerPool { self.workers.as_household_worker_pool_mut().unwrap() }
+
+    // ----------------------
     // Population Update:
     // ----------------------
 
@@ -487,6 +497,23 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
+    fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {
+        let unit_origin = context.road_link_or_building_access_tile();
+        if !unit_origin.is_valid() {
+            log::error!(log::channel!("house"), "Failed to find a vacant cell to spawn evicted unit!");
+            return;
+        }
+
+        let mut settler = Settler::default();
+
+        settler.try_spawn(
+            context.query,
+            unit_origin,
+            amount_to_evict);
+
+        self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_to_evict} residents"));
+    }
+
     fn adjust_population(&mut self, context: &BuildingContext, new_population: u32, new_max: u32) {
         let prev_population = self.population.count();
         let curr_population = self.population.set_max_and_count(new_max, new_population);
@@ -501,7 +528,7 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
-    fn adjust_workers_available(&mut self, context: &BuildingContext) {
+    pub fn adjust_workers_available(&mut self, context: &BuildingContext) {
         // Percentage of current household residents that are workers: [0,100].
         let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
         let curr_population   = self.population.count() as f32;
@@ -534,23 +561,6 @@ impl<'config> HouseBuilding<'config> {
 
         workers.set_counts(new_employed, new_unemployed);
     }
-
-    fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {
-        let unit_origin = context.road_link_or_building_access_tile();
-        if !unit_origin.is_valid() {
-            log::error!(log::channel!("house"), "Failed to find a vacant cell to spawn evicted unit!");
-            return;
-        }
-
-        let mut settler = Settler::default();
-
-        settler.try_spawn(
-            context.query,
-            unit_origin,
-            amount_to_evict);
-
-        self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_to_evict} residents"));
-    }
 }
 
 // ----------------------------------------------
@@ -558,7 +568,7 @@ impl<'config> HouseBuilding<'config> {
 // ----------------------------------------------
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, EnumCount, IntoPrimitive, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, Display, PartialOrd, Ord, PartialEq, Eq, EnumCount, EnumIter, IntoPrimitive, TryFromPrimitive)]
 pub enum HouseLevel {
     Level0,
     Level1,
@@ -569,40 +579,48 @@ pub enum HouseLevel {
 impl HouseLevel {
     #[inline]
     #[must_use]
-    pub fn min() -> HouseLevel {
+    pub const fn count() -> usize {
+        Self::COUNT
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn min() -> Self {
         Self::try_from_primitive(0).unwrap()
     }
 
     #[inline]
     #[must_use]
-    pub fn max() -> HouseLevel {
-        Self::try_from_primitive((HouseLevel::COUNT - 1) as u8).unwrap()
+    pub fn max() -> Self {
+        Self::try_from_primitive((Self::COUNT - 1) as u8).unwrap()
     }
 
     #[inline]
-    fn is_max(self) -> bool {
-        self == Self::max()
-    }
-
-    #[inline]
-    fn is_min(self) -> bool {
+    #[must_use]
+    pub fn is_min(self) -> bool {
         self == Self::min()
     }
 
     #[inline]
     #[must_use]
-    fn next(self) -> HouseLevel {
-        let curr: u8 = self.into();
-        let next = curr + 1;
-        HouseLevel::try_from(next).expect("Max HouseLevel exceeded!")
+    pub fn is_max(self) -> bool {
+        self == Self::max()
     }
 
     #[inline]
     #[must_use]
-    fn prev(self) -> HouseLevel {
+    pub fn next(self) -> Self {
+        let curr: u8 = self.into();
+        let next = curr + 1;
+        Self::try_from(next).expect("Max HouseLevel exceeded!")
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn prev(self) -> Self {
         let curr: u8 = self.into();
         let next = curr - 1;
-        HouseLevel::try_from(next).expect("Min HouseLevel exceeded!")
+        Self::try_from(next).expect("Min HouseLevel exceeded!")
     }
 
     #[inline]
@@ -804,6 +822,7 @@ impl<'config> HouseUpgradeState<'config> {
             debug.popup_msg_color(Color::red(), format!("[D] {}: Failed!", self.curr_level_config.tile_def_name));
         }
 
+        self.has_room_to_upgrade = tile_placed_successfully;
         tile_placed_successfully
     }
 
@@ -832,7 +851,7 @@ impl<'config> HouseUpgradeState<'config> {
             let prev_tile = context.find_tile();
 
             let cell_range = prev_tile.cell_range();
-            debug_assert!(context.map_cells == cell_range);
+            debug_assert!(context.cell_range() == cell_range);
 
             let game_state = prev_tile.game_state_handle();
             debug_assert!(game_state.is_valid(), "Building tile doesn't have a valid associated GameStateHandle!");
@@ -907,60 +926,6 @@ impl<'config> HouseUpgradeState<'config> {
 
         true
     }
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/*
-    // Replaces the give tile if the placement is valid, fails and leaves the map unchanged otherwise.
-    fn try_replace_tile_v2<'tile_sets>(context: &BuildingContext<'config, 'tile_sets, '_>,
-                                       tile_def_to_place: &'tile_sets TileDef) -> bool {
-
-        //TODO
-
-        // NOTE: merged houses should combine the resources, population and workers of all merged!
-
-        true
-    }
-
-    // Check if we can increment the level and if there's enough space to expand the house.
-    fn is_upgrade_available_v2(&self, context: &BuildingContext) -> bool {
-        if self.level.is_max() {
-            return false;
-        }
-
-        //TODO
-
-        true
-    }
-
-    fn has_enough_room_for_level_tile(level: HouseLevel, context: &BuildingContext) -> bool {
-        let level_config = context.query.building_configs().find_house_level_config(level);
-
-        let tile_def = match context.find_tile_def(level_config.tile_def_name_hash) {
-            Some(tile_def) => tile_def,
-            None => {
-                log::error!(log::channel!("house"), "Failed to find TileDef '{}' for level: {:?}",
-                            level_config.tile_def_name, level);
-                return false;
-            },
-        };
-
-        let tile_map = context.query.tile_map();
-        let cell_range = tile_def.cell_range(context.base_cell());
-
-        for cell in &cell_range {
-            if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                let is_self = tile.base_cell() == context.base_cell();
-                if !is_self {
-                    // Cannot expand here.
-                    return false;
-                }
-            }
-        }
-
-        true
-    }
-*/
 }
 
 // ----------------------------------------------

@@ -199,7 +199,7 @@ impl HouseholdWorkerPool {
         self.employers.retain(|_key, val| *val != 0);
     }
 
-    pub fn reset(&mut self) {
+    pub fn clear(&mut self) {
         let total = self.total_workers();
         self.employed_count = 0;
         self.unemployed_count = total;
@@ -258,6 +258,13 @@ impl HouseholdWorkerPool {
             return employed_amount; // Return amount taken from unemployed count. i.e., amount employed.
         }
         0
+    }
+
+    pub fn merge(&mut self, other: &HouseholdWorkerPool) {
+        for (employer_info, employed_count) in &other.employers {
+            let merged_count = self.remove_unemployed(*employed_count, *employer_info);
+            debug_assert!(merged_count == *employed_count, "HouseholdWorkerPool merge exceeds workers available!");
+        }
     }
 
     pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
@@ -369,7 +376,7 @@ impl Employer {
         self.employee_households.retain(|_key, val| *val != 0);
     }
 
-    pub fn reset(&mut self) {
+    pub fn clear(&mut self) {
         self.employee_count = 0;
         self.employee_households.clear();
     }
@@ -412,6 +419,16 @@ impl Employer {
         }
 
         unemployed_amount // Return amount subtracted from employees.
+    }
+
+    pub fn merge(&mut self, other: &Employer) {
+        for (house_id, employee_count) in &other.employee_households {    
+            let merged_count = self.add_employee(*employee_count, BuildingKindAndId {
+                kind: BuildingKind::House,
+                id: *house_id
+            });
+            debug_assert!(merged_count == *employee_count, "Workers Employer merge exceeds max capacity!");
+        }
     }
 
     pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
@@ -468,7 +485,7 @@ impl Workers {
     #[inline]
     pub fn as_household_worker_pool(&self) -> Option<&HouseholdWorkerPool> {
         match self {
-            Self::HouseholdWorkerPool(state) => Some(state),
+            Self::HouseholdWorkerPool(inner) => Some(inner),
             _ => None,
         }
     }
@@ -476,7 +493,7 @@ impl Workers {
     #[inline]
     pub fn as_household_worker_pool_mut(&mut self) -> Option<&mut HouseholdWorkerPool> {
         match self {
-            Self::HouseholdWorkerPool(state) => Some(state),
+            Self::HouseholdWorkerPool(inner) => Some(inner),
             _ => None,
         }
     }
@@ -494,7 +511,7 @@ impl Workers {
     #[inline]
     pub fn as_employer(&self) -> Option<&Employer> {
         match self {
-            Self::Employer(state) => Some(state),
+            Self::Employer(inner) => Some(inner),
             _ => None,
         }
     }
@@ -502,7 +519,7 @@ impl Workers {
     #[inline]
     pub fn as_employer_mut(&mut self) -> Option<&mut Employer> {
         match self {
-            Self::Employer(state) => Some(state),
+            Self::Employer(inner) => Some(inner),
             _ => None,
         }
     }
@@ -510,43 +527,50 @@ impl Workers {
     // Common interface:
     pub fn count(&self) -> u32 {
         match self {
-            Self::HouseholdWorkerPool(state) => state.unemployed_count(),
-            Self::Employer(state) => state.employee_count(),
+            Self::HouseholdWorkerPool(inner) => inner.unemployed_count(),
+            Self::Employer(inner) => inner.employee_count(),
         }
     }
 
     pub fn is_max(&self) -> bool {
         match self {
-            Self::HouseholdWorkerPool(state) => state.unemployed_count() == state.total_workers(),
-            Self::Employer(state) => state.is_at_max_capacity(),
+            Self::HouseholdWorkerPool(inner) => inner.unemployed_count() == inner.total_workers(),
+            Self::Employer(inner) => inner.is_at_max_capacity(),
         }
     }
 
-    pub fn reset(&mut self) {
+    pub fn clear(&mut self) {
         match self {
-            Self::HouseholdWorkerPool(state) => state.reset(),
-            Self::Employer(state) => state.reset(),
+            Self::HouseholdWorkerPool(inner) => inner.clear(),
+            Self::Employer(inner) => inner.clear(),
         }
     }
 
     pub fn add(&mut self, amount: u32, source: BuildingKindAndId) -> u32 {
         match self {
-            Self::HouseholdWorkerPool(state) => state.add_unemployed(amount, source),
-            Self::Employer(state) => state.add_employee(amount, source),
+            Self::HouseholdWorkerPool(inner) => inner.add_unemployed(amount, source),
+            Self::Employer(inner) => inner.add_employee(amount, source),
         }
     }
 
     pub fn remove(&mut self, amount: u32, source: BuildingKindAndId) -> u32 {
         match self {
-            Self::HouseholdWorkerPool(state) => state.remove_unemployed(amount, source),
-            Self::Employer(state) => state.remove_employee(amount, source),
+            Self::HouseholdWorkerPool(inner) => inner.remove_unemployed(amount, source),
+            Self::Employer(inner) => inner.remove_employee(amount, source),
+        }
+    }
+
+    pub fn merge(&mut self, other: &Workers) {
+        match self {
+            Self::HouseholdWorkerPool(inner) => inner.merge(other.as_household_worker_pool().unwrap()),
+            Self::Employer(inner) => inner.merge(other.as_employer().unwrap()),
         }
     }
 
     pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
         match self {
-            Self::HouseholdWorkerPool(state) => state.draw_debug_ui(world, ui_sys),
-            Self::Employer(state) => state.draw_debug_ui(world, ui_sys),
+            Self::HouseholdWorkerPool(inner) => inner.draw_debug_ui(world, ui_sys),
+            Self::Employer(inner) => inner.draw_debug_ui(world, ui_sys),
         }
     }
 }
@@ -621,6 +645,17 @@ impl Population {
         let prev_count = self.count();
         let new_count  = self.set_count(prev_count.saturating_sub(amount));
         prev_count - new_count // Return amount subtracted
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.count = 0;
+    }
+
+    #[inline]
+    pub fn merge(&mut self, other: &Population) {
+        let merged_count = self.add(other.count());
+        debug_assert!(merged_count == other.count(), "Population merge exceeds max capacity!");
     }
 }
 

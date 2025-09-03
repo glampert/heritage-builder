@@ -164,6 +164,21 @@ impl CellRange {
         }
         true
     }
+
+    #[inline]
+    pub fn width(&self) -> i32 {
+        self.end.x - self.start.x + 1
+    }
+
+    #[inline]
+    pub fn height(&self) -> i32 {
+        self.end.y - self.start.y + 1
+    }
+
+    #[inline]
+    pub fn size(&self) -> Size {
+        Size::new(self.width(), self.height())
+    }
 }
 
 impl std::fmt::Display for CellRange {

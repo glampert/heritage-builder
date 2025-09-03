@@ -119,6 +119,13 @@ pub trait GameObjectDebugOptions {
     }
 
     #[inline]
+    fn set_show_popups(&mut self, show: bool) -> bool {
+        let prev_value = self.get_popups().show;
+        self.get_popups().show = show;
+        prev_value
+    }
+
+    #[inline]
     fn clear_popups(&mut self) {
         self.get_popups().clear();
     }

@@ -68,6 +68,7 @@ mod producer;
 mod storage;
 mod service;
 mod house;
+mod upgrade_helpers;
 
 // ----------------------------------------------
 // BuildingKind
@@ -518,7 +519,7 @@ impl<'config> Building<'config> {
         }
 
         if let Some(workers) = self.archetype.workers_mut() {
-            workers.reset();
+            workers.clear();
         }
     }
 
@@ -579,7 +580,7 @@ impl<'config> Building<'config> {
         }
 
         // Lazily cache the road link cell on demand:
-        if let Some(road_link) = query.find_nearest_road_link(self.map_cells) {
+        if let Some(road_link) = query.find_nearest_road_link(self.cell_range()) {
             // Cache road link cell:
             debug_assert!(road_link.is_valid());
             *self.road_link.as_mut() = road_link;
@@ -620,7 +621,7 @@ impl<'config> Building<'config> {
     }
 
     fn update_road_link(&mut self, query: &Query) {
-        if let Some(new_road_link) = query.find_nearest_road_link(self.map_cells) {
+        if let Some(new_road_link) = query.find_nearest_road_link(self.cell_range()) {
             debug_assert!(new_road_link.is_valid());
 
             if new_road_link != *self.road_link.as_ref() && self.road_link.is_valid() {
@@ -672,11 +673,11 @@ impl<'config> Building<'config> {
             }
             let debug_vars = DrawDebugUiVariables {
                 name: self.name(),
-                kind: self.kind,
+                kind: self.kind(),
                 archetype: self.archetype_kind(),
-                cells: self.map_cells,
+                cells: self.cell_range(),
                 road_link: self.road_link(query).unwrap_or_default(),
-                id: self.id,
+                id: self.id(),
             };
             debug_vars.draw_debug_ui(ui_sys);
         }
@@ -792,7 +793,7 @@ impl<'config> Building<'config> {
             }
 
             if ui.button("Highlight Access Tiles") {
-                pathfind::highlight_building_access_tiles(query.tile_map(), self.map_cells);
+                pathfind::highlight_building_access_tiles(query.tile_map(), self.cell_range());
             }
         }
 
@@ -968,7 +969,7 @@ impl BuildingTileInfo {
 pub struct BuildingContext<'config, 'tile_sets, 'query> {
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
-    map_cells: CellRange,
+    map_cells: UnsafeMutable<CellRange>,
     road_link: Option<Cell>,
     id: BuildingId,
     pub query: &'query Query<'config, 'tile_sets>,
@@ -984,7 +985,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         Self {
             kind,
             archetype_kind,
-            map_cells,
+            map_cells: UnsafeMutable::new(map_cells),
             road_link,
             id,
             query,
@@ -994,6 +995,11 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
     #[inline]
     pub fn base_cell(&self) -> Cell {
         self.map_cells.start
+    }
+
+    #[inline]
+    pub fn cell_range(&self) -> CellRange {
+        *self.map_cells.as_ref()
     }
 
     #[inline]
@@ -1081,7 +1087,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         let tile_map = self.query.tile_map();
         let mut access_cell = Cell::invalid();
 
-        pathfind::for_each_surrounding_cell(self.map_cells, |cell| {
+        pathfind::for_each_surrounding_cell(self.cell_range(), |cell| {
             // Take any surrounding cell that is not obstructed by another object.
             if tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects).is_none() {
                 access_cell = cell;
@@ -1098,7 +1104,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
 // BuildingStock
 // ----------------------------------------------
 
-struct BuildingStock {
+pub struct BuildingStock {
     resources: ResourceStock,
     capacities: [u8; RESOURCE_KIND_COUNT],
 }
@@ -1168,6 +1174,13 @@ impl BuildingStock {
         // Clamp any existing resources to the new capacity.
         self.resources.for_each_mut(|index, item| {
             item.count = item.count.min(self.capacities[index] as u32);
+        });
+    }
+
+    fn merge(&mut self, other: &BuildingStock) {
+        other.for_each(|_, item| {
+            let received_count = self.receive_resources(item.kind, item.count);
+            debug_assert!(received_count == item.count, "BuildingStock merge exceeds max capacity!");
         });
     }
 

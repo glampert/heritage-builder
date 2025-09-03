@@ -425,7 +425,7 @@ impl std::fmt::Display for Color {
 // ----------------------------------------------
 
 // Integer width & height pair.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Deserialize)]
 pub struct Size {
     pub width:  i32,
     pub height: i32,
@@ -460,6 +460,28 @@ impl Size {
     #[inline]
     pub fn to_array(self) -> [i32; 2] {
         [ self.width, self.height ]
+    }
+}
+
+// Size + i32
+impl Add<i32> for Size {
+    type Output = Size;
+    fn add(self, rhs: i32) -> Size {
+        Size {
+            width:  self.width  + rhs,
+            height: self.height + rhs,
+        }
+    }
+}
+
+// Size - i32
+impl Sub<i32> for Size {
+    type Output = Size;
+    fn sub(self, rhs: i32) -> Size {
+        Size {
+            width:  self.width  - rhs,
+            height: self.height - rhs,
+        }
     }
 }
 
