@@ -107,24 +107,22 @@ pub fn try_expand_house(context: &BuildingContext,
         },
     };
 
-    merge_and_replace_tile(
+    try_merge_and_replace_tile(
         context,
         target_level_config,
         target_tile_def,
         start_cell,
         house_id,
-        &house_ids_to_merge);
-
-    true
+        &house_ids_to_merge)
 }
 
 // Replaces house tile with a new (possibly bigger) tile.
 // Assumes there is enough room to place the new tile
 // (neighboring houses already merged and cleared).
-pub fn replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
-                                house_id: BuildingId,
-                                target_tile_def: &'tile_sets TileDef,
-                                new_cell_range: CellRange) -> bool {
+pub fn try_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
+                                    house_id: BuildingId,
+                                    target_tile_def: &'tile_sets TileDef,
+                                    new_cell_range: CellRange) -> bool {
 
     debug_assert!(house_id.is_valid());
     debug_assert!(target_tile_def.is_valid());
@@ -150,15 +148,22 @@ pub fn replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
     };
 
     // Clear the previous tile:
-    tile_map.try_clear_tile_from_layer(prev_cell_range.start, TileMapLayerKind::Objects)
-        .expect("Failed to clear previous house tile! This is unexpected...");
+    if let Err(err) = tile_map.try_clear_tile_from_layer(prev_cell_range.start, TileMapLayerKind::Objects) {
+        log::error!(log::channel!("house"), "{}: Failed to clear previous House tile: {err}", dest_house.name());
+        return false;
+    }
 
     // And place the new one:
-    let new_tile = tile_map.try_place_tile_in_layer(
+    let new_tile = match tile_map.try_place_tile_in_layer(
         new_cell_range.start,
         TileMapLayerKind::Objects,
-        target_tile_def)
-        .expect("Failed to place new house tile! This is unexpected...");
+        target_tile_def) {
+        Ok(tile) => tile,
+        Err(err) => {
+            log::error!(log::channel!("house"), "{}: Failed to place new House tile: {err}", dest_house.name());
+            return false;
+        }
+    };
 
     debug_assert!(new_tile.cell_range() == new_cell_range);
 
@@ -447,12 +452,12 @@ fn candidate_target_rects(current_cell_range: CellRange) -> [CellRect; CANDIDATE
     ]
 }
 
-fn merge_and_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
-                                      target_level_config: &HouseLevelConfig,
-                                      target_tile_def: &'tile_sets TileDef,
-                                      start_cell: Cell,
-                                      house_id: BuildingId,
-                                      ids_to_merge: &[BuildingId]) {
+fn try_merge_and_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
+                                          target_level_config: &HouseLevelConfig,
+                                          target_tile_def: &'tile_sets TileDef,
+                                          start_cell: Cell,
+                                          house_id: BuildingId,
+                                          ids_to_merge: &[BuildingId]) -> bool {
 
     let new_cell_range = target_tile_def.cell_range(start_cell);
 
@@ -464,7 +469,7 @@ fn merge_and_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, 
     }
     // Else this house is expanding into vacant lots / empty terrain. Nothing to merge.
 
-    replace_tile(context, house_id, target_tile_def, new_cell_range);
+    try_replace_tile(context, house_id, target_tile_def, new_cell_range)
 }
 
 // Merges `ids_to_merge` houses into `dest_id` house and destroys all

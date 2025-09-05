@@ -857,7 +857,7 @@ impl<'config> HouseUpgradeState<'config> {
             // Downgrade or upgrade to same size:
             // - No expansion required, but we still have to place a new tile.
             let new_cell_range = target_tile_def.cell_range(context.base_cell());
-            house_upgrade::replace_tile(context, house_id, target_tile_def, new_cell_range)
+            house_upgrade::try_replace_tile(context, house_id, target_tile_def, new_cell_range)
         }
     }
 

@@ -1,6 +1,7 @@
 use strum::IntoEnumIterator;
 
 use crate::{
+    debug,
     utils::{
         Vec2,
         coords::{
@@ -39,7 +40,8 @@ pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut Tile
     debug_assert!(tile_def_to_place.layer_kind() == layer.kind());
 
     if !layer.is_cell_within_bounds(target_cell) {
-        return Err(format!("Target cell {} is out of bounds", target_cell));
+        return Err(format!("'{}' - {}: Target cell {target_cell} is out of bounds",
+                           tile_def_to_place.name, layer.kind()));
     }
 
     // Terrain tiles are always allowed to replace existing tiles,
@@ -53,11 +55,13 @@ pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut Tile
     let cell_range = tile_def_to_place.cell_range(target_cell);
     for cell in &cell_range {
         if !layer.is_cell_within_bounds(cell) {
-            return Err("One or more cells for this tile fall outside of the map bounds".into());
+            return Err(format!("'{}' - {}: Target cell {cell} for this tile falls outside of the map bounds",
+                               tile_def_to_place.name, layer.kind()));
         }
 
         if layer.try_tile(cell).is_some() {
-            return Err("One of the target cells for this tile is already occupied".into());
+            return Err(format!("'{}' - {}: Target cell {cell} for this tile is already occupied by '{}'",
+                               tile_def_to_place.name, layer.kind(), debug::tile_name_at(cell, layer.kind())));
         }
     }
 
