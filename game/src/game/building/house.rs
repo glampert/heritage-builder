@@ -501,7 +501,7 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
-    fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {
+    pub fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {
         let unit_origin = context.road_link_or_building_access_tile();
         if !unit_origin.is_valid() {
             log::error!(log::channel!("house"), "Failed to find a vacant cell to spawn evicted unit!");

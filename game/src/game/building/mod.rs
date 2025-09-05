@@ -1218,11 +1218,19 @@ impl BuildingStock {
         });
     }
 
-    fn merge(&mut self, other: &BuildingStock) {
-        other.for_each(|_, item| {
+    fn merge(&mut self, other: &BuildingStock) -> bool {
+        let mut success = true;
+
+        other.for_each(|index, item| {
             let received_count = self.receive_resources(item.kind, item.count);
-            debug_assert!(received_count == item.count, "BuildingStock merge exceeds max capacity!");
+            if received_count != item.count {
+                log::error!("Stock merge exceeds max capacity for {}. Capacity: {}, trying to merge: {}, merged only: {}",
+                            item.kind, self.capacity_at(index), item.count, received_count);
+                success = false;
+            }
         });
+
+        success
     }
 
     #[inline]

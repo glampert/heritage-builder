@@ -129,7 +129,7 @@ impl BuildingConfigs {
                 name: "House Level 3".to_string(),
                 tile_def_name: "house3".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("house3"),
-                max_population: 25,
+                max_population: 20,
                 tax_generated: 3,
                 worker_percentage: 50,
                 population_increase_chance: 50,

@@ -261,11 +261,16 @@ impl HouseholdWorkerPool {
         0
     }
 
-    pub fn merge(&mut self, other: &HouseholdWorkerPool) {
+    pub fn merge(&mut self, other: &HouseholdWorkerPool) -> bool {
         for (employer_info, employed_count) in &other.employers {
             let merged_count = self.remove_unemployed(*employed_count, *employer_info);
-            debug_assert!(merged_count == *employed_count, "HouseholdWorkerPool merge exceeds workers available!");
+            if merged_count != *employed_count {
+                log::error!("HouseholdWorkerPool merge exceeds workers available! Unemployed: {}, trying to merge: {}, merged only: {}",
+                            self.unemployed_count(), *employed_count, merged_count);
+                return false;
+            }
         }
+        true
     }
 
     pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
@@ -423,14 +428,20 @@ impl Employer {
         unemployed_amount // Return amount subtracted from employees.
     }
 
-    pub fn merge(&mut self, other: &Employer) {
+    pub fn merge(&mut self, other: &Employer) -> bool {
         for (house_id, employee_count) in &other.employee_households {    
             let merged_count = self.add_employee(*employee_count, BuildingKindAndId {
                 kind: BuildingKind::House,
                 id: *house_id
             });
-            debug_assert!(merged_count == *employee_count, "Workers Employer merge exceeds max capacity!");
+
+            if merged_count != *employee_count {
+                log::error!("Employer merge exceeds maximum! Max employees: {}, trying to merge: {}, merged only: {}",
+                            self.max_employees(), *employee_count, merged_count);
+                return false;
+            }
         }
+        true
     }
 
     pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
@@ -563,7 +574,7 @@ impl Workers {
         }
     }
 
-    pub fn merge(&mut self, other: &Workers) {
+    pub fn merge(&mut self, other: &Workers) -> bool {
         match self {
             Self::HouseholdWorkerPool(inner) => inner.merge(other.as_household_worker_pool().unwrap()),
             Self::Employer(inner) => inner.merge(other.as_employer().unwrap()),
@@ -656,9 +667,14 @@ impl Population {
     }
 
     #[inline]
-    pub fn merge(&mut self, other: &Population) {
+    pub fn merge(&mut self, other: &Population) -> bool {
         let merged_count = self.add(other.count());
-        debug_assert!(merged_count == other.count(), "Population merge exceeds max capacity!");
+        if merged_count != other.count() {
+            log::error!("Population merge exceeds max capacity! Capacity: {}, trying to merge: {}, merged only: {}",
+                        self.max(), other.count(), merged_count);
+            return false;
+        }
+        true
     }
 }
 

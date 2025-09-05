@@ -528,14 +528,33 @@ fn merge_house(context: &BuildingContext,
     let dest_house = dest_building.as_house_mut();
     let house_to_merge = building_to_merge.as_house();
 
+    // Merge resource stocks:
     dest_house.stock_mut().update_capacities(target_level_config.stock_capacity);
-    dest_house.stock_mut().merge(house_to_merge.stock_ref());
+    if !dest_house.stock_mut().merge(house_to_merge.stock_ref()) {
+        log::error!(log::channel!("house"), "Failed to fully merge house stocks: {} {} and {} {}.",
+                    dest_house.name(), dest_building_kind_and_id.id,
+                    house_to_merge.name(), building_to_merge_kind_and_id.id);
+    }
 
-    dest_house.population_mut().set_max(target_level_config.max_population);
-    dest_house.population_mut().merge(house_to_merge.population_ref());
+    // Merge population:
+    // NOTE: If the merge exceeds new house population capacity we will evict some residents first.
+    let mut new_population = dest_house.population_mut().count() + house_to_merge.population_ref().count();
+    if new_population > target_level_config.max_population {
+        let amount_to_evict = new_population - target_level_config.max_population;
+        dest_house.evict_population(context, amount_to_evict);
+        new_population -= amount_to_evict;
+    }
 
+    // Should always succeed since we've made enough room.
+    dest_house.population_mut().set_max_and_count(target_level_config.max_population, new_population);
+
+    // Merge workers:
     dest_house.adjust_workers_available(context);
-    dest_house.worker_pool_mut().merge(house_to_merge.worker_pool_ref());
+    if !dest_house.worker_pool_mut().merge(house_to_merge.worker_pool_ref()) {
+        log::error!(log::channel!("house"), "Failed to fully merge house worker pools: {} {} and {} {}.",
+                    dest_house.name(), dest_building_kind_and_id.id,
+                    house_to_merge.name(), building_to_merge_kind_and_id.id);
+    }
 
     // Employers of `house_to_merge` workers must now point to `dest_house`.
     house_to_merge.worker_pool_ref()
@@ -543,10 +562,20 @@ fn merge_house(context: &BuildingContext,
             let prev_popups = employer.archetype_mut().debug_options().set_show_popups(false);
 
             let removed_count = employer.remove_workers(employed_count, building_to_merge_kind_and_id);
-            debug_assert!(removed_count == employed_count);
+            if removed_count != employed_count {
+                log::error!(log::channel!("house"), "House merge between {} {} and {} {}: Failed to remove {} workers from {}.",
+                            dest_house.name(), dest_building_kind_and_id.id,
+                            house_to_merge.name(), building_to_merge_kind_and_id.id,
+                            employed_count, employer.name());
+            }
 
             let added_count = employer.add_workers(employed_count, dest_building_kind_and_id);
-            debug_assert!(added_count == employed_count);
+            if added_count != employed_count {
+                log::error!(log::channel!("house"), "House merge between {} {} and {} {}: Failed to add {} workers to {}.",
+                            dest_house.name(), dest_building_kind_and_id.id,
+                            house_to_merge.name(), building_to_merge_kind_and_id.id,
+                            employed_count, employer.name());
+            }
 
             employer.archetype_mut().debug_options().set_show_popups(prev_popups);
             true
@@ -559,8 +588,8 @@ fn destroy_house<'config>(context: &BuildingContext<'config, '_, '_>,
     let world = context.query.world();
     let query = context.query;
 
-    // First reset all population/workers so we won't try to evict any residents
-    // or notify employers when the building is destroyed.
+    // NOTE: First reset all population/workers so we won't try to evict
+    // any residents or notify employers when the building is destroyed.
     let merged_house = merged_building.as_house_mut();
     merged_house.stock_mut().clear();
     merged_house.population_mut().clear();
