@@ -41,7 +41,7 @@ use super::{
         Query,
         UpdateTimer,
         debug::GameObjectDebugOptions,
-        world::{BuildingId, WorldStats},
+        world::{BuildingId, GameObject, WorldStats},
         resources::{
             Workers,
             Population,
@@ -75,7 +75,7 @@ mod house_upgrade;
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, PartialEq, Eq, Hash)]
+    #[derive(Copy, Clone, Default, PartialEq, Eq, Hash)]
     pub struct BuildingKind: u32 {
         // Archetype: House
         const House       = 1 << 0;
@@ -159,15 +159,15 @@ macro_rules! building_type_casts {
         paste! {
             #[inline]
             pub fn [<as_ $derived_mod>](&self) -> &$derived_struct<'config> {
-                match &self.archetype {
-                    BuildingArchetype::$derived_struct(state) => state,
+                match self.archetype() {
+                    BuildingArchetype::$derived_struct(inner) => inner,
                     _ => panic!("Building archetype is not {}!", stringify!($derived_struct))
                 }
             }
             #[inline]
             pub fn [<as_ $derived_mod _mut>](&mut self) -> &mut $derived_struct<'config> {
-                match &mut self.archetype {
-                    BuildingArchetype::$derived_struct(state) => state,
+                match self.archetype_mut() {
+                    BuildingArchetype::$derived_struct(inner) => inner,
                     _ => panic!("Building archetype is not {}!", stringify!($derived_struct))
                 }
             }
@@ -179,85 +179,144 @@ macro_rules! building_type_casts {
 // Building
 // ----------------------------------------------
 
+#[derive(Clone, Default)]
 pub struct Building<'config> {
-    kind: BuildingKind,
+    id: BuildingId,
     map_cells: CellRange,
     road_link: UnsafeMutable<Cell>,
-    id: BuildingId,
+    kind: BuildingKind,
     workers_update_timer: UpdateTimer,
-    archetype: BuildingArchetype<'config>,
+    archetype: Option<BuildingArchetype<'config>>,
+}
+
+impl<'config> GameObject<'config> for Building<'config> {
+    // ----------------------
+    // GameObject Interface:
+    // ----------------------
+
+    #[inline]
+    fn id(&self) -> BuildingId {
+        self.id
+    }
+
+    #[inline]
+    fn update(&mut self, query: &Query<'config, '_>) {
+        debug_assert!(self.is_spawned());
+
+        // Refresh cached road link cell.
+        self.update_road_link(query);
+
+        if self.workers_update_timer.tick(query.delta_time_secs()).should_update() {
+            self.update_workers(query);
+        }
+
+        let context = self.new_context(query);
+        self.archetype_mut().update(&context);
+    }
+
+    #[inline]
+    fn tally(&self, stats: &mut WorldStats) {
+        if !self.is_spawned() {
+            return;
+        }
+
+        if let Some(population) = self.archetype().population() {
+            stats.population += population.count();
+        }
+
+        if let Some(workers) = self.archetype().workers() {
+            stats.workers += workers.count();
+        }
+
+        self.archetype().tally(stats, self.kind);
+    }
 }
 
 impl<'config> Building<'config> {
     // ----------------------
-    // Creation/Placement:
+    // Spawning / Despawning:
     // ----------------------
 
-    pub fn new(kind: BuildingKind,
-               map_cells: CellRange,
-               archetype: BuildingArchetype<'config>) -> Self {
-        Self {
-            kind,
-            map_cells,
-            // Road link cached on first access and refreshed every building update.
-            road_link: UnsafeMutable::new(Cell::invalid()),
-            // Id is set after construction by Building::placed().
-            id: BuildingId::default(),
-            workers_update_timer: UpdateTimer::new(WORKERS_UPDATE_FREQUENCY_SECS),
-            archetype,
-        }
-    }
+    pub fn spawned(&mut self,
+                   query: &Query,
+                   id: BuildingId,
+                   kind: BuildingKind,
+                   map_cells: CellRange,
+                   archetype: BuildingArchetype<'config>) {
 
-    pub fn placed(&mut self, query: &Query, id: BuildingId) {
+        debug_assert!(!self.is_spawned());
         debug_assert!(id.is_valid());
-        debug_assert!(!self.id.is_valid());
+        debug_assert!(kind.is_single_building());
+        debug_assert!(map_cells.is_valid());
 
-        self.id = id;
+        self.id        = id;
+        self.map_cells = map_cells;
+        self.kind      = kind;
+        self.archetype = Some(archetype);
+        self.workers_update_timer = UpdateTimer::new(WORKERS_UPDATE_FREQUENCY_SECS);
+
+        self.update_road_link(query);
 
         let context = self.new_context(query);
-        self.archetype.placed(&context);
+        self.archetype_mut().spawned(&context);
     }
 
-    pub fn removed(&mut self, query: &Query) {
-        debug_assert!(self.id.is_valid()); // Should be placed.
+    pub fn despawned(&mut self, query: &Query) {
+        debug_assert!(self.is_spawned());
 
         self.remove_all_workers(query);
         self.remove_all_population(query);
+        self.clear_road_link(query.tile_map());
 
         let context = self.new_context(query);
-        self.archetype.removed(&context);
+        self.archetype_mut().despawned(&context);
 
-        self.id = BuildingId::default();
+        self.id        = BuildingId::default();
         self.map_cells = CellRange::default();
-
-        self.clear_road_link(query.tile_map());
+        self.kind      = BuildingKind::default();
+        self.archetype = None;
+        self.workers_update_timer = UpdateTimer::default();
     }
 
     #[inline]
-    fn new_context<'query, 'tile_sets>(&self,
-                                       query: &'query Query<'config, 'tile_sets>)
+    fn new_context<'query, 'tile_sets>(&self, query: &'query Query<'config, 'tile_sets>)
                                        -> BuildingContext<'config, 'tile_sets, 'query> {
         BuildingContext::new(
-            self.kind,
-            self.archetype_kind(),
+            self.id,
             self.map_cells,
             self.road_link(query),
-            self.id,
+            self.kind,
+            self.archetype_kind(),
             query)
+    }
+
+    #[inline]
+    fn archetype(&self) -> &BuildingArchetype<'config> {
+        self.archetype.as_ref().unwrap()
+    }
+
+    #[inline]
+    fn archetype_mut(&mut self) -> &mut BuildingArchetype<'config> {
+        self.archetype.as_mut().unwrap()
     }
 
     // ----------------------
     // Utilities:
     // ----------------------
 
+    building_type_casts! { producer, ProducerBuilding } // as_producer()
+    building_type_casts! { storage,  StorageBuilding  } // as_storage()
+    building_type_casts! { service,  ServiceBuilding  } // as_service()
+    building_type_casts! { house,    HouseBuilding    } // as_house()
+
     #[inline]
     pub fn name(&self) -> &str {
-        self.archetype.name()
+        self.archetype().name()
     }
 
     #[inline]
     pub fn configs(&self) -> &dyn BuildingConfig {
-        self.archetype.configs()
+        self.archetype().configs()
     }
 
     #[inline]
@@ -298,46 +357,17 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn archetype_kind(&self) -> BuildingArchetypeKind {
-        self.archetype.discriminant()
-    }
-
-    #[inline]
-    pub fn id(&self) -> BuildingId {
-        self.id
-    }
-
-    building_type_casts! { producer, ProducerBuilding } // as_producer()
-    building_type_casts! { storage,  StorageBuilding  } // as_storage()
-    building_type_casts! { service,  ServiceBuilding  } // as_service()
-    building_type_casts! { house,    HouseBuilding    } // as_house()
-
-    // ----------------------
-    // World Update:
-    // ----------------------
-
-    pub fn update(&mut self, query: &Query<'config, '_>) {
-        debug_assert!(self.id.is_valid());
-
-        // Refresh cached road link cell.
-        self.update_road_link(query);
-
-        if self.workers_update_timer.tick(query.delta_time_secs()).should_update() {
-            self.update_workers(query);
-        }
-
-        let context = self.new_context(query);
-        self.archetype.update(&context);
+        self.archetype().discriminant()
     }
 
     pub fn visited_by(&mut self, unit: &mut Unit, query: &Query) {
-        debug_assert!(self.id.is_valid());
-
+        debug_assert!(self.is_spawned());
         let context = self.new_context(query);
-        self.archetype.visited_by(unit, &context);
+        self.archetype_mut().visited_by(unit, &context);
     }
 
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
-        debug_assert!(self.id.is_valid());
+        debug_assert!(self.is_spawned());
         if self.base_cell() == destination_cell {
             return true;
         }
@@ -364,39 +394,29 @@ impl<'config> Building<'config> {
     #[inline]
     pub fn available_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
-        self.archetype.available_resources(kind)
+        debug_assert!(self.is_spawned());
+        self.archetype().available_resources(kind)
     }
 
     #[inline]
     pub fn receivable_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
-        self.archetype.receivable_resources(kind)
+        debug_assert!(self.is_spawned());
+        self.archetype().receivable_resources(kind)
     }
 
     #[inline]
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
-        self.archetype.receive_resources(kind, count)
+        debug_assert!(self.is_spawned());
+        self.archetype_mut().receive_resources(kind, count)
     }
 
     #[inline]
     pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
-        self.archetype.remove_resources(kind, count)
-    }
-
-    pub fn tally(&self, stats: &mut WorldStats) {
-        debug_assert!(self.id.is_valid());
-
-        if let Some(population) = self.archetype.population() {
-            stats.population += population.count();
-        }
-
-        if let Some(workers) = self.archetype.workers() {
-            stats.workers += workers.count();
-        }
-
-        self.archetype.tally(stats, self.kind);
+        debug_assert!(self.is_spawned());
+        self.archetype_mut().remove_resources(kind, count)
     }
 
     // ----------------------
@@ -405,12 +425,12 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn active_patrol(&mut self) -> Option<&mut Patrol> {
-        self.archetype.active_patrol()
+        self.archetype_mut().active_patrol()
     }
 
     #[inline]
     pub fn active_runner(&mut self) -> Option<&mut Runner> {
-        self.archetype.active_runner()
+        self.archetype_mut().active_runner()
     }
 
     // ----------------------
@@ -419,29 +439,31 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn population(&self) -> Option<Population> {
-        self.archetype.population()
+        self.archetype().population()
     }
 
     #[inline]
     pub fn population_count(&self) -> u32 {
-        self.archetype.population().map_or(0, |population| population.count())
+        self.archetype().population().map_or(0, |population| population.count())
     }
 
     #[inline]
     pub fn population_is_maxed(&self) -> bool {
-        self.archetype.population().is_none_or(|population| population.is_max())
+        self.archetype().population().is_none_or(|population| population.is_max())
     }
 
     #[inline]
     pub fn add_population(&mut self, query: &Query, count: u32) -> u32 {
+        debug_assert!(self.is_spawned());
         let context = self.new_context(query);
-        self.archetype.add_population(&context, count)
+        self.archetype_mut().add_population(&context, count)
     }
 
     #[inline]
     pub fn remove_population(&mut self, query: &Query, count: u32) -> u32 {
+        debug_assert!(self.is_spawned());
         let context = self.new_context(query);
-        self.archetype.remove_population(&context, count)
+        self.archetype_mut().remove_population(&context, count)
     }
 
     #[inline]
@@ -455,29 +477,30 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn workers(&self) -> Option<&Workers> {
-        self.archetype.workers()
+        self.archetype().workers()
     }
 
     #[inline]
     pub fn workers_count(&self) -> u32 {
-        self.archetype.workers().map_or(0, |workers| workers.count())
+        self.archetype().workers().map_or(0, |workers| workers.count())
     }
 
     #[inline]
     pub fn workers_is_maxed(&self) -> bool {
-        self.archetype.workers().is_none_or(|workers| workers.is_max())
+        self.archetype().workers().is_none_or(|workers| workers.is_max())
     }
 
     // These return the amount added/removed, which can be <= the `count` parameter.
     pub fn add_workers(&mut self, count: u32, source: BuildingKindAndId) -> u32 {
+        debug_assert!(self.is_spawned());
         let mut workers_added = 0;
         if count != 0 && !self.workers_is_maxed() {
-            if let Some(workers) = self.archetype.workers_mut() {
+            if let Some(workers) = self.archetype_mut().workers_mut() {
                 workers_added = workers.add(count, source);
             }
 
             if workers_added != 0 {
-                self.archetype.debug_options()
+                self.archetype_mut().debug_options()
                     .popup_msg_color_string(Color::cyan(), format!("+{workers_added} workers").into());
             }
         }
@@ -485,14 +508,15 @@ impl<'config> Building<'config> {
     }
 
     pub fn remove_workers(&mut self, count: u32, source: BuildingKindAndId) -> u32 {
+        debug_assert!(self.is_spawned());
         let mut workers_removed = 0;
         if count != 0 && self.workers_count() != 0 {
-            if let Some(workers) = self.archetype.workers_mut() {
+            if let Some(workers) = self.archetype_mut().workers_mut() {
                 workers_removed = workers.remove(count, source);
             }
 
             if workers_removed != 0 {
-                self.archetype.debug_options()
+                self.archetype_mut().debug_options()
                     .popup_msg_color_string(Color::magenta(), format!("-{workers_removed} workers").into());
             }
         }
@@ -500,7 +524,7 @@ impl<'config> Building<'config> {
     }
 
     fn remove_all_workers(&mut self, query: &Query) {
-        if let Some(workers) = self.archetype.workers() {
+        if let Some(workers) = self.archetype().workers() {
             if let Some(employer) = workers.as_employer() {
                 employer.for_each_employee_household(query.world(), |household, employee_count| {
                     // Put worker back into the house's worker pool.
@@ -518,7 +542,7 @@ impl<'config> Building<'config> {
             }
         }
 
-        if let Some(workers) = self.archetype.workers_mut() {
+        if let Some(workers) = self.archetype_mut().workers_mut() {
             workers.clear();
         }
     }
@@ -529,7 +553,7 @@ impl<'config> Building<'config> {
         }
 
         // Search for employees if we're an Employer and not already at max capacity.
-        if let Some(workers) = self.archetype.workers() {
+        if let Some(workers) = self.archetype().workers() {
             if let Some(employer) = workers.as_employer() {
                 if !employer.is_at_max_capacity() {
                     if let Some(house) = self.find_house_with_available_workers(query) {
@@ -575,6 +599,8 @@ impl<'config> Building<'config> {
 
     #[inline]
     pub fn road_link(&self, query: &Query) -> Option<Cell> {
+        debug_assert!(self.is_spawned());
+
         if self.road_link.is_valid() {
             return Some(*self.road_link.as_ref());
         }
@@ -658,6 +684,7 @@ impl<'config> Building<'config> {
     // ----------------------
 
     pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+        debug_assert!(self.is_spawned());
         let ui = ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
@@ -685,16 +712,16 @@ impl<'config> Building<'config> {
         self.configs().draw_debug_ui(ui_sys);
         let context = self.new_context(query);
 
-        if let Some(population) = self.archetype.population() {
+        if let Some(population) = self.archetype().population() {
             if ui.collapsing_header("Population", imgui::TreeNodeFlags::empty()) {
                 population.draw_debug_ui(ui_sys);
 
                 if ui.button("Increase Population (+1)") {
-                    self.archetype.add_population(&context, 1);
+                    self.archetype_mut().add_population(&context, 1);
                 }
 
                 if ui.button("Evict Resident (-1)") {
-                    self.archetype.remove_population(&context, 1);
+                    self.archetype_mut().remove_population(&context, 1);
                 }
 
                 if ui.button("Evict All Residents") {
@@ -703,7 +730,7 @@ impl<'config> Building<'config> {
             }
         }
 
-        if let Some(workers) = self.archetype.workers() {
+        if let Some(workers) = self.archetype().workers() {
             if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
                 let is_household_worker_pool = workers.is_household_worker_pool();
                 let is_employer = workers.is_employer();
@@ -797,8 +824,8 @@ impl<'config> Building<'config> {
             }
         }
 
-        self.archetype.debug_options().draw_debug_ui(ui_sys);
-        self.archetype.draw_debug_ui(&context, ui_sys);
+        self.archetype_mut().debug_options().draw_debug_ui(ui_sys);
+        self.archetype_mut().draw_debug_ui(&context, ui_sys);
     }
 
     pub fn draw_debug_popups(&mut self,
@@ -806,12 +833,15 @@ impl<'config> Building<'config> {
                              ui_sys: &UiSystem,
                              transform: &WorldToScreenTransform,
                              visible_range: CellRange) {
+
+        debug_assert!(self.is_spawned());
+
         let tile = query.find_tile(
             self.base_cell(),
             TileMapLayerKind::Objects,
             TileKind::Building).unwrap();
 
-        self.archetype.debug_options().draw_popup_messages(
+        self.archetype_mut().debug_options().draw_popup_messages(
             tile,
             ui_sys,
             transform,
@@ -848,7 +878,7 @@ impl<'config> Building<'config> {
  - Provides services to neighborhood.
 */
 #[enum_dispatch]
-#[derive(EnumDiscriminants)]
+#[derive(Clone, EnumDiscriminants)]
 #[strum_discriminants(repr(u32), name(BuildingArchetypeKind), derive(Display, EnumCount, EnumIter))]
 pub enum BuildingArchetype<'config> {
     ProducerBuilding(ProducerBuilding<'config>),
@@ -873,8 +903,8 @@ pub trait BuildingBehavior<'config> {
     fn name(&self) -> &str;
     fn configs(&self) -> &dyn BuildingConfig;
 
-    fn placed(&mut self, _context: &BuildingContext) {}
-    fn removed(&mut self, _context: &BuildingContext) {}
+    fn spawned(&mut self, _context: &BuildingContext) {}
+    fn despawned(&mut self, _context: &BuildingContext) {}
 
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);
@@ -967,27 +997,27 @@ impl BuildingTileInfo {
 // ----------------------------------------------
 
 pub struct BuildingContext<'config, 'tile_sets, 'query> {
-    kind: BuildingKind,
-    archetype_kind: BuildingArchetypeKind,
+    id: BuildingId,
     map_cells: UnsafeMutable<CellRange>,
     road_link: Option<Cell>,
-    id: BuildingId,
+    kind: BuildingKind,
+    archetype_kind: BuildingArchetypeKind,
     pub query: &'query Query<'config, 'tile_sets>,
 }
 
 impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
-    fn new(kind: BuildingKind,
-           archetype_kind: BuildingArchetypeKind,
+    fn new(id: BuildingId,
            map_cells: CellRange,
            road_link: Option<Cell>,
-           id: BuildingId,
+           kind: BuildingKind,
+           archetype_kind: BuildingArchetypeKind,
            query: &'query Query<'config, 'tile_sets>) -> Self {
         Self {
-            kind,
-            archetype_kind,
+            id,
             map_cells: UnsafeMutable::new(map_cells),
             road_link,
-            id,
+            kind,
+            archetype_kind,
             query,
         }
     }
@@ -1104,6 +1134,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
 // BuildingStock
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct BuildingStock {
     resources: ResourceStock,
     capacities: [u8; RESOURCE_KIND_COUNT],

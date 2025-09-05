@@ -251,6 +251,7 @@ impl<'config> Simulation<'config> {
 // UpdateTimer
 // ----------------------------------------------
 
+#[derive(Clone, Default)]
 pub struct UpdateTimer {
     update_frequency_secs: Seconds,
     time_since_last_update_secs: Seconds,
@@ -698,7 +699,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     }
 
     #[inline]
-    pub fn despawn_unit(&self, unit: &mut Unit) {
+    pub fn despawn_unit(&self, unit: &mut Unit<'config>) {
         match self.world().despawn_unit(self, unit) {
             Ok(_) => {},
             Err(err) => {

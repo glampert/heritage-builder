@@ -25,7 +25,7 @@ use crate::{
         sim::{
             Query,
             UpdateTimer,
-            world::WorldStats,
+            world::{GameObject, WorldStats},
             resources::{
                 ShoppingList,
                 ResourceKind,
@@ -100,6 +100,7 @@ game_object_debug_options! {
 // ProducerBuilding
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct ProducerBuilding<'config> {
     config: &'config ProducerConfig,
     workers: Workers,
@@ -439,6 +440,7 @@ impl<'config> ProducerBuilding<'config> {
 // ProducerOutputLocalStock
 // ----------------------------------------------
 
+#[derive(Clone)]
 struct ProducerOutputLocalStock {
     item: StockItem,
     capacity: u32,
@@ -515,6 +517,7 @@ impl ProducerOutputLocalStock {
 // ProducerInputsLocalStock
 // ----------------------------------------------
 
+#[derive(Clone)]
 struct ProducerInputsLocalStock {
     slots: SmallVec<[StockItem; 1]>,
     capacity: u32, // Capacity for each resource kind.

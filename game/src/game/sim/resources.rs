@@ -16,7 +16,7 @@ use crate::{
     utils::Color,
     game::{
         cheats,
-        sim::world::{World, BuildingId},
+        sim::world::{World, GameObject, BuildingId},
         building::{Building, BuildingKind, BuildingKindAndId}
     }
 };
@@ -126,6 +126,7 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // HouseholdWorkerPool
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct HouseholdWorkerPool {
     // Total workers = employed + unemployed
     employed_count: u32,
@@ -294,6 +295,7 @@ impl HouseholdWorkerPool {
 // Employer
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct Employer {
     employee_count: u32, // Current number of workers employed.
     min_employees: u32,  // Minimum number of workers for service/production to run (at lower capacity).
@@ -466,6 +468,7 @@ impl Employer {
 // Workers
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub enum Workers {
     HouseholdWorkerPool(HouseholdWorkerPool),
     Employer(Employer),
@@ -669,6 +672,7 @@ pub struct StockItem {
     pub count: u32,
 }
 
+#[derive(Clone)]
 pub struct ResourceStock {
     kinds: ResourceKind, // If the kind flag bit is set, the stock accepts that resource.
     counts: [u16; RESOURCE_KIND_COUNT],

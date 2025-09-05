@@ -29,7 +29,7 @@ use super::{
 // Runner Unit helper
 // ----------------------------------------------
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Runner {
     unit_id: UnitId,
     failed_to_spawn: bool,

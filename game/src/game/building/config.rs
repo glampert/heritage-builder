@@ -1,5 +1,4 @@
 use crate::{
-    log,
     tile::Tile,
     imgui_ui::UiSystem,
     utils::hash::{self, StringHash},
@@ -12,7 +11,6 @@ use crate::{
 };
 
 use super::{
-    Building,
     BuildingKind,
     BuildingArchetype,
     house::{
@@ -297,67 +295,36 @@ impl BuildingConfigs {
 // Helper functions
 // ----------------------------------------------
 
-pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs) -> Option<Building<'config>> {
+pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs)
+                            -> Result<(BuildingKind, BuildingArchetype<'config>), &'static str> {
+
     // TODO: Temporary
     let tile_name_hash = tile.tile_def().hash;
     if tile.name() == "well_small" {
         let config = configs.find_service_config(BuildingKind::WellSmall);
-        Some(Building::new(
-            BuildingKind::WellSmall,
-            tile.cell_range(),
-            BuildingArchetype::from(ServiceBuilding::new(config))
-        ))
+        Ok((BuildingKind::WellSmall, BuildingArchetype::from(ServiceBuilding::new(config))))
     } else if tile.name() == "well_big" {
         let config = configs.find_service_config(BuildingKind::WellBig);
-        Some(Building::new(
-            BuildingKind::WellBig,
-            tile.cell_range(),
-            BuildingArchetype::from(ServiceBuilding::new(config))
-        ))
+        Ok((BuildingKind::WellBig, BuildingArchetype::from(ServiceBuilding::new(config))))
     } else if tile.name() == "market" {
         let config = configs.find_service_config(BuildingKind::Market);
-        Some(Building::new(
-            BuildingKind::Market,
-            tile.cell_range(),
-            BuildingArchetype::from(ServiceBuilding::new(config))
-        ))
+        Ok((BuildingKind::Market, BuildingArchetype::from(ServiceBuilding::new(config))))
     } else if tile.name() == "house0" {
         let config = configs.find_house_config();
-        Some(Building::new(
-            BuildingKind::House,
-            tile.cell_range(),
-            BuildingArchetype::from(HouseBuilding::new(HouseLevel::Level0, config, configs))
-        ))
+        Ok((BuildingKind::House, BuildingArchetype::from(HouseBuilding::new(HouseLevel::Level0, config, configs))))
     } else if tile.name() == "rice_farm" || tile.name() == "livestock_farm" {
         let config = configs.find_producer_config(BuildingKind::Farm, tile.name(), tile_name_hash);
-        Some(Building::new(
-            BuildingKind::Farm,
-            tile.cell_range(),
-            BuildingArchetype::from(ProducerBuilding::new(config))
-        ))
+        Ok((BuildingKind::Farm, BuildingArchetype::from(ProducerBuilding::new(config))))
     } else if tile.name() == "distillery" {
         let config = configs.find_producer_config(BuildingKind::Factory, tile.name(), tile_name_hash);
-        Some(Building::new(
-            BuildingKind::Factory,
-            tile.cell_range(),
-            BuildingArchetype::from(ProducerBuilding::new(config))
-        ))
+        Ok((BuildingKind::Factory, BuildingArchetype::from(ProducerBuilding::new(config))))
     } else if tile.name() == "granary" {
         let config = configs.find_storage_config(BuildingKind::Granary);
-        Some(Building::new(
-            BuildingKind::Granary,
-            tile.cell_range(),
-            BuildingArchetype::from(StorageBuilding::new(config))
-        ))
+        Ok((BuildingKind::Granary, BuildingArchetype::from(StorageBuilding::new(config))))
     } else if tile.name() == "storage_yard" {
         let config = configs.find_storage_config(BuildingKind::StorageYard);
-        Some(Building::new(
-            BuildingKind::StorageYard,
-            tile.cell_range(),
-            BuildingArchetype::from(StorageBuilding::new(config))
-        ))
+        Ok((BuildingKind::StorageYard, BuildingArchetype::from(StorageBuilding::new(config))))
     } else {
-        log::error!("Unknown building tile!");
-        None
+        Err("Unknown Building Tile")
     }
 }

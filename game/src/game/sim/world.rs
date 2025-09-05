@@ -1,7 +1,9 @@
-use slab::Slab;
+#![allow(clippy::while_let_on_iterator)]
+
+use core::iter;
+use core::slice;
 use bitvec::vec::BitVec;
-use core::iter::{self};
-use core::slice::{self};
+use strum::IntoDiscriminant;
 
 use crate::{
     imgui_ui::UiSystem,
@@ -31,11 +33,7 @@ use crate::{
         },
         unit::{
             Unit,
-            config::{
-                UnitConfig,
-                UnitConfigs,
-                UnitConfigKey
-            }
+            config::{UnitConfigs, UnitConfigKey}
         }
     }
 };
@@ -53,16 +51,15 @@ use super::{
 pub struct World<'config> {
     stats: WorldStats,
 
-    // One list per building archetype.
-    building_lists: [BuildingList<'config>; BUILDING_ARCHETYPE_COUNT],
+    // One spawn pool per building archetype.
+    // Iteration yields only *spawned* buildings.
+    building_spawn_pools: [(BuildingArchetypeKind, SpawnPool<Building<'config>>); BUILDING_ARCHETYPE_COUNT],
     building_configs: &'config BuildingConfigs,
-    building_generation: u32,
 
-    // All units, spawned ones and despawned ones waiting to be recycled.
-    // List iteration yields only *spawned* units.
-    unit_spawn_pool: UnitSpawnPool<'config>,
+    // All units, spawned and despawned.
+    // Iteration yields only *spawned* units.
+    unit_spawn_pool: SpawnPool<Unit<'config>>,
     unit_configs: &'config UnitConfigs,
-    unit_generation: u32,
 }
 
 impl<'config> World<'config> {
@@ -70,27 +67,40 @@ impl<'config> World<'config> {
         Self {
             stats: WorldStats::new(),
             // Buildings:
-            building_lists: [
-                BuildingList::new(BuildingArchetypeKind::ProducerBuilding, PRODUCER_BUILDINGS_POOL_CAPACITY),
-                BuildingList::new(BuildingArchetypeKind::StorageBuilding,  STORAGE_BUILDINGS_POOL_CAPACITY),
-                BuildingList::new(BuildingArchetypeKind::ServiceBuilding,  SERVICE_BUILDINGS_POOL_CAPACITY),
-                BuildingList::new(BuildingArchetypeKind::HouseBuilding,    HOUSE_BUILDINGS_POOL_CAPACITY),
+            building_spawn_pools: [
+                (BuildingArchetypeKind::ProducerBuilding, SpawnPool::new(PRODUCER_BUILDINGS_POOL_CAPACITY)),
+                (BuildingArchetypeKind::StorageBuilding,  SpawnPool::new(STORAGE_BUILDINGS_POOL_CAPACITY)),
+                (BuildingArchetypeKind::ServiceBuilding,  SpawnPool::new(SERVICE_BUILDINGS_POOL_CAPACITY)),
+                (BuildingArchetypeKind::HouseBuilding,    SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY)),
             ],
             building_configs,
-            building_generation: 0,
             // Units:
-            unit_spawn_pool: UnitSpawnPool::new(UNIT_SPAWN_POOL_CAPACITY),
+            unit_spawn_pool: SpawnPool::new(UNIT_SPAWN_POOL_CAPACITY),
             unit_configs,
-            unit_generation: 0,
         }
     }
 
+    pub fn building_configs(&self) -> &'config BuildingConfigs {
+        self.building_configs
+    }
+
+    pub fn unit_configs(&self) -> &'config UnitConfigs {
+        self.unit_configs
+    }
+
     pub fn reset(&mut self, query: &Query) {
-        for buildings in &mut self.building_lists {
-            buildings.clear();
+        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
+            buildings.clear(query,
+                |building, query| {
+                    debug_assert!(building.archetype_kind() == *archetype_kind);
+                    building.despawned(query)
+                });
         }
 
-        self.unit_spawn_pool.clear(query);
+        self.unit_spawn_pool.clear(query,
+            |unit, query| {
+                unit.despawned(query);
+            });
     }
 
     pub fn update_unit_navigation(&mut self, query: &Query) {
@@ -107,37 +117,13 @@ impl<'config> World<'config> {
             unit.tally(&mut self.stats);
         }
 
-        for buildings in &mut self.building_lists {
-            let list_archetype = buildings.archetype_kind();
+        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
             for building in buildings.iter_mut() {
-                debug_assert!(building.archetype_kind() == list_archetype);
+                debug_assert!(building.archetype_kind() == *archetype_kind);
                 building.update(query);
                 building.tally(&mut self.stats);
             }
         }
-    }
-
-    pub fn building_configs(&self) -> &'config BuildingConfigs {
-        self.building_configs
-    }
-
-    pub fn unit_configs(&self) -> &'config UnitConfigs {
-        self.unit_configs
-    }
-
-    // Increment generation count, return previous.
-    #[inline]
-    fn next_building_generation(&mut self) -> u32 {
-        let generation = self.building_generation;
-        self.building_generation += 1;
-        generation
-    }
-
-    #[inline]
-    fn next_unit_generation(&mut self) -> u32 {
-        let generation = self.unit_generation;
-        self.unit_generation += 1;
-        generation
     }
 
     // ----------------------
@@ -157,24 +143,30 @@ impl<'config> World<'config> {
         match query.tile_map().try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
                 // Instantiate new Building:
-                if let Some(building) = building::config::instantiate(tile, self.building_configs) {
-                    // Increment generation count:
-                    let generation = self.next_building_generation();
+                match building::config::instantiate(tile, self.building_configs) {
+                    Ok((building_kind, building_archetype)) => {
+                        let archetype_kind = building_archetype.discriminant();
+                        let buildings = self.buildings_pool_mut(archetype_kind);
 
-                    let building_kind = building.kind();
-                    let archetype_kind = building.archetype_kind();
-                    let buildings = self.buildings_list_mut(archetype_kind);
+                        let building = buildings.spawn(query,
+                            |building, query, id| {
+                                building.spawned(query, id, building_kind, tile.cell_range(), building_archetype);
+                            });
+                        debug_assert!(building.is_spawned());
 
-                    let (list_index, instance) = buildings.add_instance(building);
+                        // Store building index and kind so we can refer back to it from the Tile instance.
+                        tile.set_game_state_handle(
+                            TileGameStateHandle::new_building(
+                                building.id().index(),
+                                building_kind.bits()
+                            ));
 
-                    // Update tile & building handles:
-                    instance.placed(query, BuildingId::new(generation, list_index));
-                    tile.set_game_state_handle(TileGameStateHandle::new_building(list_index, building_kind.bits()));
-
-                    Ok(instance)
-                } else {
-                    Err(format!("Failed to instantiate Building at cell {} with TileDef '{}'.",
-                                tile_base_cell, tile_def.name))
+                        Ok(building)
+                    },
+                    Err(err) => {
+                        Err(format!("Failed to instantiate Building at cell {} with TileDef '{}': {err}",
+                                    tile_base_cell, tile_def.name))
+                    }
                 }
             },
             Err(err) => {
@@ -202,19 +194,20 @@ impl<'config> World<'config> {
         // Remove the associated Tile:
         tile_map.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
 
-        let list_index = game_state.index();
+        let pool_index = game_state.index();
         let building_kind = BuildingKind::from_game_state_handle(game_state);
         let archetype_kind = building_kind.archetype_kind();
-        let buildings = self.buildings_list_mut(archetype_kind);
+        let buildings = self.buildings_pool_mut(archetype_kind);
 
-        debug_assert!(list_index == building.id().index());
+        debug_assert!(pool_index == building.id().index());
 
-        // Remove the building instance:
-        building.removed(query);
+        // Put the building instance back into the spawn pool.
+        buildings.despawn(building, query,
+            |building, query| {
+                building.despawned(query);
+            });
 
-        buildings.remove_instance(list_index).map_err(|err| {
-            format!("Failed to remove Building index [{}], cell {}: {}", list_index, tile_base_cell, err)
-        })
+        Ok(())
     }
 
     #[inline]
@@ -230,13 +223,13 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_building(&self, kind: BuildingKind, id: BuildingId) -> Option<&Building<'config>> {
-        let buildings = self.buildings_list(kind.archetype_kind());
+        let buildings = self.buildings_pool(kind.archetype_kind());
         buildings.try_get(id)
     }
 
     #[inline]
     pub fn find_building_mut(&mut self, kind: BuildingKind, id: BuildingId) -> Option<&mut Building<'config>> {
-        let buildings = self.buildings_list_mut(kind.archetype_kind());
+        let buildings = self.buildings_pool_mut(kind.archetype_kind());
         buildings.try_get_mut(id)
     }
 
@@ -244,11 +237,11 @@ impl<'config> World<'config> {
     pub fn find_building_for_tile(&self, tile: &Tile) -> Option<&Building<'config>> {
         let game_state = tile.game_state_handle();
         if game_state.is_valid() {
-            let list_index = game_state.index();
+            let pool_index = game_state.index();
             let building_kind = BuildingKind::from_game_state_handle(game_state);
             let archetype_kind = building_kind.archetype_kind();
-            let buildings = self.buildings_list(archetype_kind);
-            return buildings.try_get_at(list_index); // NOTE: Does not perform generation check.
+            let buildings = self.buildings_pool(archetype_kind);
+            return buildings.try_get_at(pool_index); // NOTE: Does not perform generation check.
         }
         None
     }
@@ -257,11 +250,11 @@ impl<'config> World<'config> {
     pub fn find_building_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Building<'config>> {
         let game_state = tile.game_state_handle();
         if game_state.is_valid() {
-            let list_index = game_state.index();
+            let pool_index = game_state.index();
             let building_kind = BuildingKind::from_game_state_handle(game_state);
             let archetype_kind = building_kind.archetype_kind();
-            let buildings = self.buildings_list_mut(archetype_kind);
-            return buildings.try_get_at_mut(list_index); // NOTE: Does not perform generation check.
+            let buildings = self.buildings_pool_mut(archetype_kind);
+            return buildings.try_get_at_mut(pool_index); // NOTE: Does not perform generation check.
         }
         None
     }
@@ -284,14 +277,14 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_building_by_name(&self, name: &str, kind: BuildingKind) -> Option<&Building<'config>> {
-        self.buildings_list(kind.archetype_kind())
+        self.buildings_pool(kind.archetype_kind())
             .iter()
             .find(|building| building.name() == name && building.is(kind))
     }
 
     #[inline]
     pub fn find_building_by_name_mut(&mut self, name: &str, kind: BuildingKind) -> Option<&mut Building<'config>> {
-        self.buildings_list_mut(kind.archetype_kind())
+        self.buildings_pool_mut(kind.archetype_kind())
             .iter_mut()
             .find(|building| building.name() == name && building.is(kind))
     }
@@ -303,7 +296,7 @@ impl<'config> World<'config> {
     pub fn for_each_building<F>(&self, building_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&Building<'config>) -> bool
     {
-        let buildings = self.buildings_list(building_kinds.archetype_kind());
+        let buildings = self.buildings_pool(building_kinds.archetype_kind());
         for building in buildings.iter() {
             if building.is(building_kinds) && !visitor_fn(building) {
                 break;
@@ -315,7 +308,7 @@ impl<'config> World<'config> {
     pub fn for_each_building_mut<F>(&mut self, building_kinds: BuildingKind, mut visitor_fn: F)
         where F: FnMut(&mut Building<'config>) -> bool
     {
-        let buildings = self.buildings_list_mut(building_kinds.archetype_kind());
+        let buildings = self.buildings_pool_mut(building_kinds.archetype_kind());
         for building in buildings.iter_mut() {
             if building.is(building_kinds) && !visitor_fn(building) {
                 break;
@@ -324,16 +317,16 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    fn buildings_list(&self, archetype_kind: BuildingArchetypeKind) -> &BuildingList<'config> {
-        let buildings = &self.building_lists[archetype_kind as usize];
-        debug_assert!(buildings.archetype_kind() == archetype_kind);
+    fn buildings_pool(&self, archetype_kind: BuildingArchetypeKind) -> &SpawnPool<Building<'config>> {
+        let (pool_archetype, buildings) = &self.building_spawn_pools[archetype_kind as usize];
+        debug_assert!(archetype_kind == *pool_archetype);
         buildings
     }
 
     #[inline]
-    fn buildings_list_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut BuildingList<'config> {
-        let buildings = &mut self.building_lists[archetype_kind as usize];
-        debug_assert!(buildings.archetype_kind() == archetype_kind);
+    fn buildings_pool_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut SpawnPool<Building<'config>> {
+        let (pool_archetype, buildings) = &mut self.building_spawn_pools[archetype_kind as usize];
+        debug_assert!(archetype_kind == *pool_archetype);
         buildings
     }
 
@@ -347,10 +340,9 @@ impl<'config> World<'config> {
                                       transform: &WorldToScreenTransform,
                                       visible_range: CellRange) {
 
-        for buildings in &mut self.building_lists {
-            let list_archetype = buildings.archetype_kind();
+        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
             for building in buildings.iter_mut() {
-                debug_assert!(building.archetype_kind() == list_archetype);
+                debug_assert!(building.archetype_kind() == *archetype_kind);
                 building.draw_debug_popups(
                     query,
                     ui_sys,
@@ -399,15 +391,20 @@ impl<'config> World<'config> {
             // Allocate & place a Tile:
             match query.tile_map().try_place_tile(unit_origin, tile_def) {
                 Ok(tile) => {
-                    // Increment generation count:
-                    let generation = self.next_unit_generation();
-
                     // Spawn unit:
-                    let unit = self.unit_spawn_pool.spawn_instance(tile, config, generation);
+                    let unit = self.unit_spawn_pool.spawn(query,
+                        |unit, _query, id| {
+                            unit.spawned(tile, config, id);
+                        });
                     debug_assert!(unit.is_spawned());
 
                     // Store unit index so we can refer back to it from the Tile instance.
-                    tile.set_game_state_handle(TileGameStateHandle::new_unit(unit.id().index(), unit.id().generation()));
+                    tile.set_game_state_handle(
+                        TileGameStateHandle::new_unit(
+                            unit.id().index(),
+                            unit.id().generation()
+                        ));
+
                     Ok(unit)
                 },
                 Err(err) => {
@@ -435,15 +432,20 @@ impl<'config> World<'config> {
             Ok(tile) => {
                 let config = self.unit_configs.find_config_by_hash(tile_def.hash);
 
-                // Increment generation count:
-                let generation = self.next_unit_generation();
-
                 // Spawn unit:
-                let unit = self.unit_spawn_pool.spawn_instance(tile, config, generation);
+                let unit = self.unit_spawn_pool.spawn(query,
+                    |unit, _query, id| {
+                        unit.spawned(tile, config, id);
+                    });
                 debug_assert!(unit.is_spawned());
 
                 // Store unit index so we can refer back to it from the Tile instance.
-                tile.set_game_state_handle(TileGameStateHandle::new_unit(unit.id().index(), unit.id().generation()));
+                tile.set_game_state_handle(
+                    TileGameStateHandle::new_unit(
+                        unit.id().index(),
+                        unit.id().generation()
+                    ));
+
                 Ok(unit)
             },
             Err(err) => {
@@ -453,7 +455,7 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn despawn_unit(&mut self, query: &Query, unit: &mut Unit) -> Result<(), String> {
+    pub fn despawn_unit(&mut self, query: &Query, unit: &mut Unit<'config>) -> Result<(), String> {
         debug_assert!(unit.is_spawned());
         let tile_map = query.tile_map();
 
@@ -476,12 +478,16 @@ impl<'config> World<'config> {
         tile_map.try_clear_tile_from_layer(tile_cell, TileMapLayerKind::Objects)?;
 
         // Put the unit instance back into the spawn pool.
-        self.unit_spawn_pool.despawn_instance(query, unit);
+        self.unit_spawn_pool.despawn(unit, query,
+            |unit, query| {
+                unit.despawned(query);
+            });
+
         Ok(())
     }
 
     #[inline]
-    pub fn despawn_unit_at_cell(&mut self, query: &Query, tile_base_cell: Cell) -> Result<(), String> {
+    pub fn despawn_unit_at_cell(&mut self, query: &Query<'config, '_>, tile_base_cell: Cell) -> Result<(), String> {
         debug_assert!(tile_base_cell.is_valid());
 
         let unit =
@@ -628,7 +634,7 @@ impl<'config> World<'config> {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct GenerationalIndex {
     generation: u32,
-    index: u32, // Index into pool/list; u32::MAX = invalid.
+    index: u32, // Index into spawn pool; u32::MAX = invalid.
 }
 
 impl GenerationalIndex {
@@ -688,262 +694,236 @@ pub type BuildingId = GenerationalIndex;
 pub type UnitId = GenerationalIndex;
 
 // ----------------------------------------------
-// BuildingList
+// GameObject
 // ----------------------------------------------
 
-struct BuildingList<'config> {
-    archetype_kind: BuildingArchetypeKind,
-    buildings: Slab<Building<'config>>, // All share the same archetype.
-}
-
-struct BuildingListIter<'a, 'config> {
-    inner: slab::Iter<'a, Building<'config>>,
-}
-
-struct BuildingListIterMut<'a, 'config> {
-    inner: slab::IterMut<'a, Building<'config>>,
-}
-
-impl<'a, 'config> Iterator for BuildingListIter<'a, 'config> {
-    type Item = &'a Building<'config>;
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|(_, building)| building)
-    }
-}
-
-impl<'a, 'config> Iterator for BuildingListIterMut<'a, 'config> {
-    type Item = &'a mut Building<'config>;
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|(_, building)| building)
-    }
-}
-
-impl<'config> BuildingList<'config> {
-    fn new(archetype_kind: BuildingArchetypeKind, capacity: usize) -> Self {
-        Self {
-            archetype_kind,
-            buildings: Slab::with_capacity(capacity),
-        }
-    }
-
-    fn clear(&mut self) {
-        self.buildings.clear();
-    }
+pub trait GameObject<'config> {
+    fn id(&self) -> GenerationalIndex;
 
     #[inline]
-    fn add_instance(&mut self, building: Building<'config>) -> (usize, &mut Building<'config>) {
-        debug_assert!(building.archetype_kind() == self.archetype_kind);
-        let list_index = self.buildings.insert(building);
-        (list_index, &mut self.buildings[list_index])
+    fn is_spawned(&self) -> bool {
+        self.id().is_valid()
     }
 
-    #[inline]
-    fn remove_instance(&mut self, list_index: usize) -> Result<(), String> {
-        if self.buildings.try_remove(list_index).is_none() {
-            return Err(format!("BuildingList slot [{}] is already vacant!", list_index));
-        }
-        Ok(())
-    }
-
-    #[inline]
-    fn iter(&self) -> BuildingListIter<'_, 'config> {
-        BuildingListIter { inner: self.buildings.iter() }
-    }
-
-    #[inline]
-    fn iter_mut(&mut self) -> BuildingListIterMut<'_, 'config> {
-        BuildingListIterMut { inner: self.buildings.iter_mut() }
-    }
-
-    #[inline]
-    fn archetype_kind(&self) -> BuildingArchetypeKind {
-        self.archetype_kind
-    }
-
-    #[inline]
-    fn try_get(&self, id: BuildingId) -> Option<&Building<'config>> {
-        debug_assert!(id.is_valid());
-        self.buildings.get(id.index())
-            .filter(|building| building.id().generation() == id.generation())
-    }
-
-    #[inline]
-    fn try_get_mut(&mut self, id: BuildingId) -> Option<&mut Building<'config>> {
-        debug_assert!(id.is_valid());
-        self.buildings.get_mut(id.index())
-            .filter(|building| building.id().generation() == id.generation()) 
-    }
-
-    #[inline]
-    fn try_get_at(&self, index: usize) -> Option<&Building<'config>> {
-        self.buildings.get(index)
-    }
-
-    #[inline]
-    fn try_get_at_mut(&mut self, index: usize) -> Option<&mut Building<'config>> {
-        self.buildings.get_mut(index)
-    }
+    fn update(&mut self, query: &Query<'config, '_>);
+    fn tally(&self, stats: &mut WorldStats);
 }
 
 // ----------------------------------------------
-// UnitSpawnPool
+// SpawnPool
 // ----------------------------------------------
 
-struct UnitSpawnPool<'config> {
-    pool: Vec<Unit<'config>>,
-    is_spawned_flags: BitVec,
+struct SpawnPool<T> {
+    instances: Vec<T>,
+    spawned: BitVec,
+    generation: u32,
 }
 
-struct UnitSpawnPoolIter<'a, 'config> {
-    entries: iter::Enumerate<slice::Iter<'a, Unit<'config>>>,
-    is_spawned_flags: &'a BitVec,
+struct SpawnPoolIter<'a, T> {
+    instances: iter::Enumerate<slice::Iter<'a, T>>,
+    spawned: &'a BitVec,
 }
 
-struct UnitSpawnPoolIterMut<'a, 'config> {
-    entries: iter::Enumerate<slice::IterMut<'a, Unit<'config>>>,
-    is_spawned_flags: &'a BitVec,
+struct SpawnPoolIterMut<'a, T> {
+    instances: iter::Enumerate<slice::IterMut<'a, T>>,
+    spawned: &'a BitVec,
 }
 
-impl<'a, 'config> Iterator for UnitSpawnPoolIter<'a, 'config> {
-    type Item = &'a Unit<'config>;
+impl<'a, T> Iterator for SpawnPoolIter<'a, T> {
+    type Item = &'a T;
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // Yield only *spawned* entries.
-        for (index, entry) in &mut self.entries {
-            if self.is_spawned_flags[index] {
-                return Some(entry);
+        // Yields only *spawned* instances.
+        while let Some((index, instance)) = self.instances.next() {
+            if self.spawned[index] {
+                return Some(instance);
             }
         }
         None
     }
 }
 
-impl<'a, 'config> Iterator for UnitSpawnPoolIterMut<'a, 'config> {
-    type Item = &'a mut Unit<'config>;
+impl<T> iter::FusedIterator for SpawnPoolIter<'_, T> {}
+
+impl<'a, T> Iterator for SpawnPoolIterMut<'a, T> {
+    type Item = &'a mut T;
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // Yield only *spawned* entries.
-        for (index, entry) in &mut self.entries {
-            if self.is_spawned_flags[index] {
-                return Some(entry);
+        // Yields only *spawned* instances.
+        while let Some((index, instance)) = self.instances.next() {
+            if self.spawned[index] {
+                return Some(instance);
             }
         }
         None
     }
 }
 
-impl<'config> UnitSpawnPool<'config> {
+impl<T> iter::FusedIterator for SpawnPoolIterMut<'_, T> {}
+
+impl<'config, T> SpawnPool<T>
+    where T: GameObject<'config> + Clone + Default
+{
     fn new(capacity: usize) -> Self {
-        let despawned_unit = Unit::default();
+        let default_instance = T::default();
         Self {
-            pool: vec![despawned_unit; capacity],
-            is_spawned_flags: BitVec::repeat(false, capacity),
+            instances: vec![default_instance; capacity],
+            spawned: BitVec::repeat(false, capacity),
+            generation: 0,
         }
     }
 
-    fn clear(&mut self, query: &Query) {
+    fn clear<F>(&mut self, query: &Query, on_despawned_fn: F)
+        where F: Fn(&mut T, &Query)
+    {
         debug_assert!(self.is_valid());
 
-        for unit in self.iter_mut() {
-            unit.despawned(query);
+        for instance in self.iter_mut() {
+            on_despawned_fn(instance, query);
         }
 
-        self.pool.fill(Unit::default());
-        self.is_spawned_flags.fill(false);
+        self.instances.fill(T::default());
+        self.spawned.fill(false);
     }
 
-    fn spawn_instance(&mut self, tile: &mut Tile, config: &'config UnitConfig, generation: u32) -> &mut Unit<'config> {
+    fn spawn<F>(&mut self, query: &Query, on_spawned_fn: F) -> &mut T
+        where F: FnOnce(&mut T, &Query, GenerationalIndex)
+    {
         debug_assert!(self.is_valid());
+
+        let generation = self.generation;
+        self.generation += 1;
 
         // Try find a free slot to reuse:
-        if let Some(recycled_pool_index) = self.is_spawned_flags.first_zero() {
-            let recycled_unit = &mut self.pool[recycled_pool_index];
-            debug_assert!(!recycled_unit.is_spawned());
-            recycled_unit.spawned(tile, config, UnitId::new(generation, recycled_pool_index));
-            self.is_spawned_flags.set(recycled_pool_index, true);
-            return recycled_unit;
+        if let Some(recycled_index) = self.spawned.first_zero() {
+            let recycled_instance = &mut self.instances[recycled_index];
+
+            debug_assert!(!recycled_instance.is_spawned());
+            on_spawned_fn(recycled_instance, query, GenerationalIndex::new(generation, recycled_index));
+
+            self.spawned.set(recycled_index, true);
+
+            return recycled_instance;
         }
 
         // Need to instantiate a new one.
-        let new_pool_index = self.pool.len();
-        self.pool.push(Unit::new(tile, config, UnitId::new(generation, new_pool_index)));
-        self.is_spawned_flags.push(true);
-        &mut self.pool[new_pool_index]
+        let new_index = self.instances.len();
+        let mut new_instance = T::default();
+
+        debug_assert!(!new_instance.is_spawned());
+        on_spawned_fn(&mut new_instance, query, GenerationalIndex::new(generation, new_index));
+
+        self.instances.push(new_instance);
+        self.spawned.push(true);
+
+        &mut self.instances[new_index]
     }
 
-    fn despawn_instance(&mut self, query: &Query, unit: &mut Unit) {
+    fn despawn<F>(&mut self, instance: &mut T, query: &Query, on_despawned_fn: F)
+        where F: FnOnce(&mut T, &Query)
+    {
         debug_assert!(self.is_valid());
-        debug_assert!(unit.is_spawned());
+        debug_assert!(instance.is_spawned());
 
-        let pool_index = unit.id().index();
-        debug_assert!(self.is_spawned_flags[pool_index]);
-        debug_assert!(std::ptr::eq(&self.pool[pool_index], unit)); // Ensure addresses are the same.
+        let index = instance.id().index();
+        debug_assert!(self.spawned[index]);
+        debug_assert!(std::ptr::eq(&self.instances[index], instance)); // Ensure addresses are the same.
 
-        unit.despawned(query);
-        self.is_spawned_flags.set(pool_index, false);
+        on_despawned_fn(instance, query);
+        self.spawned.set(index, false);
     }
 
     #[inline]
     fn is_valid(&self) -> bool {
-        self.pool.len() == self.is_spawned_flags.len()
+        self.instances.len() == self.spawned.len()
     }
 
     #[inline]
-    fn iter(&self) -> UnitSpawnPoolIter<'_, 'config> {
-        UnitSpawnPoolIter {
-            entries: self.pool.iter().enumerate(),
-            is_spawned_flags: &self.is_spawned_flags,
+    fn iter(&self) -> SpawnPoolIter<'_, T> {
+        SpawnPoolIter {
+            instances: self.instances.iter().enumerate(),
+            spawned: &self.spawned,
         }
     }
 
     #[inline]
-    fn iter_mut(&mut self) -> UnitSpawnPoolIterMut<'_, 'config> {
-        UnitSpawnPoolIterMut {
-            entries: self.pool.iter_mut().enumerate(),
-            is_spawned_flags: &self.is_spawned_flags,
+    fn iter_mut(&mut self) -> SpawnPoolIterMut<'_, T> {
+        SpawnPoolIterMut {
+            instances: self.instances.iter_mut().enumerate(),
+            spawned: &self.spawned,
         }
     }
 
     #[inline]
-    fn try_get(&self, id: UnitId) -> Option<&Unit<'config>> {
+    fn try_get(&self, id: GenerationalIndex) -> Option<&T> {
         debug_assert!(self.is_valid());
-        debug_assert!(id.is_valid());
 
-        let pool_index = id.index();
-        if !self.is_spawned_flags[pool_index] {
+        if !id.is_valid() {
             return None;
         }
 
-        let unit = &self.pool[pool_index];
-        debug_assert!(unit.is_spawned());
-
-        if unit.id().generation != id.generation() {
+        let index = id.index();
+        if !self.spawned[index] {
             return None;
         }
 
-        Some(unit)
+        let instance = &self.instances[index];
+        debug_assert!(instance.is_spawned());
+
+        if instance.id().generation != id.generation() {
+            return None;
+        }
+
+        Some(instance)
     }
 
     #[inline]
-    fn try_get_mut(&mut self, id: UnitId) -> Option<&mut Unit<'config>> {
+    fn try_get_mut(&mut self, id: GenerationalIndex) -> Option<&mut T> {
         debug_assert!(self.is_valid());
-        debug_assert!(id.is_valid());
 
-        let pool_index = id.index();
-        if !self.is_spawned_flags[pool_index] {
+        if !id.is_valid() {
             return None;
         }
 
-        let unit = &mut self.pool[pool_index];
-        debug_assert!(unit.is_spawned());
-
-        if unit.id().generation != id.generation() {
+        let index = id.index();
+        if !self.spawned[index] {
             return None;
         }
 
-        Some(unit)
+        let instance = &mut self.instances[index];
+        debug_assert!(instance.is_spawned());
+
+        if instance.id().generation != id.generation() {
+            return None;
+        }
+
+        Some(instance)
+    }
+
+    #[inline]
+    fn try_get_at(&self, index: usize) -> Option<&T> {
+        debug_assert!(self.is_valid());
+
+        if !self.spawned[index] {
+            return None;
+        }
+
+        let instance = &self.instances[index];
+        debug_assert!(instance.is_spawned());
+        Some(instance)
+    }
+
+    #[inline]
+    fn try_get_at_mut(&mut self, index: usize) -> Option<&mut T> {
+        debug_assert!(self.is_valid());
+
+        if !self.spawned[index] {
+            return None;
+        }
+
+        let instance = &mut self.instances[index];
+        debug_assert!(instance.is_spawned());
+        Some(instance)
     }
 }
 

@@ -20,7 +20,7 @@ use super::{
     building::{Building, BuildingKind},
     sim::{
         Query,
-        world::{UnitId, WorldStats},
+        world::{UnitId, GameObject, WorldStats},
         resources::{ResourceKind, StockItem}
     }
 };
@@ -64,9 +64,9 @@ Common Unit Behavior:
 */
 #[derive(Clone, Default)]
 pub struct Unit<'config> {
-    config: Option<&'config UnitConfig>,
-    map_cell: Cell,
     id: UnitId,
+    map_cell: Cell,
+    config: Option<&'config UnitConfig>,
     direction: UnitDirection,
     anim_sets: UnitAnimSets,
     inventory: UnitInventory,
@@ -75,16 +75,37 @@ pub struct Unit<'config> {
     debug: UnitDebug,
 }
 
+impl<'config> GameObject<'config> for Unit<'config> {
+    // ----------------------
+    // GameObject Interface:
+    // ----------------------
+
+    #[inline]
+    fn id(&self) -> UnitId {
+        self.id
+    }
+
+    #[inline]
+    fn update(&mut self, query: &Query<'config, '_>) {
+        self.update_tasks(query);
+    }
+
+    #[inline]
+    fn tally(&self, stats: &mut WorldStats) {
+        if !self.is_spawned() {
+            return;
+        }
+
+        if let Some(item) = self.inventory.peek() {
+            stats.add_unit_resources(item.kind, item.count);
+        }
+    }
+}
+
 impl<'config> Unit<'config> {
     // ----------------------
     // Spawning / Despawning:
     // ----------------------
-
-    pub fn new(tile: &mut Tile, config: &'config UnitConfig, id: UnitId) -> Self {
-        let mut unit = Unit::default();
-        unit.spawned(tile, config, id);
-        unit
-    }
 
     pub fn spawned(&mut self, tile: &mut Tile, config: &'config UnitConfig, id: UnitId) {
         debug_assert!(!self.is_spawned());
@@ -115,16 +136,6 @@ impl<'config> Unit<'config> {
 
         query.task_manager().free_task(self.current_task_id);
         self.current_task_id = UnitTaskId::default();
-    }
-
-    #[inline]
-    pub fn is_spawned(&self) -> bool {
-        self.id.is_valid()
-    }
-
-    #[inline]
-    pub fn id(&self) -> UnitId {
-        self.id
     }
 
     // ----------------------
@@ -170,6 +181,7 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn patrol_task_origin_building(&self, query: &'config Query) -> Option<&mut Building<'config>> {
+        debug_assert!(self.is_spawned());
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
             return query.world().find_building_mut(task.origin_building.kind, task.origin_building.id);
         }
@@ -178,6 +190,7 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn patrol_task_building_kind(&self, query: &Query) -> Option<BuildingKind> {
+        debug_assert!(self.is_spawned());
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
             return Some(task.origin_building.kind)
         }
@@ -186,6 +199,7 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn is(&self, config_key: UnitConfigKey) -> bool {
+        debug_assert!(self.is_spawned());
         if let Some(config) = self.config {
             return config.is(config_key);
         }
@@ -231,11 +245,13 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn traversable_node_kinds(&self) -> PathNodeKind {
+        debug_assert!(self.is_spawned());
         self.navigation.traversable_node_kinds()
     }
 
     #[inline]
     pub fn set_traversable_node_kinds(&mut self, traversable_node_kinds: PathNodeKind) {
+        debug_assert!(self.is_spawned());
         self.navigation.set_traversable_node_kinds(traversable_node_kinds);
     }
 
@@ -250,6 +266,7 @@ impl<'config> Unit<'config> {
 
     #[inline]
     pub fn is_following_path(&self) -> bool {
+        debug_assert!(self.is_spawned());
         self.navigation.is_following_path()
     }
 
@@ -335,7 +352,7 @@ impl<'config> Unit<'config> {
     // ----------------------
 
     #[inline]
-    pub fn update(&mut self, query: &Query) {
+    fn update_tasks(&mut self, query: &Query<'config, '_>) {
         debug_assert!(self.is_spawned());
         let task_manager = query.task_manager();
         task_manager.run_unit_tasks(self, query);
@@ -436,16 +453,6 @@ impl<'config> Unit<'config> {
         let removed_count = self.inventory.remove_resources(kind, count);
         self.debug.log_resources_lost(kind, removed_count);
         removed_count
-    }
-
-    pub fn tally(&self, stats: &mut WorldStats) {
-        if !self.is_spawned() {
-            return;
-        }
-
-        if let Some(item) = self.inventory.peek() {
-            stats.add_unit_resources(item.kind, item.count);
-        }
     }
 
     // ----------------------

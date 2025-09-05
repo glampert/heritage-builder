@@ -77,6 +77,7 @@ game_object_debug_options! {
 // StorageBuilding
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct StorageBuilding<'config> {
     config: &'config StorageConfig,
     workers: Workers,
@@ -254,11 +255,13 @@ impl<'config> StorageBuilding<'config> {
 
 const MAX_STORAGE_SLOTS: usize = 8;
 
+#[derive(Clone)]
 struct StorageSlot {
     stock: ResourceStock,
     allocated_resource_kind: Option<ResourceKind>,
 }
 
+#[derive(Clone)]
 struct StorageSlots {
     slots: ArrayVec<StorageSlot, MAX_STORAGE_SLOTS>,
     slot_capacity: u32,

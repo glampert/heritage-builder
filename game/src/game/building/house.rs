@@ -124,6 +124,7 @@ game_object_debug_options! {
 // HouseBuilding
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct HouseBuilding<'config> {
     workers: Workers, // Workers this household provides (employed + unemployed).
 
@@ -156,7 +157,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         self.current_level_config()
     }
 
-    fn placed(&mut self, context: &BuildingContext) {
+    fn spawned(&mut self, context: &BuildingContext) {
         debug_assert!(context.base_cell().is_valid());
 
         let cell = context.base_cell();
@@ -715,6 +716,7 @@ impl<'config> HouseLevelRequirements<'config> {
 // HouseUpgradeState
 // ----------------------------------------------
 
+#[derive(Clone)]
 struct HouseUpgradeState<'config> {
     level: HouseLevel,
     curr_level_config: &'config HouseLevelConfig,

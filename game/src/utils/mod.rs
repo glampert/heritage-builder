@@ -974,6 +974,24 @@ impl<'de, T> Deserialize<'de> for UnsafeMutable<T>
     }
 }
 
+impl<T: Default> Default for UnsafeMutable<T> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            cell: UnsafeCell::new(T::default()),
+        }
+    }
+}
+
+impl<T: Clone> Clone for UnsafeMutable<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            cell: UnsafeCell::new(self.as_ref().clone()),
+        }
+    }
+}
+
 // ----------------------------------------------
 // SingleThreadStatic
 // ----------------------------------------------

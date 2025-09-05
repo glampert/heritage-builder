@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use crate::{
     log,
     imgui_ui::UiSystem,
-    game::sim::world::BuildingId,
+    game::sim::world::{BuildingId, GameObject},
     pathfind::{Node, NodeKind as PathNodeKind},
     utils::{Size, coords::{Cell, CellRange}},
     tile::{
@@ -515,7 +515,7 @@ fn merge_house(context: &BuildingContext,
     // Employers of `house_to_merge` workers must now point to `dest_house`.
     house_to_merge.worker_pool_ref()
         .for_each_employer(context.query.world(), |employer, employed_count| {
-            let prev_popups = employer.archetype.debug_options().set_show_popups(false);
+            let prev_popups = employer.archetype_mut().debug_options().set_show_popups(false);
 
             let removed_count = employer.remove_workers(employed_count, building_to_merge_kind_and_id);
             debug_assert!(removed_count == employed_count);
@@ -523,7 +523,7 @@ fn merge_house(context: &BuildingContext,
             let added_count = employer.add_workers(employed_count, dest_building_kind_and_id);
             debug_assert!(added_count == employed_count);
 
-            employer.archetype.debug_options().set_show_popups(prev_popups);
+            employer.archetype_mut().debug_options().set_show_popups(prev_popups);
             true
         });
 }

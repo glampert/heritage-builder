@@ -30,7 +30,7 @@ use crate::{
         },
         sim::{
             Query,
-            world::UnitId,
+            world::{UnitId, GameObject},
             debug::{
                 GameObjectDebugOptions,
                 GameObjectDebugOptionsExt
@@ -54,8 +54,9 @@ use super::{
 // Unit Debug UI
 // ----------------------------------------------
 
-impl Unit<'_> {
-    pub fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
+impl<'config> Unit<'config> {
+    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+        debug_assert!(self.is_spawned());
         self.draw_debug_ui_properties(ui_sys);
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
@@ -70,6 +71,8 @@ impl Unit<'_> {
                              ui_sys: &UiSystem,
                              transform: &WorldToScreenTransform,
                              visible_range: CellRange) {
+
+        debug_assert!(self.is_spawned());
         self.debug.draw_popup_messages(
             self.find_tile(query),
             ui_sys,
@@ -168,7 +171,7 @@ impl Unit<'_> {
         self.navigation.draw_debug_ui(ui_sys);
     }
 
-    fn draw_debug_ui_misc(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn draw_debug_ui_misc(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -189,7 +192,7 @@ impl Unit<'_> {
         self.debug_dropdown_pathfinding_tasks(query, ui_sys);
     }
 
-    fn debug_dropdown_despawn_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn debug_dropdown_despawn_tasks(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if !ui.collapsing_header("Despawn Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.

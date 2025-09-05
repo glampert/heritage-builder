@@ -22,7 +22,7 @@ use crate::{
         sim::{
             Query,
             UpdateTimer,
-            world::WorldStats,
+            world::{GameObject, WorldStats},
             resources::{
                 ShoppingList,
                 ResourceKind,
@@ -90,6 +90,7 @@ game_object_debug_options! {
 // ServiceBuilding
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct ServiceBuilding<'config> {
     config: &'config ServiceConfig,
     workers: Workers,

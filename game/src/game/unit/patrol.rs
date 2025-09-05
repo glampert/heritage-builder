@@ -31,7 +31,7 @@ use super::{
 // PatrolInternalState
 // ----------------------------------------------
 
-#[derive(DrawDebugUi)]
+#[derive(Clone, DrawDebugUi)]
 struct PatrolInternalState {
     // Patrol task tunable parameters:
     #[debug_ui(edit)] max_distance: i32,
@@ -60,7 +60,7 @@ impl PatrolInternalState {
 // Patrol Unit helper
 // ----------------------------------------------
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Patrol {
     unit_id: UnitId,
     state: Option<Box<PatrolInternalState>>, // Lazily initialized.
