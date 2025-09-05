@@ -842,21 +842,20 @@ impl<'config> HouseUpgradeState<'config> {
         debug_assert!(current_level != target_level);
         debug_assert!(target_tile_def.is_valid());
 
+        let house_id = context.id;
+
         let wants_to_expand =
             target_level > current_level &&
                 house_upgrade::requires_expansion(context, current_level, target_level);
 
         if wants_to_expand {
             // Upgrade to larger tile:
-            let house_id   = context.id;
-            let current_cell_range = context.cell_range();
-            house_upgrade::try_expand_house(context, house_id, current_level, target_level, current_cell_range)
+            house_upgrade::try_expand_house(context, house_id, current_level, target_level)
         } else {
             // Downgrade or upgrade to same size:
             // - No expansion required, but we still have to place a new tile.
-            let dest_id = context.id;
-            let new_cell_range  = target_tile_def.cell_range(context.base_cell());
-            house_upgrade::replace_tile(context, dest_id, target_tile_def, new_cell_range)
+            let new_cell_range = target_tile_def.cell_range(context.base_cell());
+            house_upgrade::replace_tile(context, house_id, target_tile_def, new_cell_range)
         }
     }
 
@@ -873,11 +872,8 @@ impl<'config> HouseUpgradeState<'config> {
             return true; // No expansion required, upgrade is possible.
         }
 
-        let house_id   = context.id;
-        let current_cell_range = context.cell_range();
-
         // Check if we have enough space to expand this house to a larger tile size (possibly merging with others).
-        house_upgrade::can_expand_house(context, house_id, current_level, target_level, current_cell_range)
+        house_upgrade::can_expand_house(context, context.id, current_level, target_level)
     }
 }
 
