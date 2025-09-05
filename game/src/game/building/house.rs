@@ -65,6 +65,9 @@ use super::{
 //
 // - If houses stay without access to basic resources for too long (food/water),
 //   settlers may decide to leave (house may downgrade back to vacant lot).
+//
+// - An overview on each building's Inspector with the important info we want to
+//   see at a glance, e.g.: road connected, workers, population, has upgrade requirements, etc.
 
 // ----------------------------------------------
 // HouseConfig & HouseLevelConfig
@@ -249,7 +252,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     }
 
     fn tally(&self, stats: &mut WorldStats, _kind: BuildingKind) {
-        stats.update_house_level(self.level());
+        stats.update_housing_stats(self.level());
 
         self.stock.for_each(|_, item| {
             stats.add_house_resources(item.kind, item.count);

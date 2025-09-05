@@ -221,11 +221,21 @@ impl<'config> GameObject<'config> for Building<'config> {
         }
 
         if let Some(population) = self.archetype().population() {
-            stats.population += population.count();
+            stats.population.total += population.count();
         }
 
         if let Some(workers) = self.archetype().workers() {
-            stats.workers += workers.count();
+            stats.workers.total += workers.count();
+
+            if workers.is_household_worker_pool() {
+                let worker_pool = workers.as_household_worker_pool().unwrap();
+                stats.population.employed   += worker_pool.employed_count();
+                stats.population.unemployed += worker_pool.unemployed_count();
+            } else if workers.is_employer() {
+                let employer = workers.as_employer().unwrap();
+                stats.workers.min_required += employer.min_employees();
+                stats.workers.max_employed += employer.max_employees();
+            }
         }
 
         self.archetype().tally(stats, self.kind);

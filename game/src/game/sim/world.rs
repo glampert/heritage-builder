@@ -928,8 +928,28 @@ impl<'config, T> SpawnPool<T>
 }
 
 // ----------------------------------------------
-// GlobalResourceCounts / WorldStats
+// WorldStats
 // ----------------------------------------------
+
+#[derive(Default)]
+pub struct PopulationStats {
+    pub total: u32,
+    pub employed: u32,
+    pub unemployed: u32,
+}
+
+#[derive(Default)]
+pub struct WorkerStats {
+    pub total: u32,
+    pub min_required: u32,
+    pub max_employed: u32,
+}
+
+struct HousingStats {
+    total: u32,
+    lowest_level: HouseLevel,
+    highest_level: HouseLevel,
+}
 
 struct GlobalResourceCounts {
     // Combined sum of resources (all units + all buildings).
@@ -949,13 +969,11 @@ struct GlobalResourceCounts {
 
 pub struct WorldStats {
     // Global counts:
-    pub population: u32,
-    pub workers: u32,
+    pub population: PopulationStats,
+    pub workers: WorkerStats,
 
     // Housing stats:
-    houses: u32,
-    lowest_house_level: HouseLevel,
-    highest_house_level: HouseLevel,
+    houses: HousingStats,
 
     // Global resource tally:
     resources: GlobalResourceCounts,
@@ -964,11 +982,13 @@ pub struct WorldStats {
 impl WorldStats {
     fn new() -> Self {
         Self {
-            population: 0,
-            workers: 0,
-            houses: 0,
-            lowest_house_level: HouseLevel::max(),
-            highest_house_level: HouseLevel::min(),
+            population: PopulationStats::default(),
+            workers: WorkerStats::default(),
+            houses: HousingStats {
+                total: 0,
+                lowest_level: HouseLevel::max(),
+                highest_level: HouseLevel::min(),
+            },
             resources: GlobalResourceCounts {
                 all: ResourceStock::accept_all(),
                 units: ResourceStock::accept_all(),
@@ -978,7 +998,7 @@ impl WorldStats {
                 markets: ResourceStock::with_accepted_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
                 producers: ResourceStock::accept_all(),
                 services: ResourceStock::accept_all(),
-            }
+            },
         }
     }
 
@@ -1037,30 +1057,57 @@ impl WorldStats {
         }
     }
 
-    pub fn update_house_level(&mut self, level: HouseLevel) {
-        if level < self.lowest_house_level {
-            self.lowest_house_level = level;
+    pub fn update_housing_stats(&mut self, level: HouseLevel) {
+        if level < self.houses.lowest_level {
+            self.houses.lowest_level = level;
         }
-        if level > self.highest_house_level {
-            self.highest_house_level = level;
+        if level > self.houses.highest_level {
+            self.houses.highest_level = level;
         }
-        self.houses += 1;
+        self.houses.total += 1;
     }
 
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
-        if let Some(_tab) = ui.tab_item("Population/Workers") {
-            ui.text(format!("Population : {}", self.population));
-            ui.text(format!("Workers    : {}", self.workers));
+        if let Some(_tab) = ui.tab_item("Population/Workers/Housing") {
+            ui.text("Population:");
+            {
+                let (employment_percentage, unemployment_percentage) = {
+                    if self.population.total != 0 {
+                        (((self.population.employed   as f32) / (self.population.total as f32)) * 100.0,
+                         ((self.population.unemployed as f32) / (self.population.total as f32)) * 100.0)
+                    } else {
+                        (0.0, 0.0)
+                    }
+                };
 
+                ui.text(format!("Total        : {}", self.population.total));
+                ui.text(format!("Employed     : {}", self.population.employed));
+                ui.text(format!("Employment   : {employment_percentage:.2}%"));
+                ui.text(format!("Unemployed   : {}", self.population.unemployed));
+                ui.text(format!("Unemployment : {unemployment_percentage:.2}%"));
+            }
             ui.separator();
 
-            if self.houses != 0 {
+            ui.text("Workers:");
+            {
+                let min_workers_needed = ((self.workers.min_required as i32) - (self.workers.total as i32)).max(0);
+                let max_workers_needed = ((self.workers.max_employed as i32) - (self.workers.total as i32)).max(0);
+
+                ui.text(format!("Total        : {}", self.workers.total));
+                ui.text(format!("Min Required : {}", self.workers.min_required));
+                ui.text(format!("Min Needed   : {min_workers_needed}"));
+                ui.text(format!("Max Employed : {}", self.workers.max_employed));
+                ui.text(format!("Max Needed   : {max_workers_needed}"));
+            }
+            ui.separator();
+
+            if self.houses.total != 0 {
                 ui.text("Housing:");
-                ui.text(format!("Number Of Houses    : {}", self.houses));
-                ui.text(format!("Lowest House Level  : {}", self.lowest_house_level  as u32));
-                ui.text(format!("Highest House Level : {}", self.highest_house_level as u32));
+                ui.text(format!("Number Of Houses    : {}", self.houses.total));
+                ui.text(format!("Lowest House Level  : {}", self.houses.lowest_level  as u32));
+                ui.text(format!("Highest House Level : {}", self.houses.highest_level as u32));
             }
         }
 
