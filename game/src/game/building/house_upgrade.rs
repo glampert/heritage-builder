@@ -133,18 +133,19 @@ pub fn try_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_
     let tile_map = context.query.tile_map();
 
     // We'll have to restore the game_state on the new tile.
-    let (prev_game_state, prev_cell_range) = {
+    let (prev_game_state, prev_cell_range, prev_tile_def) = {
         let prev_tile = tile_map.find_tile_mut(dest_house.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("House building should have an associated Tile in the TileMap!");
 
         let game_state = prev_tile.game_state_handle();
         let cell_range = prev_tile.cell_range();
+        let tile_def = prev_tile.tile_def();
 
         debug_assert!(game_state.is_valid(), "House tile doesn't have a valid associated TileGameStateHandle!");
         debug_assert!(dest_house.kind() == BuildingKind::from_game_state_handle(game_state));
         debug_assert!(dest_house.id().index() == game_state.index());
 
-        (game_state, cell_range)
+        (game_state, cell_range, tile_def)
     };
 
     // Clear the previous tile:
@@ -160,15 +161,34 @@ pub fn try_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_
         target_tile_def) {
         Ok(tile) => tile,
         Err(err) => {
-            log::error!(log::channel!("house"), "{}: Failed to place new House tile: {err}", dest_house.name());
+            // Revert back to the previous tile if we've failed.
+            let prev_tile = match tile_map.try_place_tile_in_layer(
+                    prev_cell_range.start,
+                    TileMapLayerKind::Objects,
+                    prev_tile_def) {
+                Ok(tile) => tile,
+                Err(err) => {
+                    log::error!(log::channel!("house"),
+                                "{}: Tile placement failed! Unable to restore previous House tile: {err}",
+                                dest_house.name());
+                    return false;
+                }
+            };
+
+            // Restore previous game state handle:
+            prev_tile.set_game_state_handle(prev_game_state);
+            debug_assert!(prev_tile.cell_range() == prev_cell_range);
+
+            log::error!(log::channel!("house"),
+                        "{}: Failed to place new House tile: {err}. Previous tile restored.",
+                        dest_house.name());
             return false;
         }
     };
 
-    debug_assert!(new_tile.cell_range() == new_cell_range);
-
     // Update game state handle:
     new_tile.set_game_state_handle(prev_game_state);
+    debug_assert!(new_tile.cell_range() == new_cell_range);
 
     if new_cell_range != prev_cell_range {
         // Update cell range cached in the building & context.
