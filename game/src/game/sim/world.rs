@@ -1092,14 +1092,14 @@ impl WorldStats {
 
             ui.text("Workers:");
             {
-                let min_workers_needed = ((self.workers.min_required as i32) - (self.workers.total as i32)).max(0);
-                let max_workers_needed = ((self.workers.max_employed as i32) - (self.workers.total as i32)).max(0);
+                let min_workers_missing = ((self.workers.min_required as i32) - (self.workers.total as i32)).max(0);
+                let max_workers_missing = ((self.workers.max_employed as i32) - (self.workers.total as i32)).max(0);
 
                 ui.text(format!("Total        : {}", self.workers.total));
                 ui.text(format!("Min Required : {}", self.workers.min_required));
-                ui.text(format!("Min Needed   : {min_workers_needed}"));
+                ui.text(format!("Min Missing  : {min_workers_missing}"));
                 ui.text(format!("Max Employed : {}", self.workers.max_employed));
-                ui.text(format!("Max Needed   : {max_workers_needed}"));
+                ui.text(format!("Max Missing  : {max_workers_missing}"));
             }
             ui.separator();
 
