@@ -30,6 +30,7 @@ use crate::{
         },
         sim::{
             Query,
+            debug::DebugUiMode,
             world::{UnitId, GameObject},
             debug::{
                 GameObjectDebugOptions,
@@ -55,8 +56,14 @@ use super::{
 // ----------------------------------------------
 
 impl<'config> Unit<'config> {
-    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
+
+        if mode == DebugUiMode::Overview {
+            return;
+        }
+
+        // DebugUiMode::Detailed:
         self.draw_debug_ui_properties(ui_sys);
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);

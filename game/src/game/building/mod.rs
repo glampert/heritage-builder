@@ -40,7 +40,7 @@ use super::{
     sim::{
         Query,
         UpdateTimer,
-        debug::GameObjectDebugOptions,
+        debug::{DebugUiMode, GameObjectDebugOptions},
         world::{BuildingId, GameObject, WorldStats},
         resources::{
             Workers,
@@ -698,8 +698,16 @@ impl<'config> Building<'config> {
     // Building Debug:
     // ----------------------
 
-    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
+
+        let context = self.new_context(query);
+        if mode == DebugUiMode::Overview {
+            self.draw_debug_ui_overview(&context, ui_sys);
+            return;
+        }
+
+        // DebugUiMode::Detailed:
         let ui = ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
@@ -725,7 +733,6 @@ impl<'config> Building<'config> {
         }
 
         self.configs().draw_debug_ui(ui_sys);
-        let context = self.new_context(query);
 
         if let Some(population) = self.archetype().population() {
             if ui.collapsing_header("Population", imgui::TreeNodeFlags::empty()) {
@@ -863,6 +870,72 @@ impl<'config> Building<'config> {
             visible_range,
             query.delta_time_secs());
     }
+
+    fn draw_debug_ui_overview(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        let color_bullet_text = |text: &str, value: bool| {
+            ui.bullet_text(format!("{text}:"));
+            ui.same_line();
+            if value {
+                ui.text("yes");
+            } else {
+                ui.text_colored(Color::red().to_array(), "no");
+            }
+        };
+
+        let font = ui.push_font(ui_sys.fonts().large);
+        ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
+        font.pop();
+
+        color_bullet_text("Linked to road", self.is_linked_to_road(context.query));
+
+        if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
+            let house = self.as_house();
+            if !house.level().is_max() {
+                let (has_required_services, has_required_resources) =
+                    house.has_requirements_for_upgrade(context);
+
+                color_bullet_text("Has services to upgrade", has_required_services);
+                color_bullet_text("Has resources to upgrade", has_required_resources);
+                color_bullet_text("Has room to upgrade", house.is_upgrade_available(context));
+            } else {
+                ui.bullet_text("Max house level reached");
+            }
+        } else {
+            color_bullet_text("Is operational", self.archetype().is_operational());
+            color_bullet_text("Stock is full", self.archetype().is_stock_full());
+            color_bullet_text("Has resources", self.archetype().has_min_required_resources());
+        }
+
+        if let Some(population) = self.archetype().population() {
+            ui.bullet_text(format!("Population: {} (max: {})", population.count(), population.max()));
+        }
+
+        if let Some(workers) = self.archetype().workers() {
+            if let Some(worker_pool) = workers.as_household_worker_pool() {
+                ui.bullet_text(format!("Workers: {} (employed: {}, unemployed: {})",
+                    worker_pool.total_workers(),
+                    worker_pool.employed_count(),
+                    worker_pool.unemployed_count()));
+            } else if let Some(employer) = workers.as_employer() {
+                color_bullet_text("Has min workers", self.archetype().has_min_required_workers());
+                color_bullet_text("Has all workers", employer.is_at_max_capacity());
+                if employer.is_below_min_required() {
+                    ui.bullet_text("Workers:");
+                    ui.same_line();
+                    ui.text_colored(Color::red().to_array(), format!("{}", employer.employee_count()));
+                    ui.same_line();
+                    ui.text(format!("(min: {}, max: {})", employer.min_employees(), employer.max_employees()));
+                } else {
+                    ui.bullet_text(format!("Workers: {} (min: {}, max: {})",
+                        employer.employee_count(),
+                        employer.min_employees(),
+                        employer.max_employees()));
+                }
+            }
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -928,6 +1001,9 @@ pub trait BuildingBehavior<'config> {
     // Resources/Stock:
     // ----------------------
 
+    fn is_stock_full(&self) -> bool;
+    fn has_min_required_resources(&self) -> bool { true }
+
     // How many resources of this kind do we currently hold?
     fn available_resources(&self, kind: ResourceKind) -> u32;
 
@@ -968,6 +1044,9 @@ pub trait BuildingBehavior<'config> {
 
     fn workers(&self) -> Option<&Workers> { None }
     fn workers_mut(&mut self) -> Option<&mut Workers> { None }
+
+    fn is_operational(&self) -> bool { self.has_min_required_workers() && self.has_min_required_resources() }
+    fn has_min_required_workers(&self) -> bool { true }
 
     // ----------------------
     // Debug:
@@ -1265,6 +1344,18 @@ impl BuildingStock {
     #[inline]
     fn is_empty(&self) -> bool {
         self.resources.is_empty()
+    }
+
+    #[inline]
+    fn is_full(&self) -> bool {
+        let mut full_count = 0;
+        self.resources.for_each(|index, item| {
+            let item_capacity = self.capacities[index] as u32;
+            if item.count >= item_capacity {
+                full_count += 1;
+            }
+        });
+        full_count == self.resources.accepted_count()
     }
 
     #[inline]

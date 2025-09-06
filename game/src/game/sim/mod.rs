@@ -21,7 +21,6 @@ use crate::{
         AStarUniformCostHeuristic
     },
     utils::{
-        Size,
         Seconds,
         UnsafeWeakRef,
         hash::StringHash,
@@ -198,7 +197,8 @@ impl<'config> Simulation<'config> {
 
     pub fn draw_building_debug_ui(&mut self,
                                   context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                                  selected_cell: Cell) {
+                                  selected_cell: Cell,
+                                  mode: debug::DebugUiMode) {
 
         let query = self.new_query(
             context.world,
@@ -209,7 +209,8 @@ impl<'config> Simulation<'config> {
         context.world.draw_building_debug_ui(
             &query,
             context.ui_sys,
-            selected_cell);
+            selected_cell,
+            mode);
     }
 
     // Units:
@@ -232,7 +233,8 @@ impl<'config> Simulation<'config> {
 
     pub fn draw_unit_debug_ui(&mut self,
                               context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                              selected_cell: Cell) {
+                              selected_cell: Cell,
+                              mode: debug::DebugUiMode) {
 
         let query = self.new_query(
             context.world,
@@ -243,7 +245,8 @@ impl<'config> Simulation<'config> {
         context.world.draw_unit_debug_ui(
             &query,
             context.ui_sys,
-            selected_cell);
+            selected_cell,
+            mode);
     }
 }
 
@@ -710,45 +713,5 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                 }
             }
         }
-    }
-}
-
-// ----------------------------------------------
-// DebugQueryBuilder
-// ----------------------------------------------
-
-// Dummy Query for unit tests/debug.
-pub struct DebugQueryBuilder {
-    rng: RandomGenerator,
-    graph: Graph,
-    search: Search,
-    task_manager: UnitTaskManager,
-}
-
-impl DebugQueryBuilder {
-    pub fn new(map_size_in_cells: Size) -> Self {
-        Self {
-            rng: RandomGenerator::seed_from_u64(SIM_DEFAULT_RANDOM_SEED),
-            graph: Graph::with_empty_grid(map_size_in_cells),
-            search: Search::with_grid_size(map_size_in_cells),
-            task_manager: UnitTaskManager::new(1),
-        }
-    }
-
-    pub fn new_query<'config, 'tile_sets>(&mut self,
-                                          world: &mut World<'config>,
-                                          tile_map: &mut TileMap<'tile_sets>,
-                                          tile_sets: &'tile_sets TileSets) -> Query<'config, 'tile_sets> {
-        Query::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
-            &mut self.task_manager,
-            world,
-            tile_map,
-            tile_sets,
-            world.building_configs(),
-            world.unit_configs(),
-            0.0)
     }
 }

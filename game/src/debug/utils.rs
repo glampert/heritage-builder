@@ -3,7 +3,7 @@ use crate::{
     imgui_ui::UiSystem,
     game::{
         cheats::{self, Cheats},
-        sim::{DebugQueryBuilder, world::World}
+        sim::{debug::DebugQueryBuilder, world::World}
     },
     render::{RenderSystem, RenderStats},
     utils::{

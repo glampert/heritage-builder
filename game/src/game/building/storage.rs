@@ -155,6 +155,10 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     // Resources/Stock:
     // ----------------------
 
+    fn is_stock_full(&self) -> bool {
+        self.storage_slots.are_all_slots_full()
+    }
+
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         if self.has_min_required_workers() {
             return self.storage_slots.available_resources(kind);
@@ -209,6 +213,14 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     fn workers(&self) -> Option<&Workers> { Some(&self.workers) }
     fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
 
+    #[inline]
+    fn has_min_required_workers(&self) -> bool {
+        if cheats::get().ignore_worker_requirements {
+            return true;
+        }
+        self.workers.as_employer().unwrap().has_min_required()
+    }
+
     // ----------------------
     // Debug:
     // ----------------------
@@ -238,14 +250,6 @@ impl<'config> StorageBuilding<'config> {
             ),
             debug: StorageDebug::default(),
         }
-    }
-
-    #[inline]
-    fn has_min_required_workers(&self) -> bool {
-        if cheats::get().ignore_worker_requirements {
-            return true;
-        }
-        self.workers.as_employer().unwrap().has_min_required()
     }
 }
 

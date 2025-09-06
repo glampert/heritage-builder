@@ -149,6 +149,14 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     // Resources/Stock:
     // ----------------------
 
+    fn is_stock_full(&self) -> bool {
+        self.stock.is_full()
+    }
+
+    fn has_min_required_resources(&self) -> bool {
+        !self.stock.is_empty()
+    }
+
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         if self.has_min_required_workers() {
             return self.stock.available_resources(kind);
@@ -203,6 +211,14 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     fn workers(&self) -> Option<&Workers> { Some(&self.workers) }
     fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
 
+    #[inline]
+    fn has_min_required_workers(&self) -> bool {
+        if cheats::get().ignore_worker_requirements {
+            return true;
+        }
+        self.workers.as_employer().unwrap().has_min_required()
+    }
+
     // ----------------------
     // Debug:
     // ----------------------
@@ -233,14 +249,6 @@ impl<'config> ServiceBuilding<'config> {
             patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
             debug: ServiceDebug::default(),
         }
-    }
-
-    #[inline]
-    fn has_min_required_workers(&self) -> bool {
-        if cheats::get().ignore_worker_requirements {
-            return true;
-        }
-        self.workers.as_employer().unwrap().has_min_required()
     }
 
     // ----------------------

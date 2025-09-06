@@ -179,6 +179,17 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     // Resources/Stock:
     // ----------------------
 
+    fn is_stock_full(&self) -> bool {
+        self.production_output_stock.is_full()
+    }
+
+    fn has_min_required_resources(&self) -> bool {
+        if self.production_input_stock.requires_any_resource() {
+            return self.production_input_stock.has_required_resources();
+        }
+        true
+    }
+
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         if self.has_min_required_workers() {
             return self.production_output_stock.available_resources(kind);
@@ -230,6 +241,18 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     fn workers(&self) -> Option<&Workers> { Some(&self.workers) }
     fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
 
+    fn is_operational(&self) -> bool {
+        self.has_min_required_workers() && !self.is_production_halted()
+    }
+
+    #[inline]
+    fn has_min_required_workers(&self) -> bool {
+        if cheats::get().ignore_worker_requirements {
+            return true;
+        }
+        self.workers.as_employer().unwrap().has_min_required()
+    }
+
     // ----------------------
     // Debug:
     // ----------------------
@@ -265,14 +288,6 @@ impl<'config> ProducerBuilding<'config> {
             runner: Runner::default(),
             debug: ProducerDebug::default(),
         }
-    }
-
-    #[inline]
-    fn has_min_required_workers(&self) -> bool {
-        if cheats::get().ignore_worker_requirements {
-            return true;
-        }
-        self.workers.as_employer().unwrap().has_min_required()
     }
 
     fn production_update(&mut self) {

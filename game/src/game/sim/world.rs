@@ -43,6 +43,7 @@ use crate::{
 
 use super::{
     Query,
+    debug::DebugUiMode,
     resources::{ResourceKind, ResourceStock}
 };
 
@@ -358,7 +359,8 @@ impl<'config> World<'config> {
     pub fn draw_building_debug_ui(&mut self,
                                   query: &Query<'config, '_>,
                                   ui_sys: &UiSystem,
-                                  selected_cell: Cell) {
+                                  selected_cell: Cell,
+                                  mode: DebugUiMode) {
 
         let tile = match query.tile_map.find_tile(selected_cell,
                                                              TileMapLayerKind::Objects,
@@ -368,7 +370,7 @@ impl<'config> World<'config> {
         };
 
         if let Some(building) = self.find_building_for_tile_mut(tile) {
-            building.draw_debug_ui(query, ui_sys);
+            building.draw_debug_ui(query, ui_sys, mode);
         }
     }
 
@@ -604,7 +606,8 @@ impl<'config> World<'config> {
     pub fn draw_unit_debug_ui(&mut self,
                               query: &Query<'config, '_>,
                               ui_sys: &UiSystem,
-                              selected_cell: Cell) {
+                              selected_cell: Cell,
+                              mode: DebugUiMode) {
 
         let tile = match query.tile_map.find_tile(selected_cell,
                                                              TileMapLayerKind::Objects,
@@ -614,7 +617,7 @@ impl<'config> World<'config> {
         };
 
         if let Some(unit) = self.find_unit_for_tile_mut(tile) {
-            unit.draw_debug_ui(query, ui_sys);
+            unit.draw_debug_ui(query, ui_sys, mode);
         }
     }
 

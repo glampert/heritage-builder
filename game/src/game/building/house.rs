@@ -231,6 +231,10 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
     // Resources/Stock:
     // ----------------------
 
+    fn is_stock_full(&self) -> bool {
+        self.stock.is_full()
+    }
+
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         self.stock.available_resources(kind)
     }
@@ -452,11 +456,20 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
-    fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
+    pub fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
         if self.debug.freeze_upgrade_update() {
             return false;
         }
         self.upgrade_state.is_upgrade_available(context)
+    }
+
+    pub fn has_requirements_for_upgrade(&self, context: &BuildingContext) -> (bool, bool) {
+        let next_level_requirements =
+            HouseLevelRequirements::new(context, self.upgrade_state.next_level_config, &self.stock);
+        (
+            next_level_requirements.has_required_resources(),
+            next_level_requirements.has_required_services()
+        )
     }
 
     // ----------------------

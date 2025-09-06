@@ -6,7 +6,7 @@ use crate::{
     app::input::{InputAction, MouseButton},
     imgui_ui::{self, UiInputEvent, UiSystem},
     pathfind::NodeKind as PathNodeKind,
-    game::sim::{self, Simulation},
+    game::sim::{self, Simulation, debug::DebugUiMode},
     utils::{
         Size,
         Color,
@@ -168,6 +168,12 @@ impl TileInspectorMenu {
                     None => return,
                 };
 
+                if is_building {
+                    sim.draw_building_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Overview);
+                } else if is_unit {
+                    sim.draw_unit_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Overview);
+                }
+
                 if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
                     Self::tile_properties_dropdown(context, tile_mut);
@@ -180,13 +186,13 @@ impl TileInspectorMenu {
 
                 if is_building && ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    sim.draw_building_debug_ui(context, tile_mut.base_cell());
+                    sim.draw_building_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Detailed);
                     ui.unindent_by(10.0);
                 }
 
                 if is_unit && ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    sim.draw_unit_debug_ui(context, tile_mut.base_cell());
+                    sim.draw_unit_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Detailed);
                     ui.unindent_by(10.0);
                 }
             });

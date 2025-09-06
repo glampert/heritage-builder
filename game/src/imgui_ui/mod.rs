@@ -156,6 +156,7 @@ impl UiSystem {
 pub struct UiFonts {
     pub normal: UiFontHandle,
     pub small: UiFontHandle,
+    pub large: UiFontHandle,
 }
 
 // ----------------------------------------------
@@ -197,6 +198,15 @@ impl UiContext {
                 }),
             }]);
 
+        const LARGE_FONT_SIZE: f32 = 14.0;
+        let font_large = imgui_ctx.fonts().add_font(
+            &[imgui::FontSource::DefaultFontData {
+                config: Some(imgui::FontConfig {
+                    size_pixels: LARGE_FONT_SIZE,
+                    ..imgui::FontConfig::default()
+                }),
+            }]);
+
         // On MacOS this generates a lot of TTY spam about missing
         // OpenGL functions that we don't need or care about. This
         // is a hack to stop the TTY spamming but still keep a record
@@ -212,7 +222,7 @@ impl UiContext {
         Self {
             imgui_ctx,
             imgui_renderer,
-            fonts_ids: UiFonts { normal: font_normal, small: font_small },
+            fonts_ids: UiFonts { normal: font_normal, small: font_small, large: font_large },
             frame_started: false,
         }
     }
