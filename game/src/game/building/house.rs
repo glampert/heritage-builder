@@ -27,7 +27,6 @@ use crate::{
             world::WorldStats,
             resources::{
                 Workers,
-                HouseholdWorkerPool,
                 Population,
                 ResourceKind,
                 ResourceKinds,
@@ -42,6 +41,7 @@ use super::{
     house_upgrade,
     Building,
     BuildingKind,
+    BuildingKindAndId,
     BuildingBehavior,
     BuildingContext,
     BuildingStock,
@@ -463,16 +463,98 @@ impl<'config> HouseBuilding<'config> {
     // Upgrade Helpers:
     // ----------------------
 
-    #[inline] pub fn level(&self) -> HouseLevel { self.upgrade_state.level }
+    #[inline]
+    pub fn level(&self) -> HouseLevel {
+        self.upgrade_state.level
+    }
 
-    #[inline] pub fn stock_ref(&self) -> &BuildingStock { &self.stock }
-    #[inline] pub fn stock_mut(&mut self) -> &mut BuildingStock { &mut self.stock }
+    #[inline]
+    pub fn merge(&mut self,
+                 context: &BuildingContext,
+                 house_to_merge: &mut HouseBuilding,
+                 house_to_merge_kind_and_id: BuildingKindAndId,
+                 target_level_config: &HouseLevelConfig) {
 
-    #[inline] pub fn population_ref(&self) -> &Population { &self.population }
-    #[inline] pub fn population_mut(&mut self) -> &mut Population { &mut self.population }
+        self.merge_resources(context, house_to_merge, target_level_config);
+        self.merge_population(context, house_to_merge, target_level_config);
+        self.merge_workers(context, house_to_merge, house_to_merge_kind_and_id);
+    }
 
-    #[inline] pub fn worker_pool_ref(&self) -> &HouseholdWorkerPool { self.workers.as_household_worker_pool().unwrap() }
-    #[inline] pub fn worker_pool_mut(&mut self) -> &mut HouseholdWorkerPool { self.workers.as_household_worker_pool_mut().unwrap() }
+    fn merge_resources(&mut self,
+                       context: &BuildingContext,
+                       house_to_merge: &mut HouseBuilding,
+                       target_level_config: &HouseLevelConfig) {
+
+        self.stock.update_capacities(target_level_config.stock_capacity);
+
+        if !self.stock.merge(&house_to_merge.stock) {
+            log::error!(log::channel!("house"), "Failed to fully merge house stocks: {} - {} and {}.",
+                        self.name(), context.id, house_to_merge.name());
+        }
+
+        // Resources moved into this house.
+        house_to_merge.stock.clear();
+    }
+
+    fn merge_population(&mut self,
+                        context: &BuildingContext,
+                        house_to_merge: &mut HouseBuilding,
+                        target_level_config: &HouseLevelConfig) {
+
+        let new_max_population = target_level_config.max_population;
+        let mut new_population = self.population.count() + house_to_merge.population.count();
+
+        // NOTE: If the merge exceeds new house population capacity we will evict some residents first.
+        if new_population > new_max_population {
+            let amount_to_evict = new_population - new_max_population;
+            self.evict_population(context, amount_to_evict);
+            new_population -= amount_to_evict;
+        }
+
+        // Should always succeed since we've made enough room.
+        self.population.set_max_and_count(new_max_population, new_population);
+        self.adjust_workers_available(context);
+
+        // NOTE: Reset all population so we won't try to evict any residents when
+        // the building is destroyed. Population has been moved into this household.
+        house_to_merge.population.clear();
+    }
+
+    fn merge_workers(&mut self,
+                     context: &BuildingContext,
+                     house_to_merge: &mut HouseBuilding,
+                     house_to_merge_kind_and_id: BuildingKindAndId) {
+
+        if !self.workers.merge(&house_to_merge.workers) {
+            log::error!(log::channel!("house"), "Failed to fully merge house worker pools: {} - {} and {}.",
+                        self.name(), context.id, house_to_merge.name());
+        }
+
+        // Employers of `house_to_merge` workers must now point to this house.
+        house_to_merge.workers.as_household_worker_pool().unwrap()
+            .for_each_employer(context.query.world(), |employer, employed_count| {
+                let prev_popups = employer.archetype_mut().debug_options().set_show_popups(false);
+
+                let removed_count = employer.remove_workers(employed_count, house_to_merge_kind_and_id);
+                if removed_count != employed_count {
+                    log::error!(log::channel!("house"), "House merge between {} - {} and {}: Failed to remove {} workers from {}.",
+                                self.name(), context.id, house_to_merge.name(), employed_count, employer.name());
+                }
+
+                let added_count = employer.add_workers(employed_count, context.kind_and_id());
+                if added_count != employed_count {
+                    log::error!(log::channel!("house"), "House merge between {} - {} and {}: Failed to add {} workers to {}.",
+                                self.name(), context.id, house_to_merge.name(), employed_count, employer.name());
+                }
+
+                employer.archetype_mut().debug_options().set_show_popups(prev_popups);
+                true
+            });
+
+        // NOTE: Reset all workers so we won't try to notify
+        // employers when the merged building is destroyed.
+        house_to_merge.workers.clear();
+    }
 
     // ----------------------
     // Population Update:
@@ -501,7 +583,7 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
-    pub fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {
+    fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {
         let unit_origin = context.road_link_or_building_access_tile();
         if !unit_origin.is_valid() {
             log::error!(log::channel!("house"), "Failed to find a vacant cell to spawn evicted unit!");
@@ -532,7 +614,7 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
-    pub fn adjust_workers_available(&mut self, context: &BuildingContext) {
+    fn adjust_workers_available(&mut self, context: &BuildingContext) {
         // Percentage of current household residents that are workers: [0,100].
         let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
         let curr_population   = self.population.count() as f32;
