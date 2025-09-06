@@ -227,14 +227,19 @@ impl<'config> GameObject<'config> for Building<'config> {
         if let Some(workers) = self.archetype().workers() {
             stats.workers.total += workers.count();
 
-            if workers.is_household_worker_pool() {
-                let worker_pool = workers.as_household_worker_pool().unwrap();
+            if let Some(worker_pool) = workers.as_household_worker_pool() {
                 stats.population.employed   += worker_pool.employed_count();
                 stats.population.unemployed += worker_pool.unemployed_count();
-            } else if workers.is_employer() {
-                let employer = workers.as_employer().unwrap();
+            } else if let Some(employer) = workers.as_employer() {
                 stats.workers.min_required += employer.min_employees();
                 stats.workers.max_employed += employer.max_employees();
+
+                if employer.is_below_min_required() {
+                    stats.workers.buildings_below_min += 1;
+                }
+                if !employer.is_at_max_capacity() {
+                    stats.workers.buildings_below_max += 1;
+                }
             }
         }
 

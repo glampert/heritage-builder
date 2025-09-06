@@ -7,10 +7,13 @@ use strum::IntoDiscriminant;
 
 use crate::{
     imgui_ui::UiSystem,
-    utils::coords::{
-        Cell,
-        CellRange,
-        WorldToScreenTransform
+    utils::{
+        Color,
+        coords::{
+            Cell,
+            CellRange,
+            WorldToScreenTransform
+        }
     },
     tile::{
         Tile,
@@ -943,6 +946,8 @@ pub struct WorkerStats {
     pub total: u32,
     pub min_required: u32,
     pub max_employed: u32,
+    pub buildings_below_min: u32,
+    pub buildings_below_max: u32,
 }
 
 struct HousingStats {
@@ -1070,8 +1075,19 @@ impl WorldStats {
     fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
+        let highlight_nonzero_value = |label: &str, value: u32, color: Color| {
+            if value != 0 {
+                ui.text(format!("{label} : "));
+                ui.same_line();
+                ui.text_colored(color.to_array(), format!("{value}"));
+            } else {
+                ui.text(format!("{label} : {value}"));
+            }
+        };
+
         if let Some(_tab) = ui.tab_item("Population/Workers/Housing") {
-            ui.text("Population:");
+            ui.bullet_text("Population:");
+            ui.spacing();
             {
                 let (employment_percentage, unemployment_percentage) = {
                     if self.population.total != 0 {
@@ -1082,29 +1098,32 @@ impl WorldStats {
                     }
                 };
 
-                ui.text(format!("Total        : {}", self.population.total));
-                ui.text(format!("Employed     : {}", self.population.employed));
-                ui.text(format!("Employment   : {employment_percentage:.2}%"));
-                ui.text(format!("Unemployed   : {}", self.population.unemployed));
+                ui.text(format!("Total : {}", self.population.total));
+                ui.spacing();
+                ui.text(format!("Employed : {}", self.population.employed));
+                ui.text(format!("Employment : {employment_percentage:.2}%"));
+                ui.spacing();
+                ui.text(format!("Unemployed : {}", self.population.unemployed));
                 ui.text(format!("Unemployment : {unemployment_percentage:.2}%"));
             }
             ui.separator();
 
-            ui.text("Workers:");
+            ui.bullet_text("Workers:");
+            ui.spacing();
             {
-                let min_workers_missing = ((self.workers.min_required as i32) - (self.workers.total as i32)).max(0);
-                let max_workers_missing = ((self.workers.max_employed as i32) - (self.workers.total as i32)).max(0);
-
-                ui.text(format!("Total        : {}", self.workers.total));
+                ui.text(format!("Total : {}", self.workers.total));
+                ui.spacing();
                 ui.text(format!("Min Required : {}", self.workers.min_required));
-                ui.text(format!("Min Missing  : {min_workers_missing}"));
                 ui.text(format!("Max Employed : {}", self.workers.max_employed));
-                ui.text(format!("Max Missing  : {max_workers_missing}"));
+                ui.spacing();
+                highlight_nonzero_value("Buildings Below Min", self.workers.buildings_below_min, Color::red());
+                highlight_nonzero_value("Buildings Below Max", self.workers.buildings_below_max, Color::yellow());
             }
             ui.separator();
 
             if self.houses.total != 0 {
-                ui.text("Housing:");
+                ui.bullet_text("Housing:");
+                ui.spacing();
                 ui.text(format!("Number Of Houses    : {}", self.houses.total));
                 ui.text(format!("Lowest House Level  : {}", self.houses.lowest_level  as u32));
                 ui.text(format!("Highest House Level : {}", self.houses.highest_level as u32));
