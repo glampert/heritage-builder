@@ -168,20 +168,23 @@ impl TileInspectorMenu {
                     None => return,
                 };
 
+                // Overviews:
                 if is_building {
                     sim.draw_building_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Overview);
                 } else if is_unit {
                     sim.draw_unit_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Overview);
                 }
 
-                if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
-                    ui.indent_by(10.0);
-                    Self::tile_properties_dropdown(context, tile_mut);
-                    Self::tile_variations_dropdown(context, tile_mut);
-                    Self::tile_animations_dropdown(context, tile_mut);
-                    Self::tile_debug_opts_dropdown(context, tile_mut);
-                    Self::tile_def_editor_dropdown(context, tile_mut);
-                    ui.unindent_by(10.0);
+                // Detailed dropdowns:
+                if is_building || is_unit {
+                    if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
+                        ui.indent_by(10.0);
+                        Self::draw_tile_debug_ui(context, tile_mut);
+                        ui.unindent_by(10.0);
+                    }
+                } else {
+                    // Draw tile debug ui directly without nesting.
+                    Self::draw_tile_debug_ui(context, tile_mut);
                 }
 
                 if is_building && ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
@@ -236,6 +239,14 @@ impl TileInspectorMenu {
         // Use the tile cell as a fallback. This is fine as long as the
         // tile doesn't move, so should be OK for terrain & prop tiles.
         format!("Tile: {} @ {}", tile.name(), tile.base_cell())
+    }
+
+    fn draw_tile_debug_ui(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+        Self::tile_properties_dropdown(context, tile);
+        Self::tile_variations_dropdown(context, tile);
+        Self::tile_animations_dropdown(context, tile);
+        Self::tile_debug_opts_dropdown(context, tile);
+        Self::tile_def_editor_dropdown(context, tile);
     }
 
     fn tile_properties_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {

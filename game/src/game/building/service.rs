@@ -154,7 +154,10 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     }
 
     fn has_min_required_resources(&self) -> bool {
-        !self.stock.is_empty()
+        if self.stock.accepts_any() {
+            return !self.stock.is_empty();
+        }
+        true
     }
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
