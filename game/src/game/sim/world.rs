@@ -359,15 +359,8 @@ impl<'config> World<'config> {
     pub fn draw_building_debug_ui(&mut self,
                                   query: &Query<'config, '_>,
                                   ui_sys: &UiSystem,
-                                  selected_cell: Cell,
+                                  tile: &Tile,
                                   mode: DebugUiMode) {
-
-        let tile = match query.tile_map.find_tile(selected_cell,
-                                                             TileMapLayerKind::Objects,
-                                                             TileKind::Building) {
-            Some(tile) => tile,
-            None => return,
-        };
 
         if let Some(building) = self.find_building_for_tile_mut(tile) {
             building.draw_debug_ui(query, ui_sys, mode);
@@ -606,15 +599,8 @@ impl<'config> World<'config> {
     pub fn draw_unit_debug_ui(&mut self,
                               query: &Query<'config, '_>,
                               ui_sys: &UiSystem,
-                              selected_cell: Cell,
+                              tile: &Tile,
                               mode: DebugUiMode) {
-
-        let tile = match query.tile_map.find_tile(selected_cell,
-                                                             TileMapLayerKind::Objects,
-                                                             TileKind::Unit) {
-            Some(tile) => tile,
-            None => return,
-        };
 
         if let Some(unit) = self.find_unit_for_tile_mut(tile) {
             unit.draw_debug_ui(query, ui_sys, mode);
@@ -713,6 +699,17 @@ pub trait GameObject<'config> {
 
     fn update(&mut self, query: &Query<'config, '_>);
     fn tally(&self, stats: &mut WorldStats);
+
+    fn draw_debug_ui(&mut self,
+                     query: &Query<'config, '_>,
+                     ui_sys: &UiSystem,
+                     mode: DebugUiMode);
+
+    fn draw_debug_popups(&mut self,
+                         query: &Query,
+                         ui_sys: &UiSystem,
+                         transform: &WorldToScreenTransform,
+                         visible_range: CellRange);
 }
 
 // ----------------------------------------------

@@ -1,6 +1,7 @@
 use crate::{
     game_object_debug_options,
     log,
+    imgui_ui::UiSystem,
     pathfind::{Path, NodeKind as PathNodeKind},
     tile::{
         self,
@@ -12,7 +13,11 @@ use crate::{
     utils::{
         self,
         Color,
-        coords::Cell
+        coords::{
+            Cell,
+            CellRange,
+            WorldToScreenTransform
+        }
     }
 };
 
@@ -20,6 +25,7 @@ use super::{
     building::{Building, BuildingKind},
     sim::{
         Query,
+        debug::DebugUiMode,
         world::{UnitId, GameObject, WorldStats},
         resources::{ResourceKind, StockItem}
     }
@@ -99,6 +105,40 @@ impl<'config> GameObject<'config> for Unit<'config> {
         if let Some(item) = self.inventory.peek() {
             stats.add_unit_resources(item.kind, item.count);
         }
+    }
+
+    fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
+        debug_assert!(self.is_spawned());
+
+        match mode {
+            DebugUiMode::Overview => {
+                self.draw_debug_ui_overview(query, ui_sys);
+            },
+            DebugUiMode::Detailed => {
+                let ui = ui_sys.builder();
+                if ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
+                    ui.indent_by(10.0);
+                    self.draw_debug_ui_detailed(query, ui_sys);
+                    ui.unindent_by(10.0);
+                }
+            },
+        }
+    }
+
+    fn draw_debug_popups(&mut self,
+                         query: &Query,
+                         ui_sys: &UiSystem,
+                         transform: &WorldToScreenTransform,
+                         visible_range: CellRange) {
+
+        debug_assert!(self.is_spawned());
+
+        self.debug.draw_popup_messages(
+            self.find_tile(query),
+            ui_sys,
+            transform,
+            visible_range,
+            query.delta_time_secs());
     }
 }
 

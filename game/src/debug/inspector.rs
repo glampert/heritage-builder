@@ -132,19 +132,16 @@ impl TileInspectorMenu {
                          context: &mut sim::debug::DebugContext<'config, '_, '_, '_, '_>,
                          sim: &mut Simulation<'config>) {
 
-        let tile = match self.try_get_selected_tile() {
-            Some(tile) => tile,
-            None => {
-                self.close();
-                return;
-            }
+        let (tile_screen_rect, window_label) = {
+            let tile = match self.try_get_selected_tile() {
+                Some(tile) => tile,
+                None => {
+                    self.close();
+                    return;
+                }
+            };
+            (tile.screen_rect(&context.transform), Self::make_stable_imgui_window_label(tile))
         };
-
-        let tile_screen_rect = tile.screen_rect(&context.transform);
-        let is_building = tile.is(TileKind::Building);
-        let is_unit = tile.is(TileKind::Unit);
-
-        let window_label = Self::make_stable_imgui_window_label(tile);
 
         let window_position = [
             tile_screen_rect.center().x - 30.0,
@@ -163,41 +160,29 @@ impl TileInspectorMenu {
             .flags(window_flags)
             .position(window_position, imgui::Condition::FirstUseEver)
             .build(|| {
-                let tile_mut = match self.try_get_selected_tile_mut() {
-                    Some(tile_mut) => tile_mut,
+                let tile = match self.try_get_selected_tile_mut() {
+                    Some(tile) => tile,
                     None => return,
                 };
 
-                // Overviews:
-                if is_building {
-                    sim.draw_building_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Overview);
-                } else if is_unit {
-                    sim.draw_unit_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Overview);
-                }
+                // Overview:
+                sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Overview);
 
-                // Detailed dropdowns:
-                if is_building || is_unit {
+                // Detailed:
+                if tile.game_state_handle().is_valid() {
+                    // If the tile has a game state, we'll have different
+                    // dropdowns besides "Tile" (e.g.: "Building", "Unit").
                     if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
                         ui.indent_by(10.0);
-                        Self::draw_tile_debug_ui(context, tile_mut);
+                        Self::draw_tile_debug_ui(context, tile);
                         ui.unindent_by(10.0);
                     }
                 } else {
-                    // Draw tile debug ui directly without nesting.
-                    Self::draw_tile_debug_ui(context, tile_mut);
+                    // Draw tile debug ui directly without nesting under a collapsing header.
+                    Self::draw_tile_debug_ui(context, tile);
                 }
 
-                if is_building && ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
-                    ui.indent_by(10.0);
-                    sim.draw_building_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Detailed);
-                    ui.unindent_by(10.0);
-                }
-
-                if is_unit && ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
-                    ui.indent_by(10.0);
-                    sim.draw_unit_debug_ui(context, tile_mut.base_cell(), DebugUiMode::Detailed);
-                    ui.unindent_by(10.0);
-                }
+                sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Detailed);
             });
 
         self.is_open = is_open;

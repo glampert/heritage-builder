@@ -1379,6 +1379,13 @@ impl UnitTaskManager {
         task.archetype.as_any().downcast_ref::<Task>()
     }
 
+    #[inline]
+    pub fn try_get_task_archetype_and_state(&self, task_id: UnitTaskId)
+                                            -> Option<(&UnitTaskArchetype, &UnitTaskState)> {
+        let task = self.task_pool.try_get(task_id)?;
+        Some((&task.archetype, &task.state))
+    }
+
     pub fn run_unit_tasks<'config>(&mut self, unit: &mut Unit<'config>, query: &Query<'config, '_>) {
         if let Some(current_task_id) = unit.current_task() {
             if let Some(task) = self.task_pool.try_get_mut(current_task_id) {

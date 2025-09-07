@@ -15,11 +15,7 @@ use crate::{
     utils::{
         Color,
         hash::{self},
-        coords::{
-            Cell,
-            CellRange,
-            WorldToScreenTransform
-        }
+        coords::Cell
     },
     game::{
         building::{
@@ -30,7 +26,6 @@ use crate::{
         },
         sim::{
             Query,
-            debug::DebugUiMode,
             world::{UnitId, GameObject},
             debug::{
                 GameObjectDebugOptions,
@@ -56,14 +51,39 @@ use super::{
 // ----------------------------------------------
 
 impl<'config> Unit<'config> {
-    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
-        debug_assert!(self.is_spawned());
+    pub fn draw_debug_ui_overview(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
 
-        if mode == DebugUiMode::Overview {
-            return;
+        let font = ui.push_font(ui_sys.fonts().large);
+        ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
+        font.pop();
+
+        ui.bullet_text(format!("Anim: {} (dir: {})", self.anim_sets.current_anim().string, self.direction));
+
+        if let Some(task_id) = self.current_task() {
+            if let Some((archetype, state)) =
+                query.task_manager().try_get_task_archetype_and_state(task_id)
+            {
+                ui.bullet_text(format!("Task: {archetype} | {state}"));
+            }
         }
 
-        // DebugUiMode::Detailed:
+        if let Some(goal) = self.goal() {
+            ui.bullet_text(format!("Traversable: {}", self.traversable_node_kinds()));
+            ui.bullet_text(format!("Goal: {}", goal.destination_debug_name()));
+            if self.has_reached_goal() {
+                ui.bullet_text(format!("Reached: yes (nav: {:?})", self.navigation.status()));
+            } else {
+                 ui.bullet_text(format!("Reached: no (nav: {:?})", self.navigation.status()));
+            }
+        }
+
+        if let Some(item) = self.peek_inventory() {
+            ui.bullet_text(format!("Inventory: {} ({})", item.kind, item.count));
+        }
+    }
+
+    pub fn draw_debug_ui_detailed(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
         self.draw_debug_ui_properties(ui_sys);
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
@@ -71,21 +91,6 @@ impl<'config> Unit<'config> {
         self.draw_debug_ui_tasks(query, ui_sys);
         self.draw_debug_ui_navigation(query, ui_sys);
         self.draw_debug_ui_misc(query, ui_sys);
-    }
-
-    pub fn draw_debug_popups(&mut self,
-                             query: &Query,
-                             ui_sys: &UiSystem,
-                             transform: &WorldToScreenTransform,
-                             visible_range: CellRange) {
-
-        debug_assert!(self.is_spawned());
-        self.debug.draw_popup_messages(
-            self.find_tile(query),
-            ui_sys,
-            transform,
-            visible_range,
-            query.delta_time_secs());
     }
 
     fn draw_debug_ui_properties(&mut self, ui_sys: &UiSystem) {

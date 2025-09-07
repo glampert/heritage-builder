@@ -199,7 +199,6 @@ impl<'config> GameObject<'config> for Building<'config> {
         self.id
     }
 
-    #[inline]
     fn update(&mut self, query: &Query<'config, '_>) {
         debug_assert!(self.is_spawned());
 
@@ -214,7 +213,6 @@ impl<'config> GameObject<'config> for Building<'config> {
         self.archetype_mut().update(&context);
     }
 
-    #[inline]
     fn tally(&self, stats: &mut WorldStats) {
         if !self.is_spawned() {
             return;
@@ -244,6 +242,47 @@ impl<'config> GameObject<'config> for Building<'config> {
         }
 
         self.archetype().tally(stats, self.kind);
+    }
+
+    fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
+        debug_assert!(self.is_spawned());
+    
+        match mode {
+            DebugUiMode::Overview => {
+                let context = self.new_context(query);
+                self.draw_debug_ui_overview(&context, ui_sys);
+            },
+            DebugUiMode::Detailed => {
+                let ui = ui_sys.builder();
+                if ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
+                    ui.indent_by(10.0);
+                    let context = self.new_context(query);
+                    self.draw_debug_ui_detailed(&context, ui_sys);
+                    ui.unindent_by(10.0);
+                }
+            },
+        }
+    }
+
+    fn draw_debug_popups(&mut self,
+                         query: &Query,
+                         ui_sys: &UiSystem,
+                         transform: &WorldToScreenTransform,
+                         visible_range: CellRange) {
+
+        debug_assert!(self.is_spawned());
+
+        let tile = query.find_tile(
+            self.base_cell(),
+            TileMapLayerKind::Objects,
+            TileKind::Building).unwrap();
+
+        self.archetype_mut().debug_options().draw_popup_messages(
+            tile,
+            ui_sys,
+            transform,
+            visible_range,
+            query.delta_time_secs());
     }
 }
 
@@ -695,181 +734,8 @@ impl<'config> Building<'config> {
     }
 
     // ----------------------
-    // Building Debug:
+    // Building Debug UI:
     // ----------------------
-
-    pub fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
-        debug_assert!(self.is_spawned());
-
-        let context = self.new_context(query);
-        if mode == DebugUiMode::Overview {
-            self.draw_debug_ui_overview(&context, ui_sys);
-            return;
-        }
-
-        // DebugUiMode::Detailed:
-        let ui = ui_sys.builder();
-
-        // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
-        if ui.collapsing_header("Properties##_building_properties", imgui::TreeNodeFlags::empty()) {
-            #[derive(DrawDebugUi)]
-            struct DrawDebugUiVariables<'a> {
-                name: &'a str,
-                kind: BuildingKind,
-                archetype: BuildingArchetypeKind,
-                cells: CellRange,
-                road_link: Cell,
-                id: BuildingId,
-            }
-            let debug_vars = DrawDebugUiVariables {
-                name: self.name(),
-                kind: self.kind(),
-                archetype: self.archetype_kind(),
-                cells: self.cell_range(),
-                road_link: self.road_link(query).unwrap_or_default(),
-                id: self.id(),
-            };
-            debug_vars.draw_debug_ui(ui_sys);
-        }
-
-        self.configs().draw_debug_ui(ui_sys);
-
-        if let Some(population) = self.archetype().population() {
-            if ui.collapsing_header("Population", imgui::TreeNodeFlags::empty()) {
-                population.draw_debug_ui(ui_sys);
-
-                if ui.button("Increase Population (+1)") {
-                    self.archetype_mut().add_population(&context, 1);
-                }
-
-                if ui.button("Evict Resident (-1)") {
-                    self.archetype_mut().remove_population(&context, 1);
-                }
-
-                if ui.button("Evict All Residents") {
-                    self.remove_all_population(query);
-                }
-            }
-        }
-
-        if let Some(workers) = self.archetype().workers() {
-            if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
-                let is_household_worker_pool = workers.is_household_worker_pool();
-                let is_employer = workers.is_employer();
-
-                workers.draw_debug_ui(query.world(), ui_sys);
-                ui.separator();
-
-                #[allow(static_mut_refs)]
-                let source = unsafe {
-                    static mut BUILDING_KIND_IDX: usize = 0;
-                    static mut BUILDING_GEN: u32 = 0;
-                    static mut BUILDING_ID: usize = 0;
-
-                    if is_household_worker_pool {
-                        ui.text("Select Employer:");
-                    } else {
-                        ui.text("Select Worker Household:");
-                    }
-
-                    let kind = {
-                        if is_employer {
-                            // Employers only source workers from houses.
-                            BUILDING_KIND_IDX = 0;
-                            ui.combo_simple_string("Kind", &mut BUILDING_KIND_IDX, &["House"]);
-                            BuildingKind::House
-                        } else {
-                            let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
-                            for kind in BuildingKind::FLAGS {
-                                if *kind.value() != BuildingKind::House {
-                                    building_kind_names.push(kind.name());
-                                }
-                            }
-                            ui.combo_simple_string("Kind", &mut BUILDING_KIND_IDX, &building_kind_names);
-                            *BuildingKind::FLAGS[BUILDING_KIND_IDX + 1].value() // We've skipped House @ [0]
-                        }
-                    };
-
-                    ui.input_scalar("Gen", &mut BUILDING_GEN).step(1).build();
-                    ui.input_scalar("Idx", &mut BUILDING_ID).step(1).build();
-
-                    BuildingKindAndId { kind, id: BuildingId::new(BUILDING_GEN, BUILDING_ID) }
-                };
-
-                if ui.button("Add Worker (+1)") && !self.workers_is_maxed() {
-                    if let Some(building) = query.world().find_building_mut(source.kind, source.id) {
-                        let removed_count = building.remove_workers(1, self.kind_and_id());
-                        let added_count = self.add_workers(removed_count, source);
-                        debug_assert!(removed_count == added_count);
-                    } else {
-                        log::error!("Add Worker: Invalid source building id!");
-                    }
-                }
-
-                if ui.button("Remove Worker (-1)") && self.workers_count() != 0 {
-                    if let Some(building) = query.world().find_building_mut(source.kind, source.id) {
-                        let added_count = building.add_workers(1, self.kind_and_id());
-                        let removed_count = self.remove_workers(added_count, source);
-                        debug_assert!(added_count == removed_count);
-                    } else {
-                        log::error!("Remove Worker: Invalid source building id!");
-                    }
-                }
-
-                if ui.button("Remove All Workers") {
-                    self.remove_all_workers(query);
-                }
-
-                if is_employer {
-                    // Only employers need to search for workers.
-                    self.workers_update_timer.draw_debug_ui("Update", 0, ui_sys);
-                }
-            }
-        }
-
-        if ui.collapsing_header("Access", imgui::TreeNodeFlags::empty()) {
-            if self.is_linked_to_road(query) {
-                ui.text_colored(Color::green().to_array(), "Has road access.");
-            } else {
-                ui.text_colored(Color::red().to_array(), "No road access!");
-            }
-
-            ui.text(format!("Road Link Tile : {}", self.road_link(query).unwrap_or_default()));
-
-            let mut show_road_link = self.is_showing_road_link_debug(query);
-            if ui.checkbox("Show Road Link", &mut show_road_link) {
-                self.set_show_road_link_debug(query, show_road_link);
-            }
-
-            if ui.button("Highlight Access Tiles") {
-                pathfind::highlight_building_access_tiles(query.tile_map(), self.cell_range());
-            }
-        }
-
-        self.archetype_mut().debug_options().draw_debug_ui(ui_sys);
-        self.archetype_mut().draw_debug_ui(&context, ui_sys);
-    }
-
-    pub fn draw_debug_popups(&mut self,
-                             query: &Query,
-                             ui_sys: &UiSystem,
-                             transform: &WorldToScreenTransform,
-                             visible_range: CellRange) {
-
-        debug_assert!(self.is_spawned());
-
-        let tile = query.find_tile(
-            self.base_cell(),
-            TileMapLayerKind::Objects,
-            TileKind::Building).unwrap();
-
-        self.archetype_mut().debug_options().draw_popup_messages(
-            tile,
-            ui_sys,
-            transform,
-            visible_range,
-            query.delta_time_secs());
-    }
 
     fn draw_debug_ui_overview(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
@@ -935,6 +801,149 @@ impl<'config> Building<'config> {
                 }
             }
         }
+    }
+
+    fn draw_debug_ui_detailed(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
+        if ui.collapsing_header("Properties##_building_properties", imgui::TreeNodeFlags::empty()) {
+            #[derive(DrawDebugUi)]
+            struct DrawDebugUiVariables<'a> {
+                name: &'a str,
+                kind: BuildingKind,
+                archetype: BuildingArchetypeKind,
+                cells: CellRange,
+                road_link: Cell,
+                id: BuildingId,
+            }
+            let debug_vars = DrawDebugUiVariables {
+                name: self.name(),
+                kind: self.kind(),
+                archetype: self.archetype_kind(),
+                cells: self.cell_range(),
+                road_link: self.road_link(context.query).unwrap_or_default(),
+                id: self.id(),
+            };
+            debug_vars.draw_debug_ui(ui_sys);
+        }
+
+        self.configs().draw_debug_ui(ui_sys);
+
+        if let Some(population) = self.archetype().population() {
+            if ui.collapsing_header("Population", imgui::TreeNodeFlags::empty()) {
+                population.draw_debug_ui(ui_sys);
+
+                if ui.button("Increase Population (+1)") {
+                    self.archetype_mut().add_population(context, 1);
+                }
+
+                if ui.button("Evict Resident (-1)") {
+                    self.archetype_mut().remove_population(context, 1);
+                }
+
+                if ui.button("Evict All Residents") {
+                    self.remove_all_population(context.query);
+                }
+            }
+        }
+
+        if let Some(workers) = self.archetype().workers() {
+            if ui.collapsing_header("Workers", imgui::TreeNodeFlags::empty()) {
+                let is_household_worker_pool = workers.is_household_worker_pool();
+                let is_employer = workers.is_employer();
+
+                workers.draw_debug_ui(context.query.world(), ui_sys);
+                ui.separator();
+
+                #[allow(static_mut_refs)]
+                let source = unsafe {
+                    static mut BUILDING_KIND_IDX: usize = 0;
+                    static mut BUILDING_GEN: u32 = 0;
+                    static mut BUILDING_ID: usize = 0;
+
+                    if is_household_worker_pool {
+                        ui.text("Select Employer:");
+                    } else {
+                        ui.text("Select Worker Household:");
+                    }
+
+                    let kind = {
+                        if is_employer {
+                            // Employers only source workers from houses.
+                            BUILDING_KIND_IDX = 0;
+                            ui.combo_simple_string("Kind", &mut BUILDING_KIND_IDX, &["House"]);
+                            BuildingKind::House
+                        } else {
+                            let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
+                            for kind in BuildingKind::FLAGS {
+                                if *kind.value() != BuildingKind::House {
+                                    building_kind_names.push(kind.name());
+                                }
+                            }
+                            ui.combo_simple_string("Kind", &mut BUILDING_KIND_IDX, &building_kind_names);
+                            *BuildingKind::FLAGS[BUILDING_KIND_IDX + 1].value() // We've skipped House @ [0]
+                        }
+                    };
+
+                    ui.input_scalar("Gen", &mut BUILDING_GEN).step(1).build();
+                    ui.input_scalar("Idx", &mut BUILDING_ID).step(1).build();
+
+                    BuildingKindAndId { kind, id: BuildingId::new(BUILDING_GEN, BUILDING_ID) }
+                };
+
+                if ui.button("Add Worker (+1)") && !self.workers_is_maxed() {
+                    if let Some(building) = context.query.world().find_building_mut(source.kind, source.id) {
+                        let removed_count = building.remove_workers(1, self.kind_and_id());
+                        let added_count = self.add_workers(removed_count, source);
+                        debug_assert!(removed_count == added_count);
+                    } else {
+                        log::error!("Add Worker: Invalid source building id!");
+                    }
+                }
+
+                if ui.button("Remove Worker (-1)") && self.workers_count() != 0 {
+                    if let Some(building) = context.query.world().find_building_mut(source.kind, source.id) {
+                        let added_count = building.add_workers(1, self.kind_and_id());
+                        let removed_count = self.remove_workers(added_count, source);
+                        debug_assert!(added_count == removed_count);
+                    } else {
+                        log::error!("Remove Worker: Invalid source building id!");
+                    }
+                }
+
+                if ui.button("Remove All Workers") {
+                    self.remove_all_workers(context.query);
+                }
+
+                if is_employer {
+                    // Only employers need to search for workers.
+                    self.workers_update_timer.draw_debug_ui("Update", 0, ui_sys);
+                }
+            }
+        }
+
+        if ui.collapsing_header("Access", imgui::TreeNodeFlags::empty()) {
+            if self.is_linked_to_road(context.query) {
+                ui.text_colored(Color::green().to_array(), "Has road access.");
+            } else {
+                ui.text_colored(Color::red().to_array(), "No road access!");
+            }
+
+            ui.text(format!("Road Link Tile : {}", self.road_link(context.query).unwrap_or_default()));
+
+            let mut show_road_link = self.is_showing_road_link_debug(context.query);
+            if ui.checkbox("Show Road Link", &mut show_road_link) {
+                self.set_show_road_link_debug(context.query, show_road_link);
+            }
+
+            if ui.button("Highlight Access Tiles") {
+                pathfind::highlight_building_access_tiles(context.query.tile_map(), self.cell_range());
+            }
+        }
+
+        self.archetype_mut().debug_options().draw_debug_ui(ui_sys);
+        self.archetype_mut().draw_debug_ui(context, ui_sys);
     }
 }
 

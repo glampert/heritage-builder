@@ -177,6 +177,19 @@ impl<'config> Simulation<'config> {
         context.systems.draw_debug_ui(&query, context.ui_sys);
     }
 
+    // Generic GameObjects:
+    pub fn draw_game_object_debug_ui(&mut self,
+                                     context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                                     tile: &Tile,
+                                     mode: debug::DebugUiMode) {
+
+        if tile.is(TileKind::Building) {
+            self.draw_building_debug_ui(context, tile, mode);
+        } else if tile.is(TileKind::Unit) {
+            self.draw_unit_debug_ui(context, tile, mode);
+        }
+    }
+
     // Buildings:
     pub fn draw_building_debug_popups(&mut self,
                                       context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
@@ -197,7 +210,7 @@ impl<'config> Simulation<'config> {
 
     pub fn draw_building_debug_ui(&mut self,
                                   context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                                  selected_cell: Cell,
+                                  tile: &Tile,
                                   mode: debug::DebugUiMode) {
 
         let query = self.new_query(
@@ -209,7 +222,7 @@ impl<'config> Simulation<'config> {
         context.world.draw_building_debug_ui(
             &query,
             context.ui_sys,
-            selected_cell,
+            tile,
             mode);
     }
 
@@ -233,7 +246,7 @@ impl<'config> Simulation<'config> {
 
     pub fn draw_unit_debug_ui(&mut self,
                               context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                              selected_cell: Cell,
+                              tile: &Tile,
                               mode: debug::DebugUiMode) {
 
         let query = self.new_query(
@@ -245,7 +258,7 @@ impl<'config> Simulation<'config> {
         context.world.draw_unit_debug_ui(
             &query,
             context.ui_sys,
-            selected_cell,
+            tile,
             mode);
     }
 }
