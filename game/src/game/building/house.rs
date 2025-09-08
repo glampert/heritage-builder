@@ -66,8 +66,7 @@ use super::{
 // - If houses stay without access to basic resources for too long (food/water),
 //   settlers may decide to leave (house may downgrade back to vacant lot).
 //
-// - An overview on each building's Inspector with the important info we want to
-//   see at a glance, e.g.: road connected, workers, population, has upgrade requirements, etc.
+// - Buildings that require workers should run slower if they are below max workers.
 
 // ----------------------------------------------
 // HouseConfig & HouseLevelConfig
