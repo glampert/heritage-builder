@@ -242,10 +242,12 @@ fn evaluate_target_rect(context: &BuildingContext,
 
     debug_assert!(house_id.is_valid());
     debug_assert!(current_cell_range.is_valid());
-    debug_assert!(target_rect.is_valid());
+
+    if !target_rect.is_valid() {
+        return None; // Can happen at the edge of the map.
+    }
 
     let current_size = current_cell_range.size();
-
     let mut visited  = HouseIdsSet::new();
     let mut to_merge = HouseIdsSet::new();
 
@@ -405,8 +407,8 @@ impl CellRect {
 
     #[inline]
     fn is_valid(&self) -> bool {
-        self.min_x > 0 && self.min_y > 0 &&
-        self.max_x > 0 && self.max_y > 0
+        self.min_x >= 0 && self.min_y >= 0 &&
+        self.max_x >= 0 && self.max_y >= 0
     }
 
     #[inline]
