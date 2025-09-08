@@ -30,10 +30,11 @@ use crate::{
         sim::{
             Query,
             resources::{ShoppingList, ResourceKind},
-            world::{GenerationalIndex, BuildingId, GameObject}
+            object::{GenerationalIndex, GameObject}
         },
         building::{
             Building,
+            BuildingId,
             BuildingKind,
             BuildingKindAndId,
             BuildingTileInfo

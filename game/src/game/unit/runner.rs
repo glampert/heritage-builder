@@ -8,7 +8,6 @@ use crate::{
         },
         sim::{
             Query,
-            world::UnitId,
             resources::{ShoppingList, ResourceKind}
         }
     }
@@ -16,6 +15,7 @@ use crate::{
 
 use super::{
     Unit,
+    UnitId,
     UnitTaskHelper,
     config::{self},
     task::{

@@ -40,8 +40,9 @@ use super::{
     sim::{
         Query,
         UpdateTimer,
+        world::WorldStats,
+        object::{GameObject, GenerationalIndex},
         debug::{DebugUiMode, GameObjectDebugOptions},
-        world::{BuildingId, GameObject, WorldStats},
         resources::{
             Workers,
             Population,
@@ -178,6 +179,8 @@ macro_rules! building_type_casts {
 // ----------------------------------------------
 // Building
 // ----------------------------------------------
+
+pub type BuildingId = GenerationalIndex;
 
 #[derive(Clone, Default)]
 pub struct Building<'config> {

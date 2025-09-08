@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use crate::{
     log,
     imgui_ui::UiSystem,
-    game::sim::world::{BuildingId, GameObject},
+    game::sim::object::GameObject,
     pathfind::{Node, NodeKind as PathNodeKind},
     utils::{Size, coords::{Cell, CellRange}},
     tile::{
@@ -18,6 +18,7 @@ use crate::{
 
 use super::{
     Building,
+    BuildingId,
     BuildingKind,
     BuildingContext,
     house::{HouseLevel, HouseLevelConfig}

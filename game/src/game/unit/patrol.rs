@@ -4,20 +4,18 @@ use crate::{
     utils::coords::Cell,
     imgui_ui::UiSystem,
     game::{
+        sim::Query,
         building::{
             Building,
             BuildingKind,
             BuildingContext
-        },
-        sim::{
-            Query,
-            world::UnitId
         }
     }
 };
 
 use super::{
     Unit,
+    UnitId,
     UnitTaskHelper,
     config::{self},
     task::{

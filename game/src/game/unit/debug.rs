@@ -1,5 +1,5 @@
-use bitflags::Flags;
 use rand::Rng;
+use bitflags::Flags;
 use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
 
@@ -26,11 +26,8 @@ use crate::{
         },
         sim::{
             Query,
-            world::{UnitId, GameObject},
-            debug::{
-                GameObjectDebugOptions,
-                GameObjectDebugOptionsExt
-            },
+            object::GameObject,
+            debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt},
             resources::{
                 ResourceKind,
                 ShoppingList,
@@ -42,6 +39,7 @@ use crate::{
 
 use super::{
     Unit,
+    UnitId,
     task::*,
     navigation::{self, *}
 };

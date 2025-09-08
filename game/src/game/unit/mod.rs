@@ -26,7 +26,8 @@ use super::{
     sim::{
         Query,
         debug::DebugUiMode,
-        world::{UnitId, GameObject, WorldStats},
+        world::WorldStats,
+        object::{GameObject, GenerationalIndex},
         resources::{ResourceKind, StockItem}
     }
 };
@@ -58,6 +59,8 @@ game_object_debug_options! {
 // ----------------------------------------------
 // Unit  
 // ----------------------------------------------
+
+pub type UnitId = GenerationalIndex;
 
 /*
 Common Unit Behavior:

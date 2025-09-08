@@ -25,7 +25,8 @@ use crate::{
         sim::{
             Query,
             UpdateTimer,
-            world::{GameObject, WorldStats},
+            world::WorldStats,
+            object::GameObject,
             resources::{
                 ShoppingList,
                 ResourceKind,

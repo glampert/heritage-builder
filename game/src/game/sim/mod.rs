@@ -52,6 +52,7 @@ use super::{
 };
 
 pub mod debug;
+pub mod object;
 pub mod resources;
 pub mod world;
 

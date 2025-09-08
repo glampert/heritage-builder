@@ -2,15 +2,16 @@ use crate::{
     log,
     imgui_ui::UiSystem,
     pathfind::{Node, NodeKind as PathNodeKind},
-    sim::{Query, UpdateTimer, world::UnitId},
-    utils::{Color, coords::Cell, hash::{self}},
+    sim::{Query, UpdateTimer},
+    utils::{Color, coords::Cell, hash},
     tile::{TileMapLayerKind, sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}},
     game::{
         constants::*,
         building::BuildingKind,
         unit::{
+            UnitId,
             UnitTaskHelper,
-            config::{self},
+            config,
             navigation::{self, UnitNavGoal},
             task::{
                 UnitTaskArg,
