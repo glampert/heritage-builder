@@ -4,6 +4,11 @@ use strum_macros::{EnumCount, EnumIter, Display};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use proc_macros::DrawDebugUi;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     game_object_debug_options,
     building_config_impl,
@@ -126,7 +131,7 @@ game_object_debug_options! {
 // HouseBuilding
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct HouseBuilding<'config> {
     workers: Workers, // Workers this household provides (employed + unemployed).
 
@@ -139,7 +144,7 @@ pub struct HouseBuilding<'config> {
     upgrade_update_timer: UpdateTimer,
     upgrade_state: HouseUpgradeState<'config>,
 
-    debug: HouseDebug,
+    #[serde(skip)] debug: HouseDebug,
 }
 
 // ----------------------------------------------
@@ -321,12 +326,12 @@ impl<'config> HouseBuilding<'config> {
 
         let stock = BuildingStock::with_accepted_kinds_and_capacity(
             ResourceKind::foods() | ResourceKind::consumer_goods(),
-            upgrade_state.curr_level_config.stock_capacity);
+            upgrade_state.curr_level_config.unwrap().stock_capacity);
 
         Self {
             workers: Workers::household_worker_pool(0, 0),
             population_update_timer: UpdateTimer::new(house_config.population_update_frequency_secs),
-            population: Population::new(0, upgrade_state.curr_level_config.max_population),
+            population: Population::new(0, upgrade_state.curr_level_config.unwrap().max_population),
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
             stock,
             upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
@@ -337,12 +342,12 @@ impl<'config> HouseBuilding<'config> {
 
     #[inline]
     fn current_level_config(&self) -> &HouseLevelConfig {
-        self.upgrade_state.curr_level_config
+        self.upgrade_state.curr_level_config.unwrap()
     }
 
     #[inline]
     fn next_level_config(&self) -> &HouseLevelConfig {
-        self.upgrade_state.next_level_config
+        self.upgrade_state.next_level_config.unwrap()
     }
 
     // ----------------------
@@ -352,7 +357,7 @@ impl<'config> HouseBuilding<'config> {
     fn stock_update(&mut self) {
         // Consume resources from the stock periodically:
         let curr_level_resources_required =
-            &self.upgrade_state.curr_level_config.resources_required;
+            &self.upgrade_state.curr_level_config.unwrap().resources_required;
 
         // Consume one of each resources this level uses.
         curr_level_resources_required.for_each(|resource| {
@@ -381,7 +386,7 @@ impl<'config> HouseBuilding<'config> {
 
         // Shop for resources needed for this level.
         let current_level_shopping_list =
-            &self.upgrade_state.curr_level_config.resources_required;
+            &self.upgrade_state.curr_level_config.unwrap().resources_required;
 
         const ALL_OR_NOTHING: bool = false;
         self.shop_items(market, current_level_shopping_list, ALL_OR_NOTHING);
@@ -464,7 +469,7 @@ impl<'config> HouseBuilding<'config> {
 
     pub fn has_requirements_for_upgrade(&self, context: &BuildingContext) -> (bool, bool) {
         let next_level_requirements =
-            HouseLevelRequirements::new(context, self.upgrade_state.next_level_config, &self.stock);
+            HouseLevelRequirements::new(context, self.next_level_config(), &self.stock);
         (
             next_level_requirements.has_required_resources(),
             next_level_requirements.has_required_services()
@@ -666,7 +671,13 @@ impl<'config> HouseBuilding<'config> {
 // ----------------------------------------------
 
 #[repr(u8)]
-#[derive(Copy, Clone, Display, PartialOrd, Ord, PartialEq, Eq, EnumCount, EnumIter, IntoPrimitive, TryFromPrimitive)]
+#[derive(
+    Copy, Clone, Display,
+    PartialOrd, Ord, PartialEq, Eq,
+    IntoPrimitive, TryFromPrimitive,
+    EnumCount, EnumIter,
+    Serialize, Deserialize
+)]
 pub enum HouseLevel {
     Level0,
     Level1,
@@ -813,11 +824,11 @@ impl<'config> HouseLevelRequirements<'config> {
 // HouseUpgradeState
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct HouseUpgradeState<'config> {
     level: HouseLevel,
-    curr_level_config: &'config HouseLevelConfig,
-    next_level_config: &'config HouseLevelConfig,
+    #[serde(skip)] curr_level_config: Option<&'config HouseLevelConfig>,
+    #[serde(skip)] next_level_config: Option<&'config HouseLevelConfig>,
     has_room_to_upgrade: bool, // Result of last attempt to expand the house.
 }
 
@@ -825,8 +836,8 @@ impl<'config> HouseUpgradeState<'config> {
     fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
         Self {
             level,
-            curr_level_config: configs.find_house_level_config(level),
-            next_level_config: configs.find_house_level_config(level.next()),
+            curr_level_config: Some(configs.find_house_level_config(level)),
+            next_level_config: Some(configs.find_house_level_config(level.next())),
             has_room_to_upgrade: true,
         }
     }
@@ -839,7 +850,7 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         let next_level_requirements =
-            HouseLevelRequirements::new(context, self.next_level_config, stock);
+            HouseLevelRequirements::new(context, self.next_level_config.unwrap(), stock);
 
         // Upgrade if we have the required services and resources for the next level.
         next_level_requirements.has_required_services() &&
@@ -854,7 +865,7 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         let curr_level_requirements =
-            HouseLevelRequirements::new(context, self.curr_level_config, stock);
+            HouseLevelRequirements::new(context, self.curr_level_config.unwrap(), stock);
 
         // Downgrade if we don't have the required services and resources for the current level.
         !curr_level_requirements.has_required_services() ||
@@ -873,15 +884,15 @@ impl<'config> HouseUpgradeState<'config> {
                 self.level.upgrade();
                 debug_assert!(self.level == next_level);
 
-                self.curr_level_config = next_level_config;
+                self.curr_level_config = Some(next_level_config);
                 if !next_level.is_max() {
-                    self.next_level_config = context.query.building_configs().find_house_level_config(next_level.next());
+                    self.next_level_config = Some(context.query.building_configs().find_house_level_config(next_level.next()));
                 }
 
                 // Set a random variation for the new building tile:
                 context.set_random_building_variation();
 
-                debug.popup_msg(format!("[U] {} -> {}", self.curr_level_config.tile_def_name, self.level));
+                debug.popup_msg(format!("[U] {} -> {}", self.curr_level_config.unwrap().tile_def_name, self.level));
                 upgraded_successfully = true;
             }
         } else {
@@ -890,7 +901,7 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         if !upgraded_successfully {
-            debug.popup_msg_color(Color::yellow(), format!("[U] {}: No space", self.curr_level_config.tile_def_name));
+            debug.popup_msg_color(Color::yellow(), format!("[U] {}: No space", self.curr_level_config.unwrap().tile_def_name));
         }
 
         self.has_room_to_upgrade = upgraded_successfully;
@@ -909,13 +920,13 @@ impl<'config> HouseUpgradeState<'config> {
                 self.level.downgrade();
                 debug_assert!(self.level == prev_level);
 
-                self.curr_level_config = prev_level_config;
-                self.next_level_config = context.query.building_configs().find_house_level_config(prev_level.next());
+                self.curr_level_config = Some(prev_level_config);
+                self.next_level_config = Some(context.query.building_configs().find_house_level_config(prev_level.next()));
 
                 // Set a random variation for the new building:
                 context.set_random_building_variation();
 
-                debug.popup_msg(format!("[D] {} -> {}", self.curr_level_config.tile_def_name, self.level));
+                debug.popup_msg(format!("[D] {} -> {}", self.curr_level_config.unwrap().tile_def_name, self.level));
                 downgraded_successfully = true;
             }
         } else {
@@ -924,7 +935,7 @@ impl<'config> HouseUpgradeState<'config> {
         }
 
         if !downgraded_successfully {
-            debug.popup_msg_color(Color::red(), format!("[D] {}: Failed!", self.curr_level_config.tile_def_name));
+            debug.popup_msg_color(Color::red(), format!("[D] {}: Failed!", self.curr_level_config.unwrap().tile_def_name));
         }
 
         self.has_room_to_upgrade = downgraded_successfully;
@@ -1077,10 +1088,10 @@ impl<'config> HouseBuilding<'config> {
         let upgrade_state = &self.upgrade_state;
 
         let curr_level_requirements =
-            HouseLevelRequirements::new(context, upgrade_state.curr_level_config, &self.stock);
+            HouseLevelRequirements::new(context, upgrade_state.curr_level_config.unwrap(), &self.stock);
 
         let next_level_requirements =
-            HouseLevelRequirements::new(context, upgrade_state.next_level_config, &self.stock);
+            HouseLevelRequirements::new(context, upgrade_state.next_level_config.unwrap(), &self.stock);
 
         color_text(" - Has room        :", upgrade_state.has_room_to_upgrade);
         color_text(" - Has services    :", next_level_requirements.has_required_services());

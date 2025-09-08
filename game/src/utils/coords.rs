@@ -3,6 +3,11 @@
 use std::ops::RangeInclusive;
 use std::iter::FusedIterator;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     field_accessor_xy
 };
@@ -56,7 +61,7 @@ field_accessor_xy! { IsoPoint, i32, x, y }
 // ----------------------------------------------
 
 // X,Y position in the tile map grid of cells.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Cell {
     pub x: i32,
     pub y: i32,
@@ -115,7 +120,7 @@ field_accessor_xy! { Cell, i32, x, y }
 // CellRange
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CellRange {
     // Inclusive rage, e.g.: [start..=end]
     pub start: Cell,

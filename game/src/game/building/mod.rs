@@ -8,6 +8,11 @@ use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
 use enum_dispatch::enum_dispatch;
 use proc_macros::DrawDebugUi;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     log,
     bitflags_with_display,
@@ -76,7 +81,7 @@ mod house_upgrade;
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, Default, PartialEq, Eq, Hash)]
+    #[derive(Copy, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub struct BuildingKind: u32 {
         // Archetype: House
         const House       = 1 << 0;
@@ -182,7 +187,7 @@ macro_rules! building_type_casts {
 
 pub type BuildingId = GenerationalIndex;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Building<'config> {
     id: BuildingId,
     map_cells: CellRange,
@@ -978,8 +983,12 @@ impl<'config> Building<'config> {
  - Provides services to neighborhood.
 */
 #[enum_dispatch]
-#[derive(Clone, EnumDiscriminants)]
-#[strum_discriminants(repr(u32), name(BuildingArchetypeKind), derive(Display, EnumCount, EnumIter))]
+#[derive(Clone, EnumDiscriminants, Serialize, Deserialize)]
+#[strum_discriminants(
+    repr(u32),
+    name(BuildingArchetypeKind),
+    derive(Display, EnumCount, EnumIter, Serialize, Deserialize)
+)]
 pub enum BuildingArchetype<'config> {
     ProducerBuilding(ProducerBuilding<'config>),
     StorageBuilding(StorageBuilding<'config>),
@@ -1072,7 +1081,7 @@ pub trait BuildingBehavior<'config> {
 // BuildingKindAndId / BuildingTileInfo
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BuildingKindAndId {
     pub kind: BuildingKind,
     pub id: BuildingId,
@@ -1240,7 +1249,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
 // BuildingStock
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BuildingStock {
     resources: ResourceStock,
     capacities: [u8; RESOURCE_KIND_COUNT],

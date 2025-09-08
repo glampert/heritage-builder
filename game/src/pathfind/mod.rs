@@ -1,12 +1,17 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::nonminimal_bool)]
 
+use rand::Rng;
 use arrayvec::ArrayVec;
 use bitflags::bitflags;
-use serde::Deserialize;
 use priority_queue::PriorityQueue;
-use rand::Rng;
 use std::{cmp::Reverse, ops::{Index, IndexMut}, hash::{Hash, Hasher, DefaultHasher}};
+
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 
 use crate::{
     bitflags_with_display,
@@ -36,7 +41,7 @@ mod tests;
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, PartialEq, Eq, Deserialize)]
+    #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct NodeKind: u8 {
         const Dirt               = 1 << 0;
         const Road               = 1 << 1;
@@ -70,7 +75,7 @@ type NodeCost = i32;
 const NODE_COST_ZERO: NodeCost = 0;
 const NODE_COST_INFINITE: NodeCost = NodeCost::MAX;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Node {
     pub cell: Cell,
 }
@@ -443,7 +448,7 @@ impl PathFilter for DefaultPathFilter {}
 
 const PATH_HISTORY_MAX_SIZE: usize = 4;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct PathHistory {
     hashes: ArrayVec<u64, PATH_HISTORY_MAX_SIZE>,
 }

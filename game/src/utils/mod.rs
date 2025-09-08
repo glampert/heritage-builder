@@ -23,6 +23,8 @@ use std::{
 };
 
 use serde::{
+    Serialize,
+    Serializer,
     Deserialize,
     Deserializer
 };
@@ -962,7 +964,18 @@ impl<T> DerefMut for UnsafeMutable<T> {
     }
 }
 
-// Serde deserialization support.
+// Serde serialization support.
+impl<T> Serialize for UnsafeMutable<T>
+    where T: Serialize
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        self.as_ref().serialize(serializer)
+    }
+}
+
 impl<'de, T> Deserialize<'de> for UnsafeMutable<T>
     where T: Deserialize<'de>
 {

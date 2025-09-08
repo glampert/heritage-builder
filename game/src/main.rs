@@ -66,17 +66,49 @@ fn main() {
     let mut world = World::new(&building_configs, &unit_configs);
 
     // Test map with preset tiles:
-    //let mut tile_map = debug::utils::create_test_tile_map_preset(&mut world, &tile_sets, 0);
+    let mut tile_map = debug::utils::create_test_tile_map_preset(&mut world, &tile_sets, 0);
 
     // Empty map (dirt tiles):
-    //*
+    /*
     let mut tile_map = tile::TileMap::with_terrain_tile(
         Size::new(64, 64),
         &tile_sets,
         TERRAIN_GROUND_CATEGORY,
         utils::hash::StrHashPair::from_str("dirt")
     );
-    //*/
+    */
+
+    // TEST
+    {
+        use std::fs;
+
+        let json = match serde_json::to_string_pretty(&world) {
+            Ok(json) => {
+                Some(json)
+            },
+            Err(err) => {
+                log::error!("Failed to serialize world state: {err}");
+                None
+            },
+        };
+
+        if let Some(json) = json {
+            let w = match serde_json::from_str::<World>(&json) {
+                Ok(w) => Some(w),
+                Err(err) => {
+                    log::error!("Failed to deserialize world state: {err}");
+                    None
+                }
+            };
+
+            if let Some(_world2) = w {
+                log::info!("Ok");
+            }
+
+            fs::write("world.json", json).expect("Failed to write file");
+        }
+    }
+    // TEST
 
     let mut systems = GameSystems::new();
     systems.register("Settlers Spawn System", settlers::SettlersSpawnSystem::new());

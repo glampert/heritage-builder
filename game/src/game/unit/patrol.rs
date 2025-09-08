@@ -1,5 +1,10 @@
 use proc_macros::DrawDebugUi;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     utils::coords::Cell,
     imgui_ui::UiSystem,
@@ -29,7 +34,7 @@ use super::{
 // PatrolInternalState
 // ----------------------------------------------
 
-#[derive(Clone, DrawDebugUi)]
+#[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 struct PatrolInternalState {
     // Patrol task tunable parameters:
     #[debug_ui(edit)] max_distance: i32,
@@ -39,11 +44,13 @@ struct PatrolInternalState {
     #[debug_ui(skip)]
     path_record: UnitPatrolPathRecord,
 
+    #[serde(skip)] // FIXME: How to handle serializing a func ptr???
     #[debug_ui(skip)]
     completion_callback: Option<fn(&mut Building, &mut Unit, &Query) -> bool>,
 
+    #[serde(skip)]
     #[debug_ui(skip)]
-    failed_to_spawn: bool,
+    failed_to_spawn: bool, // Debug flag; not serialized.
 }
 
 impl PatrolInternalState {
@@ -58,7 +65,7 @@ impl PatrolInternalState {
 // Patrol Unit helper
 // ----------------------------------------------
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Patrol {
     unit_id: UnitId,
     state: Option<Box<PatrolInternalState>>, // Lazily initialized.

@@ -1,5 +1,10 @@
 use strum::IntoDiscriminant;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     imgui_ui::UiSystem,
     utils::{
@@ -50,44 +55,48 @@ use super::{
 // ----------------------------------------------
 
 // Holds the world state and provides queries.
+#[derive(Serialize, Deserialize)]
 pub struct World<'config> {
-    stats: WorldStats,
+    #[serde(skip)] stats: WorldStats,
 
     // One spawn pool per building archetype.
     // Iteration yields only *spawned* buildings.
     building_spawn_pools: [(BuildingArchetypeKind, SpawnPool<Building<'config>>); BUILDING_ARCHETYPE_COUNT],
-    building_configs: &'config BuildingConfigs,
+    #[serde(skip)] building_configs: Option<&'config BuildingConfigs>,
 
     // All units, spawned and despawned.
     // Iteration yields only *spawned* units.
     unit_spawn_pool: SpawnPool<Unit<'config>>,
-    unit_configs: &'config UnitConfigs,
+    #[serde(skip)] unit_configs: Option<&'config UnitConfigs>,
 }
 
 impl<'config> World<'config> {
     pub fn new(building_configs: &'config BuildingConfigs, unit_configs: &'config UnitConfigs) -> Self {
         Self {
-            stats: WorldStats::new(),
+            // World Stats:
+            stats: WorldStats::default(),
             // Buildings:
             building_spawn_pools: [
-                (BuildingArchetypeKind::ProducerBuilding, SpawnPool::new(PRODUCER_BUILDINGS_POOL_CAPACITY)),
-                (BuildingArchetypeKind::StorageBuilding,  SpawnPool::new(STORAGE_BUILDINGS_POOL_CAPACITY)),
-                (BuildingArchetypeKind::ServiceBuilding,  SpawnPool::new(SERVICE_BUILDINGS_POOL_CAPACITY)),
-                (BuildingArchetypeKind::HouseBuilding,    SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY)),
+                (BuildingArchetypeKind::ProducerBuilding, SpawnPool::new(PRODUCER_BUILDINGS_POOL_CAPACITY, 1)),
+                (BuildingArchetypeKind::StorageBuilding,  SpawnPool::new(STORAGE_BUILDINGS_POOL_CAPACITY,  1)),
+                (BuildingArchetypeKind::ServiceBuilding,  SpawnPool::new(SERVICE_BUILDINGS_POOL_CAPACITY,  1)),
+                (BuildingArchetypeKind::HouseBuilding,    SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY,    1)),
             ],
-            building_configs,
+            building_configs: Some(building_configs),
             // Units:
-            unit_spawn_pool: SpawnPool::new(UNIT_SPAWN_POOL_CAPACITY),
-            unit_configs,
+            unit_spawn_pool: SpawnPool::new(UNIT_SPAWN_POOL_CAPACITY, 1),
+            unit_configs: Some(unit_configs),
         }
     }
 
+    #[inline]
     pub fn building_configs(&self) -> &'config BuildingConfigs {
-        self.building_configs
+        self.building_configs.unwrap()
     }
 
+    #[inline]
     pub fn unit_configs(&self) -> &'config UnitConfigs {
-        self.unit_configs
+        self.unit_configs.unwrap()
     }
 
     pub fn reset(&mut self, query: &Query) {
@@ -145,7 +154,7 @@ impl<'config> World<'config> {
         match query.tile_map().try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
                 // Instantiate new Building:
-                match building::config::instantiate(tile, self.building_configs) {
+                match building::config::instantiate(tile, self.building_configs()) {
                     Ok((building_kind, building_archetype)) => {
                         let archetype_kind = building_archetype.discriminant();
                         let buildings = self.buildings_pool_mut(archetype_kind);
@@ -377,7 +386,7 @@ impl<'config> World<'config> {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(unit_config_key.is_valid());
 
-        let config = self.unit_configs.find_config_by_hash(unit_config_key.hash);
+        let config = self.unit_configs().find_config_by_hash(unit_config_key.hash);
 
         // Find TileDef:
         if let Some(tile_def) = query.tile_sets().find_tile_def_by_hash(
@@ -426,7 +435,7 @@ impl<'config> World<'config> {
         // Allocate & place a Tile:
         match query.tile_map().try_place_tile(unit_origin, tile_def) {
             Ok(tile) => {
-                let config = self.unit_configs.find_config_by_hash(tile_def.hash);
+                let config = self.unit_configs().find_config_by_hash(tile_def.hash);
 
                 // Spawn unit:
                 let unit = self.unit_spawn_pool.spawn(query,
@@ -671,8 +680,8 @@ pub struct WorldStats {
     resources: GlobalResourceCounts,
 }
 
-impl WorldStats {
-    fn new() -> Self {
+impl Default for WorldStats {
+    fn default() -> Self {
         Self {
             population: PopulationStats::default(),
             workers: WorkerStats::default(),
@@ -693,10 +702,12 @@ impl WorldStats {
             },
         }
     }
+}
 
+impl WorldStats {
     fn reset(&mut self) {
         // Reset all counts to zero.
-        *self = Self::new();
+        *self = Self::default();
     }
 
     pub fn add_unit_resources(&mut self, kind: ResourceKind, count: u32) {

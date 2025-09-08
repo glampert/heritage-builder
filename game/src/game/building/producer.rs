@@ -2,6 +2,11 @@ use std::cmp::Reverse;
 use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     game_object_debug_options,
     building_config_impl,
@@ -101,9 +106,10 @@ game_object_debug_options! {
 // ProducerBuilding
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ProducerBuilding<'config> {
-    config: &'config ProducerConfig,
+    #[serde(skip)] config: Option<&'config ProducerConfig>,
+
     workers: Workers,
 
     production_update_timer: UpdateTimer,
@@ -113,7 +119,7 @@ pub struct ProducerBuilding<'config> {
     // Runner Unit we may send out to deliver our production or fetch raw materials.
     runner: Runner,
 
-    debug: ProducerDebug,
+    #[serde(skip)] debug: ProducerDebug,
 }
 
 // ----------------------------------------------
@@ -126,11 +132,11 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     // ----------------------
 
     fn name(&self) -> &str {
-        &self.config.name
+        &self.config.unwrap().name
     }
 
     fn configs(&self) -> &dyn BuildingConfig {
-        self.config
+        self.config.unwrap()
     }
 
     fn update(&mut self, context: &BuildingContext) {
@@ -275,7 +281,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
 impl<'config> ProducerBuilding<'config> {
     pub fn new(config: &'config ProducerConfig) -> Self {
         Self {
-            config,
+            config: Some(config),
             workers: Workers::employer(config.min_workers, config.max_workers),
             production_update_timer: UpdateTimer::new(config.production_output_frequency_secs),
             production_input_stock: ProducerInputsLocalStock::new(
@@ -331,7 +337,7 @@ impl<'config> ProducerBuilding<'config> {
         };
 
         // Send out a runner:
-        let storage_buildings_accepted = self.config.deliver_to_storage_kinds;
+        let storage_buildings_accepted = self.config.unwrap().deliver_to_storage_kinds;
         let resource_kind_to_deliver = self.production_output_stock.resource_kind();
         let resource_count = self.production_output_stock.resource_count();
 
@@ -368,7 +374,7 @@ impl<'config> ProducerBuilding<'config> {
         };
 
         // Send out a runner:
-        let storage_buildings_accepted = self.config.fetch_from_storage_kinds;
+        let storage_buildings_accepted = self.config.unwrap().fetch_from_storage_kinds;
         let resources_to_fetch = self.production_input_stock.resource_fetch_list();
         if resources_to_fetch.is_empty() {
             return;
@@ -456,7 +462,7 @@ impl<'config> ProducerBuilding<'config> {
 // ProducerOutputLocalStock
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct ProducerOutputLocalStock {
     item: StockItem,
     capacity: u32,
@@ -533,7 +539,7 @@ impl ProducerOutputLocalStock {
 // ProducerInputsLocalStock
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct ProducerInputsLocalStock {
     slots: SmallVec<[StockItem; 1]>,
     capacity: u32, // Capacity for each resource kind.

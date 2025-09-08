@@ -4,6 +4,11 @@ use rand::{distr::uniform::{SampleRange, SampleUniform}, Rng, SeedableRng};
 use rand_pcg::Pcg64;
 use smallvec::SmallVec;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     log,
     imgui_ui::UiSystem,
@@ -276,7 +281,7 @@ impl<'config> Simulation<'config> {
 // UpdateTimer
 // ----------------------------------------------
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct UpdateTimer {
     update_frequency_secs: Seconds,
     time_since_last_update_secs: Seconds,

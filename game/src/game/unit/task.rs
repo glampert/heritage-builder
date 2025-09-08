@@ -7,6 +7,11 @@ use rand::{seq::SliceRandom, Rng};
 use strum_macros::Display;
 use enum_dispatch::enum_dispatch;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     log,
     debug::{self},
@@ -256,7 +261,7 @@ fn check_unit_despawn_state<Task>(unit: &Unit, query: &Query)
 // UnitPatrolPathRecord
 // ----------------------------------------------
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct UnitPatrolPathRecord {
     history: PathHistory,
     current_length: u32,

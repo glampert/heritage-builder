@@ -1,3 +1,8 @@
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     imgui_ui::UiSystem,
     game::sim::resources::{ResourceKind, StockItem}
@@ -7,7 +12,7 @@ use crate::{
 // UnitInventory
 // ----------------------------------------------
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct UnitInventory {
     // Unit can carry only one resource kind at a time.
     item: Option<StockItem>,

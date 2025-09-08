@@ -1,3 +1,8 @@
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     utils::coords::Cell,
     game::{
@@ -29,10 +34,10 @@ use super::{
 // Runner Unit helper
 // ----------------------------------------------
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Runner {
     unit_id: UnitId,
-    failed_to_spawn: bool,
+    #[serde(skip)] failed_to_spawn: bool, // Debug flag; not serialized.
 }
 
 impl UnitTaskHelper for Runner {

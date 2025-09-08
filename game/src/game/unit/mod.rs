@@ -1,3 +1,8 @@
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     game_object_debug_options,
     log,
@@ -71,17 +76,17 @@ Common Unit Behavior:
  - Most units will only walk on paved roads. Some units may go off-road.
  - Has an inventory that can cary a single ResourceKind at a time, any amount.
 */
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Unit<'config> {
     id: UnitId,
     map_cell: Cell,
-    config: Option<&'config UnitConfig>,
+    #[serde(skip)] config: Option<&'config UnitConfig>,
     direction: UnitDirection,
     anim_sets: UnitAnimSets,
     inventory: UnitInventory,
     navigation: UnitNavigation,
     current_task_id: UnitTaskId, // invalid if no task.
-    debug: UnitDebug,
+    #[serde(skip)] debug: UnitDebug,
 }
 
 impl<'config> GameObject<'config> for Unit<'config> {

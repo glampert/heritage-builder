@@ -1,6 +1,11 @@
 use strum_macros::Display;
 use proc_macros::DrawDebugUi;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     imgui_ui::UiSystem,
     tile::TileMapLayerKind,
@@ -21,7 +26,7 @@ use super::{
 // UnitDirection
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq, Default, Display)]
+#[derive(Copy, Clone, PartialEq, Eq, Default, Display, Serialize, Deserialize)]
 pub enum UnitDirection {
     #[default]
     Idle,
@@ -100,7 +105,7 @@ pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
 // UnitNavGoal
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum UnitNavGoal {
     Building {
         origin_kind: BuildingKind,
@@ -241,7 +246,7 @@ pub enum UnitNavResult {
     PathBlocked,
 }
 
-#[derive(Clone, Default, DrawDebugUi)]
+#[derive(Clone, Default, DrawDebugUi, Serialize, Deserialize)]
 pub struct UnitNavigation {
     #[debug_ui(skip)]
     path: Path,
@@ -256,12 +261,19 @@ pub struct UnitNavigation {
     goal: Option<UnitNavGoal>, // (origin_cell, destination_cell) may be different from path start/end.
 
     // Debug:
+    #[serde(skip)]
     #[debug_ui(edit)]
     pause_current_path: bool,
+
+    #[serde(skip)]
     #[debug_ui(edit)]
     single_step: bool,
+
+    #[serde(skip)]
     #[debug_ui(edit, step = "0.01")]
     step_size: f32,
+
+    #[serde(skip)]
     #[debug_ui(edit, widget = "button")]
     advance_one_step: bool,
 }

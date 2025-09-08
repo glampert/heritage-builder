@@ -1,6 +1,11 @@
 use std::cmp::Reverse;
 use proc_macros::DrawDebugUi;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     game_object_debug_options,
     building_config_impl,
@@ -91,19 +96,19 @@ game_object_debug_options! {
 // ServiceBuilding
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ServiceBuilding<'config> {
-    config: &'config ServiceConfig,
+    #[serde(skip)] config: Option<&'config ServiceConfig>,
     workers: Workers,
 
     stock_update_timer: UpdateTimer,
-    stock: BuildingStock, // Current local stock of resources.
+    stock: Option<BuildingStock>, // Current local stock of resources required (if any).
 
     runner: Runner, // Runner Unit we may send out to fetch resources from storage.
     patrol: Patrol, // Unit we may send out on patrol to provide the service.
     patrol_timer: UpdateTimer, // Min time before we can send out a new patrol unit.
 
-    debug: ServiceDebug,
+    #[serde(skip)] debug: ServiceDebug,
 }
 
 // ----------------------------------------------
@@ -116,19 +121,20 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     // ----------------------
 
     fn name(&self) -> &str {
-        &self.config.name
+        &self.config.unwrap().name
     }
 
     fn configs(&self) -> &dyn BuildingConfig {
-        self.config
+        self.config.unwrap()
     }
 
     fn update(&mut self, context: &BuildingContext) {
         let delta_time_secs = context.query.delta_time_secs();
         let has_min_required_workers = self.has_min_required_workers();
+        let has_stock_requirements = self.stock.as_ref().is_some_and(|stock| stock.accepts_any());
 
         // Procure resources from storage periodically if we need them.
-        if self.stock.accepts_any() &&
+        if has_stock_requirements &&
            self.stock_update_timer.tick(delta_time_secs).should_update() &&
            has_min_required_workers && !self.debug.freeze_stock_update() {
             self.stock_update(context);
@@ -151,57 +157,69 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     // ----------------------
 
     fn is_stock_full(&self) -> bool {
-        self.stock.is_full()
+        self.stock.as_ref().is_none_or(|stock| stock.is_full())
     }
 
     fn has_min_required_resources(&self) -> bool {
-        if self.stock.accepts_any() {
-            return !self.stock.is_empty();
+        if let Some(stock) = &self.stock {
+            if stock.accepts_any() {
+                return !stock.is_empty();
+            }
         }
         true
     }
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         if self.has_min_required_workers() {
-            return self.stock.available_resources(kind);
+            if let Some(stock) = &self.stock {
+                return stock.available_resources(kind);
+            }
         }
         0
     }
 
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
         if self.has_min_required_workers() {
-            return self.stock.receivable_resources(kind);
+            if let Some(stock) = &self.stock {
+                return stock.receivable_resources(kind);
+            }
         }
         0
     }
 
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 && self.has_min_required_workers() {
-            let received_count = self.stock.receive_resources(kind, count);
-            self.debug.log_resources_gained(kind, received_count);
-            return received_count;
+            if let Some(stock) = &mut self.stock {
+                let received_count = stock.receive_resources(kind, count);
+                self.debug.log_resources_gained(kind, received_count);
+                return received_count;
+            }
         }
         0
     }
 
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 && self.has_min_required_workers() {
-            let removed_count = self.stock.remove_resources(kind, count);
-            self.debug.log_resources_lost(kind, removed_count);
-            return removed_count;
+            if let Some(stock) = &mut self.stock {
+                let removed_count = stock.remove_resources(kind, count);
+                self.debug.log_resources_lost(kind, removed_count);
+                return removed_count;
+            }
         }
         0
     }
 
     fn tally(&self, stats: &mut WorldStats, kind: BuildingKind) {
-        if kind.intersects(BuildingKind::Market) {
-            self.stock.for_each(|_, item| {
-                stats.add_market_resources(item.kind, item.count);
-            });
-        } else {
-            self.stock.for_each(|_, item| {
-                stats.add_service_resources(item.kind, item.count);
-            });
+        if let Some(stock) = &self.stock {
+            if kind.intersects(BuildingKind::Market) {
+                stock.for_each(|_, item| {
+                    stats.add_market_resources(item.kind, item.count);
+                });
+            } else {
+                stock.for_each(|_, item| {
+                    stats.add_service_resources(item.kind, item.count);
+                });
+            }
         }
     }
 
@@ -243,11 +261,22 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
 
 impl<'config> ServiceBuilding<'config> {
     pub fn new(config: &'config ServiceConfig) -> Self {
+        let stock = {
+            if config.resources_required.is_empty() || config.stock_capacity == 0 {
+                None
+            } else {
+                Some(BuildingStock::with_accepted_list_and_capacity(
+                    &config.resources_required,
+                    config.stock_capacity
+                ))
+            }
+        };
+
         Self {
-            config,
+            config: Some(config),
             workers: Workers::employer(config.min_workers, config.max_workers),
             stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
-            stock: BuildingStock::with_accepted_list_and_capacity(&config.resources_required, config.stock_capacity),
+            stock,
             runner: Runner::default(),
             patrol: Patrol::default(),
             patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
@@ -286,6 +315,11 @@ impl<'config> ServiceBuilding<'config> {
     }
 
     #[inline]
+    fn is_stock_empty(&self) -> bool {
+        self.stock.as_ref().is_none_or(|stock| stock.is_empty())
+    }
+
+    #[inline]
     fn is_waiting_on_runner(&self) -> bool {
         self.runner.is_spawned()
     }
@@ -304,7 +338,7 @@ impl<'config> ServiceBuilding<'config> {
 
         // Try unload cargo:
         if let Some(item) = runner_unit.peek_inventory() {
-            debug_assert!(item.count <= this_service.stock.capacity_for(item.kind));
+            debug_assert!(item.count <= this_service.stock.as_ref().unwrap().capacity_for(item.kind));
 
             let received_count = this_service.receive_resources(item.kind, item.count);
             if received_count != 0 {
@@ -324,10 +358,11 @@ impl<'config> ServiceBuilding<'config> {
 
     fn resource_fetch_list(&self) -> ShoppingList {
         let mut list = ShoppingList::default();
+        let stock = self.stock.as_ref().unwrap();
 
-        self.stock.for_each(|index, item| {
-            debug_assert!(item.count <= self.stock.capacity_at(index), "{item}");
-            list.push(StockItem { kind: item.kind, count: self.stock.capacity_at(index) - item.count });
+        stock.for_each(|index, item| {
+            debug_assert!(item.count <= stock.capacity_at(index), "{item}");
+            list.push(StockItem { kind: item.kind, count: stock.capacity_at(index) - item.count });
         });
 
         // Items with the highest capacity first.
@@ -344,7 +379,7 @@ impl<'config> ServiceBuilding<'config> {
             return; // A patrol unit is already out. Try again later.
         }
 
-        if context.kind == BuildingKind::Market && self.stock.is_empty() {
+        if context.kind == BuildingKind::Market && self.is_stock_empty() {
             // Markets will only send out a patrol if there are goods in stock.
             return;
         }
@@ -359,14 +394,14 @@ impl<'config> ServiceBuilding<'config> {
         self.patrol.start_randomized_patrol(
             context,
             unit_origin,
-            self.config.effect_radius,
+            self.config.unwrap().effect_radius,
             Some(BuildingKind::House),
             Some(Self::on_patrol_completed));
     }
 
     #[inline]
     fn has_patrol_unit(&self) -> bool {
-        self.config.has_patrol_unit
+        self.config.unwrap().has_patrol_unit
     }
 
     #[inline]
@@ -394,7 +429,7 @@ impl<'config> ServiceBuilding<'config> {
 
 impl ServiceBuilding<'_> {
     fn draw_debug_ui_resources_stock(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        if !self.stock.accepts_any() {
+        if self.stock.as_ref().is_none_or(|stock| !stock.accepts_any()) {
             return;
         }
 
@@ -421,15 +456,16 @@ impl ServiceBuilding<'_> {
 
         self.stock_update_timer.draw_debug_ui("Update", 0, ui_sys);
 
+        let stock = self.stock.as_mut().unwrap();
         if ui.button("Fill Stock") {
             // Set all to capacity.
-            self.stock.fill();
+            stock.fill();
         }
         if ui.button("Clear Stock") {
-            self.stock.clear();
+            stock.clear();
         }
 
-        self.stock.draw_debug_ui("Resources", ui_sys);
+        stock.draw_debug_ui("Resources", ui_sys);
     }
 
     fn draw_debug_ui_patrol(&mut self, ui_sys: &UiSystem) {

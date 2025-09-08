@@ -56,7 +56,7 @@ impl<'config> Unit<'config> {
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
         font.pop();
 
-        ui.bullet_text(format!("Anim: {} (dir: {})", self.anim_sets.current_anim().string, self.direction));
+        ui.bullet_text(format!("Anim: {} (dir: {})", self.anim_sets.current_anim_name(), self.direction));
 
         if let Some(task_id) = self.current_task() {
             if let Some((archetype, state)) =
@@ -157,7 +157,7 @@ impl<'config> Unit<'config> {
         ui.text(format!("Cell       : {}", self.cell()));
         ui.text(format!("Iso Coords : {}", self.find_tile(query).iso_coords()));
         ui.text(format!("Direction  : {}", self.direction));
-        ui.text(format!("Anim       : {}", self.anim_sets.current_anim().string));
+        ui.text(format!("Anim       : {}", self.anim_sets.current_anim_name()));
 
         if ui.button("Force Idle Anim") {
             self.idle(query);

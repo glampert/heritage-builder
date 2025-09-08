@@ -4,7 +4,17 @@ use core::iter;
 use core::slice;
 use bitvec::vec::BitVec;
 
+use serde::{
+    Serialize,
+    Serializer,
+    ser::SerializeSeq,
+    Deserialize,
+    Deserializer,
+    de::{SeqAccess, Visitor}
+};
+
 use crate::{
+    log,
     imgui_ui::UiSystem,
     utils::coords::{CellRange, WorldToScreenTransform}
 };
@@ -19,7 +29,7 @@ use super::{
 // GenerationalIndex
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct GenerationalIndex {
     generation: u32,
     index: u32, // Index into spawn pool; u32::MAX = invalid.
@@ -160,12 +170,12 @@ impl<T> iter::FusedIterator for SpawnPoolIterMut<'_, T> {}
 impl<'config, T> SpawnPool<T>
     where T: GameObject<'config> + Clone + Default
 {
-    pub fn new(capacity: usize) -> Self {
+    pub fn new(capacity: usize, generation: u32) -> Self {
         let default_instance = T::default();
         Self {
             instances: vec![default_instance; capacity],
             spawned: BitVec::repeat(false, capacity),
-            generation: 0,
+            generation,
         }
     }
 
@@ -227,6 +237,11 @@ impl<'config, T> SpawnPool<T>
 
         on_despawned_fn(instance, query);
         self.spawned.set(index, false);
+    }
+
+    #[inline]
+    pub fn spawned_count(&self) -> usize {
+        self.spawned.count_ones()
     }
 
     #[inline]
@@ -320,5 +335,132 @@ impl<'config, T> SpawnPool<T>
         let instance = &mut self.instances[index];
         debug_assert!(instance.is_spawned());
         Some(instance)
+    }
+}
+
+// ----------------------------------------------
+// SpawnPool Serialization
+// ----------------------------------------------
+
+#[derive(Serialize, Deserialize)]
+struct SpawnPoolSerializedHeader {
+    spawned_count: usize,
+    instance_count: usize,
+    generation: u32,
+}
+
+impl<'config, T> Serialize for SpawnPool<T>
+    where T: GameObject<'config> + Clone + Default + Serialize
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        debug_assert!(self.is_valid());
+
+        let header = SpawnPoolSerializedHeader {
+            spawned_count: self.spawned_count(),
+            instance_count: self.instances.len(),
+            generation: self.generation,
+        };
+
+        let mut serialized_count = 0;
+
+        // NOTE: + 1 for the header.
+        let mut seq = serializer.serialize_seq(Some(header.spawned_count + 1))?;
+
+        seq.serialize_element(&header)?;
+
+        for (index, instance) in self.instances.iter().enumerate() {
+            // Serialize only *spawned* instances.
+            if self.spawned[index] {
+                debug_assert!(instance.id().index() == index);
+                seq.serialize_element(instance)?;
+                serialized_count += 1;
+            }
+        }
+
+        if header.spawned_count != serialized_count {
+            log::error!("Expected to serialize {} spawned instances but found {} instead.", header.spawned_count, serialized_count);
+            return Err(serde::ser::Error::custom("unexpected number of GameObject instances found"));
+        }
+
+        seq.end()
+    }
+}
+
+impl<'de, 'config, T> Deserialize<'de> for SpawnPool<T>
+    where T: GameObject<'config> + Clone + Default + Deserialize<'de>
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        struct PoolVisitor<T> {
+            marker: std::marker::PhantomData<T>,
+        }
+
+        impl<'de, 'config, T> Visitor<'de> for PoolVisitor<T>
+            where T: GameObject<'config> + Clone + Default + Deserialize<'de>
+        {
+            type Value = SpawnPool<T>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a sequence starting with a header, followed by spawned GameObject instances")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                where A: SeqAccess<'de>
+            {
+                // First element: info header
+                let header: SpawnPoolSerializedHeader = seq
+                    .next_element()?
+                    .ok_or_else(|| {
+                        log::error!("Failed to deserialize SpawnPoolSerializedHeader!");
+                        serde::de::Error::custom("missing SpawnPoolSerializedHeader")
+                    })?;
+
+                if header.instance_count == 0 {
+                    return Err(serde::de::Error::custom("SpawnPoolSerializedHeader::instance_count == 0"));
+                }
+                if header.generation == 0 {
+                    return Err(serde::de::Error::custom("SpawnPoolSerializedHeader::generation == 0"));
+                }
+
+                // Remaining elements: spawned instances
+                let mut pool = SpawnPool::<T>::new(header.instance_count, header.generation);
+
+                let mut deserialized_count = 0;
+                loop {
+                    let next = match seq.next_element::<T>() {
+                        Ok(next) => next,
+                        Err(err) => {
+                            log::error!("Failed to deserialize SpawnPool instance [{deserialized_count}]: {err}");
+                            return Err(err);
+                        },
+                    };
+
+                    if let Some(instance) = next {
+                        let index = instance.id().index();
+                        debug_assert!(instance.id().generation() < header.generation);
+
+                        pool.instances[index] = instance;
+                        pool.spawned.set(index, true);
+
+                        deserialized_count += 1;
+                    } else {
+                        // Finished deserializing the sequence.
+                        break;
+                    }
+                }
+
+                if header.spawned_count != deserialized_count {
+                    log::error!("Expected to deserialize {} spawned instanced but found {} instead.", header.instance_count, deserialized_count);
+                    return Err(serde::de::Error::custom("unexpected number of GameObject instances found"));
+                }
+
+                Ok(pool)
+            }
+        }
+
+        deserializer.deserialize_seq(PoolVisitor { marker: std::marker::PhantomData })
     }
 }

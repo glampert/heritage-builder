@@ -9,6 +9,11 @@ use arrayvec::ArrayVec;
 use bitflags::{bitflags, Flags};
 use proc_macros::DrawDebugUi;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     log,
     bitflags_with_display,
@@ -26,7 +31,7 @@ use crate::{
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, PartialEq, Eq)]
+    #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct ResourceKind: u32 {
         // Foods:
         const Rice  = 1 << 0;
@@ -126,7 +131,7 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // HouseholdWorkerPool
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct HouseholdWorkerPool {
     // Total workers = employed + unemployed
     employed_count: u32,
@@ -300,7 +305,7 @@ impl HouseholdWorkerPool {
 // Employer
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Employer {
     employee_count: u32, // Current number of workers employed.
     min_employees: u32,  // Minimum number of workers for service/production to run (at lower capacity).
@@ -479,7 +484,7 @@ impl Employer {
 // Workers
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Workers {
     HouseholdWorkerPool(HouseholdWorkerPool),
     Employer(Employer),
@@ -593,7 +598,7 @@ impl Workers {
 // Population
 // ----------------------------------------------
 
-#[derive(Copy, Clone, DrawDebugUi)]
+#[derive(Copy, Clone, DrawDebugUi, Serialize, Deserialize)]
 pub struct Population {
     #[debug_ui(label = "Population")]
     count: u8, // Current population number for household.
@@ -682,13 +687,13 @@ impl Population {
 // ResourceStock
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct StockItem {
     pub kind: ResourceKind, // This is always a single bitflag; never ORed together.
     pub count: u32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ResourceStock {
     kinds: ResourceKind, // If the kind flag bit is set, the stock accepts that resource.
     counts: [u16; RESOURCE_KIND_COUNT],

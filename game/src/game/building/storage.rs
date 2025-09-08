@@ -3,6 +3,11 @@ use arrayvec::ArrayVec;
 use smallvec::{smallvec, SmallVec};
 use proc_macros::DrawDebugUi;
 
+use serde::{
+    Serialize,
+    Deserialize,
+};
+
 use crate::{
     game_object_debug_options,
     building_config_impl,
@@ -77,15 +82,16 @@ game_object_debug_options! {
 // StorageBuilding
 // ----------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct StorageBuilding<'config> {
-    config: &'config StorageConfig,
+    #[serde(skip)] config: Option<&'config StorageConfig>,
+
     workers: Workers,
 
     // Stockpiles:
     storage_slots: Box<StorageSlots>,
 
-    debug: StorageDebug,
+    #[serde(skip)] debug: StorageDebug,
 }
 
 // ----------------------------------------------
@@ -98,11 +104,11 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     // ----------------------
 
     fn name(&self) -> &str {
-        &self.config.name
+        &self.config.unwrap().name
     }
 
     fn configs(&self) -> &dyn BuildingConfig {
-        self.config
+        self.config.unwrap()
     }
 
     fn update(&mut self, _context: &BuildingContext) {
@@ -241,7 +247,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
 impl<'config> StorageBuilding<'config> {
     pub fn new(config: &'config StorageConfig) -> Self {
         Self {
-            config,
+            config: Some(config),
             workers: Workers::employer(config.min_workers, config.max_workers),
             storage_slots: StorageSlots::new(
                 &config.resources_accepted,
@@ -259,13 +265,13 @@ impl<'config> StorageBuilding<'config> {
 
 const MAX_STORAGE_SLOTS: usize = 8;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct StorageSlot {
     stock: ResourceStock,
     allocated_resource_kind: Option<ResourceKind>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct StorageSlots {
     slots: ArrayVec<StorageSlot, MAX_STORAGE_SLOTS>,
     slot_capacity: u32,
