@@ -131,20 +131,20 @@ pub fn try_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_
     let dest_house = house_for_id_mut(context, house_id);
     let tile_map = context.query.tile_map();
 
-    // We'll have to restore the game_state on the new tile.
-    let (prev_game_state, prev_cell_range, prev_tile_def) = {
+    // We'll have to restore the game object handle on the new tile.
+    let (prev_game_object_handle, prev_cell_range, prev_tile_def) = {
         let prev_tile = tile_map.find_tile_mut(dest_house.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("House building should have an associated Tile in the TileMap!");
 
-        let game_state = prev_tile.game_state_handle();
+        let game_object_handle = prev_tile.game_object_handle();
         let cell_range = prev_tile.cell_range();
         let tile_def = prev_tile.tile_def();
 
-        debug_assert!(game_state.is_valid(), "House tile doesn't have a valid associated TileGameStateHandle!");
-        debug_assert!(dest_house.kind() == BuildingKind::from_game_state_handle(game_state));
-        debug_assert!(dest_house.id().index() == game_state.index());
+        debug_assert!(game_object_handle.is_valid(), "House tile doesn't have a valid associated TileGameObjectHandle!");
+        debug_assert!(dest_house.kind() == BuildingKind::from_game_object_handle(game_object_handle));
+        debug_assert!(dest_house.id().index() == game_object_handle.index());
 
-        (game_state, cell_range, tile_def)
+        (game_object_handle, cell_range, tile_def)
     };
 
     // Clear the previous tile:
@@ -174,8 +174,8 @@ pub fn try_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_
                 }
             };
 
-            // Restore previous game state handle:
-            prev_tile.set_game_state_handle(prev_game_state);
+            // Restore previous game object handle:
+            prev_tile.set_game_object_handle(prev_game_object_handle);
             debug_assert!(prev_tile.cell_range() == prev_cell_range);
 
             log::error!(log::channel!("house"),
@@ -185,8 +185,8 @@ pub fn try_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_
         }
     };
 
-    // Update game state handle:
-    new_tile.set_game_state_handle(prev_game_state);
+    // Update game object handle:
+    new_tile.set_game_object_handle(prev_game_object_handle);
     debug_assert!(new_tile.cell_range() == new_cell_range);
 
     if new_cell_range != prev_cell_range {

@@ -113,18 +113,19 @@ bitflags_with_display! {
 }
 
 // ----------------------------------------------
-// TileGameStateHandle
+// TileGameObjectHandle
 // ----------------------------------------------
 
-// Index into associated game state.
+// Index into associated GameObject.
 #[derive(Copy, Clone)]
-pub struct TileGameStateHandle {
+pub struct TileGameObjectHandle {
+    // Index into SpawnPool.
     index: u32,
     // For buildings this holds the BuildingKind, for Units the generation count.
     kind_or_generation: u32,
 }
 
-impl TileGameStateHandle {
+impl TileGameObjectHandle {
     #[inline]
     pub fn new_building(index: usize, kind: u32) -> Self {
         // Reserved value for invalid.
@@ -179,10 +180,10 @@ impl TileGameStateHandle {
     }
 }
 
-impl Default for TileGameStateHandle {
+impl Default for TileGameObjectHandle {
     #[inline]
     fn default() -> Self {
-        TileGameStateHandle::invalid()
+        TileGameObjectHandle::invalid()
     }
 }
 
@@ -238,8 +239,8 @@ trait TileBehavior<'tile_sets> {
     fn set_base_cell(&mut self, cell: Cell);
     fn set_iso_coords_f32(&mut self, iso_coords: Vec2);
 
-    fn game_state_handle(&self) -> TileGameStateHandle;
-    fn set_game_state_handle(&mut self, handle: TileGameStateHandle);
+    fn game_object_handle(&self) -> TileGameObjectHandle;
+    fn set_game_object_handle(&mut self, handle: TileGameObjectHandle);
 
     fn z_sort_key(&self) -> i32;
     fn iso_coords_f32(&self) -> Vec2;
@@ -251,8 +252,8 @@ trait TileBehavior<'tile_sets> {
     fn is_valid(&self) -> bool;
 
     // Animations:
-    fn anim_state_ref(&self) -> &TileAnimState;
-    fn anim_state_mut_ref(&mut self) -> &mut TileAnimState;
+    fn anim_state(&self) -> &TileAnimState;
+    fn anim_state_mut(&mut self) -> &mut TileAnimState;
 }
 
 // ----------------------------------------------
@@ -260,7 +261,7 @@ trait TileBehavior<'tile_sets> {
 // ----------------------------------------------
 
 // NOTES:
-//  - Terrain tiles cannot store game state.
+//  - Terrain tiles do not store game object handles.
 //  - Terrain tile are always 1x1.
 //  - Terrain tile logical size is fixed (BASE_TILE_SIZE).
 //  - Terrain tile draw size can be customized.
@@ -301,8 +302,8 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
 
     #[inline] fn set_iso_coords_f32(&mut self, iso_coords: Vec2) { self.iso_coords_f32 = iso_coords; }
 
-    #[inline] fn game_state_handle(&self) -> TileGameStateHandle { TileGameStateHandle::invalid() }
-    #[inline] fn set_game_state_handle(&mut self, _handle: TileGameStateHandle) {}
+    #[inline] fn game_object_handle(&self) -> TileGameObjectHandle { TileGameObjectHandle::invalid() }
+    #[inline] fn set_game_object_handle(&mut self, _handle: TileGameObjectHandle) {}
 
     #[inline] fn z_sort_key(&self) -> i32 { self.iso_coords_f32.y as i32 }
     #[inline] fn iso_coords_f32(&self) -> Vec2 { self.iso_coords_f32 }
@@ -315,17 +316,17 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
 
     // No support for animations on Terrain.
     #[inline]
-    fn anim_state_ref(&self) -> &TileAnimState {
+    fn anim_state(&self) -> &TileAnimState {
         // Return a valid dummy value for Tile::anim_set_index(),
         // Tile::anim_frame_index(), etc that has all fields set to defaults.
         &TileAnimState::DEFAULT
     }
 
     #[inline]
-    fn anim_state_mut_ref(&mut self) -> &mut TileAnimState {
+    fn anim_state_mut(&mut self) -> &mut TileAnimState {
         // This is method is only called from Tile::update_anim() and
         // Tile::set_anim_set_index(), so should never be used for Terrain.
-        panic!("Terrain Tiles are not animated! Do not call this on a Terrain Tile.");
+        unimplemented!("Terrain Tiles are not animated! Do not call this on a Terrain Tile.");
     }
 }
 
@@ -344,7 +345,7 @@ struct ObjectTile<'tile_sets> {
 
     // Buildings can occupy multiple cells. `cell_range.start` is the start or "base" cell.
     cell_range: CellRange,
-    game_state: TileGameStateHandle,
+    game_object_handle: TileGameObjectHandle,
     anim_state: TileAnimState,
 
     // Cached on construction.
@@ -359,7 +360,7 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
             def: tile_def,
             layer: UnsafeWeakRef::new(layer),
             cell_range: tile_def.cell_range(cell),
-            game_state: TileGameStateHandle::default(),
+            game_object_handle: TileGameObjectHandle::default(),
             anim_state: TileAnimState::default(),
             iso_coords_f32: calc_object_iso_coords(tile_def.kind(), cell, tile_def.logical_size, tile_def.draw_size),
         }
@@ -384,8 +385,8 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
 
     #[inline] fn set_iso_coords_f32(&mut self, iso_coords: Vec2) { self.iso_coords_f32 = iso_coords; }
 
-    #[inline] fn game_state_handle(&self) -> TileGameStateHandle { self.game_state }
-    #[inline] fn set_game_state_handle(&mut self, handle: TileGameStateHandle) { self.game_state = handle; }
+    #[inline] fn game_object_handle(&self) -> TileGameObjectHandle { self.game_object_handle }
+    #[inline] fn set_game_object_handle(&mut self, handle: TileGameObjectHandle) { self.game_object_handle = handle; }
 
     #[inline] fn z_sort_key(&self) -> i32 { calc_object_z_sort_key(self.cell_range.start, self.def.logical_size.height) }
     #[inline] fn iso_coords_f32(&self) -> Vec2 { self.iso_coords_f32 }
@@ -397,8 +398,8 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     #[inline] fn is_valid(&self) -> bool { self.cell_range.is_valid() && self.def.is_valid() }
 
     // Animations:
-    #[inline] fn anim_state_ref(&self) -> &TileAnimState { &self.anim_state }
-    #[inline] fn anim_state_mut_ref(&mut self) -> &mut TileAnimState { &mut self.anim_state }
+    #[inline] fn anim_state(&self) -> &TileAnimState { &self.anim_state }
+    #[inline] fn anim_state_mut(&mut self) -> &mut TileAnimState { &mut self.anim_state }
 }
 
 #[inline]
@@ -495,11 +496,11 @@ impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
         self.owner_mut().set_flags(new_flags, value);
     }
 
-    #[inline] fn set_base_cell(&mut self, _cell: Cell) { panic!("Not implemented for BlockerTile!"); }
-    #[inline] fn set_iso_coords_f32(&mut self, _iso_coords: Vec2) { panic!("Not implemented for BlockerTile!"); }
+    #[inline] fn set_base_cell(&mut self, _cell: Cell) { unimplemented!("Not implemented for BlockerTile!"); }
+    #[inline] fn set_iso_coords_f32(&mut self, _iso_coords: Vec2) { unimplemented!("Not implemented for BlockerTile!"); }
 
-    #[inline] fn game_state_handle(&self) -> TileGameStateHandle { self.owner().game_state_handle() }
-    #[inline] fn set_game_state_handle(&mut self, handle: TileGameStateHandle) { self.owner_mut().set_game_state_handle(handle); }
+    #[inline] fn game_object_handle(&self) -> TileGameObjectHandle { self.owner().game_object_handle() }
+    #[inline] fn set_game_object_handle(&mut self, handle: TileGameObjectHandle) { self.owner_mut().set_game_object_handle(handle); }
 
     #[inline] fn z_sort_key(&self) -> i32 { self.owner().z_sort_key() }
     #[inline] fn iso_coords_f32(&self) -> Vec2 { self.owner().iso_coords_f32() }
@@ -511,8 +512,8 @@ impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
     #[inline] fn is_valid(&self) -> bool { self.cell.is_valid() && self.owner_cell.is_valid() && self.owner().is_valid() }
 
     // Animations:
-    #[inline] fn anim_state_ref(&self) -> &TileAnimState { self.owner().anim_state_ref() }
-    #[inline] fn anim_state_mut_ref(&mut self) -> &mut TileAnimState { self.owner_mut().anim_state_mut_ref() }
+    #[inline] fn anim_state(&self) -> &TileAnimState { self.owner().anim_state() }
+    #[inline] fn anim_state_mut(&mut self) -> &mut TileAnimState { self.owner_mut().anim_state_mut() }
 }
 
 // ----------------------------------------------
@@ -598,13 +599,13 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn game_state_handle(&self) -> TileGameStateHandle {
-        self.archetype.game_state_handle()
+    pub fn game_object_handle(&self) -> TileGameObjectHandle {
+        self.archetype.game_object_handle()
     }
 
     #[inline]
-    pub fn set_game_state_handle(&mut self, handle: TileGameStateHandle) {
-        self.archetype.set_game_state_handle(handle);
+    pub fn set_game_object_handle(&mut self, handle: TileGameObjectHandle) {
+        self.archetype.set_game_object_handle(handle);
     }
 
     #[inline]
@@ -820,7 +821,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     #[inline]
     pub fn set_anim_set_index(&mut self, index: usize) {
         let max_index = self.anim_sets_count() - 1;
-        let anim_state = self.anim_state_mut_ref();
+        let anim_state = self.anim_state_mut();
         let new_anim_set_index: u16 = index.min(max_index).try_into().expect("Anim Set index must be <= u16::MAX!");
         if new_anim_set_index != anim_state.anim_set_index {
             anim_state.anim_set_index = new_anim_set_index;
@@ -831,17 +832,17 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     #[inline]
     pub fn anim_set_index(&self) -> usize {
-        self.anim_state_ref().anim_set_index as usize
+        self.anim_state().anim_set_index as usize
     }
 
     #[inline]
     pub fn anim_frame_index(&self) -> usize {
-        self.anim_state_ref().frame_index as usize
+        self.anim_state().frame_index as usize
     }
 
     #[inline]
     pub fn anim_frame_play_time_secs(&self) -> f32 {
-        self.anim_state_ref().frame_play_time_secs
+        self.anim_state().frame_play_time_secs
     }
 
     #[inline]
@@ -875,7 +876,7 @@ impl<'tile_sets> Tile<'tile_sets> {
                 return;
             }
 
-            let anim_state = self.anim_state_mut_ref();
+            let anim_state = self.anim_state_mut();
             anim_state.frame_play_time_secs += delta_time_secs;
 
             if anim_state.frame_play_time_secs >= anim_set.frame_duration_secs() {
@@ -915,13 +916,13 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    fn anim_state_ref(&self) -> &TileAnimState {
-        self.archetype.anim_state_ref()
+    fn anim_state(&self) -> &TileAnimState {
+        self.archetype.anim_state()
     }
 
     #[inline]
-    fn anim_state_mut_ref(&mut self) -> &mut TileAnimState {
-        self.archetype.anim_state_mut_ref()
+    fn anim_state_mut(&mut self) -> &mut TileAnimState {
+        self.archetype.anim_state_mut()
     }
 
     #[inline]

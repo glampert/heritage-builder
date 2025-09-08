@@ -169,9 +169,9 @@ impl TileInspectorMenu {
                 sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Overview);
 
                 // Detailed:
-                if tile.game_state_handle().is_valid() {
-                    // If the tile has a game state, we'll have different
-                    // dropdowns besides "Tile" (e.g.: "Building", "Unit").
+                if tile.game_object_handle().is_valid() {
+                    // If the tile has a game object, we'll have different dropdowns besides "Tile"
+                    // (e.g.: "Building", "Unit"), so nest tile debug under its own collapsing header.
                     if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
                         ui.indent_by(10.0);
                         Self::draw_tile_debug_ui(context, tile);
@@ -211,14 +211,14 @@ impl TileInspectorMenu {
     }
 
     fn make_stable_imgui_window_label(tile: &Tile) -> String {
-        // If the tile has an associated game state, we'll use it as the imgui window ID,
+        // If the tile has an associated game object, we'll use it as the imgui window ID,
         // since it is the most stable handle we can get.
-        let game_state = tile.game_state_handle();
-        if game_state.is_valid() {
+        let game_object_handle = tile.game_object_handle();
+        if game_object_handle.is_valid() {
             return format!("{} - ID({},{:x})",
-                tile.kind(),
-                game_state.index(),
-                game_state.kind());
+                           tile.kind(),
+                           game_object_handle.index(),
+                           game_object_handle.kind());
         }
 
         // Use the tile cell as a fallback. This is fine as long as the
@@ -250,7 +250,7 @@ impl TileInspectorMenu {
             kind: TileKind,
             flags: TileFlags,
             path_kind: PathNodeKind,
-            has_game_state: bool,
+            has_game_object: bool,
             size_in_cells: Size,
             draw_size: Size,
             logical_size: Size,
@@ -263,7 +263,7 @@ impl TileInspectorMenu {
             kind: tile.kind(),
             flags: tile.flags(),
             path_kind: tile.path_kind(),
-            has_game_state: tile.game_state_handle().is_valid(),
+            has_game_object: tile.game_object_handle().is_valid(),
             size_in_cells: tile.size_in_cells(),
             draw_size: tile.draw_size(),
             logical_size: tile.logical_size(),

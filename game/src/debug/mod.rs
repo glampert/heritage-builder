@@ -347,11 +347,11 @@ impl DebugMenusSingleton {
                 } else {
                     let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
                     if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, &args.transform) {
-                        let has_game_state = tile.game_state_handle().is_valid();
-                        if tile.is(TileKind::Building | TileKind::Blocker) && has_game_state {
+                        let has_game_object = tile.game_object_handle().is_valid();
+                        if tile.is(TileKind::Building | TileKind::Blocker) && has_game_object {
                             query.world().despawn_building_at_cell(&query, tile.base_cell())
                                 .expect("Tile removal failed!");
-                        } else if tile.is(TileKind::Unit) && has_game_state {
+                        } else if tile.is(TileKind::Unit) && has_game_object {
                             query.world().despawn_unit_at_cell(&query, tile.base_cell())
                                 .expect("Tile removal failed!");
                         } else {

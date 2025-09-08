@@ -20,7 +20,7 @@ use crate::{
         TileKind,
         TileMap,
         TileMapLayerKind,
-        TileGameStateHandle,
+        TileGameObjectHandle,
         sets::{TileDef, OBJECTS_UNITS_CATEGORY}
     },
     game::{
@@ -159,8 +159,8 @@ impl<'config> World<'config> {
                         debug_assert!(building.is_spawned());
 
                         // Store building index and kind so we can refer back to it from the Tile instance.
-                        tile.set_game_state_handle(
-                            TileGameStateHandle::new_building(
+                        tile.set_game_object_handle(
+                            TileGameObjectHandle::new_building(
                                 building.id().index(),
                                 building_kind.bits()
                             ));
@@ -190,16 +190,16 @@ impl<'config> World<'config> {
         let tile = tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Building)
             .ok_or("Building should have an associated Tile in the TileMap!")?;
 
-        let game_state = tile.game_state_handle();
-        if !game_state.is_valid() {
-            return Err(format!("Building tile '{}' {} should have a valid game state!", tile.name(), tile_base_cell));
+        let game_object_handle = tile.game_object_handle();
+        if !game_object_handle.is_valid() {
+            return Err(format!("Building tile '{}' {} should have a valid TileGameObjectHandle!", tile.name(), tile_base_cell));
         }
 
         // Remove the associated Tile:
         tile_map.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
 
-        let pool_index = game_state.index();
-        let building_kind = BuildingKind::from_game_state_handle(game_state);
+        let pool_index = game_object_handle.index();
+        let building_kind = BuildingKind::from_game_object_handle(game_object_handle);
         let archetype_kind = building_kind.archetype_kind();
         let buildings = self.buildings_pool_mut(archetype_kind);
 
@@ -239,10 +239,10 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_building_for_tile(&self, tile: &Tile) -> Option<&Building<'config>> {
-        let game_state = tile.game_state_handle();
-        if game_state.is_valid() {
-            let pool_index = game_state.index();
-            let building_kind = BuildingKind::from_game_state_handle(game_state);
+        let game_object_handle = tile.game_object_handle();
+        if game_object_handle.is_valid() {
+            let pool_index = game_object_handle.index();
+            let building_kind = BuildingKind::from_game_object_handle(game_object_handle);
             let archetype_kind = building_kind.archetype_kind();
             let buildings = self.buildings_pool(archetype_kind);
             return buildings.try_get_at(pool_index); // NOTE: Does not perform generation check.
@@ -252,10 +252,10 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_building_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Building<'config>> {
-        let game_state = tile.game_state_handle();
-        if game_state.is_valid() {
-            let pool_index = game_state.index();
-            let building_kind = BuildingKind::from_game_state_handle(game_state);
+        let game_object_handle = tile.game_object_handle();
+        if game_object_handle.is_valid() {
+            let pool_index = game_object_handle.index();
+            let building_kind = BuildingKind::from_game_object_handle(game_object_handle);
             let archetype_kind = building_kind.archetype_kind();
             let buildings = self.buildings_pool_mut(archetype_kind);
             return buildings.try_get_at_mut(pool_index); // NOTE: Does not perform generation check.
@@ -397,8 +397,8 @@ impl<'config> World<'config> {
                     debug_assert!(unit.is_spawned());
 
                     // Store unit index so we can refer back to it from the Tile instance.
-                    tile.set_game_state_handle(
-                        TileGameStateHandle::new_unit(
+                    tile.set_game_object_handle(
+                        TileGameObjectHandle::new_unit(
                             unit.id().index(),
                             unit.id().generation()
                         ));
@@ -438,8 +438,8 @@ impl<'config> World<'config> {
                 debug_assert!(unit.is_spawned());
 
                 // Store unit index so we can refer back to it from the Tile instance.
-                tile.set_game_state_handle(
-                    TileGameStateHandle::new_unit(
+                tile.set_game_object_handle(
+                    TileGameObjectHandle::new_unit(
                         unit.id().index(),
                         unit.id().generation()
                     ));
@@ -464,13 +464,13 @@ impl<'config> World<'config> {
         let tile = tile_map.find_tile(tile_cell, TileMapLayerKind::Objects, TileKind::Unit)
             .ok_or("Unit should have an associated Tile in the TileMap!")?;
 
-        let game_state = tile.game_state_handle();
-        if !game_state.is_valid() {
-            return Err(format!("Unit tile '{}' {} should have a valid game state!", tile.name(), tile_cell));
+        let game_object_handle = tile.game_object_handle();
+        if !game_object_handle.is_valid() {
+            return Err(format!("Unit tile '{}' {} should have a valid TileGameObjectHandle!", tile.name(), tile_cell));
         }
 
-        debug_assert!(game_state.index() == unit.id().index());
-        debug_assert!(game_state.generation() == unit.id().generation());
+        debug_assert!(game_object_handle.index() == unit.id().index());
+        debug_assert!(game_object_handle.generation() == unit.id().generation());
 
         // First remove the associated Tile:
         tile_map.try_clear_tile_from_layer(tile_cell, TileMapLayerKind::Objects)?;
@@ -507,9 +507,9 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_unit_for_tile(&self, tile: &Tile) -> Option<&Unit<'config>> {
-        let game_state = tile.game_state_handle();
-        if game_state.is_valid() {
-            let id = UnitId::new(game_state.generation(), game_state.index());
+        let game_object_handle = tile.game_object_handle();
+        if game_object_handle.is_valid() {
+            let id = UnitId::new(game_object_handle.generation(), game_object_handle.index());
             return self.unit_spawn_pool.try_get(id);
         }
         None
@@ -517,9 +517,9 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn find_unit_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Unit<'config>> {
-        let game_state = tile.game_state_handle();
-        if game_state.is_valid() {
-            let id = UnitId::new(game_state.generation(), game_state.index());
+        let game_object_handle = tile.game_object_handle();
+        if game_object_handle.is_valid() {
+            let id = UnitId::new(game_object_handle.generation(), game_object_handle.index());
             return self.unit_spawn_pool.try_get_mut(id);
         }
         None

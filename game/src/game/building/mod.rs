@@ -25,7 +25,7 @@ use crate::{
         TileFlags,
         TileMap,
         TileMapLayerKind,
-        TileGameStateHandle,
+        TileGameObjectHandle,
         sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}
     }
 };
@@ -129,9 +129,9 @@ impl BuildingKind {
     }
 
     #[inline]
-    pub fn from_game_state_handle(handle: TileGameStateHandle) -> Self {
+    pub fn from_game_object_handle(handle: TileGameObjectHandle) -> Self {
         Self::from_bits(handle.kind())
-            .expect("TileGameStateHandle does not contain a valid BuildingKind enum value!")
+            .expect("TileGameObjectHandle does not contain a valid BuildingKind enum value!")
     }
 
     #[inline]
