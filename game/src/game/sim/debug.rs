@@ -102,7 +102,7 @@ impl<'a> GameObjectDebugVar<'a> {
 #[derive(Clone)]
 pub struct GameObjectDebugPopups {
     messages: PopupMessages,
-    show: bool,
+    pub show: bool,
 }
 
 impl Default for GameObjectDebugPopups {
@@ -130,7 +130,7 @@ pub trait GameObjectDebugOptions {
 
     #[inline]
     fn show_popups(&mut self) -> bool {
-        self.get_popups().show
+        self.get_popups().show && debug::show_popup_messages()
     }
 
     #[inline]
@@ -179,49 +179,46 @@ pub trait GameObjectDebugOptions {
                            visible_range: CellRange,
                            delta_time_secs: Seconds) {
 
-        let popups = self.get_popups();
-        popups.show = debug::show_popup_messages();
-
-        const LIFETIME_MULTIPLIER: f32 = 3.0;
-        popups.messages.update(LIFETIME_MULTIPLIER, delta_time_secs);
-
-        if popups.show && visible_range.contains(tile.base_cell()){
-            let screen_pos = tile.screen_rect(transform).center();
+        if self.show_popups() && visible_range.contains(tile.base_cell()) {
+            const LIFETIME_MULTIPLIER: f32 = 3.0;
             const SCROLL_DIST: f32 = 5.0;
             const SCROLL_SPEED: f32 = 12.0;
             const START_BG_ALPHA: f32 = 0.6;
+
+            let popups = self.get_popups();
+            let screen_pos = tile.screen_rect(transform).center();
+
+            popups.messages.update(LIFETIME_MULTIPLIER, delta_time_secs);
             popups.messages.draw(ui_sys, screen_pos, SCROLL_DIST, SCROLL_SPEED, START_BG_ALPHA);
         }
     }
 
     #[inline]
     fn popup_msg_string(&mut self, text: Cow<'static, str>) {
-        let popups = self.get_popups();
-        if popups.show {
+        if self.show_popups() {
             const LIFETIME: Seconds = 9.0;
-            popups.messages.push_with_args(LIFETIME, Color::default(), text);
+            self.get_popups().messages.push_with_args(LIFETIME, Color::default(), text);
         }
     }
 
     #[inline]
     fn popup_msg_color_string(&mut self, color: Color, text: Cow<'static, str>) {
-        let popups = self.get_popups();
-        if popups.show {
+        if self.show_popups() {
             const LIFETIME: Seconds = 9.0;
-            popups.messages.push_with_args(LIFETIME, color, text);
+            self.get_popups().messages.push_with_args(LIFETIME, color, text);
         }
     }
 
     #[inline]
     fn log_resources_gained(&mut self, kind: ResourceKind, count: u32) {
-        if self.get_popups().show && !kind.is_empty() && count != 0 {
+        if self.show_popups() && !kind.is_empty() && count != 0 {
             self.popup_msg_color_string(Color::green(), format!("+{count} {kind}").into());
         }
     }
 
     #[inline]
     fn log_resources_lost(&mut self, kind: ResourceKind, count: u32) {
-        if self.get_popups().show && !kind.is_empty() && count != 0 {
+        if self.show_popups() && !kind.is_empty() && count != 0 {
             self.popup_msg_color_string(Color::red(), format!("-{count} {kind}").into());
         }
     }
@@ -281,11 +278,13 @@ macro_rules! game_object_debug_options {
 
                 #[inline]
                 fn get_vars(&mut self) -> smallvec::SmallVec<[GameObjectDebugVar; 16]> {
-                    smallvec::smallvec![
+                    let mut vars = smallvec::smallvec![
                         $(
                             GameObjectDebugVar::new(stringify!($field_name), &mut self.[<opt_ $field_name>]),
                         )*
-                    ]
+                    ];
+                    vars.push(GameObjectDebugVar::new("show_popup_messages", &mut self.popups.show));
+                    vars
                 }
             }
 

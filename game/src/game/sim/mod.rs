@@ -190,10 +190,18 @@ impl<'config> Simulation<'config> {
         }
     }
 
+    pub fn draw_game_object_debug_popups(&mut self,
+                                         context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                                         visible_range: CellRange) {
+    
+        self.draw_building_debug_popups(context, visible_range);
+        self.draw_unit_debug_popups(context, visible_range);
+    }
+
     // Buildings:
-    pub fn draw_building_debug_popups(&mut self,
-                                      context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                                      visible_range: CellRange) {
+    fn draw_building_debug_popups(&mut self,
+                                  context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                                  visible_range: CellRange) {
 
         let query = self.new_query(
             context.world,
@@ -208,10 +216,10 @@ impl<'config> Simulation<'config> {
             visible_range);
     }
 
-    pub fn draw_building_debug_ui(&mut self,
-                                  context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                                  tile: &Tile,
-                                  mode: debug::DebugUiMode) {
+    fn draw_building_debug_ui(&mut self,
+                              context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                              tile: &Tile,
+                              mode: debug::DebugUiMode) {
 
         let query = self.new_query(
             context.world,
@@ -227,9 +235,9 @@ impl<'config> Simulation<'config> {
     }
 
     // Units:
-    pub fn draw_unit_debug_popups(&mut self,
-                                  context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                                  visible_range: CellRange) {
+    fn draw_unit_debug_popups(&mut self,
+                              context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                              visible_range: CellRange) {
 
         let query = self.new_query(
             context.world,
@@ -244,10 +252,10 @@ impl<'config> Simulation<'config> {
             visible_range);
     }
 
-    pub fn draw_unit_debug_ui(&mut self,
-                              context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
-                              tile: &Tile,
-                              mode: debug::DebugUiMode) {
+    fn draw_unit_debug_ui(&mut self,
+                          context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                          tile: &Tile,
+                          mode: debug::DebugUiMode) {
 
         let query = self.new_query(
             context.world,

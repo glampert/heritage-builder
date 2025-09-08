@@ -338,7 +338,7 @@ impl DebugMenusSingleton {
                         } else if tile_def.is(TileKind::Unit) {
                             query.world().try_spawn_unit_with_tile_def(&query, target_cell, tile_def).is_ok()
                         } else {
-                            // No associated game state, place plain tile.
+                            // No associated game object, place plain tile.
                             query.tile_map().try_place_tile(target_cell, tile_def).is_ok()
                         }
                     } else {
@@ -355,7 +355,7 @@ impl DebugMenusSingleton {
                             query.world().despawn_unit_at_cell(&query, tile.base_cell())
                                 .expect("Tile removal failed!");
                         } else {
-                            // No game state, just remove the tile directly.
+                            // No game object, just remove the tile directly.
                             query.tile_map().try_clear_tile_at_cursor(args.cursor_screen_pos, &args.transform)
                                 .expect("Tile removal failed!");
                         }
@@ -409,26 +409,27 @@ impl DebugMenusSingleton {
             args.camera,
             args.tile_map_renderer);
 
-        args.sim.draw_building_debug_popups(&mut args.context, args.visible_range);
-        args.sim.draw_unit_debug_popups(&mut args.context, args.visible_range);
+        if show_popup_messages() {
+            args.sim.draw_game_object_debug_popups(&mut args.context, args.visible_range);
+        }
 
         if self.search_test_mode {
-            self::utils::draw_cursor_overlay(
+            utils::draw_cursor_overlay(
                 args.context.ui_sys,
                 args.camera.transform(),
                 Some(&format!("Search Test: {} -> {}", self.search_test_start, self.search_test_goal)));
         }
 
         if show_cursor_pos {
-            self::utils::draw_cursor_overlay(args.context.ui_sys, args.camera.transform(), None);
+            utils::draw_cursor_overlay(args.context.ui_sys, args.camera.transform(), None);
         }
 
         if show_render_stats {
-            self::utils::draw_render_stats(args.context.ui_sys, args.render_sys_stats, args.tile_render_stats);
+            utils::draw_render_stats(args.context.ui_sys, args.render_sys_stats, args.tile_render_stats);
         }
 
         if show_screen_origin {
-            self::utils::draw_screen_origin_marker(args.render_sys);
+            utils::draw_screen_origin_marker(args.render_sys);
         }
     }
 }
