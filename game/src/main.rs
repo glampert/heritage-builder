@@ -25,6 +25,7 @@ use game::{
     sim::{self, *},
     sim::world::*,
     system::*,
+    cheats,
     building::{config::BuildingConfigs},
     unit::{config::UnitConfigs},
 };
@@ -56,6 +57,7 @@ fn main() {
     let mut ui_sys = UiSystem::new(&app);
 
     debug::set_show_popup_messages(true);
+    cheats::initialize();
 
     let building_configs = BuildingConfigs::load();
     let unit_configs = UnitConfigs::load();
