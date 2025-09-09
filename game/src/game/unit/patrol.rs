@@ -6,8 +6,8 @@ use serde::{
 };
 
 use crate::{
-    utils::coords::Cell,
     imgui_ui::UiSystem,
+    utils::{coords::Cell, callback::{self, Callback}},
     game::{
         sim::Query,
         building::{
@@ -22,17 +22,19 @@ use super::{
     Unit,
     UnitId,
     UnitTaskHelper,
-    config::{self},
+    config,
     task::{
         UnitTaskDespawn,
-        UnitTaskRandomizedPatrol,
-        UnitPatrolPathRecord
+        UnitPatrolPathRecord,
+        UnitTaskRandomizedPatrol
     }
 };
 
 // ----------------------------------------------
 // PatrolInternalState
 // ----------------------------------------------
+
+pub type PatrolCompletionCallback = fn(&mut Building, &mut Unit, &Query) -> bool;
 
 #[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 struct PatrolInternalState {
@@ -44,9 +46,8 @@ struct PatrolInternalState {
     #[debug_ui(skip)]
     path_record: UnitPatrolPathRecord,
 
-    #[serde(skip)] // FIXME: How to handle serializing a func ptr???
     #[debug_ui(skip)]
-    completion_callback: Option<fn(&mut Building, &mut Unit, &Query) -> bool>,
+    completion_callback: Callback<PatrolCompletionCallback>,
 
     #[serde(skip)]
     #[debug_ui(skip)]
@@ -56,7 +57,7 @@ struct PatrolInternalState {
 impl PatrolInternalState {
     #[inline]
     fn reset(&mut self) {
-        self.completion_callback = None;
+        self.completion_callback = Callback::default();
         self.failed_to_spawn = false;
     }
 }
@@ -109,7 +110,7 @@ impl Patrol {
                                    unit_origin: Cell,
                                    max_patrol_distance: i32,
                                    buildings_to_visit: Option<BuildingKind>,
-                                   completion_callback: Option<fn(&mut Building, &mut Unit, &Query) -> bool>) -> bool {
+                                   completion_callback: Callback<PatrolCompletionCallback>) -> bool {
 
         debug_assert!(unit_origin.is_valid());
         debug_assert!(max_patrol_distance > 0, "Patrol max distance cannot be zero!");
@@ -134,7 +135,7 @@ impl Patrol {
                 path_bias_max,
                 path_record,
                 buildings_to_visit,
-                completion_callback: Some(Self::on_randomized_patrol_completed),
+                completion_callback: callback::create!(Patrol::on_randomized_patrol_completed),
                 completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
             }
         )
@@ -165,8 +166,9 @@ impl Patrol {
         // Update path record and invoke the Building's completion callback:
         state.path_record = patrol_task.path_record.clone();
 
-        if let Some(completion_callback) = state.completion_callback {
-            return completion_callback(origin_building, patrol_unit, query);
+        if state.completion_callback.is_valid() {
+            let callback = state.completion_callback.get();
+            return callback(origin_building, patrol_unit, query);
         }
 
         true // Task completed.
@@ -180,7 +182,7 @@ impl Patrol {
                     path_bias_min: 0.1,
                     path_bias_max: 0.5,
                     path_record: UnitPatrolPathRecord::default(),
-                    completion_callback: None,
+                    completion_callback: Callback::default(),
                     failed_to_spawn: false,
                 })
             );

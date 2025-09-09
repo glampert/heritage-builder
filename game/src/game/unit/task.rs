@@ -29,7 +29,8 @@ use crate::{
     utils::{
         Color,
         UnsafeWeakRef,
-        coords::Cell
+        coords::Cell,
+        callback::Callback
     },
     game::{
         sim::{
@@ -58,13 +59,13 @@ use super::{
 
 pub type UnitTaskId = GenerationalIndex;
 
-#[derive(Display, PartialEq)]
+#[derive(Display)]
 pub enum UnitTaskState {
     Uninitialized,
     Running,
     Completed,
     TerminateAndDespawn {
-        post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>, &[UnitTaskArg])>,
+        post_despawn_callback: Callback<UnitTaskPostDespawnCallback>,
         callback_extra_args:   UnitTaskArgs,
     },
 }
@@ -77,7 +78,7 @@ pub enum UnitTaskResult {
         next_task: UnitTaskForwarded // Optional next task to run.
     },
     TerminateAndDespawn {
-        post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>, &[UnitTaskArg])>,
+        post_despawn_callback: Callback<UnitTaskPostDespawnCallback>,
         callback_extra_args:   UnitTaskArgs
     },
 }
@@ -91,7 +92,7 @@ fn forward_task(task: &mut Option<UnitTaskId>) -> UnitTaskForwarded {
     UnitTaskForwarded(forwarded)
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone)]
 pub enum UnitTaskArg {
     None,
     Bool(bool),
@@ -132,7 +133,7 @@ impl UnitTaskArg {
 
 const MAX_TASK_EXTRA_ARGS: usize = 1;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone)]
 pub struct UnitTaskArgs {
     args: Option<[UnitTaskArg; MAX_TASK_EXTRA_ARGS]>,
 }
@@ -213,7 +214,7 @@ impl UnitTask for UnitTaskDespawn {
     fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
         check_unit_despawn_state::<UnitTaskDespawn>(unit, query);
         UnitTaskState::TerminateAndDespawn {
-            post_despawn_callback: None,
+            post_despawn_callback: Callback::default(),
             callback_extra_args: UnitTaskArgs::empty(),
         }
     }
@@ -223,10 +224,12 @@ impl UnitTask for UnitTaskDespawn {
 // UnitTaskDespawnWithCallback
 // ----------------------------------------------
 
+pub type UnitTaskPostDespawnCallback = fn(&Query, Cell, Option<UnitNavGoal>, &[UnitTaskArg]);
+
 pub struct UnitTaskDespawnWithCallback {
     // Callback invoked *after* the unit has despawned.
     // |query, unit_prev_cell, unit_prev_goal, extra_args|
-    pub post_despawn_callback: Option<fn(&Query, Cell, Option<UnitNavGoal>, &[UnitTaskArg])>,
+    pub post_despawn_callback: Callback<UnitTaskPostDespawnCallback>,
 
     // Extra arguments for the callback.
     pub callback_extra_args: UnitTaskArgs,
@@ -418,6 +421,8 @@ impl PathFilter for UnitPatrolReturnPathFilter<'_> {
 // UnitTaskRandomizedPatrol
 // ----------------------------------------------
 
+pub type UnitTaskPatrolCompletionCallback = fn(&mut Building, &mut Unit, &Query) -> bool;
+
 // - Unit walks up to a certain distance away from the origin.
 // - Once max distance is reached, start walking back to origin.
 // - Visit any buildings it is interested on along the way.
@@ -438,7 +443,7 @@ pub struct UnitTaskRandomizedPatrol {
 
     // Called on the origin building once the unit has completed its patrol and returned.
     // `|origin_building, patrol_unit, query| -> bool`: Returns if the task should complete or retry.
-    pub completion_callback: Option<fn(&mut Building, &mut Unit, &Query) -> bool>,
+    pub completion_callback: Callback<UnitTaskPatrolCompletionCallback>,
 
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
@@ -566,13 +571,15 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         let mut task_completed = false;
 
         if self.is_returning_to_origin(unit_goal) {
-            task_completed = invoke_completion_callback(unit,
-                                                        query,
-                                                        self.origin_building.kind,
-                                                        self.origin_building.id,
-                                                        self.completion_callback)
-                                                        .unwrap_or(true);
-            unit.follow_path(None);
+            if self.completion_callback.is_valid() {
+                task_completed = invoke_completion_callback(unit,
+                                                            query,
+                                                            self.origin_building.kind,
+                                                            self.origin_building.id,
+                                                            self.completion_callback.get())
+                                                            .unwrap_or(true);
+                unit.follow_path(None);
+            }
         } else {
             // Reached end of path, reroute bach to origin.
             unit.follow_path(None);
@@ -607,7 +614,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         self.path_record.draw_debug_ui(ui_sys);
 
         ui.text(format!("Buildings To Visit      : {}", self.buildings_to_visit.unwrap_or(BuildingKind::empty())));
-        ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_some()));
+        ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
         ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
 
         ui.separator();
@@ -628,6 +635,8 @@ impl UnitTask for UnitTaskRandomizedPatrol {
 // UnitTaskDeliverToStorage
 // ----------------------------------------------
 
+pub type UnitTaskDeliveryCompletionCallback = fn(&mut Building, &mut Unit, &Query);
+
 // Deliver goods to a storage building.
 // Producer -> Storage | Storage -> Storage | Producer -> Producer (fallback)
 pub struct UnitTaskDeliverToStorage {
@@ -642,7 +651,7 @@ pub struct UnitTaskDeliverToStorage {
 
     // Called on the origin building once resources are delivered.
     // `|origin_building, runner_unit, query|`
-    pub completion_callback: Option<fn(&mut Building, &mut Unit, &Query)>,
+    pub completion_callback: Callback<UnitTaskDeliveryCompletionCallback>,
 
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
@@ -731,11 +740,13 @@ impl UnitTask for UnitTaskDeliverToStorage {
         // If we've delivered our goods, we're done. Otherwise we were not able
         // to offload everything, so we'll retry with another building later.
         if unit.inventory_is_empty() {
-            invoke_completion_callback(unit,
-                                       query,
-                                       self.origin_building.kind,
-                                       self.origin_building.id,
-                                       self.completion_callback);
+            if self.completion_callback.is_valid() {
+                invoke_completion_callback(unit,
+                                           query,
+                                           self.origin_building.kind,
+                                           self.origin_building.id,
+                                           self.completion_callback.get());
+            }
 
             UnitTaskResult::Completed {
                 next_task: forward_task(&mut self.completion_task)
@@ -758,7 +769,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         ui.text(format!("Resource Kind To Deliver   : {}", self.resource_kind_to_deliver));
         ui.text(format!("Resource Count             : {}", self.resource_count));
         ui.separator();
-        ui.text(format!("Has Completion Callback    : {}", self.completion_callback.is_some()));
+        ui.text(format!("Has Completion Callback    : {}", self.completion_callback.is_valid()));
         ui.text(format!("Has Completion Task        : {}", self.completion_task.is_some()));
         ui.text(format!("Allow Producer Fallback    : {}", self.allow_producer_fallback));
     }
@@ -767,6 +778,8 @@ impl UnitTask for UnitTaskDeliverToStorage {
 // ----------------------------------------------
 // UnitTaskFetchFromStorage
 // ----------------------------------------------
+
+pub type UnitTaskFetchCompletionCallback = fn(&mut Building, &mut Unit, &Query);
 
 // Fetch goods from a storage building.
 // Storage -> Producer | Storage -> Storage
@@ -781,7 +794,7 @@ pub struct UnitTaskFetchFromStorage {
 
     // Called on the origin building once the unit has returned with resources.
     // `|origin_building, runner_unit, query|`
-    pub completion_callback: Option<fn(&mut Building, &mut Unit, &Query)>,
+    pub completion_callback: Callback<UnitTaskFetchCompletionCallback>,
 
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
@@ -898,11 +911,15 @@ impl UnitTask for UnitTaskFetchFromStorage {
             // Invoke the completion callback and end the task.
             debug_assert!(!unit.inventory_is_empty());
             debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == unit.peek_inventory().unwrap().kind));
-            invoke_completion_callback(unit,
-                                       query,
-                                       self.origin_building.kind,
-                                       self.origin_building.id,
-                                       self.completion_callback);
+
+            if self.completion_callback.is_valid() {
+                invoke_completion_callback(unit,
+                                           query,
+                                           self.origin_building.kind,
+                                           self.origin_building.id,
+                                           self.completion_callback.get());
+            }
+
             task_completed = true;
             unit.follow_path(None);
         } else {
@@ -949,7 +966,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
         ui.text(format!("Resources To Fetch         : {}", self.resources_to_fetch));
         ui.separator();
-        ui.text(format!("Has Completion Callback    : {}", self.completion_callback.is_some()));
+        ui.text(format!("Has Completion Callback    : {}", self.completion_callback.is_valid()));
         ui.text(format!("Has Completion Task        : {}", self.completion_task.is_some()));
     }
 }
@@ -958,10 +975,12 @@ impl UnitTask for UnitTaskFetchFromStorage {
 // UnitTaskSettler
 // ----------------------------------------------
 
+pub type UnitTaskSettlerCompletionCallback = fn(&mut Unit, &Tile, u32, &Query);
+
 pub struct UnitTaskSettler {
     // Optional completion callback. Invoke with the empty house lot building we've visited.
     // |unit, dest_tile, population_to_add, query|
-    pub completion_callback: Option<fn(&mut Unit, &Tile, u32, &Query)>,
+    pub completion_callback: Callback<UnitTaskSettlerCompletionCallback>,
 
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
@@ -1038,6 +1057,13 @@ impl UnitTaskSettler {
             }
         }
     }
+
+    fn notify_completion(&self, unit: &mut Unit, tile: &Tile, query: &Query) {
+        if self.completion_callback.is_valid() {
+            let callback = self.completion_callback.get();
+            callback(unit, tile, self.population_to_add, query);
+        }
+    }
 }
 
 impl UnitTask for UnitTaskSettler {
@@ -1087,9 +1113,7 @@ impl UnitTask for UnitTaskSettler {
             if let Some(tile) = tile_map.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
                 if tile.path_kind().intersects(PathNodeKind::VacantLot | PathNodeKind::SettlersSpawnPoint) {
                     // Notify completion:
-                    if let Some(on_completion) = self.completion_callback {
-                        on_completion(unit, tile, self.population_to_add, query);
-                    }
+                    self.notify_completion(unit, tile, query);
 
                     return UnitTaskResult::Completed {
                         next_task: forward_task(&mut self.completion_task)
@@ -1129,9 +1153,7 @@ impl UnitTask for UnitTaskSettler {
 
                 if task_completed {
                     // Notify completion:
-                    if let Some(on_completion) = self.completion_callback {
-                        on_completion(unit, house_tile, self.population_to_add, query);
-                    }
+                    self.notify_completion(unit, house_tile, query);
 
                     return UnitTaskResult::Completed {
                         next_task: forward_task(&mut self.completion_task)
@@ -1172,11 +1194,10 @@ impl UnitTaskInstance {
     }
 
     fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskResult {
-        debug_assert!(self.state == UnitTaskState::Uninitialized ||
-                      self.state == UnitTaskState::Running);
+        debug_assert!(matches!(self.state, UnitTaskState::Uninitialized | UnitTaskState::Running));
 
         // First update?
-        if self.state == UnitTaskState::Uninitialized {
+        if matches!(self.state, UnitTaskState::Uninitialized) {
             self.archetype.initialize(unit, query);
             self.state = UnitTaskState::Running;
         }
@@ -1412,7 +1433,9 @@ impl UnitTaskManager {
                         unit.assign_task(self, None);
                         query.despawn_unit(unit);
 
-                        if let Some(callback) = post_despawn_callback {
+                        if post_despawn_callback.is_valid() {
+                            let callback = post_despawn_callback.get();
+
                             let args: &[UnitTaskArg] = callback_extra_args.args
                                 .as_ref()
                                 .map(|arr| &arr[..])
@@ -1479,18 +1502,16 @@ fn invoke_completion_callback<F, R>(unit: &mut Unit,
                                     query: &Query,
                                     origin_building_kind: BuildingKind,
                                     origin_building_id: BuildingId,
-                                    completion_callback: Option<F>) -> Option<R>
+                                    completion_callback: F) -> Option<R>
     where F: FnOnce(&mut Building, &mut Unit, &Query) -> R
 {
-    if let Some(on_completion) = completion_callback {
-        if let Some(origin_building) = query.world().find_building_mut(origin_building_kind, origin_building_id) {
-            // NOTE: Only invoke the completion callback if the original base cell still contains the
-            // exact same building that initiated this task. We don't want to accidentally invoke the
-            // callback on a different building, even if the type of building there is the same.
-            debug_assert!(origin_building.kind() == origin_building_kind);
-            debug_assert!(origin_building.id()   == origin_building_id);
-            return Some(on_completion(origin_building, unit, query));
-        }
+    if let Some(origin_building) = query.world().find_building_mut(origin_building_kind, origin_building_id) {
+        // NOTE: Only invoke the completion callback if the original base cell still contains the
+        // exact same building that initiated this task. We don't want to accidentally invoke the
+        // callback on a different building, even if the type of building there is the same.
+        debug_assert!(origin_building.kind() == origin_building_kind);
+        debug_assert!(origin_building.id()   == origin_building_id);
+        return Some(completion_callback(origin_building, unit, query));
     }
     None
 }

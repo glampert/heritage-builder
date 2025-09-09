@@ -4,29 +4,26 @@ use serde::{
 };
 
 use crate::{
-    utils::coords::Cell,
+    utils::{
+        coords::Cell,
+        callback::Callback
+    },
     game::{
-        building::{
-            Building,
-            BuildingKind,
-            BuildingContext
-        },
-        sim::{
-            Query,
-            resources::{ShoppingList, ResourceKind}
-        }
+        building::{BuildingKind, BuildingContext},
+        sim::resources::{ShoppingList, ResourceKind}
     }
 };
 
 use super::{
-    Unit,
     UnitId,
     UnitTaskHelper,
-    config::{self},
+    config,
     task::{
         UnitTaskDespawn,
         UnitTaskDeliverToStorage,
-        UnitTaskFetchFromStorage
+        UnitTaskDeliveryCompletionCallback,
+        UnitTaskFetchFromStorage,
+        UnitTaskFetchCompletionCallback
     }
 };
 
@@ -71,7 +68,7 @@ impl Runner {
                                   storage_buildings_accepted: BuildingKind,
                                   resource_kind_to_deliver: ResourceKind,
                                   resource_count: u32,
-                                  completion_callback: Option<fn(&mut Building, &mut Unit, &Query)>) -> bool {
+                                  completion_callback: Callback<UnitTaskDeliveryCompletionCallback>) -> bool {
         self.try_spawn_with_task(
             context.debug_name(),
             context.query,
@@ -96,7 +93,7 @@ impl Runner {
                                   unit_origin: Cell,
                                   storage_buildings_accepted: BuildingKind,
                                   resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
-                                  completion_callback: Option<fn(&mut Building, &mut Unit, &Query)>) -> bool {
+                                  completion_callback: Callback<UnitTaskFetchCompletionCallback>) -> bool {
         self.try_spawn_with_task(
             context.debug_name(),
             context.query,

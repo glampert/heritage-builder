@@ -13,16 +13,20 @@ use crate::{
     utils::{
         Color,
         Seconds,
-        hash::StringHash
+        callback,
+        hash::StringHash,
     },
     game::{
         cheats,
         unit::{
             Unit,
             UnitTaskHelper,
-            patrol::Patrol,
             runner::Runner,
-            task::{UnitTaskFetchFromStorage, UnitTaskRandomizedPatrol}
+            patrol::Patrol,
+            task::{
+                UnitTaskFetchFromStorage,
+                UnitTaskRandomizedPatrol
+            }
         },
         sim::{
             Query,
@@ -311,7 +315,7 @@ impl<'config> ServiceBuilding<'config> {
             unit_origin,
             storage_buildings_accepted,
             resources_to_fetch,
-            Some(Self::on_resources_fetched));
+            callback::create!(ServiceBuilding::on_resources_fetched));
     }
 
     #[inline]
@@ -396,7 +400,7 @@ impl<'config> ServiceBuilding<'config> {
             unit_origin,
             self.config.unwrap().effect_radius,
             Some(BuildingKind::House),
-            Some(Self::on_patrol_completed));
+            callback::create!(ServiceBuilding::on_patrol_completed));
     }
 
     #[inline]

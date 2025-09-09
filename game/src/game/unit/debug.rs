@@ -6,7 +6,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     log,
     pathfind::{self, Path, NodeKind as PathNodeKind},
-    tile::{self, TileMapLayerKind},
+    tile::{self, Tile, TileMapLayerKind},
     imgui_ui::{
         self,
         UiSystem,
@@ -14,7 +14,8 @@ use crate::{
     },
     utils::{
         Color,
-        hash::{self},
+        hash,
+        callback,
         coords::Cell
     },
     game::{
@@ -228,6 +229,10 @@ impl<'config> Unit<'config> {
         let world = query.world();
 
         if ui.button("Give Deliver Resources Task") {
+            fn unit_debug_delivery_task_completed(_: &mut Building, _: &mut Unit, _: &Query) {
+                log::info!("Deliver Resources Task Completed.");
+            }
+
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link(query).unwrap_or_default();
@@ -245,9 +250,7 @@ impl<'config> Unit<'config> {
                         storage_buildings_accepted: BuildingKind::storage(), // any storage
                         resource_kind_to_deliver: ResourceKind::random_food(&mut rand::rng()),
                         resource_count: 1,
-                        completion_callback: Some(|_, _, _| {
-                            log::info!("Deliver Resources Task Completed.");
-                        }),
+                        completion_callback: callback::create!(unit_debug_delivery_task_completed),
                         completion_task,
                         allow_producer_fallback: true,
                     });
@@ -257,6 +260,12 @@ impl<'config> Unit<'config> {
         }
 
         if ui.button("Give Fetch Resources Task") {
+            fn unit_debug_fetch_task_completed(_: &mut Building, unit: &mut Unit, _: &Query) {
+                let item = unit.inventory.peek().unwrap();
+                log::info!("Fetch Resources Task Completed. Got {}, {}", item.kind, item.count);
+                unit.inventory.clear();
+            }
+
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let mut rng = rand::rng();
@@ -277,11 +286,7 @@ impl<'config> Unit<'config> {
                         },
                         storage_buildings_accepted: BuildingKind::storage(), // any storage
                         resources_to_fetch,
-                        completion_callback: Some(|_, unit, _| {
-                            let item = unit.inventory.peek().unwrap();
-                            log::info!("Fetch Resources Task Completed. Got {}, {}", item.kind, item.count);
-                            unit.inventory.clear();
-                        }),
+                        completion_callback: callback::create!(unit_debug_fetch_task_completed),
                         completion_task,
                         is_returning_to_origin: false,
                     });
@@ -318,6 +323,15 @@ impl<'config> Unit<'config> {
         let world = query.world();
 
         if ui.button("Give Patrol Task") {
+            fn unit_debug_patrol_task_completed(_: &mut Building, _: &mut Unit, _: &Query) -> bool {
+                unsafe {
+                    let patrol_round = PATROL_ROUNDS;
+                    log::info!("Patrol Task Round {patrol_round} Completed.");
+                    PATROL_ROUNDS -= 1;
+                    PATROL_ROUNDS <= 0 // Run the task a few times.
+                }
+            }
+
             // We need a building to own the task, so this assumes there's at least one of these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link(query).unwrap_or_default();
@@ -337,14 +351,7 @@ impl<'config> Unit<'config> {
                         path_bias_max,
                         path_record: UnitPatrolPathRecord::default(),
                         buildings_to_visit: Some(BuildingKind::House),
-                        completion_callback: Some(|_, _, _| {
-                            unsafe {
-                                let patrol_round = PATROL_ROUNDS;
-                                log::info!("Patrol Task Round {patrol_round} Completed.");
-                                PATROL_ROUNDS -= 1;
-                                PATROL_ROUNDS <= 0 // Run the task a few times.
-                            }
-                        }),
+                        completion_callback: callback::create!(unit_debug_patrol_task_completed),
                         completion_task,
                     });
                     self.assign_task(task_manager, task);
@@ -439,12 +446,15 @@ impl<'config> Unit<'config> {
         if ui.button("Find Vacant House Lot") && !traversable_node_kinds.is_empty() {
             self.set_traversable_node_kinds(traversable_node_kinds);
 
+            fn unit_debug_find_vacant_lot_task_completed(unit: &mut Unit, dest_tile: &Tile, _: u32, _: &Query) {
+                log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
+                unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
+            }
+
             let completion_task = task_manager.new_task(UnitTaskDespawn);
+
             let task = task_manager.new_task(UnitTaskSettler {
-                completion_callback: Some(|unit, dest_tile, _, _| {
-                    log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
-                    unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
-                }),
+                completion_callback: callback::create!(unit_debug_find_vacant_lot_task_completed),
                 completion_task,
                 fallback_to_houses_with_room: false,
                 return_to_spawn_point_if_failed: false,
@@ -457,50 +467,58 @@ impl<'config> Unit<'config> {
         if ui.button("Find & Settle Vacant Lot | House") && !traversable_node_kinds.is_empty() {
             self.set_traversable_node_kinds(traversable_node_kinds);
 
+            fn unit_debug_settle_task_post_despawn(query: &Query,
+                                                   unit_prev_cell: Cell,
+                                                   unit_prev_goal: Option<UnitNavGoal>,
+                                                   extra_args: &[UnitTaskArg]) {
+
+                let settle_new_vacant_lot = unit_prev_goal
+                    .is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, query) );
+
+                if settle_new_vacant_lot {
+                    if let Some(tile_def) = query.find_tile_def(
+                        TileMapLayerKind::Objects,
+                        tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
+                        hash::fnv1a_from_str("house0"))
+                    {
+                        match query.world().try_spawn_building_with_tile_def(query, unit_prev_cell, tile_def) {
+                            Ok(building) => {
+                                debug_assert!(building.is(BuildingKind::House));
+
+                                let population_to_add = extra_args[0].as_u32();
+                                debug_assert!(population_to_add == 1);
+
+                                let population_added = building.add_population(query, population_to_add);
+                                if population_added != population_to_add {
+                                    log::error!(log::channel!("unit"),
+                                                "Settler carried population of {population_to_add} but house accommodated {population_added}.");
+                                }
+                            },
+                            Err(err) => log::error!(log::channel!("unit"), "Failed to place House Level 0: {err}"),
+                        }
+                    } else {
+                        log::error!(log::channel!("unit"), "House Level 0 TileDef not found!");
+                    }
+                } else {
+                    log::info!("Unit settled into existing household.");
+                }
+            }
+
+            fn unit_debug_settle_task_completed(unit: &mut Unit, dest_tile: &Tile, population_to_add: u32, _: &Query) {
+                debug_assert!(population_to_add == 1);
+                log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
+                unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
+            }
+
             // NOTE: We have to spawn the house building *after* the unit has
             // despawned since we can't place a building over the unit tile.
             let completion_task = task_manager.new_task(UnitTaskDespawnWithCallback {
-                post_despawn_callback: Some(|query, unit_prev_cell, unit_prev_goal, extra_args| {
-                    let settle_new_vacant_lot = unit_prev_goal
-                        .is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, query) );
-
-                    if settle_new_vacant_lot {
-                        if let Some(tile_def) = query.find_tile_def(
-                            TileMapLayerKind::Objects,
-                            tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
-                            hash::fnv1a_from_str("house0"))
-                        {
-                            match query.world().try_spawn_building_with_tile_def(query, unit_prev_cell, tile_def) {
-                                Ok(building) => {
-                                    debug_assert!(building.is(BuildingKind::House));
-
-                                    let population_to_add = extra_args[0].as_u32();
-                                    debug_assert!(population_to_add == 1);
-
-                                    let population_added = building.add_population(query, population_to_add);
-                                    if population_added != population_to_add {
-                                        log::error!(log::channel!("unit"),
-                                                    "Settler carried population of {population_to_add} but house accommodated {population_added}.");
-                                    }
-                                },
-                                Err(err) => log::error!(log::channel!("unit"), "Failed to place House Level 0: {err}"),
-                            }
-                        } else {
-                            log::error!(log::channel!("unit"), "House Level 0 TileDef not found!");
-                        }
-                    } else {
-                        log::info!("Unit settled into existing household.");
-                    }
-                }),
+                post_despawn_callback: callback::create!(unit_debug_settle_task_post_despawn),
                 callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(1)]), // population_to_add
             });
 
             let task = task_manager.new_task(UnitTaskSettler {
-                completion_callback: Some(|unit, dest_tile, population_to_add, _| {
-                    debug_assert!(population_to_add == 1);
-                    log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
-                    unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
-                }),
+                completion_callback: callback::create!(unit_debug_settle_task_completed),
                 completion_task,
                 fallback_to_houses_with_room: true,
                 return_to_spawn_point_if_failed: false,

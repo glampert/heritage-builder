@@ -29,6 +29,7 @@ use serde::{
     Deserializer
 };
 
+pub mod callback;
 pub mod coords;
 pub mod file_sys;
 pub mod hash;

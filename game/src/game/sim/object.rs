@@ -373,7 +373,9 @@ impl<'config, T> Serialize for SpawnPool<T>
         for (index, instance) in self.instances.iter().enumerate() {
             // Serialize only *spawned* instances.
             if self.spawned[index] {
+                debug_assert!(instance.is_spawned());
                 debug_assert!(instance.id().index() == index);
+
                 seq.serialize_element(instance)?;
                 serialized_count += 1;
             }

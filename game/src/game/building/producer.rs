@@ -14,6 +14,7 @@ use crate::{
     utils::{
         Color,
         Seconds,
+        callback,
         hash::StringHash
     },
     game::{
@@ -347,7 +348,7 @@ impl<'config> ProducerBuilding<'config> {
             storage_buildings_accepted,
             resource_kind_to_deliver,
             resource_count,
-            Some(Self::on_resources_delivered)) {
+            callback::create!(ProducerBuilding::on_resources_delivered)) {
             // We've handed over our resources to the spawned unit, clear the stock.
             let removed_count = self.remove_resources(resource_kind_to_deliver, resource_count);
             debug_assert!(removed_count == resource_count);
@@ -385,7 +386,7 @@ impl<'config> ProducerBuilding<'config> {
             unit_origin,
             storage_buildings_accepted,
             resources_to_fetch,
-            Some(Self::on_resources_fetched));
+            callback::create!(ProducerBuilding::on_resources_fetched));
     }
 
     fn on_resources_delivered(this_building: &mut Building, runner_unit: &mut Unit, query: &Query) {

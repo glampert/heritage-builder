@@ -3,7 +3,7 @@ use crate::{
     imgui_ui::UiSystem,
     pathfind::{Node, NodeKind as PathNodeKind},
     sim::{Query, UpdateTimer},
-    utils::{Color, coords::Cell, hash},
+    utils::{Color, coords::Cell, hash, callback::{self, Callback}},
     tile::{TileMapLayerKind, sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}},
     game::{
         constants::*,
@@ -150,11 +150,11 @@ impl Settler {
             unit_origin,
             config::UNIT_SETTLER,
             UnitTaskSettler {
-                completion_callback: None,
+                completion_callback: Callback::default(),
                 completion_task: query.task_manager().new_task(UnitTaskDespawnWithCallback {
                     // NOTE: We have to spawn the house building *after* the unit has
                     // despawned since we can't place a building over the unit tile.
-                    post_despawn_callback: Some(Self::on_settled),
+                    post_despawn_callback: callback::create!(Settler::on_settled),
                     callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(population_to_add)]),
                 }),
                 fallback_to_houses_with_room: true,
