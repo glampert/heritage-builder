@@ -44,11 +44,7 @@ use super::{
     constants::*,
     world::World,
     system::GameSystems,
-    unit::{
-        Unit,
-        task::UnitTaskManager,
-        config::{UnitConfigs, UnitConfigKey}
-    },
+    unit::{config::UnitConfigs, task::UnitTaskManager},
     building::{
         Building,
         BuildingKind,
@@ -715,28 +711,5 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                 false // Stop iterating, we'll take the first match.
             }
         ).is_some()
-    }
-
-    // ----------------------
-    // Unit Spawning:
-    // ----------------------
-
-    #[inline]
-    pub fn try_spawn_unit(&self, unit_origin: Cell, unit_config_key: UnitConfigKey) -> Result<&mut Unit<'config>, String> {
-        self.world().try_spawn_unit_with_config(self, unit_origin, unit_config_key)
-    }
-
-    #[inline]
-    pub fn despawn_unit(&self, unit: &mut Unit<'config>) {
-        match self.world().despawn_unit(self, unit) {
-            Ok(_) => {},
-            Err(err) => {
-                if cfg!(debug_assertions) {
-                    panic!("Despawn Unit Failed: {}", err);
-                } else {
-                    log::error!(log::channel!("sim"), "Despawn Unit Failed: {}", err);
-                }
-            }
-        }
     }
 }

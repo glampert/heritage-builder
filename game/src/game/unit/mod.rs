@@ -31,7 +31,7 @@ use super::{
     building::{Building, BuildingKind},
     world::{
         stats::WorldStats,
-        object::{GameObject, GenerationalIndex}
+        object::{GenerationalIndex, GameObject, Spawner}
     },
     sim::{
         Query,
@@ -118,7 +118,7 @@ impl<'config> GameObject<'config> for Unit<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
+    fn post_load(&mut self, _context: &PostLoadContext<'config, '_>) {
         // TODO
     }
 
@@ -458,8 +458,9 @@ impl<'config> Unit<'config> {
 
         let task_manager = query.task_manager();
         let task_id = task_manager.new_task(task);
+        let spawner = Spawner::new(query);
 
-        let unit = match query.try_spawn_unit(unit_origin, unit_config) {
+        let unit = match spawner.try_spawn_unit_with_config(unit_origin, unit_config) {
             Ok(unit) => unit,
             error @ Err(_) => {
                 task_manager.free_task(task_id.unwrap());

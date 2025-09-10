@@ -8,7 +8,7 @@ use crate::{
     render::{RenderStats, RenderSystem, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
     game::{
-        world::World,
+        world::{World, object::Spawner},
         sim::{self, Simulation}
     },
     utils::{
@@ -22,9 +22,9 @@ use crate::{
         TileFlags,
         TileKind,
         TileMapLayerKind,
+        PlacementOp,
         sets::TileSets,
         camera::Camera,
-        placement::PlacementOp,
         selection::TileSelection,
         rendering::{TileMapRenderer, TileMapRenderStats, TileMapRenderFlags}
     },
@@ -336,32 +336,16 @@ impl DebugMenusSingleton {
 
                     if target_cell.is_valid() {
                         let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
-                        if tile_def.is(TileKind::Building) {
-                            query.world().try_spawn_building_with_tile_def(&query, target_cell, tile_def).is_ok()
-                        } else if tile_def.is(TileKind::Unit) {
-                            query.world().try_spawn_unit_with_tile_def(&query, target_cell, tile_def).is_ok()
-                        } else {
-                            // No associated game object, place plain tile.
-                            query.tile_map().try_place_tile(target_cell, tile_def).is_ok()
-                        }
+                        let spawner = Spawner::new(&query);
+                        spawner.try_spawn_tile_with_def(target_cell, tile_def).is_ok()
                     } else {
                         false
                     }
                 } else {
                     let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
                     if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, &args.transform) {
-                        let has_game_object = tile.game_object_handle().is_valid();
-                        if tile.is(TileKind::Building | TileKind::Blocker) && has_game_object {
-                            query.world().despawn_building_at_cell(&query, tile.base_cell())
-                                .expect("Tile removal failed!");
-                        } else if tile.is(TileKind::Unit) && has_game_object {
-                            query.world().despawn_unit_at_cell(&query, tile.base_cell())
-                                .expect("Tile removal failed!");
-                        } else {
-                            // No game object, just remove the tile directly.
-                            query.tile_map().try_clear_tile_at_cursor(args.cursor_screen_pos, &args.transform)
-                                .expect("Tile removal failed!");
-                        }
+                        let spawner = Spawner::new(&query);
+                        spawner.despawn_tile(tile);
                         true
                     } else {
                         false

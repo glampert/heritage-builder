@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use crate::{
     log,
     imgui_ui::UiSystem,
-    game::world::object::GameObject,
+    game::world::object::{GameObject, Spawner},
     pathfind::{Node, NodeKind as PathNodeKind},
     utils::{Size, coords::{Cell, CellRange}},
     tile::{
@@ -534,13 +534,8 @@ fn merge_house(context: &BuildingContext,
 fn destroy_house<'config>(context: &BuildingContext<'config, '_, '_>,
                           merged_building: &mut Building<'config>) {
 
-    let world = context.query.world();
-    let query = context.query;
-
-    if let Err(err) = world.despawn_building(query, merged_building) {
-        log::error!(log::channel!("house"), "Failed to despawn merged house building '{}', cell:{}, id:{} => {err}",
-                    merged_building.name(), merged_building.base_cell(), merged_building.id());
-    }
+    let spawner = Spawner::new(context.query);
+    spawner.despawn_building(merged_building);
 }
 
 // ----------------------------------------------

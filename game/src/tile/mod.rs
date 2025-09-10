@@ -18,10 +18,7 @@ use crate::{
         Color,
         Seconds,
         UnsafeWeakRef,
-        hash::{
-            StringHash,
-            StrHashPair
-        },
+        hash::{StringHash, StrHashPair},
         coords::{
             self,
             Cell,
@@ -33,7 +30,6 @@ use crate::{
 };
 
 use self::{
-    placement::PlacementOp,
     selection::TileSelection,
     sets::{
         TileDef,
@@ -43,11 +39,13 @@ use self::{
     }
 };
 
+pub mod sets;
 pub mod camera;
-pub mod placement;
 pub mod rendering;
 pub mod selection;
-pub mod sets;
+
+mod placement;
+pub use placement::PlacementOp;
 
 // ----------------------------------------------
 // Constants

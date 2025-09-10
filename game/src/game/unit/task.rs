@@ -32,7 +32,7 @@ use crate::{
         callback::Callback
     },
     game::{
-        world::object::{GenerationalIndex, GameObject},
+        world::object::{GenerationalIndex, GameObject, Spawner},
         sim::{Query, resources::{ShoppingList, ResourceKind}},
         building::{
             Building,
@@ -1425,9 +1425,10 @@ impl UnitTaskManager {
 
                         let unit_prev_cell = unit.cell();
                         let unit_prev_goal = unit.goal().cloned();
+                        let spawner = Spawner::new(query);
 
                         unit.assign_task(self, None);
-                        query.despawn_unit(unit);
+                        spawner.despawn_unit(unit);
 
                         if post_despawn_callback.is_valid() {
                             let callback = post_despawn_callback.get();

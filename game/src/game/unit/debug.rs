@@ -20,7 +20,7 @@ use crate::{
     },
     game::{
         world::{
-            object::GameObject,
+            object::{GameObject, Spawner},
             debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt},
         },
         building::{
@@ -217,7 +217,8 @@ impl<'config> Unit<'config> {
         }
 
         if ui.button("Force Despawn Immediately") {
-            query.despawn_unit(self);
+            let spawner = Spawner::new(query);
+            spawner.despawn_unit(self);
         }
     }
 

@@ -16,8 +16,11 @@ use serde::{
 use crate::{
     log,
     imgui_ui::UiSystem,
-    utils::coords::{CellRange, WorldToScreenTransform},
+    tile::{Tile, TileKind, TileMapLayerKind, sets::TileDef},
+    utils::coords::{Cell, CellRange, WorldToScreenTransform},
     game::{
+        unit::{Unit, config::UnitConfigKey},
+        building::Building,
         save::PostLoadContext,
         sim::{Query, debug::DebugUiMode}
     }
@@ -467,5 +470,167 @@ impl<'de, 'config, T> Deserialize<'de> for SpawnPool<T>
         }
 
         deserializer.deserialize_seq(PoolVisitor { marker: std::marker::PhantomData })
+    }
+}
+
+// ----------------------------------------------
+// Spawner
+// ----------------------------------------------
+
+pub struct Spawner<'config, 'tile_sets, 'query> {
+    query: &'query Query<'config, 'tile_sets>,
+}
+
+pub enum SpawnerResult<'config, 'tile_sets> {
+    Building(&'config mut Building<'config>),
+    Unit(&'config mut Unit<'config>),
+    Tile(&'tile_sets mut Tile<'tile_sets>),
+    Err(String),
+}
+
+impl SpawnerResult<'_, '_> {
+    #[inline]
+    pub fn is_err(&self) -> bool {
+        matches!(self, Self::Err(_))
+    }
+
+    #[inline]
+    pub fn is_ok(&self) -> bool {
+        !self.is_err()
+    }
+}
+
+impl<'config, 'tile_sets, 'query> Spawner<'config, 'tile_sets, 'query> {
+    #[inline]
+    pub fn new(query: &'query Query<'config, 'tile_sets>) -> Self {
+        Self { query }
+    }
+
+    // Spawn a GameObject (Building, Unit) or place a Tile without associated game state.
+    pub fn try_spawn_tile_with_def(&self, target_cell: Cell, tile_def: &'tile_sets TileDef) -> SpawnerResult {
+        debug_assert!(target_cell.is_valid());
+        debug_assert!(tile_def.is_valid());
+
+        if tile_def.is(TileKind::Building) {
+            // Spawn Building:
+            match self.try_spawn_building_with_tile_def(target_cell, tile_def) {
+                Ok(building) => SpawnerResult::Building(building),
+                Err(err) => SpawnerResult::Err(err),
+            }
+        } else if tile_def.is(TileKind::Unit) {
+            // Spawn Unit:
+            match self.try_spawn_unit_with_tile_def(target_cell, tile_def) {
+                Ok(unit) => SpawnerResult::Unit(unit),
+                Err(err) => SpawnerResult::Err(err),
+            }
+        } else {
+            // No associated GameObject, place plain tile.
+            match self.query.tile_map().try_place_tile(target_cell, tile_def) {
+                Ok(tile) => SpawnerResult::Tile(tile),
+                Err(err) => SpawnerResult::Err(err),
+            }
+        }
+    }
+
+    // Despawns a GameObject at the given cell and removes the Tile from the map.
+    pub fn despawn_tile(&self, tile: &Tile) {
+        debug_assert!(tile.is_valid());
+
+        let base_cell = tile.base_cell();
+        let has_game_object = tile.game_object_handle().is_valid();
+
+        if tile.is(TileKind::Building | TileKind::Blocker) && has_game_object {
+            // Despawn Building:
+            self.despawn_building_at_cell(base_cell);
+        } else if tile.is(TileKind::Unit) && has_game_object {
+            // Despawn Unit:
+            self.despawn_unit_at_cell(base_cell);
+        } else {
+            // No GameObject, just remove the tile directly.
+            if let Err(err) = self.query.tile_map().try_clear_tile_from_layer(base_cell, tile.layer_kind()) {
+                despawn_error("Tile", &err);
+            }
+        }
+    }
+
+    pub fn despawn_tile_at_cell(&self, tile_base_cell: Cell, layer_kind: TileMapLayerKind) {
+        debug_assert!(tile_base_cell.is_valid());
+        if let Some(tile) = self.query.tile_map().try_tile_from_layer(tile_base_cell, layer_kind) {
+            self.despawn_tile(tile);
+        }
+    }
+
+    // ----------------------
+    // Buildings:
+    // ----------------------
+
+    pub fn try_spawn_building_with_tile_def(&self,
+                                            building_base_cell: Cell,
+                                            building_tile_def: &TileDef)
+                                            -> Result<&'query mut Building<'config>, String> {
+
+        self.query.world().try_spawn_building_with_tile_def(
+            self.query,
+            building_base_cell,
+            building_tile_def)
+    }
+
+    pub fn despawn_building(&self, building: &mut Building<'config>) {
+        if let Err(err) = self.query.world().despawn_building(self.query, building) {
+            despawn_error("Building", &err);
+        }
+    }
+
+    pub fn despawn_building_at_cell(&self, building_base_cell: Cell) {
+        if let Err(err) = self.query.world().despawn_building_at_cell(self.query, building_base_cell) {
+            despawn_error("Building", &err);
+        }
+    }
+
+    // ----------------------
+    // Units:
+    // ----------------------
+
+    pub fn try_spawn_unit_with_tile_def(&self,
+                                        unit_origin: Cell,
+                                        unit_tile_def: &TileDef)
+                                        -> Result<&'query mut Unit<'config>, String> {
+
+        self.query.world().try_spawn_unit_with_tile_def(
+            self.query,
+            unit_origin,
+            unit_tile_def)
+    }
+
+    pub fn try_spawn_unit_with_config(&self,
+                                      unit_origin: Cell,
+                                      unit_config_key: UnitConfigKey)
+                                      -> Result<&'query mut Unit<'config>, String> {
+
+        self.query.world().try_spawn_unit_with_config(
+            self.query,
+            unit_origin,
+            unit_config_key)
+    }
+
+    pub fn despawn_unit(&self, unit: &mut Unit<'config>) {
+        if let Err(err) = self.query.world().despawn_unit(self.query, unit) {
+            despawn_error("Unit", &err);
+        }
+    }
+
+    pub fn despawn_unit_at_cell(&self, unit_base_cell: Cell) {
+        if let Err(err) = self.query.world().despawn_unit_at_cell(self.query, unit_base_cell) {
+            despawn_error("Unit", &err);
+        }
+    }
+}
+
+#[cold]
+fn despawn_error(what: &str, err: &str) {
+    if cfg!(debug_assertions) {
+        panic!("Despawn {what} Failed: {err}");
+    } else {
+        log::error!(log::channel!("world"), "Despawn {what} Failed: {err}");
     }
 }
