@@ -42,7 +42,7 @@ use crate::{
 
 use super::{
     constants::*,
-    sim::world::World,
+    world::World,
     system::GameSystems,
     unit::{
         Unit,
@@ -57,9 +57,7 @@ use super::{
 };
 
 pub mod debug;
-pub mod object;
 pub mod resources;
-pub mod world;
 
 // ----------------------------------------------
 // RandomGenerator
@@ -275,16 +273,6 @@ impl<'config> Simulation<'config> {
             tile,
             mode);
     }
-}
-
-// ----------------------------------------------
-// PostLoadContext
-// ----------------------------------------------
-
-pub struct PostLoadContext<'config, 'tile_sets> {
-    pub building_configs: &'config BuildingConfigs,
-    pub unit_configs: &'config UnitConfigs,
-    pub tile_map: &'tile_sets TileMap<'tile_sets>,
 }
 
 // ----------------------------------------------

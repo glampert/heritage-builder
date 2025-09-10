@@ -4,8 +4,8 @@ use serde::{
 };
 
 use crate::{
-    game_object_debug_options,
     log,
+    game_object_debug_options,
     imgui_ui::UiSystem,
     pathfind::{Path, NodeKind as PathNodeKind},
     tile::{
@@ -27,13 +27,15 @@ use crate::{
 };
 
 use super::{
+    save::PostLoadContext,
     building::{Building, BuildingKind},
+    world::{
+        stats::WorldStats,
+        object::{GameObject, GenerationalIndex}
+    },
     sim::{
         Query,
-        PostLoadContext,
-        world::WorldStats,
         debug::DebugUiMode,
-        object::{GameObject, GenerationalIndex},
         resources::{ResourceKind, StockItem}
     }
 };

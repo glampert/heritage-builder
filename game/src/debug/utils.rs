@@ -2,8 +2,9 @@ use crate::{
     log,
     imgui_ui::UiSystem,
     game::{
+        world::World,
         cheats::{self, Cheats},
-        sim::{debug::DebugQueryBuilder, world::World}
+        sim::debug::DebugQueryBuilder
     },
     render::{RenderSystem, RenderStats},
     utils::{

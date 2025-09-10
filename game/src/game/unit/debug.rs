@@ -19,6 +19,10 @@ use crate::{
         coords::Cell
     },
     game::{
+        world::{
+            object::GameObject,
+            debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt},
+        },
         building::{
             Building,
             BuildingKind,
@@ -27,8 +31,6 @@ use crate::{
         },
         sim::{
             Query,
-            object::GameObject,
-            debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt},
             resources::{
                 ResourceKind,
                 ShoppingList,

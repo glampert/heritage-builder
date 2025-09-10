@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use crate::{
     log,
     imgui_ui::UiSystem,
-    game::sim::object::GameObject,
+    game::world::object::GameObject,
     pathfind::{Node, NodeKind as PathNodeKind},
     utils::{Size, coords::{Cell, CellRange}},
     tile::{

@@ -27,11 +27,11 @@ use crate::{
     },
     game::{
         unit::Unit,
+        save::PostLoadContext,
         system::settlers::Settler,
+        world::stats::WorldStats,
         sim::{
             UpdateTimer,
-            PostLoadContext,
-            world::WorldStats,
             resources::{
                 Workers,
                 Population,

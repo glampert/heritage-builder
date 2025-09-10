@@ -16,14 +16,15 @@ use serde::{
 use crate::{
     log,
     imgui_ui::UiSystem,
-    utils::coords::{CellRange, WorldToScreenTransform}
+    utils::coords::{CellRange, WorldToScreenTransform},
+    game::{
+        save::PostLoadContext,
+        sim::{Query, debug::DebugUiMode}
+    }
 };
 
 use super::{
-    Query,
-    PostLoadContext,
-    world::WorldStats,
-    debug::DebugUiMode
+    stats::WorldStats,
 };
 
 // ----------------------------------------------

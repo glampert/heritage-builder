@@ -20,6 +20,7 @@ use crate::{
     },
     game::{
         cheats,
+        save::PostLoadContext,
         unit::{
             Unit,
             UnitTaskHelper,
@@ -29,12 +30,13 @@ use crate::{
                 UnitTaskFetchFromStorage
             }
         },
+        world::{
+            stats::WorldStats,
+            object::GameObject
+        },
         sim::{
             Query,
             UpdateTimer,
-            PostLoadContext,
-            world::WorldStats,
-            object::GameObject,
             resources::{
                 ShoppingList,
                 ResourceKind,

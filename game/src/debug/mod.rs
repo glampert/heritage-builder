@@ -7,7 +7,10 @@ use crate::{
     imgui_ui::{UiSystem, UiInputEvent},
     render::{RenderStats, RenderSystem, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
-    game::sim::{self, Simulation, world::World},
+    game::{
+        world::World,
+        sim::{self, Simulation}
+    },
     utils::{
         Vec2,
         UnsafeWeakRef,

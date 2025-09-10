@@ -3,7 +3,8 @@ use crate::{
 };
 
 use super::{
-    sim::{Query, object::GenerationalIndex}
+    sim::Query,
+    world::object::GenerationalIndex
 };
 
 pub mod settlers;

@@ -21,7 +21,7 @@ use crate::{
     utils::Color,
     game::{
         cheats,
-        sim::{world::World, object::GameObject},
+        world::{World, object::GameObject},
         building::{Building, BuildingId, BuildingKind, BuildingKindAndId}
     }
 };

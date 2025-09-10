@@ -23,9 +23,10 @@ use tile::{
 };
 use game::{
     sim::{self, *},
-    sim::world::*,
+    world::*,
     system::*,
     cheats,
+    save,
     building::{config::BuildingConfigs},
     unit::{config::UnitConfigs},
 };
@@ -103,7 +104,7 @@ fn main() {
 
             if let Some(mut world2) = w {
 
-                let context = sim::PostLoadContext {
+                let context = save::PostLoadContext {
                     tile_map: &tile_map,
                     building_configs: &building_configs,
                     unit_configs: &unit_configs,

@@ -32,11 +32,8 @@ use crate::{
         callback::Callback
     },
     game::{
-        sim::{
-            Query,
-            resources::{ShoppingList, ResourceKind},
-            object::{GenerationalIndex, GameObject}
-        },
+        world::object::{GenerationalIndex, GameObject},
+        sim::{Query, resources::{ShoppingList, ResourceKind}},
         building::{
             Building,
             BuildingId,

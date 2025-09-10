@@ -19,6 +19,8 @@ use crate::{
     },
     game::{
         cheats,
+        save::PostLoadContext,
+        world::stats::WorldStats,
         unit::{
             Unit,
             task::{
@@ -26,16 +28,12 @@ use crate::{
                 UnitTaskFetchFromStorage,
             }
         },
-        sim::{
-            PostLoadContext,
-            world::WorldStats,
-            resources::{
-                ResourceKind,
-                ResourceKinds,
-                ResourceStock,
-                StockItem,
-                Workers
-            }
+        sim::resources::{
+            ResourceKind,
+            ResourceKinds,
+            ResourceStock,
+            StockItem,
+            Workers
         }
     }
 };

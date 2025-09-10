@@ -37,18 +37,21 @@ use crate::{
 
 use super::{
     constants::{WORKERS_SEARCH_RADIUS, WORKERS_UPDATE_FREQUENCY_SECS},
+    save::PostLoadContext,
     unit::{
         Unit,
         patrol::Patrol,
-        runner::Runner,
+        runner::Runner
+    },
+    world::{
+        stats::WorldStats,
+        debug::GameObjectDebugOptions,
+        object::{GameObject, GenerationalIndex}
     },
     sim::{
         Query,
         UpdateTimer,
-        PostLoadContext,
-        world::WorldStats,
-        object::{GameObject, GenerationalIndex},
-        debug::{DebugUiMode, GameObjectDebugOptions},
+        debug::DebugUiMode,
         resources::{
             Workers,
             Population,
