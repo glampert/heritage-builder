@@ -75,14 +75,14 @@ impl<'config> World<'config> {
             stats: WorldStats::default(),
             // Buildings:
             building_spawn_pools: [
-                (BuildingArchetypeKind::ProducerBuilding, SpawnPool::new(PRODUCER_BUILDINGS_POOL_CAPACITY, 1)),
-                (BuildingArchetypeKind::StorageBuilding,  SpawnPool::new(STORAGE_BUILDINGS_POOL_CAPACITY,  1)),
-                (BuildingArchetypeKind::ServiceBuilding,  SpawnPool::new(SERVICE_BUILDINGS_POOL_CAPACITY,  1)),
-                (BuildingArchetypeKind::HouseBuilding,    SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY,    1)),
+                (BuildingArchetypeKind::ProducerBuilding, SpawnPool::new(PRODUCER_BUILDINGS_POOL_CAPACITY, INITIAL_GENERATION)),
+                (BuildingArchetypeKind::StorageBuilding,  SpawnPool::new(STORAGE_BUILDINGS_POOL_CAPACITY,  INITIAL_GENERATION)),
+                (BuildingArchetypeKind::ServiceBuilding,  SpawnPool::new(SERVICE_BUILDINGS_POOL_CAPACITY,  INITIAL_GENERATION)),
+                (BuildingArchetypeKind::HouseBuilding,    SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY,    INITIAL_GENERATION)),
             ],
             building_configs: Some(building_configs),
             // Units:
-            unit_spawn_pool: SpawnPool::new(UNIT_SPAWN_POOL_CAPACITY, 1),
+            unit_spawn_pool: SpawnPool::new(UNIT_SPAWN_POOL_CAPACITY, INITIAL_GENERATION),
             unit_configs: Some(unit_configs),
         }
     }

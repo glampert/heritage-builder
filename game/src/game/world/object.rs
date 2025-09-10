@@ -19,9 +19,10 @@ use crate::{
     tile::{Tile, TileKind, TileMapLayerKind, sets::TileDef},
     utils::coords::{Cell, CellRange, WorldToScreenTransform},
     game::{
-        unit::{Unit, config::UnitConfigKey},
-        building::Building,
+        constants::*,
         save::PostLoadContext,
+        building::Building,
+        unit::{Unit, config::UnitConfigKey},
         sim::{Query, debug::DebugUiMode}
     }
 };
@@ -362,6 +363,7 @@ impl<'config, T> Serialize for SpawnPool<T>
         where S: Serializer
     {
         debug_assert!(self.is_valid());
+        debug_assert!(self.generation != RESERVED_GENERATION);
 
         let header = SpawnPoolSerializedHeader {
             spawned_count: self.spawned_count(),
@@ -381,6 +383,7 @@ impl<'config, T> Serialize for SpawnPool<T>
             if self.spawned[index] {
                 debug_assert!(instance.is_spawned());
                 debug_assert!(instance.id().index() == index);
+                debug_assert!(instance.id().generation() != RESERVED_GENERATION);
 
                 seq.serialize_element(instance)?;
                 serialized_count += 1;
@@ -429,8 +432,8 @@ impl<'de, 'config, T> Deserialize<'de> for SpawnPool<T>
                 if header.instance_count == 0 {
                     return Err(serde::de::Error::custom("SpawnPoolSerializedHeader::instance_count == 0"));
                 }
-                if header.generation == 0 {
-                    return Err(serde::de::Error::custom("SpawnPoolSerializedHeader::generation == 0"));
+                if header.generation == RESERVED_GENERATION {
+                    return Err(serde::de::Error::custom("SpawnPoolSerializedHeader::generation == RESERVED_GENERATION"));
                 }
 
                 // Remaining elements: spawned instances
@@ -448,7 +451,8 @@ impl<'de, 'config, T> Deserialize<'de> for SpawnPool<T>
 
                     if let Some(instance) = next {
                         let index = instance.id().index();
-                        debug_assert!(instance.id().generation() < header.generation);
+                        debug_assert!(instance.id().generation() != RESERVED_GENERATION);
+                        debug_assert!(instance.id().generation()  < header.generation);
 
                         pool.instances[index] = instance;
                         pool.spawned.set(index, true);

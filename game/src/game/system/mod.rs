@@ -14,6 +14,7 @@ use crate::{
 };
 
 use super::{
+    constants::*,
     sim::Query,
     save::PostLoadContext,
     world::object::GenerationalIndex
@@ -67,7 +68,7 @@ impl GameSystems {
     pub fn new() -> Self {
         Self {
             systems: Vec::with_capacity(GameSystemImpl::COUNT),
-            generation: 1,
+            generation: INITIAL_GENERATION,
         }
     }
 
@@ -123,7 +124,12 @@ impl GameSystems {
     }
 
     pub fn post_load(&mut self, context: &PostLoadContext) {
+        debug_assert!(self.generation != RESERVED_GENERATION);
+
         for entry in &mut self.systems {
+            debug_assert!(entry.generation != RESERVED_GENERATION);
+            debug_assert!(entry.generation  < self.generation);
+ 
             entry.system.post_load(context);
         }
     }

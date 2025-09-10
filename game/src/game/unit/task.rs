@@ -32,6 +32,7 @@ use crate::{
         callback::Callback
     },
     game::{
+        constants::*,
         world::object::{GenerationalIndex, GameObject, Spawner},
         sim::{Query, resources::{ShoppingList, ResourceKind}},
         building::{
@@ -1305,7 +1306,7 @@ impl UnitTaskPool {
     fn new(capacity: usize) -> Self {
         Self {
             tasks: Slab::with_capacity(capacity),
-            generation: 1,
+            generation: INITIAL_GENERATION,
         }
     }
 
@@ -1366,12 +1367,13 @@ impl UnitTaskPool {
     }
 
     fn post_load(&mut self) {
-        debug_assert!(self.generation != 0);
+        debug_assert!(self.generation != RESERVED_GENERATION);
 
         for (index, task) in &mut self.tasks {
             debug_assert!(task.id.is_valid());
             debug_assert!(task.id.index() == index);
-            debug_assert!(task.id.generation() < self.generation);
+            debug_assert!(task.id.generation() != RESERVED_GENERATION);
+            debug_assert!(task.id.generation()  < self.generation);
 
             task.post_load();
         }
