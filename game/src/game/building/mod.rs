@@ -1108,7 +1108,7 @@ pub struct BuildingKindAndId {
     pub id: BuildingId,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct BuildingTileInfo {
     pub road_link: Cell,
     pub base_cell: Cell,

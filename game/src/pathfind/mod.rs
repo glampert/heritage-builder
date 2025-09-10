@@ -75,7 +75,7 @@ type NodeCost = i32;
 const NODE_COST_ZERO: NodeCost = 0;
 const NODE_COST_INFINITE: NodeCost = NodeCost::MAX;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Node {
     pub cell: Cell,
 }
@@ -119,6 +119,7 @@ impl Node {
 
 // 2D grid of nodes. For each Node in the grid stores a generic payload.
 // Grid can be indexed with `grid[node]`.
+#[derive(Default, Serialize, Deserialize)]
 struct Grid<T> {
     size: Size,
     nodes: Vec<T>, // WxH nodes.
@@ -191,6 +192,7 @@ impl<T> IndexMut<Node> for Grid<T> {
 // ----------------------------------------------
 
 // Our graph is just a 2D grid of Nodes (Cells).
+#[derive(Serialize, Deserialize)]
 pub struct Graph {
     grid: Grid<NodeKind>, // WxH nodes.
 }
@@ -550,6 +552,7 @@ impl SearchResult<'_> {
     #[inline] fn not_found(&self) -> bool { matches!(self, Self::PathNotFound) }
 }
 
+#[derive(Default)]
 pub struct Search {
     // Reconstructed path when SearchResult == PathFound, empty otherwise.
     path: Path,
@@ -569,6 +572,7 @@ pub struct Search {
 
 impl Search {
     pub fn with_graph(graph: &Graph) -> Self {
+        debug_assert!(graph.grid_size().is_valid());
         Self::with_grid_size(graph.grid_size())
     }
 

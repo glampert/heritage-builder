@@ -42,6 +42,7 @@ use crate::{
 
 use super::{
     constants::*,
+    save::PostLoadContext,
     world::World,
     system::GameSystems,
     unit::{config::UnitConfigs, task::UnitTaskManager},
@@ -65,19 +66,19 @@ pub type RandomGenerator = Pcg64;
 // Simulation
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 pub struct Simulation<'config> {
     update_timer: UpdateTimer,
     rng: RandomGenerator,
-
     task_manager: UnitTaskManager,
 
     // Path finding:
     graph: Graph,
-    search: Search,
+    #[serde(skip)] search: Search,
 
     // Configs:
-    building_configs: &'config BuildingConfigs,
-    unit_configs: &'config UnitConfigs,
+    #[serde(skip)] building_configs: Option<&'config BuildingConfigs>,
+    #[serde(skip)] unit_configs: Option<&'config UnitConfigs>,
 }
 
 impl<'config> Simulation<'config> {
@@ -90,8 +91,8 @@ impl<'config> Simulation<'config> {
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
-            building_configs,
-            unit_configs,
+            building_configs: Some(building_configs),
+            unit_configs: Some(unit_configs),
         }
     }
 
@@ -109,8 +110,8 @@ impl<'config> Simulation<'config> {
             world,
             tile_map,
             tile_sets,
-            self.building_configs,
-            self.unit_configs,
+            self.building_configs.unwrap(),
+            self.unit_configs.unwrap(),
             delta_time_secs)
     }
 
@@ -120,6 +121,9 @@ impl<'config> Simulation<'config> {
                               tile_map: &mut TileMap<'tile_sets>,
                               tile_sets: &'tile_sets TileSets,
                               delta_time_secs: Seconds) {
+
+        debug_assert!(self.building_configs.is_some());
+        debug_assert!(self.unit_configs.is_some());
 
         // Rebuild the search graph once every frame so any
         // add/remove tile changes will be reflected on the graph.
@@ -142,6 +146,13 @@ impl<'config> Simulation<'config> {
         }
     }
 
+    pub fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
+        self.building_configs = Some(context.building_configs);
+        self.unit_configs = Some(context.unit_configs);
+        self.search = Search::with_graph(&self.graph);
+        self.task_manager.post_load();
+    }
+
     pub fn reset<'tile_sets>(&mut self,
                              world: &mut World<'config>,
                              systems: &mut GameSystems,
@@ -153,6 +164,17 @@ impl<'config> Simulation<'config> {
         systems.reset();
     }
 
+    #[inline]
+    pub fn building_configs(&self) -> &'config BuildingConfigs {
+        self.building_configs.unwrap()
+    }
+
+    #[inline]
+    pub fn unit_configs(&self) -> &'config UnitConfigs {
+        self.unit_configs.unwrap()
+    }
+
+    #[inline]
     pub fn task_manager(&mut self) -> &mut UnitTaskManager {
         &mut self.task_manager
     }

@@ -428,7 +428,7 @@ impl std::fmt::Display for Color {
 // ----------------------------------------------
 
 // Integer width & height pair.
-#[derive(Copy, Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Size {
     pub width:  i32,
     pub height: i32,

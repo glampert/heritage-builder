@@ -1029,7 +1029,7 @@ impl<T, const CAPACITY: usize> Display for ResourceList<T, CAPACITY>
 
 // List of resources to fetch + desired count.
 // Implemented as a transparent newtype proxy over an ArrayVec.
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct ShoppingList(ArrayVec<StockItem, RESOURCE_KIND_COUNT>);
 
 impl ShoppingList {

@@ -8,7 +8,7 @@ use enum_dispatch::enum_dispatch;
 
 use serde::{
     Serialize,
-    Deserialize,
+    Deserialize
 };
 
 use crate::{
@@ -55,7 +55,7 @@ use super::{
 
 pub type UnitTaskId = GenerationalIndex;
 
-#[derive(Display)]
+#[derive(Display, Serialize, Deserialize)]
 pub enum UnitTaskState {
     Uninitialized,
     Running,
@@ -88,7 +88,7 @@ fn forward_task(task: &mut Option<UnitTaskId>) -> UnitTaskForwarded {
     UnitTaskForwarded(forwarded)
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum UnitTaskArg {
     None,
     Bool(bool),
@@ -129,7 +129,7 @@ impl UnitTaskArg {
 
 const MAX_TASK_EXTRA_ARGS: usize = 1;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct UnitTaskArgs {
     args: Option<[UnitTaskArg; MAX_TASK_EXTRA_ARGS]>,
 }
@@ -157,6 +157,10 @@ impl UnitTaskArgs {
 #[enum_dispatch(UnitTaskArchetype)]
 pub trait UnitTask: Any {
     fn as_any(&self) -> &dyn Any;
+
+    // Optional post-deserialization pointer fixups for the task callbacks.
+    fn post_load(&mut self) {
+    }
 
     // Performs one time initialization before the task is first run.
     fn initialize(&mut self, _unit: &mut Unit, _query: &Query) {
@@ -188,7 +192,7 @@ pub trait UnitTask: Any {
 // ----------------------------------------------
 
 #[enum_dispatch]
-#[derive(Display)]
+#[derive(Display, Serialize, Deserialize)]
 pub enum UnitTaskArchetype {
     UnitTaskDespawn,
     UnitTaskDespawnWithCallback,
@@ -202,6 +206,7 @@ pub enum UnitTaskArchetype {
 // UnitTaskDespawn
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 pub struct UnitTaskDespawn;
 
 impl UnitTask for UnitTaskDespawn {
@@ -222,6 +227,7 @@ impl UnitTask for UnitTaskDespawn {
 
 pub type UnitTaskPostDespawnCallback = fn(&Query, Cell, Option<UnitNavGoal>, &[UnitTaskArg]);
 
+#[derive(Serialize, Deserialize)]
 pub struct UnitTaskDespawnWithCallback {
     // Callback invoked *after* the unit has despawned.
     // |query, unit_prev_cell, unit_prev_goal, extra_args|
@@ -233,6 +239,10 @@ pub struct UnitTaskDespawnWithCallback {
 
 impl UnitTask for UnitTaskDespawnWithCallback {
     fn as_any(&self) -> &dyn Any { self }
+
+    fn post_load(&mut self) {
+        self.post_despawn_callback.post_load();
+    }
 
     fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
         check_unit_despawn_state::<UnitTaskDespawnWithCallback>(unit, query);
@@ -422,6 +432,7 @@ pub type UnitTaskPatrolCompletionCallback = fn(&mut Building, &mut Unit, &Query)
 // - Unit walks up to a certain distance away from the origin.
 // - Once max distance is reached, start walking back to origin.
 // - Visit any buildings it is interested on along the way.
+#[derive(Serialize, Deserialize)]
 pub struct UnitTaskRandomizedPatrol {
     // Origin building info:
     pub origin_building: BuildingKindAndId,
@@ -508,6 +519,10 @@ impl UnitTaskRandomizedPatrol {
 
 impl UnitTask for UnitTaskRandomizedPatrol {
     fn as_any(&self) -> &dyn Any { self }
+
+    fn post_load(&mut self) {
+        self.completion_callback.post_load();
+    }
 
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
         // Sanity check:
@@ -635,6 +650,7 @@ pub type UnitTaskDeliveryCompletionCallback = fn(&mut Building, &mut Unit, &Quer
 
 // Deliver goods to a storage building.
 // Producer -> Storage | Storage -> Storage | Producer -> Producer (fallback)
+#[derive(Serialize, Deserialize)]
 pub struct UnitTaskDeliverToStorage {
     // Origin building info:
     pub origin_building: BuildingKindAndId,
@@ -690,6 +706,10 @@ impl UnitTaskDeliverToStorage {
 
 impl UnitTask for UnitTaskDeliverToStorage {
     fn as_any(&self) -> &dyn Any { self }
+
+    fn post_load(&mut self) {
+        self.completion_callback.post_load();
+    }
 
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
         // Sanity check:
@@ -779,6 +799,7 @@ pub type UnitTaskFetchCompletionCallback = fn(&mut Building, &mut Unit, &Query);
 
 // Fetch goods from a storage building.
 // Storage -> Producer | Storage -> Storage
+#[derive(Serialize, Deserialize)]
 pub struct UnitTaskFetchFromStorage {
     // Origin building info:
     pub origin_building: BuildingKindAndId,
@@ -853,6 +874,10 @@ impl UnitTaskFetchFromStorage {
 
 impl UnitTask for UnitTaskFetchFromStorage {
     fn as_any(&self) -> &dyn Any { self }
+
+    fn post_load(&mut self) {
+        self.completion_callback.post_load();
+    }
 
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
         // Sanity check:
@@ -973,6 +998,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
 
 pub type UnitTaskSettlerCompletionCallback = fn(&mut Unit, &Tile, u32, &Query);
 
+#[derive(Serialize, Deserialize)]
 pub struct UnitTaskSettler {
     // Optional completion callback. Invoke with the empty house lot building we've visited.
     // |unit, dest_tile, population_to_add, query|
@@ -1064,6 +1090,10 @@ impl UnitTaskSettler {
 
 impl UnitTask for UnitTaskSettler {
     fn as_any(&self) -> &dyn Any { self }
+
+    fn post_load(&mut self) {
+        self.completion_callback.post_load();
+    }
 
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
         debug_assert!(self.population_to_add != 0);
@@ -1173,6 +1203,7 @@ impl UnitTask for UnitTaskSettler {
 // UnitTaskInstance
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 struct UnitTaskInstance {
     id: UnitTaskId,
     state: UnitTaskState,
@@ -1234,6 +1265,10 @@ impl UnitTaskInstance {
         }
     }
 
+    fn post_load(&mut self) {
+        self.archetype.post_load();
+    }
+
     fn draw_debug_ui(&mut self, unit: &mut Unit, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
@@ -1260,6 +1295,7 @@ impl UnitTaskInstance {
 // UnitTaskPool
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 pub struct UnitTaskPool {
     tasks: Slab<UnitTaskInstance>,
     generation: u32,
@@ -1269,7 +1305,7 @@ impl UnitTaskPool {
     fn new(capacity: usize) -> Self {
         Self {
             tasks: Slab::with_capacity(capacity),
-            generation: 0,
+            generation: 1,
         }
     }
 
@@ -1328,6 +1364,18 @@ impl UnitTaskPool {
         self.tasks.get_mut(task_id.index())
             .filter(|task| task.id == task_id)
     }
+
+    fn post_load(&mut self) {
+        debug_assert!(self.generation != 0);
+
+        for (index, task) in &mut self.tasks {
+            debug_assert!(task.id.is_valid());
+            debug_assert!(task.id.index() == index);
+            debug_assert!(task.id.generation() < self.generation);
+
+            task.post_load();
+        }
+    }
 }
 
 // Detect any leaked task instances.
@@ -1359,6 +1407,7 @@ impl Drop for UnitTaskPool {
 // UnitTaskManager
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 pub struct UnitTaskManager {
     task_pool: UnitTaskPool,    
 }
@@ -1449,6 +1498,10 @@ impl UnitTaskManager {
                 panic!("Unit '{}' current TaskId is invalid: {}", unit.name(), current_task_id);
             }
         }
+    }
+
+    pub fn post_load(&mut self) {
+        self.task_pool.post_load();
     }
 
     pub fn draw_tasks_debug_ui(&mut self, unit: &mut Unit, query: &Query, ui_sys: &UiSystem) {

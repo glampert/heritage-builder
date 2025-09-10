@@ -31,6 +31,89 @@ use game::{
     unit::{config::UnitConfigs},
 };
 
+// TEMP - TEST
+fn serialization_tests(tile_map: &tile::TileMap,
+                       world: &World,
+                       sim: &Simulation,
+                       building_configs: &BuildingConfigs,
+                       unit_configs: &UnitConfigs) {
+    use std::fs;
+
+    // World:
+    {
+        let json = match serde_json::to_string_pretty(world) {
+            Ok(json) => {
+                Some(json)
+            },
+            Err(err) => {
+                log::error!("Failed to serialize world state: {err}");
+                None
+            },
+        };
+
+        if let Some(json) = json {
+            let maybe_world = match serde_json::from_str::<World>(&json) {
+                Ok(w) => Some(w),
+                Err(err) => {
+                    log::error!("Failed to deserialize world state: {err}");
+                    None
+                }
+            };
+
+            if let Some(mut world2) = maybe_world {
+                let context = save::PostLoadContext {
+                    tile_map,
+                    building_configs,
+                    unit_configs,
+                };
+
+                // fixup all references/callbacks
+                world2.post_load(&context);
+                log::info!("World deserialization: Ok");
+            }
+
+            fs::write("world.json", json).expect("Failed to write file");
+        }
+    }
+
+    // Sim:
+    {
+        let json = match serde_json::to_string_pretty(sim) {
+            Ok(json) => {
+                Some(json)
+            },
+            Err(err) => {
+                log::error!("Failed to serialize simulation state: {err}");
+                None
+            },
+        };
+
+        if let Some(json) = json {
+            let maybe_sim = match serde_json::from_str::<Simulation>(&json) {
+                Ok(s) => Some(s),
+                Err(err) => {
+                    log::error!("Failed to deserialize simulation state: {err}");
+                    None
+                }
+            };
+
+            if let Some(mut sim2) = maybe_sim {
+                let context = save::PostLoadContext {
+                    tile_map: &tile_map,
+                    building_configs: &building_configs,
+                    unit_configs: &unit_configs,
+                };
+
+                // fixup all references/callbacks
+                sim2.post_load(&context);
+                log::info!("Sim deserialization: Ok");
+            }
+
+            fs::write("sim.json", json).expect("Failed to write file");
+        }
+    }
+}
+
 // ----------------------------------------------
 // main()
 // ----------------------------------------------
@@ -79,48 +162,6 @@ fn main() {
     );
     */
 
-    // TEST
-    {
-        use std::fs;
-
-        let json = match serde_json::to_string_pretty(&world) {
-            Ok(json) => {
-                Some(json)
-            },
-            Err(err) => {
-                log::error!("Failed to serialize world state: {err}");
-                None
-            },
-        };
-
-        if let Some(json) = json {
-            let w = match serde_json::from_str::<World>(&json) {
-                Ok(w) => Some(w),
-                Err(err) => {
-                    log::error!("Failed to deserialize world state: {err}");
-                    None
-                }
-            };
-
-            if let Some(mut world2) = w {
-
-                let context = save::PostLoadContext {
-                    tile_map: &tile_map,
-                    building_configs: &building_configs,
-                    unit_configs: &unit_configs,
-                };
-
-                // fixup all references/callbacks
-                world2.post_load(&context);
-
-                log::info!("Ok");
-            }
-
-            fs::write("world.json", json).expect("Failed to write file");
-        }
-    }
-    // TEST
-
     let mut systems = GameSystems::new();
     systems.register("Settlers Spawn System", settlers::SettlersSpawnSystem::new());
 
@@ -141,6 +182,8 @@ fn main() {
 
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();
+
+    serialization_tests(&tile_map, &world, &sim, &building_configs, &unit_configs);
 
     while !app.should_quit() {
         frame_clock.begin_frame();

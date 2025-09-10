@@ -54,12 +54,28 @@ impl<F> Callback<F>
 
     #[inline]
     pub fn get(&self) -> F {
+        debug_assert!(self.is_valid(), "Callback '{}' is not valid!", self.name);
         self.fptr.unwrap_or_else(|| panic!("Function pointer for callback '{}' is not set!", self.name))
     }
 
     #[inline]
     pub fn try_get(&self) -> Option<F> {
-        self.fptr
+        if self.is_valid() {
+            return self.fptr;
+        }
+        None
+    }
+
+    #[inline]
+    pub fn post_load(&mut self) {
+        if let Some(entry) = REGISTRY.find_entry(self.key) {
+            self.name = entry.name;
+            self.fptr = entry.cb.downcast_ref::<F>().copied();
+
+            debug_assert!(self.fptr.is_some(), "Failed to lookup deserialized callback '{}'!", self.name);
+            debug_assert!(self.key.hash == hash::fnv1a_from_str(self.name), "Callback name and key do not match for '{}'!", self.name);
+        }
+        // Else the callback key was invalid/default.
     }
 }
 
@@ -149,7 +165,7 @@ impl CallbackRegistry {
         }
     }
 
-    fn find<F>(&'static self, key: CallbackKey) -> Option<&'static F>
+    fn find_func_ptr<F>(&'static self, key: CallbackKey) -> Option<&'static F>
         where F: 'static + Copy + Clone + PartialEq
     {
         if !key.is_valid() {
@@ -161,6 +177,13 @@ impl CallbackRegistry {
         }
 
         None
+    }
+
+    fn find_entry(&'static self, key: CallbackKey) -> Option<&'static CallbackEntry> {
+        if !key.is_valid() {
+            return None;
+        }
+        self.lookup.get(&key.hash)
     }
 }
 
@@ -181,7 +204,7 @@ pub fn register_internal<F>(key: CallbackKey, name: &'static str, callback: F)
 pub fn find_internal<F>(key: CallbackKey) -> Option<&'static F>
     where F: 'static + Copy + Clone + PartialEq
 {
-    REGISTRY.as_ref().find(key)
+    REGISTRY.find_func_ptr(key)
 }
 
 // ----------------------------------------------
