@@ -38,7 +38,12 @@ pub struct UnitConfig {
 impl UnitConfig {
     #[inline]
     pub fn is(&self, key: UnitConfigKey) -> bool {
-        self.tile_def_name_hash == key.hash
+        self.key_hash() == key.hash
+    }
+
+    #[inline]
+    pub fn key_hash(&self) -> StringHash {
+        self.tile_def_name_hash
     }
 }
 

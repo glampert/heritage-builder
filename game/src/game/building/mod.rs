@@ -257,6 +257,8 @@ impl<'config> GameObject<'config> for Building<'config> {
     }
 
     fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
+        debug_assert!(self.is_spawned());
+
         let kind = self.kind();
         debug_assert!(kind.is_single_building());
 
@@ -328,11 +330,11 @@ impl<'config> Building<'config> {
         debug_assert!(kind.is_single_building());
         debug_assert!(map_cells.is_valid());
 
-        self.id        = id;
+        self.id = id;
         self.map_cells = map_cells;
-        self.kind      = kind;
-        self.archetype = Some(archetype);
+        self.kind = kind;
         self.workers_update_timer = UpdateTimer::new(WORKERS_UPDATE_FREQUENCY_SECS);
+        self.archetype = Some(archetype);
 
         self.update_road_link(query);
 
@@ -350,11 +352,11 @@ impl<'config> Building<'config> {
         let context = self.new_context(query);
         self.archetype_mut().despawned(&context);
 
-        self.id        = BuildingId::default();
+        self.id = BuildingId::default();
         self.map_cells = CellRange::default();
-        self.kind      = BuildingKind::default();
-        self.archetype = None;
+        self.kind = BuildingKind::default();
         self.workers_update_timer = UpdateTimer::default();
+        self.archetype = None;
     }
 
     #[inline]

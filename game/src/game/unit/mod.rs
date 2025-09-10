@@ -18,6 +18,7 @@ use crate::{
     utils::{
         self,
         Color,
+        hash::{self, StringHash},
         coords::{
             Cell,
             CellRange,
@@ -84,6 +85,7 @@ pub struct Unit<'config> {
     id: UnitId,
     map_cell: Cell,
     #[serde(skip)] config: Option<&'config UnitConfig>,
+    config_key_hash: StringHash,
     direction: UnitDirection,
     anim_sets: UnitAnimSets,
     inventory: UnitInventory,
@@ -104,6 +106,7 @@ impl<'config> GameObject<'config> for Unit<'config> {
 
     #[inline]
     fn update(&mut self, query: &Query<'config, '_>) {
+        debug_assert!(self.config.is_some());
         self.update_tasks(query);
     }
 
@@ -118,8 +121,11 @@ impl<'config> GameObject<'config> for Unit<'config> {
         }
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext<'config, '_>) {
-        // TODO
+    #[inline]
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
+        debug_assert!(self.is_spawned());
+        debug_assert!(self.config_key_hash != hash::NULL_HASH);
+        self.config = Some(context.unit_configs.find_config_by_hash(self.config_key_hash));
     }
 
     fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
@@ -166,10 +172,12 @@ impl<'config> Unit<'config> {
         debug_assert!(!self.is_spawned());
         debug_assert!(tile.is_valid());
         debug_assert!(id.is_valid());
+        debug_assert!(config.key_hash() != hash::NULL_HASH);
 
-        self.config    = Some(config);
-        self.map_cell  = tile.base_cell();
-        self.id        = id;
+        self.id = id;
+        self.map_cell = tile.base_cell();
+        self.config = Some(config);
+        self.config_key_hash = config.key_hash();
         self.direction = UnitDirection::Idle;
 
         self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
@@ -178,9 +186,10 @@ impl<'config> Unit<'config> {
     pub fn despawned(&mut self, query: &Query) {
         debug_assert!(self.is_spawned());
 
-        self.config    = None;
-        self.map_cell  = Cell::default();
-        self.id        = UnitId::default();
+        self.id = UnitId::default();
+        self.map_cell = Cell::default();
+        self.config = None;
+        self.config_key_hash = hash::NULL_HASH;
         self.direction = UnitDirection::default();
 
         self.anim_sets.clear();
@@ -255,10 +264,10 @@ impl<'config> Unit<'config> {
     #[inline]
     pub fn is(&self, config_key: UnitConfigKey) -> bool {
         debug_assert!(self.is_spawned());
-        if let Some(config) = self.config {
-            return config.is(config_key);
-        }
-        false
+        debug_assert!(config_key.is_valid());
+        debug_assert!(self.config_key_hash != hash::NULL_HASH);
+
+        self.config_key_hash == config_key.hash
     }
 
     #[inline]
