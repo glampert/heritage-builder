@@ -5,7 +5,7 @@ use std::iter::FusedIterator;
 
 use serde::{
     Serialize,
-    Deserialize,
+    Deserialize
 };
 
 use crate::{

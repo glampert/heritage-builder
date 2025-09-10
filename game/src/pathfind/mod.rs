@@ -9,7 +9,7 @@ use std::{cmp::Reverse, ops::{Index, IndexMut}, hash::{Hash, Hasher, DefaultHash
 
 use serde::{
     Serialize,
-    Deserialize,
+    Deserialize
 };
 
 

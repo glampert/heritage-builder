@@ -5,7 +5,7 @@ use proc_macros::DrawDebugUi;
 
 use serde::{
     Serialize,
-    Deserialize,
+    Deserialize
 };
 
 use crate::{

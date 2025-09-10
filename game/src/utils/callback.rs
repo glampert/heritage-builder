@@ -3,7 +3,7 @@ use std::collections::hash_map::Entry;
 
 use serde::{
     Serialize,
-    Deserialize,
+    Deserialize
 };
 
 use super::{

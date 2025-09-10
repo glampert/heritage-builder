@@ -1,17 +1,24 @@
+use std::any::Any;
+
+use serde::{
+    Serialize,
+    Deserialize
+};
+
 use crate::{
     log,
     imgui_ui::UiSystem,
-    pathfind::{Node, NodeKind as PathNodeKind},
     sim::{Query, UpdateTimer},
+    pathfind::{Node, NodeKind as PathNodeKind},
     utils::{Color, coords::Cell, hash, callback::{self, Callback}},
     tile::{TileMapLayerKind, sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}},
     game::{
         constants::*,
         building::BuildingKind,
         unit::{
+            config,
             UnitId,
             UnitTaskHelper,
-            config,
             navigation::{self, UnitNavGoal},
             task::{
                 UnitTaskArg,
@@ -31,12 +38,16 @@ use super::{
 // SettlersSpawnSystem
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 pub struct SettlersSpawnSystem {
     spawn_timer: UpdateTimer,
     population_per_settler_unit: u32,
 }
 
 impl GameSystem for SettlersSpawnSystem {
+    fn name(&self) -> &str { "Settlers Spawn System" }
+    fn as_any(&self) -> &dyn Any { self }
+
     fn update(&mut self, query: &Query) {
         if self.spawn_timer.tick(query.delta_time_secs()).should_update() {
             // Only attempt to spawn if we have any empty housing lots available.
@@ -105,10 +116,10 @@ impl SettlersSpawnSystem {
 // Settler Unit helper
 // ----------------------------------------------
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Settler {
     unit_id: UnitId,
-    failed_to_spawn: bool,
+    #[serde(skip)] failed_to_spawn: bool, // Debug flag; not serialized.
 }
 
 impl UnitTaskHelper for Settler {

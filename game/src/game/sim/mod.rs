@@ -6,7 +6,7 @@ use smallvec::SmallVec;
 
 use serde::{
     Serialize,
-    Deserialize,
+    Deserialize
 };
 
 use crate::{

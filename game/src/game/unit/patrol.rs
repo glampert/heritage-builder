@@ -2,7 +2,7 @@ use proc_macros::DrawDebugUi;
 
 use serde::{
     Serialize,
-    Deserialize,
+    Deserialize
 };
 
 use crate::{
@@ -139,6 +139,12 @@ impl Patrol {
                 completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
             }
         )
+    }
+
+    pub fn post_load(&mut self) {
+        if let Some(state) = self.try_get_state_mut() {
+            state.completion_callback.post_load();
+        }
     }
 
     pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {

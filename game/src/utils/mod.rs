@@ -939,12 +939,12 @@ impl<T> UnsafeMutable<T> {
     pub fn as_mut(&self) -> &mut T {
         unsafe { &mut *self.cell.get() }
     }
+}
 
-    #[inline(always)]
-    pub fn mut_ref_cast(reference: &T) -> &mut T {
-        let ptr = reference as *const T as *mut T;
-        unsafe { ptr.as_mut().unwrap() }
-    }
+#[inline(always)]
+pub fn mut_ref_cast<T: ?Sized>(reference: &T) -> &mut T {
+    let ptr = reference as *const T as *mut T;
+    unsafe { ptr.as_mut().unwrap() }
 }
 
 // Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.

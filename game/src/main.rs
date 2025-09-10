@@ -35,6 +35,7 @@ use game::{
 fn serialization_tests(tile_map: &tile::TileMap,
                        world: &World,
                        sim: &Simulation,
+                       systems: &GameSystems,
                        building_configs: &BuildingConfigs,
                        unit_configs: &UnitConfigs) {
     use std::fs;
@@ -99,9 +100,9 @@ fn serialization_tests(tile_map: &tile::TileMap,
 
             if let Some(mut sim2) = maybe_sim {
                 let context = save::PostLoadContext {
-                    tile_map: &tile_map,
-                    building_configs: &building_configs,
-                    unit_configs: &unit_configs,
+                    tile_map,
+                    building_configs,
+                    unit_configs,
                 };
 
                 // fixup all references/callbacks
@@ -112,6 +113,47 @@ fn serialization_tests(tile_map: &tile::TileMap,
             fs::write("sim.json", json).expect("Failed to write file");
         }
     }
+
+    // Systems:
+    {
+        let json = match serde_json::to_string_pretty(systems) {
+            Ok(json) => {
+                Some(json)
+            },
+            Err(err) => {
+                log::error!("Failed to serialize game systems state: {err}");
+                None
+            },
+        };
+
+        if let Some(json) = json {
+            let maybe_sys = match serde_json::from_str::<GameSystems>(&json) {
+                Ok(s) => Some(s),
+                Err(err) => {
+                    log::error!("Failed to deserialize game systems state: {err}");
+                    None
+                }
+            };
+
+            if let Some(mut systems2) = maybe_sys {
+                let context = save::PostLoadContext {
+                    tile_map,
+                    building_configs,
+                    unit_configs,
+                };
+
+                // fixup all references/callbacks
+                systems2.post_load(&context);
+                log::info!("Game systems deserialization: Ok");
+            }
+
+            fs::write("systems.json", json).expect("Failed to write file");
+        }
+    }
+
+    // TODO:
+    // - TileMap
+    // - Camera
 }
 
 // ----------------------------------------------
@@ -163,7 +205,7 @@ fn main() {
     */
 
     let mut systems = GameSystems::new();
-    systems.register("Settlers Spawn System", settlers::SettlersSpawnSystem::new());
+    systems.register(settlers::SettlersSpawnSystem::new());
 
     let mut sim = Simulation::new(&tile_map, &building_configs, &unit_configs);
 
@@ -183,7 +225,7 @@ fn main() {
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();
 
-    serialization_tests(&tile_map, &world, &sim, &building_configs, &unit_configs);
+    serialization_tests(&tile_map, &world, &sim, &systems, &building_configs, &unit_configs);
 
     while !app.should_quit() {
         frame_clock.begin_frame();
