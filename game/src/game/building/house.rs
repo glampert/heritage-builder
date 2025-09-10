@@ -21,6 +21,7 @@ use crate::{
         hash::{StrHashPair, StringHash},
     },
     tile::{
+        Tile,
         TileMapLayerKind,
         sets::{TileDef, TERRAIN_GROUND_CATEGORY}
     },
@@ -29,6 +30,7 @@ use crate::{
         system::settlers::Settler,
         sim::{
             UpdateTimer,
+            PostLoadContext,
             world::WorldStats,
             resources::{
                 Workers,
@@ -229,6 +231,11 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         } else if unit.is_settler() {
             self.visited_by_settler(unit, context);
         }
+    }
+
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>, kind: BuildingKind, _tile: &Tile) {
+        debug_assert!(kind == BuildingKind::House);
+        self.upgrade_state.post_load(context);
     }
 
     // ----------------------
@@ -447,6 +454,9 @@ impl<'config> HouseBuilding<'config> {
 
         // Attempt to upgrade or downgrade based on services and resources availability.
         let upgrade = &mut self.upgrade_state;
+
+        debug_assert!(upgrade.curr_level_config.is_some());
+        debug_assert!(upgrade.next_level_config.is_some());
 
         if upgrade.can_upgrade(context, &self.stock) {
             upgraded = upgrade.try_upgrade(context, &mut self.debug);
@@ -829,7 +839,7 @@ struct HouseUpgradeState<'config> {
     level: HouseLevel,
     #[serde(skip)] curr_level_config: Option<&'config HouseLevelConfig>,
     #[serde(skip)] next_level_config: Option<&'config HouseLevelConfig>,
-    has_room_to_upgrade: bool, // Result of last attempt to expand the house.
+    #[serde(skip)] has_room_to_upgrade: bool, // [Debug] Result of last attempt to expand the house.
 }
 
 impl<'config> HouseUpgradeState<'config> {
@@ -840,6 +850,12 @@ impl<'config> HouseUpgradeState<'config> {
             next_level_config: Some(configs.find_house_level_config(level.next())),
             has_room_to_upgrade: true,
         }
+    }
+
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
+        let configs = context.building_configs;
+        self.curr_level_config = Some(configs.find_house_level_config(self.level));
+        self.next_level_config = Some(configs.find_house_level_config(self.level.next()));
     }
 
     fn can_upgrade(&mut self,

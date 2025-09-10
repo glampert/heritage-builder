@@ -10,6 +10,7 @@ use crate::{
     game_object_debug_options,
     building_config_impl,
     imgui_ui::UiSystem,
+    tile::Tile,
     utils::{
         Color,
         Seconds,
@@ -31,6 +32,7 @@ use crate::{
         sim::{
             Query,
             UpdateTimer,
+            PostLoadContext,
             world::WorldStats,
             object::GameObject,
             resources::{
@@ -133,6 +135,8 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     }
 
     fn update(&mut self, context: &BuildingContext) {
+        debug_assert!(self.config.is_some());
+
         let delta_time_secs = context.query.delta_time_secs();
         let has_min_required_workers = self.has_min_required_workers();
         let has_stock_requirements = self.stock.as_ref().is_some_and(|stock| stock.accepts_any());
@@ -154,6 +158,11 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
     fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
         // TODO: Do we need anything here? Deliveries are handled by the task completion callback...
         unimplemented!("ServiceBuilding::visited_by() not yet implemented!");
+    }
+
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>, kind: BuildingKind, _tile: &Tile) {
+        debug_assert!(kind.intersects(BuildingKind::services()));
+        self.config = Some(context.building_configs.find_service_config(kind));
     }
 
     // ----------------------

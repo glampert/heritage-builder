@@ -1,5 +1,4 @@
 #![allow(clippy::enum_variant_names)]
-#![allow(clippy::type_complexity)]
 
 use std::any::Any;
 use slab::Slab;

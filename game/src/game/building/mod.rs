@@ -45,6 +45,7 @@ use super::{
     sim::{
         Query,
         UpdateTimer,
+        PostLoadContext,
         world::WorldStats,
         object::{GameObject, GenerationalIndex},
         debug::{DebugUiMode, GameObjectDebugOptions},
@@ -250,6 +251,19 @@ impl<'config> GameObject<'config> for Building<'config> {
         }
 
         self.archetype().tally(stats, self.kind);
+    }
+
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
+        let kind = self.kind();
+        debug_assert!(kind.is_single_building());
+
+        let tile = context.tile_map.find_tile(
+            self.base_cell(),
+            TileMapLayerKind::Objects,
+            TileKind::Building).unwrap();
+        debug_assert!(tile.is_valid());
+
+        self.archetype_mut().post_load(context, kind, tile);
     }
 
     fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
@@ -1017,6 +1031,8 @@ pub trait BuildingBehavior<'config> {
 
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);
+
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>, kind: BuildingKind, tile: &Tile);
 
     // ----------------------
     // Resources/Stock:

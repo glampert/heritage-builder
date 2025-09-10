@@ -21,6 +21,7 @@ use crate::{
 
 use super::{
     Query,
+    PostLoadContext,
     world::WorldStats,
     debug::DebugUiMode
 };
@@ -102,6 +103,7 @@ pub trait GameObject<'config> {
 
     fn update(&mut self, query: &Query<'config, '_>);
     fn tally(&self, stats: &mut WorldStats);
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>);
 
     fn draw_debug_ui(&mut self,
                      query: &Query<'config, '_>,

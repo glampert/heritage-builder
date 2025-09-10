@@ -101,7 +101,17 @@ fn main() {
                 }
             };
 
-            if let Some(_world2) = w {
+            if let Some(mut world2) = w {
+
+                let context = sim::PostLoadContext {
+                    tile_map: &tile_map,
+                    building_configs: &building_configs,
+                    unit_configs: &unit_configs,
+                };
+
+                // fixup all references/callbacks
+                world2.post_load(&context);
+
                 log::info!("Ok");
             }
 

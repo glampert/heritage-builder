@@ -30,8 +30,9 @@ use super::{
     building::{Building, BuildingKind},
     sim::{
         Query,
-        debug::DebugUiMode,
+        PostLoadContext,
         world::WorldStats,
+        debug::DebugUiMode,
         object::{GameObject, GenerationalIndex},
         resources::{ResourceKind, StockItem}
     }
@@ -113,6 +114,10 @@ impl<'config> GameObject<'config> for Unit<'config> {
         if let Some(item) = self.inventory.peek() {
             stats.add_unit_resources(item.kind, item.count);
         }
+    }
+
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
+        // TODO
     }
 
     fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {

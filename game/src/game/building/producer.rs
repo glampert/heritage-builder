@@ -11,6 +11,7 @@ use crate::{
     game_object_debug_options,
     building_config_impl,
     imgui_ui::UiSystem,
+    tile::Tile,
     utils::{
         Color,
         Seconds,
@@ -31,6 +32,7 @@ use crate::{
         sim::{
             Query,
             UpdateTimer,
+            PostLoadContext,
             world::WorldStats,
             object::GameObject,
             resources::{
@@ -141,6 +143,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     }
 
     fn update(&mut self, context: &BuildingContext) {
+        debug_assert!(self.config.is_some());
         let delta_time_secs = context.query.delta_time_secs();
 
         // Update producer states:
@@ -181,6 +184,12 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
                 self.debug.popup_msg(format!("{} received delivery -> {}", self.name(), unit.name()));
             }
         }
+    }
+
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>, kind: BuildingKind, tile: &Tile) {
+        debug_assert!(kind.intersects(BuildingKind::producers()));
+        let tile_def = tile.tile_def();
+        self.config = Some(context.building_configs.find_producer_config(kind, &tile_def.name, tile_def.hash));
     }
 
     // ----------------------

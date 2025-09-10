@@ -45,6 +45,7 @@ use crate::{
 
 use super::{
     Query,
+    PostLoadContext,
     debug::DebugUiMode,
     object::{GameObject, SpawnPool},
     resources::{ResourceKind, ResourceStock}
@@ -121,6 +122,9 @@ impl<'config> World<'config> {
     }
 
     pub fn update(&mut self, query: &Query<'config, '_>) {
+        debug_assert!(self.building_configs.is_some());
+        debug_assert!(self.unit_configs.is_some());
+
         self.stats.reset();
 
         for unit in self.unit_spawn_pool.iter_mut() {
@@ -132,6 +136,26 @@ impl<'config> World<'config> {
             for building in buildings.iter_mut() {
                 debug_assert!(building.archetype_kind() == *archetype_kind);
                 building.update(query);
+                building.tally(&mut self.stats);
+            }
+        }
+    }
+
+    pub fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
+        self.building_configs = Some(context.building_configs);
+        self.unit_configs     = Some(context.unit_configs);
+
+        self.stats.reset();
+
+        for unit in self.unit_spawn_pool.iter_mut() {
+            unit.post_load(context);
+            unit.tally(&mut self.stats);
+        }
+
+        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
+            for building in buildings.iter_mut() {
+                debug_assert!(building.archetype_kind() == *archetype_kind);
+                building.post_load(context);
                 building.tally(&mut self.stats);
             }
         }

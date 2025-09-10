@@ -12,6 +12,7 @@ use crate::{
     game_object_debug_options,
     building_config_impl,
     imgui_ui::UiSystem,
+    tile::Tile,
     utils::{
         Color,
         hash::StringHash
@@ -26,6 +27,7 @@ use crate::{
             }
         },
         sim::{
+            PostLoadContext,
             world::WorldStats,
             resources::{
                 ResourceKind,
@@ -112,6 +114,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
     }
 
     fn update(&mut self, _context: &BuildingContext) {
+        debug_assert!(self.config.is_some());
         // Nothing for now.
     }
 
@@ -155,6 +158,11 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         } else {
             panic!("Unhandled Unit Task in StorageBuilding::visited_by()!");
         }
+    }
+
+    fn post_load(&mut self, context: &PostLoadContext<'config, '_>, kind: BuildingKind, _tile: &Tile) {
+        debug_assert!(kind.intersects(BuildingKind::storage()));
+        self.config = Some(context.building_configs.find_storage_config(kind));
     }
 
     // ----------------------
