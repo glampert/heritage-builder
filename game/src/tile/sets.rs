@@ -1,25 +1,23 @@
 use arrayvec::ArrayVec;
 use smallvec::SmallVec;
 use strum::IntoEnumIterator;
-use serde::Deserialize;
 use std::{fs, path::{Path, MAIN_SEPARATOR, MAIN_SEPARATOR_STR}};
+
+use serde::{
+    Serialize,
+    Deserialize
+};
 
 use crate::{
     log,
     pathfind::NodeKind as PathNodeKind,
-    render::{
-        TextureCache,
-        TextureHandle
-    },
+    render::{TextureCache, TextureHandle},
     utils::{
         Size,
         Color,
         RectTexCoords,
         UnsafeMutable,
-        coords::{
-            Cell,
-            CellRange
-        },
+        coords::{Cell, CellRange},
         hash::{
             self,
             PreHashedKeyMap,
@@ -199,11 +197,11 @@ pub struct TileDef {
 
     // Internal runtime index into TileCategory.
     #[serde(skip)]
-    category_tiledef_index: i32,
+    category_tiledef_index: u32,
 
     // Internal runtime index into TileSet.
     #[serde(skip)]
-    tileset_category_index: i32,
+    tileset_category_index: u32,
 }
 
 impl TileDef {
@@ -513,7 +511,7 @@ pub struct TileCategory {
 
     // Internal runtime index into TileSet.
     #[serde(skip)]
-    tileset_category_index: i32,
+    tileset_category_index: u32,
 
     // Maps from tile name to TileDef index in self.tiles[].
     #[serde(skip)]
@@ -574,7 +572,7 @@ impl TileCategory {
                 return false;   
             }
 
-            tile_def.category_tiledef_index = entry_index as i32;
+            tile_def.category_tiledef_index = entry_index as u32;
             tile_def.tileset_category_index = self.tileset_category_index;
 
             let tile_name_hash: StringHash = hash::fnv1a_from_str(&tile_def.name);
@@ -661,7 +659,7 @@ impl TileSet {
                 return false;   
             }
 
-            category.tileset_category_index = entry_index as i32;
+            category.tileset_category_index = entry_index as u32;
 
             let category_name_hash: StringHash = hash::fnv1a_from_str(&category.name);
             category.hash = category_name_hash;
@@ -688,21 +686,27 @@ impl TileSet {
 // TileDefHandle
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
-pub struct TileDefHandle {
-    tileset_index: u16,
-    tileset_category_index: u16,
-    category_tiledef_index: u16,
-}
+// (tileset_index, tileset_category_index, category_tiledef_index)
+#[derive(Copy, Clone, Serialize, Deserialize)]
+pub struct TileDefHandle(u16, u16, u16);
 
 impl TileDefHandle {
     #[inline]
     pub fn new(tile_set: &TileSet, tile_category: &TileCategory, tile_def: &TileDef) -> Self {
-        Self {
-            tileset_index: tile_set.layer as u16,
-            tileset_category_index: tile_category.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
-            category_tiledef_index: tile_def.category_tiledef_index.try_into().expect("Index cannot fit in a u16"),
-        }
+        Self(
+            tile_set.layer as u16,
+            tile_category.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
+            tile_def.category_tiledef_index.try_into().expect("Index cannot fit in a u16"),
+        )
+    }
+
+    #[inline]
+    pub fn from_tile_def(tile_def: &TileDef) -> Self {
+        Self(
+            tile_def.layer_kind() as u16,
+            tile_def.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
+            tile_def.category_tiledef_index.try_into().expect("Index cannot fit in a u16"),
+        )
     }
 }
 
@@ -729,30 +733,32 @@ impl TileSets {
 
     #[inline]
     pub fn handle_to_tile_def(&self, handle: TileDefHandle) -> Option<&TileDef> {
-            let set_idx  = handle.tileset_index as usize;          // TileSet index into TileSets.
-            let cat_idx  = handle.tileset_category_index as usize; // TileCategory index into TileSet.
-            let tile_idx = handle.category_tiledef_index as usize; // TileDef index into TileCategory.
+        let set_idx  = handle.0 as usize; // TileSet index into TileSets.
+        let cat_idx  = handle.1 as usize; // TileCategory index into TileSet.
+        let tile_idx = handle.2 as usize; // TileDef index into TileCategory.
 
-            if set_idx >= self.sets.len() {
-                return None;
-            }
+        if set_idx >= self.sets.len() {
+            return None;
+        }
 
-            let set = &self.sets[set_idx];
-            if cat_idx >= set.categories.len() {
-                return None;
-            }
+        let set = &self.sets[set_idx];
+        if cat_idx >= set.categories.len() {
+            return None;
+        }
 
-            let cat = &set.categories[cat_idx];
-            if tile_idx >= cat.tile_defs.len() {
-                return None;
-            }
+        let cat = &set.categories[cat_idx];
+        if tile_idx >= cat.tile_defs.len() {
+            return None;
+        }
 
-            let tile_def = &*cat.tile_defs[tile_idx];
-            debug_assert!(set.layer as usize == set_idx);
-            debug_assert!(cat.tileset_category_index as usize == cat_idx);
-            debug_assert!(tile_def.tileset_category_index as usize == cat_idx);
-            debug_assert!(tile_def.category_tiledef_index as usize == tile_idx);
-            Some(tile_def)
+        let tile_def = &*cat.tile_defs[tile_idx];
+
+        debug_assert!(set.layer as usize == set_idx);
+        debug_assert!(cat.tileset_category_index as usize == cat_idx);
+        debug_assert!(tile_def.tileset_category_index as usize == cat_idx);
+        debug_assert!(tile_def.category_tiledef_index as usize == tile_idx);
+
+        Some(tile_def)
     }
 
     pub fn find_category_for_tile_def(&self, tile_def: &TileDef) -> Option<&TileCategory> {

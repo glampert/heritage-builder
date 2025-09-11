@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     log,
+    save::{PostLoad, PostLoadContext},
     imgui_ui::{UiSystem, UiInputEvent},
     render::{RenderStats, RenderSystem, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
@@ -13,6 +14,7 @@ use crate::{
     },
     utils::{
         Vec2,
+        mut_ref_cast,
         UnsafeWeakRef,
         SingleThreadStatic,
         coords::{Cell, CellRange, WorldToScreenTransform}
@@ -103,26 +105,8 @@ impl DebugMenusSystem {
         // Initialize the singleton exactly once:
         init_singleton(tex_cache, DEBUG_SETTINGS_OPEN, TILE_PALETTE_OPEN);
 
-        init_tile_map_debug_ref(tile_map);
-
-        // Register TileMap global callbacks:
-        tile_map.set_tile_placed_callback(Some(|tile, did_reallocate| {
-            use_singleton(|instance| {
-                instance.tile_inspector_menu.on_tile_placed(tile, did_reallocate);
-            });
-        }));
-
-        tile_map.set_removing_tile_callback(Some(|tile| {
-            use_singleton(|instance| {
-                instance.tile_inspector_menu.on_removing_tile(tile);
-            });
-        }));
-
-        tile_map.set_map_reset_callback(Some(|_| {
-            use_singleton(|instance| {
-                instance.tile_inspector_menu.close();
-            });
-        }));
+        // Register TileMap global callbacks & debug ref:
+        register_tile_map_debug_callbacks(tile_map);
 
         Self
     }
@@ -156,6 +140,22 @@ impl DebugMenusSystem {
         use_singleton(|instance| {
             instance.end_frame(args)
         })
+    }
+}
+
+// ----------------------------------------------
+// PostLoad
+// ----------------------------------------------
+
+impl PostLoad<'_> for DebugMenusSystem {
+    fn post_load(&mut self, context: &PostLoadContext) {
+        use_singleton(|instance| {
+            instance.tile_inspector_menu.close();
+        });
+
+        // Re-register debug editor callbacks and reset the global tile map ref.
+        let tile_map_mut = mut_ref_cast(context.tile_map);
+        register_tile_map_debug_callbacks(tile_map_mut);
     }
 }
 
@@ -448,7 +448,7 @@ fn use_singleton<F, R>(mut closure: F) -> R
 }
 
 // ----------------------------------------------
-// Global debug popups switch
+// Global Debug Popups Switch
 // ----------------------------------------------
 
 static SHOW_DEBUG_POPUP_MESSAGES: AtomicBool = AtomicBool::new(false);
@@ -462,7 +462,7 @@ pub fn show_popup_messages() -> bool {
 }
 
 // ----------------------------------------------
-// Global TileMap debug ref
+// Global TileMap Debug Ref
 // ----------------------------------------------
 
 struct TileMapWeakRef(UnsafeWeakRef<TileMap<'static>>);
@@ -479,12 +479,26 @@ impl TileMapWeakRef {
 // SAFETY: Must make sure the tile map instance set on initialization stays valid until app termination.
 static TILE_MAP_DEBUG_REF: SingleThreadStatic<Option<TileMapWeakRef>> = SingleThreadStatic::new(None);
 
-fn init_tile_map_debug_ref(tile_map: &TileMap) {
-    if TILE_MAP_DEBUG_REF.is_some() {
-        panic!("TILE_MAP_DEBUG_REF was already set!");
-    }
-
+fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {
     TILE_MAP_DEBUG_REF.set(Some(TileMapWeakRef::new(tile_map)));
+
+    tile_map.set_tile_placed_callback(Some(|tile, did_reallocate| {
+        use_singleton(|instance| {
+            instance.tile_inspector_menu.on_tile_placed(tile, did_reallocate);
+        });
+    }));
+
+    tile_map.set_removing_tile_callback(Some(|tile| {
+        use_singleton(|instance| {
+            instance.tile_inspector_menu.on_removing_tile(tile);
+        });
+    }));
+
+    tile_map.set_map_reset_callback(Some(|_| {
+        use_singleton(|instance| {
+            instance.tile_inspector_menu.close();
+        });
+    }));
 }
 
 pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {

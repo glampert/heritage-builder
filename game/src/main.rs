@@ -35,6 +35,7 @@ use game::{
 
 // TEMP - TEST
 fn serialization_tests(tile_map: &tile::TileMap,
+                       tile_sets: &TileSets,
                        world: &World,
                        sim: &Simulation,
                        systems: &GameSystems,
@@ -45,9 +46,41 @@ fn serialization_tests(tile_map: &tile::TileMap,
 
     let context = PostLoadContext {
         tile_map,
+        tile_sets,
         unit_configs,
         building_configs,
     };
+
+    // TileMap
+    {
+        let json = match serde_json::to_string_pretty(tile_map) {
+            Ok(json) => {
+                Some(json)
+            },
+            Err(err) => {
+                log::error!("Failed to serialize tile map: {err}");
+                None
+            },
+        };
+
+        if let Some(json) = json {
+            let maybe_map = match serde_json::from_str::<tile::TileMap>(&json) {
+                Ok(w) => Some(w),
+                Err(err) => {
+                    log::error!("Failed to deserialize tile map: {err}");
+                    None
+                }
+            };
+
+            if let Some(mut tile_map2) = maybe_map {
+                // fixup all references/callbacks
+                tile_map2.post_load(&context);
+                log::info!("TileMap deserialization: Ok");
+            }
+
+            fs::write("tile_map.json", json).expect("Failed to write file");
+        }
+    }
 
     // World:
     {
@@ -171,9 +204,6 @@ fn serialization_tests(tile_map: &tile::TileMap,
             fs::write("camera.json", json).expect("Failed to write file");
         }
     }
-
-    // TODO:
-    // - TileMap
 }
 
 // ----------------------------------------------
@@ -245,7 +275,7 @@ fn main() {
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();
 
-    serialization_tests(&tile_map, &world, &sim, &systems, &camera, &building_configs, &unit_configs);
+    serialization_tests(&tile_map, &tile_sets, &world, &sim, &systems, &camera, &building_configs, &unit_configs);
 
     while !app.should_quit() {
         frame_clock.begin_frame();

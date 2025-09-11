@@ -3,13 +3,20 @@
 use slab::Slab;
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
-use serde::Deserialize;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumProperty, EnumIter};
 use enum_dispatch::enum_dispatch;
 
+use serde::{
+    Serialize,
+    Serializer,
+    Deserialize,
+    Deserializer
+};
+
 use crate::{
     bitflags_with_display,
+    save::{PostLoad, PostLoadContext},
     pathfind::NodeKind as PathNodeKind,
     utils::{
         Vec2,
@@ -29,14 +36,13 @@ use crate::{
     }
 };
 
-use self::{
-    selection::TileSelection,
-    sets::{
-        TileDef,
-        TileSets,
-        TileAnimSet,
-        TileTexInfo
-    }
+use selection::TileSelection;
+use sets::{
+    TileDef,
+    TileDefHandle,
+    TileSets,
+    TileAnimSet,
+    TileTexInfo
 };
 
 pub mod sets;
@@ -58,7 +64,7 @@ pub const BASE_TILE_SIZE: Size = Size { width: 64, height: 32 };
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, PartialEq, Eq, Hash)]
+    #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub struct TileKind: u8 {
         // Base Archetypes:
         const Terrain    = 1 << 0;
@@ -95,7 +101,7 @@ impl TileKind {
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, PartialEq, Eq)]
+    #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct TileFlags: u8 {
         const Hidden           = 1 << 0;
         const Highlighted      = 1 << 1;
@@ -115,7 +121,7 @@ bitflags_with_display! {
 // ----------------------------------------------
 
 // Index into associated GameObject.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct TileGameObjectHandle {
     // Index into SpawnPool.
     index: u32,
@@ -189,7 +195,7 @@ impl Default for TileGameObjectHandle {
 // TileAnimState
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Serialize, Deserialize)]
 struct TileAnimState {
     anim_set_index: u16,
     frame_index: u16,
@@ -205,12 +211,104 @@ impl TileAnimState {
 }
 
 // ----------------------------------------------
+// TileMapLayerRef
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Default)]
+struct TileMapLayerRef<'tile_sets> {
+    opt_ref: Option<UnsafeWeakRef<TileMapLayer<'tile_sets>>>,
+}
+
+impl<'tile_sets> TileMapLayerRef<'tile_sets> {
+    #[inline]
+    fn new(layer: &TileMapLayer<'tile_sets>) -> Self {
+        Self { opt_ref: Some(UnsafeWeakRef::new(layer)) }
+    }
+
+    #[inline]
+    fn as_ref(&self) -> &TileMapLayer<'tile_sets> {
+        self.opt_ref.as_ref().expect("TileMapLayer reference is unset! Missing post_load()?")
+    }
+
+    #[inline]
+    fn as_mut(&mut self) -> &mut TileMapLayer<'tile_sets> {
+        self.opt_ref.as_mut().expect("TileMapLayer reference is unset! Missing post_load()?")
+    }
+}
+
+// ----------------------------------------------
+// TileDefRef
+// ----------------------------------------------
+
+#[derive(Copy, Clone)]
+enum TileDefRef<'tile_sets> {
+    Ref(&'tile_sets TileDef),
+    Handle(TileDefHandle),
+}
+
+impl<'tile_sets> TileDefRef<'tile_sets> {
+    #[inline]
+    fn new(def: &'tile_sets TileDef) -> Self {
+        Self::Ref(def)
+    }
+
+    #[inline]
+    fn as_ref(&self) -> &'tile_sets TileDef {
+        match self {
+            Self::Ref(def) => def,
+            _ => panic!("TileDefRef does not hold a TileDef reference! Check deserialization/post_load()..."),
+        }
+    }
+
+    #[inline]
+    fn as_handle(&self) -> TileDefHandle {
+        match self {
+            Self::Handle(handle) => *handle,
+            _ => panic!("TileDefRef does not hold a TileDefHandle! Check deserialization/post_load()..."),
+        }
+    }
+
+    #[inline]
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets) {
+        let handle = self.as_handle();
+        let def = tile_sets.handle_to_tile_def(handle)
+            .expect("Invalid TileDefHandle! Check serialization code...");
+        *self = Self::Ref(def);
+    }
+}
+
+impl Serialize for TileDefRef<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        let handle: TileDefHandle = match self {
+            Self::Ref(def) => TileDefHandle::from_tile_def(def),
+            Self::Handle(handle) => *handle,
+        };
+
+        // Serialize as handle and fix-up back to reference on post_load().
+        handle.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for TileDefRef<'_> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        // Always deserialize as handle. post_load() converts back to reference.
+        let handle = TileDefHandle::deserialize(deserializer)?;
+        Ok(TileDefRef::Handle(handle))
+    }
+}
+
+// ----------------------------------------------
 // Tile / TileArchetype
 // ----------------------------------------------
 
 // Tile is tied to the lifetime of the TileSets that owns the underlying TileDef.
 // We also may keep a reference to the owning TileMapLayer inside TileArchetype
 // for building blockers and objects.
+#[derive(Serialize, Deserialize)]
 pub struct Tile<'tile_sets> {
     kind: TileKind,
     flags: TileFlags,
@@ -220,6 +318,7 @@ pub struct Tile<'tile_sets> {
 }
 
 #[enum_dispatch]
+#[derive(Serialize, Deserialize)]
 enum TileArchetype<'tile_sets> {
     TerrainTile(TerrainTile<'tile_sets>),
     ObjectTile(ObjectTile<'tile_sets>),
@@ -233,6 +332,8 @@ enum TileArchetype<'tile_sets> {
 // Common behavior for all Tile archetypes.
 #[enum_dispatch(TileArchetype)]
 trait TileBehavior<'tile_sets> {
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerRef<'tile_sets>);
+
     fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
     fn set_base_cell(&mut self, cell: Cell);
     fn set_iso_coords_f32(&mut self, iso_coords: Vec2);
@@ -265,9 +366,9 @@ trait TileBehavior<'tile_sets> {
 //  - Terrain tile draw size can be customized.
 //  - No variations or animations.
 //
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 struct TerrainTile<'tile_sets> {
-    def: &'tile_sets TileDef,
+    def: TileDefRef<'tile_sets>,
 
     // Terrain tiles always occupy a single cell (of BASE_TILE_SIZE size).
     cell: Cell,
@@ -279,7 +380,7 @@ struct TerrainTile<'tile_sets> {
 impl<'tile_sets> TerrainTile<'tile_sets> {
     fn new(cell: Cell, tile_def: &'tile_sets TileDef) -> Self {
         Self {
-            def: tile_def,
+            def: TileDefRef::new(tile_def),
             cell,
             iso_coords_f32: coords::cell_to_iso(cell, BASE_TILE_SIZE).to_vec2(),
         }
@@ -287,6 +388,12 @@ impl<'tile_sets> TerrainTile<'tile_sets> {
 }
 
 impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
+    #[inline]
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, _layer: TileMapLayerRef<'tile_sets>) {
+        debug_assert!(self.cell.is_valid());
+        self.def.post_load(tile_sets);
+    }
+
     #[inline]
     fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool) {
         current_flags.set(new_flags, value);
@@ -309,8 +416,8 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
     #[inline] fn cell_range(&self) -> CellRange { CellRange::new(self.cell, self.cell) }
 
-    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.def }
-    #[inline] fn is_valid(&self) -> bool { self.cell.is_valid() && self.def.is_valid() }
+    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.def.as_ref() }
+    #[inline] fn is_valid(&self) -> bool { self.cell.is_valid() && self.def.as_ref().is_valid() }
 
     // No support for animations on Terrain.
     #[inline]
@@ -332,14 +439,15 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
 // ObjectTile
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 struct ObjectTile<'tile_sets> {
-    def: &'tile_sets TileDef,
+    def: TileDefRef<'tile_sets>,
 
     // Owning layer so we can propagate flags from a building to all of its blocker tiles.
     // SAFETY: This ref will always be valid as long as the Tile instance is, since the Tile
     // belongs to its parent layer.
-    layer: UnsafeWeakRef<TileMapLayer<'tile_sets>>,
+    #[serde(skip)]
+    layer: TileMapLayerRef<'tile_sets>,
 
     // Buildings can occupy multiple cells. `cell_range.start` is the start or "base" cell.
     cell_range: CellRange,
@@ -355,8 +463,8 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
            tile_def: &'tile_sets TileDef,
            layer: &TileMapLayer<'tile_sets>) -> Self {
         Self {
-            def: tile_def,
-            layer: UnsafeWeakRef::new(layer),
+            def: TileDefRef::new(tile_def),
+            layer: TileMapLayerRef::new(layer),
             cell_range: tile_def.cell_range(cell),
             game_object_handle: TileGameObjectHandle::default(),
             anim_state: TileAnimState::default(),
@@ -367,18 +475,28 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
 
 impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     #[inline]
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerRef<'tile_sets>) {
+        debug_assert!(self.cell_range.is_valid());
+        self.def.post_load(tile_sets);
+        self.layer = layer;
+    }
+
+    #[inline]
     fn set_flags(&mut self, _current_flags: &mut TileFlags, new_flags: TileFlags, value: bool) {
+        let layer = self.layer.as_mut();
+
         // Propagate flags to any child blockers in its cell range (including self).
         for cell in &self.cell_range {
-            let tile = self.layer.tile_mut(cell);
+            let tile = layer.tile_mut(cell);
             tile.flags.set(new_flags, value);
         }
     }
 
     #[inline]
     fn set_base_cell(&mut self, cell: Cell) {
-        self.cell_range = self.def.cell_range(cell);
-        self.iso_coords_f32 = calc_object_iso_coords(self.def.kind(), cell, self.def.logical_size, self.def.draw_size);
+        let def = self.def.as_ref();
+        self.cell_range = def.cell_range(cell);
+        self.iso_coords_f32 = calc_object_iso_coords(def.kind(), cell, def.logical_size, def.draw_size);
     }
 
     #[inline] fn set_iso_coords_f32(&mut self, iso_coords: Vec2) { self.iso_coords_f32 = iso_coords; }
@@ -386,14 +504,14 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     #[inline] fn game_object_handle(&self) -> TileGameObjectHandle { self.game_object_handle }
     #[inline] fn set_game_object_handle(&mut self, handle: TileGameObjectHandle) { self.game_object_handle = handle; }
 
-    #[inline] fn z_sort_key(&self) -> i32 { calc_object_z_sort_key(self.cell_range.start, self.def.logical_size.height) }
+    #[inline] fn z_sort_key(&self) -> i32 { calc_object_z_sort_key(self.cell_range.start, self.def.as_ref().logical_size.height) }
     #[inline] fn iso_coords_f32(&self) -> Vec2 { self.iso_coords_f32 }
 
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell_range.start }
     #[inline] fn cell_range(&self) -> CellRange { self.cell_range }
 
-    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.def }
-    #[inline] fn is_valid(&self) -> bool { self.cell_range.is_valid() && self.def.is_valid() }
+    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.def.as_ref() }
+    #[inline] fn is_valid(&self) -> bool { self.cell_range.is_valid() && self.def.as_ref().is_valid() }
 
     // Animations:
     #[inline] fn anim_state(&self) -> &TileAnimState { &self.anim_state }
@@ -452,12 +570,13 @@ pub fn calc_unit_iso_coords(base_cell: Cell, draw_size: Size) -> Vec2 {
 //  | B | H | <-- origin tile, AKA base tile
 //  +---+---+
 //
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 struct BlockerTile<'tile_sets> {
     // Weak reference to owning map layer so we can seamlessly resolve blockers into buildings.
     // SAFETY: This ref will always be valid as long as the Tile instance is, since the Tile
     // belongs to its parent layer.
-    layer: UnsafeWeakRef<TileMapLayer<'tile_sets>>,
+    #[serde(skip)]
+    layer: TileMapLayerRef<'tile_sets>,
 
     // Building blocker tiles occupy a single cell and have a backreference to the owner start cell.
     // `owner_cell` must be always valid.
@@ -470,7 +589,7 @@ impl<'tile_sets> BlockerTile<'tile_sets> {
            owner_cell: Cell,
            layer: &TileMapLayer<'tile_sets>) -> Self {
         Self {
-            layer: UnsafeWeakRef::new(layer),
+            layer: TileMapLayerRef::new(layer),
             cell: blocker_cell,
             owner_cell,
         }
@@ -478,16 +597,25 @@ impl<'tile_sets> BlockerTile<'tile_sets> {
 
     #[inline]
     fn owner(&self) -> &Tile<'tile_sets> {
-        self.layer.find_blocker_owner(self.owner_cell)
+        let layer = self.layer.as_ref();
+        layer.find_blocker_owner(self.owner_cell)
     }
 
     #[inline]
     fn owner_mut(&mut self) -> &mut Tile<'tile_sets> {
-        self.layer.find_blocker_owner_mut(self.owner_cell)
+        let layer = self.layer.as_mut();
+        layer.find_blocker_owner_mut(self.owner_cell)
     }
 }
 
 impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
+    #[inline]
+    fn post_load(&mut self, _tile_sets: &'tile_sets TileSets, layer: TileMapLayerRef<'tile_sets>) {
+        debug_assert!(self.cell.is_valid());
+        debug_assert!(self.owner_cell.is_valid());
+        self.layer = layer;
+    }
+
     #[inline]
     fn set_flags(&mut self, _current_flags: &mut TileFlags, new_flags: TileFlags, value: bool) {
         // Propagate back to owner tile:
@@ -935,6 +1063,12 @@ impl<'tile_sets> Tile<'tile_sets> {
         let new_z_sort_key = self.archetype.z_sort_key();
         self.set_z_sort_key(new_z_sort_key);
     }
+
+    #[inline]
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerRef<'tile_sets>) {
+        debug_assert!(!self.kind.is_empty());
+        self.archetype.post_load(tile_sets, layer);
+    }
 }
 
 // ----------------------------------------------
@@ -942,7 +1076,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 // ----------------------------------------------
 
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Display, EnumCount, EnumIter, EnumProperty, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Display, EnumCount, EnumIter, EnumProperty, Serialize, Deserialize)]
 pub enum TileMapLayerKind {
     #[strum(props(AssetsPath = "assets/tiles/terrain"))]
     Terrain,
@@ -1012,7 +1146,8 @@ impl<'tile_sets> TileMapLayerMutRefs<'tile_sets> {
 // TilePoolIndex
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)] // Serialized as a newtype/tuple.
 struct TilePoolIndex {
     value: u32,
 }
@@ -1049,6 +1184,7 @@ const INVALID_TILE_INDEX: TilePoolIndex = TilePoolIndex::invalid();
 // TilePool
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 struct TilePool<'tile_sets> {
     layer_kind: TileMapLayerKind,
     layer_size_in_cells: Size,
@@ -1174,6 +1310,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
 // TileMapLayer
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 pub struct TileMapLayer<'tile_sets> {
     pool: TilePool<'tile_sets>
 }
@@ -1494,6 +1631,38 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 }
 
 // ----------------------------------------------
+// PostLoad
+// ----------------------------------------------
+
+impl<'tile_sets> PostLoad<'tile_sets> for TileMapLayer<'tile_sets> {
+    fn post_load(&mut self, context: &PostLoadContext<'tile_sets>) {
+        debug_assert!(self.pool.layer_size_in_cells.is_valid());
+
+        // Fix up references:
+        {
+            let layer = TileMapLayerRef::new(self);
+            for (_, tile) in &mut self.pool.slab {
+                tile.post_load(context.tile_sets, layer);
+            }
+        }
+
+        // Check pool integrity:
+        if cfg!(debug_assertions) {
+            for (index, tile) in &self.pool.slab {
+                let cell = tile.actual_base_cell();
+                debug_assert!(self.pool.is_cell_within_bounds(cell));
+
+                let cell_index = self.pool.map_cell_to_index(cell);
+                let slab_index = self.pool.cell_to_slab_idx[cell_index].as_usize();
+
+                debug_assert!(slab_index == index);
+                debug_assert!(std::ptr::eq(&self.pool.slab[slab_index], tile)); // Ensure addresses are the same.
+            }
+        }
+    }
+}
+
+// ----------------------------------------------
 // Optional callbacks used for editing and dev
 // ----------------------------------------------
 
@@ -1505,17 +1674,24 @@ pub type TileMapResetCallback = fn(&mut TileMap);
 // TileMap
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 pub struct TileMap<'tile_sets> {
     size_in_cells: Size,
     layers: ArrayVec<Box<TileMapLayer<'tile_sets>>, TILE_MAP_LAYER_COUNT>,
 
+    // NOTE: TileMap callbacks are *not* serialized. These must be manually
+    // reset on the user's post_load() after deserialization.
+
     // Called *after* a tile is placed with the new tile instance.
+    #[serde(skip)]
     on_tile_placed_callback: Option<TilePlacedCallback>,
 
     // Called *before* the tile is removed with the instance about to be removed.
+    #[serde(skip)]
     on_removing_tile_callback: Option<RemovingTileCallback>,
 
     // Called *after* the TileMap has been reset. Any existing tile references/cells are invalidated.
+    #[serde(skip)]
     on_map_reset_callback: Option<TileMapResetCallback>,
 }
 
@@ -1923,5 +2099,25 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     pub fn set_map_reset_callback(&mut self, callback: Option<TileMapResetCallback>) {
         self.on_map_reset_callback = callback;
+    }
+}
+
+// ----------------------------------------------
+// PostLoad
+// ----------------------------------------------
+
+impl<'tile_sets> PostLoad<'tile_sets> for TileMap<'tile_sets> {
+    fn post_load(&mut self, context: &PostLoadContext<'tile_sets>) {
+        debug_assert!(self.size_in_cells.is_valid());
+
+        // These are *not* serialized, so should be unset.
+        // TileMap users have to reassign these on their post_load().
+        debug_assert!(self.on_tile_placed_callback.is_none());
+        debug_assert!(self.on_removing_tile_callback.is_none());
+        debug_assert!(self.on_map_reset_callback.is_none());
+
+        for layer in &mut self.layers {
+            layer.post_load(context);
+        }
     }
 }
