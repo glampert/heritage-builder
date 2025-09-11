@@ -15,9 +15,9 @@ use serde::{
 
 use crate::{
     log,
-    bitflags_with_display,
+    save::*,
     imgui_ui::UiSystem,
-    save::{PostLoad, PostLoadContext},
+    bitflags_with_display,
     pathfind::{self, NodeKind as PathNodeKind},
     utils::{
         Color,
@@ -960,10 +960,20 @@ impl<'config> Building<'config> {
 }
 
 // ----------------------------------------------
-// PostLoad
+// Save/Load
 // ----------------------------------------------
 
-impl<'config> PostLoad<'config> for Building<'config> {
+impl Save for Building<'_> {
+    fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        state.save(self)
+    }
+}
+
+impl<'config> Load<'config> for Building<'config> {
+    fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
+        state.load(self)
+    }
+
     fn post_load(&mut self, context: &PostLoadContext<'config>) {
         debug_assert!(self.is_spawned());
 

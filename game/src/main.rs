@@ -34,176 +34,120 @@ use game::{
 };
 
 // TEMP - TEST
-fn serialization_tests(tile_map: &tile::TileMap,
-                       tile_sets: &TileSets,
-                       world: &World,
-                       sim: &Simulation,
-                       systems: &GameSystems,
-                       camera: &Camera,
-                       building_configs: &BuildingConfigs,
-                       unit_configs: &UnitConfigs) {
-    use std::fs;
+use tile::TileMap;
+//use rayon::prelude::*;
 
-    let context = PostLoadContext {
-        tile_map,
-        tile_sets,
-        unit_configs,
-        building_configs,
-    };
+//fn serialize_parallel(tile_map: &TileMap, sim: &Simulation, world: &World, systems: &GameSystems, camera: &Camera) {
+//}
+
+fn serialization_tests<'loader>(
+    tile_map: &mut TileMap<'loader>,
+    tile_sets: &'loader TileSets,
+    world: &mut World<'loader>,
+    sim: &mut Simulation<'loader>,
+    systems: &mut GameSystems,
+    camera: &mut Camera,
+    debug_menus: &mut DebugMenusSystem,
+    building_configs: &'loader BuildingConfigs,
+    unit_configs: &'loader UnitConfigs) {
 
     // TileMap
     {
-        let json = match serde_json::to_string_pretty(tile_map) {
-            Ok(json) => {
-                Some(json)
-            },
-            Err(err) => {
-                log::error!("Failed to serialize tile map: {err}");
-                None
-            },
-        };
+        let mut state = save::backends::new_json_save_state(true);
 
-        if let Some(json) = json {
-            let maybe_map = match serde_json::from_str::<tile::TileMap>(&json) {
-                Ok(w) => Some(w),
-                Err(err) => {
-                    log::error!("Failed to deserialize tile map: {err}");
-                    None
-                }
-            };
+        tile_map.save(&mut state).expect("Failed to serialize TileMap");
+        tile_map.load(&state).expect("Failed to deserialize TileMap");
+        state.write_file("tile_map.json").expect("Failed to write file");
 
-            if let Some(mut tile_map2) = maybe_map {
-                // fixup all references/callbacks
-                tile_map2.post_load(&context);
-                log::info!("TileMap deserialization: Ok");
-            }
-
-            fs::write("tile_map.json", json).expect("Failed to write file");
-        }
+        let context = PostLoadContext::new(
+            tile_map,
+            tile_sets,
+            unit_configs,
+            building_configs
+        );
+        tile_map.post_load(&context);
     }
 
     // World:
     {
-        let json = match serde_json::to_string_pretty(world) {
-            Ok(json) => {
-                Some(json)
-            },
-            Err(err) => {
-                log::error!("Failed to serialize world state: {err}");
-                None
-            },
-        };
+        let mut state = save::backends::new_json_save_state(true);
 
-        if let Some(json) = json {
-            let maybe_world = match serde_json::from_str::<World>(&json) {
-                Ok(w) => Some(w),
-                Err(err) => {
-                    log::error!("Failed to deserialize world state: {err}");
-                    None
-                }
-            };
+        world.save(&mut state).expect("Failed to serialize World");
+        world.load(&state).expect("Failed to deserialize World");
+        state.write_file("world.json").expect("Failed to write file");
 
-            if let Some(mut world2) = maybe_world {
-                // fixup all references/callbacks
-                world2.post_load(&context);
-                log::info!("World deserialization: Ok");
-            }
-
-            fs::write("world.json", json).expect("Failed to write file");
-        }
+        let context = PostLoadContext::new(
+            tile_map,
+            tile_sets,
+            unit_configs,
+            building_configs
+        );
+        world.post_load(&context);
     }
 
     // Sim:
     {
-        let json = match serde_json::to_string_pretty(sim) {
-            Ok(json) => {
-                Some(json)
-            },
-            Err(err) => {
-                log::error!("Failed to serialize simulation state: {err}");
-                None
-            },
-        };
+        let mut state = save::backends::new_json_save_state(true);
 
-        if let Some(json) = json {
-            let maybe_sim = match serde_json::from_str::<Simulation>(&json) {
-                Ok(s) => Some(s),
-                Err(err) => {
-                    log::error!("Failed to deserialize simulation state: {err}");
-                    None
-                }
-            };
+        sim.save(&mut state).expect("Failed to serialize Sim");
+        sim.load(&state).expect("Failed to deserialize Sim");
+        state.write_file("sim.json").expect("Failed to write file");
 
-            if let Some(mut sim2) = maybe_sim {
-                // fixup all references/callbacks
-                sim2.post_load(&context);
-                log::info!("Sim deserialization: Ok");
-            }
-
-            fs::write("sim.json", json).expect("Failed to write file");
-        }
+        let context = PostLoadContext::new(
+            tile_map,
+            tile_sets,
+            unit_configs,
+            building_configs
+        );
+        sim.post_load(&context);
     }
 
     // Systems:
     {
-        let json = match serde_json::to_string_pretty(systems) {
-            Ok(json) => {
-                Some(json)
-            },
-            Err(err) => {
-                log::error!("Failed to serialize game systems state: {err}");
-                None
-            },
-        };
+        let mut state = save::backends::new_json_save_state(true);
 
-        if let Some(json) = json {
-            let maybe_sys = match serde_json::from_str::<GameSystems>(&json) {
-                Ok(s) => Some(s),
-                Err(err) => {
-                    log::error!("Failed to deserialize game systems state: {err}");
-                    None
-                }
-            };
+        systems.save(&mut state).expect("Failed to serialize Systems");
+        systems.load(&state).expect("Failed to deserialize Systems");
+        state.write_file("systems.json").expect("Failed to write file");
 
-            if let Some(mut systems2) = maybe_sys {
-                // fixup all references/callbacks
-                systems2.post_load(&context);
-                log::info!("Game systems deserialization: Ok");
-            }
-
-            fs::write("systems.json", json).expect("Failed to write file");
-        }
+        let context = PostLoadContext::new(
+            tile_map,
+            tile_sets,
+            unit_configs,
+            building_configs
+        );
+        systems.post_load(&context);
     }
 
     // Camera
     {
-        let json = match serde_json::to_string_pretty(camera) {
-            Ok(json) => {
-                Some(json)
-            },
-            Err(err) => {
-                log::error!("Failed to serialize camera state: {err}");
-                None
-            },
-        };
+        let mut state = save::backends::new_json_save_state(true);
 
-        if let Some(json) = json {
-            let maybe_cam = match serde_json::from_str::<Camera>(&json) {
-                Ok(c) => Some(c),
-                Err(err) => {
-                    log::error!("Failed to deserialize camera state: {err}");
-                    None
-                }
-            };
+        camera.save(&mut state).expect("Failed to serialize Camera");
+        camera.load(&state).expect("Failed to deserialize Camera");
+        state.write_file("camera.json").expect("Failed to write file");
 
-            if let Some(mut camera2) = maybe_cam {
-                camera2.post_load(&context);
-                log::info!("Camera deserialization: Ok");
-            }
-
-            fs::write("camera.json", json).expect("Failed to write file");
-        }
+        let context = PostLoadContext::new(
+            tile_map,
+            tile_sets,
+            unit_configs,
+            building_configs
+        );
+        camera.post_load(&context);
     }
+
+    // DebugMenus PostLoad:
+    {
+        let context = PostLoadContext::new(
+            tile_map,
+            tile_sets,
+            unit_configs,
+            building_configs
+        );
+        debug_menus.post_load(&context);
+    }
+
+    log::info!("Serialization test successful.");
 }
 
 // ----------------------------------------------
@@ -275,7 +219,7 @@ fn main() {
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();
 
-    serialization_tests(&tile_map, &tile_sets, &world, &sim, &systems, &camera, &building_configs, &unit_configs);
+    serialization_tests(&mut tile_map, &tile_sets, &mut world, &mut sim, &mut systems, &mut camera, &mut debug_menus, &building_configs, &unit_configs);
 
     while !app.should_quit() {
         frame_clock.begin_frame();

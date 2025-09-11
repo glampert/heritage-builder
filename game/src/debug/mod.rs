@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     log,
-    save::{PostLoad, PostLoadContext},
     imgui_ui::{UiSystem, UiInputEvent},
+    save::{Load, LoadResult, PostLoadContext, SaveStateImpl},
     render::{RenderStats, RenderSystem, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
     game::{
@@ -14,7 +14,6 @@ use crate::{
     },
     utils::{
         Vec2,
-        mut_ref_cast,
         UnsafeWeakRef,
         SingleThreadStatic,
         coords::{Cell, CellRange, WorldToScreenTransform}
@@ -144,17 +143,22 @@ impl DebugMenusSystem {
 }
 
 // ----------------------------------------------
-// PostLoad
+// Load
 // ----------------------------------------------
 
-impl PostLoad<'_> for DebugMenusSystem {
+impl Load<'_> for DebugMenusSystem {
+    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult {
+        // We only need post_load().
+        unimplemented!("DebugMenusSystem does no implement load().");
+    }
+
     fn post_load(&mut self, context: &PostLoadContext) {
         use_singleton(|instance| {
             instance.tile_inspector_menu.close();
         });
 
         // Re-register debug editor callbacks and reset the global tile map ref.
-        let tile_map_mut = mut_ref_cast(context.tile_map);
+        let tile_map_mut = context.tile_map.mut_ref_cast();
         register_tile_map_debug_callbacks(tile_map_mut);
     }
 }

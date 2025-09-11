@@ -11,8 +11,8 @@ use serde::{
 
 use crate::{
     log,
+    save::*,
     imgui_ui::UiSystem,
-    save::{PostLoad, PostLoadContext},
     pathfind::{
         self,
         Node,
@@ -287,17 +287,27 @@ impl<'config> Simulation<'config> {
 }
 
 // ----------------------------------------------
-// PostLoad
+// Save/Load
 // ----------------------------------------------
 
-impl<'config> PostLoad<'config> for Simulation<'config> {
+impl Save for Simulation<'_> {
+    fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        state.save(self)
+    }
+}
+
+impl<'config> Load<'config> for Simulation<'config> {
+    fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
+        state.load(self)
+    }
+
     fn post_load(&mut self, context: &PostLoadContext<'config>) {
         self.search = Search::with_graph(&self.graph);
 
         self.building_configs = Some(context.building_configs);
         self.unit_configs = Some(context.unit_configs);
 
-        self.task_manager.post_load(context);
+        self.task_manager.post_load();
     }
 }
 

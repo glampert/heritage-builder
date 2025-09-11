@@ -4,7 +4,7 @@ use serde::{
 };
 
 use crate::{
-    save::{PostLoad, PostLoadContext},
+    save::*,
     utils::{
         self,
         Vec2,
@@ -235,10 +235,20 @@ impl Camera {
 }
 
 // ----------------------------------------------
-// PostLoad
+// Save/Load
 // ----------------------------------------------
 
-impl PostLoad<'_> for Camera {
+impl Save for Camera {
+    fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        state.save(self)
+    }
+}
+
+impl Load<'_> for Camera {
+    fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
+        state.load(self)
+    }
+
     fn post_load(&mut self, _context: &PostLoadContext) {
         // Stop zooming and snap to target zoom.
         self.current_zoom = self.target_zoom;

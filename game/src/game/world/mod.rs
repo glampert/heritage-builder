@@ -6,8 +6,8 @@ use serde::{
 };
 
 use crate::{
+    save::*,
     imgui_ui::UiSystem,
-    save::{PostLoad, PostLoadContext},
     utils::coords::{
         Cell,
         CellRange,
@@ -628,10 +628,20 @@ impl<'config> World<'config> {
 }
 
 // ----------------------------------------------
-// PostLoad
+// Save/Load
 // ----------------------------------------------
 
-impl<'config> PostLoad<'config> for World<'config> {
+impl Save for World<'_> {
+    fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        state.save(self)
+    }
+}
+
+impl<'config> Load<'config> for World<'config> {
+    fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
+        state.load(self)
+    }
+
     fn post_load(&mut self, context: &PostLoadContext<'config>) {
         self.building_configs = Some(context.building_configs);
         self.unit_configs     = Some(context.unit_configs);

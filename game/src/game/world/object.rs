@@ -15,7 +15,7 @@ use serde::{
 
 use crate::{
     log,
-    save::PostLoad,
+    save::{Save, Load},
     imgui_ui::UiSystem,
     tile::{Tile, TileKind, TileMapLayerKind, sets::TileDef},
     utils::coords::{Cell, CellRange, WorldToScreenTransform},
@@ -98,7 +98,7 @@ impl std::fmt::Display for GenerationalIndex {
 // GameObject
 // ----------------------------------------------
 
-pub trait GameObject<'config>: PostLoad<'config> {
+pub trait GameObject<'config>: Save + Load<'config> {
     fn id(&self) -> GenerationalIndex;
 
     #[inline]

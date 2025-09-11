@@ -5,9 +5,9 @@ use serde::{
 
 use crate::{
     log,
-    game_object_debug_options,
+    save::*,
     imgui_ui::UiSystem,
-    save::{PostLoad, PostLoadContext},
+    game_object_debug_options,
     pathfind::{Path, NodeKind as PathNodeKind},
     tile::{
         self,
@@ -629,10 +629,20 @@ pub trait UnitTaskHelper {
 }
 
 // ----------------------------------------------
-// PostLoad
+// Save/Load
 // ----------------------------------------------
 
-impl<'config> PostLoad<'config> for Unit<'config> {
+impl Save for Unit<'_> {
+    fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        state.save(self)
+    }
+}
+
+impl<'config> Load<'config> for Unit<'config> {
+    fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
+        state.load(self)
+    }
+
     fn post_load(&mut self, context: &PostLoadContext<'config>) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.config_key_hash != hash::NULL_HASH);

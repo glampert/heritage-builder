@@ -10,8 +10,8 @@ use serde::{
 
 use crate::{
     utils,
+    save::*,
     imgui_ui::UiSystem,
-    save::{PostLoad, PostLoadContext},
 };
 
 use super::{
@@ -136,10 +136,20 @@ impl GameSystems {
 }
 
 // ----------------------------------------------
-// PostLoad
+// Save/Load
 // ----------------------------------------------
 
-impl PostLoad<'_> for GameSystems {
+impl Save for GameSystems {
+    fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        state.save(self)
+    }
+}
+
+impl Load<'_> for GameSystems {
+    fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
+        state.load(self)
+    }
+
     fn post_load(&mut self, context: &PostLoadContext) {
         debug_assert!(self.generation != RESERVED_GENERATION);
 

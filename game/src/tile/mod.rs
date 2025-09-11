@@ -15,8 +15,8 @@ use serde::{
 };
 
 use crate::{
+    save::*,
     bitflags_with_display,
-    save::{PostLoad, PostLoadContext},
     pathfind::NodeKind as PathNodeKind,
     utils::{
         Vec2,
@@ -1628,21 +1628,15 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
             }
         }
     }
-}
 
-// ----------------------------------------------
-// PostLoad
-// ----------------------------------------------
-
-impl<'tile_sets> PostLoad<'tile_sets> for TileMapLayer<'tile_sets> {
-    fn post_load(&mut self, context: &PostLoadContext<'tile_sets>) {
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets) {
         debug_assert!(self.pool.layer_size_in_cells.is_valid());
 
         // Fix up references:
         {
             let layer = TileMapLayerRef::new(self);
             for (_, tile) in &mut self.pool.slab {
-                tile.post_load(context.tile_sets, layer);
+                tile.post_load(tile_sets, layer);
             }
         }
 
@@ -2103,10 +2097,20 @@ impl<'tile_sets> TileMap<'tile_sets> {
 }
 
 // ----------------------------------------------
-// PostLoad
+// Save/Load
 // ----------------------------------------------
 
-impl<'tile_sets> PostLoad<'tile_sets> for TileMap<'tile_sets> {
+impl Save for TileMap<'_> {
+    fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        state.save(self)
+    }
+}
+
+impl<'tile_sets> Load<'tile_sets> for TileMap<'tile_sets> {
+    fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
+        state.load(self)
+    }
+
     fn post_load(&mut self, context: &PostLoadContext<'tile_sets>) {
         debug_assert!(self.size_in_cells.is_valid());
 
@@ -2117,7 +2121,7 @@ impl<'tile_sets> PostLoad<'tile_sets> for TileMap<'tile_sets> {
         debug_assert!(self.on_map_reset_callback.is_none());
 
         for layer in &mut self.layers {
-            layer.post_load(context);
+            layer.post_load(context.tile_sets);
         }
     }
 }
