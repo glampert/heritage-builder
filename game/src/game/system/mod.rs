@@ -11,12 +11,12 @@ use serde::{
 use crate::{
     utils,
     imgui_ui::UiSystem,
+    save::{PostLoad, PostLoadContext},
 };
 
 use super::{
     constants::*,
     sim::Query,
-    save::PostLoadContext,
     world::object::GenerationalIndex
 };
 
@@ -123,17 +123,6 @@ impl GameSystems {
         }
     }
 
-    pub fn post_load(&mut self, context: &PostLoadContext) {
-        debug_assert!(self.generation != RESERVED_GENERATION);
-
-        for entry in &mut self.systems {
-            debug_assert!(entry.generation != RESERVED_GENERATION);
-            debug_assert!(entry.generation  < self.generation);
- 
-            entry.system.post_load(context);
-        }
-    }
-
     pub fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if let Some(_tab_bar) = ui.tab_bar("Game Systems Tab Bar") {
@@ -142,6 +131,23 @@ impl GameSystems {
                     entry.system.draw_debug_ui(query, ui_sys);
                 }
             }
+        }
+    }
+}
+
+// ----------------------------------------------
+// PostLoad
+// ----------------------------------------------
+
+impl PostLoad<'_> for GameSystems {
+    fn post_load(&mut self, context: &PostLoadContext) {
+        debug_assert!(self.generation != RESERVED_GENERATION);
+
+        for entry in &mut self.systems {
+            debug_assert!(entry.generation != RESERVED_GENERATION);
+            debug_assert!(entry.generation  < self.generation);
+ 
+            entry.system.post_load(context);
         }
     }
 }

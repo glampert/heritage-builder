@@ -11,6 +11,7 @@ use crate::{
     game_object_debug_options,
     building_config_impl,
     imgui_ui::UiSystem,
+    save::PostLoadContext,
     tile::Tile,
     utils::{
         Color,
@@ -20,7 +21,6 @@ use crate::{
     },
     game::{
         cheats,
-        save::PostLoadContext,
         unit::{
             Unit,
             UnitTaskHelper,
@@ -188,7 +188,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config, '_>, kind: BuildingKind, tile: &Tile) {
+    fn post_load(&mut self, context: &PostLoadContext<'config>, kind: BuildingKind, tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::producers()));
         let tile_def = tile.tile_def();
         self.config = Some(context.building_configs.find_producer_config(kind, &tile_def.name, tile_def.hash));

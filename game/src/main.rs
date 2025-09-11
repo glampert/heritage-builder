@@ -9,12 +9,15 @@ mod pathfind;
 mod render;
 mod tile;
 mod utils;
+mod save;
 
 use imgui_ui::*;
 use render::*;
 use utils::*;
-use app::{*, input::*};
+use app::*;
+use app::input::*;
 use debug::*;
+use save::*;
 use tile::{
     camera::{self, *},
     rendering::{self, *},
@@ -26,9 +29,8 @@ use game::{
     world::*,
     system::*,
     cheats,
-    save,
-    building::{config::BuildingConfigs},
-    unit::{config::UnitConfigs},
+    building::config::BuildingConfigs,
+    unit::config::UnitConfigs,
 };
 
 // TEMP - TEST
@@ -36,9 +38,16 @@ fn serialization_tests(tile_map: &tile::TileMap,
                        world: &World,
                        sim: &Simulation,
                        systems: &GameSystems,
+                       camera: &Camera,
                        building_configs: &BuildingConfigs,
                        unit_configs: &UnitConfigs) {
     use std::fs;
+
+    let context = PostLoadContext {
+        tile_map,
+        unit_configs,
+        building_configs,
+    };
 
     // World:
     {
@@ -62,12 +71,6 @@ fn serialization_tests(tile_map: &tile::TileMap,
             };
 
             if let Some(mut world2) = maybe_world {
-                let context = save::PostLoadContext {
-                    tile_map,
-                    building_configs,
-                    unit_configs,
-                };
-
                 // fixup all references/callbacks
                 world2.post_load(&context);
                 log::info!("World deserialization: Ok");
@@ -99,12 +102,6 @@ fn serialization_tests(tile_map: &tile::TileMap,
             };
 
             if let Some(mut sim2) = maybe_sim {
-                let context = save::PostLoadContext {
-                    tile_map,
-                    building_configs,
-                    unit_configs,
-                };
-
                 // fixup all references/callbacks
                 sim2.post_load(&context);
                 log::info!("Sim deserialization: Ok");
@@ -136,12 +133,6 @@ fn serialization_tests(tile_map: &tile::TileMap,
             };
 
             if let Some(mut systems2) = maybe_sys {
-                let context = save::PostLoadContext {
-                    tile_map,
-                    building_configs,
-                    unit_configs,
-                };
-
                 // fixup all references/callbacks
                 systems2.post_load(&context);
                 log::info!("Game systems deserialization: Ok");
@@ -151,9 +142,38 @@ fn serialization_tests(tile_map: &tile::TileMap,
         }
     }
 
+    // Camera
+    {
+        let json = match serde_json::to_string_pretty(camera) {
+            Ok(json) => {
+                Some(json)
+            },
+            Err(err) => {
+                log::error!("Failed to serialize camera state: {err}");
+                None
+            },
+        };
+
+        if let Some(json) = json {
+            let maybe_cam = match serde_json::from_str::<Camera>(&json) {
+                Ok(c) => Some(c),
+                Err(err) => {
+                    log::error!("Failed to deserialize camera state: {err}");
+                    None
+                }
+            };
+
+            if let Some(mut camera2) = maybe_cam {
+                camera2.post_load(&context);
+                log::info!("Camera deserialization: Ok");
+            }
+
+            fs::write("camera.json", json).expect("Failed to write file");
+        }
+    }
+
     // TODO:
     // - TileMap
-    // - Camera
 }
 
 // ----------------------------------------------
@@ -170,7 +190,7 @@ fn main() {
         .window_title("CitySim")
         .window_size(Size::new(1024, 768))
         .fullscreen(false)
-        .confine_cursor_to_window(camera::CONFINE_CURSOR_TO_WINDOW)
+        .confine_cursor_to_window(Camera::confine_cursor_to_window())
         .build();
 
     let input_sys = app.create_input_system();
@@ -217,15 +237,15 @@ fn main() {
     let mut camera = Camera::new(
         render_sys.viewport().size(),
         tile_map.size_in_cells(),
-        camera::MIN_ZOOM,
-        camera::Offset::Center);
+        CameraZoom::MIN,
+        CameraOffset::Center);
 
     let mut debug_menus = DebugMenusSystem::new(&mut tile_map, render_sys.texture_cache_mut());
 
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();
 
-    serialization_tests(&tile_map, &world, &sim, &systems, &building_configs, &unit_configs);
+    serialization_tests(&tile_map, &world, &sim, &systems, &camera, &building_configs, &unit_configs);
 
     while !app.should_quit() {
         frame_clock.begin_frame();
@@ -269,9 +289,9 @@ fn main() {
                     }
 
                     if amount.y < 0.0 {
-                        camera.request_zoom(camera::Zoom::In);
+                        camera.request_zoom(camera::CameraZoom::In);
                     } else if amount.y > 0.0 {
-                        camera.request_zoom(camera::Zoom::Out);
+                        camera.request_zoom(camera::CameraZoom::Out);
                     }
                 }
                 ApplicationEvent::MouseButton(button, action, modifiers) => {

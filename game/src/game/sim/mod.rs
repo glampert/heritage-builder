@@ -12,6 +12,7 @@ use serde::{
 use crate::{
     log,
     imgui_ui::UiSystem,
+    save::{PostLoad, PostLoadContext},
     pathfind::{
         self,
         Node,
@@ -42,7 +43,6 @@ use crate::{
 
 use super::{
     constants::*,
-    save::PostLoadContext,
     world::World,
     system::GameSystems,
     unit::{config::UnitConfigs, task::UnitTaskManager},
@@ -144,13 +144,6 @@ impl<'config> Simulation<'config> {
                 systems.update(&query);
             }
         }
-    }
-
-    pub fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
-        self.building_configs = Some(context.building_configs);
-        self.unit_configs = Some(context.unit_configs);
-        self.search = Search::with_graph(&self.graph);
-        self.task_manager.post_load();
     }
 
     pub fn reset<'tile_sets>(&mut self,
@@ -290,6 +283,21 @@ impl<'config> Simulation<'config> {
             context.ui_sys,
             tile,
             mode);
+    }
+}
+
+// ----------------------------------------------
+// PostLoad
+// ----------------------------------------------
+
+impl<'config> PostLoad<'config> for Simulation<'config> {
+    fn post_load(&mut self, context: &PostLoadContext<'config>) {
+        self.search = Search::with_graph(&self.graph);
+
+        self.building_configs = Some(context.building_configs);
+        self.unit_configs = Some(context.unit_configs);
+
+        self.task_manager.post_load(context);
     }
 }
 

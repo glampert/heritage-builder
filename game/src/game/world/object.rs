@@ -15,12 +15,12 @@ use serde::{
 
 use crate::{
     log,
+    save::PostLoad,
     imgui_ui::UiSystem,
     tile::{Tile, TileKind, TileMapLayerKind, sets::TileDef},
     utils::coords::{Cell, CellRange, WorldToScreenTransform},
     game::{
         constants::*,
-        save::PostLoadContext,
         building::Building,
         unit::{Unit, config::UnitConfigKey},
         sim::{Query, debug::DebugUiMode}
@@ -98,7 +98,7 @@ impl std::fmt::Display for GenerationalIndex {
 // GameObject
 // ----------------------------------------------
 
-pub trait GameObject<'config> {
+pub trait GameObject<'config>: PostLoad<'config> {
     fn id(&self) -> GenerationalIndex;
 
     #[inline]
@@ -108,7 +108,6 @@ pub trait GameObject<'config> {
 
     fn update(&mut self, query: &Query<'config, '_>);
     fn tally(&self, stats: &mut WorldStats);
-    fn post_load(&mut self, context: &PostLoadContext<'config, '_>);
 
     fn draw_debug_ui(&mut self,
                      query: &Query<'config, '_>,

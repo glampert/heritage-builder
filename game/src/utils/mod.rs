@@ -117,7 +117,7 @@ macro_rules! field_accessor_xy {
 // 2D screen space vector or point (f32).
 // For interfacing with shaders and the rendering system.
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,

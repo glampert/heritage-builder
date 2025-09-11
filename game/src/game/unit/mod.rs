@@ -7,6 +7,7 @@ use crate::{
     log,
     game_object_debug_options,
     imgui_ui::UiSystem,
+    save::{PostLoad, PostLoadContext},
     pathfind::{Path, NodeKind as PathNodeKind},
     tile::{
         self,
@@ -28,7 +29,6 @@ use crate::{
 };
 
 use super::{
-    save::PostLoadContext,
     building::{Building, BuildingKind},
     world::{
         stats::WorldStats,
@@ -119,13 +119,6 @@ impl<'config> GameObject<'config> for Unit<'config> {
         if let Some(item) = self.inventory.peek() {
             stats.add_unit_resources(item.kind, item.count);
         }
-    }
-
-    #[inline]
-    fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
-        debug_assert!(self.is_spawned());
-        debug_assert!(self.config_key_hash != hash::NULL_HASH);
-        self.config = Some(context.unit_configs.find_config_by_hash(self.config_key_hash));
     }
 
     fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
@@ -632,5 +625,17 @@ pub trait UnitTaskHelper {
                 false
             },
         }
+    }
+}
+
+// ----------------------------------------------
+// PostLoad
+// ----------------------------------------------
+
+impl<'config> PostLoad<'config> for Unit<'config> {
+    fn post_load(&mut self, context: &PostLoadContext<'config>) {
+        debug_assert!(self.is_spawned());
+        debug_assert!(self.config_key_hash != hash::NULL_HASH);
+        self.config = Some(context.unit_configs.find_config_by_hash(self.config_key_hash));
     }
 }

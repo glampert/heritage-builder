@@ -14,6 +14,7 @@ use crate::{
     building_config_impl,
     log,
     imgui_ui::UiSystem,
+    save::PostLoadContext,
     pathfind::{NodeKind as PathNodeKind},
     utils::{
         Color,
@@ -27,7 +28,6 @@ use crate::{
     },
     game::{
         unit::Unit,
-        save::PostLoadContext,
         system::settlers::Settler,
         world::stats::WorldStats,
         sim::{
@@ -233,7 +233,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config, '_>, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, context: &PostLoadContext<'config>, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind == BuildingKind::House);
         self.upgrade_state.post_load(context);
     }
@@ -852,7 +852,7 @@ impl<'config> HouseUpgradeState<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
+    fn post_load(&mut self, context: &PostLoadContext<'config>) {
         let configs = context.building_configs;
         self.curr_level_config = Some(configs.find_house_level_config(self.level));
         self.next_level_config = Some(configs.find_house_level_config(self.level.next()));

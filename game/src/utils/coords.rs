@@ -308,7 +308,7 @@ impl IntoIterator for &CellRange {
 // ----------------------------------------------
 
 // Transformations applied to a tile before rendering to screen.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct WorldToScreenTransform {
     pub scaling: f32, // Draw scaling. 1 = no scaling.
     pub offset: Vec2, // Screen-space offset (e.g. camera scroll).

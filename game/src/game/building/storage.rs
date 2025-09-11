@@ -12,6 +12,7 @@ use crate::{
     game_object_debug_options,
     building_config_impl,
     imgui_ui::UiSystem,
+    save::PostLoadContext,
     tile::Tile,
     utils::{
         Color,
@@ -19,7 +20,6 @@ use crate::{
     },
     game::{
         cheats,
-        save::PostLoadContext,
         world::stats::WorldStats,
         unit::{
             Unit,
@@ -158,7 +158,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config, '_>, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, context: &PostLoadContext<'config>, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::storage()));
         self.config = Some(context.building_configs.find_storage_config(kind));
     }

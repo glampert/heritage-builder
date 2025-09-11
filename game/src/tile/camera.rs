@@ -1,50 +1,52 @@
-use crate::utils::{
-    self,
-    Vec2,
-    Size,
-    Rect,
-    Seconds,
-    coords::{
-        CellRange,
-        WorldToScreenTransform
+use serde::{
+    Serialize,
+    Deserialize
+};
+
+use crate::{
+    save::{PostLoad, PostLoadContext},
+    utils::{
+        self,
+        Vec2,
+        Size,
+        Rect,
+        Seconds,
+        coords::{CellRange, WorldToScreenTransform}
     }
 };
 
 use super::{
-    selection::{self},
+    selection,
     BASE_TILE_SIZE
 };
 
 // ----------------------------------------------
-// Constants / Enums
+// Camera Enums
 // ----------------------------------------------
 
-pub const CONFINE_CURSOR_TO_WINDOW: bool = true;
-
-// Zoom / scaling defaults:
-pub const MIN_ZOOM: f32 = 1.0;
-pub const MAX_ZOOM: f32 = 10.0;
-const ZOOM_SPEED: f32 = 1.0; // pixels per second
-
-// Cursor map scrolling defaults:
-const SCROLL_MARGIN: f32 = 20.0;  // pixels from edge
-const SCROLL_SPEED:  f32 = 500.0; // pixels per second
-
-pub enum Offset {
+pub enum CameraOffset {
     Center,
     Point(f32, f32),
 }
 
 #[repr(u32)]
-pub enum Zoom {
+pub enum CameraZoom {
     In,
     Out
+}
+
+impl CameraZoom {
+    // Zoom / scaling defaults:
+    pub const MIN: f32 = 1.0;
+    pub const MAX: f32 = 10.0;
+    pub const SPEED: f32 = 1.0; // pixels per second
 }
 
 // ----------------------------------------------
 // Camera
 // ----------------------------------------------
 
+#[derive(Serialize, Deserialize)]
 pub struct Camera {
     viewport_size: Size,
     map_size_in_cells: Size,
@@ -55,17 +57,21 @@ pub struct Camera {
 }
 
 impl Camera {
+    // Cursor map scrolling defaults:
+    const SCROLL_MARGIN: f32 = 20.0;  // pixels from edge
+    const SCROLL_SPEED:  f32 = 500.0; // pixels per second
+
     pub fn new(viewport_size: Size,
                map_size_in_cells: Size,
                zoom: f32,
-               offset: Offset) -> Self {
+               offset: CameraOffset) -> Self {
 
-        let clamped_scaling = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
+        let clamped_scaling = zoom.clamp(CameraZoom::MIN, CameraZoom::MAX);
         let clamped_offset = match offset {
-            Offset::Center => {
+            CameraOffset::Center => {
                 calc_map_center(map_size_in_cells, clamped_scaling, viewport_size)
             }
-            Offset::Point(x, y) => {
+            CameraOffset::Point(x, y) => {
                 clamp_to_map_bounds(map_size_in_cells, clamped_scaling, viewport_size, Vec2::new(x, y))
             }
         };
@@ -113,13 +119,18 @@ impl Camera {
         self.map_size_in_cells
     }
 
+    #[inline]
+    pub const fn confine_cursor_to_window() -> bool {
+        true
+    }
+
     // ----------------------
     // Zoom/scaling:
     // ----------------------
 
     #[inline]
     pub fn zoom_limits(&self) -> (f32, f32) {
-        (MIN_ZOOM, MAX_ZOOM)
+        (CameraZoom::MIN, CameraZoom::MAX)
     }
 
     #[inline]
@@ -130,7 +141,7 @@ impl Camera {
     #[inline]
     pub fn set_zoom(&mut self, zoom: f32) {
         let current_zoom = self.transform.scaling;
-        let new_zoom = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
+        let new_zoom = zoom.clamp(CameraZoom::MIN, CameraZoom::MAX);
 
         let current_bounds = calc_map_bounds(self.map_size_in_cells, current_zoom, self.viewport_size);
         let new_bounds = calc_map_bounds(self.map_size_in_cells, new_zoom, self.viewport_size);
@@ -154,15 +165,15 @@ impl Camera {
     }
 
     #[inline]
-    pub fn request_zoom(&mut self, zoom: Zoom) {
+    pub fn request_zoom(&mut self, zoom: CameraZoom) {
         match zoom {
-            Zoom::In => {
+            CameraZoom::In => {
                 // request zoom-in
-                self.target_zoom = (self.target_zoom + 1.0).clamp(MIN_ZOOM, MAX_ZOOM);
+                self.target_zoom = (self.target_zoom + 1.0).clamp(CameraZoom::MIN, CameraZoom::MAX);
             },
-            Zoom::Out => {
+            CameraZoom::Out => {
                 // request zoom-out
-                self.target_zoom = (self.target_zoom - 1.0).clamp(MIN_ZOOM, MAX_ZOOM);
+                self.target_zoom = (self.target_zoom - 1.0).clamp(CameraZoom::MIN, CameraZoom::MAX);
             }
         }
         self.is_zooming = true;
@@ -172,7 +183,7 @@ impl Camera {
     pub fn update_zooming(&mut self, delta_time_secs: Seconds) {
         if self.is_zooming {
             if !utils::approx_equal(self.current_zoom, self.target_zoom, 0.001) {
-                self.current_zoom = utils::lerp(self.current_zoom, self.target_zoom, delta_time_secs * ZOOM_SPEED);
+                self.current_zoom = utils::lerp(self.current_zoom, self.target_zoom, delta_time_secs * CameraZoom::SPEED);
             } else {
                 self.current_zoom = self.target_zoom;
                 self.is_zooming = false;
@@ -224,6 +235,19 @@ impl Camera {
 }
 
 // ----------------------------------------------
+// PostLoad
+// ----------------------------------------------
+
+impl PostLoad<'_> for Camera {
+    fn post_load(&mut self, _context: &PostLoadContext) {
+        // Stop zooming and snap to target zoom.
+        self.current_zoom = self.target_zoom;
+        self.is_zooming = false;
+        self.set_zoom(self.current_zoom);
+    }
+}
+
+// ----------------------------------------------
 // Helper functions
 // ----------------------------------------------
 
@@ -249,15 +273,15 @@ fn calc_visible_cells_range(map_size_in_cells: Size,
 fn calc_scroll_delta(cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
     let mut scroll_delta = Vec2::zero();
 
-    if cursor_screen_pos.x < SCROLL_MARGIN {
+    if cursor_screen_pos.x < Camera::SCROLL_MARGIN {
         scroll_delta.x += 1.0;
-    } else if cursor_screen_pos.x > (viewport_size.width as f32) - SCROLL_MARGIN {
+    } else if cursor_screen_pos.x > (viewport_size.width as f32) - Camera::SCROLL_MARGIN {
         scroll_delta.x -= 1.0;
     }
 
-    if cursor_screen_pos.y < SCROLL_MARGIN {
+    if cursor_screen_pos.y < Camera::SCROLL_MARGIN {
         scroll_delta.y += 1.0;
-    } else if cursor_screen_pos.y > (viewport_size.height as f32) - SCROLL_MARGIN {
+    } else if cursor_screen_pos.y > (viewport_size.height as f32) - Camera::SCROLL_MARGIN {
         scroll_delta.y -= 1.0;
     }
 
@@ -265,26 +289,26 @@ fn calc_scroll_delta(cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
 }
 
 fn calc_scroll_speed(cursor_screen_pos: Vec2, viewport_size: Size) -> f32 {
-    let edge_dist_x = if cursor_screen_pos.x < SCROLL_MARGIN {
-        SCROLL_MARGIN - cursor_screen_pos.x
-    } else if cursor_screen_pos.x > (viewport_size.width as f32) - SCROLL_MARGIN {
-        cursor_screen_pos.x - ((viewport_size.width as f32) - SCROLL_MARGIN)
+    let edge_dist_x = if cursor_screen_pos.x < Camera::SCROLL_MARGIN {
+        Camera::SCROLL_MARGIN - cursor_screen_pos.x
+    } else if cursor_screen_pos.x > (viewport_size.width as f32) - Camera::SCROLL_MARGIN {
+        cursor_screen_pos.x - ((viewport_size.width as f32) - Camera::SCROLL_MARGIN)
     } else {
         0.0
     };
 
-    let edge_dist_y = if cursor_screen_pos.y < SCROLL_MARGIN {
-        SCROLL_MARGIN - cursor_screen_pos.y
-    } else if cursor_screen_pos.y > (viewport_size.height as f32) - SCROLL_MARGIN {
-        cursor_screen_pos.y - ((viewport_size.height as f32) - SCROLL_MARGIN)
+    let edge_dist_y = if cursor_screen_pos.y < Camera::SCROLL_MARGIN {
+        Camera::SCROLL_MARGIN - cursor_screen_pos.y
+    } else if cursor_screen_pos.y > (viewport_size.height as f32) - Camera::SCROLL_MARGIN {
+        cursor_screen_pos.y - ((viewport_size.height as f32) - Camera::SCROLL_MARGIN)
     } else {
         0.0
     };
 
     let max_edge_dist = edge_dist_x.max(edge_dist_y);
-    let scroll_strength = (max_edge_dist / SCROLL_MARGIN).clamp(0.0, 1.0);
+    let scroll_strength = (max_edge_dist / Camera::SCROLL_MARGIN).clamp(0.0, 1.0);
 
-    SCROLL_SPEED * scroll_strength
+    Camera::SCROLL_SPEED * scroll_strength
 }
 
 fn calc_map_center(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -> Vec2 {

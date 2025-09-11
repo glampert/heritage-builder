@@ -26,5 +26,5 @@ pub const WORKERS_UPDATE_FREQUENCY_SECS: Seconds = 20.0;
 pub const SETTLERS_SPAWN_FREQUENCY_SECS: Seconds = 20.0;
 
 // We reserve generation 0 as a sentinel value to detect uninitialized deserialized data.
-pub const INITIAL_GENERATION: u32 = 1;
+pub const INITIAL_GENERATION:  u32 = 1;
 pub const RESERVED_GENERATION: u32 = 0;

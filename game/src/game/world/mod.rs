@@ -7,6 +7,7 @@ use serde::{
 
 use crate::{
     imgui_ui::UiSystem,
+    save::{PostLoad, PostLoadContext},
     utils::coords::{
         Cell,
         CellRange,
@@ -22,7 +23,6 @@ use crate::{
     },
     game::{
         constants::*,
-        save::PostLoadContext,
         sim::{Query, debug::DebugUiMode},
         building::{
             self,
@@ -133,26 +133,6 @@ impl<'config> World<'config> {
             for building in buildings.iter_mut() {
                 debug_assert!(building.archetype_kind() == *archetype_kind);
                 building.update(query);
-                building.tally(&mut self.stats);
-            }
-        }
-    }
-
-    pub fn post_load(&mut self, context: &PostLoadContext<'config, '_>) {
-        self.building_configs = Some(context.building_configs);
-        self.unit_configs     = Some(context.unit_configs);
-
-        self.stats.reset();
-
-        for unit in self.unit_spawn_pool.iter_mut() {
-            unit.post_load(context);
-            unit.tally(&mut self.stats);
-        }
-
-        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
-            for building in buildings.iter_mut() {
-                debug_assert!(building.archetype_kind() == *archetype_kind);
-                building.post_load(context);
                 building.tally(&mut self.stats);
             }
         }
@@ -643,6 +623,32 @@ impl<'config> World<'config> {
         let ui = ui_sys.builder();
         if let Some(_tab_bar) = ui.tab_bar("World Stats Tab Bar") {
             self.stats.draw_debug_ui(ui_sys);
+        }
+    }
+}
+
+// ----------------------------------------------
+// PostLoad
+// ----------------------------------------------
+
+impl<'config> PostLoad<'config> for World<'config> {
+    fn post_load(&mut self, context: &PostLoadContext<'config>) {
+        self.building_configs = Some(context.building_configs);
+        self.unit_configs     = Some(context.unit_configs);
+
+        self.stats.reset();
+
+        for unit in self.unit_spawn_pool.iter_mut() {
+            unit.post_load(context);
+            unit.tally(&mut self.stats);
+        }
+
+        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
+            for building in buildings.iter_mut() {
+                debug_assert!(building.archetype_kind() == *archetype_kind);
+                building.post_load(context);
+                building.tally(&mut self.stats);
+            }
         }
     }
 }

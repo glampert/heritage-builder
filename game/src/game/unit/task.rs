@@ -15,6 +15,7 @@ use crate::{
     log,
     debug::{self},
     imgui_ui::UiSystem,
+    save::{PostLoad, PostLoadContext},
     tile::{Tile, TileKind, TileMapLayerKind},
     pathfind::{
         Node,
@@ -1502,10 +1503,6 @@ impl UnitTaskManager {
         }
     }
 
-    pub fn post_load(&mut self) {
-        self.task_pool.post_load();
-    }
-
     pub fn draw_tasks_debug_ui(&mut self, unit: &mut Unit, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
@@ -1522,6 +1519,16 @@ impl UnitTaskManager {
         } else {
             ui.text("<no task>");
         }
+    }
+}
+
+// ----------------------------------------------
+// PostLoad
+// ----------------------------------------------
+
+impl PostLoad<'_> for UnitTaskManager {
+    fn post_load(&mut self, _context: &PostLoadContext) {
+        self.task_pool.post_load();
     }
 }
 
