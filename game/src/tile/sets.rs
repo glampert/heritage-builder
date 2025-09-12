@@ -1,7 +1,6 @@
-use arrayvec::ArrayVec;
 use smallvec::SmallVec;
 use strum::IntoEnumIterator;
-use std::{fs, path::{Path, MAIN_SEPARATOR, MAIN_SEPARATOR_STR}};
+use std::path::{Path, MAIN_SEPARATOR, MAIN_SEPARATOR_STR};
 
 use serde::{
     Serialize,
@@ -10,6 +9,7 @@ use serde::{
 
 use crate::{
     log,
+    save::{self, SaveState},
     pathfind::NodeKind as PathNodeKind,
     render::{TextureCache, TextureHandle},
     utils::{
@@ -617,6 +617,14 @@ pub struct TileSet {
 }
 
 impl TileSet {
+    fn new(layer: TileMapLayerKind) -> Self {
+        Self {
+            layer,
+            categories: Vec::new(),
+            mapping: PreHashedKeyMap::default(),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.categories.is_empty()
     }
@@ -715,13 +723,16 @@ impl TileDefHandle {
 // ----------------------------------------------
 
 pub struct TileSets {
-    sets: ArrayVec<TileSet, TILE_MAP_LAYER_COUNT>,
+    sets: [TileSet; TILE_MAP_LAYER_COUNT],
 }
 
 impl TileSets {
     pub fn load(tex_cache: &mut impl TextureCache) -> Self {
         let mut tile_sets = Self {
-            sets: ArrayVec::new(),
+            sets: [
+                TileSet::new(TileMapLayerKind::Terrain), // 0
+                TileSet::new(TileMapLayerKind::Objects), // 1
+            ],
         };
         tile_sets.load_all_layers(tex_cache);
         tile_sets
@@ -942,42 +953,40 @@ impl TileSets {
                      layer: TileMapLayerKind) -> bool {
 
         debug_assert!(!tile_set_path.is_empty());
+
         let tile_set_json_path = Path::new(tile_set_path).join("tile_set.json");
 
-        let json = match fs::read_to_string(&tile_set_json_path) {
-            Ok(json) => json,
-            Err(err) => {
-                log::error!(log::channel!("tileset"), "Failed to read TileSet json file from path {:?}: {}", tile_set_json_path, err);
-                return false;
-            }
-        };
+        let mut state = save::backends::new_json_save_state(false);
 
-        let mut tile_set: TileSet = match serde_json::from_str(&json) {
-            Ok(tile_set) => tile_set,
-            Err(err) => {
-                log::error!(log::channel!("tileset"), "Failed to deserialize TileSet from path {:?}: {}", tile_set_json_path, err);
-                return false;
-            }
-        };
+        if let Err(err) = state.read_file(&tile_set_json_path) {
+            log::error!(log::channel!("tileset"),
+                        "Failed to read TileSet json file from path {tile_set_json_path:?}: {err}");
+            return false;
+        }
+
+        let tile_set = &mut self.sets[layer as usize];
+
+        if let Err(err) = state.load(tile_set) {
+            log::error!(log::channel!("tileset"),
+                        "Failed to deserialize TileSet layer '{layer}' from path {tile_set_json_path:?}: {err}");
+            return false;
+        }
 
         if tile_set.layer != layer {
-            log::error!(log::channel!("tileset"), "TileSet layer kind mismatch! Json specifies '{}' but expected '{}' for this set.",
-                        tile_set.layer,
-                        layer);
+            log::error!(log::channel!("tileset"),
+                        "TileSet layer kind mismatch! File specifies '{}' but expected '{layer}' for this set.",
+                        tile_set.layer);
             return false;
         }
 
         if !tile_set.post_load(tex_cache, tile_set_path) {
-            log::error!(log::channel!("tileset"), "Post load failed for TileSet '{}' - {:?}!", layer, tile_set_json_path);
+            log::error!(log::channel!("tileset"),
+                        "Post load failed for TileSet '{layer}' - {tile_set_json_path:?}!");
             return false;
         }
 
-        debug_assert!(self.sets.len() == (layer as usize));
-
-        log::info!(log::channel!("tileset"), "Successfully loaded TileSet '{layer}' from path {:?}.", tile_set_json_path);
-    
-        self.sets.push(tile_set);
-
+        log::info!(log::channel!("tileset"),
+                   "Successfully loaded TileSet '{layer}' from path {tile_set_json_path:?}.");
         true
     }
 }

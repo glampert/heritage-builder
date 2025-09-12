@@ -36,6 +36,9 @@ pub trait SaveState {
     fn load<'de, T>(&'de self, instance: &mut T) -> LoadResult
         where T: serde::Deserialize<'de>;
 
+    fn read_file<P>(&mut self, path: P) -> io::Result<()>
+        where P: AsRef<Path>;
+
     fn write_file<P>(&self, path: P) -> io::Result<()>
         where P: AsRef<Path>;
 }
@@ -107,10 +110,17 @@ impl SaveState for JsonSaveState {
 
         let deserialized = match serde_json::from_str::<T>(&self.buffer) {
             Ok(deserialized) => deserialized,
-            Err(err)  => return Err(err.to_string()),
+            Err(err) => return Err(err.to_string()),
         };
 
         *instance = deserialized;
+        Ok(())
+    }
+
+    fn read_file<P>(&mut self, path: P) -> io::Result<()>
+        where P: AsRef<Path>
+    {
+        self.buffer = fs::read_to_string(path)?;
         Ok(())
     }
 
