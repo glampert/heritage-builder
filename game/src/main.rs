@@ -53,6 +53,7 @@ fn serialization_tests<'loader>(
         let mut state = save::backends::new_json_save_state(true);
 
         tile_map.save(&mut state).expect("Failed to serialize TileMap");
+        tile_map.pre_load();
         tile_map.load(&state).expect("Failed to deserialize TileMap");
         state.write_file("tile_map.json").expect("Failed to write file");
 
@@ -70,6 +71,7 @@ fn serialization_tests<'loader>(
         let mut state = save::backends::new_json_save_state(true);
 
         world.save(&mut state).expect("Failed to serialize World");
+        world.pre_load();
         world.load(&state).expect("Failed to deserialize World");
         state.write_file("world.json").expect("Failed to write file");
 
@@ -87,6 +89,7 @@ fn serialization_tests<'loader>(
         let mut state = save::backends::new_json_save_state(true);
 
         sim.save(&mut state).expect("Failed to serialize Sim");
+        sim.pre_load();
         sim.load(&state).expect("Failed to deserialize Sim");
         state.write_file("sim.json").expect("Failed to write file");
 
@@ -104,6 +107,7 @@ fn serialization_tests<'loader>(
         let mut state = save::backends::new_json_save_state(true);
 
         systems.save(&mut state).expect("Failed to serialize Systems");
+        systems.pre_load();
         systems.load(&state).expect("Failed to deserialize Systems");
         state.write_file("systems.json").expect("Failed to write file");
 
@@ -121,6 +125,7 @@ fn serialization_tests<'loader>(
         let mut state = save::backends::new_json_save_state(true);
 
         camera.save(&mut state).expect("Failed to serialize Camera");
+        camera.pre_load();
         camera.load(&state).expect("Failed to deserialize Camera");
         state.write_file("camera.json").expect("Failed to write file");
 
@@ -216,6 +221,7 @@ fn main() {
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();
 
+    let mut test_serialize_timer = UpdateTimer::new(10.0);
     serialization_tests(&mut tile_map, &tile_sets, &mut world, &mut sim, &mut systems, &mut camera, &mut debug_menus, &building_configs, &unit_configs);
 
     while !app.should_quit() {
@@ -223,6 +229,10 @@ fn main() {
 
         let cursor_screen_pos = input_sys.cursor_pos();
         let delta_time_secs = frame_clock.delta_time();
+
+        if test_serialize_timer.tick(delta_time_secs).should_update() {
+            serialization_tests(&mut tile_map, &tile_sets, &mut world, &mut sim, &mut systems, &mut camera, &mut debug_menus, &building_configs, &unit_configs);
+        }
 
         for event in app.poll_events() {
             match event {

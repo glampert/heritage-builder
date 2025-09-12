@@ -16,8 +16,9 @@ pub trait Save {
 }
 
 pub trait Load<'tile_map, 'tile_sets, 'config> {
-    fn load(&mut self, state: &SaveStateImpl) -> LoadResult;
-    fn post_load(&mut self, context: &PostLoadContext<'tile_map, 'tile_sets, 'config>);
+    fn pre_load(&mut self) {}
+    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult { Err("load() not implemented!".into()) }
+    fn post_load(&mut self, _context: &PostLoadContext<'tile_map, 'tile_sets, 'config>) {}
 }
 
 // ----------------------------------------------

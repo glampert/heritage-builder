@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::{
     log,
     imgui_ui::{UiSystem, UiInputEvent},
-    save::{Load, LoadResult, PostLoadContext, SaveStateImpl},
+    save::{Load, PostLoadContext},
     render::{RenderStats, RenderSystem, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
     game::{
@@ -148,11 +148,6 @@ impl DebugMenusSystem {
 // ----------------------------------------------
 
 impl Load<'_, '_, '_> for DebugMenusSystem {
-    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult {
-        // We only need post_load().
-        unimplemented!("DebugMenusSystem does no implement load().");
-    }
-
     fn post_load(&mut self, context: &PostLoadContext) {
         use_singleton(|instance| {
             instance.tile_inspector_menu.close();

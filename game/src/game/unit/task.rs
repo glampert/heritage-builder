@@ -1366,6 +1366,11 @@ impl UnitTaskPool {
             .filter(|task| task.id == task_id)
     }
 
+    pub fn pre_load(&mut self) {
+        self.tasks.clear();
+        self.generation = RESERVED_GENERATION;
+    }
+
     fn post_load(&mut self) {
         debug_assert!(self.generation != RESERVED_GENERATION);
 
@@ -1500,6 +1505,10 @@ impl UnitTaskManager {
                 panic!("Unit '{}' current TaskId is invalid: {}", unit.name(), current_task_id);
             }
         }
+    }
+
+    pub fn pre_load(&mut self) {
+        self.task_pool.pre_load();
     }
 
     pub fn post_load(&mut self) {

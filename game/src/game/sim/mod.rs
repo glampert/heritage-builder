@@ -297,6 +297,10 @@ impl Save for Simulation<'_> {
 }
 
 impl<'config> Load<'_, '_, 'config> for Simulation<'config> {
+    fn pre_load(&mut self) {
+        self.task_manager.pre_load();
+    }
+
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }
