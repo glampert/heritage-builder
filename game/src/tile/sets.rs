@@ -964,13 +964,14 @@ impl TileSets {
             return false;
         }
 
-        let tile_set = &mut self.sets[layer as usize];
-
-        if let Err(err) = state.load(tile_set) {
-            log::error!(log::channel!("tileset"),
-                        "Failed to deserialize TileSet layer '{layer}' from path {tile_set_json_path:?}: {err}");
-            return false;
-        }
+        let mut tile_set: TileSet = match state.load_new_instance() {
+            Ok(tile_set) => tile_set,
+            Err(err) => {
+                log::error!(log::channel!("tileset"),
+                            "Failed to deserialize TileSet layer '{layer}' from path {tile_set_json_path:?}: {err}");
+                return false;
+            },
+        };
 
         if tile_set.layer != layer {
             log::error!(log::channel!("tileset"),
@@ -987,6 +988,8 @@ impl TileSets {
 
         log::info!(log::channel!("tileset"),
                    "Successfully loaded TileSet '{layer}' from path {tile_set_json_path:?}.");
+
+        self.sets[layer as usize] = tile_set;
         true
     }
 }

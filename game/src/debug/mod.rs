@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::{
     log,
     imgui_ui::{UiSystem, UiInputEvent},
-    save::{Load, PostLoadContext},
+    save::{Save, Load, PostLoadContext},
     render::{RenderStats, RenderSystem, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
     game::{
@@ -15,7 +15,6 @@ use crate::{
     utils::{
         Vec2,
         UnsafeWeakRef,
-        mut_ref_cast,
         SingleThreadStatic,
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
@@ -95,15 +94,13 @@ pub struct DebugMenusEndFrameArgs<'rs, 'cam, 'sim, 'ui, 'world, 'config, 'tile_m
 // DebugMenusSystem
 // ----------------------------------------------
 
+#[derive(Default)]
 pub struct DebugMenusSystem;
 
 impl DebugMenusSystem {
     pub fn new(tile_map: &mut TileMap, tex_cache: &mut impl TextureCache) -> Self {
-        const DEBUG_SETTINGS_OPEN: bool = false;
-        const TILE_PALETTE_OPEN: bool = true;
-
         // Initialize the singleton exactly once:
-        init_singleton(tex_cache, DEBUG_SETTINGS_OPEN, TILE_PALETTE_OPEN);
+        init_singleton_once(tex_cache);
 
         // Register TileMap global callbacks & debug ref:
         register_tile_map_debug_callbacks(tile_map);
@@ -144,17 +141,20 @@ impl DebugMenusSystem {
 }
 
 // ----------------------------------------------
-// Load
+// Save/Load for DebugMenusSystem
 // ----------------------------------------------
 
-impl Load<'_, '_, '_> for DebugMenusSystem {
+impl Save for DebugMenusSystem {
+}
+
+impl Load<'_, '_> for DebugMenusSystem {
     fn post_load(&mut self, context: &PostLoadContext) {
         use_singleton(|instance| {
             instance.tile_inspector_menu.close();
         });
 
         // Re-register debug editor callbacks and reset the global tile map ref.
-        let tile_map = mut_ref_cast(context.tile_map.unwrap());
+        let tile_map = context.tile_map.mut_ref_cast();
         register_tile_map_debug_callbacks(tile_map);
     }
 }
@@ -427,13 +427,16 @@ impl DebugMenusSingleton {
 
 static DEBUG_MENUS_SINGLETON: SingleThreadStatic<Option<DebugMenusSingleton>> = SingleThreadStatic::new(None);
 
-fn init_singleton(tex_cache: &mut impl TextureCache, debug_settings_open: bool, tile_palette_open: bool) {
+fn init_singleton_once(tex_cache: &mut impl TextureCache) {
     if DEBUG_MENUS_SINGLETON.is_some() {
-        panic!("DebugMenusSystem was already initialized! Only one instance permitted.");
+        return; // Already initialized.
     }
 
+    const DEBUG_SETTINGS_OPEN: bool = false;
+    const TILE_PALETTE_OPEN:   bool = true;
+
     DEBUG_MENUS_SINGLETON.set(Some(
-        DebugMenusSingleton::new(tex_cache, debug_settings_open, tile_palette_open)
+        DebugMenusSingleton::new(tex_cache, DEBUG_SETTINGS_OPEN, TILE_PALETTE_OPEN)
     ));
 }
 

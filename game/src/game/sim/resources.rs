@@ -128,6 +128,39 @@ pub const SERVICE_KIND_COUNT: usize = ServiceKind::services_count();
 pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 
 // ----------------------------------------------
+// Custom Serde Serialization for HashMap
+// ----------------------------------------------
+
+// serde_json does not support maps indexed by structure (json maps must be keyed by a string).
+// This converts a map into a Vec of pairs when serializing and builds back a map during deserialization.
+mod serialize_hash_map_as_pairs {
+
+use serde::{Serializer, Deserializer, Serialize, Deserialize};
+use std::collections::HashMap;
+use std::hash::Hash;
+
+pub fn serialize<K, V, S>(map: &HashMap<K, V>, ser: S) -> Result<S::Ok, S::Error>
+    where K: Serialize + Eq + Hash,
+          V: Serialize,
+          S: Serializer
+{
+    // Turn into Vec of pairs and serialize that:
+    let vec: Vec<(&K, &V)> = map.iter().collect();
+    vec.serialize(ser)
+}
+
+pub fn deserialize<'de, K, V, D>(de: D) -> Result<HashMap<K, V>, D::Error>
+    where K: Deserialize<'de> + Eq + Hash,
+          V: Deserialize<'de>,
+          D: Deserializer<'de>
+{
+    let vec = Vec::<(K, V)>::deserialize(de)?;
+    Ok(vec.into_iter().collect())
+}
+
+}
+
+// ----------------------------------------------
 // HouseholdWorkerPool
 // ----------------------------------------------
 
@@ -136,6 +169,9 @@ pub struct HouseholdWorkerPool {
     // Total workers = employed + unemployed
     employed_count: u32,
     unemployed_count: u32,
+
+    // NOTE: Convert to Vec of pairs when serializing to support json format.
+    #[serde(with = "serialize_hash_map_as_pairs")]
     employers: HashMap<BuildingKindAndId, u32>,
 }
 
@@ -310,6 +346,9 @@ pub struct Employer {
     employee_count: u32, // Current number of workers employed.
     min_employees: u32,  // Minimum number of workers for service/production to run (at lower capacity).
     max_employees: u32,  // Maximum number of workers it can employ (to run at full capacity).
+
+    // NOTE: Convert to Vec of pairs when serializing to support json format.
+    #[serde(with = "serialize_hash_map_as_pairs")]
     employee_households: HashMap<BuildingId, u32>, // Households we source our workers from.
 }
 

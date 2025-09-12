@@ -45,14 +45,15 @@ impl UiInputEvent {
 // ----------------------------------------------
 
 pub struct UiSystem {
-    context: UiContext,
+    // UiContext is quite large, so keep it on the heap.
+    context: Box<UiContext>,
     builder_ptr: *const imgui::Ui,
 }
 
 impl UiSystem {
     pub fn new(app: &impl Application) -> Self {
         Self {
-            context: UiContext::new(app),
+            context: Box::new(UiContext::new(app)),
             builder_ptr: null::<imgui::Ui>(),
         }
     }

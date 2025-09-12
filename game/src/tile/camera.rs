@@ -235,7 +235,7 @@ impl Camera {
 }
 
 // ----------------------------------------------
-// Save/Load
+// Save/Load for Camera
 // ----------------------------------------------
 
 impl Save for Camera {
@@ -244,7 +244,7 @@ impl Save for Camera {
     }
 }
 
-impl Load<'_, '_, '_> for Camera {
+impl Load<'_, '_> for Camera {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }

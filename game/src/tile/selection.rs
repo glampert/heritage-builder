@@ -1,6 +1,7 @@
 use smallvec::SmallVec;
 
 use crate::{
+    save::{Save, Load, PostLoadContext},
     render::RenderSystem,
     imgui_ui::UiInputEvent,
     app::input::{InputAction, MouseButton},
@@ -247,6 +248,20 @@ impl TileSelection {
         }
 
         self.valid_placement = !selection_flags.intersects(TileFlags::Invalidated);
+    }
+}
+
+// ----------------------------------------------
+// Save/Load for TileSelection
+// ----------------------------------------------
+
+impl Save for TileSelection {
+}
+
+impl Load<'_, '_> for TileSelection {
+    fn post_load(&mut self, _context: &PostLoadContext) {
+        // Rest any tile selection on load.
+        *self = Self::default();
     }
 }
 

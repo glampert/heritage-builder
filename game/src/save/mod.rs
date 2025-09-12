@@ -2,6 +2,7 @@ use std::{path::Path, fs, io};
 use enum_dispatch::enum_dispatch;
 
 use crate::{
+    utils::UnsafeWeakRef,
     tile::{TileMap, sets::TileSets},
     game::unit::config::UnitConfigs,
     game::building::config::BuildingConfigs
@@ -12,13 +13,27 @@ use crate::{
 // ----------------------------------------------
 
 pub trait Save {
-    fn save(&self, state: &mut SaveStateImpl) -> SaveResult;
+    fn pre_save(&mut self) {
+    }
+
+    fn save(&self, _state: &mut SaveStateImpl) -> SaveResult {
+        Ok(())
+    }
+
+    fn post_save(&mut self) {
+    }
 }
 
-pub trait Load<'tile_map, 'tile_sets, 'config> {
-    fn pre_load(&mut self) {}
-    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult { Err("load() not implemented!".into()) }
-    fn post_load(&mut self, _context: &PostLoadContext<'tile_map, 'tile_sets, 'config>) {}
+pub trait Load<'tile_sets, 'config> {
+    fn pre_load(&mut self) {
+    }
+
+    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult {
+        Ok(())
+    }
+
+    fn post_load(&mut self, _context: &PostLoadContext<'tile_sets, 'config>) {
+    }
 }
 
 // ----------------------------------------------
@@ -36,6 +51,9 @@ pub trait SaveState {
     fn load<'de, T>(&'de self, instance: &mut T) -> LoadResult
         where T: serde::Deserialize<'de>;
 
+    fn load_new_instance<'de, T>(&'de self) -> Result<T, String>
+        where T: serde::Deserialize<'de>;
+
     fn read_file<P>(&mut self, path: P) -> io::Result<()>
         where P: AsRef<Path>;
 
@@ -48,11 +66,26 @@ pub enum SaveStateImpl {
     Json(backends::JsonSaveState),
 }
 
-pub struct PostLoadContext<'tile_map, 'tile_sets, 'config> {
-    pub tile_map: Option<&'tile_map TileMap<'tile_sets>>,
+pub struct PostLoadContext<'tile_sets, 'config> {
+    pub tile_map: UnsafeWeakRef<TileMap<'tile_sets>>,
     pub tile_sets: &'tile_sets TileSets,
     pub unit_configs: &'config UnitConfigs,
     pub building_configs: &'config BuildingConfigs,
+}
+
+impl<'tile_sets, 'config> PostLoadContext<'tile_sets, 'config> {
+    #[inline]
+    pub fn new(tile_map: &TileMap<'tile_sets>,
+               tile_sets: &'tile_sets TileSets,
+               unit_configs: &'config UnitConfigs,
+               building_configs: &'config BuildingConfigs) -> Self {
+        Self {
+            tile_map: UnsafeWeakRef::new(tile_map),
+            tile_sets,
+            unit_configs,
+            building_configs,
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -104,17 +137,22 @@ impl SaveState for JsonSaveState {
     fn load<'de, T>(&'de self, instance: &mut T) -> LoadResult
         where T: serde::Deserialize<'de>
     {
+        // Load in place:
+        *instance = self.load_new_instance()?;
+        Ok(())
+    }
+
+    fn load_new_instance<'de, T>(&'de self) -> Result<T, String>
+        where T: serde::Deserialize<'de>
+    {
         if self.buffer.is_empty() {
             return Err("JsonSaveState has no state to load!".into());
         }
 
-        let deserialized = match serde_json::from_str::<T>(&self.buffer) {
-            Ok(deserialized) => deserialized,
-            Err(err) => return Err(err.to_string()),
-        };
-
-        *instance = deserialized;
-        Ok(())
+        match serde_json::from_str::<T>(&self.buffer) {
+            Ok(instance) => Ok(instance),
+            Err(err) => Err(err.to_string()),
+        }
     }
 
     fn read_file<P>(&mut self, path: P) -> io::Result<()>

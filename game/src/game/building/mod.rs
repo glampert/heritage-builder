@@ -256,14 +256,13 @@ impl<'config> GameObject<'config> for Building<'config> {
         self.archetype().tally(stats, self.kind);
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>) {
+    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>) {
         debug_assert!(self.is_spawned());
-        let tile_map = context.tile_map.unwrap();
 
         let kind = self.kind();
         debug_assert!(kind.is_single_building());
 
-        let tile = tile_map.find_tile(
+        let tile = context.tile_map.find_tile(
             self.base_cell(),
             TileMapLayerKind::Objects,
             TileKind::Building).unwrap();
@@ -1038,7 +1037,7 @@ trait BuildingBehavior<'config> {
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>, kind: BuildingKind, tile: &Tile);
+    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>, kind: BuildingKind, tile: &Tile);
 
     // ----------------------
     // Resources/Stock:

@@ -2097,21 +2097,32 @@ impl<'tile_sets> TileMap<'tile_sets> {
 }
 
 // ----------------------------------------------
-// Save/Load
+// Save/Load for TileMap
 // ----------------------------------------------
 
 impl Save for TileMap<'_> {
+    fn pre_save(&mut self) {
+        // Reset selection state. We don't save TileSelection.
+        self.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::all(), |tile| {
+            tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
+        });
+
+        self.for_each_tile_mut(TileMapLayerKind::Objects, TileKind::all(), |tile| {
+            tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
+        });
+    }
+
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
         state.save(self)
     }
 }
 
-impl<'tile_sets> Load<'_, 'tile_sets, '_> for TileMap<'tile_sets> {
+impl<'tile_sets> Load<'tile_sets, '_> for TileMap<'tile_sets> {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'tile_sets, '_>) {
+    fn post_load(&mut self, context: &PostLoadContext<'tile_sets, '_>) {
         debug_assert!(self.size_in_cells.is_valid());
 
         // These are *not* serialized, so should be unset.

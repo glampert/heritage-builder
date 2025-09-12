@@ -136,7 +136,7 @@ impl GameSystems {
 }
 
 // ----------------------------------------------
-// Save/Load
+// Save/Load for GameSystems
 // ----------------------------------------------
 
 impl Save for GameSystems {
@@ -145,7 +145,7 @@ impl Save for GameSystems {
     }
 }
 
-impl Load<'_, '_, '_> for GameSystems {
+impl Load<'_, '_> for GameSystems {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }

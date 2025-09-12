@@ -287,7 +287,7 @@ impl<'config> Simulation<'config> {
 }
 
 // ----------------------------------------------
-// Save/Load
+// Save/Load for Simulation
 // ----------------------------------------------
 
 impl Save for Simulation<'_> {
@@ -296,7 +296,7 @@ impl Save for Simulation<'_> {
     }
 }
 
-impl<'config> Load<'_, '_, 'config> for Simulation<'config> {
+impl<'config> Load<'_, 'config> for Simulation<'config> {
     fn pre_load(&mut self) {
         self.task_manager.pre_load();
     }
@@ -305,7 +305,7 @@ impl<'config> Load<'_, '_, 'config> for Simulation<'config> {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>) {
+    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>) {
         self.search = Search::with_graph(&self.graph);
 
         self.building_configs = Some(context.building_configs);

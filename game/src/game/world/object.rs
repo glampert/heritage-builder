@@ -108,7 +108,7 @@ pub trait GameObject<'config> {
 
     fn update(&mut self, query: &Query<'config, '_>);
     fn tally(&self, stats: &mut WorldStats);
-    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>);
+    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>);
 
     fn draw_debug_ui(&mut self,
                      query: &Query<'config, '_>,
