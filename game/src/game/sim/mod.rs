@@ -296,12 +296,12 @@ impl Save for Simulation<'_> {
     }
 }
 
-impl<'config> Load<'config> for Simulation<'config> {
+impl<'config> Load<'_, '_, 'config> for Simulation<'config> {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config>) {
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>) {
         self.search = Search::with_graph(&self.graph);
 
         self.building_configs = Some(context.building_configs);

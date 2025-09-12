@@ -35,11 +35,8 @@ use game::{
 
 // TEMP - TEST
 use tile::TileMap;
-//use rayon::prelude::*;
 
-//fn serialize_parallel(tile_map: &TileMap, sim: &Simulation, world: &World, systems: &GameSystems, camera: &Camera) {
-//}
-
+#[allow(clippy::too_many_arguments)]
 fn serialization_tests<'loader>(
     tile_map: &mut TileMap<'loader>,
     tile_sets: &'loader TileSets,
@@ -51,7 +48,7 @@ fn serialization_tests<'loader>(
     building_configs: &'loader BuildingConfigs,
     unit_configs: &'loader UnitConfigs) {
 
-    // TileMap
+    // TileMap:
     {
         let mut state = save::backends::new_json_save_state(true);
 
@@ -59,12 +56,12 @@ fn serialization_tests<'loader>(
         tile_map.load(&state).expect("Failed to deserialize TileMap");
         state.write_file("tile_map.json").expect("Failed to write file");
 
-        let context = PostLoadContext::new(
-            tile_map,
+        let context = PostLoadContext {
+            tile_map: None,
             tile_sets,
             unit_configs,
             building_configs
-        );
+        };
         tile_map.post_load(&context);
     }
 
@@ -76,12 +73,12 @@ fn serialization_tests<'loader>(
         world.load(&state).expect("Failed to deserialize World");
         state.write_file("world.json").expect("Failed to write file");
 
-        let context = PostLoadContext::new(
-            tile_map,
+        let context = PostLoadContext {
+            tile_map: Some(tile_map),
             tile_sets,
             unit_configs,
             building_configs
-        );
+        };
         world.post_load(&context);
     }
 
@@ -93,12 +90,12 @@ fn serialization_tests<'loader>(
         sim.load(&state).expect("Failed to deserialize Sim");
         state.write_file("sim.json").expect("Failed to write file");
 
-        let context = PostLoadContext::new(
-            tile_map,
+        let context = PostLoadContext {
+            tile_map: Some(tile_map),
             tile_sets,
             unit_configs,
             building_configs
-        );
+        };
         sim.post_load(&context);
     }
 
@@ -110,12 +107,12 @@ fn serialization_tests<'loader>(
         systems.load(&state).expect("Failed to deserialize Systems");
         state.write_file("systems.json").expect("Failed to write file");
 
-        let context = PostLoadContext::new(
-            tile_map,
+        let context = PostLoadContext {
+            tile_map: Some(tile_map),
             tile_sets,
             unit_configs,
             building_configs
-        );
+        };
         systems.post_load(&context);
     }
 
@@ -127,23 +124,23 @@ fn serialization_tests<'loader>(
         camera.load(&state).expect("Failed to deserialize Camera");
         state.write_file("camera.json").expect("Failed to write file");
 
-        let context = PostLoadContext::new(
-            tile_map,
+        let context = PostLoadContext {
+            tile_map: Some(tile_map),
             tile_sets,
             unit_configs,
             building_configs
-        );
+        };
         camera.post_load(&context);
     }
 
     // DebugMenus PostLoad:
     {
-        let context = PostLoadContext::new(
-            tile_map,
+        let context = PostLoadContext {
+            tile_map: Some(tile_map),
             tile_sets,
             unit_configs,
             building_configs
-        );
+        };
         debug_menus.post_load(&context);
     }
 

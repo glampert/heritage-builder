@@ -162,7 +162,7 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         unimplemented!("ServiceBuilding::visited_by() not yet implemented!");
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config>, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::services()));
         self.config = Some(context.building_configs.find_service_config(kind));
         self.patrol.post_load();

@@ -10,9 +10,9 @@ use serde::{
 };
 
 use crate::{
+    log,
     game_object_debug_options,
     building_config_impl,
-    log,
     imgui_ui::UiSystem,
     save::PostLoadContext,
     pathfind::{NodeKind as PathNodeKind},
@@ -233,7 +233,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config>, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind == BuildingKind::House);
         self.upgrade_state.post_load(context);
     }
@@ -852,7 +852,7 @@ impl<'config> HouseUpgradeState<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config>) {
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>) {
         let configs = context.building_configs;
         self.curr_level_config = Some(configs.find_house_level_config(self.level));
         self.next_level_config = Some(configs.find_house_level_config(self.level.next()));

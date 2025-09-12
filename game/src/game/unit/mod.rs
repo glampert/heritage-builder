@@ -5,8 +5,8 @@ use serde::{
 
 use crate::{
     log,
-    save::*,
     imgui_ui::UiSystem,
+    save::PostLoadContext,
     game_object_debug_options,
     pathfind::{Path, NodeKind as PathNodeKind},
     tile::{
@@ -119,6 +119,12 @@ impl<'config> GameObject<'config> for Unit<'config> {
         if let Some(item) = self.inventory.peek() {
             stats.add_unit_resources(item.kind, item.count);
         }
+    }
+
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>) {
+        debug_assert!(self.is_spawned());
+        debug_assert!(self.config_key_hash != hash::NULL_HASH);
+        self.config = Some(context.unit_configs.find_config_by_hash(self.config_key_hash));
     }
 
     fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
@@ -625,27 +631,5 @@ pub trait UnitTaskHelper {
                 false
             },
         }
-    }
-}
-
-// ----------------------------------------------
-// Save/Load
-// ----------------------------------------------
-
-impl Save for Unit<'_> {
-    fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
-        state.save(self)
-    }
-}
-
-impl<'config> Load<'config> for Unit<'config> {
-    fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
-        state.load(self)
-    }
-
-    fn post_load(&mut self, context: &PostLoadContext<'config>) {
-        debug_assert!(self.is_spawned());
-        debug_assert!(self.config_key_hash != hash::NULL_HASH);
-        self.config = Some(context.unit_configs.find_config_by_hash(self.config_key_hash));
     }
 }

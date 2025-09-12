@@ -188,7 +188,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config>, kind: BuildingKind, tile: &Tile) {
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>, kind: BuildingKind, tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::producers()));
         let tile_def = tile.tile_def();
         self.config = Some(context.building_configs.find_producer_config(kind, &tile_def.name, tile_def.hash));

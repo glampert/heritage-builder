@@ -2,7 +2,6 @@ use std::{path::Path, fs, io};
 use enum_dispatch::enum_dispatch;
 
 use crate::{
-    utils::UnsafeWeakRef,
     tile::{TileMap, sets::TileSets},
     game::unit::config::UnitConfigs,
     game::building::config::BuildingConfigs
@@ -16,9 +15,9 @@ pub trait Save {
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult;
 }
 
-pub trait Load<'loader> {
+pub trait Load<'tile_map, 'tile_sets, 'config> {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult;
-    fn post_load(&mut self, context: &PostLoadContext<'loader>);
+    fn post_load(&mut self, context: &PostLoadContext<'tile_map, 'tile_sets, 'config>);
 }
 
 // ----------------------------------------------
@@ -33,8 +32,8 @@ pub trait SaveState {
     fn save<T>(&mut self, instance: &T) -> SaveResult
         where T: serde::Serialize;
 
-    fn load<'loader, T>(&'loader self, instance: &mut T) -> LoadResult
-        where T: serde::Deserialize<'loader>;
+    fn load<'de, T>(&'de self, instance: &mut T) -> LoadResult
+        where T: serde::Deserialize<'de>;
 
     fn write_file<P>(&self, path: P) -> io::Result<()>
         where P: AsRef<Path>;
@@ -45,26 +44,11 @@ pub enum SaveStateImpl {
     Json(backends::JsonSaveState),
 }
 
-pub struct PostLoadContext<'loader> {
-    pub tile_map: UnsafeWeakRef<TileMap<'loader>>,
-    pub tile_sets: &'loader TileSets,
-    pub unit_configs: &'loader UnitConfigs,
-    pub building_configs: &'loader BuildingConfigs,
-}
-
-impl<'loader> PostLoadContext<'loader> {
-    #[inline]
-    pub fn new(tile_map: &TileMap<'loader>,
-               tile_sets: &'loader TileSets,
-               unit_configs: &'loader UnitConfigs,
-               building_configs: &'loader BuildingConfigs) -> Self {
-        Self {
-            tile_map: UnsafeWeakRef::new(tile_map),
-            tile_sets,
-            unit_configs,
-            building_configs,
-        }
-    }
+pub struct PostLoadContext<'tile_map, 'tile_sets, 'config> {
+    pub tile_map: Option<&'tile_map TileMap<'tile_sets>>,
+    pub tile_sets: &'tile_sets TileSets,
+    pub unit_configs: &'config UnitConfigs,
+    pub building_configs: &'config BuildingConfigs,
 }
 
 // ----------------------------------------------

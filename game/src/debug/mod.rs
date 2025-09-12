@@ -15,6 +15,7 @@ use crate::{
     utils::{
         Vec2,
         UnsafeWeakRef,
+        mut_ref_cast,
         SingleThreadStatic,
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
@@ -146,7 +147,7 @@ impl DebugMenusSystem {
 // Load
 // ----------------------------------------------
 
-impl Load<'_> for DebugMenusSystem {
+impl Load<'_, '_, '_> for DebugMenusSystem {
     fn load(&mut self, _state: &SaveStateImpl) -> LoadResult {
         // We only need post_load().
         unimplemented!("DebugMenusSystem does no implement load().");
@@ -158,8 +159,8 @@ impl Load<'_> for DebugMenusSystem {
         });
 
         // Re-register debug editor callbacks and reset the global tile map ref.
-        let tile_map_mut = context.tile_map.mut_ref_cast();
-        register_tile_map_debug_callbacks(tile_map_mut);
+        let tile_map = mut_ref_cast(context.tile_map.unwrap());
+        register_tile_map_debug_callbacks(tile_map);
     }
 }
 

@@ -637,12 +637,12 @@ impl Save for World<'_> {
     }
 }
 
-impl<'config> Load<'config> for World<'config> {
+impl<'config> Load<'_, '_, 'config> for World<'config> {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config>) {
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>) {
         self.building_configs = Some(context.building_configs);
         self.unit_configs     = Some(context.unit_configs);
 

@@ -15,8 +15,8 @@ use serde::{
 
 use crate::{
     log,
-    save::*,
     imgui_ui::UiSystem,
+    save::PostLoadContext,
     bitflags_with_display,
     pathfind::{self, NodeKind as PathNodeKind},
     utils::{
@@ -254,6 +254,22 @@ impl<'config> GameObject<'config> for Building<'config> {
         }
 
         self.archetype().tally(stats, self.kind);
+    }
+
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>) {
+        debug_assert!(self.is_spawned());
+        let tile_map = context.tile_map.unwrap();
+
+        let kind = self.kind();
+        debug_assert!(kind.is_single_building());
+
+        let tile = tile_map.find_tile(
+            self.base_cell(),
+            TileMapLayerKind::Objects,
+            TileKind::Building).unwrap();
+        debug_assert!(tile.is_valid());
+
+        self.archetype_mut().post_load(context, kind, tile);
     }
 
     fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
@@ -960,37 +976,6 @@ impl<'config> Building<'config> {
 }
 
 // ----------------------------------------------
-// Save/Load
-// ----------------------------------------------
-
-impl Save for Building<'_> {
-    fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
-        state.save(self)
-    }
-}
-
-impl<'config> Load<'config> for Building<'config> {
-    fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
-        state.load(self)
-    }
-
-    fn post_load(&mut self, context: &PostLoadContext<'config>) {
-        debug_assert!(self.is_spawned());
-
-        let kind = self.kind();
-        debug_assert!(kind.is_single_building());
-
-        let tile = context.tile_map.find_tile(
-            self.base_cell(),
-            TileMapLayerKind::Objects,
-            TileKind::Building).unwrap();
-        debug_assert!(tile.is_valid());
-
-        self.archetype_mut().post_load(context, kind, tile);
-    }
-}
-
-// ----------------------------------------------
 // Building Archetypes  
 // ----------------------------------------------
 /*
@@ -1053,7 +1038,7 @@ trait BuildingBehavior<'config> {
     fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);
 
-    fn post_load(&mut self, context: &PostLoadContext<'config>, kind: BuildingKind, tile: &Tile);
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>, kind: BuildingKind, tile: &Tile);
 
     // ----------------------
     // Resources/Stock:

@@ -158,7 +158,7 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'config>, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, context: &PostLoadContext<'_, '_, 'config>, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::storage()));
         self.config = Some(context.building_configs.find_storage_config(kind));
     }
