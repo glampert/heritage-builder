@@ -30,7 +30,6 @@ pub struct RenderStats {
 // ----------------------------------------------
 
 pub trait RenderSystem {
-
     // ----------------------
     // Render frame markers:
     // ----------------------
@@ -42,8 +41,9 @@ pub trait RenderSystem {
     // TextureCache access:
     // ----------------------
 
-    fn texture_cache(&self) -> &impl TextureCache;
-    fn texture_cache_mut(&mut self) -> &mut impl TextureCache;
+    type TextureCacheType: TextureCache;
+    fn texture_cache(&self) -> &Self::TextureCacheType;
+    fn texture_cache_mut(&mut self) -> &mut Self::TextureCacheType;
 
     // ----------------------
     // Viewport:
