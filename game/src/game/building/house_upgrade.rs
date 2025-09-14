@@ -534,8 +534,7 @@ fn merge_house(context: &BuildingContext,
 fn destroy_house<'config>(context: &BuildingContext<'config, '_, '_>,
                           merged_building: &mut Building<'config>) {
 
-    let spawner = Spawner::new(context.query);
-    spawner.despawn_building(merged_building);
+    Spawner::new(context.query).despawn_building(merged_building);
 }
 
 // ----------------------------------------------

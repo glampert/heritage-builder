@@ -466,9 +466,8 @@ impl<'config> Unit<'config> {
 
         let task_manager = query.task_manager();
         let task_id = task_manager.new_task(task);
-        let spawner = Spawner::new(query);
 
-        let unit = match spawner.try_spawn_unit_with_config(unit_origin, unit_config) {
+        let unit = match Spawner::new(query).try_spawn_unit_with_config(unit_origin, unit_config) {
             Ok(unit) => unit,
             error @ Err(_) => {
                 task_manager.free_task(task_id.unwrap());

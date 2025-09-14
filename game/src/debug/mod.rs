@@ -336,16 +336,14 @@ impl DebugMenusSingleton {
 
                     if target_cell.is_valid() {
                         let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
-                        let spawner = Spawner::new(&query);
-                        spawner.try_spawn_tile_with_def(target_cell, tile_def).is_ok()
+                        Spawner::new(&query).try_spawn_tile_with_def(target_cell, tile_def).is_ok()
                     } else {
                         false
                     }
                 } else {
                     let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
                     if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, &args.transform) {
-                        let spawner = Spawner::new(&query);
-                        spawner.despawn_tile(tile);
+                        Spawner::new(&query).despawn_tile(tile);
                         true
                     } else {
                         false

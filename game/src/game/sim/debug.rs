@@ -3,14 +3,11 @@ use rand::SeedableRng;
 use crate::{
     imgui_ui::UiSystem,
     pathfind::{Graph, Search},
+    tile::{TileMap, sets::TileSets},
     utils::{
         Size,
         Seconds,
         coords::WorldToScreenTransform
-    },
-    tile::{
-        TileMap,
-        sets::TileSets
     },
     game::{
         constants::SIM_DEFAULT_RANDOM_SEED,

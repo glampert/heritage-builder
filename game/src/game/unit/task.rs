@@ -1481,10 +1481,9 @@ impl UnitTaskManager {
 
                         let unit_prev_cell = unit.cell();
                         let unit_prev_goal = unit.goal().cloned();
-                        let spawner = Spawner::new(query);
 
                         unit.assign_task(self, None);
-                        spawner.despawn_unit(unit);
+                        Spawner::new(query).despawn_unit(unit);
 
                         if post_despawn_callback.is_valid() {
                             let callback = post_despawn_callback.get();

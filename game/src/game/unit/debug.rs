@@ -217,8 +217,7 @@ impl<'config> Unit<'config> {
         }
 
         if ui.button("Force Despawn Immediately") {
-            let spawner = Spawner::new(query);
-            spawner.despawn_unit(self);
+            Spawner::new(query).despawn_unit(self);
         }
     }
 
