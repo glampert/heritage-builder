@@ -52,7 +52,7 @@ use serde::{
 //
 
 struct GameLoop<'tile_sets, 'config> {
-    //engine: Box<dyn GameEngine>,
+    engine: Box<dyn Engine>,
     assets: Box<GameAssets>,
     session: Box<GameSession<'tile_sets, 'config>>,
 }
@@ -75,36 +75,51 @@ impl<'tile_sets, 'config> GameLoop<'tile_sets, 'config> {
     //fn terminate(&mut self);
 }
 
+trait DebugDraw {
+    fn point(&mut self, pt: Vec2, color: Color, size: f32);
+    fn line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color);
+    fn wireframe_rect(&mut self, rect: Rect, color: Color);
+    fn wireframe_rect_with_thickness(&mut self, rect: Rect, color: Color, thickness: f32);
+    fn colored_rect(&mut self, rect: Rect, color: Color);
+    fn textured_colored_rect(&mut self, rect: Rect, tex_coords: &RectTexCoords, texture: TextureHandle, color: Color);
+}
+
 // should be an interface (trait) so we could have dynamically loaded render/app back ends.
-trait GameEngine {
+trait Engine {
+    fn app(&mut self) -> &mut dyn Application;
+    fn input_system(&mut self) -> &mut dyn InputSystem;
 
-    fn app(&mut self) -> &mut dyn Application<InputSystemType = impl InputSystem>;
-    fn input_sys(&mut self) -> &mut dyn InputSystem;
-
-    fn render_sys(&mut self) -> &mut dyn RenderSystem<TextureCacheType = impl TextureCache>;
+    fn render_system(&mut self) -> &mut dyn RenderSystem;
     fn render_stats(&self) -> &RenderStats;
+
+    fn texture_cache(&self) -> &dyn TextureCache;
+    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache;
 
     fn tile_map_renderer(&mut self) -> &mut TileMapRenderer;
     fn tile_map_render_stats(&self) -> &TileMapRenderStats;
 
+    fn ui_system(&mut self) -> &mut UiSystem;
+    fn debug_draw(&mut self) -> &mut dyn DebugDraw;
+
     fn frame_clock(&mut self) -> &mut FrameClock;
-    fn ui_sys(&mut self) -> &mut UiSystem;
     fn log_viewer(&mut self) -> &mut LogViewerWindow;
+}
 
-    /*
-    app: Application,
-    input_sys: InputSystem,
+struct EngineBackend<RenderSysImpl, DebugDrawImpl> {
+    app: ApplicationBackend,
+    input_system: InputSystemBackend,
 
-    render_sys: RenderSystem,
+    render_system: RenderSysImpl,
     render_stats: RenderStats,
 
     tile_map_renderer: TileMapRenderer,
     tile_map_render_stats: TileMapRenderStats,
 
+    ui_system: UiSystem,
+    debug_draw: DebugDrawImpl,
+
     frame_clock: FrameClock,
-    ui_sys: UiSystem,
     log_viewer: LogViewerWindow,
-    */
 }
 
 struct GameAssets {
@@ -114,7 +129,7 @@ struct GameAssets {
 }
 
 impl GameAssets {
-    fn new(tex_cache: &mut impl TextureCache) -> Self {
+    fn new(tex_cache: &mut dyn TextureCache) -> Self {
         Self {
             tile_sets: TileSets::load(tex_cache),
             unit_configs: UnitConfigs::load(),
@@ -137,7 +152,7 @@ struct GameSession<'tile_sets, 'config> {
 }
 
 impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
-    fn new<'assets>(viewport_size: Size, tex_cache: &mut impl TextureCache, assets: &'assets GameAssets) -> Self
+    fn new<'assets>(viewport_size: Size, tex_cache: &mut dyn TextureCache, assets: &'assets GameAssets) -> Self
         where 'assets: 'tile_sets,
               'assets: 'config
     {
@@ -253,7 +268,7 @@ impl<'tile_sets, 'config> Load<'tile_sets, 'config> for GameSession<'tile_sets, 
 impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
     fn save_game(&mut self) -> bool {
         let save_file_path = save_file_path();
-        let mut state = save::backends::new_json_save_state(true);
+        let mut state = save::backend::new_json_save_state(true);
 
         if !can_write_save_file(save_file_path) {
             log::error!(log::channel!("save_game"), "Saved game file path '{save_file_path}' is not accessible!");
@@ -282,7 +297,7 @@ impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
               'assets: 'config
     {
         let save_file_path = save_file_path();
-        let mut state = save::backends::new_json_save_state(false);
+        let mut state = save::backend::new_json_save_state(false);
 
         if let Err(err) = state.read_file(save_file_path) {
             log::error!(log::channel!("save_game"), "Failed to read saved game file '{save_file_path:?}': {err}");
@@ -449,7 +464,7 @@ fn main() {
 
         session.tile_map.update_anims(visible_range, delta_time_secs);
 
-        ui_sys.begin_frame(&app, app.input_system(), delta_time_secs);
+        ui_sys.begin_frame(&app, delta_time_secs);
         render_sys.begin_frame();
 
         let selected_render_flags =

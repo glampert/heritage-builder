@@ -98,7 +98,7 @@ pub struct DebugMenusEndFrameArgs<'rs, 'cam, 'sim, 'ui, 'world, 'config, 'tile_m
 pub struct DebugMenusSystem;
 
 impl DebugMenusSystem {
-    pub fn new(tile_map: &mut TileMap, tex_cache: &mut impl TextureCache) -> Self {
+    pub fn new(tile_map: &mut TileMap, tex_cache: &mut dyn TextureCache) -> Self {
         // Initialize the singleton exactly once:
         init_singleton_once(tex_cache);
 
@@ -179,7 +179,7 @@ struct DebugMenusSingleton {
 }
 
 impl DebugMenusSingleton {
-    fn new(tex_cache: &mut impl TextureCache, debug_settings_open: bool, tile_palette_open: bool) -> Self {
+    fn new(tex_cache: &mut dyn TextureCache, debug_settings_open: bool, tile_palette_open: bool) -> Self {
         Self {
             debug_settings_menu: DebugSettingsMenu::new(debug_settings_open),
             tile_palette_menu: TilePaletteMenu::new(tile_palette_open, tex_cache),
@@ -425,7 +425,7 @@ impl DebugMenusSingleton {
 
 static DEBUG_MENUS_SINGLETON: SingleThreadStatic<Option<DebugMenusSingleton>> = SingleThreadStatic::new(None);
 
-fn init_singleton_once(tex_cache: &mut impl TextureCache) {
+fn init_singleton_once(tex_cache: &mut dyn TextureCache) {
     if DEBUG_MENUS_SINGLETON.is_some() {
         return; // Already initialized.
     }

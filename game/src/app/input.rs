@@ -1,3 +1,5 @@
+use std::any::Any;
+
 // Expose them here so we don't have to duplicate these enums.
 pub use super::glfw::InputModifiers;
 pub use super::glfw::InputAction;
@@ -13,6 +15,7 @@ use crate::{
 // ----------------------------------------------
 
 pub trait InputSystem {
+    fn as_any(&self) -> &dyn Any;
     fn cursor_pos(&self) -> Vec2;
     fn mouse_button_state(&self, button: MouseButton) -> InputAction;
     fn key_state(&self, key: InputKey) -> InputAction;

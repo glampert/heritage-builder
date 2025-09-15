@@ -1,21 +1,17 @@
 use std::ptr::null;
 
-use imgui::{
-    Context as ImGuiContext,
-    StyleColor,
-    Style
-};
-
-use imgui_opengl_renderer::Renderer as ImGuiRenderer;
-
 pub use imgui::FontId as UiFontHandle;
 pub use imgui::TextureId as UiTextureHandle;
 
 use crate::{
-    utils::{self, Seconds, Vec2, Color, FieldAccessorXY},
+    utils::{Seconds, Vec2, Color, FieldAccessorXY},
     render::{TextureCache, TextureHandle},
-    app::{self, Application, input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton}}
+    app::{Application, input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton}}
 };
+
+// Internal implementation.
+mod opengl;
+type UiRendererBackend = opengl::UiOpenGlRenderer;
 
 // ----------------------------------------------
 // UiInputEvent
@@ -45,23 +41,22 @@ impl UiInputEvent {
 // ----------------------------------------------
 
 pub struct UiSystem {
-    // UiContext is quite large, so keep it on the heap.
-    context: Box<UiContext>,
+    context: UiContext,
     builder_ptr: *const imgui::Ui,
 }
 
 impl UiSystem {
-    pub fn new(app: &impl Application) -> Self {
+    pub fn new(app: &dyn Application) -> Self {
         Self {
-            context: Box::new(UiContext::new(app)),
+            context: UiContext::new(app),
             builder_ptr: null::<imgui::Ui>(),
         }
     }
 
     #[inline]
-    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time_secs: Seconds) {
+    pub fn begin_frame(&mut self, app: &dyn Application, delta_time_secs: Seconds) {
         debug_assert!(self.builder_ptr.is_null());
-        let ui_builder = self.context.begin_frame(app, input_sys, delta_time_secs);
+        let ui_builder = self.context.begin_frame(app, delta_time_secs);
         self.builder_ptr = ui_builder as *const imgui::Ui;
     }
 
@@ -118,12 +113,12 @@ impl UiSystem {
 
     #[inline]
     pub fn is_handling_mouse_input(&self) -> bool {
-        self.context.imgui_ctx.io().want_capture_mouse
+        self.context.ctx.io().want_capture_mouse
     }
 
     #[inline]
     pub fn is_handling_key_input(&self) -> bool {
-        self.context.imgui_ctx.io().want_capture_keyboard
+        self.context.ctx.io().want_capture_keyboard
     }
 
     #[inline]
@@ -143,7 +138,7 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn to_ui_texture(&self, tex_cache: &impl TextureCache, tex_handle: TextureHandle) -> UiTextureHandle {
+    pub fn to_ui_texture(&self, tex_cache: &dyn TextureCache, tex_handle: TextureHandle) -> UiTextureHandle {
         let native_handle = tex_cache.to_native_handle(tex_handle);
         debug_assert!(std::mem::size_of_val(&native_handle) <= std::mem::size_of::<usize>());
         UiTextureHandle::new(native_handle.bits)
@@ -161,28 +156,54 @@ pub struct UiFonts {
 }
 
 // ----------------------------------------------
+// UiRenderer
+// ----------------------------------------------
+
+pub trait UiRenderer {
+    fn render(&self, ctx: &mut imgui::Context);
+}
+
+// ----------------------------------------------
+// UiRenderer Backend Factory Functions
+// ----------------------------------------------
+
+mod backend {
+use super::*;
+
+#[inline]
+pub fn new_ui_renderer(imgui_ctx: &mut imgui::Context, app: &dyn Application) -> Box<dyn UiRenderer> {
+    Box::new(UiRendererBackend::new(imgui_ctx, app))
+}
+
+#[inline]
+pub fn new_ui_context() -> Box<imgui::Context> {
+    Box::new(imgui::Context::create())
+}
+}
+
+// ----------------------------------------------
 // UiContext
 // ----------------------------------------------
 
 pub struct UiContext {
-    imgui_ctx: ImGuiContext,
-    imgui_renderer: ImGuiRenderer,
+    ctx: Box<imgui::Context>,
+    renderer: Box<dyn UiRenderer>,
     fonts_ids: UiFonts,
     frame_started: bool,
 }
 
 impl UiContext {
-    pub fn new(app: &impl Application) -> Self {
-        let mut imgui_ctx = ImGuiContext::create();
+    pub fn new(app: &dyn Application) -> Self {
+        let mut ctx = backend::new_ui_context();
 
         // 'None' disables automatic "imgui.ini" saving.
-        imgui_ctx.set_ini_filename(None);
+        ctx.set_ini_filename(None);
 
-        Self::apply_custom_theme(imgui_ctx.style_mut());
+        Self::apply_custom_theme(ctx.style_mut());
 
         // Load default fonts:
         const NORMAL_FONT_SIZE: f32 = 13.0;
-        let font_normal = imgui_ctx.fonts().add_font(
+        let font_normal = ctx.fonts().add_font(
             &[imgui::FontSource::DefaultFontData {
                 config: Some(imgui::FontConfig {
                     size_pixels: NORMAL_FONT_SIZE,
@@ -191,7 +212,7 @@ impl UiContext {
             }]);
 
         const SMALL_FONT_SIZE: f32 = 10.0;
-        let font_small = imgui_ctx.fonts().add_font(
+        let font_small = ctx.fonts().add_font(
             &[imgui::FontSource::DefaultFontData {
                 config: Some(imgui::FontConfig {
                     size_pixels: SMALL_FONT_SIZE,
@@ -200,7 +221,7 @@ impl UiContext {
             }]);
 
         const LARGE_FONT_SIZE: f32 = 14.0;
-        let font_large = imgui_ctx.fonts().add_font(
+        let font_large = ctx.fonts().add_font(
             &[imgui::FontSource::DefaultFontData {
                 config: Some(imgui::FontConfig {
                     size_pixels: LARGE_FONT_SIZE,
@@ -208,30 +229,20 @@ impl UiContext {
                 }),
             }]);
 
-        // On MacOS this generates a lot of TTY spam about missing
-        // OpenGL functions that we don't need or care about. This
-        // is a hack to stop the TTY spamming but still keep a record
-        // of the errors if ever required for inspection.
-        let imgui_renderer = utils::platform::macos_redirect_stderr(|| {
-            // Set up the OpenGL renderer:
-            ImGuiRenderer::new(&mut imgui_ctx,
-                |func_name| {
-                    app::load_gl_func(app, func_name)
-                })
-        }, "stderr_gl_load_imgui.log");
+        let renderer = backend::new_ui_renderer(&mut ctx, app);
 
         Self {
-            imgui_ctx,
-            imgui_renderer,
+            ctx,
+            renderer,
             fonts_ids: UiFonts { normal: font_normal, small: font_small, large: font_large },
             frame_started: false,
         }
     }
 
-    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time_secs: Seconds) -> &imgui::Ui {
+    pub fn begin_frame(&mut self, app: &dyn Application, delta_time_secs: Seconds) -> &imgui::Ui {
         debug_assert!(!self.frame_started);
     
-        let io = self.imgui_ctx.io_mut();
+        let io = self.ctx.io_mut();
         io.update_delta_time(std::time::Duration::from_secs_f32(delta_time_secs));
 
         let fb_size = app.framebuffer_size().to_vec2();
@@ -241,10 +252,10 @@ impl UiContext {
         io.display_framebuffer_scale = [content_scale.x, content_scale.y];
 
         // Send mouse/keyboard input to ImGui. The rest is handled by application events.
-        self.update_input(input_sys);
+        self.update_input(app.input_system());
 
         // Start new ImGui frame. Use the returned `ui` object to build the UI windows.
-        let ui = self.imgui_ctx.new_frame();
+        let ui = self.ctx.new_frame();
         self.frame_started = true;
 
         ui
@@ -257,17 +268,17 @@ impl UiContext {
     pub fn end_frame(&mut self) {
         debug_assert!(self.frame_started);
 
-        let draw_data = self.imgui_ctx.render();
+        let draw_data = self.ctx.render();
 
         if draw_data.total_idx_count != 0 && draw_data.total_vtx_count != 0 {
-            self.imgui_renderer.render(&mut self.imgui_ctx);
+            self.renderer.render(&mut self.ctx);
         }
 
         self.frame_started = false;
     }
 
     pub fn on_key_input(&mut self, key: InputKey, action: InputAction) {
-        let io = self.imgui_ctx.io_mut();
+        let io = self.ctx.io_mut();
         let pressed = action != InputAction::Release;
         if let Some(imgui_key) = Self::app_input_key_to_imgui_key(key) {
             io.add_key_event(imgui_key, pressed);
@@ -275,18 +286,18 @@ impl UiContext {
     }
 
     pub fn on_char_input(&mut self, c: char) {
-        let io = self.imgui_ctx.io_mut();
+        let io = self.ctx.io_mut();
         io.add_input_character(c);
     }
 
     pub fn on_scroll(&mut self, amount: Vec2) {
-        let io = self.imgui_ctx.io_mut();
+        let io = self.ctx.io_mut();
         io.mouse_wheel_h += amount.x;
         io.mouse_wheel += amount.y;
     }
 
-    fn update_input(&mut self, input_sys: &impl InputSystem) {
-        let io = self.imgui_ctx.io_mut();
+    fn update_input(&mut self, input_sys: &dyn InputSystem) {
+        let io = self.ctx.io_mut();
 
         let cursor_pos = input_sys.cursor_pos();
         io.mouse_pos = [cursor_pos.x, cursor_pos.y];
@@ -344,7 +355,9 @@ impl UiContext {
         })
     }
 
-    fn apply_custom_theme(style: &mut Style) {
+    fn apply_custom_theme(style: &mut imgui::Style) {
+        use imgui::StyleColor;
+
         let colors = &mut style.colors;
 
         colors[StyleColor::Text as usize] = [0.92, 0.93, 0.94, 1.0];

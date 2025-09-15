@@ -1,3 +1,4 @@
+use std::any::Any;
 use smallvec::SmallVec;
 
 use crate::{
@@ -16,13 +17,16 @@ pub mod input;
 
 // Internal implementation.
 mod glfw;
-pub use glfw::load_gl_func;
+pub type ApplicationBackend = glfw::GlfwApplication;
+pub type InputSystemBackend = glfw::GlfwInputSystem;
 
 // ----------------------------------------------
 // Application
 // ----------------------------------------------
 
-pub trait Application {
+pub trait Application: Any {
+    fn as_any(&self) -> &dyn Any;
+
     fn should_quit(&self) -> bool;
     fn request_quit(&mut self);
 
@@ -33,9 +37,8 @@ pub trait Application {
     fn framebuffer_size(&self) -> Size;
     fn content_scale(&self) -> Vec2;
 
-    type InputSystemType: InputSystem;
-    fn input_system(&self) -> &Self::InputSystemType;
-    fn input_system_mut(&mut self) -> &mut Self::InputSystemType;
+    fn input_system(&self) -> &dyn InputSystem;
+    fn input_system_mut(&mut self) -> &mut dyn InputSystem;
 }
 
 // ----------------------------------------------
@@ -96,7 +99,7 @@ impl ApplicationBuilder {
     }
 
     pub fn build<'a>(&self) -> impl Application + use<'a> {
-        glfw::GlfwApplication::new(
+        ApplicationBackend::new(
             self.title.clone(),
             self.window_size,
             self.fullscreen,

@@ -49,7 +49,7 @@ pub struct TilePaletteMenu {
 }
 
 impl TilePaletteMenu {
-    pub fn new(start_open: bool, tex_cache: &mut impl TextureCache) -> Self {
+    pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
         Self {
             start_open,
             clear_button_image: tex_cache.load_texture("assets/ui/x.png"),
@@ -155,7 +155,7 @@ impl TilePaletteMenu {
 
                 ui.text("Tools");
                 {
-                    let ui_texture = context.ui_sys.to_ui_texture(render_sys.texture_cache(), self.clear_button_image);
+                    let ui_texture = context.ui_sys.to_ui_texture(tex_cache, self.clear_button_image);
 
                     let bg_color = if self.is_clear_selected() {
                         Color::white().to_array()
@@ -252,7 +252,7 @@ impl TilePaletteMenu {
     fn draw_tile_list(&mut self,
                       tile_kind: TileKind,
                       ui_sys: &UiSystem,
-                      tex_cache: &impl TextureCache,
+                      tex_cache: &dyn TextureCache,
                       tile_sets: &TileSets,
                       tile_size: [f32; 2],
                       tiles_per_row: usize,

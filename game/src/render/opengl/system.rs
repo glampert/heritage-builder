@@ -156,15 +156,13 @@ impl render::RenderSystem for RenderSystem {
         self.stats.clone()
     }
 
-    type TextureCacheType = render::opengl::texture::TextureCache;
-
     #[inline]
-    fn texture_cache(&self) -> &Self::TextureCacheType {
+    fn texture_cache(&self) -> &dyn render::TextureCache {
         &self.tex_cache
     }
 
     #[inline]
-    fn texture_cache_mut(&mut self) -> &mut Self::TextureCacheType {
+    fn texture_cache_mut(&mut self) -> &mut dyn render::TextureCache {
         &mut self.tex_cache
     }
 

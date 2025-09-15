@@ -338,7 +338,7 @@ impl TileDef {
     }
 
     fn post_load(&mut self,
-                 tex_cache: &mut impl TextureCache,
+                 tex_cache: &mut dyn TextureCache,
                  tile_set_path_with_category: &str,
                  layer: TileMapLayerKind,
                  category_hash: StringHash) -> bool {
@@ -547,7 +547,7 @@ impl TileCategory {
     }
 
     fn post_load(&mut self,
-                 tex_cache: &mut impl TextureCache,
+                 tex_cache: &mut dyn TextureCache,
                  tile_set_path: &str,
                  layer: TileMapLayerKind) -> bool {
 
@@ -656,7 +656,7 @@ impl TileSet {
         Some(&self.categories[entry_index])
     }
 
-    fn post_load(&mut self, tex_cache: &mut impl TextureCache, tile_set_path: &str) -> bool {
+    fn post_load(&mut self, tex_cache: &mut dyn TextureCache, tile_set_path: &str) -> bool {
         debug_assert!(self.mapping.is_empty());
 
         for (entry_index, category) in self.categories.iter_mut().enumerate() {
@@ -727,7 +727,7 @@ pub struct TileSets {
 }
 
 impl TileSets {
-    pub fn load(tex_cache: &mut impl TextureCache) -> Self {
+    pub fn load(tex_cache: &mut dyn TextureCache) -> Self {
         let mut tile_sets = Self {
             sets: [
                 TileSet::new(TileMapLayerKind::Terrain), // 0
@@ -938,7 +938,7 @@ impl TileSets {
     //  objects/units/ped/walk_left/frame0.png
     //  objects/units/ped/walk_left/frame1.png
     //
-    fn load_all_layers(&mut self, tex_cache: &mut impl TextureCache) {
+    fn load_all_layers(&mut self, tex_cache: &mut dyn TextureCache) {
         for layer in TileMapLayerKind::iter() {
             let tile_set_path = layer.assets_path();
             if !self.load_tile_set(tex_cache, tile_set_path, layer) {
@@ -948,7 +948,7 @@ impl TileSets {
     }
 
     fn load_tile_set(&mut self,
-                     tex_cache: &mut impl TextureCache,
+                     tex_cache: &mut dyn TextureCache,
                      tile_set_path: &str,
                      layer: TileMapLayerKind) -> bool {
 
@@ -956,7 +956,7 @@ impl TileSets {
 
         let tile_set_json_path = Path::new(tile_set_path).join("tile_set.json");
 
-        let mut state = save::backends::new_json_save_state(false);
+        let mut state = save::backend::new_json_save_state(false);
 
         if let Err(err) = state.read_file(&tile_set_json_path) {
             log::error!(log::channel!("tileset"),

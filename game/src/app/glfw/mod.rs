@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::ffi::c_void;
 use glfw::Context;
 
@@ -93,9 +94,17 @@ impl GlfwApplication {
             input_system: GlfwInputSystem { window_ref },
         }
     }
+
+    // For the ImGui OpenGL backend.
+    pub fn load_gl_func(&self, func_name: &'static str) -> *const c_void {
+        let mut_self = utils::mut_ref_cast(self);
+        mut_self.window.get_proc_address(func_name)
+    }
 }
 
 impl Application for GlfwApplication {
+    fn as_any(&self) -> &dyn Any { self }
+
     fn should_quit(&self) -> bool {
         self.should_quit
     }
@@ -165,15 +174,13 @@ impl Application for GlfwApplication {
         Vec2::new(x_scale, y_scale)
     }
 
-    type InputSystemType = GlfwInputSystem;
-
     #[inline]
-    fn input_system(&self) -> &Self::InputSystemType {
+    fn input_system(&self) -> &dyn InputSystem {
         &self.input_system
     }
 
     #[inline]
-    fn input_system_mut(&mut self) -> &mut Self::InputSystemType {
+    fn input_system_mut(&mut self) -> &mut dyn InputSystem {
         &mut self.input_system
     }
 }
@@ -211,13 +218,6 @@ fn confine_cursor_to_window(window: &mut glfw::Window) {
     }
 }
 
-// For the ImGui OpenGL backend.
-pub fn load_gl_func<T: Application>(app: &T, func_name: &'static str) -> *const c_void {
-    // SAFETY: Type `T` is always GlfwApplication, there's only one implementation of the Application trait.
-    let glfw_app = utils::reinterpret_mut_cast::<T, GlfwApplication>(app);
-    glfw_app.window.get_proc_address(func_name)
-}
-
 // ----------------------------------------------
 // GlfwInputSystem
 // ----------------------------------------------
@@ -235,6 +235,8 @@ impl GlfwInputSystem {
 }
 
 impl InputSystem for GlfwInputSystem {
+    fn as_any(&self) -> &dyn Any { self }
+    
     #[inline]
     fn cursor_pos(&self) -> Vec2 {
         let (x, y) = self.get_window().get_cursor_pos();

@@ -41,9 +41,8 @@ pub trait RenderSystem {
     // TextureCache access:
     // ----------------------
 
-    type TextureCacheType: TextureCache;
-    fn texture_cache(&self) -> &Self::TextureCacheType;
-    fn texture_cache_mut(&mut self) -> &mut Self::TextureCacheType;
+    fn texture_cache(&self) -> &dyn TextureCache;
+    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache;
 
     // ----------------------
     // Viewport:

@@ -63,7 +63,7 @@ pub trait SaveState {
 
 #[enum_dispatch]
 pub enum SaveStateImpl {
-    Json(backends::JsonSaveState),
+    Json(backend::JsonSaveState),
 }
 
 pub struct PostLoadContext<'tile_sets, 'config> {
@@ -92,7 +92,7 @@ impl<'tile_sets, 'config> PostLoadContext<'tile_sets, 'config> {
 // SaveState Implementations
 // ----------------------------------------------
 
-pub mod backends {
+pub mod backend {
 use super::*;
 
 // ----------------------------------------------
@@ -173,5 +173,4 @@ impl SaveState for JsonSaveState {
 pub fn new_json_save_state(pretty_print: bool) -> SaveStateImpl {
     SaveStateImpl::from(JsonSaveState::new(pretty_print))
 }
-
 }
