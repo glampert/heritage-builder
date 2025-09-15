@@ -1,9 +1,12 @@
+use std::any::Any;
+
 use crate::{
     utils::{Vec2, Color, Size, Rect, RectTexCoords}
 };
 
 // Internal implementation.
 mod opengl;
+pub type RenderSystemBackend = opengl::system::RenderSystem;
 
 // ----------------------------------------------
 // RenderStats
@@ -29,7 +32,9 @@ pub struct RenderStats {
 // RenderSystem
 // ----------------------------------------------
 
-pub trait RenderSystem {
+pub trait RenderSystem: Any {
+    fn as_any(&self) -> &dyn Any;
+
     // ----------------------
     // Render frame markers:
     // ----------------------
@@ -270,8 +275,8 @@ impl RenderSystemBuilder {
         self
     }
 
-    pub fn build<'a>(&self) -> impl RenderSystem + use<'a> {
-        opengl::system::RenderSystem::new(
+    pub fn build(&self) -> RenderSystemBackend {
+        RenderSystemBackend::new(
             self.viewport_size,
             self.clear_color)
     }

@@ -1,3 +1,4 @@
+use std::any::Any;
 use arrayvec::ArrayVec;
 
 use crate::{
@@ -122,6 +123,8 @@ impl RenderSystem {
 }
 
 impl render::RenderSystem for RenderSystem {
+    fn as_any(&self) -> &dyn Any { self }
+
     fn begin_frame(&mut self) {
         debug_assert!(!self.frame_started);
 

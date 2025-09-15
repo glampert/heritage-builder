@@ -87,7 +87,7 @@ trait DebugDraw {
 // should be an interface (trait) so we could have dynamically loaded render/app back ends.
 trait Engine {
     fn app(&mut self) -> &mut dyn Application;
-    fn input_system(&mut self) -> &mut dyn InputSystem;
+    fn input_system(&self) -> &dyn InputSystem;
 
     fn render_system(&mut self) -> &mut dyn RenderSystem;
     fn render_stats(&self) -> &RenderStats;
@@ -103,23 +103,172 @@ trait Engine {
 
     fn frame_clock(&mut self) -> &mut FrameClock;
     fn log_viewer(&mut self) -> &mut LogViewerWindow;
+    fn viewport(&self) -> Rect;
 }
 
-struct EngineBackend<RenderSysImpl, DebugDrawImpl> {
-    app: ApplicationBackend,
-    input_system: InputSystemBackend,
+struct DebugDrawBackend {
+    render_system: UnsafeWeakRef<RenderSystemBackend>,
+}
 
-    render_system: RenderSysImpl,
+impl DebugDrawBackend {
+    fn new(render_system: &RenderSystemBackend) -> Self {
+        Self {
+            render_system: UnsafeWeakRef::new(render_system),
+        }
+    }
+}
+
+impl DebugDraw for DebugDrawBackend {
+    #[inline]
+    fn point(&mut self, pt: Vec2, color: Color, size: f32) {
+        self.render_system.draw_point_fast(pt, color, size);
+    }
+
+    #[inline]
+    fn line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
+        self.render_system.draw_line_fast(from_pos, to_pos, from_color, to_color);
+    }
+
+    #[inline]
+    fn wireframe_rect(&mut self, rect: Rect, color: Color) {
+        self.render_system.draw_wireframe_rect_fast(rect, color);
+    }
+
+    #[inline]
+    fn wireframe_rect_with_thickness(&mut self, rect: Rect, color: Color, thickness: f32) {
+        self.render_system.draw_wireframe_rect_with_thickness(rect, color, thickness);
+    }
+
+    #[inline]
+    fn colored_rect(&mut self, rect: Rect, color: Color) {
+        self.render_system.draw_colored_rect(rect, color);
+    }
+
+    #[inline]
+    fn textured_colored_rect(&mut self, rect: Rect, tex_coords: &RectTexCoords, texture: TextureHandle, color: Color) {
+        self.render_system.draw_textured_colored_rect(rect, tex_coords, texture, color);
+    }
+}
+
+struct EngineBackend {
+    app: Box<ApplicationBackend>,
+
+    render_system: Box<RenderSystemBackend>,
     render_stats: RenderStats,
 
     tile_map_renderer: TileMapRenderer,
     tile_map_render_stats: TileMapRenderStats,
 
     ui_system: UiSystem,
-    debug_draw: DebugDrawImpl,
+    debug_draw: DebugDrawBackend,
 
     frame_clock: FrameClock,
     log_viewer: LogViewerWindow,
+}
+
+impl EngineBackend {
+    fn new() -> Self {
+        let log_viewer = LogViewerWindow::new(false, 32);
+        log::info!("The current directory is: '{:?}'", std::env::current_dir().unwrap());
+
+        let app = Box::new(
+            ApplicationBuilder::new()
+                .window_title("CitySim")
+                .window_size(Size::new(1024, 768))
+                .fullscreen(false)
+                .confine_cursor_to_window(Camera::confine_cursor_to_window())
+                .build()
+        );
+
+        let render_system = Box::new(
+            RenderSystemBuilder::new()
+                .viewport_size(app.window_size())
+                .clear_color(rendering::MAP_BACKGROUND_COLOR)
+                .build()
+        );
+
+        let ui_system = UiSystem::new(app.as_ref());
+        let debug_draw = DebugDrawBackend::new(render_system.as_ref());
+
+        Self {
+            app,
+            render_system,
+            render_stats: RenderStats::default(),
+            tile_map_renderer: TileMapRenderer::new(rendering::DEFAULT_GRID_COLOR, 1.0),
+            tile_map_render_stats: TileMapRenderStats::default(),
+            ui_system,
+            debug_draw,
+            frame_clock: FrameClock::new(),
+            log_viewer,
+        }
+    }
+}
+
+impl Engine for EngineBackend {
+    #[inline]
+    fn app(&mut self) -> &mut dyn Application {
+        self.app.as_mut()
+    }
+
+    #[inline]
+    fn input_system(&self) -> &dyn InputSystem {
+        self.app.input_system()
+    }
+
+    #[inline]
+    fn render_system(&mut self) -> &mut dyn RenderSystem {
+        self.render_system.as_mut()
+    }
+
+    #[inline]
+    fn render_stats(&self) -> &RenderStats {
+        &self.render_stats
+    }
+
+    #[inline]
+    fn texture_cache(&self) -> &dyn TextureCache {
+        self.render_system.texture_cache()
+    }
+
+    #[inline]
+    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache {
+        self.render_system.texture_cache_mut()
+    }
+
+    #[inline]
+    fn tile_map_renderer(&mut self) -> &mut TileMapRenderer {
+        &mut self.tile_map_renderer
+    }
+
+    #[inline]
+    fn tile_map_render_stats(&self) -> &TileMapRenderStats {
+        &self.tile_map_render_stats
+    }
+
+    #[inline]
+    fn ui_system(&mut self) -> &mut UiSystem {
+        &mut self.ui_system
+    }
+
+    #[inline]
+    fn debug_draw(&mut self) -> &mut dyn DebugDraw {
+        &mut self.debug_draw
+    }
+
+    #[inline]
+    fn frame_clock(&mut self) -> &mut FrameClock {
+        &mut self.frame_clock
+    }
+
+    #[inline]
+    fn log_viewer(&mut self) -> &mut LogViewerWindow {
+        &mut self.log_viewer
+    }
+
+    #[inline]
+    fn viewport(&self) -> Rect {
+        self.render_system.viewport()
+    }
 }
 
 struct GameAssets {
@@ -152,14 +301,15 @@ struct GameSession<'tile_sets, 'config> {
 }
 
 impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
-    fn new<'assets>(viewport_size: Size, tex_cache: &mut dyn TextureCache, assets: &'assets GameAssets) -> Self
+    fn new<'assets>(tex_cache: &mut dyn TextureCache, assets: &'assets GameAssets, viewport_size: Size) -> Self
         where 'assets: 'tile_sets,
               'assets: 'config
     {
         debug_assert!(viewport_size.is_valid());
 
-        // TODO: Should add a command line option to load with a preset map instead.
-        // Can also add support to command line cheats.
+        // TODO:
+        // Should add a command line option to load with a preset map instead.
+        // Can also add support for setting cheats from the command line.
 
         // Test map with debug preset tiles:
         let mut world = World::new(&assets.building_configs, &assets.unit_configs);
@@ -194,7 +344,6 @@ impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
             CameraZoom::MIN,
             CameraOffset::Center);
 
-        let tile_selection = TileSelection::new();
         let debug_menus = DebugMenusSystem::new(&mut tile_map, tex_cache);
 
         Self {
@@ -203,7 +352,7 @@ impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
             sim,
             systems,
             camera,
-            tile_selection,
+            tile_selection: TileSelection::new(),
             debug_menus,
         }
     }
@@ -266,37 +415,46 @@ impl<'tile_sets, 'config> Load<'tile_sets, 'config> for GameSession<'tile_sets, 
 }
 
 impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
-    fn save_game(&mut self) -> bool {
-        let save_file_path = save_file_path();
-        let mut state = save::backend::new_json_save_state(true);
+    fn save_game(&mut self, save_file_path: &str) -> bool {
+        // Attempt to write a dummy file to probe if the path is writable.
+        fn can_write_save_file(save_file_path: &str) -> bool {
+            std::fs::write(save_file_path, save_file_path).is_ok()
+        }
+
+        fn do_save(state: &mut SaveStateImpl, sesion: &GameSession, save_file_path: &str) -> bool {
+            if let Err(err) = sesion.save(state) {
+                log::error!(log::channel!("save_game"), "Failed to saved game: {err}");
+                return false;
+            }
+
+            if let Err(err) = state.write_file(save_file_path) {
+                log::error!(log::channel!("save_game"), "Failed to write saved game file '{save_file_path}': {err}");
+                return false;
+            }
+
+            true
+        }
 
         if !can_write_save_file(save_file_path) {
             log::error!(log::channel!("save_game"), "Saved game file path '{save_file_path}' is not accessible!");
             return false;
         }
 
+        let mut state = save::backend::new_json_save_state(true);
+
         self.pre_save();
 
-        if let Err(err) = self.save(&mut state) {
-            log::error!(log::channel!("save_game"), "Failed to saved game: {err}");
-            return false;
-        }
-
-        if let Err(err) = state.write_file(save_file_path) {
-            log::error!(log::channel!("save_game"), "Failed to write saved game file '{save_file_path}': {err}");
-            return false;
-        }
+        let result = do_save(&mut state, self, save_file_path);
 
         self.post_save();
 
-        true
+        result
     }
 
-    fn load_game<'assets>(&mut self, assets: &'assets GameAssets) -> bool
+    fn load_game<'assets>(&mut self, assets: &'assets GameAssets, save_file_path: &str) -> bool
         where 'assets: 'tile_sets,
               'assets: 'config
     {
-        let save_file_path = save_file_path();
         let mut state = save::backend::new_json_save_state(false);
 
         if let Err(err) = state.read_file(save_file_path) {
@@ -328,20 +486,18 @@ impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
     }
 }
 
-fn save_file_path() -> &'static str {
-    "save_game.json"
-}
-
-fn can_write_save_file(save_file_path: &str) -> bool {
-    // Attempt to write a dummy file to probe if the path is writable. 
-    std::fs::write(save_file_path, save_file_path).is_ok()
-}
+const AUTOSAVE_FILE_NAME: &str = "autosave.json";
+const DEFAULT_SAVE_FILE_NAME: &str = "save_game.json";
 
 // ----------------------------------------------
 // main()
 // ----------------------------------------------
 
 fn main() {
+
+    let mut engine = EngineBackend::new();
+
+    /*
     let log_viewer = LogViewerWindow::new(false, 32);
 
     let cwd = std::env::current_dir().unwrap();
@@ -361,47 +517,49 @@ fn main() {
 
     let mut ui_sys = UiSystem::new(&app);
 
-    cheats::initialize();
-    debug::set_show_popup_messages(true);
-
-    // TODO Box these! Too large to be on the stack.
-    let assets = GameAssets::new(render_sys.texture_cache_mut());
-    let mut session = GameSession::new(render_sys.viewport().size(), render_sys.texture_cache_mut(), &assets);
-
     let mut tile_map_renderer = TileMapRenderer::new(
         rendering::DEFAULT_GRID_COLOR,
         1.0);
 
     let mut render_sys_stats = RenderStats::default();
     let mut frame_clock = FrameClock::new();
+    */
+
+    cheats::initialize();
+    debug::set_show_popup_messages(true);
+
+    // TODO Box these! Too large to be on the stack.
+    let assets = GameAssets::new(engine.texture_cache_mut());
+    let viewport_size = engine.viewport().size();
+    let mut session = GameSession::new(engine.texture_cache_mut(), &assets, viewport_size);
 
     let mut test_save_game_timer = UpdateTimer::new(10.0);
-    session.save_game();
-    session.load_game(&assets);
+    session.save_game(DEFAULT_SAVE_FILE_NAME);
+    session.load_game(&assets, DEFAULT_SAVE_FILE_NAME);
 
-    while !app.should_quit() {
-        frame_clock.begin_frame();
+    while !engine.app().should_quit() {
+        engine.frame_clock().begin_frame();
 
-        let cursor_screen_pos = app.input_system().cursor_pos();
-        let delta_time_secs = frame_clock.delta_time();
+        let cursor_screen_pos = engine.app().input_system().cursor_pos();
+        let delta_time_secs = engine.frame_clock().delta_time();
 
         if test_save_game_timer.tick(delta_time_secs).should_update() {
-            session.save_game();
-            session.load_game(&assets);
+            session.save_game(DEFAULT_SAVE_FILE_NAME);
+            session.load_game(&assets, DEFAULT_SAVE_FILE_NAME);
             log::info!("Game Saved/Reloaded.");
         }
 
-        for event in app.poll_events() {
+        for event in engine.app().poll_events() {
             match event {
                 ApplicationEvent::Quit => {
-                    app.request_quit();
+                    engine.app().request_quit();
                 }
                 ApplicationEvent::WindowResize(window_size) => {
-                    render_sys.set_viewport_size(window_size);
+                    engine.render_system().set_viewport_size(window_size);
                     session.camera.set_viewport_size(window_size);
                 }
                 ApplicationEvent::KeyInput(key, action, modifiers) => {
-                    if ui_sys.on_key_input(key, action, modifiers).is_handled() {
+                    if engine.ui_system().on_key_input(key, action, modifiers).is_handled() {
                         continue;
                     }
 
@@ -417,12 +575,12 @@ fn main() {
                     }
                 }
                 ApplicationEvent::CharInput(c) => {
-                    if ui_sys.on_char_input(c).is_handled() {
+                    if engine.ui_system().on_char_input(c).is_handled() {
                         continue;
                     }
                 }
                 ApplicationEvent::Scroll(amount) => {
-                    if ui_sys.on_scroll(amount).is_handled() {
+                    if engine.ui_system().on_scroll(amount).is_handled() {
                         continue;
                     }
 
@@ -433,7 +591,7 @@ fn main() {
                     }
                 }
                 ApplicationEvent::MouseButton(button, action, modifiers) => {
-                    if ui_sys.on_mouse_click(button, action, modifiers).is_handled() {
+                    if engine.ui_system().on_mouse_click(button, action, modifiers).is_handled() {
                         continue;
                     }
 
@@ -456,7 +614,7 @@ fn main() {
         session.camera.update_zooming(delta_time_secs);
 
         // Map scrolling:
-        if !ui_sys.is_handling_mouse_input() {
+        if !engine.ui_system().is_handling_mouse_input() {
             session.camera.update_scrolling(cursor_screen_pos, delta_time_secs);
         }
 
@@ -464,12 +622,12 @@ fn main() {
 
         session.tile_map.update_anims(visible_range, delta_time_secs);
 
-        ui_sys.begin_frame(&app, delta_time_secs);
-        render_sys.begin_frame();
+        engine.ui_system().begin_frame(engine.app(), delta_time_secs);
+        engine.render_system().begin_frame();
 
         let selected_render_flags =
             session.debug_menus.begin_frame(&mut DebugMenusBeginFrameArgs {
-                ui_sys: &ui_sys,
+                ui_sys: engine.ui_system(),
                 sim: &mut session.sim,
                 world: &mut session.world,
                 tile_map: &mut session.tile_map,
@@ -481,19 +639,19 @@ fn main() {
             });
 
         let tile_render_stats =
-            tile_map_renderer.draw_map(
-                &mut render_sys,
-                &ui_sys,
+            engine.tile_map_renderer().draw_map(
+                engine.render_system.as_mut(),
+                &engine.ui_system(),
                 &session.tile_map,
                 session.camera.transform(),
                 visible_range,
                 selected_render_flags);
 
-        session.tile_selection.draw(&mut render_sys);
+        session.tile_selection.draw(engine.render_system.as_mut());
 
         session.debug_menus.end_frame(&mut DebugMenusEndFrameArgs {
             context: sim::debug::DebugContext {
-                ui_sys: &ui_sys,
+                ui_sys: &engine.ui_system(),
                 world: &mut session.world,
                 systems: &mut session.systems,
                 tile_map: &mut session.tile_map,
@@ -502,23 +660,23 @@ fn main() {
                 delta_time_secs,
             },
             sim: &mut session.sim,
-            log_viewer: &log_viewer,
+            log_viewer: engine.log_viewer(),
             camera: &mut session.camera,
-            render_sys: &mut render_sys,
-            render_sys_stats: &render_sys_stats,
-            tile_map_renderer: &mut tile_map_renderer,
-            tile_render_stats: &tile_render_stats,
+            render_sys: engine.render_system.as_mut(),
+            render_sys_stats: engine.render_stats(),
+            tile_map_renderer: engine.tile_map_renderer(),
+            tile_render_stats: engine.tile_map_render_stats(),
             tile_selection: &session.tile_selection,
             visible_range,
             cursor_screen_pos,
         });
 
-        render_sys_stats = render_sys.end_frame();
-        ui_sys.end_frame();
+        engine.render_stats = engine.render_system().end_frame();
+        engine.ui_system.end_frame();
 
-        app.present();
+        engine.app.present();
 
-        frame_clock.end_frame();
+        engine.frame_clock.end_frame();
     }
 
     session.sim.reset(&mut session.world, &mut session.systems, &mut session.tile_map, &assets.tile_sets);

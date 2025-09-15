@@ -178,11 +178,6 @@ impl Application for GlfwApplication {
     fn input_system(&self) -> &dyn InputSystem {
         &self.input_system
     }
-
-    #[inline]
-    fn input_system_mut(&mut self) -> &mut dyn InputSystem {
-        &mut self.input_system
-    }
 }
 
 // ----------------------------------------------
@@ -236,7 +231,7 @@ impl GlfwInputSystem {
 
 impl InputSystem for GlfwInputSystem {
     fn as_any(&self) -> &dyn Any { self }
-    
+
     #[inline]
     fn cursor_pos(&self) -> Vec2 {
         let (x, y) = self.get_window().get_cursor_pos();

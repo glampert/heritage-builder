@@ -38,7 +38,6 @@ pub trait Application: Any {
     fn content_scale(&self) -> Vec2;
 
     fn input_system(&self) -> &dyn InputSystem;
-    fn input_system_mut(&mut self) -> &mut dyn InputSystem;
 }
 
 // ----------------------------------------------
@@ -98,7 +97,7 @@ impl ApplicationBuilder {
         self
     }
 
-    pub fn build<'a>(&self) -> impl Application + use<'a> {
+    pub fn build(&self) -> ApplicationBackend {
         ApplicationBackend::new(
             self.title.clone(),
             self.window_size,

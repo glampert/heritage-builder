@@ -14,7 +14,7 @@ use crate::{
 // InputSystem
 // ----------------------------------------------
 
-pub trait InputSystem {
+pub trait InputSystem: Any {
     fn as_any(&self) -> &dyn Any;
     fn cursor_pos(&self) -> Vec2;
     fn mouse_button_state(&self, button: MouseButton) -> InputAction;
