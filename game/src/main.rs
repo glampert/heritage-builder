@@ -17,6 +17,7 @@ use utils::*;
 use app::*;
 use app::input::*;
 use debug::*;
+use debug::log_viewer::*;
 use save::*;
 use tile::{
     camera::{self, *},
@@ -43,14 +44,67 @@ use serde::{
     Deserialize
 };
 
+//
+// move this to game/core
+//  - mod.rs
+//  - session.rs
+//  - engine.rs
+//
+
 struct GameLoop<'tile_sets, 'config> {
-    engine: GameEngine,
-    assets: GameAssets,
-    session: GameSession<'tile_sets, 'config>,
+    //engine: Box<dyn GameEngine>,
+    assets: Box<GameAssets>,
+    session: Box<GameSession<'tile_sets, 'config>>,
 }
 
-struct GameEngine {
-    // TODO app, ui, render, etc
+/*
+main:
+    let game_loop = GameLoop::new();
+
+    while !game_loop.should_quit() {
+        game_loop.run();
+    }
+
+    game_loop.terminate();
+*/
+
+impl<'tile_sets, 'config> GameLoop<'tile_sets, 'config> {
+    //fn new() -> Self;
+    //fn should_quit(&self) -> bool;
+    //fn run(&mut self);
+    //fn terminate(&mut self);
+}
+
+// should be an interface (trait) so we could have dynamically loaded render/app back ends.
+trait GameEngine {
+
+    fn app(&mut self) -> &mut dyn Application<InputSystemType = impl InputSystem>;
+    fn input_sys(&mut self) -> &mut dyn InputSystem;
+
+    fn render_sys(&mut self) -> &mut dyn RenderSystem<TextureCacheType = impl TextureCache>;
+    fn render_stats(&self) -> &RenderStats;
+
+    fn tile_map_renderer(&mut self) -> &mut TileMapRenderer;
+    fn tile_map_render_stats(&self) -> &TileMapRenderStats;
+
+    fn frame_clock(&mut self) -> &mut FrameClock;
+    fn ui_sys(&mut self) -> &mut UiSystem;
+    fn log_viewer(&mut self) -> &mut LogViewerWindow;
+
+    /*
+    app: Application,
+    input_sys: InputSystem,
+
+    render_sys: RenderSystem,
+    render_stats: RenderStats,
+
+    tile_map_renderer: TileMapRenderer,
+    tile_map_render_stats: TileMapRenderStats,
+
+    frame_clock: FrameClock,
+    ui_sys: UiSystem,
+    log_viewer: LogViewerWindow,
+    */
 }
 
 struct GameAssets {
@@ -60,9 +114,9 @@ struct GameAssets {
 }
 
 impl GameAssets {
-    fn new(render_sys: &mut impl RenderSystem) -> Self {
+    fn new(tex_cache: &mut impl TextureCache) -> Self {
         Self {
-            tile_sets: TileSets::load(render_sys.texture_cache_mut()),
+            tile_sets: TileSets::load(tex_cache),
             unit_configs: UnitConfigs::load(),
             building_configs: BuildingConfigs::load(),
         }
@@ -83,14 +137,18 @@ struct GameSession<'tile_sets, 'config> {
 }
 
 impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
-    fn new<'assets>(render_sys: &mut impl RenderSystem, assets: &'assets GameAssets) -> Self
+    fn new<'assets>(viewport_size: Size, tex_cache: &mut impl TextureCache, assets: &'assets GameAssets) -> Self
         where 'assets: 'tile_sets,
               'assets: 'config
     {
-        let mut world = World::new(&assets.building_configs, &assets.unit_configs);
+        debug_assert!(viewport_size.is_valid());
+
+        // TODO: Should add a command line option to load with a preset map instead.
+        // Can also add support to command line cheats.
 
         // Test map with debug preset tiles:
-        let mut tile_map = Box::new(debug::utils::create_test_tile_map_preset(
+        let mut world = World::new(&assets.building_configs, &assets.unit_configs);
+        let mut tile_map = Box::new(debug::utils::create_preset_tile_map(
             &mut world,
             &assets.tile_sets,
             0));
@@ -103,6 +161,8 @@ impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
             TERRAIN_GROUND_CATEGORY,
             hash::StrHashPair::from_str("dirt")
         ));
+
+        let world = World::new(&assets.building_configs, &assets.unit_configs);
         */
 
         let sim = Simulation::new(
@@ -114,16 +174,13 @@ impl<'tile_sets, 'config> GameSession<'tile_sets, 'config> {
         systems.register(settlers::SettlersSpawnSystem::new());
 
         let camera = Camera::new(
-            render_sys.viewport().size(),
+            viewport_size,
             tile_map.size_in_cells(),
             CameraZoom::MIN,
             CameraOffset::Center);
 
         let tile_selection = TileSelection::new();
-
-        let debug_menus = DebugMenusSystem::new(
-            &mut tile_map,
-            render_sys.texture_cache_mut());
+        let debug_menus = DebugMenusSystem::new(&mut tile_map, tex_cache);
 
         Self {
             tile_map,
@@ -270,7 +327,7 @@ fn can_write_save_file(save_file_path: &str) -> bool {
 // ----------------------------------------------
 
 fn main() {
-    let log_viewer = log_viewer::LogViewerWindow::new(false, 32);
+    let log_viewer = LogViewerWindow::new(false, 32);
 
     let cwd = std::env::current_dir().unwrap();
     log::info!("The current directory is \"{}\".", cwd.display());
@@ -281,8 +338,6 @@ fn main() {
         .fullscreen(false)
         .confine_cursor_to_window(Camera::confine_cursor_to_window())
         .build();
-
-    let input_sys = app.create_input_system();
 
     let mut render_sys = RenderSystemBuilder::new()
         .viewport_size(app.window_size())
@@ -295,8 +350,8 @@ fn main() {
     debug::set_show_popup_messages(true);
 
     // TODO Box these! Too large to be on the stack.
-    let assets = GameAssets::new(&mut render_sys);
-    let mut session = GameSession::new(&mut render_sys, &assets);
+    let assets = GameAssets::new(render_sys.texture_cache_mut());
+    let mut session = GameSession::new(render_sys.viewport().size(), render_sys.texture_cache_mut(), &assets);
 
     let mut tile_map_renderer = TileMapRenderer::new(
         rendering::DEFAULT_GRID_COLOR,
@@ -312,7 +367,7 @@ fn main() {
     while !app.should_quit() {
         frame_clock.begin_frame();
 
-        let cursor_screen_pos = input_sys.cursor_pos();
+        let cursor_screen_pos = app.input_system().cursor_pos();
         let delta_time_secs = frame_clock.delta_time();
 
         if test_save_game_timer.tick(delta_time_secs).should_update() {
@@ -394,7 +449,7 @@ fn main() {
 
         session.tile_map.update_anims(visible_range, delta_time_secs);
 
-        ui_sys.begin_frame(&app, &input_sys, delta_time_secs);
+        ui_sys.begin_frame(&app, app.input_system(), delta_time_secs);
         render_sys.begin_frame();
 
         let selected_render_flags =

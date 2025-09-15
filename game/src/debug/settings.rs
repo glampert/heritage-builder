@@ -1,6 +1,8 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
+    log,
+    debug,
     imgui_ui::UiSystem,
     utils::hash::{self},
     game::{
@@ -26,13 +28,14 @@ use crate::{
 
 #[derive(Default, DrawDebugUi)]
 pub struct DebugSettingsMenu {
-    #[debug_ui(skip)]
-    start_open: bool,
+    #[debug_ui(skip)] start_open: bool,
 
-    #[debug_ui(skip)]
-    draw_grid: bool,
-    #[debug_ui(skip)]
-    draw_grid_ignore_depth: bool,
+    #[debug_ui(skip)] draw_grid: bool,
+    #[debug_ui(skip)] draw_grid_ignore_depth: bool,
+
+    #[debug_ui(skip)] preset_tile_map_number: usize,
+    #[debug_ui(skip)] save_file_name: String,
+    #[debug_ui(skip)] save_file_selected: usize,
 
     #[debug_ui(edit)] draw_terrain: bool,
     #[debug_ui(edit)] draw_buildings: bool,
@@ -131,6 +134,8 @@ impl DebugSettingsMenu {
                 self.map_grid_dropdown(context.ui_sys, tile_map_renderer);
                 self.reset_map_dropdown(context, sim);
                 self.debug_draw_dropdown(context.ui_sys);
+                self.preset_maps_dropdown(context);
+                self.save_game_dropdown(context.ui_sys);
                 cheats::draw_debug_ui(context.ui_sys);
             });
 
@@ -216,7 +221,7 @@ impl DebugSettingsMenu {
 
         let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Reset Map", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.                    
+            return; // collapsed.
         }
 
         if ui.button("Reset empty") {
@@ -240,6 +245,62 @@ impl DebugSettingsMenu {
                 hash::fnv1a_from_str("grass"));
             context.tile_map.reset(grass_tile_def);
             sim.reset(context.world, context.systems, context.tile_map, context.tile_sets);
+        }
+    }
+
+    fn preset_maps_dropdown(&mut self, context: &mut sim::debug::DebugContext) {
+        let ui = context.ui_sys.builder();
+        if !ui.collapsing_header("Preset Maps", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        let preset_tile_map_names = debug::utils::preset_tile_maps_list();
+
+        if ui.combo_simple_string("Preset", &mut self.preset_tile_map_number, &preset_tile_map_names) {
+            self.preset_tile_map_number = self.preset_tile_map_number.min(preset_tile_map_names.len());
+        }
+
+        if ui.button("Load Preset") {
+            log::info!("Loading preset tile map '{}' ...", preset_tile_map_names[self.preset_tile_map_number]);
+            //let tile_map = debug::utils::create_preset_tile_map(context.world, context.tile_sets, self.preset_tile_map_number);
+            // TODO: Assign preset to Game Session!
+        }
+    }
+
+    fn save_game_dropdown(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header("Save Game", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if self.save_file_name.is_empty() {
+            // TODO: Default save file name getter/const?
+            self.save_file_name = "autosave.json".into();
+        }
+
+        ui.input_text("Save File", &mut self.save_file_name).build();
+
+        if ui.button("Save") {
+            if !self.save_file_name.is_empty() {
+                log::info!("Saving '{}' ...", self.save_file_name);
+                // TODO: Save the game!
+            } else {
+                log::error!("No save file name provided!");
+            }
+        }
+
+        ui.separator();
+
+        // TODO: Get these from the save folder!
+        let save_files = vec!["sample_save1.json", "sample_save2.json"];
+
+        if ui.combo_simple_string("Load File", &mut self.save_file_selected, &save_files) {
+            self.save_file_selected = self.save_file_selected.min(save_files.len());
+        }
+
+        if ui.button("Load") {
+            log::info!("Loading '{}' ...", save_files[self.save_file_selected]);
+            // TODO: Load the game!
         }
     }
 

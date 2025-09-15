@@ -941,12 +941,6 @@ impl<T> UnsafeMutable<T> {
     }
 }
 
-#[inline(always)]
-pub fn mut_ref_cast<T: ?Sized>(reference: &T) -> &mut T {
-    let ptr = reference as *const T as *mut T;
-    unsafe { ptr.as_mut().unwrap() }
-}
-
 // Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
 impl<T> Deref for UnsafeMutable<T> {
     type Target = T;
@@ -1004,6 +998,25 @@ impl<T: Clone> Clone for UnsafeMutable<T> {
             cell: UnsafeCell::new(self.as_ref().clone()),
         }
     }
+}
+
+// ----------------------------------------------
+// Low-level type casting helpers
+// ----------------------------------------------
+
+#[inline(always)]
+pub fn mut_ref_cast<T: ?Sized>(reference: &T) -> &mut T {
+    let ptr = reference as *const T as *mut T;
+    unsafe { ptr.as_mut().unwrap() }
+}
+
+#[inline(always)]
+pub fn reinterpret_mut_cast<From: Sized, To: Sized>(reference: &From) -> &mut To {
+    // Make sure sizes and alignment requirements are compatible.
+    debug_assert!(std::mem::size_of::<From>()  == std::mem::size_of::<To>());
+    debug_assert!(std::mem::align_of::<From>() == std::mem::align_of::<To>());
+    let ptr = reference as *const From as *mut To;
+    unsafe { ptr.as_mut().unwrap() }
 }
 
 // ----------------------------------------------

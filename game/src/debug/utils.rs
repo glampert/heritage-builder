@@ -360,6 +360,7 @@ mod test_maps {
     use super::*;
 
     struct PresetTiles {
+        preset_name: &'static str,
         map_size_in_cells: Size,
         terrain_tiles:  &'static [i32],
         building_tiles: &'static [i32],
@@ -399,6 +400,7 @@ mod test_maps {
 
     // 1 house, 2 wells, 1 market, 1 farm, 1 storage (granary)
     const PRESET_TILES_0: PresetTiles = PresetTiles {
+        preset_name: "[0] - 1 house, 2 wells, 1 market, 1 farm, 1 granary",
         map_size_in_cells: Size::new(9, 9),
         terrain_tiles: &[
             R,R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
@@ -429,6 +431,7 @@ mod test_maps {
 
     // 1 farm, 1 storage (granary)
     const PRESET_TILES_1: PresetTiles = PresetTiles {
+        preset_name: "[1] - 1 farm, 1 granary",
         map_size_in_cells: Size::new(9, 9),
         terrain_tiles: &[
             R,R,R,R,R,R,R,R,R,
@@ -459,6 +462,7 @@ mod test_maps {
 
     // 1 farm, 2 storages (granary, storage yard), 1 factory (distillery)
     const PRESET_TILES_2: PresetTiles = PresetTiles {
+        preset_name: "[2] - 1 farm, 2 storages (G|Y), 1 distillery",
         map_size_in_cells: Size::new(12, 12),
         terrain_tiles: &[
             R,R,R,R,R,R,R,R,R,R,R,R,
@@ -557,10 +561,14 @@ mod test_maps {
         tile_map
     }
 
-    pub fn create_test_tile_map_preset_internal<'tile_sets>(world: &mut World,
-                                                            tile_sets: &'tile_sets TileSets,
-                                                            preset_number: usize) -> TileMap<'tile_sets> {
-        log::info!("Creating test tile map: PRESET {} ...", preset_number);
+    pub fn preset_tile_maps_list_internal() -> Vec<&'static str> {
+        PRESET_TILES.iter().map(|preset| preset.preset_name).collect()
+    }
+
+    pub fn create_preset_tile_map_internal<'tile_sets>(world: &mut World,
+                                                       tile_sets: &'tile_sets TileSets,
+                                                       preset_number: usize) -> TileMap<'tile_sets> {
+        log::info!("Creating debug tile map: PRESET {} ...", preset_number);
         let preset = PRESET_TILES[preset_number];
         if let Some(enable_cheats_fn) = preset.enable_cheats_fn {
             enable_cheats_fn(cheats::get_mut());
@@ -569,8 +577,12 @@ mod test_maps {
     }
 }
 
-pub fn create_test_tile_map_preset<'tile_sets>(world: &mut World,
-                                               tile_sets: &'tile_sets TileSets,
-                                               preset_number: usize) -> TileMap<'tile_sets> {
-    test_maps::create_test_tile_map_preset_internal(world, tile_sets, preset_number)
+pub fn preset_tile_maps_list() -> Vec<&'static str> {
+    test_maps::preset_tile_maps_list_internal()
+}
+
+pub fn create_preset_tile_map<'tile_sets>(world: &mut World,
+                                          tile_sets: &'tile_sets TileSets,
+                                          preset_number: usize) -> TileMap<'tile_sets> {
+    test_maps::create_preset_tile_map_internal(world, tile_sets, preset_number)
 }
