@@ -34,7 +34,8 @@ pub trait Application {
     fn content_scale(&self) -> Vec2;
 
     type InputSystemType: InputSystem;
-    fn create_input_system(&self) -> Self::InputSystemType;
+    fn input_system(&self) -> &Self::InputSystemType;
+    fn input_system_mut(&mut self) -> &mut Self::InputSystemType;
 }
 
 // ----------------------------------------------

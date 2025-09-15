@@ -35,10 +35,11 @@ pub struct GlfwApplication {
     glfw_instance: glfw::Glfw,
     window: glfw::PWindow,
     event_receiver: glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
+    input_system: GlfwInputSystem,
 }
 
 impl GlfwApplication {
-    pub fn new(title: String, window_size: Size, fullscreen: bool, confine_cursor: bool) -> Self {
+    pub fn new(title: String, window_size: Size, mut fullscreen: bool, confine_cursor: bool) -> Self {
         debug_assert!(window_size.is_valid());
 
         let mut glfw_instance =
@@ -52,6 +53,7 @@ impl GlfwApplication {
         let window_mode = glfw::WindowMode::Windowed;
         if fullscreen {
             log::error!(log::channel!("app"), "GLFW fullscreen window support not implemented!");
+            fullscreen = false;
         }
 
         let (mut window, event_receiver) = glfw_instance
@@ -76,6 +78,9 @@ impl GlfwApplication {
             gl::load_with(|symbol| window.get_proc_address(symbol))
         }, "stderr_gl_load_app.log");
 
+        // NOTE: PWindow is a Box<Window>, so the address is stable.
+        let window_ref = UnsafeWeakRef::new(&*window);
+
         Self {
             title,
             window_size,
@@ -85,6 +90,7 @@ impl GlfwApplication {
             glfw_instance,
             window,
             event_receiver,
+            input_system: GlfwInputSystem { window_ref },
         }
     }
 }
@@ -160,8 +166,15 @@ impl Application for GlfwApplication {
     }
 
     type InputSystemType = GlfwInputSystem;
-    fn create_input_system(&self) -> GlfwInputSystem {
-        GlfwInputSystem::new(self)
+
+    #[inline]
+    fn input_system(&self) -> &Self::InputSystemType {
+        &self.input_system
+    }
+
+    #[inline]
+    fn input_system_mut(&mut self) -> &mut Self::InputSystemType {
+        &mut self.input_system
     }
 }
 
@@ -198,20 +211,11 @@ fn confine_cursor_to_window(window: &mut glfw::Window) {
     }
 }
 
-#[inline]
-fn get_glfw_window_ref<T: Application>(app: &T) -> UnsafeWeakRef<glfw::PWindow> {
-    unsafe {
-        // SAFETY: Type `T` is always GlfwApplication, there's only one implementation of the Application trait.
-        debug_assert!(std::mem::size_of::<T>() == std::mem::size_of::<GlfwApplication>());
-        let glfw_app_ptr = app as *const T as *const GlfwApplication;
-        UnsafeWeakRef::new(&(*glfw_app_ptr).window)
-    }
-}
-
 // For the ImGui OpenGL backend.
 pub fn load_gl_func<T: Application>(app: &T, func_name: &'static str) -> *const c_void {
-    let mut window_ref = get_glfw_window_ref(app);
-    window_ref.get_proc_address(func_name)
+    // SAFETY: Type `T` is always GlfwApplication, there's only one implementation of the Application trait.
+    let glfw_app = utils::reinterpret_mut_cast::<T, GlfwApplication>(app);
+    glfw_app.window.get_proc_address(func_name)
 }
 
 // ----------------------------------------------
@@ -219,33 +223,30 @@ pub fn load_gl_func<T: Application>(app: &T, func_name: &'static str) -> *const 
 // ----------------------------------------------
 
 pub struct GlfwInputSystem {
-    window_ref: UnsafeWeakRef<glfw::PWindow>,
+    // SAFETY: Application Window will persist for as long as InputSystem.
+    window_ref: UnsafeWeakRef<glfw::Window>,
 }
 
 impl GlfwInputSystem {
-    pub fn new<T: Application>(app: &T) -> Self {
-        Self {
-            // SAFETY: Application will persist for as long at InputSystem.
-            window_ref: get_glfw_window_ref(app),
-        }
-    }
-
     #[inline]
-    fn get_window(&self) -> &glfw::PWindow {
+    fn get_window(&self) -> &glfw::Window {
         &self.window_ref
     }
 }
 
 impl InputSystem for GlfwInputSystem {
+    #[inline]
     fn cursor_pos(&self) -> Vec2 {
         let (x, y) = self.get_window().get_cursor_pos();
         Vec2::new(x as f32, y as f32)
     }
 
+    #[inline]
     fn mouse_button_state(&self, button: MouseButton) -> InputAction {
         self.get_window().get_mouse_button(button)
     }
 
+    #[inline]
     fn key_state(&self, key: InputKey) -> InputAction {
         self.get_window().get_key(key)
     }
