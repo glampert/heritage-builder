@@ -25,7 +25,7 @@ use crate::{
         Color,
         Seconds,
         UnsafeWeakRef,
-        hash::{StringHash, StrHashPair},
+        hash::StringHash,
         coords::{
             self,
             Cell,
@@ -815,7 +815,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn screen_rect(&self, transform: &WorldToScreenTransform) -> Rect {
+    pub fn screen_rect(&self, transform: WorldToScreenTransform) -> Rect {
         let draw_size = self.draw_size();
         let iso_position = self.iso_coords_f32();
         coords::iso_to_screen_rect_f32(iso_position, draw_size, transform)
@@ -854,7 +854,7 @@ impl<'tile_sets> Tile<'tile_sets> {
 
     pub fn is_screen_point_inside_base_cell(&self,
                                             screen_point: Vec2,
-                                            transform: &WorldToScreenTransform) -> bool {
+                                            transform: WorldToScreenTransform) -> bool {
 
         let cell = self.actual_base_cell();
         let tile_size = self.logical_size();
@@ -1498,7 +1498,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     pub fn find_exact_cell_for_point(&self,
                                      screen_point: Vec2,
-                                     transform: &WorldToScreenTransform) -> Cell {
+                                     transform: WorldToScreenTransform) -> Cell {
 
         let iso_point = coords::screen_to_iso_point(screen_point, transform, BASE_TILE_SIZE);
         let approx_cell = coords::iso_to_cell(iso_point, BASE_TILE_SIZE);
@@ -1668,7 +1668,7 @@ pub type TileMapResetCallback = fn(&mut TileMap);
 // TileMap
 // ----------------------------------------------
 
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct TileMap<'tile_sets> {
     size_in_cells: Size,
     layers: ArrayVec<Box<TileMapLayer<'tile_sets>>, TILE_MAP_LAYER_COUNT>,
@@ -1705,13 +1705,13 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     pub fn with_terrain_tile(size_in_cells: Size,
                              tile_sets: &'tile_sets TileSets,
-                             category_name: StrHashPair,
-                             tile_name: StrHashPair) -> Self {
+                             category_name_hash: StringHash,
+                             tile_name_hash: StringHash) -> Self {
 
         let fill_with_def = tile_sets.find_tile_def_by_hash(
             TileMapLayerKind::Terrain,
-            category_name.hash,
-            tile_name.hash);
+            category_name_hash,
+            tile_name_hash);
 
         Self::new(size_in_cells, fill_with_def)
     }
@@ -1814,6 +1814,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_tile_from_layer(&self,
                                cell: Cell,
                                kind: TileMapLayerKind) -> Option<&Tile<'tile_sets>> {
+        if self.layers.is_empty() {
+            return None;
+        }
+
         let layer = self.layer(kind);
         debug_assert!(layer.kind() == kind);
         layer.try_tile(cell)
@@ -1823,6 +1827,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_tile_from_layer_mut(&mut self,
                                    cell: Cell,
                                    kind: TileMapLayerKind) -> Option<&mut Tile<'tile_sets>> {
+        if self.layers.is_empty() {
+            return None;
+        }
+
         let layer = self.layer_mut(kind);
         debug_assert!(layer.kind() == kind);
         layer.try_tile_mut(cell)
@@ -1833,6 +1841,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
                     cell: Cell,
                     layer_kind: TileMapLayerKind,
                     tile_kinds: TileKind) -> bool {
+        if self.layers.is_empty() {
+            return false;
+        }
+
         self.layer(layer_kind).has_tile(cell, tile_kinds)
     }
 
@@ -1841,6 +1853,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
                      cell: Cell,
                      layer_kind: TileMapLayerKind,
                      tile_kinds: TileKind) -> Option<&Tile<'tile_sets>> {
+        if self.layers.is_empty() {
+            return None;
+        }
+
         self.layer(layer_kind).find_tile(cell, tile_kinds)
     }
 
@@ -1849,6 +1865,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
                          cell: Cell,
                          layer_kind: TileMapLayerKind,
                          tile_kinds: TileKind) -> Option<&mut Tile<'tile_sets>> {
+        if self.layers.is_empty() {
+            return None;
+        }
+
         self.layer_mut(layer_kind).find_tile_mut(cell, tile_kinds)
     }
 
@@ -1856,7 +1876,11 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn find_exact_cell_for_point(&self,
                                      layer_kind: TileMapLayerKind,
                                      screen_point: Vec2,
-                                     transform: &WorldToScreenTransform) -> Cell {
+                                     transform: WorldToScreenTransform) -> Cell {
+        if self.layers.is_empty() {
+            return Cell::invalid();
+        }
+
         self.layer(layer_kind).find_exact_cell_for_point(screen_point, transform)
     }
 
@@ -1864,23 +1888,29 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn for_each_tile<F>(&self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
         where F: FnMut(&Tile<'tile_sets>)
     {
-        let layer = self.layer(layer_kind);
-        layer.for_each_tile(tile_kinds, visitor_fn);
+        if !self.layers.is_empty() {
+            let layer = self.layer(layer_kind);
+            layer.for_each_tile(tile_kinds, visitor_fn);
+        }
     }
 
     #[inline]
     pub fn for_each_tile_mut<F>(&mut self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
         where F: FnMut(&mut Tile<'tile_sets>)
     {
-        let layer = self.layer_mut(layer_kind);
-        layer.for_each_tile_mut(tile_kinds, visitor_fn);
+        if !self.layers.is_empty() {
+            let layer = self.layer_mut(layer_kind);
+            layer.for_each_tile_mut(tile_kinds, visitor_fn);
+        }
     }
 
     #[inline]
     pub fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: Seconds) {
-        // NOTE: Terrain layer is not animated by design. Only objects animate.
-        let objects_layer = self.layer_mut(TileMapLayerKind::Objects);
-        objects_layer.update_anims(visible_range, delta_time_secs);
+        if !self.layers.is_empty() {
+            // NOTE: Terrain layer is not animated by design. Only objects animate.
+            let objects_layer = self.layer_mut(TileMapLayerKind::Objects);
+            objects_layer.update_anims(visible_range, delta_time_secs);
+        }
     }
 
     // ----------------------
@@ -1891,6 +1921,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile(&mut self,
                           target_cell: Cell,
                           tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
+
         self.try_place_tile_in_layer(
             target_cell,
             tile_def_to_place.layer_kind(), // Guess layer from TileDef.
@@ -1902,6 +1933,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                    target_cell: Cell,
                                    layer_kind: TileMapLayerKind,
                                    tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
+
+        if self.layers.is_empty() {
+            return Err("Map has no layers".into());
+        }
 
         let tile_placed_callback = self.on_tile_placed_callback;
         let layer = self.layer_mut(layer_kind);
@@ -1920,8 +1955,12 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_place_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Vec2,
-                                    transform: &WorldToScreenTransform,
+                                    transform: WorldToScreenTransform,
                                     tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
+
+        if self.layers.is_empty() {
+            return Err("Map has no layers".into());
+        }
 
         let tile_placed_callback = self.on_tile_placed_callback;
         let prev_pool_capacity = {
@@ -1944,6 +1983,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
                                      target_cell: Cell,
                                      layer_kind: TileMapLayerKind) -> Result<(), String> {
 
+        if self.layers.is_empty() {
+            return Err("Map has no layers".into());
+        }
+
         if let Some(callback) = self.on_removing_tile_callback {
             if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
                 callback(tile);
@@ -1956,7 +1999,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_clear_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Vec2,
-                                    transform: &WorldToScreenTransform) -> Result<(), String> {
+                                    transform: WorldToScreenTransform) -> Result<(), String> {
 
         if let Some(callback) = self.on_removing_tile_callback {
             for layer_kind in TileMapLayerKind::iter().rev() {
@@ -1978,6 +2021,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
         if !self.is_cell_within_bounds(from) ||
            !self.is_cell_within_bounds(to) {
+            return false;
+        }
+
+        if self.layers.is_empty() {
             return false;
         }
 
@@ -2028,9 +2075,14 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn update_selection(&mut self,
                             selection: &mut TileSelection,
                             cursor_screen_pos: Vec2,
-                            transform: &WorldToScreenTransform,
+                            transform: WorldToScreenTransform,
                             placement_op: PlacementOp) {
+        if self.layers.is_empty() {
+            return;
+        }
+
         let map_size_in_cells = self.size_in_cells();
+
         selection.update(
             self.layers_mut(),
             map_size_in_cells,
@@ -2041,6 +2093,9 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     #[inline]
     pub fn clear_selection(&mut self, selection: &mut TileSelection) {
+        if self.layers.is_empty() {
+            return;
+        }
         selection.clear(self.layers_mut());
     }
 
@@ -2059,9 +2114,13 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     pub fn topmost_tile_at_cursor(&self,
                                   cursor_screen_pos: Vec2,
-                                  transform: &WorldToScreenTransform) -> Option<&Tile<'tile_sets>> {
+                                  transform: WorldToScreenTransform) -> Option<&Tile<'tile_sets>> {
 
         debug_assert!(transform.is_valid());
+
+        if self.layers.is_empty() {
+            return None;
+        }
 
         // Find topmost layer tile under the target cell.
         for layer_kind in TileMapLayerKind::iter().rev() {
@@ -2123,7 +2182,7 @@ impl<'tile_sets> Load<'tile_sets, '_> for TileMap<'tile_sets> {
     }
 
     fn post_load(&mut self, context: &PostLoadContext<'tile_sets, '_>) {
-        debug_assert!(self.size_in_cells.is_valid());
+        debug_assert!(self.size_in_cells >= Size::zero());
 
         // These are *not* serialized, so should be unset.
         // TileMap users have to reassign these on their post_load().

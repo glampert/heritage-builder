@@ -5,11 +5,11 @@ use glfw::Context;
 use crate::{
     log,
     utils::{self, Size, Vec2, UnsafeWeakRef},
-    app::{Application, ApplicationEvent, ApplicationEventList}
 };
 
 use super::{
-    input::InputSystem
+    input::InputSystem,
+    Application, ApplicationFactory, ApplicationEvent, ApplicationEventList
 };
 
 // ----------------------------------------------
@@ -28,7 +28,6 @@ pub type MouseButton = glfw::MouseButton;
 // ----------------------------------------------
 
 pub struct GlfwApplication {
-    title: String,
     window_size: Size,
     fullscreen: bool,
     confine_cursor: bool,
@@ -40,7 +39,15 @@ pub struct GlfwApplication {
 }
 
 impl GlfwApplication {
-    pub fn new(title: String, window_size: Size, mut fullscreen: bool, confine_cursor: bool) -> Self {
+    // For the ImGui OpenGL backend.
+    pub fn load_gl_func(&self, func_name: &'static str) -> *const c_void {
+        let app = utils::mut_ref_cast(self);
+        app.window.get_proc_address(func_name)
+    }
+}
+
+impl ApplicationFactory for GlfwApplication {
+    fn new(title: &str, window_size: Size, mut fullscreen: bool, confine_cursor: bool) -> Self {
         debug_assert!(window_size.is_valid());
 
         let mut glfw_instance =
@@ -58,7 +65,7 @@ impl GlfwApplication {
         }
 
         let (mut window, event_receiver) = glfw_instance
-            .create_window(window_size.width as u32, window_size.height as u32, title.as_str(), window_mode)
+            .create_window(window_size.width as u32, window_size.height as u32, title, window_mode)
             .expect("Failed to create GLFW window!");
 
         window.make_current();
@@ -83,7 +90,6 @@ impl GlfwApplication {
         let window_ref = UnsafeWeakRef::new(&*window);
 
         Self {
-            title,
             window_size,
             fullscreen,
             confine_cursor,
@@ -93,12 +99,6 @@ impl GlfwApplication {
             event_receiver,
             input_system: GlfwInputSystem { window_ref },
         }
-    }
-
-    // For the ImGui OpenGL backend.
-    pub fn load_gl_func(&self, func_name: &'static str) -> *const c_void {
-        let mut_self = utils::mut_ref_cast(self);
-        mut_self.window.get_proc_address(func_name)
     }
 }
 

@@ -8,13 +8,12 @@ use serde::{
 use crate::{
     log,
     imgui_ui::UiSystem,
-    sim::{Query, UpdateTimer},
     pathfind::{Node, NodeKind as PathNodeKind},
-    utils::{Color, coords::Cell, hash, callback::{self, Callback}},
+    utils::{Color, Seconds, coords::Cell, hash, callback::{self, Callback}},
     tile::{TileMapLayerKind, sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}},
     game::{
-        constants::*,
         building::BuildingKind,
+        sim::{Query, UpdateTimer},
         unit::{
             config,
             UnitId,
@@ -89,10 +88,10 @@ impl GameSystem for SettlersSpawnSystem {
 }
 
 impl SettlersSpawnSystem {
-    pub fn new() -> Self {
+    pub fn new(settlers_spawn_frequency_secs: Seconds, population_per_settler_unit: u32) -> Self {
         Self {
-            spawn_timer: UpdateTimer::new(SETTLERS_SPAWN_FREQUENCY_SECS),
-            population_per_settler_unit: 1,
+            spawn_timer: UpdateTimer::new(settlers_spawn_frequency_secs),
+            population_per_settler_unit,
         }
     }
 

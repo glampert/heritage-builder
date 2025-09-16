@@ -17,11 +17,14 @@ pub mod input;
 
 // Internal implementation.
 mod glfw;
-pub type ApplicationBackend = glfw::GlfwApplication;
-pub type InputSystemBackend = glfw::GlfwInputSystem;
+pub mod backend {
+    use super::*;
+    pub type GlfwApplication = glfw::GlfwApplication;
+    pub type GlfwInputSystem = glfw::GlfwInputSystem;
+}
 
 // ----------------------------------------------
-// Application
+// Application / ApplicationFactory
 // ----------------------------------------------
 
 pub trait Application: Any {
@@ -40,6 +43,13 @@ pub trait Application: Any {
     fn input_system(&self) -> &dyn InputSystem;
 }
 
+pub trait ApplicationFactory: Sized {
+    fn new(title: &str,
+           window_size: Size,
+           fullscreen: bool,
+           confine_cursor: bool) -> Self;
+}
+
 // ----------------------------------------------
 // ApplicationEvent
 // ----------------------------------------------
@@ -54,31 +64,31 @@ pub enum ApplicationEvent {
     MouseButton(MouseButton, InputAction, InputModifiers),
 }
 
-type ApplicationEventList = SmallVec::<[ApplicationEvent; 16]>;
+pub type ApplicationEventList = SmallVec::<[ApplicationEvent; 16]>;
 
 // ----------------------------------------------
 // ApplicationBuilder
 // ----------------------------------------------
 
-pub struct ApplicationBuilder {
-    title: String,
+pub struct ApplicationBuilder<'a> {
+    title: &'a str,
     window_size: Size,
     fullscreen: bool,
     confine_cursor: bool,
 }
 
-impl ApplicationBuilder {
+impl<'a> ApplicationBuilder<'a> {
     pub fn new() -> Self {
-        ApplicationBuilder {
-            title: String::default(),
+        Self {
+            title: "",
             window_size: Size::new(1024, 768),
             fullscreen: false,
             confine_cursor: false,
         }
     }
 
-    pub fn window_title(&mut self, title: &str) -> &mut Self {
-        self.title = title.to_string();
+    pub fn window_title(&mut self, title: &'a str) -> &mut Self {
+        self.title = title;
         self
     }
 
@@ -97,11 +107,13 @@ impl ApplicationBuilder {
         self
     }
 
-    pub fn build(&self) -> ApplicationBackend {
-        ApplicationBackend::new(
-            self.title.clone(),
+    pub fn build<AppBackendImpl>(&self) -> Box<AppBackendImpl>
+        where AppBackendImpl: Application + ApplicationFactory + 'static
+    {
+        Box::new(AppBackendImpl::new(
+            self.title,
             self.window_size,
             self.fullscreen,
-            self.confine_cursor)
+            self.confine_cursor))
     }
 }

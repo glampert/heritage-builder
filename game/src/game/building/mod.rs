@@ -37,7 +37,6 @@ use crate::{
 };
 
 use super::{
-    constants::{WORKERS_SEARCH_RADIUS, WORKERS_UPDATE_FREQUENCY_SECS},
     unit::{
         Unit,
         patrol::Patrol,
@@ -294,7 +293,7 @@ impl<'config> GameObject<'config> for Building<'config> {
     fn draw_debug_popups(&mut self,
                          query: &Query,
                          ui_sys: &UiSystem,
-                         transform: &WorldToScreenTransform,
+                         transform: WorldToScreenTransform,
                          visible_range: CellRange) {
 
         debug_assert!(self.is_spawned());
@@ -333,7 +332,7 @@ impl<'config> Building<'config> {
         self.id = id;
         self.map_cells = map_cells;
         self.kind = kind;
-        self.workers_update_timer = UpdateTimer::new(WORKERS_UPDATE_FREQUENCY_SECS);
+        self.workers_update_timer = UpdateTimer::new(query.workers_update_frequency_secs());
         self.archetype = Some(archetype);
 
         self.update_road_link(query);
@@ -649,11 +648,13 @@ impl<'config> Building<'config> {
     }
 
     fn find_house_with_available_workers(&self, query: &'config Query) -> Option<&'config mut Building<'config>> {
+        debug_assert!(query.workers_search_radius() > 0);
+
         let result = query.find_nearest_buildings(
             self.road_link(query).unwrap(),
             BuildingKind::House,
             PathNodeKind::Road,
-            Some(WORKERS_SEARCH_RADIUS),
+            Some(query.workers_search_radius()),
             |house, _path| {
                 if house.workers_count() != 0 {
                     return false; // Accept and stop search.
@@ -666,6 +667,7 @@ impl<'config> Building<'config> {
             debug_assert!(house.workers_count() != 0);
             return Some(house);
         }
+
         None
     }
 

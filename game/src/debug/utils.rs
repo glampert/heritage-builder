@@ -33,7 +33,7 @@ use crate::{
 pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
                        ui_sys: &UiSystem,
                        tile_screen_rect: Rect,
-                       transform: &WorldToScreenTransform,
+                       transform: WorldToScreenTransform,
                        tile: &Tile,
                        flags: TileMapRenderFlags) {
 
@@ -65,7 +65,7 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
 }
 
 // Show a small debug overlay under the cursor with its current position or provided text.
-pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: &WorldToScreenTransform, opt_text: Option<&str>) {
+pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: WorldToScreenTransform, opt_text: Option<&str>) {
     let ui = ui_sys.builder();
     let cursor_screen_pos = Vec2::new(ui.io().mouse_pos[0], ui.io().mouse_pos[1]);
 
@@ -296,7 +296,7 @@ fn draw_tile_info(render_sys: &mut impl RenderSystem,
 // Alternate debug info used for displaying building road link tiles.
 fn draw_road_link_bounds(render_sys: &mut impl RenderSystem,
                          tile_screen_rect: Rect,
-                         transform: &WorldToScreenTransform,
+                         transform: WorldToScreenTransform,
                          tile: &Tile) {
 
     draw_tile_bounds(render_sys, tile_screen_rect, transform, tile, true, false);
@@ -307,7 +307,7 @@ fn draw_road_link_bounds(render_sys: &mut impl RenderSystem,
 
 fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
                     tile_screen_rect: Rect,
-                    transform: &WorldToScreenTransform,
+                    transform: WorldToScreenTransform,
                     tile: &Tile,
                     diamond_iso: bool,
                     sprite_aabb: bool) {
@@ -567,12 +567,17 @@ mod test_maps {
 
     pub fn create_preset_tile_map_internal<'tile_sets>(world: &mut World,
                                                        tile_sets: &'tile_sets TileSets,
-                                                       preset_number: usize) -> TileMap<'tile_sets> {
-        log::info!("Creating debug tile map: PRESET {} ...", preset_number);
+                                                       mut preset_number: usize) -> TileMap<'tile_sets> {
+
+        preset_number = preset_number.min(PRESET_TILES.len());
+
+        log::info!(log::channel!("debug"), "Creating debug tile map - PRESET: {} ...", preset_number);
         let preset = PRESET_TILES[preset_number];
+
         if let Some(enable_cheats_fn) = preset.enable_cheats_fn {
             enable_cheats_fn(cheats::get_mut());
         }
+
         build_tile_map(preset, world, tile_sets)
     }
 }

@@ -81,7 +81,7 @@ bitflags! {
 // TileMapRenderStats
 // ----------------------------------------------
 
-#[derive(Clone, Default)]
+#[derive(Copy, Clone, Default)]
 pub struct TileMapRenderStats {
     // Current frame totals:
     pub tiles_drawn: u32,
@@ -136,7 +136,7 @@ impl TileMapRenderer {
                     render_sys: &mut impl RenderSystem,
                     ui_sys: &UiSystem,
                     tile_map: &TileMap,
-                    transform: &WorldToScreenTransform,
+                    transform: WorldToScreenTransform,
                     visible_range: CellRange,
                     flags: TileMapRenderFlags) -> TileMapRenderStats {
 
@@ -164,7 +164,7 @@ impl TileMapRenderer {
                           render_sys: &mut impl RenderSystem,
                           ui_sys: &UiSystem,
                           tile_map: &TileMap,
-                          transform: &WorldToScreenTransform,
+                          transform: WorldToScreenTransform,
                           visible_range: CellRange,
                           flags: TileMapRenderFlags) {
 
@@ -205,7 +205,7 @@ impl TileMapRenderer {
                           render_sys: &mut impl RenderSystem,
                           ui_sys: &UiSystem,
                           tile_map: &TileMap,
-                          transform: &WorldToScreenTransform,
+                          transform: WorldToScreenTransform,
                           visible_range: CellRange,
                           flags: TileMapRenderFlags) {
 
@@ -289,7 +289,7 @@ impl TileMapRenderer {
     fn draw_isometric_grid(&self,
                            render_sys: &mut impl RenderSystem,
                            tile_map: &TileMap,
-                           transform: &WorldToScreenTransform,
+                           transform: WorldToScreenTransform,
                            visible_range: CellRange) {
 
         // Returns true only if all points are offscreen.
@@ -346,7 +346,7 @@ impl TileMapRenderer {
     fn draw_tile(render_sys: &mut impl RenderSystem,
                  stats: &mut TileMapRenderStats,
                  ui_sys: &UiSystem,
-                 transform: &WorldToScreenTransform,
+                 transform: WorldToScreenTransform,
                  tile: &Tile,
                  flags: TileMapRenderFlags) {
 
@@ -400,7 +400,7 @@ impl TileMapRenderer {
         self.stats.peak_tiles_drawn_highlighted = self.stats.tiles_drawn_highlighted.max(self.stats.peak_tiles_drawn_highlighted);
         self.stats.peak_tiles_drawn_invalidated = self.stats.tiles_drawn_invalidated.max(self.stats.peak_tiles_drawn_invalidated);
         self.stats.peak_tile_sort_list_len      = self.stats.tile_sort_list_len.max(self.stats.peak_tile_sort_list_len);
-        self.stats.clone()
+        self.stats
     }
 }
 

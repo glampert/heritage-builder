@@ -10,7 +10,6 @@ use crate::{
         coords::WorldToScreenTransform
     },
     game::{
-        constants::SIM_DEFAULT_RANDOM_SEED,
         unit::task::UnitTaskManager,
         system::GameSystems,
         world::World,
@@ -59,9 +58,10 @@ pub struct DebugQueryBuilder {
 }
 
 impl DebugQueryBuilder {
+    // FIXME: need to pass in GameConfigs, otherwise worker_search/update will be wrong
     pub fn new(map_size_in_cells: Size) -> Self {
         Self {
-            rng: RandomGenerator::seed_from_u64(SIM_DEFAULT_RANDOM_SEED),
+            rng: RandomGenerator::seed_from_u64(0xFF),// TODO game configs
             graph: Graph::with_empty_grid(map_size_in_cells),
             search: Search::with_grid_size(map_size_in_cells),
             task_manager: UnitTaskManager::new(1),
@@ -80,6 +80,8 @@ impl DebugQueryBuilder {
             world,
             tile_map,
             tile_sets,
+            20,// TODO game configs
+            20.0,
             world.building_configs(),
             world.unit_configs(),
             0.0)

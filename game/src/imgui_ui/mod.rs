@@ -1,4 +1,5 @@
 use std::ptr::null;
+use std::any::Any;
 
 pub use imgui::FontId as UiFontHandle;
 pub use imgui::TextureId as UiTextureHandle;
@@ -11,7 +12,10 @@ use crate::{
 
 // Internal implementation.
 mod opengl;
-type UiRendererBackend = opengl::UiOpenGlRenderer;
+pub mod backend {
+    use super::*;
+    pub type UiRendererOpenGl = opengl::UiRendererOpenGl;
+}
 
 // ----------------------------------------------
 // UiInputEvent
@@ -46,17 +50,19 @@ pub struct UiSystem {
 }
 
 impl UiSystem {
-    pub fn new(app: &dyn Application) -> Self {
+    pub fn new<UiRendererBackendImpl>(app: &impl Application) -> Self
+        where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
+    {
         Self {
-            context: UiContext::new(app),
+            context: UiContext::new::<UiRendererBackendImpl>(app),
             builder_ptr: null::<imgui::Ui>(),
         }
     }
 
     #[inline]
-    pub fn begin_frame(&mut self, app: &dyn Application, delta_time_secs: Seconds) {
+    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time_secs: Seconds) {
         debug_assert!(self.builder_ptr.is_null());
-        let ui_builder = self.context.begin_frame(app, delta_time_secs);
+        let ui_builder = self.context.begin_frame(app, input_sys, delta_time_secs);
         self.builder_ptr = ui_builder as *const imgui::Ui;
     }
 
@@ -156,29 +162,28 @@ pub struct UiFonts {
 }
 
 // ----------------------------------------------
-// UiRenderer
+// UiRenderer / UiRendererFactory
 // ----------------------------------------------
 
-pub trait UiRenderer {
+pub trait UiRenderer: Any {
+    fn as_any(&self) -> &dyn Any;
     fn render(&self, ctx: &mut imgui::Context);
 }
 
-// ----------------------------------------------
-// UiRenderer Backend Factory Functions
-// ----------------------------------------------
-
-mod backend {
-use super::*;
-
-#[inline]
-pub fn new_ui_renderer(imgui_ctx: &mut imgui::Context, app: &dyn Application) -> Box<dyn UiRenderer> {
-    Box::new(UiRendererBackend::new(imgui_ctx, app))
+pub trait UiRendererFactory: Sized {
+    fn new(ctx: &mut imgui::Context, app: &impl Application) -> Self;
 }
 
 #[inline]
-pub fn new_ui_context() -> Box<imgui::Context> {
+fn new_ui_renderer<UiRendererBackendImpl>(ctx: &mut imgui::Context, app: &impl Application) -> Box<dyn UiRenderer>
+    where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
+{
+    Box::new(UiRendererBackendImpl::new(ctx, app))
+}
+
+#[inline]
+fn new_ui_context() -> Box<imgui::Context> {
     Box::new(imgui::Context::create())
-}
 }
 
 // ----------------------------------------------
@@ -193,8 +198,10 @@ pub struct UiContext {
 }
 
 impl UiContext {
-    pub fn new(app: &dyn Application) -> Self {
-        let mut ctx = backend::new_ui_context();
+    pub fn new<UiRendererBackendImpl>(app: &impl Application) -> Self
+        where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
+    {
+        let mut ctx = new_ui_context();
 
         // 'None' disables automatic "imgui.ini" saving.
         ctx.set_ini_filename(None);
@@ -229,7 +236,7 @@ impl UiContext {
                 }),
             }]);
 
-        let renderer = backend::new_ui_renderer(&mut ctx, app);
+        let renderer = new_ui_renderer::<UiRendererBackendImpl>(&mut ctx, app);
 
         Self {
             ctx,
@@ -239,7 +246,7 @@ impl UiContext {
         }
     }
 
-    pub fn begin_frame(&mut self, app: &dyn Application, delta_time_secs: Seconds) -> &imgui::Ui {
+    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time_secs: Seconds) -> &imgui::Ui {
         debug_assert!(!self.frame_started);
     
         let io = self.ctx.io_mut();
@@ -252,7 +259,7 @@ impl UiContext {
         io.display_framebuffer_scale = [content_scale.x, content_scale.y];
 
         // Send mouse/keyboard input to ImGui. The rest is handled by application events.
-        self.update_input(app.input_system());
+        self.update_input(input_sys);
 
         // Start new ImGui frame. Use the returned `ui` object to build the UI windows.
         let ui = self.ctx.new_frame();
@@ -296,7 +303,7 @@ impl UiContext {
         io.mouse_wheel += amount.y;
     }
 
-    fn update_input(&mut self, input_sys: &dyn InputSystem) {
+    fn update_input(&mut self, input_sys: &impl InputSystem) {
         let io = self.ctx.io_mut();
 
         let cursor_pos = input_sys.cursor_pos();

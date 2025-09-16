@@ -140,7 +140,7 @@ impl TileInspectorMenu {
                     return;
                 }
             };
-            (tile.screen_rect(&context.transform), Self::make_stable_imgui_window_label(tile))
+            (tile.screen_rect(context.transform), Self::make_stable_imgui_window_label(tile))
         };
 
         let window_position = [
@@ -302,7 +302,7 @@ impl TileInspectorMenu {
             tile.set_iso_coords(iso_coords);
         }
 
-        let mut screen_coords = tile.screen_rect(&context.transform).position();
+        let mut screen_coords = tile.screen_rect(context.transform).position();
         imgui_ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
 
         let mut z_sort_key = tile.z_sort_key();

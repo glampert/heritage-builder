@@ -6,14 +6,16 @@ use crate::{
     log,
     imgui_ui::{UiSystem, UiInputEvent},
     save::{Save, Load, PostLoadContext},
-    render::{RenderStats, RenderSystem, TextureCache},
+    render::{RenderStats, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
     game::{
         world::{World, object::Spawner},
-        sim::{self, Simulation}
+        sim::{self, Simulation},
+        system::GameSystems,
     },
     utils::{
         Vec2,
+        Seconds,
         UnsafeWeakRef,
         SingleThreadStatic,
         coords::{Cell, CellRange, WorldToScreenTransform}
@@ -27,7 +29,7 @@ use crate::{
         sets::TileSets,
         camera::Camera,
         selection::TileSelection,
-        rendering::{TileMapRenderer, TileMapRenderStats, TileMapRenderFlags}
+        rendering::{TileMapRenderStats, TileMapRenderFlags}
     },
     pathfind::{
         self,
@@ -56,38 +58,39 @@ mod settings;
 // Args helper structs
 // ----------------------------------------------
 
-pub struct DebugMenusOnInputArgs<'world, 'config, 'tile_map, 'tile_sets> {
-    pub world: &'world mut World<'config>,
-    pub tile_map: &'tile_map mut TileMap<'tile_sets>,
-    pub tile_selection: &'tile_map mut TileSelection,
+pub struct DebugMenusInputArgs<'game> {
+    pub world: &'game mut World<'game>,
+    pub tile_map: &'game mut TileMap<'game>,
+    pub tile_selection: &'game mut TileSelection,
     pub transform: WorldToScreenTransform,
     pub cursor_screen_pos: Vec2,
 }
 
-pub struct DebugMenusBeginFrameArgs<'sim, 'ui, 'world, 'config, 'tile_map, 'tile_sets> {
-    pub ui_sys: &'ui UiSystem,
-    pub sim: &'sim mut Simulation<'config>,
-    pub world: &'world mut World<'config>,
-    pub tile_map: &'tile_map mut TileMap<'tile_sets>,
-    pub tile_selection: &'tile_map mut TileSelection,
-    pub tile_sets: &'tile_sets TileSets,
-    pub transform: WorldToScreenTransform,
-    pub cursor_screen_pos: Vec2,
-    pub delta_time_secs: f32,
-}
+pub struct DebugMenusFrameArgs<'game> {
+    // Tile Map:
+    pub tile_map: &'game mut TileMap<'game>,
+    pub tile_sets: &'game TileSets,
+    pub tile_selection: &'game mut TileSelection,
 
-pub struct DebugMenusEndFrameArgs<'rs, 'cam, 'sim, 'ui, 'world, 'config, 'tile_map, 'tile_sets, RS: RenderSystem> {
-    pub context: sim::debug::DebugContext<'config, 'ui, 'world, 'tile_map, 'tile_sets>,
-    pub sim: &'sim mut Simulation<'config>,
-    pub log_viewer: &'sim log_viewer::LogViewerWindow,
-    pub camera: &'cam mut Camera,
-    pub render_sys: &'rs mut RS,
-    pub render_sys_stats: &'rs RenderStats,
-    pub tile_map_renderer: &'rs mut TileMapRenderer,
-    pub tile_render_stats: &'rs TileMapRenderStats,
-    pub tile_selection: &'tile_map TileSelection,
+    // Sim/World:
+    pub sim: &'game mut Simulation<'game>,
+    pub world: &'game mut World<'game>,
+    pub systems: &'game mut GameSystems,
+
+    // UI/Debug:
+    pub ui_sys: &'game UiSystem,
+    pub log_viewer: &'game log_viewer::LogViewerWindow,
+
+    // Perf Stats:
+    pub render_sys_stats: RenderStats,
+    pub tile_render_stats: TileMapRenderStats,
+
+    // Camera/Transform/Input:
+    pub transform: WorldToScreenTransform,
+    pub camera: &'game mut Camera,
     pub visible_range: CellRange,
     pub cursor_screen_pos: Vec2,
+    pub delta_time_secs: Seconds,
 }
 
 // ----------------------------------------------
@@ -109,7 +112,7 @@ impl DebugMenusSystem {
     }
 
     pub fn on_key_input(&mut self,
-                        args: &mut DebugMenusOnInputArgs,
+                        args: &mut DebugMenusInputArgs,
                         key: InputKey,
                         action: InputAction) -> UiInputEvent {
         use_singleton(|instance| {
@@ -118,7 +121,7 @@ impl DebugMenusSystem {
     }
 
     pub fn on_mouse_click(&mut self,
-                          args: &mut DebugMenusOnInputArgs,
+                          args: &mut DebugMenusInputArgs,
                           button: MouseButton,
                           action: InputAction,
                           modifiers: InputModifiers) -> UiInputEvent {
@@ -127,16 +130,27 @@ impl DebugMenusSystem {
         })
     }
 
-    pub fn begin_frame(&mut self, args: &mut DebugMenusBeginFrameArgs) -> TileMapRenderFlags {
+    pub fn begin_frame(&mut self, args: &mut DebugMenusFrameArgs) -> TileMapRenderFlags {
         use_singleton(|instance| {
             instance.begin_frame(args)
         })
     }
 
-    pub fn end_frame(&mut self, args: &mut DebugMenusEndFrameArgs<impl RenderSystem>) {
+    pub fn end_frame(&mut self, args: &mut DebugMenusFrameArgs) {
         use_singleton(|instance| {
             instance.end_frame(args)
         })
+    }
+}
+
+impl Drop for DebugMenusSystem {
+    fn drop(&mut self) {
+        use_singleton(|instance| {
+            instance.tile_inspector_menu.close();
+        });
+
+        // Clear the cached global tile map ptr.
+        TILE_MAP_DEBUG_REF.set(None);
     }
 }
 
@@ -191,7 +205,7 @@ impl DebugMenusSingleton {
     }
 
     fn on_key_input(&mut self,
-                    args: &mut DebugMenusOnInputArgs,
+                    args: &mut DebugMenusInputArgs,
                     key: InputKey,
                     action: InputAction) -> UiInputEvent {
 
@@ -255,7 +269,7 @@ impl DebugMenusSingleton {
     }
 
     fn on_mouse_click(&mut self,
-                      args: &mut DebugMenusOnInputArgs,
+                      args: &mut DebugMenusInputArgs,
                       button: MouseButton,
                       action: InputAction,
                       modifiers: InputModifiers) -> UiInputEvent {
@@ -277,13 +291,13 @@ impl DebugMenusSingleton {
                     let cursor_cell = args.tile_map.find_exact_cell_for_point(
                         TileMapLayerKind::Terrain,
                         args.cursor_screen_pos,
-                        &args.transform);
+                        args.transform);
                     self.search_test_start = cursor_cell;
                 } else if !self.search_test_goal.is_valid() {
                     let cursor_cell = args.tile_map.find_exact_cell_for_point(
                         TileMapLayerKind::Terrain,
                         args.cursor_screen_pos,
-                        &args.transform);
+                        args.transform);
                     if cursor_cell != self.search_test_start {
                         self.search_test_goal = cursor_cell;
                     }
@@ -301,7 +315,7 @@ impl DebugMenusSingleton {
         UiInputEvent::NotHandled
     }
 
-    fn begin_frame(&mut self, args: &mut DebugMenusBeginFrameArgs) -> TileMapRenderFlags {
+    fn begin_frame(&mut self, args: &mut DebugMenusFrameArgs) -> TileMapRenderFlags {
         // If we're not hovering over an ImGui menu...
         if !args.ui_sys.is_handling_mouse_input() {
             // Tile hovering and selection:
@@ -318,7 +332,7 @@ impl DebugMenusSingleton {
             args.tile_map.update_selection(
                 args.tile_selection,
                 args.cursor_screen_pos,
-                &args.transform,
+                args.transform,
                 placement_op);
         }
 
@@ -332,7 +346,7 @@ impl DebugMenusSingleton {
                     let target_cell = args.tile_map.find_exact_cell_for_point(
                         tile_def.layer_kind(),
                         args.cursor_screen_pos,
-                        &args.transform);
+                        args.transform);
 
                     if target_cell.is_valid() {
                         let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
@@ -342,7 +356,7 @@ impl DebugMenusSingleton {
                     }
                 } else {
                     let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
-                    if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, &args.transform) {
+                    if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, args.transform) {
                         Spawner::new(&query).despawn_tile(tile);
                         true
                     } else {
@@ -364,57 +378,73 @@ impl DebugMenusSingleton {
         self.debug_settings_menu.selected_render_flags()
     }
 
-    fn end_frame(&mut self, args: &mut DebugMenusEndFrameArgs<impl RenderSystem>) {
-        let has_valid_placement = args.tile_selection.has_valid_placement();
+    fn end_frame(&mut self, args: &mut DebugMenusFrameArgs) {
+//        let has_valid_placement = args.tile_selection.has_valid_placement();
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
         let show_render_stats = self.debug_settings_menu.show_render_stats();
-        let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
+//        let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
         let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
 
         if *show_log_viewer_window {
             args.log_viewer.show(true);
-            *show_log_viewer_window = args.log_viewer.draw(args.context.ui_sys);
+            *show_log_viewer_window = args.log_viewer.draw(args.ui_sys);
         }
 
+        let mut context = sim::debug::DebugContext {
+            ui_sys: args.ui_sys,
+            world: args.world,
+            systems: args.systems,
+            tile_map: args.tile_map,
+            tile_sets: args.tile_sets,
+            transform: args.transform,
+            delta_time_secs: args.delta_time_secs,
+        };
+
+        // TODO: replace with DebugDraw interface
+        /*
         self.tile_palette_menu.draw(
-            &mut args.context,
+            &mut context,
             args.render_sys,
             args.cursor_screen_pos,
             has_valid_placement,
             show_selection_bounds);
+        */
 
         self.tile_inspector_menu.draw(
-            &mut args.context,
+            &mut context,
             args.sim);
 
+        /*TODO: replace tile_map_renderer with DebugDraw interface
         self.debug_settings_menu.draw(
-            &mut args.context,
+            &mut context,
             args.sim,
             args.camera,
             args.tile_map_renderer);
+        */
 
         if show_popup_messages() {
-            args.sim.draw_game_object_debug_popups(&mut args.context, args.visible_range);
+            args.sim.draw_game_object_debug_popups(&mut context, args.visible_range);
         }
 
         if self.search_test_mode {
             utils::draw_cursor_overlay(
-                args.context.ui_sys,
+                args.ui_sys,
                 args.camera.transform(),
                 Some(&format!("Search Test: {} -> {}", self.search_test_start, self.search_test_goal)));
         }
 
         if show_cursor_pos {
-            utils::draw_cursor_overlay(args.context.ui_sys, args.camera.transform(), None);
+            utils::draw_cursor_overlay(args.ui_sys, args.camera.transform(), None);
         }
 
         if show_render_stats {
-            utils::draw_render_stats(args.context.ui_sys, args.render_sys_stats, args.tile_render_stats);
+            utils::draw_render_stats(args.ui_sys, &args.render_sys_stats, &args.tile_render_stats);
         }
 
         if show_screen_origin {
-            utils::draw_screen_origin_marker(args.render_sys);
+            // TODO: replace with DebugDraw interface
+            //utils::draw_screen_origin_marker(args.render_sys);
         }
     }
 }

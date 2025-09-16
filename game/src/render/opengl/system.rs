@@ -33,50 +33,6 @@ pub struct RenderSystem {
 }
 
 impl RenderSystem {
-    pub fn new(viewport_size: Size, clear_color: Color) -> Self {
-        debug_assert!(viewport_size.is_valid());
-
-        let mut render_sys = Self {
-            frame_started: false,
-            render_context: RenderContext::new(),
-            sprites_batch: DrawBatch::new(
-                512,
-                512,
-                512,
-                PrimitiveTopology::Triangles,
-            ),
-            sprites_shader: sprites::Shader::load(),
-            lines_batch: DrawBatch::new(
-                8,
-                8,
-                0,
-                PrimitiveTopology::Lines,
-            ),
-            lines_shader: lines::Shader::load(),
-            points_batch: DrawBatch::new(
-                8,
-                8,
-                0,
-                PrimitiveTopology::Points,
-            ),
-            points_shader: points::Shader::load(),
-            stats: RenderStats::default(),
-            viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size),
-            tex_cache: TextureCache::new(128),
-        };
-
-        render_sys.render_context
-            .set_clear_color(clear_color)
-            .set_alpha_blend(AlphaBlend::Enabled)
-            // Pure 2D rendering, no depth test or back-face culling.
-            .set_backface_culling(BackFaceCulling::Disabled)
-            .set_depth_test(DepthTest::Disabled);
-
-        render_sys.update_viewport(viewport_size);
-
-        render_sys
-    }
-
     fn update_viewport(&mut self, new_size: Size) {
         debug_assert!(new_size.is_valid());
         self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size);
@@ -122,6 +78,52 @@ impl RenderSystem {
     }
 }
 
+impl render::RenderSystemFactory for RenderSystem {
+    fn new(viewport_size: Size, clear_color: Color) -> Self {
+        debug_assert!(viewport_size.is_valid());
+
+        let mut render_sys = Self {
+            frame_started: false,
+            render_context: RenderContext::new(),
+            sprites_batch: DrawBatch::new(
+                512,
+                512,
+                512,
+                PrimitiveTopology::Triangles,
+            ),
+            sprites_shader: sprites::Shader::load(),
+            lines_batch: DrawBatch::new(
+                8,
+                8,
+                0,
+                PrimitiveTopology::Lines,
+            ),
+            lines_shader: lines::Shader::load(),
+            points_batch: DrawBatch::new(
+                8,
+                8,
+                0,
+                PrimitiveTopology::Points,
+            ),
+            points_shader: points::Shader::load(),
+            stats: RenderStats::default(),
+            viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size),
+            tex_cache: TextureCache::new(128),
+        };
+
+        render_sys.render_context
+            .set_clear_color(clear_color)
+            .set_alpha_blend(AlphaBlend::Enabled)
+            // Pure 2D rendering, no depth test or back-face culling.
+            .set_backface_culling(BackFaceCulling::Disabled)
+            .set_depth_test(DepthTest::Disabled);
+
+        render_sys.update_viewport(viewport_size);
+
+        render_sys
+    }
+}
+
 impl render::RenderSystem for RenderSystem {
     fn as_any(&self) -> &dyn Any { self }
 
@@ -156,7 +158,7 @@ impl render::RenderSystem for RenderSystem {
         self.stats.peak_texture_changes = self.stats.texture_changes.max(self.stats.peak_texture_changes);
         self.stats.peak_draw_calls      = self.stats.draw_calls.max(self.stats.peak_draw_calls);
 
-        self.stats.clone()
+        self.stats
     }
 
     #[inline]

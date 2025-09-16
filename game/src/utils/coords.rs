@@ -412,7 +412,7 @@ pub fn cell_to_iso(cell: Cell, tile_size: Size) -> IsoPoint {
 
 #[inline]
 pub fn iso_to_screen_point(iso_point: IsoPoint,
-                           transform: &WorldToScreenTransform,
+                           transform: WorldToScreenTransform,
                            tile_size: Size) -> Vec2 {
     // Undo offsetting.
     let mut iso = iso_point;
@@ -424,7 +424,7 @@ pub fn iso_to_screen_point(iso_point: IsoPoint,
 
 #[inline]
 pub fn screen_to_iso_point(screen_point: Vec2,
-                           transform: &WorldToScreenTransform,
+                           transform: WorldToScreenTransform,
                            tile_size: Size) -> IsoPoint {
 
     let mut iso_pos = transform.apply_to_screen_point(screen_point);
@@ -438,7 +438,7 @@ pub fn screen_to_iso_point(screen_point: Vec2,
 #[inline]
 pub fn iso_to_screen_rect(iso_position: IsoPoint,
                           size: Size,
-                          transform: &WorldToScreenTransform) -> Rect {
+                          transform: WorldToScreenTransform) -> Rect {
 
     transform.apply_to_rect(iso_position, size)
 }
@@ -447,7 +447,7 @@ pub fn iso_to_screen_rect(iso_position: IsoPoint,
 #[inline]
 pub fn iso_to_screen_rect_f32(iso_position: Vec2,
                               size: Size,
-                              transform: &WorldToScreenTransform) -> Rect {
+                              transform: WorldToScreenTransform) -> Rect {
     // Apply offset and scaling:
     let screen_x = (iso_position.x * transform.scaling) + transform.offset.x;
     let screen_y = (iso_position.y * transform.scaling) + transform.offset.y;
@@ -477,7 +477,7 @@ pub fn is_screen_point_inside_cell(screen_point: Vec2,
                                    cell: Cell,
                                    tile_size: Size,
                                    base_tile_size: Size,
-                                   transform: &WorldToScreenTransform) -> bool {
+                                   transform: WorldToScreenTransform) -> bool {
 
     debug_assert!(transform.is_valid());
 
@@ -523,7 +523,7 @@ pub fn is_screen_point_inside_triangle(point: Vec2, a: Vec2, b: Vec2, c: Vec2) -
 pub fn cell_to_screen_diamond_points(cell: Cell,
                                      tile_size: Size,
                                      base_tile_size: Size,
-                                     transform: &WorldToScreenTransform) -> [Vec2; 4] {
+                                     transform: WorldToScreenTransform) -> [Vec2; 4] {
 
     debug_assert!(transform.is_valid());
 

@@ -99,7 +99,7 @@ pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
 
 pub fn try_place_tile_at_cursor<'tile_map, 'tile_sets>(tile_map: &'tile_map mut TileMap<'tile_sets>,
                                                        cursor_screen_pos: Vec2,
-                                                       transform: &WorldToScreenTransform,
+                                                       transform: WorldToScreenTransform,
                                                        tile_def_to_place: &'tile_sets TileDef)
                                                        -> Result<(&'tile_map mut Tile<'tile_sets>, usize), String> {
 
@@ -118,7 +118,7 @@ pub fn try_place_tile_at_cursor<'tile_map, 'tile_sets>(tile_map: &'tile_map mut 
 
 pub fn try_clear_tile_at_cursor(tile_map: &mut TileMap,
                                 cursor_screen_pos: Vec2,
-                                transform: &WorldToScreenTransform) -> Result<(), String> {
+                                transform: WorldToScreenTransform) -> Result<(), String> {
 
     debug_assert!(transform.is_valid());
 

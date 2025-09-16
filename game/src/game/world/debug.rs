@@ -137,7 +137,7 @@ pub trait GameObjectDebugOptions {
     fn draw_popup_messages(&mut self,
                            tile: &Tile,
                            ui_sys: &UiSystem,
-                           transform: &WorldToScreenTransform,
+                           transform: WorldToScreenTransform,
                            visible_range: CellRange,
                            delta_time_secs: Seconds) {
 

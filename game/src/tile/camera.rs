@@ -6,12 +6,7 @@ use serde::{
 use crate::{
     save::*,
     utils::{
-        self,
-        Vec2,
-        Size,
-        Rect,
-        Seconds,
-        coords::{CellRange, WorldToScreenTransform}
+        self, coords::{Cell, CellRange, WorldToScreenTransform}, Rect, Seconds, Size, Vec2
     }
 };
 
@@ -24,12 +19,14 @@ use super::{
 // Camera Enums
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
 pub enum CameraOffset {
     Center,
     Point(f32, f32),
 }
 
 #[repr(u32)]
+#[derive(Copy, Clone)]
 pub enum CameraZoom {
     In,
     Out
@@ -91,12 +88,12 @@ impl Camera {
 
     #[inline]
     pub fn visible_cells_range(&self) -> CellRange {
-        calc_visible_cells_range(self.map_size_in_cells, self.viewport_size, &self.transform)
+        calc_visible_cells_range(self.map_size_in_cells, self.viewport_size, self.transform)
     }
 
     #[inline]
-    pub fn transform(&self) -> &WorldToScreenTransform {
-        &self.transform
+    pub fn transform(&self) -> WorldToScreenTransform {
+        self.transform
     }
 
     #[inline]
@@ -117,11 +114,6 @@ impl Camera {
     #[inline]
     pub fn map_size_in_cells(&self) -> Size {
         self.map_size_in_cells
-    }
-
-    #[inline]
-    pub const fn confine_cursor_to_window() -> bool {
-        true
     }
 
     // ----------------------
@@ -263,7 +255,11 @@ impl Load<'_, '_> for Camera {
 
 fn calc_visible_cells_range(map_size_in_cells: Size,
                             viewport_size: Size,
-                            transform: &WorldToScreenTransform) -> CellRange {
+                            transform: WorldToScreenTransform) -> CellRange {
+
+    if !map_size_in_cells.is_valid() {
+        return CellRange::new(Cell::zero(), Cell::zero());
+    }
 
     // Add one extra row of tiles on each end to avoid any visual popping while scrolling.
     let tile_width  = (BASE_TILE_SIZE.width  as f32) * transform.scaling;
@@ -334,8 +330,11 @@ fn calc_map_center(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -
 }
 
 fn calc_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -> Rect {
-    debug_assert!(map_size_in_cells.is_valid());
     debug_assert!(viewport_size.is_valid());
+
+    if !map_size_in_cells.is_valid() {
+        return Rect::from_pos_and_size(Vec2::zero(), viewport_size);
+    }
 
     let tile_width_pixels  = (BASE_TILE_SIZE.width  as f32) * scaling;
     let tile_height_pixels = (BASE_TILE_SIZE.height as f32) * scaling;

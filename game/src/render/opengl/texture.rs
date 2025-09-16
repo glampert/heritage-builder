@@ -1,4 +1,5 @@
 use std::ffi::c_void;
+use std::any::Any;
 use bitflags::bitflags;
 use image::GenericImageView;
 
@@ -380,6 +381,8 @@ impl TextureCache {
 }
 
 impl render::TextureCache for TextureCache {
+    fn as_any(&self) -> &dyn Any { self }
+
     #[inline]
     fn load_texture(&mut self, file_path: &str) -> TextureHandle {
         self.load_texture_with_settings(file_path,

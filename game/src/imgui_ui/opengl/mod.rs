@@ -1,23 +1,26 @@
-use super::UiRenderer;
+use std::any::Any;
+use super::{UiRenderer, UiRendererFactory};
 use crate::{
-    app::{Application, ApplicationBackend},
+    app::{self, Application},
     utils,
 };
 
 use imgui_opengl_renderer::Renderer as ImGuiOpenGlRenderer;
 
 // ----------------------------------------------
-// UiOpenGlRenderer
+// UiRendererOpenGl
 // ----------------------------------------------
 
-pub struct UiOpenGlRenderer {
+pub struct UiRendererOpenGl {
     backend: ImGuiOpenGlRenderer,
 }
 
-impl UiOpenGlRenderer {
-    pub fn new(imgui_ctx: &mut imgui::Context, app: &dyn Application) -> Self {
-        let glfw_app =
-            app.as_any().downcast_ref::<ApplicationBackend>().expect("ImGui OpenGL backend assumes GLFW App!");
+impl UiRendererFactory for UiRendererOpenGl {
+    fn new(ctx: &mut imgui::Context, app: &impl Application) -> Self {
+        let glfw_app = app
+            .as_any()
+            .downcast_ref::<app::backend::GlfwApplication>()
+            .expect("ImGui OpenGL backend assumes GLFW App!");
 
         // On MacOS this generates a lot of TTY spam about missing
         // OpenGL functions that we don't need or care about. This
@@ -26,7 +29,7 @@ impl UiOpenGlRenderer {
         let backend = utils::platform::macos_redirect_stderr(
             || {
                 // Set up the OpenGL renderer:
-                ImGuiOpenGlRenderer::new(imgui_ctx, |func_name| glfw_app.load_gl_func(func_name))
+                ImGuiOpenGlRenderer::new(ctx, |func_name| glfw_app.load_gl_func(func_name))
             },
             "stderr_gl_load_imgui.log",
         );
@@ -35,8 +38,12 @@ impl UiOpenGlRenderer {
     }
 }
 
-impl UiRenderer for UiOpenGlRenderer {
-    fn render(&self, imgui_ctx: &mut imgui::Context) {
-        self.backend.render(imgui_ctx);
+impl UiRenderer for UiRendererOpenGl {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn render(&self, ctx: &mut imgui::Context) {
+        self.backend.render(ctx);
     }
 }

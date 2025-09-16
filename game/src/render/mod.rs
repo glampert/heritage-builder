@@ -6,13 +6,17 @@ use crate::{
 
 // Internal implementation.
 mod opengl;
-pub type RenderSystemBackend = opengl::system::RenderSystem;
+pub mod backend {
+    use super::*;
+    pub type RenderSystemOpenGl = opengl::system::RenderSystem;
+    pub type TextureCacheOpenGl = opengl::texture::TextureCache;
+}
 
 // ----------------------------------------------
 // RenderStats
 // ----------------------------------------------
 
-#[derive(Clone, Default)]
+#[derive(Copy, Clone, Default)]
 pub struct RenderStats {
     // Current frame totals:
     pub triangles_drawn: u32,
@@ -249,6 +253,14 @@ pub trait RenderSystem: Any {
 }
 
 // ----------------------------------------------
+// RenderSystemFactory
+// ----------------------------------------------
+
+pub trait RenderSystemFactory: Sized {
+    fn new(viewport_size: Size, clear_color: Color) -> Self;
+}
+
+// ----------------------------------------------
 // RenderSystemBuilder
 // ----------------------------------------------
 
@@ -259,7 +271,7 @@ pub struct RenderSystemBuilder {
 
 impl RenderSystemBuilder {
     pub fn new() -> Self {
-        RenderSystemBuilder {
+        Self {
             viewport_size: Size::new(1024, 768),
             clear_color: Color::black(),
         }
@@ -275,10 +287,12 @@ impl RenderSystemBuilder {
         self
     }
 
-    pub fn build(&self) -> RenderSystemBackend {
-        RenderSystemBackend::new(
+    pub fn build<RenderSystemBackendImpl>(&self) -> Box<RenderSystemBackendImpl>
+        where RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
+    {
+        Box::new(RenderSystemBackendImpl::new(
             self.viewport_size,
-            self.clear_color)
+            self.clear_color))
     }
 }
 
@@ -361,7 +375,8 @@ pub struct NativeTextureHandle {
 // TextureCache
 // ----------------------------------------------
 
-pub trait TextureCache {
+pub trait TextureCache: Any {
+    fn as_any(&self) -> &dyn Any;
     fn load_texture(&mut self, file_path: &str) -> TextureHandle;
     fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle;
 }

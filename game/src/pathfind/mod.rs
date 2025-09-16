@@ -192,7 +192,7 @@ impl<T> IndexMut<Node> for Grid<T> {
 // ----------------------------------------------
 
 // Our graph is just a 2D grid of Nodes (Cells).
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Graph {
     grid: Grid<NodeKind>, // WxH nodes.
 }
@@ -218,9 +218,13 @@ impl Graph {
     }
 
     pub fn from_tile_map(tile_map: &TileMap) -> Self {
-        let mut graph = Self::with_empty_grid(tile_map.size_in_cells());
-        graph.rebuild_from_tile_map(tile_map, false);
-        graph
+        if tile_map.size_in_cells().is_valid() {
+            let mut graph = Self::with_empty_grid(tile_map.size_in_cells());
+            graph.rebuild_from_tile_map(tile_map, false);
+            graph
+        } else {
+            Self::default()
+        }
     }
 
     pub fn rebuild_from_tile_map(&mut self, tile_map: &TileMap, full_reset_to_empty: bool) {
@@ -572,8 +576,11 @@ pub struct Search {
 
 impl Search {
     pub fn with_graph(graph: &Graph) -> Self {
-        debug_assert!(graph.grid_size().is_valid());
-        Self::with_grid_size(graph.grid_size())
+        if graph.grid_size().is_valid() {
+            Self::with_grid_size(graph.grid_size())
+        } else {
+            Self::default()
+        }
     }
 
     pub fn with_grid_size(grid_size: Size) -> Self {

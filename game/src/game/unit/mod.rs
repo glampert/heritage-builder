@@ -148,7 +148,7 @@ impl<'config> GameObject<'config> for Unit<'config> {
     fn draw_debug_popups(&mut self,
                          query: &Query,
                          ui_sys: &UiSystem,
-                         transform: &WorldToScreenTransform,
+                         transform: WorldToScreenTransform,
                          visible_range: CellRange) {
 
         debug_assert!(self.is_spawned());

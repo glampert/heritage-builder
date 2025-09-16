@@ -118,7 +118,7 @@ pub trait GameObject<'config> {
     fn draw_debug_popups(&mut self,
                          query: &Query,
                          ui_sys: &UiSystem,
-                         transform: &WorldToScreenTransform,
+                         transform: WorldToScreenTransform,
                          visible_range: CellRange);
 }
 

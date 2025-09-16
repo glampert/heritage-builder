@@ -43,10 +43,6 @@ pub struct TileSelection {
 }
 
 impl TileSelection {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn has_valid_placement(&self) -> bool {
         self.valid_placement
     }
@@ -82,7 +78,7 @@ impl TileSelection {
                   mut layers: TileMapLayerMutRefs,
                   map_size_in_cells: Size,
                   cursor_screen_pos: Vec2,
-                  transform: &WorldToScreenTransform,
+                  transform: WorldToScreenTransform,
                   placement_op: PlacementOp) {
 
         if self.left_mouse_button_held {
@@ -276,7 +272,7 @@ impl Load<'_, '_> for TileSelection {
 pub fn bounds(screen_rect: &Rect,
               tile_size: Size,
               map_size_in_cells: Size,
-              transform: &WorldToScreenTransform) -> CellRange {
+              transform: WorldToScreenTransform) -> CellRange {
 
     debug_assert!(screen_rect.is_valid());
 

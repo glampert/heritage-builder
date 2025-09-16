@@ -77,20 +77,29 @@ pub struct Simulation<'config> {
     #[serde(skip)] search: Search,
 
     // Configs:
+    workers_search_radius: i32,
+    workers_update_frequency_secs: Seconds,
+
     #[serde(skip)] building_configs: Option<&'config BuildingConfigs>,
     #[serde(skip)] unit_configs: Option<&'config UnitConfigs>,
 }
 
 impl<'config> Simulation<'config> {
     pub fn new(tile_map: &TileMap,
+               sim_random_seed: u64,
+               sim_update_frequency_secs: Seconds,
+               workers_search_radius: i32,
+               workers_update_frequency_secs: Seconds,
                building_configs: &'config BuildingConfigs,
                unit_configs: &'config UnitConfigs) -> Self {
         Self {
-            update_timer: UpdateTimer::new(SIM_UPDATE_FREQUENCY_SECS),
-            rng: RandomGenerator::seed_from_u64(SIM_DEFAULT_RANDOM_SEED),
+            update_timer: UpdateTimer::new(sim_update_frequency_secs),
+            rng: RandomGenerator::seed_from_u64(sim_random_seed),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
+            workers_search_radius,
+            workers_update_frequency_secs,
             building_configs: Some(building_configs),
             unit_configs: Some(unit_configs),
         }
@@ -110,6 +119,8 @@ impl<'config> Simulation<'config> {
             world,
             tile_map,
             tile_sets,
+            self.workers_search_radius,
+            self.workers_update_frequency_secs,
             self.building_configs.unwrap(),
             self.unit_configs.unwrap(),
             delta_time_secs)
@@ -122,6 +133,7 @@ impl<'config> Simulation<'config> {
                               tile_sets: &'tile_sets TileSets,
                               delta_time_secs: Seconds) {
 
+        debug_assert!(self.workers_search_radius > 0);
         debug_assert!(self.building_configs.is_some());
         debug_assert!(self.unit_configs.is_some());
 
@@ -227,7 +239,7 @@ impl<'config> Simulation<'config> {
         context.world.draw_building_debug_popups(
             &query,
             context.ui_sys,
-            &context.transform,
+            context.transform,
             visible_range);
     }
 
@@ -263,7 +275,7 @@ impl<'config> Simulation<'config> {
         context.world.draw_unit_debug_popups(
             &query,
             context.ui_sys,
-            &context.transform,
+            context.transform,
             visible_range);
     }
 
@@ -414,6 +426,9 @@ pub struct Query<'config, 'tile_sets> {
     tile_map: UnsafeWeakRef<TileMap<'tile_sets>>,
     tile_sets: &'tile_sets TileSets,
 
+    // Configs:
+    workers_search_radius: i32,
+    workers_update_frequency_secs: Seconds,
     building_configs: &'config BuildingConfigs,
     unit_configs: &'config UnitConfigs,
 
@@ -428,6 +443,8 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
            world: &mut World<'config>,
            tile_map: &mut TileMap<'tile_sets>,
            tile_sets: &'tile_sets TileSets,
+           workers_search_radius: i32,
+           workers_update_frequency_secs: Seconds,
            building_configs: &'config BuildingConfigs,
            unit_configs: &'config UnitConfigs,
            delta_time_secs: Seconds) -> Self {
@@ -439,6 +456,8 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             world: UnsafeWeakRef::new(world),
             tile_map: UnsafeWeakRef::new(tile_map),
             tile_sets,
+            workers_search_radius,
+            workers_update_frequency_secs,
             building_configs,
             unit_configs,
             delta_time_secs,
@@ -505,6 +524,16 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     #[inline(always)]
     pub fn delta_time_secs(&self) -> Seconds {
         self.delta_time_secs
+    }
+
+    #[inline(always)]
+    pub fn workers_search_radius(&self) -> i32 {
+        self.workers_search_radius
+    }
+
+    #[inline(always)]
+    pub fn workers_update_frequency_secs(&self) -> Seconds {
+        self.workers_update_frequency_secs
     }
 
     #[inline]

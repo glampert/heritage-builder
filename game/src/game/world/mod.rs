@@ -338,7 +338,7 @@ impl<'config> World<'config> {
     pub fn draw_building_debug_popups(&mut self,
                                       query: &Query,
                                       ui_sys: &UiSystem,
-                                      transform: &WorldToScreenTransform,
+                                      transform: WorldToScreenTransform,
                                       visible_range: CellRange) {
 
         for (archetype_kind, buildings) in &mut self.building_spawn_pools {
@@ -577,7 +577,7 @@ impl<'config> World<'config> {
     pub fn draw_unit_debug_popups(&mut self,
                                   query: &Query,
                                   ui_sys: &UiSystem,
-                                  transform: &WorldToScreenTransform,
+                                  transform: WorldToScreenTransform,
                                   visible_range: CellRange) {
 
         for unit in self.unit_spawn_pool.iter_mut() {
