@@ -98,18 +98,11 @@ impl<'config> World<'config> {
     }
 
     pub fn reset(&mut self, query: &Query) {
-        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
-            buildings.clear(query,
-                |building, query| {
-                    debug_assert!(building.archetype_kind() == *archetype_kind);
-                    building.despawned(query)
-                });
+        for (_, buildings) in &mut self.building_spawn_pools {
+            buildings.clear(query, Building::despawned);
         }
 
-        self.unit_spawn_pool.clear(query,
-            |unit, query| {
-                unit.despawned(query);
-            });
+        self.unit_spawn_pool.clear(query, Unit::despawned);
     }
 
     pub fn update_unit_navigation(&mut self, query: &Query) {
@@ -214,11 +207,7 @@ impl<'config> World<'config> {
         debug_assert!(pool_index == building.id().index());
 
         // Put the building instance back into the spawn pool.
-        buildings.despawn(building, query,
-            |building, query| {
-                building.despawned(query);
-            });
-
+        buildings.despawn(building, query, Building::despawned);
         Ok(())
     }
 
@@ -484,11 +473,7 @@ impl<'config> World<'config> {
         tile_map.try_clear_tile_from_layer(tile_cell, TileMapLayerKind::Objects)?;
 
         // Put the unit instance back into the spawn pool.
-        self.unit_spawn_pool.despawn(unit, query,
-            |unit, query| {
-                unit.despawned(query);
-            });
-
+        self.unit_spawn_pool.despawn(unit, query, Unit::despawned);
         Ok(())
     }
 
