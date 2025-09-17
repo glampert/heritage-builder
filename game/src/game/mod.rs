@@ -154,7 +154,7 @@ impl<'game> GameSession<'game> {
         }
 
         let mut world = World::new(&assets.building_configs, &assets.unit_configs);
-        let mut tile_map = Self::create_tile_map(&mut world, assets, &configs.load_map_setting);
+        let mut tile_map = Self::create_tile_map(&mut world, assets, configs);
 
         let sim = Simulation::new(
             &tile_map,
@@ -201,10 +201,10 @@ impl<'game> GameSession<'game> {
     fn create_tile_map(
         world: &mut World,
         assets: &'game GameAssets,
-        load_map_settings: &Option<LoadMapSetting>,
+        configs: &GameConfigs
     ) -> Box<TileMap<'game>> {
         let tile_map = {
-            if let Some(settings) = load_map_settings {
+            if let Some(settings) = &configs.load_map_setting{
                 match settings {
                     LoadMapSetting::EmptyMap {
                         size_in_cells,
@@ -231,6 +231,7 @@ impl<'game> GameSession<'game> {
                         debug::utils::create_preset_tile_map(
                             world,
                             &assets.tile_sets,
+                            configs,
                             *preset_number,
                         )
                     }

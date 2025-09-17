@@ -1,24 +1,16 @@
 use rand::SeedableRng;
-
+use super::{Query, RandomGenerator};
 use crate::{
+    game::{
+        system::GameSystems,
+        unit::task::UnitTaskManager,
+        world::World,
+        GameConfigs,
+    },
     imgui_ui::UiSystem,
     pathfind::{Graph, Search},
-    tile::{TileMap, sets::TileSets},
-    utils::{
-        Size,
-        Seconds,
-        coords::WorldToScreenTransform
-    },
-    game::{
-        unit::task::UnitTaskManager,
-        system::GameSystems,
-        world::World,
-    }
-};
-
-use super::{
-    Query,
-    RandomGenerator
+    tile::{sets::TileSets, TileMap},
+    utils::{coords::WorldToScreenTransform, Seconds, Size, UnsafeWeakRef},
 };
 
 // ----------------------------------------------
@@ -50,40 +42,51 @@ pub struct DebugContext<'config, 'ui, 'world, 'tile_map, 'tile_sets> {
 // ----------------------------------------------
 
 // Dummy Query for unit tests/debug.
-pub struct DebugQueryBuilder {
+pub struct DebugQueryBuilder<'config, 'tile_sets, 'tile_map> {
     rng: RandomGenerator,
     graph: Graph,
     search: Search,
     task_manager: UnitTaskManager,
+    world: UnsafeWeakRef<World<'config>>,
+    tile_map: &'tile_map mut TileMap<'tile_sets>,
+    tile_sets: &'tile_sets TileSets,
+    workers_search_radius: i32,
+    workers_update_frequency_secs: Seconds,
 }
 
-impl DebugQueryBuilder {
-    // FIXME: need to pass in GameConfigs, otherwise worker_search/update will be wrong
-    pub fn new(map_size_in_cells: Size) -> Self {
+impl<'config, 'tile_sets, 'tile_map> DebugQueryBuilder<'config, 'tile_sets, 'tile_map> {
+    pub fn new(world: &mut World<'config>,
+               tile_map: &'tile_map mut TileMap<'tile_sets>,
+               tile_sets: &'tile_sets TileSets,
+               map_size_in_cells: Size,
+               configs: &GameConfigs) -> Self {
         Self {
-            rng: RandomGenerator::seed_from_u64(0xFF),// TODO game configs
+            rng: RandomGenerator::seed_from_u64(configs.sim_random_seed),
             graph: Graph::with_empty_grid(map_size_in_cells),
             search: Search::with_grid_size(map_size_in_cells),
             task_manager: UnitTaskManager::new(1),
+            world: UnsafeWeakRef::new(world),
+            tile_map,
+            tile_sets,
+            workers_search_radius: configs.workers_search_radius,
+            workers_update_frequency_secs: configs.workers_update_frequency_secs
         }
     }
 
-    pub fn new_query<'config, 'tile_sets>(&mut self,
-                                          world: &mut World<'config>,
-                                          tile_map: &mut TileMap<'tile_sets>,
-                                          tile_sets: &'tile_sets TileSets) -> Query<'config, 'tile_sets> {
-        Query::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
-            &mut self.task_manager,
-            world,
-            tile_map,
-            tile_sets,
-            20,// TODO game configs
-            20.0,
-            world.building_configs(),
-            world.unit_configs(),
-            0.0)
+    pub fn new_query(&mut self) -> Query<'config, 'tile_sets> {
+        let building_configs = self.world.building_configs();
+        let unit_configs = self.world.unit_configs();
+        Query::new(&mut self.rng,
+                   &mut self.graph,
+                   &mut self.search,
+                   &mut self.task_manager,
+                   &mut self.world,
+                   self.tile_map,
+                   self.tile_sets,
+                   self.workers_search_radius,
+                   self.workers_update_frequency_secs,
+                   building_configs,
+                   unit_configs,
+                   0.0)
     }
 }

@@ -2,6 +2,7 @@ use crate::{
     log,
     imgui_ui::UiSystem,
     game::{
+        GameConfigs,
         world::World,
         cheats::{self, Cheats},
         sim::debug::DebugQueryBuilder
@@ -523,7 +524,8 @@ mod test_maps {
 
     fn build_tile_map<'tile_sets>(preset: &'static PresetTiles,
                                   world: &mut World,
-                                  tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
+                                  tile_sets: &'tile_sets TileSets,
+                                  configs: &GameConfigs) -> TileMap<'tile_sets> {
 
         let map_size_in_cells = preset.map_size_in_cells;
 
@@ -532,9 +534,6 @@ mod test_maps {
         debug_assert!(preset.building_tiles.len() == tile_count);
 
         let mut tile_map = TileMap::new(map_size_in_cells, None);
-
-        let mut query_builder = DebugQueryBuilder::new(map_size_in_cells);
-        let query = query_builder.new_query(world, &mut tile_map, tile_sets);
 
         // Terrain:
         for y in 0..map_size_in_cells.height {
@@ -548,12 +547,23 @@ mod test_maps {
         }
 
         // Buildings (Objects):
-        for y in 0..map_size_in_cells.height {
-            for x in 0..map_size_in_cells.width {
-                let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
-                if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Objects, tile_id) {
-                    world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def)
-                        .expect("Failed to place Building tile!");
+        {
+            let mut query_builder = DebugQueryBuilder::new(
+                world,
+                &mut tile_map,
+                tile_sets,
+                map_size_in_cells,
+                configs
+            );
+            let query = query_builder.new_query();
+
+            for y in 0..map_size_in_cells.height {
+                for x in 0..map_size_in_cells.width {
+                    let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
+                    if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Objects, tile_id) {
+                        world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def)
+                            .expect("Failed to place Building tile!");
+                    }
                 }
             }
         }
@@ -567,6 +577,7 @@ mod test_maps {
 
     pub fn create_preset_tile_map_internal<'tile_sets>(world: &mut World,
                                                        tile_sets: &'tile_sets TileSets,
+                                                       configs: &GameConfigs,
                                                        mut preset_number: usize) -> TileMap<'tile_sets> {
 
         preset_number = preset_number.min(PRESET_TILES.len());
@@ -578,7 +589,7 @@ mod test_maps {
             enable_cheats_fn(cheats::get_mut());
         }
 
-        build_tile_map(preset, world, tile_sets)
+        build_tile_map(preset, world, tile_sets, configs)
     }
 }
 
@@ -588,6 +599,7 @@ pub fn preset_tile_maps_list() -> Vec<&'static str> {
 
 pub fn create_preset_tile_map<'tile_sets>(world: &mut World,
                                           tile_sets: &'tile_sets TileSets,
+                                          configs: &GameConfigs,
                                           preset_number: usize) -> TileMap<'tile_sets> {
-    test_maps::create_preset_tile_map_internal(world, tile_sets, preset_number)
+    test_maps::create_preset_tile_map_internal(world, tile_sets, configs, preset_number)
 }
