@@ -17,9 +17,7 @@ mod utils;
 // ----------------------------------------------
 
 fn main() {
-    use game::core::GameLoop;
-
-    let mut game_loop = GameLoop::new();
+    let mut game_loop = game::GameLoop::new();
 
     game_loop.create_session();
 
