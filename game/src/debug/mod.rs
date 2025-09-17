@@ -4,11 +4,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     log,
+    engine::Engine,
+    render::TextureCache,
     imgui_ui::{UiSystem, UiInputEvent},
     save::{Save, Load, PostLoadContext},
-    render::{RenderStats, TextureCache},
     app::input::{MouseButton, InputAction, InputKey, InputModifiers},
     game::{
+        GameLoop,
         world::{World, object::Spawner},
         sim::{self, Simulation},
         system::GameSystems,
@@ -29,7 +31,7 @@ use crate::{
         sets::TileSets,
         camera::Camera,
         selection::TileSelection,
-        rendering::{TileMapRenderStats, TileMapRenderFlags}
+        rendering::TileMapRenderFlags
     },
     pathfind::{
         self,
@@ -79,14 +81,8 @@ pub struct DebugMenusFrameArgs<'game> {
 
     // UI/Debug:
     pub ui_sys: &'game UiSystem,
-    pub log_viewer: &'game log_viewer::LogViewerWindow,
 
-    // Perf Stats:
-    pub render_sys_stats: RenderStats,
-    pub tile_render_stats: TileMapRenderStats,
-
-    // Camera/Transform/Input:
-    pub transform: WorldToScreenTransform,
+    // Camera/Input:
     pub camera: &'game mut Camera,
     pub visible_range: CellRange,
     pub cursor_screen_pos: Vec2,
@@ -136,9 +132,9 @@ impl DebugMenusSystem {
         })
     }
 
-    pub fn end_frame(&mut self, args: &mut DebugMenusFrameArgs) {
+    pub fn end_frame<'game>(&mut self, args: &mut DebugMenusFrameArgs<'game>, engine: &mut dyn Engine, game_loop: &mut GameLoop<'game>) {
         use_singleton(|instance| {
-            instance.end_frame(args)
+            instance.end_frame(args, engine, game_loop)
         })
     }
 }
@@ -332,7 +328,7 @@ impl DebugMenusSingleton {
             args.tile_map.update_selection(
                 args.tile_selection,
                 args.cursor_screen_pos,
-                args.transform,
+                args.camera.transform(),
                 placement_op);
         }
 
@@ -346,7 +342,7 @@ impl DebugMenusSingleton {
                     let target_cell = args.tile_map.find_exact_cell_for_point(
                         tile_def.layer_kind(),
                         args.cursor_screen_pos,
-                        args.transform);
+                        args.camera.transform());
 
                     if target_cell.is_valid() {
                         let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
@@ -356,7 +352,7 @@ impl DebugMenusSingleton {
                     }
                 } else {
                     let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
-                    if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, args.transform) {
+                    if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, args.camera.transform()) {
                         Spawner::new(&query).despawn_tile(tile);
                         true
                     } else {
@@ -378,17 +374,17 @@ impl DebugMenusSingleton {
         self.debug_settings_menu.selected_render_flags()
     }
 
-    fn end_frame(&mut self, args: &mut DebugMenusFrameArgs) {
-//        let has_valid_placement = args.tile_selection.has_valid_placement();
+    fn end_frame<'game>(&mut self, args: &mut DebugMenusFrameArgs<'game>, engine: &mut dyn Engine, game_loop: &mut GameLoop<'game>) {
+        let has_valid_placement = args.tile_selection.has_valid_placement();
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
         let show_render_stats = self.debug_settings_menu.show_render_stats();
-//        let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
+        let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
         let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
 
         if *show_log_viewer_window {
-            args.log_viewer.show(true);
-            *show_log_viewer_window = args.log_viewer.draw(args.ui_sys);
+            engine.log_viewer().show(true);
+            *show_log_viewer_window = engine.log_viewer().draw(args.ui_sys);
         }
 
         let mut context = sim::debug::DebugContext {
@@ -397,31 +393,27 @@ impl DebugMenusSingleton {
             systems: args.systems,
             tile_map: args.tile_map,
             tile_sets: args.tile_sets,
-            transform: args.transform,
+            transform: args.camera.transform(),
             delta_time_secs: args.delta_time_secs,
         };
 
-        // TODO: replace with DebugDraw interface
-        /*
         self.tile_palette_menu.draw(
             &mut context,
-            args.render_sys,
+            engine.debug_draw(),
             args.cursor_screen_pos,
             has_valid_placement,
             show_selection_bounds);
-        */
 
         self.tile_inspector_menu.draw(
             &mut context,
             args.sim);
 
-        /*TODO: replace tile_map_renderer with DebugDraw interface
         self.debug_settings_menu.draw(
             &mut context,
             args.sim,
             args.camera,
-            args.tile_map_renderer);
-        */
+            engine,
+            game_loop);
 
         if show_popup_messages() {
             args.sim.draw_game_object_debug_popups(&mut context, args.visible_range);
@@ -439,12 +431,11 @@ impl DebugMenusSingleton {
         }
 
         if show_render_stats {
-            utils::draw_render_stats(args.ui_sys, &args.render_sys_stats, &args.tile_render_stats);
+            utils::draw_render_stats(args.ui_sys, &engine.render_stats(), &engine.tile_map_render_stats());
         }
 
         if show_screen_origin {
-            // TODO: replace with DebugDraw interface
-            //utils::draw_screen_origin_marker(args.render_sys);
+            utils::draw_screen_origin_marker(engine.debug_draw());
         }
     }
 }

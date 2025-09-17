@@ -3,9 +3,10 @@
 use std::collections::HashMap;
 
 use crate::{
+    engine::DebugDraw,
     app::input::{InputAction, MouseButton},
     imgui_ui::{UiInputEvent, UiSystem},
-    render::{RenderSystem, TextureCache, TextureHandle},
+    render::{TextureCache, TextureHandle},
     game::sim::{self},
     utils::{
         Color,
@@ -99,20 +100,20 @@ impl TilePaletteMenu {
 
     pub fn draw(&mut self,
                 context: &mut sim::debug::DebugContext,
-                render_sys: &mut impl RenderSystem,
+                debug_draw: &mut dyn DebugDraw,
                 cursor_screen_pos: Vec2,
                 has_valid_placement: bool,
                 show_selection_bounds: bool) {
 
         let ui = context.ui_sys.builder();
-        let tex_cache = render_sys.texture_cache();
+        let tex_cache = debug_draw.texture_cache();
 
         let tile_size = [ BASE_TILE_SIZE.width as f32, BASE_TILE_SIZE.height as f32 ];
         let tiles_per_row = 2;
         let padding_between_tiles = 4.0;
 
         let window_width = (tile_size[0] + padding_between_tiles) * tiles_per_row as f32;
-        let window_margin = 35.0; // pixels from the right edge
+        let window_margin = 45.0; // pixels from the right edge
 
         // X position = screen width - estimated window width - margin
         // Y position = 10px
@@ -123,8 +124,7 @@ impl TilePaletteMenu {
 
         let window_flags =
             imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
-            imgui::WindowFlags::NO_RESIZE |
-            imgui::WindowFlags::NO_SCROLLBAR;
+            imgui::WindowFlags::NO_RESIZE;
 
         ui.window("Tile Selection")
             .flags(window_flags)
@@ -178,7 +178,7 @@ impl TilePaletteMenu {
                 }
             });
 
-        self.draw_selected_tile(render_sys,
+        self.draw_selected_tile(debug_draw,
                                 context.tile_sets,
                                 cursor_screen_pos,
                                 context.transform,
@@ -187,7 +187,7 @@ impl TilePaletteMenu {
     }
 
     fn draw_selected_tile(&self,
-                          render_sys: &mut impl RenderSystem,
+                          debug_draw: &mut dyn DebugDraw,
                           tile_sets: &TileSets,
                           cursor_screen_pos: Vec2,
                           transform: WorldToScreenTransform,
@@ -210,7 +210,7 @@ impl TilePaletteMenu {
                 CLEAR_ICON_SIZE
             );
 
-            render_sys.draw_textured_colored_rect(
+            debug_draw.textured_colored_rect(
                 rect,
                 RectTexCoords::default_ref(),
                 self.clear_button_image,
@@ -236,7 +236,7 @@ impl TilePaletteMenu {
                 };
 
             if let Some(sprite_frame) = selected_tile.anim_frame_by_index(0, 0, 0) {
-                render_sys.draw_textured_colored_rect(
+                debug_draw.textured_colored_rect(
                     cursor_transform.scale_and_offset_rect(rect),
                     &sprite_frame.tex_info.coords,
                     sprite_frame.tex_info.texture,
@@ -244,7 +244,7 @@ impl TilePaletteMenu {
             }
 
             if show_selection_bounds {
-                render_sys.draw_wireframe_rect_fast(cursor_transform.scale_and_offset_rect(rect), Color::red());
+                debug_draw.wireframe_rect(cursor_transform.scale_and_offset_rect(rect), Color::red());
             }
         }
     }

@@ -1,23 +1,28 @@
+use std::collections::VecDeque;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    app::ApplicationEvent,
+    imgui_ui::UiInputEvent,
+    app::{ApplicationEvent, input::{InputAction, InputKey, InputModifiers, MouseButton}},
     debug::{self, DebugMenusFrameArgs, DebugMenusInputArgs, DebugMenusSystem},
     engine::{self, Engine, EngineConfigs},
     log,
     render::TextureCache,
     save::{self, *},
     tile::{
-        TileMap, camera::*, rendering::TileMapRenderFlags, selection::TileSelection, sets::TileSets,
+        TileMap, camera::*, rendering::TileMapRenderFlags, selection::TileSelection, sets::{TileSets, TileDef},
     },
-    utils::{self, Seconds, Size, Vec2, coords::CellRange, hash},
+    utils::{self, Seconds, Size, Vec2, coords::CellRange, hash, file_sys},
 };
 
-use building::config::BuildingConfigs;
-use sim::Simulation;
-use system::{GameSystems, settlers};
-use unit::config::UnitConfigs;
-use world::World;
+use {
+    building::config::BuildingConfigs,
+    sim::Simulation,
+    system::{GameSystems, settlers},
+    unit::config::UnitConfigs,
+    world::World,
+};
 
 pub mod building;
 pub mod cheats;
@@ -32,6 +37,7 @@ pub mod world;
 // ----------------------------------------------
 
 // TODO: Deserialize with serde. Load from json config file.
+#[derive(Clone)]
 pub struct GameConfigs {
     // Low-level Engine configs:
     pub engine: EngineConfigs,
@@ -59,6 +65,7 @@ pub struct GameConfigs {
     pub show_debug_popups: bool,
 }
 
+#[derive(Clone)]
 pub enum LoadMapSetting {
     EmptyMap { size_in_cells: Size, terrain_tile_category: String, terrain_tile_name: String },
     Preset { preset_number: usize },
@@ -192,7 +199,7 @@ impl<'game> GameSession<'game> {
         };
 
         if let Some(save_file_path) = opt_save_file_to_load {
-            session.load_game(save_file_path, assets);
+            session.load_save_game(save_file_path, assets);
         }
 
         session
@@ -204,7 +211,7 @@ impl<'game> GameSession<'game> {
         configs: &GameConfigs
     ) -> Box<TileMap<'game>> {
         let tile_map = {
-            if let Some(settings) = &configs.load_map_setting{
+            if let Some(settings) = &configs.load_map_setting {
                 match settings {
                     LoadMapSetting::EmptyMap {
                         size_in_cells,
@@ -217,7 +224,7 @@ impl<'game> GameSession<'game> {
                         );
 
                         if !size_in_cells.is_valid() {
-                            panic!("Invalid Tile Map dimensions! Width & height must not be zero.");
+                            panic!("LoadMapSetting::EmptyMap: Invalid Tile Map dimensions! Width & height must not be zero.");
                         }
 
                         TileMap::with_terrain_tile(
@@ -237,7 +244,7 @@ impl<'game> GameSession<'game> {
                     }
                     LoadMapSetting::SaveGame { save_file_path } => {
                         if save_file_path.is_empty() {
-                            panic!("No save file path provided!");
+                            panic!("LoadMapSetting::SaveGame: No save file path provided!");
                         }
 
                         // Loading a save requires loading a full GameSession, so we'll just create
@@ -253,9 +260,14 @@ impl<'game> GameSession<'game> {
         Box::new(tile_map)
     }
 
-    fn terminate(&mut self, tile_sets: &'game TileSets) {
+    fn reset(&mut self, tile_sets: &'game TileSets, reset_map: bool, reset_map_with_tile_def: Option<&'game TileDef>) {
         self.tile_selection = TileSelection::default();
+
         self.sim.reset(&mut self.world, &mut self.systems, &mut self.tile_map, tile_sets);
+
+        if reset_map {
+            self.tile_map.reset(reset_map_with_tile_def);
+        }
     }
 }
 
@@ -319,12 +331,20 @@ impl<'game> Load<'game, 'game> for GameSession<'game> {
 // Save Game
 // ----------------------------------------------
 
-const AUTOSAVE_FILE_NAME: &str = "autosave.json";
-const DEFAULT_SAVE_FILE_NAME: &str = "save_game.json";
+pub const AUTOSAVE_FILE_NAME: &str = "autosave.json";
+pub const DEFAULT_SAVE_FILE_NAME: &str = "save_game.json";
+pub const SAVE_GAMES_DIR_PATH: &str = "saves";
+
+fn make_save_game_file_path(save_file_name: &str) -> String {
+    format!("{}{}{}",
+        SAVE_GAMES_DIR_PATH,
+        std::path::MAIN_SEPARATOR,
+        save_file_name)
+}
 
 impl<'game> GameSession<'game> {
     fn save_game(&mut self, save_file_path: &str) -> bool {
-        log::info!(log::channel!("session"), "Save game {save_file_path} ...");
+        log::info!(log::channel!("session"), "Saving game '{save_file_path}' ...");
 
         fn can_write_save_file(save_file_path: &str) -> bool {
             // Attempt to write a dummy file to probe if the path is writable.
@@ -348,6 +368,10 @@ impl<'game> GameSession<'game> {
             true
         }
 
+        // First make sure the save directory exists. Ignore any errors since
+        // this function might fail if any element of the path already exists.
+        let _ = std::fs::create_dir_all(SAVE_GAMES_DIR_PATH);
+
         if !can_write_save_file(save_file_path) {
             log::error!(
                 log::channel!("session"),
@@ -367,15 +391,15 @@ impl<'game> GameSession<'game> {
         result
     }
 
-    fn load_game(&mut self, save_file_path: &str, assets: &'game GameAssets) -> bool {
-        log::info!(log::channel!("session"), "Loading save game {save_file_path} ...");
+    fn load_save_game(&mut self, save_file_path: &str, assets: &'game GameAssets) -> bool {
+        log::info!(log::channel!("session"), "Loading save game '{save_file_path}' ...");
 
         let mut state = save::backend::new_json_save_state(false);
 
         if let Err(err) = state.read_file(save_file_path) {
             log::error!(
                 log::channel!("session"),
-                "Failed to read saved game file '{save_file_path:?}': {err}"
+                "Failed to read saved game file '{save_file_path}': {err}"
             );
             return false;
         }
@@ -386,7 +410,7 @@ impl<'game> GameSession<'game> {
             Err(err) => {
                 log::error!(
                     log::channel!("session"),
-                    "Failed to load saved game from '{save_file_path:?}': {err}"
+                    "Failed to load saved game from '{save_file_path}': {err}"
                 );
                 return false;
             }
@@ -408,6 +432,19 @@ impl<'game> GameSession<'game> {
 }
 
 // ----------------------------------------------
+// GameSessionCmd
+// ----------------------------------------------
+
+// Deferred session commands that must be processed at a safe point in the GameLoop update.
+// These are kept in a queue and consumed every iteration of the loop.
+enum GameSessionCmd<'game> {
+    Reset { reset_map_with_tile_def: Option<&'game TileDef> },
+    LoadPreset { preset_number: usize },
+    LoadSaveGame { save_file_path: String },
+    SaveGame { save_file_path: String },
+}
+
+// ----------------------------------------------
 // GameLoop
 // ----------------------------------------------
 
@@ -416,6 +453,7 @@ pub struct GameLoop<'game> {
     engine: Box<dyn Engine>,
     assets: Box<GameAssets>,
     session: Option<Box<GameSession<'game>>>,
+    cmd_queue: VecDeque<GameSessionCmd<'game>>,
 }
 
 impl<'game> GameLoop<'game> {
@@ -434,38 +472,75 @@ impl<'game> GameLoop<'game> {
         cheats::initialize();
         debug::set_show_popup_messages(configs.show_debug_popups);
 
-        Self { configs, engine, assets, session: None }
+        Self { configs, engine, assets, session: None, cmd_queue: VecDeque::new() }
     }
 
     pub fn create_session(&mut self) {
-        debug_assert!(self.session.is_none());
-
-        let viewport_size = self.engine.viewport().size();
-        let tex_cache = self.engine.texture_cache_mut();
-
-        let new_session = GameSession::new(tex_cache, &self.assets, &self.configs, viewport_size);
-
-        let game_loop = utils::mut_ref_cast(self);
-        game_loop.session = Some(Box::new(new_session));
-
-        log::info!(log::channel!("game"), "Game Session created.");
+        let configs = *self.configs.clone();
+        self.create_session_with_configs(&configs);
     }
 
     pub fn terminate_session(&mut self) {
         if self.session.is_some() {
-            self.session().terminate(&self.assets.tile_sets);
-            self.session = None;
-            log::info!(log::channel!("game"), "Game Session destroyed.");
+            self.session().reset(&self.assets.tile_sets, false, None);
         }
+        self.session = None;
+        log::info!(log::channel!("game"), "Game Session destroyed.");
+    }
+
+    pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'game TileDef>) {
+        self.cmd_queue.push_back(GameSessionCmd::Reset {
+            reset_map_with_tile_def
+        });
+    }
+
+    pub fn load_preset_map(&mut self, preset_tile_map_number: usize) {
+        self.cmd_queue.push_back(GameSessionCmd::LoadPreset {
+            preset_number: preset_tile_map_number
+        });
+    }
+
+    pub fn load_save_game(&mut self, save_file_name: &str) {
+        if save_file_name.is_empty() {
+            log::error!(log::channel!("game"), "Load game: Empty file name!");
+            return;
+        }
+
+        self.cmd_queue.push_back(GameSessionCmd::LoadSaveGame {
+            save_file_path: make_save_game_file_path(save_file_name)
+        });
+    }
+
+    pub fn save_game(&mut self, save_file_name: &str) {
+        if save_file_name.is_empty() {
+            log::error!(log::channel!("game"), "Save game: Empty file name!");
+            return;
+        }
+
+        self.cmd_queue.push_back(GameSessionCmd::SaveGame {
+            save_file_path: make_save_game_file_path(save_file_name)
+        });
+    }
+
+    #[inline]
+    pub fn save_files_list(&self) -> Vec<std::path::PathBuf> {
+        file_sys::collect_files(&SAVE_GAMES_DIR_PATH, file_sys::CollectFlags::FilenamesOnly)
+    }
+
+    #[inline]
+    pub fn is_running(&self) -> bool {
+        self.session.is_some() && self.engine.is_running()
     }
 
     pub fn update(&mut self) {
+        self.process_session_commands();
+
         let engine = self.engine();
         let (delta_time_secs, cursor_screen_pos) = engine.begin_frame();
 
         // Input Events:
-        for event in engine.poll_events() {
-            self.handle_event(event, cursor_screen_pos);
+        for event in engine.app_events() {
+            self.handle_event(*event, cursor_screen_pos);
         }
 
         // Game Logic:
@@ -476,15 +551,12 @@ impl<'game> GameLoop<'game> {
         // Rendering:
         let render_flags =
             self.debug_menus_begin_frame(visible_range, cursor_screen_pos, delta_time_secs);
+
         self.draw_tile_map(visible_range, render_flags);
+
         self.debug_menus_end_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
         engine.end_frame();
-    }
-
-    #[inline]
-    pub fn is_running(&self) -> bool {
-        self.session.is_some() && self.engine.is_running()
     }
 
     // ----------------------
@@ -529,17 +601,15 @@ impl<'game> GameLoop<'game> {
     }
 
     fn handle_event(&self, event: ApplicationEvent, cursor_screen_pos: Vec2) {
-        let session = self.session();
-
         match event {
             ApplicationEvent::WindowResize(window_size) => {
-                session.camera.set_viewport_size(window_size);
+                self.session().camera.set_viewport_size(window_size);
             }
             ApplicationEvent::KeyInput(key, action, _modifiers) => {
-                let mut args = self.new_debug_menus_input_args(cursor_screen_pos);
-                session.debug_menus.on_key_input(&mut args, key, action);
+                self.debug_menus_key_input(key, action, cursor_screen_pos);
             }
             ApplicationEvent::Scroll(amount) => {
+                let session = self.session();
                 if amount.y < 0.0 {
                     session.camera.request_zoom(CameraZoom::In);
                 } else if amount.y > 0.0 {
@@ -547,8 +617,7 @@ impl<'game> GameLoop<'game> {
                 }
             }
             ApplicationEvent::MouseButton(button, action, modifiers) => {
-                let mut args = self.new_debug_menus_input_args(cursor_screen_pos);
-                session.debug_menus.on_mouse_click(&mut args, button, action, modifiers);
+                self.debug_menus_mouse_click(button, action, modifiers, cursor_screen_pos);
             }
             _ => {}
         }
@@ -595,6 +664,64 @@ impl<'game> GameLoop<'game> {
     }
 
     // ----------------------
+    // Session Commands:
+    // ----------------------
+
+    fn create_session_with_configs(&mut self, configs: &GameConfigs) {
+        let game_loop = utils::mut_ref_cast(self);
+        debug_assert!(game_loop.session.is_none());
+
+        let viewport_size = game_loop.engine.viewport().size();
+        let tex_cache = game_loop.engine.texture_cache_mut();
+
+        let new_session = GameSession::new(tex_cache, &game_loop.assets, configs, viewport_size);
+        game_loop.session = Some(Box::new(new_session));
+
+        log::info!(log::channel!("game"), "Game Session created.");
+    }
+
+    fn process_session_commands(&mut self) {
+        while let Some(cmd) = self.cmd_queue.pop_front() {
+            match cmd {
+                GameSessionCmd::Reset { reset_map_with_tile_def } => {
+                    self.session_cmd_reset(reset_map_with_tile_def);
+                }
+                GameSessionCmd::LoadPreset { preset_number } => {
+                    self.session_cmd_load_preset(preset_number);
+                }
+                GameSessionCmd::LoadSaveGame { save_file_path } => {
+                    self.session_cmd_load_save_game(save_file_path);
+                }
+                GameSessionCmd::SaveGame { save_file_path } => {
+                    self.session_cmd_save_game(save_file_path);
+                }
+            }
+        }
+    }
+
+    fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'game TileDef>) {
+        self.session().reset(&self.assets.tile_sets, true, reset_map_with_tile_def);
+        log::info!(log::channel!("game"), "Game Session reset.");
+    }
+
+    fn session_cmd_load_preset(&mut self, preset_number: usize) {
+        self.terminate_session();
+        let mut configs = *self.configs.clone();
+        configs.load_map_setting = Some(LoadMapSetting::Preset { preset_number });
+        self.create_session_with_configs(&configs);
+    }
+
+    fn session_cmd_load_save_game(&mut self, save_file_path: String) {
+        debug_assert!(!save_file_path.is_empty());
+        self.session().load_save_game(&save_file_path, &self.assets);
+    }
+
+    fn session_cmd_save_game(&mut self, save_file_path: String) {
+        debug_assert!(!save_file_path.is_empty());
+        self.session().save_game(&save_file_path);
+    }
+
+    // ----------------------
     // Debug UI:
     // ----------------------
 
@@ -617,7 +744,28 @@ impl<'game> GameLoop<'game> {
     ) {
         let mut args =
             self.new_debug_menus_frame_args(visible_range, cursor_screen_pos, delta_time_secs);
-        self.session().debug_menus.end_frame(&mut args);
+        self.session().debug_menus.end_frame(&mut args, self.engine(), utils::mut_ref_cast(self));
+    }
+
+    fn debug_menus_key_input(
+        &self,
+        key: InputKey,
+        action: InputAction,
+        cursor_screen_pos: Vec2,
+    ) -> UiInputEvent {
+        let mut args = self.new_debug_menus_input_args(cursor_screen_pos);
+        self.session().debug_menus.on_key_input(&mut args, key, action)
+    }
+
+    fn debug_menus_mouse_click(
+        &self,
+        button: MouseButton,
+        action: InputAction,
+        modifiers: InputModifiers,
+        cursor_screen_pos: Vec2,
+    ) -> UiInputEvent {
+        let mut args = self.new_debug_menus_input_args(cursor_screen_pos);
+        self.session().debug_menus.on_mouse_click(&mut args, button, action, modifiers)
     }
 
     fn new_debug_menus_input_args(
@@ -641,7 +789,6 @@ impl<'game> GameLoop<'game> {
         delta_time_secs: Seconds,
     ) -> DebugMenusFrameArgs<'game> {
         let session = self.session();
-        let engine = self.engine();
         DebugMenusFrameArgs {
             tile_map: &mut session.tile_map,
             tile_sets: &self.assets.tile_sets,
@@ -649,11 +796,7 @@ impl<'game> GameLoop<'game> {
             sim: &mut session.sim,
             world: &mut session.world,
             systems: &mut session.systems,
-            ui_sys: engine.ui_system(),
-            log_viewer: engine.log_viewer(),
-            render_sys_stats: engine.render_stats(),
-            tile_render_stats: engine.tile_map_render_stats(),
-            transform: session.camera.transform(),
+            ui_sys: self.engine().ui_system(),
             camera: &mut session.camera,
             visible_range,
             cursor_screen_pos,

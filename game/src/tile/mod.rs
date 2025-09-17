@@ -1725,7 +1725,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
         for layer_kind in TileMapLayerKind::iter() {
             // Find which layer this tile belong to if we're not just setting everything to empty.
-            let fill_opt =
+            let fill_opt = {
                 if let Some(fill_tile_def) = fill_with_def {
                     if fill_tile_def.layer_kind() == layer_kind {
                         fill_with_def
@@ -1734,7 +1734,8 @@ impl<'tile_sets> TileMap<'tile_sets> {
                     }
                 } else {
                     None
-                };
+                }
+            };
             self.layers.push(TileMapLayer::new(layer_kind, self.size_in_cells, fill_opt));
         }
     }

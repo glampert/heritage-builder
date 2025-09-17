@@ -1,6 +1,7 @@
 use crate::{
     log,
     imgui_ui::UiSystem,
+    engine::DebugDraw,
     game::{
         GameConfigs,
         world::World,
@@ -103,32 +104,32 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: WorldToScreenTransform,
         });
 }
 
-pub fn draw_screen_origin_marker(render_sys: &mut impl RenderSystem) {
+pub fn draw_screen_origin_marker(debug_draw: &mut dyn DebugDraw) {
     // 50x50px white square to mark the origin.
-    render_sys.draw_point_fast(
+    debug_draw.point(
         Vec2::zero(), 
         Color::white(),
         50.0);
 
     // Red line for the X axis, green square at the end.
-    render_sys.draw_line_with_thickness(
+    debug_draw.line_with_thickness(
         Vec2::zero(),
         Vec2::new(100.0, 0.0),
         Color::red(),
         15.0);
 
-    render_sys.draw_colored_rect(
+    debug_draw.colored_rect(
         Rect::new(Vec2::new(100.0, 0.0), Vec2::new(10.0, 10.0)),
         Color::green());
 
     // Blue line for the Y axis, green square at the end.
-    render_sys.draw_line_with_thickness(
+    debug_draw.line_with_thickness(
         Vec2::zero(),
         Vec2::new(0.0, 100.0),
         Color::blue(),
         15.0);
 
-    render_sys.draw_colored_rect(
+    debug_draw.colored_rect(
         Rect::new(Vec2::new(0.0, 100.0), Vec2::new(10.0, 10.0)),
         Color::green());
 }

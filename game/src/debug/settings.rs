@@ -5,8 +5,11 @@ use crate::{
     debug,
     imgui_ui::UiSystem,
     utils::hash::{self},
+    engine::Engine,
     game::{
+        self,
         cheats,
+        GameLoop,
         sim::{self, Simulation},
     },
     tile::{
@@ -15,7 +18,6 @@ use crate::{
         sets::TERRAIN_GROUND_CATEGORY,
         rendering::{
             TileMapRenderFlags,
-            TileMapRenderer,
             MAX_GRID_LINE_THICKNESS,
             MIN_GRID_LINE_THICKNESS
         }
@@ -113,15 +115,15 @@ impl DebugSettingsMenu {
     }
 
     pub fn draw<'config>(&mut self,
-                         context: &mut sim::debug::DebugContext<'config, '_, '_, '_, '_>,
+                         context: &mut sim::debug::DebugContext<'config, '_, '_, '_, 'config>,
                          sim: &mut Simulation<'config>,
                          camera: &mut Camera,
-                         tile_map_renderer: &mut TileMapRenderer) {
+                         engine: &mut dyn Engine,
+                         game_loop: &mut GameLoop<'config>) {
 
         let window_flags =
             imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
-            imgui::WindowFlags::NO_RESIZE |
-            imgui::WindowFlags::NO_SCROLLBAR;
+            imgui::WindowFlags::NO_RESIZE;
 
         let ui = context.ui_sys.builder();
 
@@ -130,12 +132,12 @@ impl DebugSettingsMenu {
             .collapsed(!self.start_open, imgui::Condition::FirstUseEver)
             .position([5.0, 5.0], imgui::Condition::FirstUseEver)
             .build(|| {
-                self.camera_dropdown(context.ui_sys, camera);
-                self.map_grid_dropdown(context.ui_sys, tile_map_renderer);
-                self.reset_map_dropdown(context, sim);
-                self.debug_draw_dropdown(context.ui_sys);
-                self.preset_maps_dropdown(context);
-                self.save_game_dropdown(context.ui_sys);
+                self.camera_dropdown(context, camera);
+                self.map_grid_dropdown(context, engine);
+                self.debug_draw_dropdown(context);
+                self.reset_map_dropdown(context, game_loop);
+                self.preset_maps_dropdown(context, game_loop);
+                self.save_game_dropdown(context, game_loop);
                 cheats::draw_debug_ui(context.ui_sys);
             });
 
@@ -148,8 +150,8 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn camera_dropdown(&self, ui_sys: &UiSystem, camera: &mut Camera) {
-        let ui = ui_sys.builder();
+    fn camera_dropdown(&self, context: &mut sim::debug::DebugContext, camera: &mut Camera) {
+        let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Camera", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -182,32 +184,32 @@ impl DebugSettingsMenu {
     }
 
     fn map_grid_dropdown(&mut self,
-                         ui_sys: &UiSystem,
-                         tile_map_renderer: &mut TileMapRenderer) {
+                         context: &mut sim::debug::DebugContext,
+                         engine: &mut dyn Engine) {
 
-        let ui = ui_sys.builder();
+        let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Grid", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 
-        let mut line_thickness = tile_map_renderer.grid_line_thickness();
+        let mut line_thickness = engine.grid_line_thickness();
         if ui.slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
             .display_format("%.1f")
             .build(&mut line_thickness) {
-            tile_map_renderer.set_grid_line_thickness(line_thickness);
+            engine.set_grid_line_thickness(line_thickness);
         }
 
         ui.checkbox("Draw grid", &mut self.draw_grid);
         ui.checkbox("Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
     }
 
-    fn debug_draw_dropdown(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+    fn debug_draw_dropdown(&mut self, context: &mut sim::debug::DebugContext) {
+        let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Debug Draw", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 
-        self.draw_debug_ui(ui_sys);
+        self.draw_debug_ui(context.ui_sys);
 
         let mut show_popup_messages = super::show_popup_messages();
         if ui.checkbox("Show Popup Messages", &mut show_popup_messages) {
@@ -215,9 +217,9 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn reset_map_dropdown<'config>(&self,
-                                   context: &mut sim::debug::DebugContext<'config, '_, '_, '_, '_>,
-                                   sim: &mut Simulation<'config>) {
+    fn reset_map_dropdown<'tile_sets>(&self,
+                                      context: &mut sim::debug::DebugContext<'_, '_, '_, '_, 'tile_sets>,
+                                      game_loop: &mut GameLoop<'tile_sets>) {
 
         let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Reset Map", imgui::TreeNodeFlags::empty()) {
@@ -225,8 +227,7 @@ impl DebugSettingsMenu {
         }
 
         if ui.button("Reset empty") {
-            context.tile_map.reset(None);
-            sim.reset(context.world, context.systems, context.tile_map, context.tile_sets);
+            game_loop.reset_session(None);
         }
 
         if ui.button("Reset to dirt tiles") {
@@ -234,8 +235,8 @@ impl DebugSettingsMenu {
                 TileMapLayerKind::Terrain,
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("dirt"));
-            context.tile_map.reset(dirt_tile_def);
-            sim.reset(context.world, context.systems, context.tile_map, context.tile_sets);
+
+            game_loop.reset_session(dirt_tile_def);
         }
 
         if ui.button("Reset to grass tiles") {
@@ -243,12 +244,12 @@ impl DebugSettingsMenu {
                 TileMapLayerKind::Terrain,
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("grass"));
-            context.tile_map.reset(grass_tile_def);
-            sim.reset(context.world, context.systems, context.tile_map, context.tile_sets);
+
+            game_loop.reset_session(grass_tile_def);
         }
     }
 
-    fn preset_maps_dropdown(&mut self, context: &mut sim::debug::DebugContext) {
+    fn preset_maps_dropdown(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Preset Maps", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -261,46 +262,41 @@ impl DebugSettingsMenu {
         }
 
         if ui.button("Load Preset") {
-            log::info!("Loading preset tile map '{}' ...", preset_tile_map_names[self.preset_tile_map_number]);
-            //let tile_map = debug::utils::create_preset_tile_map(context.world, context.tile_sets, self.preset_tile_map_number);
-            // TODO: Assign preset to Game Session!
+            log::info!(log::channel!("debug"), "Loading preset tile map '{}' ...", preset_tile_map_names[self.preset_tile_map_number]);
+            game_loop.load_preset_map(self.preset_tile_map_number);
         }
     }
 
-    fn save_game_dropdown(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+    fn save_game_dropdown(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
+        let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Save Game", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 
         if self.save_file_name.is_empty() {
-            // TODO: Default save file name getter/const?
-            self.save_file_name = "autosave.json".into();
+            self.save_file_name = game::DEFAULT_SAVE_FILE_NAME.into();
         }
 
         ui.input_text("Save File", &mut self.save_file_name).build();
 
         if ui.button("Save") {
             if !self.save_file_name.is_empty() {
-                log::info!("Saving '{}' ...", self.save_file_name);
-                // TODO: Save the game!
+                game_loop.save_game(&self.save_file_name);
             } else {
-                log::error!("No save file name provided!");
+                log::error!(log::channel!("debug"), "No save file name provided!");
             }
         }
 
         ui.separator();
 
-        // TODO: Get these from the save folder!
-        let save_files = vec!["sample_save1.json", "sample_save2.json"];
+        let save_files = game_loop.save_files_list();
 
-        if ui.combo_simple_string("Load File", &mut self.save_file_selected, &save_files) {
+        if ui.combo("Load File", &mut self.save_file_selected, &save_files, |s| s.to_string_lossy()) {
             self.save_file_selected = self.save_file_selected.min(save_files.len());
         }
 
-        if ui.button("Load") {
-            log::info!("Loading '{}' ...", save_files[self.save_file_selected]);
-            // TODO: Load the game!
+        if ui.button("Load") && !save_files.is_empty() {
+            game_loop.load_save_game(&save_files[self.save_file_selected].to_string_lossy());
         }
     }
 

@@ -148,9 +148,7 @@ impl TileInspectorMenu {
             tile_screen_rect.center().y - 30.0
         ];
 
-        let window_flags =
-            imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
-            imgui::WindowFlags::NO_SCROLLBAR;
+        let window_flags = imgui::WindowFlags::ALWAYS_AUTO_RESIZE;
 
         let ui = context.ui_sys.builder();
         let mut is_open = self.is_open;

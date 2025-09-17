@@ -54,7 +54,7 @@ pub trait ApplicationFactory: Sized {
 // ApplicationEvent
 // ----------------------------------------------
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum ApplicationEvent {
     Quit,
     WindowResize(Size),
