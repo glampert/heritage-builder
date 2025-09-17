@@ -74,8 +74,11 @@ impl<F> Callback<F>
 
             debug_assert!(self.fptr.is_some(), "Failed to lookup deserialized callback '{}'!", self.name);
             debug_assert!(self.key.hash == hash::fnv1a_from_str(self.name), "Callback name and key do not match for '{}'!", self.name);
+        } else {
+            // Else the callback key must be invalid/default.
+            // If it isn't then we failed to find it in the registry.
+            debug_assert!(!self.key.is_valid(), "Failed to find callback '{}' in registry!", self.name);
         }
-        // Else the callback key was invalid/default.
     }
 }
 

@@ -42,7 +42,6 @@ pub mod backend {
 // ----------------------------------------------
 
 // TODO: Deserialize with serde. Load from json config file.
-#[derive(Clone)]
 pub struct EngineConfigs {
     // Window/Rendering:
     pub window_title: String,

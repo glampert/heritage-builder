@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -37,7 +36,6 @@ pub mod world;
 // ----------------------------------------------
 
 // TODO: Deserialize with serde. Load from json config file.
-#[derive(Clone)]
 pub struct GameConfigs {
     // Low-level Engine configs:
     pub engine: EngineConfigs,
@@ -65,7 +63,6 @@ pub struct GameConfigs {
     pub show_debug_popups: bool,
 }
 
-#[derive(Clone)]
 pub enum LoadMapSetting {
     EmptyMap { size_in_cells: Size, terrain_tile_category: String, terrain_tile_name: String },
     Preset { preset_number: usize },
@@ -145,10 +142,11 @@ struct GameSession<'game> {
 }
 
 impl<'game> GameSession<'game> {
-    fn new(
+    fn with_configs(
         tex_cache: &mut dyn TextureCache,
         assets: &'game GameAssets,
         configs: &GameConfigs,
+        load_map_setting: &Option<LoadMapSetting>,
         viewport_size: Size,
     ) -> Self {
         if !viewport_size.is_valid() {
@@ -156,12 +154,12 @@ impl<'game> GameSession<'game> {
         }
 
         let mut opt_save_file_to_load: Option<&String> = None;
-        if let Some(LoadMapSetting::SaveGame { save_file_path }) = &configs.load_map_setting {
+        if let Some(LoadMapSetting::SaveGame { save_file_path }) = load_map_setting {
             opt_save_file_to_load = Some(save_file_path);
         }
 
         let mut world = World::new(&assets.building_configs, &assets.unit_configs);
-        let mut tile_map = Self::create_tile_map(&mut world, assets, configs);
+        let mut tile_map = Self::create_tile_map(&mut world, assets, configs, load_map_setting);
 
         let sim = Simulation::new(
             &tile_map,
@@ -208,10 +206,11 @@ impl<'game> GameSession<'game> {
     fn create_tile_map(
         world: &mut World,
         assets: &'game GameAssets,
-        configs: &GameConfigs
+        configs: &GameConfigs,
+        load_map_setting: &Option<LoadMapSetting>,
     ) -> Box<TileMap<'game>> {
         let tile_map = {
-            if let Some(settings) = &configs.load_map_setting {
+            if let Some(settings) = load_map_setting {
                 match settings {
                     LoadMapSetting::EmptyMap {
                         size_in_cells,
@@ -258,6 +257,18 @@ impl<'game> GameSession<'game> {
         };
 
         Box::new(tile_map)
+    }
+
+    fn with_preset_map(
+        preset_number: usize,
+        tex_cache: &mut dyn TextureCache,
+        assets: &'game GameAssets,
+        configs: &GameConfigs,
+        viewport_size: Size,
+    ) -> Self {
+        // Override GameConfigs.load_map_setting
+        let load_map_setting = Some(LoadMapSetting::Preset { preset_number });
+        Self::with_configs(tex_cache, assets, configs, &load_map_setting, viewport_size)
     }
 
     fn reset(&mut self, tile_sets: &'game TileSets, reset_map: bool, reset_map_with_tile_def: Option<&'game TileDef>) {
@@ -476,8 +487,22 @@ impl<'game> GameLoop<'game> {
     }
 
     pub fn create_session(&mut self) {
-        let configs = *self.configs.clone();
-        self.create_session_with_configs(&configs);
+        let game_loop = self.mut_ref();
+        debug_assert!(game_loop.session.is_none());
+
+        let viewport_size = game_loop.engine.viewport().size();
+        let tex_cache = game_loop.engine.texture_cache_mut();
+
+        let new_session = GameSession::with_configs(
+            tex_cache,
+            &game_loop.assets,
+            &game_loop.configs,
+            &game_loop.configs.load_map_setting,
+            viewport_size
+        );
+
+        game_loop.session = Some(Box::new(new_session));
+        log::info!(log::channel!("game"), "Game Session created.");
     }
 
     pub fn terminate_session(&mut self) {
@@ -564,17 +589,20 @@ impl<'game> GameLoop<'game> {
     // ----------------------
 
     #[inline]
+    fn mut_ref(&self) -> &mut GameLoop<'game> {
+        utils::mut_ref_cast(self)
+    }
+
+    #[inline]
     fn session(&self) -> &mut GameSession<'game> {
         let session_box = self.session.as_ref().unwrap();
-        let session_ref = session_box.as_ref();
-        utils::mut_ref_cast(session_ref)
+        utils::mut_ref_cast(session_box.as_ref())
     }
 
     #[inline]
     fn engine(&self) -> &mut dyn Engine {
         let engine_box = &self.engine;
-        let engine_ref = engine_box.as_ref();
-        utils::mut_ref_cast(engine_ref)
+        utils::mut_ref_cast(engine_box.as_ref())
     }
 
     fn load_configs() -> Box<GameConfigs> {
@@ -582,8 +610,8 @@ impl<'game> GameLoop<'game> {
         // TODO: Could support commandline overrides for configs & game cheats.
         let configs = GameConfigs {
             // TEMP TEST CODE:
-            load_map_setting: Some(LoadMapSetting::Preset { preset_number: 0 }),
-            //load_map_setting: Some(LoadMapSetting::EmptyMap { size_in_cells: Size::new(64, 64), terrain_tile_category: "ground".into(), terrain_tile_name: "dirt".into() }),
+            //load_map_setting: Some(LoadMapSetting::Preset { preset_number: 0 }),
+            load_map_setting: Some(LoadMapSetting::EmptyMap { size_in_cells: Size::new(64, 64), terrain_tile_category: "ground".into(), terrain_tile_name: "dirt".into() }),
             //load_map_setting: Some(LoadMapSetting::SaveGame { save_file_path: DEFAULT_SAVE_FILE_NAME.into() }),
             ..Default::default()
         };
@@ -667,19 +695,6 @@ impl<'game> GameLoop<'game> {
     // Session Commands:
     // ----------------------
 
-    fn create_session_with_configs(&mut self, configs: &GameConfigs) {
-        let game_loop = utils::mut_ref_cast(self);
-        debug_assert!(game_loop.session.is_none());
-
-        let viewport_size = game_loop.engine.viewport().size();
-        let tex_cache = game_loop.engine.texture_cache_mut();
-
-        let new_session = GameSession::new(tex_cache, &game_loop.assets, configs, viewport_size);
-        game_loop.session = Some(Box::new(new_session));
-
-        log::info!(log::channel!("game"), "Game Session created.");
-    }
-
     fn process_session_commands(&mut self) {
         while let Some(cmd) = self.cmd_queue.pop_front() {
             match cmd {
@@ -705,10 +720,22 @@ impl<'game> GameLoop<'game> {
     }
 
     fn session_cmd_load_preset(&mut self, preset_number: usize) {
-        self.terminate_session();
-        let mut configs = *self.configs.clone();
-        configs.load_map_setting = Some(LoadMapSetting::Preset { preset_number });
-        self.create_session_with_configs(&configs);
+        let game_loop = self.mut_ref();
+        game_loop.terminate_session();
+
+        let viewport_size = game_loop.engine.viewport().size();
+        let tex_cache = game_loop.engine.texture_cache_mut();
+
+        let new_session = GameSession::with_preset_map(
+            preset_number,
+            tex_cache,
+            &game_loop.assets,
+            &game_loop.configs,
+            viewport_size
+        );
+
+        game_loop.session = Some(Box::new(new_session));
+        log::info!(log::channel!("game"), "Game Session created.");
     }
 
     fn session_cmd_load_save_game(&mut self, save_file_path: String) {
@@ -744,7 +771,7 @@ impl<'game> GameLoop<'game> {
     ) {
         let mut args =
             self.new_debug_menus_frame_args(visible_range, cursor_screen_pos, delta_time_secs);
-        self.session().debug_menus.end_frame(&mut args, self.engine(), utils::mut_ref_cast(self));
+        self.session().debug_menus.end_frame(&mut args, self.engine(), self.mut_ref());
     }
 
     fn debug_menus_key_input(
