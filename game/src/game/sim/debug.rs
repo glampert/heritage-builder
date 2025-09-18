@@ -11,7 +11,7 @@ use crate::{
     pathfind::{Graph, Search},
     tile::{sets::TileSets, TileMap},
     engine::time::Seconds,
-    utils::{coords::WorldToScreenTransform, Size, UnsafeWeakRef},
+    utils::{mem, coords::WorldToScreenTransform, Size},
 };
 
 // ----------------------------------------------
@@ -48,7 +48,7 @@ pub struct DebugQueryBuilder<'config, 'tile_sets, 'tile_map> {
     graph: Graph,
     search: Search,
     task_manager: UnitTaskManager,
-    world: UnsafeWeakRef<World<'config>>,
+    world: mem::RawPtr<World<'config>>,
     tile_map: &'tile_map mut TileMap<'tile_sets>,
     tile_sets: &'tile_sets TileSets,
     workers_search_radius: i32,
@@ -66,7 +66,7 @@ impl<'config, 'tile_sets, 'tile_map> DebugQueryBuilder<'config, 'tile_sets, 'til
             graph: Graph::with_empty_grid(map_size_in_cells),
             search: Search::with_grid_size(map_size_in_cells),
             task_manager: UnitTaskManager::new(1),
-            world: UnsafeWeakRef::new(world),
+            world: mem::RawPtr::from_ref(world),
             tile_map,
             tile_sets,
             workers_search_radius: configs.workers_search_radius,

@@ -22,7 +22,7 @@ use crate::{
     pathfind::{self, NodeKind as PathNodeKind},
     utils::{
         Color,
-        UnsafeMutable,
+        mem,
         hash::StringHash,
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
@@ -194,7 +194,7 @@ pub type BuildingId = GenerationalIndex;
 pub struct Building<'config> {
     id: BuildingId,
     map_cells: CellRange,
-    road_link: UnsafeMutable<Cell>,
+    road_link: mem::Mutable<Cell>,
     kind: BuildingKind,
     workers_update_timer: UpdateTimer,
     archetype: Option<BuildingArchetype<'config>>,
@@ -1147,7 +1147,7 @@ impl BuildingTileInfo {
 
 pub struct BuildingContext<'config, 'tile_sets, 'query> {
     id: BuildingId,
-    map_cells: UnsafeMutable<CellRange>,
+    map_cells: mem::Mutable<CellRange>,
     road_link: Option<Cell>,
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
@@ -1163,7 +1163,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
            query: &'query Query<'config, 'tile_sets>) -> Self {
         Self {
             id,
-            map_cells: UnsafeMutable::new(map_cells),
+            map_cells: mem::Mutable::new(map_cells),
             road_link,
             kind,
             archetype_kind,

@@ -27,7 +27,7 @@ use crate::{
     },
     utils::{
         Color,
-        UnsafeWeakRef,
+        mem,
         coords::Cell,
         callback::Callback
     },
@@ -1336,9 +1336,9 @@ impl UnitTaskPool {
                     return; // Slot reused, not same item.
                 }
 
-                // Borrow checker hack so we can pass self to terminate()...
-                let weak_ref = UnsafeWeakRef::new(task);
-                weak_ref.mut_ref_cast().archetype.terminate(self);
+                // HACK: Borrow checker bypass so we can pass self to terminate()...
+                let task_ptr = mem::RawPtr::from_ref(task);
+                task_ptr.mut_ref_cast().archetype.terminate(self);
             },
             None => return, // Already free.
         }

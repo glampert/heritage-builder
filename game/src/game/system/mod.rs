@@ -9,7 +9,7 @@ use serde::{
 };
 
 use crate::{
-    utils,
+    utils::mem,
     save::*,
     imgui_ui::UiSystem,
 };
@@ -104,7 +104,7 @@ impl GameSystems {
             let entry = &mut self.systems[sys_id.index()];
             if sys_id.generation() == entry.generation {
                 // Reuse the non-mutable method.
-                let sys_mut = utils::mut_ref_cast(entry.system.as_any());
+                let sys_mut = mem::mut_ref_cast(entry.system.as_any());
                 return sys_mut.downcast_mut::<System>();
             }
         }

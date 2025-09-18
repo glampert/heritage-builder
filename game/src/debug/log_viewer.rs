@@ -1,5 +1,5 @@
 use std::collections::{VecDeque, HashMap};
-use crate::{log, imgui_ui::UiSystem, utils::SingleThreadStatic};
+use crate::{log, imgui_ui::UiSystem, utils::mem};
 
 // ----------------------------------------------
 // LogViewerSingleton
@@ -134,7 +134,7 @@ impl LogViewerSingleton {
 }
 
 // Global instance:
-static LOG_VIEWER_SINGLETON: SingleThreadStatic<Option<LogViewerSingleton>> = SingleThreadStatic::new(None);
+static LOG_VIEWER_SINGLETON: mem::SingleThreadStatic<Option<LogViewerSingleton>> = mem::SingleThreadStatic::new(None);
 
 // ----------------------------------------------
 // LogViewerWindow

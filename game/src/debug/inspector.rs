@@ -11,7 +11,7 @@ use crate::{
     utils::{
         Size,
         Color,
-        UnsafeWeakRef,
+        mem,
         coords::Cell
     },
     tile::{
@@ -28,8 +28,10 @@ use crate::{
 // ----------------------------------------------
 
 struct TileWeakRef {
-    // SAFETY: None. Tile Inspector is used only for debug and development.
-    tile_ref: UnsafeWeakRef<Tile<'static>>,
+    // SAFETY: Calling code must ensure tile reference stays valid.
+    // We hook up the TileMap editor callbacks to guarantee that.
+    // Tile Inspector is used only for debug and development, so this is good enough.
+    tile_ptr: mem::RawPtr<Tile<'static>>,
     tile_kind: TileKind,
     tile_layer: TileMapLayerKind,
 }
@@ -39,25 +41,25 @@ impl TileWeakRef {
         // Strip away lifetime (pretend it is static).
         let tile_ptr = tile as *const Tile<'_> as *const Tile<'static>;
         Self {
-            tile_ref: UnsafeWeakRef::from_ptr(tile_ptr),
+            tile_ptr: mem::RawPtr::from_ptr(tile_ptr),
             tile_kind: tile.kind(),
             tile_layer: tile.layer_kind(),
         }
     }
 
     fn try_tile(&self) -> Option<&Tile> {
-        // Still same layer and kind, chances are our weak ref is still in good shape.
-        if self.tile_ref.kind() == self.tile_kind &&
-           self.tile_ref.layer_kind() == self.tile_layer {
-            return Some(self.tile_ref.as_ref());
+        // Still same layer and kind, chances are our weak pointer is still in good shape.
+        if self.tile_ptr.kind() == self.tile_kind &&
+           self.tile_ptr.layer_kind() == self.tile_layer {
+            return Some(self.tile_ptr.as_ref());
         }
         None
     }
 
     fn try_tile_mut(&mut self) -> Option<&mut Tile<'static>> {
-        if self.tile_ref.kind() == self.tile_kind &&
-           self.tile_ref.layer_kind() == self.tile_layer {
-            return Some(self.tile_ref.as_mut());
+        if self.tile_ptr.kind() == self.tile_kind &&
+           self.tile_ptr.layer_kind() == self.tile_layer {
+            return Some(self.tile_ptr.as_mut());
         }
         None
     }

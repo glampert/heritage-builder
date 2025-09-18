@@ -12,7 +12,7 @@ use crate::{
     tile::{
         TileMap, camera::*, rendering::TileMapRenderFlags, selection::TileSelection, sets::{TileSets, TileDef},
     },
-    utils::{self, Size, Vec2, coords::CellRange, hash, file_sys},
+    utils::{mem, Size, Vec2, coords::CellRange, hash, file_sys},
     engine::time::{Seconds, UpdateTimer},
 };
 
@@ -622,19 +622,19 @@ impl<'game> GameLoop<'game> {
 
     #[inline]
     fn mut_ref(&self) -> &mut GameLoop<'game> {
-        utils::mut_ref_cast(self)
+        mem::mut_ref_cast(self)
     }
 
     #[inline]
     fn session(&self) -> &mut GameSession<'game> {
         let session_box = self.session.as_ref().unwrap();
-        utils::mut_ref_cast(session_box.as_ref())
+        mem::mut_ref_cast(session_box.as_ref())
     }
 
     #[inline]
     fn engine(&self) -> &mut dyn Engine {
         let engine_box = &self.engine;
-        utils::mut_ref_cast(engine_box.as_ref())
+        mem::mut_ref_cast(engine_box.as_ref())
     }
 
     fn load_configs() -> Box<GameConfigs> {

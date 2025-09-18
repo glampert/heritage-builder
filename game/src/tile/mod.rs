@@ -24,7 +24,7 @@ use crate::{
         Size,
         Rect,
         Color,
-        UnsafeWeakRef,
+        mem,
         hash::StringHash,
         coords::{
             self,
@@ -211,28 +211,28 @@ impl TileAnimState {
 }
 
 // ----------------------------------------------
-// TileMapLayerRef
+// TileMapLayerPtr
 // ----------------------------------------------
 
 #[derive(Copy, Clone, Default)]
-struct TileMapLayerRef<'tile_sets> {
-    opt_ref: Option<UnsafeWeakRef<TileMapLayer<'tile_sets>>>,
+struct TileMapLayerPtr<'tile_sets> {
+    opt_ptr: Option<mem::RawPtr<TileMapLayer<'tile_sets>>>,
 }
 
-impl<'tile_sets> TileMapLayerRef<'tile_sets> {
+impl<'tile_sets> TileMapLayerPtr<'tile_sets> {
     #[inline]
     fn new(layer: &TileMapLayer<'tile_sets>) -> Self {
-        Self { opt_ref: Some(UnsafeWeakRef::new(layer)) }
+        Self { opt_ptr: Some(mem::RawPtr::from_ref(layer)) }
     }
 
     #[inline]
     fn as_ref(&self) -> &TileMapLayer<'tile_sets> {
-        self.opt_ref.as_ref().expect("TileMapLayer reference is unset! Missing post_load()?")
+        self.opt_ptr.as_ref().expect("TileMapLayer reference is unset! Missing post_load()?")
     }
 
     #[inline]
     fn as_mut(&mut self) -> &mut TileMapLayer<'tile_sets> {
-        self.opt_ref.as_mut().expect("TileMapLayer reference is unset! Missing post_load()?")
+        self.opt_ptr.as_mut().expect("TileMapLayer reference is unset! Missing post_load()?")
     }
 }
 
@@ -332,7 +332,7 @@ enum TileArchetype<'tile_sets> {
 // Common behavior for all Tile archetypes.
 #[enum_dispatch(TileArchetype)]
 trait TileBehavior<'tile_sets> {
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerRef<'tile_sets>);
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerPtr<'tile_sets>);
 
     fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
     fn set_base_cell(&mut self, cell: Cell);
@@ -389,7 +389,7 @@ impl<'tile_sets> TerrainTile<'tile_sets> {
 
 impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
     #[inline]
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, _layer: TileMapLayerRef<'tile_sets>) {
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, _layer: TileMapLayerPtr<'tile_sets>) {
         debug_assert!(self.cell.is_valid());
         self.def.post_load(tile_sets);
     }
@@ -447,7 +447,7 @@ struct ObjectTile<'tile_sets> {
     // SAFETY: This ref will always be valid as long as the Tile instance is, since the Tile
     // belongs to its parent layer.
     #[serde(skip)]
-    layer: TileMapLayerRef<'tile_sets>,
+    layer: TileMapLayerPtr<'tile_sets>,
 
     // Buildings can occupy multiple cells. `cell_range.start` is the start or "base" cell.
     cell_range: CellRange,
@@ -464,7 +464,7 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
            layer: &TileMapLayer<'tile_sets>) -> Self {
         Self {
             def: TileDefRef::new(tile_def),
-            layer: TileMapLayerRef::new(layer),
+            layer: TileMapLayerPtr::new(layer),
             cell_range: tile_def.cell_range(cell),
             game_object_handle: TileGameObjectHandle::default(),
             anim_state: TileAnimState::default(),
@@ -475,7 +475,7 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
 
 impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     #[inline]
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerRef<'tile_sets>) {
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerPtr<'tile_sets>) {
         debug_assert!(self.cell_range.is_valid());
         self.def.post_load(tile_sets);
         self.layer = layer;
@@ -576,7 +576,7 @@ struct BlockerTile<'tile_sets> {
     // SAFETY: This ref will always be valid as long as the Tile instance is, since the Tile
     // belongs to its parent layer.
     #[serde(skip)]
-    layer: TileMapLayerRef<'tile_sets>,
+    layer: TileMapLayerPtr<'tile_sets>,
 
     // Building blocker tiles occupy a single cell and have a backreference to the owner start cell.
     // `owner_cell` must be always valid.
@@ -589,7 +589,7 @@ impl<'tile_sets> BlockerTile<'tile_sets> {
            owner_cell: Cell,
            layer: &TileMapLayer<'tile_sets>) -> Self {
         Self {
-            layer: TileMapLayerRef::new(layer),
+            layer: TileMapLayerPtr::new(layer),
             cell: blocker_cell,
             owner_cell,
         }
@@ -610,7 +610,7 @@ impl<'tile_sets> BlockerTile<'tile_sets> {
 
 impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
     #[inline]
-    fn post_load(&mut self, _tile_sets: &'tile_sets TileSets, layer: TileMapLayerRef<'tile_sets>) {
+    fn post_load(&mut self, _tile_sets: &'tile_sets TileSets, layer: TileMapLayerPtr<'tile_sets>) {
         debug_assert!(self.cell.is_valid());
         debug_assert!(self.owner_cell.is_valid());
         self.layer = layer;
@@ -1065,7 +1065,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerRef<'tile_sets>) {
+    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerPtr<'tile_sets>) {
         debug_assert!(!self.kind.is_empty());
         self.archetype.post_load(tile_sets, layer);
     }
@@ -1120,25 +1120,25 @@ impl TileMapLayerKind {
 // These are bound to the TileMap's lifetime (which in turn is bound to the TileSets).
 #[derive(Copy, Clone)]
 pub struct TileMapLayerRefs<'tile_sets> {
-    refs: [UnsafeWeakRef<TileMapLayer<'tile_sets>>; TILE_MAP_LAYER_COUNT],
+    ptrs: [mem::RawPtr<TileMapLayer<'tile_sets>>; TILE_MAP_LAYER_COUNT],
 }
 
 #[derive(Copy, Clone)]
 pub struct TileMapLayerMutRefs<'tile_sets> {
-    refs: [UnsafeWeakRef<TileMapLayer<'tile_sets>>; TILE_MAP_LAYER_COUNT],
+    ptrs: [mem::RawPtr<TileMapLayer<'tile_sets>>; TILE_MAP_LAYER_COUNT],
 }
 
 impl<'tile_sets> TileMapLayerRefs<'tile_sets> {
     #[inline(always)]
     pub fn get(&self, kind: TileMapLayerKind) -> &TileMapLayer<'tile_sets> {
-        self.refs[kind as usize].as_ref()
+        self.ptrs[kind as usize].as_ref()
     }
 }
 
 impl<'tile_sets> TileMapLayerMutRefs<'tile_sets> {
     #[inline(always)]
     pub fn get(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer<'tile_sets> {
-        self.refs[kind as usize].as_mut()
+        self.ptrs[kind as usize].as_mut()
     }
 }
 
@@ -1634,7 +1634,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
         // Fix up references:
         {
-            let layer = TileMapLayerRef::new(self);
+            let layer = TileMapLayerPtr::new(self);
             for (_, tile) in &mut self.pool.slab {
                 tile.post_load(tile_sets, layer);
             }
@@ -1782,9 +1782,9 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn layers(&self) -> TileMapLayerRefs<'tile_sets> {
         TileMapLayerRefs {
-            refs: [
-                UnsafeWeakRef::new(self.layer(TileMapLayerKind::Terrain)),
-                UnsafeWeakRef::new(self.layer(TileMapLayerKind::Objects)),
+            ptrs: [
+                mem::RawPtr::from_ref(self.layer(TileMapLayerKind::Terrain)),
+                mem::RawPtr::from_ref(self.layer(TileMapLayerKind::Objects)),
             ]
         }
     }
@@ -1792,9 +1792,9 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn layers_mut(&mut self) -> TileMapLayerMutRefs<'tile_sets> {
         TileMapLayerMutRefs {
-            refs: [
-                UnsafeWeakRef::new(self.layer_mut(TileMapLayerKind::Terrain)),
-                UnsafeWeakRef::new(self.layer_mut(TileMapLayerKind::Objects)),
+            ptrs: [
+                mem::RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Terrain)),
+                mem::RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Objects)),
             ]
         }
     }

@@ -27,7 +27,7 @@ use crate::{
         AStarUniformCostHeuristic
     },
     utils::{
-        UnsafeWeakRef,
+        mem,
         hash::StringHash,
         coords::{Cell, CellRange}
     },
@@ -348,17 +348,17 @@ pub struct Query<'config, 'tile_sets> {
     // Query's lifetime. It also allows us to pass immutable Query refs.
 
     // Random generator:
-    rng: UnsafeWeakRef<RandomGenerator>,
+    rng: mem::RawPtr<RandomGenerator>,
 
     // Path finding:
-    graph: UnsafeWeakRef<Graph>,
-    search: UnsafeWeakRef<Search>,
+    graph: mem::RawPtr<Graph>,
+    search: mem::RawPtr<Search>,
 
-    task_manager: UnsafeWeakRef<UnitTaskManager>,
+    task_manager: mem::RawPtr<UnitTaskManager>,
 
     // World & Tile Map:
-    world: UnsafeWeakRef<World<'config>>,
-    tile_map: UnsafeWeakRef<TileMap<'tile_sets>>,
+    world: mem::RawPtr<World<'config>>,
+    tile_map: mem::RawPtr<TileMap<'tile_sets>>,
     tile_sets: &'tile_sets TileSets,
 
     // Configs:
@@ -384,12 +384,12 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
            unit_configs: &'config UnitConfigs,
            delta_time_secs: Seconds) -> Self {
         Self {
-            rng: UnsafeWeakRef::new(rng),
-            graph: UnsafeWeakRef::new(graph),
-            search: UnsafeWeakRef::new(search),
-            task_manager: UnsafeWeakRef::new(task_manager),
-            world: UnsafeWeakRef::new(world),
-            tile_map: UnsafeWeakRef::new(tile_map),
+            rng: mem::RawPtr::from_ref(rng),
+            graph: mem::RawPtr::from_ref(graph),
+            search: mem::RawPtr::from_ref(search),
+            task_manager: mem::RawPtr::from_ref(task_manager),
+            world: mem::RawPtr::from_ref(world),
+            tile_map: mem::RawPtr::from_ref(tile_map),
             tile_sets,
             workers_search_radius,
             workers_update_frequency_secs,
@@ -595,7 +595,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
             result_building: Option<&'sim mut Building<'config>>, // Search result.
-            result_path: Option<UnsafeWeakRef<Path>>, // SAFETY: Saved for result debug validation only.
+            result_path: Option<mem::RawPtr<Path>>, // SAFETY: Saved for result debug validation only.
             visited_nodes: SmallVec<[Node; 32]>,
         }
 
@@ -634,7 +634,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
                             if accept_building {
                                 // Accept this path/goal pair and stop searching.
                                 self.result_building = Some(building);
-                                self.result_path = Some(UnsafeWeakRef::new(path));
+                                self.result_path = Some(mem::RawPtr::from_ref(path));
                                 return true;
                             }
                         }

@@ -4,7 +4,7 @@ use glfw::Context;
 
 use crate::{
     log,
-    utils::{self, Size, Vec2, UnsafeWeakRef},
+    utils::{self, Size, Vec2, mem},
 };
 
 use super::{
@@ -41,7 +41,7 @@ pub struct GlfwApplication {
 impl GlfwApplication {
     // For the ImGui OpenGL backend.
     pub fn load_gl_func(&self, func_name: &'static str) -> *const c_void {
-        let app = utils::mut_ref_cast(self);
+        let app = mem::mut_ref_cast(self);
         app.window.get_proc_address(func_name)
     }
 }
@@ -87,7 +87,7 @@ impl ApplicationFactory for GlfwApplication {
         }, "stderr_gl_load_app.log");
 
         // NOTE: PWindow is a Box<Window>, so the address is stable.
-        let window_ref = UnsafeWeakRef::new(&*window);
+        let window_ptr = mem::RawPtr::from_ref(&*window);
 
         Self {
             window_size,
@@ -97,7 +97,7 @@ impl ApplicationFactory for GlfwApplication {
             glfw_instance,
             window,
             event_receiver,
-            input_system: GlfwInputSystem { window_ref },
+            input_system: GlfwInputSystem { window_ptr },
         }
     }
 }
@@ -219,13 +219,13 @@ fn confine_cursor_to_window(window: &mut glfw::Window) {
 
 pub struct GlfwInputSystem {
     // SAFETY: Application Window will persist for as long as InputSystem.
-    window_ref: UnsafeWeakRef<glfw::Window>,
+    window_ptr: mem::RawPtr<glfw::Window>,
 }
 
 impl GlfwInputSystem {
     #[inline]
     fn get_window(&self) -> &glfw::Window {
-        &self.window_ref
+        &self.window_ptr
     }
 }
 

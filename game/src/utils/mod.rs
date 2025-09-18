@@ -1,37 +1,26 @@
-#![allow(clippy::mut_from_ref)] // mut-casts in UnsafeWeakRef/UnsafeMutable are intentional and required.
-
-use core::ptr::NonNull;
 use arrayvec::ArrayString;
 
-use std::{
-    cell::UnsafeCell,
-    sync::OnceLock,
-    thread::ThreadId,
-    ops::{
-        Add,
-        AddAssign,
-        Sub,
-        SubAssign,
-        Mul,
-        MulAssign,
-        Div,
-        DivAssign,
-        Deref,
-        DerefMut
-    }
+use std::ops::{
+    Add,
+    AddAssign,
+    Sub,
+    SubAssign,
+    Mul,
+    MulAssign,
+    Div,
+    DivAssign
 };
 
 use serde::{
     Serialize,
-    Serializer,
-    Deserialize,
-    Deserializer
+    Deserialize
 };
 
 pub mod callback;
 pub mod coords;
 pub mod file_sys;
 pub mod hash;
+pub mod mem;
 pub mod platform;
 
 // ----------------------------------------------
@@ -768,6 +757,7 @@ pub fn approx_equal(a: f32, b: f32, epsilon: f32) -> bool {
     (a - b).abs() < epsilon
 }
 
+// "snake_case" string to "Title Case" string. E.g.: "hello_world" => "Hello World".
 pub fn snake_case_to_title<const N: usize>(s: &str) -> ArrayString<N> {
     let mut result = ArrayString::<N>::new();
 
@@ -793,252 +783,4 @@ pub fn snake_case_to_title<const N: usize>(s: &str) -> ArrayString<N> {
     }
 
     result
-}
-
-// ----------------------------------------------
-// UnsafeWeakRef
-// ----------------------------------------------
-
-// Store a raw pointer.
-// This allows bypassing the language lifetime guarantees, so should be used with care.
-pub struct UnsafeWeakRef<T> {
-    ptr: NonNull<T>,
-}
-
-impl<T> UnsafeWeakRef<T> {
-    #[inline]
-    pub fn new(reference: &T) -> Self {
-        let ptr = reference as *const T as *mut T;
-        Self {
-            ptr: NonNull::new(ptr).unwrap(),
-        }
-    }
-
-    #[inline]
-    pub fn from_ptr(ptr_in: *const T) -> Self {
-        let ptr = ptr_in as *mut T;
-        Self {
-            ptr: NonNull::new(ptr).unwrap(),
-        }
-    }
-
-    // Convert raw pointer to reference.
-    // Pointer is never null but there are not guarantees about its lifetime.
-    #[inline(always)]
-    pub fn as_ref(&self) -> &T {
-        unsafe { self.ptr.as_ref() }
-    }
-
-    // Convert raw pointer to mutable reference.
-    // SAFETY: Caller must ensure there are no aliasing issues 
-    // (e.g. no other refs) and valid pointer lifetime.
-    #[inline(always)]
-    pub fn as_mut(&mut self) -> &mut T {
-        unsafe { self.ptr.as_mut() }
-    }
-
-    #[inline(always)]
-    pub fn mut_ref_cast(&self) -> &mut T {
-        unsafe { &mut *self.ptr.as_ptr() }
-    }
-}
-
-// Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
-impl<T> Deref for UnsafeWeakRef<T> {
-    type Target = T;
-
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
-
-impl<T> DerefMut for UnsafeWeakRef<T> {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        // SAFETY: Caller must ensure exclusive access (no aliasing).
-        self.as_mut()
-    }
-}
-
-impl<T> Copy  for UnsafeWeakRef<T> {}
-impl<T> Clone for UnsafeWeakRef<T> {
-    #[inline]
-    fn clone(&self) -> Self {
-        *self // Just a cheap pointer copy.
-    }
-}
-
-// ----------------------------------------------
-// UnsafeMutable
-// ----------------------------------------------
-
-// Hold an UnsafeCell<T> which allows unchecked interior mutability (const casting).
-pub struct UnsafeMutable<T> {
-    cell: UnsafeCell<T>,
-}
-
-impl<T> UnsafeMutable<T> {
-    #[inline]
-    pub fn new(instance: T) -> Self {
-        Self {
-            cell: UnsafeCell::new(instance),
-        }
-    }
-
-    // Safe to share immutable ref, no interior mut.
-    #[inline(always)]
-    pub fn as_ref(&self) -> &T {
-        unsafe { &*self.cell.get() }
-    }
-
-    // SAFETY: Caller must ensure there are no aliasing issues (e.g. no other refs).
-    #[inline(always)]
-    pub fn as_mut(&self) -> &mut T {
-        unsafe { &mut *self.cell.get() }
-    }
-}
-
-// Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
-impl<T> Deref for UnsafeMutable<T> {
-    type Target = T;
-
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
-
-impl<T> DerefMut for UnsafeMutable<T> {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        // SAFETY: Caller must ensure exclusive access (no aliasing).
-        self.as_mut()
-    }
-}
-
-// Serde serialization support.
-impl<T> Serialize for UnsafeMutable<T>
-    where T: Serialize
-{
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
-    {
-        self.as_ref().serialize(serializer)
-    }
-}
-
-impl<'de, T> Deserialize<'de> for UnsafeMutable<T>
-    where T: Deserialize<'de>
-{
-    #[inline]
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
-    {
-        T::deserialize(deserializer).map(UnsafeMutable::new)
-    }
-}
-
-impl<T: Default> Default for UnsafeMutable<T> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            cell: UnsafeCell::new(T::default()),
-        }
-    }
-}
-
-impl<T: Clone> Clone for UnsafeMutable<T> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            cell: UnsafeCell::new(self.as_ref().clone()),
-        }
-    }
-}
-
-// ----------------------------------------------
-// Low-level type casting helpers
-// ----------------------------------------------
-
-#[inline(always)]
-pub fn mut_ref_cast<T: ?Sized>(reference: &T) -> &mut T {
-    let ptr = reference as *const T as *mut T;
-    unsafe { ptr.as_mut().unwrap() }
-}
-
-// ----------------------------------------------
-// SingleThreadStatic
-// ----------------------------------------------
-
-// A single-threaded mutable global static variable.
-// Safe as long as only one thread ever touches it.
-// If another thread tries, it will panic (not UB).
-// First thread to access the instance claims ownership.
-pub struct SingleThreadStatic<T> {
-    value: UnsafeCell<T>,
-    owner: OnceLock<ThreadId>,
-}
-
-impl<T> SingleThreadStatic<T> {
-    #[inline]
-    pub const fn new(value: T) -> Self {
-        Self {
-            value: UnsafeCell::new(value),
-            owner: OnceLock::new(),
-        }
-    }
-
-    #[inline]
-    pub fn set(&self, value: T) {
-        *self.as_mut() = value;
-    }
-
-    #[inline]
-    pub fn as_ref(&self) -> &T {
-        self.assert_owner();
-        unsafe { &*self.value.get() }
-    }
-
-    #[inline]
-    pub fn as_mut(&self) -> &mut T {
-        self.assert_owner();
-        unsafe { &mut *self.value.get() }
-    }
-
-    fn assert_owner(&self) {
-        if cfg!(debug_assertions) {
-            let this_thread = std::thread::current().id();
-            match self.owner.get() {
-                Some(owner) if *owner == this_thread => {}, // Same thread, no action.
-                Some(_) => panic!("SingleThreadStatic accessed from non-owner thread!"),
-                None => {
-                    // First access claims ownership:
-                    self.owner.set(this_thread)
-                        .unwrap_or_else(|_| panic!("Failed to set owner thread id!"));
-                }
-            }
-        }
-    }
-}
-
-// SAFETY: Safe to share references because we enforce single-threaded access with assert_owner().
-unsafe impl<T> Sync for SingleThreadStatic<T> {}
-
-// Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
-impl<T> Deref for SingleThreadStatic<T> {
-    type Target = T;
-
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
-
-impl<T> DerefMut for SingleThreadStatic<T> {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_mut()
-    }
 }

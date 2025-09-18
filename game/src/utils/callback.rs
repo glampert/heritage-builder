@@ -7,7 +7,7 @@ use serde::{
 };
 
 use super::{
-    SingleThreadStatic,
+    mem,
     hash::{self, FNV1aHash, PreHashedKeyMap},
 };
 
@@ -203,7 +203,7 @@ impl CallbackRegistry {
 // Global Registry
 // ----------------------------------------------
 
-static REGISTRY: SingleThreadStatic<CallbackRegistry> = SingleThreadStatic::new(CallbackRegistry::new());
+static REGISTRY: mem::SingleThreadStatic<CallbackRegistry> = mem::SingleThreadStatic::new(CallbackRegistry::new());
 
 #[inline]
 pub fn find<F>(key: CallbackKey) -> Option<&'static F>

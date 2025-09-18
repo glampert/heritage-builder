@@ -101,7 +101,9 @@ impl Cell {
 
 impl Default for Cell {
     #[inline]
-    fn default() -> Self { Cell::invalid() }
+    fn default() -> Self {
+        Cell::invalid()
+    }
 }
 
 impl std::fmt::Display for Cell {

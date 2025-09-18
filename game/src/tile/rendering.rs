@@ -1,4 +1,5 @@
-#![allow(clippy::unnecessary_cast)] // cast to Tile<'_> is needed to then cast away lifetime as 'static.
+// cast to Tile<'_> is needed to then cast away lifetime as 'static.
+#![allow(clippy::unnecessary_cast)]
 
 use bitflags::bitflags;
 use smallvec::SmallVec;
@@ -10,7 +11,7 @@ use crate::{
     utils::{
         Vec2,
         Color,
-        UnsafeWeakRef,
+        mem,
         coords::{
             self,
             CellRange,
@@ -416,7 +417,7 @@ struct TileDrawListEntry {
     // of TileMapRenderer we need to bypass the borrow checker.
     // Not ideal but avoids having to allocate a new temporary
     // local Vec each time draw_map() is called.
-    tile_ref: UnsafeWeakRef<Tile<'static>>,
+    tile: mem::RawPtr<Tile<'static>>,
 
     // Y value of the bottom left corner of the tile sprite for sorting.
     // Simulates a pseudo depth value so we can render units and buildings
@@ -430,7 +431,7 @@ impl TileDrawListEntry {
         // Strip away lifetime (pretend it is static).
         let tile_ptr = tile as *const Tile<'_> as *const Tile<'static>;
         Self {
-            tile_ref: UnsafeWeakRef::from_ptr(tile_ptr),
+            tile: mem::RawPtr::from_ptr(tile_ptr),
             z_sort: tile.z_sort_key(),
         }
     }
@@ -441,6 +442,6 @@ impl TileDrawListEntry {
         // The only reason we store it in a member Vec is to avoid the
         // memory allocation cost of a temp local Vec. `temp_tile_sort_list`
         // is always cleared at the end of the drawing pass.
-        &self.tile_ref
+        &self.tile
     }
 }

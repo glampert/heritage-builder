@@ -2,7 +2,7 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     imgui_ui::UiSystem,
-    utils::{SingleThreadStatic, hash::{self, StringHash, PreHashedKeyMap}}
+    utils::{mem, hash::{self, StringHash, PreHashedKeyMap}}
 };
 
 // ----------------------------------------------
@@ -89,7 +89,7 @@ game_cheats! {
 // Global Instance
 // ----------------------------------------------
 
-static CHEATS: SingleThreadStatic<Cheats> = SingleThreadStatic::new(Cheats::new());
+static CHEATS: mem::SingleThreadStatic<Cheats> = mem::SingleThreadStatic::new(Cheats::new());
 
 pub fn get() -> &'static Cheats {
     CHEATS.as_ref()

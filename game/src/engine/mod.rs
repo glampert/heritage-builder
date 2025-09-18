@@ -18,7 +18,7 @@ use crate::{
         selection::TileSelection,
     },
     utils::{
-        Color, Rect, RectTexCoords, Size, UnsafeWeakRef, Vec2,
+        mem, Color, Rect, RectTexCoords, Size, Vec2,
         coords::{CellRange, WorldToScreenTransform},
     },
 };
@@ -437,7 +437,7 @@ pub trait DebugDraw {
 // ----------------------------------------------
 
 struct DebugDrawBackend<RenderSystemBackendImpl> {
-    render_system: UnsafeWeakRef<RenderSystemBackendImpl>,
+    render_system: mem::RawPtr<RenderSystemBackendImpl>,
 }
 
 impl<RenderSystemBackendImpl> DebugDrawBackend<RenderSystemBackendImpl>
@@ -445,7 +445,7 @@ where
     RenderSystemBackendImpl: RenderSystem,
 {
     fn new(render_system: &RenderSystemBackendImpl) -> Self {
-        Self { render_system: UnsafeWeakRef::new(render_system) }
+        Self { render_system: mem::RawPtr::from_ref(render_system) }
     }
 }
 

@@ -2,7 +2,7 @@ use std::{path::Path, fs, io};
 use enum_dispatch::enum_dispatch;
 
 use crate::{
-    utils::UnsafeWeakRef,
+    utils::mem,
     tile::{TileMap, sets::TileSets},
     game::unit::config::UnitConfigs,
     game::building::config::BuildingConfigs
@@ -67,7 +67,7 @@ pub enum SaveStateImpl {
 }
 
 pub struct PostLoadContext<'tile_sets, 'config> {
-    pub tile_map: UnsafeWeakRef<TileMap<'tile_sets>>,
+    pub tile_map: mem::RawPtr<TileMap<'tile_sets>>,
     pub tile_sets: &'tile_sets TileSets,
     pub unit_configs: &'config UnitConfigs,
     pub building_configs: &'config BuildingConfigs,
@@ -80,7 +80,7 @@ impl<'tile_sets, 'config> PostLoadContext<'tile_sets, 'config> {
                unit_configs: &'config UnitConfigs,
                building_configs: &'config BuildingConfigs) -> Self {
         Self {
-            tile_map: UnsafeWeakRef::new(tile_map),
+            tile_map: mem::RawPtr::from_ref(tile_map),
             tile_sets,
             unit_configs,
             building_configs,

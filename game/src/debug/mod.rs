@@ -17,8 +17,7 @@ use crate::{
     },
     utils::{
         Vec2,
-        UnsafeWeakRef,
-        SingleThreadStatic,
+        mem,
         coords::{Cell, CellRange, WorldToScreenTransform}
     },
     tile::{
@@ -145,7 +144,7 @@ impl Drop for DebugMenusSystem {
         });
 
         // Clear the cached global tile map ptr.
-        TILE_MAP_DEBUG_REF.set(None);
+        TILE_MAP_DEBUG_PTR.set(None);
     }
 }
 
@@ -443,7 +442,7 @@ impl DebugMenusSingleton {
 // DebugMenusSingleton Instance
 // ----------------------------------------------
 
-static DEBUG_MENUS_SINGLETON: SingleThreadStatic<Option<DebugMenusSingleton>> = SingleThreadStatic::new(None);
+static DEBUG_MENUS_SINGLETON: mem::SingleThreadStatic<Option<DebugMenusSingleton>> = mem::SingleThreadStatic::new(None);
 
 fn init_singleton_once(tex_cache: &mut dyn TextureCache) {
     if DEBUG_MENUS_SINGLETON.is_some() {
@@ -483,25 +482,25 @@ pub fn show_popup_messages() -> bool {
 }
 
 // ----------------------------------------------
-// Global TileMap Debug Ref
+// Global TileMap Debug Pointer
 // ----------------------------------------------
 
-struct TileMapWeakRef(UnsafeWeakRef<TileMap<'static>>);
+struct TileMapRawPtr(mem::RawPtr<TileMap<'static>>);
 
-impl TileMapWeakRef {
+impl TileMapRawPtr {
     fn new(tile_map: &TileMap) -> Self {
         // Strip away lifetime (pretend it is static).
         let tile_map_ptr = tile_map as *const TileMap<'_> as *const TileMap<'static>;
-        Self(UnsafeWeakRef::from_ptr(tile_map_ptr))
+        Self(mem::RawPtr::from_ptr(tile_map_ptr))
     }
 }
 
 // Using this to get tile names from cells directly for debugging & logging.
-// SAFETY: Must make sure the tile map instance set on initialization stays valid until app termination.
-static TILE_MAP_DEBUG_REF: SingleThreadStatic<Option<TileMapWeakRef>> = SingleThreadStatic::new(None);
+// SAFETY: Must make sure the tile map instance set on initialization stays valid until app termination or until it is reset.
+static TILE_MAP_DEBUG_PTR: mem::SingleThreadStatic<Option<TileMapRawPtr>> = mem::SingleThreadStatic::new(None);
 
 fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {
-    TILE_MAP_DEBUG_REF.set(Some(TileMapWeakRef::new(tile_map)));
+    TILE_MAP_DEBUG_PTR.set(Some(TileMapRawPtr::new(tile_map)));
 
     tile_map.set_tile_placed_callback(Some(|tile, did_reallocate| {
         use_singleton(|instance| {
@@ -523,7 +522,7 @@ fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {
 }
 
 pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {
-    if let Some(tile_map) = TILE_MAP_DEBUG_REF.as_ref() {
+    if let Some(tile_map) = TILE_MAP_DEBUG_PTR.as_ref() {
         return tile_map.0.try_tile_from_layer(cell, layer)
             .map_or("", |tile| tile.name());
     }

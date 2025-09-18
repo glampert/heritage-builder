@@ -16,7 +16,7 @@ use crate::{
         Size,
         Color,
         RectTexCoords,
-        UnsafeMutable,
+        mem,
         coords::{Cell, CellRange},
         hash::{
             self,
@@ -493,7 +493,7 @@ const fn default_path_kind() -> PathNodeKind { PathNodeKind::empty() }
 
 // This allows returning a mutable TileDef reference in try_get_editable_tile_def()
 // for runtime editing purposes. We only require this functionality for debug and development.
-type EditableTileDef = UnsafeMutable<TileDef>;
+type EditableTileDef = mem::Mutable<TileDef>;
 
 // ----------------------------------------------
 // TileCategory
