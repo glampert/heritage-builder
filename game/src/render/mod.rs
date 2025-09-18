@@ -85,7 +85,7 @@ pub trait RenderSystem: Any {
         // Just call this with the default white texture.
         self.draw_textured_colored_rect(
             rect,
-            RectTexCoords::default_ref(),
+            &RectTexCoords::DEFAULT,
             TextureHandle::white(),
             color);
     }

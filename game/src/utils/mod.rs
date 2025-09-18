@@ -676,12 +676,19 @@ impl Rect {
 // RectTexCoords
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct RectTexCoords {
     pub coords: [Vec2; 4],
 }
 
 impl RectTexCoords {
+    pub const DEFAULT: Self = Self::new([
+        Vec2::new(0.0, 0.0), // top_left
+        Vec2::new(0.0, 1.0), // bottom_left
+        Vec2::new(1.0, 0.0), // top_right
+        Vec2::new(1.0, 1.0), // bottom_right
+    ]);
+
     #[inline]
     pub const fn new(coords: [Vec2; 4]) -> Self {
         Self { coords }
@@ -689,22 +696,7 @@ impl RectTexCoords {
 
     #[inline]
     pub const fn zero() -> Self {
-        Self {
-            coords: [Vec2::zero(); 4],
-        }
-    }
-
-    // NOTE: This needs to be const for static declarations, so we don't just derive from Default.
-    #[inline]
-    pub const fn default_ref() -> &'static Self {
-        static DEFAULT: RectTexCoords = RectTexCoords::new(
-            [
-                Vec2::new(0.0, 0.0), // top_left
-                Vec2::new(0.0, 1.0), // bottom_left
-                Vec2::new(1.0, 0.0), // top_right
-                Vec2::new(1.0, 1.0), // bottom_right
-            ]);
-        &DEFAULT
+        Self { coords: [Vec2::zero(); 4] }
     }
 
     //
@@ -733,7 +725,10 @@ impl RectTexCoords {
 }
 
 impl Default for RectTexCoords {
-    fn default() -> Self { *RectTexCoords::default_ref() }
+    #[inline]
+    fn default() -> Self {
+        RectTexCoords::DEFAULT
+    }
 }
 
 // ----------------------------------------------

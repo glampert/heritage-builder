@@ -212,7 +212,7 @@ impl TilePaletteMenu {
 
             debug_draw.textured_colored_rect(
                 rect,
-                RectTexCoords::default_ref(),
+                &RectTexCoords::DEFAULT,
                 self.clear_button_image,
                 Color::white());
         } else {
