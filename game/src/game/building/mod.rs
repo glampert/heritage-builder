@@ -18,6 +18,7 @@ use crate::{
     imgui_ui::UiSystem,
     save::PostLoadContext,
     bitflags_with_display,
+    engine::time::UpdateTimer,
     pathfind::{self, NodeKind as PathNodeKind},
     utils::{
         Color,
@@ -49,7 +50,6 @@ use super::{
     },
     sim::{
         Query,
-        UpdateTimer,
         debug::DebugUiMode,
         resources::{
             Workers,

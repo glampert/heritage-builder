@@ -12,12 +12,13 @@ use crate::{
     tile::{
         TileMap, camera::*, rendering::TileMapRenderFlags, selection::TileSelection, sets::{TileSets, TileDef},
     },
-    utils::{self, Seconds, Size, Vec2, coords::CellRange, hash, file_sys},
+    utils::{self, Size, Vec2, coords::CellRange, hash, file_sys},
+    engine::time::{Seconds, UpdateTimer},
 };
 
 use {
     building::config::BuildingConfigs,
-    sim::{Simulation, UpdateTimer},
+    sim::Simulation,
     system::{GameSystems, settlers},
     unit::config::UnitConfigs,
     world::World,

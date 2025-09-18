@@ -8,12 +8,13 @@ use serde::{
 use crate::{
     log,
     imgui_ui::UiSystem,
+    engine::time::{Seconds, UpdateTimer},
     pathfind::{Node, NodeKind as PathNodeKind},
-    utils::{Color, Seconds, coords::Cell, hash, callback::{self, Callback}},
+    utils::{Color, coords::Cell, hash, callback::{self, Callback}},
     tile::{TileMapLayerKind, sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}},
     game::{
         building::BuildingKind,
-        sim::{Query, UpdateTimer},
+        sim::Query,
         unit::{
             config,
             UnitId,

@@ -10,7 +10,8 @@ use crate::{
     imgui_ui::UiSystem,
     pathfind::{Graph, Search},
     tile::{sets::TileSets, TileMap},
-    utils::{coords::WorldToScreenTransform, Seconds, Size, UnsafeWeakRef},
+    engine::time::Seconds,
+    utils::{coords::WorldToScreenTransform, Size, UnsafeWeakRef},
 };
 
 // ----------------------------------------------

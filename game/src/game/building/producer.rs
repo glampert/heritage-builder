@@ -12,10 +12,10 @@ use crate::{
     building_config_impl,
     imgui_ui::UiSystem,
     save::PostLoadContext,
+    engine::time::{Seconds, UpdateTimer},
     tile::Tile,
     utils::{
         Color,
-        Seconds,
         callback::{self, Callback},
         hash::StringHash
     },
@@ -38,7 +38,6 @@ use crate::{
         },
         sim::{
             Query,
-            UpdateTimer,
             resources::{
                 ShoppingList,
                 ResourceKind,

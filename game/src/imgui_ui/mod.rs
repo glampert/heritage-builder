@@ -5,7 +5,8 @@ pub use imgui::FontId as UiFontHandle;
 pub use imgui::TextureId as UiTextureHandle;
 
 use crate::{
-    utils::{Seconds, Vec2, Color, FieldAccessorXY},
+    engine::time::Seconds,
+    utils::{Vec2, Color, FieldAccessorXY},
     render::{TextureCache, TextureHandle},
     app::{Application, input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton}}
 };

@@ -4,7 +4,6 @@ use core::ptr::NonNull;
 use arrayvec::ArrayString;
 
 use std::{
-    time::{self},
     cell::UnsafeCell,
     sync::OnceLock,
     thread::ThreadId,
@@ -794,42 +793,6 @@ pub fn snake_case_to_title<const N: usize>(s: &str) -> ArrayString<N> {
     }
 
     result
-}
-
-// ----------------------------------------------
-// FrameClock
-// ----------------------------------------------
-
-pub type Seconds = f32;
-
-pub struct FrameClock {
-    last_frame_time: time::Instant,
-    delta_time: time::Duration,
-}
-
-impl FrameClock {
-    pub fn new() -> Self {
-        Self {
-            last_frame_time: time::Instant::now(),
-            delta_time: time::Duration::new(0, 0),
-        }
-    }
-
-    #[inline]
-    pub fn begin_frame(&self) {}
-
-    #[inline]
-    pub fn end_frame(&mut self) {
-        let time_now = time::Instant::now();
-        self.delta_time = time_now - self.last_frame_time;
-        self.last_frame_time = time_now;
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn delta_time(&self) -> Seconds {
-        self.delta_time.as_secs_f32()
-    }
 }
 
 // ----------------------------------------------

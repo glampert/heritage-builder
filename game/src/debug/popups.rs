@@ -3,7 +3,8 @@ use smallvec::SmallVec;
 use rand::{self, Rng};
 
 use crate::{
-    utils::{self, Color, Vec2, Seconds},
+    utils::{self, Color, Vec2},
+    engine::time::Seconds,
     imgui_ui::UiSystem
 };
 

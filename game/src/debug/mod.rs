@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     log,
-    engine::Engine,
+    engine::{Engine, time::Seconds},
     render::TextureCache,
     imgui_ui::{UiSystem, UiInputEvent},
     save::{Save, Load, PostLoadContext},
@@ -17,7 +17,6 @@ use crate::{
     },
     utils::{
         Vec2,
-        Seconds,
         UnsafeWeakRef,
         SingleThreadStatic,
         coords::{Cell, CellRange, WorldToScreenTransform}

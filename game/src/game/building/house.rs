@@ -15,10 +15,10 @@ use crate::{
     building_config_impl,
     imgui_ui::UiSystem,
     save::PostLoadContext,
+    engine::time::{Seconds, UpdateTimer},
     pathfind::{NodeKind as PathNodeKind},
     utils::{
         Color,
-        Seconds,
         hash::{StrHashPair, StringHash},
     },
     tile::{
@@ -30,16 +30,13 @@ use crate::{
         unit::Unit,
         system::settlers::Settler,
         world::stats::WorldStats,
-        sim::{
-            UpdateTimer,
-            resources::{
-                Workers,
-                Population,
-                ResourceKind,
-                ResourceKinds,
-                ServiceKind,
-                ServiceKinds
-            }
+        sim::resources::{
+            Workers,
+            Population,
+            ResourceKind,
+            ResourceKinds,
+            ServiceKind,
+            ServiceKinds
         }
     }
 };

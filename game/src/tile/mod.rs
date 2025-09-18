@@ -17,13 +17,13 @@ use serde::{
 use crate::{
     save::*,
     bitflags_with_display,
+    engine::time::Seconds,
     pathfind::NodeKind as PathNodeKind,
     utils::{
         Vec2,
         Size,
         Rect,
         Color,
-        Seconds,
         UnsafeWeakRef,
         hash::StringHash,
         coords::{

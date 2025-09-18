@@ -18,10 +18,13 @@ use crate::{
         selection::TileSelection,
     },
     utils::{
-        Color, FrameClock, Rect, RectTexCoords, Seconds, Size, UnsafeWeakRef, Vec2,
+        Color, Rect, RectTexCoords, Size, UnsafeWeakRef, Vec2,
         coords::{CellRange, WorldToScreenTransform},
     },
 };
+
+pub mod time;
+use time::{FrameClock, Seconds};
 
 // ----------------------------------------------
 // Engine Backends

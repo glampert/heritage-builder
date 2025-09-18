@@ -10,7 +10,8 @@ use crate::{
     imgui_ui::UiSystem,
     tile::TileMapLayerKind,
     debug::{self as debug_utils},
-    utils::{Seconds, coords::Cell},
+    utils::coords::Cell,
+    engine::time::Seconds,
     pathfind::{Graph, Path, NodeKind as PathNodeKind},
     game::{
         sim::Query,

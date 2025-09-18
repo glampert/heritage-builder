@@ -3,6 +3,7 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
+    engine::time::Seconds,
     app::input::{InputAction, MouseButton},
     imgui_ui::{self, UiInputEvent, UiSystem},
     pathfind::NodeKind as PathNodeKind,
@@ -10,7 +11,6 @@ use crate::{
     utils::{
         Size,
         Color,
-        Seconds,
         UnsafeWeakRef,
         coords::Cell
     },
