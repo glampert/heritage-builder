@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     log,
+    singleton_late_init,
     engine::{Engine, time::Seconds},
     render::TextureCache,
     imgui_ui::{UiSystem, UiInputEvent},
@@ -109,9 +110,7 @@ impl DebugMenusSystem {
                         args: &mut DebugMenusInputArgs,
                         key: InputKey,
                         action: InputAction) -> UiInputEvent {
-        use_singleton(|instance| {
-            instance.on_key_input(args, key, action)
-        })
+        DebugMenusSingleton::get_mut().on_key_input(args, key, action)
     }
 
     pub fn on_mouse_click(&mut self,
@@ -119,29 +118,21 @@ impl DebugMenusSystem {
                           button: MouseButton,
                           action: InputAction,
                           modifiers: InputModifiers) -> UiInputEvent {
-        use_singleton(|instance| {
-            instance.on_mouse_click(args, button, action, modifiers)
-        })
+        DebugMenusSingleton::get_mut().on_mouse_click(args, button, action, modifiers)
     }
 
     pub fn begin_frame(&mut self, args: &mut DebugMenusFrameArgs) -> TileMapRenderFlags {
-        use_singleton(|instance| {
-            instance.begin_frame(args)
-        })
+        DebugMenusSingleton::get_mut().begin_frame(args)
     }
 
     pub fn end_frame<'game>(&mut self, args: &mut DebugMenusFrameArgs<'game>, engine: &mut dyn Engine, game_loop: &mut GameLoop<'game>) {
-        use_singleton(|instance| {
-            instance.end_frame(args, engine, game_loop)
-        })
+        DebugMenusSingleton::get_mut().end_frame(args, engine, game_loop);
     }
 }
 
 impl Drop for DebugMenusSystem {
     fn drop(&mut self) {
-        use_singleton(|instance| {
-            instance.tile_inspector_menu.close();
-        });
+        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
 
         // Clear the cached global tile map ptr.
         TILE_MAP_DEBUG_PTR.set(None);
@@ -157,9 +148,7 @@ impl Save for DebugMenusSystem {
 
 impl Load<'_, '_> for DebugMenusSystem {
     fn post_load(&mut self, context: &PostLoadContext) {
-        use_singleton(|instance| {
-            instance.tile_inspector_menu.close();
-        });
+        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
 
         // Re-register debug editor callbacks and reset the global tile map ref.
         let tile_map = context.tile_map.mut_ref_cast();
@@ -442,29 +431,19 @@ impl DebugMenusSingleton {
 // DebugMenusSingleton Instance
 // ----------------------------------------------
 
-static DEBUG_MENUS_SINGLETON: mem::SingleThreadStatic<Option<DebugMenusSingleton>> = mem::SingleThreadStatic::new(None);
+singleton_late_init! { DEBUG_MENUS_SINGLETON, DebugMenusSingleton }
 
 fn init_singleton_once(tex_cache: &mut dyn TextureCache) {
-    if DEBUG_MENUS_SINGLETON.is_some() {
+    if DEBUG_MENUS_SINGLETON.is_initialized() {
         return; // Already initialized.
     }
 
     const DEBUG_SETTINGS_OPEN: bool = false;
     const TILE_PALETTE_OPEN:   bool = true;
 
-    DEBUG_MENUS_SINGLETON.set(Some(
+    DEBUG_MENUS_SINGLETON.initialize(
         DebugMenusSingleton::new(tex_cache, DEBUG_SETTINGS_OPEN, TILE_PALETTE_OPEN)
-    ));
-}
-
-fn use_singleton<F, R>(mut closure: F) -> R
-    where F: FnMut(&mut DebugMenusSingleton) -> R
-{
-    if let Some(instance) = DEBUG_MENUS_SINGLETON.as_mut() {
-        return closure(instance);
-    }
-
-    panic!("DebugMenusSystem singleton instance is not initialized!");
+    );
 }
 
 // ----------------------------------------------
@@ -496,28 +475,22 @@ impl TileMapRawPtr {
 }
 
 // Using this to get tile names from cells directly for debugging & logging.
-// SAFETY: Must make sure the tile map instance set on initialization stays valid until app termination or until it is reset.
+// SAFETY: Must make sure the tile map pointer set on initialization stays valid until app termination or until it is reset.
 static TILE_MAP_DEBUG_PTR: mem::SingleThreadStatic<Option<TileMapRawPtr>> = mem::SingleThreadStatic::new(None);
 
 fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {
     TILE_MAP_DEBUG_PTR.set(Some(TileMapRawPtr::new(tile_map)));
 
     tile_map.set_tile_placed_callback(Some(|tile, did_reallocate| {
-        use_singleton(|instance| {
-            instance.tile_inspector_menu.on_tile_placed(tile, did_reallocate);
-        });
+        DebugMenusSingleton::get_mut().tile_inspector_menu.on_tile_placed(tile, did_reallocate);
     }));
 
     tile_map.set_removing_tile_callback(Some(|tile| {
-        use_singleton(|instance| {
-            instance.tile_inspector_menu.on_removing_tile(tile);
-        });
+        DebugMenusSingleton::get_mut().tile_inspector_menu.on_removing_tile(tile);
     }));
 
     tile_map.set_map_reset_callback(Some(|_| {
-        use_singleton(|instance| {
-            instance.tile_inspector_menu.close();
-        });
+        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
     }));
 }
 

@@ -1,5 +1,5 @@
 use std::collections::{VecDeque, HashMap};
-use crate::{log, imgui_ui::UiSystem, utils::mem};
+use crate::{imgui_ui::UiSystem, log, singleton_late_init};
 
 // ----------------------------------------------
 // LogViewerSingleton
@@ -58,10 +58,14 @@ impl LogViewerSingleton {
         }
     }
 
-    fn draw(&mut self, ui_sys: &UiSystem) {
+    fn show(&mut self, show: bool) {
+        self.is_window_open = show;
+    }
+
+    fn draw(&mut self, ui_sys: &UiSystem) -> bool {
         let mut is_window_open = self.is_window_open;
         if !is_window_open {
-            return;
+            return false;
         }
 
         let ui = ui_sys.builder();
@@ -110,6 +114,7 @@ impl LogViewerSingleton {
         }
 
         self.is_window_open = is_window_open;
+        is_window_open
     }
 
     fn line_prefix(line: &log::Record) -> String {
@@ -134,7 +139,7 @@ impl LogViewerSingleton {
 }
 
 // Global instance:
-static LOG_VIEWER_SINGLETON: mem::SingleThreadStatic<Option<LogViewerSingleton>> = mem::SingleThreadStatic::new(None);
+singleton_late_init! { LOG_VIEWER_SINGLETON, LogViewerSingleton }
 
 // ----------------------------------------------
 // LogViewerWindow
@@ -144,40 +149,26 @@ pub struct LogViewerWindow;
 
 impl LogViewerWindow {
     pub fn new(start_open: bool, max_lines: usize) -> Self {
-        if LOG_VIEWER_SINGLETON.is_some() {
-            panic!("Log Viewer singleton already initialized!");
-        }
-
-        LOG_VIEWER_SINGLETON.set(Some(
+        LogViewerSingleton::initialize(
             LogViewerSingleton::new(start_open, max_lines)
-        ));
+        );
 
         log::set_listener(|line| {
-            if let Some(viewer) = LOG_VIEWER_SINGLETON.as_mut() {
-                viewer.push_line(line);
-            }
+            LogViewerSingleton::get_mut().push_line(line);
         });
 
         Self
     }
 
     pub fn show(&self, show: bool) {
-        if let Some(viewer) = LOG_VIEWER_SINGLETON.as_mut() {
-            viewer.is_window_open = show;
-        }
+        LogViewerSingleton::get_mut().show(show);
     }
 
     pub fn set_enabled_channels(&self, channels: &[(log::Channel, bool)]) {
-        if let Some(viewer) = LOG_VIEWER_SINGLETON.as_mut() {
-            viewer.set_enabled_channels(channels);
-        }
+        LogViewerSingleton::get_mut().set_enabled_channels(channels);
     }
 
     pub fn draw(&self, ui_sys: &UiSystem) -> bool {
-        if let Some(viewer) = LOG_VIEWER_SINGLETON.as_mut() {
-            viewer.draw(ui_sys);
-            return viewer.is_window_open;
-        }
-        false
+        LogViewerSingleton::get_mut().draw(ui_sys)
     }
 }

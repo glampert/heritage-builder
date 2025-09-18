@@ -1,8 +1,7 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    imgui_ui::UiSystem,
-    utils::{mem, hash::{self, StringHash, PreHashedKeyMap}}
+    imgui_ui::UiSystem, singleton, utils::{hash::{self, PreHashedKeyMap, StringHash}}
 };
 
 // ----------------------------------------------
@@ -89,18 +88,18 @@ game_cheats! {
 // Global Instance
 // ----------------------------------------------
 
-static CHEATS: mem::SingleThreadStatic<Cheats> = mem::SingleThreadStatic::new(Cheats::new());
+singleton! { CHEATS_SINGLETON, Cheats }
+
+pub fn initialize() {
+    Cheats::get_mut().build_lookup();
+}
 
 pub fn get() -> &'static Cheats {
-    CHEATS.as_ref()
+    Cheats::get()
 }
 
 pub fn get_mut() -> &'static mut Cheats {
-    CHEATS.as_mut()
-}
-
-pub fn initialize() {
-    self::get_mut().build_lookup();
+    Cheats::get_mut()
 }
 
 pub fn draw_debug_ui(ui_sys: &UiSystem) {
@@ -110,5 +109,5 @@ pub fn draw_debug_ui(ui_sys: &UiSystem) {
         return; // collapsed.
     }
 
-    self::get_mut().draw_debug_ui(ui_sys);
+    Cheats::get_mut().draw_debug_ui(ui_sys);
 }

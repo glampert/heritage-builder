@@ -7,9 +7,10 @@ use serde::{
 };
 
 use super::{
-    mem,
     hash::{self, FNV1aHash, PreHashedKeyMap},
 };
+
+use crate::singleton;
 
 // ----------------------------------------------
 // Callback
@@ -33,13 +34,13 @@ impl<F> Callback<F>
 {
     #[inline]
     pub fn create(key: CallbackKey, name: &'static str, fptr: F) -> Self {
-        REGISTRY.as_mut().register(key, name, fptr, true);
+        CallbackRegistry::get_mut().register(key, name, fptr, true);
         Self { key, name, fptr: Some(fptr) }
     }
 
     #[inline]
     pub fn register(key: CallbackKey, name: &'static str, fptr: F) -> Self {
-        REGISTRY.as_mut().register(key, name, fptr, false);
+        CallbackRegistry::get_mut().register(key, name, fptr, false);
         Self { key, name, fptr: Some(fptr) }
     }
 
@@ -74,7 +75,7 @@ impl<F> Callback<F>
 
     #[inline]
     pub fn post_load(&mut self) {
-        if let Some(entry) = REGISTRY.as_ref().find_entry(self.key) {
+        if let Some(entry) = CallbackRegistry::get().find_entry(self.key) {
             self.name = entry.name;
             self.fptr = entry.cb.downcast_ref::<F>().copied();
 
@@ -203,13 +204,13 @@ impl CallbackRegistry {
 // Global Registry
 // ----------------------------------------------
 
-static REGISTRY: mem::SingleThreadStatic<CallbackRegistry> = mem::SingleThreadStatic::new(CallbackRegistry::new());
+singleton! { CALLBACK_REGISTRY_SINGLETON, CallbackRegistry }
 
 #[inline]
 pub fn find<F>(key: CallbackKey) -> Option<&'static F>
     where F: 'static + Copy + Clone + PartialEq
 {
-    REGISTRY.as_ref().find_func_ptr(key)
+    CallbackRegistry::get().find_func_ptr(key)
 }
 
 // ----------------------------------------------
