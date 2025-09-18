@@ -247,3 +247,133 @@ impl<T> DerefMut for SingleThreadStatic<T> {
         self.as_mut()
     }
 }
+
+// ----------------------------------------------
+// Singleton
+// ----------------------------------------------
+
+// Singleton with static initialization at compile time.
+pub struct Singleton<T> {
+    instance: SingleThreadStatic<T>,
+}
+
+impl<T> Singleton<T> {
+    #[inline]
+    pub const fn new(instance: T) -> Self {
+        Self { instance: SingleThreadStatic::new(instance) }
+    }
+
+    #[inline]
+    pub fn as_ref(&self) -> &T {
+        self.instance.as_ref()
+    }
+
+    #[inline]
+    pub fn as_mut(&self) -> &mut T {
+        self.instance.as_mut()
+    }
+}
+
+#[macro_export]
+macro_rules! singleton {
+    ($singleton_name:ident, $singleton_type:ty) => {
+        static $singleton_name: $crate::utils::mem::Singleton<$singleton_type> =
+            $crate::utils::mem::Singleton::new(<$singleton_type>::new());
+
+        impl $singleton_type {
+            #[inline]
+            pub fn get() -> &'static $singleton_type {
+                $singleton_name.as_ref()
+            }
+
+            #[inline]
+            pub fn get_mut() -> &'static mut $singleton_type {
+                $singleton_name.as_mut()
+            }
+        }
+    };
+}
+
+// ----------------------------------------------
+// SingletonLateInit
+// ----------------------------------------------
+
+// Singleton with deferred initialization. User is responsible for calling
+// `initialize()` on the singleton exactly once before it can be used. If drop
+// is required before program termination an explicit call to `terminate()`
+// must be made.
+pub struct SingletonLateInit<T> {
+    maybe_instance: SingleThreadStatic<Option<T>>,
+    debug_name: &'static str,
+}
+
+impl<T> SingletonLateInit<T> {
+    #[inline]
+    pub const fn new(name: &'static str) -> Self {
+        Self { maybe_instance: SingleThreadStatic::new(None), debug_name: name }
+    }
+
+    #[inline]
+    pub fn initialize(&self, instance: T) {
+        if self.is_initialized() {
+            panic!("Singleton {} is already initialized!", self.debug_name);
+        }
+        self.maybe_instance.set(Some(instance));
+    }
+
+    #[inline]
+    pub fn terminate(&self) {
+        self.maybe_instance.set(None);
+    }
+
+    #[inline]
+    pub fn is_initialized(&self) -> bool {
+        self.maybe_instance.is_some()
+    }
+
+    #[inline]
+    pub fn as_ref(&self) -> &T {
+        if let Some(instance) = self.maybe_instance.as_ref() {
+            return instance;
+        }
+        panic!("Singleton {} is not initialized!", self.debug_name);
+    }
+
+    #[inline]
+    pub fn as_mut(&self) -> &mut T {
+        if let Some(instance) = self.maybe_instance.as_mut() {
+            return instance;
+        }
+        panic!("Singleton {} is not initialized!", self.debug_name);
+    }
+}
+
+#[macro_export]
+macro_rules! singleton_late_init {
+    ($singleton_name:ident, $singleton_type:ty) => {
+        static $singleton_name: $crate::utils::mem::SingletonLateInit<$singleton_type> =
+            $crate::utils::mem::SingletonLateInit::new(stringify!($singleton_type));
+
+        impl $singleton_type {
+            #[inline]
+            pub fn initialize(instance: $singleton_type) {
+                $singleton_name.initialize(instance);
+            }
+
+            #[inline]
+            pub fn terminate() {
+                $singleton_name.terminate();
+            }
+
+            #[inline]
+            pub fn get() -> &'static $singleton_type {
+                $singleton_name.as_ref()
+            }
+
+            #[inline]
+            pub fn get_mut() -> &'static mut $singleton_type {
+                $singleton_name.as_mut()
+            }
+        }
+    };
+}
