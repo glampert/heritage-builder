@@ -133,6 +133,14 @@ impl GameSystems {
             }
         }
     }
+
+    // ----------------------
+    // Callbacks:
+    // ----------------------
+
+    pub fn register_callbacks() {
+        SettlersSpawnSystem::register_callbacks();
+    }
 }
 
 // ----------------------------------------------

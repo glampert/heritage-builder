@@ -263,6 +263,9 @@ impl<'config> StorageBuilding<'config> {
             debug: StorageDebug::default(),
         }
     }
+
+    pub fn register_callbacks() {
+    }
 }
 
 // ----------------------------------------------

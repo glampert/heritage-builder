@@ -15,7 +15,7 @@ use crate::{
     utils::{
         Color,
         Seconds,
-        callback,
+        callback::{self, Callback},
         hash::StringHash,
     },
     game::{
@@ -24,10 +24,11 @@ use crate::{
             Unit,
             UnitTaskHelper,
             runner::Runner,
-            patrol::Patrol,
+            patrol::*,
             task::{
                 UnitTaskFetchFromStorage,
-                UnitTaskRandomizedPatrol
+                UnitTaskRandomizedPatrol,
+                UnitTaskFetchCompletionCallback
             }
         },
         world::{
@@ -298,6 +299,11 @@ impl<'config> ServiceBuilding<'config> {
             patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
             debug: ServiceDebug::default(),
         }
+    }
+
+    pub fn register_callbacks() {
+        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ServiceBuilding::on_resources_fetched);
+        let _: Callback<PatrolCompletionCallback> = callback::register!(ServiceBuilding::on_patrol_completed);
     }
 
     // ----------------------

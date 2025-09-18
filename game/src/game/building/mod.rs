@@ -763,6 +763,17 @@ impl<'config> Building<'config> {
     }
 
     // ----------------------
+    // Callbacks:
+    // ----------------------
+
+    pub fn register_callbacks() {
+        ProducerBuilding::register_callbacks();
+        StorageBuilding::register_callbacks();
+        ServiceBuilding::register_callbacks();
+        HouseBuilding::register_callbacks();
+    }
+
+    // ----------------------
     // Building Debug UI:
     // ----------------------
 

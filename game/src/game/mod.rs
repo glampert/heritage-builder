@@ -482,6 +482,7 @@ impl<'game> GameLoop<'game> {
         // Global initialization:
         cheats::initialize();
         debug::set_show_popup_messages(configs.show_debug_popups);
+        Simulation::register_callbacks();
 
         Self { configs, engine, assets, session: None, cmd_queue: VecDeque::new() }
     }

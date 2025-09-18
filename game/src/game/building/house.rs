@@ -347,6 +347,9 @@ impl<'config> HouseBuilding<'config> {
         }
     }
 
+    pub fn register_callbacks() {
+    }
+
     #[inline]
     fn current_level_config(&self) -> &HouseLevelConfig {
         self.upgrade_state.curr_level_config.unwrap()

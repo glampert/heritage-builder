@@ -23,7 +23,8 @@ use crate::{
                 UnitTaskArg,
                 UnitTaskArgs,
                 UnitTaskSettler,
-                UnitTaskDespawnWithCallback
+                UnitTaskDespawnWithCallback,
+                UnitTaskPostDespawnCallback
             }
         }
     }
@@ -93,6 +94,10 @@ impl SettlersSpawnSystem {
             spawn_timer: UpdateTimer::new(settlers_spawn_frequency_secs),
             population_per_settler_unit,
         }
+    }
+
+    pub fn register_callbacks() {
+        Settler::register_callbacks();
     }
 
     fn find_vacant_lot(query: &Query) -> Option<Node> {
@@ -171,6 +176,10 @@ impl Settler {
                 return_to_spawn_point_if_failed: true,
                 population_to_add,
             })
+    }
+
+    pub fn register_callbacks() {
+        let _: Callback<UnitTaskPostDespawnCallback> = callback::register!(Settler::on_settled);
     }
 
     fn on_settled(query: &Query, unit_prev_cell: Cell, unit_prev_goal: Option<UnitNavGoal>, extra_args: &[UnitTaskArg]) {

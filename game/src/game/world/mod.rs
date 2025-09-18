@@ -132,6 +132,15 @@ impl<'config> World<'config> {
     }
 
     // ----------------------
+    // Callbacks:
+    // ----------------------
+
+    pub fn register_callbacks() {
+        Building::register_callbacks();
+        Unit::register_callbacks();
+    }
+
+    // ----------------------
     // Buildings API:
     // ----------------------
 

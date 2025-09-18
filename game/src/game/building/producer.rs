@@ -16,7 +16,7 @@ use crate::{
     utils::{
         Color,
         Seconds,
-        callback,
+        callback::{self, Callback},
         hash::StringHash
     },
     game::{
@@ -27,7 +27,9 @@ use crate::{
             runner::Runner,
             task::{
                 UnitTaskDeliverToStorage,
-                UnitTaskFetchFromStorage
+                UnitTaskFetchFromStorage,
+                UnitTaskDeliveryCompletionCallback,
+                UnitTaskFetchCompletionCallback
             }
         },
         world::{
@@ -307,6 +309,11 @@ impl<'config> ProducerBuilding<'config> {
             runner: Runner::default(),
             debug: ProducerDebug::default(),
         }
+    }
+
+    pub fn register_callbacks() {
+        let _: Callback<UnitTaskDeliveryCompletionCallback> = callback::register!(ProducerBuilding::on_resources_delivered);
+        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ProducerBuilding::on_resources_fetched);
     }
 
     fn production_update(&mut self) {

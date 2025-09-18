@@ -26,7 +26,8 @@ use super::{
     task::{
         UnitTaskDespawn,
         UnitPatrolPathRecord,
-        UnitTaskRandomizedPatrol
+        UnitTaskRandomizedPatrol,
+        UnitTaskPatrolCompletionCallback
     }
 };
 
@@ -139,6 +140,10 @@ impl Patrol {
                 completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
             }
         )
+    }
+
+    pub fn register_callbacks() {
+        let _: Callback<UnitTaskPatrolCompletionCallback> = callback::register!(Patrol::on_randomized_patrol_completed);
     }
 
     pub fn post_load(&mut self) {

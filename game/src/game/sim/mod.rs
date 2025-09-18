@@ -185,6 +185,15 @@ impl<'config> Simulation<'config> {
     }
 
     // ----------------------
+    // Callbacks:
+    // ----------------------
+
+    pub fn register_callbacks() {
+        World::register_callbacks();
+        GameSystems::register_callbacks();
+    }
+
+    // ----------------------
     // Debug:
     // ----------------------
 

@@ -32,8 +32,14 @@ impl<F> Callback<F>
     where F: 'static + Copy + Clone + PartialEq
 {
     #[inline]
-    pub fn new(key: CallbackKey, name: &'static str, fptr: F) -> Self {
-        register_internal(key, name, fptr);
+    pub fn create(key: CallbackKey, name: &'static str, fptr: F) -> Self {
+        REGISTRY.as_mut().register(key, name, fptr, true);
+        Self { key, name, fptr: Some(fptr) }
+    }
+
+    #[inline]
+    pub fn register(key: CallbackKey, name: &'static str, fptr: F) -> Self {
+        REGISTRY.as_mut().register(key, name, fptr, false);
         Self { key, name, fptr: Some(fptr) }
     }
 
@@ -68,7 +74,7 @@ impl<F> Callback<F>
 
     #[inline]
     pub fn post_load(&mut self) {
-        if let Some(entry) = REGISTRY.find_entry(self.key) {
+        if let Some(entry) = REGISTRY.as_ref().find_entry(self.key) {
             self.name = entry.name;
             self.fptr = entry.cb.downcast_ref::<F>().copied();
 
@@ -146,7 +152,7 @@ impl CallbackRegistry {
         Self { lookup: hash::new_const_hash_map() }
     }
 
-    fn register<F>(&'static mut self, key: CallbackKey, name: &'static str, fptr: F)
+    fn register<F>(&'static mut self, key: CallbackKey, name: &'static str, fptr: F, expect_entry: bool)
         where F: 'static + Copy + Clone + PartialEq
     {
         debug_assert!(key.is_valid());
@@ -154,8 +160,8 @@ impl CallbackRegistry {
 
         match self.lookup.entry(key.hash) {
             Entry::Occupied(entry) => {
-                if let Some(stored_fptr) = entry.get().cb.downcast_ref::<F>() {
-                    if *stored_fptr != fptr {
+                if let Some(registered_fptr) = entry.get().cb.downcast_ref::<F>() {
+                    if *registered_fptr != fptr {
                         panic!("A callback with a different address is already registered for '{name}'.");
                     }
                 } else {
@@ -163,6 +169,9 @@ impl CallbackRegistry {
                 }
             },
             Entry::Vacant(entry) => {
+                if expect_entry {
+                    panic!("Callback '{name}' is not registered!");
+                }
                 entry.insert(CallbackEntry { name, cb: Box::new(fptr) });
             },
         }
@@ -197,17 +206,10 @@ impl CallbackRegistry {
 static REGISTRY: SingleThreadStatic<CallbackRegistry> = SingleThreadStatic::new(CallbackRegistry::new());
 
 #[inline]
-pub fn register_internal<F>(key: CallbackKey, name: &'static str, callback: F)
+pub fn find<F>(key: CallbackKey) -> Option<&'static F>
     where F: 'static + Copy + Clone + PartialEq
 {
-    REGISTRY.as_mut().register(key, name, callback);
-}
-
-#[inline]
-pub fn find_internal<F>(key: CallbackKey) -> Option<&'static F>
-    where F: 'static + Copy + Clone + PartialEq
-{
-    REGISTRY.find_func_ptr(key)
+    REGISTRY.as_ref().find_func_ptr(key)
 }
 
 // ----------------------------------------------
@@ -216,31 +218,23 @@ pub fn find_internal<F>(key: CallbackKey) -> Option<&'static F>
 
 #[macro_export]
 macro_rules! register_callback {
-    ($signature:path, $func:expr) => {{
+    ($func:expr) => {{
         const KEY: $crate::utils::callback::CallbackKey = $crate::utils::callback::CallbackKey::new(stringify!($func));
-        $crate::utils::callback::register_internal(KEY, stringify!($func), $func as $signature);
-        KEY
+        $crate::utils::callback::Callback::register(KEY, stringify!($func), $func)
     }};
-}
-
-#[macro_export]
-macro_rules! find_callback {
-    ($signature:path, $key:expr) => {
-        $crate::utils::callback::find_internal::<$signature>($key)
-    };
 }
 
 #[macro_export]
 macro_rules! create_callback {
     ($func:expr) => {{
         const KEY: $crate::utils::callback::CallbackKey = $crate::utils::callback::CallbackKey::new(stringify!($func));
-        $crate::utils::callback::Callback::new(KEY, stringify!($func), $func)
+        $crate::utils::callback::Callback::create(KEY, stringify!($func), $func)
     }};
 }
 
 // Re-export here so usage is scoped, e.g.: callback::register!(...)
 #[allow(unused_imports)]
-pub use crate::{register_callback as register, find_callback as find, create_callback as create};
+pub use crate::{register_callback as register, create_callback as create};
 
 // ----------------------------------------------
 // Unit Tests
@@ -264,40 +258,40 @@ fn test_callback_registry() {
     type MultiplyFn = fn(i32, i32) -> i32;
     type MemberFn   = fn() -> usize;
 
-    let add_one_key  = callback::register!(AddOneFn,   add_one);
-    let to_upper_key = callback::register!(ToUpperFn,  to_upper);
-    let multiply_key = callback::register!(MultiplyFn, multiply);
-    let member_key   = callback::register!(MemberFn,   Test::member_fn);
+    let add_one_cb:  Callback<AddOneFn>    = callback::register!(add_one);
+    let to_upper_cb: Callback<ToUpperFn>   = callback::register!(to_upper);
+    let multiply_cb: Callback<MultiplyFn>  = callback::register!(multiply);
+    let member_cb:   Callback<MemberFn>    = callback::register!(Test::member_fn);
 
-    let cb0: Callback<AddOneFn>   = callback::create!(add_one);
-    let cb1: Callback<ToUpperFn>  = callback::create!(to_upper);
-    let cb2: Callback<MultiplyFn> = callback::create!(multiply);
-    let cb3: Callback<MemberFn>   = callback::create!(Test::member_fn);
+    let add_one_cb2:  Callback<AddOneFn>   = callback::create!(add_one);
+    let to_upper_cb2: Callback<ToUpperFn>  = callback::create!(to_upper);
+    let multiply_cb2: Callback<MultiplyFn> = callback::create!(multiply);
+    let member_cb2:   Callback<MemberFn>   = callback::create!(Test::member_fn);
 
-    assert!(cb0.is_valid() && cb0.try_get().is_some());
-    assert!(cb1.is_valid() && cb1.try_get().is_some());
-    assert!(cb2.is_valid() && cb2.try_get().is_some());
-    assert!(cb3.is_valid() && cb3.try_get().is_some());
+    assert!(add_one_cb2.is_valid()  && add_one_cb2.try_get().is_some());
+    assert!(to_upper_cb2.is_valid() && to_upper_cb2.try_get().is_some());
+    assert!(multiply_cb2.is_valid() && multiply_cb2.try_get().is_some());
+    assert!(member_cb2.is_valid()   && member_cb2.try_get().is_some());
 
-    if let Some(cb) = callback::find!(AddOneFn, add_one_key) {
+    if let Some(cb) = callback::find::<AddOneFn>(add_one_cb.key) {
         assert_eq!(cb(41), 42);
     } else {
         panic!("add_one callback not found!");
     }
 
-    if let Some(cb) = callback::find!(ToUpperFn, to_upper_key) {
+    if let Some(cb) = callback::find::<ToUpperFn>(to_upper_cb.key) {
         assert_eq!(cb("hello"), "HELLO");
     } else {
         panic!("to_upper callback not found!");
     }
 
-    if let Some(cb) = callback::find!(MultiplyFn, multiply_key) {
+    if let Some(cb) = callback::find::<MultiplyFn>(multiply_cb.key) {
         assert_eq!(cb(2, 2), 4);
     } else {
         panic!("multiply callback not found!");
     }
 
-    if let Some(cb) = callback::find!(MemberFn, member_key) {
+    if let Some(cb) = callback::find::<MemberFn>(member_cb.key) {
         assert_eq!(cb(), 1234);
     } else {
         panic!("member_fn callback not found!");

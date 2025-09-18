@@ -46,6 +46,7 @@ use task::*;
 use anim::*;
 use inventory::*;
 use navigation::*;
+use patrol::*;
 
 pub mod config;
 pub mod task;
@@ -519,6 +520,15 @@ impl<'config> Unit<'config> {
     }
 
     // ----------------------
+    // Callbacks:
+    // ----------------------
+
+    pub fn register_callbacks() {
+        debug::register_callbacks();
+        Patrol::register_callbacks();
+    }
+
+    // ----------------------
     // Internal helpers:
     // ----------------------
 
@@ -534,6 +544,7 @@ impl<'config> Unit<'config> {
             .expect("Unit should have an associated Tile in the TileMap!")
     }
 
+    #[inline]
     fn idle(&mut self, query: &Query) {
         self.update_direction_and_anim(self.find_tile_mut(query), UnitDirection::Idle);
     }
