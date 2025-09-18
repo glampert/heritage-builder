@@ -273,6 +273,17 @@ impl DebugSettingsMenu {
             return; // collapsed.
         }
 
+        let mut autosave_enabled = game_loop.is_autosave_enabled();
+        if ui.checkbox("Autosave", &mut autosave_enabled) {
+            game_loop.enable_autosave(autosave_enabled);
+        }
+
+        if ui.button("Load Autosave") {
+            game_loop.load_save_game(game::AUTOSAVE_FILE_NAME);
+        }
+
+        ui.separator();
+
         if self.save_file_name.is_empty() {
             self.save_file_name = game::DEFAULT_SAVE_FILE_NAME.into();
         }

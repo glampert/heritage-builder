@@ -17,7 +17,7 @@ use crate::{
 
 use {
     building::config::BuildingConfigs,
-    sim::Simulation,
+    sim::{Simulation, UpdateTimer},
     system::{GameSystems, settlers},
     unit::config::UnitConfigs,
     world::World,
@@ -40,8 +40,10 @@ pub struct GameConfigs {
     // Low-level Engine configs:
     pub engine: EngineConfigs,
 
-    // Tile Map:
+    // Save Games / Tile Map:
     pub load_map_setting: Option<LoadMapSetting>,
+    pub enable_autosave: bool,
+    pub autosave_frequency_secs: Seconds,
 
     // Camera:
     pub camera_zoom: f32,
@@ -75,8 +77,10 @@ impl Default for GameConfigs {
             // Engine:
             engine: EngineConfigs::default(),
 
-            // Tile Map:
+            // Save Games / Tile Map:
             load_map_setting: None,
+            enable_autosave: true,
+            autosave_frequency_secs: 60.0,
 
             // Camera:
             camera_zoom: CameraZoom::MIN,
@@ -132,7 +136,7 @@ struct GameSession<'game> {
     systems: GameSystems,
     camera: Camera,
 
-    // NOTE: These are not actually serialized.
+    // NOTE: These are not actually serialized on save games.
     // We only need to invoke post_load() on them.
     #[serde(skip)]
     tile_selection: TileSelection,
@@ -463,8 +467,12 @@ pub struct GameLoop<'game> {
     configs: Box<GameConfigs>,
     engine: Box<dyn Engine>,
     assets: Box<GameAssets>,
+
     session: Option<Box<GameSession<'game>>>,
-    cmd_queue: VecDeque<GameSessionCmd<'game>>,
+    session_cmd_queue: VecDeque<GameSessionCmd<'game>>,
+
+    autosave_timer: UpdateTimer,
+    enable_autosave: bool,
 }
 
 impl<'game> GameLoop<'game> {
@@ -475,6 +483,9 @@ impl<'game> GameLoop<'game> {
     pub fn new() -> Self {
         let configs = Self::load_configs();
 
+        let autosave_timer = UpdateTimer::new(configs.autosave_frequency_secs);
+        let enable_autosave = configs.enable_autosave;
+
         // Boot the engine and load assets:
         let mut engine = Self::init_engine(&configs.engine);
         let assets = Self::load_assets(engine.texture_cache_mut());
@@ -484,7 +495,15 @@ impl<'game> GameLoop<'game> {
         debug::set_show_popup_messages(configs.show_debug_popups);
         Simulation::register_callbacks();
 
-        Self { configs, engine, assets, session: None, cmd_queue: VecDeque::new() }
+        Self {
+            configs,
+            engine,
+            assets,
+            session: None,
+            session_cmd_queue: VecDeque::new(),
+            autosave_timer,
+            enable_autosave,
+        }
     }
 
     pub fn create_session(&mut self) {
@@ -515,13 +534,13 @@ impl<'game> GameLoop<'game> {
     }
 
     pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'game TileDef>) {
-        self.cmd_queue.push_back(GameSessionCmd::Reset {
+        self.session_cmd_queue.push_back(GameSessionCmd::Reset {
             reset_map_with_tile_def
         });
     }
 
     pub fn load_preset_map(&mut self, preset_tile_map_number: usize) {
-        self.cmd_queue.push_back(GameSessionCmd::LoadPreset {
+        self.session_cmd_queue.push_back(GameSessionCmd::LoadPreset {
             preset_number: preset_tile_map_number
         });
     }
@@ -532,7 +551,7 @@ impl<'game> GameLoop<'game> {
             return;
         }
 
-        self.cmd_queue.push_back(GameSessionCmd::LoadSaveGame {
+        self.session_cmd_queue.push_back(GameSessionCmd::LoadSaveGame {
             save_file_path: make_save_game_file_path(save_file_name)
         });
     }
@@ -543,7 +562,7 @@ impl<'game> GameLoop<'game> {
             return;
         }
 
-        self.cmd_queue.push_back(GameSessionCmd::SaveGame {
+        self.session_cmd_queue.push_back(GameSessionCmd::SaveGame {
             save_file_path: make_save_game_file_path(save_file_name)
         });
     }
@@ -554,11 +573,22 @@ impl<'game> GameLoop<'game> {
     }
 
     #[inline]
+    pub fn is_autosave_enabled(&self) -> bool {
+        self.enable_autosave
+    }
+
+    #[inline]
+    pub fn enable_autosave(&mut self, enable: bool) {
+        self.enable_autosave = enable;
+    }
+
+    #[inline]
     pub fn is_running(&self) -> bool {
         self.session.is_some() && self.engine.is_running()
     }
 
     pub fn update(&mut self) {
+        self.update_autosave();
         self.process_session_commands();
 
         let engine = self.engine();
@@ -692,12 +722,24 @@ impl<'game> GameLoop<'game> {
         );
     }
 
+    fn update_autosave(&mut self) {
+        if !self.enable_autosave {
+            return;
+        }
+
+        let delta_time_secs = self.engine().frame_clock().delta_time();
+
+        if self.autosave_timer.tick(delta_time_secs).should_update() {
+            self.save_game(AUTOSAVE_FILE_NAME);
+        }
+    }
+
     // ----------------------
     // Session Commands:
     // ----------------------
 
     fn process_session_commands(&mut self) {
-        while let Some(cmd) = self.cmd_queue.pop_front() {
+        while let Some(cmd) = self.session_cmd_queue.pop_front() {
             match cmd {
                 GameSessionCmd::Reset { reset_map_with_tile_def } => {
                     self.session_cmd_reset(reset_map_with_tile_def);
