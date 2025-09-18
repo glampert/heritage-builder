@@ -1010,15 +1010,6 @@ pub fn mut_ref_cast<T: ?Sized>(reference: &T) -> &mut T {
     unsafe { ptr.as_mut().unwrap() }
 }
 
-#[inline(always)]
-pub fn reinterpret_mut_cast<From: Sized, To: Sized>(reference: &From) -> &mut To {
-    // Make sure sizes and alignment requirements are compatible.
-    debug_assert!(std::mem::size_of::<From>()  == std::mem::size_of::<To>());
-    debug_assert!(std::mem::align_of::<From>() == std::mem::align_of::<To>());
-    let ptr = reference as *const From as *mut To;
-    unsafe { ptr.as_mut().unwrap() }
-}
-
 // ----------------------------------------------
 // SingleThreadStatic
 // ----------------------------------------------
@@ -1059,14 +1050,16 @@ impl<T> SingleThreadStatic<T> {
     }
 
     fn assert_owner(&self) {
-        let this_thread = std::thread::current().id();
-        match self.owner.get() {
-            Some(owner) if *owner == this_thread => {}, // Same thread, no action.
-            Some(_) => panic!("SingleThreadStatic accessed from non-owner thread!"),
-            None => {
-                // First access claims ownership:
-                self.owner.set(this_thread)
-                    .unwrap_or_else(|_| panic!("Failed to set owner thread id!"));
+        if cfg!(debug_assertions) {
+            let this_thread = std::thread::current().id();
+            match self.owner.get() {
+                Some(owner) if *owner == this_thread => {}, // Same thread, no action.
+                Some(_) => panic!("SingleThreadStatic accessed from non-owner thread!"),
+                None => {
+                    // First access claims ownership:
+                    self.owner.set(this_thread)
+                        .unwrap_or_else(|_| panic!("Failed to set owner thread id!"));
+                }
             }
         }
     }
