@@ -7,7 +7,6 @@ use serde::{
 };
 
 use crate::{
-    imgui_ui::UiSystem,
     tile::TileMapLayerKind,
     debug::{self as debug_utils},
     utils::coords::Cell,

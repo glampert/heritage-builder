@@ -3,6 +3,8 @@ use std::io::Write;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::hash::{Hash, Hasher};
+use serde::{Deserialize, Serialize};
+use strum_macros::Display;
 
 use crate::utils::{Color, hash::{self, StringHash}};
 
@@ -11,7 +13,7 @@ use crate::utils::{Color, hash::{self, StringHash}};
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Level {
     Silent,
     Verbose,

@@ -14,17 +14,22 @@ use crate::{
     },
     tile::{
         TileMap,
-        rendering::{self, TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
+        rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
         selection::TileSelection,
     },
     utils::{
-        mem, Color, Rect, RectTexCoords, Size, Vec2,
+        mem, Color, Rect, RectTexCoords, Vec2,
         coords::{CellRange, WorldToScreenTransform},
     },
 };
 
+use {
+    config::EngineConfigs,
+    time::{FrameClock, Seconds}
+};
+
+pub mod config;
 pub mod time;
-use time::{FrameClock, Seconds};
 
 // ----------------------------------------------
 // Engine Backends
@@ -38,51 +43,6 @@ pub mod backend {
         render::backend::RenderSystemOpenGl,
         imgui_ui::backend::UiRendererOpenGl,
     >;
-}
-
-// ----------------------------------------------
-// EngineConfigs
-// ----------------------------------------------
-
-// TODO: Deserialize with serde. Load from json config file.
-pub struct EngineConfigs {
-    // Window/Rendering:
-    pub window_title: String,
-    pub window_size: Size,
-    pub window_background_color: Color,
-    pub fullscreen: bool,
-    pub confine_cursor_to_window: bool,
-
-    // Debug Grid:
-    pub grid_color: Color,
-    pub grid_line_thickness: f32,
-
-    // Debug Log:
-    pub log_level: log::Level,
-    pub log_viewer_start_open: bool,
-    pub log_viewer_max_lines: usize,
-}
-
-impl Default for EngineConfigs {
-    fn default() -> Self {
-        Self {
-            // Window/Rendering:
-            window_title: "CitySim".into(),
-            window_size: Size::new(1024, 768),
-            window_background_color: rendering::MAP_BACKGROUND_COLOR,
-            fullscreen: false,
-            confine_cursor_to_window: true,
-
-            // Debug Grid:
-            grid_color: rendering::DEFAULT_GRID_COLOR,
-            grid_line_thickness: 1.0,
-
-            // Debug Log:
-            log_level: log::Level::Verbose,
-            log_viewer_start_open: false,
-            log_viewer_max_lines: 32,
-        }
-    }
 }
 
 // ----------------------------------------------

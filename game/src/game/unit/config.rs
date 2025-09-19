@@ -1,7 +1,6 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    imgui_ui::UiSystem,
     utils::hash::{
         self,
         StringHash,

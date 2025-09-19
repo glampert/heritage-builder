@@ -21,10 +21,19 @@ use super::{
 // Camera Enums
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum CameraOffset {
     Center,
     Point(f32, f32),
+}
+
+impl std::fmt::Display for CameraOffset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Center => write!(f, "Center"),
+            Self::Point(x, y) => write!(f, "Point({x:.2},{y:.2})"),
+        }
+    }
 }
 
 #[repr(u32)]

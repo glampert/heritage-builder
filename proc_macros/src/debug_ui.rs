@@ -22,13 +22,14 @@ use syn::{
 // -------------------------------------------------------
 
 /*
-| Attribute                   | Effect                   |
-| --------------------------- | ------------------------ |
-| #[debug_ui(skip)]           | Skip the field entirely  |
-| #[debug_ui(separator)]      | Add ui.separator() after |
-| #[debug_ui(label = "...")]  | Override default label   |
-| #[debug_ui(format = "...")] | Use custom format string |
-| #[debug_ui(edit = "...")]   | Use imgui edit widget    |
+| Attribute                   | Effect                    |
+| --------------------------- | ------------------------- |
+| #[debug_ui(skip)]           | Skip the field entirely   |
+| #[debug_ui(separator)]      | Add ui.separator() after  |
+| #[debug_ui(nested)]         | Nested struct with own fn |
+| #[debug_ui(label = "...")]  | Override default label    |
+| #[debug_ui(format = "...")] | Use custom format string  |
+| #[debug_ui(edit = "...")]   | Use imgui edit widget     |
 
 | Only meaningful when used together with `edit`:
 | ----------------------------------- | -------------------------------- |
@@ -43,6 +44,7 @@ use syn::{
 struct DebugUiAttrs {
     skip: bool,
     separator: bool,
+    nested: bool,
     label: Option<String>,
     format: Option<String>,
     edit: Option<String>,
@@ -66,6 +68,8 @@ fn parse_debug_ui_attrs(attrs: &[Attribute]) -> DebugUiAttrs {
                 result.skip = true;
             } else if meta.path.is_ident("separator") {
                 result.separator = true;
+            } else if meta.path.is_ident("nested") {
+                result.nested = true;
             } else if meta.path.is_ident("label") {
                 let value = meta.value()?;
                 let label: LitStr = value.parse()?;
@@ -359,12 +363,22 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                     }
                 },
                 FieldKind::Unknown => {
-                    // Fallback: Try format Display text.
-                    quote! { ui.text(format!(#format_str_lit, self.#field_name)); }
+                    if attrs.nested {
+                        // Nested structure with its own draw_debug_ui method.
+                        quote! { self.#field_name.draw_debug_ui_with_header(stringify!(#field_name), ui_sys); }
+                    } else {
+                        // Fallback: Try format Display text.
+                        quote! { ui.text(format!(#format_str_lit, self.#field_name)); }
+                    }
                 },
             };
 
             tokens.extend(field_tokens);
+        } else if attrs.nested {
+            // Nested structure with its own draw_debug_ui method.
+            tokens.extend(quote! {
+                self.#field_name.draw_debug_ui_with_header(stringify!(#field_name), ui_sys);
+            });
         } else {
             // Read only text field.
             tokens.extend(quote! {
@@ -395,9 +409,15 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
 
     let output = quote! {
         impl #impl_generics #struct_name #ty_generics #where_clause {
-            pub fn draw_debug_ui(#self_argument, ui_sys: &UiSystem) {
+            pub fn draw_debug_ui(#self_argument, ui_sys: &crate::imgui_ui::UiSystem) {
                 let ui = ui_sys.builder();
                 #(#field_lines)*
+            }
+            pub fn draw_debug_ui_with_header(#self_argument, header: &str, ui_sys: &crate::imgui_ui::UiSystem) {
+                let ui = ui_sys.builder();
+                if ui.collapsing_header(header, imgui::TreeNodeFlags::empty()) {
+                    self.draw_debug_ui(ui_sys);
+                }
             }
         }
     };

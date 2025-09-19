@@ -3,7 +3,6 @@ use crate::{
     imgui_ui::UiSystem,
     engine::DebugDraw,
     game::{
-        GameConfigs,
         world::World,
         cheats::{self, Cheats},
         sim::debug::DebugQueryBuilder
@@ -525,8 +524,7 @@ mod test_maps {
 
     fn build_tile_map<'tile_sets>(preset: &'static PresetTiles,
                                   world: &mut World,
-                                  tile_sets: &'tile_sets TileSets,
-                                  configs: &GameConfigs) -> TileMap<'tile_sets> {
+                                  tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
 
         let map_size_in_cells = preset.map_size_in_cells;
 
@@ -554,7 +552,6 @@ mod test_maps {
                 &mut tile_map,
                 tile_sets,
                 map_size_in_cells,
-                configs
             );
             let query = query_builder.new_query();
 
@@ -578,7 +575,6 @@ mod test_maps {
 
     pub fn create_preset_tile_map_internal<'tile_sets>(world: &mut World,
                                                        tile_sets: &'tile_sets TileSets,
-                                                       configs: &GameConfigs,
                                                        mut preset_number: usize) -> TileMap<'tile_sets> {
 
         preset_number = preset_number.min(PRESET_TILES.len());
@@ -590,7 +586,7 @@ mod test_maps {
             enable_cheats_fn(cheats::get_mut());
         }
 
-        build_tile_map(preset, world, tile_sets, configs)
+        build_tile_map(preset, world, tile_sets)
     }
 }
 
@@ -600,7 +596,6 @@ pub fn preset_tile_maps_list() -> Vec<&'static str> {
 
 pub fn create_preset_tile_map<'tile_sets>(world: &mut World,
                                           tile_sets: &'tile_sets TileSets,
-                                          configs: &GameConfigs,
                                           preset_number: usize) -> TileMap<'tile_sets> {
-    test_maps::create_preset_tile_map_internal(world, tile_sets, configs, preset_number)
+    test_maps::create_preset_tile_map_internal(world, tile_sets, preset_number)
 }

@@ -5,7 +5,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     engine::time::Seconds,
     app::input::{InputAction, MouseButton},
-    imgui_ui::{self, UiInputEvent, UiSystem},
+    imgui_ui::{self, UiInputEvent},
     pathfind::NodeKind as PathNodeKind,
     game::sim::{self, Simulation, debug::DebugUiMode},
     utils::{

@@ -42,6 +42,7 @@ use crate::{
 
 use super::{
     constants::*,
+    config::GameConfigs,
     world::World,
     system::GameSystems,
     unit::{config::UnitConfigs, task::UnitTaskManager},
@@ -76,29 +77,23 @@ pub struct Simulation<'config> {
     #[serde(skip)] search: Search,
 
     // Configs:
-    workers_search_radius: i32,
-    workers_update_frequency_secs: Seconds,
-
+    #[serde(skip)] game_configs: Option<&'static GameConfigs>,
     #[serde(skip)] building_configs: Option<&'config BuildingConfigs>,
     #[serde(skip)] unit_configs: Option<&'config UnitConfigs>,
 }
 
 impl<'config> Simulation<'config> {
     pub fn new(tile_map: &TileMap,
-               sim_random_seed: u64,
-               sim_update_frequency_secs: Seconds,
-               workers_search_radius: i32,
-               workers_update_frequency_secs: Seconds,
+               game_configs: &'static GameConfigs,
                building_configs: &'config BuildingConfigs,
                unit_configs: &'config UnitConfigs) -> Self {
         Self {
-            update_timer: UpdateTimer::new(sim_update_frequency_secs),
-            rng: RandomGenerator::seed_from_u64(sim_random_seed),
+            update_timer: UpdateTimer::new(game_configs.sim.update_frequency_secs),
+            rng: RandomGenerator::seed_from_u64(game_configs.sim.random_seed),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
-            workers_search_radius,
-            workers_update_frequency_secs,
+            game_configs: Some(game_configs),
             building_configs: Some(building_configs),
             unit_configs: Some(unit_configs),
         }
@@ -118,8 +113,7 @@ impl<'config> Simulation<'config> {
             world,
             tile_map,
             tile_sets,
-            self.workers_search_radius,
-            self.workers_update_frequency_secs,
+            self.game_configs.unwrap(),
             self.building_configs.unwrap(),
             self.unit_configs.unwrap(),
             delta_time_secs)
@@ -132,7 +126,7 @@ impl<'config> Simulation<'config> {
                               tile_sets: &'tile_sets TileSets,
                               delta_time_secs: Seconds) {
 
-        debug_assert!(self.workers_search_radius > 0);
+        debug_assert!(self.game_configs.is_some());
         debug_assert!(self.building_configs.is_some());
         debug_assert!(self.unit_configs.is_some());
 
@@ -328,6 +322,7 @@ impl<'config> Load<'_, 'config> for Simulation<'config> {
     fn post_load(&mut self, context: &PostLoadContext<'_, 'config>) {
         self.search = Search::with_graph(&self.graph);
 
+        self.game_configs = Some(GameConfigs::get());
         self.building_configs = Some(context.building_configs);
         self.unit_configs = Some(context.unit_configs);
 
@@ -354,6 +349,7 @@ pub struct Query<'config, 'tile_sets> {
     graph: mem::RawPtr<Graph>,
     search: mem::RawPtr<Search>,
 
+    // Unit tasks:
     task_manager: mem::RawPtr<UnitTaskManager>,
 
     // World & Tile Map:
@@ -362,8 +358,7 @@ pub struct Query<'config, 'tile_sets> {
     tile_sets: &'tile_sets TileSets,
 
     // Configs:
-    workers_search_radius: i32,
-    workers_update_frequency_secs: Seconds,
+    game_configs: &'static GameConfigs,
     building_configs: &'config BuildingConfigs,
     unit_configs: &'config UnitConfigs,
 
@@ -378,8 +373,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
            world: &mut World<'config>,
            tile_map: &mut TileMap<'tile_sets>,
            tile_sets: &'tile_sets TileSets,
-           workers_search_radius: i32,
-           workers_update_frequency_secs: Seconds,
+           game_configs: &'static GameConfigs,
            building_configs: &'config BuildingConfigs,
            unit_configs: &'config UnitConfigs,
            delta_time_secs: Seconds) -> Self {
@@ -391,8 +385,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             world: mem::RawPtr::from_ref(world),
             tile_map: mem::RawPtr::from_ref(tile_map),
             tile_sets,
-            workers_search_radius,
-            workers_update_frequency_secs,
+            game_configs,
             building_configs,
             unit_configs,
             delta_time_secs,
@@ -463,12 +456,12 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
 
     #[inline(always)]
     pub fn workers_search_radius(&self) -> i32 {
-        self.workers_search_radius
+        self.game_configs.sim.workers_search_radius
     }
 
     #[inline(always)]
     pub fn workers_update_frequency_secs(&self) -> Seconds {
-        self.workers_update_frequency_secs
+        self.game_configs.sim.workers_update_frequency_secs
     }
 
     #[inline]

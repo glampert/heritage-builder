@@ -1,5 +1,6 @@
 use std::{path::Path, fs, io};
 use enum_dispatch::enum_dispatch;
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     utils::mem,
@@ -46,13 +47,13 @@ pub type LoadResult = Result<(), String>;
 #[enum_dispatch(SaveStateImpl)]
 pub trait SaveState {
     fn save<T>(&mut self, instance: &T) -> SaveResult
-        where T: serde::Serialize;
+        where T: Serialize;
 
-    fn load<'de, T>(&'de self, instance: &mut T) -> LoadResult
-        where T: serde::Deserialize<'de>;
+    fn load<T>(&self, instance: &mut T) -> LoadResult
+        where T: DeserializeOwned;
 
-    fn load_new_instance<'de, T>(&'de self) -> Result<T, String>
-        where T: serde::Deserialize<'de>;
+    fn load_new_instance<T>(&self) -> Result<T, String>
+        where T: DeserializeOwned;
 
     fn read_file<P>(&mut self, path: P) -> io::Result<()>
         where P: AsRef<Path>;
@@ -115,7 +116,7 @@ impl JsonSaveState {
 
 impl SaveState for JsonSaveState {
     fn save<T>(&mut self, instance: &T) -> SaveResult
-        where T: serde::Serialize
+        where T: Serialize
     {
         let result = {
             if self.pretty {
@@ -134,16 +135,16 @@ impl SaveState for JsonSaveState {
         Ok(())
     }
 
-    fn load<'de, T>(&'de self, instance: &mut T) -> LoadResult
-        where T: serde::Deserialize<'de>
+    fn load<T>(&self, instance: &mut T) -> LoadResult
+        where T: DeserializeOwned
     {
         // Load in place:
         *instance = self.load_new_instance()?;
         Ok(())
     }
 
-    fn load_new_instance<'de, T>(&'de self) -> Result<T, String>
-        where T: serde::Deserialize<'de>
+    fn load_new_instance<T>(&self) -> Result<T, String>
+        where T: DeserializeOwned
     {
         if self.buffer.is_empty() {
             return Err("JsonSaveState has no state to load!".into());

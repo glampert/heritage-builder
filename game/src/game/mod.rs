@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::collections::VecDeque;
 use serde::{Deserialize, Serialize};
 
@@ -5,7 +6,7 @@ use crate::{
     imgui_ui::UiInputEvent,
     app::{ApplicationEvent, input::{InputAction, InputKey, InputModifiers, MouseButton}},
     debug::{self, DebugMenusFrameArgs, DebugMenusInputArgs, DebugMenusSystem},
-    engine::{self, Engine, EngineConfigs},
+    engine::{self, Engine, config::EngineConfigs},
     log,
     render::TextureCache,
     save::{self, *},
@@ -18,6 +19,7 @@ use crate::{
 
 use {
     building::config::BuildingConfigs,
+    config::{GameConfigs, LoadMapSetting},
     sim::Simulation,
     system::{GameSystems, settlers},
     unit::config::UnitConfigs,
@@ -25,85 +27,13 @@ use {
 };
 
 pub mod building;
+pub mod config;
 pub mod cheats;
 pub mod constants;
 pub mod sim;
 pub mod system;
 pub mod unit;
 pub mod world;
-
-// ----------------------------------------------
-// GameConfigs
-// ----------------------------------------------
-
-// TODO: Deserialize with serde. Load from json config file.
-pub struct GameConfigs {
-    // Low-level Engine configs:
-    pub engine: EngineConfigs,
-
-    // Save Games / Tile Map:
-    pub load_map_setting: Option<LoadMapSetting>,
-    pub enable_autosave: bool,
-    pub autosave_frequency_secs: Seconds,
-
-    // Camera:
-    pub camera_zoom: f32,
-    pub camera_offset: CameraOffset,
-
-    // Simulation:
-    pub sim_random_seed: u64,
-    pub sim_update_frequency_secs: Seconds,
-
-    // Workers/Population:
-    pub workers_search_radius: i32,
-    pub workers_update_frequency_secs: Seconds,
-
-    // Game Systems:
-    pub settlers_spawn_frequency_secs: Seconds,
-    pub population_per_settler_unit: u32,
-
-    // Debug:
-    pub show_debug_popups: bool,
-}
-
-pub enum LoadMapSetting {
-    EmptyMap { size_in_cells: Size, terrain_tile_category: String, terrain_tile_name: String },
-    Preset { preset_number: usize },
-    SaveGame { save_file_path: String },
-}
-
-impl Default for GameConfigs {
-    fn default() -> Self {
-        Self {
-            // Engine:
-            engine: EngineConfigs::default(),
-
-            // Save Games / Tile Map:
-            load_map_setting: None,
-            enable_autosave: true,
-            autosave_frequency_secs: 60.0,
-
-            // Camera:
-            camera_zoom: CameraZoom::MIN,
-            camera_offset: CameraOffset::Center,
-
-            // Simulation:
-            sim_random_seed: 0xCAFE1CAFE2CAFE3A,
-            sim_update_frequency_secs: 0.5,
-
-            // Workers/Population:
-            workers_search_radius: 20,
-            workers_update_frequency_secs: 20.0,
-
-            // Game Systems:
-            settlers_spawn_frequency_secs: 20.0,
-            population_per_settler_unit: 1,
-
-            // Debug:
-            show_debug_popups: true,
-        }
-    }
-}
 
 // ----------------------------------------------
 // GameAssets
@@ -147,46 +77,44 @@ struct GameSession<'game> {
 }
 
 impl<'game> GameSession<'game> {
-    fn with_configs(
+    fn new(
         tex_cache: &mut dyn TextureCache,
         assets: &'game GameAssets,
-        configs: &GameConfigs,
-        load_map_setting: &Option<LoadMapSetting>,
+        load_map_setting: &LoadMapSetting,
         viewport_size: Size,
     ) -> Self {
         if !viewport_size.is_valid() {
             panic!("Invalid game viewport size!");
         }
 
+        let game_configs = GameConfigs::get();
+
         let mut opt_save_file_to_load: Option<&String> = None;
-        if let Some(LoadMapSetting::SaveGame { save_file_path }) = load_map_setting {
+        if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
             opt_save_file_to_load = Some(save_file_path);
         }
 
         let mut world = World::new(&assets.building_configs, &assets.unit_configs);
-        let mut tile_map = Self::create_tile_map(&mut world, assets, configs, load_map_setting);
+        let mut tile_map = Self::create_tile_map(&mut world, assets, load_map_setting);
 
         let sim = Simulation::new(
             &tile_map,
-            configs.sim_random_seed,
-            configs.sim_update_frequency_secs,
-            configs.workers_search_radius,
-            configs.workers_update_frequency_secs,
+            game_configs,
             &assets.building_configs,
             &assets.unit_configs,
         );
 
         let mut systems = GameSystems::new();
         systems.register(settlers::SettlersSpawnSystem::new(
-            configs.settlers_spawn_frequency_secs,
-            configs.population_per_settler_unit,
+            game_configs.sim.settlers_spawn_frequency_secs,
+            game_configs.sim.population_per_settler_unit,
         ));
 
         let camera = Camera::new(
             viewport_size,
             tile_map.size_in_cells(),
-            configs.camera_zoom,
-            configs.camera_offset,
+            game_configs.camera.zoom,
+            game_configs.camera.offset,
         );
 
         let debug_menus = DebugMenusSystem::new(&mut tile_map, tex_cache);
@@ -211,69 +139,62 @@ impl<'game> GameSession<'game> {
     fn create_tile_map(
         world: &mut World,
         assets: &'game GameAssets,
-        configs: &GameConfigs,
-        load_map_setting: &Option<LoadMapSetting>,
+        load_map_setting: &LoadMapSetting,
     ) -> Box<TileMap<'game>> {
         let tile_map = {
-            if let Some(settings) = load_map_setting {
-                match settings {
-                    LoadMapSetting::EmptyMap {
-                        size_in_cells,
-                        terrain_tile_category,
-                        terrain_tile_name,
-                    } => {
-                        log::info!(
-                            log::channel!("session"),
-                            "Creating empty Tile Map. Size: {size_in_cells}, Fill: {terrain_tile_name}"
-                        );
-
-                        if !size_in_cells.is_valid() {
-                            panic!("LoadMapSetting::EmptyMap: Invalid Tile Map dimensions! Width & height must not be zero.");
-                        }
-
-                        TileMap::with_terrain_tile(
-                            *size_in_cells,
-                            &assets.tile_sets,
-                            hash::fnv1a_from_str(terrain_tile_category),
-                            hash::fnv1a_from_str(terrain_tile_name),
-                        )
-                    }
-                    LoadMapSetting::Preset { preset_number } => {
-                        debug::utils::create_preset_tile_map(
-                            world,
-                            &assets.tile_sets,
-                            configs,
-                            *preset_number,
-                        )
-                    }
-                    LoadMapSetting::SaveGame { save_file_path } => {
-                        if save_file_path.is_empty() {
-                            panic!("LoadMapSetting::SaveGame: No save file path provided!");
-                        }
-
-                        // Loading a save requires loading a full GameSession, so we'll just create
-                        // a dummy map here. The actual loading will be handled by the caller.
-                        TileMap::default()
-                    }
+            match load_map_setting {
+                LoadMapSetting::None => {
+                    TileMap::default() // Empty dummy map.
                 }
-            } else {
-                TileMap::default() // Empty dummy map.
+                LoadMapSetting::EmptyMap {
+                    size_in_cells,
+                    terrain_tile_category,
+                    terrain_tile_name,
+                } => {
+                    log::info!(
+                        log::channel!("session"),
+                        "Creating empty Tile Map. Size: {size_in_cells}, Fill: {terrain_tile_name}"
+                    );
+
+                    if !size_in_cells.is_valid() {
+                        panic!("LoadMapSetting::EmptyMap: Invalid Tile Map dimensions! Width & height must not be zero.");
+                    }
+
+                    TileMap::with_terrain_tile(
+                        *size_in_cells,
+                        &assets.tile_sets,
+                        hash::fnv1a_from_str(terrain_tile_category),
+                        hash::fnv1a_from_str(terrain_tile_name),
+                    )
+                }
+                LoadMapSetting::Preset { preset_number } => {
+                    debug::utils::create_preset_tile_map(
+                        world,
+                        &assets.tile_sets,
+                        *preset_number)
+                }
+                LoadMapSetting::SaveGame { save_file_path } => {
+                    if save_file_path.is_empty() {
+                        panic!("LoadMapSetting::SaveGame: No save file path provided!");
+                    }
+                    // Loading a save requires loading a full GameSession, so we'll just create
+                    // a dummy map here. The actual loading will be handled by the caller.
+                    TileMap::default()
+                }
             }
         };
-
         Box::new(tile_map)
     }
 
-    fn with_preset_map(
+    fn load_preset_map(
         preset_number: usize,
         tex_cache: &mut dyn TextureCache,
         assets: &'game GameAssets,
-        configs: &GameConfigs,
         viewport_size: Size,
     ) -> Self {
         // Override GameConfigs.load_map_setting
-        let load_map_setting = Some(LoadMapSetting::Preset { preset_number });
-        Self::with_configs(tex_cache, assets, configs, &load_map_setting, viewport_size)
+        let load_map_setting = LoadMapSetting::Preset { preset_number };
+        Self::new(tex_cache, assets, &load_map_setting, viewport_size)
     }
 
     fn reset(&mut self, tile_sets: &'game TileSets, reset_map: bool, reset_map_with_tile_def: Option<&'game TileDef>) {
@@ -281,7 +202,7 @@ impl<'game> GameSession<'game> {
 
         self.sim.reset(&mut self.world, &mut self.systems, &mut self.tile_map, tile_sets);
 
-        if reset_map {
+        if reset_map && self.tile_map.size_in_cells().is_valid() {
             self.tile_map.reset(reset_map_with_tile_def);
         }
     }
@@ -352,10 +273,11 @@ pub const DEFAULT_SAVE_FILE_NAME: &str = "save_game.json";
 pub const SAVE_GAMES_DIR_PATH: &str = "saves";
 
 fn make_save_game_file_path(save_file_name: &str) -> String {
-    format!("{}{}{}",
-        SAVE_GAMES_DIR_PATH,
-        std::path::MAIN_SEPARATOR,
-        save_file_name)
+    Path::new(SAVE_GAMES_DIR_PATH)
+        .join(save_file_name)
+        .with_extension("json")
+        .to_string_lossy()
+        .into()
 }
 
 impl<'game> GameSession<'game> {
@@ -369,14 +291,14 @@ impl<'game> GameSession<'game> {
 
         fn do_save(state: &mut SaveStateImpl, sesion: &GameSession, save_file_path: &str) -> bool {
             if let Err(err) = sesion.save(state) {
-                log::error!(log::channel!("session"), "Failed to saved game: {err}");
+                log::error!(log::channel!("session"), "Failed to save game: {err}");
                 return false;
             }
 
             if let Err(err) = state.write_file(save_file_path) {
                 log::error!(
                     log::channel!("session"),
-                    "Failed to write saved game file '{save_file_path}': {err}"
+                    "Failed to write save game file '{save_file_path}': {err}"
                 );
                 return false;
             }
@@ -391,7 +313,7 @@ impl<'game> GameSession<'game> {
         if !can_write_save_file(save_file_path) {
             log::error!(
                 log::channel!("session"),
-                "Saved game file path '{save_file_path}' is not accessible!"
+                "Save game file path '{save_file_path}' is not accessible!"
             );
             return false;
         }
@@ -415,7 +337,7 @@ impl<'game> GameSession<'game> {
         if let Err(err) = state.read_file(save_file_path) {
             log::error!(
                 log::channel!("session"),
-                "Failed to read saved game file '{save_file_path}': {err}"
+                "Failed to read save game file '{save_file_path}': {err}"
             );
             return false;
         }
@@ -426,7 +348,7 @@ impl<'game> GameSession<'game> {
             Err(err) => {
                 log::error!(
                     log::channel!("session"),
-                    "Failed to load saved game from '{save_file_path}': {err}"
+                    "Failed to load save game from '{save_file_path}': {err}"
                 );
                 return false;
             }
@@ -465,7 +387,6 @@ enum GameSessionCmd<'game> {
 // ----------------------------------------------
 
 pub struct GameLoop<'game> {
-    configs: Box<GameConfigs>,
     engine: Box<dyn Engine>,
     assets: Box<GameAssets>,
 
@@ -482,28 +403,24 @@ impl<'game> GameLoop<'game> {
     // ----------------------
 
     pub fn new() -> Self {
-        let configs = Self::load_configs();
-
-        let autosave_timer = UpdateTimer::new(configs.autosave_frequency_secs);
-        let enable_autosave = configs.enable_autosave;
+        let game_configs = GameConfigs::load();
 
         // Boot the engine and load assets:
-        let mut engine = Self::init_engine(&configs.engine);
+        let mut engine = Self::init_engine(&game_configs.engine);
         let assets = Self::load_assets(engine.texture_cache_mut());
 
         // Global initialization:
         cheats::initialize();
-        debug::set_show_popup_messages(configs.show_debug_popups);
         Simulation::register_callbacks();
+        debug::set_show_popup_messages(game_configs.debug.show_popups);
 
         Self {
-            configs,
             engine,
             assets,
             session: None,
             session_cmd_queue: VecDeque::new(),
-            autosave_timer,
-            enable_autosave,
+            autosave_timer: UpdateTimer::new(game_configs.save.autosave_frequency_secs),
+            enable_autosave: game_configs.save.enable_autosave,
         }
     }
 
@@ -514,11 +431,10 @@ impl<'game> GameLoop<'game> {
         let viewport_size = game_loop.engine.viewport().size();
         let tex_cache = game_loop.engine.texture_cache_mut();
 
-        let new_session = GameSession::with_configs(
+        let new_session = GameSession::new(
             tex_cache,
             &game_loop.assets,
-            &game_loop.configs,
-            &game_loop.configs.load_map_setting,
+            &GameConfigs::get().save.load_map_setting,
             viewport_size
         );
 
@@ -569,7 +485,7 @@ impl<'game> GameLoop<'game> {
     }
 
     #[inline]
-    pub fn save_files_list(&self) -> Vec<std::path::PathBuf> {
+    pub fn save_files_list(&self) -> Vec<PathBuf> {
         file_sys::collect_files(&SAVE_GAMES_DIR_PATH, file_sys::CollectFlags::FilenamesOnly)
     }
 
@@ -637,27 +553,14 @@ impl<'game> GameLoop<'game> {
         mem::mut_ref_cast(engine_box.as_ref())
     }
 
-    fn load_configs() -> Box<GameConfigs> {
-        // TODO: Load configs from a json file using serde.
-        // TODO: Could support commandline overrides for configs & game cheats.
-        let configs = GameConfigs {
-            // TEMP TEST CODE:
-            //load_map_setting: Some(LoadMapSetting::Preset { preset_number: 0 }),
-            load_map_setting: Some(LoadMapSetting::EmptyMap { size_in_cells: Size::new(64, 64), terrain_tile_category: "ground".into(), terrain_tile_name: "dirt".into() }),
-            //load_map_setting: Some(LoadMapSetting::SaveGame { save_file_path: DEFAULT_SAVE_FILE_NAME.into() }),
-            ..Default::default()
-        };
-        Box::new(configs)
-    }
-
     fn load_assets(tex_cache: &mut dyn TextureCache) -> Box<GameAssets> {
         log::info!(log::channel!("game"), "Loading Game Assets ...");
         Box::new(GameAssets::new(tex_cache))
     }
 
-    fn init_engine(configs: &EngineConfigs) -> Box<dyn Engine> {
+    fn init_engine(engine_configs: &EngineConfigs) -> Box<dyn Engine> {
         log::info!(log::channel!("game"), "Init Engine: GLFW + OpenGL");
-        Box::new(engine::backend::GlfwOpenGlEngine::new(configs))
+        Box::new(engine::backend::GlfwOpenGlEngine::new(engine_configs))
     }
 
     fn handle_event(&self, event: ApplicationEvent, cursor_screen_pos: Vec2) {
@@ -770,11 +673,10 @@ impl<'game> GameLoop<'game> {
         let viewport_size = game_loop.engine.viewport().size();
         let tex_cache = game_loop.engine.texture_cache_mut();
 
-        let new_session = GameSession::with_preset_map(
+        let new_session = GameSession::load_preset_map(
             preset_number,
             tex_cache,
             &game_loop.assets,
-            &game_loop.configs,
             viewport_size
         );
 

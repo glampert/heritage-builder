@@ -51,30 +51,26 @@ pub struct DebugQueryBuilder<'config, 'tile_sets, 'tile_map> {
     world: mem::RawPtr<World<'config>>,
     tile_map: &'tile_map mut TileMap<'tile_sets>,
     tile_sets: &'tile_sets TileSets,
-    workers_search_radius: i32,
-    workers_update_frequency_secs: Seconds,
 }
 
 impl<'config, 'tile_sets, 'tile_map> DebugQueryBuilder<'config, 'tile_sets, 'tile_map> {
     pub fn new(world: &mut World<'config>,
                tile_map: &'tile_map mut TileMap<'tile_sets>,
                tile_sets: &'tile_sets TileSets,
-               map_size_in_cells: Size,
-               configs: &GameConfigs) -> Self {
+               map_size_in_cells: Size) -> Self {
         Self {
-            rng: RandomGenerator::seed_from_u64(configs.sim_random_seed),
+            rng: RandomGenerator::seed_from_u64(GameConfigs::get().sim.random_seed),
             graph: Graph::with_empty_grid(map_size_in_cells),
             search: Search::with_grid_size(map_size_in_cells),
             task_manager: UnitTaskManager::new(1),
             world: mem::RawPtr::from_ref(world),
             tile_map,
             tile_sets,
-            workers_search_radius: configs.workers_search_radius,
-            workers_update_frequency_secs: configs.workers_update_frequency_secs
         }
     }
 
     pub fn new_query(&mut self) -> Query<'config, 'tile_sets> {
+        let game_configs = GameConfigs::get();
         let building_configs = self.world.building_configs();
         let unit_configs = self.world.unit_configs();
         Query::new(&mut self.rng,
@@ -84,8 +80,7 @@ impl<'config, 'tile_sets, 'tile_map> DebugQueryBuilder<'config, 'tile_sets, 'til
                    &mut self.world,
                    self.tile_map,
                    self.tile_sets,
-                   self.workers_search_radius,
-                   self.workers_update_frequency_secs,
+                   game_configs,
                    building_configs,
                    unit_configs,
                    0.0)

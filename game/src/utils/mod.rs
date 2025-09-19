@@ -302,7 +302,7 @@ field_accessor_xy! { Vec2, f32, x, y }
 // Normalized RGBA color (f32, [0,1] range).
 // For interfacing with shaders and the rendering system.
 #[repr(C)]
-#[derive(Copy, Clone, Debug, PartialEq, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Color {
     pub r: f32,
     pub g: f32,
@@ -343,7 +343,10 @@ impl Color {
 }
 
 impl Default for Color {
-    fn default() -> Self { Color::white() }
+    #[inline]
+    fn default() -> Self {
+        Color::white()
+    }
 }
 
 // Color * Color

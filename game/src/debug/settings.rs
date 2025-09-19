@@ -11,6 +11,7 @@ use crate::{
         cheats,
         GameLoop,
         sim::{self, Simulation},
+        config::GameConfigs,
     },
     tile::{
         TileMapLayerKind,
@@ -57,6 +58,7 @@ pub struct DebugSettingsMenu {
     #[debug_ui(edit)] show_cursor_pos: bool,
     #[debug_ui(edit)] show_screen_origin: bool,
     #[debug_ui(edit)] show_render_stats: bool,
+    #[debug_ui(edit)] show_game_configs: bool,
     #[debug_ui(edit)] show_world_debug: bool,
     #[debug_ui(edit)] show_game_systems_debug: bool,
     #[debug_ui(edit)] show_log_viewer_window: bool,
@@ -140,6 +142,10 @@ impl DebugSettingsMenu {
                 self.save_game_dropdown(context, game_loop);
                 cheats::draw_debug_ui(context.ui_sys);
             });
+
+        if self.show_game_configs {
+            self.draw_game_configs_window(context.ui_sys);
+        }
 
         if self.show_world_debug {
             self.draw_world_debug_window(context, sim);
@@ -309,6 +315,15 @@ impl DebugSettingsMenu {
         if ui.button("Load") && !save_files.is_empty() {
             game_loop.load_save_game(&save_files[self.save_file_selected].to_string_lossy());
         }
+    }
+
+    fn draw_game_configs_window(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        ui.window("Game Configs")
+            .opened(&mut self.show_game_configs)
+            .position([300.0, 5.0], imgui::Condition::FirstUseEver)
+            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
+            .build(|| GameConfigs::get().draw_debug_ui(ui_sys));
     }
 
     fn draw_world_debug_window(&mut self,
