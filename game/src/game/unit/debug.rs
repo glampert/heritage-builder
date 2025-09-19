@@ -117,12 +117,8 @@ impl<'config> Unit<'config> {
     }
 
     fn draw_debug_ui_config(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-
         if let Some(config) = self.config {
-            if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-                config.draw_debug_ui(ui_sys);
-            }
+            config.draw_debug_ui_with_header("Config", ui_sys);
         }
     }
 
