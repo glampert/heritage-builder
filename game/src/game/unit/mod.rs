@@ -85,13 +85,14 @@ Common Unit Behavior:
 pub struct Unit<'config> {
     id: UnitId,
     map_cell: Cell,
-    #[serde(skip)] config: Option<&'config UnitConfig>,
     config_key_hash: StringHash,
     direction: UnitDirection,
     anim_sets: UnitAnimSets,
     inventory: UnitInventory,
     navigation: UnitNavigation,
     current_task_id: UnitTaskId, // invalid if no task.
+
+    #[serde(skip)] config: Option<&'config UnitConfig>,
     #[serde(skip)] debug: UnitDebug,
 }
 
@@ -181,6 +182,8 @@ impl<'config> Unit<'config> {
         self.direction = UnitDirection::Idle;
 
         self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
+        self.navigation.set_traversable_node_kinds(config.traversable_node_kinds);
+        self.navigation.set_movement_speed(config.movement_speed);
     }
 
     pub fn despawned(&mut self, query: &Query) {

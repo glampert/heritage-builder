@@ -254,8 +254,10 @@ pub struct UnitNavigation {
     progress: f32, // 0.0 to 1.0 for the current segment.
     direction: UnitDirection,
 
+    traversable_node_kinds: PathNodeKind,
+
     #[debug_ui(separator)]
-    traversable_node_kinds: PathNodeKind, // TODO: This should come from UnitConfig.
+    segment_duration: f32,
 
     #[debug_ui(skip)]
     goal: Option<UnitNavGoal>, // (origin_cell, destination_cell) may be different from path start/end.
@@ -279,12 +281,9 @@ pub struct UnitNavigation {
 }
 
 impl UnitNavigation {
-    // TODO: Make this part of UnitConfig:
-    //  config.speed = 1.5; // tiles per second
-    //  config.segment_duration = 1.0 / config.speed;
-    const SEGMENT_DURATION: f32 = 0.6;
-
     pub fn update(&mut self, graph: &Graph, mut delta_time_secs: Seconds) -> UnitNavResult {
+        debug_assert!(self.segment_duration.is_finite() && self.segment_duration != 0.0);
+
         if self.pause_current_path || self.path.is_empty() {
             // No path to follow.
             return UnitNavResult::Idle;
@@ -311,7 +310,7 @@ impl UnitNavigation {
             return UnitNavResult::PathBlocked;
         }
 
-        self.progress += delta_time_secs / Self::SEGMENT_DURATION;
+        self.progress += delta_time_secs / self.segment_duration;
 
         if self.progress >= 1.0 {
             self.path_index += 1;
@@ -387,5 +386,11 @@ impl UnitNavigation {
     pub fn set_traversable_node_kinds(&mut self, traversable_node_kinds: PathNodeKind) {
         debug_assert!(!traversable_node_kinds.is_empty());
         self.traversable_node_kinds = traversable_node_kinds;
+    }
+
+    #[inline]
+    pub fn set_movement_speed(&mut self, movement_speed: f32) {
+        debug_assert!(movement_speed.is_finite() && movement_speed != 0.0);
+        self.segment_duration = 1.0 / movement_speed;
     }
 }

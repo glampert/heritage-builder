@@ -1,6 +1,7 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
+    pathfind::{NodeKind as PathNodeKind},
     utils::hash::{
         self,
         StringHash,
@@ -31,7 +32,9 @@ pub struct UnitConfig {
     #[debug_ui(skip)]
     pub tile_def_name_hash: StringHash,
 
-    // TODO
+    // Navigation/Pathfind:
+    pub traversable_node_kinds: PathNodeKind,
+    pub movement_speed: f32, // in tiles per second.
 }
 
 impl UnitConfig {
@@ -61,25 +64,34 @@ pub struct UnitConfigs {
 impl UnitConfigs {
     pub fn load() -> Self {
         Self {
+            // TODO: make this the default fallback unit.
             ped_config: UnitConfig {
                 name: "Ped".to_string(),
                 tile_def_name: "ped".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("ped"),
+                traversable_node_kinds: PathNodeKind::default(),
+                movement_speed: 1.66,
             },
             runner_config: UnitConfig {
                 name: "Runner".to_string(),
                 tile_def_name: "runner".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("runner"),
+                traversable_node_kinds: PathNodeKind::default(),
+                movement_speed: 1.66,
             },
             patrol_config: UnitConfig {
                 name: "Patrol".to_string(),
                 tile_def_name: "patrol".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("patrol"),
+                traversable_node_kinds: PathNodeKind::default(),
+                movement_speed: 1.66,
             },
             settler_config: UnitConfig {
                 name: "Settler".to_string(),
                 tile_def_name: "settler".to_string(),
                 tile_def_name_hash: hash::fnv1a_from_str("settler"),
+                traversable_node_kinds: PathNodeKind::default(),
+                movement_speed: 1.66,
             },
         }
     }
