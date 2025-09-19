@@ -42,14 +42,13 @@ pub trait BuildingConfig {
 }
 
 #[macro_export]
-macro_rules! building_config_impl {
+macro_rules! building_config {
     ($config_struct:ident) => {
-        impl BuildingConfig for $config_struct {
-            fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-                let ui = ui_sys.builder();
-                if ui.collapsing_header("Config", imgui::TreeNodeFlags::empty()) {
-                    $config_struct::draw_debug_ui(self, ui_sys);
-                }
+        impl $crate::game::building::config::BuildingConfig for $config_struct {
+            // This requires that the config struct derives from DrawDebugUi
+            // or that it implements a draw_debug_ui_with_header() function.
+            fn draw_debug_ui(&self, ui_sys: &$crate::imgui_ui::UiSystem) {
+                self.draw_debug_ui_with_header("Config", ui_sys);
             }
         }
     };

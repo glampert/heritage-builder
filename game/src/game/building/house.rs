@@ -12,7 +12,7 @@ use serde::{
 use crate::{
     log,
     game_object_debug_options,
-    building_config_impl,
+    building_config,
     imgui_ui::UiSystem,
     save::PostLoadContext,
     engine::time::{Seconds, UpdateTimer},
@@ -107,7 +107,9 @@ pub struct HouseLevelConfig {
     pub stock_capacity: u32,
 }
 
-building_config_impl!(HouseLevelConfig);
+building_config! {
+    HouseLevelConfig
+}
 
 // ----------------------------------------------
 // HouseDebug

@@ -8,8 +8,8 @@ use serde::{
 };
 
 use crate::{
+    building_config,
     game_object_debug_options,
-    building_config_impl,
     imgui_ui::UiSystem,
     save::PostLoadContext,
     engine::time::{Seconds, UpdateTimer},
@@ -89,7 +89,9 @@ pub struct ProducerConfig {
     pub fetch_from_storage_kinds: BuildingKind,
 }
 
-building_config_impl!(ProducerConfig);
+building_config! {
+    ProducerConfig
+}
 
 // ----------------------------------------------
 // ProducerDebug

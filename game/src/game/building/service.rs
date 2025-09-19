@@ -8,7 +8,7 @@ use serde::{
 
 use crate::{
     game_object_debug_options,
-    building_config_impl,
+    building_config,
     imgui_ui::UiSystem,
     save::PostLoadContext,
     engine::time::{Seconds, UpdateTimer},
@@ -84,7 +84,9 @@ pub struct ServiceConfig {
     pub resources_required: ResourceKinds,
 }
 
-building_config_impl!(ServiceConfig);
+building_config! {
+    ServiceConfig
+}
 
 // ----------------------------------------------
 // ServiceDebug

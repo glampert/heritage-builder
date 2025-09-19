@@ -10,7 +10,7 @@ use serde::{
 
 use crate::{
     game_object_debug_options,
-    building_config_impl,
+    building_config,
     imgui_ui::UiSystem,
     save::PostLoadContext,
     tile::Tile,
@@ -68,7 +68,9 @@ pub struct StorageConfig {
     pub slot_capacity: u32,
 }
 
-building_config_impl!(StorageConfig);
+building_config! {
+    StorageConfig
+}
 
 // ----------------------------------------------
 // StorageDebug
