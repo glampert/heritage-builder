@@ -385,7 +385,7 @@ impl<'config> World<'config> {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(unit_config_key.is_valid());
 
-        let config = self.unit_configs().find_config_by_hash(unit_config_key.hash);
+        let config = self.unit_configs().find_config_by_hash(unit_config_key.hash, unit_config_key.string);
 
         // Find TileDef:
         if let Some(tile_def) = query.tile_sets().find_tile_def_by_hash(
@@ -434,7 +434,7 @@ impl<'config> World<'config> {
         // Allocate & place a Tile:
         match query.tile_map().try_place_tile(unit_origin, tile_def) {
             Ok(tile) => {
-                let config = self.unit_configs().find_config_by_hash(tile_def.hash);
+                let config = self.unit_configs().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn unit:
                 let unit = self.unit_spawn_pool.spawn(query,

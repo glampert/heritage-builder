@@ -41,7 +41,7 @@ pub mod world;
 
 struct GameAssets {
     tile_sets: TileSets,
-    unit_configs: UnitConfigs,
+    unit_configs: &'static UnitConfigs,
     building_configs: BuildingConfigs,
 }
 
@@ -94,14 +94,14 @@ impl<'game> GameSession<'game> {
             opt_save_file_to_load = Some(save_file_path);
         }
 
-        let mut world = World::new(&assets.building_configs, &assets.unit_configs);
+        let mut world = World::new(&assets.building_configs, assets.unit_configs);
         let mut tile_map = Self::create_tile_map(&mut world, assets, load_map_setting);
 
         let sim = Simulation::new(
             &tile_map,
             game_configs,
             &assets.building_configs,
-            &assets.unit_configs,
+            assets.unit_configs,
         );
 
         let mut systems = GameSystems::new();
@@ -361,7 +361,7 @@ impl<'game> GameSession<'game> {
         self.post_load(&PostLoadContext::new(
             &self.tile_map,
             &assets.tile_sets,
-            &assets.unit_configs,
+            assets.unit_configs,
             &assets.building_configs,
         ));
 

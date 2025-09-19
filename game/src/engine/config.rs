@@ -17,7 +17,11 @@ use crate::{
 pub const CONFIGS_DIR_PATH: &str = "assets/configs";
 
 pub trait Configs {
-    fn draw_debug_ui(&self, ui_sys: &UiSystem);
+    fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
+    }
+
+    fn post_load(&mut self) {
+    }
 
     // Saves current configs to file.
     fn save_file(&self, config_file_name: &str) -> bool
@@ -89,10 +93,12 @@ macro_rules! configurations {
             }
         }
         impl $configs_type {
-            pub fn load() -> &'static Self {
+            pub fn load() -> &'static $configs_type {
                 use $crate::engine::config::Configs;
                 <$configs_type>::initialize(<$configs_type>::load_file($configs_path));
-                <$configs_type>::get()
+                let instance = <$configs_type>::get_mut();
+                instance.post_load();
+                instance
             }
         }
     };

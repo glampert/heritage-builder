@@ -5,13 +5,14 @@ use crate::{
     debug,
     imgui_ui::UiSystem,
     utils::hash::{self},
-    engine::Engine,
+    engine::{Engine, config::Configs},
     game::{
         self,
         cheats,
         GameLoop,
         sim::{self, Simulation},
         config::GameConfigs,
+        unit::config::UnitConfigs
     },
     tile::{
         TileMapLayerKind,
@@ -323,7 +324,19 @@ impl DebugSettingsMenu {
             .opened(&mut self.show_game_configs)
             .position([300.0, 5.0], imgui::Condition::FirstUseEver)
             .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-            .build(|| GameConfigs::get().draw_debug_ui(ui_sys));
+            .build(|| {
+                if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
+                    if let Some(_tab) = ui.tab_item("Engine/Game") {
+                        GameConfigs::get().draw_debug_ui(ui_sys);
+                    }
+                    if let Some(_tab) = ui.tab_item("Buildings") {
+                        // TODO
+                    }
+                    if let Some(_tab) = ui.tab_item("Units") {
+                        UnitConfigs::get().draw_debug_ui(ui_sys);
+                    }
+                }
+            });
     }
 
     fn draw_world_debug_window(&mut self,

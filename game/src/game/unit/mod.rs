@@ -126,7 +126,7 @@ impl<'config> GameObject<'config> for Unit<'config> {
     fn post_load(&mut self, context: &PostLoadContext<'_, 'config>) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.config_key_hash != hash::NULL_HASH);
-        self.config = Some(context.unit_configs.find_config_by_hash(self.config_key_hash));
+        self.config = Some(context.unit_configs.find_config_by_hash(self.config_key_hash, self.name()));
     }
 
     fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {

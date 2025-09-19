@@ -1,0 +1,28 @@
+{
+  "configs": [
+    {
+      "name": "Ped",
+      "tile_def_name": "ped",
+      "traversable_node_kinds": "Road",
+      "movement_speed": 1.66
+    },
+    {
+      "name": "Patrol",
+      "tile_def_name": "patrol",
+      "traversable_node_kinds": "Road",
+      "movement_speed": 1.66
+    },
+    {
+      "name": "Runner",
+      "tile_def_name": "runner",
+      "traversable_node_kinds": "Road",
+      "movement_speed": 1.66
+    },
+    {
+      "name": "Settler",
+      "tile_def_name": "settler",
+      "traversable_node_kinds": "Dirt | Road | VacantLot | SettlersSpawnPoint",
+      "movement_speed": 1.66
+    }
+  ]
+}
