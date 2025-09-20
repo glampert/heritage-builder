@@ -122,7 +122,6 @@ impl DebugSettingsMenu {
                 context: &mut sim::debug::DebugContext,
                 sim: &mut Simulation,
                 camera: &mut Camera,
-                engine: &mut dyn Engine,
                 game_loop: &mut GameLoop) {
 
         let window_flags =
@@ -137,7 +136,7 @@ impl DebugSettingsMenu {
             .position([5.0, 5.0], imgui::Condition::FirstUseEver)
             .build(|| {
                 self.camera_dropdown(context, camera);
-                self.map_grid_dropdown(context, engine);
+                self.map_grid_dropdown(context, game_loop.engine_mut());
                 self.debug_draw_dropdown(context);
                 self.reset_map_dropdown(context, game_loop);
                 self.preset_maps_dropdown(context, game_loop);

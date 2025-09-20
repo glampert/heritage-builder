@@ -16,19 +16,19 @@ bitflags! {
     }
 }
 
-pub fn collect_files<P>(path: &P, flags: CollectFlags) -> Vec<PathBuf>
+pub fn collect_files<P>(path: &P, flags: CollectFlags, extension: Option<&str>) -> Vec<PathBuf>
     where P: AsRef<Path> + std::fmt::Debug
 {
-    collect_dir_entries(path, flags | CollectFlags::Files)
+    collect_dir_entries(path, flags | CollectFlags::Files, extension)
 }
 
 pub fn collect_sub_dirs<P>(path: &P, flags: CollectFlags) -> Vec<PathBuf>
     where P: AsRef<Path> + std::fmt::Debug
 {
-    collect_dir_entries(path, flags | CollectFlags::SubDirs)
+    collect_dir_entries(path, flags | CollectFlags::SubDirs, None)
 }
 
-pub fn collect_dir_entries<P>(path: &P, flags: CollectFlags) -> Vec<PathBuf>
+pub fn collect_dir_entries<P>(path: &P, flags: CollectFlags, extension: Option<&str>) -> Vec<PathBuf>
     where P: AsRef<Path> + std::fmt::Debug
 {
     let mut result = Vec::new();
@@ -50,7 +50,17 @@ pub fn collect_dir_entries<P>(path: &P, flags: CollectFlags) -> Vec<PathBuf>
                 if path.is_file() && flags.intersects(CollectFlags::Files) {
                     if flags.intersects(CollectFlags::FilenamesOnly) {
                         let filename = path.file_name().unwrap();
-                        result.push(filename.into());
+                        if let Some(extension) = extension {
+                            if path.extension().is_some_and(|ext| ext == extension) {
+                                result.push(filename.into());
+                            }
+                        } else {
+                            result.push(filename.into());
+                        }
+                    } else if let Some(extension) = extension {
+                        if path.extension().is_some_and(|ext| ext == extension) {
+                            result.push(path);
+                        }
                     } else {
                         result.push(path);
                     }

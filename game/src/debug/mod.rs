@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::{
     log,
     singleton_late_init,
-    engine::{Engine, time::Seconds},
+    engine::time::Seconds,
     render::TextureCache,
     imgui_ui::{UiSystem, UiInputEvent},
     save::{Save, Load, PostLoadContext},
@@ -121,8 +121,8 @@ impl DebugMenusSystem {
         DebugMenusSingleton::get_mut().begin_frame(args)
     }
 
-    pub fn end_frame(&mut self, args: &mut DebugMenusFrameArgs, engine: &mut dyn Engine, game_loop: &mut GameLoop) {
-        DebugMenusSingleton::get_mut().end_frame(args, engine, game_loop);
+    pub fn end_frame(&mut self, args: &mut DebugMenusFrameArgs, game_loop: &mut GameLoop) {
+        DebugMenusSingleton::get_mut().end_frame(args, game_loop);
     }
 }
 
@@ -357,7 +357,7 @@ impl DebugMenusSingleton {
         self.debug_settings_menu.selected_render_flags()
     }
 
-    fn end_frame(&mut self, args: &mut DebugMenusFrameArgs, engine: &mut dyn Engine, game_loop: &mut GameLoop) {
+    fn end_frame(&mut self, args: &mut DebugMenusFrameArgs, game_loop: &mut GameLoop) {
         let has_valid_placement = args.tile_selection.has_valid_placement();
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
@@ -366,8 +366,8 @@ impl DebugMenusSingleton {
         let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
 
         if *show_log_viewer_window {
-            engine.log_viewer().show(true);
-            *show_log_viewer_window = engine.log_viewer().draw(args.ui_sys);
+            game_loop.engine().log_viewer().show(true);
+            *show_log_viewer_window = game_loop.engine().log_viewer().draw(args.ui_sys);
         }
 
         let mut context = sim::debug::DebugContext {
@@ -381,7 +381,7 @@ impl DebugMenusSingleton {
 
         self.tile_palette_menu.draw(
             &mut context,
-            engine.debug_draw(),
+            game_loop.engine_mut().debug_draw(),
             args.cursor_screen_pos,
             has_valid_placement,
             show_selection_bounds);
@@ -394,7 +394,6 @@ impl DebugMenusSingleton {
             &mut context,
             args.sim,
             args.camera,
-            engine,
             game_loop);
 
         if show_popup_messages() {
@@ -413,11 +412,12 @@ impl DebugMenusSingleton {
         }
 
         if show_render_stats {
+            let engine = game_loop.engine();
             utils::draw_render_stats(args.ui_sys, &engine.render_stats(), &engine.tile_map_render_stats());
         }
 
         if show_screen_origin {
-            utils::draw_screen_origin_marker(engine.debug_draw());
+            utils::draw_screen_origin_marker(game_loop.engine_mut().debug_draw());
         }
     }
 }

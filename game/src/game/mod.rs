@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    singleton_late_init,
     imgui_ui::UiInputEvent,
     app::{ApplicationEvent, input::{InputAction, InputKey, InputModifiers, MouseButton}},
     debug::{self, DebugMenusFrameArgs, DebugMenusInputArgs, DebugMenusSystem},
@@ -57,11 +58,7 @@ struct GameSession {
 }
 
 impl GameSession {
-    fn new(
-        tex_cache: &mut dyn TextureCache,
-        load_map_setting: &LoadMapSetting,
-        viewport_size: Size,
-    ) -> Self {
+    fn new(tex_cache: &mut dyn TextureCache, load_map_setting: &LoadMapSetting, viewport_size: Size) -> Self {
         if !viewport_size.is_valid() {
             panic!("Invalid game viewport size!");
         }
@@ -75,7 +72,6 @@ impl GameSession {
 
         let mut world = World::new();
         let mut tile_map = Self::create_tile_map(&mut world, load_map_setting);
-
         let sim = Simulation::new(&tile_map);
 
         let mut systems = GameSystems::new();
@@ -152,11 +148,7 @@ impl GameSession {
         Box::new(tile_map)
     }
 
-    fn load_preset_map(
-        preset_number: usize,
-        tex_cache: &mut dyn TextureCache,
-        viewport_size: Size,
-    ) -> Self {
+    fn load_preset_map(preset_number: usize, tex_cache: &mut dyn TextureCache, viewport_size: Size) -> Self {
         // Override GameConfigs.load_map_setting
         let load_map_setting = LoadMapSetting::Preset { preset_number };
         Self::new(tex_cache, &load_map_setting, viewport_size)
@@ -357,7 +349,7 @@ impl GameLoop {
     // Public API:
     // ----------------------
 
-    pub fn new() -> Self {
+    pub fn new() -> &'static mut Self {
         let configs = GameConfigs::load();
 
         // Boot the engine and load assets:
@@ -369,21 +361,23 @@ impl GameLoop {
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
 
-        Self {
+        let instance = Self {
             engine,
             session: None,
             session_cmd_queue: VecDeque::new(),
             autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
             enable_autosave: configs.save.enable_autosave,
-        }
+        };
+
+        GameLoop::initialize(instance); // Set global instance.
+        GameLoop::get_mut()
     }
 
     pub fn create_session(&mut self) {
-        let game_loop = self.mut_ref();
-        debug_assert!(game_loop.session.is_none());
+        debug_assert!(self.session.is_none());
 
-        let viewport_size = game_loop.engine.viewport().size();
-        let tex_cache = game_loop.engine.texture_cache_mut();
+        let viewport_size = self.engine.viewport().size();
+        let tex_cache = self.engine.texture_cache_mut();
 
         let new_session = GameSession::new(
             tex_cache,
@@ -391,13 +385,13 @@ impl GameLoop {
             viewport_size
         );
 
-        game_loop.session = Some(Box::new(new_session));
+        self.session = Some(Box::new(new_session));
         log::info!(log::channel!("game"), "Game Session created.");
     }
 
     pub fn terminate_session(&mut self) {
-        if self.session.is_some() {
-            self.session().reset(false, None);
+        if let Some(session) = &mut self.session {
+            session.reset(false, None);
         }
         self.session = None;
         log::info!(log::channel!("game"), "Game Session destroyed.");
@@ -439,7 +433,10 @@ impl GameLoop {
 
     #[inline]
     pub fn save_files_list(&self) -> Vec<PathBuf> {
-        file_sys::collect_files(&SAVE_GAMES_DIR_PATH, file_sys::CollectFlags::FilenamesOnly)
+        file_sys::collect_files(
+            &SAVE_GAMES_DIR_PATH,
+            file_sys::CollectFlags::FilenamesOnly,
+            Some("json"))
     }
 
     #[inline]
@@ -453,6 +450,16 @@ impl GameLoop {
     }
 
     #[inline]
+    pub fn engine(&self) -> &dyn Engine {
+        self.engine.as_ref()
+    }
+
+    #[inline]
+    pub fn engine_mut(&mut self) -> &mut dyn Engine {
+        self.engine.as_mut()
+    }
+
+    #[inline]
     pub fn is_running(&self) -> bool {
         self.session.is_some() && self.engine.is_running()
     }
@@ -461,16 +468,15 @@ impl GameLoop {
         self.update_autosave();
         self.process_session_commands();
 
-        let engine = self.engine();
-        let (delta_time_secs, cursor_screen_pos) = engine.begin_frame();
+        let (delta_time_secs, cursor_screen_pos) = self.engine.begin_frame();
 
         // Input Events:
-        for event in engine.app_events() {
-            self.handle_event(*event, cursor_screen_pos);
+        for event in self.engine.app_events().clone() {
+            self.handle_event(event, cursor_screen_pos);
         }
 
         // Game Logic:
-        let update_map_scrolling = !engine.ui_system().is_handling_mouse_input();
+        let update_map_scrolling = !self.engine.ui_system().is_handling_mouse_input();
         let visible_range =
             self.update_simulation(update_map_scrolling, cursor_screen_pos, delta_time_secs);
 
@@ -482,30 +488,12 @@ impl GameLoop {
 
         self.debug_menus_end_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
-        engine.end_frame();
+        self.engine.end_frame();
     }
 
     // ----------------------
     // Internal:
     // ----------------------
-
-    // TODO: Review if we still need this after making GameLoop a singleton!
-    #[inline]
-    fn mut_ref(&self) -> &mut GameLoop {
-        mem::mut_ref_cast(self)
-    }
-
-    #[inline]
-    fn session(&self) -> &mut GameSession {
-        let session_box = self.session.as_ref().unwrap();
-        mem::mut_ref_cast(session_box.as_ref())
-    }
-
-    #[inline]
-    fn engine(&self) -> &mut dyn Engine {
-        let engine_box = &self.engine;
-        mem::mut_ref_cast(engine_box.as_ref())
-    }
 
     fn init_engine(engine_configs: &EngineConfigs) -> Box<dyn Engine> {
         log::info!(log::channel!("game"), "Init Engine: GLFW + OpenGL");
@@ -525,16 +513,16 @@ impl GameLoop {
         log::info!(log::channel!("game"), "TileSets loaded.");
     }
 
-    fn handle_event(&self, event: ApplicationEvent, cursor_screen_pos: Vec2) {
+    fn handle_event(&mut self, event: ApplicationEvent, cursor_screen_pos: Vec2) {
         match event {
             ApplicationEvent::WindowResize(window_size) => {
-                self.session().camera.set_viewport_size(window_size);
+                self.session.as_mut().unwrap().camera.set_viewport_size(window_size);
             }
             ApplicationEvent::KeyInput(key, action, _modifiers) => {
                 self.debug_menus_key_input(key, action, cursor_screen_pos);
             }
             ApplicationEvent::Scroll(amount) => {
-                let session = self.session();
+                let session = self.session.as_mut().unwrap();
                 if amount.y < 0.0 {
                     session.camera.request_zoom(CameraZoom::In);
                 } else if amount.y > 0.0 {
@@ -548,13 +536,8 @@ impl GameLoop {
         }
     }
 
-    fn update_simulation(
-        &self,
-        update_map_scrolling: bool,
-        cursor_screen_pos: Vec2,
-        delta_time_secs: Seconds,
-    ) -> CellRange {
-        let session = self.session();
+    fn update_simulation(&mut self, update_map_scrolling: bool, cursor_screen_pos: Vec2, delta_time_secs: Seconds) -> CellRange {
+        let session = self.session.as_mut().unwrap();
 
         session.camera.update_zooming(delta_time_secs);
 
@@ -576,9 +559,9 @@ impl GameLoop {
         visible_range
     }
 
-    fn draw_tile_map(&self, visible_range: CellRange, flags: TileMapRenderFlags) {
-        let session = self.session();
-        self.engine().draw_tile_map(
+    fn draw_tile_map(&mut self, visible_range: CellRange, flags: TileMapRenderFlags) {
+        let session = self.session.as_ref().unwrap();
+        self.engine.draw_tile_map(
             &session.tile_map,
             &session.tile_selection,
             session.camera.transform(),
@@ -592,7 +575,7 @@ impl GameLoop {
             return;
         }
 
-        let delta_time_secs = self.engine().frame_clock().delta_time();
+        let delta_time_secs = self.engine.frame_clock().delta_time();
 
         if self.autosave_timer.tick(delta_time_secs).should_update() {
             self.save_game(AUTOSAVE_FILE_NAME);
@@ -623,16 +606,15 @@ impl GameLoop {
     }
 
     fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'static TileDef>) {
-        self.session().reset(true, reset_map_with_tile_def);
+        self.session.as_mut().unwrap().reset(true, reset_map_with_tile_def);
         log::info!(log::channel!("game"), "Game Session reset.");
     }
 
     fn session_cmd_load_preset(&mut self, preset_number: usize) {
-        let game_loop = self.mut_ref();
-        game_loop.terminate_session();
+        self.terminate_session();
 
-        let viewport_size = game_loop.engine.viewport().size();
-        let tex_cache = game_loop.engine.texture_cache_mut();
+        let viewport_size = self.engine.viewport().size();
+        let tex_cache = self.engine.texture_cache_mut();
 
         let new_session = GameSession::load_preset_map(
             preset_number,
@@ -640,18 +622,18 @@ impl GameLoop {
             viewport_size
         );
 
-        game_loop.session = Some(Box::new(new_session));
+        self.session = Some(Box::new(new_session));
         log::info!(log::channel!("game"), "Game Session created.");
     }
 
     fn session_cmd_load_save_game(&mut self, save_file_path: String) {
         debug_assert!(!save_file_path.is_empty());
-        self.session().load_save_game(&save_file_path);
+        self.session.as_mut().unwrap().load_save_game(&save_file_path);
     }
 
     fn session_cmd_save_game(&mut self, save_file_path: String) {
         debug_assert!(!save_file_path.is_empty());
-        self.session().save_game(&save_file_path);
+        self.session.as_mut().unwrap().save_game(&save_file_path);
     }
 
     // ----------------------
@@ -659,80 +641,84 @@ impl GameLoop {
     // ----------------------
 
     fn debug_menus_begin_frame(
-        &self,
+        &mut self,
         visible_range: CellRange,
         cursor_screen_pos: Vec2,
         delta_time_secs: Seconds,
     ) -> TileMapRenderFlags {
-        let mut args =
-            self.new_debug_menus_frame_args(visible_range, cursor_screen_pos, delta_time_secs);
-        self.session().debug_menus.begin_frame(&mut args)
-    }
-
-    fn debug_menus_end_frame(
-        &self,
-        visible_range: CellRange,
-        cursor_screen_pos: Vec2,
-        delta_time_secs: Seconds,
-    ) {
-        let mut args =
-            self.new_debug_menus_frame_args(visible_range, cursor_screen_pos, delta_time_secs);
-        self.session().debug_menus.end_frame(&mut args, self.engine(), self.mut_ref());
-    }
-
-    fn debug_menus_key_input(
-        &self,
-        key: InputKey,
-        action: InputAction,
-        cursor_screen_pos: Vec2,
-    ) -> UiInputEvent {
-        let mut args = self.new_debug_menus_input_args(cursor_screen_pos);
-        self.session().debug_menus.on_key_input(&mut args, key, action)
-    }
-
-    fn debug_menus_mouse_click(
-        &self,
-        button: MouseButton,
-        action: InputAction,
-        modifiers: InputModifiers,
-        cursor_screen_pos: Vec2,
-    ) -> UiInputEvent {
-        let mut args = self.new_debug_menus_input_args(cursor_screen_pos);
-        self.session().debug_menus.on_mouse_click(&mut args, button, action, modifiers)
-    }
-
-    fn new_debug_menus_input_args(
-        &self,
-        cursor_screen_pos: Vec2,
-    ) -> DebugMenusInputArgs {
-        let session = self.session();
-        DebugMenusInputArgs {
-            tile_map: &mut session.tile_map,
-            tile_selection: &mut session.tile_selection,
-            world: &mut session.world,
-            transform: session.camera.transform(),
-            cursor_screen_pos,
-        }
-    }
-
-    fn new_debug_menus_frame_args(
-        &self,
-        visible_range: CellRange,
-        cursor_screen_pos: Vec2,
-        delta_time_secs: Seconds,
-    ) -> DebugMenusFrameArgs {
-        let session = self.session();
-        DebugMenusFrameArgs {
+        let session = self.session.as_mut().unwrap();
+        session.debug_menus.begin_frame(&mut DebugMenusFrameArgs {
             tile_map: &mut session.tile_map,
             tile_selection: &mut session.tile_selection,
             sim: &mut session.sim,
             world: &mut session.world,
             systems: &mut session.systems,
-            ui_sys: self.engine().ui_system(),
+            ui_sys: self.engine.ui_system(),
             camera: &mut session.camera,
             visible_range,
             cursor_screen_pos,
             delta_time_secs,
-        }
+        })
+    }
+
+    fn debug_menus_end_frame(
+        &mut self,
+        visible_range: CellRange,
+        cursor_screen_pos: Vec2,
+        delta_time_secs: Seconds,
+    ) {
+        let mut game_loop = mem::RawPtr::from_ref(self);
+        let session = self.session.as_mut().unwrap();
+        session.debug_menus.end_frame(&mut DebugMenusFrameArgs {
+            tile_map: &mut session.tile_map,
+            tile_selection: &mut session.tile_selection,
+            sim: &mut session.sim,
+            world: &mut session.world,
+            systems: &mut session.systems,
+            ui_sys: self.engine.ui_system(),
+            camera: &mut session.camera,
+            visible_range,
+            cursor_screen_pos,
+            delta_time_secs,
+        }, game_loop.as_mut());
+    }
+
+    fn debug_menus_key_input(
+        &mut self,
+        key: InputKey,
+        action: InputAction,
+        cursor_screen_pos: Vec2,
+    ) -> UiInputEvent {
+        let session = self.session.as_mut().unwrap();
+        session.debug_menus.on_key_input(&mut DebugMenusInputArgs {
+            tile_map: &mut session.tile_map,
+            tile_selection: &mut session.tile_selection,
+            world: &mut session.world,
+            transform: session.camera.transform(),
+            cursor_screen_pos,
+        }, key, action)
+    }
+
+    fn debug_menus_mouse_click(
+        &mut self,
+        button: MouseButton,
+        action: InputAction,
+        modifiers: InputModifiers,
+        cursor_screen_pos: Vec2,
+    ) -> UiInputEvent {
+        let session = self.session.as_mut().unwrap();
+        session.debug_menus.on_mouse_click(&mut DebugMenusInputArgs {
+            tile_map: &mut session.tile_map,
+            tile_selection: &mut session.tile_selection,
+            world: &mut session.world,
+            transform: session.camera.transform(),
+            cursor_screen_pos,
+        }, button, action, modifiers)
     }
 }
+
+// ----------------------------------------------
+// GameLoop Global Singleton
+// ----------------------------------------------
+
+singleton_late_init! { GAME_LOOP_SINGLETON, GameLoop }

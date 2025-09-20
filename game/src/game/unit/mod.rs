@@ -128,7 +128,7 @@ impl GameObject for Unit {
         debug_assert!(self.config_key_hash != hash::NULL_HASH);
 
         let configs = UnitConfigs::get();
-        let config = configs.find_config_by_hash(self.config_key_hash, self.name());
+        let config = configs.find_config_by_hash(self.config_key_hash, "<unit>");
 
         self.config = Some(config);
     }
