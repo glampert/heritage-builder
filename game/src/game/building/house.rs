@@ -19,7 +19,7 @@ use crate::{
     pathfind::{NodeKind as PathNodeKind},
     utils::{
         Color,
-        hash::{StrHashPair, StringHash},
+        hash::{self, StrHashPair, StringHash},
     },
     tile::{
         Tile,
@@ -73,21 +73,62 @@ use super::{
 // - Buildings that require workers should run slower if they are below max workers.
 
 // ----------------------------------------------
-// HouseConfig & HouseLevelConfig
+// HouseConfig
 // ----------------------------------------------
 
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)] // Default all fields.
 pub struct HouseConfig {
+    #[serde(skip)] // BuildingKind::House implied.
+    pub kind: BuildingKind,
+
+    pub name: String,
+    pub tile_def_name: String,
+
+    #[debug_ui(skip)]
+    #[serde(skip)] // Not serialized. Computed on post_load.
+    pub tile_def_name_hash: StringHash,
+
+    // General configuration parameters for all house buildings & levels.
     pub population_update_frequency_secs: Seconds,
     pub stock_update_frequency_secs: Seconds,
     pub upgrade_update_frequency_secs: Seconds,
 }
 
-#[derive(DrawDebugUi)]
+impl Default for HouseConfig {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            kind: BuildingKind::House,
+            name: "House".into(),
+            tile_def_name: "house".into(),
+            tile_def_name_hash: hash::fnv1a_from_str("house"),
+            population_update_frequency_secs: 60.0,
+            stock_update_frequency_secs: 60.0,
+            upgrade_update_frequency_secs: 10.0,
+        }
+    }
+}
+
+building_config! {
+    HouseConfig
+}
+
+// ----------------------------------------------
+// HouseLevelConfig
+// ----------------------------------------------
+
+#[derive(DrawDebugUi, Serialize, Deserialize)]
 pub struct HouseLevelConfig {
+    #[serde(skip)] // BuildingKind::House implied.
+    pub kind: BuildingKind,
+    pub level: HouseLevel,
+
     pub name: String,
     pub tile_def_name: String,
 
     #[debug_ui(skip)]
+    #[serde(skip)] // Not serialized. Computed on post_load.
     pub tile_def_name_hash: StringHash,
 
     pub max_population: u32,
@@ -100,11 +141,35 @@ pub struct HouseLevelConfig {
     pub population_increase_chance: u32,
 
     // Types of services provided by these kinds of buildings for the house level to be obtained and maintained.
+    #[serde(default)]
     pub services_required: ServiceKinds,
 
     // Kinds of resources required for the house level to be obtained and maintained.
+    #[serde(default)]
     pub resources_required: ResourceKinds,
+
+    #[serde(default)]
     pub stock_capacity: u32,
+}
+
+impl Default for HouseLevelConfig {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            kind: BuildingKind::House,
+            level: HouseLevel::Level0,
+            name: "House Level 0".into(),
+            tile_def_name: "house0".into(),
+            tile_def_name_hash: hash::fnv1a_from_str("house0"),
+            max_population: 2,
+            tax_generated: 0,
+            worker_percentage: 100,
+            population_increase_chance: 80,
+            services_required: ServiceKinds::none(),
+            resources_required: ResourceKinds::none(),
+            stock_capacity: 5,
+        }
+    }
 }
 
 building_config! {

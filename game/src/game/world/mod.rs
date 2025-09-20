@@ -25,7 +25,6 @@ use crate::{
         constants::*,
         sim::{Query, debug::DebugUiMode},
         building::{
-            self,
             Building,
             BuildingId,
             BuildingKind,
@@ -157,7 +156,7 @@ impl<'config> World<'config> {
         match query.tile_map().try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
                 // Instantiate new Building:
-                match building::config::instantiate(tile, self.building_configs()) {
+                match self.building_configs().new_building_archetype_for_tile_def(tile_def) {
                     Ok((building_kind, building_archetype)) => {
                         let archetype_kind = building_archetype.discriminant();
                         let buildings = self.buildings_pool_mut(archetype_kind);

@@ -12,7 +12,8 @@ use crate::{
         GameLoop,
         sim::{self, Simulation},
         config::GameConfigs,
-        unit::config::UnitConfigs
+        unit::config::UnitConfigs,
+        building::config::BuildingConfigs
     },
     tile::{
         TileMapLayerKind,
@@ -330,7 +331,7 @@ impl DebugSettingsMenu {
                         GameConfigs::get().draw_debug_ui(ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Buildings") {
-                        // TODO
+                        BuildingConfigs::get().draw_debug_ui(ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Units") {
                         UnitConfigs::get().draw_debug_ui(ui_sys);

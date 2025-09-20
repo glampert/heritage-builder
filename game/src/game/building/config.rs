@@ -1,18 +1,19 @@
+use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
+
 use crate::{
-    tile::Tile,
+    log,
+    configurations,
+    tile::sets::TileDef,
     imgui_ui::UiSystem,
-    utils::hash::{self, StringHash},
-    game::sim::resources::{
-        ResourceKind,
-        ResourceKinds,
-        ServiceKind,
-        ServiceKinds
-    }
+    utils::hash::{self, StringHash, PreHashedKeyMap},
+    game::sim::resources::ServiceKind
 };
 
 use super::{
     BuildingKind,
     BuildingArchetype,
+    BuildingArchetypeKind,
     house::{
         HouseLevel,
         HouseConfig,
@@ -38,6 +39,9 @@ use super::{
 // ----------------------------------------------
 
 pub trait BuildingConfig {
+    fn building_kind(&self) -> BuildingKind;
+    fn archetype_kind(&self) -> BuildingArchetypeKind;
+    fn post_load(&mut self, index: usize) -> bool;
     fn draw_debug_ui(&self, ui_sys: &UiSystem);
 }
 
@@ -45,8 +49,41 @@ pub trait BuildingConfig {
 macro_rules! building_config {
     ($config_struct:ident) => {
         impl $crate::game::building::config::BuildingConfig for $config_struct {
+            #[inline]
+            fn building_kind(&self) -> $crate::game::building::BuildingKind {
+                self.kind
+            }
+
+            #[inline]
+            fn archetype_kind(&self) -> $crate::game::building::BuildingArchetypeKind {
+                self.kind.archetype_kind()
+            }
+
+            fn post_load(&mut self, index: usize) -> bool {
+                use $crate::log;
+                use $crate::utils::hash;
+
+                // Must have a building name.
+                if self.name.is_empty() {
+                    log::error!(log::channel!("config"), "{} [{index}]: Invalid empty name!",
+                                stringify!($config_struct));
+                    return false;
+                }
+
+                // Must have a tile def name.
+                if self.tile_def_name.is_empty() {
+                    log::error!(log::channel!("config"), "{} '{}': Invalid empty TileDef name! Index: [{index}]",
+                                stringify!($config_struct), self.name);
+                    return false;
+                }
+
+                self.tile_def_name_hash = hash::fnv1a_from_str(&self.tile_def_name);
+                debug_assert!(self.tile_def_name_hash != hash::NULL_HASH);
+                true
+            }
+
             // This requires that the config struct derives from DrawDebugUi
-            // or that it implements a draw_debug_ui_with_header() function.
+            // or that it provides a draw_debug_ui_with_header() function.
             fn draw_debug_ui(&self, ui_sys: &$crate::imgui_ui::UiSystem) {
                 self.draw_debug_ui_with_header("Config", ui_sys);
             }
@@ -55,275 +92,330 @@ macro_rules! building_config {
 }
 
 // ----------------------------------------------
+// BuildingConfigEntry
+// ----------------------------------------------
+
+struct BuildingConfigEntry {
+    archetype_kind: BuildingArchetypeKind,
+    index: usize,
+}
+
+impl BuildingConfigEntry {
+    fn instantiate_archetype<'config>(&'config self, configs: &'config BuildingConfigs)
+                                      -> (BuildingKind, BuildingArchetype<'config>) {
+
+        match self.archetype_kind {
+            BuildingArchetypeKind::ProducerBuilding => {
+                let producer_config = &configs.producer_configs[self.index];
+                debug_assert!(producer_config.kind.intersects(BuildingKind::producers()));
+                (producer_config.kind, BuildingArchetype::from(ProducerBuilding::new(producer_config)))
+            },
+            BuildingArchetypeKind::StorageBuilding => {
+                let storage_config = &configs.storage_configs[self.index];
+                debug_assert!(storage_config.kind.intersects(BuildingKind::storage()));
+                (storage_config.kind, BuildingArchetype::from(StorageBuilding::new(storage_config)))
+            },
+            BuildingArchetypeKind::ServiceBuilding => {
+                let service_config = &configs.service_configs[self.index];
+                debug_assert!(service_config.kind.intersects(BuildingKind::services()));
+                (service_config.kind, BuildingArchetype::from(ServiceBuilding::new(service_config)))
+            },
+            BuildingArchetypeKind::HouseBuilding => {
+                let house_config = &configs.house_config;
+                let house_level_config = &configs.house_levels[self.index];
+                (BuildingKind::House, BuildingArchetype::from(HouseBuilding::new(house_level_config.level, house_config, configs)))
+            },
+        }
+    }
+}
+
+// ----------------------------------------------
 // BuildingConfigs
 // ----------------------------------------------
 
+#[derive(Default, Serialize, Deserialize)]
 pub struct BuildingConfigs {
-    // TODO: Temporary
-    house_cfg: HouseConfig,
-    house0: HouseLevelConfig,
-    house1: HouseLevelConfig,
-    house2: HouseLevelConfig,
-    house3: HouseLevelConfig,
-    service_well_small: ServiceConfig,
-    service_well_big: ServiceConfig,
-    service_market: ServiceConfig,
-    producer_rice_farm: ProducerConfig,
-    producer_livestock_farm: ProducerConfig,
-    producer_distillery: ProducerConfig,
-    storage_yard: StorageConfig,
-    storage_granary: StorageConfig,
+    // Serialized data:
+    house_config: HouseConfig,
+    house_levels: Vec<HouseLevelConfig>, // [HouseLevel::COUNT]
+
+    producer_configs: Vec<ProducerConfig>,
+    service_configs:  Vec<ServiceConfig>,
+    storage_configs:  Vec<StorageConfig>,
+
+    // Runtime lookup:
+    #[serde(skip)]
+    tile_def_mapping: PreHashedKeyMap<StringHash, BuildingConfigEntry>, // tile_def.name => (kind, index)
+
+    #[serde(skip)]
+    service_mapping: HashMap<ServiceKind, usize>,  // ServiceKind  => service_configs[index]
+
+    #[serde(skip)]
+    storage_mapping: HashMap<BuildingKind, usize>, // BuildingKind => storage_configs[index]
+
+    // Default fallback configs:
+    #[serde(skip)]
+    default_house_level_config: HouseLevelConfig,
+
+    #[serde(skip)]
+    default_producer_config: ProducerConfig,
+
+    #[serde(skip)]
+    default_service_config: ServiceConfig,
+
+    #[serde(skip)]
+    default_storage_config: StorageConfig,
 }
 
 impl BuildingConfigs {
-    // TODO: Load from config file.
-    pub fn load() -> Self {
-        Self {
-            house_cfg: HouseConfig {
-                // General configuration parameters for all house buildings & levels.
-                population_update_frequency_secs: 60.0,
-                stock_update_frequency_secs: 60.0,
-                upgrade_update_frequency_secs: 10.0,
+    pub fn find_house_config(&self) -> &HouseConfig {
+        &self.house_config
+    }
+
+    pub fn find_house_level_config(&self, level: HouseLevel) -> &HouseLevelConfig {
+        let index = level as usize;
+
+        if index < self.house_levels.len() {
+            let config = &self.house_levels[index];
+            debug_assert!(config.kind == BuildingKind::House);
+            return config;
+        }
+
+        log::error!(log::channel!("config"), "Can't find HouseLevelConfig for level {level}!");
+        &self.default_house_level_config
+    }
+
+    pub fn find_producer_config(&self, kind: BuildingKind, tile_def_name_hash: StringHash, tile_def_name: &str) -> &ProducerConfig {
+        debug_assert!(kind.is_single_building());
+        debug_assert!(tile_def_name_hash != hash::NULL_HASH);
+
+        match self.tile_def_mapping.get(&tile_def_name_hash) {
+            Some(entry) => {
+                debug_assert!(entry.archetype_kind == BuildingArchetypeKind::ProducerBuilding);
+                if entry.archetype_kind == kind.archetype_kind() {
+                    let config = &self.producer_configs[entry.index];
+                    debug_assert!(config.kind.is_single_building() && config.kind.intersects(BuildingKind::producers()));
+                    if config.kind == kind {
+                        return config;
+                    }
+                }
+                log::error!(log::channel!("config"), "Invalid ProducerConfig kind ({kind}) for '{tile_def_name}'.");
+                &self.default_producer_config
             },
-            house0: HouseLevelConfig {
-                name: "House Level 0".to_string(),
-                tile_def_name: "house0".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("house0"),
-                max_population: 2,
-                tax_generated: 0,
-                worker_percentage: 100,
-                population_increase_chance: 80,
-                services_required: ServiceKinds::none(),
-                resources_required: ResourceKinds::none(),
-                stock_capacity: 5,
+            None => {
+                log::error!(log::channel!("config"), "Can't find ProducerConfig for {kind} | '{tile_def_name}'.");
+                &self.default_producer_config
             },
-            house1: HouseLevelConfig {
-                name: "House Level 1".to_string(),
-                tile_def_name: "house1".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("house1"),
-                max_population: 8,
-                tax_generated: 1,
-                worker_percentage: 75,
-                population_increase_chance: 70,
-                // Any water source (small well OR big well) AND a market.
-                services_required: ServiceKinds::with_slice(&[BuildingKind::WellSmall | BuildingKind::WellBig, BuildingKind::Market]),
-                // Any 1 kind of food.
-                resources_required: ResourceKinds::with_slice(&[ResourceKind::foods()]),
-                stock_capacity: 10,
+        }
+    }
+
+    pub fn find_service_config(&self, kind: ServiceKind) -> &ServiceConfig {
+        debug_assert!(kind.is_single_building());
+
+        match self.service_mapping.get(&kind) {
+            Some(index) => {
+                let config = &self.service_configs[*index];
+                debug_assert!(config.kind.is_single_building() && config.kind == kind);
+                config
             },
-            house2: HouseLevelConfig {
-                name: "House Level 2".to_string(),
-                tile_def_name: "house2".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("house2"),
-                max_population: 12,
-                tax_generated: 2,
-                worker_percentage: 50,
-                population_increase_chance: 60,
-                services_required: ServiceKinds::with_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
-                // 2 kinds of food required: Rice AND Meat OR Fish.
-                resources_required: ResourceKinds::with_slice(&[ResourceKind::Rice, ResourceKind::Meat | ResourceKind::Fish]),
-                stock_capacity: 15,
+            None => {
+                log::error!(log::channel!("config"), "Can't find ServiceConfig for {kind}!");
+                &self.default_service_config
             },
-            house3: HouseLevelConfig {
-                name: "House Level 3".to_string(),
-                tile_def_name: "house3".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("house3"),
-                max_population: 20,
-                tax_generated: 3,
-                worker_percentage: 50,
-                population_increase_chance: 50,
-                services_required: ServiceKinds::with_slice(&[BuildingKind::WellBig, BuildingKind::Market]),
-                // 2 kinds of food required: Rice AND Meat OR Fish.
-                resources_required: ResourceKinds::with_slice(&[ResourceKind::Rice, ResourceKind::Meat | ResourceKind::Fish, ResourceKind::Wine]),
-                stock_capacity: 15,
+        }
+    }
+
+    pub fn find_storage_config(&self, kind: BuildingKind) -> &StorageConfig {
+        debug_assert!(kind.is_single_building());
+
+        match self.storage_mapping.get(&kind) {
+            Some(index) => {
+                let config = &self.storage_configs[*index];
+                debug_assert!(config.kind.is_single_building() && config.kind == kind);
+                config
             },
-            service_well_small: ServiceConfig {
-                name: "Well Small".to_string(),
-                tile_def_name: "well_small".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("well_small"),
-                min_workers: 0,
-                max_workers: 0,
-                effect_radius: 5,
-                requires_road_access: false,
-                has_patrol_unit: false,
-                patrol_frequency_secs: 0.0,
-                stock_update_frequency_secs: 0.0,
-                stock_capacity: 0,
-                resources_required: ResourceKinds::none(),
+            None => {
+                log::error!(log::channel!("config"), "Can't find StorageConfig for {kind}!");
+                &self.default_storage_config
             },
-            service_well_big: ServiceConfig {
-                name: "Well Big".to_string(),
-                tile_def_name: "well_big".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("well_big"),
-                min_workers: 1,
-                max_workers: 2,
-                effect_radius: 10,
-                requires_road_access: true,
-                has_patrol_unit: false,
-                patrol_frequency_secs: 0.0,
-                stock_update_frequency_secs: 0.0,
-                stock_capacity: 0,
-                resources_required: ResourceKinds::none(),
+        }
+    }
+
+    pub fn new_building_archetype_for_tile_def<'config>(&'config self, tile_def: &TileDef) 
+                                                        -> Result<(BuildingKind, BuildingArchetype<'config>), String> {
+        debug_assert!(tile_def.hash != hash::NULL_HASH);
+
+        match self.tile_def_mapping.get(&tile_def.hash) {
+            Some(entry) => {
+                Ok(entry.instantiate_archetype(self))
             },
-            service_market: ServiceConfig {
-                name: "Market".to_string(),
-                tile_def_name: "market".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("market"),
-                min_workers: 1,
-                max_workers: 2,
-                effect_radius: 40,
-                requires_road_access: true,
-                has_patrol_unit: true,
-                patrol_frequency_secs: 10.0,
-                stock_update_frequency_secs: 20.0,
-                stock_capacity: 10,
-                resources_required: ResourceKinds::with_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
-            },
-            producer_rice_farm: ProducerConfig {
-                name: "Rice Farm".to_string(),
-                tile_def_name: "rice_farm".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
-                min_workers: 2,
-                max_workers: 4,
-                production_output_frequency_secs: 20.0,
-                production_output: ResourceKind::Rice,
-                production_capacity: 5,
-                resources_required: ResourceKinds::none(),
-                resources_capacity: 0,
-                deliver_to_storage_kinds: BuildingKind::Granary,
-                fetch_from_storage_kinds: BuildingKind::Granary,
-            },
-            producer_livestock_farm: ProducerConfig {
-                name: "Livestock Farm".to_string(),
-                tile_def_name: "livestock_farm".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("livestock_farm"),
-                min_workers: 2,
-                max_workers: 4,
-                production_output_frequency_secs: 20.0,
-                production_output: ResourceKind::Meat,
-                production_capacity: 5,
-                resources_required: ResourceKinds::none(),
-                resources_capacity: 0,
-                deliver_to_storage_kinds: BuildingKind::Granary,
-                fetch_from_storage_kinds: BuildingKind::Granary,
-            },
-            producer_distillery: ProducerConfig {
-                name: "Distillery".to_string(),
-                tile_def_name: "distillery".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("distillery"),
-                min_workers: 2,
-                max_workers: 4,
-                production_output_frequency_secs: 20.0,
-                production_output: ResourceKind::Wine,
-                production_capacity: 5,
-                resources_required: ResourceKinds::with_kinds(ResourceKind::Rice),
-                resources_capacity: 8,
-                deliver_to_storage_kinds: BuildingKind::StorageYard,
-                fetch_from_storage_kinds: BuildingKind::Granary,
-            },
-            storage_yard: StorageConfig {
-                name: "Storage Yard".to_string(),
-                tile_def_name: "storage_yard".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("storage_yard"),
-                min_workers: 1,
-                max_workers: 4,
-                resources_accepted: ResourceKinds::all(),
-                num_slots: 8,
-                slot_capacity: 4,
-            },
-            storage_granary: StorageConfig {
-                name: "Granary".to_string(),
-                tile_def_name: "granary".to_string(),
-                tile_def_name_hash: hash::fnv1a_from_str("granary"),
-                min_workers: 1,
-                max_workers: 4,
-                resources_accepted: ResourceKinds::with_kinds(ResourceKind::foods()),
-                num_slots: 8,
-                slot_capacity: 4,
+            None => {
+                Err(format!("Can't find Building config for TileDef '{}'", tile_def.name))
             }
         }
     }
 
-    pub fn find_house_config(&self) -> &HouseConfig {
-        &self.house_cfg
-    }
+    fn post_load(&mut self) {
+        self.house_config.kind = BuildingKind::House;
+        self.house_config.post_load(0);
 
-    pub fn find_house_level_config(&self, level: HouseLevel) -> &HouseLevelConfig {
-        match level {
-            HouseLevel::Level0 => &self.house0,
-            HouseLevel::Level1 => &self.house1,
-            HouseLevel::Level2 => &self.house2,
-            HouseLevel::Level3 => &self.house3,
+        if self.house_levels.len() != HouseLevel::count() {
+            log::error!(log::channel!("config"), "BuildingConfigs: Unexpected House Level count: {} vs {}",
+                        self.house_levels.len(),
+                        HouseLevel::count());
+        }
+
+        // HOUSE LEVELS:
+        for (index, config) in &mut self.house_levels.iter_mut().enumerate() {
+            config.kind = BuildingKind::House;
+
+            if !config.post_load(index) {
+                // Entries that fail to load will not be visible in the lookup table.
+                continue;
+            }
+
+            let entry = BuildingConfigEntry {
+                archetype_kind: BuildingArchetypeKind::HouseBuilding,
+                index
+            };
+
+            if self.tile_def_mapping.insert(config.tile_def_name_hash, entry).is_some() {
+                log::error!(log::channel!("config"), "HouseLevelConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                            config.name,
+                            config.tile_def_name,
+                            config.tile_def_name_hash);
+            }
+        }
+
+        // PRODUCERS:
+        for (index, config) in &mut self.producer_configs.iter_mut().enumerate() {
+            if !config.kind.intersects(BuildingKind::producers()) || !config.kind.is_single_building() {
+                log::error!(log::channel!("config"), "ProducerConfig '{}': Invalid BuildingKind: {}.", config.name, config.kind);
+                continue;
+            }
+
+            if !config.post_load(index) {
+                // Entries that fail to load will not be visible in the lookup table.
+                continue;
+            }
+
+            let entry = BuildingConfigEntry {
+                archetype_kind: BuildingArchetypeKind::ProducerBuilding,
+                index
+            };
+
+            if self.tile_def_mapping.insert(config.tile_def_name_hash, entry).is_some() {
+                log::error!(log::channel!("config"), "ProducerConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                            config.name,
+                            config.tile_def_name,
+                            config.tile_def_name_hash);
+            }
+        }
+
+        // SERVICES:
+        for (index, config) in &mut self.service_configs.iter_mut().enumerate() {
+            if !config.kind.intersects(BuildingKind::services()) || !config.kind.is_single_building() {
+                log::error!(log::channel!("config"), "ServiceConfig '{}': Invalid BuildingKind: {}.", config.name, config.kind);
+                continue;
+            }
+
+            if !config.post_load(index) {
+                // Entries that fail to load will not be visible in the lookup table.
+                continue;
+            }
+
+            let entry = BuildingConfigEntry {
+                archetype_kind: BuildingArchetypeKind::ServiceBuilding,
+                index
+            };
+
+            if self.tile_def_mapping.insert(config.tile_def_name_hash, entry).is_some() {
+                log::error!(log::channel!("config"), "ServiceConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                            config.name,
+                            config.tile_def_name,
+                            config.tile_def_name_hash);
+            }
+
+            if self.service_mapping.insert(config.kind, index).is_some() {
+                log::error!(log::channel!("config"), "ServiceConfig '{}': An entry for kind {} already exists at [{index}]!",
+                            config.name,
+                            config.kind);
+            }
+        }
+
+        // STORAGE:
+        for (index, config) in &mut self.storage_configs.iter_mut().enumerate() {
+            if !config.kind.intersects(BuildingKind::storage()) || !config.kind.is_single_building() {
+                log::error!(log::channel!("config"), "StorageConfig '{}': Invalid BuildingKind: {}.", config.name, config.kind);
+                continue;
+            }
+
+            if !config.post_load(index) {
+                // Entries that fail to load will not be visible in the lookup table.
+                continue;
+            }
+
+            let entry = BuildingConfigEntry {
+                archetype_kind: BuildingArchetypeKind::StorageBuilding,
+                index
+            };
+
+            if self.tile_def_mapping.insert(config.tile_def_name_hash, entry).is_some() {
+                log::error!(log::channel!("config"), "StorageConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                            config.name,
+                            config.tile_def_name,
+                            config.tile_def_name_hash);
+            }
+
+            if self.storage_mapping.insert(config.kind, index).is_some() {
+                log::error!(log::channel!("config"), "StorageConfig '{}': An entry for kind {} already exists at [{index}]!",
+                            config.name,
+                            config.kind);
+            }
         }
     }
 
-    pub fn find_producer_config(&self, kind: BuildingKind, tile_name: &str, tile_name_hash: StringHash) -> &ProducerConfig {
-        if kind == BuildingKind::Farm {
-            if tile_name_hash == hash::fnv1a_from_str("rice_farm") {
-                &self.producer_rice_farm
-            } else if tile_name_hash == hash::fnv1a_from_str("livestock_farm") {
-                &self.producer_livestock_farm
-            } else { panic!("Unknown farm tile: '{}'", tile_name) }
-        } else if kind == BuildingKind::Factory {
-            if tile_name_hash == hash::fnv1a_from_str("distillery") {
-                &self.producer_distillery
-            } else { panic!("Unknown factory tile: '{}'", tile_name) }
-        } else { panic!("No producer!") }
-    }
+    fn draw_debug_ui_with_header(&self, _header: &str, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
 
-    pub fn find_service_config(&self, kind: ServiceKind) -> &ServiceConfig {
-        if kind == BuildingKind::WellSmall {
-            &self.service_well_small
-        } else if kind == BuildingKind::WellBig {
-            &self.service_well_big
-        } else if kind == BuildingKind::Market {
-            &self.service_market
-        } else { panic!("No service!") }
-    }
+        self.house_config.draw_debug_ui_with_header("House", ui_sys);
 
-    pub fn find_storage_config(&self, kind: BuildingKind) -> &StorageConfig {
-        if kind == BuildingKind::Granary {
-            &self.storage_granary
-        } else if kind == BuildingKind::StorageYard {
-            &self.storage_yard
-        } else { panic!("No storage!") }
+        if ui.collapsing_header("House Levels", imgui::TreeNodeFlags::empty()) {
+            ui.indent_by(10.0);
+            for config in &self.house_levels {
+                config.draw_debug_ui_with_header(&config.name, ui_sys);
+            }
+            ui.unindent_by(10.0);
+        }
+
+        if ui.collapsing_header("Producers", imgui::TreeNodeFlags::empty()) {
+            ui.indent_by(10.0);
+            for config in &self.producer_configs {
+                config.draw_debug_ui_with_header(&config.name, ui_sys);
+            }
+            ui.unindent_by(10.0);
+        }
+
+        if ui.collapsing_header("Services", imgui::TreeNodeFlags::empty()) {
+            ui.indent_by(10.0);
+            for config in &self.service_configs {
+                config.draw_debug_ui_with_header(&config.name, ui_sys);
+            }
+            ui.unindent_by(10.0);
+        }
+
+        if ui.collapsing_header("Storage", imgui::TreeNodeFlags::empty()) {
+            ui.indent_by(10.0);
+            for config in &self.storage_configs {
+                config.draw_debug_ui_with_header(&config.name, ui_sys);
+            }
+            ui.unindent_by(10.0);
+        }
     }
 }
 
 // ----------------------------------------------
-// Helper functions
+// BuildingConfigs Global Singleton
 // ----------------------------------------------
 
-pub fn instantiate<'config>(tile: &Tile, configs: &'config BuildingConfigs)
-                            -> Result<(BuildingKind, BuildingArchetype<'config>), &'static str> {
-
-    // TODO: Temporary
-    let tile_name_hash = tile.tile_def().hash;
-    if tile.name() == "well_small" {
-        let config = configs.find_service_config(BuildingKind::WellSmall);
-        Ok((BuildingKind::WellSmall, BuildingArchetype::from(ServiceBuilding::new(config))))
-    } else if tile.name() == "well_big" {
-        let config = configs.find_service_config(BuildingKind::WellBig);
-        Ok((BuildingKind::WellBig, BuildingArchetype::from(ServiceBuilding::new(config))))
-    } else if tile.name() == "market" {
-        let config = configs.find_service_config(BuildingKind::Market);
-        Ok((BuildingKind::Market, BuildingArchetype::from(ServiceBuilding::new(config))))
-    } else if tile.name() == "house0" {
-        let config = configs.find_house_config();
-        Ok((BuildingKind::House, BuildingArchetype::from(HouseBuilding::new(HouseLevel::Level0, config, configs))))
-    } else if tile.name() == "rice_farm" || tile.name() == "livestock_farm" {
-        let config = configs.find_producer_config(BuildingKind::Farm, tile.name(), tile_name_hash);
-        Ok((BuildingKind::Farm, BuildingArchetype::from(ProducerBuilding::new(config))))
-    } else if tile.name() == "distillery" {
-        let config = configs.find_producer_config(BuildingKind::Factory, tile.name(), tile_name_hash);
-        Ok((BuildingKind::Factory, BuildingArchetype::from(ProducerBuilding::new(config))))
-    } else if tile.name() == "granary" {
-        let config = configs.find_storage_config(BuildingKind::Granary);
-        Ok((BuildingKind::Granary, BuildingArchetype::from(StorageBuilding::new(config))))
-    } else if tile.name() == "storage_yard" {
-        let config = configs.find_storage_config(BuildingKind::StorageYard);
-        Ok((BuildingKind::StorageYard, BuildingArchetype::from(StorageBuilding::new(config))))
-    } else {
-        Err("Unknown Building Tile")
-    }
-}
+configurations! { BUILDING_CONFIGS_SINGLETON, BuildingConfigs, "buildings/configs" }

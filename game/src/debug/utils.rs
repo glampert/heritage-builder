@@ -559,8 +559,9 @@ mod test_maps {
                 for x in 0..map_size_in_cells.width {
                     let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
                     if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Objects, tile_id) {
-                        world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def)
-                            .expect("Failed to place Building tile!");
+                        if let Err(err) = world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def) {
+                            log::error!(log::channel!("debug"), "Preset: Failed to place Building tile! {err}");
+                        }
                     }
                 }
             }

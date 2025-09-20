@@ -17,7 +17,7 @@ use crate::{
     utils::{
         Color,
         callback::{self, Callback},
-        hash::StringHash
+        hash::{self, StringHash}
     },
     game::{
         cheats,
@@ -61,12 +61,15 @@ use super::{
 // ProducerConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi)]
+#[derive(DrawDebugUi, Serialize, Deserialize)]
 pub struct ProducerConfig {
+    pub kind: BuildingKind,
+
     pub name: String,
     pub tile_def_name: String,
 
     #[debug_ui(skip)]
+    #[serde(skip)] // Not serialized. Computed on post_load.
     pub tile_def_name_hash: StringHash,
 
     pub min_workers: u32,
@@ -79,14 +82,39 @@ pub struct ProducerConfig {
     pub production_capacity: u32,
 
     // Kinds of raw materials required for production, if any.
+    #[serde(default)]
     pub resources_required: ResourceKinds,
+
+    #[serde(default)]
     pub resources_capacity: u32,
 
     // Where we can deliver our production to (Granary, StorageYard).
     pub deliver_to_storage_kinds: BuildingKind,
 
-    // Where to find out production input raw materials.
+    // Where to find our production input raw materials.
+    #[serde(default)]
     pub fetch_from_storage_kinds: BuildingKind,
+}
+
+impl Default for ProducerConfig {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            kind: BuildingKind::Farm,
+            name: "Rice Farm".into(),
+            tile_def_name: "rice_farm".into(),
+            tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
+            min_workers: 2,
+            max_workers: 4,
+            production_output_frequency_secs: 20.0,
+            production_output: ResourceKind::Rice,
+            production_capacity: 5,
+            resources_required: ResourceKinds::none(),
+            resources_capacity: 0,
+            deliver_to_storage_kinds: BuildingKind::Granary,
+            fetch_from_storage_kinds: BuildingKind::empty(),
+        }
+    }
 }
 
 building_config! {
@@ -194,7 +222,7 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
     fn post_load(&mut self, context: &PostLoadContext<'_, 'config>, kind: BuildingKind, tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::producers()));
         let tile_def = tile.tile_def();
-        self.config = Some(context.building_configs.find_producer_config(kind, &tile_def.name, tile_def.hash));
+        self.config = Some(context.building_configs.find_producer_config(kind, tile_def.hash, &tile_def.name));
     }
 
     // ----------------------

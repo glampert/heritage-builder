@@ -1,4 +1,3 @@
-use std::sync::LazyLock;
 use serde::{Serialize, Deserialize};
 use proc_macros::DrawDebugUi;
 
@@ -31,7 +30,6 @@ pub const UNIT_SETTLER: UnitConfigKey = UnitConfigKey::from_str("settler");
 // ----------------------------------------------
 
 #[derive(DrawDebugUi, Serialize, Deserialize)]
-#[serde(default)] // Missing fields in the config file get defaults from UnitConfig::default().
 pub struct UnitConfig {
     pub name: String,
     pub tile_def_name: String,
@@ -41,6 +39,7 @@ pub struct UnitConfig {
     pub tile_def_name_hash: StringHash,
 
     // Navigation/Pathfind:
+    #[serde(default)]
     pub traversable_node_kinds: PathNodeKind,
     pub movement_speed: f32, // in tiles per second.
 }
@@ -78,7 +77,7 @@ impl UnitConfig {
 
         // Must have a tile def name.
         if self.tile_def_name.is_empty() {
-            log::error!(log::channel!("config"), "UnitConfig '{}': Invalid empty tile def name! Index: [{index}]", self.name);
+            log::error!(log::channel!("config"), "UnitConfig '{}': Invalid empty TileDef name! Index: [{index}]", self.name);
             return false;
         }
 
@@ -88,8 +87,6 @@ impl UnitConfig {
         true
     }
 }
-
-static DEFAULT_UNIT_CONFIG: LazyLock<UnitConfig> = LazyLock::new(UnitConfig::default);
 
 // ----------------------------------------------
 // UnitConfigs
@@ -103,6 +100,10 @@ pub struct UnitConfigs {
     // Runtime lookup:
     #[serde(skip)]
     mapping: PreHashedKeyMap<StringHash, usize>,
+
+    // Default fallback config:
+    #[serde(skip)]
+    default_unit_config: UnitConfig,
 }
 
 impl UnitConfigs {
@@ -117,7 +118,7 @@ impl UnitConfigs {
             Some(index) => &self.configs[*index],
             None => {
                 log::error!(log::channel!("config"), "Can't find UnitConfig '{tile_def_name}'!");
-                &DEFAULT_UNIT_CONFIG
+                &self.default_unit_config
             },
         }
     }
@@ -138,18 +139,10 @@ impl UnitConfigs {
         }
     }
 
-    fn draw_debug_ui_with_header(&self, header: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
-
-        if !ui.collapsing_header(header, imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        ui.indent_by(10.0);
+    fn draw_debug_ui_with_header(&self, _header: &str, ui_sys: &UiSystem) {
         for config in &self.configs {
             config.draw_debug_ui_with_header(&config.name, ui_sys);
         }
-        ui.unindent_by(10.0);
     }
 }
 

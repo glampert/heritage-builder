@@ -16,7 +16,7 @@ use crate::{
     tile::Tile,
     utils::{
         Color,
-        hash::StringHash
+        hash::{self, StringHash}
     },
     game::{
         cheats,
@@ -49,12 +49,15 @@ use super::{
 // StorageConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi)]
+#[derive(DrawDebugUi, Serialize, Deserialize)]
 pub struct StorageConfig {
+    pub kind: BuildingKind,
+
     pub name: String,
     pub tile_def_name: String,
 
     #[debug_ui(skip)]
+    #[serde(skip)] // Not serialized. Computed on post_load.
     pub tile_def_name_hash: StringHash,
 
     pub min_workers: u32,
@@ -66,6 +69,23 @@ pub struct StorageConfig {
     // Number of storage slots and capacity of each slot.
     pub num_slots: u32,
     pub slot_capacity: u32,
+}
+
+impl Default for StorageConfig {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            kind: BuildingKind::StorageYard,
+            name: "Storage Yard".into(),
+            tile_def_name: "storage_yard".into(),
+            tile_def_name_hash: hash::fnv1a_from_str("storage_yard"),
+            min_workers: 1,
+            max_workers: 4,
+            resources_accepted: ResourceKinds::all(),
+            num_slots: 8,
+            slot_capacity: 4,
+        }
+    }
 }
 
 building_config! {

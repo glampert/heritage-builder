@@ -16,7 +16,7 @@ use crate::{
     utils::{
         Color,
         callback::{self, Callback},
-        hash::StringHash,
+        hash::{self, StringHash},
     },
     game::{
         cheats,
@@ -61,27 +61,56 @@ use super::{
 // ServiceConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi)]
+#[derive(DrawDebugUi, Serialize, Deserialize)]
 pub struct ServiceConfig {
+    pub kind: BuildingKind,
+
     pub name: String,
     pub tile_def_name: String,
 
     #[debug_ui(skip)]
+    #[serde(skip)] // Not serialized. Computed on post_load.
     pub tile_def_name_hash: StringHash,
 
     pub min_workers: u32,
     pub max_workers: u32,
 
     pub effect_radius: i32, // How far our patrol unit can go.
+
     pub requires_road_access: bool,
     pub has_patrol_unit: bool,
-    pub patrol_frequency_secs: Seconds,
 
+    pub patrol_frequency_secs: Seconds,
     pub stock_update_frequency_secs: Seconds,
-    pub stock_capacity: u32, // Capacity for each resource kind it accepts.
 
     // Kinds of resources required for the service to run, if any.
+    #[serde(default)]
     pub resources_required: ResourceKinds,
+
+    // Capacity for each resource kind it accepts.
+    #[serde(default)]
+    pub stock_capacity: u32,
+}
+
+impl Default for ServiceConfig {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            kind: BuildingKind::WellSmall,
+            name: "Well Small".into(),
+            tile_def_name: "well_small".into(),
+            tile_def_name_hash: hash::fnv1a_from_str("well_small"),
+            min_workers: 0,
+            max_workers: 0,
+            effect_radius: 5,
+            requires_road_access: false,
+            has_patrol_unit: false,
+            patrol_frequency_secs: 0.0,
+            stock_update_frequency_secs: 0.0,
+            resources_required: ResourceKinds::none(),
+            stock_capacity: 0,
+        }
+    }
 }
 
 building_config! {

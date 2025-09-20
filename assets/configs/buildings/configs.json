@@ -1,0 +1,211 @@
+{
+  "house_config": {
+    "population_update_frequency_secs": 60.0,
+    "stock_update_frequency_secs": 60.0,
+    "upgrade_update_frequency_secs": 10.0
+  },
+  "house_levels": [
+    {
+      "level": "Level0",
+      "name": "House Level 0",
+      "tile_def_name": "house0",
+      "max_population": 2,
+      "tax_generated": 0,
+      "worker_percentage": 100,
+      "population_increase_chance": 80,
+      "stock_capacity": 5
+    },
+    {
+      "level": "Level1",
+      "name": "House Level 1",
+      "tile_def_name": "house1",
+      "max_population": 8,
+      "tax_generated": 1,
+      "worker_percentage": 75,
+      "population_increase_chance": 70,
+      "services_required": {
+        "kinds": [
+          "WellSmall | WellBig",
+          "Market"
+        ]
+      },
+      "resources_required": {
+        "kinds": [
+          "Rice | Meat | Fish"
+        ]
+      },
+      "stock_capacity": 10
+    },
+    {
+      "level": "Level2",
+      "name": "House Level 2",
+      "tile_def_name": "house2",
+      "max_population": 12,
+      "tax_generated": 2,
+      "worker_percentage": 50,
+      "population_increase_chance": 60,
+      "services_required": {
+        "kinds": [
+          "WellBig",
+          "Market"
+        ]
+      },
+      "resources_required": {
+        "kinds": [
+          "Rice",
+          "Meat | Fish"
+        ]
+      },
+      "stock_capacity": 15
+    },
+    {
+      "level": "Level3",
+      "name": "House Level 3",
+      "tile_def_name": "house3",
+      "max_population": 20,
+      "tax_generated": 3,
+      "worker_percentage": 50,
+      "population_increase_chance": 50,
+      "services_required": {
+        "kinds": [
+          "WellBig",
+          "Market"
+        ]
+      },
+      "resources_required": {
+        "kinds": [
+          "Rice",
+          "Meat | Fish",
+          "Wine"
+        ]
+      },
+      "stock_capacity": 15
+    }
+  ],
+  "service_configs": [
+    {
+      "kind": "WellSmall",
+      "name": "Well Small",
+      "tile_def_name": "well_small",
+      "min_workers": 0,
+      "max_workers": 0,
+      "effect_radius": 5,
+      "requires_road_access": false,
+      "has_patrol_unit": false,
+      "patrol_frequency_secs": 0.0,
+      "stock_update_frequency_secs": 0.0
+    },
+    {
+      "kind": "WellBig",
+      "name": "Well Big",
+      "tile_def_name": "well_big",
+      "min_workers": 1,
+      "max_workers": 2,
+      "effect_radius": 10,
+      "requires_road_access": true,
+      "has_patrol_unit": false,
+      "patrol_frequency_secs": 0.0,
+      "stock_update_frequency_secs": 0.0
+    },
+    {
+      "kind": "Market",
+      "name": "Market",
+      "tile_def_name": "market",
+      "min_workers": 1,
+      "max_workers": 2,
+      "effect_radius": 40,
+      "requires_road_access": true,
+      "has_patrol_unit": true,
+      "patrol_frequency_secs": 10.0,
+      "stock_update_frequency_secs": 20.0,
+      "stock_capacity": 10,
+      "resources_required": {
+        "kinds": [
+          "Rice",
+          "Meat",
+          "Fish",
+          "Wine"
+        ]
+      }
+    }
+  ],
+  "producer_configs": [
+    {
+      "kind": "Farm",
+      "name": "Rice Farm",
+      "tile_def_name": "rice_farm",
+      "min_workers": 2,
+      "max_workers": 4,
+      "production_output_frequency_secs": 20.0,
+      "production_output": "Rice",
+      "production_capacity": 5,
+      "deliver_to_storage_kinds": "Granary"
+    },
+    {
+      "kind": "Farm",
+      "name": "Livestock Farm",
+      "tile_def_name": "livestock_farm",
+      "min_workers": 2,
+      "max_workers": 4,
+      "production_output_frequency_secs": 20.0,
+      "production_output": "Meat",
+      "production_capacity": 5,
+      "deliver_to_storage_kinds": "Granary"
+    },
+    {
+      "kind": "Factory",
+      "name": "Distillery",
+      "tile_def_name": "distillery",
+      "min_workers": 2,
+      "max_workers": 4,
+      "production_output_frequency_secs": 20.0,
+      "production_output": "Wine",
+      "production_capacity": 5,
+      "resources_required": {
+        "kinds": [
+          "Rice"
+        ]
+      },
+      "resources_capacity": 8,
+      "deliver_to_storage_kinds": "StorageYard",
+      "fetch_from_storage_kinds": "Granary"
+    }
+  ],
+  "storage_configs": [
+    {
+      "kind": "StorageYard",
+      "name": "Storage Yard",
+      "tile_def_name": "storage_yard",
+      "min_workers": 1,
+      "max_workers": 4,
+      "resources_accepted": {
+        "kinds": [
+          "Rice",
+          "Meat",
+          "Fish",
+          "Wine",
+          "Wood",
+          "Metal"
+        ]
+      },
+      "num_slots": 8,
+      "slot_capacity": 4
+    },
+    {
+      "kind": "Granary",
+      "name": "Granary",
+      "tile_def_name": "granary",
+      "min_workers": 1,
+      "max_workers": 4,
+      "resources_accepted": {
+        "kinds": [
+          "Rice",
+          "Meat",
+          "Fish"
+        ]
+      },
+      "num_slots": 8,
+      "slot_capacity": 4
+    }
+  ]
+}

@@ -31,7 +31,7 @@ use crate::{
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
     pub struct ResourceKind: u32 {
         // Foods:
         const Rice  = 1 << 0;
@@ -926,6 +926,7 @@ impl Display for StockItem {
 // ResourceList
 // ----------------------------------------------
 
+#[derive(Default, Serialize, Deserialize)]
 pub struct ResourceList<T, const CAPACITY: usize> {
     kinds: ArrayVec<T, CAPACITY>, // Each item can be a single bitflag or multiple ORed together.
 }

@@ -799,11 +799,11 @@ impl<'config> Building<'config> {
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
             if !house.level().is_max() {
-                let (has_required_services, has_required_resources) =
+                let (has_required_resources, has_required_services) =
                     house.has_requirements_for_upgrade(context);
 
-                color_bullet_text("Has services to upgrade", has_required_services);
                 color_bullet_text("Has resources to upgrade", has_required_resources);
+                color_bullet_text("Has services to upgrade", has_required_services);
                 color_bullet_text("Has room to upgrade", house.is_upgrade_available(context));
             } else {
                 ui.bullet_text("Max house level reached");
