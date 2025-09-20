@@ -107,11 +107,11 @@ pub struct UnitConfigs {
 }
 
 impl UnitConfigs {
-    pub fn find_config_by_name(&self, tile_def_name: &str) -> &UnitConfig {
+    pub fn find_config_by_name(&'static self, tile_def_name: &str) -> &'static UnitConfig {
         self.find_config_by_hash(hash::fnv1a_from_str(tile_def_name), tile_def_name)
     }
 
-    pub fn find_config_by_hash(&self, tile_def_name_hash: StringHash, tile_def_name: &str) -> &UnitConfig {
+    pub fn find_config_by_hash(&'static self, tile_def_name_hash: StringHash, tile_def_name: &str) -> &'static UnitConfig {
         debug_assert!(tile_def_name_hash != hash::NULL_HASH);
 
         match self.mapping.get(&tile_def_name_hash) {
@@ -123,7 +123,7 @@ impl UnitConfigs {
         }
     }
 
-    fn post_load(&mut self) {
+    fn post_load(&'static mut self) {
         for (index, config) in &mut self.configs.iter_mut().enumerate() {
             if !config.post_load(index) {
                 // Entries that fail to load will not be visible in the lookup table.
@@ -139,7 +139,7 @@ impl UnitConfigs {
         }
     }
 
-    fn draw_debug_ui_with_header(&self, _header: &str, ui_sys: &UiSystem) {
+    fn draw_debug_ui_with_header(&'static self, _header: &str, ui_sys: &UiSystem) {
         for config in &self.configs {
             config.draw_debug_ui_with_header(&config.name, ui_sys);
         }

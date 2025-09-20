@@ -45,12 +45,8 @@ use super::{
     config::GameConfigs,
     world::World,
     system::GameSystems,
-    unit::{config::UnitConfigs, task::UnitTaskManager},
-    building::{
-        Building,
-        BuildingKind,
-        config::BuildingConfigs
-    }
+    unit::task::UnitTaskManager,
+    building::{Building, BuildingKind}
 };
 
 pub mod debug;
@@ -67,44 +63,36 @@ pub type RandomGenerator = Pcg64;
 // ----------------------------------------------
 
 #[derive(Serialize, Deserialize)]
-pub struct Simulation<'config> {
-    update_timer: UpdateTimer,
+pub struct Simulation {
     rng: RandomGenerator,
+    update_timer: UpdateTimer,
     task_manager: UnitTaskManager,
 
     // Path finding:
     graph: Graph,
-    #[serde(skip)] search: Search,
 
-    // Configs:
-    #[serde(skip)] game_configs: Option<&'static GameConfigs>,
-    #[serde(skip)] building_configs: Option<&'config BuildingConfigs>,
-    #[serde(skip)] unit_configs: Option<&'config UnitConfigs>,
+    #[serde(skip)]
+    search: Search,
 }
 
-impl<'config> Simulation<'config> {
-    pub fn new(tile_map: &TileMap,
-               game_configs: &'static GameConfigs,
-               building_configs: &'config BuildingConfigs,
-               unit_configs: &'config UnitConfigs) -> Self {
+impl Simulation {
+    pub fn new(tile_map: &TileMap) -> Self {
+        let configs = GameConfigs::get();
         Self {
-            update_timer: UpdateTimer::new(game_configs.sim.update_frequency_secs),
-            rng: RandomGenerator::seed_from_u64(game_configs.sim.random_seed),
+            rng: RandomGenerator::seed_from_u64(configs.sim.random_seed),
+            update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
-            game_configs: Some(game_configs),
-            building_configs: Some(building_configs),
-            unit_configs: Some(unit_configs),
         }
     }
 
     #[inline]
     pub fn new_query<'tile_sets>(&mut self,
-                                 world: &mut World<'config>,
+                                 world: &mut World,
                                  tile_map: &mut TileMap<'tile_sets>,
                                  tile_sets: &'tile_sets TileSets,
-                                 delta_time_secs: Seconds) -> Query<'config, 'tile_sets> {
+                                 delta_time_secs: Seconds) -> Query<'tile_sets> {
         Query::new(
             &mut self.rng,
             &mut self.graph,
@@ -113,22 +101,15 @@ impl<'config> Simulation<'config> {
             world,
             tile_map,
             tile_sets,
-            self.game_configs.unwrap(),
-            self.building_configs.unwrap(),
-            self.unit_configs.unwrap(),
             delta_time_secs)
     }
 
     pub fn update<'tile_sets>(&mut self,
-                              world: &mut World<'config>,
+                              world: &mut World,
                               systems: &mut GameSystems,
                               tile_map: &mut TileMap<'tile_sets>,
                               tile_sets: &'tile_sets TileSets,
                               delta_time_secs: Seconds) {
-
-        debug_assert!(self.game_configs.is_some());
-        debug_assert!(self.building_configs.is_some());
-        debug_assert!(self.unit_configs.is_some());
 
         // Rebuild the search graph once every frame so any
         // add/remove tile changes will be reflected on the graph.
@@ -152,7 +133,7 @@ impl<'config> Simulation<'config> {
     }
 
     pub fn reset<'tile_sets>(&mut self,
-                             world: &mut World<'config>,
+                             world: &mut World,
                              systems: &mut GameSystems,
                              tile_map: &mut TileMap<'tile_sets>,
                              tile_sets: &'tile_sets TileSets) {
@@ -160,16 +141,6 @@ impl<'config> Simulation<'config> {
         let query = self.new_query(world, tile_map, tile_sets, 0.0);
         world.reset(&query);
         systems.reset();
-    }
-
-    #[inline]
-    pub fn building_configs(&self) -> &'config BuildingConfigs {
-        self.building_configs.unwrap()
-    }
-
-    #[inline]
-    pub fn unit_configs(&self) -> &'config UnitConfigs {
-        self.unit_configs.unwrap()
     }
 
     #[inline]
@@ -196,7 +167,7 @@ impl<'config> Simulation<'config> {
     }
 
     // Game Systems:
-    pub fn draw_game_systems_debug_ui(&mut self, context: &mut debug::DebugContext<'config, '_, '_, '_, '_>) {
+    pub fn draw_game_systems_debug_ui(&mut self, context: &mut debug::DebugContext) {
         let query = self.new_query(
             context.world,
             context.tile_map,
@@ -208,7 +179,7 @@ impl<'config> Simulation<'config> {
 
     // Generic GameObjects:
     pub fn draw_game_object_debug_ui(&mut self,
-                                     context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                                     context: &mut debug::DebugContext,
                                      tile: &Tile,
                                      mode: debug::DebugUiMode) {
 
@@ -220,7 +191,7 @@ impl<'config> Simulation<'config> {
     }
 
     pub fn draw_game_object_debug_popups(&mut self,
-                                         context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                                         context: &mut debug::DebugContext,
                                          visible_range: CellRange) {
     
         self.draw_building_debug_popups(context, visible_range);
@@ -229,7 +200,7 @@ impl<'config> Simulation<'config> {
 
     // Buildings:
     fn draw_building_debug_popups(&mut self,
-                                  context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                                  context: &mut debug::DebugContext,
                                   visible_range: CellRange) {
 
         let query = self.new_query(
@@ -246,7 +217,7 @@ impl<'config> Simulation<'config> {
     }
 
     fn draw_building_debug_ui(&mut self,
-                              context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                              context: &mut debug::DebugContext,
                               tile: &Tile,
                               mode: debug::DebugUiMode) {
 
@@ -265,7 +236,7 @@ impl<'config> Simulation<'config> {
 
     // Units:
     fn draw_unit_debug_popups(&mut self,
-                              context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                              context: &mut debug::DebugContext,
                               visible_range: CellRange) {
 
         let query = self.new_query(
@@ -282,7 +253,7 @@ impl<'config> Simulation<'config> {
     }
 
     fn draw_unit_debug_ui(&mut self,
-                          context: &mut debug::DebugContext<'config, '_, '_, '_, '_>,
+                          context: &mut debug::DebugContext,
                           tile: &Tile,
                           mode: debug::DebugUiMode) {
 
@@ -304,13 +275,13 @@ impl<'config> Simulation<'config> {
 // Save/Load for Simulation
 // ----------------------------------------------
 
-impl Save for Simulation<'_> {
+impl Save for Simulation {
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
         state.save(self)
     }
 }
 
-impl<'config> Load<'_, 'config> for Simulation<'config> {
+impl Load<'_> for Simulation {
     fn pre_load(&mut self) {
         self.task_manager.pre_load();
     }
@@ -319,13 +290,8 @@ impl<'config> Load<'_, 'config> for Simulation<'config> {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>) {
+    fn post_load(&mut self, _context: &PostLoadContext) {
         self.search = Search::with_graph(&self.graph);
-
-        self.game_configs = Some(GameConfigs::get());
-        self.building_configs = Some(context.building_configs);
-        self.unit_configs = Some(context.unit_configs);
-
         self.task_manager.post_load();
     }
 }
@@ -334,7 +300,7 @@ impl<'config> Load<'_, 'config> for Simulation<'config> {
 // Query
 // ----------------------------------------------
 
-pub struct Query<'config, 'tile_sets> {
+pub struct Query<'tile_sets> {
     // SAFETY: Queries are local variables in the Simulation::update() stack,
     // so none of the references stored here will persist or leak outside the
     // update call stack. Storing weak references here makes things easier
@@ -353,29 +319,21 @@ pub struct Query<'config, 'tile_sets> {
     task_manager: mem::RawPtr<UnitTaskManager>,
 
     // World & Tile Map:
-    world: mem::RawPtr<World<'config>>,
+    world: mem::RawPtr<World>,
     tile_map: mem::RawPtr<TileMap<'tile_sets>>,
     tile_sets: &'tile_sets TileSets,
-
-    // Configs:
-    game_configs: &'static GameConfigs,
-    building_configs: &'config BuildingConfigs,
-    unit_configs: &'config UnitConfigs,
 
     delta_time_secs: Seconds,
 }
 
-impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
+impl<'tile_sets> Query<'tile_sets> {
     fn new(rng: &mut RandomGenerator,
            graph: &mut Graph,
            search: &mut Search,
            task_manager: &mut UnitTaskManager,
-           world: &mut World<'config>,
+           world: &mut World,
            tile_map: &mut TileMap<'tile_sets>,
            tile_sets: &'tile_sets TileSets,
-           game_configs: &'static GameConfigs,
-           building_configs: &'config BuildingConfigs,
-           unit_configs: &'config UnitConfigs,
            delta_time_secs: Seconds) -> Self {
         Self {
             rng: mem::RawPtr::from_ref(rng),
@@ -385,9 +343,6 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             world: mem::RawPtr::from_ref(world),
             tile_map: mem::RawPtr::from_ref(tile_map),
             tile_sets,
-            game_configs,
-            building_configs,
-            unit_configs,
             delta_time_secs,
         }
     }
@@ -417,7 +372,7 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     }
 
     #[inline(always)]
-    pub fn world(&self) -> &mut World<'config> {
+    pub fn world(&self) -> &mut World {
         self.world.mut_ref_cast()
     }
 
@@ -432,16 +387,6 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     }
 
     #[inline(always)]
-    pub fn building_configs(&self) -> &'config BuildingConfigs {
-        self.building_configs
-    }
-
-    #[inline(always)]
-    pub fn unit_configs(&self) -> &'config UnitConfigs {
-        self.unit_configs
-    }
-
-    #[inline(always)]
     pub fn random_range<T, R>(&self, range: R) -> T
         where T: SampleUniform,
               R: SampleRange<T>
@@ -452,16 +397,6 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
     #[inline(always)]
     pub fn delta_time_secs(&self) -> Seconds {
         self.delta_time_secs
-    }
-
-    #[inline(always)]
-    pub fn workers_search_radius(&self) -> i32 {
-        self.game_configs.sim.workers_search_radius
-    }
-
-    #[inline(always)]
-    pub fn workers_update_frequency_secs(&self) -> Seconds {
-        self.game_configs.sim.workers_update_frequency_secs
     }
 
     #[inline]
@@ -582,17 +517,17 @@ impl<'config, 'tile_sets> Query<'config, 'tile_sets> {
             return None;
         }
 
-        struct BuildingPathFilter<'sim, 'config, 'tile_sets, F> {
-            query: &'sim Query<'config, 'tile_sets>,
+        struct BuildingPathFilter<'sim, 'tile_sets, F> {
+            query: &'sim Query<'tile_sets>,
             building_kinds: BuildingKind,
             traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
-            result_building: Option<&'sim mut Building<'config>>, // Search result.
+            result_building: Option<&'sim mut Building>, // Search result.
             result_path: Option<mem::RawPtr<Path>>, // SAFETY: Saved for result debug validation only.
             visited_nodes: SmallVec<[Node; 32]>,
         }
 
-        impl<F> PathFilter for BuildingPathFilter<'_, '_, '_, F>
+        impl<F> PathFilter for BuildingPathFilter<'_, '_, F>
             where F: FnMut(&Building, &Path) -> bool
         {
             fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {

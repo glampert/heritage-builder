@@ -54,7 +54,7 @@ use super::{
     BuildingBehavior,
     BuildingContext,
     BuildingStock,
-    config::BuildingConfig
+    config::{BuildingConfig, BuildingConfigs}
 };
 
 // ----------------------------------------------
@@ -136,8 +136,8 @@ game_object_debug_options! {
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct ServiceBuilding<'config> {
-    #[serde(skip)] config: Option<&'config ServiceConfig>,
+pub struct ServiceBuilding {
+    #[serde(skip)] config: Option<&'static ServiceConfig>,
     workers: Workers,
 
     stock_update_timer: UpdateTimer,
@@ -154,7 +154,7 @@ pub struct ServiceBuilding<'config> {
 // BuildingBehavior for ServiceBuilding
 // ----------------------------------------------
 
-impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
+impl BuildingBehavior for ServiceBuilding {
     // ----------------------
     // World Callbacks:
     // ----------------------
@@ -193,10 +193,12 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
         unimplemented!("ServiceBuilding::visited_by() not yet implemented!");
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::services()));
-        self.config = Some(context.building_configs.find_service_config(kind));
         self.patrol.post_load();
+        let configs = BuildingConfigs::get();
+        let config = configs.find_service_config(kind);
+        self.config = Some(config);
     }
 
     // ----------------------
@@ -306,8 +308,8 @@ impl<'config> BuildingBehavior<'config> for ServiceBuilding<'config> {
 // ServiceBuilding
 // ----------------------------------------------
 
-impl<'config> ServiceBuilding<'config> {
-    pub fn new(config: &'config ServiceConfig) -> Self {
+impl ServiceBuilding {
+    pub fn new(config: &'static ServiceConfig) -> Self {
         let stock = {
             if config.resources_required.is_empty() || config.stock_capacity == 0 {
                 None
@@ -479,7 +481,7 @@ impl<'config> ServiceBuilding<'config> {
 // Debug UI
 // ----------------------------------------------
 
-impl ServiceBuilding<'_> {
+impl ServiceBuilding {
     fn draw_debug_ui_resources_stock(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         if self.stock.as_ref().is_none_or(|stock| !stock.accepts_any()) {
             return;

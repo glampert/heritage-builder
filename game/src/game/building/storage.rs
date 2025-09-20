@@ -42,7 +42,7 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    config::BuildingConfig
+    config::{BuildingConfig, BuildingConfigs}
 };
 
 // ----------------------------------------------
@@ -105,8 +105,8 @@ game_object_debug_options! {
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct StorageBuilding<'config> {
-    #[serde(skip)] config: Option<&'config StorageConfig>,
+pub struct StorageBuilding {
+    #[serde(skip)] config: Option<&'static StorageConfig>,
 
     workers: Workers,
 
@@ -120,7 +120,7 @@ pub struct StorageBuilding<'config> {
 // BuildingBehavior for StorageBuilding
 // ----------------------------------------------
 
-impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
+impl BuildingBehavior for StorageBuilding {
     // ----------------------
     // World Callbacks:
     // ----------------------
@@ -180,9 +180,11 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::storage()));
-        self.config = Some(context.building_configs.find_storage_config(kind));
+        let configs = BuildingConfigs::get();
+        let config = configs.find_storage_config(kind);
+        self.config = Some(config);
     }
 
     // ----------------------
@@ -272,8 +274,8 @@ impl<'config> BuildingBehavior<'config> for StorageBuilding<'config> {
 // StorageBuilding
 // ----------------------------------------------
 
-impl<'config> StorageBuilding<'config> {
-    pub fn new(config: &'config StorageConfig) -> Self {
+impl StorageBuilding {
+    pub fn new(config: &'static StorageConfig) -> Self {
         Self {
             config: Some(config),
             workers: Workers::employer(config.min_workers, config.max_workers),

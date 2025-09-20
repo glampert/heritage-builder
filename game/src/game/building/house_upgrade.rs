@@ -21,6 +21,7 @@ use super::{
     BuildingId,
     BuildingKind,
     BuildingContext,
+    config::BuildingConfigs,
     house::{HouseLevel, HouseLevelConfig}
 };
 
@@ -96,7 +97,7 @@ pub fn try_expand_house(context: &BuildingContext,
     }
 
     let start_cell = Cell::new(target_rect.min_x, target_rect.min_y);
-    let target_level_config = context.query.building_configs().find_house_level_config(target_level);
+    let target_level_config = BuildingConfigs::get().find_house_level_config(target_level);
 
     let target_tile_def = match context.find_tile_def(target_level_config.tile_def_name_hash) {
         Some(tile_def) => tile_def,
@@ -119,7 +120,7 @@ pub fn try_expand_house(context: &BuildingContext,
 // Replaces house tile with a new (possibly bigger) tile.
 // Assumes there is enough room to place the new tile
 // (neighboring houses already merged and cleared).
-pub fn try_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
+pub fn try_replace_tile<'tile_sets>(context: &BuildingContext<'tile_sets, '_>,
                                     house_id: BuildingId,
                                     target_tile_def: &'tile_sets TileDef,
                                     new_cell_range: CellRange) -> bool {
@@ -474,7 +475,7 @@ fn candidate_target_rects(current_cell_range: CellRange) -> [CellRect; CANDIDATE
     ]
 }
 
-fn try_merge_and_replace_tile<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
+fn try_merge_and_replace_tile<'tile_sets>(context: &BuildingContext<'tile_sets, '_>,
                                           target_level_config: &HouseLevelConfig,
                                           target_tile_def: &'tile_sets TileDef,
                                           start_cell: Cell,
@@ -531,9 +532,7 @@ fn merge_house(context: &BuildingContext,
     dest_house.merge(context, house_to_merge, house_to_merge_kind_and_id, target_level_config);
 }
 
-fn destroy_house<'config>(context: &BuildingContext<'config, '_, '_>,
-                          merged_building: &mut Building<'config>) {
-
+fn destroy_house(context: &BuildingContext, merged_building: &mut Building) {
     Spawner::new(context.query).despawn_building(merged_building);
 }
 
@@ -573,27 +572,21 @@ impl HouseIdsSet {
     }
 }
 
-fn house_for_id<'config>(context: &'config BuildingContext<'config, '_, '_>,
-                         id: BuildingId) -> &'config Building<'config> {
-
+fn house_for_id<'world>(context: &'world BuildingContext, id: BuildingId) -> &'world Building {
     let world = context.query.world();
 
     world.find_building(BuildingKind::House, id)
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-fn house_for_id_mut<'config>(context: &'config BuildingContext<'config, '_, '_>,
-                             id: BuildingId) -> &'config mut Building<'config> {
-
+fn house_for_id_mut<'world>(context: &'world BuildingContext, id: BuildingId) -> &'world mut Building {
     let world = context.query.world();
 
     world.find_building_mut(BuildingKind::House, id)
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-fn find_house_for_cell<'config>(context: &'config BuildingContext<'config, '_, '_>,
-                                cell: Cell) -> Option<&'config Building<'config>> {
-
+fn find_house_for_cell<'world>(context: &'world BuildingContext, cell: Cell) -> Option<&'world Building> {
     let world = context.query.world();
     let tile_map = context.query.tile_map();
 
@@ -606,10 +599,10 @@ fn find_house_for_cell<'config>(context: &'config BuildingContext<'config, '_, '
     None
 }
 
-fn find_tile_def_for_level<'tile_sets>(context: &BuildingContext<'_, 'tile_sets, '_>,
+fn find_tile_def_for_level<'tile_sets>(context: &BuildingContext<'tile_sets, '_>,
                                        level: HouseLevel) -> Option<&'tile_sets TileDef> {
 
-    let level_config = context.query.building_configs().find_house_level_config(level);
+    let level_config = BuildingConfigs::get().find_house_level_config(level);
     context.find_tile_def(level_config.tile_def_name_hash)
 }
 

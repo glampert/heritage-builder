@@ -19,6 +19,7 @@ use crate::{
     save::PostLoadContext,
     bitflags_with_display,
     engine::time::UpdateTimer,
+    game::config::GameConfigs,
     pathfind::{self, NodeKind as PathNodeKind},
     utils::{
         Color,
@@ -64,7 +65,7 @@ use super::{
     }
 };
 
-use config::BuildingConfig;
+use config::{BuildingConfig, BuildingConfigs};
 use producer::ProducerBuilding;
 use storage::StorageBuilding;
 use service::ServiceBuilding;
@@ -167,14 +168,14 @@ macro_rules! building_type_casts {
     ($derived_mod:ident, $derived_struct:ident) => {
         paste! {
             #[inline]
-            pub fn [<as_ $derived_mod>](&self) -> &$derived_struct<'config> {
+            pub fn [<as_ $derived_mod>](&self) -> &$derived_struct {
                 match self.archetype() {
                     BuildingArchetype::$derived_struct(inner) => inner,
                     _ => panic!("Building archetype is not {}!", stringify!($derived_struct))
                 }
             }
             #[inline]
-            pub fn [<as_ $derived_mod _mut>](&mut self) -> &mut $derived_struct<'config> {
+            pub fn [<as_ $derived_mod _mut>](&mut self) -> &mut $derived_struct {
                 match self.archetype_mut() {
                     BuildingArchetype::$derived_struct(inner) => inner,
                     _ => panic!("Building archetype is not {}!", stringify!($derived_struct))
@@ -191,16 +192,16 @@ macro_rules! building_type_casts {
 pub type BuildingId = GenerationalIndex;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
-pub struct Building<'config> {
+pub struct Building {
     id: BuildingId,
     map_cells: CellRange,
     road_link: mem::Mutable<Cell>,
     kind: BuildingKind,
     workers_update_timer: UpdateTimer,
-    archetype: Option<BuildingArchetype<'config>>,
+    archetype: Option<BuildingArchetype>,
 }
 
-impl<'config> GameObject<'config> for Building<'config> {
+impl GameObject for Building {
     // ----------------------
     // GameObject Interface:
     // ----------------------
@@ -210,7 +211,7 @@ impl<'config> GameObject<'config> for Building<'config> {
         self.id
     }
 
-    fn update(&mut self, query: &Query<'config, '_>) {
+    fn update(&mut self, query: &Query) {
         debug_assert!(self.is_spawned());
 
         // Refresh cached road link cell.
@@ -255,7 +256,7 @@ impl<'config> GameObject<'config> for Building<'config> {
         self.archetype().tally(stats, self.kind);
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>) {
+    fn post_load(&mut self, context: &PostLoadContext) {
         debug_assert!(self.is_spawned());
 
         let kind = self.kind();
@@ -270,7 +271,7 @@ impl<'config> GameObject<'config> for Building<'config> {
         self.archetype_mut().post_load(context, kind, tile);
     }
 
-    fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
     
         match mode {
@@ -312,7 +313,7 @@ impl<'config> GameObject<'config> for Building<'config> {
     }
 }
 
-impl<'config> Building<'config> {
+impl Building {
     // ----------------------
     // Spawning / Despawning:
     // ----------------------
@@ -322,7 +323,7 @@ impl<'config> Building<'config> {
                    id: BuildingId,
                    kind: BuildingKind,
                    map_cells: CellRange,
-                   archetype: BuildingArchetype<'config>) {
+                   archetype: BuildingArchetype) {
 
         debug_assert!(!self.is_spawned());
         debug_assert!(id.is_valid());
@@ -332,7 +333,7 @@ impl<'config> Building<'config> {
         self.id = id;
         self.map_cells = map_cells;
         self.kind = kind;
-        self.workers_update_timer = UpdateTimer::new(query.workers_update_frequency_secs());
+        self.workers_update_timer = UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
         self.archetype = Some(archetype);
 
         self.update_road_link(query);
@@ -359,8 +360,8 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    fn new_context<'query, 'tile_sets>(&self, query: &'query Query<'config, 'tile_sets>)
-                                       -> BuildingContext<'config, 'tile_sets, 'query> {
+    fn new_context<'query, 'tile_sets>(&self, query: &'query Query<'tile_sets>)
+                                       -> BuildingContext<'tile_sets, 'query> {
         BuildingContext::new(
             self.id,
             self.map_cells,
@@ -371,12 +372,12 @@ impl<'config> Building<'config> {
     }
 
     #[inline]
-    fn archetype(&self) -> &BuildingArchetype<'config> {
+    fn archetype(&self) -> &BuildingArchetype {
         self.archetype.as_ref().unwrap()
     }
 
     #[inline]
-    fn archetype_mut(&mut self) -> &mut BuildingArchetype<'config> {
+    fn archetype_mut(&mut self) -> &mut BuildingArchetype {
         self.archetype.as_mut().unwrap()
     }
 
@@ -647,14 +648,15 @@ impl<'config> Building<'config> {
         }
     }
 
-    fn find_house_with_available_workers(&self, query: &'config Query) -> Option<&'config mut Building<'config>> {
-        debug_assert!(query.workers_search_radius() > 0);
+    fn find_house_with_available_workers<'world>(&self, query: &'world Query) -> Option<&'world mut Building> {
+        let workers_search_radius = GameConfigs::get().sim.workers_search_radius;
+        debug_assert!(workers_search_radius > 0);
 
         let result = query.find_nearest_buildings(
             self.road_link(query).unwrap(),
             BuildingKind::House,
             PathNodeKind::Road,
-            Some(query.workers_search_radius()),
+            Some(workers_search_radius),
             |house, _path| {
                 if house.workers_count() != 0 {
                     return false; // Accept and stop search.
@@ -843,7 +845,7 @@ impl<'config> Building<'config> {
         }
     }
 
-    fn draw_debug_ui_detailed(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
+    fn draw_debug_ui_detailed(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
@@ -1021,11 +1023,11 @@ impl<'config> Building<'config> {
     name(BuildingArchetypeKind),
     derive(Display, EnumCount, EnumIter, Serialize, Deserialize)
 )]
-pub enum BuildingArchetype<'config> {
-    ProducerBuilding(ProducerBuilding<'config>),
-    StorageBuilding(StorageBuilding<'config>),
-    ServiceBuilding(ServiceBuilding<'config>),
-    HouseBuilding(HouseBuilding<'config>),
+pub enum BuildingArchetype {
+    ProducerBuilding(ProducerBuilding),
+    StorageBuilding(StorageBuilding),
+    ServiceBuilding(ServiceBuilding),
+    HouseBuilding(HouseBuilding),
 }
 
 pub const BUILDING_ARCHETYPE_COUNT: usize = BuildingArchetypeKind::COUNT;
@@ -1036,7 +1038,7 @@ pub const BUILDING_ARCHETYPE_COUNT: usize = BuildingArchetypeKind::COUNT;
 
 // Common behavior for all Building archetypes.
 #[enum_dispatch(BuildingArchetype)]
-trait BuildingBehavior<'config> {
+trait BuildingBehavior {
     // ----------------------
     // World Callbacks:
     // ----------------------
@@ -1047,10 +1049,10 @@ trait BuildingBehavior<'config> {
     fn spawned(&mut self, _context: &BuildingContext) {}
     fn despawned(&mut self, _context: &BuildingContext) {}
 
-    fn update(&mut self, context: &BuildingContext<'config, '_, '_>);
+    fn update(&mut self, context: &BuildingContext);
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>, kind: BuildingKind, tile: &Tile);
+    fn post_load(&mut self, context: &PostLoadContext, kind: BuildingKind, tile: &Tile);
 
     // ----------------------
     // Resources/Stock:
@@ -1108,7 +1110,7 @@ trait BuildingBehavior<'config> {
     // ----------------------
 
     fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions;
-    fn draw_debug_ui(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem);
+    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem);
 }
 
 // ----------------------------------------------
@@ -1145,22 +1147,22 @@ impl BuildingTileInfo {
 // BuildingContext
 // ----------------------------------------------
 
-pub struct BuildingContext<'config, 'tile_sets, 'query> {
+pub struct BuildingContext<'tile_sets, 'query> {
     id: BuildingId,
     map_cells: mem::Mutable<CellRange>,
     road_link: Option<Cell>,
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
-    pub query: &'query Query<'config, 'tile_sets>,
+    pub query: &'query Query<'tile_sets>,
 }
 
-impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
+impl<'tile_sets, 'query> BuildingContext<'tile_sets, 'query> {
     fn new(id: BuildingId,
            map_cells: CellRange,
            road_link: Option<Cell>,
            kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
-           query: &'query Query<'config, 'tile_sets>) -> Self {
+           query: &'query Query<'tile_sets>) -> Self {
         Self {
             id,
             map_cells: mem::Mutable::new(map_cells),
@@ -1235,7 +1237,7 @@ impl<'config, 'tile_sets, 'query> BuildingContext<'config, 'tile_sets, 'query> {
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
 
         if let Some(road_link) = self.road_link {
-            let config = self.query.building_configs().find_service_config(service_kind);
+            let config = BuildingConfigs::get().find_service_config(service_kind);
             return self.query.is_near_building(road_link,
                                                service_kind,
                                                config.requires_road_access,

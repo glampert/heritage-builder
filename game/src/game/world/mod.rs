@@ -53,22 +53,20 @@ pub mod stats;
 
 // Holds the world state and provides queries.
 #[derive(Serialize, Deserialize)]
-pub struct World<'config> {
+pub struct World {
     #[serde(skip)] stats: WorldStats,
 
     // One spawn pool per building archetype.
     // Iteration yields only *spawned* buildings.
-    building_spawn_pools: [(BuildingArchetypeKind, SpawnPool<Building<'config>>); BUILDING_ARCHETYPE_COUNT],
-    #[serde(skip)] building_configs: Option<&'config BuildingConfigs>,
+    building_spawn_pools: [(BuildingArchetypeKind, SpawnPool<Building>); BUILDING_ARCHETYPE_COUNT],
 
     // All units, spawned and despawned.
     // Iteration yields only *spawned* units.
-    unit_spawn_pool: SpawnPool<Unit<'config>>,
-    #[serde(skip)] unit_configs: Option<&'config UnitConfigs>,
+    unit_spawn_pool: SpawnPool<Unit>,
 }
 
-impl<'config> World<'config> {
-    pub fn new(building_configs: &'config BuildingConfigs, unit_configs: &'config UnitConfigs) -> Self {
+impl World {
+    pub fn new() -> Self {
         Self {
             // World Stats:
             stats: WorldStats::default(),
@@ -79,21 +77,9 @@ impl<'config> World<'config> {
                 (BuildingArchetypeKind::ServiceBuilding,  SpawnPool::new(SERVICE_BUILDINGS_POOL_CAPACITY,  INITIAL_GENERATION)),
                 (BuildingArchetypeKind::HouseBuilding,    SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY,    INITIAL_GENERATION)),
             ],
-            building_configs: Some(building_configs),
             // Units:
             unit_spawn_pool: SpawnPool::new(UNIT_SPAWN_POOL_CAPACITY, INITIAL_GENERATION),
-            unit_configs: Some(unit_configs),
         }
-    }
-
-    #[inline]
-    pub fn building_configs(&self) -> &'config BuildingConfigs {
-        self.building_configs.unwrap()
-    }
-
-    #[inline]
-    pub fn unit_configs(&self) -> &'config UnitConfigs {
-        self.unit_configs.unwrap()
     }
 
     pub fn reset(&mut self, query: &Query) {
@@ -110,10 +96,7 @@ impl<'config> World<'config> {
         } 
     }
 
-    pub fn update(&mut self, query: &Query<'config, '_>) {
-        debug_assert!(self.building_configs.is_some());
-        debug_assert!(self.unit_configs.is_some());
-
+    pub fn update(&mut self, query: &Query) {
         self.stats.reset();
 
         for unit in self.unit_spawn_pool.iter_mut() {
@@ -146,7 +129,7 @@ impl<'config> World<'config> {
     pub fn try_spawn_building_with_tile_def(&mut self,
                                             query: &Query,
                                             tile_base_cell: Cell,
-                                            tile_def: &TileDef) -> Result<&mut Building<'config>, String> {
+                                            tile_def: &TileDef) -> Result<&mut Building, String> {
 
         debug_assert!(tile_base_cell.is_valid());
         debug_assert!(tile_def.is_valid());
@@ -156,7 +139,7 @@ impl<'config> World<'config> {
         match query.tile_map().try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
                 // Instantiate new Building:
-                match self.building_configs().new_building_archetype_for_tile_def(tile_def) {
+                match BuildingConfigs::get().new_building_archetype_for_tile_def(tile_def) {
                     Ok((building_kind, building_archetype)) => {
                         let archetype_kind = building_archetype.discriminant();
                         let buildings = self.buildings_pool_mut(archetype_kind);
@@ -189,7 +172,7 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn despawn_building(&mut self, query: &Query, building: &mut Building<'config>) -> Result<(), String> {
+    pub fn despawn_building(&mut self, query: &Query, building: &mut Building) -> Result<(), String> {
         let tile_base_cell = building.base_cell();
         debug_assert!(tile_base_cell.is_valid());
 
@@ -220,7 +203,7 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn despawn_building_at_cell(&mut self, query: &Query<'config, '_>, tile_base_cell: Cell) -> Result<(), String> {
+    pub fn despawn_building_at_cell(&mut self, query: &Query, tile_base_cell: Cell) -> Result<(), String> {
         debug_assert!(tile_base_cell.is_valid());
 
         let building =
@@ -231,19 +214,19 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_building(&self, kind: BuildingKind, id: BuildingId) -> Option<&Building<'config>> {
+    pub fn find_building(&self, kind: BuildingKind, id: BuildingId) -> Option<&Building> {
         let buildings = self.buildings_pool(kind.archetype_kind());
         buildings.try_get(id)
     }
 
     #[inline]
-    pub fn find_building_mut(&mut self, kind: BuildingKind, id: BuildingId) -> Option<&mut Building<'config>> {
+    pub fn find_building_mut(&mut self, kind: BuildingKind, id: BuildingId) -> Option<&mut Building> {
         let buildings = self.buildings_pool_mut(kind.archetype_kind());
         buildings.try_get_mut(id)
     }
 
     #[inline]
-    pub fn find_building_for_tile(&self, tile: &Tile) -> Option<&Building<'config>> {
+    pub fn find_building_for_tile(&self, tile: &Tile) -> Option<&Building> {
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
             let pool_index = game_object_handle.index();
@@ -256,7 +239,7 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_building_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Building<'config>> {
+    pub fn find_building_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Building> {
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
             let pool_index = game_object_handle.index();
@@ -269,7 +252,7 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_building_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Building<'config>> {
+    pub fn find_building_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Building> {
         if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building | TileKind::Blocker) {
             return self.find_building_for_tile(tile);
         }
@@ -277,7 +260,7 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_building_for_cell_mut(&mut self, cell: Cell, tile_map: &TileMap) -> Option<&mut Building<'config>> {
+    pub fn find_building_for_cell_mut(&mut self, cell: Cell, tile_map: &TileMap) -> Option<&mut Building> {
         if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building | TileKind::Blocker) {
             return self.find_building_for_tile_mut(tile);
         }
@@ -285,14 +268,14 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_building_by_name(&self, name: &str, kind: BuildingKind) -> Option<&Building<'config>> {
+    pub fn find_building_by_name(&self, name: &str, kind: BuildingKind) -> Option<&Building> {
         self.buildings_pool(kind.archetype_kind())
             .iter()
             .find(|building| building.name() == name && building.is(kind))
     }
 
     #[inline]
-    pub fn find_building_by_name_mut(&mut self, name: &str, kind: BuildingKind) -> Option<&mut Building<'config>> {
+    pub fn find_building_by_name_mut(&mut self, name: &str, kind: BuildingKind) -> Option<&mut Building> {
         self.buildings_pool_mut(kind.archetype_kind())
             .iter_mut()
             .find(|building| building.name() == name && building.is(kind))
@@ -303,7 +286,7 @@ impl<'config> World<'config> {
     // `building_kinds` can be a combination of ORed BuildingKind flags.
     #[inline]
     pub fn for_each_building<F>(&self, building_kinds: BuildingKind, mut visitor_fn: F)
-        where F: FnMut(&Building<'config>) -> bool
+        where F: FnMut(&Building) -> bool
     {
         let buildings = self.buildings_pool(building_kinds.archetype_kind());
         for building in buildings.iter() {
@@ -315,7 +298,7 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn for_each_building_mut<F>(&mut self, building_kinds: BuildingKind, mut visitor_fn: F)
-        where F: FnMut(&mut Building<'config>) -> bool
+        where F: FnMut(&mut Building) -> bool
     {
         let buildings = self.buildings_pool_mut(building_kinds.archetype_kind());
         for building in buildings.iter_mut() {
@@ -326,14 +309,14 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    fn buildings_pool(&self, archetype_kind: BuildingArchetypeKind) -> &SpawnPool<Building<'config>> {
+    fn buildings_pool(&self, archetype_kind: BuildingArchetypeKind) -> &SpawnPool<Building> {
         let (pool_archetype, buildings) = &self.building_spawn_pools[archetype_kind as usize];
         debug_assert!(archetype_kind == *pool_archetype);
         buildings
     }
 
     #[inline]
-    fn buildings_pool_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut SpawnPool<Building<'config>> {
+    fn buildings_pool_mut(&mut self, archetype_kind: BuildingArchetypeKind) -> &mut SpawnPool<Building> {
         let (pool_archetype, buildings) = &mut self.building_spawn_pools[archetype_kind as usize];
         debug_assert!(archetype_kind == *pool_archetype);
         buildings
@@ -362,7 +345,7 @@ impl<'config> World<'config> {
     }
 
     pub fn draw_building_debug_ui(&mut self,
-                                  query: &Query<'config, '_>,
+                                  query: &Query,
                                   ui_sys: &UiSystem,
                                   tile: &Tile,
                                   mode: DebugUiMode) {
@@ -379,12 +362,13 @@ impl<'config> World<'config> {
     pub fn try_spawn_unit_with_config(&mut self,
                                       query: &Query,
                                       unit_origin: Cell,
-                                      unit_config_key: UnitConfigKey) -> Result<&mut Unit<'config>, String> {
+                                      unit_config_key: UnitConfigKey) -> Result<&mut Unit, String> {
 
         debug_assert!(unit_origin.is_valid());
         debug_assert!(unit_config_key.is_valid());
 
-        let config = self.unit_configs().find_config_by_hash(unit_config_key.hash, unit_config_key.string);
+        let configs = UnitConfigs::get();
+        let config = configs.find_config_by_hash(unit_config_key.hash, unit_config_key.string);
 
         // Find TileDef:
         if let Some(tile_def) = query.tile_sets().find_tile_def_by_hash(
@@ -424,7 +408,7 @@ impl<'config> World<'config> {
     pub fn try_spawn_unit_with_tile_def(&mut self,
                                         query: &Query,
                                         unit_origin: Cell,
-                                        tile_def: &TileDef) -> Result<&mut Unit<'config>, String> {
+                                        tile_def: &TileDef) -> Result<&mut Unit, String> {
 
         debug_assert!(unit_origin.is_valid());
         debug_assert!(tile_def.is_valid());
@@ -433,7 +417,8 @@ impl<'config> World<'config> {
         // Allocate & place a Tile:
         match query.tile_map().try_place_tile(unit_origin, tile_def) {
             Ok(tile) => {
-                let config = self.unit_configs().find_config_by_hash(tile_def.hash, &tile_def.name);
+                let configs = UnitConfigs::get();
+                let config = configs.find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn unit:
                 let unit = self.unit_spawn_pool.spawn(query,
@@ -458,7 +443,7 @@ impl<'config> World<'config> {
         }
     }
 
-    pub fn despawn_unit(&mut self, query: &Query, unit: &mut Unit<'config>) -> Result<(), String> {
+    pub fn despawn_unit(&mut self, query: &Query, unit: &mut Unit) -> Result<(), String> {
         debug_assert!(unit.is_spawned());
         let tile_map = query.tile_map();
 
@@ -486,7 +471,7 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn despawn_unit_at_cell(&mut self, query: &Query<'config, '_>, tile_base_cell: Cell) -> Result<(), String> {
+    pub fn despawn_unit_at_cell(&mut self, query: &Query, tile_base_cell: Cell) -> Result<(), String> {
         debug_assert!(tile_base_cell.is_valid());
 
         let unit =
@@ -497,17 +482,17 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_unit(&self, id: UnitId) -> Option<&Unit<'config>> {
+    pub fn find_unit(&self, id: UnitId) -> Option<&Unit> {
         self.unit_spawn_pool.try_get(id)
     }
 
     #[inline]
-    pub fn find_unit_mut(&mut self, id: UnitId) -> Option<&mut Unit<'config>> {
+    pub fn find_unit_mut(&mut self, id: UnitId) -> Option<&mut Unit> {
         self.unit_spawn_pool.try_get_mut(id)
     }
 
     #[inline]
-    pub fn find_unit_for_tile(&self, tile: &Tile) -> Option<&Unit<'config>> {
+    pub fn find_unit_for_tile(&self, tile: &Tile) -> Option<&Unit> {
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
             let id = UnitId::new(game_object_handle.generation(), game_object_handle.index());
@@ -517,7 +502,7 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_unit_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Unit<'config>> {
+    pub fn find_unit_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Unit> {
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
             let id = UnitId::new(game_object_handle.generation(), game_object_handle.index());
@@ -527,7 +512,7 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_unit_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Unit<'config>> {
+    pub fn find_unit_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Unit> {
         if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Unit) {
             return self.find_unit_for_tile(tile);
         }
@@ -535,7 +520,7 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_unit_for_cell_mut(&mut self, cell: Cell, tile_map: &mut TileMap) -> Option<&mut Unit<'config>> {
+    pub fn find_unit_for_cell_mut(&mut self, cell: Cell, tile_map: &mut TileMap) -> Option<&mut Unit> {
         if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Unit) {
             return self.find_unit_for_tile_mut(tile);
         }
@@ -543,14 +528,14 @@ impl<'config> World<'config> {
     }
 
     #[inline]
-    pub fn find_unit_by_name(&self, name: &str) -> Option<&Unit<'config>> {
+    pub fn find_unit_by_name(&self, name: &str) -> Option<&Unit> {
         self.unit_spawn_pool
             .iter()
             .find(|unit| unit.name() == name)
     }
 
     #[inline]
-    pub fn find_unit_by_name_mut(&mut self, name: &str) -> Option<&mut Unit<'config>> {
+    pub fn find_unit_by_name_mut(&mut self, name: &str) -> Option<&mut Unit> {
         self.unit_spawn_pool
             .iter_mut()
             .find(|unit| unit.name() == name)
@@ -558,7 +543,7 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn for_each_unit<F>(&self, mut visitor_fn: F)
-        where F: FnMut(&Unit<'config>) -> bool
+        where F: FnMut(&Unit) -> bool
     {
         for unit in self.unit_spawn_pool.iter() {
             if !visitor_fn(unit) {
@@ -569,7 +554,7 @@ impl<'config> World<'config> {
 
     #[inline]
     pub fn for_each_unit_mut<F>(&mut self, mut visitor_fn: F)
-        where F: FnMut(&mut Unit<'config>) -> bool
+        where F: FnMut(&mut Unit) -> bool
     {
         for unit in self.unit_spawn_pool.iter_mut() {
             if !visitor_fn(unit) {
@@ -598,7 +583,7 @@ impl<'config> World<'config> {
     }
 
     pub fn draw_unit_debug_ui(&mut self,
-                              query: &Query<'config, '_>,
+                              query: &Query,
                               ui_sys: &UiSystem,
                               tile: &Tile,
                               mode: DebugUiMode) {
@@ -624,21 +609,18 @@ impl<'config> World<'config> {
 // Save/Load for World
 // ----------------------------------------------
 
-impl Save for World<'_> {
+impl Save for World {
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
         state.save(self)
     }
 }
 
-impl<'config> Load<'_, 'config> for World<'config> {
+impl Load<'_> for World {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>) {
-        self.building_configs = Some(context.building_configs);
-        self.unit_configs     = Some(context.unit_configs);
-
+    fn post_load(&mut self, context: &PostLoadContext) {
         self.stats.reset();
 
         for unit in self.unit_spawn_pool.iter_mut() {

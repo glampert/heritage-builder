@@ -18,11 +18,11 @@ use crate::{
 };
 
 use {
-    building::config::BuildingConfigs,
     config::{GameConfigs, LoadMapSetting},
+    building::config::BuildingConfigs,
+    unit::config::UnitConfigs,
     sim::Simulation,
     system::{GameSystems, settlers},
-    unit::config::UnitConfigs,
     world::World,
 };
 
@@ -41,16 +41,12 @@ pub mod world;
 
 struct GameAssets {
     tile_sets: TileSets,
-    unit_configs: &'static UnitConfigs,
-    building_configs: &'static BuildingConfigs,
 }
 
 impl GameAssets {
     fn new(tex_cache: &mut dyn TextureCache) -> Self {
         Self {
             tile_sets: TileSets::load(tex_cache),
-            unit_configs: UnitConfigs::load(),
-            building_configs: BuildingConfigs::load(),
         }
     }
 }
@@ -62,8 +58,8 @@ impl GameAssets {
 #[derive(Serialize, Deserialize)]
 struct GameSession<'game> {
     tile_map: Box<TileMap<'game>>,
-    world: World<'game>,
-    sim: Simulation<'game>,
+    world: World,
+    sim: Simulation,
     systems: GameSystems,
     camera: Camera,
 
@@ -87,34 +83,29 @@ impl<'game> GameSession<'game> {
             panic!("Invalid game viewport size!");
         }
 
-        let game_configs = GameConfigs::get();
+        let configs = GameConfigs::get();
 
         let mut opt_save_file_to_load: Option<&String> = None;
         if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
             opt_save_file_to_load = Some(save_file_path);
         }
 
-        let mut world = World::new(assets.building_configs, assets.unit_configs);
+        let mut world = World::new();
         let mut tile_map = Self::create_tile_map(&mut world, assets, load_map_setting);
 
-        let sim = Simulation::new(
-            &tile_map,
-            game_configs,
-            assets.building_configs,
-            assets.unit_configs,
-        );
+        let sim = Simulation::new(&tile_map);
 
         let mut systems = GameSystems::new();
         systems.register(settlers::SettlersSpawnSystem::new(
-            game_configs.sim.settlers_spawn_frequency_secs,
-            game_configs.sim.population_per_settler_unit,
+            configs.sim.settlers_spawn_frequency_secs,
+            configs.sim.population_per_settler_unit,
         ));
 
         let camera = Camera::new(
             viewport_size,
             tile_map.size_in_cells(),
-            game_configs.camera.zoom,
-            game_configs.camera.offset,
+            configs.camera.zoom,
+            configs.camera.offset,
         );
 
         let debug_menus = DebugMenusSystem::new(&mut tile_map, tex_cache);
@@ -238,7 +229,7 @@ impl Save for GameSession<'_> {
     }
 }
 
-impl<'game> Load<'game, 'game> for GameSession<'game> {
+impl<'game> Load<'game> for GameSession<'game> {
     fn pre_load(&mut self) {
         self.tile_map.pre_load();
         self.world.pre_load();
@@ -253,7 +244,7 @@ impl<'game> Load<'game, 'game> for GameSession<'game> {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'game, 'game>) {
+    fn post_load(&mut self, context: &PostLoadContext<'game>) {
         self.tile_map.post_load(context);
         self.world.post_load(context);
         self.sim.post_load(context);
@@ -360,9 +351,7 @@ impl<'game> GameSession<'game> {
 
         self.post_load(&PostLoadContext::new(
             &self.tile_map,
-            &assets.tile_sets,
-            assets.unit_configs,
-            assets.building_configs,
+            &assets.tile_sets
         ));
 
         true
@@ -403,24 +392,24 @@ impl<'game> GameLoop<'game> {
     // ----------------------
 
     pub fn new() -> Self {
-        let game_configs = GameConfigs::load();
+        let configs = GameConfigs::load();
 
         // Boot the engine and load assets:
-        let mut engine = Self::init_engine(&game_configs.engine);
+        let mut engine = Self::init_engine(&configs.engine);
         let assets = Self::load_assets(engine.texture_cache_mut());
 
         // Global initialization:
         cheats::initialize();
         Simulation::register_callbacks();
-        debug::set_show_popup_messages(game_configs.debug.show_popups);
+        debug::set_show_popup_messages(configs.debug.show_popups);
 
         Self {
             engine,
             assets,
             session: None,
             session_cmd_queue: VecDeque::new(),
-            autosave_timer: UpdateTimer::new(game_configs.save.autosave_frequency_secs),
-            enable_autosave: game_configs.save.enable_autosave,
+            autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
+            enable_autosave: configs.save.enable_autosave,
         }
     }
 
@@ -553,14 +542,21 @@ impl<'game> GameLoop<'game> {
         mem::mut_ref_cast(engine_box.as_ref())
     }
 
-    fn load_assets(tex_cache: &mut dyn TextureCache) -> Box<GameAssets> {
-        log::info!(log::channel!("game"), "Loading Game Assets ...");
-        Box::new(GameAssets::new(tex_cache))
-    }
-
     fn init_engine(engine_configs: &EngineConfigs) -> Box<dyn Engine> {
         log::info!(log::channel!("game"), "Init Engine: GLFW + OpenGL");
         Box::new(engine::backend::GlfwOpenGlEngine::new(engine_configs))
+    }
+
+    fn load_assets(tex_cache: &mut dyn TextureCache) -> Box<GameAssets> {
+        log::info!(log::channel!("game"), "Loading Game Assets ...");
+
+        BuildingConfigs::load();
+        log::info!(log::channel!("game"), "BuildingConfigs loaded.");
+
+        UnitConfigs::load();
+        log::info!(log::channel!("game"), "UnitConfigs loaded.");
+
+        Box::new(GameAssets::new(tex_cache))
     }
 
     fn handle_event(&self, event: ApplicationEvent, cursor_screen_pos: Vec2) {

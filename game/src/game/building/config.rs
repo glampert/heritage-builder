@@ -101,9 +101,7 @@ struct BuildingConfigEntry {
 }
 
 impl BuildingConfigEntry {
-    fn instantiate_archetype<'config>(&'config self, configs: &'config BuildingConfigs)
-                                      -> (BuildingKind, BuildingArchetype<'config>) {
-
+    fn instantiate_archetype(&'static self, configs: &'static BuildingConfigs) -> (BuildingKind, BuildingArchetype) {
         match self.archetype_kind {
             BuildingArchetypeKind::ProducerBuilding => {
                 let producer_config = &configs.producer_configs[self.index];
@@ -168,11 +166,11 @@ pub struct BuildingConfigs {
 }
 
 impl BuildingConfigs {
-    pub fn find_house_config(&self) -> &HouseConfig {
+    pub fn find_house_config(&'static self) -> &'static HouseConfig {
         &self.house_config
     }
 
-    pub fn find_house_level_config(&self, level: HouseLevel) -> &HouseLevelConfig {
+    pub fn find_house_level_config(&'static self, level: HouseLevel) -> &'static HouseLevelConfig {
         let index = level as usize;
 
         if index < self.house_levels.len() {
@@ -185,7 +183,7 @@ impl BuildingConfigs {
         &self.default_house_level_config
     }
 
-    pub fn find_producer_config(&self, kind: BuildingKind, tile_def_name_hash: StringHash, tile_def_name: &str) -> &ProducerConfig {
+    pub fn find_producer_config(&'static self, kind: BuildingKind, tile_def_name_hash: StringHash, tile_def_name: &str) -> &'static ProducerConfig {
         debug_assert!(kind.is_single_building());
         debug_assert!(tile_def_name_hash != hash::NULL_HASH);
 
@@ -209,7 +207,7 @@ impl BuildingConfigs {
         }
     }
 
-    pub fn find_service_config(&self, kind: ServiceKind) -> &ServiceConfig {
+    pub fn find_service_config(&'static self, kind: ServiceKind) -> &'static ServiceConfig {
         debug_assert!(kind.is_single_building());
 
         match self.service_mapping.get(&kind) {
@@ -225,7 +223,7 @@ impl BuildingConfigs {
         }
     }
 
-    pub fn find_storage_config(&self, kind: BuildingKind) -> &StorageConfig {
+    pub fn find_storage_config(&'static self, kind: BuildingKind) -> &'static StorageConfig {
         debug_assert!(kind.is_single_building());
 
         match self.storage_mapping.get(&kind) {
@@ -241,8 +239,7 @@ impl BuildingConfigs {
         }
     }
 
-    pub fn new_building_archetype_for_tile_def<'config>(&'config self, tile_def: &TileDef) 
-                                                        -> Result<(BuildingKind, BuildingArchetype<'config>), String> {
+    pub fn new_building_archetype_for_tile_def(&'static self, tile_def: &TileDef) -> Result<(BuildingKind, BuildingArchetype), String> {
         debug_assert!(tile_def.hash != hash::NULL_HASH);
 
         match self.tile_def_mapping.get(&tile_def.hash) {
@@ -255,7 +252,7 @@ impl BuildingConfigs {
         }
     }
 
-    fn post_load(&mut self) {
+    fn post_load(&'static mut self) {
         self.house_config.kind = BuildingKind::House;
         self.house_config.post_load(0);
 
@@ -375,7 +372,7 @@ impl BuildingConfigs {
         }
     }
 
-    fn draw_debug_ui_with_header(&self, _header: &str, ui_sys: &UiSystem) {
+    fn draw_debug_ui_with_header(&'static self, _header: &str, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         self.house_config.draw_debug_ui_with_header("House", ui_sys);

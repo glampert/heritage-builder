@@ -82,7 +82,7 @@ Common Unit Behavior:
  - Has an inventory that can cary a single ResourceKind at a time, any amount.
 */
 #[derive(Clone, Default, Serialize, Deserialize)]
-pub struct Unit<'config> {
+pub struct Unit {
     id: UnitId,
     map_cell: Cell,
     config_key_hash: StringHash,
@@ -92,11 +92,11 @@ pub struct Unit<'config> {
     navigation: UnitNavigation,
     current_task_id: UnitTaskId, // invalid if no task.
 
-    #[serde(skip)] config: Option<&'config UnitConfig>,
+    #[serde(skip)] config: Option<&'static UnitConfig>,
     #[serde(skip)] debug: UnitDebug,
 }
 
-impl<'config> GameObject<'config> for Unit<'config> {
+impl GameObject for Unit {
     // ----------------------
     // GameObject Interface:
     // ----------------------
@@ -107,7 +107,7 @@ impl<'config> GameObject<'config> for Unit<'config> {
     }
 
     #[inline]
-    fn update(&mut self, query: &Query<'config, '_>) {
+    fn update(&mut self, query: &Query) {
         debug_assert!(self.config.is_some());
         self.update_tasks(query);
     }
@@ -123,13 +123,17 @@ impl<'config> GameObject<'config> for Unit<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>) {
+    fn post_load(&mut self, _context: &PostLoadContext) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.config_key_hash != hash::NULL_HASH);
-        self.config = Some(context.unit_configs.find_config_by_hash(self.config_key_hash, self.name()));
+
+        let configs = UnitConfigs::get();
+        let config = configs.find_config_by_hash(self.config_key_hash, self.name());
+
+        self.config = Some(config);
     }
 
-    fn draw_debug_ui(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
 
         match mode {
@@ -164,12 +168,12 @@ impl<'config> GameObject<'config> for Unit<'config> {
     }
 }
 
-impl<'config> Unit<'config> {
+impl Unit {
     // ----------------------
     // Spawning / Despawning:
     // ----------------------
 
-    pub fn spawned(&mut self, tile: &mut Tile, config: &'config UnitConfig, id: UnitId) {
+    pub fn spawned(&mut self, tile: &mut Tile, config: &'static UnitConfig, id: UnitId) {
         debug_assert!(!self.is_spawned());
         debug_assert!(tile.is_valid());
         debug_assert!(id.is_valid());
@@ -247,7 +251,7 @@ impl<'config> Unit<'config> {
     }
 
     #[inline]
-    pub fn patrol_task_origin_building(&self, query: &'config Query) -> Option<&mut Building<'config>> {
+    pub fn patrol_task_origin_building<'world>(&self, query: &'world Query) -> Option<&'world mut Building> {
         debug_assert!(self.is_spawned());
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
             return query.world().find_building_mut(task.origin_building.kind, task.origin_building.id);
@@ -419,7 +423,7 @@ impl<'config> Unit<'config> {
     // ----------------------
 
     #[inline]
-    fn update_tasks(&mut self, query: &Query<'config, '_>) {
+    fn update_tasks(&mut self, query: &Query) {
         debug_assert!(self.is_spawned());
         let task_manager = query.task_manager();
         task_manager.run_unit_tasks(self, query);
@@ -458,10 +462,10 @@ impl<'config> Unit<'config> {
         self.current_task_id = task_id.unwrap_or_default();
     }
 
-    pub fn try_spawn_with_task<Task>(query: &'config Query,
-                                     unit_origin: Cell,
-                                     unit_config: UnitConfigKey,
-                                     task: Task) -> Result<&'config mut Unit<'config>, String>
+    pub fn try_spawn_with_task<'world, Task>(query: &'world Query,
+                                             unit_origin: Cell,
+                                             unit_config: UnitConfigKey,
+                                             task: Task) -> Result<&'world mut Unit, String>
         where Task: UnitTask,
               UnitTaskArchetype: From<Task>
     {
@@ -585,30 +589,22 @@ pub trait UnitTaskHelper {
     }
 
     #[inline]
-    fn try_unit<'config>(&self, query: &'config Query) -> Option<&'config Unit<'config>> {
-        if self.unit_id().is_valid() {
-            query.world().find_unit(self.unit_id())
-        } else {
-            None
-        }
+    fn try_unit<'world>(&self, query: &'world Query) -> Option<&'world Unit> {
+        query.world().find_unit(self.unit_id())
     }
 
     #[inline]
-    fn try_unit_mut<'config>(&mut self, query: &'config Query) -> Option<&'config mut Unit<'config>> {
-        if self.unit_id().is_valid() {
-            query.world().find_unit_mut(self.unit_id())
-        } else {
-            None
-        }
+    fn try_unit_mut<'world>(&mut self, query: &'world Query) -> Option<&'world mut Unit> {
+        query.world().find_unit_mut(self.unit_id())
     }
 
     #[inline]
-    fn unit<'config>(&self, query: &'config Query) -> &'config Unit<'config> {
+    fn unit<'world>(&self, query: &'world Query) -> &'world Unit {
         self.try_unit(query).unwrap()
     }
 
     #[inline]
-    fn unit_mut<'config>(&mut self, query: &'config Query) -> &'config mut Unit<'config> {
+    fn unit_mut<'world>(&mut self, query: &'world Query) -> &'world mut Unit {
         self.try_unit_mut(query).unwrap()
     }
 

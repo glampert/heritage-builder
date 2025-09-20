@@ -60,7 +60,7 @@ mod settings;
 // ----------------------------------------------
 
 pub struct DebugMenusInputArgs<'game> {
-    pub world: &'game mut World<'game>,
+    pub world: &'game mut World,
     pub tile_map: &'game mut TileMap<'game>,
     pub tile_selection: &'game mut TileSelection,
     pub transform: WorldToScreenTransform,
@@ -74,8 +74,8 @@ pub struct DebugMenusFrameArgs<'game> {
     pub tile_selection: &'game mut TileSelection,
 
     // Sim/World:
-    pub sim: &'game mut Simulation<'game>,
-    pub world: &'game mut World<'game>,
+    pub sim: &'game mut Simulation,
+    pub world: &'game mut World,
     pub systems: &'game mut GameSystems,
 
     // UI/Debug:
@@ -146,7 +146,7 @@ impl Drop for DebugMenusSystem {
 impl Save for DebugMenusSystem {
 }
 
-impl Load<'_, '_> for DebugMenusSystem {
+impl Load<'_> for DebugMenusSystem {
     fn post_load(&mut self, context: &PostLoadContext) {
         DebugMenusSingleton::get_mut().tile_inspector_menu.close();
 

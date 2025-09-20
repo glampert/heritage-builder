@@ -51,8 +51,8 @@ use super::{
 // Unit Debug UI
 // ----------------------------------------------
 
-impl<'config> Unit<'config> {
-    pub fn draw_debug_ui_overview(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+impl Unit {
+    pub fn draw_debug_ui_overview(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         let font = ui.push_font(ui_sys.fonts().large);
@@ -84,7 +84,7 @@ impl<'config> Unit<'config> {
         }
     }
 
-    pub fn draw_debug_ui_detailed(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui_detailed(&mut self, query: &Query, ui_sys: &UiSystem) {
         self.draw_debug_ui_properties(ui_sys);
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
@@ -180,7 +180,7 @@ impl<'config> Unit<'config> {
         self.navigation.draw_debug_ui(ui_sys);
     }
 
-    fn draw_debug_ui_misc(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+    fn draw_debug_ui_misc(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -201,7 +201,7 @@ impl<'config> Unit<'config> {
         self.debug_dropdown_pathfinding_tasks(query, ui_sys);
     }
 
-    fn debug_dropdown_despawn_tasks(&mut self, query: &Query<'config, '_>, ui_sys: &UiSystem) {
+    fn debug_dropdown_despawn_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if !ui.collapsing_header("Despawn Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.

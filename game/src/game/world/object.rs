@@ -98,7 +98,7 @@ impl std::fmt::Display for GenerationalIndex {
 // GameObject
 // ----------------------------------------------
 
-pub trait GameObject<'config> {
+pub trait GameObject {
     fn id(&self) -> GenerationalIndex;
 
     #[inline]
@@ -106,12 +106,12 @@ pub trait GameObject<'config> {
         self.id().is_valid()
     }
 
-    fn update(&mut self, query: &Query<'config, '_>);
+    fn update(&mut self, query: &Query);
     fn tally(&self, stats: &mut WorldStats);
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>);
+    fn post_load(&mut self, context: &PostLoadContext);
 
     fn draw_debug_ui(&mut self,
-                     query: &Query<'config, '_>,
+                     query: &Query,
                      ui_sys: &UiSystem,
                      mode: DebugUiMode);
 
@@ -174,8 +174,8 @@ impl<'a, T> Iterator for SpawnPoolIterMut<'a, T> {
 
 impl<T> iter::FusedIterator for SpawnPoolIterMut<'_, T> {}
 
-impl<'config, T> SpawnPool<T>
-    where T: GameObject<'config> + Clone + Default
+impl<T> SpawnPool<T>
+    where T: GameObject + Clone + Default
 {
     pub fn new(capacity: usize, generation: u32) -> Self {
         let default_instance = T::default();
@@ -356,8 +356,8 @@ struct SpawnPoolSerializedHeader {
     generation: u32,
 }
 
-impl<'config, T> Serialize for SpawnPool<T>
-    where T: GameObject<'config> + Clone + Default + Serialize
+impl<T> Serialize for SpawnPool<T>
+    where T: GameObject + Clone + Default + Serialize
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer
@@ -399,8 +399,8 @@ impl<'config, T> Serialize for SpawnPool<T>
     }
 }
 
-impl<'de, 'config, T> Deserialize<'de> for SpawnPool<T>
-    where T: GameObject<'config> + Clone + Default + Deserialize<'de>
+impl<'de, T> Deserialize<'de> for SpawnPool<T>
+    where T: GameObject + Clone + Default + Deserialize<'de>
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de>
@@ -409,8 +409,8 @@ impl<'de, 'config, T> Deserialize<'de> for SpawnPool<T>
             marker: std::marker::PhantomData<T>,
         }
 
-        impl<'de, 'config, T> Visitor<'de> for PoolVisitor<T>
-            where T: GameObject<'config> + Clone + Default + Deserialize<'de>
+        impl<'de, T> Visitor<'de> for PoolVisitor<T>
+            where T: GameObject + Clone + Default + Deserialize<'de>
         {
             type Value = SpawnPool<T>;
 
@@ -481,13 +481,13 @@ impl<'de, 'config, T> Deserialize<'de> for SpawnPool<T>
 // Spawner
 // ----------------------------------------------
 
-pub struct Spawner<'config, 'tile_sets, 'query> {
-    query: &'query Query<'config, 'tile_sets>,
+pub struct Spawner<'tile_sets, 'world> {
+    query: &'world Query<'tile_sets>,
 }
 
-pub enum SpawnerResult<'config, 'tile_sets> {
-    Building(&'config mut Building<'config>),
-    Unit(&'config mut Unit<'config>),
+pub enum SpawnerResult<'world, 'tile_sets> {
+    Building(&'world mut Building),
+    Unit(&'world mut Unit),
     Tile(&'tile_sets mut Tile<'tile_sets>),
     Err(String),
 }
@@ -504,9 +504,9 @@ impl SpawnerResult<'_, '_> {
     }
 }
 
-impl<'config, 'tile_sets, 'query> Spawner<'config, 'tile_sets, 'query> {
+impl<'tile_sets, 'world> Spawner<'tile_sets, 'world> {
     #[inline]
-    pub fn new(query: &'query Query<'config, 'tile_sets>) -> Self {
+    pub fn new(query: &'world Query<'tile_sets>) -> Self {
         Self { query }
     }
 
@@ -571,7 +571,7 @@ impl<'config, 'tile_sets, 'query> Spawner<'config, 'tile_sets, 'query> {
     pub fn try_spawn_building_with_tile_def(&self,
                                             building_base_cell: Cell,
                                             building_tile_def: &TileDef)
-                                            -> Result<&'query mut Building<'config>, String> {
+                                            -> Result<&'world mut Building, String> {
 
         self.query.world().try_spawn_building_with_tile_def(
             self.query,
@@ -579,7 +579,7 @@ impl<'config, 'tile_sets, 'query> Spawner<'config, 'tile_sets, 'query> {
             building_tile_def)
     }
 
-    pub fn despawn_building(&self, building: &mut Building<'config>) {
+    pub fn despawn_building(&self, building: &mut Building) {
         if let Err(err) = self.query.world().despawn_building(self.query, building) {
             despawn_error("Building", &err);
         }
@@ -598,7 +598,7 @@ impl<'config, 'tile_sets, 'query> Spawner<'config, 'tile_sets, 'query> {
     pub fn try_spawn_unit_with_tile_def(&self,
                                         unit_origin: Cell,
                                         unit_tile_def: &TileDef)
-                                        -> Result<&'query mut Unit<'config>, String> {
+                                        -> Result<&'world mut Unit, String> {
 
         self.query.world().try_spawn_unit_with_tile_def(
             self.query,
@@ -609,7 +609,7 @@ impl<'config, 'tile_sets, 'query> Spawner<'config, 'tile_sets, 'query> {
     pub fn try_spawn_unit_with_config(&self,
                                       unit_origin: Cell,
                                       unit_config_key: UnitConfigKey)
-                                      -> Result<&'query mut Unit<'config>, String> {
+                                      -> Result<&'world mut Unit, String> {
 
         self.query.world().try_spawn_unit_with_config(
             self.query,
@@ -617,7 +617,7 @@ impl<'config, 'tile_sets, 'query> Spawner<'config, 'tile_sets, 'query> {
             unit_config_key)
     }
 
-    pub fn despawn_unit(&self, unit: &mut Unit<'config>) {
+    pub fn despawn_unit(&self, unit: &mut Unit) {
         if let Err(err) = self.query.world().despawn_unit(self.query, unit) {
             despawn_error("Unit", &err);
         }

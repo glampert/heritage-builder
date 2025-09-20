@@ -17,14 +17,14 @@ use crate::{
 pub const CONFIGS_DIR_PATH: &str = "assets/configs";
 
 pub trait Configs {
-    fn draw_debug_ui(&self, _ui_sys: &UiSystem) {
+    fn draw_debug_ui(&'static self, _ui_sys: &UiSystem) {
     }
 
-    fn post_load(&mut self) {
+    fn post_load(&'static mut self) {
     }
 
     // Saves current configs to file.
-    fn save_file(&self, config_file_name: &str) -> bool
+    fn save_file(&'static self, config_file_name: &str) -> bool
         where Self: Configs + Sized + Serialize
     {
         debug_assert!(!config_file_name.is_empty());
@@ -88,7 +88,7 @@ macro_rules! configurations {
     ($configs_singleton:ident, $configs_type:ty, $configs_path:literal) => {
         $crate::singleton_late_init! { $configs_singleton, $configs_type }
         impl $crate::engine::config::Configs for $configs_type {
-            fn draw_debug_ui(&self, ui_sys: &$crate::imgui_ui::UiSystem) {
+            fn draw_debug_ui(&'static self, ui_sys: &$crate::imgui_ui::UiSystem) {
                 self.draw_debug_ui_with_header(stringify!($configs_type), ui_sys);
             }
         }
@@ -96,9 +96,8 @@ macro_rules! configurations {
             pub fn load() -> &'static $configs_type {
                 use $crate::engine::config::Configs;
                 <$configs_type>::initialize(<$configs_type>::load_file($configs_path));
-                let instance = <$configs_type>::get_mut();
-                instance.post_load();
-                instance
+                <$configs_type>::get_mut().post_load();
+                <$configs_type>::get()
             }
         }
     };

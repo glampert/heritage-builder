@@ -2177,12 +2177,12 @@ impl Save for TileMap<'_> {
     }
 }
 
-impl<'tile_sets> Load<'tile_sets, '_> for TileMap<'tile_sets> {
+impl<'tile_sets> Load<'tile_sets> for TileMap<'tile_sets> {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'tile_sets, '_>) {
+    fn post_load(&mut self, context: &PostLoadContext<'tile_sets>) {
         debug_assert!(self.size_in_cells >= Size::zero());
 
         // These are *not* serialized, so should be unset.

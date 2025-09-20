@@ -194,18 +194,18 @@ impl<T> SingleThreadStatic<T> {
     }
 
     #[inline]
-    pub fn set(&self, value: T) {
+    pub fn set(&'static self, value: T) {
         *self.as_mut() = value;
     }
 
     #[inline]
-    pub fn as_ref(&self) -> &T {
+    pub fn as_ref(&'static self) -> &'static T {
         self.assert_owner();
         unsafe { &*self.value.get() }
     }
 
     #[inline]
-    pub fn as_mut(&self) -> &mut T {
+    pub fn as_mut(&'static self) -> &'static mut T {
         self.assert_owner();
         unsafe { &mut *self.value.get() }
     }
@@ -237,14 +237,16 @@ impl<T> Deref for SingleThreadStatic<T> {
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
-        self.as_ref()
+        self.assert_owner();
+        unsafe { &*self.value.get() }
     }
 }
 
 impl<T> DerefMut for SingleThreadStatic<T> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_mut()
+        self.assert_owner();
+        unsafe { &mut *self.value.get() }
     }
 }
 
@@ -264,12 +266,12 @@ impl<T> Singleton<T> {
     }
 
     #[inline]
-    pub fn as_ref(&self) -> &T {
+    pub fn as_ref(&'static self) -> &'static T {
         self.instance.as_ref()
     }
 
     #[inline]
-    pub fn as_mut(&self) -> &mut T {
+    pub fn as_mut(&'static self) -> &'static mut T {
         self.instance.as_mut()
     }
 }
@@ -314,7 +316,7 @@ impl<T> SingletonLateInit<T> {
     }
 
     #[inline]
-    pub fn initialize(&self, instance: T) {
+    pub fn initialize(&'static self, instance: T) {
         if self.is_initialized() {
             panic!("Singleton {} is already initialized!", self.debug_name);
         }
@@ -322,17 +324,17 @@ impl<T> SingletonLateInit<T> {
     }
 
     #[inline]
-    pub fn terminate(&self) {
+    pub fn terminate(&'static self) {
         self.maybe_instance.set(None);
     }
 
     #[inline]
-    pub fn is_initialized(&self) -> bool {
+    pub fn is_initialized(&'static self) -> bool {
         self.maybe_instance.is_some()
     }
 
     #[inline]
-    pub fn as_ref(&self) -> &T {
+    pub fn as_ref(&'static self) -> &'static T {
         if let Some(instance) = self.maybe_instance.as_ref() {
             return instance;
         }
@@ -340,7 +342,7 @@ impl<T> SingletonLateInit<T> {
     }
 
     #[inline]
-    pub fn as_mut(&self) -> &mut T {
+    pub fn as_mut(&'static self) -> &'static mut T {
         if let Some(instance) = self.maybe_instance.as_mut() {
             return instance;
         }

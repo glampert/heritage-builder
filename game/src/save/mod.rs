@@ -4,9 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     utils::mem,
-    tile::{TileMap, sets::TileSets},
-    game::unit::config::UnitConfigs,
-    game::building::config::BuildingConfigs
+    tile::{TileMap, sets::TileSets}
 };
 
 // ----------------------------------------------
@@ -25,7 +23,7 @@ pub trait Save {
     }
 }
 
-pub trait Load<'tile_sets, 'config> {
+pub trait Load<'tile_sets> {
     fn pre_load(&mut self) {
     }
 
@@ -33,7 +31,7 @@ pub trait Load<'tile_sets, 'config> {
         Ok(())
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext<'tile_sets, 'config>) {
+    fn post_load(&mut self, _context: &PostLoadContext<'tile_sets>) {
     }
 }
 
@@ -67,24 +65,17 @@ pub enum SaveStateImpl {
     Json(backend::JsonSaveState),
 }
 
-pub struct PostLoadContext<'tile_sets, 'config> {
+pub struct PostLoadContext<'tile_sets> {
     pub tile_map: mem::RawPtr<TileMap<'tile_sets>>,
     pub tile_sets: &'tile_sets TileSets,
-    pub unit_configs: &'config UnitConfigs,
-    pub building_configs: &'config BuildingConfigs,
 }
 
-impl<'tile_sets, 'config> PostLoadContext<'tile_sets, 'config> {
+impl<'tile_sets> PostLoadContext<'tile_sets,> {
     #[inline]
-    pub fn new(tile_map: &TileMap<'tile_sets>,
-               tile_sets: &'tile_sets TileSets,
-               unit_configs: &'config UnitConfigs,
-               building_configs: &'config BuildingConfigs) -> Self {
+    pub fn new(tile_map: &TileMap<'tile_sets>, tile_sets: &'tile_sets TileSets) -> Self {
         Self {
             tile_map: mem::RawPtr::from_ref(tile_map),
             tile_sets,
-            unit_configs,
-            building_configs,
         }
     }
 }

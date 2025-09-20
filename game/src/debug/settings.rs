@@ -118,12 +118,12 @@ impl DebugSettingsMenu {
         flags
     }
 
-    pub fn draw<'config>(&mut self,
-                         context: &mut sim::debug::DebugContext<'config, '_, '_, '_, 'config>,
-                         sim: &mut Simulation<'config>,
-                         camera: &mut Camera,
-                         engine: &mut dyn Engine,
-                         game_loop: &mut GameLoop<'config>) {
+    pub fn draw<'tile_sets>(&mut self,
+                            context: &mut sim::debug::DebugContext<'_, 'tile_sets>,
+                            sim: &mut Simulation,
+                            camera: &mut Camera,
+                            engine: &mut dyn Engine,
+                            game_loop: &mut GameLoop<'tile_sets>) {
 
         let window_flags =
             imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
@@ -226,7 +226,7 @@ impl DebugSettingsMenu {
     }
 
     fn reset_map_dropdown<'tile_sets>(&self,
-                                      context: &mut sim::debug::DebugContext<'_, '_, '_, '_, 'tile_sets>,
+                                      context: &mut sim::debug::DebugContext<'_, 'tile_sets>,
                                       game_loop: &mut GameLoop<'tile_sets>) {
 
         let ui = context.ui_sys.builder();
@@ -352,9 +352,9 @@ impl DebugSettingsMenu {
             .build(|| sim.draw_world_debug_ui(context));
     }
 
-    fn draw_game_systems_debug_window<'config>(&mut self,
-                                               context: &mut sim::debug::DebugContext<'config, '_, '_, '_, '_>,
-                                               sim: &mut Simulation<'config>) {
+    fn draw_game_systems_debug_window(&mut self,
+                                      context: &mut sim::debug::DebugContext,
+                                      sim: &mut Simulation) {
 
         let ui = context.ui_sys.builder();
         ui.window("Game Systems Debug")

@@ -54,7 +54,7 @@ use super::{
     BuildingKind,
     BuildingBehavior,
     BuildingContext,
-    config::BuildingConfig
+    config::{BuildingConfig, BuildingConfigs}
 };
 
 // ----------------------------------------------
@@ -143,8 +143,8 @@ game_object_debug_options! {
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct ProducerBuilding<'config> {
-    #[serde(skip)] config: Option<&'config ProducerConfig>,
+pub struct ProducerBuilding {
+    #[serde(skip)] config: Option<&'static ProducerConfig>,
 
     workers: Workers,
 
@@ -162,7 +162,7 @@ pub struct ProducerBuilding<'config> {
 // BuildingBehavior for ProducerBuilding
 // ----------------------------------------------
 
-impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
+impl BuildingBehavior for ProducerBuilding {
     // ----------------------
     // World Callbacks:
     // ----------------------
@@ -219,10 +219,12 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>, kind: BuildingKind, tile: &Tile) {
+    fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::producers()));
         let tile_def = tile.tile_def();
-        self.config = Some(context.building_configs.find_producer_config(kind, tile_def.hash, &tile_def.name));
+        let configs = BuildingConfigs::get();
+        let config = configs.find_producer_config(kind, tile_def.hash, &tile_def.name);
+        self.config = Some(config);
     }
 
     // ----------------------
@@ -321,8 +323,8 @@ impl<'config> BuildingBehavior<'config> for ProducerBuilding<'config> {
 // ProducerBuilding
 // ----------------------------------------------
 
-impl<'config> ProducerBuilding<'config> {
-    pub fn new(config: &'config ProducerConfig) -> Self {
+impl ProducerBuilding {
+    pub fn new(config: &'static ProducerConfig) -> Self {
         Self {
             config: Some(config),
             workers: Workers::employer(config.min_workers, config.max_workers),
@@ -755,7 +757,7 @@ impl ProducerInputsLocalStock {
     }
 }
 
-impl ProducerBuilding<'_> {
+impl ProducerBuilding {
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
         if self.production_input_stock.requires_any_resource() {
             let ui = ui_sys.builder();

@@ -198,7 +198,7 @@ game_object_debug_options! {
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct HouseBuilding<'config> {
+pub struct HouseBuilding {
     workers: Workers, // Workers this household provides (employed + unemployed).
 
     population_update_timer: UpdateTimer,
@@ -208,7 +208,7 @@ pub struct HouseBuilding<'config> {
     stock: BuildingStock,
 
     upgrade_update_timer: UpdateTimer,
-    upgrade_state: HouseUpgradeState<'config>,
+    upgrade_state: HouseUpgradeState,
 
     #[serde(skip)] debug: HouseDebug,
 }
@@ -217,7 +217,7 @@ pub struct HouseBuilding<'config> {
 // BuildingBehavior for HouseBuilding
 // ----------------------------------------------
 
-impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
+impl BuildingBehavior for HouseBuilding {
     // ----------------------
     // World Callbacks:
     // ----------------------
@@ -266,7 +266,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         }
     }
 
-    fn update(&mut self, context: &BuildingContext<'config, '_, '_>) {
+    fn update(&mut self, context: &BuildingContext) {
         let delta_time_secs = context.query.delta_time_secs();
 
         // Update house states:
@@ -297,9 +297,9 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind == BuildingKind::House);
-        self.upgrade_state.post_load(context);
+        self.upgrade_state.post_load();
     }
 
     // ----------------------
@@ -381,7 +381,7 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         house_upgrade::draw_debug_ui(context, ui_sys);
         self.draw_debug_ui_upgrade_state(context, ui_sys);
     }
@@ -391,8 +391,8 @@ impl<'config> BuildingBehavior<'config> for HouseBuilding<'config> {
 // HouseBuilding
 // ----------------------------------------------
 
-impl<'config> HouseBuilding<'config> {
-    pub fn new(level: HouseLevel, house_config: &'config HouseConfig, configs: &'config BuildingConfigs) -> Self {
+impl HouseBuilding {
+    pub fn new(level: HouseLevel, house_config: &'static HouseConfig, configs: &'static BuildingConfigs) -> Self {
         let upgrade_state = HouseUpgradeState::new(level, configs);
 
         let stock = BuildingStock::with_accepted_kinds_and_capacity(
@@ -415,12 +415,12 @@ impl<'config> HouseBuilding<'config> {
     }
 
     #[inline]
-    fn current_level_config(&self) -> &HouseLevelConfig {
+    fn current_level_config(&self) -> &'static HouseLevelConfig {
         self.upgrade_state.curr_level_config.unwrap()
     }
 
     #[inline]
-    fn next_level_config(&self) -> &HouseLevelConfig {
+    fn next_level_config(&self) -> &'static HouseLevelConfig {
         self.upgrade_state.next_level_config.unwrap()
     }
 
@@ -515,7 +515,7 @@ impl<'config> HouseBuilding<'config> {
     // Upgrade Update:
     // ----------------------
 
-    fn upgrade_update(&mut self, context: &BuildingContext<'config, '_, '_>) {
+    fn upgrade_update(&mut self, context: &BuildingContext) {
         let mut upgraded = false;
         let mut downgraded = false;
 
@@ -824,15 +824,15 @@ impl HouseLevel {
 // HouseLevelRequirements
 // ----------------------------------------------
 
-struct HouseLevelRequirements<'config> {
-    level_config: &'config HouseLevelConfig,
+struct HouseLevelRequirements {
+    level_config: &'static HouseLevelConfig,
     services_available: ServiceKind,   // From the level requirements, which ones we have access to.
     resources_available: ResourceKind, // From the level requirements, which ones we have in stock.
 }
 
-impl<'config> HouseLevelRequirements<'config> {
+impl HouseLevelRequirements {
     fn new(context: &BuildingContext,
-           level_config: &'config HouseLevelConfig,
+           level_config: &'static HouseLevelConfig,
            stock: &BuildingStock) -> Self {
 
         let mut reqs = Self {
@@ -902,15 +902,15 @@ impl<'config> HouseLevelRequirements<'config> {
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-struct HouseUpgradeState<'config> {
+struct HouseUpgradeState {
     level: HouseLevel,
-    #[serde(skip)] curr_level_config: Option<&'config HouseLevelConfig>,
-    #[serde(skip)] next_level_config: Option<&'config HouseLevelConfig>,
+    #[serde(skip)] curr_level_config: Option<&'static HouseLevelConfig>,
+    #[serde(skip)] next_level_config: Option<&'static HouseLevelConfig>,
     #[serde(skip)] has_room_to_upgrade: bool, // [Debug] Result of last attempt to expand the house.
 }
 
-impl<'config> HouseUpgradeState<'config> {
-    fn new(level: HouseLevel, configs: &'config BuildingConfigs) -> Self {
+impl HouseUpgradeState {
+    fn new(level: HouseLevel, configs: &'static BuildingConfigs) -> Self {
         Self {
             level,
             curr_level_config: Some(configs.find_house_level_config(level)),
@@ -919,8 +919,8 @@ impl<'config> HouseUpgradeState<'config> {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'_, 'config>) {
-        let configs = context.building_configs;
+    fn post_load(&mut self) {
+        let configs = BuildingConfigs::get();
         self.curr_level_config = Some(configs.find_house_level_config(self.level));
         self.next_level_config = Some(configs.find_house_level_config(self.level.next()));
     }
@@ -955,11 +955,12 @@ impl<'config> HouseUpgradeState<'config> {
         !curr_level_requirements.has_required_resources()
     }
 
-    fn try_upgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) -> bool {
+    fn try_upgrade(&mut self, context: &BuildingContext, debug: &mut HouseDebug) -> bool {
         let mut upgraded_successfully = false;
 
+        let configs = BuildingConfigs::get();
         let next_level = self.level.next();
-        let next_level_config = context.query.building_configs().find_house_level_config(next_level);
+        let next_level_config = configs.find_house_level_config(next_level);
 
         if let Some(new_tile_def) = context.find_tile_def(next_level_config.tile_def_name_hash) {
             // Try placing new. Might fail if there isn't enough space.
@@ -969,7 +970,7 @@ impl<'config> HouseUpgradeState<'config> {
 
                 self.curr_level_config = Some(next_level_config);
                 if !next_level.is_max() {
-                    self.next_level_config = Some(context.query.building_configs().find_house_level_config(next_level.next()));
+                    self.next_level_config = Some(configs.find_house_level_config(next_level.next()));
                 }
 
                 // Set a random variation for the new building tile:
@@ -991,11 +992,12 @@ impl<'config> HouseUpgradeState<'config> {
         upgraded_successfully
     }
 
-    fn try_downgrade(&mut self, context: &BuildingContext<'config, '_, '_>, debug: &mut HouseDebug) -> bool {
+    fn try_downgrade(&mut self, context: &BuildingContext, debug: &mut HouseDebug) -> bool {
         let mut downgraded_successfully = false;
 
+        let configs = BuildingConfigs::get();
         let prev_level = self.level.prev();
-        let prev_level_config = context.query.building_configs().find_house_level_config(prev_level);
+        let prev_level_config = configs.find_house_level_config(prev_level);
 
         if let Some(new_tile_def) = context.find_tile_def(prev_level_config.tile_def_name_hash) {
             // Try placing new. Should always be able to place a lower-tier (smaller or same size) house tile.
@@ -1004,7 +1006,7 @@ impl<'config> HouseUpgradeState<'config> {
                 debug_assert!(self.level == prev_level);
 
                 self.curr_level_config = Some(prev_level_config);
-                self.next_level_config = Some(context.query.building_configs().find_house_level_config(prev_level.next()));
+                self.next_level_config = Some(configs.find_house_level_config(prev_level.next()));
 
                 // Set a random variation for the new building:
                 context.set_random_building_variation();
@@ -1074,9 +1076,10 @@ impl<'config> HouseUpgradeState<'config> {
 // Debug UI
 // ----------------------------------------------
 
-impl<'config> HouseBuilding<'config> {
-    fn draw_debug_ui_upgrade_state(&mut self, context: &BuildingContext<'config, '_, '_>, ui_sys: &UiSystem) {
+impl HouseBuilding {
+    fn draw_debug_ui_upgrade_state(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
+
         if !ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }

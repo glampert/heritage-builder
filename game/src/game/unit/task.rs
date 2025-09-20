@@ -1465,7 +1465,7 @@ impl UnitTaskManager {
         Some((&task.archetype, &task.state))
     }
 
-    pub fn run_unit_tasks<'config>(&mut self, unit: &mut Unit<'config>, query: &Query<'config, '_>) {
+    pub fn run_unit_tasks(&mut self, unit: &mut Unit, query: &Query) {
         if let Some(current_task_id) = unit.current_task() {
             if let Some(task) = self.task_pool.try_get_mut(current_task_id) {
                 match task.update(unit, query) {
