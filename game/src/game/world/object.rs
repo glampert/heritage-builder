@@ -481,18 +481,18 @@ impl<'de, T> Deserialize<'de> for SpawnPool<T>
 // Spawner
 // ----------------------------------------------
 
-pub struct Spawner<'tile_sets, 'world> {
-    query: &'world Query<'tile_sets>,
+pub struct Spawner<'world> {
+    query: &'world Query,
 }
 
-pub enum SpawnerResult<'world, 'tile_sets> {
+pub enum SpawnerResult<'world> {
     Building(&'world mut Building),
     Unit(&'world mut Unit),
-    Tile(&'tile_sets mut Tile<'tile_sets>),
+    Tile(&'world mut Tile),
     Err(String),
 }
 
-impl SpawnerResult<'_, '_> {
+impl SpawnerResult<'_> {
     #[inline]
     pub fn is_err(&self) -> bool {
         matches!(self, Self::Err(_))
@@ -504,14 +504,14 @@ impl SpawnerResult<'_, '_> {
     }
 }
 
-impl<'tile_sets, 'world> Spawner<'tile_sets, 'world> {
+impl<'world> Spawner<'world> {
     #[inline]
-    pub fn new(query: &'world Query<'tile_sets>) -> Self {
+    pub fn new(query: &'world Query) -> Self {
         Self { query }
     }
 
     // Spawn a GameObject (Building, Unit) or place a Tile without associated game state.
-    pub fn try_spawn_tile_with_def(&self, target_cell: Cell, tile_def: &'tile_sets TileDef) -> SpawnerResult {
+    pub fn try_spawn_tile_with_def(&self, target_cell: Cell, tile_def: &'static TileDef) -> SpawnerResult {
         debug_assert!(target_cell.is_valid());
         debug_assert!(tile_def.is_valid());
 
@@ -570,7 +570,7 @@ impl<'tile_sets, 'world> Spawner<'tile_sets, 'world> {
 
     pub fn try_spawn_building_with_tile_def(&self,
                                             building_base_cell: Cell,
-                                            building_tile_def: &TileDef)
+                                            building_tile_def: &'static TileDef)
                                             -> Result<&'world mut Building, String> {
 
         self.query.world().try_spawn_building_with_tile_def(
@@ -597,7 +597,7 @@ impl<'tile_sets, 'world> Spawner<'tile_sets, 'world> {
 
     pub fn try_spawn_unit_with_tile_def(&self,
                                         unit_origin: Cell,
-                                        unit_tile_def: &TileDef)
+                                        unit_tile_def: &'static TileDef)
                                         -> Result<&'world mut Unit, String> {
 
         self.query.world().try_spawn_unit_with_tile_def(

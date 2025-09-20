@@ -254,7 +254,7 @@ impl TileSelection {
 impl Save for TileSelection {
 }
 
-impl Load<'_> for TileSelection {
+impl Load for TileSelection {
     fn post_load(&mut self, _context: &PostLoadContext) {
         // Rest any tile selection on load.
         *self = Self::default();

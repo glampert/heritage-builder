@@ -18,7 +18,7 @@ use crate::{
     tile::{
         TileMapLayerKind,
         camera::Camera,
-        sets::TERRAIN_GROUND_CATEGORY,
+        sets::{TileSets, TERRAIN_GROUND_CATEGORY},
         rendering::{
             TileMapRenderFlags,
             MAX_GRID_LINE_THICKNESS,
@@ -118,12 +118,12 @@ impl DebugSettingsMenu {
         flags
     }
 
-    pub fn draw<'tile_sets>(&mut self,
-                            context: &mut sim::debug::DebugContext<'_, 'tile_sets>,
-                            sim: &mut Simulation,
-                            camera: &mut Camera,
-                            engine: &mut dyn Engine,
-                            game_loop: &mut GameLoop<'tile_sets>) {
+    pub fn draw(&mut self,
+                context: &mut sim::debug::DebugContext,
+                sim: &mut Simulation,
+                camera: &mut Camera,
+                engine: &mut dyn Engine,
+                game_loop: &mut GameLoop) {
 
         let window_flags =
             imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
@@ -225,9 +225,9 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn reset_map_dropdown<'tile_sets>(&self,
-                                      context: &mut sim::debug::DebugContext<'_, 'tile_sets>,
-                                      game_loop: &mut GameLoop<'tile_sets>) {
+    fn reset_map_dropdown(&self,
+                          context: &mut sim::debug::DebugContext,
+                          game_loop: &mut GameLoop) {
 
         let ui = context.ui_sys.builder();
         if !ui.collapsing_header("Reset Map", imgui::TreeNodeFlags::empty()) {
@@ -239,7 +239,7 @@ impl DebugSettingsMenu {
         }
 
         if ui.button("Reset to dirt tiles") {
-            let dirt_tile_def = context.tile_sets.find_tile_def_by_hash(
+            let dirt_tile_def = TileSets::get().find_tile_def_by_hash(
                 TileMapLayerKind::Terrain,
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("dirt"));
@@ -248,7 +248,7 @@ impl DebugSettingsMenu {
         }
 
         if ui.button("Reset to grass tiles") {
-            let grass_tile_def = context.tile_sets.find_tile_def_by_hash(
+            let grass_tile_def = TileSets::get().find_tile_def_by_hash(
                 TileMapLayerKind::Terrain,
                 TERRAIN_GROUND_CATEGORY.hash,
                 hash::fnv1a_from_str("grass"));

@@ -72,10 +72,10 @@ impl TilePaletteMenu {
         matches!(self.selection, SelectionState::ClearSelected)
     }
 
-    pub fn current_selection<'tile_sets>(&self, tile_sets: &'tile_sets TileSets) -> Option<&'tile_sets TileDef> {
+    pub fn current_selection(&self) -> Option<&'static TileDef> {
         match self.selection {
             SelectionState::TileSelected(selected_tile_def_handle) => {
-                tile_sets.handle_to_tile_def(selected_tile_def_handle)
+                TileSets::get().handle_to_tile_def(selected_tile_def_handle)
             },
             _ => None
         }
@@ -142,7 +142,6 @@ impl TilePaletteMenu {
                     self.draw_tile_list(tile_kind,
                                         context.ui_sys,
                                         tex_cache,
-                                        context.tile_sets,
                                         tile_size,
                                         tiles_per_row,
                                         padding_between_tiles);
@@ -179,7 +178,6 @@ impl TilePaletteMenu {
             });
 
         self.draw_selected_tile(debug_draw,
-                                context.tile_sets,
                                 cursor_screen_pos,
                                 context.transform,
                                 has_valid_placement,
@@ -188,7 +186,6 @@ impl TilePaletteMenu {
 
     fn draw_selected_tile(&self,
                           debug_draw: &mut dyn DebugDraw,
-                          tile_sets: &TileSets,
                           cursor_screen_pos: Vec2,
                           transform: WorldToScreenTransform,
                           has_valid_placement: bool,
@@ -216,7 +213,7 @@ impl TilePaletteMenu {
                 self.clear_button_image,
                 Color::white());
         } else {
-            let selected_tile = self.current_selection(tile_sets).unwrap();
+            let selected_tile = self.current_selection().unwrap();
             let rect = Rect::from_pos_and_size(cursor_screen_pos, selected_tile.draw_size);
 
             let offset =
@@ -253,7 +250,6 @@ impl TilePaletteMenu {
                       tile_kind: TileKind,
                       ui_sys: &UiSystem,
                       tex_cache: &dyn TextureCache,
-                      tile_sets: &TileSets,
                       tile_size: [f32; 2],
                       tiles_per_row: usize,
                       padding_between_tiles: f32) {
@@ -263,7 +259,7 @@ impl TilePaletteMenu {
 
         let mut tile_index = 0;
 
-        tile_sets.for_each_tile_def(|tile_set, tile_category, tile_def| {
+        TileSets::get().for_each_tile_def(|tile_set, tile_category, tile_def| {
             if !tile_def.is(tile_kind) {
                 return true;
             }

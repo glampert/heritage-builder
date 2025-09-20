@@ -120,10 +120,10 @@ pub fn try_expand_house(context: &BuildingContext,
 // Replaces house tile with a new (possibly bigger) tile.
 // Assumes there is enough room to place the new tile
 // (neighboring houses already merged and cleared).
-pub fn try_replace_tile<'tile_sets>(context: &BuildingContext<'tile_sets, '_>,
-                                    house_id: BuildingId,
-                                    target_tile_def: &'tile_sets TileDef,
-                                    new_cell_range: CellRange) -> bool {
+pub fn try_replace_tile(context: &BuildingContext,
+                        house_id: BuildingId,
+                        target_tile_def: &'static TileDef,
+                        new_cell_range: CellRange) -> bool {
 
     debug_assert!(house_id.is_valid());
     debug_assert!(target_tile_def.is_valid());
@@ -475,12 +475,12 @@ fn candidate_target_rects(current_cell_range: CellRange) -> [CellRect; CANDIDATE
     ]
 }
 
-fn try_merge_and_replace_tile<'tile_sets>(context: &BuildingContext<'tile_sets, '_>,
-                                          target_level_config: &HouseLevelConfig,
-                                          target_tile_def: &'tile_sets TileDef,
-                                          start_cell: Cell,
-                                          house_id: BuildingId,
-                                          ids_to_merge: &[BuildingId]) -> bool {
+fn try_merge_and_replace_tile(context: &BuildingContext,
+                              target_level_config: &HouseLevelConfig,
+                              target_tile_def: &'static TileDef,
+                              start_cell: Cell,
+                              house_id: BuildingId,
+                              ids_to_merge: &[BuildingId]) -> bool {
 
     let new_cell_range = target_tile_def.cell_range(start_cell);
 
@@ -599,9 +599,7 @@ fn find_house_for_cell<'world>(context: &'world BuildingContext, cell: Cell) -> 
     None
 }
 
-fn find_tile_def_for_level<'tile_sets>(context: &BuildingContext<'tile_sets, '_>,
-                                       level: HouseLevel) -> Option<&'tile_sets TileDef> {
-
+fn find_tile_def_for_level(context: &BuildingContext, level: HouseLevel) -> Option<&'static TileDef> {
     let level_config = BuildingConfigs::get().find_house_level_config(level);
     context.find_tile_def(level_config.tile_def_name_hash)
 }

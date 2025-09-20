@@ -360,8 +360,7 @@ impl Building {
     }
 
     #[inline]
-    fn new_context<'query, 'tile_sets>(&self, query: &'query Query<'tile_sets>)
-                                       -> BuildingContext<'tile_sets, 'query> {
+    fn new_context<'world>(&self, query: &'world Query) -> BuildingContext<'world> {
         BuildingContext::new(
             self.id,
             self.map_cells,
@@ -720,14 +719,14 @@ impl Building {
         }
     }
 
-    pub fn find_road_link_tile<'a>(&self, query: &'a Query) -> Option<&'a mut Tile<'a>> {
+    pub fn find_road_link_tile<'world>(&self, query: &'world Query) -> Option<&'world mut Tile> {
         if let Some(road_link) = self.road_link(query) {
             return Self::find_road_link_tile_for_cell(query, road_link);
         }
         None
     }
 
-    fn find_road_link_tile_for_cell<'a>(query: &'a Query, road_link: Cell) -> Option<&'a mut Tile<'a>> {
+    fn find_road_link_tile_for_cell(query: &Query, road_link: Cell) -> Option<&mut Tile> {
         query.find_tile_mut(road_link, TileMapLayerKind::Terrain, TileKind::Terrain)
     }
 
@@ -1147,22 +1146,22 @@ impl BuildingTileInfo {
 // BuildingContext
 // ----------------------------------------------
 
-pub struct BuildingContext<'tile_sets, 'query> {
+pub struct BuildingContext<'world> {
     id: BuildingId,
     map_cells: mem::Mutable<CellRange>,
     road_link: Option<Cell>,
     kind: BuildingKind,
     archetype_kind: BuildingArchetypeKind,
-    pub query: &'query Query<'tile_sets>,
+    pub query: &'world Query,
 }
 
-impl<'tile_sets, 'query> BuildingContext<'tile_sets, 'query> {
+impl<'world> BuildingContext<'world> {
     fn new(id: BuildingId,
            map_cells: CellRange,
            road_link: Option<Cell>,
            kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
-           query: &'query Query<'tile_sets>) -> Self {
+           query: &'world Query) -> Self {
         Self {
             id,
             map_cells: mem::Mutable::new(map_cells),
@@ -1215,18 +1214,18 @@ impl<'tile_sets, 'query> BuildingContext<'tile_sets, 'query> {
     }
 
     #[inline]
-    fn find_tile_def(&self, tile_def_name_hash: StringHash) -> Option<&'tile_sets TileDef> {
+    fn find_tile_def(&self, tile_def_name_hash: StringHash) -> Option<&'static TileDef> {
         self.query.find_tile_def(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash, tile_def_name_hash)
     }
 
     #[inline]
-    fn find_tile(&self) -> &Tile<'tile_sets> {
+    fn find_tile(&self) -> &Tile {
         self.query.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
     #[inline]
-    fn find_tile_mut(&self) -> &mut Tile<'tile_sets> {
+    fn find_tile_mut(&self) -> &mut Tile {
         self.query.find_tile_mut(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }

@@ -25,16 +25,16 @@ use super::{
 // ----------------------------------------------
 
 #[derive(Copy, Clone)]
-pub enum PlacementOp<'tile_sets> {
-    Place(&'tile_sets TileDef),
+pub enum PlacementOp {
+    Place(&'static TileDef),
     Clear,
     None,
 }
 
-pub fn try_place_tile_in_layer<'tile_map, 'tile_sets>(layer: &'tile_map mut TileMapLayer<'tile_sets>,
-                                                      target_cell: Cell,
-                                                      tile_def_to_place: &'tile_sets TileDef)
-                                                      -> Result<(&'tile_map mut Tile<'tile_sets>, usize), String> {
+pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
+                                          target_cell: Cell,
+                                          tile_def_to_place: &'static TileDef)
+                                          -> Result<(&'tile_map mut Tile, usize), String> {
 
     debug_assert!(tile_def_to_place.is_valid());
     debug_assert!(tile_def_to_place.layer_kind() == layer.kind());
@@ -97,11 +97,11 @@ pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
     }
 }
 
-pub fn try_place_tile_at_cursor<'tile_map, 'tile_sets>(tile_map: &'tile_map mut TileMap<'tile_sets>,
-                                                       cursor_screen_pos: Vec2,
-                                                       transform: WorldToScreenTransform,
-                                                       tile_def_to_place: &'tile_sets TileDef)
-                                                       -> Result<(&'tile_map mut Tile<'tile_sets>, usize), String> {
+pub fn try_place_tile_at_cursor<'tile_map>(tile_map: &'tile_map mut TileMap,
+                                           cursor_screen_pos: Vec2,
+                                           transform: WorldToScreenTransform,
+                                           tile_def_to_place: &'static TileDef)
+                                           -> Result<(&'tile_map mut Tile, usize), String> {
 
     debug_assert!(transform.is_valid());
     debug_assert!(tile_def_to_place.is_valid());

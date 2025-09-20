@@ -1,5 +1,3 @@
-#![allow(clippy::unnecessary_cast)]
-
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
@@ -27,7 +25,6 @@ use crate::{
         TileKind,
         TileMapLayerKind,
         PlacementOp,
-        sets::TileSets,
         camera::Camera,
         selection::TileSelection,
         rendering::TileMapRenderFlags
@@ -61,7 +58,7 @@ mod settings;
 
 pub struct DebugMenusInputArgs<'game> {
     pub world: &'game mut World,
-    pub tile_map: &'game mut TileMap<'game>,
+    pub tile_map: &'game mut TileMap,
     pub tile_selection: &'game mut TileSelection,
     pub transform: WorldToScreenTransform,
     pub cursor_screen_pos: Vec2,
@@ -69,8 +66,7 @@ pub struct DebugMenusInputArgs<'game> {
 
 pub struct DebugMenusFrameArgs<'game> {
     // Tile Map:
-    pub tile_map: &'game mut TileMap<'game>,
-    pub tile_sets: &'game TileSets,
+    pub tile_map: &'game mut TileMap,
     pub tile_selection: &'game mut TileSelection,
 
     // Sim/World:
@@ -125,7 +121,7 @@ impl DebugMenusSystem {
         DebugMenusSingleton::get_mut().begin_frame(args)
     }
 
-    pub fn end_frame<'game>(&mut self, args: &mut DebugMenusFrameArgs<'game>, engine: &mut dyn Engine, game_loop: &mut GameLoop<'game>) {
+    pub fn end_frame(&mut self, args: &mut DebugMenusFrameArgs, engine: &mut dyn Engine, game_loop: &mut GameLoop) {
         DebugMenusSingleton::get_mut().end_frame(args, engine, game_loop);
     }
 }
@@ -146,7 +142,7 @@ impl Drop for DebugMenusSystem {
 impl Save for DebugMenusSystem {
 }
 
-impl Load<'_> for DebugMenusSystem {
+impl Load for DebugMenusSystem {
     fn post_load(&mut self, context: &PostLoadContext) {
         DebugMenusSingleton::get_mut().tile_inspector_menu.close();
 
@@ -303,7 +299,7 @@ impl DebugMenusSingleton {
         if !args.ui_sys.is_handling_mouse_input() {
             // Tile hovering and selection:
             let placement_op = {
-                if let Some(tile_def) = self.tile_palette_menu.current_selection(args.tile_sets) {
+                if let Some(tile_def) = self.tile_palette_menu.current_selection() {
                     PlacementOp::Place(tile_def)
                 } else if self.tile_palette_menu.is_clear_selected() {
                     PlacementOp::Clear
@@ -321,7 +317,7 @@ impl DebugMenusSingleton {
 
         if self.tile_palette_menu.can_place_tile() {
             let placement_candidate =
-                self.tile_palette_menu.current_selection(args.tile_sets);
+                self.tile_palette_menu.current_selection();
 
             let did_place_or_clear = {
                 // If we have a selection place it, otherwise we want to try clearing the tile under the cursor.
@@ -332,13 +328,13 @@ impl DebugMenusSingleton {
                         args.camera.transform());
 
                     if target_cell.is_valid() {
-                        let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
+                        let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
                         Spawner::new(&query).try_spawn_tile_with_def(target_cell, tile_def).is_ok()
                     } else {
                         false
                     }
                 } else {
-                    let query = args.sim.new_query(args.world, args.tile_map, args.tile_sets, args.delta_time_secs);
+                    let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
                     if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, args.camera.transform()) {
                         Spawner::new(&query).despawn_tile(tile);
                         true
@@ -361,7 +357,7 @@ impl DebugMenusSingleton {
         self.debug_settings_menu.selected_render_flags()
     }
 
-    fn end_frame<'game>(&mut self, args: &mut DebugMenusFrameArgs<'game>, engine: &mut dyn Engine, game_loop: &mut GameLoop<'game>) {
+    fn end_frame(&mut self, args: &mut DebugMenusFrameArgs, engine: &mut dyn Engine, game_loop: &mut GameLoop) {
         let has_valid_placement = args.tile_selection.has_valid_placement();
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
@@ -379,7 +375,6 @@ impl DebugMenusSingleton {
             world: args.world,
             systems: args.systems,
             tile_map: args.tile_map,
-            tile_sets: args.tile_sets,
             transform: args.camera.transform(),
             delta_time_secs: args.delta_time_secs,
         };
@@ -464,18 +459,17 @@ pub fn show_popup_messages() -> bool {
 // Global TileMap Debug Pointer
 // ----------------------------------------------
 
-struct TileMapRawPtr(mem::RawPtr<TileMap<'static>>);
+struct TileMapRawPtr(mem::RawPtr<TileMap>);
 
 impl TileMapRawPtr {
     fn new(tile_map: &TileMap) -> Self {
-        // Strip away lifetime (pretend it is static).
-        let tile_map_ptr = tile_map as *const TileMap<'_> as *const TileMap<'static>;
-        Self(mem::RawPtr::from_ptr(tile_map_ptr))
+        Self(mem::RawPtr::from_ref(tile_map))
     }
 }
 
 // Using this to get tile names from cells directly for debugging & logging.
-// SAFETY: Must make sure the tile map pointer set on initialization stays valid until app termination or until it is reset.
+// SAFETY: Must make sure the tile map pointer set on initialization stays
+// valid until app termination or until it is reset.
 static TILE_MAP_DEBUG_PTR: mem::SingleThreadStatic<Option<TileMapRawPtr>> = mem::SingleThreadStatic::new(None);
 
 fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {

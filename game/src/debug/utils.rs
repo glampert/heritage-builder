@@ -504,7 +504,7 @@ mod test_maps {
         &PRESET_TILES_2,
     ];
 
-    fn find_tile(tile_sets: &TileSets, layer_kind: TileMapLayerKind, tile_id: i32) -> Option<&TileDef> {
+    fn find_tile(layer_kind: TileMapLayerKind, tile_id: i32) -> Option<&'static TileDef> {
         if tile_id < 0 {
             return None;
         }
@@ -519,13 +519,10 @@ mod test_maps {
             TileMapLayerKind::Objects => BUILDING_TILE_NAMES[tile_id as usize],
         };
 
-        tile_sets.find_tile_def_by_name(layer_kind, category_name, tile_name)
+        TileSets::get().find_tile_def_by_name(layer_kind, category_name, tile_name)
     }
 
-    fn build_tile_map<'tile_sets>(preset: &'static PresetTiles,
-                                  world: &mut World,
-                                  tile_sets: &'tile_sets TileSets) -> TileMap<'tile_sets> {
-
+    fn build_tile_map(preset: &'static PresetTiles, world: &mut World) -> TileMap {
         let map_size_in_cells = preset.map_size_in_cells;
 
         let tile_count = (map_size_in_cells.width * map_size_in_cells.height) as usize;
@@ -538,7 +535,7 @@ mod test_maps {
         for y in 0..map_size_in_cells.height {
             for x in 0..map_size_in_cells.width {
                 let tile_id = preset.terrain_tiles[(x + (y * map_size_in_cells.width)) as usize];
-                if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Terrain, tile_id) {
+                if let Some(tile_def) = find_tile(TileMapLayerKind::Terrain, tile_id) {
                     tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Terrain, tile_def)
                         .expect("Failed to place Terrain tile!");
                 }
@@ -547,18 +544,13 @@ mod test_maps {
 
         // Buildings (Objects):
         {
-            let mut query_builder = DebugQueryBuilder::new(
-                world,
-                &mut tile_map,
-                tile_sets,
-                map_size_in_cells,
-            );
+            let mut query_builder = DebugQueryBuilder::new(world, &mut tile_map, map_size_in_cells);
             let query = query_builder.new_query();
 
             for y in 0..map_size_in_cells.height {
                 for x in 0..map_size_in_cells.width {
                     let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
-                    if let Some(tile_def) = find_tile(tile_sets, TileMapLayerKind::Objects, tile_id) {
+                    if let Some(tile_def) = find_tile(TileMapLayerKind::Objects, tile_id) {
                         if let Err(err) = world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def) {
                             log::error!(log::channel!("debug"), "Preset: Failed to place Building tile! {err}");
                         }
@@ -574,10 +566,7 @@ mod test_maps {
         PRESET_TILES.iter().map(|preset| preset.preset_name).collect()
     }
 
-    pub fn create_preset_tile_map_internal<'tile_sets>(world: &mut World,
-                                                       tile_sets: &'tile_sets TileSets,
-                                                       mut preset_number: usize) -> TileMap<'tile_sets> {
-
+    pub fn create_preset_tile_map_internal(world: &mut World, mut preset_number: usize) -> TileMap {
         preset_number = preset_number.min(PRESET_TILES.len());
 
         log::info!(log::channel!("debug"), "Creating debug tile map - PRESET: {} ...", preset_number);
@@ -587,7 +576,7 @@ mod test_maps {
             enable_cheats_fn(cheats::get_mut());
         }
 
-        build_tile_map(preset, world, tile_sets)
+        build_tile_map(preset, world)
     }
 }
 
@@ -595,8 +584,6 @@ pub fn preset_tile_maps_list() -> Vec<&'static str> {
     test_maps::preset_tile_maps_list_internal()
 }
 
-pub fn create_preset_tile_map<'tile_sets>(world: &mut World,
-                                          tile_sets: &'tile_sets TileSets,
-                                          preset_number: usize) -> TileMap<'tile_sets> {
-    test_maps::create_preset_tile_map_internal(world, tile_sets, preset_number)
+pub fn create_preset_tile_map(world: &mut World,preset_number: usize) -> TileMap {
+    test_maps::create_preset_tile_map_internal(world, preset_number)
 }

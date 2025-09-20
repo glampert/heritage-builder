@@ -462,10 +462,10 @@ impl Unit {
         self.current_task_id = task_id.unwrap_or_default();
     }
 
-    pub fn try_spawn_with_task<'world, Task>(query: &'world Query,
-                                             unit_origin: Cell,
-                                             unit_config: UnitConfigKey,
-                                             task: Task) -> Result<&'world mut Unit, String>
+    pub fn try_spawn_with_task<Task>(query: &Query,
+                                     unit_origin: Cell,
+                                     unit_config: UnitConfigKey,
+                                     task: Task) -> Result<&mut Unit, String>
         where Task: UnitTask,
               UnitTaskArchetype: From<Task>
     {
@@ -540,13 +540,13 @@ impl Unit {
     // ----------------------
 
     #[inline]
-    fn find_tile<'a>(&self, query: &'a Query) -> &'a Tile<'a> {
+    fn find_tile<'world>(&self, query: &'world Query) -> &'world Tile {
         query.find_tile(self.map_cell, TileMapLayerKind::Objects, TileKind::Unit)
             .expect("Unit should have an associated Tile in the TileMap!")
     }
 
     #[inline]
-    fn find_tile_mut<'a>(&self, query: &'a Query) -> &'a mut Tile<'a> {
+    fn find_tile_mut<'world>(&self, query: &'world Query) -> &'world mut Tile {
         query.find_tile_mut(self.map_cell, TileMapLayerKind::Objects, TileKind::Unit)
             .expect("Unit should have an associated Tile in the TileMap!")
     }

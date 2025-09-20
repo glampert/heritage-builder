@@ -24,7 +24,7 @@ use crate::{
     tile::{
         Tile,
         TileMapLayerKind,
-        sets::{TileDef, TERRAIN_GROUND_CATEGORY}
+        sets::{TileDef, TileSets, TERRAIN_GROUND_CATEGORY}
     },
     game::{
         unit::Unit,
@@ -244,8 +244,7 @@ impl BuildingBehavior for HouseBuilding {
             if tile.path_kind().intersects(PathNodeKind::VacantLot) {
                 match tile_map.try_clear_tile_from_layer(cell, LAYER_KIND) {
                     Ok(_) => {
-                        let tile_sets = context.query.tile_sets();
-                        if let Some(tile_def_to_place) = tile_sets.find_tile_def_by_hash(
+                        if let Some(tile_def_to_place) = TileSets::get().find_tile_def_by_hash(
                             LAYER_KIND,
                             TERRAIN_GROUND_CATEGORY.hash,
                             TILE_DEF_NAME.hash)
@@ -1032,7 +1031,7 @@ impl HouseUpgradeState {
                         context: &BuildingContext,
                         current_level: HouseLevel,
                         target_level: HouseLevel,
-                        target_tile_def: &TileDef) -> bool {
+                        target_tile_def: &'static TileDef) -> bool {
 
         debug_assert!(current_level != target_level);
         debug_assert!(target_tile_def.is_valid());

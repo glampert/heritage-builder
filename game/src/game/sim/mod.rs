@@ -88,11 +88,7 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn new_query<'tile_sets>(&mut self,
-                                 world: &mut World,
-                                 tile_map: &mut TileMap<'tile_sets>,
-                                 tile_sets: &'tile_sets TileSets,
-                                 delta_time_secs: Seconds) -> Query<'tile_sets> {
+    pub fn new_query(&mut self, world: &mut World, tile_map: &mut TileMap, delta_time_secs: Seconds) -> Query {
         Query::new(
             &mut self.rng,
             &mut self.graph,
@@ -100,16 +96,19 @@ impl Simulation {
             &mut self.task_manager,
             world,
             tile_map,
-            tile_sets,
             delta_time_secs)
     }
 
-    pub fn update<'tile_sets>(&mut self,
-                              world: &mut World,
-                              systems: &mut GameSystems,
-                              tile_map: &mut TileMap<'tile_sets>,
-                              tile_sets: &'tile_sets TileSets,
-                              delta_time_secs: Seconds) {
+    #[inline]
+    pub fn task_manager(&mut self) -> &mut UnitTaskManager {
+        &mut self.task_manager
+    }
+
+    pub fn update(&mut self,
+                  world: &mut World,
+                  systems: &mut GameSystems,
+                  tile_map: &mut TileMap,
+                  delta_time_secs: Seconds) {
 
         // Rebuild the search graph once every frame so any
         // add/remove tile changes will be reflected on the graph.
@@ -117,7 +116,7 @@ impl Simulation {
 
         // Units movement needs to be smooth, so it updates every frame.
         {
-            let query = self.new_query(world, tile_map, tile_sets, delta_time_secs);
+            let query = self.new_query(world, tile_map, delta_time_secs);
             world.update_unit_navigation(&query);
         }
 
@@ -125,27 +124,17 @@ impl Simulation {
         {
             let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
             if self.update_timer.tick(delta_time_secs).should_update() {
-                let query = self.new_query(world, tile_map, tile_sets, world_update_delta_time_secs);
+                let query = self.new_query(world, tile_map, world_update_delta_time_secs);
                 world.update(&query);
                 systems.update(&query);
             }
         }
     }
 
-    pub fn reset<'tile_sets>(&mut self,
-                             world: &mut World,
-                             systems: &mut GameSystems,
-                             tile_map: &mut TileMap<'tile_sets>,
-                             tile_sets: &'tile_sets TileSets) {
-
-        let query = self.new_query(world, tile_map, tile_sets, 0.0);
+    pub fn reset(&mut self, world: &mut World, systems: &mut GameSystems, tile_map: &mut TileMap) {
+        let query = self.new_query(world, tile_map, 0.0);
         world.reset(&query);
         systems.reset();
-    }
-
-    #[inline]
-    pub fn task_manager(&mut self) -> &mut UnitTaskManager {
-        &mut self.task_manager
     }
 
     // ----------------------
@@ -171,7 +160,6 @@ impl Simulation {
         let query = self.new_query(
             context.world,
             context.tile_map,
-            context.tile_sets,
             context.delta_time_secs);
 
         context.systems.draw_debug_ui(&query, context.ui_sys);
@@ -206,7 +194,6 @@ impl Simulation {
         let query = self.new_query(
             context.world,
             context.tile_map,
-            context.tile_sets,
             context.delta_time_secs);
 
         context.world.draw_building_debug_popups(
@@ -224,7 +211,6 @@ impl Simulation {
         let query = self.new_query(
             context.world,
             context.tile_map,
-            context.tile_sets,
             context.delta_time_secs);
 
         context.world.draw_building_debug_ui(
@@ -242,7 +228,6 @@ impl Simulation {
         let query = self.new_query(
             context.world,
             context.tile_map,
-            context.tile_sets,
             context.delta_time_secs);
 
         context.world.draw_unit_debug_popups(
@@ -260,7 +245,6 @@ impl Simulation {
         let query = self.new_query(
             context.world,
             context.tile_map,
-            context.tile_sets,
             context.delta_time_secs);
 
         context.world.draw_unit_debug_ui(
@@ -281,7 +265,7 @@ impl Save for Simulation {
     }
 }
 
-impl Load<'_> for Simulation {
+impl Load for Simulation {
     fn pre_load(&mut self) {
         self.task_manager.pre_load();
     }
@@ -300,10 +284,10 @@ impl Load<'_> for Simulation {
 // Query
 // ----------------------------------------------
 
-pub struct Query<'tile_sets> {
+pub struct Query {
     // SAFETY: Queries are local variables in the Simulation::update() stack,
-    // so none of the references stored here will persist or leak outside the
-    // update call stack. Storing weak references here makes things easier
+    // so none of the pointers stored here will persist or leak outside the
+    // update call stack. Storing raw pointers here makes things easier
     // since Query is only a container of references to external objects,
     // so we don't want any of these lifetimes to be associated with the
     // Query's lifetime. It also allows us to pass immutable Query refs.
@@ -320,20 +304,18 @@ pub struct Query<'tile_sets> {
 
     // World & Tile Map:
     world: mem::RawPtr<World>,
-    tile_map: mem::RawPtr<TileMap<'tile_sets>>,
-    tile_sets: &'tile_sets TileSets,
+    tile_map: mem::RawPtr<TileMap>,
 
     delta_time_secs: Seconds,
 }
 
-impl<'tile_sets> Query<'tile_sets> {
+impl Query {
     fn new(rng: &mut RandomGenerator,
            graph: &mut Graph,
            search: &mut Search,
            task_manager: &mut UnitTaskManager,
            world: &mut World,
-           tile_map: &mut TileMap<'tile_sets>,
-           tile_sets: &'tile_sets TileSets,
+           tile_map: &mut TileMap,
            delta_time_secs: Seconds) -> Self {
         Self {
             rng: mem::RawPtr::from_ref(rng),
@@ -342,7 +324,6 @@ impl<'tile_sets> Query<'tile_sets> {
             task_manager: mem::RawPtr::from_ref(task_manager),
             world: mem::RawPtr::from_ref(world),
             tile_map: mem::RawPtr::from_ref(tile_map),
-            tile_sets,
             delta_time_secs,
         }
     }
@@ -377,13 +358,8 @@ impl<'tile_sets> Query<'tile_sets> {
     }
 
     #[inline(always)]
-    pub fn tile_map(&self) -> &mut TileMap<'tile_sets> {
+    pub fn tile_map(&self) -> &mut TileMap {
         self.tile_map.mut_ref_cast()
-    }
-
-    #[inline(always)]
-    pub fn tile_sets(&self) -> &'tile_sets TileSets {
-        self.tile_sets
     }
 
     #[inline(always)]
@@ -403,16 +379,16 @@ impl<'tile_sets> Query<'tile_sets> {
     pub fn find_tile_def(&self,
                          layer: TileMapLayerKind,
                          category_name_hash: StringHash,
-                         tile_def_name_hash: StringHash) -> Option<&'tile_sets TileDef> {
+                         tile_def_name_hash: StringHash) -> Option<&'static TileDef> {
 
-        self.tile_sets().find_tile_def_by_hash(layer, category_name_hash, tile_def_name_hash)
+        TileSets::get().find_tile_def_by_hash(layer, category_name_hash, tile_def_name_hash)
     }
 
     #[inline]
     pub fn find_tile(&self,
                      cell: Cell,
                      layer: TileMapLayerKind,
-                     tile_kinds: TileKind) -> Option<&Tile<'tile_sets>> {
+                     tile_kinds: TileKind) -> Option<&Tile> {
 
         self.tile_map().find_tile(cell, layer, tile_kinds)
     }
@@ -421,7 +397,7 @@ impl<'tile_sets> Query<'tile_sets> {
     pub fn find_tile_mut(&self,
                          cell: Cell,
                          layer: TileMapLayerKind,
-                         tile_kinds: TileKind) -> Option<&mut Tile<'tile_sets>> {
+                         tile_kinds: TileKind) -> Option<&mut Tile> {
 
         self.tile_map().find_tile_mut(cell, layer, tile_kinds)
     }
@@ -517,17 +493,17 @@ impl<'tile_sets> Query<'tile_sets> {
             return None;
         }
 
-        struct BuildingPathFilter<'sim, 'tile_sets, F> {
-            query: &'sim Query<'tile_sets>,
+        struct BuildingPathFilter<'world, F> {
+            query: &'world Query,
             building_kinds: BuildingKind,
             traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
-            result_building: Option<&'sim mut Building>, // Search result.
+            result_building: Option<&'world mut Building>, // Search result.
             result_path: Option<mem::RawPtr<Path>>, // SAFETY: Saved for result debug validation only.
             visited_nodes: SmallVec<[Node; 32]>,
         }
 
-        impl<F> PathFilter for BuildingPathFilter<'_, '_, F>
+        impl<F> PathFilter for BuildingPathFilter<'_, F>
             where F: FnMut(&Building, &Path) -> bool
         {
             fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {

@@ -9,6 +9,7 @@ use serde::{
 
 use crate::{
     log,
+    singleton_late_init,
     save::{self, SaveState},
     pathfind::NodeKind as PathNodeKind,
     render::{TextureCache, TextureHandle},
@@ -22,8 +23,7 @@ use crate::{
             self,
             PreHashedKeyMap,
             StrHashPair,
-            StringHash,
-            NULL_HASH
+            StringHash
         }
     }
 };
@@ -343,8 +343,8 @@ impl TileDef {
                  layer: TileMapLayerKind,
                  category_hash: StringHash) -> bool {
 
-        debug_assert!(self.hash != NULL_HASH);
-        debug_assert!(category_hash != NULL_HASH);
+        debug_assert!(self.hash != hash::NULL_HASH);
+        debug_assert!(category_hash != hash::NULL_HASH);
 
         let archetype = layer.to_tile_archetype_kind();
         let specialized_type = {
@@ -552,7 +552,7 @@ impl TileCategory {
                  layer: TileMapLayerKind) -> bool {
 
         debug_assert!(self.mapping.is_empty());
-        debug_assert!(self.hash != NULL_HASH);
+        debug_assert!(self.hash != hash::NULL_HASH);
 
         if self.name.is_empty() {
             log::error!(log::channel!("tileset"), "TileCategory name is missing! A name is required.");
@@ -562,35 +562,36 @@ impl TileCategory {
         let tile_set_path_with_category =
             format!("{}{}{}", tile_set_path, MAIN_SEPARATOR, self.name);
 
-        for (entry_index, editable_def) in self.tile_defs.iter_mut().enumerate() {
+        for (index, editable_def) in self.tile_defs.iter_mut().enumerate() {
             let tile_def = editable_def.as_mut();
 
             if tile_def.name.is_empty() {
-                log::error!(log::channel!("tileset"), "TileCategory '{}': Invalid empty TileDef name! Index: [{}]",
-                            self.name,
-                            entry_index);
-                return false;   
+                log::error!(log::channel!("tileset"), "TileCategory '{}': Invalid empty TileDef name! Index: [{index}]",
+                            self.name);
+                continue;   
             }
 
-            tile_def.category_tiledef_index = entry_index as u32;
+            tile_def.category_tiledef_index = index as u32;
             tile_def.tileset_category_index = self.tileset_category_index;
 
-            let tile_name_hash: StringHash = hash::fnv1a_from_str(&tile_def.name);
+            let tile_name_hash = hash::fnv1a_from_str(&tile_def.name);
             tile_def.hash = tile_name_hash;
 
             if !tile_def.post_load(tex_cache, &tile_set_path_with_category, layer, self.hash) {
-                return false;
+                continue;
             }
 
-            debug_assert!(!tile_def.kind.is_empty(), "Missing TileKind flags!");
+            if tile_def.kind.is_empty() {
+                log::error!(log::channel!("tileset"), "TileCategory '{}': Invalid empty TileDef kind! Index: [{index}]",
+                            self.name);
+                continue;
+            }
 
-            if self.mapping.insert(tile_name_hash, entry_index).is_some() {
-                log::error!(log::channel!("tileset"), "TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
+            if self.mapping.insert(tile_name_hash, index).is_some() {
+                log::error!(log::channel!("tileset"), "TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
                             self.name,
                             tile_def.name,
-                            tile_name_hash,
-                            entry_index);
-                return false;
+                            tile_name_hash);
             }
         }
 
@@ -659,30 +660,27 @@ impl TileSet {
     fn post_load(&mut self, tex_cache: &mut dyn TextureCache, tile_set_path: &str) -> bool {
         debug_assert!(self.mapping.is_empty());
 
-        for (entry_index, category) in self.categories.iter_mut().enumerate() {
+        for (index, category) in self.categories.iter_mut().enumerate() {
             if category.name.is_empty() {
-                log::error!(log::channel!("tileset"), "TileSet '{}': Invalid empty category name! Index: [{}]",
-                            self.layer,
-                            entry_index);
-                return false;   
+                log::error!(log::channel!("tileset"), "TileSet '{}': Invalid empty category name! Index: [{index}]",
+                            self.layer);
+                continue;
             }
 
-            category.tileset_category_index = entry_index as u32;
+            category.tileset_category_index = index as u32;
 
-            let category_name_hash: StringHash = hash::fnv1a_from_str(&category.name);
+            let category_name_hash = hash::fnv1a_from_str(&category.name);
             category.hash = category_name_hash;
 
             if !category.post_load(tex_cache, tile_set_path, self.layer) {
-                return false;
+                continue;
             }
 
-            if self.mapping.insert(category_name_hash, entry_index).is_some() {
-                log::error!(log::channel!("tileset"), "TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {}!",
+            if self.mapping.insert(category_name_hash, index).is_some() {
+                log::error!(log::channel!("tileset"), "TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
                             self.layer,
                             category.name,
-                            category_name_hash,
-                            entry_index);
-                return false;
+                            category_name_hash);
             }
         }
 
@@ -727,23 +725,24 @@ pub struct TileSets {
 }
 
 impl TileSets {
-    pub fn load(tex_cache: &mut dyn TextureCache) -> Self {
-        let mut tile_sets = Self {
+    pub fn load(tex_cache: &mut dyn TextureCache) -> &'static Self {
+        let mut instance = Self {
             sets: [
                 TileSet::new(TileMapLayerKind::Terrain), // 0
                 TileSet::new(TileMapLayerKind::Objects), // 1
             ],
         };
-        tile_sets.load_all_layers(tex_cache);
-        tile_sets
+        instance.load_all_layers(tex_cache);
+        TileSets::initialize(instance); // Set global instance.
+        TileSets::get()
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub fn is_empty(&'static self) -> bool {
         self.sets.is_empty()
     }
 
     #[inline]
-    pub fn handle_to_tile_def(&self, handle: TileDefHandle) -> Option<&TileDef> {
+    pub fn handle_to_tile_def(&'static self, handle: TileDefHandle) -> Option<&'static TileDef> {
         let set_idx  = handle.0 as usize; // TileSet index into TileSets.
         let cat_idx  = handle.1 as usize; // TileCategory index into TileSet.
         let tile_idx = handle.2 as usize; // TileDef index into TileCategory.
@@ -772,7 +771,7 @@ impl TileSets {
         Some(tile_def)
     }
 
-    pub fn find_category_for_tile_def(&self, tile_def: &TileDef) -> Option<&TileCategory> {
+    pub fn find_category_for_tile_def(&'static self, tile_def: &TileDef) -> Option<&'static TileCategory> {
         let layer_idx = tile_def.layer_kind() as usize;
         let set_idx = tile_def.tileset_category_index as usize;
         let cat_idx = tile_def.category_tiledef_index as usize;
@@ -792,14 +791,14 @@ impl TileSets {
         Some(cat)
     }
 
-    pub fn find_set_for_tile_def(&self, tile_def: &TileDef) -> Option<&TileSet> {
+    pub fn find_set_for_tile_def(&'static self, tile_def: &TileDef) -> Option<&'static TileSet> {
         let layer = tile_def.layer_kind();
         let set = &self.sets[layer as usize];
         debug_assert!(set.layer == layer);
         Some(set)
     }
 
-    pub fn find_set_by_layer(&self, layer: TileMapLayerKind) -> Option<&TileSet> {
+    pub fn find_set_by_layer(&'static self, layer: TileMapLayerKind) -> Option<&'static TileSet> {
         let index = layer as usize;
 
         if index >= self.sets.len() {
@@ -812,38 +811,38 @@ impl TileSets {
         Some(&self.sets[index])
     }
 
-    pub fn find_category_by_name(&self,
+    pub fn find_category_by_name(&'static self,
                                  layer: TileMapLayerKind,
-                                 category_name: &str) -> Option<&TileCategory> {
+                                 category_name: &str) -> Option<&'static TileCategory> {
         let set = self.find_set_by_layer(layer)?;
         set.find_category_by_name(category_name)
     }
 
-    pub fn find_category_by_hash(&self,
+    pub fn find_category_by_hash(&'static self,
                                  layer: TileMapLayerKind,
-                                 category_name_hash: StringHash) -> Option<&TileCategory> {
+                                 category_name_hash: StringHash) -> Option<&'static TileCategory> {
         let set = self.find_set_by_layer(layer)?;
         set.find_category_by_hash(category_name_hash)
     }
 
-    pub fn find_tile_def_by_name(&self,
+    pub fn find_tile_def_by_name(&'static self,
                                  layer: TileMapLayerKind,
                                  category_name: &str,
-                                 tile_name: &str) -> Option<&TileDef> {
+                                 tile_name: &str) -> Option<&'static TileDef> {
         let cat = self.find_category_by_name(layer, category_name)?;
         cat.find_tile_def_by_name(tile_name)
     }
 
-    pub fn find_tile_def_by_hash(&self,
+    pub fn find_tile_def_by_hash(&'static self,
                                  layer: TileMapLayerKind,
                                  category_name_hash: StringHash,
-                                 tile_name_hash: StringHash) -> Option<&TileDef> {
+                                 tile_name_hash: StringHash) -> Option<&'static TileDef> {
         let cat = self.find_category_by_hash(layer, category_name_hash)?;
         cat.find_tile_def_by_hash(tile_name_hash)
     }
 
-    pub fn for_each_set<F>(&self, mut visitor_fn: F)
-        where F: FnMut(&TileSet) -> bool
+    pub fn for_each_set<F>(&'static self, mut visitor_fn: F)
+        where F: FnMut(&'static TileSet) -> bool
     {
         for set in &self.sets {
             let should_continue = visitor_fn(set);
@@ -853,8 +852,8 @@ impl TileSets {
         }
     }
 
-    pub fn for_each_category<F>(&self, mut visitor_fn: F)
-        where F: FnMut(&TileSet, &TileCategory) -> bool
+    pub fn for_each_category<F>(&'static self, mut visitor_fn: F)
+        where F: FnMut(&'static TileSet, &'static TileCategory) -> bool
     {
         for set in &self.sets {
             for cat in &set.categories {
@@ -866,8 +865,8 @@ impl TileSets {
         }
     }
 
-    pub fn for_each_tile_def<F>(&self, mut visitor_fn: F)
-        where F: FnMut(&TileSet, &TileCategory, &TileDef) -> bool
+    pub fn for_each_tile_def<F>(&'static self, mut visitor_fn: F)
+        where F: FnMut(&'static TileSet, &'static TileCategory, &'static TileDef) -> bool
     {
         for set in &self.sets {
             for cat in &set.categories {
@@ -884,7 +883,7 @@ impl TileSets {
     // Get back a mutable reference for the given TileDef.
     // This function is only intended for development/debug
     // and use within the ImGui TileInspector widget.
-    pub fn try_get_editable_tile_def(&self, tile_def: &TileDef) -> Option<&mut TileDef> {
+    pub fn try_get_editable_tile_def(&'static self, tile_def: &'static TileDef) -> Option<&'static mut TileDef> {
         if let Some(cat) = self.find_category_for_tile_def(tile_def) {
             let editable_def = &cat.tile_defs[tile_def.category_tiledef_index as usize];
             // SAFETY: We're assuming that mutable access is sound here
@@ -993,3 +992,9 @@ impl TileSets {
         true
     }
 }
+
+// ----------------------------------------------
+// TileSets Global Singleton
+// ----------------------------------------------
+
+singleton_late_init! { TILE_SETS_SINGLETON, TileSets }

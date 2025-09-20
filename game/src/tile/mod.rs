@@ -215,23 +215,23 @@ impl TileAnimState {
 // ----------------------------------------------
 
 #[derive(Copy, Clone, Default)]
-struct TileMapLayerPtr<'tile_sets> {
-    opt_ptr: Option<mem::RawPtr<TileMapLayer<'tile_sets>>>,
+struct TileMapLayerPtr {
+    opt_ptr: Option<mem::RawPtr<TileMapLayer>>,
 }
 
-impl<'tile_sets> TileMapLayerPtr<'tile_sets> {
+impl TileMapLayerPtr {
     #[inline]
-    fn new(layer: &TileMapLayer<'tile_sets>) -> Self {
+    fn new(layer: &TileMapLayer) -> Self {
         Self { opt_ptr: Some(mem::RawPtr::from_ref(layer)) }
     }
 
     #[inline]
-    fn as_ref(&self) -> &TileMapLayer<'tile_sets> {
+    fn as_ref(&self) -> &TileMapLayer {
         self.opt_ptr.as_ref().expect("TileMapLayer reference is unset! Missing post_load()?")
     }
 
     #[inline]
-    fn as_mut(&mut self) -> &mut TileMapLayer<'tile_sets> {
+    fn as_mut(&mut self) -> &mut TileMapLayer {
         self.opt_ptr.as_mut().expect("TileMapLayer reference is unset! Missing post_load()?")
     }
 }
@@ -241,19 +241,19 @@ impl<'tile_sets> TileMapLayerPtr<'tile_sets> {
 // ----------------------------------------------
 
 #[derive(Copy, Clone)]
-enum TileDefRef<'tile_sets> {
-    Ref(&'tile_sets TileDef),
+enum TileDefRef {
+    Ref(&'static TileDef),
     Handle(TileDefHandle),
 }
 
-impl<'tile_sets> TileDefRef<'tile_sets> {
+impl TileDefRef {
     #[inline]
-    fn new(def: &'tile_sets TileDef) -> Self {
+    fn new(def: &'static TileDef) -> Self {
         Self::Ref(def)
     }
 
     #[inline]
-    fn as_ref(&self) -> &'tile_sets TileDef {
+    fn as_ref(&self) -> &'static TileDef {
         match self {
             Self::Ref(def) => def,
             _ => panic!("TileDefRef does not hold a TileDef reference! Check deserialization/post_load()..."),
@@ -269,15 +269,15 @@ impl<'tile_sets> TileDefRef<'tile_sets> {
     }
 
     #[inline]
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets) {
+    fn post_load(&mut self) {
         let handle = self.as_handle();
-        let def = tile_sets.handle_to_tile_def(handle)
+        let def = TileSets::get().handle_to_tile_def(handle)
             .expect("Invalid TileDefHandle! Check serialization code...");
         *self = Self::Ref(def);
     }
 }
 
-impl Serialize for TileDefRef<'_> {
+impl Serialize for TileDefRef {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
@@ -291,7 +291,7 @@ impl Serialize for TileDefRef<'_> {
     }
 }
 
-impl<'de> Deserialize<'de> for TileDefRef<'_> {
+impl<'de> Deserialize<'de> for TileDefRef {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de>
     {
@@ -309,20 +309,20 @@ impl<'de> Deserialize<'de> for TileDefRef<'_> {
 // We also may keep a reference to the owning TileMapLayer inside TileArchetype
 // for building blockers and objects.
 #[derive(Serialize, Deserialize)]
-pub struct Tile<'tile_sets> {
+pub struct Tile {
     kind: TileKind,
     flags: TileFlags,
     variation_index: u16,
     z_sort_key: i32,
-    archetype: TileArchetype<'tile_sets>,
+    archetype: TileArchetype,
 }
 
 #[enum_dispatch]
 #[derive(Serialize, Deserialize)]
-enum TileArchetype<'tile_sets> {
-    TerrainTile(TerrainTile<'tile_sets>),
-    ObjectTile(ObjectTile<'tile_sets>),
-    BlockerTile(BlockerTile<'tile_sets>),
+enum TileArchetype {
+    TerrainTile(TerrainTile),
+    ObjectTile(ObjectTile),
+    BlockerTile(BlockerTile),
 }
 
 // ----------------------------------------------
@@ -331,8 +331,8 @@ enum TileArchetype<'tile_sets> {
 
 // Common behavior for all Tile archetypes.
 #[enum_dispatch(TileArchetype)]
-trait TileBehavior<'tile_sets> {
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerPtr<'tile_sets>);
+trait TileBehavior {
+    fn post_load(&mut self, layer: TileMapLayerPtr);
 
     fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
     fn set_base_cell(&mut self, cell: Cell);
@@ -347,7 +347,7 @@ trait TileBehavior<'tile_sets> {
     fn actual_base_cell(&self) -> Cell;
     fn cell_range(&self) -> CellRange;
 
-    fn tile_def(&self) -> &'tile_sets TileDef;
+    fn tile_def(&self) -> &'static TileDef;
     fn is_valid(&self) -> bool;
 
     // Animations:
@@ -367,8 +367,8 @@ trait TileBehavior<'tile_sets> {
 //  - No variations or animations.
 //
 #[derive(Copy, Clone, Serialize, Deserialize)]
-struct TerrainTile<'tile_sets> {
-    def: TileDefRef<'tile_sets>,
+struct TerrainTile {
+    def: TileDefRef,
 
     // Terrain tiles always occupy a single cell (of BASE_TILE_SIZE size).
     cell: Cell,
@@ -377,8 +377,8 @@ struct TerrainTile<'tile_sets> {
     iso_coords_f32: Vec2,
 }
 
-impl<'tile_sets> TerrainTile<'tile_sets> {
-    fn new(cell: Cell, tile_def: &'tile_sets TileDef) -> Self {
+impl TerrainTile {
+    fn new(cell: Cell, tile_def: &'static TileDef) -> Self {
         Self {
             def: TileDefRef::new(tile_def),
             cell,
@@ -387,11 +387,11 @@ impl<'tile_sets> TerrainTile<'tile_sets> {
     }
 }
 
-impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
+impl TileBehavior for TerrainTile {
     #[inline]
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, _layer: TileMapLayerPtr<'tile_sets>) {
+    fn post_load(&mut self, _layer: TileMapLayerPtr) {
         debug_assert!(self.cell.is_valid());
-        self.def.post_load(tile_sets);
+        self.def.post_load();
     }
 
     #[inline]
@@ -416,7 +416,7 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
     #[inline] fn cell_range(&self) -> CellRange { CellRange::new(self.cell, self.cell) }
 
-    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.def.as_ref() }
+    #[inline] fn tile_def(&self) -> &'static TileDef { self.def.as_ref() }
     #[inline] fn is_valid(&self) -> bool { self.cell.is_valid() && self.def.as_ref().is_valid() }
 
     // No support for animations on Terrain.
@@ -440,14 +440,14 @@ impl<'tile_sets> TileBehavior<'tile_sets> for TerrainTile<'tile_sets> {
 // ----------------------------------------------
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
-struct ObjectTile<'tile_sets> {
-    def: TileDefRef<'tile_sets>,
+struct ObjectTile {
+    def: TileDefRef,
 
     // Owning layer so we can propagate flags from a building to all of its blocker tiles.
     // SAFETY: This ref will always be valid as long as the Tile instance is, since the Tile
     // belongs to its parent layer.
     #[serde(skip)]
-    layer: TileMapLayerPtr<'tile_sets>,
+    layer: TileMapLayerPtr,
 
     // Buildings can occupy multiple cells. `cell_range.start` is the start or "base" cell.
     cell_range: CellRange,
@@ -458,10 +458,10 @@ struct ObjectTile<'tile_sets> {
     iso_coords_f32: Vec2,
 }
 
-impl<'tile_sets> ObjectTile<'tile_sets> {
+impl ObjectTile {
     fn new(cell: Cell,
-           tile_def: &'tile_sets TileDef,
-           layer: &TileMapLayer<'tile_sets>) -> Self {
+           tile_def: &'static TileDef,
+           layer: &TileMapLayer) -> Self {
         Self {
             def: TileDefRef::new(tile_def),
             layer: TileMapLayerPtr::new(layer),
@@ -473,11 +473,11 @@ impl<'tile_sets> ObjectTile<'tile_sets> {
     }
 }
 
-impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
+impl TileBehavior for ObjectTile {
     #[inline]
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerPtr<'tile_sets>) {
+    fn post_load(&mut self, layer: TileMapLayerPtr) {
         debug_assert!(self.cell_range.is_valid());
-        self.def.post_load(tile_sets);
+        self.def.post_load();
         self.layer = layer;
     }
 
@@ -510,7 +510,7 @@ impl<'tile_sets> TileBehavior<'tile_sets> for ObjectTile<'tile_sets> {
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell_range.start }
     #[inline] fn cell_range(&self) -> CellRange { self.cell_range }
 
-    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.def.as_ref() }
+    #[inline] fn tile_def(&self) -> &'static TileDef { self.def.as_ref() }
     #[inline] fn is_valid(&self) -> bool { self.cell_range.is_valid() && self.def.as_ref().is_valid() }
 
     // Animations:
@@ -571,12 +571,12 @@ pub fn calc_unit_iso_coords(base_cell: Cell, draw_size: Size) -> Vec2 {
 //  +---+---+
 //
 #[derive(Copy, Clone, Serialize, Deserialize)]
-struct BlockerTile<'tile_sets> {
+struct BlockerTile {
     // Weak reference to owning map layer so we can seamlessly resolve blockers into buildings.
     // SAFETY: This ref will always be valid as long as the Tile instance is, since the Tile
     // belongs to its parent layer.
     #[serde(skip)]
-    layer: TileMapLayerPtr<'tile_sets>,
+    layer: TileMapLayerPtr,
 
     // Building blocker tiles occupy a single cell and have a backreference to the owner start cell.
     // `owner_cell` must be always valid.
@@ -584,10 +584,10 @@ struct BlockerTile<'tile_sets> {
     owner_cell: Cell,
 }
 
-impl<'tile_sets> BlockerTile<'tile_sets> {
+impl BlockerTile {
     fn new(blocker_cell: Cell,
            owner_cell: Cell,
-           layer: &TileMapLayer<'tile_sets>) -> Self {
+           layer: &TileMapLayer) -> Self {
         Self {
             layer: TileMapLayerPtr::new(layer),
             cell: blocker_cell,
@@ -596,21 +596,21 @@ impl<'tile_sets> BlockerTile<'tile_sets> {
     }
 
     #[inline]
-    fn owner(&self) -> &Tile<'tile_sets> {
+    fn owner(&self) -> &Tile {
         let layer = self.layer.as_ref();
         layer.find_blocker_owner(self.owner_cell)
     }
 
     #[inline]
-    fn owner_mut(&mut self) -> &mut Tile<'tile_sets> {
+    fn owner_mut(&mut self) -> &mut Tile {
         let layer = self.layer.as_mut();
         layer.find_blocker_owner_mut(self.owner_cell)
     }
 }
 
-impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
+impl TileBehavior for BlockerTile {
     #[inline]
-    fn post_load(&mut self, _tile_sets: &'tile_sets TileSets, layer: TileMapLayerPtr<'tile_sets>) {
+    fn post_load(&mut self, layer: TileMapLayerPtr) {
         debug_assert!(self.cell.is_valid());
         debug_assert!(self.owner_cell.is_valid());
         self.layer = layer;
@@ -634,7 +634,7 @@ impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
     #[inline] fn actual_base_cell(&self) -> Cell { self.cell }
     #[inline] fn cell_range(&self) -> CellRange { self.owner().cell_range() }
 
-    #[inline] fn tile_def(&self) -> &'tile_sets TileDef { self.owner().tile_def() }
+    #[inline] fn tile_def(&self) -> &'static TileDef { self.owner().tile_def() }
     #[inline] fn is_valid(&self) -> bool { self.cell.is_valid() && self.owner_cell.is_valid() && self.owner().is_valid() }
 
     // Animations:
@@ -646,10 +646,10 @@ impl<'tile_sets> TileBehavior<'tile_sets> for BlockerTile<'tile_sets> {
 // Tile impl
 // ----------------------------------------------
 
-impl<'tile_sets> Tile<'tile_sets> {
+impl Tile {
     fn new(cell: Cell,
-           tile_def: &'tile_sets TileDef,
-           layer: &TileMapLayer<'tile_sets>) -> Self {
+           tile_def: &'static TileDef,
+           layer: &TileMapLayer) -> Self {
 
         let (z_sort_key, archetype) = match layer.kind() {
             TileMapLayerKind::Terrain => {
@@ -677,7 +677,7 @@ impl<'tile_sets> Tile<'tile_sets> {
                    owner_cell: Cell,
                    owner_kind: TileKind,
                    owner_flags: TileFlags,
-                   layer: &TileMapLayer<'tile_sets>) -> Self {
+                   layer: &TileMapLayer) -> Self {
         debug_assert!(owner_kind == TileKind::Object | TileKind::Building);
         Self {
             kind: TileKind::Object | TileKind::Blocker,
@@ -735,7 +735,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn tile_def(&self) -> &'tile_sets TileDef {
+    pub fn tile_def(&self) -> &'static TileDef {
         self.archetype.tile_def()
     }
 
@@ -745,7 +745,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn name(&self) -> &'tile_sets str {
+    pub fn name(&self) -> &'static str {
         &self.tile_def().name
     }
 
@@ -866,13 +866,13 @@ impl<'tile_sets> Tile<'tile_sets> {
                                             transform)
     }
 
-    pub fn category_name(&self, tile_sets: &'tile_sets TileSets) -> &'tile_sets str {
-        tile_sets.find_category_for_tile_def(self.tile_def())
+    pub fn category_name(&self) -> &'static str {
+        TileSets::get().find_category_for_tile_def(self.tile_def())
             .map_or("<none>", |cat| &cat.name)
     }
 
-    pub fn try_get_editable_tile_def(&self, tile_sets: &'tile_sets TileSets) -> Option<&'tile_sets mut TileDef> {
-        tile_sets.try_get_editable_tile_def(self.tile_def())
+    pub fn try_get_editable_tile_def(&self) -> Option<&'static mut TileDef> {
+        TileSets::get().try_get_editable_tile_def(self.tile_def())
     }
 
     // ----------------------
@@ -890,7 +890,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn variation_name(&self) -> &'tile_sets str {
+    pub fn variation_name(&self) -> &'static str {
         self.tile_def().variation_name(self.variation_index())
     }
 
@@ -930,7 +930,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn anim_set_name(&self) -> &'tile_sets str {
+    pub fn anim_set_name(&self) -> &'static str {
         self.tile_def().anim_set_name(self.variation_index(), self.anim_set_index())
     }
 
@@ -972,7 +972,7 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    pub fn anim_frame_tex_info(&self) -> Option<&'tile_sets TileTexInfo> {
+    pub fn anim_frame_tex_info(&self) -> Option<&'static TileTexInfo> {
         let anim_set_index  = self.anim_set_index();
         let variation_index = self.variation_index();
 
@@ -1065,9 +1065,9 @@ impl<'tile_sets> Tile<'tile_sets> {
     }
 
     #[inline]
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets, layer: TileMapLayerPtr<'tile_sets>) {
+    fn post_load(&mut self, layer: TileMapLayerPtr) {
         debug_assert!(!self.kind.is_empty());
-        self.archetype.post_load(tile_sets, layer);
+        self.archetype.post_load(layer);
     }
 }
 
@@ -1119,25 +1119,25 @@ impl TileMapLayerKind {
 
 // These are bound to the TileMap's lifetime (which in turn is bound to the TileSets).
 #[derive(Copy, Clone)]
-pub struct TileMapLayerRefs<'tile_sets> {
-    ptrs: [mem::RawPtr<TileMapLayer<'tile_sets>>; TILE_MAP_LAYER_COUNT],
+pub struct TileMapLayerRefs {
+    ptrs: [mem::RawPtr<TileMapLayer>; TILE_MAP_LAYER_COUNT],
 }
 
 #[derive(Copy, Clone)]
-pub struct TileMapLayerMutRefs<'tile_sets> {
-    ptrs: [mem::RawPtr<TileMapLayer<'tile_sets>>; TILE_MAP_LAYER_COUNT],
+pub struct TileMapLayerMutRefs {
+    ptrs: [mem::RawPtr<TileMapLayer>; TILE_MAP_LAYER_COUNT],
 }
 
-impl<'tile_sets> TileMapLayerRefs<'tile_sets> {
+impl TileMapLayerRefs {
     #[inline(always)]
-    pub fn get(&self, kind: TileMapLayerKind) -> &TileMapLayer<'tile_sets> {
+    pub fn get(&self, kind: TileMapLayerKind) -> &TileMapLayer {
         self.ptrs[kind as usize].as_ref()
     }
 }
 
-impl<'tile_sets> TileMapLayerMutRefs<'tile_sets> {
+impl TileMapLayerMutRefs {
     #[inline(always)]
-    pub fn get(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer<'tile_sets> {
+    pub fn get(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer {
         self.ptrs[kind as usize].as_mut()
     }
 }
@@ -1185,16 +1185,16 @@ const INVALID_TILE_INDEX: TilePoolIndex = TilePoolIndex::invalid();
 // ----------------------------------------------
 
 #[derive(Serialize, Deserialize)]
-struct TilePool<'tile_sets> {
+struct TilePool {
     layer_kind: TileMapLayerKind,
     layer_size_in_cells: Size,
 
     // WxH tiles, INVALID_TILE_INDEX if empty. Idx to 1st tile in the tiles Slab pool.
     cell_to_slab_idx: Vec<TilePoolIndex>,
-    slab: Slab<Tile<'tile_sets>>,
+    slab: Slab<Tile>,
 }
 
-impl<'tile_sets> TilePool<'tile_sets> {
+impl TilePool {
     fn new(layer_kind: TileMapLayerKind, size_in_cells: Size) -> Self {
         debug_assert!(size_in_cells.is_valid());
         let tile_count = (size_in_cells.width * size_in_cells.height) as usize;
@@ -1223,7 +1223,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
     }
 
     #[inline]
-    fn try_get_tile(&self, cell: Cell) -> Option<&Tile<'tile_sets>> {
+    fn try_get_tile(&self, cell: Cell) -> Option<&Tile> {
         if !self.is_cell_within_bounds(cell) {
             return None;
         }
@@ -1244,7 +1244,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
     }
 
     #[inline]
-    fn try_get_tile_mut(&mut self, cell: Cell) -> Option<&mut Tile<'tile_sets>> {
+    fn try_get_tile_mut(&mut self, cell: Cell) -> Option<&mut Tile> {
         if !self.is_cell_within_bounds(cell) {
             return None;
         }
@@ -1265,7 +1265,7 @@ impl<'tile_sets> TilePool<'tile_sets> {
     }
 
     #[inline]
-    fn insert_tile(&mut self, cell: Cell, new_tile: Tile<'tile_sets>) -> bool {
+    fn insert_tile(&mut self, cell: Cell, new_tile: Tile) -> bool {
         if !self.is_cell_within_bounds(cell) {
             return false;
         }
@@ -1311,14 +1311,14 @@ impl<'tile_sets> TilePool<'tile_sets> {
 // ----------------------------------------------
 
 #[derive(Serialize, Deserialize)]
-pub struct TileMapLayer<'tile_sets> {
-    pool: TilePool<'tile_sets>
+pub struct TileMapLayer {
+    pool: TilePool
 }
 
-impl<'tile_sets> TileMapLayer<'tile_sets> {
+impl TileMapLayer {
     fn new(layer_kind: TileMapLayerKind,
            size_in_cells: Size,
-           fill_with_def: Option<&'tile_sets TileDef>) -> Box<TileMapLayer<'tile_sets>> {
+           fill_with_def: Option<&'static TileDef>) -> Box<TileMapLayer> {
 
         let mut layer = Box::new(Self {
             pool: TilePool::new(layer_kind, size_in_cells),
@@ -1387,25 +1387,25 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     // Get tile or panic if the cell indices are not within bounds or if the tile cell is empty.
     #[inline]
-    pub fn tile(&self, cell: Cell) -> &Tile<'tile_sets> {
+    pub fn tile(&self, cell: Cell) -> &Tile {
         self.pool.try_get_tile(cell)
             .expect("TileMapLayer::tile(): Out of bounds cell or empty map cell!")
     }
 
     #[inline]
-    pub fn tile_mut(&mut self, cell: Cell) -> &mut Tile<'tile_sets> {
+    pub fn tile_mut(&mut self, cell: Cell) -> &mut Tile {
         self.pool.try_get_tile_mut(cell)
             .expect("TileMapLayer::tile_mut(): Out of bounds cell or empty map cell!")
     }
 
     // Fails with None if the cell indices are not within bounds or if the tile cell is empty.
     #[inline]
-    pub fn try_tile(&self, cell: Cell) -> Option<&Tile<'tile_sets>> {
+    pub fn try_tile(&self, cell: Cell) -> Option<&Tile> {
         self.pool.try_get_tile(cell)
     }
 
     #[inline]
-    pub fn try_tile_mut(&mut self, cell: Cell) -> Option<&mut Tile<'tile_sets>> {
+    pub fn try_tile_mut(&mut self, cell: Cell) -> Option<&mut Tile> {
         self.pool.try_get_tile_mut(cell)
     }
 
@@ -1417,7 +1417,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     }
 
     #[inline]
-    pub fn find_tile(&self, cell: Cell, tile_kinds: TileKind) -> Option<&Tile<'tile_sets>> {
+    pub fn find_tile(&self, cell: Cell, tile_kinds: TileKind) -> Option<&Tile> {
         if let Some(tile) = self.try_tile(cell) {
             if tile.is(tile_kinds) {
                 return Some(tile);
@@ -1427,7 +1427,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     }
 
     #[inline]
-    pub fn find_tile_mut(&mut self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile<'tile_sets>> {
+    pub fn find_tile_mut(&mut self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
         if let Some(tile) = self.try_tile_mut(cell) {
             if tile.is(tile_kinds) {
                 return Some(tile);
@@ -1438,7 +1438,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     // Get the 8 neighboring tiles plus self cell (optionally).
     pub fn tile_neighbors(&self, cell: Cell, include_self: bool)
-        -> ArrayVec<Option<&Tile<'tile_sets>>, 9> {
+        -> ArrayVec<Option<&Tile>, 9> {
 
         let mut neighbors = ArrayVec::new();
 
@@ -1464,14 +1464,14 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     }
 
     pub fn tile_neighbors_mut(&mut self, cell: Cell, include_self: bool)
-        -> ArrayVec<Option<&mut Tile<'tile_sets>>, 9> {
+        -> ArrayVec<Option<&mut Tile>, 9> {
 
         let mut neighbors: ArrayVec<_, 9> = ArrayVec::new();
 
         // Helper closure to get a raw pointer from try_tile_mut().
         let mut raw_tile_ptr = |c: Cell| {
             self.try_tile_mut(c)
-                .map(|tile| tile as *mut Tile<'tile_sets>) // Convert to raw pointer
+                .map(|tile| tile as *mut Tile) // Convert to raw pointer
         };
 
         if include_self {
@@ -1540,7 +1540,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     #[inline]
     pub fn for_each_tile<F>(&self, tile_kinds: TileKind, mut visitor_fn: F)
-        where F: FnMut(&Tile<'tile_sets>)
+        where F: FnMut(&Tile)
     {
         for (_, tile) in &self.pool.slab {
             if tile.is(tile_kinds) {
@@ -1551,7 +1551,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
 
     #[inline]
     pub fn for_each_tile_mut<F>(&mut self, tile_kinds: TileKind, mut visitor_fn: F)
-        where F: FnMut(&mut Tile<'tile_sets>)
+        where F: FnMut(&mut Tile)
     {
         for (_, tile) in &mut self.pool.slab {
             if tile.is(tile_kinds) {
@@ -1567,7 +1567,7 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     // NOTE: Inserting/removing a tile will not insert/remove any child blocker tiles.
     // Blocker insertion/removal is handled explicitly by the tile placement code.
 
-    pub fn insert_tile(&mut self, cell: Cell, tile_def: &'tile_sets TileDef) -> bool {
+    pub fn insert_tile(&mut self, cell: Cell, tile_def: &'static TileDef) -> bool {
         debug_assert!(tile_def.layer_kind() == self.kind());
         let new_tile = Tile::new(cell, tile_def, self);
         self.pool.insert_tile(cell, new_tile)
@@ -1607,14 +1607,14 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
     // ----------------------
 
     #[inline]
-    fn find_blocker_owner(&self, owner_cell: Cell) -> &Tile<'tile_sets> {
+    fn find_blocker_owner(&self, owner_cell: Cell) -> &Tile {
         // A blocker tile must always have a valid `owner_cell`. Panic if not.
         self.pool.try_get_tile(owner_cell)
             .expect("Blocker tile must have a valid owner cell!")
     }
 
     #[inline]
-    fn find_blocker_owner_mut(&mut self, owner_cell: Cell) -> &mut Tile<'tile_sets> {
+    fn find_blocker_owner_mut(&mut self, owner_cell: Cell) -> &mut Tile {
         // A blocker tile must always have a valid `owner_cell`. Panic if not.
         self.pool.try_get_tile_mut(owner_cell)
             .expect("Blocker tile must have a valid owner cell!")
@@ -1629,14 +1629,14 @@ impl<'tile_sets> TileMapLayer<'tile_sets> {
         }
     }
 
-    fn post_load(&mut self, tile_sets: &'tile_sets TileSets) {
+    fn post_load(&mut self) {
         debug_assert!(self.pool.layer_size_in_cells.is_valid());
 
         // Fix up references:
         {
             let layer = TileMapLayerPtr::new(self);
             for (_, tile) in &mut self.pool.slab {
-                tile.post_load(tile_sets, layer);
+                tile.post_load(layer);
             }
         }
 
@@ -1669,9 +1669,9 @@ pub type TileMapResetCallback = fn(&mut TileMap);
 // ----------------------------------------------
 
 #[derive(Default, Serialize, Deserialize)]
-pub struct TileMap<'tile_sets> {
+pub struct TileMap {
     size_in_cells: Size,
-    layers: ArrayVec<Box<TileMapLayer<'tile_sets>>, TILE_MAP_LAYER_COUNT>,
+    layers: ArrayVec<Box<TileMapLayer>, TILE_MAP_LAYER_COUNT>,
 
     // NOTE: TileMap callbacks are *not* serialized. These must be manually
     // reset on the user's post_load() after deserialization.
@@ -1689,8 +1689,8 @@ pub struct TileMap<'tile_sets> {
     on_map_reset_callback: Option<TileMapResetCallback>,
 }
 
-impl<'tile_sets> TileMap<'tile_sets> {
-    pub fn new(size_in_cells: Size, fill_with_def: Option<&'tile_sets TileDef>) -> Self {
+impl TileMap {
+    pub fn new(size_in_cells: Size, fill_with_def: Option<&'static TileDef>) -> Self {
         debug_assert!(size_in_cells.is_valid());
         let mut tile_map = Self {
             size_in_cells,
@@ -1704,11 +1704,10 @@ impl<'tile_sets> TileMap<'tile_sets> {
     }
 
     pub fn with_terrain_tile(size_in_cells: Size,
-                             tile_sets: &'tile_sets TileSets,
                              category_name_hash: StringHash,
                              tile_name_hash: StringHash) -> Self {
 
-        let fill_with_def = tile_sets.find_tile_def_by_hash(
+        let fill_with_def = TileSets::get().find_tile_def_by_hash(
             TileMapLayerKind::Terrain,
             category_name_hash,
             tile_name_hash);
@@ -1716,7 +1715,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
         Self::new(size_in_cells, fill_with_def)
     }
 
-    pub fn reset(&mut self, fill_with_def: Option<&'tile_sets TileDef>) {
+    pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>) {
         self.layers.clear();
 
         if let Some(callback) = self.on_map_reset_callback {
@@ -1780,7 +1779,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     }
 
     #[inline]
-    pub fn layers(&self) -> TileMapLayerRefs<'tile_sets> {
+    pub fn layers(&self) -> TileMapLayerRefs {
         TileMapLayerRefs {
             ptrs: [
                 mem::RawPtr::from_ref(self.layer(TileMapLayerKind::Terrain)),
@@ -1790,7 +1789,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     }
 
     #[inline]
-    pub fn layers_mut(&mut self) -> TileMapLayerMutRefs<'tile_sets> {
+    pub fn layers_mut(&mut self) -> TileMapLayerMutRefs {
         TileMapLayerMutRefs {
             ptrs: [
                 mem::RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Terrain)),
@@ -1800,13 +1799,13 @@ impl<'tile_sets> TileMap<'tile_sets> {
     }
 
     #[inline]
-    pub fn layer(&self, kind: TileMapLayerKind) -> &TileMapLayer<'tile_sets> {
+    pub fn layer(&self, kind: TileMapLayerKind) -> &TileMapLayer {
         debug_assert!(self.layers[kind as usize].kind() == kind);
         &self.layers[kind as usize]
     }
 
     #[inline]
-    pub fn layer_mut(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer<'tile_sets> {
+    pub fn layer_mut(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer {
         debug_assert!(self.layers[kind as usize].kind() == kind);
         &mut self.layers[kind as usize]
     }
@@ -1814,7 +1813,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_tile_from_layer(&self,
                                cell: Cell,
-                               kind: TileMapLayerKind) -> Option<&Tile<'tile_sets>> {
+                               kind: TileMapLayerKind) -> Option<&Tile> {
         if self.layers.is_empty() {
             return None;
         }
@@ -1827,7 +1826,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_tile_from_layer_mut(&mut self,
                                    cell: Cell,
-                                   kind: TileMapLayerKind) -> Option<&mut Tile<'tile_sets>> {
+                                   kind: TileMapLayerKind) -> Option<&mut Tile> {
         if self.layers.is_empty() {
             return None;
         }
@@ -1853,7 +1852,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn find_tile(&self,
                      cell: Cell,
                      layer_kind: TileMapLayerKind,
-                     tile_kinds: TileKind) -> Option<&Tile<'tile_sets>> {
+                     tile_kinds: TileKind) -> Option<&Tile> {
         if self.layers.is_empty() {
             return None;
         }
@@ -1865,7 +1864,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn find_tile_mut(&mut self,
                          cell: Cell,
                          layer_kind: TileMapLayerKind,
-                         tile_kinds: TileKind) -> Option<&mut Tile<'tile_sets>> {
+                         tile_kinds: TileKind) -> Option<&mut Tile> {
         if self.layers.is_empty() {
             return None;
         }
@@ -1887,7 +1886,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     #[inline]
     pub fn for_each_tile<F>(&self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
-        where F: FnMut(&Tile<'tile_sets>)
+        where F: FnMut(&Tile)
     {
         if !self.layers.is_empty() {
             let layer = self.layer(layer_kind);
@@ -1897,7 +1896,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     #[inline]
     pub fn for_each_tile_mut<F>(&mut self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
-        where F: FnMut(&mut Tile<'tile_sets>)
+        where F: FnMut(&mut Tile)
     {
         if !self.layers.is_empty() {
             let layer = self.layer_mut(layer_kind);
@@ -1921,7 +1920,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     #[inline]
     pub fn try_place_tile(&mut self,
                           target_cell: Cell,
-                          tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
+                          tile_def_to_place: &'static TileDef) -> Result<&mut Tile, String> {
 
         self.try_place_tile_in_layer(
             target_cell,
@@ -1933,7 +1932,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile_in_layer(&mut self,
                                    target_cell: Cell,
                                    layer_kind: TileMapLayerKind,
-                                   tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
+                                   tile_def_to_place: &'static TileDef) -> Result<&mut Tile, String> {
 
         if self.layers.is_empty() {
             return Err("Map has no layers".into());
@@ -1957,7 +1956,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
     pub fn try_place_tile_at_cursor(&mut self,
                                     cursor_screen_pos: Vec2,
                                     transform: WorldToScreenTransform,
-                                    tile_def_to_place: &'tile_sets TileDef) -> Result<&mut Tile<'tile_sets>, String> {
+                                    tile_def_to_place: &'static TileDef) -> Result<&mut Tile, String> {
 
         if self.layers.is_empty() {
             return Err("Map has no layers".into());
@@ -2100,7 +2099,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
         selection.clear(self.layers_mut());
     }
 
-    pub fn topmost_selected_tile(&self, selection: &TileSelection) -> Option<&Tile<'tile_sets>> {
+    pub fn topmost_selected_tile(&self, selection: &TileSelection) -> Option<&Tile> {
         let selected_cell = selection.last_cell();
         // Returns the tile at the topmost layer if it is not empty
         // (object, terrain), or nothing if all layers are empty.
@@ -2115,7 +2114,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 
     pub fn topmost_tile_at_cursor(&self,
                                   cursor_screen_pos: Vec2,
-                                  transform: WorldToScreenTransform) -> Option<&Tile<'tile_sets>> {
+                                  transform: WorldToScreenTransform) -> Option<&Tile> {
 
         debug_assert!(transform.is_valid());
 
@@ -2160,7 +2159,7 @@ impl<'tile_sets> TileMap<'tile_sets> {
 // Save/Load for TileMap
 // ----------------------------------------------
 
-impl Save for TileMap<'_> {
+impl Save for TileMap {
     fn pre_save(&mut self) {
         // Reset selection state. We don't save TileSelection.
         self.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::all(), |tile| {
@@ -2177,12 +2176,12 @@ impl Save for TileMap<'_> {
     }
 }
 
-impl<'tile_sets> Load<'tile_sets> for TileMap<'tile_sets> {
+impl Load for TileMap {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'tile_sets>) {
+    fn post_load(&mut self, _context: &PostLoadContext) {
         debug_assert!(self.size_in_cells >= Size::zero());
 
         // These are *not* serialized, so should be unset.
@@ -2192,7 +2191,7 @@ impl<'tile_sets> Load<'tile_sets> for TileMap<'tile_sets> {
         debug_assert!(self.on_map_reset_callback.is_none());
 
         for layer in &mut self.layers {
-            layer.post_load(context.tile_sets);
+            layer.post_load();
         }
     }
 }

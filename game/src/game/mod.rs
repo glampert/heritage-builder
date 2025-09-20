@@ -36,28 +36,12 @@ pub mod unit;
 pub mod world;
 
 // ----------------------------------------------
-// GameAssets
-// ----------------------------------------------
-
-struct GameAssets {
-    tile_sets: TileSets,
-}
-
-impl GameAssets {
-    fn new(tex_cache: &mut dyn TextureCache) -> Self {
-        Self {
-            tile_sets: TileSets::load(tex_cache),
-        }
-    }
-}
-
-// ----------------------------------------------
 // GameSession
 // ----------------------------------------------
 
 #[derive(Serialize, Deserialize)]
-struct GameSession<'game> {
-    tile_map: Box<TileMap<'game>>,
+struct GameSession {
+    tile_map: Box<TileMap>,
     world: World,
     sim: Simulation,
     systems: GameSystems,
@@ -72,10 +56,9 @@ struct GameSession<'game> {
     debug_menus: DebugMenusSystem,
 }
 
-impl<'game> GameSession<'game> {
+impl GameSession {
     fn new(
         tex_cache: &mut dyn TextureCache,
-        assets: &'game GameAssets,
         load_map_setting: &LoadMapSetting,
         viewport_size: Size,
     ) -> Self {
@@ -91,7 +74,7 @@ impl<'game> GameSession<'game> {
         }
 
         let mut world = World::new();
-        let mut tile_map = Self::create_tile_map(&mut world, assets, load_map_setting);
+        let mut tile_map = Self::create_tile_map(&mut world, load_map_setting);
 
         let sim = Simulation::new(&tile_map);
 
@@ -121,17 +104,13 @@ impl<'game> GameSession<'game> {
         };
 
         if let Some(save_file_path) = opt_save_file_to_load {
-            session.load_save_game(save_file_path, assets);
+            session.load_save_game(save_file_path);
         }
 
         session
     }
 
-    fn create_tile_map(
-        world: &mut World,
-        assets: &'game GameAssets,
-        load_map_setting: &LoadMapSetting,
-    ) -> Box<TileMap<'game>> {
+    fn create_tile_map(world: &mut World, load_map_setting: &LoadMapSetting) -> Box<TileMap> {
         let tile_map = {
             match load_map_setting {
                 LoadMapSetting::None => {
@@ -153,16 +132,12 @@ impl<'game> GameSession<'game> {
 
                     TileMap::with_terrain_tile(
                         *size_in_cells,
-                        &assets.tile_sets,
                         hash::fnv1a_from_str(terrain_tile_category),
                         hash::fnv1a_from_str(terrain_tile_name),
                     )
                 }
                 LoadMapSetting::Preset { preset_number } => {
-                    debug::utils::create_preset_tile_map(
-                        world,
-                        &assets.tile_sets,
-                        *preset_number)
+                    debug::utils::create_preset_tile_map(world, *preset_number)
                 }
                 LoadMapSetting::SaveGame { save_file_path } => {
                     if save_file_path.is_empty() {
@@ -180,18 +155,17 @@ impl<'game> GameSession<'game> {
     fn load_preset_map(
         preset_number: usize,
         tex_cache: &mut dyn TextureCache,
-        assets: &'game GameAssets,
         viewport_size: Size,
     ) -> Self {
         // Override GameConfigs.load_map_setting
         let load_map_setting = LoadMapSetting::Preset { preset_number };
-        Self::new(tex_cache, assets, &load_map_setting, viewport_size)
+        Self::new(tex_cache, &load_map_setting, viewport_size)
     }
 
-    fn reset(&mut self, tile_sets: &'game TileSets, reset_map: bool, reset_map_with_tile_def: Option<&'game TileDef>) {
+    fn reset(&mut self, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>) {
         self.tile_selection = TileSelection::default();
 
-        self.sim.reset(&mut self.world, &mut self.systems, &mut self.tile_map, tile_sets);
+        self.sim.reset(&mut self.world, &mut self.systems, &mut self.tile_map);
 
         if reset_map && self.tile_map.size_in_cells().is_valid() {
             self.tile_map.reset(reset_map_with_tile_def);
@@ -203,7 +177,7 @@ impl<'game> GameSession<'game> {
 // Save/Load for GameSession
 // ----------------------------------------------
 
-impl Save for GameSession<'_> {
+impl Save for GameSession {
     fn pre_save(&mut self) {
         self.tile_map.pre_save();
         self.world.pre_save();
@@ -229,7 +203,7 @@ impl Save for GameSession<'_> {
     }
 }
 
-impl<'game> Load<'game> for GameSession<'game> {
+impl Load for GameSession {
     fn pre_load(&mut self) {
         self.tile_map.pre_load();
         self.world.pre_load();
@@ -244,7 +218,7 @@ impl<'game> Load<'game> for GameSession<'game> {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext<'game>) {
+    fn post_load(&mut self, context: &PostLoadContext) {
         self.tile_map.post_load(context);
         self.world.post_load(context);
         self.sim.post_load(context);
@@ -271,7 +245,7 @@ fn make_save_game_file_path(save_file_name: &str) -> String {
         .into()
 }
 
-impl<'game> GameSession<'game> {
+impl GameSession {
     fn save_game(&mut self, save_file_path: &str) -> bool {
         log::info!(log::channel!("session"), "Saving game '{save_file_path}' ...");
 
@@ -312,15 +286,13 @@ impl<'game> GameSession<'game> {
         let mut state = save::backend::new_json_save_state(true);
 
         self.pre_save();
-
         let result = do_save(&mut state, self, save_file_path);
-
         self.post_save();
 
         result
     }
 
-    fn load_save_game(&mut self, save_file_path: &str, assets: &'game GameAssets) -> bool {
+    fn load_save_game(&mut self, save_file_path: &str) -> bool {
         log::info!(log::channel!("session"), "Loading save game '{save_file_path}' ...");
 
         let mut state = save::backend::new_json_save_state(false);
@@ -346,13 +318,8 @@ impl<'game> GameSession<'game> {
         };
 
         self.pre_load();
-
         *self = session;
-
-        self.post_load(&PostLoadContext::new(
-            &self.tile_map,
-            &assets.tile_sets
-        ));
+        self.post_load(&PostLoadContext::new(&self.tile_map));
 
         true
     }
@@ -364,8 +331,8 @@ impl<'game> GameSession<'game> {
 
 // Deferred session commands that must be processed at a safe point in the GameLoop update.
 // These are kept in a queue and consumed every iteration of the loop.
-enum GameSessionCmd<'game> {
-    Reset { reset_map_with_tile_def: Option<&'game TileDef> },
+enum GameSessionCmd {
+    Reset { reset_map_with_tile_def: Option<&'static TileDef> },
     LoadPreset { preset_number: usize },
     LoadSaveGame { save_file_path: String },
     SaveGame { save_file_path: String },
@@ -375,18 +342,17 @@ enum GameSessionCmd<'game> {
 // GameLoop
 // ----------------------------------------------
 
-pub struct GameLoop<'game> {
+pub struct GameLoop {
     engine: Box<dyn Engine>,
-    assets: Box<GameAssets>,
 
-    session: Option<Box<GameSession<'game>>>,
-    session_cmd_queue: VecDeque<GameSessionCmd<'game>>,
+    session: Option<Box<GameSession>>,
+    session_cmd_queue: VecDeque<GameSessionCmd>,
 
     autosave_timer: UpdateTimer,
     enable_autosave: bool,
 }
 
-impl<'game> GameLoop<'game> {
+impl GameLoop {
     // ----------------------
     // Public API:
     // ----------------------
@@ -396,7 +362,7 @@ impl<'game> GameLoop<'game> {
 
         // Boot the engine and load assets:
         let mut engine = Self::init_engine(&configs.engine);
-        let assets = Self::load_assets(engine.texture_cache_mut());
+        Self::load_assets(engine.texture_cache_mut());
 
         // Global initialization:
         cheats::initialize();
@@ -405,7 +371,6 @@ impl<'game> GameLoop<'game> {
 
         Self {
             engine,
-            assets,
             session: None,
             session_cmd_queue: VecDeque::new(),
             autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
@@ -422,7 +387,6 @@ impl<'game> GameLoop<'game> {
 
         let new_session = GameSession::new(
             tex_cache,
-            &game_loop.assets,
             &GameConfigs::get().save.load_map_setting,
             viewport_size
         );
@@ -433,13 +397,13 @@ impl<'game> GameLoop<'game> {
 
     pub fn terminate_session(&mut self) {
         if self.session.is_some() {
-            self.session().reset(&self.assets.tile_sets, false, None);
+            self.session().reset(false, None);
         }
         self.session = None;
         log::info!(log::channel!("game"), "Game Session destroyed.");
     }
 
-    pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'game TileDef>) {
+    pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>) {
         self.session_cmd_queue.push_back(GameSessionCmd::Reset {
             reset_map_with_tile_def
         });
@@ -525,13 +489,14 @@ impl<'game> GameLoop<'game> {
     // Internal:
     // ----------------------
 
+    // TODO: Review if we still need this after making GameLoop a singleton!
     #[inline]
-    fn mut_ref(&self) -> &mut GameLoop<'game> {
+    fn mut_ref(&self) -> &mut GameLoop {
         mem::mut_ref_cast(self)
     }
 
     #[inline]
-    fn session(&self) -> &mut GameSession<'game> {
+    fn session(&self) -> &mut GameSession {
         let session_box = self.session.as_ref().unwrap();
         mem::mut_ref_cast(session_box.as_ref())
     }
@@ -547,7 +512,7 @@ impl<'game> GameLoop<'game> {
         Box::new(engine::backend::GlfwOpenGlEngine::new(engine_configs))
     }
 
-    fn load_assets(tex_cache: &mut dyn TextureCache) -> Box<GameAssets> {
+    fn load_assets(tex_cache: &mut dyn TextureCache) {
         log::info!(log::channel!("game"), "Loading Game Assets ...");
 
         BuildingConfigs::load();
@@ -556,7 +521,8 @@ impl<'game> GameLoop<'game> {
         UnitConfigs::load();
         log::info!(log::channel!("game"), "UnitConfigs loaded.");
 
-        Box::new(GameAssets::new(tex_cache))
+        TileSets::load(tex_cache);
+        log::info!(log::channel!("game"), "TileSets loaded.");
     }
 
     fn handle_event(&self, event: ApplicationEvent, cursor_screen_pos: Vec2) {
@@ -601,7 +567,6 @@ impl<'game> GameLoop<'game> {
             &mut session.world,
             &mut session.systems,
             &mut session.tile_map,
-            &self.assets.tile_sets,
             delta_time_secs,
         );
 
@@ -657,8 +622,8 @@ impl<'game> GameLoop<'game> {
         }
     }
 
-    fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'game TileDef>) {
-        self.session().reset(&self.assets.tile_sets, true, reset_map_with_tile_def);
+    fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'static TileDef>) {
+        self.session().reset(true, reset_map_with_tile_def);
         log::info!(log::channel!("game"), "Game Session reset.");
     }
 
@@ -672,7 +637,6 @@ impl<'game> GameLoop<'game> {
         let new_session = GameSession::load_preset_map(
             preset_number,
             tex_cache,
-            &game_loop.assets,
             viewport_size
         );
 
@@ -682,7 +646,7 @@ impl<'game> GameLoop<'game> {
 
     fn session_cmd_load_save_game(&mut self, save_file_path: String) {
         debug_assert!(!save_file_path.is_empty());
-        self.session().load_save_game(&save_file_path, &self.assets);
+        self.session().load_save_game(&save_file_path);
     }
 
     fn session_cmd_save_game(&mut self, save_file_path: String) {
@@ -738,9 +702,9 @@ impl<'game> GameLoop<'game> {
     }
 
     fn new_debug_menus_input_args(
-        &'game self,
+        &self,
         cursor_screen_pos: Vec2,
-    ) -> DebugMenusInputArgs<'game> {
+    ) -> DebugMenusInputArgs {
         let session = self.session();
         DebugMenusInputArgs {
             tile_map: &mut session.tile_map,
@@ -752,15 +716,14 @@ impl<'game> GameLoop<'game> {
     }
 
     fn new_debug_menus_frame_args(
-        &'game self,
+        &self,
         visible_range: CellRange,
         cursor_screen_pos: Vec2,
         delta_time_secs: Seconds,
-    ) -> DebugMenusFrameArgs<'game> {
+    ) -> DebugMenusFrameArgs {
         let session = self.session();
         DebugMenusFrameArgs {
             tile_map: &mut session.tile_map,
-            tile_sets: &self.assets.tile_sets,
             tile_selection: &mut session.tile_selection,
             sim: &mut session.sim,
             world: &mut session.world,

@@ -1,11 +1,7 @@
 use std::{path::Path, fs, io};
 use enum_dispatch::enum_dispatch;
 use serde::{Serialize, de::DeserializeOwned};
-
-use crate::{
-    utils::mem,
-    tile::{TileMap, sets::TileSets}
-};
+use crate::{utils::mem, tile::TileMap};
 
 // ----------------------------------------------
 // Save / Load Traits
@@ -23,7 +19,7 @@ pub trait Save {
     }
 }
 
-pub trait Load<'tile_sets> {
+pub trait Load {
     fn pre_load(&mut self) {
     }
 
@@ -31,7 +27,7 @@ pub trait Load<'tile_sets> {
         Ok(())
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext<'tile_sets>) {
+    fn post_load(&mut self, _context: &PostLoadContext) {
     }
 }
 
@@ -65,18 +61,14 @@ pub enum SaveStateImpl {
     Json(backend::JsonSaveState),
 }
 
-pub struct PostLoadContext<'tile_sets> {
-    pub tile_map: mem::RawPtr<TileMap<'tile_sets>>,
-    pub tile_sets: &'tile_sets TileSets,
+pub struct PostLoadContext {
+    pub tile_map: mem::RawPtr<TileMap>,
 }
 
-impl<'tile_sets> PostLoadContext<'tile_sets,> {
+impl PostLoadContext {
     #[inline]
-    pub fn new(tile_map: &TileMap<'tile_sets>, tile_sets: &'tile_sets TileSets) -> Self {
-        Self {
-            tile_map: mem::RawPtr::from_ref(tile_map),
-            tile_sets,
-        }
+    pub fn new(tile_map: &TileMap) -> Self {
+        Self { tile_map: mem::RawPtr::from_ref(tile_map) }
     }
 }
 

@@ -214,7 +214,7 @@ impl Settler {
         // Else unit settled into existing household.
     }
 
-    fn find_house_tile_def<'tile_sets>(query: &'tile_sets Query) -> Option<&'tile_sets TileDef> {
+    fn find_house_tile_def(query: &Query) -> Option<&'static TileDef> {
         query.find_tile_def(
             TileMapLayerKind::Objects,
             OBJECTS_BUILDINGS_CATEGORY.hash,

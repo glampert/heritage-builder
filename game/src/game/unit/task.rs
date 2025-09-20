@@ -1624,12 +1624,12 @@ impl PathFindResult<'_> {
     }
 }
 
-fn find_delivery_candidate<'search>(query: &'search Query,
-                                    origin_kind: BuildingKind,
-                                    origin_base_cell: Cell,
-                                    traversable_node_kinds: PathNodeKind,
-                                    building_kinds_accepted: BuildingKind,
-                                    resource_kind_to_deliver: ResourceKind) -> PathFindResult<'search> {
+fn find_delivery_candidate(query: &Query,
+                           origin_kind: BuildingKind,
+                           origin_base_cell: Cell,
+                           traversable_node_kinds: PathNodeKind,
+                           building_kinds_accepted: BuildingKind,
+                           resource_kind_to_deliver: ResourceKind) -> PathFindResult<'_> {
 
     debug_assert!(origin_base_cell.is_valid());
     debug_assert!(!building_kinds_accepted.is_empty());
@@ -1655,12 +1655,12 @@ fn find_delivery_candidate<'search>(query: &'search Query,
     PathFindResult::from_query_result(query, origin_kind, origin_base_cell, result)
 }
 
-fn find_storage_fetch_candidate<'search>(query: &'search Query,
-                                         origin_kind: BuildingKind,
-                                         origin_base_cell: Cell,
-                                         traversable_node_kinds: PathNodeKind,
-                                         storage_buildings_accepted: BuildingKind,
-                                         resource_kind_to_fetch: ResourceKind) -> PathFindResult<'search> {
+fn find_storage_fetch_candidate(query: &Query,
+                                origin_kind: BuildingKind,
+                                origin_base_cell: Cell,
+                                traversable_node_kinds: PathNodeKind,
+                                storage_buildings_accepted: BuildingKind,
+                                resource_kind_to_fetch: ResourceKind) -> PathFindResult<'_> {
 
     debug_assert!(origin_base_cell.is_valid());
     debug_assert!(!storage_buildings_accepted.is_empty());

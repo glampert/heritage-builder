@@ -19,7 +19,7 @@ use crate::{
         TileMap,
         TileMapLayerKind,
         TileGameObjectHandle,
-        sets::{TileDef, OBJECTS_UNITS_CATEGORY}
+        sets::{TileDef, TileSets, OBJECTS_UNITS_CATEGORY}
     },
     game::{
         constants::*,
@@ -129,7 +129,7 @@ impl World {
     pub fn try_spawn_building_with_tile_def(&mut self,
                                             query: &Query,
                                             tile_base_cell: Cell,
-                                            tile_def: &TileDef) -> Result<&mut Building, String> {
+                                            tile_def: &'static TileDef) -> Result<&mut Building, String> {
 
         debug_assert!(tile_base_cell.is_valid());
         debug_assert!(tile_def.is_valid());
@@ -371,7 +371,7 @@ impl World {
         let config = configs.find_config_by_hash(unit_config_key.hash, unit_config_key.string);
 
         // Find TileDef:
-        if let Some(tile_def) = query.tile_sets().find_tile_def_by_hash(
+        if let Some(tile_def) = TileSets::get().find_tile_def_by_hash(
             TileMapLayerKind::Objects,
             OBJECTS_UNITS_CATEGORY.hash,
             config.tile_def_name_hash) {
@@ -408,7 +408,7 @@ impl World {
     pub fn try_spawn_unit_with_tile_def(&mut self,
                                         query: &Query,
                                         unit_origin: Cell,
-                                        tile_def: &TileDef) -> Result<&mut Unit, String> {
+                                        tile_def: &'static TileDef) -> Result<&mut Unit, String> {
 
         debug_assert!(unit_origin.is_valid());
         debug_assert!(tile_def.is_valid());
@@ -615,7 +615,7 @@ impl Save for World {
     }
 }
 
-impl Load<'_> for World {
+impl Load for World {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }

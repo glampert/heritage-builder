@@ -1,6 +1,3 @@
-// cast to Tile<'_> is needed to then cast away lifetime as 'static.
-#![allow(clippy::unnecessary_cast)]
-
 use bitflags::bitflags;
 use smallvec::SmallVec;
 
@@ -417,7 +414,7 @@ struct TileDrawListEntry {
     // of TileMapRenderer we need to bypass the borrow checker.
     // Not ideal but avoids having to allocate a new temporary
     // local Vec each time draw_map() is called.
-    tile: mem::RawPtr<Tile<'static>>,
+    tile: mem::RawPtr<Tile>,
 
     // Y value of the bottom left corner of the tile sprite for sorting.
     // Simulates a pseudo depth value so we can render units and buildings
@@ -428,16 +425,14 @@ struct TileDrawListEntry {
 impl TileDrawListEntry {
     #[inline]
     fn new(tile: &Tile) -> Self {
-        // Strip away lifetime (pretend it is static).
-        let tile_ptr = tile as *const Tile<'_> as *const Tile<'static>;
         Self {
-            tile: mem::RawPtr::from_ptr(tile_ptr),
+            tile: mem::RawPtr::from_ref(tile),
             z_sort: tile.z_sort_key(),
         }
     }
 
     #[inline]
-    fn tile_ref(&self) -> &Tile<'static> {
+    fn tile_ref(&self) -> &Tile {
         // SAFETY: This reference only lives for the scope of draw_map().
         // The only reason we store it in a member Vec is to avoid the
         // memory allocation cost of a temp local Vec. `temp_tile_sort_list`

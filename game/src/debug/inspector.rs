@@ -1,5 +1,3 @@
-#![allow(clippy::unnecessary_cast)]
-
 use proc_macros::DrawDebugUi;
 
 use crate::{
@@ -28,20 +26,19 @@ use crate::{
 // ----------------------------------------------
 
 struct TileWeakRef {
-    // SAFETY: Calling code must ensure tile reference stays valid.
+    // SAFETY: Calling code must ensure tile pointer stays valid.
     // We hook up the TileMap editor callbacks to guarantee that.
-    // Tile Inspector is used only for debug and development, so this is good enough.
-    tile_ptr: mem::RawPtr<Tile<'static>>,
+    // Tile Inspector is used only for debug and development,
+    // so this is good enough.
+    tile_ptr: mem::RawPtr<Tile>,
     tile_kind: TileKind,
     tile_layer: TileMapLayerKind,
 }
 
 impl TileWeakRef {
     fn new(tile: &Tile) -> Self {
-        // Strip away lifetime (pretend it is static).
-        let tile_ptr = tile as *const Tile<'_> as *const Tile<'static>;
         Self {
-            tile_ptr: mem::RawPtr::from_ptr(tile_ptr),
+            tile_ptr: mem::RawPtr::from_ref(tile),
             tile_kind: tile.kind(),
             tile_layer: tile.layer_kind(),
         }
@@ -56,7 +53,7 @@ impl TileWeakRef {
         None
     }
 
-    fn try_tile_mut(&mut self) -> Option<&mut Tile<'static>> {
+    fn try_tile_mut(&mut self) -> Option<&mut Tile> {
         if self.tile_ptr.kind() == self.tile_kind &&
            self.tile_ptr.layer_kind() == self.tile_layer {
             return Some(self.tile_ptr.as_mut());
@@ -199,7 +196,7 @@ impl TileInspectorMenu {
         tile_ref.try_tile()
     }
 
-    fn try_get_selected_tile_mut(&mut self) -> Option<&mut Tile<'static>> {
+    fn try_get_selected_tile_mut(&mut self) -> Option<&mut Tile> {
         if !self.is_open {
             return None;
         }
@@ -244,9 +241,9 @@ impl TileInspectorMenu {
 
         // Display-only properties:
         #[derive(DrawDebugUi)]
-        struct DrawDebugUiVariables<'a> {
-            name: &'a str,
-            category: &'a str,
+        struct DrawDebugUiVariables {
+            name: &'static str,
+            category: &'static str,
             kind: TileKind,
             flags: TileFlags,
             path_kind: PathNodeKind,
@@ -259,7 +256,7 @@ impl TileInspectorMenu {
 
         let debug_vars = DrawDebugUiVariables {
             name: tile.name(),
-            category: tile.category_name(context.tile_sets),
+            category: tile.category_name(),
             kind: tile.kind(),
             flags: tile.flags(),
             path_kind: tile.path_kind(),
@@ -428,7 +425,7 @@ impl TileInspectorMenu {
 
         let mut color = tile.tint_color();
         if imgui_ui::input_color(ui, "Color:", &mut color) {
-            if let Some(editable_def) = tile.try_get_editable_tile_def(context.tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 // Prevent invalid values.
                 editable_def.color = color.clamp();
             }
@@ -445,7 +442,7 @@ impl TileInspectorMenu {
             None,
             Some(["W", "H"])) {
 
-            if let Some(editable_def) = tile.try_get_editable_tile_def(context.tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 if draw_size.is_valid() {
                     editable_def.draw_size = draw_size;
                     tile.on_tile_def_edited();
@@ -469,7 +466,7 @@ impl TileInspectorMenu {
             Some([BASE_TILE_SIZE.width, BASE_TILE_SIZE.height]),
             Some(["W", "H"])) {
 
-            if let Some(editable_def) = tile.try_get_editable_tile_def(context.tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 if logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
                     && (logical_size.width  % BASE_TILE_SIZE.width)  == 0
                     && (logical_size.height % BASE_TILE_SIZE.height) == 0 {
@@ -483,7 +480,7 @@ impl TileInspectorMenu {
 
         let mut occludes_terrain = tile.has_flags(TileFlags::OccludesTerrain);
         if ui.checkbox("Occludes terrain", &mut occludes_terrain) {
-            if let Some(editable_def) = tile.try_get_editable_tile_def(context.tile_sets) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 editable_def.occludes_terrain = occludes_terrain;
             }
             tile.set_flags(TileFlags::OccludesTerrain, occludes_terrain);
