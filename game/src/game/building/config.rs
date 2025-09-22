@@ -146,7 +146,7 @@ pub struct BuildingConfigs {
     tile_def_mapping: PreHashedKeyMap<StringHash, BuildingConfigEntry>, // tile_def.name => (kind, index)
 
     #[serde(skip)]
-    service_mapping: HashMap<ServiceKind, usize>,  // ServiceKind  => service_configs[index]
+    service_mapping: HashMap<ServiceKind, usize>, // ServiceKind => service_configs[index]
 
     #[serde(skip)]
     storage_mapping: HashMap<BuildingKind, usize>, // BuildingKind => storage_configs[index]

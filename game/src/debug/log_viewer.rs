@@ -160,15 +160,15 @@ impl LogViewerWindow {
         Self
     }
 
-    pub fn show(&self, show: bool) {
+    pub fn show(&mut self, show: bool) {
         LogViewerSingleton::get_mut().show(show);
     }
 
-    pub fn set_enabled_channels(&self, channels: &[(log::Channel, bool)]) {
+    pub fn set_enabled_channels(&mut self, channels: &[(log::Channel, bool)]) {
         LogViewerSingleton::get_mut().set_enabled_channels(channels);
     }
 
-    pub fn draw(&self, ui_sys: &UiSystem) -> bool {
+    pub fn draw(&mut self, ui_sys: &UiSystem) -> bool {
         LogViewerSingleton::get_mut().draw(ui_sys)
     }
 }

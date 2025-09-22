@@ -94,7 +94,7 @@ pub struct DebugMenusSystem;
 impl DebugMenusSystem {
     pub fn new(tile_map: &mut TileMap, tex_cache: &mut dyn TextureCache) -> Self {
         // Initialize the singleton exactly once:
-        init_singleton_once(tex_cache);
+        init_debug_menus_singleton_once(tex_cache);
 
         // Register TileMap global callbacks & debug ref:
         register_tile_map_debug_callbacks(tile_map);
@@ -367,7 +367,7 @@ impl DebugMenusSingleton {
         let game_loop = GameLoop::get_mut();
 
         if *show_log_viewer_window {
-            let log_viewer = game_loop.engine().log_viewer();
+            let log_viewer = game_loop.engine_mut().log_viewer();
             log_viewer.show(true);
             *show_log_viewer_window = log_viewer.draw(args.ui_sys);
         }
@@ -431,7 +431,7 @@ impl DebugMenusSingleton {
 
 singleton_late_init! { DEBUG_MENUS_SINGLETON, DebugMenusSingleton }
 
-fn init_singleton_once(tex_cache: &mut dyn TextureCache) {
+fn init_debug_menus_singleton_once(tex_cache: &mut dyn TextureCache) {
     if DEBUG_MENUS_SINGLETON.is_initialized() {
         return; // Already initialized.
     }

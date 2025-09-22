@@ -64,7 +64,7 @@ pub trait Engine {
     fn debug_draw(&mut self) -> &mut dyn DebugDraw;
 
     fn frame_clock(&self) -> &FrameClock;
-    fn log_viewer(&self) -> &LogViewerWindow;
+    fn log_viewer(&mut self) -> &mut LogViewerWindow;
     fn viewport(&self) -> Rect;
 
     fn set_grid_line_thickness(&mut self, thickness: f32);
@@ -287,8 +287,8 @@ where
     }
 
     #[inline]
-    fn log_viewer(&self) -> &LogViewerWindow {
-        &self.log_viewer
+    fn log_viewer(&mut self) -> &mut LogViewerWindow {
+        &mut self.log_viewer
     }
 
     #[inline]
