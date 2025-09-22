@@ -54,8 +54,8 @@ pub trait Engine {
     fn input_system(&self) -> &dyn InputSystem;
 
     fn render_system(&mut self) -> &mut dyn RenderSystem;
-    fn render_stats(&self) -> RenderStats;
-    fn tile_map_render_stats(&self) -> TileMapRenderStats;
+    fn render_stats(&self) -> &RenderStats;
+    fn tile_map_render_stats(&self) -> &TileMapRenderStats;
 
     fn texture_cache(&self) -> &dyn TextureCache;
     fn texture_cache_mut(&mut self) -> &mut dyn TextureCache;
@@ -252,13 +252,13 @@ where
     }
 
     #[inline]
-    fn render_stats(&self) -> RenderStats {
-        self.render_stats
+    fn render_stats(&self) -> &RenderStats {
+        &self.render_stats
     }
 
     #[inline]
-    fn tile_map_render_stats(&self) -> TileMapRenderStats {
-        self.tile_map_render_stats
+    fn tile_map_render_stats(&self) -> &TileMapRenderStats {
+        &self.tile_map_render_stats
     }
 
     #[inline]

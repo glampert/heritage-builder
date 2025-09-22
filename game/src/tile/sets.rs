@@ -771,7 +771,7 @@ impl TileSets {
         Some(tile_def)
     }
 
-    pub fn find_category_for_tile_def(&'static self, tile_def: &TileDef) -> Option<&'static TileCategory> {
+    pub fn find_category_for_tile_def(&'static self, tile_def: &'static TileDef) -> Option<&'static TileCategory> {
         let layer_idx = tile_def.layer_kind() as usize;
         let set_idx = tile_def.tileset_category_index as usize;
         let cat_idx = tile_def.category_tiledef_index as usize;
@@ -791,7 +791,7 @@ impl TileSets {
         Some(cat)
     }
 
-    pub fn find_set_for_tile_def(&'static self, tile_def: &TileDef) -> Option<&'static TileSet> {
+    pub fn find_set_for_tile_def(&'static self, tile_def: &'static TileDef) -> Option<&'static TileSet> {
         let layer = tile_def.layer_kind();
         let set = &self.sets[layer as usize];
         debug_assert!(set.layer == layer);

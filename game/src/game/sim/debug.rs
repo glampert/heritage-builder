@@ -11,7 +11,7 @@ use crate::{
     pathfind::{Graph, Search},
     tile::TileMap,
     engine::time::Seconds,
-    utils::{mem, coords::WorldToScreenTransform, Size},
+    utils::{coords::WorldToScreenTransform, Size},
 };
 
 // ----------------------------------------------
@@ -42,24 +42,24 @@ pub struct DebugContext<'game> {
 // ----------------------------------------------
 
 // Dummy Query for unit tests/debug.
-pub struct DebugQueryBuilder {
+pub struct DebugQueryBuilder<'game> {
     rng: RandomGenerator,
     graph: Graph,
     search: Search,
     task_manager: UnitTaskManager,
-    world: mem::RawPtr<World>,
-    tile_map: mem::RawPtr<TileMap>,
+    world: &'game mut World,
+    tile_map: &'game mut TileMap,
 }
 
-impl DebugQueryBuilder {
-    pub fn new(world: &mut World, tile_map: &mut TileMap, map_size_in_cells: Size) -> Self {
+impl<'game> DebugQueryBuilder<'game> {
+    pub fn new(world: &'game mut World, tile_map: &'game mut TileMap, map_size_in_cells: Size) -> Self {
         Self {
             rng: RandomGenerator::seed_from_u64(GameConfigs::get().sim.random_seed),
             graph: Graph::with_empty_grid(map_size_in_cells),
             search: Search::with_grid_size(map_size_in_cells),
             task_manager: UnitTaskManager::new(1),
-            world: mem::RawPtr::from_ref(world),
-            tile_map: mem::RawPtr::from_ref(tile_map),
+            world,
+            tile_map,
         }
     }
 
@@ -68,8 +68,8 @@ impl DebugQueryBuilder {
                    &mut self.graph,
                    &mut self.search,
                    &mut self.task_manager,
-                   &mut self.world,
-                   &mut self.tile_map,
+                   self.world,
+                   self.tile_map,
                    0.0)
     }
 }

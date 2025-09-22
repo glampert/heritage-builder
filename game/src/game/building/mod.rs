@@ -262,7 +262,7 @@ impl GameObject for Building {
         let kind = self.kind();
         debug_assert!(kind.is_single_building());
 
-        let tile = context.tile_map.find_tile(
+        let tile = context.tile_map().find_tile(
             self.base_cell(),
             TileMapLayerKind::Objects,
             TileKind::Building).unwrap();

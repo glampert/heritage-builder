@@ -62,13 +62,23 @@ pub enum SaveStateImpl {
 }
 
 pub struct PostLoadContext {
-    pub tile_map: mem::RawPtr<TileMap>,
+    tile_map: mem::RawPtr<TileMap>,
 }
 
 impl PostLoadContext {
     #[inline]
     pub fn new(tile_map: &TileMap) -> Self {
         Self { tile_map: mem::RawPtr::from_ref(tile_map) }
+    }
+
+    #[inline]
+    pub fn tile_map(&self) -> &TileMap {
+        self.tile_map.as_ref()
+    }
+
+    #[inline]
+    pub fn tile_map_mut(&self) -> &mut TileMap {
+        self.tile_map.mut_ref_cast()
     }
 }
 

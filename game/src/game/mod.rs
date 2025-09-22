@@ -14,7 +14,7 @@ use crate::{
     tile::{
         TileMap, camera::*, rendering::TileMapRenderFlags, selection::TileSelection, sets::{TileSets, TileDef},
     },
-    utils::{mem, Size, Vec2, coords::CellRange, hash, file_sys},
+    utils::{Size, Vec2, coords::CellRange, hash, file_sys},
     engine::time::{Seconds, UpdateTimer},
 };
 
@@ -667,7 +667,6 @@ impl GameLoop {
         cursor_screen_pos: Vec2,
         delta_time_secs: Seconds,
     ) {
-        let mut game_loop = mem::RawPtr::from_ref(self);
         let session = self.session.as_mut().unwrap();
         session.debug_menus.end_frame(&mut DebugMenusFrameArgs {
             tile_map: &mut session.tile_map,
@@ -680,7 +679,7 @@ impl GameLoop {
             visible_range,
             cursor_screen_pos,
             delta_time_secs,
-        }, game_loop.as_mut());
+        });
     }
 
     fn debug_menus_key_input(

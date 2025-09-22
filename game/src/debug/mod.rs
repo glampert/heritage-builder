@@ -121,8 +121,8 @@ impl DebugMenusSystem {
         DebugMenusSingleton::get_mut().begin_frame(args)
     }
 
-    pub fn end_frame(&mut self, args: &mut DebugMenusFrameArgs, game_loop: &mut GameLoop) {
-        DebugMenusSingleton::get_mut().end_frame(args, game_loop);
+    pub fn end_frame(&mut self, args: &mut DebugMenusFrameArgs) {
+        DebugMenusSingleton::get_mut().end_frame(args);
     }
 }
 
@@ -147,8 +147,7 @@ impl Load for DebugMenusSystem {
         DebugMenusSingleton::get_mut().tile_inspector_menu.close();
 
         // Re-register debug editor callbacks and reset the global tile map ref.
-        let tile_map = context.tile_map.mut_ref_cast();
-        register_tile_map_debug_callbacks(tile_map);
+        register_tile_map_debug_callbacks(context.tile_map_mut());
     }
 }
 
@@ -357,7 +356,7 @@ impl DebugMenusSingleton {
         self.debug_settings_menu.selected_render_flags()
     }
 
-    fn end_frame(&mut self, args: &mut DebugMenusFrameArgs, game_loop: &mut GameLoop) {
+    fn end_frame(&mut self, args: &mut DebugMenusFrameArgs) {
         let has_valid_placement = args.tile_selection.has_valid_placement();
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
@@ -365,9 +364,12 @@ impl DebugMenusSingleton {
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
         let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
 
+        let game_loop = GameLoop::get_mut();
+
         if *show_log_viewer_window {
-            game_loop.engine().log_viewer().show(true);
-            *show_log_viewer_window = game_loop.engine().log_viewer().draw(args.ui_sys);
+            let log_viewer = game_loop.engine().log_viewer();
+            log_viewer.show(true);
+            *show_log_viewer_window = log_viewer.draw(args.ui_sys);
         }
 
         let mut context = sim::debug::DebugContext {
@@ -413,11 +415,12 @@ impl DebugMenusSingleton {
 
         if show_render_stats {
             let engine = game_loop.engine();
-            utils::draw_render_stats(args.ui_sys, &engine.render_stats(), &engine.tile_map_render_stats());
+            utils::draw_render_stats(args.ui_sys, engine.render_stats(), engine.tile_map_render_stats());
         }
 
         if show_screen_origin {
-            utils::draw_screen_origin_marker(game_loop.engine_mut().debug_draw());
+            let engine = game_loop.engine_mut();
+            utils::draw_screen_origin_marker(engine.debug_draw());
         }
     }
 }
