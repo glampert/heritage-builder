@@ -354,10 +354,10 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
 }
 
 // ----------------------------------------------
-// Built-in test TileMaps
+// Built-in preset test TileMaps
 // ----------------------------------------------
 
-mod test_maps {
+mod preset_maps {
     use super::*;
 
     struct PresetTiles {
@@ -399,12 +399,74 @@ mod test_maps {
         "distillery",
     ];
 
-    // 1 house, 2 wells, 1 market, 1 farm, 1 storage (granary)
+    // Empty 9x9 map. Ring road around the whole map.
     const PRESET_TILES_0: PresetTiles = PresetTiles {
-        preset_name: "[0] - 1 house, 2 wells, 1 market, 1 farm, 1 granary",
+        preset_name: "[0] - empty | 9x9",
         map_size_in_cells: Size::new(9, 9),
         terrain_tiles: &[
             R,R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,R,R,R,R,R,R,R,R,
+        ],
+        building_tiles: &[
+            X,X,X,X,X,X,X,X,X, // <-- start, tile zero is the leftmost (top-left)
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+        ],
+        enable_cheats_fn: Some(|cheats| {
+            cheats.ignore_worker_requirements = true
+        })
+    };
+
+    // 1 farm, 1 storage (granary)
+    const PRESET_TILES_1: PresetTiles = PresetTiles {
+        preset_name: "[1] - 1 farm, 1 granary | 9x9",
+        map_size_in_cells: Size::new(9, 9),
+        terrain_tiles: &[
+            R,R,R,R,R,R,R,R,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,G,G,G,G,G,G,G,R,
+            R,R,R,R,R,R,R,R,R,
+        ],
+        building_tiles: &[
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,S,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,F,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+            X,X,X,X,X,X,X,X,X,
+        ],
+        enable_cheats_fn: Some(|cheats| {
+            cheats.ignore_worker_requirements = true
+        })
+    };
+
+    // 1 house, 2 wells, 1 market, 1 farm, 1 storage (granary)
+    const PRESET_TILES_2: PresetTiles = PresetTiles {
+        preset_name: "[2] - 1 house, 2 wells, 1 market, 1 farm, 1 granary | 9x9",
+        map_size_in_cells: Size::new(9, 9),
+        terrain_tiles: &[
+            R,R,R,R,R,R,R,R,R,
             R,G,G,G,G,G,G,G,R,
             R,G,G,G,G,G,G,G,R,
             R,R,G,G,G,G,G,G,R,
@@ -415,7 +477,7 @@ mod test_maps {
             R,R,R,R,R,R,R,R,R,
         ],
         building_tiles: &[
-            X,X,X,X,X,X,X,X,X, // <-- start, tile zero is the leftmost (top-left)
+            X,X,X,X,X,X,X,X,X,
             X,H,X,B,X,M,X,X,X,
             X,X,X,X,X,X,X,X,X,
             X,X,W,X,X,X,X,X,X,
@@ -430,40 +492,9 @@ mod test_maps {
         })
     };
 
-    // 1 farm, 1 storage (granary)
-    const PRESET_TILES_1: PresetTiles = PresetTiles {
-        preset_name: "[1] - 1 farm, 1 granary",
-        map_size_in_cells: Size::new(9, 9),
-        terrain_tiles: &[
-            R,R,R,R,R,R,R,R,R,
-            R,G,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,G,R,
-            R,R,R,R,R,R,R,R,R,
-        ],
-        building_tiles: &[
-            X,X,X,X,X,X,X,X,X,
-            X,X,X,X,X,S,X,X,X,
-            X,X,X,X,X,X,X,X,X,
-            X,X,X,X,X,X,X,X,X,
-            X,F,X,X,X,X,X,X,X,
-            X,X,X,X,X,X,X,X,X,
-            X,X,X,X,X,X,X,X,X,
-            X,X,X,X,X,X,X,X,X,
-            X,X,X,X,X,X,X,X,X,
-        ],
-        enable_cheats_fn: Some(|cheats| {
-            cheats.ignore_worker_requirements = true
-        })
-    };
-
     // 1 farm, 2 storages (granary, storage yard), 1 factory (distillery)
-    const PRESET_TILES_2: PresetTiles = PresetTiles {
-        preset_name: "[2] - 1 farm, 2 storages (G|Y), 1 distillery",
+    const PRESET_TILES_3: PresetTiles = PresetTiles {
+        preset_name: "[3] - 1 farm, 2 storages (G|Y), 1 distillery | 12x12",
         map_size_in_cells: Size::new(12, 12),
         terrain_tiles: &[
             R,R,R,R,R,R,R,R,R,R,R,R,
@@ -498,10 +529,11 @@ mod test_maps {
         })
     };
 
-    const PRESET_TILES: [&PresetTiles; 3] = [
+    const PRESET_TILES: [&PresetTiles; 4] = [
         &PRESET_TILES_0,
         &PRESET_TILES_1,
         &PRESET_TILES_2,
+        &PRESET_TILES_3,
     ];
 
     fn find_tile(layer_kind: TileMapLayerKind, tile_id: i32) -> Option<&'static TileDef> {
@@ -581,9 +613,9 @@ mod test_maps {
 }
 
 pub fn preset_tile_maps_list() -> Vec<&'static str> {
-    test_maps::preset_tile_maps_list_internal()
+    preset_maps::preset_tile_maps_list_internal()
 }
 
-pub fn create_preset_tile_map(world: &mut World,preset_number: usize) -> TileMap {
-    test_maps::create_preset_tile_map_internal(world, preset_number)
+pub fn create_preset_tile_map(world: &mut World, preset_number: usize) -> TileMap {
+    preset_maps::create_preset_tile_map_internal(world, preset_number)
 }
