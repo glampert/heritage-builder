@@ -264,7 +264,8 @@ fn check_unit_despawn_state<Task>(unit: &Unit, query: &Query)
                   "Unit should have a despawn task!");
 
     debug_assert!(unit.inventory_is_empty(),
-                  "Unit inventory should be empty before despawning!");
+                  "Unit inventory should be empty before despawning! Contains {}",
+                  unit.peek_inventory().unwrap());
 }
 
 // ----------------------------------------------

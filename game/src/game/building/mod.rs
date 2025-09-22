@@ -102,6 +102,7 @@ bitflags_with_display! {
         const WellSmall   = 1 << 5;
         const WellBig     = 1 << 6;
         const Market      = 1 << 7;
+        const TaxOffice   = 1 << 8;
     }
 }
 
@@ -134,7 +135,8 @@ impl BuildingKind {
         Self::from_bits_retain(
             Self::WellSmall.bits() |
             Self::WellBig.bits() |
-            Self::Market.bits()
+            Self::Market.bits() |
+            Self::TaxOffice.bits()
         )
     }
 
@@ -799,6 +801,8 @@ impl Building {
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
+            ui.bullet_text(format!("Tax: (generated: {}, avail: {})", house.tax_generated(), house.tax_available()));
+
             if !house.level().is_max() {
                 let (has_required_resources, has_required_services) =
                     house.has_requirements_for_upgrade(context);

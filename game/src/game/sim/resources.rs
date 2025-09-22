@@ -44,6 +44,9 @@ bitflags_with_display! {
         // Raw materials:
         const Wood  = 1 << 4;
         const Metal = 1 << 5;
+
+        // Gold (used as currency only):
+        const Gold  = 1 << 6;
     }
 }
 

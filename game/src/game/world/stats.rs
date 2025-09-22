@@ -27,6 +27,14 @@ pub struct WorkerStats {
     pub buildings_below_max: u32,
 }
 
+#[derive(Default)]
+pub struct TreasuryStats {
+    pub gold_units: u32,
+    pub tax_generated: u32,
+    pub tax_available: u32,
+    pub tax_collected: u32,
+}
+
 struct HousingStats {
     total: u32,
     lowest_level: HouseLevel,
@@ -53,6 +61,7 @@ pub struct WorldStats {
     // Global counts:
     pub population: PopulationStats,
     pub workers: WorkerStats,
+    pub treasury: TreasuryStats,
 
     // Housing stats:
     houses: HousingStats,
@@ -66,6 +75,7 @@ impl Default for WorldStats {
         Self {
             population: PopulationStats::default(),
             workers: WorkerStats::default(),
+            treasury: TreasuryStats::default(),
             houses: HousingStats {
                 total: 0,
                 lowest_level: HouseLevel::max(),
@@ -154,6 +164,16 @@ impl WorldStats {
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
+        let highlight_zero_value = |label: &str, value: u32, color: Color| {
+            if value == 0 {
+                ui.text(format!("{label} : "));
+                ui.same_line();
+                ui.text_colored(color.to_array(), format!("{value}"));
+            } else {
+                ui.text(format!("{label} : {value}"));
+            }
+        };
+
         let highlight_nonzero_value = |label: &str, value: u32, color: Color| {
             if value != 0 {
                 ui.text(format!("{label} : "));
@@ -231,6 +251,13 @@ impl WorldStats {
             ui.text("Other:");
             resources.units.draw_debug_ui("Units", ui_sys);
             resources.markets.draw_debug_ui("Markets", ui_sys);
+        }
+
+        if let Some(_tab) = ui.tab_item("Treasury/Tax") {
+            highlight_zero_value("Treasury Gold Units", self.treasury.gold_units, Color::red());
+            highlight_zero_value("Tax Generated", self.treasury.tax_generated, Color::red());
+            highlight_nonzero_value("Tax Available", self.treasury.tax_available, Color::yellow());
+            highlight_zero_value("Tax Collected", self.treasury.tax_collected, Color::yellow());
         }
     }
 }

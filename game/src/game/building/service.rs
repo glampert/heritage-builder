@@ -77,11 +77,15 @@ pub struct ServiceConfig {
     pub max_workers: u32,
 
     pub effect_radius: i32, // How far our patrol unit can go.
-
     pub requires_road_access: bool,
+
+    #[serde(default)]
     pub has_patrol_unit: bool,
 
+    #[serde(default)]
     pub patrol_frequency_secs: Seconds,
+
+    #[serde(default)] // Optional if no `resources_required`.
     pub stock_update_frequency_secs: Seconds,
 
     // Kinds of resources required for the service to run, if any.
@@ -140,6 +144,9 @@ game_object_debug_options! {
 pub struct ServiceBuilding {
     #[serde(skip)] config: Option<&'static ServiceConfig>,
     workers: Workers,
+
+    // Local treasury for TaxOffice.
+    treasury_gold_units: u32,
 
     stock_update_timer: UpdateTimer,
     stock: Option<BuildingStock>, // Current local stock of resources required (if any).
@@ -271,6 +278,8 @@ impl BuildingBehavior for ServiceBuilding {
                 });
             }
         }
+
+        stats.treasury.gold_units += self.treasury_gold_units;
     }
 
     // ----------------------
@@ -302,6 +311,7 @@ impl BuildingBehavior for ServiceBuilding {
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_resources_stock(context, ui_sys);
         self.draw_debug_ui_patrol(ui_sys);
+        self.draw_debug_ui_treasury(context, ui_sys);
     }
 }
 
@@ -325,6 +335,7 @@ impl ServiceBuilding {
         Self {
             config: Some(config),
             workers: Workers::employer(config.min_workers, config.max_workers),
+            treasury_gold_units: 0,
             stock_update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
             stock,
             runner: Runner::default(),
@@ -470,11 +481,30 @@ impl ServiceBuilding {
     }
 
     fn on_patrol_completed(this_building: &mut Building, patrol_unit: &mut Unit, query: &Query) -> bool {
+        let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
         debug_assert!(this_service.patrol.unit_id() == patrol_unit.id());
         debug_assert!(this_service.patrol.is_running_task::<UnitTaskRandomizedPatrol>(query),
                       "No Patrol was sent out by this building!");
+
+        if let Some(item) = patrol_unit.peek_inventory() {
+            // Only tax collector patrols will bring back resources (Gold).
+            if this_building_kind == BuildingKind::TaxOffice {
+                debug_assert!(item.kind == ResourceKind::Gold, "TaxOffice - Expected Gold but got: {item}");
+
+                let tax_collected = patrol_unit.remove_resources(item.kind, item.count);
+                this_service.treasury_gold_units += tax_collected;
+
+                this_service.debug.popup_msg_color(Color::yellow(), format!("Tax collected +{tax_collected}"));
+            } else {
+                log::error!(log::channel!("unit"),
+                            "Patrol unit inventory has {} which {} - '{}' cannot receive!",
+                            item, this_building_kind, this_service.name());
+            }
+
+            patrol_unit.clear_inventory();
+        }
 
         this_service.patrol.reset();
         this_service.debug.popup_msg_color(Color::magenta(), "Patrol complete");
@@ -551,5 +581,14 @@ impl ServiceBuilding {
 
         self.patrol_timer.draw_debug_ui("Patrol", 0, ui_sys);
         self.patrol.draw_debug_ui("Patrol Params", ui_sys);
+    }
+
+    fn draw_debug_ui_treasury(&self, context: &BuildingContext, ui_sys: &UiSystem) {
+        if context.kind == BuildingKind::TaxOffice {
+            let ui = ui_sys.builder();
+            if ui.collapsing_header("Treasury", imgui::TreeNodeFlags::empty()) {
+                ui.text(format!("Gold Units : {}", self.treasury_gold_units));
+            }
+        }
     }
 }

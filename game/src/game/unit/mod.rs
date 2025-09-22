@@ -120,6 +120,11 @@ impl GameObject for Unit {
 
         if let Some(item) = self.inventory.peek() {
             stats.add_unit_resources(item.kind, item.count);
+
+            // Tax Collector
+            if item.kind == ResourceKind::Gold && self.is_patrol() {
+                stats.treasury.tax_collected += item.count;
+            }
         }
     }
 
@@ -293,8 +298,13 @@ impl Unit {
     }
 
     #[inline]
-    pub fn is_market_patrol(&self, query: &Query) -> bool {
+    pub fn is_market_vendor(&self, query: &Query) -> bool {
         self.is_patrol() && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
+    }
+
+    #[inline]
+    pub fn is_tax_collector(&self, query: &Query) -> bool {
+        self.is_patrol() && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::TaxOffice)
     }
 
     #[inline]

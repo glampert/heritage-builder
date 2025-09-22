@@ -53,7 +53,7 @@ use super::{
 };
 
 // ----------------------------------------------
-// TODO List For Houses:
+// TODO List For Houses / Buildings:
 // ----------------------------------------------
 
 // - Implement household tax income.
@@ -69,6 +69,10 @@ use super::{
 //
 // - If houses stay without access to basic resources for too long (food/water),
 //   settlers may decide to leave (house may downgrade back to vacant lot).
+//
+// - Should we make house access to services depend on it being visited by the
+//   service patrol unit? Right now access to a service is simply based on proximity
+//   to the building, measured from the house's road link tile.
 //
 // - Buildings that require workers should run slower if they are below max workers.
 
@@ -93,6 +97,7 @@ pub struct HouseConfig {
     pub population_update_frequency_secs: Seconds,
     pub stock_update_frequency_secs: Seconds,
     pub upgrade_update_frequency_secs: Seconds,
+    pub generate_tax_frequency_secs: Seconds,
 }
 
 impl Default for HouseConfig {
@@ -106,6 +111,7 @@ impl Default for HouseConfig {
             population_update_frequency_secs: 60.0,
             stock_update_frequency_secs: 60.0,
             upgrade_update_frequency_secs: 10.0,
+            generate_tax_frequency_secs: 60.0,
         }
     }
 }
@@ -132,7 +138,13 @@ pub struct HouseLevelConfig {
     pub tile_def_name_hash: StringHash,
 
     pub max_population: u32,
-    pub tax_generated: u32,
+
+    // Base tax generated per employed resident.
+    pub base_tax_generated: u32,
+
+    // Bonus tax percentage added if the house has full employment; [0,100].
+    #[serde(default)]
+    pub tax_bonus: u32,
 
     // What percentage of the house population is available as workers; [0,100].
     pub worker_percentage: u32,
@@ -162,7 +174,8 @@ impl Default for HouseLevelConfig {
             tile_def_name: "house0".into(),
             tile_def_name_hash: hash::fnv1a_from_str("house0"),
             max_population: 2,
-            tax_generated: 0,
+            base_tax_generated: 0,
+            tax_bonus: 0,
             worker_percentage: 100,
             population_increase_chance: 80,
             services_required: ServiceKinds::none(),
@@ -183,6 +196,7 @@ building_config! {
 game_object_debug_options! {
     HouseDebug,
 
+    // Stops population increase when requirements are met.
     freeze_population_update: bool,
     
     // Stops any resources from being consumed.
@@ -191,6 +205,9 @@ game_object_debug_options! {
 
     // Stops any upgrade/downgrade when true.
     freeze_upgrade_update: bool,
+
+    // Stops tax income from being generated.
+    freeze_tax_generation: bool,
 }
 
 // ----------------------------------------------
@@ -209,6 +226,9 @@ pub struct HouseBuilding {
 
     upgrade_update_timer: UpdateTimer,
     upgrade_state: HouseUpgradeState,
+
+    generate_tax_timer: UpdateTimer,
+    tax_available: u32,
 
     #[serde(skip)] debug: HouseDebug,
 }
@@ -282,17 +302,21 @@ impl BuildingBehavior for HouseBuilding {
         if self.population_update_timer.tick(delta_time_secs).should_update() &&
           !self.debug.freeze_population_update() {
             self.population_update(context);
-        } 
+        }
+
+        if self.generate_tax_timer.tick(delta_time_secs).should_update() &&
+          !self.debug.freeze_tax_generation() {
+            self.generate_tax();
+        }
     }
 
-    // TODO: Should we make house access to services depend on it being visited by the
-    // service patrol unit? Right now access to a service is simply based on proximity
-    // to the building, measured from the house's road link tile.
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
-        if unit.is_market_patrol(context.query) {
-            self.visited_by_market_vendor(unit, context);
-        } else if unit.is_settler() {
+        if unit.is_settler() {
             self.visited_by_settler(unit, context);
+        } else if unit.is_market_vendor(context.query) {
+            self.visited_by_market_vendor(unit, context);
+        } else if unit.is_tax_collector(context.query) {
+            self.visited_by_tax_collector(unit, context);
         }
     }
 
@@ -335,6 +359,9 @@ impl BuildingBehavior for HouseBuilding {
         self.stock.for_each(|_, item| {
             stats.add_house_resources(item.kind, item.count);
         });
+
+        stats.treasury.tax_generated += self.tax_generated();
+        stats.treasury.tax_available += self.tax_available();
     }
 
     // ----------------------
@@ -406,6 +433,8 @@ impl HouseBuilding {
             stock,
             upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
             upgrade_state,
+            generate_tax_timer: UpdateTimer::new(house_config.generate_tax_frequency_secs),
+            tax_available: 0,
             debug: HouseDebug::default(),
         }
     }
@@ -740,6 +769,71 @@ impl HouseBuilding {
 
         workers.set_counts(new_employed, new_unemployed);
     }
+
+    // ----------------------
+    // Household Tax:
+    // ----------------------
+
+    #[inline]
+    pub fn tax_available(&self) -> u32 {
+        self.tax_available
+    }
+
+    pub fn tax_generated(&self) -> u32 {
+        let workers = self.workers.as_household_worker_pool().unwrap();
+        let level_config = self.current_level_config();
+
+        let employed_residents = workers.employed_count();
+        let total_residents = self.population.count();
+
+        let base_tax_generated = level_config.base_tax_generated;
+        let tax_bonus = level_config.tax_bonus.min(100); // 0-100%
+
+        Self::calc_household_tax(employed_residents, total_residents, base_tax_generated, tax_bonus)
+    }
+
+    // - `base_tax_generated`: base tax per employed resident
+    // - `tax_bonus`: percentage bonus applied if all residents are employed (0–100)
+    fn calc_household_tax(employed_residents: u32,
+                          total_residents: u32,
+                          base_tax_generated: u32,
+                          tax_bonus: u32) -> u32 {
+
+        if employed_residents == 0 || total_residents == 0 || base_tax_generated == 0 {
+            // If we have no working population we can't generate any tax income!
+            return 0;
+        }
+
+        let mut tax = (employed_residents * base_tax_generated) as f32;
+
+        // Apply bonus if the household is fully employed.
+        if employed_residents == total_residents && tax_bonus != 0 {
+            tax += tax * (tax_bonus as f32 / 100.0);
+        }
+
+        tax.round() as u32
+    }
+
+    fn generate_tax(&mut self) {
+        let tax_generated = self.tax_generated();
+        if tax_generated != 0 {
+            self.tax_available += tax_generated;
+            self.debug.popup_msg_color(Color::yellow(), format!("Tax available +{tax_generated}"));
+        }
+    }
+
+    fn visited_by_tax_collector(&mut self, unit: &mut Unit, _context: &BuildingContext) {
+        if self.tax_available != 0 {
+            let tax_collected = self.tax_available;
+            self.tax_available = 0;
+
+            // Tax collected in units of gold.
+            let received_amount = unit.receive_resources(ResourceKind::Gold, tax_collected);
+            debug_assert!(received_amount == tax_collected);
+
+            self.debug.popup_msg_color(Color::red(), format!("Tax collected -{tax_collected}"));
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -921,7 +1015,12 @@ impl HouseUpgradeState {
     fn post_load(&mut self) {
         let configs = BuildingConfigs::get();
         self.curr_level_config = Some(configs.find_house_level_config(self.level));
-        self.next_level_config = Some(configs.find_house_level_config(self.level.next()));
+
+        if self.level.is_max() {
+            self.next_level_config = self.curr_level_config;
+        } else {
+            self.next_level_config = Some(configs.find_house_level_config(self.level.next()));
+        }
     }
 
     fn can_upgrade(&mut self,
@@ -1187,6 +1286,7 @@ impl HouseBuilding {
         self.population_update_timer.draw_debug_ui("Population Update", 0, ui_sys);
         self.upgrade_update_timer.draw_debug_ui("Upgrade Update", 1, ui_sys);
         self.stock_update_timer.draw_debug_ui("Stock Update", 2, ui_sys);
+        self.generate_tax_timer.draw_debug_ui("Gen Tax", 3, ui_sys);
 
         self.stock.draw_debug_ui("Resources In Stock", ui_sys);
 
