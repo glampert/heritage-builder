@@ -907,7 +907,9 @@ impl UnitTask for UnitTaskFetchFromStorage {
             if self.is_returning_to_origin {
                 if !self.try_return_to_origin(unit, query) {
                     // TODO: We can recover from this and ship the resources back to storage.
-                    todo!("Aborting TaskFetchFromStorage. Unable to return to origin building...");
+                    log::error!(log::channel!("TODO"), "Aborting TaskFetchFromStorage. Unable to return to origin building...");
+                    unit.clear_inventory();
+                    return UnitTaskState::Completed;
                 }
             } else {
                 self.try_find_goal(unit, query);
@@ -942,6 +944,12 @@ impl UnitTask for UnitTaskFetchFromStorage {
                                            self.completion_callback.get());
             }
 
+            if !unit.inventory_is_empty() {
+                // TODO: We can recover from this and ship the resources back to storage.
+                log::error!(log::channel!("TODO"), "TaskFetchFromStorage: Failed to unload all resources. Src building destroyed?");
+                unit.clear_inventory();
+            }
+
             task_completed = true;
             unit.follow_path(None);
         } else {
@@ -961,7 +969,9 @@ impl UnitTask for UnitTaskFetchFromStorage {
                 // was destroyed, we'll have to abort the task. Any resources collected will be lost.
                 if !self.try_return_to_origin(unit, query) {
                     // TODO: We can recover from this and ship the resources back to storage.
-                    todo!("Aborting TaskFetchFromStorage. Unable to return to origin building...");
+                    log::error!(log::channel!("TODO"), "Aborting TaskFetchFromStorage. Unable to return to origin building...");
+                    unit.clear_inventory();
+                    task_completed = true;
                 }
             }
         }

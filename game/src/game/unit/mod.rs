@@ -504,6 +504,11 @@ impl Unit {
         self.inventory.is_empty()
     }
 
+    pub fn clear_inventory(&mut self) {
+        debug_assert!(self.is_spawned());
+        self.inventory.clear();
+    }
+
     // Returns number of resources it was able to accommodate.
     // Unit inventories can always accommodate all resources received.
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {

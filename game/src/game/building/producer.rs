@@ -8,6 +8,7 @@ use serde::{
 };
 
 use crate::{
+    log,
     building_config,
     game_object_debug_options,
     imgui_ui::UiSystem,
@@ -450,6 +451,7 @@ impl ProducerBuilding {
     }
 
     fn on_resources_fetched(this_building: &mut Building, runner_unit: &mut Unit, query: &Query) {
+        let this_building_kind = this_building.kind();
         let this_producer = this_building.as_producer_mut();
 
         debug_assert!(!runner_unit.inventory_is_empty(), "Runner Unit inventory shouldn't be empty!");
@@ -469,7 +471,12 @@ impl ProducerBuilding {
 
             if !runner_unit.inventory_is_empty() {
                 // TODO: We have to ship back to storage if we couldn't receive everything!
-                todo!("Couldn't receive all resources. Implement fallback task for this!");
+                log::error!(log::channel!("TODO"),
+                            "{} - '{}': Couldn't receive all resources from runner. Implement fallback task for this!",
+                            this_building_kind, this_producer.name());
+
+                // For now we just drop the remaining resources.
+                runner_unit.clear_inventory();
             }
         }
 
