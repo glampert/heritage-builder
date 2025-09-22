@@ -56,13 +56,11 @@ use super::{
 // TODO List For Houses / Buildings:
 // ----------------------------------------------
 
-// - Implement household tax income.
-//
 // - Resources should have individual rates of consumption. Some
 //   kinds of resources are consumed slower/faster than others.
 //
 // - Resources consumption rate should be expressed in units per day.
-// - The house occupancy should also influence the resources consumption rate.
+//   The house occupancy should also influence the resources consumption rate.
 //
 // - Allow houses to stock up on more than 1 unit of each kind of resources?
 //   Could allow stocking up to a maximum number of units.
