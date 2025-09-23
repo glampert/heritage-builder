@@ -407,6 +407,8 @@ impl BuildingBehavior for HouseBuilding {
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         house_upgrade::draw_debug_ui(context, ui_sys);
+        self.draw_debug_ui_timers(ui_sys);
+        self.draw_debug_ui_stock(ui_sys);
         self.draw_debug_ui_upgrade_state(context, ui_sys);
     }
 }
@@ -1279,14 +1281,6 @@ impl HouseBuilding {
         color_text(" - Has services    :", next_level_requirements.has_required_services());
         color_text(" - Has resources   :", next_level_requirements.has_required_resources());
         color_text(" - Has road access :", context.is_linked_to_road());
-        ui.separator();
-
-        self.population_update_timer.draw_debug_ui("Population Update", 0, ui_sys);
-        self.upgrade_update_timer.draw_debug_ui("Upgrade Update", 1, ui_sys);
-        self.stock_update_timer.draw_debug_ui("Stock Update", 2, ui_sys);
-        self.generate_tax_timer.draw_debug_ui("Gen Tax", 3, ui_sys);
-
-        self.stock.draw_debug_ui("Resources In Stock", ui_sys);
 
         draw_level_requirements(
             &format!("Curr level reqs ({}):", upgrade_state.level),
@@ -1297,5 +1291,22 @@ impl HouseBuilding {
                 &format!("Next level reqs ({}):", upgrade_state.level.next()),
                 &next_level_requirements, 1);
         }
+    }
+
+    fn draw_debug_ui_timers(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        if !ui.collapsing_header("Timers", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        self.population_update_timer.draw_debug_ui("Population Update", 0, ui_sys);
+        self.upgrade_update_timer.draw_debug_ui("Upgrade Update", 1, ui_sys);
+        self.stock_update_timer.draw_debug_ui("Stock Update", 2, ui_sys);
+        self.generate_tax_timer.draw_debug_ui("Gen Tax", 3, ui_sys);
+    }
+
+    fn draw_debug_ui_stock(&mut self, ui_sys: &UiSystem) {
+        self.stock.draw_debug_ui("Stock", ui_sys);
     }
 }

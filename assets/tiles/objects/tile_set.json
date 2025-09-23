@@ -166,6 +166,7 @@
         },
         {
           "name": "tax_office",
+          "cost": 15,
           "logical_size": {
             "width": 192,
             "height": 96
@@ -190,6 +191,7 @@
         },
         {
           "name": "market",
+          "cost": 10,
           "logical_size": {
             "width": 192,
             "height": 96
@@ -214,6 +216,7 @@
         },
         {
           "name": "well_small",
+          "cost": 2,
           "draw_size": {
             "width": 70,
             "height": 54
@@ -234,6 +237,7 @@
         },
         {
           "name": "well_big",
+          "cost": 5,
           "logical_size": {
             "width": 128,
             "height": 64
@@ -258,6 +262,7 @@
         },
         {
           "name": "rice_farm",
+          "cost": 5,
           "logical_size": {
             "width": 256,
             "height": 128
@@ -282,6 +287,7 @@
         },
         {
           "name": "livestock_farm",
+          "cost": 6,
           "logical_size": {
             "width": 256,
             "height": 128
@@ -306,6 +312,7 @@
         },
         {
           "name": "storage_yard",
+          "cost": 10,
           "logical_size": {
             "width": 192,
             "height": 96
@@ -330,6 +337,7 @@
         },
         {
           "name": "granary",
+          "cost": 10,
           "logical_size": {
             "width": 192,
             "height": 96
@@ -354,6 +362,7 @@
         },
         {
           "name": "distillery",
+          "cost": 15,
           "logical_size": {
             "width": 192,
             "height": 96
@@ -458,6 +467,7 @@
       "tile_defs": [
         {
           "name": "tree",
+          "cost": 1,
           "occludes_terrain": false,
           "draw_size": {
             "width": 75,

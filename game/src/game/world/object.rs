@@ -20,6 +20,7 @@ use crate::{
     tile::{Tile, TileKind, TileMapLayerKind, sets::TileDef},
     utils::coords::{Cell, CellRange, WorldToScreenTransform},
     game::{
+        cheats,
         constants::*,
         building::Building,
         unit::{Unit, config::UnitConfigKey},
@@ -511,7 +512,7 @@ impl<'world> Spawner<'world> {
     }
 
     // Spawn a GameObject (Building, Unit) or place a Tile without associated game state.
-    pub fn try_spawn_tile_with_def(&self, target_cell: Cell, tile_def: &'static TileDef) -> SpawnerResult {
+    pub fn try_spawn_tile_with_def(&self, target_cell: Cell, tile_def: &'static TileDef) -> SpawnerResult<'_> {
         debug_assert!(target_cell.is_valid());
         debug_assert!(tile_def.is_valid());
 
@@ -529,7 +530,7 @@ impl<'world> Spawner<'world> {
             }
         } else {
             // No associated GameObject, place plain tile.
-            match self.query.tile_map().try_place_tile(target_cell, tile_def) {
+            match self.try_place_tile_with_def(target_cell, tile_def) {
                 Ok(tile) => SpawnerResult::Tile(tile),
                 Err(err) => SpawnerResult::Err(err),
             }
@@ -573,10 +574,20 @@ impl<'world> Spawner<'world> {
                                             building_tile_def: &'static TileDef)
                                             -> Result<&'world mut Building, String> {
 
-        self.query.world().try_spawn_building_with_tile_def(
+        if !self.can_afford_tile(building_tile_def) {
+            return Err(cost_error(building_tile_def));
+        }
+
+        let result = self.query.world().try_spawn_building_with_tile_def(
             self.query,
             building_base_cell,
-            building_tile_def)
+            building_tile_def);
+
+        if result.is_ok() {
+            self.subtract_tile_cost(building_tile_def);
+        }
+
+        result
     }
 
     pub fn despawn_building(&self, building: &mut Building) {
@@ -600,16 +611,29 @@ impl<'world> Spawner<'world> {
                                         unit_tile_def: &'static TileDef)
                                         -> Result<&'world mut Unit, String> {
 
-        self.query.world().try_spawn_unit_with_tile_def(
+        if !self.can_afford_tile(unit_tile_def) {
+            return Err(cost_error(unit_tile_def));
+        }
+
+        let result = self.query.world().try_spawn_unit_with_tile_def(
             self.query,
             unit_origin,
-            unit_tile_def)
+            unit_tile_def);
+
+        if result.is_ok() {
+            self.subtract_tile_cost(unit_tile_def);
+        }
+
+        result
     }
 
     pub fn try_spawn_unit_with_config(&self,
                                       unit_origin: Cell,
                                       unit_config_key: UnitConfigKey)
                                       -> Result<&'world mut Unit, String> {
+
+        // NOTE: No affordability check needed here. This is only
+        // used by dynamically spawned units, which have no cost.
 
         self.query.world().try_spawn_unit_with_config(
             self.query,
@@ -628,6 +652,45 @@ impl<'world> Spawner<'world> {
             despawn_error("Unit", &err);
         }
     }
+
+    // ----------------------
+    // Internal:
+    // ----------------------
+
+    #[inline]
+    pub fn can_afford_tile(&self, tile_def: &'static TileDef) -> bool {
+        if tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
+            return self.query.treasury().can_afford(self.query.world(), tile_def.cost);
+        }
+        true
+    }
+
+    #[inline]
+    fn subtract_tile_cost(&self, tile_def: &'static TileDef) {
+        if tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
+            self.query.treasury().subtract_gold_units_global(self.query.world(), tile_def.cost);
+        }
+    }
+
+    #[inline]
+    fn try_place_tile_with_def(&self, target_cell: Cell, tile_def: &'static TileDef) -> Result<&mut Tile, String> {
+        if !self.can_afford_tile(tile_def) {
+            return Err(cost_error(tile_def));
+        }
+
+        let result = self.query.tile_map().try_place_tile(target_cell, tile_def);
+
+        if result.is_ok() {
+            self.subtract_tile_cost(tile_def);
+        }
+
+        result
+    }
+}
+
+#[cold]
+fn cost_error(tile_def: &'static TileDef) -> String {
+    format!("Cannot afford tile '{}'. Cost: {} gold", tile_def.name, tile_def.cost)
 }
 
 #[cold]

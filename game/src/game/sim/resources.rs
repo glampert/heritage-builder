@@ -21,7 +21,7 @@ use crate::{
     utils::Color,
     game::{
         cheats,
-        world::{World, object::GameObject},
+        world::{World, object::GameObject, stats::WorldStats},
         building::{Building, BuildingId, BuildingKind, BuildingKindAndId}
     }
 };
@@ -722,6 +722,79 @@ impl Population {
             return false;
         }
         true
+    }
+}
+
+// ----------------------------------------------
+// GlobalTreasury
+// ----------------------------------------------
+
+// - world.stats.treasury.gold_units_total: Total sum of all gold units available in the world.
+// - BuildingKind::treasury() buildings (e.g.: TaxOffice): Keeps a local treasury of its earnings.
+// - GlobalTreasury: Global stash of gold units for initial gold count, gold cheats, etc.
+#[derive(Serialize, Deserialize)]
+pub struct GlobalTreasury {
+    gold_units: u32,
+}
+
+impl GlobalTreasury {
+    #[inline]
+    pub fn new(starting_gold_units: u32) -> Self {
+        Self { gold_units: starting_gold_units }
+    }
+
+    #[inline]
+    pub fn gold_units(&self) -> u32 {
+        self.gold_units
+    }
+
+    #[inline]
+    pub fn add_gold_units(&mut self, amount: u32) {
+        self.gold_units += amount;
+    }
+
+    #[inline]
+    pub fn subtract_gold_units(&mut self, amount: u32) -> u32 {
+        let prev_gold_units = self.gold_units;
+        self.gold_units = self.gold_units.saturating_sub(amount);
+        prev_gold_units - self.gold_units // units subtracted
+    }
+
+    #[inline]
+    pub fn tally(&self, stats: &mut WorldStats) {
+        stats.treasury.gold_units_total += self.gold_units;
+    }
+
+    #[inline]
+    pub fn can_afford(&self, world: &World, cost: u32) -> bool {
+        cost <= world.stats().treasury.gold_units_total
+    }
+
+    #[inline]
+    pub fn subtract_gold_units_global(&mut self, world: &mut World, mut amount: u32) {
+        // First subtract from our local treasury:
+        let mut gold_units_subtracted = self.subtract_gold_units(amount);
+        amount -= gold_units_subtracted;
+
+        // If we didn't have enough, look for a treasury
+        // building that has more gold we can take from.
+        if amount != 0 {
+            world.for_each_building_mut(BuildingKind::treasury(), |building| {
+                let removed_amount = building.remove_resources(ResourceKind::Gold, amount);
+                debug_assert!(removed_amount <= amount);
+                gold_units_subtracted += removed_amount;
+                amount -= removed_amount;
+                if amount == 0 {
+                    return false; // stop
+                }
+                true // continue
+            });
+        }
+
+        // Must be kept up to date because the world update frequency (and tally) might not be high enough.
+        world.stats_mut().treasury.gold_units_total -= gold_units_subtracted;
+
+        debug_assert!(amount == 0, "Should have found enough gold units in the available treasury buildings!");
     }
 }
 

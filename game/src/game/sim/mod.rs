@@ -51,6 +51,7 @@ use super::{
 
 pub mod debug;
 pub mod resources;
+use resources::GlobalTreasury;
 
 // ----------------------------------------------
 // RandomGenerator
@@ -70,9 +71,10 @@ pub struct Simulation {
 
     // Path finding:
     graph: Graph,
-
     #[serde(skip)]
     search: Search,
+
+    treasury: GlobalTreasury,
 }
 
 impl Simulation {
@@ -84,6 +86,7 @@ impl Simulation {
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
+            treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
         }
     }
 
@@ -96,6 +99,7 @@ impl Simulation {
             &mut self.task_manager,
             world,
             tile_map,
+            &mut self.treasury,
             delta_time_secs)
     }
 
@@ -152,7 +156,7 @@ impl Simulation {
 
     // World:
     pub fn draw_world_debug_ui(&mut self, context: &mut debug::DebugContext) {
-        context.world.draw_debug_ui(context.ui_sys);
+        context.world.draw_debug_ui(&mut self.treasury, context.ui_sys);
     }
 
     // Game Systems:
@@ -306,6 +310,7 @@ pub struct Query {
     world: mem::RawPtr<World>,
     tile_map: mem::RawPtr<TileMap>,
 
+    treasury: mem::RawPtr<GlobalTreasury>,
     delta_time_secs: Seconds,
 }
 
@@ -316,6 +321,7 @@ impl Query {
            task_manager: &mut UnitTaskManager,
            world: &mut World,
            tile_map: &mut TileMap,
+           treasury: &mut GlobalTreasury,
            delta_time_secs: Seconds) -> Self {
         Self {
             rng: mem::RawPtr::from_ref(rng),
@@ -324,6 +330,7 @@ impl Query {
             task_manager: mem::RawPtr::from_ref(task_manager),
             world: mem::RawPtr::from_ref(world),
             tile_map: mem::RawPtr::from_ref(tile_map),
+            treasury: mem::RawPtr::from_ref(treasury),
             delta_time_secs,
         }
     }
@@ -368,6 +375,11 @@ impl Query {
               R: SampleRange<T>
     {
         self.rng().random_range(range)
+    }
+
+    #[inline(always)]
+    pub fn treasury(&self) -> &mut GlobalTreasury {
+        self.treasury.mut_ref_cast()
     }
 
     #[inline(always)]

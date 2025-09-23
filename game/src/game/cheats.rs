@@ -82,6 +82,7 @@ macro_rules! game_cheats {
 
 game_cheats! {
     ignore_worker_requirements = false,
+    ignore_tile_cost = false,
 }
 
 // ----------------------------------------------

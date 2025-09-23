@@ -140,6 +140,12 @@ impl BuildingKind {
         )
     }
 
+    #[inline] pub const fn treasury() -> Self {
+        Self::from_bits_retain(
+            Self::TaxOffice.bits()
+        )
+    }
+
     #[inline]
     pub fn from_game_object_handle(handle: TileGameObjectHandle) -> Self {
         Self::from_bits(handle.kind())

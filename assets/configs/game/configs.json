@@ -2,6 +2,9 @@
   "engine": {
     "log_level": "Verbose"
   },
+  "sim": {
+    "starting_gold_units": 100
+  },
   "save": {
     "enable_autosave": true,
     "autosave_frequency_secs": 60.0

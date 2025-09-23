@@ -299,7 +299,12 @@ impl DebugMenusSingleton {
             // Tile hovering and selection:
             let placement_op = {
                 if let Some(tile_def) = self.tile_palette_menu.current_selection() {
-                    PlacementOp::Place(tile_def)
+                    let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
+                    if Spawner::new(&query).can_afford_tile(tile_def) {
+                        PlacementOp::Place(tile_def)
+                    } else {
+                        PlacementOp::Invalidate(tile_def)
+                    }
                 } else if self.tile_palette_menu.is_clear_selected() {
                     PlacementOp::Clear
                 } else {

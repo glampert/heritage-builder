@@ -284,6 +284,10 @@ impl TilePaletteMenu {
             // Show tooltip when hovered:
             if ui.is_item_hovered() {
                 ui.tooltip_text(&button_text);
+
+                if tile_def.cost != 0 {
+                    ui.tooltip_text(format!("Cost: {} gold", tile_def.cost));
+                }
             }
 
             if clicked {

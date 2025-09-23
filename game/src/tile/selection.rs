@@ -182,9 +182,10 @@ impl TileSelection {
         // Highlight object layer tiles if we are placing an object, clearing tiles or just mouse hovering.
         // Don't highlight objects if placing terrain tiles.
         let highlight_objects = match placement_op {
-            PlacementOp::Place(tile_def) => tile_def.is(TileKind::Object),
-            PlacementOp::Clear => true,
-            PlacementOp::None  => true,
+            PlacementOp::Place(tile_def) | PlacementOp::Invalidate(tile_def) => {
+                tile_def.is(TileKind::Object)
+            },
+            PlacementOp::Clear | PlacementOp::None => true,
         };
 
         let selection_flags = match placement_op {
@@ -209,10 +210,12 @@ impl TileSelection {
                 }
                 flags
             },
+            // Explicit request to invalidate the whole range of tiles occupied by the TileDef.
+            PlacementOp::Invalidate(_) => TileFlags::Invalidated,
             // Tile clearing, highlight tile to be removed with the Invalidated flag instead.
             PlacementOp::Clear => TileFlags::Invalidated,
             // Tile mouse hover; normal highlight.
-            PlacementOp::None  => TileFlags::Highlighted,
+            PlacementOp::None => TileFlags::Highlighted,
         };
 
         // Highlight Terrain:
@@ -220,12 +223,15 @@ impl TileSelection {
             self.select_tile(tile, selection_flags);
 
             // Highlight all Terrain tiles this placement candidate would occupy.
-            if let PlacementOp::Place(tile_def) = placement_op {
-                for cell in tile_def.cell_range(base_cell).iter_rev() {
-                    if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(cell) {
-                        self.select_tile(tile, selection_flags);
+            match placement_op {
+                PlacementOp::Place(tile_def) | PlacementOp::Invalidate(tile_def) => {
+                    for cell in tile_def.cell_range(base_cell).iter_rev() {
+                        if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(cell) {
+                            self.select_tile(tile, selection_flags);
+                        }
                     }
-                }
+                },
+                PlacementOp::Clear | PlacementOp::None => {},
             }
         }
 

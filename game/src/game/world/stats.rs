@@ -3,7 +3,7 @@ use crate::{
     utils::Color,
     game::{
         building::HouseLevel,
-        sim::resources::{ResourceKind, ResourceStock},
+        sim::resources::{ResourceKind, ResourceStock, GlobalTreasury},
     }
 };
 
@@ -29,7 +29,8 @@ pub struct WorkerStats {
 
 #[derive(Default)]
 pub struct TreasuryStats {
-    pub gold_units: u32,
+    pub gold_units_total: u32,
+    pub gold_units_in_buildings: u32,
     pub tax_generated: u32,
     pub tax_available: u32,
     pub tax_collected: u32,
@@ -161,26 +162,30 @@ impl WorldStats {
         self.houses.total += 1;
     }
 
-    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         let highlight_zero_value = |label: &str, value: u32, color: Color| {
             if value == 0 {
-                ui.text(format!("{label} : "));
+                ui.text(format!("{label} :"));
                 ui.same_line();
                 ui.text_colored(color.to_array(), format!("{value}"));
             } else {
-                ui.text(format!("{label} : {value}"));
+                ui.text(format!("{label} :"));
+                ui.same_line();
+                ui.text(format!("{value}"));
             }
         };
 
         let highlight_nonzero_value = |label: &str, value: u32, color: Color| {
             if value != 0 {
-                ui.text(format!("{label} : "));
+                ui.text(format!("{label} :"));
                 ui.same_line();
                 ui.text_colored(color.to_array(), format!("{value}"));
             } else {
-                ui.text(format!("{label} : {value}"));
+                ui.text(format!("{label} :"));
+                ui.same_line();
+                ui.text(format!("{value}"));
             }
         };
 
@@ -229,6 +234,37 @@ impl WorldStats {
             }
         }
 
+        if let Some(_tab) = ui.tab_item("Tax/Treasury") {
+            ui.bullet_text("Tax:");
+            highlight_zero_value("Tax Generated", self.treasury.tax_generated, Color::red());
+            highlight_nonzero_value("Tax Available", self.treasury.tax_available, Color::yellow());
+            highlight_zero_value("Tax Collected", self.treasury.tax_collected, Color::yellow());
+
+            ui.separator();
+
+            ui.bullet_text("Treasury:");
+            highlight_zero_value("Total Gold Units", self.treasury.gold_units_total, Color::red());
+            highlight_zero_value("Gold In Global Treasury", treasury.gold_units(), Color::red());
+            highlight_zero_value("Gold In Buildings", self.treasury.gold_units_in_buildings, Color::gray());
+
+            ui.separator();
+
+            #[allow(static_mut_refs)]
+            let gold_units = unsafe {
+                static mut GOLD_UNITS: u32 = 0;
+                ui.input_scalar("Gold Units", &mut GOLD_UNITS).step(100).build();
+                GOLD_UNITS
+            };
+
+            if ui.button("Give Gold") {
+                treasury.add_gold_units(gold_units);
+            }
+
+            if ui.button("Subtract Gold") {
+                treasury.subtract_gold_units(gold_units);
+            }
+        }
+
         if let Some(_tab) = ui.tab_item("Resources") {
             let resources = &self.resources;
             resources.all.draw_debug_ui("All Resources", ui_sys);
@@ -251,13 +287,6 @@ impl WorldStats {
             ui.text("Other:");
             resources.units.draw_debug_ui("Units", ui_sys);
             resources.markets.draw_debug_ui("Markets", ui_sys);
-        }
-
-        if let Some(_tab) = ui.tab_item("Treasury/Tax") {
-            highlight_zero_value("Treasury Gold Units", self.treasury.gold_units, Color::red());
-            highlight_zero_value("Tax Generated", self.treasury.tax_generated, Color::red());
-            highlight_nonzero_value("Tax Available", self.treasury.tax_available, Color::yellow());
-            highlight_zero_value("Tax Collected", self.treasury.tax_collected, Color::yellow());
         }
     }
 }

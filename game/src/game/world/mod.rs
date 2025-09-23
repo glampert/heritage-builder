@@ -23,7 +23,11 @@ use crate::{
     },
     game::{
         constants::*,
-        sim::{Query, debug::DebugUiMode},
+        sim::{
+            Query,
+            debug::DebugUiMode,
+            resources::GlobalTreasury
+        },
         building::{
             Building,
             BuildingId,
@@ -99,6 +103,8 @@ impl World {
     pub fn update(&mut self, query: &Query) {
         self.stats.reset();
 
+        query.treasury().tally(&mut self.stats);
+
         for unit in self.unit_spawn_pool.iter_mut() {
             unit.update(query);
             unit.tally(&mut self.stats);
@@ -111,6 +117,16 @@ impl World {
                 building.tally(&mut self.stats);
             }
         }
+    }
+
+    #[inline]
+    pub fn stats(&self) -> &WorldStats {
+        &self.stats
+    }
+
+    #[inline]
+    pub fn stats_mut(&mut self) -> &mut WorldStats {
+        &mut self.stats
     }
 
     // ----------------------
@@ -597,10 +613,10 @@ impl World {
     // World debug:
     // ----------------------
 
-    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         if let Some(_tab_bar) = ui.tab_bar("World Stats Tab Bar") {
-            self.stats.draw_debug_ui(ui_sys);
+            self.stats.draw_debug_ui(treasury, ui_sys);
         }
     }
 }

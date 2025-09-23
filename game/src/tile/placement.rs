@@ -27,6 +27,7 @@ use super::{
 #[derive(Copy, Clone)]
 pub enum PlacementOp {
     Place(&'static TileDef),
+    Invalidate(&'static TileDef),
     Clear,
     None,
 }
@@ -48,7 +49,13 @@ pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
     // so first clear the cell in case there's already a tile there.
     if tile_def_to_place.is(TileKind::Terrain) {
         debug_assert!(layer.kind() == TileMapLayerKind::Terrain);
-        layer.remove_tile(target_cell);
+        if let Some(existing_tile) = layer.try_tile(target_cell) {
+            // Avoid any work if we already have the same terrain tile.
+            if existing_tile.tile_def().hash == tile_def_to_place.hash {
+                return Err(format!("Cell {target_cell} already contains '{}'", tile_def_to_place.name));
+            }
+            layer.remove_tile(target_cell);
+        }
     }
 
     // First check if the whole cell range is free:

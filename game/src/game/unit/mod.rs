@@ -121,7 +121,7 @@ impl GameObject for Unit {
         if let Some(item) = self.inventory.peek() {
             stats.add_unit_resources(item.kind, item.count);
 
-            // Tax Collector
+            // Tax Collector / TaxOffice patrol.
             if item.kind == ResourceKind::Gold && self.is_patrol() {
                 stats.treasury.tax_collected += item.count;
             }

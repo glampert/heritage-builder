@@ -1,5 +1,5 @@
 use rand::SeedableRng;
-use super::{Query, RandomGenerator};
+use super::{Query, RandomGenerator, resources::GlobalTreasury};
 use crate::{
     game::{
         system::GameSystems,
@@ -49,6 +49,7 @@ pub struct DebugQueryBuilder<'game> {
     task_manager: UnitTaskManager,
     world: &'game mut World,
     tile_map: &'game mut TileMap,
+    treasury: GlobalTreasury,
 }
 
 impl<'game> DebugQueryBuilder<'game> {
@@ -60,6 +61,7 @@ impl<'game> DebugQueryBuilder<'game> {
             task_manager: UnitTaskManager::new(1),
             world,
             tile_map,
+            treasury: GlobalTreasury::new(GameConfigs::get().sim.starting_gold_units)
         }
     }
 
@@ -70,6 +72,7 @@ impl<'game> DebugQueryBuilder<'game> {
                    &mut self.task_manager,
                    self.world,
                    self.tile_map,
+                   &mut self.treasury,
                    0.0)
     }
 }

@@ -190,6 +190,10 @@ pub struct TileDef {
     #[serde(default = "default_path_kind")]
     pub path_kind: PathNodeKind,
 
+    // Cost/price to place this tile in the world. Optional, can be zero.
+    #[serde(default)]
+    pub cost: u32,
+
     // Tile kind & archetype combined, also defines which layer the tile can be placed on.
     // Resolved post-load based on layer and category.
     #[serde(skip, default = "default_tile_kind")]
