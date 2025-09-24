@@ -3,7 +3,8 @@
     "log_level": "Verbose"
   },
   "sim": {
-    "starting_gold_units": 100
+    "starting_gold_units": 100,
+    "settlers_spawn_frequency_secs": 10.0
   },
   "save": {
     "enable_autosave": true,
