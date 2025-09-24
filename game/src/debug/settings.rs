@@ -168,7 +168,7 @@ impl DebugSettingsMenu {
             }
         }
 
-        // Gold units:
+        // Gold units | population:
         {
             ui.separator();
 
@@ -180,6 +180,9 @@ impl DebugSettingsMenu {
             } else {
                 ui.text(gold_units_text);
             }
+
+            let population = context.world.stats().population.total;
+            ui.text(format!("Pop: {population} "));
         }
     }
 
