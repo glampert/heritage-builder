@@ -1,7 +1,8 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    imgui_ui::UiSystem, singleton, utils::{hash::{self, PreHashedKeyMap, StringHash}}
+    singleton,
+    utils::hash::{self, PreHashedKeyMap, StringHash}
 };
 
 // ----------------------------------------------
@@ -101,14 +102,4 @@ pub fn get() -> &'static Cheats {
 
 pub fn get_mut() -> &'static mut Cheats {
     Cheats::get_mut()
-}
-
-pub fn draw_debug_ui(ui_sys: &UiSystem) {
-    let ui = ui_sys.builder();
-
-    if !ui.collapsing_header("Cheats", imgui::TreeNodeFlags::empty()) {
-        return; // collapsed.
-    }
-
-    Cheats::get_mut().draw_debug_ui(ui_sys);
 }

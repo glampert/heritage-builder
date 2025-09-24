@@ -476,13 +476,10 @@ impl GameLoop {
         }
 
         // Game Logic:
-        let update_map_scrolling = !self.engine.ui_system().is_handling_mouse_input();
-        let visible_range =
-            self.update_simulation(update_map_scrolling, cursor_screen_pos, delta_time_secs);
+        let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
 
         // Rendering:
-        let render_flags =
-            self.debug_menus_begin_frame(visible_range, cursor_screen_pos, delta_time_secs);
+        let render_flags = self.debug_menus_begin_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
         self.draw_tile_map(visible_range, render_flags);
 
@@ -495,9 +492,9 @@ impl GameLoop {
     // Internal:
     // ----------------------
 
-    fn init_engine(engine_configs: &EngineConfigs) -> Box<dyn Engine> {
+    fn init_engine(configs: &EngineConfigs) -> Box<dyn Engine> {
         log::info!(log::channel!("game"), "Init Engine: GLFW + OpenGL");
-        Box::new(engine::backend::GlfwOpenGlEngine::new(engine_configs))
+        Box::new(engine::backend::GlfwOpenGlEngine::new(configs))
     }
 
     fn load_assets(tex_cache: &mut dyn TextureCache) {
@@ -536,15 +533,14 @@ impl GameLoop {
         }
     }
 
-    fn update_simulation(&mut self, update_map_scrolling: bool, cursor_screen_pos: Vec2, delta_time_secs: Seconds) -> CellRange {
+    fn update_simulation(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) -> CellRange {
         let session = self.session.as_mut().unwrap();
 
         session.camera.update_zooming(delta_time_secs);
 
         // Map scrolling:
-        if update_map_scrolling {
-            session.camera.update_scrolling(cursor_screen_pos, delta_time_secs);
-        }
+        let ui_sys = self.engine.ui_system();
+        session.camera.update_scrolling(ui_sys, cursor_screen_pos, delta_time_secs);
 
         session.sim.update(
             &mut session.world,

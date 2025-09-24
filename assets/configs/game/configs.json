@@ -7,7 +7,17 @@
   },
   "save": {
     "enable_autosave": true,
-    "autosave_frequency_secs": 60.0
+    "autosave_frequency_secs": 60.0,
+    "load_map_setting": {
+      "EmptyMap": {
+        "size_in_cells": {
+          "width": 64,
+          "height": 64
+        },
+        "terrain_tile_category": "ground",
+        "terrain_tile_name": "dirt"
+      }
+    }
   },
   "debug": {
     "show_popups": true

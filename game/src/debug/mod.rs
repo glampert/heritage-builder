@@ -171,13 +171,11 @@ struct DebugMenusSingleton {
 }
 
 impl DebugMenusSingleton {
-    fn new(tex_cache: &mut dyn TextureCache, debug_settings_open: bool, tile_palette_open: bool) -> Self {
+    fn new(tex_cache: &mut dyn TextureCache, tile_palette_open: bool) -> Self {
         Self {
-            debug_settings_menu: DebugSettingsMenu::new(debug_settings_open),
+            debug_settings_menu: DebugSettingsMenu::new(),
             tile_palette_menu: TilePaletteMenu::new(tile_palette_open, tex_cache),
             tile_inspector_menu: TileInspectorMenu::new(),
-            search_test_start: Cell::invalid(),
-            search_test_goal: Cell::invalid(),
             ..Default::default()
         }
     }
@@ -441,12 +439,8 @@ fn init_debug_menus_singleton_once(tex_cache: &mut dyn TextureCache) {
         return; // Already initialized.
     }
 
-    const DEBUG_SETTINGS_OPEN: bool = false;
-    const TILE_PALETTE_OPEN:   bool = true;
-
-    DEBUG_MENUS_SINGLETON.initialize(
-        DebugMenusSingleton::new(tex_cache, DEBUG_SETTINGS_OPEN, TILE_PALETTE_OPEN)
-    );
+    const TILE_PALETTE_OPEN: bool = true;
+    DEBUG_MENUS_SINGLETON.initialize(DebugMenusSingleton::new(tex_cache, TILE_PALETTE_OPEN));
 }
 
 // ----------------------------------------------

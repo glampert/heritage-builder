@@ -116,10 +116,10 @@ impl TilePaletteMenu {
         let window_margin = 45.0; // pixels from the right edge
 
         // X position = screen width - estimated window width - margin
-        // Y position = 10px
+        // Y position = 20px
         let window_position = [
             ui.io().display_size[0] - window_width - window_margin,
-            5.0
+            20.0
         ];
 
         let window_flags =

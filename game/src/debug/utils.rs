@@ -104,32 +104,34 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem, transform: WorldToScreenTransform,
 }
 
 pub fn draw_screen_origin_marker(debug_draw: &mut dyn DebugDraw) {
+    let y_offset = 20.0; // Draw it below the main menu bar.
+
     // 50x50px white square to mark the origin.
     debug_draw.point(
-        Vec2::zero(), 
+        Vec2::new(0.0, y_offset), 
         Color::white(),
         50.0);
 
     // Red line for the X axis, green square at the end.
     debug_draw.line_with_thickness(
-        Vec2::zero(),
-        Vec2::new(100.0, 0.0),
+        Vec2::new(0.0, y_offset),
+        Vec2::new(100.0, y_offset),
         Color::red(),
         15.0);
 
     debug_draw.colored_rect(
-        Rect::new(Vec2::new(100.0, 0.0), Vec2::new(10.0, 10.0)),
+        Rect::new(Vec2::new(100.0, y_offset - 2.0), Vec2::new(10.0, 10.0)),
         Color::green());
 
     // Blue line for the Y axis, green square at the end.
     debug_draw.line_with_thickness(
-        Vec2::zero(),
-        Vec2::new(0.0, 100.0),
+        Vec2::new(2.0, y_offset),
+        Vec2::new(2.0, 100.0 + y_offset),
         Color::blue(),
         15.0);
 
     debug_draw.colored_rect(
-        Rect::new(Vec2::new(0.0, 100.0), Vec2::new(10.0, 10.0)),
+        Rect::new(Vec2::new(0.0, 100.0 + y_offset), Vec2::new(10.0, 10.0)),
         Color::green());
 }
 

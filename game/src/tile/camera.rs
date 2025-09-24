@@ -6,6 +6,7 @@ use serde::{
 use crate::{
     save::*,
     engine::time::Seconds,
+    imgui_ui::UiSystem,
     utils::{
         self, Rect, Size, Vec2,
         coords::{Cell, CellRange, WorldToScreenTransform}
@@ -220,9 +221,9 @@ impl Camera {
     }
 
     #[inline]
-    pub fn update_scrolling(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
-        let scroll_delta = calc_scroll_delta(cursor_screen_pos, self.viewport_size);
-        let scroll_speed  = calc_scroll_speed(cursor_screen_pos, self.viewport_size);
+    pub fn update_scrolling(&mut self, ui_sys: &UiSystem, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
+        let scroll_delta = calc_scroll_delta(ui_sys, cursor_screen_pos, self.viewport_size);
+        let scroll_speed  = calc_scroll_speed(ui_sys, cursor_screen_pos, self.viewport_size);
 
         let offset_change = scroll_delta * scroll_speed * delta_time_secs;
         let current = self.current_scroll();
@@ -287,7 +288,7 @@ fn calc_visible_cells_range(map_size_in_cells: Size,
         transform)
 }
 
-fn calc_scroll_delta(cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
+fn calc_scroll_delta(ui_sys: &UiSystem, cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
     let mut scroll_delta = Vec2::zero();
 
     if cursor_screen_pos.x < Camera::SCROLL_MARGIN {
@@ -296,16 +297,25 @@ fn calc_scroll_delta(cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
         scroll_delta.x -= 1.0;
     }
 
-    if cursor_screen_pos.y < Camera::SCROLL_MARGIN {
-        scroll_delta.y += 1.0;
-    } else if cursor_screen_pos.y > (viewport_size.height as f32) - Camera::SCROLL_MARGIN {
-        scroll_delta.y -= 1.0;
+    // Only block scrolling if hovering an ImGui item (like menu buttons).
+    let hovering_imgui_item = ui_sys.builder().is_any_item_hovered();
+
+    if !hovering_imgui_item {
+        if cursor_screen_pos.y < Camera::SCROLL_MARGIN {
+            scroll_delta.y += 1.0;
+        } else if cursor_screen_pos.y > (viewport_size.height as f32) - Camera::SCROLL_MARGIN {
+            scroll_delta.y -= 1.0;
+        }
     }
 
     scroll_delta
 }
 
-fn calc_scroll_speed(cursor_screen_pos: Vec2, viewport_size: Size) -> f32 {
+fn calc_scroll_speed(ui_sys: &UiSystem, cursor_screen_pos: Vec2, viewport_size: Size) -> f32 {
+    if ui_sys.builder().is_any_item_hovered() {
+        return 0.0; // Stop scrolling entirely while over menu items.
+    }
+
     let edge_dist_x = if cursor_screen_pos.x < Camera::SCROLL_MARGIN {
         Camera::SCROLL_MARGIN - cursor_screen_pos.x
     } else if cursor_screen_pos.x > (viewport_size.width as f32) - Camera::SCROLL_MARGIN {

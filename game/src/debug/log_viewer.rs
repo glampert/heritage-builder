@@ -9,6 +9,8 @@ struct LogViewerSingleton {
     is_window_open: bool,
     is_channel_filter_window_open: bool,
     auto_scroll: bool,
+    error_count: u32,
+    warning_count: u32,
     max_lines: usize,
     lines: VecDeque<log::Record>,
     channel_filter: HashMap<log::Channel, bool>,
@@ -20,6 +22,8 @@ impl LogViewerSingleton {
             is_window_open: start_open,
             is_channel_filter_window_open: false,
             auto_scroll: false,
+            error_count: 0,
+            warning_count: 0,
             max_lines,
             lines: VecDeque::with_capacity(max_lines),
             channel_filter: HashMap::new(),
@@ -32,6 +36,12 @@ impl LogViewerSingleton {
             if !self.channel_filter.contains_key(channel) {
                 self.channel_filter.insert(*channel, true); // Defaults to enabled.
             }
+        }
+
+        match line.level {
+            log::Level::Error => self.error_count   += 1,
+            log::Level::Warn  => self.warning_count += 1,
+            _ => {},
         }
 
         if self.lines.len() == self.max_lines {
@@ -72,7 +82,7 @@ impl LogViewerSingleton {
 
         ui.window("Log Viewer")
             .opened(&mut is_window_open)
-            .position([250.0, 5.0], imgui::Condition::FirstUseEver)
+            .position([10.0, 20.0], imgui::Condition::FirstUseEver)
             .size([550.0, 350.0], imgui::Condition::FirstUseEver)
             .horizontal_scrollbar(true)
             .menu_bar(true)
@@ -149,15 +159,18 @@ pub struct LogViewerWindow;
 
 impl LogViewerWindow {
     pub fn new(start_open: bool, max_lines: usize) -> Self {
-        LogViewerSingleton::initialize(
-            LogViewerSingleton::new(start_open, max_lines)
-        );
+        LogViewerSingleton::initialize(LogViewerSingleton::new(start_open, max_lines));
 
         log::set_listener(|line| {
             LogViewerSingleton::get_mut().push_line(line);
         });
 
         Self
+    }
+
+    pub fn error_and_warning_count(&self) -> (u32, u32) {
+        let instance = LogViewerSingleton::get();
+        (instance.error_count, instance.warning_count)
     }
 
     pub fn show(&mut self, show: bool) {

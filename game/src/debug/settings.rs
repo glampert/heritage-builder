@@ -3,9 +3,8 @@ use proc_macros::DrawDebugUi;
 use crate::{
     log,
     debug,
-    imgui_ui::UiSystem,
-    utils::hash::{self},
-    engine::{Engine, config::Configs},
+    utils::{Color, hash},
+    engine::config::Configs,
     game::{
         self,
         cheats,
@@ -33,8 +32,6 @@ use crate::{
 
 #[derive(Default, DrawDebugUi)]
 pub struct DebugSettingsMenu {
-    #[debug_ui(skip)] start_open: bool,
-
     #[debug_ui(skip)] draw_grid: bool,
     #[debug_ui(skip)] draw_grid_ignore_depth: bool,
 
@@ -60,16 +57,15 @@ pub struct DebugSettingsMenu {
     #[debug_ui(edit)] show_cursor_pos: bool,
     #[debug_ui(edit)] show_screen_origin: bool,
     #[debug_ui(edit)] show_render_stats: bool,
-    #[debug_ui(edit)] show_game_configs: bool,
-    #[debug_ui(edit)] show_world_debug: bool,
+    #[debug_ui(edit)] show_game_configs_debug: bool,
+    #[debug_ui(edit)] show_game_world_debug: bool,
     #[debug_ui(edit)] show_game_systems_debug: bool,
     #[debug_ui(edit)] show_log_viewer_window: bool,
 }
 
 impl DebugSettingsMenu {
-    pub fn new(start_open: bool) -> Self {
+    pub fn new() -> Self {
         Self {
-            start_open,
             draw_terrain: true,
             draw_buildings: true,
             draw_props: true,
@@ -124,44 +120,90 @@ impl DebugSettingsMenu {
                 camera: &mut Camera,
                 game_loop: &mut GameLoop) {
 
-        let window_flags =
-            imgui::WindowFlags::ALWAYS_AUTO_RESIZE |
-            imgui::WindowFlags::NO_RESIZE;
-
         let ui = context.ui_sys.builder();
 
-        ui.window("Debug Settings")
-            .flags(window_flags)
-            .collapsed(!self.start_open, imgui::Condition::FirstUseEver)
-            .position([5.0, 5.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                self.camera_dropdown(context, camera);
-                self.map_grid_dropdown(context, game_loop.engine_mut());
-                self.debug_draw_dropdown(context);
-                self.reset_map_dropdown(context, game_loop);
-                self.preset_maps_dropdown(context, game_loop);
-                self.save_game_dropdown(context, game_loop);
-                cheats::draw_debug_ui(context.ui_sys);
-            });
+        if let Some(_menu_bar) = ui.begin_main_menu_bar() {
+            if let Some(_menu) = ui.begin_menu("Game") {
+                self.game_menu(context, game_loop);
+            }
 
-        if self.show_game_configs {
-            self.draw_game_configs_window(context.ui_sys);
+            if let Some(_menu) = ui.begin_menu("Camera") {
+                self.camera_menu(context, camera);
+            }
+
+            if let Some(_menu) = ui.begin_menu("Save") {
+                self.save_game_menu(context, game_loop);
+            }
+
+            if let Some(_menu) = ui.begin_menu("Map") {
+                self.tile_map_menu(context, game_loop);
+            }
+
+            if let Some(_menu) = ui.begin_menu("Cheats") {
+                self.cheats_menu(context);
+            }
+
+            if let Some(_menu) = ui.begin_menu("Debug") {
+                self.debug_options_menu(context, game_loop);
+            }
+
+            self.menu_bar_text(context, game_loop);
         }
 
-        if self.show_world_debug {
-            self.draw_world_debug_window(context, sim);
+        self.draw_child_windows(context, sim);
+    }
+
+    fn menu_bar_text(&self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
+        let ui = context.ui_sys.builder();
+
+        // Log error/warning count:
+        {
+            let log_viewer = game_loop.engine_mut().log_viewer();
+            let (log_error_count, log_warning_count) = log_viewer.error_and_warning_count();
+
+            if log_error_count != 0 || log_warning_count != 0 {
+                ui.separator();
+                ui.text_colored(Color::red().to_array(), format!(" Errs: {log_error_count} "));
+                ui.text_colored(Color::yellow().to_array(), format!("Warns: {log_warning_count} "));
+            }
         }
 
-        if self.show_game_systems_debug {
-            self.draw_game_systems_debug_window(context, sim);
+        // Gold units:
+        {
+            ui.separator();
+
+            let gold_units_total = context.world.stats().treasury.gold_units_total;
+            let gold_units_text = format!(" Gold: {gold_units_total} ");
+
+            if gold_units_total == 0 {
+                ui.text_colored(Color::red().to_array(), gold_units_text);
+            } else {
+                ui.text(gold_units_text);
+            }
         }
     }
 
-    fn camera_dropdown(&self, context: &mut sim::debug::DebugContext, camera: &mut Camera) {
+    fn cheats_menu(&self, context: &mut sim::debug::DebugContext) {
+        cheats::get_mut().draw_debug_ui(context.ui_sys);
+    }
+
+    fn game_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
-        if !ui.collapsing_header("Camera", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
+
+        if ui.menu_item("Quit") {
+            game_loop.engine_mut().app().request_quit();
         }
+
+        ui.separator();
+
+        ui.checkbox("Game Configs", &mut self.show_game_configs_debug);
+        ui.checkbox("Game World", &mut self.show_game_world_debug);
+        ui.checkbox("Game Systems", &mut self.show_game_systems_debug);
+        ui.checkbox("Log Viewer", &mut self.show_log_viewer_window);
+    }
+
+    fn camera_menu(&self, context: &mut sim::debug::DebugContext, camera: &mut Camera) {
+        let ui = context.ui_sys.builder();
 
         let zoom_limits = camera.zoom_limits();
         let mut zoom = camera.current_zoom();
@@ -190,14 +232,20 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn map_grid_dropdown(&mut self,
-                         context: &mut sim::debug::DebugContext,
-                         engine: &mut dyn Engine) {
-
+    fn debug_options_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
-        if !ui.collapsing_header("Grid", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
+
+        self.draw_debug_ui(context.ui_sys);
+
+        let mut show_popup_messages = super::show_popup_messages();
+        if ui.checkbox("Show Popup Messages", &mut show_popup_messages) {
+            super::set_show_popup_messages(show_popup_messages);
         }
+
+        // Debug grid options:
+        ui.separator();
+
+        let engine = game_loop.engine_mut();
 
         let mut line_thickness = engine.grid_line_thickness();
         if ui.slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
@@ -210,30 +258,27 @@ impl DebugSettingsMenu {
         ui.checkbox("Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
     }
 
-    fn debug_draw_dropdown(&mut self, context: &mut sim::debug::DebugContext) {
+    fn tile_map_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
-        if !ui.collapsing_header("Debug Draw", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
+
+        // Preset tile maps:
+        ui.separator();
+
+        let preset_tile_map_names = debug::utils::preset_tile_maps_list();
+
+        if ui.combo_simple_string("Preset", &mut self.preset_tile_map_number, &preset_tile_map_names) {
+            self.preset_tile_map_number = self.preset_tile_map_number.min(preset_tile_map_names.len());
         }
 
-        self.draw_debug_ui(context.ui_sys);
-
-        let mut show_popup_messages = super::show_popup_messages();
-        if ui.checkbox("Show Popup Messages", &mut show_popup_messages) {
-            super::set_show_popup_messages(show_popup_messages);
-        }
-    }
-
-    fn reset_map_dropdown(&self,
-                          context: &mut sim::debug::DebugContext,
-                          game_loop: &mut GameLoop) {
-
-        let ui = context.ui_sys.builder();
-        if !ui.collapsing_header("Reset Map", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
+        if ui.button("Load Preset") {
+            log::info!(log::channel!("debug"), "Loading preset tile map '{}' ...", preset_tile_map_names[self.preset_tile_map_number]);
+            game_loop.load_preset_map(self.preset_tile_map_number);
         }
 
-        if ui.button("Reset empty") {
+        // Reset map options:
+        ui.separator();
+
+        if ui.button("Reset to empty map") {
             game_loop.reset_session(None);
         }
 
@@ -256,30 +301,10 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn preset_maps_dropdown(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
+    fn save_game_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
-        if !ui.collapsing_header("Preset Maps", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
 
-        let preset_tile_map_names = debug::utils::preset_tile_maps_list();
-
-        if ui.combo_simple_string("Preset", &mut self.preset_tile_map_number, &preset_tile_map_names) {
-            self.preset_tile_map_number = self.preset_tile_map_number.min(preset_tile_map_names.len());
-        }
-
-        if ui.button("Load Preset") {
-            log::info!(log::channel!("debug"), "Loading preset tile map '{}' ...", preset_tile_map_names[self.preset_tile_map_number]);
-            game_loop.load_preset_map(self.preset_tile_map_number);
-        }
-    }
-
-    fn save_game_dropdown(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
-        let ui = context.ui_sys.builder();
-        if !ui.collapsing_header("Save Game", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
+        // Autosave:
         let mut autosave_enabled = game_loop.is_autosave_enabled();
         if ui.checkbox("Autosave", &mut autosave_enabled) {
             game_loop.enable_autosave(autosave_enabled);
@@ -289,6 +314,7 @@ impl DebugSettingsMenu {
             game_loop.load_save_game(game::AUTOSAVE_FILE_NAME);
         }
 
+        // Save game:
         ui.separator();
 
         if self.save_file_name.is_empty() {
@@ -305,6 +331,7 @@ impl DebugSettingsMenu {
             }
         }
 
+        // Load save game:
         ui.separator();
 
         let save_files = game_loop.save_files_list();
@@ -318,47 +345,58 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn draw_game_configs_window(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+    fn draw_child_windows(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation) {
+        if self.show_game_configs_debug {
+            self.draw_game_configs_window(context);
+        }
+
+        if self.show_game_world_debug {
+            self.draw_world_debug_window(context, sim);
+        }
+
+        if self.show_game_systems_debug {
+            self.draw_game_systems_debug_window(context, sim);
+        }
+    }
+
+    fn draw_game_configs_window(&mut self, context: &mut sim::debug::DebugContext) {
+        let ui = context.ui_sys.builder();
+
         ui.window("Game Configs")
-            .opened(&mut self.show_game_configs)
-            .position([300.0, 5.0], imgui::Condition::FirstUseEver)
+            .opened(&mut self.show_game_configs_debug)
+            .position([200.0, 20.0], imgui::Condition::FirstUseEver)
             .size([400.0, 350.0], imgui::Condition::FirstUseEver)
             .build(|| {
                 if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
                     if let Some(_tab) = ui.tab_item("Engine/Game") {
-                        GameConfigs::get().draw_debug_ui(ui_sys);
+                        GameConfigs::get().draw_debug_ui(context.ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Buildings") {
-                        BuildingConfigs::get().draw_debug_ui(ui_sys);
+                        BuildingConfigs::get().draw_debug_ui(context.ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Units") {
-                        UnitConfigs::get().draw_debug_ui(ui_sys);
+                        UnitConfigs::get().draw_debug_ui(context.ui_sys);
                     }
                 }
             });
     }
 
-    fn draw_world_debug_window(&mut self,
-                               context: &mut sim::debug::DebugContext,
-                               sim: &mut Simulation) {
-
+    fn draw_world_debug_window(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation) {
         let ui = context.ui_sys.builder();
+
         ui.window("World Debug")
-            .opened(&mut self.show_world_debug)
-            .position([250.0, 5.0], imgui::Condition::FirstUseEver)
+            .opened(&mut self.show_game_world_debug)
+            .position([300.0, 20.0], imgui::Condition::FirstUseEver)
             .size([400.0, 350.0], imgui::Condition::FirstUseEver)
             .build(|| sim.draw_world_debug_ui(context));
     }
 
-    fn draw_game_systems_debug_window(&mut self,
-                                      context: &mut sim::debug::DebugContext,
-                                      sim: &mut Simulation) {
-
+    fn draw_game_systems_debug_window(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation) {
         let ui = context.ui_sys.builder();
+
         ui.window("Game Systems Debug")
             .opened(&mut self.show_game_systems_debug)
-            .position([400.0, 5.0], imgui::Condition::FirstUseEver)
+            .position([400.0, 20.0], imgui::Condition::FirstUseEver)
             .size([400.0, 350.0], imgui::Condition::FirstUseEver)
             .build(|| sim.draw_game_systems_debug_ui(context));
     }
