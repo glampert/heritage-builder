@@ -56,7 +56,8 @@ pub struct DebugSettingsMenu {
     #[debug_ui(edit)] show_selection_bounds: bool,
     #[debug_ui(edit)] show_cursor_pos: bool,
     #[debug_ui(edit)] show_screen_origin: bool,
-    #[debug_ui(edit)] show_render_stats: bool,
+    #[debug_ui(edit, separator)] show_render_stats: bool,
+
     #[debug_ui(edit)] show_game_configs_debug: bool,
     #[debug_ui(edit)] show_game_world_debug: bool,
     #[debug_ui(edit)] show_game_systems_debug: bool,
@@ -203,6 +204,11 @@ impl DebugSettingsMenu {
         ui.checkbox("Game World", &mut self.show_game_world_debug);
         ui.checkbox("Game Systems", &mut self.show_game_systems_debug);
         ui.checkbox("Log Viewer", &mut self.show_log_viewer_window);
+
+        let mut show_popup_messages = super::show_popup_messages();
+        if ui.checkbox("Popup Messages", &mut show_popup_messages) {
+            super::set_show_popup_messages(show_popup_messages);
+        }
     }
 
     fn camera_menu(&self, context: &mut sim::debug::DebugContext, camera: &mut Camera) {

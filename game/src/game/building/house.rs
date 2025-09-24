@@ -1004,10 +1004,17 @@ struct HouseUpgradeState {
 
 impl HouseUpgradeState {
     fn new(level: HouseLevel, configs: &'static BuildingConfigs) -> Self {
+        let curr_level_config = Some(configs.find_house_level_config(level));
+        let next_level_config = if !level.is_max() {
+            Some(configs.find_house_level_config(level.next()))
+        } else {
+            curr_level_config
+        };
+
         Self {
             level,
-            curr_level_config: Some(configs.find_house_level_config(level)),
-            next_level_config: Some(configs.find_house_level_config(level.next())),
+            curr_level_config,
+            next_level_config,
             has_room_to_upgrade: true,
         }
     }

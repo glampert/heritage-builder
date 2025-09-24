@@ -475,6 +475,11 @@ impl Building {
         false
     }
 
+    pub fn set_random_variation(&self, query: &Query) {
+        let context = self.new_context(query);
+        context.set_random_building_variation();
+    }
+
     // ----------------------
     // Building Resources:
     // ----------------------

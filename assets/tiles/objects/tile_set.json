@@ -6,13 +6,14 @@
       "tile_defs": [
         {
           "name": "house0",
+          "occludes_terrain": false,
           "logical_size": {
             "width": 64,
             "height": 32
           },
           "draw_size": {
             "width": 72,
-            "height": 42
+            "height": 47
           },
           "variations": [
             {
@@ -29,6 +30,18 @@
             },
             {
               "name": "var1",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "var2",
               "anim_sets": [
                 {
                   "frames": [
@@ -129,13 +142,14 @@
         },
         {
           "name": "house3",
+          "occludes_terrain": false,
           "logical_size": {
             "width": 192,
             "height": 96
           },
           "draw_size": {
-            "width": 204,
-            "height": 124
+            "width": 200,
+            "height": 167
           },
           "variations": [
             {
@@ -191,14 +205,15 @@
         },
         {
           "name": "market",
+          "occludes_terrain": false,
           "cost": 10,
           "logical_size": {
             "width": 192,
             "height": 96
           },
           "draw_size": {
-            "width": 198,
-            "height": 140
+            "width": 196,
+            "height": 152
           },
           "variations": [
             {

@@ -194,6 +194,8 @@ impl Settler {
                     Ok(building) => {
                         debug_assert!(building.is(BuildingKind::House));
 
+                        building.set_random_variation(query);
+
                         let population_to_add = extra_args[0].as_u32();
                         debug_assert!(population_to_add != 0);
 
