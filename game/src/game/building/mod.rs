@@ -267,6 +267,8 @@ impl GameObject for Building {
     fn post_load(&mut self, context: &PostLoadContext) {
         debug_assert!(self.is_spawned());
 
+        self.workers_update_timer.post_load(GameConfigs::get().sim.workers_update_frequency_secs);
+
         let kind = self.kind();
         debug_assert!(kind.is_single_building());
 

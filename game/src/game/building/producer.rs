@@ -222,9 +222,12 @@ impl BuildingBehavior for ProducerBuilding {
 
     fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::producers()));
+
         let tile_def = tile.tile_def();
         let configs = BuildingConfigs::get();
         let config = configs.find_producer_config(kind, tile_def.hash, &tile_def.name);
+
+        self.production_update_timer.post_load(config.production_output_frequency_secs);
         self.config = Some(config);
     }
 

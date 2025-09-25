@@ -8,11 +8,13 @@ use serde::{
 use crate::{
     log,
     imgui_ui::UiSystem,
-    engine::time::{Seconds, UpdateTimer},
+    save::PostLoadContext,
+    engine::time::UpdateTimer,
     pathfind::{Node, NodeKind as PathNodeKind},
     utils::{Color, coords::Cell, hash, callback::{self, Callback}},
     tile::{TileMapLayerKind, sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}},
     game::{
+        config::GameConfigs,
         building::BuildingKind,
         sim::Query,
         unit::{
@@ -58,6 +60,11 @@ impl GameSystem for SettlersSpawnSystem {
         }
     }
 
+    fn post_load(&mut self, _context: &PostLoadContext) {
+        let configs = GameConfigs::get();
+        self.spawn_timer.post_load(configs.sim.settlers_spawn_frequency_secs);
+    }
+
     fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         self.spawn_timer.draw_debug_ui("Settler Spawn", 0, ui_sys);
@@ -90,10 +97,11 @@ impl GameSystem for SettlersSpawnSystem {
 }
 
 impl SettlersSpawnSystem {
-    pub fn new(settlers_spawn_frequency_secs: Seconds, population_per_settler_unit: u32) -> Self {
+    pub fn new() -> Self {
+        let configs = GameConfigs::get();
         Self {
-            spawn_timer: UpdateTimer::new(settlers_spawn_frequency_secs),
-            population_per_settler_unit,
+            spawn_timer: UpdateTimer::new(configs.sim.settlers_spawn_frequency_secs),
+            population_per_settler_unit: configs.sim.population_per_settler_unit,
         }
     }
 

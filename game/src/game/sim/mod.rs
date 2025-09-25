@@ -280,6 +280,7 @@ impl Load for Simulation {
 
     fn post_load(&mut self, _context: &PostLoadContext) {
         self.search = Search::with_graph(&self.graph);
+        self.update_timer.post_load(GameConfigs::get().sim.update_frequency_secs);
         self.task_manager.post_load();
     }
 }

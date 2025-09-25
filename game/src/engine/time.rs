@@ -42,9 +42,13 @@ impl FrameClock {
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct UpdateTimer {
+    #[serde(skip, default = "default_timer_update_frequency")]
     update_frequency_secs: Seconds,
     time_since_last_update_secs: Seconds,
 }
+
+#[inline]
+const fn default_timer_update_frequency() -> Seconds { Seconds::INFINITY }
 
 #[repr(u32)]
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -68,6 +72,10 @@ impl UpdateTimer {
 
     #[inline]
     pub fn tick(&mut self, delta_time_secs: Seconds) -> UpdateTimerResult {
+        // If we hit any of these, there's a missing pos_load() call after deserialization.
+        debug_assert!(self.update_frequency_secs.is_finite());
+        debug_assert!(self.time_since_last_update_secs.is_finite());
+
         if self.time_since_last_update_secs >= self.update_frequency_secs {
             // Reset the clock.
             self.time_since_last_update_secs = 0.0;
@@ -87,6 +95,12 @@ impl UpdateTimer {
     #[inline]
     pub fn time_since_last_secs(&self) -> f32 {
         self.time_since_last_update_secs
+    }
+
+    #[inline]
+    pub fn post_load(&mut self, update_frequency_secs: Seconds) {
+        debug_assert!(update_frequency_secs.is_finite());
+        self.update_frequency_secs = update_frequency_secs;
     }
 
     pub fn draw_debug_ui(&mut self, label: &str, imgui_id: u32, ui_sys: &UiSystem) {

@@ -1,7 +1,7 @@
 {
   "house_config": {
     "population_update_frequency_secs": 60.0,
-    "stock_update_frequency_secs": 60.0,
+    "stock_update_frequency_secs": 120.0,
     "upgrade_update_frequency_secs": 10.0,
     "generate_tax_frequency_secs": 60.0
   },

@@ -75,10 +75,7 @@ impl GameSession {
         let sim = Simulation::new(&tile_map);
 
         let mut systems = GameSystems::new();
-        systems.register(settlers::SettlersSpawnSystem::new(
-            configs.sim.settlers_spawn_frequency_secs,
-            configs.sim.population_per_settler_unit,
-        ));
+        systems.register(settlers::SettlersSpawnSystem::new());
 
         let camera = Camera::new(
             viewport_size,

@@ -320,6 +320,14 @@ impl BuildingBehavior for HouseBuilding {
 
     fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind == BuildingKind::House);
+
+        let config = BuildingConfigs::get().find_house_config();
+
+        self.population_update_timer.post_load(config.population_update_frequency_secs);
+        self.stock_update_timer.post_load(config.stock_update_frequency_secs);
+        self.upgrade_update_timer.post_load(config.upgrade_update_frequency_secs);
+        self.generate_tax_timer.post_load(config.generate_tax_frequency_secs);
+
         self.upgrade_state.post_load();
     }
 
