@@ -56,13 +56,14 @@
         },
         {
           "name": "house1",
+          "occludes_terrain": false,
           "logical_size": {
             "width": 128,
             "height": 64
           },
           "draw_size": {
             "width": 132,
-            "height": 97
+            "height": 105
           },
           "variations": [
             {
@@ -105,13 +106,14 @@
         },
         {
           "name": "house2",
+          "occludes_terrain": false,
           "logical_size": {
             "width": 128,
             "height": 64
           },
           "draw_size": {
-            "width": 132,
-            "height": 97
+            "width": 136,
+            "height": 115
           },
           "variations": [
             {
