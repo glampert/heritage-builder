@@ -63,13 +63,6 @@ impl GameSession {
             panic!("Invalid game viewport size!");
         }
 
-        let configs = GameConfigs::get();
-
-        let mut opt_save_file_to_load: Option<&String> = None;
-        if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
-            opt_save_file_to_load = Some(save_file_path);
-        }
-
         let mut world = World::new();
         let mut tile_map = Self::create_tile_map(&mut world, load_map_setting);
         let sim = Simulation::new(&tile_map);
@@ -77,6 +70,7 @@ impl GameSession {
         let mut systems = GameSystems::new();
         systems.register(settlers::SettlersSpawnSystem::new());
 
+        let configs = GameConfigs::get();
         let camera = Camera::new(
             viewport_size,
             tile_map.size_in_cells(),
@@ -96,7 +90,7 @@ impl GameSession {
             debug_menus,
         };
 
-        if let Some(save_file_path) = opt_save_file_to_load {
+        if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
             session.load_save_game(save_file_path);
         }
 
@@ -559,8 +553,7 @@ impl GameLoop {
             &session.tile_selection,
             session.camera.transform(),
             visible_range,
-            flags,
-        );
+            flags);
     }
 
     fn update_autosave(&mut self) {
