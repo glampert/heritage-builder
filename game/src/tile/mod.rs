@@ -1411,6 +1411,8 @@ impl TilePool {
                         self.slab[curr_tile_index.as_usize()].next_index;
                 }
 
+                debug_assert!(self.slab[curr_tile_index.as_usize()].self_index == curr_tile_index);
+                self.slab[curr_tile_index.as_usize()].self_index = INVALID_TILE_INDEX;
                 self.slab[curr_tile_index.as_usize()].next_index = INVALID_TILE_INDEX;
                 self.slab.remove(curr_tile_index.as_usize());
                 found_tile = true;
@@ -2222,6 +2224,8 @@ impl TileMap {
                                               target_cell: Cell,
                                               layer_kind: TileMapLayerKind) -> Result<(), String> {
 
+        debug_assert!(target_index != INVALID_TILE_INDEX);
+
         if self.layers.is_empty() {
             return Err("Map has no layers".into());
         }
@@ -2320,6 +2324,8 @@ impl TileMap {
                                        to_cell: Cell,
                                        layer_kind: TileMapLayerKind) -> bool {
 
+        debug_assert!(from_idx != INVALID_TILE_INDEX);
+
         const ALLOW_STACKING: bool = true;
         if !self.can_move_tile(from_cell, to_cell, layer_kind, ALLOW_STACKING) {
             return false;
@@ -2342,12 +2348,15 @@ impl TileMap {
                 if curr_tile_index == from_idx {
                     if prev_tile_index == INVALID_TILE_INDEX {
                         // list head
-                        layer.pool.cell_to_slab_idx[from_cell_index.as_usize()] = layer[curr_tile_index].next_index;
+                        layer.pool.cell_to_slab_idx[from_cell_index.as_usize()] =
+                            layer[curr_tile_index].next_index;
                     } else {
                         // middle
-                        layer[prev_tile_index].next_index = layer[curr_tile_index].next_index;
+                        layer[prev_tile_index].next_index =
+                            layer[curr_tile_index].next_index;
                     }
 
+                    debug_assert!(layer[curr_tile_index].self_index == curr_tile_index);
                     layer[curr_tile_index].next_index = INVALID_TILE_INDEX;
                     found_from_idx = true;
                     break;
@@ -2374,6 +2383,7 @@ impl TileMap {
             from_tile.set_base_cell(to_cell);
 
             from_tile.next_index = to_slab_index;
+            debug_assert!(from_tile.self_index == from_idx);
         }
 
         true
