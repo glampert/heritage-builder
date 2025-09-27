@@ -306,6 +306,21 @@ impl TileInspectorMenu {
         if imgui_ui::input_i32(ui, "Z Sort Key:", &mut z_sort_key, false, None) {
             tile.set_z_sort_key(z_sort_key);
         }
+
+        if tile.is_stacked() {
+            ui.separator();
+            ui.text("Stack:");
+
+            let mut maybe_next_tile: Option<&Tile> = Some(tile);
+
+            while let Some(next_tile) = maybe_next_tile {
+                ui.text(format!("{} {} ->", next_tile.name(), next_tile.base_cell()));
+                ui.same_line();
+                maybe_next_tile = context.tile_map.next_tile(next_tile);
+            }
+
+            ui.text("~");
+        }
     }
 
     fn tile_variations_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {

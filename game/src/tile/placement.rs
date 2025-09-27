@@ -45,17 +45,27 @@ pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
                            tile_def_to_place.name, layer.kind()));
     }
 
-    // Terrain tiles are always allowed to replace existing tiles,
-    // so first clear the cell in case there's already a tile there.
+    let mut allow_stacking = false;
+
     if tile_def_to_place.is(TileKind::Terrain) {
         debug_assert!(layer.kind() == TileMapLayerKind::Terrain);
+
+        // Terrain tiles are always allowed to replace existing tiles,
+        // so first clear the cell in case there's already a tile there.
         if let Some(existing_tile) = layer.try_tile(target_cell) {
             // Avoid any work if we already have the same terrain tile.
             if existing_tile.tile_def().hash == tile_def_to_place.hash {
                 return Err(format!("Cell {target_cell} already contains '{}'", tile_def_to_place.name));
             }
+
             layer.remove_tile(target_cell);
         }
+    } else if tile_def_to_place.is(TileKind::Unit) {
+        debug_assert!(layer.kind() == TileMapLayerKind::Objects);
+
+        // Units are allowed to stack on top of each other so we
+        // can support multiple units walking the same tile.
+        allow_stacking = true;
     }
 
     // First check if the whole cell range is free:
@@ -66,14 +76,14 @@ pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
                                tile_def_to_place.name, layer.kind()));
         }
 
-        if layer.try_tile(cell).is_some() {
+        if !allow_stacking && layer.try_tile(cell).is_some() {
             return Err(format!("'{}' - {}: Target cell {cell} for this tile is already occupied by '{}'",
                                tile_def_to_place.name, layer.kind(), debug::tile_name_at(cell, layer.kind())));
         }
     }
 
     // Place base tile.
-    let did_place_tile = layer.insert_tile(target_cell, tile_def_to_place);
+    let did_place_tile = layer.insert_tile(target_cell, tile_def_to_place, allow_stacking);
     assert!(did_place_tile);
 
     // Check if we have to place any child blockers too for larger tiles.
@@ -100,7 +110,7 @@ pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
         Ok(())
     } else {
         // Already empty.
-        Err(format!("Cell {} in layer {} is already empty.", target_cell, layer.kind()))
+        Err(format!("Cell {target_cell} in layer {} is already empty.", layer.kind()))
     }
 }
 
@@ -144,5 +154,5 @@ pub fn try_clear_tile_at_cursor(tile_map: &mut TileMap,
     }
 
     // Nothing removed.
-    Err(format!("No tile found at cursor position {}", cursor_screen_pos))
+    Err(format!("No tile found at cursor position {cursor_screen_pos}"))
 }

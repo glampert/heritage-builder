@@ -272,12 +272,23 @@ impl TileMapRenderer {
         for entry in &self.temp_tile_sort_list {
             let tile = entry.tile_ref();
             debug_assert!(tile.is(TileKind::Object));
+
             Self::draw_tile(render_sys,
                             &mut self.stats,
                             ui_sys,
                             transform,
                             tile,
                             flags);
+
+            // Draw stacked chained tiles.
+            tile_map.visit_next_tiles(tile, |next_tile| {
+                Self::draw_tile(render_sys,
+                                &mut self.stats,
+                                ui_sys,
+                                transform,
+                                next_tile,
+                                flags);
+            });
         }
 
         self.stats.tile_sort_list_len += self.temp_tile_sort_list.len() as u32;
@@ -355,7 +366,7 @@ impl TileMapRenderer {
 
         if !tile.has_flags(TileFlags::Hidden) {
             if let Some(tile_sprite) = tile.anim_frame_tex_info() {
-                let highlight_color =
+                let highlight_color = {
                     if tile.has_flags(TileFlags::Highlighted) {
                         stats.tiles_drawn_highlighted += 1;
                         HIGHLIGHT_TILE_COLOR
@@ -364,7 +375,8 @@ impl TileMapRenderer {
                         INVALID_TILE_COLOR
                     } else {
                         Color::white()
-                    };
+                    }
+                };
 
                 let tex_coords = &tile_sprite.coords;
                 let texture = tile_sprite.texture;

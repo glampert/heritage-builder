@@ -3,6 +3,7 @@
 use slab::Slab;
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
+use std::ops::{Index, IndexMut};
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumProperty, EnumIter};
 use enum_dispatch::enum_dispatch;
@@ -36,6 +37,7 @@ use crate::{
     }
 };
 
+pub use placement::PlacementOp;
 use selection::TileSelection;
 use sets::{
     TileDef,
@@ -49,9 +51,7 @@ pub mod sets;
 pub mod camera;
 pub mod rendering;
 pub mod selection;
-
 mod placement;
-pub use placement::PlacementOp;
 
 // ----------------------------------------------
 // Constants
@@ -314,6 +314,8 @@ pub struct Tile {
     flags: TileFlags,
     variation_index: u16,
     z_sort_key: i32,
+    self_index: TilePoolIndex,
+    next_index: TilePoolIndex,
     archetype: TileArchetype,
 }
 
@@ -487,8 +489,15 @@ impl TileBehavior for ObjectTile {
 
         // Propagate flags to any child blockers in its cell range (including self).
         for cell in &self.cell_range {
-            let tile = layer.tile_mut(cell);
-            tile.flags.set(new_flags, value);
+            let next_tile_index = {
+                let tile = layer.tile_mut(cell);
+                tile.flags.set(new_flags, value);
+                tile.next_index
+            };
+
+            layer.visit_next_tiles_mut(next_tile_index, |next_tile| {
+                next_tile.flags.set(new_flags, value)
+            });
         }
     }
 
@@ -648,6 +657,7 @@ impl TileBehavior for BlockerTile {
 
 impl Tile {
     fn new(cell: Cell,
+           index: TilePoolIndex,
            tile_def: &'static TileDef,
            layer: &TileMapLayer) -> Self {
 
@@ -669,11 +679,14 @@ impl Tile {
             flags: tile_def.flags(),
             variation_index: 0,
             z_sort_key,
+            self_index: index,
+            next_index: TilePoolIndex::invalid(),
             archetype
         }
     }
 
     fn new_blocker(blocker_cell: Cell,
+                   index: TilePoolIndex,
                    owner_cell: Cell,
                    owner_kind: TileKind,
                    owner_flags: TileFlags,
@@ -683,9 +696,16 @@ impl Tile {
             kind: TileKind::Object | TileKind::Blocker,
             flags: owner_flags,
             variation_index: 0, // unused
-            z_sort_key:      0, // unused
+            z_sort_key: 0, // unused
+            self_index: index,
+            next_index: TilePoolIndex::invalid(),
             archetype: TileArchetype::from(BlockerTile::new(blocker_cell, owner_cell, layer))
         }
+    }
+
+    #[inline]
+    pub fn index(&self) -> TilePoolIndex {
+        self.self_index
     }
 
     #[inline]
@@ -711,7 +731,7 @@ impl Tile {
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        !self.kind.is_empty() && self.archetype.is_valid()
+        !self.kind.is_empty() && self.archetype.is_valid() && self.self_index.is_valid()
     }
 
     #[inline]
@@ -819,6 +839,11 @@ impl Tile {
         let draw_size = self.draw_size();
         let iso_position = self.iso_coords_f32();
         coords::iso_to_screen_rect_f32(iso_position, draw_size, transform)
+    }
+
+    #[inline]
+    pub fn is_stacked(&self) -> bool {
+        self.next_index != INVALID_TILE_INDEX
     }
 
     // Base cell without resolving blocker tiles into their owner cell.
@@ -1148,7 +1173,7 @@ impl TileMapLayerMutRefs {
 
 #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)] // Serialized as a newtype/tuple.
-struct TilePoolIndex {
+pub struct TilePoolIndex {
     value: u32,
 }
 
@@ -1171,14 +1196,30 @@ impl TilePoolIndex {
         self.value < u32::MAX
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_usize(self) -> usize {
         debug_assert!(self.is_valid());
         self.value as usize
     }
 }
 
+impl Default for TilePoolIndex {
+    #[inline]
+    fn default() -> Self {
+        TilePoolIndex::invalid()
+    }
+}
+
 const INVALID_TILE_INDEX: TilePoolIndex = TilePoolIndex::invalid();
+
+#[derive(Copy, Clone)]
+#[repr(transparent)]
+struct CellIndex(usize);
+
+impl CellIndex {
+    #[inline(always)]
+    fn as_usize(self) -> usize { self.0 }
+}
 
 // ----------------------------------------------
 // TilePool
@@ -1217,9 +1258,14 @@ impl TilePool {
     }
 
     #[inline(always)]
-    fn map_cell_to_index(&self, cell: Cell) -> usize {
+    fn cell_to_index(&self, cell: Cell) -> CellIndex {
         let cell_index = cell.x + (cell.y * self.layer_size_in_cells.width);
-        cell_index as usize
+        CellIndex(cell_index as usize)
+    }
+
+    #[inline(always)]
+    fn cell_index_to_slab(&self, cell_index: CellIndex) -> TilePoolIndex {
+        self.cell_to_slab_idx[cell_index.as_usize()]
     }
 
     #[inline]
@@ -1228,18 +1274,15 @@ impl TilePool {
             return None;
         }
 
-        let cell_index = self.map_cell_to_index(cell);
-        let slab_index = self.cell_to_slab_idx[cell_index];
+        let cell_index = self.cell_to_index(cell);
+        let slab_index = self.cell_index_to_slab(cell_index);
 
         if slab_index == INVALID_TILE_INDEX {
             return None; // empty cell.
         }
 
-        let tile = &self.slab[slab_index.as_usize()];
-
-        debug_assert!(tile.layer_kind() == self.layer_kind);
+        let tile = self.tile_at_index(slab_index);
         debug_assert!(tile.actual_base_cell() == cell);
-
         Some(tile)
     }
 
@@ -1249,36 +1292,62 @@ impl TilePool {
             return None;
         }
 
-        let cell_index = self.map_cell_to_index(cell);
-        let slab_index = self.cell_to_slab_idx[cell_index];
+        let cell_index = self.cell_to_index(cell);
+        let slab_index = self.cell_index_to_slab(cell_index);
 
         if slab_index == INVALID_TILE_INDEX {
             return None; // empty cell.
         }
 
-        let tile_mut = &mut self.slab[slab_index.as_usize()];
-
-        debug_assert!(tile_mut.layer_kind() == self.layer_kind);
+        let tile_mut = self.tile_at_index_mut(slab_index);
         debug_assert!(tile_mut.actual_base_cell() == cell);
-
         Some(tile_mut)
     }
 
     #[inline]
-    fn insert_tile(&mut self, cell: Cell, new_tile: Tile) -> bool {
+    fn tile_at_index(&self, index: TilePoolIndex) -> &Tile {
+        let tile = &self.slab[index.as_usize()];
+        debug_assert!(tile.layer_kind() == self.layer_kind);
+        tile
+    }
+
+    #[inline]
+    fn tile_at_index_mut(&mut self, index: TilePoolIndex) -> &mut Tile {
+        let tile = &mut self.slab[index.as_usize()];
+        debug_assert!(tile.layer_kind() == self.layer_kind);
+        tile
+    }
+
+    #[inline]
+    fn next_index(&self) -> TilePoolIndex {
+        TilePoolIndex::new(self.slab.vacant_key())
+    }
+
+    #[inline]
+    fn insert_tile(&mut self, cell: Cell, new_tile: Tile, allow_stacking: bool) -> bool {
         if !self.is_cell_within_bounds(cell) {
             return false;
         }
 
-        let cell_index = self.map_cell_to_index(cell);
-        let mut slab_index = self.cell_to_slab_idx[cell_index];
+        let cell_index = self.cell_to_index(cell);
+        let mut slab_index = self.cell_index_to_slab(cell_index);
 
         if slab_index == INVALID_TILE_INDEX {
             // Empty cell; allocate new tile.
             slab_index = TilePoolIndex::new(self.slab.insert(new_tile));
-            self.cell_to_slab_idx[cell_index] = slab_index;
+            self.cell_to_slab_idx[cell_index.as_usize()] = slab_index;
         } else {
             // Cell is already occupied.
+            // Append to the head of the linked list if we allow stacking tiles, fail otherwise.
+            if allow_stacking {
+                let new_tile_index = TilePoolIndex::new(self.slab.insert(new_tile));
+                self.cell_to_slab_idx[cell_index.as_usize()] = new_tile_index;
+
+                let new_tile = self.tile_at_index_mut(new_tile_index);
+                new_tile.next_index = slab_index;
+                return true;
+            }
+
             return false;
         }
 
@@ -1291,16 +1360,22 @@ impl TilePool {
             return false;
         }
 
-        let cell_index = self.map_cell_to_index(cell);
-        let slab_index = self.cell_to_slab_idx[cell_index];
+        let cell_index = self.cell_to_index(cell);
+        let mut slab_index = self.cell_index_to_slab(cell_index);
 
         if slab_index == INVALID_TILE_INDEX {
             // Empty cell; do nothing.
             return false;
         }
 
-        self.cell_to_slab_idx[cell_index] = INVALID_TILE_INDEX;
-        self.slab.remove(slab_index.as_usize());
+        // Remove all tiles in this cell.
+        while slab_index != INVALID_TILE_INDEX {
+            let next_index = self.tile_at_index(slab_index).next_index;
+            self.slab.remove(slab_index.as_usize());
+            slab_index = next_index;
+        }
+
+        self.cell_to_slab_idx[cell_index.as_usize()] = INVALID_TILE_INDEX;
 
         true
     }
@@ -1318,7 +1393,8 @@ pub struct TileMapLayer {
 impl TileMapLayer {
     fn new(layer_kind: TileMapLayerKind,
            size_in_cells: Size,
-           fill_with_def: Option<&'static TileDef>) -> Box<TileMapLayer> {
+           fill_with_def: Option<&'static TileDef>,
+           allow_stacking: bool) -> Box<TileMapLayer> {
 
         let mut layer = Box::new(Self {
             pool: TilePool::new(layer_kind, size_in_cells),
@@ -1334,8 +1410,7 @@ impl TileMapLayer {
 
             for y in 0..size_in_cells.height {
                 for x in 0..size_in_cells.width {
-                    let cell = Cell::new(x, y);
-                    let did_insert_tile = layer.insert_tile(cell, fill_tile_def);
+                    let did_insert_tile = layer.insert_tile(Cell::new(x, y), fill_tile_def, allow_stacking);
                     assert!(did_insert_tile);
                 }
             }
@@ -1567,10 +1642,10 @@ impl TileMapLayer {
     // NOTE: Inserting/removing a tile will not insert/remove any child blocker tiles.
     // Blocker insertion/removal is handled explicitly by the tile placement code.
 
-    pub fn insert_tile(&mut self, cell: Cell, tile_def: &'static TileDef) -> bool {
+    pub fn insert_tile(&mut self, cell: Cell, tile_def: &'static TileDef, allow_stacking: bool) -> bool {
         debug_assert!(tile_def.layer_kind() == self.kind());
-        let new_tile = Tile::new(cell, tile_def, self);
-        self.pool.insert_tile(cell, new_tile)
+        let new_tile = Tile::new(cell, self.pool.next_index(), tile_def, self);
+        self.pool.insert_tile(cell, new_tile, allow_stacking)
     }
 
     pub fn insert_blocker_tiles(&mut self, blocker_cells: CellRange, owner_cell: Cell) -> bool {
@@ -1585,12 +1660,14 @@ impl TileMapLayer {
             let owner_tile  = self.tile(owner_cell);
             let blocker_tile = Tile::new_blocker(
                 blocker_cell,
+                self.pool.next_index(),
                 owner_cell,
                 owner_tile.kind,
                 owner_tile.flags,
                 self);
 
-            if !self.pool.insert_tile(blocker_cell, blocker_tile) {
+            const ALLOW_STACKING: bool = false;
+            if !self.pool.insert_tile(blocker_cell, blocker_tile, ALLOW_STACKING) {
                 return false;
             }
         }
@@ -1605,6 +1682,28 @@ impl TileMapLayer {
     // ----------------------
     // Internal helpers:
     // ----------------------
+
+    #[inline]
+    fn visit_next_tiles<F>(&self, mut next_tile_index: TilePoolIndex, mut visitor_fn: F)
+        where F: FnMut(&Tile)
+    {
+        while next_tile_index != INVALID_TILE_INDEX {
+            let next_tile = &self[next_tile_index];
+            visitor_fn(next_tile);
+            next_tile_index = next_tile.next_index;
+        }
+    }
+
+    #[inline]
+    fn visit_next_tiles_mut<F>(&mut self, mut next_tile_index: TilePoolIndex, mut visitor_fn: F)
+        where F: FnMut(&mut Tile)
+    {
+        while next_tile_index != INVALID_TILE_INDEX {
+            let next_tile = &mut self[next_tile_index];
+            visitor_fn(next_tile);
+            next_tile_index = next_tile.next_index;
+        }
+    }
 
     #[inline]
     fn find_blocker_owner(&self, owner_cell: Cell) -> &Tile {
@@ -1623,9 +1722,19 @@ impl TileMapLayer {
     #[inline]
     fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: Seconds) {
         for cell in &visible_range {
-            if let Some(tile) = self.try_tile_mut(cell) {
-                tile.update_anim(delta_time_secs);
-            }
+            let next_tile_index = {
+                if let Some(tile) = self.try_tile_mut(cell) {
+                    tile.update_anim(delta_time_secs);
+                    tile.next_index
+                } else {
+                    INVALID_TILE_INDEX
+                }
+            };
+
+            // Update next tiles in the stack chain.
+            self.visit_next_tiles_mut(next_tile_index, |next_tile| {
+                next_tile.update_anim(delta_time_secs);
+            });
         }
     }
 
@@ -1643,16 +1752,36 @@ impl TileMapLayer {
         // Check pool integrity:
         if cfg!(debug_assertions) {
             for (index, tile) in &self.pool.slab {
+                debug_assert!(tile.is_valid());
+
                 let cell = tile.actual_base_cell();
+                let cell_index = self.pool.cell_to_index(cell);
+                let slab_index = self.pool.cell_index_to_slab(cell_index);
+
+                debug_assert!(slab_index != INVALID_TILE_INDEX);
                 debug_assert!(self.pool.is_cell_within_bounds(cell));
-
-                let cell_index = self.pool.map_cell_to_index(cell);
-                let slab_index = self.pool.cell_to_slab_idx[cell_index].as_usize();
-
-                debug_assert!(slab_index == index);
-                debug_assert!(std::ptr::eq(&self.pool.slab[slab_index], tile)); // Ensure addresses are the same.
+                debug_assert!(tile.self_index.as_usize() == index);
+                debug_assert!(std::ptr::eq(&self[tile.self_index], tile)); // Ensure addresses are the same.
             }
         }
+    }
+}
+
+// Immutable indexing
+impl Index<TilePoolIndex> for TileMapLayer {
+    type Output = Tile;
+
+    #[inline]
+    fn index(&self, index: TilePoolIndex) -> &Self::Output {
+        self.pool.tile_at_index(index)
+    }
+}
+
+// Mutable indexing
+impl IndexMut<TilePoolIndex> for TileMapLayer {
+    #[inline]
+    fn index_mut(&mut self, index: TilePoolIndex) -> &mut Self::Output {
+        self.pool.tile_at_index_mut(index)
     }
 }
 
@@ -1735,7 +1864,9 @@ impl TileMap {
                     None
                 }
             };
-            self.layers.push(TileMapLayer::new(layer_kind, self.size_in_cells, fill_opt));
+
+            const ALLOW_STACKING: bool = false;
+            self.layers.push(TileMapLayer::new(layer_kind, self.size_in_cells, fill_opt, ALLOW_STACKING));
         }
     }
 
@@ -1914,6 +2045,46 @@ impl TileMap {
     }
 
     // ----------------------
+    // Tile stacking:
+    // ----------------------
+
+    #[inline]
+    pub fn next_tile(&self, tile: &Tile) -> Option<&Tile> {
+        if tile.next_index == INVALID_TILE_INDEX {
+            return None;
+        }
+
+        let layer = self.layer(tile.layer_kind());
+        Some(&layer[tile.next_index])
+    }
+
+    #[inline]
+    pub fn next_tile_mut(&mut self, tile: &Tile) -> Option<&mut Tile> {
+        if tile.next_index == INVALID_TILE_INDEX {
+            return None;
+        }
+
+        let layer = self.layer_mut(tile.layer_kind());
+        Some(&mut layer[tile.next_index])
+    }
+
+    #[inline]
+    pub fn visit_next_tiles<F>(&self, tile: &Tile, visitor_fn: F)
+        where F: FnMut(&Tile)
+    {
+        let layer = self.layer(tile.layer_kind());
+        layer.visit_next_tiles(tile.next_index, visitor_fn);
+    }
+
+    #[inline]
+    pub fn visit_next_tiles_mut<F>(&mut self, tile: &Tile, visitor_fn: F)
+        where F: FnMut(&mut Tile)
+    {
+        let layer = self.layer_mut(tile.layer_kind());
+        layer.visit_next_tiles_mut(tile.next_index, visitor_fn);
+    }
+
+    // ----------------------
     // Tile placement:
     // ----------------------
 
@@ -2014,8 +2185,8 @@ impl TileMap {
         placement::try_clear_tile_at_cursor(self, cursor_screen_pos, transform)
     }
 
-    pub fn can_move_tile(&self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
-        if from == to {
+    pub fn can_move_tile(&self, from: Cell, to: Cell, layer_kind: TileMapLayerKind, allow_stacking: bool) -> bool {
+        if from == to || self.layers.is_empty() {
             return false;
         }
 
@@ -2024,17 +2195,22 @@ impl TileMap {
             return false;
         }
 
-        if self.layers.is_empty() {
-            return false;
-        }
-
         let layer = self.layer(layer_kind);
 
-        if layer.try_tile(from).is_none() {
-            return false; // No tile at 'from' cell!
-        }
-        if layer.try_tile(to).is_some() {
-            return false; // 'to' tile is occupied!
+        let from_tile = {
+            if let Some(from_tile) = layer.try_tile(from) {
+                from_tile
+            } else {
+                return false; // No tile at 'from' cell!
+            }
+        };
+
+        if let Some(to_tile) = layer.try_tile(to) {
+            if allow_stacking && from_tile.is(TileKind::Unit) && to_tile.is(TileKind::Unit) {
+                // Allow stacking units on the same cell.
+                return true;
+            }
+            return false; // 'to' tile cell is occupied!
         }
 
         true
@@ -2042,27 +2218,94 @@ impl TileMap {
 
     // Move tile from one cell to another if destination is free.
     pub fn try_move_tile(&mut self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
-        if !self.can_move_tile(from, to, layer_kind) {
+        const ALLOW_STACKING: bool = false;
+        if !self.can_move_tile(from, to, layer_kind, ALLOW_STACKING) {
             return false;
         }
 
         let layer = self.layer_mut(layer_kind);
 
-        let from_cell_index = layer.pool.map_cell_to_index(from);
-        let from_slab_index = layer.pool.cell_to_slab_idx[from_cell_index];
+        let from_cell_index = layer.pool.cell_to_index(from);
+        let from_slab_index = layer.pool.cell_index_to_slab(from_cell_index);
         debug_assert!(from_slab_index != INVALID_TILE_INDEX); // Can't be empty, we have the 'from' tile.
 
-        let to_cell_index = layer.pool.map_cell_to_index(to);
-        let to_slab_index = layer.pool.cell_to_slab_idx[to_cell_index];
+        let to_cell_index = layer.pool.cell_to_index(to);
+        let to_slab_index = layer.pool.cell_index_to_slab(to_cell_index);
         debug_assert!(to_slab_index == INVALID_TILE_INDEX); // Should be empty, we've checked the destination is free.
 
         // Swap indices.
-        layer.pool.cell_to_slab_idx[from_cell_index] = to_slab_index;
-        layer.pool.cell_to_slab_idx[to_cell_index]   = from_slab_index;
+        layer.pool.cell_to_slab_idx[from_cell_index.as_usize()] = to_slab_index;
+        layer.pool.cell_to_slab_idx[to_cell_index.as_usize()]   = from_slab_index;
 
         // Update cached tile states:
-        let tile = &mut layer.pool.slab[from_slab_index.as_usize()];
+        let tile = &mut layer[from_slab_index];
         tile.set_base_cell(to);
+
+        true
+    }
+
+    // Move tile from one cell to another, stacking unit tiles if they overlap.
+    pub fn try_move_tile_with_stacking(&mut self,
+                                       from_idx: TilePoolIndex,
+                                       from_cell: Cell,
+                                       to_cell: Cell,
+                                       layer_kind: TileMapLayerKind) -> bool {
+
+        const ALLOW_STACKING: bool = true;
+        if !self.can_move_tile(from_cell, to_cell, layer_kind, ALLOW_STACKING) {
+            return false;
+        }
+
+        let layer = self.layer_mut(layer_kind);
+
+        // from cell: either becomes empty or pops one from the stack.
+        {
+            debug_assert!(from_idx != INVALID_TILE_INDEX);
+            debug_assert!(layer[from_idx].is(TileKind::Unit));
+
+            let from_cell_index = layer.pool.cell_to_index(from_cell);
+
+            let mut curr_tile_index = layer.pool.cell_index_to_slab(from_cell_index);
+            let mut prev_tile_index = INVALID_TILE_INDEX;
+            let mut found_from_idx = false;
+
+            while curr_tile_index != INVALID_TILE_INDEX {
+                if curr_tile_index == from_idx {
+                    if prev_tile_index == INVALID_TILE_INDEX {
+                        // list head
+                        layer.pool.cell_to_slab_idx[from_cell_index.as_usize()] = layer[curr_tile_index].next_index;
+                    } else {
+                        // middle
+                        layer[prev_tile_index].next_index = layer[curr_tile_index].next_index;
+                    }
+
+                    layer[curr_tile_index].next_index = INVALID_TILE_INDEX;
+                    found_from_idx = true;
+                    break;
+                }
+
+                prev_tile_index = curr_tile_index;
+                curr_tile_index = layer[curr_tile_index].next_index;
+            }
+
+            debug_assert!(found_from_idx);
+        }
+
+        // Destination may be empty or may contain single tile or a stack.
+        {
+            let to_cell_index = layer.pool.cell_to_index(to_cell);
+            let to_slab_index = layer.pool.cell_index_to_slab(to_cell_index);
+
+            // Only units can stack.
+            debug_assert!(to_slab_index == INVALID_TILE_INDEX || layer[to_slab_index].is(TileKind::Unit));
+    
+            layer.pool.cell_to_slab_idx[to_cell_index.as_usize()] = from_idx;
+
+            let from_tile = &mut layer[from_idx];
+            from_tile.set_base_cell(to_cell);
+
+            from_tile.next_index = to_slab_index;
+        }
 
         true
     }

@@ -1,4 +1,5 @@
 use strum::IntoDiscriminant;
+use smallvec::SmallVec;
 
 use serde::{
     Serialize,
@@ -486,15 +487,36 @@ impl World {
         Ok(())
     }
 
-    #[inline]
     pub fn despawn_unit_at_cell(&mut self, query: &Query, tile_base_cell: Cell) -> Result<(), String> {
         debug_assert!(tile_base_cell.is_valid());
 
-        let unit =
-            query.world().find_unit_for_cell_mut(tile_base_cell, query.tile_map())
-                .expect("Tile cell does not contain a Unit!");
+        let mut units = SmallVec::<[&mut Unit; 8]>::new();
 
-        self.despawn_unit(query, unit)
+        let tile = query.tile_map().find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Unit)
+            .ok_or("Tile cell does not contain a Unit!")?;
+
+        let unit = query.world().find_unit_for_tile_mut(tile)
+            .ok_or("Unit tile does not have a valid TileGameObjectHandle!")?;
+
+        units.push(unit);
+
+        if tile.is_stacked() {
+            query.tile_map().visit_next_tiles_mut(tile, |next_tile| {
+                let next_unit = query.world().find_unit_for_tile_mut(next_tile)
+                    .expect("Next Unit tile does not have a valid TileGameObjectHandle!");
+                units.push(next_unit);
+            });
+        }
+
+        // This will take care of removing all tiles stacked at `tile_base_cell`.
+        query.tile_map().try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
+
+        // Despawn all units at this cell.
+        for unit in units {
+            query.world().unit_spawn_pool.despawn(unit, query, Unit::despawned);
+        }
+
+        Ok(())
     }
 
     #[inline]

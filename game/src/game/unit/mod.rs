@@ -237,7 +237,13 @@ impl Unit {
             return true;
         }
 
-        if tile_map.try_move_tile(self.map_cell, destination_cell, TileMapLayerKind::Objects) {
+        let from_idx = tile_map.find_tile(
+            self.map_cell,
+            TileMapLayerKind::Objects,
+            TileKind::Unit)
+            .unwrap().index();
+
+        if tile_map.try_move_tile_with_stacking(from_idx, self.map_cell, destination_cell, TileMapLayerKind::Objects) {
             let tile = tile_map.find_tile_mut(
                 destination_cell,
                 TileMapLayerKind::Objects,
