@@ -1379,6 +1379,51 @@ impl TilePool {
 
         true
     }
+
+    #[inline]
+    fn remove_tile_by_index(&mut self, index_to_remove: TilePoolIndex, cell: Cell) -> bool {
+        if index_to_remove == INVALID_TILE_INDEX && !self.is_cell_within_bounds(cell) {
+            return false;
+        }
+
+        let cell_index = self.cell_to_index(cell);
+        let slab_index = self.cell_index_to_slab(cell_index);
+
+        if slab_index == INVALID_TILE_INDEX {
+            // Empty cell; do nothing.
+            return false;
+        }
+
+        // Find tile in the chained stack and remove it:
+        let mut curr_tile_index = slab_index;
+        let mut prev_tile_index = INVALID_TILE_INDEX;
+        let mut found_tile = false;
+
+        while curr_tile_index != INVALID_TILE_INDEX {
+            if curr_tile_index == index_to_remove {
+                if prev_tile_index == INVALID_TILE_INDEX {
+                    // list head
+                    self.cell_to_slab_idx[cell_index.as_usize()] =
+                        self.slab[curr_tile_index.as_usize()].next_index;
+                } else {
+                    // middle
+                    self.slab[prev_tile_index.as_usize()].next_index =
+                        self.slab[curr_tile_index.as_usize()].next_index;
+                }
+
+                self.slab[curr_tile_index.as_usize()].next_index = INVALID_TILE_INDEX;
+                self.slab.remove(curr_tile_index.as_usize());
+                found_tile = true;
+                break;
+            }
+
+            prev_tile_index = curr_tile_index;
+            curr_tile_index = self.slab[curr_tile_index.as_usize()].next_index;
+        }
+
+        debug_assert!(found_tile);
+        true
+    }
 }
 
 // ----------------------------------------------
@@ -1677,6 +1722,10 @@ impl TileMapLayer {
 
     pub fn remove_tile(&mut self, cell: Cell) -> bool {
         self.pool.remove_tile(cell)
+    }
+
+    pub fn remove_tile_by_index(&mut self, index: TilePoolIndex, cell: Cell) -> bool {
+        self.pool.remove_tile_by_index(index, cell)
     }
 
     // ----------------------
@@ -2165,6 +2214,26 @@ impl TileMap {
         }
 
         placement::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell)
+    }
+
+    #[inline]
+    pub fn try_clear_tile_from_layer_by_index(&mut self,
+                                              target_index: TilePoolIndex,
+                                              target_cell: Cell,
+                                              layer_kind: TileMapLayerKind) -> Result<(), String> {
+
+        if self.layers.is_empty() {
+            return Err("Map has no layers".into());
+        }
+
+        if let Some(callback) = self.on_removing_tile_callback {
+            let layer = self.layer_mut(layer_kind);
+            if layer.try_tile_mut(target_cell).is_some() {
+                callback(&mut layer[target_index]);
+            }
+        }
+
+        placement::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind), target_index, target_cell)
     }
 
     #[inline]

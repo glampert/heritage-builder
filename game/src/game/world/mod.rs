@@ -19,6 +19,7 @@ use crate::{
         TileKind,
         TileMap,
         TileMapLayerKind,
+        TilePoolIndex,
         TileGameObjectHandle,
         sets::{TileDef, TileSets, OBJECTS_UNITS_CATEGORY}
     },
@@ -467,24 +468,41 @@ impl World {
         let tile_cell = unit.cell();
         debug_assert!(tile_cell.is_valid());
 
+        let mut tiles = SmallVec::<[(TileGameObjectHandle, TilePoolIndex); 8]>::new();
+
         // Find and validate associated Tile:
         let tile = tile_map.find_tile(tile_cell, TileMapLayerKind::Objects, TileKind::Unit)
             .ok_or("Unit should have an associated Tile in the TileMap!")?;
 
-        let game_object_handle = tile.game_object_handle();
-        if !game_object_handle.is_valid() {
-            return Err(format!("Unit tile '{}' {} should have a valid TileGameObjectHandle!", tile.name(), tile_cell));
+        tiles.push((tile.game_object_handle(), tile.index()));
+
+        if tile.is_stacked() {
+            tile_map.visit_next_tiles(tile, |next_tile| {
+                tiles.push((next_tile.game_object_handle(), next_tile.index()));
+            });
         }
 
-        debug_assert!(game_object_handle.index() == unit.id().index());
-        debug_assert!(game_object_handle.generation() == unit.id().generation());
+        for (game_object_handle, tile_index) in tiles {
+            if !game_object_handle.is_valid() {
+                return Err(format!("Unit tile '{}' {} should have a valid TileGameObjectHandle!", tile.name(), tile_cell));
+            }
 
-        // First remove the associated Tile:
-        tile_map.try_clear_tile_from_layer(tile_cell, TileMapLayerKind::Objects)?;
+            if game_object_handle.index() == unit.id().index() &&
+               game_object_handle.generation() == unit.id().generation() {
+                // First remove the associated Tile:
+                tile_map.try_clear_tile_from_layer_by_index(tile_index, tile_cell, TileMapLayerKind::Objects)?;
 
-        // Put the unit instance back into the spawn pool.
-        self.unit_spawn_pool.despawn(unit, query, Unit::despawned);
-        Ok(())
+                // Put the unit instance back into the spawn pool.
+                self.unit_spawn_pool.despawn(unit, query, Unit::despawned);
+                return Ok(());
+            }
+        }
+
+        if cfg!(debug_assertions) {
+            panic!("Failed to find tile for Unit '{}' @ {}.", unit.name(), tile_cell);
+        } else {
+            Err(format!("Failed to find tile for Unit '{}' @ {}.", unit.name(), tile_cell))
+        }
     }
 
     pub fn despawn_unit_at_cell(&mut self, query: &Query, tile_base_cell: Cell) -> Result<(), String> {

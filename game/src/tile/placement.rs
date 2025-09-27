@@ -17,6 +17,7 @@ use super::{
     TileMap,
     TileMapLayer,
     TileMapLayerKind,
+    TilePoolIndex,
     sets::TileDef
 };
 
@@ -108,6 +109,37 @@ pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
             assert!(did_remove_tile);
         }
         Ok(())
+    } else {
+        // Already empty.
+        Err(format!("Cell {target_cell} in layer {} is already empty.", layer.kind()))
+    }
+}
+
+pub fn try_clear_tile_from_layer_by_index(layer: &mut TileMapLayer,
+                                          target_index: TilePoolIndex,
+                                          target_cell: Cell) -> Result<(), String> {
+
+    if let Some(tile) = layer.try_tile(target_cell) {
+        let mut found_tile = false;
+
+        // Find which tile in the stack we are removing:
+        if tile.index() == target_index {
+            found_tile = true;
+        } else {
+            layer.visit_next_tiles(tile.next_index, |next_tile| {
+                if next_tile.index() == target_index {
+                    found_tile = true;
+                }
+            });
+        }
+
+        if found_tile {
+            let did_remove_tile = layer.remove_tile_by_index(target_index, target_cell);
+            assert!(did_remove_tile);
+            Ok(())
+        } else {
+            Err(format!("Failed to find tile for index: {}, cell: {}.", target_index.as_usize(), target_cell))
+        }
     } else {
         // Already empty.
         Err(format!("Cell {target_cell} in layer {} is already empty.", layer.kind()))
