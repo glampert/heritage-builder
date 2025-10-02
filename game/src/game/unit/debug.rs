@@ -6,7 +6,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     log,
     pathfind::{self, Path, NodeKind as PathNodeKind},
-    tile::{self, Tile, TileMapLayerKind},
+    tile::{self, Tile, TileMapLayerKind, TilePoolIndex},
     imgui_ui::{
         self,
         UiSystem,
@@ -107,11 +107,13 @@ impl Unit {
             name: &'a str,
             cell: Cell,
             id: UnitId,
+            tile_index: TilePoolIndex,
         }
         let debug_vars = DrawDebugUiVariables {
             name: self.name(),
             cell: self.cell(),
             id: self.id(),
+            tile_index: self.tile_index(),
         };
         debug_vars.draw_debug_ui(ui_sys);
     }

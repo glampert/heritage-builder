@@ -14,6 +14,7 @@ use crate::{
         Tile,
         TileKind,
         TileMap,
+        TilePoolIndex,
         TileMapLayerKind
     },
     utils::{
@@ -85,6 +86,7 @@ Common Unit Behavior:
 pub struct Unit {
     id: UnitId,
     map_cell: Cell,
+    tile_index: TilePoolIndex,
     config_key_hash: StringHash,
     direction: UnitDirection,
     anim_sets: UnitAnimSets,
@@ -92,8 +94,11 @@ pub struct Unit {
     navigation: UnitNavigation,
     current_task_id: UnitTaskId, // invalid if no task.
 
-    #[serde(skip)] config: Option<&'static UnitConfig>,
-    #[serde(skip)] debug: UnitDebug,
+    #[serde(skip)]
+    config: Option<&'static UnitConfig>, // patched on post_load.
+
+    #[serde(skip)]
+    debug: UnitDebug,
 }
 
 impl GameObject for Unit {
@@ -130,6 +135,7 @@ impl GameObject for Unit {
 
     fn post_load(&mut self, _context: &PostLoadContext) {
         debug_assert!(self.is_spawned());
+        debug_assert!(self.tile_index.is_valid());
         debug_assert!(self.config_key_hash != hash::NULL_HASH);
 
         let configs = UnitConfigs::get();
@@ -186,6 +192,7 @@ impl Unit {
 
         self.id = id;
         self.map_cell = tile.base_cell();
+        self.tile_index = tile.index();
         self.config = Some(config);
         self.config_key_hash = config.key_hash();
         self.direction = UnitDirection::Idle;
@@ -200,6 +207,7 @@ impl Unit {
 
         self.id = UnitId::default();
         self.map_cell = Cell::default();
+        self.tile_index = TilePoolIndex::default();
         self.config = None;
         self.config_key_hash = hash::NULL_HASH;
         self.direction = UnitDirection::default();
@@ -230,6 +238,12 @@ impl Unit {
         self.map_cell
     }
 
+    #[inline]
+    pub fn tile_index(&self) -> TilePoolIndex {
+        debug_assert!(self.is_spawned());
+        self.tile_index
+    }
+
     // Teleports to new tile cell and updates direction and animation.
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
         debug_assert!(self.is_spawned());
@@ -237,18 +251,9 @@ impl Unit {
             return true;
         }
 
-        let from_idx = tile_map.find_tile(
-            self.map_cell,
-            TileMapLayerKind::Objects,
-            TileKind::Unit)
-            .unwrap().index();
-
-        if tile_map.try_move_tile_with_stacking(from_idx, self.map_cell, destination_cell, TileMapLayerKind::Objects) {
-            let tile = tile_map.find_tile_mut(
-                destination_cell,
-                TileMapLayerKind::Objects,
-                TileKind::Unit)
-                .unwrap();
+        if tile_map.try_move_tile_with_stacking(self.tile_index, self.map_cell, destination_cell, TileMapLayerKind::Objects) {
+            let tile = tile_map.tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
+            debug_assert!(tile.is(TileKind::Unit));
 
             let new_direction = direction_between(self.map_cell, destination_cell);    
             self.update_direction_and_anim(tile, new_direction);
@@ -562,14 +567,16 @@ impl Unit {
 
     #[inline]
     fn find_tile<'world>(&self, query: &'world Query) -> &'world Tile {
-        query.find_tile(self.map_cell, TileMapLayerKind::Objects, TileKind::Unit)
-            .expect("Unit should have an associated Tile in the TileMap!")
+        let tile = query.tile_map().tile_at_index(self.tile_index, TileMapLayerKind::Objects);
+        debug_assert!(tile.is(TileKind::Unit));
+        tile
     }
 
     #[inline]
     fn find_tile_mut<'world>(&self, query: &'world Query) -> &'world mut Tile {
-        query.find_tile_mut(self.map_cell, TileMapLayerKind::Objects, TileKind::Unit)
-            .expect("Unit should have an associated Tile in the TileMap!")
+        let tile = query.tile_map().tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
+        debug_assert!(tile.is(TileKind::Unit));
+        tile
     }
 
     #[inline]

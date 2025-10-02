@@ -7,6 +7,7 @@ use serde::{
 };
 
 use crate::{
+    log,
     save::*,
     imgui_ui::UiSystem,
     utils::coords::{
@@ -468,29 +469,32 @@ impl World {
         let tile_cell = unit.cell();
         debug_assert!(tile_cell.is_valid());
 
-        let mut tiles = SmallVec::<[(TileGameObjectHandle, TilePoolIndex); 8]>::new();
+        let mut tiles = SmallVec::<[(TileGameObjectHandle, TilePoolIndex, Cell); 10]>::new();
 
         // Find and validate associated Tile:
         let tile = tile_map.find_tile(tile_cell, TileMapLayerKind::Objects, TileKind::Unit)
             .ok_or("Unit should have an associated Tile in the TileMap!")?;
 
-        tiles.push((tile.game_object_handle(), tile.index()));
+        tiles.push((tile.game_object_handle(), tile.index(), tile.base_cell()));
 
         if tile.is_stacked() {
             tile_map.visit_next_tiles(tile, |next_tile| {
-                tiles.push((next_tile.game_object_handle(), next_tile.index()));
+                tiles.push((next_tile.game_object_handle(), next_tile.index(), next_tile.base_cell()));
             });
         }
 
-        for (game_object_handle, tile_index) in tiles {
+        for (game_object_handle, tile_index, cell) in &tiles {
             if !game_object_handle.is_valid() {
                 return Err(format!("Unit tile '{}' {} should have a valid TileGameObjectHandle!", tile.name(), tile_cell));
             }
 
             if game_object_handle.index() == unit.id().index() &&
                game_object_handle.generation() == unit.id().generation() {
+                debug_assert!(unit.cell() == *cell);
+                debug_assert!(unit.tile_index() == *tile_index);
+
                 // First remove the associated Tile:
-                tile_map.try_clear_tile_from_layer_by_index(tile_index, tile_cell, TileMapLayerKind::Objects)?;
+                tile_map.try_clear_tile_from_layer_by_index(*tile_index, tile_cell, TileMapLayerKind::Objects)?;
 
                 // Put the unit instance back into the spawn pool.
                 self.unit_spawn_pool.despawn(unit, query, Unit::despawned);
@@ -499,16 +503,25 @@ impl World {
         }
 
         if cfg!(debug_assertions) {
-            panic!("Failed to find tile for Unit '{}' @ {}.", unit.name(), tile_cell);
+            log::error!("Failed to find tile for Unit '{}' @ {}, id: {}.", unit.name(), tile_cell, unit.id());
+            log::error!("--- Tiles @ {tile_cell} ---");
+
+            for (game_object_handle, tile_index, cell) in &tiles {
+                let id = UnitId::new(game_object_handle.generation(), game_object_handle.index());
+                let unit = self.unit_spawn_pool.try_get_mut(id).unwrap();
+                log::error!(" * Unit '{}': {game_object_handle:?}, {tile_index:?}, {cell:?}", unit.name());
+            }
+
+            panic!("Failed to find tile for Unit '{}' @ {}, id: {}.", unit.name(), tile_cell, unit.id());
         } else {
-            Err(format!("Failed to find tile for Unit '{}' @ {}.", unit.name(), tile_cell))
+            Err(format!("Failed to find tile for Unit '{}' @ {}, id: {}.", unit.name(), tile_cell, unit.id()))
         }
     }
 
     pub fn despawn_unit_at_cell(&mut self, query: &Query, tile_base_cell: Cell) -> Result<(), String> {
         debug_assert!(tile_base_cell.is_valid());
 
-        let mut units = SmallVec::<[&mut Unit; 8]>::new();
+        let mut units = SmallVec::<[&mut Unit; 10]>::new();
 
         let tile = query.tile_map().find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Unit)
             .ok_or("Tile cell does not contain a Unit!")?;

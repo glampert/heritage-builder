@@ -121,7 +121,7 @@ bitflags_with_display! {
 // ----------------------------------------------
 
 // Index into associated GameObject.
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct TileGameObjectHandle {
     // Index into SpawnPool.
     index: u32,
@@ -1171,7 +1171,7 @@ impl TileMapLayerMutRefs {
 // TilePoolIndex
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)] // Serialized as a newtype/tuple.
 pub struct TilePoolIndex {
     value: u32,
@@ -1192,7 +1192,7 @@ impl TilePoolIndex {
     }
 
     #[inline]
-    fn is_valid(self) -> bool {
+    pub fn is_valid(self) -> bool {
         self.value < u32::MAX
     }
 
@@ -1200,6 +1200,16 @@ impl TilePoolIndex {
     fn as_usize(self) -> usize {
         debug_assert!(self.is_valid());
         self.value as usize
+    }
+}
+
+impl std::fmt::Display for TilePoolIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.is_valid() {
+            write!(f, "[{}]", self.value)
+        } else {
+            write!(f, "[invalid]")
+        }
     }
 }
 
@@ -1323,7 +1333,6 @@ impl TilePool {
         TilePoolIndex::new(self.slab.vacant_key())
     }
 
-    #[inline]
     fn insert_tile(&mut self, cell: Cell, new_tile: Tile, allow_stacking: bool) -> bool {
         if !self.is_cell_within_bounds(cell) {
             return false;
@@ -1354,7 +1363,6 @@ impl TilePool {
         true
     }
 
-    #[inline]
     fn remove_tile(&mut self, cell: Cell) -> bool {
         if !self.is_cell_within_bounds(cell) {
             return false;
@@ -1380,9 +1388,8 @@ impl TilePool {
         true
     }
 
-    #[inline]
     fn remove_tile_by_index(&mut self, index_to_remove: TilePoolIndex, cell: Cell) -> bool {
-        if index_to_remove == INVALID_TILE_INDEX && !self.is_cell_within_bounds(cell) {
+        if index_to_remove == INVALID_TILE_INDEX || !self.is_cell_within_bounds(cell) {
             return false;
         }
 
@@ -1424,7 +1431,7 @@ impl TilePool {
         }
 
         debug_assert!(found_tile);
-        true
+        found_tile
     }
 }
 
@@ -1722,10 +1729,12 @@ impl TileMapLayer {
         true
     }
 
+    #[inline]
     pub fn remove_tile(&mut self, cell: Cell) -> bool {
         self.pool.remove_tile(cell)
     }
 
+    #[inline]
     pub fn remove_tile_by_index(&mut self, index: TilePoolIndex, cell: Cell) -> bool {
         self.pool.remove_tile_by_index(index, cell)
     }
@@ -2100,6 +2109,20 @@ impl TileMap {
     // ----------------------
 
     #[inline]
+    pub fn tile_at_index(&self, index: TilePoolIndex, layer_kind: TileMapLayerKind) -> &Tile {
+        debug_assert!(index != INVALID_TILE_INDEX);
+        let layer = self.layer(layer_kind);
+        &layer[index]
+    }
+
+    #[inline]
+    pub fn tile_at_index_mut(&mut self, index: TilePoolIndex, layer_kind: TileMapLayerKind) -> &mut Tile {
+        debug_assert!(index != INVALID_TILE_INDEX);
+        let layer = self.layer_mut(layer_kind);
+        &mut layer[index]
+    }
+
+    #[inline]
     pub fn next_tile(&self, tile: &Tile) -> Option<&Tile> {
         if tile.next_index == INVALID_TILE_INDEX {
             return None;
@@ -2337,12 +2360,13 @@ impl TileMap {
         {
             debug_assert!(from_idx != INVALID_TILE_INDEX);
             debug_assert!(layer[from_idx].is(TileKind::Unit));
+            debug_assert!(layer[from_idx].layer_kind() == layer_kind);
 
             let from_cell_index = layer.pool.cell_to_index(from_cell);
 
             let mut curr_tile_index = layer.pool.cell_index_to_slab(from_cell_index);
             let mut prev_tile_index = INVALID_TILE_INDEX;
-            let mut found_from_idx = false;
+            let mut found_tile = false;
 
             while curr_tile_index != INVALID_TILE_INDEX {
                 if curr_tile_index == from_idx {
@@ -2358,7 +2382,7 @@ impl TileMap {
 
                     debug_assert!(layer[curr_tile_index].self_index == curr_tile_index);
                     layer[curr_tile_index].next_index = INVALID_TILE_INDEX;
-                    found_from_idx = true;
+                    found_tile = true;
                     break;
                 }
 
@@ -2366,7 +2390,10 @@ impl TileMap {
                 curr_tile_index = layer[curr_tile_index].next_index;
             }
 
-            debug_assert!(found_from_idx);
+            if !found_tile {
+                debug_assert!(false, "Failed to find tile index {from_idx:?} for cell {from_cell}");
+                return false;
+            }
         }
 
         // Destination may be empty or may contain single tile or a stack.
@@ -2381,8 +2408,8 @@ impl TileMap {
 
             let from_tile = &mut layer[from_idx];
             from_tile.set_base_cell(to_cell);
-
             from_tile.next_index = to_slab_index;
+
             debug_assert!(from_tile.self_index == from_idx);
         }
 

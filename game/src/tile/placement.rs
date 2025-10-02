@@ -120,6 +120,10 @@ pub fn try_clear_tile_from_layer_by_index(layer: &mut TileMapLayer,
                                           target_cell: Cell) -> Result<(), String> {
 
     if let Some(tile) = layer.try_tile(target_cell) {
+        // For now only Units are supported.
+        debug_assert!(tile.is(TileKind::Unit));
+        debug_assert!(!tile.occupies_multiple_cells());
+
         let mut found_tile = false;
 
         // Find which tile in the stack we are removing:
@@ -138,7 +142,7 @@ pub fn try_clear_tile_from_layer_by_index(layer: &mut TileMapLayer,
             assert!(did_remove_tile);
             Ok(())
         } else {
-            Err(format!("Failed to find tile for index: {}, cell: {}.", target_index.as_usize(), target_cell))
+            Err(format!("Failed to find tile for index: {target_index:?}, cell: {target_cell}."))
         }
     } else {
         // Already empty.
