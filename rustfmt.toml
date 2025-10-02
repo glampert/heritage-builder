@@ -1,0 +1,30 @@
+# https://rust-lang.github.io/rustfmt
+
+# === Line breaking & width ===
+max_width = 100
+use_small_heuristics = "Max"           # Apply heuristics up to max_width (keeps code compact)
+
+# === Indentation ===
+hard_tabs = false
+tab_spaces = 4
+
+# === Imports ===
+reorder_imports = true
+group_imports = "StdExternalCrate"     # Groups: std | external crates | local
+imports_granularity = "Crate"          # Flatten `use crate::{a, b};` instead of nested trees
+
+# === Attributes & derives ===
+merge_derives = true                   # Combines #[derive(...)] onto one line
+normalize_doc_attributes = true        # Converts /// comments into #[doc = "..."]
+
+# === Braces & control flow ===
+brace_style = "SameLineWhere"          # K&R style
+control_brace_style = "AlwaysSameLine"
+
+# === Misc ===
+wrap_comments = true                   # Rewraps long comments to max_width
+format_macro_matchers = true
+format_macro_bodies = true
+
+# === Fn param formatting ===
+indent_style = "Visual"                # Aligns under the first argument (sometimes...)
