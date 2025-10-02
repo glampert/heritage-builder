@@ -1,25 +1,18 @@
-use strum_macros::Display;
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+use strum_macros::Display;
 
-use serde::{
-    Serialize,
-    Deserialize
-};
-
+use super::anim::{UnitAnimSetKey, UnitAnimSets};
 use crate::{
-    tile::TileMapLayerKind,
     debug::{self as debug_utils},
-    utils::coords::Cell,
     engine::time::Seconds,
-    pathfind::{Graph, Path, NodeKind as PathNodeKind},
     game::{
+        building::{BuildingKind, BuildingTileInfo},
         sim::Query,
-        building::{BuildingKind, BuildingTileInfo}
-    }
-};
-
-use super::{
-    anim::{UnitAnimSets, UnitAnimSetKey}
+    },
+    pathfind::{Graph, NodeKind as PathNodeKind, Path},
+    tile::TileMapLayerKind,
+    utils::coords::Cell,
 };
 
 // ----------------------------------------------
@@ -60,10 +53,10 @@ impl UnitDirection {
 
 #[inline]
 pub fn same_axis(a: UnitDirection, b: UnitDirection) -> bool {
-    (a.is_north() && b.is_north()) ||
-    (a.is_south() && b.is_south()) ||
-    (a.is_east()  && b.is_east())  ||
-    (a.is_west()  && b.is_west())
+    (a.is_north() && b.is_north())
+    || (a.is_south() && b.is_south())
+    || (a.is_east() && b.is_east())
+    || (a.is_west() && b.is_west())
 }
 
 #[inline]
@@ -94,10 +87,10 @@ pub fn direction_between(a: Cell, b: Cell) -> UnitDirection {
 pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
     match direction {
         UnitDirection::Idle => UnitAnimSets::IDLE,
-        UnitDirection::NE   => UnitAnimSets::WALK_NE,
-        UnitDirection::NW   => UnitAnimSets::WALK_NW,
-        UnitDirection::SE   => UnitAnimSets::WALK_SE,
-        UnitDirection::SW   => UnitAnimSets::WALK_SW,
+        UnitDirection::NE => UnitAnimSets::WALK_NE,
+        UnitDirection::NW => UnitAnimSets::WALK_NW,
+        UnitDirection::SE => UnitAnimSets::WALK_SE,
+        UnitDirection::SW => UnitAnimSets::WALK_SW,
     }
 }
 
@@ -117,36 +110,42 @@ pub enum UnitNavGoal {
     Tile {
         origin_cell: Cell,
         destination_cell: Cell,
-    }
+    },
 }
 
 impl UnitNavGoal {
     pub fn origin_cell(&self) -> Cell {
         match self {
             UnitNavGoal::Building { origin_base_cell, .. } => *origin_base_cell,
-            UnitNavGoal::Tile     { origin_cell, .. }      => *origin_cell,
+            UnitNavGoal::Tile { origin_cell, .. } => *origin_cell,
         }
     }
 
     pub fn destination_cell(&self) -> Cell {
         match self {
             UnitNavGoal::Building { destination_road_link, .. } => *destination_road_link,
-            UnitNavGoal::Tile     { destination_cell, .. }      => *destination_cell,
+            UnitNavGoal::Tile { destination_cell, .. } => *destination_cell,
         }
     }
 
     pub fn origin_debug_name(&self) -> &str {
         let (origin_cell, layer) = match self {
-            Self::Building { origin_base_cell, .. } => (*origin_base_cell, TileMapLayerKind::Objects),
-            Self::Tile     { origin_cell, .. }      => (*origin_cell,      TileMapLayerKind::Terrain),
+            Self::Building { origin_base_cell, .. } => {
+                (*origin_base_cell, TileMapLayerKind::Objects)
+            }
+            Self::Tile { origin_cell, .. } => (*origin_cell, TileMapLayerKind::Terrain),
         };
         debug_utils::tile_name_at(origin_cell, layer)
     }
 
     pub fn destination_debug_name(&self) -> &str {
         let (destination_cell, layer) = match self {
-            UnitNavGoal::Building { destination_base_cell, .. } => (*destination_base_cell, TileMapLayerKind::Objects),
-            UnitNavGoal::Tile     { destination_cell, .. }      => (*destination_cell,      TileMapLayerKind::Terrain),
+            UnitNavGoal::Building { destination_base_cell, .. } => {
+                (*destination_base_cell, TileMapLayerKind::Objects)
+            }
+            UnitNavGoal::Tile { destination_cell, .. } => {
+                (*destination_cell, TileMapLayerKind::Terrain)
+            }
         };
         debug_utils::tile_name_at(destination_cell, layer)
     }
@@ -156,14 +155,13 @@ impl UnitNavGoal {
     pub fn building(origin_kind: BuildingKind,
                     origin_base_cell: Cell,
                     destination_kind: BuildingKind,
-                    destination_tile: BuildingTileInfo) -> Self {
-        Self::Building {
-            origin_kind,
-            origin_base_cell,
-            destination_kind,
-            destination_base_cell: destination_tile.base_cell,
-            destination_road_link: destination_tile.road_link,
-        }
+                    destination_tile: BuildingTileInfo)
+                    -> Self {
+        Self::Building { origin_kind,
+                         origin_base_cell,
+                         destination_kind,
+                         destination_base_cell: destination_tile.base_cell,
+                         destination_road_link: destination_tile.road_link }
     }
 
     pub fn is_building(&self) -> bool {
@@ -174,7 +172,7 @@ impl UnitNavGoal {
         match self {
             Self::Building { origin_kind, origin_base_cell, .. } => {
                 (*origin_kind, *origin_base_cell)
-            },
+            }
             _ => panic!("UnitNavGoal not a Building goal!"),
         }
     }
@@ -183,7 +181,7 @@ impl UnitNavGoal {
         match self {
             Self::Building { destination_kind, destination_base_cell, .. } => {
                 (*destination_kind, *destination_base_cell)
-            },
+            }
             _ => panic!("UnitNavGoal not a Building goal!"),
         }
     }
@@ -192,10 +190,7 @@ impl UnitNavGoal {
 
     pub fn tile(origin_cell: Cell, path: &Path) -> Self {
         debug_assert!(!path.is_empty());
-        Self::Tile {
-            origin_cell,
-            destination_cell: path.last().unwrap().cell,
-        }
+        Self::Tile { origin_cell, destination_cell: path.last().unwrap().cell }
     }
 
     pub fn is_tile(&self) -> bool {
@@ -218,9 +213,10 @@ impl UnitNavGoal {
 }
 
 pub fn is_goal_vacant_lot_tile(goal: &UnitNavGoal, query: &Query) -> bool {
-    if goal.is_tile() {    
-        let maybe_tile = query.tile_map()
-            .try_tile_from_layer(goal.tile_destination(), TileMapLayerKind::Terrain);
+    if goal.is_tile() {
+        let maybe_tile =
+            query.tile_map()
+                 .try_tile_from_layer(goal.tile_destination(), TileMapLayerKind::Terrain);
         return maybe_tile.is_some_and(|tile| tile.path_kind() == PathNodeKind::VacantLot);
     }
     false
@@ -260,7 +256,8 @@ pub struct UnitNavigation {
     segment_duration: f32,
 
     #[debug_ui(skip)]
-    goal: Option<UnitNavGoal>, // (origin_cell, destination_cell) may be different from path start/end.
+    goal: Option<UnitNavGoal>, /* (origin_cell, destination_cell) may be different from path
+                                * start/end. */
 
     // Debug:
     #[serde(skip)]
@@ -304,7 +301,7 @@ impl UnitNavigation {
         }
 
         let from = self.path[self.path_index];
-        let to   = self.path[self.path_index + 1];
+        let to = self.path[self.path_index + 1];
 
         if graph.node_kind(to).is_none_or(|kind| !kind.intersects(self.traversable_node_kinds)) {
             return UnitNavResult::PathBlocked;
@@ -335,11 +332,13 @@ impl UnitNavigation {
     pub fn reset_path_only(&mut self) {
         self.path.clear();
         self.path_index = 0;
-        self.progress   = 0.0;
-        self.direction  = UnitDirection::default();
+        self.progress = 0.0;
+        self.direction = UnitDirection::default();
     }
 
-    pub fn reset_path_and_goal(&mut self, new_path: Option<&Path>, optional_goal: Option<UnitNavGoal>) {
+    pub fn reset_path_and_goal(&mut self,
+                               new_path: Option<&Path>,
+                               optional_goal: Option<UnitNavGoal>) {
         self.reset_path_only();
         self.goal = optional_goal;
 

@@ -1,48 +1,32 @@
-use rand::seq::IteratorRandom;
 use arrayvec::ArrayVec;
-use smallvec::{smallvec, SmallVec};
 use proc_macros::DrawDebugUi;
+use rand::seq::IteratorRandom;
+use serde::{Deserialize, Serialize};
+use smallvec::{smallvec, SmallVec};
 
-use serde::{
-    Serialize,
-    Deserialize
+use super::{
+    config::{BuildingConfig, BuildingConfigs},
+    BuildingBehavior, BuildingContext, BuildingKind,
 };
-
 use crate::{
-    game_object_debug_options,
     building_config,
+    game::{
+        cheats,
+        sim::resources::{ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers},
+        unit::{
+            task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage},
+            Unit,
+        },
+        world::stats::WorldStats,
+    },
+    game_object_debug_options,
     imgui_ui::UiSystem,
     save::PostLoadContext,
     tile::Tile,
     utils::{
+        hash::{self, StringHash},
         Color,
-        hash::{self, StringHash}
     },
-    game::{
-        cheats,
-        world::stats::WorldStats,
-        unit::{
-            Unit,
-            task::{
-                UnitTaskDeliverToStorage,
-                UnitTaskFetchFromStorage,
-            }
-        },
-        sim::resources::{
-            ResourceKind,
-            ResourceKinds,
-            ResourceStock,
-            StockItem,
-            Workers
-        }
-    }
-};
-
-use super::{
-    BuildingKind,
-    BuildingBehavior,
-    BuildingContext,
-    config::{BuildingConfig, BuildingConfigs}
 };
 
 // ----------------------------------------------
@@ -74,17 +58,15 @@ pub struct StorageConfig {
 impl Default for StorageConfig {
     #[inline]
     fn default() -> Self {
-        Self {
-            kind: BuildingKind::StorageYard,
-            name: "Storage Yard".into(),
-            tile_def_name: "storage_yard".into(),
-            tile_def_name_hash: hash::fnv1a_from_str("storage_yard"),
-            min_workers: 1,
-            max_workers: 4,
-            resources_accepted: ResourceKinds::all(),
-            num_slots: 8,
-            slot_capacity: 4,
-        }
+        Self { kind: BuildingKind::StorageYard,
+               name: "Storage Yard".into(),
+               tile_def_name: "storage_yard".into(),
+               tile_def_name_hash: hash::fnv1a_from_str("storage_yard"),
+               min_workers: 1,
+               max_workers: 4,
+               resources_accepted: ResourceKinds::all(),
+               num_slots: 8,
+               slot_capacity: 4 }
     }
 }
 
@@ -106,14 +88,16 @@ game_object_debug_options! {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StorageBuilding {
-    #[serde(skip)] config: Option<&'static StorageConfig>,
+    #[serde(skip)]
+    config: Option<&'static StorageConfig>,
 
     workers: Workers,
 
     // Stockpiles:
     storage_slots: Box<StorageSlots>,
 
-    #[serde(skip)] debug: StorageDebug,
+    #[serde(skip)]
+    debug: StorageDebug,
 }
 
 // ----------------------------------------------
@@ -155,7 +139,10 @@ impl BuildingBehavior for StorageBuilding {
                     let removed_count = unit.remove_resources(item.kind, received_count);
                     debug_assert!(removed_count == received_count);
 
-                    self.debug.popup_msg(format!("{} delivered {} {}", unit.name(), received_count, item.kind));
+                    self.debug.popup_msg(format!("{} delivered {} {}",
+                                                 unit.name(),
+                                                 received_count,
+                                                 item.kind));
                 }
             }
         } else if let Some(task) = unit.current_task_as::<UnitTaskFetchFromStorage>(task_manager) {
@@ -171,7 +158,10 @@ impl BuildingBehavior for StorageBuilding {
                     unit.receive_resources(item.kind, removed_count);
                     debug_assert!(removed_count == max_fetch_count);
 
-                    self.debug.popup_msg(format!("{} fetched {} {}", unit.name(), max_fetch_count, item.kind));
+                    self.debug.popup_msg(format!("{} fetched {} {}",
+                                                 unit.name(),
+                                                 max_fetch_count,
+                                                 item.kind));
                     break;
                 }
             }
@@ -209,7 +199,8 @@ impl BuildingBehavior for StorageBuilding {
         0
     }
 
-    // Returns number of resources it was able to accommodate, which can be less than `count`.
+    // Returns number of resources it was able to accommodate, which can be less
+    // than `count`.
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 && self.has_min_required_workers() {
             let received_count = self.storage_slots.receive_resources(kind, count);
@@ -231,12 +222,12 @@ impl BuildingBehavior for StorageBuilding {
     fn tally(&self, stats: &mut WorldStats, kind: BuildingKind) {
         if kind.intersects(BuildingKind::StorageYard) {
             self.storage_slots.for_each_resource(|item| {
-                stats.add_storage_yard_resources(item.kind, item.count);
-            });
+                                  stats.add_storage_yard_resources(item.kind, item.count);
+                              });
         } else if kind.intersects(BuildingKind::Granary) {
             self.storage_slots.for_each_resource(|item| {
-                stats.add_granary_resources(item.kind, item.count);
-            });
+                                  stats.add_granary_resources(item.kind, item.count);
+                              });
         } else {
             unimplemented!("Missing resource tally for storage kind {kind}.");
         }
@@ -246,8 +237,13 @@ impl BuildingBehavior for StorageBuilding {
     // Workers:
     // ----------------------
 
-    fn workers(&self) -> Option<&Workers> { Some(&self.workers) }
-    fn workers_mut(&mut self) -> Option<&mut Workers> { Some(&mut self.workers) }
+    fn workers(&self) -> Option<&Workers> {
+        Some(&self.workers)
+    }
+
+    fn workers_mut(&mut self) -> Option<&mut Workers> {
+        Some(&mut self.workers)
+    }
 
     #[inline]
     fn has_min_required_workers(&self) -> bool {
@@ -276,20 +272,15 @@ impl BuildingBehavior for StorageBuilding {
 
 impl StorageBuilding {
     pub fn new(config: &'static StorageConfig) -> Self {
-        Self {
-            config: Some(config),
-            workers: Workers::employer(config.min_workers, config.max_workers),
-            storage_slots: StorageSlots::new(
-                &config.resources_accepted,
-                config.num_slots,
-                config.slot_capacity
-            ),
-            debug: StorageDebug::default(),
-        }
+        Self { config: Some(config),
+               workers: Workers::employer(config.min_workers, config.max_workers),
+               storage_slots: StorageSlots::new(&config.resources_accepted,
+                                                config.num_slots,
+                                                config.slot_capacity),
+               debug: StorageDebug::default() }
     }
 
-    pub fn register_callbacks() {
-    }
+    pub fn register_callbacks() {}
 }
 
 // ----------------------------------------------
@@ -342,8 +333,12 @@ impl StorageSlot {
 
     fn resource_index_and_count(&self, kind: ResourceKind) -> (usize, u32) {
         debug_assert!(kind.is_single_resource());
-        let (index, item) = self.stock.find(kind)
-            .unwrap_or_else(|| panic!("Resource kind '{}' expected to exist in the stock!", kind));
+        let (index, item) =
+            self.stock
+                .find(kind)
+                .unwrap_or_else(|| {
+                    panic!("Resource kind '{}' expected to exist in the stock!", kind)
+                });
         (index, item.count)
     }
 
@@ -352,7 +347,11 @@ impl StorageSlot {
         self.stock.set(index, StockItem { kind, count });
     }
 
-    fn increment_resource_count(&mut self, kind: ResourceKind, add_amount: u32, slot_capacity: u32) -> u32 {
+    fn increment_resource_count(&mut self,
+                                kind: ResourceKind,
+                                add_amount: u32,
+                                slot_capacity: u32)
+                                -> u32 {
         let (index, mut count) = self.resource_index_and_count(kind);
 
         let prev_count = count;
@@ -380,7 +379,8 @@ impl StorageSlot {
         if count != 0 {
             count = count.saturating_sub(sub_amount);
 
-            // If we have a non-zero item count we must have an allocated item and its kind must match.
+            // If we have a non-zero item count we must have an allocated item and its kind
+            // must match.
             if self.allocated_resource_kind.unwrap() != kind {
                 panic!("Storage slot can only accept '{}'!", kind);
             }
@@ -399,8 +399,8 @@ impl StorageSlot {
         where F: FnMut(ResourceKind)
     {
         self.stock.for_each(|_, item| {
-            visitor_fn(item.kind);
-        });
+                      visitor_fn(item.kind);
+                  });
     }
 }
 
@@ -413,10 +413,9 @@ impl StorageSlots {
         let mut slots = ArrayVec::new();
 
         for _ in 0..num_slots {
-            slots.push(StorageSlot {
-                stock: ResourceStock::with_accepted_list(resources_accepted),
-                allocated_resource_kind: None,
-            });
+            slots.push(StorageSlot { stock:
+                                         ResourceStock::with_accepted_list(resources_accepted),
+                                     allocated_resource_kind: None });
         }
 
         Box::new(Self { slots, slot_capacity })
@@ -439,13 +438,21 @@ impl StorageSlots {
     }
 
     #[inline]
-    fn increment_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, add_amount: u32) -> u32 {
+    fn increment_slot_resource_count(&mut self,
+                                     slot_index: usize,
+                                     kind: ResourceKind,
+                                     add_amount: u32)
+                                     -> u32 {
         debug_assert!(kind.is_single_resource());
         self.slots[slot_index].increment_resource_count(kind, add_amount, self.slot_capacity)
     }
 
     #[inline]
-    fn decrement_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, sub_amount: u32) -> u32 {
+    fn decrement_slot_resource_count(&mut self,
+                                     slot_index: usize,
+                                     kind: ResourceKind,
+                                     sub_amount: u32)
+                                     -> u32 {
         debug_assert!(kind.is_single_resource());
         self.slots[slot_index].decrement_resource_count(kind, sub_amount)
     }
@@ -498,7 +505,8 @@ impl StorageSlots {
             }
         }
 
-        // Not in storage yet or other slots are full, see if we can allocate a new slot for it:
+        // Not in storage yet or other slots are full, see if we can allocate a new slot
+        // for it:
         self.find_free_slot()
     }
 
@@ -534,11 +542,9 @@ impl StorageSlots {
             None => return 0,
         };
 
-        let prev_count =
-            self.slot_resource_count(slot_index, kind);
+        let prev_count = self.slot_resource_count(slot_index, kind);
 
-        let new_count =
-            self.increment_slot_resource_count(slot_index, kind, count);
+        let new_count = self.increment_slot_resource_count(slot_index, kind, count);
 
         new_count - prev_count
     }
@@ -549,11 +555,9 @@ impl StorageSlots {
             None => return 0,
         };
 
-        let prev_count =
-            self.slot_resource_count(slot_index, kind);
+        let prev_count = self.slot_resource_count(slot_index, kind);
 
-        let new_count =
-            self.decrement_slot_resource_count(slot_index, kind, count);
+        let new_count = self.decrement_slot_resource_count(slot_index, kind, count);
 
         prev_count - new_count
     }
@@ -592,16 +596,14 @@ impl StorageSlots {
             for slot in &mut self.slots {
                 if let Some(allocated_kind) = slot.allocated_resource_kind {
                     // Fill up slot with existing resource.
-                    slot.increment_resource_count(allocated_kind, add_amount, slot_capacity);    
+                    slot.increment_resource_count(allocated_kind, add_amount, slot_capacity);
                 } else {
                     let accepted_kinds = slot.stock.accepted_kinds();
-    
+
                     // Pick a random resource kind from the accepted kinds.
                     let mut rng = rand::rng();
-                    let random_kind = accepted_kinds
-                        .iter()
-                        .choose(&mut rng)
-                        .unwrap_or(ResourceKind::Rice);
+                    let random_kind =
+                        accepted_kinds.iter().choose(&mut rng).unwrap_or(ResourceKind::Rice);
 
                     slot.increment_resource_count(random_kind, add_amount, slot_capacity);
                 }
@@ -624,10 +626,11 @@ impl StorageSlots {
                 // Display only the allocated resource kind.
                 display_slots[slot_index].push(allocated_kind);
             } else {
-                // No resource allocated for the slot, display all possible resource kinds accepted.
+                // No resource allocated for the slot, display all possible resource kinds
+                // accepted.
                 slot.for_each_accepted_resource(|kind| {
-                    display_slots[slot_index].push(kind);
-                });
+                        display_slots[slot_index].push(kind);
+                    });
             }
         }
 
@@ -641,8 +644,7 @@ impl StorageSlots {
                 }
             };
 
-            let header_label =
-                format!("{}##_stock_slot_{}", slot_label, slot_index);
+            let header_label = format!("{}##_stock_slot_{}", slot_label, slot_index);
 
             if ui.collapsing_header(header_label, imgui::TreeNodeFlags::DEFAULT_OPEN) {
                 for (res_index, res_kind) in slot.iter().enumerate() {
@@ -655,13 +657,17 @@ impl StorageSlots {
                     if ui.input_scalar(res_label, &mut new_count).step(1).build() {
                         match new_count.cmp(&prev_count) {
                             std::cmp::Ordering::Greater => {
-                                new_count = self.increment_slot_resource_count(
-                                    slot_index, *res_kind, new_count - prev_count);
-                            },
+                                new_count = self.increment_slot_resource_count(slot_index,
+                                                                               *res_kind,
+                                                                               new_count
+                                                                               - prev_count);
+                            }
                             std::cmp::Ordering::Less => {
-                                new_count = self.decrement_slot_resource_count(
-                                    slot_index, *res_kind, prev_count - new_count);
-                            },
+                                new_count = self.decrement_slot_resource_count(slot_index,
+                                                                               *res_kind,
+                                                                               prev_count
+                                                                               - new_count);
+                            }
                             std::cmp::Ordering::Equal => {} // nothing
                         }
                     }

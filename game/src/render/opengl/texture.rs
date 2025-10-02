@@ -1,17 +1,16 @@
-use std::ffi::c_void;
-use std::any::Any;
+use std::{any::Any, ffi::c_void};
+
 use bitflags::bitflags;
 use image::GenericImageView;
 
-use crate::{
-    log,
-    utils::Size,
-    render::{self, TextureHandle, NativeTextureHandle}
-};
-
 use super::{
     gl_error_to_string,
-    shader::{ShaderVarTrait, ShaderVariable}
+    shader::{ShaderVarTrait, ShaderVariable},
+};
+use crate::{
+    log,
+    render::{self, NativeTextureHandle, TextureHandle},
+    utils::Size,
 };
 
 // ----------------------------------------------
@@ -38,10 +37,9 @@ pub struct TextureUnit(pub u32);
 impl ShaderVarTrait for &Texture2D {
     fn set_uniform(variable: &ShaderVariable, texture: &Texture2D) {
         unsafe {
-            gl::ProgramUniform1i(
-                variable.program_handle,
-                variable.location,
-                texture.tex_unit.0 as gl::types::GLint);
+            gl::ProgramUniform1i(variable.program_handle,
+                                 variable.location,
+                                 texture.tex_unit.0 as gl::types::GLint);
         }
     }
 }
@@ -55,9 +53,9 @@ impl ShaderVarTrait for &Texture2D {
 #[derive(Copy, Clone)]
 pub enum TextureFilter {
     Nearest = gl::NEAREST,
-    Linear  = gl::LINEAR,
+    Linear = gl::LINEAR,
     NearestMipmapNearest = gl::NEAREST_MIPMAP_NEAREST,
-    LinearMipmapLinear   = gl::LINEAR_MIPMAP_LINEAR,
+    LinearMipmapLinear = gl::LINEAR_MIPMAP_LINEAR,
 }
 
 // Equivalent to the GL_TEXTURE_WRAP enums.
@@ -89,8 +87,8 @@ impl Texture2D {
                      filter: TextureFilter,
                      wrap_mode: TextureWrapMode,
                      tex_unit: TextureUnit,
-                     gen_mipmaps: bool) -> Result<Self, String> {
-
+                     gen_mipmaps: bool)
+                     -> Result<Self, String> {
         debug_assert!(!file_path.is_empty());
 
         let mut image = match image::open(file_path) {
@@ -112,18 +110,13 @@ impl Texture2D {
         let image_buffer = image.to_rgba8();
         let image_raw_bytes = image_buffer.into_raw();
 
-        Ok(Self::with_data_raw(
-            image_raw_bytes.as_ptr() as *const c_void,
-            Size::new(
-                image_dims.0 as i32,
-                image_dims.1 as i32
-            ),
-            filter,
-            wrap_mode,
-            tex_unit,
-            gen_mipmaps,
-            file_path
-        ))
+        Ok(Self::with_data_raw(image_raw_bytes.as_ptr() as *const c_void,
+                               Size::new(image_dims.0 as i32, image_dims.1 as i32),
+                               filter,
+                               wrap_mode,
+                               tex_unit,
+                               gen_mipmaps,
+                               file_path))
     }
 
     pub fn with_data_raw(data: *const c_void,
@@ -132,8 +125,8 @@ impl Texture2D {
                          wrap_mode: TextureWrapMode,
                          tex_unit: TextureUnit,
                          gen_mipmaps: bool,
-                         debug_name: &str) -> Self {
-
+                         debug_name: &str)
+                         -> Self {
         debug_assert!((tex_unit.0 as usize) < MAX_TEXTURE_UNITS);
         debug_assert!(!data.is_null());
         debug_assert!(size.is_valid());
@@ -148,16 +141,15 @@ impl Texture2D {
             gl::ActiveTexture(gl::TEXTURE0 + tex_unit.0);
             gl::BindTexture(gl::TEXTURE_2D, handle);
 
-            gl::TexImage2D(
-                gl::TEXTURE_2D,
-                0,
-                gl::RGBA as gl::types::GLint, // Only RGBA images supported for now.
-                size.width as gl::types::GLsizei,
-                size.height as gl::types::GLsizei,
-                0,
-                gl::RGBA,
-                gl::UNSIGNED_BYTE,
-                data);
+            gl::TexImage2D(gl::TEXTURE_2D,
+                           0,
+                           gl::RGBA as gl::types::GLint, // Only RGBA images supported for now.
+                           size.width as gl::types::GLsizei,
+                           size.height as gl::types::GLsizei,
+                           0,
+                           gl::RGBA,
+                           gl::UNSIGNED_BYTE,
+                           data);
 
             if gen_mipmaps {
                 gl::GenerateMipmap(gl::TEXTURE_2D);
@@ -177,14 +169,12 @@ impl Texture2D {
                 TextureFilter::LinearMipmapLinear => (gl::LINEAR_MIPMAP_LINEAR, gl::LINEAR),
             };
 
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MIN_FILTER,
-                gl_min_filter as gl::types::GLint);
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MAG_FILTER,
-                gl_mag_filter as gl::types::GLint);
+            gl::TexParameteri(gl::TEXTURE_2D,
+                              gl::TEXTURE_MIN_FILTER,
+                              gl_min_filter as gl::types::GLint);
+            gl::TexParameteri(gl::TEXTURE_2D,
+                              gl::TEXTURE_MAG_FILTER,
+                              gl_mag_filter as gl::types::GLint);
 
             let gl_wrap_mode = wrap_mode as gl::types::GLint;
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl_wrap_mode);
@@ -197,15 +187,13 @@ impl Texture2D {
             handle
         };
 
-        Self {
-            handle,
-            tex_unit,
-            size,
-            filter,
-            wrap_mode,
-            has_mipmaps: gen_mipmaps,
-            name: debug_name.to_string(),
-        }
+        Self { handle,
+               tex_unit,
+               size,
+               filter,
+               wrap_mode,
+               has_mipmaps: gen_mipmaps,
+               name: debug_name.to_string() }
     }
 
     pub fn is_valid(&self) -> bool {
@@ -271,17 +259,15 @@ pub struct TextureCache {
 
 impl TextureCache {
     pub fn new(initial_capacity: usize) -> Self {
-        let mut tex_cache = Self {
-            textures: Vec::with_capacity(initial_capacity),
-            dummy_texture_handle: TextureHandle::invalid(),
-            white_texture_handle: TextureHandle::invalid(),
-        };
+        let mut tex_cache = Self { textures: Vec::with_capacity(initial_capacity),
+                                   dummy_texture_handle: TextureHandle::invalid(),
+                                   white_texture_handle: TextureHandle::invalid() };
 
-        tex_cache.dummy_texture_handle = tex_cache.create_color_filled_8x8_texture(
-            "dummy_texture", [ 255, 0, 255, 255 ]); // magenta
+        tex_cache.dummy_texture_handle =
+            tex_cache.create_color_filled_8x8_texture("dummy_texture", [255, 0, 255, 255]); // magenta
 
-        tex_cache.white_texture_handle = tex_cache.create_color_filled_8x8_texture(
-            "white_texture", [ 255, 255, 255, 255 ]); // white
+        tex_cache.white_texture_handle =
+            tex_cache.create_color_filled_8x8_texture("white_texture", [255, 255, 255, 255]); // white
 
         tex_cache
     }
@@ -290,7 +276,7 @@ impl TextureCache {
     pub fn handle_to_texture(&self, handle: TextureHandle) -> &Texture2D {
         match handle {
             TextureHandle::Invalid => self.dummy_texture(),
-            TextureHandle::White   => self.white_texture(),
+            TextureHandle::White => self.white_texture(),
             TextureHandle::Index(handle_index) => {
                 let index = handle_index as usize;
                 if index < self.textures.len() {
@@ -306,7 +292,7 @@ impl TextureCache {
     pub fn dummy_texture(&self) -> &Texture2D {
         match self.dummy_texture_handle {
             TextureHandle::Index(index) => &self.textures[index as usize],
-            _ => panic!("Unexpected value for dummy_texture_handle!")
+            _ => panic!("Unexpected value for dummy_texture_handle!"),
         }
     }
 
@@ -314,7 +300,7 @@ impl TextureCache {
     pub fn white_texture(&self) -> &Texture2D {
         match self.white_texture_handle {
             TextureHandle::Index(index) => &self.textures[index as usize],
-            _ => panic!("Unexpected value for white_texture_handle!")
+            _ => panic!("Unexpected value for white_texture_handle!"),
         }
     }
 
@@ -331,19 +317,20 @@ impl TextureCache {
                                   filter: TextureFilter,
                                   wrap_mode: TextureWrapMode,
                                   tex_unit: TextureUnit,
-                                  gen_mipmaps: bool) -> TextureHandle {
-
+                                  gen_mipmaps: bool)
+                                  -> TextureHandle {
         let texture = match Texture2D::from_file(file_path,
-                                                            flags,
-                                                            filter,
-                                                            wrap_mode,
-                                                            tex_unit,
-                                                            gen_mipmaps) {
+                                                 flags,
+                                                 filter,
+                                                 wrap_mode,
+                                                 tex_unit,
+                                                 gen_mipmaps)
+        {
             Ok(texture) => texture,
             Err(err) => {
                 log::error!(log::channel!("render"), "TextureCache Load Error: {err}");
                 return self.dummy_texture_handle;
-            },
+            }
         };
 
         self.add_texture(texture)
@@ -351,7 +338,8 @@ impl TextureCache {
 
     fn create_color_filled_8x8_texture(&mut self,
                                        debug_name: &str,
-                                       color: [u8; 4]) -> TextureHandle {
+                                       color: [u8; 4])
+                                       -> TextureHandle {
         use std::ffi::c_void;
 
         #[repr(C)]
@@ -366,22 +354,24 @@ impl TextureCache {
 
         const SIZE: Size = Size::new(8, 8);
         const PIXEL_COUNT: usize = (SIZE.width * SIZE.height) as usize;
-        let pixels = [RGBA8{ r: color[0], g: color[1], b: color[2], a: color[3] }; PIXEL_COUNT];
+        let pixels = [RGBA8 { r: color[0], g: color[1], b: color[2], a: color[3] }; PIXEL_COUNT];
 
         let texture = Texture2D::with_data_raw(pixels.as_ptr() as *const c_void,
-                                                          SIZE,
-                                                          TextureFilter::Nearest,
-                                                          TextureWrapMode::ClampToEdge,
-                                                          TextureUnit(0),
-                                                          false,
-                                                          debug_name);
+                                               SIZE,
+                                               TextureFilter::Nearest,
+                                               TextureWrapMode::ClampToEdge,
+                                               TextureUnit(0),
+                                               false,
+                                               debug_name);
 
         self.add_texture(texture)
     }
 }
 
 impl render::TextureCache for TextureCache {
-    fn as_any(&self) -> &dyn Any { self }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 
     #[inline]
     fn load_texture(&mut self, file_path: &str) -> TextureHandle {

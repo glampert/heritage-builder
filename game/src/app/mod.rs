@@ -1,17 +1,9 @@
 use std::any::Any;
+
+use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
 use smallvec::SmallVec;
 
-use crate::{
-    utils::{Size, Vec2}
-};
-
-use input::{
-    InputAction,
-    InputKey,
-    InputModifiers,
-    InputSystem,
-    MouseButton
-};
+use crate::utils::{Size, Vec2};
 
 pub mod input;
 
@@ -44,10 +36,7 @@ pub trait Application: Any {
 }
 
 pub trait ApplicationFactory: Sized {
-    fn new(title: &str,
-           window_size: Size,
-           fullscreen: bool,
-           confine_cursor: bool) -> Self;
+    fn new(title: &str, window_size: Size, fullscreen: bool, confine_cursor: bool) -> Self;
 }
 
 // ----------------------------------------------
@@ -64,7 +53,7 @@ pub enum ApplicationEvent {
     MouseButton(MouseButton, InputAction, InputModifiers),
 }
 
-pub type ApplicationEventList = SmallVec::<[ApplicationEvent; 16]>;
+pub type ApplicationEventList = SmallVec<[ApplicationEvent; 16]>;
 
 // ----------------------------------------------
 // ApplicationBuilder
@@ -79,12 +68,10 @@ pub struct ApplicationBuilder<'a> {
 
 impl<'a> ApplicationBuilder<'a> {
     pub fn new() -> Self {
-        Self {
-            title: "",
-            window_size: Size::new(1024, 768),
-            fullscreen: false,
-            confine_cursor: false,
-        }
+        Self { title: "",
+               window_size: Size::new(1024, 768),
+               fullscreen: false,
+               confine_cursor: false }
     }
 
     pub fn window_title(&mut self, title: &'a str) -> &mut Self {
@@ -110,10 +97,9 @@ impl<'a> ApplicationBuilder<'a> {
     pub fn build<AppBackendImpl>(&self) -> Box<AppBackendImpl>
         where AppBackendImpl: Application + ApplicationFactory + 'static
     {
-        Box::new(AppBackendImpl::new(
-            self.title,
-            self.window_size,
-            self.fullscreen,
-            self.confine_cursor))
+        Box::new(AppBackendImpl::new(self.title,
+                                     self.window_size,
+                                     self.fullscreen,
+                                     self.confine_cursor))
     }
 }

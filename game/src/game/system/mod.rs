@@ -1,24 +1,12 @@
 use std::any::Any;
+
+use enum_dispatch::enum_dispatch;
+use serde::{Deserialize, Serialize};
 use strum::EnumCount;
 use strum_macros::EnumCount;
-use enum_dispatch::enum_dispatch;
 
-use serde::{
-    Serialize,
-    Deserialize
-};
-
-use crate::{
-    utils::mem,
-    save::*,
-    imgui_ui::UiSystem,
-};
-
-use super::{
-    constants::*,
-    sim::Query,
-    world::object::GenerationalIndex
-};
+use super::{constants::*, sim::Query, world::object::GenerationalIndex};
+use crate::{imgui_ui::UiSystem, save::*, utils::mem};
 
 pub mod settlers;
 use settlers::SettlersSpawnSystem;
@@ -66,10 +54,7 @@ pub struct GameSystems {
 
 impl GameSystems {
     pub fn new() -> Self {
-        Self {
-            systems: Vec::with_capacity(GameSystemImpl::COUNT),
-            generation: INITIAL_GENERATION,
-        }
+        Self { systems: Vec::with_capacity(GameSystemImpl::COUNT), generation: INITIAL_GENERATION }
     }
 
     pub fn register<System>(&mut self, system: System) -> GameSystemId
@@ -163,8 +148,8 @@ impl Load for GameSystems {
 
         for entry in &mut self.systems {
             debug_assert!(entry.generation != RESERVED_GENERATION);
-            debug_assert!(entry.generation  < self.generation);
- 
+            debug_assert!(entry.generation < self.generation);
+
             entry.system.post_load(context);
         }
     }

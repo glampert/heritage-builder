@@ -1,23 +1,11 @@
 #![allow(clippy::collapsible_else_if)]
 
-use std::ops::RangeInclusive;
-use std::iter::FusedIterator;
+use std::{iter::FusedIterator, ops::RangeInclusive};
 
-use serde::{
-    Serialize,
-    Deserialize
-};
+use serde::{Deserialize, Serialize};
 
-use crate::{
-    field_accessor_xy
-};
-
-use super::{
-    FieldAccessorXY,
-    Vec2,
-    Size,
-    Rect
-};
+use super::{FieldAccessorXY, Rect, Size, Vec2};
+use crate::field_accessor_xy;
 
 // ----------------------------------------------
 // IsoPoint
@@ -137,8 +125,10 @@ impl CellRange {
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        self.start.is_valid() && self.end.is_valid() &&
-        self.start.x <= self.end.x && self.start.y <= self.end.y
+        self.start.is_valid()
+        && self.end.is_valid()
+        && self.start.x <= self.end.x
+        && self.start.y <= self.end.y
     }
 
     #[inline]
@@ -200,10 +190,10 @@ impl std::fmt::Display for CellRange {
 
 #[derive(Copy, Clone)]
 pub struct CellRangeIter<const REVERSED: bool> {
-    range:  CellRange,
+    range: CellRange,
     curr_y: i32,
     curr_x: i32,
-    done:   bool,
+    done: bool,
 }
 
 impl<const REVERSED: bool> CellRangeIter<REVERSED> {
@@ -211,12 +201,7 @@ impl<const REVERSED: bool> CellRangeIter<REVERSED> {
     pub fn new(range: CellRange) -> Self {
         let curr_y = if REVERSED { range.end.y } else { range.start.y };
         let curr_x = if REVERSED { range.end.x } else { range.start.x };
-        Self {
-            range,
-            curr_y,
-            curr_x,
-            done: false,
-        }
+        Self { range, curr_y, curr_x, done: false }
     }
 }
 
@@ -229,10 +214,7 @@ impl<const REVERSED: bool> Iterator for CellRangeIter<REVERSED> {
             return None;
         }
 
-        let result = Cell {
-            x: self.curr_x,
-            y: self.curr_y,
-        };
+        let result = Cell { x: self.curr_x, y: self.curr_y };
 
         // Determine next x,y:
         if REVERSED {
@@ -260,7 +242,8 @@ impl<const REVERSED: bool> Iterator for CellRangeIter<REVERSED> {
 }
 
 // Returns exactly how many elements are left.
-// The Rust standard library can use this trait for iterator performance optimizations.
+// The Rust standard library can use this trait for iterator performance
+// optimizations.
 impl<const REVERSED: bool> ExactSizeIterator for CellRangeIter<REVERSED> {
     #[inline]
     fn len(&self) -> usize {
@@ -318,10 +301,7 @@ pub struct WorldToScreenTransform {
 
 impl WorldToScreenTransform {
     pub fn new(scaling: f32, offset: Vec2) -> Self {
-        let transform = Self {
-            scaling,
-            offset,
-        };
+        let transform = Self { scaling, offset };
         debug_assert!(transform.is_valid());
         transform
     }
@@ -351,7 +331,7 @@ impl WorldToScreenTransform {
     pub fn apply_to_rect(&self, iso_position: IsoPoint, size: Size) -> Rect {
         let screen_position = self.apply_to_iso_point(iso_position);
         // Apply scaling:
-        let screen_width  = (size.width  as f32) * self.scaling;
+        let screen_width = (size.width as f32) * self.scaling;
         let screen_height = (size.height as f32) * self.scaling;
         Rect::new(screen_position, Vec2::new(screen_width, screen_height))
     }
@@ -361,7 +341,7 @@ impl WorldToScreenTransform {
         let x = rect.x() + (self.offset.x * self.scaling);
         let y = rect.y() + (self.offset.y * self.scaling);
 
-        let width  = rect.width()  * self.scaling;
+        let width = rect.width() * self.scaling;
         let height = rect.height() * self.scaling;
 
         Rect::new(Vec2::new(x, y), Vec2::new(width, height))
@@ -370,10 +350,7 @@ impl WorldToScreenTransform {
 
 impl Default for WorldToScreenTransform {
     fn default() -> Self {
-        Self {
-            scaling: 1.0,
-            offset: Vec2::zero()
-        }
+        Self { scaling: 1.0, offset: Vec2::zero() }
     }
 }
 
@@ -391,22 +368,22 @@ impl Default for WorldToScreenTransform {
 
 #[inline]
 pub fn iso_to_cell(iso_point: IsoPoint, tile_size: Size) -> Cell {
-    let half_tile_width  = tile_size.width  / 2;
+    let half_tile_width = tile_size.width / 2;
     let half_tile_height = tile_size.height / 2;
 
     // Invert Y axis to match top-left origin
-    let cell_x = (( iso_point.x / half_tile_width)  + (-iso_point.y / half_tile_height)) / 2;
-    let cell_y = ((-iso_point.y / half_tile_height) - ( iso_point.x / half_tile_width))  / 2;
+    let cell_x = ((iso_point.x / half_tile_width) + (-iso_point.y / half_tile_height)) / 2;
+    let cell_y = ((-iso_point.y / half_tile_height) - (iso_point.x / half_tile_width)) / 2;
 
     Cell::new(cell_x, cell_y)
 }
 
 #[inline]
 pub fn cell_to_iso(cell: Cell, tile_size: Size) -> IsoPoint {
-    let half_tile_width  = tile_size.width  / 2;
+    let half_tile_width = tile_size.width / 2;
     let half_tile_height = tile_size.height / 2;
 
-    let iso_x = (cell.x - cell.y) *  half_tile_width;
+    let iso_x = (cell.x - cell.y) * half_tile_width;
     let iso_y = (cell.x + cell.y) * -half_tile_height; // flip Y (top-left origin)
 
     IsoPoint::new(iso_x, iso_y)
@@ -415,10 +392,11 @@ pub fn cell_to_iso(cell: Cell, tile_size: Size) -> IsoPoint {
 #[inline]
 pub fn iso_to_screen_point(iso_point: IsoPoint,
                            transform: WorldToScreenTransform,
-                           tile_size: Size) -> Vec2 {
+                           tile_size: Size)
+                           -> Vec2 {
     // Undo offsetting.
     let mut iso = iso_point;
-    iso.x += tile_size.width  / 2;
+    iso.x += tile_size.width / 2;
     iso.y += tile_size.height / 2;
 
     transform.apply_to_iso_point(iso)
@@ -427,12 +405,13 @@ pub fn iso_to_screen_point(iso_point: IsoPoint,
 #[inline]
 pub fn screen_to_iso_point(screen_point: Vec2,
                            transform: WorldToScreenTransform,
-                           tile_size: Size) -> IsoPoint {
-
+                           tile_size: Size)
+                           -> IsoPoint {
     let mut iso_pos = transform.apply_to_screen_point(screen_point);
 
-    // Offset the iso point downward by half a tile (visually centers the hit test to the tile center).
-    iso_pos.x -= tile_size.width  / 2;
+    // Offset the iso point downward by half a tile (visually centers the hit test
+    // to the tile center).
+    iso_pos.x -= tile_size.width / 2;
     iso_pos.y -= tile_size.height / 2;
     iso_pos
 }
@@ -440,8 +419,8 @@ pub fn screen_to_iso_point(screen_point: Vec2,
 #[inline]
 pub fn iso_to_screen_rect(iso_position: IsoPoint,
                           size: Size,
-                          transform: WorldToScreenTransform) -> Rect {
-
+                          transform: WorldToScreenTransform)
+                          -> Rect {
     transform.apply_to_rect(iso_position, size)
 }
 
@@ -449,13 +428,14 @@ pub fn iso_to_screen_rect(iso_position: IsoPoint,
 #[inline]
 pub fn iso_to_screen_rect_f32(iso_position: Vec2,
                               size: Size,
-                              transform: WorldToScreenTransform) -> Rect {
+                              transform: WorldToScreenTransform)
+                              -> Rect {
     // Apply offset and scaling:
     let screen_x = (iso_position.x * transform.scaling) + transform.offset.x;
     let screen_y = (iso_position.y * transform.scaling) + transform.offset.y;
 
     // Apply scaling:
-    let screen_width  = (size.width  as f32) * transform.scaling;
+    let screen_width = (size.width as f32) * transform.scaling;
     let screen_height = (size.height as f32) * transform.scaling;
     Rect::new(Vec2::new(screen_x, screen_y), Vec2::new(screen_width, screen_height))
 }
@@ -479,15 +459,11 @@ pub fn is_screen_point_inside_cell(screen_point: Vec2,
                                    cell: Cell,
                                    tile_size: Size,
                                    base_tile_size: Size,
-                                   transform: WorldToScreenTransform) -> bool {
-
+                                   transform: WorldToScreenTransform)
+                                   -> bool {
     debug_assert!(transform.is_valid());
 
-    let screen_points = cell_to_screen_diamond_points(
-        cell,
-        tile_size,
-        base_tile_size,
-        transform);
+    let screen_points = cell_to_screen_diamond_points(cell, tile_size, base_tile_size, transform);
 
     is_screen_point_inside_diamond(screen_point, &screen_points)
 }
@@ -517,16 +493,18 @@ pub fn is_screen_point_inside_triangle(point: Vec2, a: Vec2, b: Vec2, c: Vec2) -
     let v = (dot00 * dot12 - dot01 * dot02) * inv_denom;
 
     // Check if point is inside the triangle:
-    //  - If all weights are between 0 and 1 and their sum is <= 1, the point lies inside the triangle.
+    //  - If all weights are between 0 and 1 and their sum is <= 1, the point lies
+    //    inside the triangle.
     u >= 0.0 && v >= 0.0 && (u + v) <= 1.0
 }
 
-// Creates an isometric-aligned diamond rectangle for the given tile size and cell location.
+// Creates an isometric-aligned diamond rectangle for the given tile size and
+// cell location.
 pub fn cell_to_screen_diamond_points(cell: Cell,
                                      tile_size: Size,
                                      base_tile_size: Size,
-                                     transform: WorldToScreenTransform) -> [Vec2; 4] {
-
+                                     transform: WorldToScreenTransform)
+                                     -> [Vec2; 4] {
     debug_assert!(transform.is_valid());
 
     let iso_center = cell_to_iso(cell, base_tile_size);
@@ -546,5 +524,5 @@ pub fn cell_to_screen_diamond_points(cell: Cell,
     let right  = Vec2::new(screen_center.x + half_tile_w, screen_center.y - half_tile_h + half_base_h);
     let left   = Vec2::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
 
-    [ top, right, bottom, left ]
+    [top, right, bottom, left]
 }

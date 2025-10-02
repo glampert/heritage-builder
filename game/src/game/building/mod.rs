@@ -1,84 +1,62 @@
 #![allow(clippy::enum_variant_names)]
 
-use paste::paste;
-use smallvec::SmallVec;
 use bitflags::{bitflags, Flags};
+use config::{BuildingConfig, BuildingConfigs};
+use enum_dispatch::enum_dispatch;
+use house::HouseBuilding;
+use paste::paste;
+use proc_macros::DrawDebugUi;
+use producer::ProducerBuilding;
+use serde::{Deserialize, Serialize};
+use service::ServiceBuilding;
+use smallvec::SmallVec;
+use storage::StorageBuilding;
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
-use enum_dispatch::enum_dispatch;
-use proc_macros::DrawDebugUi;
 
-use serde::{
-    Serialize,
-    Deserialize
+use super::{
+    sim::{
+        debug::DebugUiMode,
+        resources::{
+            Population, ResourceKind, ResourceKinds, ResourceStock, ServiceKind, StockItem,
+            Workers, RESOURCE_KIND_COUNT,
+        },
+        Query,
+    },
+    unit::{patrol::Patrol, runner::Runner, Unit},
+    world::{
+        debug::GameObjectDebugOptions,
+        object::{GameObject, GenerationalIndex},
+        stats::WorldStats,
+    },
 };
-
 use crate::{
-    log,
-    imgui_ui::UiSystem,
-    save::PostLoadContext,
     bitflags_with_display,
     engine::time::UpdateTimer,
     game::config::GameConfigs,
+    imgui_ui::UiSystem,
+    log,
     pathfind::{self, NodeKind as PathNodeKind},
-    utils::{
-        Color,
-        mem,
-        hash::StringHash,
-        coords::{Cell, CellRange, WorldToScreenTransform}
-    },
+    save::PostLoadContext,
     tile::{
-        Tile,
-        TileKind,
-        TileFlags,
-        TileMap,
-        TileMapLayerKind,
-        TileGameObjectHandle,
-        sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY}
-    }
-};
-
-use super::{
-    unit::{
-        Unit,
-        patrol::Patrol,
-        runner::Runner
+        sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY},
+        Tile, TileFlags, TileGameObjectHandle, TileKind, TileMap, TileMapLayerKind,
     },
-    world::{
-        stats::WorldStats,
-        debug::GameObjectDebugOptions,
-        object::{GameObject, GenerationalIndex}
+    utils::{
+        coords::{Cell, CellRange, WorldToScreenTransform},
+        hash::StringHash,
+        mem, Color,
     },
-    sim::{
-        Query,
-        debug::DebugUiMode,
-        resources::{
-            Workers,
-            Population,
-            ServiceKind,
-            StockItem,
-            ResourceKind,
-            ResourceKinds,
-            ResourceStock,
-            RESOURCE_KIND_COUNT
-        }
-    }
 };
-
-use config::{BuildingConfig, BuildingConfigs};
-use producer::ProducerBuilding;
-use storage::StorageBuilding;
-use service::ServiceBuilding;
-use house::HouseBuilding;
 
 pub mod config;
 pub use house::HouseLevel;
 
-mod producer;
-mod storage;
-mod service;
 mod house;
 mod house_upgrade;
+mod producer;
+mod service;
+mod storage;
 
 // ----------------------------------------------
 // BuildingKind
@@ -112,38 +90,47 @@ impl BuildingKind {
         self.bits().count_ones() == 1
     }
 
-    #[inline] pub const fn count() -> usize { Self::FLAGS.len() }
-
-    #[inline] pub const fn producer_count() -> usize { Self::producers().bits().count_ones() as usize }
-    #[inline] pub const fn producers() -> Self {
-        Self::from_bits_retain(
-            Self::Farm.bits() |
-            Self::Factory.bits()
-        )
+    #[inline]
+    pub const fn count() -> usize {
+        Self::FLAGS.len()
     }
 
-    #[inline] pub const fn storage_count() -> usize { Self::storage().bits().count_ones() as usize }
-    #[inline] pub const fn storage() -> Self {
-        Self::from_bits_retain(
-            Self::Granary.bits() |
-            Self::StorageYard.bits()
-        )
+    #[inline]
+    pub const fn producer_count() -> usize {
+        Self::producers().bits().count_ones() as usize
     }
 
-    #[inline] pub const fn services_count() -> usize { Self::services().bits().count_ones() as usize }
-    #[inline] pub const fn services() -> Self {
-        Self::from_bits_retain(
-            Self::WellSmall.bits() |
-            Self::WellBig.bits() |
-            Self::Market.bits() |
-            Self::TaxOffice.bits()
-        )
+    #[inline]
+    pub const fn producers() -> Self {
+        Self::from_bits_retain(Self::Farm.bits() | Self::Factory.bits())
     }
 
-    #[inline] pub const fn treasury() -> Self {
-        Self::from_bits_retain(
-            Self::TaxOffice.bits()
-        )
+    #[inline]
+    pub const fn storage_count() -> usize {
+        Self::storage().bits().count_ones() as usize
+    }
+
+    #[inline]
+    pub const fn storage() -> Self {
+        Self::from_bits_retain(Self::Granary.bits() | Self::StorageYard.bits())
+    }
+
+    #[inline]
+    pub const fn services_count() -> usize {
+        Self::services().bits().count_ones() as usize
+    }
+
+    #[inline]
+    pub const fn services() -> Self {
+        Self::from_bits_retain(Self::WellSmall.bits()
+                               | Self::WellBig.bits()
+                               | Self::Market.bits()
+                               | Self::TaxOffice.bits())
+    }
+
+    #[inline]
+    pub const fn treasury() -> Self {
+        Self::from_bits_retain(Self::TaxOffice.bits())
     }
 
     #[inline]
@@ -246,7 +233,7 @@ impl GameObject for Building {
             stats.workers.total += workers.count();
 
             if let Some(worker_pool) = workers.as_household_worker_pool() {
-                stats.population.employed   += worker_pool.employed_count();
+                stats.population.employed += worker_pool.employed_count();
                 stats.population.unemployed += worker_pool.unemployed_count();
             } else if let Some(employer) = workers.as_employer() {
                 stats.workers.min_required += employer.min_employees();
@@ -272,10 +259,10 @@ impl GameObject for Building {
         let kind = self.kind();
         debug_assert!(kind.is_single_building());
 
-        let tile = context.tile_map().find_tile(
-            self.base_cell(),
-            TileMapLayerKind::Objects,
-            TileKind::Building).unwrap();
+        let tile =
+            context.tile_map()
+                   .find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+                   .unwrap();
         debug_assert!(tile.is_valid());
 
         self.archetype_mut().post_load(context, kind, tile);
@@ -283,12 +270,12 @@ impl GameObject for Building {
 
     fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
-    
+
         match mode {
             DebugUiMode::Overview => {
                 let context = self.new_context(query);
                 self.draw_debug_ui_overview(&context, ui_sys);
-            },
+            }
             DebugUiMode::Detailed => {
                 let ui = ui_sys.builder();
                 if ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
@@ -297,7 +284,7 @@ impl GameObject for Building {
                     self.draw_debug_ui_detailed(&context, ui_sys);
                     ui.unindent_by(10.0);
                 }
-            },
+            }
         }
     }
 
@@ -306,20 +293,16 @@ impl GameObject for Building {
                          ui_sys: &UiSystem,
                          transform: WorldToScreenTransform,
                          visible_range: CellRange) {
-
         debug_assert!(self.is_spawned());
 
-        let tile = query.find_tile(
-            self.base_cell(),
-            TileMapLayerKind::Objects,
-            TileKind::Building).unwrap();
+        let tile = query.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+                        .unwrap();
 
-        self.archetype_mut().debug_options().draw_popup_messages(
-            tile,
-            ui_sys,
-            transform,
-            visible_range,
-            query.delta_time_secs());
+        self.archetype_mut().debug_options().draw_popup_messages(tile,
+                                                                 ui_sys,
+                                                                 transform,
+                                                                 visible_range,
+                                                                 query.delta_time_secs());
     }
 }
 
@@ -334,7 +317,6 @@ impl Building {
                    kind: BuildingKind,
                    map_cells: CellRange,
                    archetype: BuildingArchetype) {
-
         debug_assert!(!self.is_spawned());
         debug_assert!(id.is_valid());
         debug_assert!(kind.is_single_building());
@@ -343,7 +325,8 @@ impl Building {
         self.id = id;
         self.map_cells = map_cells;
         self.kind = kind;
-        self.workers_update_timer = UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
+        self.workers_update_timer =
+            UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
         self.archetype = Some(archetype);
 
         self.update_road_link(query);
@@ -371,13 +354,12 @@ impl Building {
 
     #[inline]
     fn new_context<'world>(&self, query: &'world Query) -> BuildingContext<'world> {
-        BuildingContext::new(
-            self.id,
-            self.map_cells,
-            self.road_link(query),
-            self.kind,
-            self.archetype_kind(),
-            query)
+        BuildingContext::new(self.id,
+                             self.map_cells,
+                             self.road_link(query),
+                             self.kind,
+                             self.archetype_kind(),
+                             query)
     }
 
     #[inline]
@@ -421,18 +403,13 @@ impl Building {
 
     #[inline]
     pub fn kind_and_id(&self) -> BuildingKindAndId {
-        BuildingKindAndId {
-            kind: self.kind,
-            id: self.id,
-        }
+        BuildingKindAndId { kind: self.kind, id: self.id }
     }
 
     #[inline]
     pub fn tile_info(&self, query: &Query) -> BuildingTileInfo {
-        BuildingTileInfo {
-            road_link: self.road_link(query).unwrap_or_default(), // We may or may not be connected to a road.
-            base_cell: self.base_cell(),
-        }
+        BuildingTileInfo { road_link: self.road_link(query).unwrap_or_default(), /* We may or may not be connected to a road. */
+                           base_cell: self.base_cell() }
     }
 
     #[inline]
@@ -463,11 +440,10 @@ impl Building {
         }
 
         if tile_map.try_move_tile(self.base_cell(), destination_cell, TileMapLayerKind::Objects) {
-            let tile = tile_map.find_tile_mut(
-                destination_cell,
-                TileMapLayerKind::Objects,
-                TileKind::Building)
-                .unwrap();
+            let tile = tile_map.find_tile_mut(destination_cell,
+                                              TileMapLayerKind::Objects,
+                                              TileKind::Building)
+                               .unwrap();
 
             debug_assert!(tile.base_cell() == destination_cell);
             self.map_cells = tile.cell_range();
@@ -595,8 +571,10 @@ impl Building {
             }
 
             if workers_added != 0 {
-                self.archetype_mut().debug_options()
-                    .popup_msg_color_string(Color::cyan(), format!("+{workers_added} workers").into());
+                self.archetype_mut()
+                    .debug_options()
+                    .popup_msg_color_string(Color::cyan(),
+                                            format!("+{workers_added} workers").into());
             }
         }
         workers_added
@@ -611,8 +589,10 @@ impl Building {
             }
 
             if workers_removed != 0 {
-                self.archetype_mut().debug_options()
-                    .popup_msg_color_string(Color::magenta(), format!("-{workers_removed} workers").into());
+                self.archetype_mut()
+                    .debug_options()
+                    .popup_msg_color_string(Color::magenta(),
+                                            format!("-{workers_removed} workers").into());
             }
         }
         workers_removed
@@ -622,16 +602,16 @@ impl Building {
         if let Some(workers) = self.archetype().workers() {
             if let Some(employer) = workers.as_employer() {
                 employer.for_each_employee_household(query.world(), |household, employee_count| {
-                    // Put worker back into the house's worker pool.
-                    household.add_workers(employee_count, self.kind_and_id());
-                    true
-                });
+                            // Put worker back into the house's worker pool.
+                            household.add_workers(employee_count, self.kind_and_id());
+                            true
+                        });
             } else if let Some(household) = workers.as_household_worker_pool() {
                 household.for_each_employer(query.world(), |employer, employed_count| {
-                    // Tell employer workers are no longer available from this household.
-                    employer.remove_workers(employed_count, self.kind_and_id());
-                    true
-                });
+                             // Tell employer workers are no longer available from this household.
+                             employer.remove_workers(employed_count, self.kind_and_id());
+                             true
+                         });
             } else {
                 panic!("Unhandled Workers kind!");
             }
@@ -653,8 +633,10 @@ impl Building {
                 if !employer.is_at_max_capacity() {
                     if let Some(house) = self.find_house_with_available_workers(query) {
                         let workers_available = house.workers_count();
-                        let workers_added = self.add_workers(workers_available, house.kind_and_id());
-                        let workers_removed = house.remove_workers(workers_added, self.kind_and_id());
+                        let workers_added =
+                            self.add_workers(workers_available, house.kind_and_id());
+                        let workers_removed =
+                            house.remove_workers(workers_added, self.kind_and_id());
                         debug_assert!(workers_added == workers_removed);
                     }
                 }
@@ -662,21 +644,22 @@ impl Building {
         }
     }
 
-    fn find_house_with_available_workers<'world>(&self, query: &'world Query) -> Option<&'world mut Building> {
+    fn find_house_with_available_workers<'world>(&self,
+                                                 query: &'world Query)
+                                                 -> Option<&'world mut Building> {
         let workers_search_radius = GameConfigs::get().sim.workers_search_radius;
         debug_assert!(workers_search_radius > 0);
 
-        let result = query.find_nearest_buildings(
-            self.road_link(query).unwrap(),
-            BuildingKind::House,
-            PathNodeKind::Road,
-            Some(workers_search_radius),
-            |house, _path| {
-                if house.workers_count() != 0 {
-                    return false; // Accept and stop search.
-                }
-                true // Continue searching.
-            });
+        let result = query.find_nearest_buildings(self.road_link(query).unwrap(),
+                                                  BuildingKind::House,
+                                                  PathNodeKind::Road,
+                                                  Some(workers_search_radius),
+                                                  |house, _path| {
+                                                      if house.workers_count() != 0 {
+                                                          return false; // Accept and stop search.
+                                                      }
+                                                      true // Continue searching.
+                                                  });
 
         if let Some((house, _path)) = result {
             debug_assert!(house.is(BuildingKind::House));
@@ -751,13 +734,17 @@ impl Building {
 
             if new_road_link != *self.road_link.as_ref() && self.road_link.is_valid() {
                 // Clear previous underlying tile flag:
-                if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell(query, *self.road_link.as_ref()) {
+                if let Some(prev_road_link_tile) =
+                    Self::find_road_link_tile_for_cell(query, *self.road_link.as_ref())
+                {
                     prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
                 }
             }
 
             // Set new underlying tile flag:
-            if let Some(new_road_link_tile) =  Self::find_road_link_tile_for_cell(query, new_road_link) {
+            if let Some(new_road_link_tile) =
+                Self::find_road_link_tile_for_cell(query, new_road_link)
+            {
                 new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
             }
 
@@ -771,7 +758,9 @@ impl Building {
     fn clear_road_link(&mut self, tile_map: &mut TileMap) {
         let road_link = self.road_link.as_mut();
         if road_link.is_valid() {
-            if let Some(road_link_tile) = tile_map.try_tile_from_layer_mut(*road_link, TileMapLayerKind::Terrain) {
+            if let Some(road_link_tile) =
+                tile_map.try_tile_from_layer_mut(*road_link, TileMapLayerKind::Terrain)
+            {
                 road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
             }
         }
@@ -814,7 +803,9 @@ impl Building {
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
-            ui.bullet_text(format!("Tax: (generated: {}, avail: {})", house.tax_generated(), house.tax_available()));
+            ui.bullet_text(format!("Tax: (generated: {}, avail: {})",
+                                   house.tax_generated(),
+                                   house.tax_available()));
 
             if !house.level().is_max() {
                 let (has_required_resources, has_required_services) =
@@ -833,29 +824,34 @@ impl Building {
         }
 
         if let Some(population) = self.archetype().population() {
-            ui.bullet_text(format!("Population: {} (max: {})", population.count(), population.max()));
+            ui.bullet_text(format!("Population: {} (max: {})",
+                                   population.count(),
+                                   population.max()));
         }
 
         if let Some(workers) = self.archetype().workers() {
             if let Some(worker_pool) = workers.as_household_worker_pool() {
                 ui.bullet_text(format!("Workers: {} (employed: {}, unemployed: {})",
-                    worker_pool.total_workers(),
-                    worker_pool.employed_count(),
-                    worker_pool.unemployed_count()));
+                                       worker_pool.total_workers(),
+                                       worker_pool.employed_count(),
+                                       worker_pool.unemployed_count()));
             } else if let Some(employer) = workers.as_employer() {
                 color_bullet_text("Has min workers", self.archetype().has_min_required_workers());
                 color_bullet_text("Has all workers", employer.is_at_max_capacity());
                 if employer.is_below_min_required() {
                     ui.bullet_text("Workers:");
                     ui.same_line();
-                    ui.text_colored(Color::red().to_array(), format!("{}", employer.employee_count()));
+                    ui.text_colored(Color::red().to_array(),
+                                    format!("{}", employer.employee_count()));
                     ui.same_line();
-                    ui.text(format!("(min: {}, max: {})", employer.min_employees(), employer.max_employees()));
+                    ui.text(format!("(min: {}, max: {})",
+                                    employer.min_employees(),
+                                    employer.max_employees()));
                 } else {
                     ui.bullet_text(format!("Workers: {} (min: {}, max: {})",
-                        employer.employee_count(),
-                        employer.min_employees(),
-                        employer.max_employees()));
+                                           employer.employee_count(),
+                                           employer.min_employees(),
+                                           employer.max_employees()));
                 }
             }
         }
@@ -875,14 +871,13 @@ impl Building {
                 road_link: Cell,
                 id: BuildingId,
             }
-            let debug_vars = DrawDebugUiVariables {
-                name: self.name(),
-                kind: self.kind(),
-                archetype: self.archetype_kind(),
-                cells: self.cell_range(),
-                road_link: self.road_link(context.query).unwrap_or_default(),
-                id: self.id(),
-            };
+            let debug_vars = DrawDebugUiVariables { name: self.name(),
+                                                    kind: self.kind(),
+                                                    archetype: self.archetype_kind(),
+                                                    cells: self.cell_range(),
+                                                    road_link: self.road_link(context.query)
+                                                                   .unwrap_or_default(),
+                                                    id: self.id() };
             debug_vars.draw_debug_ui(ui_sys);
         }
 
@@ -933,13 +928,17 @@ impl Building {
                             ui.combo_simple_string("Kind", &mut BUILDING_KIND_IDX, &["House"]);
                             BuildingKind::House
                         } else {
-                            let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
+                            let mut building_kind_names: SmallVec<[&'static str;
+                                                                   BuildingKind::count()]> =
+                                SmallVec::new();
                             for kind in BuildingKind::FLAGS {
                                 if *kind.value() != BuildingKind::House {
                                     building_kind_names.push(kind.name());
                                 }
                             }
-                            ui.combo_simple_string("Kind", &mut BUILDING_KIND_IDX, &building_kind_names);
+                            ui.combo_simple_string("Kind",
+                                                   &mut BUILDING_KIND_IDX,
+                                                   &building_kind_names);
                             *BuildingKind::FLAGS[BUILDING_KIND_IDX + 1].value() // We've skipped House @ [0]
                         }
                     };
@@ -951,7 +950,9 @@ impl Building {
                 };
 
                 if ui.button("Add Worker (+1)") && !self.workers_is_maxed() {
-                    if let Some(building) = context.query.world().find_building_mut(source.kind, source.id) {
+                    if let Some(building) =
+                        context.query.world().find_building_mut(source.kind, source.id)
+                    {
                         let removed_count = building.remove_workers(1, self.kind_and_id());
                         let added_count = self.add_workers(removed_count, source);
                         debug_assert!(removed_count == added_count);
@@ -961,7 +962,9 @@ impl Building {
                 }
 
                 if ui.button("Remove Worker (-1)") && self.workers_count() != 0 {
-                    if let Some(building) = context.query.world().find_building_mut(source.kind, source.id) {
+                    if let Some(building) =
+                        context.query.world().find_building_mut(source.kind, source.id)
+                    {
                         let added_count = building.add_workers(1, self.kind_and_id());
                         let removed_count = self.remove_workers(added_count, source);
                         debug_assert!(added_count == removed_count);
@@ -988,7 +991,8 @@ impl Building {
                 ui.text_colored(Color::red().to_array(), "No road access!");
             }
 
-            ui.text(format!("Road Link Tile : {}", self.road_link(context.query).unwrap_or_default()));
+            ui.text(format!("Road Link Tile : {}",
+                            self.road_link(context.query).unwrap_or_default()));
 
             let mut show_road_link = self.is_showing_road_link_debug(context.query);
             if ui.checkbox("Show Road Link", &mut show_road_link) {
@@ -996,7 +1000,8 @@ impl Building {
             }
 
             if ui.button("Highlight Access Tiles") {
-                pathfind::highlight_building_access_tiles(context.query.tile_map(), self.cell_range());
+                pathfind::highlight_building_access_tiles(context.query.tile_map(),
+                                                          self.cell_range());
             }
         }
 
@@ -1006,7 +1011,7 @@ impl Building {
 }
 
 // ----------------------------------------------
-// Building Archetypes  
+// Building Archetypes
 // ----------------------------------------------
 /*
 * Population Building (AKA House/Household):
@@ -1034,11 +1039,9 @@ impl Building {
 */
 #[enum_dispatch]
 #[derive(Clone, EnumDiscriminants, Serialize, Deserialize)]
-#[strum_discriminants(
-    repr(u32),
-    name(BuildingArchetypeKind),
-    derive(Display, EnumCount, EnumIter, Serialize, Deserialize)
-)]
+#[strum_discriminants(repr(u32),
+                      name(BuildingArchetypeKind),
+                      derive(Display, EnumCount, EnumIter, Serialize, Deserialize))]
 pub enum BuildingArchetype {
     ProducerBuilding(ProducerBuilding),
     StorageBuilding(StorageBuilding),
@@ -1075,7 +1078,10 @@ trait BuildingBehavior {
     // ----------------------
 
     fn is_stock_full(&self) -> bool;
-    fn has_min_required_resources(&self) -> bool { true }
+
+    fn has_min_required_resources(&self) -> bool {
+        true
+    }
 
     // How many resources of this kind do we currently hold?
     fn available_resources(&self, kind: ResourceKind) -> u32;
@@ -1098,28 +1104,50 @@ trait BuildingBehavior {
     // Patrol/Runner Units:
     // ----------------------
 
-    fn active_patrol(&mut self) -> Option<&mut Patrol> { None }
-    fn active_runner(&mut self) -> Option<&mut Runner> { None }
+    fn active_patrol(&mut self) -> Option<&mut Patrol> {
+        None
+    }
+
+    fn active_runner(&mut self) -> Option<&mut Runner> {
+        None
+    }
 
     // ----------------------
     // Population:
     // ----------------------
 
-    fn population(&self) -> Option<Population> { None }
+    fn population(&self) -> Option<Population> {
+        None
+    }
 
     // These return the amount added/removed, which can be <= the `count` parameter.
-    fn add_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
-    fn remove_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 { 0 }
+    fn add_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 {
+        0
+    }
+
+    fn remove_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 {
+        0
+    }
 
     // ----------------------
     // Workers:
     // ----------------------
 
-    fn workers(&self) -> Option<&Workers> { None }
-    fn workers_mut(&mut self) -> Option<&mut Workers> { None }
+    fn workers(&self) -> Option<&Workers> {
+        None
+    }
 
-    fn is_operational(&self) -> bool { self.has_min_required_workers() && self.has_min_required_resources() }
-    fn has_min_required_workers(&self) -> bool { true }
+    fn workers_mut(&mut self) -> Option<&mut Workers> {
+        None
+    }
+
+    fn is_operational(&self) -> bool {
+        self.has_min_required_workers() && self.has_min_required_resources()
+    }
+
+    fn has_min_required_workers(&self) -> bool {
+        true
+    }
 
     // ----------------------
     // Debug:
@@ -1178,15 +1206,9 @@ impl<'world> BuildingContext<'world> {
            road_link: Option<Cell>,
            kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
-           query: &'world Query) -> Self {
-        Self {
-            id,
-            map_cells: mem::Mutable::new(map_cells),
-            road_link,
-            kind,
-            archetype_kind,
-            query,
-        }
+           query: &'world Query)
+           -> Self {
+        Self { id, map_cells: mem::Mutable::new(map_cells), road_link, kind, archetype_kind, query }
     }
 
     #[inline]
@@ -1201,18 +1223,15 @@ impl<'world> BuildingContext<'world> {
 
     #[inline]
     pub fn kind_and_id(&self) -> BuildingKindAndId {
-        BuildingKindAndId {
-            kind: self.kind,
-            id: self.id,
-        }
+        BuildingKindAndId { kind: self.kind, id: self.id }
     }
 
     #[inline]
     pub fn tile_info(&self) -> BuildingTileInfo {
-        BuildingTileInfo {
-            road_link: self.road_link.unwrap_or_default(), // We may or may not be connected to a road.
-            base_cell: self.base_cell(),
-        }
+        BuildingTileInfo { road_link: self.road_link.unwrap_or_default(), /* We may or may not
+                                                                           * be connected to a
+                                                                           * road. */
+                           base_cell: self.base_cell() }
     }
 
     #[inline]
@@ -1232,18 +1251,22 @@ impl<'world> BuildingContext<'world> {
 
     #[inline]
     fn find_tile_def(&self, tile_def_name_hash: StringHash) -> Option<&'static TileDef> {
-        self.query.find_tile_def(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash, tile_def_name_hash)
+        self.query.find_tile_def(TileMapLayerKind::Objects,
+                                 OBJECTS_BUILDINGS_CATEGORY.hash,
+                                 tile_def_name_hash)
     }
 
     #[inline]
     fn find_tile(&self) -> &Tile {
-        self.query.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+        self.query
+            .find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
     #[inline]
     fn find_tile_mut(&self) -> &mut Tile {
-        self.query.find_tile_mut(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+        self.query
+            .find_tile_mut(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
@@ -1310,18 +1333,14 @@ pub struct BuildingStock {
 impl BuildingStock {
     fn with_accepted_list_and_capacity(accepted_resources: &ResourceKinds, capacity: u32) -> Self {
         let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
-        Self {
-            resources: ResourceStock::with_accepted_list(accepted_resources),
-            capacities: [capacity_u8; RESOURCE_KIND_COUNT],
-        }
+        Self { resources: ResourceStock::with_accepted_list(accepted_resources),
+               capacities: [capacity_u8; RESOURCE_KIND_COUNT] }
     }
 
     fn with_accepted_kinds_and_capacity(accepted_kinds: ResourceKind, capacity: u32) -> Self {
         let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
-        Self {
-            resources: ResourceStock::with_accepted_kinds(accepted_kinds),
-            capacities: [capacity_u8; RESOURCE_KIND_COUNT],
-        }
+        Self { resources: ResourceStock::with_accepted_kinds(accepted_kinds),
+               capacities: [capacity_u8; RESOURCE_KIND_COUNT] }
     }
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
@@ -1371,8 +1390,8 @@ impl BuildingStock {
 
         // Clamp any existing resources to the new capacity.
         self.resources.for_each_mut(|index, item| {
-            item.count = item.count.min(self.capacities[index] as u32);
-        });
+                          item.count = item.count.min(self.capacities[index] as u32);
+                      });
     }
 
     fn merge(&mut self, other: &BuildingStock) -> bool {
@@ -1423,11 +1442,11 @@ impl BuildingStock {
     fn is_full(&self) -> bool {
         let mut full_count = 0;
         self.resources.for_each(|index, item| {
-            let item_capacity = self.capacities[index] as u32;
-            if item.count >= item_capacity {
-                full_count += 1;
-            }
-        });
+                          let item_capacity = self.capacities[index] as u32;
+                          if item.count >= item_capacity {
+                              full_count += 1;
+                          }
+                      });
         full_count == self.resources.accepted_count()
     }
 
@@ -1439,8 +1458,8 @@ impl BuildingStock {
     #[inline]
     fn fill(&mut self) {
         self.resources.for_each_mut(|index, item| {
-            item.count = self.capacities[index] as u32;
-        });
+                          item.count = self.capacities[index] as u32;
+                      });
     }
 
     #[inline]
@@ -1457,22 +1476,22 @@ impl BuildingStock {
         }
 
         self.resources.for_each_mut(|index, item| {
-            let item_label = format!("{}##_stock_item_{}", item.kind, index);
-            let item_capacity = self.capacities[index] as u32;
+                          let item_label = format!("{}##_stock_item_{}", item.kind, index);
+                          let item_capacity = self.capacities[index] as u32;
 
-            if ui.input_scalar(item_label, &mut item.count).step(1).build() {
-                item.count = item.count.min(item_capacity);
-            }
+                          if ui.input_scalar(item_label, &mut item.count).step(1).build() {
+                              item.count = item.count.min(item_capacity);
+                          }
 
-            let capacity_left = item_capacity - item.count;
-            let is_full = item.count >= item_capacity;
+                          let capacity_left = item_capacity - item.count;
+                          let is_full = item.count >= item_capacity;
 
-            ui.same_line();
-            if is_full {
-                ui.text_colored(Color::red().to_array(), "(full)");
-            } else {
-                ui.text(format!("({} left)", capacity_left));
-            }
-        });
+                          ui.same_line();
+                          if is_full {
+                              ui.text_colored(Color::red().to_array(), "(full)");
+                          } else {
+                              ui.text(format!("({} left)", capacity_left));
+                          }
+                      });
     }
 }

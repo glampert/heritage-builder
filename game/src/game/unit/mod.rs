@@ -1,59 +1,43 @@
-use serde::{
-    Serialize,
-    Deserialize
-};
-
-use crate::{
-    log,
-    imgui_ui::UiSystem,
-    save::PostLoadContext,
-    game_object_debug_options,
-    pathfind::{Path, NodeKind as PathNodeKind},
-    tile::{
-        self,
-        Tile,
-        TileKind,
-        TileMap,
-        TilePoolIndex,
-        TileMapLayerKind
-    },
-    utils::{
-        self,
-        Color,
-        hash::{self, StringHash},
-        coords::{
-            Cell,
-            CellRange,
-            WorldToScreenTransform
-        }
-    }
-};
-
-use super::{
-    building::{Building, BuildingKind},
-    world::{
-        stats::WorldStats,
-        object::{GenerationalIndex, GameObject, Spawner}
-    },
-    sim::{
-        Query,
-        debug::DebugUiMode,
-        resources::{ResourceKind, StockItem}
-    }
-};
-
-use config::*;
-use task::*;
 use anim::*;
+use config::*;
 use inventory::*;
 use navigation::*;
 use patrol::*;
+use serde::{Deserialize, Serialize};
+use task::*;
+
+use super::{
+    building::{Building, BuildingKind},
+    sim::{
+        debug::DebugUiMode,
+        resources::{ResourceKind, StockItem},
+        Query,
+    },
+    world::{
+        object::{GameObject, GenerationalIndex, Spawner},
+        stats::WorldStats,
+    },
+};
+use crate::{
+    game_object_debug_options,
+    imgui_ui::UiSystem,
+    log,
+    pathfind::{NodeKind as PathNodeKind, Path},
+    save::PostLoadContext,
+    tile::{self, Tile, TileKind, TileMap, TileMapLayerKind, TilePoolIndex},
+    utils::{
+        self,
+        coords::{Cell, CellRange, WorldToScreenTransform},
+        hash::{self, StringHash},
+        Color,
+    },
+};
 
 pub mod config;
-pub mod task;
+pub mod navigation;
 pub mod patrol;
 pub mod runner;
-pub mod navigation;
+pub mod task;
 
 mod anim;
 mod debug;
@@ -68,7 +52,7 @@ game_object_debug_options! {
 }
 
 // ----------------------------------------------
-// Unit  
+// Unit
 // ----------------------------------------------
 
 pub type UnitId = GenerationalIndex;
@@ -150,7 +134,7 @@ impl GameObject for Unit {
         match mode {
             DebugUiMode::Overview => {
                 self.draw_debug_ui_overview(query, ui_sys);
-            },
+            }
             DebugUiMode::Detailed => {
                 let ui = ui_sys.builder();
                 if ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
@@ -158,7 +142,7 @@ impl GameObject for Unit {
                     self.draw_debug_ui_detailed(query, ui_sys);
                     ui.unindent_by(10.0);
                 }
-            },
+            }
         }
     }
 
@@ -167,15 +151,13 @@ impl GameObject for Unit {
                          ui_sys: &UiSystem,
                          transform: WorldToScreenTransform,
                          visible_range: CellRange) {
-
         debug_assert!(self.is_spawned());
 
-        self.debug.draw_popup_messages(
-            self.find_tile(query),
-            ui_sys,
-            transform,
-            visible_range,
-            query.delta_time_secs());
+        self.debug.draw_popup_messages(self.find_tile(query),
+                                       ui_sys,
+                                       transform,
+                                       visible_range,
+                                       query.delta_time_secs());
     }
 }
 
@@ -251,11 +233,15 @@ impl Unit {
             return true;
         }
 
-        if tile_map.try_move_tile_with_stacking(self.tile_index, self.map_cell, destination_cell, TileMapLayerKind::Objects) {
+        if tile_map.try_move_tile_with_stacking(self.tile_index,
+                                                self.map_cell,
+                                                destination_cell,
+                                                TileMapLayerKind::Objects)
+        {
             let tile = tile_map.tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
             debug_assert!(tile.is(TileKind::Unit));
 
-            let new_direction = direction_between(self.map_cell, destination_cell);    
+            let new_direction = direction_between(self.map_cell, destination_cell);
             self.update_direction_and_anim(tile, new_direction);
 
             debug_assert!(tile.base_cell() == destination_cell);
@@ -267,10 +253,13 @@ impl Unit {
     }
 
     #[inline]
-    pub fn patrol_task_origin_building<'world>(&self, query: &'world Query) -> Option<&'world mut Building> {
+    pub fn patrol_task_origin_building<'world>(&self,
+                                               query: &'world Query)
+                                               -> Option<&'world mut Building> {
         debug_assert!(self.is_spawned());
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
-            return query.world().find_building_mut(task.origin_building.kind, task.origin_building.id);
+            return query.world()
+                        .find_building_mut(task.origin_building.kind, task.origin_building.id);
         }
         None
     }
@@ -279,7 +268,7 @@ impl Unit {
     pub fn patrol_task_building_kind(&self, query: &Query) -> Option<BuildingKind> {
         debug_assert!(self.is_spawned());
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
-            return Some(task.origin_building.kind)
+            return Some(task.origin_building.kind);
         }
         None
     }
@@ -310,12 +299,14 @@ impl Unit {
 
     #[inline]
     pub fn is_market_vendor(&self, query: &Query) -> bool {
-        self.is_patrol() && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
+        self.is_patrol()
+        && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
     }
 
     #[inline]
     pub fn is_tax_collector(&self, query: &Query) -> bool {
-        self.is_patrol() && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::TaxOffice)
+        self.is_patrol()
+        && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::TaxOffice)
     }
 
     #[inline]
@@ -327,7 +318,7 @@ impl Unit {
     pub fn settler_population(&self, query: &Query) -> u32 {
         debug_assert!(self.is_settler());
         let task = self.current_task_as::<UnitTaskSettler>(query.task_manager())
-            .expect("Expected unit to be running a UnitTaskSettler!");
+                       .expect("Expected unit to be running a UnitTaskSettler!");
         task.population_to_add
     }
 
@@ -388,7 +379,7 @@ impl Unit {
         match self.navigation.update(query.graph(), query.delta_time_secs()) {
             UnitNavResult::Idle => {
                 // Nothing.
-            },
+            }
             UnitNavResult::Moving(from_cell, to_cell, progress, direction) => {
                 let tile = self.find_tile_mut(query);
 
@@ -400,7 +391,7 @@ impl Unit {
                 tile.set_iso_coords_f32(new_iso_coords);
 
                 self.update_direction_and_anim(tile, direction);
-            },
+            }
             UnitNavResult::AdvancedCell(cell, direction) => {
                 if !self.teleport(query.tile_map(), cell) {
                     // This would normally happen if two units try to move to the
@@ -410,13 +401,14 @@ impl Unit {
                 }
 
                 self.update_direction_and_anim(self.find_tile_mut(query), direction);
-            },
+            }
             UnitNavResult::ReachedGoal(cell, _) => {
                 self.teleport(query.tile_map(), cell);
 
                 if cell == self.cell() {
                     // Goal reached, clear current path.
-                    // NOTE: Not using follow_path(None) here to preserve the nav goal for unit tasks.
+                    // NOTE: Not using follow_path(None) here to preserve the nav goal for unit
+                    // tasks.
                     self.navigation.reset_path_only();
                     self.debug.popup_msg_color(Color::green(), "Reached Goal!");
                 } else {
@@ -426,7 +418,7 @@ impl Unit {
                 }
 
                 self.idle(query);
-            },
+            }
             UnitNavResult::PathBlocked => {
                 // Failed to move to another tile, possibly because it has been
                 // blocked since we've traced the path. Clear the navigation and stop.
@@ -435,7 +427,7 @@ impl Unit {
                 self.idle(query);
 
                 self.debug.popup_msg_color(Color::red(), "Path Blocked!");
-            },
+            }
         }
     }
 
@@ -459,7 +451,9 @@ impl Unit {
     }
 
     #[inline]
-    pub fn current_task_as<'task, Task>(&self, task_manager: &'task UnitTaskManager) -> Option<&'task Task>
+    pub fn current_task_as<'task, Task>(&self,
+                                        task_manager: &'task UnitTaskManager)
+                                        -> Option<&'task Task>
         where Task: UnitTask + 'static
     {
         debug_assert!(self.is_spawned());
@@ -486,7 +480,8 @@ impl Unit {
     pub fn try_spawn_with_task<Task>(query: &Query,
                                      unit_origin: Cell,
                                      unit_config: UnitConfigKey,
-                                     task: Task) -> Result<&mut Unit, String>
+                                     task: Task)
+                                     -> Result<&mut Unit, String>
         where Task: UnitTask,
               UnitTaskArchetype: From<Task>
     {
@@ -501,7 +496,7 @@ impl Unit {
             error @ Err(_) => {
                 task_manager.free_task(task_id.unwrap());
                 return error;
-            },
+            }
         };
 
         // This will start the task chain and might take some time to complete.
@@ -596,12 +591,15 @@ impl Unit {
         if !self.debug.show_popups() {
             return;
         }
-        self.debug.popup_msg(format!("Goto: {} -> {}", goal.origin_debug_name(), goal.destination_debug_name()));
+
+        self.debug.popup_msg(format!("Goto: {} -> {}",
+                                     goal.origin_debug_name(),
+                                     goal.destination_debug_name()));
     }
 }
 
 // ----------------------------------------------
-// UnitTaskHelper  
+// UnitTaskHelper
 // ----------------------------------------------
 
 pub trait UnitTaskHelper {
@@ -640,9 +638,7 @@ pub trait UnitTaskHelper {
     fn is_running_task<Task>(&self, query: &Query) -> bool
         where Task: UnitTask + 'static
     {
-        self.try_unit(query).is_some_and(|unit| {
-            unit.is_running_task::<Task>(query.task_manager())
-        })
+        self.try_unit(query).is_some_and(|unit| unit.is_running_task::<Task>(query.task_manager()))
     }
 
     #[inline]
@@ -651,7 +647,8 @@ pub trait UnitTaskHelper {
                                  query: &Query,
                                  unit_origin: Cell,
                                  unit_config: UnitConfigKey,
-                                 task: Task) -> bool
+                                 task: Task)
+                                 -> bool
         where Task: UnitTask,
               UnitTaskArchetype: From<Task>
     {
@@ -661,12 +658,12 @@ pub trait UnitTaskHelper {
             Ok(unit) => {
                 self.on_unit_spawn(unit.id(), false);
                 true
-            },
+            }
             Err(err) => {
                 log::error!(log::channel!("unit"), "{}: {}", spawner_name, err);
                 self.on_unit_spawn(UnitId::invalid(), true);
                 false
-            },
+            }
         }
     }
 }

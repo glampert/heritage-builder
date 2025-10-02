@@ -1,5 +1,10 @@
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
 use bitflags::bitflags;
-use std::{fs, path::{Path, PathBuf}};
+
 use crate::log;
 
 // ----------------------------------------------
@@ -28,7 +33,10 @@ pub fn collect_sub_dirs<P>(path: &P, flags: CollectFlags) -> Vec<PathBuf>
     collect_dir_entries(path, flags | CollectFlags::SubDirs, None)
 }
 
-pub fn collect_dir_entries<P>(path: &P, flags: CollectFlags, extension: Option<&str>) -> Vec<PathBuf>
+pub fn collect_dir_entries<P>(path: &P,
+                              flags: CollectFlags,
+                              extension: Option<&str>)
+                              -> Vec<PathBuf>
     where P: AsRef<Path> + std::fmt::Debug
 {
     let mut result = Vec::new();

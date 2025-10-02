@@ -1,17 +1,17 @@
 use std::any::Any;
+
 use arrayvec::ArrayVec;
 
+use super::{
+    batch::{DrawBatch, DrawBatchEntry},
+    context::*,
+    shader::*,
+    texture::TextureCache,
+    vertex::*,
+};
 use crate::{
     render::{self, RenderStats, TextureHandle},
-    utils::{Color, Rect, RectTexCoords, Size, Vec2}
-};
-
-use super::{
-    shader::*,
-    vertex::*,
-    context::*,
-    texture::TextureCache,
-    batch::{DrawBatch, DrawBatchEntry}
+    utils::{Color, Rect, RectTexCoords, Size, Vec2},
 };
 
 // ----------------------------------------------
@@ -46,9 +46,7 @@ impl RenderSystem {
     fn flush_sprites(&mut self) {
         debug_assert!(self.frame_started);
 
-        let set_shader_vars_fn = 
-            |render_context: &mut RenderContext, entry: &DrawBatchEntry| {
-
+        let set_shader_vars_fn = |render_context: &mut RenderContext, entry: &DrawBatchEntry| {
             let texture2d = self.tex_cache.handle_to_texture(entry.texture);
             render_context.set_texture_2d(texture2d);
 
@@ -57,7 +55,9 @@ impl RenderSystem {
         };
 
         self.sprites_batch.sync();
-        self.sprites_batch.draw_entries(&mut self.render_context, &self.sprites_shader.program, set_shader_vars_fn);
+        self.sprites_batch.draw_entries(&mut self.render_context,
+                                        &self.sprites_shader.program,
+                                        set_shader_vars_fn);
         self.sprites_batch.clear();
     }
 
@@ -82,41 +82,25 @@ impl render::RenderSystemFactory for RenderSystem {
     fn new(viewport_size: Size, clear_color: Color) -> Self {
         debug_assert!(viewport_size.is_valid());
 
-        let mut render_sys = Self {
-            frame_started: false,
-            render_context: RenderContext::new(),
-            sprites_batch: DrawBatch::new(
-                512,
-                512,
-                512,
-                PrimitiveTopology::Triangles,
-            ),
-            sprites_shader: sprites::Shader::load(),
-            lines_batch: DrawBatch::new(
-                8,
-                8,
-                0,
-                PrimitiveTopology::Lines,
-            ),
-            lines_shader: lines::Shader::load(),
-            points_batch: DrawBatch::new(
-                8,
-                8,
-                0,
-                PrimitiveTopology::Points,
-            ),
-            points_shader: points::Shader::load(),
-            stats: RenderStats::default(),
-            viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size),
-            tex_cache: TextureCache::new(128),
-        };
+        let mut render_sys =
+            Self { frame_started: false,
+                   render_context: RenderContext::new(),
+                   sprites_batch: DrawBatch::new(512, 512, 512, PrimitiveTopology::Triangles),
+                   sprites_shader: sprites::Shader::load(),
+                   lines_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Lines),
+                   lines_shader: lines::Shader::load(),
+                   points_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Points),
+                   points_shader: points::Shader::load(),
+                   stats: RenderStats::default(),
+                   viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size),
+                   tex_cache: TextureCache::new(128) };
 
         render_sys.render_context
-            .set_clear_color(clear_color)
-            .set_alpha_blend(AlphaBlend::Enabled)
-            // Pure 2D rendering, no depth test or back-face culling.
-            .set_backface_culling(BackFaceCulling::Disabled)
-            .set_depth_test(DepthTest::Disabled);
+                  .set_clear_color(clear_color)
+                  .set_alpha_blend(AlphaBlend::Enabled)
+                  // Pure 2D rendering, no depth test or back-face culling.
+                  .set_backface_culling(BackFaceCulling::Disabled)
+                  .set_depth_test(DepthTest::Disabled);
 
         render_sys.update_viewport(viewport_size);
 
@@ -125,7 +109,9 @@ impl render::RenderSystemFactory for RenderSystem {
 }
 
 impl render::RenderSystem for RenderSystem {
-    fn as_any(&self) -> &dyn Any { self }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 
     fn begin_frame(&mut self) {
         debug_assert!(!self.frame_started);
@@ -134,10 +120,10 @@ impl render::RenderSystem for RenderSystem {
         self.frame_started = true;
 
         self.stats.triangles_drawn = 0;
-        self.stats.lines_drawn     = 0;
-        self.stats.points_drawn    = 0;
+        self.stats.lines_drawn = 0;
+        self.stats.points_drawn = 0;
         self.stats.texture_changes = 0;
-        self.stats.draw_calls      = 0;
+        self.stats.draw_calls = 0;
     }
 
     fn end_frame(&mut self) -> RenderStats {
@@ -181,11 +167,7 @@ impl render::RenderSystem for RenderSystem {
         self.update_viewport(new_size);
     }
 
-    fn draw_colored_indexed_triangles(&mut self,
-                                      vertices: &[Vec2],
-                                      indices: &[u16],
-                                      color: Color) {
-
+    fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[u16], color: Color) {
         debug_assert!(self.frame_started);
         debug_assert!(!vertices.is_empty() && !indices.is_empty());
         debug_assert!((indices.len() % 3) == 0); // We expect triangles.
@@ -193,10 +175,7 @@ impl render::RenderSystem for RenderSystem {
         // Expand to sprite vertices with defaulted (unused) texture coordinates.
         let mut sprite_verts: ArrayVec<SpriteVertex2D, 64> = ArrayVec::new();
         for vert in vertices {
-            sprite_verts.push(SpriteVertex2D {
-                position: *vert,
-                tex_coords: Vec2::default(),
-            });
+            sprite_verts.push(SpriteVertex2D { position: *vert, tex_coords: Vec2::default() });
         }
 
         self.sprites_batch.add_entry(&sprite_verts, indices, TextureHandle::white(), color);
@@ -208,7 +187,6 @@ impl render::RenderSystem for RenderSystem {
                                   tex_coords: &RectTexCoords,
                                   texture: TextureHandle,
                                   color: Color) {
-
         debug_assert!(self.frame_started);
 
         if render::is_rect_fully_offscreen(&self.viewport, &rect) {
@@ -249,7 +227,7 @@ impl render::RenderSystem for RenderSystem {
             LineVertex2D { position: to_pos,   color: to_color   },
         ];
 
-        const INDICES: [LineIndex2D; 2] = [ 0, 1 ];
+        const INDICES: [LineIndex2D; 2] = [0, 1];
 
         self.lines_batch.add_fast(&vertices, &INDICES);
         self.stats.lines_drawn += 1;
@@ -262,8 +240,8 @@ impl render::RenderSystem for RenderSystem {
             return; // Cull if fully offscreen.
         }
 
-        let vertices = [ PointVertex2D { position: pt, color, size } ];
-        const INDICES: [PointIndex2D; 1] = [ 0 ];
+        let vertices = [PointVertex2D { position: pt, color, size }];
+        const INDICES: [PointIndex2D; 1] = [0];
 
         self.points_batch.add_fast(&vertices, &INDICES);
         self.stats.points_drawn += 1;

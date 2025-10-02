@@ -1,17 +1,12 @@
-use serde::{Serialize, Deserialize};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    log,
     configurations,
     imgui_ui::UiSystem,
-    pathfind::{NodeKind as PathNodeKind},
-    utils::hash::{
-        self,
-        StringHash,
-        StrHashPair,
-        PreHashedKeyMap,
-    }
+    log,
+    pathfind::NodeKind as PathNodeKind,
+    utils::hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
 };
 
 // ----------------------------------------------
@@ -20,9 +15,9 @@ use crate::{
 
 pub type UnitConfigKey = StrHashPair;
 
-pub const UNIT_PED:     UnitConfigKey = UnitConfigKey::from_str("ped");
-pub const UNIT_RUNNER:  UnitConfigKey = UnitConfigKey::from_str("runner");
-pub const UNIT_PATROL:  UnitConfigKey = UnitConfigKey::from_str("patrol");
+pub const UNIT_PED: UnitConfigKey = UnitConfigKey::from_str("ped");
+pub const UNIT_RUNNER: UnitConfigKey = UnitConfigKey::from_str("runner");
+pub const UNIT_PATROL: UnitConfigKey = UnitConfigKey::from_str("patrol");
 pub const UNIT_SETTLER: UnitConfigKey = UnitConfigKey::from_str("settler");
 
 // ----------------------------------------------
@@ -47,13 +42,11 @@ pub struct UnitConfig {
 impl Default for UnitConfig {
     #[inline]
     fn default() -> Self {
-        Self {
-            name: "Ped".into(),
-            tile_def_name: UNIT_PED.string.into(),
-            tile_def_name_hash: UNIT_PED.hash,
-            traversable_node_kinds: PathNodeKind::default(),
-            movement_speed: 1.66,
-        }
+        Self { name: "Ped".into(),
+               tile_def_name: UNIT_PED.string.into(),
+               tile_def_name_hash: UNIT_PED.hash,
+               traversable_node_kinds: PathNodeKind::default(),
+               movement_speed: 1.66 }
     }
 }
 
@@ -77,7 +70,9 @@ impl UnitConfig {
 
         // Must have a tile def name.
         if self.tile_def_name.is_empty() {
-            log::error!(log::channel!("config"), "UnitConfig '{}': Invalid empty TileDef name! Index: [{index}]", self.name);
+            log::error!(log::channel!("config"),
+                        "UnitConfig '{}': Invalid empty TileDef name! Index: [{index}]",
+                        self.name);
             return false;
         }
 
@@ -111,7 +106,10 @@ impl UnitConfigs {
         self.find_config_by_hash(hash::fnv1a_from_str(tile_def_name), tile_def_name)
     }
 
-    pub fn find_config_by_hash(&'static self, tile_def_name_hash: StringHash, tile_def_name: &str) -> &'static UnitConfig {
+    pub fn find_config_by_hash(&'static self,
+                               tile_def_name_hash: StringHash,
+                               tile_def_name: &str)
+                               -> &'static UnitConfig {
         debug_assert!(tile_def_name_hash != hash::NULL_HASH);
 
         match self.mapping.get(&tile_def_name_hash) {
@@ -119,7 +117,7 @@ impl UnitConfigs {
             None => {
                 log::error!(log::channel!("config"), "Can't find UnitConfig '{tile_def_name}'!");
                 &self.default_unit_config
-            },
+            }
         }
     }
 

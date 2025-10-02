@@ -1,34 +1,22 @@
-use std::{path::Path, fs, io};
+use std::{fs, io, path::Path};
 use enum_dispatch::enum_dispatch;
-use serde::{Serialize, de::DeserializeOwned};
-use crate::{utils::mem, tile::TileMap};
+use serde::{de::DeserializeOwned, Serialize};
+use crate::{tile::TileMap, utils::mem};
 
 // ----------------------------------------------
 // Save / Load Traits
 // ----------------------------------------------
 
 pub trait Save {
-    fn pre_save(&mut self) {
-    }
-
-    fn save(&self, _state: &mut SaveStateImpl) -> SaveResult {
-        Ok(())
-    }
-
-    fn post_save(&mut self) {
-    }
+    fn pre_save(&mut self) {}
+    fn save(&self, _state: &mut SaveStateImpl) -> SaveResult { Ok(()) }
+    fn post_save(&mut self) {}
 }
 
 pub trait Load {
-    fn pre_load(&mut self) {
-    }
-
-    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult {
-        Ok(())
-    }
-
-    fn post_load(&mut self, _context: &PostLoadContext) {
-    }
+    fn pre_load(&mut self) {}
+    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult { Ok(()) }
+    fn post_load(&mut self, _context: &PostLoadContext) {}
 }
 
 // ----------------------------------------------
@@ -87,84 +75,81 @@ impl PostLoadContext {
 // ----------------------------------------------
 
 pub mod backend {
-use super::*;
+    use super::*;
 
-// ----------------------------------------------
-// JsonSaveState
-// ----------------------------------------------
+    // ----------------------------------------------
+    // JsonSaveState
+    // ----------------------------------------------
 
-pub struct JsonSaveState {
-    pretty: bool,
-    buffer: String,
-}
+    pub struct JsonSaveState {
+        pretty: bool,
+        buffer: String,
+    }
 
-impl JsonSaveState {
-    pub fn new(pretty_print: bool) -> Self {
-        Self {
-            pretty: pretty_print,
-            buffer: String::new(),
+    impl JsonSaveState {
+        pub fn new(pretty_print: bool) -> Self {
+            Self { pretty: pretty_print, buffer: String::new() }
         }
     }
-}
 
-impl SaveState for JsonSaveState {
-    fn save<T>(&mut self, instance: &T) -> SaveResult
-        where T: Serialize
-    {
-        let result = {
-            if self.pretty {
-                serde_json::to_string_pretty(instance)
-            } else {
-                serde_json::to_string(instance)
+    impl SaveState for JsonSaveState {
+        fn save<T>(&mut self, instance: &T) -> SaveResult
+            where T: Serialize
+        {
+            let result = {
+                if self.pretty {
+                    serde_json::to_string_pretty(instance)
+                } else {
+                    serde_json::to_string(instance)
+                }
+            };
+
+            let json = match result {
+                Ok(json) => json,
+                Err(err) => return Err(err.to_string()),
+            };
+
+            self.buffer = json;
+            Ok(())
+        }
+
+        fn load<T>(&self, instance: &mut T) -> LoadResult
+            where T: DeserializeOwned
+        {
+            // Load in place:
+            *instance = self.load_new_instance()?;
+            Ok(())
+        }
+
+        fn load_new_instance<T>(&self) -> Result<T, String>
+            where T: DeserializeOwned
+        {
+            if self.buffer.is_empty() {
+                return Err("JsonSaveState has no state to load!".into());
             }
-        };
 
-        let json = match result {
-            Ok(json) => json,
-            Err(err)  => return Err(err.to_string()),
-        };
-
-        self.buffer = json;
-        Ok(())
-    }
-
-    fn load<T>(&self, instance: &mut T) -> LoadResult
-        where T: DeserializeOwned
-    {
-        // Load in place:
-        *instance = self.load_new_instance()?;
-        Ok(())
-    }
-
-    fn load_new_instance<T>(&self) -> Result<T, String>
-        where T: DeserializeOwned
-    {
-        if self.buffer.is_empty() {
-            return Err("JsonSaveState has no state to load!".into());
+            match serde_json::from_str::<T>(&self.buffer) {
+                Ok(instance) => Ok(instance),
+                Err(err) => Err(err.to_string()),
+            }
         }
 
-        match serde_json::from_str::<T>(&self.buffer) {
-            Ok(instance) => Ok(instance),
-            Err(err) => Err(err.to_string()),
+        fn read_file<P>(&mut self, path: P) -> io::Result<()>
+            where P: AsRef<Path>
+        {
+            self.buffer = fs::read_to_string(path)?;
+            Ok(())
+        }
+
+        fn write_file<P>(&self, path: P) -> io::Result<()>
+            where P: AsRef<Path>
+        {
+            fs::write(path, &self.buffer)
         }
     }
 
-    fn read_file<P>(&mut self, path: P) -> io::Result<()>
-        where P: AsRef<Path>
-    {
-        self.buffer = fs::read_to_string(path)?;
-        Ok(())
+    #[inline]
+    pub fn new_json_save_state(pretty_print: bool) -> SaveStateImpl {
+        SaveStateImpl::from(JsonSaveState::new(pretty_print))
     }
-
-    fn write_file<P>(&self, path: P) -> io::Result<()>
-        where P: AsRef<Path>
-    {
-        fs::write(path, &self.buffer)
-    }
-}
-
-#[inline]
-pub fn new_json_save_state(pretty_print: bool) -> SaveStateImpl {
-    SaveStateImpl::from(JsonSaveState::new(pretty_print))
-}
 }

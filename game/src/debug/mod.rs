@@ -1,52 +1,37 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::{
-    log,
-    singleton_late_init,
-    engine::time::Seconds,
-    render::TextureCache,
-    imgui_ui::{UiSystem, UiInputEvent},
-    save::{Save, Load, PostLoadContext},
-    app::input::{MouseButton, InputAction, InputKey, InputModifiers},
-    game::{
-        GameLoop,
-        world::{World, object::Spawner},
-        sim::{self, Simulation},
-        system::GameSystems,
-    },
-    utils::{
-        Vec2,
-        mem,
-        coords::{Cell, CellRange, WorldToScreenTransform}
-    },
-    tile::{
-        TileMap,
-        TileFlags,
-        TileKind,
-        TileMapLayerKind,
-        PlacementOp,
-        camera::Camera,
-        selection::TileSelection,
-        rendering::TileMapRenderFlags
-    },
-    pathfind::{
-        self,
-        Node,
-        NodeKind,
-        Graph,
-        AStarUniformCostHeuristic,
-        Search,
-        SearchResult
-    }
-};
-
 use inspector::TileInspectorMenu;
 use palette::TilePaletteMenu;
 use settings::DebugSettingsMenu;
 
-pub mod utils;
-pub mod popups;
+use crate::{
+    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
+    engine::time::Seconds,
+    game::{
+        sim::{self, Simulation},
+        system::GameSystems,
+        world::{object::Spawner, World},
+        GameLoop,
+    },
+    imgui_ui::{UiInputEvent, UiSystem},
+    log,
+    pathfind::{self, AStarUniformCostHeuristic, Graph, Node, NodeKind, Search, SearchResult},
+    render::TextureCache,
+    save::{Load, PostLoadContext, Save},
+    singleton_late_init,
+    tile::{
+        camera::Camera, rendering::TileMapRenderFlags, selection::TileSelection, PlacementOp,
+        TileFlags, TileKind, TileMap, TileMapLayerKind,
+    },
+    utils::{
+        coords::{Cell, CellRange, WorldToScreenTransform},
+        mem, Vec2,
+    },
+};
+
 pub mod log_viewer;
+pub mod popups;
+pub mod utils;
 
 mod inspector;
 mod palette;
@@ -105,7 +90,8 @@ impl DebugMenusSystem {
     pub fn on_key_input(&mut self,
                         args: &mut DebugMenusInputArgs,
                         key: InputKey,
-                        action: InputAction) -> UiInputEvent {
+                        action: InputAction)
+                        -> UiInputEvent {
         DebugMenusSingleton::get_mut().on_key_input(args, key, action)
     }
 
@@ -113,7 +99,8 @@ impl DebugMenusSystem {
                           args: &mut DebugMenusInputArgs,
                           button: MouseButton,
                           action: InputAction,
-                          modifiers: InputModifiers) -> UiInputEvent {
+                          modifiers: InputModifiers)
+                          -> UiInputEvent {
         DebugMenusSingleton::get_mut().on_mouse_click(args, button, action, modifiers)
     }
 
@@ -139,8 +126,7 @@ impl Drop for DebugMenusSystem {
 // Save/Load for DebugMenusSystem
 // ----------------------------------------------
 
-impl Save for DebugMenusSystem {
-}
+impl Save for DebugMenusSystem {}
 
 impl Load for DebugMenusSystem {
     fn post_load(&mut self, context: &PostLoadContext) {
@@ -172,19 +158,17 @@ struct DebugMenusSingleton {
 
 impl DebugMenusSingleton {
     fn new(tex_cache: &mut dyn TextureCache, tile_palette_open: bool) -> Self {
-        Self {
-            debug_settings_menu: DebugSettingsMenu::new(),
-            tile_palette_menu: TilePaletteMenu::new(tile_palette_open, tex_cache),
-            tile_inspector_menu: TileInspectorMenu::new(),
-            ..Default::default()
-        }
+        Self { debug_settings_menu: DebugSettingsMenu::new(),
+               tile_palette_menu: TilePaletteMenu::new(tile_palette_open, tex_cache),
+               tile_inspector_menu: TileInspectorMenu::new(),
+               ..Default::default() }
     }
 
     fn on_key_input(&mut self,
                     args: &mut DebugMenusInputArgs,
                     key: InputKey,
-                    action: InputAction) -> UiInputEvent {
-
+                    action: InputAction)
+                    -> UiInputEvent {
         if key == InputKey::LeftControl || key == InputKey::RightControl {
             if action == InputAction::Press {
                 self.search_test_mode = true;
@@ -200,9 +184,10 @@ impl DebugMenusSingleton {
 
             // Clear search test state:
             self.search_test_start = Cell::invalid();
-            self.search_test_goal  = Cell::invalid();
-            args.tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::all(),
-                |tile| tile.set_flags(TileFlags::Highlighted, false));
+            self.search_test_goal = Cell::invalid();
+            args.tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::all(), |tile| {
+                             tile.set_flags(TileFlags::Highlighted, false)
+                         });
 
             if let Some(ped) = args.world.find_unit_by_name_mut("Ped") {
                 ped.follow_path(None);
@@ -234,7 +219,7 @@ impl DebugMenusSingleton {
                         ped.teleport(args.tile_map, path[0].cell);
                         ped.follow_path(Some(path));
                     }
-                },
+                }
                 SearchResult::PathNotFound => log::info!("No path could be found."),
             }
 
@@ -248,32 +233,38 @@ impl DebugMenusSingleton {
                       args: &mut DebugMenusInputArgs,
                       button: MouseButton,
                       action: InputAction,
-                      modifiers: InputModifiers) -> UiInputEvent {
-
+                      modifiers: InputModifiers)
+                      -> UiInputEvent {
         if self.tile_palette_menu.has_selection() {
             if self.tile_palette_menu.on_mouse_click(button, action).not_handled() {
                 self.tile_palette_menu.clear_selection();
                 args.tile_map.clear_selection(args.tile_selection);
             }
         } else {
-            if args.tile_selection.on_mouse_click(button, action, args.cursor_screen_pos).not_handled() {
+            if args.tile_selection
+                   .on_mouse_click(button, action, args.cursor_screen_pos)
+                   .not_handled()
+            {
                 self.tile_palette_menu.clear_selection();
                 args.tile_map.clear_selection(args.tile_selection);
             }
 
             // Select search test start/goal cells:
-            if self.search_test_mode && button == MouseButton::Left && modifiers.intersects(InputModifiers::Control) {
+            if self.search_test_mode
+               && button == MouseButton::Left
+               && modifiers.intersects(InputModifiers::Control)
+            {
                 if !self.search_test_start.is_valid() {
-                    let cursor_cell = args.tile_map.find_exact_cell_for_point(
-                        TileMapLayerKind::Terrain,
-                        args.cursor_screen_pos,
-                        args.transform);
+                    let cursor_cell = args.tile_map
+                                          .find_exact_cell_for_point(TileMapLayerKind::Terrain,
+                                                                     args.cursor_screen_pos,
+                                                                     args.transform);
                     self.search_test_start = cursor_cell;
                 } else if !self.search_test_goal.is_valid() {
-                    let cursor_cell = args.tile_map.find_exact_cell_for_point(
-                        TileMapLayerKind::Terrain,
-                        args.cursor_screen_pos,
-                        args.transform);
+                    let cursor_cell = args.tile_map
+                                          .find_exact_cell_for_point(TileMapLayerKind::Terrain,
+                                                                     args.cursor_screen_pos,
+                                                                     args.transform);
                     if cursor_cell != self.search_test_start {
                         self.search_test_goal = cursor_cell;
                     }
@@ -282,7 +273,10 @@ impl DebugMenusSingleton {
             }
 
             if let Some(selected_tile) = args.tile_map.topmost_selected_tile(args.tile_selection) {
-                if self.tile_inspector_menu.on_mouse_click(button, action, selected_tile).is_handled() {
+                if self.tile_inspector_menu
+                       .on_mouse_click(button, action, selected_tile)
+                       .is_handled()
+                {
                     return UiInputEvent::Handled;
                 }
             }
@@ -310,34 +304,37 @@ impl DebugMenusSingleton {
                 }
             };
 
-            args.tile_map.update_selection(
-                args.tile_selection,
-                args.cursor_screen_pos,
-                args.camera.transform(),
-                placement_op);
+            args.tile_map.update_selection(args.tile_selection,
+                                           args.cursor_screen_pos,
+                                           args.camera.transform(),
+                                           placement_op);
         }
 
         if self.tile_palette_menu.can_place_tile() {
-            let placement_candidate =
-                self.tile_palette_menu.current_selection();
+            let placement_candidate = self.tile_palette_menu.current_selection();
 
             let did_place_or_clear = {
-                // If we have a selection place it, otherwise we want to try clearing the tile under the cursor.
+                // If we have a selection place it, otherwise we want to try clearing the tile
+                // under the cursor.
                 if let Some(tile_def) = placement_candidate {
-                    let target_cell = args.tile_map.find_exact_cell_for_point(
-                        tile_def.layer_kind(),
-                        args.cursor_screen_pos,
-                        args.camera.transform());
+                    let target_cell = args.tile_map
+                                          .find_exact_cell_for_point(tile_def.layer_kind(),
+                                                                     args.cursor_screen_pos,
+                                                                     args.camera.transform());
 
                     if target_cell.is_valid() {
-                        let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
+                        let query =
+                            args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
                         Spawner::new(&query).try_spawn_tile_with_def(target_cell, tile_def).is_ok()
                     } else {
                         false
                     }
                 } else {
                     let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
-                    if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos, args.camera.transform()) {
+                    if let Some(tile) =
+                        query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos,
+                                                                args.camera.transform())
+                    {
                         Spawner::new(&query).despawn_tile(tile);
                         true
                     } else {
@@ -347,7 +344,7 @@ impl DebugMenusSingleton {
             };
 
             let placing_an_object = placement_candidate.is_some_and(|def| def.is(TileKind::Object));
-            let clearing_a_tile   = self.tile_palette_menu.is_clear_selected();
+            let clearing_a_tile = self.tile_palette_menu.is_clear_selected();
 
             if did_place_or_clear && (placing_an_object || clearing_a_tile) {
                 // Place or remove building/unit and exit tile placement mode.
@@ -375,41 +372,33 @@ impl DebugMenusSingleton {
             *show_log_viewer_window = log_viewer.draw(args.ui_sys);
         }
 
-        let mut context = sim::debug::DebugContext {
-            ui_sys: args.ui_sys,
-            world: args.world,
-            systems: args.systems,
-            tile_map: args.tile_map,
-            transform: args.camera.transform(),
-            delta_time_secs: args.delta_time_secs,
-        };
+        let mut context = sim::debug::DebugContext { ui_sys: args.ui_sys,
+                                                     world: args.world,
+                                                     systems: args.systems,
+                                                     tile_map: args.tile_map,
+                                                     transform: args.camera.transform(),
+                                                     delta_time_secs: args.delta_time_secs };
 
-        self.tile_palette_menu.draw(
-            &mut context,
-            game_loop.engine_mut().debug_draw(),
-            args.cursor_screen_pos,
-            has_valid_placement,
-            show_selection_bounds);
+        self.tile_palette_menu.draw(&mut context,
+                                    game_loop.engine_mut().debug_draw(),
+                                    args.cursor_screen_pos,
+                                    has_valid_placement,
+                                    show_selection_bounds);
 
-        self.tile_inspector_menu.draw(
-            &mut context,
-            args.sim);
+        self.tile_inspector_menu.draw(&mut context, args.sim);
 
-        self.debug_settings_menu.draw(
-            &mut context,
-            args.sim,
-            args.camera,
-            game_loop);
+        self.debug_settings_menu.draw(&mut context, args.sim, args.camera, game_loop);
 
         if show_popup_messages() {
             args.sim.draw_game_object_debug_popups(&mut context, args.visible_range);
         }
 
         if self.search_test_mode {
-            utils::draw_cursor_overlay(
-                args.ui_sys,
-                args.camera.transform(),
-                Some(&format!("Search Test: {} -> {}", self.search_test_start, self.search_test_goal)));
+            utils::draw_cursor_overlay(args.ui_sys,
+                                       args.camera.transform(),
+                                       Some(&format!("Search Test: {} -> {}",
+                                                     self.search_test_start,
+                                                     self.search_test_goal)));
         }
 
         if show_cursor_pos {
@@ -418,7 +407,9 @@ impl DebugMenusSingleton {
 
         if show_render_stats {
             let engine = game_loop.engine();
-            utils::draw_render_stats(args.ui_sys, engine.render_stats(), engine.tile_map_render_stats());
+            utils::draw_render_stats(args.ui_sys,
+                                     engine.render_stats(),
+                                     engine.tile_map_render_stats());
         }
 
         if show_screen_origin {
@@ -472,28 +463,31 @@ impl TileMapRawPtr {
 // Using this to get tile names from cells directly for debugging & logging.
 // SAFETY: Must make sure the tile map pointer set on initialization stays
 // valid until app termination or until it is reset.
-static TILE_MAP_DEBUG_PTR: mem::SingleThreadStatic<Option<TileMapRawPtr>> = mem::SingleThreadStatic::new(None);
+static TILE_MAP_DEBUG_PTR: mem::SingleThreadStatic<Option<TileMapRawPtr>> =
+    mem::SingleThreadStatic::new(None);
 
 fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {
     TILE_MAP_DEBUG_PTR.set(Some(TileMapRawPtr::new(tile_map)));
 
     tile_map.set_tile_placed_callback(Some(|tile, did_reallocate| {
-        DebugMenusSingleton::get_mut().tile_inspector_menu.on_tile_placed(tile, did_reallocate);
-    }));
+                                  DebugMenusSingleton::get_mut().tile_inspector_menu
+                                                                .on_tile_placed(tile,
+                                                                                did_reallocate);
+                              }));
 
     tile_map.set_removing_tile_callback(Some(|tile| {
-        DebugMenusSingleton::get_mut().tile_inspector_menu.on_removing_tile(tile);
-    }));
+                                            DebugMenusSingleton::get_mut().tile_inspector_menu
+                                                                          .on_removing_tile(tile);
+                                        }));
 
     tile_map.set_map_reset_callback(Some(|_| {
-        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
-    }));
+                                        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
+                                    }));
 }
 
 pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {
     if let Some(tile_map) = TILE_MAP_DEBUG_PTR.as_ref() {
-        return tile_map.0.try_tile_from_layer(cell, layer)
-            .map_or("", |tile| tile.name());
+        return tile_map.0.try_tile_from_layer(cell, layer).map_or("", |tile| tile.name());
     }
     ""
 }

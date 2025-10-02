@@ -1,52 +1,38 @@
 #![allow(clippy::too_many_arguments)]
 
-use rand::{distr::uniform::{SampleRange, SampleUniform}, Rng, SeedableRng};
+use rand::{
+    distr::uniform::{SampleRange, SampleUniform},
+    Rng, SeedableRng,
+};
 use rand_pcg::Pcg64;
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use serde::{
-    Serialize,
-    Deserialize
-};
-
-use crate::{
-    log,
-    save::*,
-    engine::time::{Seconds, UpdateTimer},
-    pathfind::{
-        self,
-        Node,
-        NodeKind as PathNodeKind,
-        Graph,
-        Search,
-        SearchResult,
-        Path,
-        Bias,
-        Unbiased,
-        PathFilter,
-        AStarUniformCostHeuristic
-    },
-    utils::{
-        mem,
-        hash::StringHash,
-        coords::{Cell, CellRange}
-    },
-    tile::{
-        Tile,
-        TileKind,
-        TileMap,
-        TileMapLayerKind,
-        sets::{TileDef, TileSets}
-    }
-};
-
 use super::{
-    constants::*,
+    building::{Building, BuildingKind},
     config::GameConfigs,
-    world::World,
+    constants::*,
     system::GameSystems,
     unit::task::UnitTaskManager,
-    building::{Building, BuildingKind}
+    world::World,
+};
+use crate::{
+    engine::time::{Seconds, UpdateTimer},
+    log,
+    pathfind::{
+        self, AStarUniformCostHeuristic, Bias, Graph, Node, NodeKind as PathNodeKind, Path,
+        PathFilter, Search, SearchResult, Unbiased,
+    },
+    save::*,
+    tile::{
+        sets::{TileDef, TileSets},
+        Tile, TileKind, TileMap, TileMapLayerKind,
+    },
+    utils::{
+        coords::{Cell, CellRange},
+        hash::StringHash,
+        mem,
+    },
 };
 
 pub mod debug;
@@ -80,27 +66,28 @@ pub struct Simulation {
 impl Simulation {
     pub fn new(tile_map: &TileMap) -> Self {
         let configs = GameConfigs::get();
-        Self {
-            rng: RandomGenerator::seed_from_u64(configs.sim.random_seed),
-            update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
-            task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
-            graph: Graph::from_tile_map(tile_map),
-            search: Search::with_grid_size(tile_map.size_in_cells()),
-            treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
-        }
+        Self { rng: RandomGenerator::seed_from_u64(configs.sim.random_seed),
+               update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
+               task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
+               graph: Graph::from_tile_map(tile_map),
+               search: Search::with_grid_size(tile_map.size_in_cells()),
+               treasury: GlobalTreasury::new(configs.sim.starting_gold_units) }
     }
 
     #[inline]
-    pub fn new_query(&mut self, world: &mut World, tile_map: &mut TileMap, delta_time_secs: Seconds) -> Query {
-        Query::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
-            &mut self.task_manager,
-            world,
-            tile_map,
-            &mut self.treasury,
-            delta_time_secs)
+    pub fn new_query(&mut self,
+                     world: &mut World,
+                     tile_map: &mut TileMap,
+                     delta_time_secs: Seconds)
+                     -> Query {
+        Query::new(&mut self.rng,
+                   &mut self.graph,
+                   &mut self.search,
+                   &mut self.task_manager,
+                   world,
+                   tile_map,
+                   &mut self.treasury,
+                   delta_time_secs)
     }
 
     #[inline]
@@ -113,7 +100,6 @@ impl Simulation {
                   systems: &mut GameSystems,
                   tile_map: &mut TileMap,
                   delta_time_secs: Seconds) {
-
         // Rebuild the search graph once every frame so any
         // add/remove tile changes will be reflected on the graph.
         self.graph.rebuild_from_tile_map(tile_map, true);
@@ -161,10 +147,7 @@ impl Simulation {
 
     // Game Systems:
     pub fn draw_game_systems_debug_ui(&mut self, context: &mut debug::DebugContext) {
-        let query = self.new_query(
-            context.world,
-            context.tile_map,
-            context.delta_time_secs);
+        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
 
         context.systems.draw_debug_ui(&query, context.ui_sys);
     }
@@ -174,7 +157,6 @@ impl Simulation {
                                      context: &mut debug::DebugContext,
                                      tile: &Tile,
                                      mode: debug::DebugUiMode) {
-
         if tile.is(TileKind::Building) {
             self.draw_building_debug_ui(context, tile, mode);
         } else if tile.is(TileKind::Unit) {
@@ -185,7 +167,6 @@ impl Simulation {
     pub fn draw_game_object_debug_popups(&mut self,
                                          context: &mut debug::DebugContext,
                                          visible_range: CellRange) {
-    
         self.draw_building_debug_popups(context, visible_range);
         self.draw_unit_debug_popups(context, visible_range);
     }
@@ -194,68 +175,40 @@ impl Simulation {
     fn draw_building_debug_popups(&mut self,
                                   context: &mut debug::DebugContext,
                                   visible_range: CellRange) {
+        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
 
-        let query = self.new_query(
-            context.world,
-            context.tile_map,
-            context.delta_time_secs);
-
-        context.world.draw_building_debug_popups(
-            &query,
-            context.ui_sys,
-            context.transform,
-            visible_range);
+        context.world.draw_building_debug_popups(&query,
+                                                 context.ui_sys,
+                                                 context.transform,
+                                                 visible_range);
     }
 
     fn draw_building_debug_ui(&mut self,
                               context: &mut debug::DebugContext,
                               tile: &Tile,
                               mode: debug::DebugUiMode) {
+        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
 
-        let query = self.new_query(
-            context.world,
-            context.tile_map,
-            context.delta_time_secs);
-
-        context.world.draw_building_debug_ui(
-            &query,
-            context.ui_sys,
-            tile,
-            mode);
+        context.world.draw_building_debug_ui(&query, context.ui_sys, tile, mode);
     }
 
     // Units:
     fn draw_unit_debug_popups(&mut self,
                               context: &mut debug::DebugContext,
                               visible_range: CellRange) {
+        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
 
-        let query = self.new_query(
-            context.world,
-            context.tile_map,
-            context.delta_time_secs);
-
-        context.world.draw_unit_debug_popups(
-            &query,
-            context.ui_sys,
-            context.transform,
-            visible_range);
+        context.world
+               .draw_unit_debug_popups(&query, context.ui_sys, context.transform, visible_range);
     }
 
     fn draw_unit_debug_ui(&mut self,
                           context: &mut debug::DebugContext,
                           tile: &Tile,
                           mode: debug::DebugUiMode) {
+        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
 
-        let query = self.new_query(
-            context.world,
-            context.tile_map,
-            context.delta_time_secs);
-
-        context.world.draw_unit_debug_ui(
-            &query,
-            context.ui_sys,
-            tile,
-            mode);
+        context.world.draw_unit_debug_ui(&query, context.ui_sys, tile, mode);
     }
 }
 
@@ -323,17 +276,16 @@ impl Query {
            world: &mut World,
            tile_map: &mut TileMap,
            treasury: &mut GlobalTreasury,
-           delta_time_secs: Seconds) -> Self {
-        Self {
-            rng: mem::RawPtr::from_ref(rng),
-            graph: mem::RawPtr::from_ref(graph),
-            search: mem::RawPtr::from_ref(search),
-            task_manager: mem::RawPtr::from_ref(task_manager),
-            world: mem::RawPtr::from_ref(world),
-            tile_map: mem::RawPtr::from_ref(tile_map),
-            treasury: mem::RawPtr::from_ref(treasury),
-            delta_time_secs,
-        }
+           delta_time_secs: Seconds)
+           -> Self {
+        Self { rng: mem::RawPtr::from_ref(rng),
+               graph: mem::RawPtr::from_ref(graph),
+               search: mem::RawPtr::from_ref(search),
+               task_manager: mem::RawPtr::from_ref(task_manager),
+               world: mem::RawPtr::from_ref(world),
+               tile_map: mem::RawPtr::from_ref(tile_map),
+               treasury: mem::RawPtr::from_ref(treasury),
+               delta_time_secs }
     }
 
     #[inline(always)]
@@ -392,8 +344,8 @@ impl Query {
     pub fn find_tile_def(&self,
                          layer: TileMapLayerKind,
                          category_name_hash: StringHash,
-                         tile_def_name_hash: StringHash) -> Option<&'static TileDef> {
-
+                         tile_def_name_hash: StringHash)
+                         -> Option<&'static TileDef> {
         TileSets::get().find_tile_def_by_hash(layer, category_name_hash, tile_def_name_hash)
     }
 
@@ -401,8 +353,8 @@ impl Query {
     pub fn find_tile(&self,
                      cell: Cell,
                      layer: TileMapLayerKind,
-                     tile_kinds: TileKind) -> Option<&Tile> {
-
+                     tile_kinds: TileKind)
+                     -> Option<&Tile> {
         self.tile_map().find_tile(cell, layer, tile_kinds)
     }
 
@@ -410,8 +362,8 @@ impl Query {
     pub fn find_tile_mut(&self,
                          cell: Cell,
                          layer: TileMapLayerKind,
-                         tile_kinds: TileKind) -> Option<&mut Tile> {
-
+                         tile_kinds: TileKind)
+                         -> Option<&mut Tile> {
         self.tile_map().find_tile_mut(cell, layer, tile_kinds)
     }
 
@@ -428,8 +380,8 @@ impl Query {
     pub fn find_path(&self,
                      traversable_node_kinds: PathNodeKind,
                      start: Cell,
-                     goal: Cell) -> SearchResult {
-
+                     goal: Cell)
+                     -> SearchResult {
         self.search().find_path(self.graph(),
                                 &AStarUniformCostHeuristic::new(),
                                 traversable_node_kinds,
@@ -443,7 +395,8 @@ impl Query {
                               max_paths: usize,
                               traversable_node_kinds: PathNodeKind,
                               start: Cell,
-                              goal: Cell) -> SearchResult
+                              goal: Cell)
+                              -> SearchResult
         where Filter: PathFilter
     {
         self.search().find_paths(self.graph(),
@@ -461,7 +414,8 @@ impl Query {
                                   path_filter: &mut Filter,
                                   traversable_node_kinds: PathNodeKind,
                                   start: Cell,
-                                  max_distance: i32) -> SearchResult
+                                  max_distance: i32)
+                                  -> SearchResult
         where Filter: PathFilter
     {
         self.search().find_waypoints(self.graph(),
@@ -478,8 +432,8 @@ impl Query {
                              bias: &impl Bias,
                              traversable_node_kinds: PathNodeKind,
                              start: Cell,
-                             goal_node_kinds: PathNodeKind) -> SearchResult {
-
+                             goal_node_kinds: PathNodeKind)
+                             -> SearchResult {
         self.search().find_path_to_node(self.graph(),
                                         &AStarUniformCostHeuristic::new(),
                                         bias,
@@ -493,16 +447,20 @@ impl Query {
                                      building_kinds: BuildingKind,
                                      traversable_node_kinds: PathNodeKind,
                                      max_distance: Option<i32>,
-                                     visitor_fn: F) -> Option<(&mut Building, &Path)>
+                                     visitor_fn: F)
+                                     -> Option<(&mut Building, &Path)>
         where F: FnMut(&Building, &Path) -> bool
     {
         debug_assert!(start.is_valid());
         debug_assert!(!building_kinds.is_empty());
         debug_assert!(!traversable_node_kinds.is_empty());
 
-        if !self.graph().node_kind(Node::new(start))
-            .is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
-            log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
+        if !self.graph()
+                .node_kind(Node::new(start))
+                .is_some_and(|kind| kind.intersects(traversable_node_kinds))
+        {
+            log::error!(log::channel!("sim"),
+                        "Near building search: start cell {start} is not traversable!");
             return None;
         }
 
@@ -512,12 +470,12 @@ impl Query {
             traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
             result_building: Option<&'world mut Building>, // Search result.
-            result_path: Option<mem::RawPtr<Path>>, // SAFETY: Saved for result debug validation only.
+            result_path: Option<mem::RawPtr<Path>>,        /* SAFETY: Saved for result debug
+                                                            * validation only. */
             visited_nodes: SmallVec<[Node; 32]>,
         }
 
-        impl<F> PathFilter for BuildingPathFilter<'_, F>
-            where F: FnMut(&Building, &Path) -> bool
+        impl<F> PathFilter for BuildingPathFilter<'_, F> where F: FnMut(&Building, &Path) -> bool
         {
             fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {
                 if self.visited_nodes.iter().any(|node| *node == goal) {
@@ -529,19 +487,28 @@ impl Query {
                 debug_assert!(path.last().unwrap().cell == goal.cell);
 
                 let node_kind = self.query.graph().node_kind(goal).unwrap();
-                debug_assert!(node_kind.intersects(PathNodeKind::BuildingRoadLink | PathNodeKind::BuildingAccess),
-                              "Unexpected PathNodeKind: {}", node_kind);
+                debug_assert!(node_kind.intersects(PathNodeKind::BuildingRoadLink
+                                                   | PathNodeKind::BuildingAccess),
+                              "Unexpected PathNodeKind: {}",
+                              node_kind);
 
                 let neighbors = self.query.graph().neighbors(goal, PathNodeKind::Building);
                 for neighbor in neighbors {
-                    if let Some(building) = self.query.world().find_building_for_cell_mut(neighbor.cell, self.query.tile_map()) {
+                    if let Some(building) =
+                        self.query
+                            .world()
+                            .find_building_for_cell_mut(neighbor.cell, self.query.tile_map())
+                    {
                         if building.is(self.building_kinds) {
                             let mut accept_building = false;
 
-                            // If we're looking for buildings connected to roads, check that this road link
-                            // goal actually belongs to this building. Buildings can share the same road link tile.
+                            // If we're looking for buildings connected to roads, check that this
+                            // road link goal actually belongs to this
+                            // building. Buildings can share the same road link tile.
                             if self.traversable_node_kinds.intersects(PathNodeKind::Road) {
-                                if building.road_link(self.query).is_some_and(|link| link == goal.cell) {
+                                if building.road_link(self.query)
+                                           .is_some_and(|link| link == goal.cell)
+                                {
                                     accept_building = !(self.visitor_fn)(building, path);
                                 }
                             } else {
@@ -565,24 +532,21 @@ impl Query {
             }
         }
 
-        let mut building_filter = BuildingPathFilter {
-            query: self,
-            building_kinds,
-            traversable_node_kinds,
-            visitor_fn,
-            result_building: None,
-            result_path: None,
-            visited_nodes: SmallVec::new()
-        };
+        let mut building_filter = BuildingPathFilter { query: self,
+                                                       building_kinds,
+                                                       traversable_node_kinds,
+                                                       visitor_fn,
+                                                       result_building: None,
+                                                       result_path: None,
+                                                       visited_nodes: SmallVec::new() };
 
-        let result =
-            self.search().find_buildings(self.graph(),
-                                         &AStarUniformCostHeuristic::new(),
-                                         &Unbiased::new(),
-                                         &mut building_filter,
-                                         traversable_node_kinds,
-                                         Node::new(start),
-                                         max_distance.unwrap_or(i32::MAX));
+        let result = self.search().find_buildings(self.graph(),
+                                                  &AStarUniformCostHeuristic::new(),
+                                                  &Unbiased::new(),
+                                                  &mut building_filter,
+                                                  traversable_node_kinds,
+                                                  Node::new(start),
+                                                  max_distance.unwrap_or(i32::MAX));
 
         match result {
             SearchResult::PathFound(path_found) => {
@@ -591,14 +555,15 @@ impl Query {
                 let result_building = building_filter.result_building
                     .expect("If we've found a path we should have found a building too!");
 
-                let result_path = building_filter.result_path
-                    .expect("Path should be valid for SearchResult::PathFound!");
+                let result_path =
+                    building_filter.result_path
+                                   .expect("Path should be valid for SearchResult::PathFound!");
 
                 debug_assert!(result_building.is(building_kinds));
                 debug_assert!(result_path.as_ref() == path_found); // Must be the same.
 
                 Some((result_building, path_found))
-            },
+            }
             SearchResult::PathNotFound => None,
         }
     }
@@ -607,8 +572,8 @@ impl Query {
                             start: Cell, // -> Cell must be traversable!
                             building_kinds: BuildingKind,
                             connected_to_road_only: bool,
-                            effect_radius: i32) -> bool {
-
+                            effect_radius: i32)
+                            -> bool {
         debug_assert!(start.is_valid());
         debug_assert!(!building_kinds.is_empty());
         debug_assert!(effect_radius > 0);
@@ -621,20 +586,23 @@ impl Query {
             }
         };
 
-        if !self.graph().node_kind(Node::new(start))
-            .is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
-            log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
+        if !self.graph()
+                .node_kind(Node::new(start))
+                .is_some_and(|kind| kind.intersects(traversable_node_kinds))
+        {
+            log::error!(log::channel!("sim"),
+                        "Near building search: start cell {start} is not traversable!");
             return false;
         }
 
-        self.find_nearest_buildings(
-            start,
-            building_kinds,
-            traversable_node_kinds,
-            Some(effect_radius),
-            |_building, _path| {
-                false // Stop iterating, we'll take the first match.
-            }
-        ).is_some()
+        self.find_nearest_buildings(start,
+                                    building_kinds,
+                                    traversable_node_kinds,
+                                    Some(effect_radius),
+                                    |_building, _path| {
+                                        false // Stop iterating, we'll take the
+                                              // first match.
+                                    })
+            .is_some()
     }
 }

@@ -2,27 +2,21 @@ use heapless;
 use small_map;
 use smallvec::SmallVec;
 
-use crate::{
-    log,
-    imgui_ui::UiSystem,
-    game::world::object::{GameObject, Spawner},
-    pathfind::{Node, NodeKind as PathNodeKind},
-    utils::{Size, coords::{Cell, CellRange}},
-    tile::{
-        TileKind,
-        TileFlags,
-        TileMapLayerKind,
-        sets::TileDef
-    }
-};
-
 use super::{
-    Building,
-    BuildingId,
-    BuildingKind,
-    BuildingContext,
     config::BuildingConfigs,
-    house::{HouseLevel, HouseLevelConfig}
+    house::{HouseLevel, HouseLevelConfig},
+    Building, BuildingContext, BuildingId, BuildingKind,
+};
+use crate::{
+    game::world::object::{GameObject, Spawner},
+    imgui_ui::UiSystem,
+    log,
+    pathfind::{Node, NodeKind as PathNodeKind},
+    tile::{sets::TileDef, TileFlags, TileKind, TileMapLayerKind},
+    utils::{
+        coords::{Cell, CellRange},
+        Size,
+    },
 };
 
 // ----------------------------------------------
@@ -31,17 +25,19 @@ use super::{
 
 pub fn requires_expansion(context: &BuildingContext,
                           current_level: HouseLevel,
-                          target_level: HouseLevel) -> bool {
-
+                          target_level: HouseLevel)
+                          -> bool {
     debug_assert!(target_level > current_level);
 
     if let (Some(current_level_tile_def), Some(target_level_tile_def)) =
-           (find_tile_def_for_level(context, current_level), find_tile_def_for_level(context, target_level)) {
-
+        (find_tile_def_for_level(context, current_level),
+         find_tile_def_for_level(context, target_level))
+    {
         return target_level_tile_def.size_in_cells() > current_level_tile_def.size_in_cells();
     }
 
-    log::error!(log::channel!("house"), "Missing TileDefs for house levels {current_level} and {target_level}.");
+    log::error!(log::channel!("house"),
+                "Missing TileDefs for house levels {current_level} and {target_level}.");
     false
 }
 
@@ -49,17 +45,17 @@ pub fn requires_expansion(context: &BuildingContext,
 pub fn can_expand_house(context: &BuildingContext,
                         house_id: BuildingId,
                         current_level: HouseLevel,
-                        target_level: HouseLevel) -> bool {
-
+                        target_level: HouseLevel)
+                        -> bool {
     if current_level.is_max() {
         return false;
     }
 
-    // We can only advance one level at a time (expanding by one tile in each dimension).
+    // We can only advance one level at a time (expanding by one tile in each
+    // dimension).
     debug_assert!(target_level == current_level.next());
 
-    let best_result =
-        find_best_expanded_rect_and_candidates(context, house_id);
+    let best_result = find_best_expanded_rect_and_candidates(context, house_id);
 
     if best_result.is_none() || find_tile_def_for_level(context, target_level).is_none() {
         return false; // Not possible to expand.
@@ -68,21 +64,22 @@ pub fn can_expand_house(context: &BuildingContext,
     true
 }
 
-// Attempts to expand the house by *one cell* in each dimension, e.g.: 1x1 -> 2x2.
+// Attempts to expand the house by *one cell* in each dimension, e.g.: 1x1 ->
+// 2x2.
 pub fn try_expand_house(context: &BuildingContext,
                         house_id: BuildingId,
                         current_level: HouseLevel,
-                        target_level: HouseLevel) -> bool {
-
+                        target_level: HouseLevel)
+                        -> bool {
     if current_level.is_max() {
         return false;
     }
 
-    // We can only advance one level at a time (expanding by one tile in each dimension).
+    // We can only advance one level at a time (expanding by one tile in each
+    // dimension).
     debug_assert!(target_level == current_level.next());
 
-    let best_result =
-        find_best_expanded_rect_and_candidates(context, house_id);
+    let best_result = find_best_expanded_rect_and_candidates(context, house_id);
 
     let (target_rect, merge_ids) = match best_result {
         Some(best_result) => best_result,
@@ -102,19 +99,20 @@ pub fn try_expand_house(context: &BuildingContext,
     let target_tile_def = match context.find_tile_def(target_level_config.tile_def_name_hash) {
         Some(tile_def) => tile_def,
         None => {
-            log::error!(log::channel!("house"), "Missing TileDef for house level {}: {}",
-                        target_level, target_level_config.tile_def_name);
+            log::error!(log::channel!("house"),
+                        "Missing TileDef for house level {}: {}",
+                        target_level,
+                        target_level_config.tile_def_name);
             return false;
-        },
+        }
     };
 
-    try_merge_and_replace_tile(
-        context,
-        target_level_config,
-        target_tile_def,
-        start_cell,
-        house_id,
-        &house_ids_to_merge)
+    try_merge_and_replace_tile(context,
+                               target_level_config,
+                               target_tile_def,
+                               start_cell,
+                               house_id,
+                               &house_ids_to_merge)
 }
 
 // Replaces house tile with a new (possibly bigger) tile.
@@ -123,8 +121,8 @@ pub fn try_expand_house(context: &BuildingContext,
 pub fn try_replace_tile(context: &BuildingContext,
                         house_id: BuildingId,
                         target_tile_def: &'static TileDef,
-                        new_cell_range: CellRange) -> bool {
-
+                        new_cell_range: CellRange)
+                        -> bool {
     debug_assert!(house_id.is_valid());
     debug_assert!(target_tile_def.is_valid());
     debug_assert!(new_cell_range.is_valid());
@@ -135,38 +133,47 @@ pub fn try_replace_tile(context: &BuildingContext,
 
     // We'll have to restore the game object handle on the new tile.
     let (prev_game_object_handle, prev_cell_range, prev_tile_def) = {
-        let prev_tile = tile_map.find_tile_mut(dest_house.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
-            .expect("House building should have an associated Tile in the TileMap!");
+        let prev_tile =
+            tile_map.find_tile_mut(dest_house.base_cell(),
+                                   TileMapLayerKind::Objects,
+                                   TileKind::Building)
+                    .expect("House building should have an associated Tile in the TileMap!");
 
         let game_object_handle = prev_tile.game_object_handle();
         let cell_range = prev_tile.cell_range();
         let tile_def = prev_tile.tile_def();
 
-        debug_assert!(game_object_handle.is_valid(), "House tile doesn't have a valid associated TileGameObjectHandle!");
-        debug_assert!(dest_house.kind() == BuildingKind::from_game_object_handle(game_object_handle));
+        debug_assert!(game_object_handle.is_valid(),
+                      "House tile doesn't have a valid associated TileGameObjectHandle!");
+        debug_assert!(dest_house.kind()
+                      == BuildingKind::from_game_object_handle(game_object_handle));
         debug_assert!(dest_house.id().index() == game_object_handle.index());
 
         (game_object_handle, cell_range, tile_def)
     };
 
     // Clear the previous tile:
-    if let Err(err) = tile_map.try_clear_tile_from_layer(prev_cell_range.start, TileMapLayerKind::Objects) {
-        log::error!(log::channel!("house"), "{}: Failed to clear previous House tile: {err}", dest_house.name());
+    if let Err(err) =
+        tile_map.try_clear_tile_from_layer(prev_cell_range.start, TileMapLayerKind::Objects)
+    {
+        log::error!(log::channel!("house"),
+                    "{}: Failed to clear previous House tile: {err}",
+                    dest_house.name());
         return false;
     }
 
     // And place the new one:
-    let new_tile = match tile_map.try_place_tile_in_layer(
-        new_cell_range.start,
-        TileMapLayerKind::Objects,
-        target_tile_def) {
+    let new_tile = match tile_map.try_place_tile_in_layer(new_cell_range.start,
+                                                          TileMapLayerKind::Objects,
+                                                          target_tile_def)
+    {
         Ok(tile) => tile,
         Err(err) => {
             // Revert back to the previous tile if we've failed.
-            let prev_tile = match tile_map.try_place_tile_in_layer(
-                    prev_cell_range.start,
-                    TileMapLayerKind::Objects,
-                    prev_tile_def) {
+            let prev_tile = match tile_map.try_place_tile_in_layer(prev_cell_range.start,
+                                                                   TileMapLayerKind::Objects,
+                                                                   prev_tile_def)
+            {
                 Ok(tile) => tile,
                 Err(err) => {
                     log::error!(log::channel!("house"),
@@ -202,8 +209,9 @@ pub fn try_replace_tile(context: &BuildingContext,
             graph.set_node_kind(Node::new(cell), PathNodeKind::Dirt); // Traversable
         }
         for cell in &new_cell_range {
-            graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
-        }  
+            graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not
+                                                                          // Traversable
+        }
     }
 
     true
@@ -214,8 +222,8 @@ pub fn try_replace_tile(context: &BuildingContext,
 // ----------------------------------------------
 
 fn find_best_expanded_rect_and_candidates(context: &BuildingContext,
-                                          house_id: BuildingId) -> Option<(CellRect, HouseIdsSet)> {
-
+                                          house_id: BuildingId)
+                                          -> Option<(CellRect, HouseIdsSet)> {
     debug_assert!(house_id.is_valid());
 
     let mut best_score = -1;
@@ -223,24 +231,28 @@ fn find_best_expanded_rect_and_candidates(context: &BuildingContext,
     let current_cell_range = context.cell_range();
 
     for target_rect in candidate_target_rects(current_cell_range) {
-        if let Some((score, merge_ids)) = evaluate_target_rect(context, house_id, current_cell_range, target_rect) {
+        if let Some((score, merge_ids)) =
+            evaluate_target_rect(context, house_id, current_cell_range, target_rect)
+        {
             if score > best_score {
-                best_score  = score;
+                best_score = score;
                 best_result = Some((target_rect, merge_ids));
             }
         }
     }
 
     // We should have expanded by one cell in each dimension exactly.
-    debug_assert!(best_result.as_ref().is_none_or(|(target_rect, _)| target_rect.size() == current_cell_range.size() + 1));
+    debug_assert!(best_result.as_ref()
+                             .is_none_or(|(target_rect, _)| target_rect.size()
+                                                            == current_cell_range.size() + 1));
     best_result
 }
 
 fn evaluate_target_rect(context: &BuildingContext,
                         house_id: BuildingId,
                         current_cell_range: CellRange,
-                        target_rect: CellRect) -> Option<(i32, HouseIdsSet)> {
-
+                        target_rect: CellRect)
+                        -> Option<(i32, HouseIdsSet)> {
     debug_assert!(house_id.is_valid());
     debug_assert!(current_cell_range.is_valid());
 
@@ -249,7 +261,7 @@ fn evaluate_target_rect(context: &BuildingContext,
     }
 
     let current_size = current_cell_range.size();
-    let mut visited  = HouseIdsSet::new();
+    let mut visited = HouseIdsSet::new();
     let mut to_merge = HouseIdsSet::new();
 
     // BFS restricted to expanded target rect:
@@ -258,13 +270,12 @@ fn evaluate_target_rect(context: &BuildingContext,
             if valid_merge_sizes(current_size, neighbor_house) {
                 let search_start_id = neighbor_house.id();
                 if !visited.contains(search_start_id) {
-                    collect_merge_candidates(
-                        context,
-                        search_start_id,
-                        current_size,
-                        target_rect,
-                        &mut visited,
-                        &mut to_merge);
+                    collect_merge_candidates(context,
+                                             search_start_id,
+                                             current_size,
+                                             target_rect,
+                                             &mut visited,
+                                             &mut to_merge);
                 }
             } else {
                 return None;
@@ -279,7 +290,8 @@ fn evaluate_target_rect(context: &BuildingContext,
     // Always include the expanding house.
     to_merge.insert(house_id);
 
-    // Score = how many house tiles in the expanded target rect are filled by merging.
+    // Score = how many house tiles in the expanded target rect are filled by
+    // merging.
     let score = to_merge.len() as i32;
     Some((score, to_merge))
 }
@@ -303,17 +315,20 @@ fn can_expand_into_cell(context: &BuildingContext, cell: Cell) -> bool {
         None => return false,
     };
 
-    if !node_kind.intersects(PathNodeKind::Dirt | PathNodeKind::VacantLot | PathNodeKind::Building) {
+    if !node_kind.intersects(PathNodeKind::Dirt | PathNodeKind::VacantLot | PathNodeKind::Building)
+    {
         return false; // Not an expandable node.
     }
 
-    if node_kind.intersects(PathNodeKind::Building) && find_house_for_cell(context, cell).is_none() {
+    if node_kind.intersects(PathNodeKind::Building) && find_house_for_cell(context, cell).is_none()
+    {
         return false; // Not a house building.
     }
 
-    debug_assert!(!node_kind.intersects(
-                  PathNodeKind::Road | PathNodeKind::Water |
-                  PathNodeKind::BuildingRoadLink | PathNodeKind::SettlersSpawnPoint),
+    debug_assert!(!node_kind.intersects(PathNodeKind::Road
+                                        | PathNodeKind::Water
+                                        | PathNodeKind::BuildingRoadLink
+                                        | PathNodeKind::SettlersSpawnPoint),
                   "Mixing incompatible path node kinds!");
     true
 }
@@ -328,8 +343,7 @@ impl MergeCandidateQueue {
 
     #[inline]
     fn push_back(&mut self, id: BuildingId) {
-        self.0.push_back(id)
-            .expect("BFS candidates queue overflow! Increase max size.");
+        self.0.push_back(id).expect("BFS candidates queue overflow! Increase max size.");
     }
 
     #[inline]
@@ -345,7 +359,6 @@ fn collect_merge_candidates(context: &BuildingContext,
                             limit_rect: CellRect,
                             visited: &mut HouseIdsSet,
                             to_merge: &mut HouseIdsSet) {
-
     debug_assert!(search_start_id.is_valid());
     debug_assert!(current_size.is_valid());
     debug_assert!(limit_rect.is_valid());
@@ -365,12 +378,11 @@ fn collect_merge_candidates(context: &BuildingContext,
             }
 
             // Explore 4-neighbors (N/E/S/W) for adjacency:
-            for neighbor_cell in [
-                Cell::new(cell.x + 1, cell.y),
-                Cell::new(cell.x - 1, cell.y),
-                Cell::new(cell.x, cell.y + 1),
-                Cell::new(cell.x, cell.y - 1),
-            ] {
+            for neighbor_cell in [Cell::new(cell.x + 1, cell.y),
+                                  Cell::new(cell.x - 1, cell.y),
+                                  Cell::new(cell.x, cell.y + 1),
+                                  Cell::new(cell.x, cell.y - 1)]
+            {
                 if !limit_rect.contains(neighbor_cell) {
                     continue;
                 }
@@ -398,8 +410,14 @@ struct CellRect {
 }
 
 impl CellRect {
-    #[inline] fn width(&self)  -> i32 { self.max_x - self.min_x + 1 }
-    #[inline] fn height(&self) -> i32 { self.max_y - self.min_y + 1 }
+    #[inline]
+    fn width(&self) -> i32 {
+        self.max_x - self.min_x + 1
+    }
+    #[inline]
+    fn height(&self) -> i32 {
+        self.max_y - self.min_y + 1
+    }
 
     #[inline]
     fn size(&self) -> Size {
@@ -408,8 +426,7 @@ impl CellRect {
 
     #[inline]
     fn is_valid(&self) -> bool {
-        self.min_x >= 0 && self.min_y >= 0 &&
-        self.max_x >= 0 && self.max_y >= 0
+        self.min_x >= 0 && self.min_y >= 0 && self.max_x >= 0 && self.max_y >= 0
     }
 
     #[inline]
@@ -425,54 +442,43 @@ impl CellRect {
 
     #[inline]
     fn iter_cells(&self) -> impl Iterator<Item = Cell> {
-        (self.min_x..=self.max_x)
-            .flat_map(move |x| (self.min_y..=self.max_y).map(move |y| Cell::new(x, y)))
+        (self.min_x..=self.max_x).flat_map(move |x| {
+                                     (self.min_y..=self.max_y).map(move |y| Cell::new(x, y))
+                                 })
     }
 }
 
 const CANDIDATE_RECTS_COUNT: usize = 4;
 
 fn candidate_target_rects(current_cell_range: CellRange) -> [CellRect; CANDIDATE_RECTS_COUNT] {
-    let rect = CellRect {
-        min_x: current_cell_range.start.x,
-        min_y: current_cell_range.start.y,
-        max_x: current_cell_range.end.x,
-        max_y: current_cell_range.end.y,
-    };
+    let rect = CellRect { min_x: current_cell_range.start.x,
+                          min_y: current_cell_range.start.y,
+                          max_x: current_cell_range.end.x,
+                          max_y: current_cell_range.end.y };
 
-    let size = rect.size();   // current size (N)
+    let size = rect.size(); // current size (N)
     let next_size = size + 1; // desired size (N+1)
 
-    [
-        // Anchor top-left
-        CellRect {
-            min_x: rect.min_x,
-            min_y: rect.min_y,
-            max_x: rect.min_x + next_size.width  - 1,
-            max_y: rect.min_y + next_size.height - 1,
-        },
-        // Anchor top-right
-        CellRect {
-            min_x: rect.max_x - (next_size.width - 1),
-            min_y: rect.min_y,
-            max_x: rect.max_x,
-            max_y: rect.min_y + next_size.height - 1,
-        },
-        // Anchor bottom-left
-        CellRect {
-            min_x: rect.min_x,
-            min_y: rect.max_y - (next_size.width - 1),
-            max_x: rect.min_x + next_size.height - 1,
-            max_y: rect.max_y,
-        },
-        // Anchor bottom-right
-        CellRect {
-            min_x: rect.max_x - (next_size.width  - 1),
-            min_y: rect.max_y - (next_size.height - 1),
-            max_x: rect.max_x,
-            max_y: rect.max_y,
-        },
-    ]
+    [// Anchor top-left
+     CellRect { min_x: rect.min_x,
+                min_y: rect.min_y,
+                max_x: rect.min_x + next_size.width - 1,
+                max_y: rect.min_y + next_size.height - 1 },
+     // Anchor top-right
+     CellRect { min_x: rect.max_x - (next_size.width - 1),
+                min_y: rect.min_y,
+                max_x: rect.max_x,
+                max_y: rect.min_y + next_size.height - 1 },
+     // Anchor bottom-left
+     CellRect { min_x: rect.min_x,
+                min_y: rect.max_y - (next_size.width - 1),
+                max_x: rect.min_x + next_size.height - 1,
+                max_y: rect.max_y },
+     // Anchor bottom-right
+     CellRect { min_x: rect.max_x - (next_size.width - 1),
+                min_y: rect.max_y - (next_size.height - 1),
+                max_x: rect.max_x,
+                max_y: rect.max_y }]
 }
 
 fn try_merge_and_replace_tile(context: &BuildingContext,
@@ -480,8 +486,8 @@ fn try_merge_and_replace_tile(context: &BuildingContext,
                               target_tile_def: &'static TileDef,
                               start_cell: Cell,
                               house_id: BuildingId,
-                              ids_to_merge: &[BuildingId]) -> bool {
-
+                              ids_to_merge: &[BuildingId])
+                              -> bool {
     let new_cell_range = target_tile_def.cell_range(start_cell);
 
     // Expand by one cell in each dimension.
@@ -490,7 +496,8 @@ fn try_merge_and_replace_tile(context: &BuildingContext,
     if !ids_to_merge.is_empty() {
         merge_houses(context, target_level_config, house_id, ids_to_merge);
     }
-    // Else this house is expanding into vacant lots / empty terrain. Nothing to merge.
+    // Else this house is expanding into vacant lots / empty terrain. Nothing to
+    // merge.
 
     try_replace_tile(context, house_id, target_tile_def, new_cell_range)
 }
@@ -501,7 +508,6 @@ fn merge_houses(context: &BuildingContext,
                 target_level_config: &HouseLevelConfig,
                 dest_id: BuildingId,
                 ids_to_merge: &[BuildingId]) {
-
     debug_assert!(dest_id.is_valid());
     debug_assert!(!ids_to_merge.is_empty());
 
@@ -522,7 +528,6 @@ fn merge_house(context: &BuildingContext,
                dest_building: &mut Building,
                building_to_merge: &mut Building,
                target_level_config: &HouseLevelConfig) {
-
     debug_assert!(!std::ptr::eq(dest_building, building_to_merge));
 
     let house_to_merge_kind_and_id = building_to_merge.kind_and_id();
@@ -576,17 +581,21 @@ fn house_for_id<'world>(context: &'world BuildingContext, id: BuildingId) -> &'w
     let world = context.query.world();
 
     world.find_building(BuildingKind::House, id)
-        .expect("Invalid Building id! Expected to have a valid House Building.")
+         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-fn house_for_id_mut<'world>(context: &'world BuildingContext, id: BuildingId) -> &'world mut Building {
+fn house_for_id_mut<'world>(context: &'world BuildingContext,
+                            id: BuildingId)
+                            -> &'world mut Building {
     let world = context.query.world();
 
     world.find_building_mut(BuildingKind::House, id)
-        .expect("Invalid Building id! Expected to have a valid House Building.")
+         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-fn find_house_for_cell<'world>(context: &'world BuildingContext, cell: Cell) -> Option<&'world Building> {
+fn find_house_for_cell<'world>(context: &'world BuildingContext,
+                               cell: Cell)
+                               -> Option<&'world Building> {
     let world = context.query.world();
     let tile_map = context.query.tile_map();
 
@@ -599,7 +608,9 @@ fn find_house_for_cell<'world>(context: &'world BuildingContext, cell: Cell) -> 
     None
 }
 
-fn find_tile_def_for_level(context: &BuildingContext, level: HouseLevel) -> Option<&'static TileDef> {
+fn find_tile_def_for_level(context: &BuildingContext,
+                           level: HouseLevel)
+                           -> Option<&'static TileDef> {
     let level_config = BuildingConfigs::get().find_house_level_config(level);
     context.find_tile_def(level_config.tile_def_name_hash)
 }
@@ -640,7 +651,9 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
                 tile.set_flags(TileFlags::Highlighted, true);
             }
 
-            if let Some(tile) = tile_map.find_tile_mut(cell, TileMapLayerKind::Objects, TileKind::Building) {
+            if let Some(tile) =
+                tile_map.find_tile_mut(cell, TileMapLayerKind::Objects, TileKind::Building)
+            {
                 tile.set_flags(TileFlags::Invalidated, true);
             }
         }
@@ -648,11 +661,15 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
         if highlight_start_cell {
             let start_cell = Cell::new(target_rect.min_x, target_rect.min_y);
 
-            if let Some(tile) = tile_map.try_tile_from_layer_mut(start_cell, TileMapLayerKind::Terrain) {
+            if let Some(tile) =
+                tile_map.try_tile_from_layer_mut(start_cell, TileMapLayerKind::Terrain)
+            {
                 tile.set_flags(TileFlags::DrawDebugBounds, true);
             }
 
-            if let Some(tile) = tile_map.find_tile_mut(start_cell, TileMapLayerKind::Objects, TileKind::Building) {
+            if let Some(tile) =
+                tile_map.find_tile_mut(start_cell, TileMapLayerKind::Objects, TileKind::Building)
+            {
                 tile.set_flags(TileFlags::DrawDebugBounds, true);
             }
         }

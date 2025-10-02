@@ -1,10 +1,10 @@
 use crate::{
-    imgui_ui::UiSystem,
-    utils::Color,
     game::{
         building::HouseLevel,
-        sim::resources::{ResourceKind, ResourceStock, GlobalTreasury},
-    }
+        sim::resources::{GlobalTreasury, ResourceKind, ResourceStock},
+    },
+    imgui_ui::UiSystem,
+    utils::Color,
 };
 
 // ----------------------------------------------
@@ -195,8 +195,10 @@ impl WorldStats {
             {
                 let (employment_percentage, unemployment_percentage) = {
                     if self.population.total != 0 {
-                        (((self.population.employed   as f32) / (self.population.total as f32)) * 100.0,
-                         ((self.population.unemployed as f32) / (self.population.total as f32)) * 100.0)
+                        (((self.population.employed as f32) / (self.population.total as f32))
+                         * 100.0,
+                         ((self.population.unemployed as f32) / (self.population.total as f32))
+                         * 100.0)
                     } else {
                         (0.0, 0.0)
                     }
@@ -220,8 +222,12 @@ impl WorldStats {
                 ui.text(format!("Min Required : {}", self.workers.min_required));
                 ui.text(format!("Max Employed : {}", self.workers.max_employed));
                 ui.spacing();
-                highlight_nonzero_value("Buildings Below Min", self.workers.buildings_below_min, Color::red());
-                highlight_nonzero_value("Buildings Below Max", self.workers.buildings_below_max, Color::yellow());
+                highlight_nonzero_value("Buildings Below Min",
+                                        self.workers.buildings_below_min,
+                                        Color::red());
+                highlight_nonzero_value("Buildings Below Max",
+                                        self.workers.buildings_below_max,
+                                        Color::yellow());
             }
             ui.separator();
 
@@ -229,7 +235,7 @@ impl WorldStats {
                 ui.bullet_text("Housing:");
                 ui.spacing();
                 ui.text(format!("Number Of Houses    : {}", self.houses.total));
-                ui.text(format!("Lowest House Level  : {}", self.houses.lowest_level  as u32));
+                ui.text(format!("Lowest House Level  : {}", self.houses.lowest_level as u32));
                 ui.text(format!("Highest House Level : {}", self.houses.highest_level as u32));
             }
         }
@@ -245,7 +251,9 @@ impl WorldStats {
             ui.bullet_text("Treasury:");
             highlight_zero_value("Total Gold Units", self.treasury.gold_units_total, Color::red());
             highlight_zero_value("Gold In Global Treasury", treasury.gold_units(), Color::red());
-            highlight_zero_value("Gold In Buildings", self.treasury.gold_units_in_buildings, Color::gray());
+            highlight_zero_value("Gold In Buildings",
+                                 self.treasury.gold_units_in_buildings,
+                                 Color::gray());
 
             ui.separator();
 

@@ -1,15 +1,13 @@
-use std::any::Any;
-use std::ffi::c_void;
+use std::{any::Any, ffi::c_void};
+
 use glfw::Context;
 
+use super::{
+    input::InputSystem, Application, ApplicationEvent, ApplicationEventList, ApplicationFactory,
+};
 use crate::{
     log,
-    utils::{self, Size, Vec2, mem},
-};
-
-use super::{
-    input::InputSystem,
-    Application, ApplicationFactory, ApplicationEvent, ApplicationEventList
+    utils::{self, mem, Size, Vec2},
 };
 
 // ----------------------------------------------
@@ -64,9 +62,11 @@ impl ApplicationFactory for GlfwApplication {
             fullscreen = false;
         }
 
-        let (mut window, event_receiver) = glfw_instance
-            .create_window(window_size.width as u32, window_size.height as u32, title, window_mode)
-            .expect("Failed to create GLFW window!");
+        let (mut window, event_receiver) = glfw_instance.create_window(window_size.width as u32,
+                                                                       window_size.height as u32,
+                                                                       title,
+                                                                       window_mode)
+                                                        .expect("Failed to create GLFW window!");
 
         window.make_current();
 
@@ -83,27 +83,30 @@ impl ApplicationFactory for GlfwApplication {
         // is a hack to stop the TTY spamming but still keep a record
         // of the errors if ever required for inspection.
         utils::platform::macos_redirect_stderr(|| {
-            gl::load_with(|symbol| window.get_proc_address(symbol))
-        }, "stderr_gl_load_app.log");
+                                                   gl::load_with(|symbol| {
+                                                       window.get_proc_address(symbol)
+                                                   })
+                                               },
+                                               "stderr_gl_load_app.log");
 
         // NOTE: PWindow is a Box<Window>, so the address is stable.
         let window_ptr = mem::RawPtr::from_ref(&*window);
 
-        Self {
-            window_size,
-            fullscreen,
-            confine_cursor,
-            should_quit: false,
-            glfw_instance,
-            window,
-            event_receiver,
-            input_system: GlfwInputSystem { window_ptr },
-        }
+        Self { window_size,
+               fullscreen,
+               confine_cursor,
+               should_quit: false,
+               glfw_instance,
+               window,
+               event_receiver,
+               input_system: GlfwInputSystem { window_ptr } }
     }
 }
 
 impl Application for GlfwApplication {
-    fn as_any(&self) -> &dyn Any { self }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 
     fn should_quit(&self) -> bool {
         self.should_quit
@@ -126,7 +129,8 @@ impl Application for GlfwApplication {
                 glfw::WindowEvent::Size(width, height) => {
                     self.window_size.width = width;
                     self.window_size.height = height;
-                    translated_events.push(ApplicationEvent::WindowResize(Size::new(width, height)));
+                    translated_events.push(ApplicationEvent::WindowResize(Size::new(width,
+                                                                                    height)));
                 }
                 glfw::WindowEvent::Close => {
                     translated_events.push(ApplicationEvent::Quit);
@@ -141,10 +145,13 @@ impl Application for GlfwApplication {
                     translated_events.push(ApplicationEvent::Scroll(Vec2::new(x as f32, y as f32)));
                 }
                 glfw::WindowEvent::MouseButton(button, action, modifiers) => {
-                    translated_events.push(ApplicationEvent::MouseButton(button, action, modifiers));
+                    translated_events.push(ApplicationEvent::MouseButton(button, action,
+                                                                         modifiers));
                 }
                 unhandled_event => {
-                    log::error!(log::channel!("app"), "Unhandled GLFW window event: {:?}", unhandled_event);
+                    log::error!(log::channel!("app"),
+                                "Unhandled GLFW window event: {:?}",
+                                unhandled_event);
                 }
             }
         }
@@ -230,7 +237,9 @@ impl GlfwInputSystem {
 }
 
 impl InputSystem for GlfwInputSystem {
-    fn as_any(&self) -> &dyn Any { self }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 
     #[inline]
     fn cursor_pos(&self) -> Vec2 {

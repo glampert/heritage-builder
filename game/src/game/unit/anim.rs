@@ -1,17 +1,9 @@
-use serde::{
-    Serialize,
-    Deserialize
-};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     log,
-    tile::{Tile, sets::TileDef},
-    utils::hash::{
-        self,
-        StrHashPair,
-        StringHash,
-        PreHashedKeyMap
-    }
+    tile::{sets::TileDef, Tile},
+    utils::hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
 };
 
 // ----------------------------------------------
@@ -30,7 +22,7 @@ pub struct UnitAnimSets {
 }
 
 impl UnitAnimSets {
-    pub const IDLE:    UnitAnimSetKey = UnitAnimSetKey::from_str("idle");
+    pub const IDLE: UnitAnimSetKey = UnitAnimSetKey::from_str("idle");
     pub const WALK_NE: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_ne");
     pub const WALK_NW: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_nw");
     pub const WALK_SE: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_se");
@@ -58,13 +50,21 @@ impl UnitAnimSets {
 
     pub fn current_anim_name(&self) -> &'static str {
         let curr = self.current_anim_set_key;
-        if curr == hash::NULL_HASH         { "<none>" }
-        else if curr == Self::IDLE.hash    { Self::IDLE.string }
-        else if curr == Self::WALK_NE.hash { Self::WALK_NE.string }
-        else if curr == Self::WALK_NW.hash { Self::WALK_NW.string }
-        else if curr == Self::WALK_SE.hash { Self::WALK_SE.string }
-        else if curr == Self::WALK_SW.hash { Self::WALK_SW.string }
-        else { panic!("Unknown current animation!") }
+        if curr == hash::NULL_HASH {
+            "<none>"
+        } else if curr == Self::IDLE.hash {
+            Self::IDLE.string
+        } else if curr == Self::WALK_NE.hash {
+            Self::WALK_NE.string
+        } else if curr == Self::WALK_NW.hash {
+            Self::WALK_NW.string
+        } else if curr == Self::WALK_SE.hash {
+            Self::WALK_SE.string
+        } else if curr == Self::WALK_SW.hash {
+            Self::WALK_SW.string
+        } else {
+            panic!("Unknown current animation!")
+        }
     }
 
     fn find_index(&mut self, tile: &Tile, anim_set_key: UnitAnimSetKey) -> Option<usize> {

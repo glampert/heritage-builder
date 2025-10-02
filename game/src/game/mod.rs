@@ -1,35 +1,46 @@
-use std::path::{Path, PathBuf};
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    path::{Path, PathBuf},
+};
+
+use building::config::BuildingConfigs;
+use config::{GameConfigs, LoadMapSetting};
 use serde::{Deserialize, Serialize};
+use sim::Simulation;
+use system::{settlers, GameSystems};
+use unit::config::UnitConfigs;
+use world::World;
 
 use crate::{
-    singleton_late_init,
-    imgui_ui::UiInputEvent,
-    app::{ApplicationEvent, input::{InputAction, InputKey, InputModifiers, MouseButton}},
+    app::{
+        input::{InputAction, InputKey, InputModifiers, MouseButton},
+        ApplicationEvent,
+    },
     debug::{self, DebugMenusFrameArgs, DebugMenusInputArgs, DebugMenusSystem},
-    engine::{self, Engine, config::EngineConfigs},
+    engine::{
+        self,
+        config::EngineConfigs,
+        time::{Seconds, UpdateTimer},
+        Engine,
+    },
+    imgui_ui::UiInputEvent,
     log,
     render::TextureCache,
     save::{self, *},
+    singleton_late_init,
     tile::{
-        TileMap, camera::*, rendering::TileMapRenderFlags, selection::TileSelection, sets::{TileSets, TileDef},
+        camera::*,
+        rendering::TileMapRenderFlags,
+        selection::TileSelection,
+        sets::{TileDef, TileSets},
+        TileMap,
     },
-    utils::{Size, Vec2, coords::CellRange, hash, file_sys},
-    engine::time::{Seconds, UpdateTimer},
-};
-
-use {
-    config::{GameConfigs, LoadMapSetting},
-    building::config::BuildingConfigs,
-    unit::config::UnitConfigs,
-    sim::Simulation,
-    system::{GameSystems, settlers},
-    world::World,
+    utils::{coords::CellRange, file_sys, hash, Size, Vec2},
 };
 
 pub mod building;
-pub mod config;
 pub mod cheats;
+pub mod config;
 pub mod constants;
 pub mod sim;
 pub mod system;
@@ -58,7 +69,10 @@ struct GameSession {
 }
 
 impl GameSession {
-    fn new(tex_cache: &mut dyn TextureCache, load_map_setting: &LoadMapSetting, viewport_size: Size) -> Self {
+    fn new(tex_cache: &mut dyn TextureCache,
+           load_map_setting: &LoadMapSetting,
+           viewport_size: Size)
+           -> Self {
         if !viewport_size.is_valid() {
             panic!("Invalid game viewport size!");
         }
@@ -71,24 +85,20 @@ impl GameSession {
         systems.register(settlers::SettlersSpawnSystem::new());
 
         let configs = GameConfigs::get();
-        let camera = Camera::new(
-            viewport_size,
-            tile_map.size_in_cells(),
-            configs.camera.zoom,
-            configs.camera.offset,
-        );
+        let camera = Camera::new(viewport_size,
+                                 tile_map.size_in_cells(),
+                                 configs.camera.zoom,
+                                 configs.camera.offset);
 
         let debug_menus = DebugMenusSystem::new(&mut tile_map, tex_cache);
 
-        let mut session = Self {
-            tile_map,
-            world,
-            sim,
-            systems,
-            camera,
-            tile_selection: TileSelection::default(),
-            debug_menus,
-        };
+        let mut session = Self { tile_map,
+                                 world,
+                                 sim,
+                                 systems,
+                                 camera,
+                                 tile_selection: TileSelection::default(),
+                                 debug_menus };
 
         if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
             session.load_save_game(save_file_path);
@@ -103,11 +113,9 @@ impl GameSession {
                 LoadMapSetting::None => {
                     TileMap::default() // Empty dummy map.
                 }
-                LoadMapSetting::EmptyMap {
-                    size_in_cells,
-                    terrain_tile_category,
-                    terrain_tile_name,
-                } => {
+                LoadMapSetting::EmptyMap { size_in_cells,
+                                           terrain_tile_category,
+                                           terrain_tile_name, } => {
                     log::info!(
                         log::channel!("session"),
                         "Creating empty Tile Map. Size: {size_in_cells}, Fill: {terrain_tile_name}"
@@ -117,11 +125,9 @@ impl GameSession {
                         panic!("LoadMapSetting::EmptyMap: Invalid Tile Map dimensions! Width & height must not be zero.");
                     }
 
-                    TileMap::with_terrain_tile(
-                        *size_in_cells,
-                        hash::fnv1a_from_str(terrain_tile_category),
-                        hash::fnv1a_from_str(terrain_tile_name),
-                    )
+                    TileMap::with_terrain_tile(*size_in_cells,
+                                               hash::fnv1a_from_str(terrain_tile_category),
+                                               hash::fnv1a_from_str(terrain_tile_name))
                 }
                 LoadMapSetting::Preset { preset_number } => {
                     debug::utils::create_preset_tile_map(world, *preset_number)
@@ -139,7 +145,10 @@ impl GameSession {
         Box::new(tile_map)
     }
 
-    fn load_preset_map(preset_number: usize, tex_cache: &mut dyn TextureCache, viewport_size: Size) -> Self {
+    fn load_preset_map(preset_number: usize,
+                       tex_cache: &mut dyn TextureCache,
+                       viewport_size: Size)
+                       -> Self {
         // Override GameConfigs.load_map_setting
         let load_map_setting = LoadMapSetting::Preset { preset_number };
         Self::new(tex_cache, &load_map_setting, viewport_size)
@@ -221,11 +230,10 @@ pub const DEFAULT_SAVE_FILE_NAME: &str = "save_game.json";
 pub const SAVE_GAMES_DIR_PATH: &str = "saves";
 
 fn make_save_game_file_path(save_file_name: &str) -> String {
-    Path::new(SAVE_GAMES_DIR_PATH)
-        .join(save_file_name)
-        .with_extension("json")
-        .to_string_lossy()
-        .into()
+    Path::new(SAVE_GAMES_DIR_PATH).join(save_file_name)
+                                  .with_extension("json")
+                                  .to_string_lossy()
+                                  .into()
 }
 
 impl GameSession {
@@ -244,10 +252,8 @@ impl GameSession {
             }
 
             if let Err(err) = state.write_file(save_file_path) {
-                log::error!(
-                    log::channel!("session"),
-                    "Failed to write save game file '{save_file_path}': {err}"
-                );
+                log::error!(log::channel!("session"),
+                            "Failed to write save game file '{save_file_path}': {err}");
                 return false;
             }
 
@@ -259,10 +265,8 @@ impl GameSession {
         let _ = std::fs::create_dir_all(SAVE_GAMES_DIR_PATH);
 
         if !can_write_save_file(save_file_path) {
-            log::error!(
-                log::channel!("session"),
-                "Save game file path '{save_file_path}' is not accessible!"
-            );
+            log::error!(log::channel!("session"),
+                        "Save game file path '{save_file_path}' is not accessible!");
             return false;
         }
 
@@ -281,21 +285,18 @@ impl GameSession {
         let mut state = save::backend::new_json_save_state(false);
 
         if let Err(err) = state.read_file(save_file_path) {
-            log::error!(
-                log::channel!("session"),
-                "Failed to read save game file '{save_file_path}': {err}"
-            );
+            log::error!(log::channel!("session"),
+                        "Failed to read save game file '{save_file_path}': {err}");
             return false;
         }
 
-        // Load into a temporary instance so that if we fail we'll avoid modifying any state.
+        // Load into a temporary instance so that if we fail we'll avoid modifying any
+        // state.
         let session: GameSession = match state.load_new_instance() {
             Ok(session) => session,
             Err(err) => {
-                log::error!(
-                    log::channel!("session"),
-                    "Failed to load save game from '{save_file_path}': {err}"
-                );
+                log::error!(log::channel!("session"),
+                            "Failed to load save game from '{save_file_path}': {err}");
                 return false;
             }
         };
@@ -312,8 +313,9 @@ impl GameSession {
 // GameSessionCmd
 // ----------------------------------------------
 
-// Deferred session commands that must be processed at a safe point in the GameLoop update.
-// These are kept in a queue and consumed every iteration of the loop.
+// Deferred session commands that must be processed at a safe point in the
+// GameLoop update. These are kept in a queue and consumed every iteration of
+// the loop.
 enum GameSessionCmd {
     Reset { reset_map_with_tile_def: Option<&'static TileDef> },
     LoadPreset { preset_number: usize },
@@ -352,13 +354,12 @@ impl GameLoop {
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
 
-        let instance = Self {
-            engine,
-            session: None,
-            session_cmd_queue: VecDeque::new(),
-            autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
-            enable_autosave: configs.save.enable_autosave,
-        };
+        let instance = Self { engine,
+                              session: None,
+                              session_cmd_queue: VecDeque::new(),
+                              autosave_timer: UpdateTimer::new(configs.save
+                                                                      .autosave_frequency_secs),
+                              enable_autosave: configs.save.enable_autosave };
 
         GameLoop::initialize(instance); // Set global instance.
         GameLoop::get_mut()
@@ -370,11 +371,8 @@ impl GameLoop {
         let viewport_size = self.engine.viewport().size();
         let tex_cache = self.engine.texture_cache_mut();
 
-        let new_session = GameSession::new(
-            tex_cache,
-            &GameConfigs::get().save.load_map_setting,
-            viewport_size
-        );
+        let new_session =
+            GameSession::new(tex_cache, &GameConfigs::get().save.load_map_setting, viewport_size);
 
         self.session = Some(Box::new(new_session));
         log::info!(log::channel!("game"), "Game Session created.");
@@ -389,15 +387,12 @@ impl GameLoop {
     }
 
     pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>) {
-        self.session_cmd_queue.push_back(GameSessionCmd::Reset {
-            reset_map_with_tile_def
-        });
+        self.session_cmd_queue.push_back(GameSessionCmd::Reset { reset_map_with_tile_def });
     }
 
     pub fn load_preset_map(&mut self, preset_tile_map_number: usize) {
-        self.session_cmd_queue.push_back(GameSessionCmd::LoadPreset {
-            preset_number: preset_tile_map_number
-        });
+        self.session_cmd_queue
+            .push_back(GameSessionCmd::LoadPreset { preset_number: preset_tile_map_number });
     }
 
     pub fn load_save_game(&mut self, save_file_name: &str) {
@@ -417,17 +412,16 @@ impl GameLoop {
             return;
         }
 
-        self.session_cmd_queue.push_back(GameSessionCmd::SaveGame {
-            save_file_path: make_save_game_file_path(save_file_name)
-        });
+        self.session_cmd_queue
+            .push_back(GameSessionCmd::SaveGame { save_file_path:
+                                                      make_save_game_file_path(save_file_name) });
     }
 
     #[inline]
     pub fn save_files_list(&self) -> Vec<PathBuf> {
-        file_sys::collect_files(
-            &SAVE_GAMES_DIR_PATH,
-            file_sys::CollectFlags::FilenamesOnly,
-            Some("json"))
+        file_sys::collect_files(&SAVE_GAMES_DIR_PATH,
+                                file_sys::CollectFlags::FilenamesOnly,
+                                Some("json"))
     }
 
     #[inline]
@@ -470,7 +464,8 @@ impl GameLoop {
         let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
 
         // Rendering:
-        let render_flags = self.debug_menus_begin_frame(visible_range, cursor_screen_pos, delta_time_secs);
+        let render_flags =
+            self.debug_menus_begin_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
         self.draw_tile_map(visible_range, render_flags);
 
@@ -524,7 +519,10 @@ impl GameLoop {
         }
     }
 
-    fn update_simulation(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) -> CellRange {
+    fn update_simulation(&mut self,
+                         cursor_screen_pos: Vec2,
+                         delta_time_secs: Seconds)
+                         -> CellRange {
         let session = self.session.as_mut().unwrap();
 
         session.camera.update_zooming(delta_time_secs);
@@ -533,12 +531,10 @@ impl GameLoop {
         let ui_sys = self.engine.ui_system();
         session.camera.update_scrolling(ui_sys, cursor_screen_pos, delta_time_secs);
 
-        session.sim.update(
-            &mut session.world,
-            &mut session.systems,
-            &mut session.tile_map,
-            delta_time_secs,
-        );
+        session.sim.update(&mut session.world,
+                           &mut session.systems,
+                           &mut session.tile_map,
+                           delta_time_secs);
 
         let visible_range = session.camera.visible_cells_range();
         session.tile_map.update_anims(visible_range, delta_time_secs);
@@ -548,12 +544,11 @@ impl GameLoop {
 
     fn draw_tile_map(&mut self, visible_range: CellRange, flags: TileMapRenderFlags) {
         let session = self.session.as_ref().unwrap();
-        self.engine.draw_tile_map(
-            &session.tile_map,
-            &session.tile_selection,
-            session.camera.transform(),
-            visible_range,
-            flags);
+        self.engine.draw_tile_map(&session.tile_map,
+                                  &session.tile_selection,
+                                  session.camera.transform(),
+                                  visible_range,
+                                  flags);
     }
 
     fn update_autosave(&mut self) {
@@ -602,11 +597,7 @@ impl GameLoop {
         let viewport_size = self.engine.viewport().size();
         let tex_cache = self.engine.texture_cache_mut();
 
-        let new_session = GameSession::load_preset_map(
-            preset_number,
-            tex_cache,
-            viewport_size
-        );
+        let new_session = GameSession::load_preset_map(preset_number, tex_cache, viewport_size);
 
         self.session = Some(Box::new(new_session));
         log::info!(log::channel!("game"), "Game Session created.");
@@ -626,79 +617,82 @@ impl GameLoop {
     // Debug UI:
     // ----------------------
 
-    fn debug_menus_begin_frame(
-        &mut self,
-        visible_range: CellRange,
-        cursor_screen_pos: Vec2,
-        delta_time_secs: Seconds,
-    ) -> TileMapRenderFlags {
+    fn debug_menus_begin_frame(&mut self,
+                               visible_range: CellRange,
+                               cursor_screen_pos: Vec2,
+                               delta_time_secs: Seconds)
+                               -> TileMapRenderFlags {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.begin_frame(&mut DebugMenusFrameArgs {
-            tile_map: &mut session.tile_map,
-            tile_selection: &mut session.tile_selection,
-            sim: &mut session.sim,
-            world: &mut session.world,
-            systems: &mut session.systems,
-            ui_sys: self.engine.ui_system(),
-            camera: &mut session.camera,
-            visible_range,
-            cursor_screen_pos,
-            delta_time_secs,
-        })
+        session.debug_menus.begin_frame(&mut DebugMenusFrameArgs { tile_map:
+                                                                       &mut session.tile_map,
+                                                                   tile_selection:
+                                                                       &mut session.tile_selection,
+                                                                   sim: &mut session.sim,
+                                                                   world: &mut session.world,
+                                                                   systems: &mut session.systems,
+                                                                   ui_sys: self.engine
+                                                                               .ui_system(),
+                                                                   camera: &mut session.camera,
+                                                                   visible_range,
+                                                                   cursor_screen_pos,
+                                                                   delta_time_secs })
     }
 
-    fn debug_menus_end_frame(
-        &mut self,
-        visible_range: CellRange,
-        cursor_screen_pos: Vec2,
-        delta_time_secs: Seconds,
-    ) {
+    fn debug_menus_end_frame(&mut self,
+                             visible_range: CellRange,
+                             cursor_screen_pos: Vec2,
+                             delta_time_secs: Seconds) {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.end_frame(&mut DebugMenusFrameArgs {
-            tile_map: &mut session.tile_map,
-            tile_selection: &mut session.tile_selection,
-            sim: &mut session.sim,
-            world: &mut session.world,
-            systems: &mut session.systems,
-            ui_sys: self.engine.ui_system(),
-            camera: &mut session.camera,
-            visible_range,
-            cursor_screen_pos,
-            delta_time_secs,
-        });
+        session.debug_menus.end_frame(&mut DebugMenusFrameArgs { tile_map:
+                                                                     &mut session.tile_map,
+                                                                 tile_selection:
+                                                                     &mut session.tile_selection,
+                                                                 sim: &mut session.sim,
+                                                                 world: &mut session.world,
+                                                                 systems: &mut session.systems,
+                                                                 ui_sys: self.engine
+                                                                             .ui_system(),
+                                                                 camera: &mut session.camera,
+                                                                 visible_range,
+                                                                 cursor_screen_pos,
+                                                                 delta_time_secs });
     }
 
-    fn debug_menus_key_input(
-        &mut self,
-        key: InputKey,
-        action: InputAction,
-        cursor_screen_pos: Vec2,
-    ) -> UiInputEvent {
+    fn debug_menus_key_input(&mut self,
+                             key: InputKey,
+                             action: InputAction,
+                             cursor_screen_pos: Vec2)
+                             -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.on_key_input(&mut DebugMenusInputArgs {
-            tile_map: &mut session.tile_map,
-            tile_selection: &mut session.tile_selection,
-            world: &mut session.world,
-            transform: session.camera.transform(),
-            cursor_screen_pos,
-        }, key, action)
+        session.debug_menus.on_key_input(&mut DebugMenusInputArgs { tile_map:
+                                                                        &mut session.tile_map,
+                                                                    tile_selection:
+                                                                        &mut session.tile_selection,
+                                                                    world: &mut session.world,
+                                                                    transform:
+                                                                        session.camera.transform(),
+                                                                    cursor_screen_pos },
+                                         key,
+                                         action)
     }
 
-    fn debug_menus_mouse_click(
-        &mut self,
-        button: MouseButton,
-        action: InputAction,
-        modifiers: InputModifiers,
-        cursor_screen_pos: Vec2,
-    ) -> UiInputEvent {
+    fn debug_menus_mouse_click(&mut self,
+                               button: MouseButton,
+                               action: InputAction,
+                               modifiers: InputModifiers,
+                               cursor_screen_pos: Vec2)
+                               -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.on_mouse_click(&mut DebugMenusInputArgs {
-            tile_map: &mut session.tile_map,
-            tile_selection: &mut session.tile_selection,
-            world: &mut session.world,
-            transform: session.camera.transform(),
-            cursor_screen_pos,
-        }, button, action, modifiers)
+        session.debug_menus
+               .on_mouse_click(&mut DebugMenusInputArgs { tile_map: &mut session.tile_map,
+                                                          tile_selection:
+                                                              &mut session.tile_selection,
+                                                          world: &mut session.world,
+                                                          transform: session.camera.transform(),
+                                                          cursor_screen_pos },
+                               button,
+                               action,
+                               modifiers)
     }
 }
 

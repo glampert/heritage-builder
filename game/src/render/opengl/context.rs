@@ -1,15 +1,12 @@
 use std::ffi::c_void;
 
-use crate::{
-    utils::{Color, Rect}
-};
-
 use super::{
-    {panic_if_gl_error, log_gl_info},
+    buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE},
+    log_gl_info, panic_if_gl_error,
     shader::{ShaderProgram, NULL_SHADER_HANDLE},
     texture::{Texture2D, TextureUnit, MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE},
-    buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE},
 };
+use crate::utils::{Color, Rect};
 
 // ----------------------------------------------
 // Constants
@@ -68,20 +65,20 @@ impl RenderContext {
         log_gl_info();
         Self::enable_program_point_size();
 
-        Self {
-            clear_color: Color::black(),
-            primitive_topology: PrimitiveTopology::Triangles,
-            current_shader_program: NULL_SHADER_HANDLE,
-            current_vertex_array: NULL_VERTEX_ARRAY_HANDLE,
-            current_index_type: None,
-            current_texture2d: [0; MAX_TEXTURE_UNITS],
-            texture_changes_count: 0,
-            draw_call_count: 0,
-        }
+        Self { clear_color: Color::black(),
+               primitive_topology: PrimitiveTopology::Triangles,
+               current_shader_program: NULL_SHADER_HANDLE,
+               current_vertex_array: NULL_VERTEX_ARRAY_HANDLE,
+               current_index_type: None,
+               current_texture2d: [0; MAX_TEXTURE_UNITS],
+               texture_changes_count: 0,
+               draw_call_count: 0 }
     }
 
     fn enable_program_point_size() {
-        unsafe { gl::Enable(gl::PROGRAM_POINT_SIZE); }
+        unsafe {
+            gl::Enable(gl::PROGRAM_POINT_SIZE);
+        }
     }
 
     pub fn set_clear_color(&mut self, color: Color) -> &mut Self {
@@ -147,22 +144,20 @@ impl RenderContext {
 
     pub fn set_viewport(&mut self, viewport: Rect) -> &mut Self {
         unsafe {
-            gl::Viewport(
-                viewport.x() as gl::types::GLint,
-                viewport.y() as gl::types::GLint,
-                viewport.width() as gl::types::GLint,
-                viewport.height() as gl::types::GLint);
+            gl::Viewport(viewport.x() as gl::types::GLint,
+                         viewport.y() as gl::types::GLint,
+                         viewport.width() as gl::types::GLint,
+                         viewport.height() as gl::types::GLint);
         }
         self
     }
 
     pub fn set_scissor(&mut self, rect: Rect) -> &mut Self {
         unsafe {
-            gl::Scissor(
-                rect.x() as gl::types::GLint,
-                rect.y() as gl::types::GLint,
-                rect.width() as gl::types::GLint,
-                rect.height() as gl::types::GLint);
+            gl::Scissor(rect.x() as gl::types::GLint,
+                        rect.y() as gl::types::GLint,
+                        rect.width() as gl::types::GLint,
+                        rect.height() as gl::types::GLint);
         }
         self
     }
@@ -245,10 +240,9 @@ impl RenderContext {
         debug_assert!(self.current_vertex_array != NULL_VERTEX_ARRAY_HANDLE);
 
         unsafe {
-            gl::DrawArrays(
-                self.primitive_topology as gl::types::GLenum,
-                first_vertex as gl::types::GLint,
-                vertex_count as gl::types::GLint);
+            gl::DrawArrays(self.primitive_topology as gl::types::GLenum,
+                           first_vertex as gl::types::GLint,
+                           vertex_count as gl::types::GLint);
         }
 
         self.draw_call_count += 1;
@@ -266,11 +260,10 @@ impl RenderContext {
         let offset_in_bytes: usize = (first_index as usize) * index_type_size_in_bytes;
 
         unsafe {
-            gl::DrawElements(
-                self.primitive_topology as gl::types::GLenum,
-                index_count as gl::types::GLsizei,
-                gl_index_type,
-                offset_in_bytes as *const c_void);
+            gl::DrawElements(self.primitive_topology as gl::types::GLenum,
+                             index_count as gl::types::GLsizei,
+                             gl_index_type,
+                             offset_in_bytes as *const c_void);
         }
 
         self.draw_call_count += 1;
@@ -289,9 +282,9 @@ impl RenderContext {
 
         unsafe {
             gl::ClearColor(self.clear_color.r,
-                         self.clear_color.g,
-                          self.clear_color.b,
-                         self.clear_color.a);
+                           self.clear_color.g,
+                           self.clear_color.b,
+                           self.clear_color.a);
 
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }

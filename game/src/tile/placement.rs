@@ -1,24 +1,14 @@
 use strum::IntoEnumIterator;
 
+use super::{
+    sets::TileDef, Tile, TileKind, TileMap, TileMapLayer, TileMapLayerKind, TilePoolIndex,
+};
 use crate::{
     debug,
     utils::{
+        coords::{Cell, WorldToScreenTransform},
         Vec2,
-        coords::{
-            Cell,
-            WorldToScreenTransform
-        }
-    }
-};
-
-use super::{
-    Tile,
-    TileKind,
-    TileMap,
-    TileMapLayer,
-    TileMapLayerKind,
-    TilePoolIndex,
-    sets::TileDef
+    },
 };
 
 // ----------------------------------------------
@@ -37,13 +27,13 @@ pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
                                           target_cell: Cell,
                                           tile_def_to_place: &'static TileDef)
                                           -> Result<(&'tile_map mut Tile, usize), String> {
-
     debug_assert!(tile_def_to_place.is_valid());
     debug_assert!(tile_def_to_place.layer_kind() == layer.kind());
 
     if !layer.is_cell_within_bounds(target_cell) {
         return Err(format!("'{}' - {}: Target cell {target_cell} is out of bounds",
-                           tile_def_to_place.name, layer.kind()));
+                           tile_def_to_place.name,
+                           layer.kind()));
     }
 
     let mut allow_stacking = false;
@@ -56,7 +46,8 @@ pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
         if let Some(existing_tile) = layer.try_tile(target_cell) {
             // Avoid any work if we already have the same terrain tile.
             if existing_tile.tile_def().hash == tile_def_to_place.hash {
-                return Err(format!("Cell {target_cell} already contains '{}'", tile_def_to_place.name));
+                return Err(format!("Cell {target_cell} already contains '{}'",
+                                   tile_def_to_place.name));
             }
 
             layer.remove_tile(target_cell);
@@ -100,8 +91,8 @@ pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
 }
 
 pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
-                                 target_cell: Cell) -> Result<(), String> {
-
+                                 target_cell: Cell)
+                                 -> Result<(), String> {
     if let Some(tile) = layer.try_tile(target_cell) {
         // Make sure we clear the base tile + any child blockers.
         for cell in &tile.cell_range() {
@@ -117,8 +108,8 @@ pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
 
 pub fn try_clear_tile_from_layer_by_index(layer: &mut TileMapLayer,
                                           target_index: TilePoolIndex,
-                                          target_cell: Cell) -> Result<(), String> {
-
+                                          target_cell: Cell)
+                                          -> Result<(), String> {
     if let Some(tile) = layer.try_tile(target_cell) {
         // For now only Units are supported.
         debug_assert!(tile.is(TileKind::Unit));
@@ -131,10 +122,10 @@ pub fn try_clear_tile_from_layer_by_index(layer: &mut TileMapLayer,
             found_tile = true;
         } else {
             layer.visit_next_tiles(tile.next_index, |next_tile| {
-                if next_tile.index() == target_index {
-                    found_tile = true;
-                }
-            });
+                     if next_tile.index() == target_index {
+                         found_tile = true;
+                     }
+                 });
         }
 
         if found_tile {
@@ -155,33 +146,28 @@ pub fn try_place_tile_at_cursor<'tile_map>(tile_map: &'tile_map mut TileMap,
                                            transform: WorldToScreenTransform,
                                            tile_def_to_place: &'static TileDef)
                                            -> Result<(&'tile_map mut Tile, usize), String> {
-
     debug_assert!(transform.is_valid());
     debug_assert!(tile_def_to_place.is_valid());
 
     let layer_kind = tile_def_to_place.layer_kind();
     let layer = tile_map.layer_mut(layer_kind);
 
-    let target_cell = layer.find_exact_cell_for_point(
-        cursor_screen_pos,
-        transform);
+    let target_cell = layer.find_exact_cell_for_point(cursor_screen_pos, transform);
 
     try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
 }
 
 pub fn try_clear_tile_at_cursor(tile_map: &mut TileMap,
                                 cursor_screen_pos: Vec2,
-                                transform: WorldToScreenTransform) -> Result<(), String> {
-
+                                transform: WorldToScreenTransform)
+                                -> Result<(), String> {
     debug_assert!(transform.is_valid());
 
     // Clear the topmost layer tile under the target cell.
     for layer_kind in TileMapLayerKind::iter().rev() {
         let layer = tile_map.layer_mut(layer_kind);
 
-        let target_cell = layer.find_exact_cell_for_point(
-            cursor_screen_pos,
-            transform);
+        let target_cell = layer.find_exact_cell_for_point(cursor_screen_pos, transform);
 
         match try_clear_tile_from_layer(layer, target_cell) {
             Ok(_) => return Ok(()),

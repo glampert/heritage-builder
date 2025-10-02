@@ -1,16 +1,14 @@
-use std::fmt::Debug;
-use std::convert::{Into, TryFrom};
-
-use crate::{
-    utils::Color,
-    render::TextureHandle
+use std::{
+    convert::{Into, TryFrom},
+    fmt::Debug,
 };
 
 use super::{
     buffer::*,
+    context::{PrimitiveTopology, RenderContext},
     shader::ShaderProgram,
-    context::{RenderContext, PrimitiveTopology}
 };
+use crate::{render::TextureHandle, utils::Color};
 
 // ----------------------------------------------
 // DrawBatch
@@ -24,7 +22,7 @@ pub struct DrawBatchEntry {
 
 pub struct DrawBatch<V, I>
     where V: VertexTrait + Copy,
-          I: IndexTrait  + Copy + TryFrom<usize> + Into<usize>
+          I: IndexTrait + Copy + TryFrom<usize> + Into<usize>
 {
     vertices: Vec<V>,
     indices: Vec<I>,
@@ -36,13 +34,13 @@ pub struct DrawBatch<V, I>
 
 impl<V, I> DrawBatch<V, I>
     where V: VertexTrait + Copy,
-          I: IndexTrait  + Copy + TryFrom<usize> + Into<usize>
+          I: IndexTrait + Copy + TryFrom<usize> + Into<usize>
 {
     pub fn new(vertices_capacity: u32,
                indices_capacity: u32,
                entries_capacity: u32,
-               primitive_topology: PrimitiveTopology) -> Self {
-
+               primitive_topology: PrimitiveTopology)
+               -> Self {
         let vertex_layout = V::layout();
         let vertex_stride = V::stride();
 
@@ -70,11 +68,7 @@ impl<V, I> DrawBatch<V, I>
         }
     }
 
-    pub fn add_entry(&mut self,
-                     vertices: &[V],
-                     indices: &[I],
-                     texture: TextureHandle,
-                     color: Color)
+    pub fn add_entry(&mut self, vertices: &[V], indices: &[I], texture: TextureHandle, color: Color)
         where <I as TryFrom<usize>>::Error: Debug
     {
         let ib_slice_start = self.add_fast(vertices, indices);
@@ -112,9 +106,9 @@ impl<V, I> DrawBatch<V, I>
             let index_as_usize: usize = i.into() + vb_base_vertex;
 
             // Narrow cast with overflow check (e.g. to u32 or u16):
-            let index_as_i: I = index_as_usize
-                .try_into()
-                .expect("INTEGER OVERFLOW! Value does not fit into index type.");
+            let index_as_i: I =
+                index_as_usize.try_into()
+                              .expect("INTEGER OVERFLOW! Value does not fit into index type.");
 
             self.indices.push(index_as_i);
         }
@@ -149,12 +143,9 @@ impl<V, I> DrawBatch<V, I>
         render_context.unset_vertex_array();
     }
 
-    // Draw whole vertex buffer in a single draw-call, ignoring entry textures/colors.
-    // Useful for lines and points.
-    pub fn draw_fast(&self,
-                     render_context: &mut RenderContext,
-                     shader_program: &ShaderProgram) {
-
+    // Draw whole vertex buffer in a single draw-call, ignoring entry
+    // textures/colors. Useful for lines and points.
+    pub fn draw_fast(&self, render_context: &mut RenderContext, shader_program: &ShaderProgram) {
         if self.vertices.is_empty() {
             return;
         }

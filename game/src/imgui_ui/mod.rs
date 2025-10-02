@@ -1,14 +1,15 @@
-use std::ptr::null;
-use std::any::Any;
+use std::{any::Any, ptr::null};
 
-pub use imgui::FontId as UiFontHandle;
-pub use imgui::TextureId as UiTextureHandle;
+pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
 
 use crate::{
+    app::{
+        input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
+        Application,
+    },
     engine::time::Seconds,
-    utils::{Vec2, Color, FieldAccessorXY},
     render::{TextureCache, TextureHandle},
-    app::{Application, input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton}}
+    utils::{Color, FieldAccessorXY, Vec2},
 };
 
 // Internal implementation.
@@ -25,8 +26,8 @@ pub mod backend {
 #[repr(u32)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum UiInputEvent {
-    Handled,   // Input event was handled/consumed and should not propagate.
-    NotHandled // Input event wasn't handled and should propagate to other widgets.
+    Handled,    // Input event was handled/consumed and should not propagate.
+    NotHandled, // Input event wasn't handled and should propagate to other widgets.
 }
 
 impl UiInputEvent {
@@ -54,14 +55,15 @@ impl UiSystem {
     pub fn new<UiRendererBackendImpl>(app: &impl Application) -> Self
         where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
     {
-        Self {
-            context: UiContext::new::<UiRendererBackendImpl>(app),
-            builder_ptr: null::<imgui::Ui>(),
-        }
+        Self { context: UiContext::new::<UiRendererBackendImpl>(app),
+               builder_ptr: null::<imgui::Ui>() }
     }
 
     #[inline]
-    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time_secs: Seconds) {
+    pub fn begin_frame(&mut self,
+                       app: &impl Application,
+                       input_sys: &impl InputSystem,
+                       delta_time_secs: Seconds) {
         debug_assert!(self.builder_ptr.is_null());
         let ui_builder = self.context.begin_frame(app, input_sys, delta_time_secs);
         self.builder_ptr = ui_builder as *const imgui::Ui;
@@ -75,7 +77,11 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn on_key_input(&mut self, key: InputKey, action: InputAction, _: InputModifiers) -> UiInputEvent {
+    pub fn on_key_input(&mut self,
+                        key: InputKey,
+                        action: InputAction,
+                        _: InputModifiers)
+                        -> UiInputEvent {
         self.context.on_key_input(key, action);
 
         if self.is_handling_key_input() {
@@ -108,9 +114,14 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn on_mouse_click(&mut self, _: MouseButton, _: InputAction, _: InputModifiers) -> UiInputEvent {
+    pub fn on_mouse_click(&mut self,
+                          _: MouseButton,
+                          _: InputAction,
+                          _: InputModifiers)
+                          -> UiInputEvent {
         // Mouse events are polled from the InputSystem instead;
-        // Just perform a quick check to see if mouse clicks are being consumed by ImGui.
+        // Just perform a quick check to see if mouse clicks are being consumed by
+        // ImGui.
         if self.is_handling_mouse_input() {
             UiInputEvent::Handled
         } else {
@@ -145,7 +156,10 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn to_ui_texture(&self, tex_cache: &dyn TextureCache, tex_handle: TextureHandle) -> UiTextureHandle {
+    pub fn to_ui_texture(&self,
+                         tex_cache: &dyn TextureCache,
+                         tex_handle: TextureHandle)
+                         -> UiTextureHandle {
         let native_handle = tex_cache.to_native_handle(tex_handle);
         debug_assert!(std::mem::size_of_val(&native_handle) <= std::mem::size_of::<usize>());
         UiTextureHandle::new(native_handle.bits)
@@ -176,7 +190,9 @@ pub trait UiRendererFactory: Sized {
 }
 
 #[inline]
-fn new_ui_renderer<UiRendererBackendImpl>(ctx: &mut imgui::Context, app: &impl Application) -> Box<dyn UiRenderer>
+fn new_ui_renderer<UiRendererBackendImpl>(ctx: &mut imgui::Context,
+                                          app: &impl Application)
+                                          -> Box<dyn UiRenderer>
     where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
 {
     Box::new(UiRendererBackendImpl::new(ctx, app))
@@ -239,17 +255,19 @@ impl UiContext {
 
         let renderer = new_ui_renderer::<UiRendererBackendImpl>(&mut ctx, app);
 
-        Self {
-            ctx,
-            renderer,
-            fonts_ids: UiFonts { normal: font_normal, small: font_small, large: font_large },
-            frame_started: false,
-        }
+        Self { ctx,
+               renderer,
+               fonts_ids: UiFonts { normal: font_normal, small: font_small, large: font_large },
+               frame_started: false }
     }
 
-    pub fn begin_frame(&mut self, app: &impl Application, input_sys: &impl InputSystem, delta_time_secs: Seconds) -> &imgui::Ui {
+    pub fn begin_frame(&mut self,
+                       app: &impl Application,
+                       input_sys: &impl InputSystem,
+                       delta_time_secs: Seconds)
+                       -> &imgui::Ui {
         debug_assert!(!self.frame_started);
-    
+
         let io = self.ctx.io_mut();
         io.update_delta_time(std::time::Duration::from_secs_f32(delta_time_secs));
 
@@ -259,7 +277,8 @@ impl UiContext {
         io.display_size = [fb_size.x / content_scale.x, fb_size.y / content_scale.y];
         io.display_framebuffer_scale = [content_scale.x, content_scale.y];
 
-        // Send mouse/keyboard input to ImGui. The rest is handled by application events.
+        // Send mouse/keyboard input to ImGui. The rest is handled by application
+        // events.
         self.update_input(input_sys);
 
         // Start new ImGui frame. Use the returned `ui` object to build the UI windows.
@@ -309,22 +328,22 @@ impl UiContext {
 
         let cursor_pos = input_sys.cursor_pos();
         io.mouse_pos = [cursor_pos.x, cursor_pos.y];
-    
-        io.mouse_down[0] = input_sys.mouse_button_state(MouseButton::Left)   == InputAction::Press;
-        io.mouse_down[1] = input_sys.mouse_button_state(MouseButton::Right)  == InputAction::Press;
+
+        io.mouse_down[0] = input_sys.mouse_button_state(MouseButton::Left) == InputAction::Press;
+        io.mouse_down[1] = input_sys.mouse_button_state(MouseButton::Right) == InputAction::Press;
         io.mouse_down[2] = input_sys.mouse_button_state(MouseButton::Middle) == InputAction::Press;
-    
-        io.key_shift = input_sys.key_state(InputKey::LeftShift)  == InputAction::Press
-                    || input_sys.key_state(InputKey::RightShift) == InputAction::Press;
 
-        io.key_ctrl = input_sys.key_state(InputKey::LeftControl)  == InputAction::Press
-                   || input_sys.key_state(InputKey::RightControl) == InputAction::Press;
+        io.key_shift = input_sys.key_state(InputKey::LeftShift) == InputAction::Press
+                       || input_sys.key_state(InputKey::RightShift) == InputAction::Press;
 
-        io.key_alt = input_sys.key_state(InputKey::LeftAlt)  == InputAction::Press
-                  || input_sys.key_state(InputKey::RightAlt) == InputAction::Press;
+        io.key_ctrl = input_sys.key_state(InputKey::LeftControl) == InputAction::Press
+                      || input_sys.key_state(InputKey::RightControl) == InputAction::Press;
 
-        io.key_super = input_sys.key_state(InputKey::LeftSuper)  == InputAction::Press
-                    || input_sys.key_state(InputKey::RightSuper) == InputAction::Press;
+        io.key_alt = input_sys.key_state(InputKey::LeftAlt) == InputAction::Press
+                     || input_sys.key_state(InputKey::RightAlt) == InputAction::Press;
+
+        io.key_super = input_sys.key_state(InputKey::LeftSuper) == InputAction::Press
+                       || input_sys.key_state(InputKey::RightSuper) == InputAction::Press;
     }
 
     // Converts our InputKey to the corresponding ImGui key, if available.
@@ -467,15 +486,15 @@ pub fn input_i32(ui: &imgui::Ui,
                  label: &str,
                  value: &mut i32,
                  read_only: bool,
-                 step: Option<i32>) -> bool {
-
+                 step: Option<i32>)
+                 -> bool {
     ui.text(label);
     ui.indent_by(5.0);
 
     let edited = ui.input_int(format!("##_{}_value", label), value)
-        .read_only(read_only)
-        .step(step.unwrap_or(1))
-        .build();
+                   .read_only(read_only)
+                   .step(step.unwrap_or(1))
+                   .build();
 
     ui.unindent_by(5.0);
     edited
@@ -485,25 +504,26 @@ pub fn input_i32_xy<T>(ui: &imgui::Ui,
                        label: &str,
                        value: &mut T,
                        read_only: bool,
-                       steps: Option<[i32; 2]>, 
-                       field_labels: Option<[&str; 2]>) -> bool
+                       steps: Option<[i32; 2]>,
+                       field_labels: Option<[&str; 2]>)
+                       -> bool
     where T: FieldAccessorXY<i32>
 {
-    let s = steps.unwrap_or([ 1, 1 ]);
-    let l = field_labels.unwrap_or([ "X", "Y" ]);
+    let s = steps.unwrap_or([1, 1]);
+    let l = field_labels.unwrap_or(["X", "Y"]);
 
     ui.text(label);
     ui.indent_by(5.0);
 
     let edited_x = ui.input_int(format!("{}##_{}_x", l[0], label), value.x_mut())
-        .read_only(read_only)
-        .step(s[0])
-        .build();
+                     .read_only(read_only)
+                     .step(s[0])
+                     .build();
 
     let edited_y = ui.input_int(format!("{}##_{}_y", l[1], label), value.y_mut())
-        .read_only(read_only)
-        .step(s[1])
-        .build();
+                     .read_only(read_only)
+                     .step(s[1])
+                     .build();
 
     ui.unindent_by(5.0);
     edited_x | edited_y
@@ -513,16 +533,16 @@ pub fn input_f32(ui: &imgui::Ui,
                  label: &str,
                  value: &mut f32,
                  read_only: bool,
-                 step: Option<f32>) -> bool {
-
+                 step: Option<f32>)
+                 -> bool {
     ui.text(label);
     ui.indent_by(5.0);
 
     let edited = ui.input_float(format!("##_{}_value", label), value)
-        .read_only(read_only)
-        .display_format("%.2f")
-        .step(step.unwrap_or(1.0))
-        .build();
+                   .read_only(read_only)
+                   .display_format("%.2f")
+                   .step(step.unwrap_or(1.0))
+                   .build();
 
     ui.unindent_by(5.0);
     edited
@@ -532,54 +552,52 @@ pub fn input_f32_xy<T>(ui: &imgui::Ui,
                        label: &str,
                        value: &mut T,
                        read_only: bool,
-                       steps: Option<[f32; 2]>, 
-                       field_labels: Option<[&str; 2]>) -> bool
+                       steps: Option<[f32; 2]>,
+                       field_labels: Option<[&str; 2]>)
+                       -> bool
     where T: FieldAccessorXY<f32>
 {
-    let s = steps.unwrap_or([ 1.0, 1.0 ]);
-    let l = field_labels.unwrap_or([ "X", "Y" ]);
+    let s = steps.unwrap_or([1.0, 1.0]);
+    let l = field_labels.unwrap_or(["X", "Y"]);
 
     ui.text(label);
     ui.indent_by(5.0);
 
     let edited_x = ui.input_float(format!("{}##_{}_x", l[0], label), value.x_mut())
-        .read_only(read_only)
-        .display_format("%.2f")
-        .step(s[0])
-        .build();
+                     .read_only(read_only)
+                     .display_format("%.2f")
+                     .step(s[0])
+                     .build();
 
     let edited_y = ui.input_float(format!("{}##_{}_y", l[1], label), value.y_mut())
-        .read_only(read_only)
-        .display_format("%.2f")
-        .step(s[1])
-        .build();
+                     .read_only(read_only)
+                     .display_format("%.2f")
+                     .step(s[1])
+                     .build();
 
     ui.unindent_by(5.0);
     edited_x | edited_y
 }
 
-pub fn input_color(ui: &imgui::Ui,
-                   label: &str,
-                   value: &mut Color) -> bool {
-
+pub fn input_color(ui: &imgui::Ui, label: &str, value: &mut Color) -> bool {
     ui.text(label);
     ui.indent_by(5.0);
 
     let edited_r = ui.slider_config(format!("R##_{}_r", label), 0.0, 1.0)
-        .display_format("%.2f")
-        .build(&mut value.r);
+                     .display_format("%.2f")
+                     .build(&mut value.r);
 
     let edited_g = ui.slider_config(format!("G##_{}_g", label), 0.0, 1.0)
-        .display_format("%.2f")
-        .build(&mut value.g);
+                     .display_format("%.2f")
+                     .build(&mut value.g);
 
     let edited_b = ui.slider_config(format!("B##_{}_b", label), 0.0, 1.0)
-        .display_format("%.2f")
-        .build(&mut value.b);
+                     .display_format("%.2f")
+                     .build(&mut value.b);
 
     let edited_a = ui.slider_config(format!("A##_{}_a", label), 0.0, 1.0)
-        .display_format("%.2f")
-        .build(&mut value.a);
+                     .display_format("%.2f")
+                     .build(&mut value.a);
 
     ui.unindent_by(5.0);
     edited_r | edited_g | edited_b | edited_a

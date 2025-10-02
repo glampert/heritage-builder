@@ -1,34 +1,24 @@
 use proc_macros::DrawDebugUi;
-
-use serde::{
-    Serialize,
-    Deserialize
-};
-
-use crate::{
-    imgui_ui::UiSystem,
-    utils::{coords::Cell, callback::{self, Callback}},
-    game::{
-        sim::Query,
-        building::{
-            Building,
-            BuildingKind,
-            BuildingContext
-        }
-    }
-};
+use serde::{Deserialize, Serialize};
 
 use super::{
-    Unit,
-    UnitId,
-    UnitTaskHelper,
     config,
     task::{
-        UnitTaskDespawn,
-        UnitPatrolPathRecord,
+        UnitPatrolPathRecord, UnitTaskDespawn, UnitTaskPatrolCompletionCallback,
         UnitTaskRandomizedPatrol,
-        UnitTaskPatrolCompletionCallback
-    }
+    },
+    Unit, UnitId, UnitTaskHelper,
+};
+use crate::{
+    game::{
+        building::{Building, BuildingContext, BuildingKind},
+        sim::Query,
+    },
+    imgui_ui::UiSystem,
+    utils::{
+        callback::{self, Callback},
+        coords::Cell,
+    },
 };
 
 // ----------------------------------------------
@@ -40,9 +30,12 @@ pub type PatrolCompletionCallback = fn(&mut Building, &mut Unit, &Query) -> bool
 #[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 struct PatrolInternalState {
     // Patrol task tunable parameters:
-    #[debug_ui(edit)] max_distance: i32,
-    #[debug_ui(edit)] path_bias_min: f32,
-    #[debug_ui(edit)] path_bias_max: f32,
+    #[debug_ui(edit)]
+    max_distance: i32,
+    #[debug_ui(edit)]
+    path_bias_min: f32,
+    #[debug_ui(edit)]
+    path_bias_max: f32,
 
     #[debug_ui(skip)]
     path_record: UnitPatrolPathRecord,
@@ -111,8 +104,8 @@ impl Patrol {
                                    unit_origin: Cell,
                                    max_patrol_distance: i32,
                                    buildings_to_visit: Option<BuildingKind>,
-                                   completion_callback: Callback<PatrolCompletionCallback>) -> bool {
-
+                                   completion_callback: Callback<PatrolCompletionCallback>)
+                                   -> bool {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(max_patrol_distance > 0, "Patrol max distance cannot be zero!");
         debug_assert!(!self.is_spawned(), "Patrol Unit already spawned! reset() first.");
@@ -120,7 +113,10 @@ impl Patrol {
         let (max_distance, path_bias_min, path_bias_max, path_record) = {
             let state = self.get_or_init_state(max_patrol_distance);
             state.completion_callback = completion_callback;
-            (state.max_distance, state.path_bias_min, state.path_bias_max, state.path_record.clone())
+            (state.max_distance,
+             state.path_bias_min,
+             state.path_bias_max,
+             state.path_record.clone())
         };
 
         self.try_spawn_with_task(
@@ -143,7 +139,8 @@ impl Patrol {
     }
 
     pub fn register_callbacks() {
-        let _: Callback<UnitTaskPatrolCompletionCallback> = callback::register!(Patrol::on_randomized_patrol_completed);
+        let _: Callback<UnitTaskPatrolCompletionCallback> =
+            callback::register!(Patrol::on_randomized_patrol_completed);
     }
 
     pub fn post_load(&mut self) {
@@ -164,15 +161,19 @@ impl Patrol {
         }
     }
 
-    fn on_randomized_patrol_completed(origin_building: &mut Building, patrol_unit: &mut Unit, query: &Query) -> bool {
-        let patrol_task = patrol_unit.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager())
-            .expect("Expected Patrol Unit to be running a UnitTaskRandomizedPatrol!");
+    fn on_randomized_patrol_completed(origin_building: &mut Building,
+                                      patrol_unit: &mut Unit,
+                                      query: &Query)
+                                      -> bool {
+        let patrol_task =
+            patrol_unit.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager())
+                       .expect("Expected Patrol Unit to be running a UnitTaskRandomizedPatrol!");
 
-        let this_patrol = origin_building.active_patrol()
-            .expect("Origin building should have sent out a Patrol Unit!");
+        let this_patrol =
+            origin_building.active_patrol()
+                           .expect("Origin building should have sent out a Patrol Unit!");
 
-        let state = this_patrol.try_get_state_mut()
-            .expect("Missing PatrolInternalState!");
+        let state = this_patrol.try_get_state_mut().expect("Missing PatrolInternalState!");
 
         // Update path record and invoke the Building's completion callback:
         state.path_record = patrol_task.path_record.clone();
@@ -188,15 +189,13 @@ impl Patrol {
     #[inline]
     fn get_or_init_state(&mut self, max_distance: i32) -> &mut PatrolInternalState {
         if self.state.is_none() {
-            self.state = Some(Box::new(PatrolInternalState {
-                    max_distance,
-                    path_bias_min: 0.1,
-                    path_bias_max: 0.5,
-                    path_record: UnitPatrolPathRecord::default(),
-                    completion_callback: Callback::default(),
-                    failed_to_spawn: false,
-                })
-            );
+            self.state =
+                Some(Box::new(PatrolInternalState { max_distance,
+                                                    path_bias_min: 0.1,
+                                                    path_bias_max: 0.5,
+                                                    path_record: UnitPatrolPathRecord::default(),
+                                                    completion_callback: Callback::default(),
+                                                    failed_to_spawn: false }));
         }
         self.state.as_deref_mut().unwrap()
     }

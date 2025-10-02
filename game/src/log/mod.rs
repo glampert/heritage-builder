@@ -1,12 +1,20 @@
-use std::fmt;
-use std::io::Write;
-use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::hash::{Hash, Hasher};
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+    io::Write,
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        OnceLock,
+    },
+};
+
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
-use crate::utils::{Color, hash::{self, StringHash}};
+use crate::utils::{
+    hash::{self, StringHash},
+    Color,
+};
 
 // ----------------------------------------------
 // Log Levels
@@ -62,10 +70,7 @@ pub struct Channel {
 impl Channel {
     #[inline]
     pub const fn new(name: &'static str) -> Self {
-        Self {
-            name,
-            hash: hash::fnv1a_from_str(name),
-        }
+        Self { name, hash: hash::fnv1a_from_str(name) }
     }
 }
 
@@ -78,7 +83,9 @@ impl Hash for Channel {
 
 #[macro_export]
 macro_rules! channel {
-    ($name:literal) => { $crate::log::Channel::new(concat!(" [", $name, "]")) };
+    ($name:literal) => {
+        $crate::log::Channel::new(concat!(" [", $name, "]"))
+    };
 }
 
 // ----------------------------------------------
@@ -98,7 +105,8 @@ static LISTENER: OnceLock<Box<dyn Fn(Record) + Send + Sync>> = OnceLock::new();
 pub fn set_listener<F>(listener_fn: F)
     where F: Fn(Record) + Send + Sync + 'static
 {
-    LISTENER.set(Box::new(listener_fn)).unwrap_or_else(|_| panic!("Log listener can only be set once!"));
+    LISTENER.set(Box::new(listener_fn))
+            .unwrap_or_else(|_| panic!("Log listener can only be set once!"));
 }
 
 // ----------------------------------------------
@@ -132,15 +140,15 @@ pub struct Location {
     pub module: &'static str,
 }
 
-pub fn print_internal(level: Level, channel: Option<Channel>, location: &Location, args: fmt::Arguments) {
+pub fn print_internal(level: Level,
+                      channel: Option<Channel>,
+                      location: &Location,
+                      args: fmt::Arguments) {
     if !level.is_enabled() {
         return;
     }
 
-    let chan_str = channel
-        .as_ref()
-        .map(|chan| chan.name)
-        .unwrap_or_default();
+    let chan_str = channel.as_ref().map(|chan| chan.name).unwrap_or_default();
 
     let (color_start, color_end) = {
         if ENABLE_TTY_COLORS.load(Ordering::Relaxed) {
@@ -153,12 +161,16 @@ pub fn print_internal(level: Level, channel: Option<Channel>, location: &Locatio
     let mut out = std::io::stdout();
 
     if ENABLE_SRC_LOCATION.load(Ordering::Relaxed) {
-        writeln!(
-            &mut out,
-            "{}[{:?}]{}{} {}:{} {} - {}",
-            color_start, level, chan_str, color_end,
-            location.file, location.line, location.module, args
-        ).unwrap();
+        writeln!(&mut out,
+                 "{}[{:?}]{}{} {}:{} {} - {}",
+                 color_start,
+                 level,
+                 chan_str,
+                 color_end,
+                 location.file,
+                 location.line,
+                 location.module,
+                 args).unwrap();
     } else {
         writeln!(
             &mut out,
@@ -168,12 +180,7 @@ pub fn print_internal(level: Level, channel: Option<Channel>, location: &Locatio
     }
 
     if let Some(listener) = LISTENER.get() {
-        listener(Record {
-            level,
-            channel,
-            location: *location,
-            message: args.to_string(),
-        });
+        listener(Record { level, channel, location: *location, message: args.to_string() });
     }
 }
 

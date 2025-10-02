@@ -1,5 +1,7 @@
 use std::time;
+
 use serde::{Deserialize, Serialize};
+
 use crate::imgui_ui::UiSystem;
 
 // ----------------------------------------------
@@ -48,7 +50,9 @@ pub struct UpdateTimer {
 }
 
 #[inline]
-const fn default_timer_update_frequency() -> Seconds { Seconds::INFINITY }
+const fn default_timer_update_frequency() -> Seconds {
+    Seconds::INFINITY
+}
 
 #[repr(u32)]
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -72,7 +76,8 @@ impl UpdateTimer {
 
     #[inline]
     pub fn tick(&mut self, delta_time_secs: Seconds) -> UpdateTimerResult {
-        // If we hit any of these, there's a missing pos_load() call after deserialization.
+        // If we hit any of these, there's a missing pos_load() call after
+        // deserialization.
         debug_assert!(self.update_frequency_secs.is_finite());
         debug_assert!(self.time_since_last_update_secs.is_finite());
 

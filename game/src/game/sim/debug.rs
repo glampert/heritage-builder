@@ -1,16 +1,12 @@
 use rand::SeedableRng;
-use super::{Query, RandomGenerator, resources::GlobalTreasury};
+
+use super::{resources::GlobalTreasury, Query, RandomGenerator};
 use crate::{
-    game::{
-        system::GameSystems,
-        unit::task::UnitTaskManager,
-        world::World,
-        GameConfigs,
-    },
+    engine::time::Seconds,
+    game::{system::GameSystems, unit::task::UnitTaskManager, world::World, GameConfigs},
     imgui_ui::UiSystem,
     pathfind::{Graph, Search},
     tile::TileMap,
-    engine::time::Seconds,
     utils::{coords::WorldToScreenTransform, Size},
 };
 
@@ -53,16 +49,17 @@ pub struct DebugQueryBuilder<'game> {
 }
 
 impl<'game> DebugQueryBuilder<'game> {
-    pub fn new(world: &'game mut World, tile_map: &'game mut TileMap, map_size_in_cells: Size) -> Self {
-        Self {
-            rng: RandomGenerator::seed_from_u64(GameConfigs::get().sim.random_seed),
-            graph: Graph::with_empty_grid(map_size_in_cells),
-            search: Search::with_grid_size(map_size_in_cells),
-            task_manager: UnitTaskManager::new(1),
-            world,
-            tile_map,
-            treasury: GlobalTreasury::new(GameConfigs::get().sim.starting_gold_units)
-        }
+    pub fn new(world: &'game mut World,
+               tile_map: &'game mut TileMap,
+               map_size_in_cells: Size)
+               -> Self {
+        Self { rng: RandomGenerator::seed_from_u64(GameConfigs::get().sim.random_seed),
+               graph: Graph::with_empty_grid(map_size_in_cells),
+               search: Search::with_grid_size(map_size_in_cells),
+               task_manager: UnitTaskManager::new(1),
+               world,
+               tile_map,
+               treasury: GlobalTreasury::new(GameConfigs::get().sim.starting_gold_units) }
     }
 
     pub fn new_query(&mut self) -> Query {

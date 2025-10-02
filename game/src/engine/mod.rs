@@ -1,9 +1,12 @@
 use std::marker::PhantomData;
 
+use config::EngineConfigs;
+use time::{FrameClock, Seconds};
+
 use crate::{
     app::{
-        self, Application, ApplicationBuilder, ApplicationEvent, ApplicationEventList,
-        ApplicationFactory, input::*,
+        self, input::*, Application, ApplicationBuilder, ApplicationEvent, ApplicationEventList,
+        ApplicationFactory,
     },
     debug::log_viewer::LogViewerWindow,
     imgui_ui::{self, UiRenderer, UiRendererFactory, UiSystem},
@@ -13,19 +16,14 @@ use crate::{
         TextureHandle,
     },
     tile::{
-        TileMap,
         rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
         selection::TileSelection,
+        TileMap,
     },
     utils::{
-        mem, Color, Rect, RectTexCoords, Vec2,
         coords::{CellRange, WorldToScreenTransform},
+        mem, Color, Rect, RectTexCoords, Vec2,
     },
-};
-
-use {
-    config::EngineConfigs,
-    time::{FrameClock, Seconds}
 };
 
 pub mod config;
@@ -37,12 +35,10 @@ pub mod time;
 
 pub mod backend {
     use super::*;
-    pub type GlfwOpenGlEngine = EngineBackend<
-        app::backend::GlfwApplication,
-        app::backend::GlfwInputSystem,
-        render::backend::RenderSystemOpenGl,
-        imgui_ui::backend::UiRendererOpenGl,
-    >;
+    pub type GlfwOpenGlEngine = EngineBackend<app::backend::GlfwApplication,
+                                              app::backend::GlfwInputSystem,
+                                              render::backend::RenderSystemOpenGl,
+                                              imgui_ui::backend::UiRendererOpenGl>;
 }
 
 // ----------------------------------------------
@@ -76,26 +72,22 @@ pub trait Engine {
     fn begin_frame(&mut self) -> (Seconds, Vec2);
     fn end_frame(&mut self);
 
-    fn draw_tile_map(
-        &mut self,
-        tile_map: &TileMap,
-        tile_selection: &TileSelection,
-        transform: WorldToScreenTransform,
-        visible_range: CellRange,
-        flags: TileMapRenderFlags,
-    );
+    fn draw_tile_map(&mut self,
+                     tile_map: &TileMap,
+                     tile_selection: &TileSelection,
+                     transform: WorldToScreenTransform,
+                     visible_range: CellRange,
+                     flags: TileMapRenderFlags);
 }
 
 // ----------------------------------------------
 // EngineBackend
 // ----------------------------------------------
 
-pub struct EngineBackend<
-    AppBackendImpl,
-    InputSystemBackendImpl,
-    RenderSystemBackendImpl,
-    UiRendererBackendImpl,
-> {
+pub struct EngineBackend<AppBackendImpl,
+ InputSystemBackendImpl,
+ RenderSystemBackendImpl,
+ UiRendererBackendImpl> {
     app: Box<AppBackendImpl>,
 
     render_system: Box<RenderSystemBackendImpl>,
@@ -117,17 +109,14 @@ pub struct EngineBackend<
 }
 
 impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRendererBackendImpl>
-    EngineBackend<
-        AppBackendImpl,
-        InputSystemBackendImpl,
-        RenderSystemBackendImpl,
-        UiRendererBackendImpl,
-    >
-where
-    AppBackendImpl: Application + ApplicationFactory + 'static,
-    InputSystemBackendImpl: InputSystem + 'static,
-    RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static,
-    UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static,
+    EngineBackend<AppBackendImpl,
+                  InputSystemBackendImpl,
+                  RenderSystemBackendImpl,
+                  UiRendererBackendImpl>
+    where AppBackendImpl: Application + ApplicationFactory + 'static,
+          InputSystemBackendImpl: InputSystem + 'static,
+          RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static,
+          UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
 {
     pub fn new(configs: &EngineConfigs) -> Self {
         log::set_level(configs.log_level);
@@ -135,25 +124,23 @@ where
             LogViewerWindow::new(configs.log_viewer_start_open, configs.log_viewer_max_lines);
 
         log::info!(log::channel!("engine"), "--- Engine Initialization ---");
-        log::info!(
-            log::channel!("engine"),
-            "The current directory is: {:?}",
-            std::env::current_dir().unwrap()
-        );
+        log::info!(log::channel!("engine"),
+                   "The current directory is: {:?}",
+                   std::env::current_dir().unwrap());
 
-        let app: Box<AppBackendImpl> = ApplicationBuilder::new()
-            .window_title(&configs.window_title)
-            .window_size(configs.window_size)
-            .fullscreen(configs.fullscreen)
-            .confine_cursor_to_window(configs.confine_cursor_to_window)
-            .build();
+        let app: Box<AppBackendImpl> =
+            ApplicationBuilder::new().window_title(&configs.window_title)
+                                     .window_size(configs.window_size)
+                                     .fullscreen(configs.fullscreen)
+                                     .confine_cursor_to_window(configs.confine_cursor_to_window)
+                                     .build();
 
         log::info!(log::channel!("engine"), "Application created.");
 
-        let render_system: Box<RenderSystemBackendImpl> = RenderSystemBuilder::new()
-            .viewport_size(configs.window_size)
-            .clear_color(configs.window_background_color)
-            .build();
+        let render_system: Box<RenderSystemBackendImpl> =
+            RenderSystemBuilder::new().viewport_size(configs.window_size)
+                                      .clear_color(configs.window_background_color)
+                                      .build();
 
         log::info!(log::channel!("engine"), "RenderSystem created.");
 
@@ -162,23 +149,18 @@ where
 
         log::info!(log::channel!("engine"), "Debug UI initialized.");
 
-        Self {
-            app,
-            render_system,
-            render_stats: RenderStats::default(),
-            tile_map_renderer: TileMapRenderer::new(
-                configs.grid_color,
-                configs.grid_line_thickness,
-            ),
-            tile_map_render_stats: TileMapRenderStats::default(),
-            ui_system,
-            debug_draw,
-            frame_clock: FrameClock::new(),
-            log_viewer,
-            frame_events: ApplicationEventList::new(),
-            _ui_marker: PhantomData,
-            _input_marker: PhantomData,
-        }
+        Self { app,
+               render_system,
+               render_stats: RenderStats::default(),
+               tile_map_renderer: TileMapRenderer::new(configs.grid_color, configs.grid_line_thickness),
+               tile_map_render_stats: TileMapRenderStats::default(),
+               ui_system,
+               debug_draw,
+               frame_clock: FrameClock::new(),
+               log_viewer,
+               frame_events: ApplicationEventList::new(),
+               _ui_marker: PhantomData,
+               _input_marker: PhantomData }
     }
 
     #[must_use]
@@ -224,17 +206,14 @@ where
 }
 
 impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRendererBackendImpl> Engine
-    for EngineBackend<
-        AppBackendImpl,
-        InputSystemBackendImpl,
-        RenderSystemBackendImpl,
-        UiRendererBackendImpl,
-    >
-where
-    AppBackendImpl: Application + ApplicationFactory + 'static,
-    InputSystemBackendImpl: InputSystem + 'static,
-    RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static,
-    UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static,
+    for EngineBackend<AppBackendImpl,
+                      InputSystemBackendImpl,
+                      RenderSystemBackendImpl,
+                      UiRendererBackendImpl>
+    where AppBackendImpl: Application + ApplicationFactory + 'static,
+          InputSystemBackendImpl: InputSystem + 'static,
+          RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static,
+          UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
 {
     #[inline]
     fn app(&mut self) -> &mut dyn Application {
@@ -338,14 +317,12 @@ where
         self.frame_events.clear();
     }
 
-    fn draw_tile_map(
-        &mut self,
-        tile_map: &TileMap,
-        tile_selection: &TileSelection,
-        transform: WorldToScreenTransform,
-        visible_range: CellRange,
-        flags: TileMapRenderFlags,
-    ) {
+    fn draw_tile_map(&mut self,
+                     tile_map: &TileMap,
+                     tile_selection: &TileSelection,
+                     transform: WorldToScreenTransform,
+                     visible_range: CellRange,
+                     flags: TileMapRenderFlags) {
         if !tile_map.size_in_cells().is_valid() {
             return;
         }
@@ -353,14 +330,12 @@ where
         let render_sys = &mut *self.render_system;
         let ui_sys = &self.ui_system;
 
-        self.tile_map_render_stats = self.tile_map_renderer.draw_map(
-            render_sys,
-            ui_sys,
-            tile_map,
-            transform,
-            visible_range,
-            flags,
-        );
+        self.tile_map_render_stats = self.tile_map_renderer.draw_map(render_sys,
+                                                                     ui_sys,
+                                                                     tile_map,
+                                                                     transform,
+                                                                     visible_range,
+                                                                     flags);
 
         tile_selection.draw(render_sys);
     }
@@ -383,13 +358,11 @@ pub trait DebugDraw {
     fn wireframe_rect_with_thickness(&mut self, rect: Rect, color: Color, thickness: f32);
 
     fn colored_rect(&mut self, rect: Rect, color: Color);
-    fn textured_colored_rect(
-        &mut self,
-        rect: Rect,
-        tex_coords: &RectTexCoords,
-        texture: TextureHandle,
-        color: Color,
-    );
+    fn textured_colored_rect(&mut self,
+                             rect: Rect,
+                             tex_coords: &RectTexCoords,
+                             texture: TextureHandle,
+                             color: Color);
 }
 
 // ----------------------------------------------
@@ -401,8 +374,7 @@ struct DebugDrawBackend<RenderSystemBackendImpl> {
 }
 
 impl<RenderSystemBackendImpl> DebugDrawBackend<RenderSystemBackendImpl>
-where
-    RenderSystemBackendImpl: RenderSystem,
+    where RenderSystemBackendImpl: RenderSystem
 {
     fn new(render_system: &RenderSystemBackendImpl) -> Self {
         Self { render_system: mem::RawPtr::from_ref(render_system) }
@@ -410,8 +382,7 @@ where
 }
 
 impl<RenderSystemBackendImpl> DebugDraw for DebugDrawBackend<RenderSystemBackendImpl>
-where
-    RenderSystemBackendImpl: RenderSystem,
+    where RenderSystemBackendImpl: RenderSystem
 {
     #[inline]
     fn texture_cache(&self) -> &dyn TextureCache {
@@ -434,13 +405,7 @@ where
     }
 
     #[inline]
-    fn line_with_thickness(
-        &mut self,
-        from_pos: Vec2,
-        to_pos: Vec2,
-        color: Color,
-        thickness: f32,
-    ) {
+    fn line_with_thickness(&mut self, from_pos: Vec2, to_pos: Vec2, color: Color, thickness: f32) {
         self.render_system.draw_line_with_thickness(from_pos, to_pos, color, thickness);
     }
 
@@ -460,13 +425,11 @@ where
     }
 
     #[inline]
-    fn textured_colored_rect(
-        &mut self,
-        rect: Rect,
-        tex_coords: &RectTexCoords,
-        texture: TextureHandle,
-        color: Color,
-    ) {
+    fn textured_colored_rect(&mut self,
+                             rect: Rect,
+                             tex_coords: &RectTexCoords,
+                             texture: TextureHandle,
+                             color: Color) {
         self.render_system.draw_textured_colored_rect(rect, tex_coords, texture, color);
     }
 }

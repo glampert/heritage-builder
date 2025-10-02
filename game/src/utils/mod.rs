@@ -1,20 +1,6 @@
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+use serde::{Deserialize, Serialize};
 use arrayvec::ArrayString;
-
-use std::ops::{
-    Add,
-    AddAssign,
-    Sub,
-    SubAssign,
-    Mul,
-    MulAssign,
-    Div,
-    DivAssign
-};
-
-use serde::{
-    Serialize,
-    Deserialize
-};
 
 pub mod callback;
 pub mod coords;
@@ -144,10 +130,7 @@ impl Vec2 {
     #[must_use]
     pub fn normalize(&self) -> Self {
         let inv_len = 1.0 / self.length();
-        Self {
-            x: self.x * inv_len,
-            y: self.y * inv_len,
-        }
+        Self { x: self.x * inv_len, y: self.y * inv_len }
     }
 }
 
@@ -155,10 +138,7 @@ impl Vec2 {
 impl Add for Vec2 {
     type Output = Vec2;
     fn add(self, rhs: Vec2) -> Vec2 {
-        Vec2 {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
+        Vec2 { x: self.x + rhs.x, y: self.y + rhs.y }
     }
 }
 
@@ -174,10 +154,7 @@ impl AddAssign for Vec2 {
 impl Sub for Vec2 {
     type Output = Vec2;
     fn sub(self, rhs: Vec2) -> Vec2 {
-        Vec2 {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-        }
+        Vec2 { x: self.x - rhs.x, y: self.y - rhs.y }
     }
 }
 
@@ -193,10 +170,7 @@ impl SubAssign for Vec2 {
 impl Mul<f32> for Vec2 {
     type Output = Vec2;
     fn mul(self, rhs: f32) -> Vec2 {
-        Vec2 {
-            x: self.x * rhs,
-            y: self.y * rhs,
-        }
+        Vec2 { x: self.x * rhs, y: self.y * rhs }
     }
 }
 
@@ -204,10 +178,7 @@ impl Mul<f32> for Vec2 {
 impl Mul<Vec2> for f32 {
     type Output = Vec2;
     fn mul(self, rhs: Vec2) -> Vec2 {
-        Vec2 {
-            x: self * rhs.x,
-            y: self * rhs.y,
-        }
+        Vec2 { x: self * rhs.x, y: self * rhs.y }
     }
 }
 
@@ -223,10 +194,7 @@ impl MulAssign<f32> for Vec2 {
 impl Mul for Vec2 {
     type Output = Vec2;
     fn mul(self, rhs: Vec2) -> Vec2 {
-        Vec2 {
-            x: self.x * rhs.x,
-            y: self.y * rhs.y,
-        }
+        Vec2 { x: self.x * rhs.x, y: self.y * rhs.y }
     }
 }
 
@@ -242,10 +210,7 @@ impl MulAssign for Vec2 {
 impl Div<f32> for Vec2 {
     type Output = Vec2;
     fn div(self, rhs: f32) -> Vec2 {
-        Vec2 {
-            x: self.x / rhs,
-            y: self.y / rhs,
-        }
+        Vec2 { x: self.x / rhs, y: self.y / rhs }
     }
 }
 
@@ -253,10 +218,7 @@ impl Div<f32> for Vec2 {
 impl Div<Vec2> for f32 {
     type Output = Vec2;
     fn div(self, rhs: Vec2) -> Vec2 {
-        Vec2 {
-            x: self / rhs.x,
-            y: self / rhs.y,
-        }
+        Vec2 { x: self / rhs.x, y: self / rhs.y }
     }
 }
 
@@ -272,10 +234,7 @@ impl DivAssign<f32> for Vec2 {
 impl Div for Vec2 {
     type Output = Vec2;
     fn div(self, rhs: Vec2) -> Vec2 {
-        Vec2 {
-            x: self.x / rhs.x,
-            y: self.y / rhs.y,
-        }
+        Vec2 { x: self.x / rhs.x, y: self.y / rhs.y }
     }
 }
 
@@ -318,7 +277,7 @@ impl Color {
 
     #[inline]
     pub const fn to_array(self) -> [f32; 4] {
-        [ self.r, self.g, self.b, self.a ]
+        [self.r, self.g, self.b, self.a]
     }
 
     #[inline] pub const fn white()   -> Self { Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 } }
@@ -333,12 +292,10 @@ impl Color {
 
     #[inline]
     pub fn clamp(&self) -> Self {
-        Self {
-            r: self.r.clamp(0.0, 1.0),
-            g: self.g.clamp(0.0, 1.0),
-            b: self.b.clamp(0.0, 1.0),
-            a: self.a.clamp(0.0, 1.0),
-        }
+        Self { r: self.r.clamp(0.0, 1.0),
+               g: self.g.clamp(0.0, 1.0),
+               b: self.b.clamp(0.0, 1.0),
+               a: self.a.clamp(0.0, 1.0) }
     }
 }
 
@@ -353,12 +310,10 @@ impl Default for Color {
 impl Mul for Color {
     type Output = Color;
     fn mul(self, rhs: Color) -> Color {
-        Color {
-            r: (self.r * rhs.r).min(1.0),
-            g: (self.g * rhs.g).min(1.0),
-            b: (self.b * rhs.b).min(1.0),
-            a: (self.a * rhs.a).min(1.0),
-        }
+        Color { r: (self.r * rhs.r).min(1.0),
+                g: (self.g * rhs.g).min(1.0),
+                b: (self.b * rhs.b).min(1.0),
+                a: (self.a * rhs.a).min(1.0) }
     }
 }
 
@@ -376,12 +331,10 @@ impl MulAssign for Color {
 impl Mul<f32> for Color {
     type Output = Color;
     fn mul(self, rhs: f32) -> Color {
-        Color {
-            r: (self.r * rhs).min(1.0),
-            g: (self.g * rhs).min(1.0),
-            b: (self.b * rhs).min(1.0),
-            a: (self.a * rhs).min(1.0),
-        }
+        Color { r: (self.r * rhs).min(1.0),
+                g: (self.g * rhs).min(1.0),
+                b: (self.b * rhs).min(1.0),
+                a: (self.a * rhs).min(1.0) }
     }
 }
 
@@ -389,12 +342,10 @@ impl Mul<f32> for Color {
 impl Mul<Color> for f32 {
     type Output = Color;
     fn mul(self, rhs: Color) -> Color {
-        Color {
-            r: (self * rhs.r).min(1.0),
-            g: (self * rhs.g).min(1.0),
-            b: (self * rhs.b).min(1.0),
-            a: (self * rhs.a).min(1.0),
-        }
+        Color { r: (self * rhs.r).min(1.0),
+                g: (self * rhs.g).min(1.0),
+                b: (self * rhs.b).min(1.0),
+                a: (self * rhs.a).min(1.0) }
     }
 }
 
@@ -421,7 +372,7 @@ impl std::fmt::Display for Color {
 // Integer width & height pair.
 #[derive(Copy, Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Size {
-    pub width:  i32,
+    pub width: i32,
     pub height: i32,
 }
 
@@ -453,7 +404,7 @@ impl Size {
 
     #[inline]
     pub fn to_array(self) -> [i32; 2] {
-        [ self.width, self.height ]
+        [self.width, self.height]
     }
 }
 
@@ -461,10 +412,7 @@ impl Size {
 impl Add<i32> for Size {
     type Output = Size;
     fn add(self, rhs: i32) -> Size {
-        Size {
-            width:  self.width  + rhs,
-            height: self.height + rhs,
-        }
+        Size { width: self.width + rhs, height: self.height + rhs }
     }
 }
 
@@ -472,10 +420,7 @@ impl Add<i32> for Size {
 impl Sub<i32> for Size {
     type Output = Size;
     fn sub(self, rhs: i32) -> Size {
-        Size {
-            width:  self.width  - rhs,
-            height: self.height - rhs,
-        }
+        Size { width: self.width - rhs, height: self.height - rhs }
     }
 }
 
@@ -502,26 +447,17 @@ pub struct Rect {
 impl Rect {
     #[inline]
     pub const fn new(pos: Vec2, size: Vec2) -> Self {
-        Self {
-            min: pos,
-            max: Vec2::new(pos.x + size.x, pos.y + size.y),
-        }
+        Self { min: pos, max: Vec2::new(pos.x + size.x, pos.y + size.y) }
     }
 
     #[inline]
     pub const fn zero() -> Self {
-        Self {
-            min: Vec2::zero(),
-            max: Vec2::zero(),
-        }
+        Self { min: Vec2::zero(), max: Vec2::zero() }
     }
 
     #[inline]
     pub fn from_pos_and_size(pos: Vec2, size: Size) -> Self {
-        Self {
-            min: pos,
-            max: Vec2::new(pos.x + (size.width as f32), pos.y + (size.height as f32)),
-        }
+        Self { min: pos, max: Vec2::new(pos.x + (size.width as f32), pos.y + (size.height as f32)) }
     }
 
     #[inline]
@@ -530,10 +466,7 @@ impl Rect {
         let max_x = a.x.max(b.x);
         let min_y = a.y.min(b.y);
         let max_y = a.y.max(b.y);
-        Self {
-            min: Vec2::new(min_x, min_y),
-            max: Vec2::new(max_x, max_y),
-        }
+        Self { min: Vec2::new(min_x, min_y), max: Vec2::new(max_x, max_y) }
     }
 
     #[inline]
@@ -573,9 +506,7 @@ impl Rect {
 
     #[inline]
     pub fn center(&self) -> Vec2 {
-        Vec2::new(
-            self.x() + self.width()  / 2.0,
-            self.y() + self.height() / 2.0)
+        Vec2::new(self.x() + self.width() / 2.0, self.y() + self.height() / 2.0)
     }
 
     #[inline]
@@ -614,28 +545,29 @@ impl Rect {
     // Returns `true` if this rect intersects with another.
     #[inline]
     pub fn intersects(&self, other: &Rect) -> bool {
-        self.min.x < other.max.x &&
-        self.max.x > other.min.x &&
-        self.min.y < other.max.y &&
-        self.max.y > other.min.y
+        self.min.x < other.max.x
+        && self.max.x > other.min.x
+        && self.min.y < other.max.y
+        && self.max.y > other.min.y
     }
 
-    // Returns `true` if the point is inside this rect (inclusive of mins, exclusive of maxs).
+    // Returns `true` if the point is inside this rect (inclusive of mins, exclusive
+    // of maxs).
     #[inline]
     pub fn contains_point(&self, point: Vec2) -> bool {
-        point.x >= self.min.x &&
-        point.x <  self.max.x &&
-        point.y >= self.min.y &&
-        point.y <  self.max.y
+        point.x >= self.min.x
+        && point.x < self.max.x
+        && point.y >= self.min.y
+        && point.y < self.max.y
     }
 
     // Returns `true` if this rect fully contains the other rect.
     #[inline]
     pub fn contains_rect(&self, other: &Rect) -> bool {
-        self.min.x <= other.min.x &&
-        self.max.x >= other.max.x &&
-        self.min.y <= other.min.y &&
-        self.max.y >= other.max.y
+        self.min.x <= other.min.x
+        && self.max.x >= other.max.x
+        && self.min.y <= other.min.y
+        && self.max.y >= other.max.y
     }
 
     //
@@ -729,7 +661,12 @@ impl Default for RectTexCoords {
 // Maps a value in the numerical range [in_min, in_max] to the range [out_min, out_max].
 #[inline]
 pub fn map_value_to_range<T>(val: T, in_min: T, in_max: T, out_min: T, out_max: T) -> T
-    where T: Sub<Output = T> + Div<Output = T> + Mul<Output = T> + Add<Output = T> + PartialEq + Copy
+    where T: Sub<Output = T>
+              + Div<Output = T>
+              + Mul<Output = T>
+              + Add<Output = T>
+              + PartialEq
+              + Copy
 {
     if in_min == in_max {
         val // Would cause a division by zero in in_max - in_min, so just return back the input.
@@ -740,7 +677,7 @@ pub fn map_value_to_range<T>(val: T, in_min: T, in_max: T, out_min: T, out_max: 
 
 // Maps a scalar value within a range to the [0,1] normalized range.
 #[inline]
-pub fn normalize_value<T>(val: T, minimum: T, maximum: T) -> T 
+pub fn normalize_value<T>(val: T, minimum: T, maximum: T) -> T
     where T: Sub<Output = T> + Div<Output = T> + Copy
 {
     (val - minimum) / (maximum - minimum)
@@ -750,7 +687,7 @@ pub fn normalize_value<T>(val: T, minimum: T, maximum: T) -> T
 #[inline]
 pub fn lerp<T>(a: T, b: T, t: f32) -> T
     where T: Mul<f32, Output = T> + Add<Output = T> + Copy,
-          f32: Mul<T, Output = T> // for (1.0 - t) * a
+          f32: Mul<T, Output = T> /* for (1.0 - t) * a */
 {
     (1.0 - t) * a + t * b
 }

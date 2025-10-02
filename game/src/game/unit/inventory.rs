@@ -1,11 +1,8 @@
-use serde::{
-    Serialize,
-    Deserialize
-};
+use serde::{Deserialize, Serialize};
 
 use crate::{
+    game::sim::resources::{ResourceKind, StockItem},
     imgui_ui::UiSystem,
-    game::sim::resources::{ResourceKind, StockItem}
 };
 
 // ----------------------------------------------
@@ -49,7 +46,9 @@ impl UnitInventory {
             if let Some(item) = &mut self.item {
                 debug_assert!(item.kind == kind && item.count != 0,
                               "item.kind {} != {}, item.count = {}",
-                              item.kind, kind, item.count);
+                              item.kind,
+                              kind,
+                              item.count);
 
                 item.count += count;
             } else {
@@ -67,7 +66,9 @@ impl UnitInventory {
             if let Some(mut item) = self.item.take() {
                 debug_assert!(item.kind == kind && item.count != 0,
                               "item.kind {} != {}, item.count = {}",
-                              item.kind, kind, item.count);
+                              item.kind,
+                              kind,
+                              item.count);
 
                 let removed = count.min(item.count);
                 item.count -= removed;

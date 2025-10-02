@@ -1,30 +1,19 @@
-use serde::{
-    Serialize,
-    Deserialize
-};
-
-use crate::{
-    utils::{
-        coords::Cell,
-        callback::Callback
-    },
-    game::{
-        building::{BuildingKind, BuildingContext},
-        sim::resources::{ShoppingList, ResourceKind}
-    }
-};
+use serde::{Deserialize, Serialize};
 
 use super::{
-    UnitId,
-    UnitTaskHelper,
     config,
     task::{
-        UnitTaskDespawn,
-        UnitTaskDeliverToStorage,
-        UnitTaskDeliveryCompletionCallback,
-        UnitTaskFetchFromStorage,
-        UnitTaskFetchCompletionCallback
-    }
+        UnitTaskDeliverToStorage, UnitTaskDeliveryCompletionCallback, UnitTaskDespawn,
+        UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage,
+    },
+    UnitId, UnitTaskHelper,
+};
+use crate::{
+    game::{
+        building::{BuildingContext, BuildingKind},
+        sim::resources::{ResourceKind, ShoppingList},
+    },
+    utils::{callback::Callback, coords::Cell},
 };
 
 // ----------------------------------------------
@@ -34,7 +23,8 @@ use super::{
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Runner {
     unit_id: UnitId,
-    #[serde(skip)] failed_to_spawn: bool, // Debug flag; not serialized.
+    #[serde(skip)]
+    failed_to_spawn: bool, // Debug flag; not serialized.
 }
 
 impl UnitTaskHelper for Runner {
@@ -68,7 +58,8 @@ impl Runner {
                                   storage_buildings_accepted: BuildingKind,
                                   resource_kind_to_deliver: ResourceKind,
                                   resource_count: u32,
-                                  completion_callback: Callback<UnitTaskDeliveryCompletionCallback>) -> bool {
+                                  completion_callback: Callback<UnitTaskDeliveryCompletionCallback>)
+                                  -> bool {
         self.try_spawn_with_task(
             context.debug_name(),
             context.query,
@@ -92,22 +83,27 @@ impl Runner {
                                   context: &BuildingContext,
                                   unit_origin: Cell,
                                   storage_buildings_accepted: BuildingKind,
-                                  resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
-                                  completion_callback: Callback<UnitTaskFetchCompletionCallback>) -> bool {
-        self.try_spawn_with_task(
-            context.debug_name(),
-            context.query,
-            unit_origin,
-            config::UNIT_RUNNER,
-            UnitTaskFetchFromStorage {
-                origin_building: context.kind_and_id(),
-                origin_building_tile: context.tile_info(),
-                storage_buildings_accepted,
-                resources_to_fetch,
-                completion_callback,
-                completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
-                is_returning_to_origin: false,
-            }
-        )
+                                  resources_to_fetch: ShoppingList, /* Will fetch at most
+                                                                     * *one* of these. This
+                                                                     * is a list of desired
+                                                                     * options. */
+                                  completion_callback: Callback<UnitTaskFetchCompletionCallback>)
+                                  -> bool {
+        self.try_spawn_with_task(context.debug_name(),
+                                 context.query,
+                                 unit_origin,
+                                 config::UNIT_RUNNER,
+                                 UnitTaskFetchFromStorage { origin_building:
+                                                                context.kind_and_id(),
+                                                            origin_building_tile:
+                                                                context.tile_info(),
+                                                            storage_buildings_accepted,
+                                                            resources_to_fetch,
+                                                            completion_callback,
+                                                            completion_task:
+                                                                context.query
+                                                                       .task_manager()
+                                                                       .new_task(UnitTaskDespawn),
+                                                            is_returning_to_origin: false })
     }
 }

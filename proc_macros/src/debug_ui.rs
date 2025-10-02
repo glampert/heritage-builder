@@ -1,20 +1,8 @@
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use proc_macro2::{
-    TokenStream,
-    Span
-};
 use syn::{
-    parse_macro_input,
-    punctuated::Punctuated,
-    token::Comma,
-    Attribute,
-    Data,
-    DeriveInput,
-    Field,
-    Fields,
-    Type,
-    TypePath,
-    LitStr
+    parse_macro_input, punctuated::Punctuated, token::Comma, Attribute, Data, DeriveInput, Field,
+    Fields, LitStr, Type, TypePath,
 };
 
 // -------------------------------------------------------
@@ -129,7 +117,7 @@ enum FieldKind {
     Int,
     Float,
     String,
-    Unknown
+    Unknown,
 }
 
 fn infer_field_kind(field: &Field) -> FieldKind {
@@ -137,8 +125,9 @@ fn infer_field_kind(field: &Field) -> FieldKind {
         if let Some(ident) = path.get_ident() {
             let kind = match ident.to_string().as_str() {
                 "bool" => FieldKind::Bool,
-                "u8" | "u16" | "u32" | "u64" | "usize" |
-                "i8" | "i16" | "i32" | "i64" | "isize" => FieldKind::Int,
+                "u8" | "u16" | "u32" | "u64" | "usize" | "i8" | "i16" | "i32" | "i64" | "isize" => {
+                    FieldKind::Int
+                }
                 "f32" | "f64" | "Seconds" => FieldKind::Float,
                 "String" => FieldKind::String,
                 _ => FieldKind::Unknown,
@@ -153,13 +142,12 @@ fn calc_field_name_padding(fields: &Punctuated<Field, Comma>) -> usize {
     let mut longest_field_name = 0;
     for field in fields.iter() {
         let attrs = parse_debug_ui_attrs(&field.attrs);
-        if attrs.skip || attrs.edit.is_some() { // edit fields use imgui input widgets.
+        if attrs.skip || attrs.edit.is_some() {
+            // edit fields use imgui input widgets.
             continue;
         }
 
-        let label_str = attrs.label.unwrap_or_else(|| {
-            field.ident.as_ref().unwrap().to_string()
-        });
+        let label_str = attrs.label.unwrap_or_else(|| field.ident.as_ref().unwrap().to_string());
 
         longest_field_name = longest_field_name.max(label_str.len());
     }
@@ -178,15 +166,15 @@ fn has_any_edit_attr(fields: &Punctuated<Field, Comma>) -> bool {
 
 fn snake_case_to_title(s: &str) -> String {
     s.split('_')
-        .map(|word| {
-            let mut chars = word.chars();
-            match chars.next() {
-                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+     .map(|word| {
+         let mut chars = word.chars();
+         match chars.next() {
+             Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+             None => String::new(),
+         }
+     })
+     .collect::<Vec<_>>()
+     .join(" ")
 }
 
 // Entry point function.

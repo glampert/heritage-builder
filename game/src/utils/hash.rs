@@ -1,5 +1,7 @@
-use std::collections::HashMap;
-use std::hash::{BuildHasherDefault, Hasher};
+use std::{
+    collections::HashMap,
+    hash::{BuildHasherDefault, Hasher},
+};
 
 // ----------------------------------------------
 // PreHashedKeyMap / IdentityHasher
@@ -32,12 +34,11 @@ impl Hasher for IdentityHasher {
 pub type PreHashedKeyMap<K, V> = HashMap<K, V, BuildHasherDefault<IdentityHasher>>;
 
 // Creates a default initialized empty PreHashedKeyMap.
-// This can be used in a `const` context, such as to initialize a static variable.
+// This can be used in a `const` context, such as to initialize a static
+// variable.
 #[inline]
 pub const fn new_const_hash_map<K, V>() -> PreHashedKeyMap<K, V> {
-    PreHashedKeyMap::with_hasher(
-        BuildHasherDefault::<IdentityHasher>::new()
-    )
+    PreHashedKeyMap::with_hasher(BuildHasherDefault::<IdentityHasher>::new())
 }
 
 // ----------------------------------------------
@@ -57,18 +58,12 @@ pub struct StrHashPair {
 impl StrHashPair {
     #[inline]
     pub const fn empty() -> Self {
-        Self {
-            string: "",
-            hash: NULL_HASH,
-        }
+        Self { string: "", hash: NULL_HASH }
     }
 
     #[inline]
     pub const fn from_str(string: &'static str) -> Self {
-        Self {
-            string,
-            hash: fnv1a_from_str(string),
-        }
+        Self { string, hash: fnv1a_from_str(string) }
     }
 
     #[inline]

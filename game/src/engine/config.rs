@@ -1,13 +1,14 @@
 use std::path::Path;
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
+
 use proc_macros::DrawDebugUi;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
-    log,
     imgui_ui::UiSystem,
+    log,
     save::{self, *},
     tile::rendering,
-    utils::{Color, Size}
+    utils::{Color, Size},
 };
 
 // ----------------------------------------------
@@ -17,11 +18,8 @@ use crate::{
 pub const CONFIGS_DIR_PATH: &str = "assets/configs";
 
 pub trait Configs {
-    fn draw_debug_ui(&'static self, _ui_sys: &UiSystem) {
-    }
-
-    fn post_load(&'static mut self) {
-    }
+    fn draw_debug_ui(&'static self, _ui_sys: &UiSystem) {}
+    fn post_load(&'static mut self) {}
 
     // Saves current configs to file.
     fn save_file(&'static self, config_file_name: &str) -> bool
@@ -29,9 +27,8 @@ pub trait Configs {
     {
         debug_assert!(!config_file_name.is_empty());
 
-        let config_json_path = Path::new(CONFIGS_DIR_PATH)
-            .join(config_file_name)
-            .with_extension("json");
+        let config_json_path =
+            Path::new(CONFIGS_DIR_PATH).join(config_file_name).with_extension("json");
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
@@ -40,12 +37,14 @@ pub trait Configs {
         let mut state = save::backend::new_json_save_state(true);
 
         if let Err(err) = state.save(self) {
-            log::error!(log::channel!("config"), "Failed to save config file {config_json_path:?}: {err}");
+            log::error!(log::channel!("config"),
+                        "Failed to save config file {config_json_path:?}: {err}");
             return false;
         }
 
         if let Err(err) = state.write_file(&config_json_path) {
-            log::error!(log::channel!("config"), "Failed to write config file {config_json_path:?}: {err}");
+            log::error!(log::channel!("config"),
+                        "Failed to write config file {config_json_path:?}: {err}");
             return false;
         }
 
@@ -58,14 +57,14 @@ pub trait Configs {
     {
         debug_assert!(!config_file_name.is_empty());
 
-        let config_json_path = Path::new(CONFIGS_DIR_PATH)
-            .join(config_file_name)
-            .with_extension("json");
+        let config_json_path =
+            Path::new(CONFIGS_DIR_PATH).join(config_file_name).with_extension("json");
 
         let mut state = save::backend::new_json_save_state(false);
 
         if let Err(err) = state.read_file(&config_json_path) {
-            log::error!(log::channel!("config"), "Failed to read config file from path {config_json_path:?}: {err}");
+            log::error!(log::channel!("config"),
+                        "Failed to read config file from path {config_json_path:?}: {err}");
             return T::default();
         }
 
@@ -129,22 +128,20 @@ pub struct EngineConfigs {
 
 impl Default for EngineConfigs {
     fn default() -> Self {
-        Self {
-            // Window/Rendering:
-            window_title: "CitySim".into(),
-            window_size: Size::new(1024, 768),
-            window_background_color: rendering::MAP_BACKGROUND_COLOR,
-            fullscreen: false,
-            confine_cursor_to_window: true,
+        Self { // Window/Rendering:
+               window_title: "CitySim".into(),
+               window_size: Size::new(1024, 768),
+               window_background_color: rendering::MAP_BACKGROUND_COLOR,
+               fullscreen: false,
+               confine_cursor_to_window: true,
 
-            // Debug Grid:
-            grid_color: rendering::DEFAULT_GRID_COLOR,
-            grid_line_thickness: 1.0,
+               // Debug Grid:
+               grid_color: rendering::DEFAULT_GRID_COLOR,
+               grid_line_thickness: 1.0,
 
-            // Debug Log:
-            log_level: log::Level::Verbose,
-            log_viewer_start_open: false,
-            log_viewer_max_lines: 32,
-        }
+               // Debug Log:
+               log_level: log::Level::Verbose,
+               log_viewer_start_open: false,
+               log_viewer_max_lines: 32 }
     }
 }

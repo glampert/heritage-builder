@@ -1,29 +1,25 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    log,
     debug,
-    utils::{Color, hash},
     engine::config::Configs,
     game::{
         self,
+        building::config::BuildingConfigs,
         cheats,
-        GameLoop,
-        sim::{self, Simulation},
         config::GameConfigs,
+        sim::{self, Simulation},
         unit::config::UnitConfigs,
-        building::config::BuildingConfigs
+        GameLoop,
     },
+    log,
     tile::{
-        TileMapLayerKind,
         camera::Camera,
+        rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
         sets::{TileSets, TERRAIN_GROUND_CATEGORY},
-        rendering::{
-            TileMapRenderFlags,
-            MAX_GRID_LINE_THICKNESS,
-            MIN_GRID_LINE_THICKNESS
-        }
-    }
+        TileMapLayerKind,
+    },
+    utils::{hash, Color},
 };
 
 // ----------------------------------------------
@@ -32,48 +28,71 @@ use crate::{
 
 #[derive(Default, DrawDebugUi)]
 pub struct DebugSettingsMenu {
-    #[debug_ui(skip)] draw_grid: bool,
-    #[debug_ui(skip)] draw_grid_ignore_depth: bool,
+    #[debug_ui(skip)]
+    draw_grid: bool,
+    #[debug_ui(skip)]
+    draw_grid_ignore_depth: bool,
 
-    #[debug_ui(skip)] preset_tile_map_number: usize,
-    #[debug_ui(skip)] save_file_name: String,
-    #[debug_ui(skip)] save_file_selected: usize,
+    #[debug_ui(skip)]
+    preset_tile_map_number: usize,
+    #[debug_ui(skip)]
+    save_file_name: String,
+    #[debug_ui(skip)]
+    save_file_selected: usize,
 
-    #[debug_ui(edit)] draw_terrain: bool,
-    #[debug_ui(edit)] draw_buildings: bool,
-    #[debug_ui(edit)] draw_props: bool,
-    #[debug_ui(edit)] draw_units: bool,
-    #[debug_ui(edit, separator)] draw_vegetation: bool,
+    #[debug_ui(edit)]
+    draw_terrain: bool,
+    #[debug_ui(edit)]
+    draw_buildings: bool,
+    #[debug_ui(edit)]
+    draw_props: bool,
+    #[debug_ui(edit)]
+    draw_units: bool,
+    #[debug_ui(edit, separator)]
+    draw_vegetation: bool,
 
-    #[debug_ui(edit)] show_terrain_debug: bool,
-    #[debug_ui(edit)] show_buildings_debug: bool,
-    #[debug_ui(edit)] show_props_debug: bool,
-    #[debug_ui(edit)] show_units_debug: bool,
-    #[debug_ui(edit)] show_vegetation_debug: bool,
-    #[debug_ui(edit, separator)] show_blocker_tiles_debug: bool,
+    #[debug_ui(edit)]
+    show_terrain_debug: bool,
+    #[debug_ui(edit)]
+    show_buildings_debug: bool,
+    #[debug_ui(edit)]
+    show_props_debug: bool,
+    #[debug_ui(edit)]
+    show_units_debug: bool,
+    #[debug_ui(edit)]
+    show_vegetation_debug: bool,
+    #[debug_ui(edit, separator)]
+    show_blocker_tiles_debug: bool,
 
-    #[debug_ui(edit)] show_tile_bounds: bool,
-    #[debug_ui(edit)] show_selection_bounds: bool,
-    #[debug_ui(edit)] show_cursor_pos: bool,
-    #[debug_ui(edit)] show_screen_origin: bool,
-    #[debug_ui(edit, separator)] show_render_stats: bool,
+    #[debug_ui(edit)]
+    show_tile_bounds: bool,
+    #[debug_ui(edit)]
+    show_selection_bounds: bool,
+    #[debug_ui(edit)]
+    show_cursor_pos: bool,
+    #[debug_ui(edit)]
+    show_screen_origin: bool,
+    #[debug_ui(edit, separator)]
+    show_render_stats: bool,
 
-    #[debug_ui(edit)] show_game_configs_debug: bool,
-    #[debug_ui(edit)] show_game_world_debug: bool,
-    #[debug_ui(edit)] show_game_systems_debug: bool,
-    #[debug_ui(edit)] show_log_viewer_window: bool,
+    #[debug_ui(edit)]
+    show_game_configs_debug: bool,
+    #[debug_ui(edit)]
+    show_game_world_debug: bool,
+    #[debug_ui(edit)]
+    show_game_systems_debug: bool,
+    #[debug_ui(edit)]
+    show_log_viewer_window: bool,
 }
 
 impl DebugSettingsMenu {
     pub fn new() -> Self {
-        Self {
-            draw_terrain: true,
-            draw_buildings: true,
-            draw_props: true,
-            draw_units: true,
-            draw_vegetation: true,
-            ..Default::default()
-        }
+        Self { draw_terrain: true,
+               draw_buildings: true,
+               draw_props: true,
+               draw_units: true,
+               draw_vegetation: true,
+               ..Default::default() }
     }
 
     pub fn show_selection_bounds(&self) -> bool {
@@ -98,20 +117,48 @@ impl DebugSettingsMenu {
 
     pub fn selected_render_flags(&self) -> TileMapRenderFlags {
         let mut flags = TileMapRenderFlags::empty();
-        if self.draw_terrain             { flags.insert(TileMapRenderFlags::DrawTerrain); }
-        if self.draw_buildings           { flags.insert(TileMapRenderFlags::DrawBuildings); }
-        if self.draw_props               { flags.insert(TileMapRenderFlags::DrawProps); }
-        if self.draw_units               { flags.insert(TileMapRenderFlags::DrawUnits); }
-        if self.draw_vegetation          { flags.insert(TileMapRenderFlags::DrawVegetation); }
-        if self.draw_grid                { flags.insert(TileMapRenderFlags::DrawGrid); }
-        if self.draw_grid_ignore_depth   { flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth); }
-        if self.show_tile_bounds         { flags.insert(TileMapRenderFlags::DrawDebugBounds); }
-        if self.show_terrain_debug       { flags.insert(TileMapRenderFlags::DrawTerrainTileDebug); }
-        if self.show_buildings_debug     { flags.insert(TileMapRenderFlags::DrawBuildingsTileDebug); }
-        if self.show_props_debug         { flags.insert(TileMapRenderFlags::DrawPropsTileDebug); }
-        if self.show_units_debug         { flags.insert(TileMapRenderFlags::DrawUnitsTileDebug); }
-        if self.show_vegetation_debug    { flags.insert(TileMapRenderFlags::DrawVegetationTileDebug); }
-        if self.show_blocker_tiles_debug { flags.insert(TileMapRenderFlags::DrawBlockersTileDebug); }
+        if self.draw_terrain {
+            flags.insert(TileMapRenderFlags::DrawTerrain);
+        }
+        if self.draw_buildings {
+            flags.insert(TileMapRenderFlags::DrawBuildings);
+        }
+        if self.draw_props {
+            flags.insert(TileMapRenderFlags::DrawProps);
+        }
+        if self.draw_units {
+            flags.insert(TileMapRenderFlags::DrawUnits);
+        }
+        if self.draw_vegetation {
+            flags.insert(TileMapRenderFlags::DrawVegetation);
+        }
+        if self.draw_grid {
+            flags.insert(TileMapRenderFlags::DrawGrid);
+        }
+        if self.draw_grid_ignore_depth {
+            flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth);
+        }
+        if self.show_tile_bounds {
+            flags.insert(TileMapRenderFlags::DrawDebugBounds);
+        }
+        if self.show_terrain_debug {
+            flags.insert(TileMapRenderFlags::DrawTerrainTileDebug);
+        }
+        if self.show_buildings_debug {
+            flags.insert(TileMapRenderFlags::DrawBuildingsTileDebug);
+        }
+        if self.show_props_debug {
+            flags.insert(TileMapRenderFlags::DrawPropsTileDebug);
+        }
+        if self.show_units_debug {
+            flags.insert(TileMapRenderFlags::DrawUnitsTileDebug);
+        }
+        if self.show_vegetation_debug {
+            flags.insert(TileMapRenderFlags::DrawVegetationTileDebug);
+        }
+        if self.show_blocker_tiles_debug {
+            flags.insert(TileMapRenderFlags::DrawBlockersTileDebug);
+        }
         flags
     }
 
@@ -120,7 +167,6 @@ impl DebugSettingsMenu {
                 sim: &mut Simulation,
                 camera: &mut Camera,
                 game_loop: &mut GameLoop) {
-
         let ui = context.ui_sys.builder();
 
         if let Some(_menu_bar) = ui.begin_main_menu_bar() {
@@ -225,14 +271,16 @@ impl DebugSettingsMenu {
         let mut scroll = camera.current_scroll();
 
         if ui.slider_config("Scroll X", scroll_limits.0.x, scroll_limits.1.x)
-            .display_format("%.1f")
-            .build(&mut scroll.x) {
+             .display_format("%.1f")
+             .build(&mut scroll.x)
+        {
             camera.set_scroll(scroll);
         }
 
         if ui.slider_config("Scroll Y", scroll_limits.0.y, scroll_limits.1.y)
-            .display_format("%.1f")
-            .build(&mut scroll.y) {
+             .display_format("%.1f")
+             .build(&mut scroll.y)
+        {
             camera.set_scroll(scroll);
         }
 
@@ -241,7 +289,9 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn debug_options_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
+    fn debug_options_menu(&mut self,
+                          context: &mut sim::debug::DebugContext,
+                          game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
 
         self.draw_debug_ui(context.ui_sys);
@@ -258,8 +308,9 @@ impl DebugSettingsMenu {
 
         let mut line_thickness = engine.grid_line_thickness();
         if ui.slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
-            .display_format("%.1f")
-            .build(&mut line_thickness) {
+             .display_format("%.1f")
+             .build(&mut line_thickness)
+        {
             engine.set_grid_line_thickness(line_thickness);
         }
 
@@ -275,12 +326,18 @@ impl DebugSettingsMenu {
 
         let preset_tile_map_names = debug::utils::preset_tile_maps_list();
 
-        if ui.combo_simple_string("Preset", &mut self.preset_tile_map_number, &preset_tile_map_names) {
-            self.preset_tile_map_number = self.preset_tile_map_number.min(preset_tile_map_names.len());
+        if ui.combo_simple_string("Preset",
+                                  &mut self.preset_tile_map_number,
+                                  &preset_tile_map_names)
+        {
+            self.preset_tile_map_number =
+                self.preset_tile_map_number.min(preset_tile_map_names.len());
         }
 
         if ui.button("Load Preset") {
-            log::info!(log::channel!("debug"), "Loading preset tile map '{}' ...", preset_tile_map_names[self.preset_tile_map_number]);
+            log::info!(log::channel!("debug"),
+                       "Loading preset tile map '{}' ...",
+                       preset_tile_map_names[self.preset_tile_map_number]);
             game_loop.load_preset_map(self.preset_tile_map_number);
         }
 
@@ -292,19 +349,18 @@ impl DebugSettingsMenu {
         }
 
         if ui.button("Reset to dirt tiles") {
-            let dirt_tile_def = TileSets::get().find_tile_def_by_hash(
-                TileMapLayerKind::Terrain,
-                TERRAIN_GROUND_CATEGORY.hash,
-                hash::fnv1a_from_str("dirt"));
+            let dirt_tile_def = TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
+                                                                      TERRAIN_GROUND_CATEGORY.hash,
+                                                                      hash::fnv1a_from_str("dirt"));
 
             game_loop.reset_session(dirt_tile_def);
         }
 
         if ui.button("Reset to grass tiles") {
-            let grass_tile_def = TileSets::get().find_tile_def_by_hash(
-                TileMapLayerKind::Terrain,
-                TERRAIN_GROUND_CATEGORY.hash,
-                hash::fnv1a_from_str("grass"));
+            let grass_tile_def =
+                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
+                                                      TERRAIN_GROUND_CATEGORY.hash,
+                                                      hash::fnv1a_from_str("grass"));
 
             game_loop.reset_session(grass_tile_def);
         }
@@ -345,7 +401,8 @@ impl DebugSettingsMenu {
 
         let save_files = game_loop.save_files_list();
 
-        if ui.combo("Load File", &mut self.save_file_selected, &save_files, |s| s.to_string_lossy()) {
+        if ui.combo("Load File", &mut self.save_file_selected, &save_files, |s| s.to_string_lossy())
+        {
             self.save_file_selected = self.save_file_selected.min(save_files.len());
         }
 
@@ -372,41 +429,45 @@ impl DebugSettingsMenu {
         let ui = context.ui_sys.builder();
 
         ui.window("Game Configs")
-            .opened(&mut self.show_game_configs_debug)
-            .position([200.0, 20.0], imgui::Condition::FirstUseEver)
-            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
-                    if let Some(_tab) = ui.tab_item("Engine/Game") {
-                        GameConfigs::get().draw_debug_ui(context.ui_sys);
-                    }
-                    if let Some(_tab) = ui.tab_item("Buildings") {
-                        BuildingConfigs::get().draw_debug_ui(context.ui_sys);
-                    }
-                    if let Some(_tab) = ui.tab_item("Units") {
-                        UnitConfigs::get().draw_debug_ui(context.ui_sys);
-                    }
-                }
-            });
+          .opened(&mut self.show_game_configs_debug)
+          .position([200.0, 20.0], imgui::Condition::FirstUseEver)
+          .size([400.0, 350.0], imgui::Condition::FirstUseEver)
+          .build(|| {
+              if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
+                  if let Some(_tab) = ui.tab_item("Engine/Game") {
+                      GameConfigs::get().draw_debug_ui(context.ui_sys);
+                  }
+                  if let Some(_tab) = ui.tab_item("Buildings") {
+                      BuildingConfigs::get().draw_debug_ui(context.ui_sys);
+                  }
+                  if let Some(_tab) = ui.tab_item("Units") {
+                      UnitConfigs::get().draw_debug_ui(context.ui_sys);
+                  }
+              }
+          });
     }
 
-    fn draw_world_debug_window(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation) {
+    fn draw_world_debug_window(&mut self,
+                               context: &mut sim::debug::DebugContext,
+                               sim: &mut Simulation) {
         let ui = context.ui_sys.builder();
 
         ui.window("World Debug")
-            .opened(&mut self.show_game_world_debug)
-            .position([300.0, 20.0], imgui::Condition::FirstUseEver)
-            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-            .build(|| sim.draw_world_debug_ui(context));
+          .opened(&mut self.show_game_world_debug)
+          .position([300.0, 20.0], imgui::Condition::FirstUseEver)
+          .size([400.0, 350.0], imgui::Condition::FirstUseEver)
+          .build(|| sim.draw_world_debug_ui(context));
     }
 
-    fn draw_game_systems_debug_window(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation) {
+    fn draw_game_systems_debug_window(&mut self,
+                                      context: &mut sim::debug::DebugContext,
+                                      sim: &mut Simulation) {
         let ui = context.ui_sys.builder();
 
         ui.window("Game Systems Debug")
-            .opened(&mut self.show_game_systems_debug)
-            .position([400.0, 20.0], imgui::Condition::FirstUseEver)
-            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-            .build(|| sim.draw_game_systems_debug_ui(context));
+          .opened(&mut self.show_game_systems_debug)
+          .position([400.0, 20.0], imgui::Condition::FirstUseEver)
+          .size([400.0, 350.0], imgui::Condition::FirstUseEver)
+          .build(|| sim.draw_game_systems_debug_ui(context));
     }
 }

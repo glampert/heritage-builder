@@ -1,17 +1,18 @@
 use std::borrow::Cow;
+
 use smallvec::SmallVec;
 
 use crate::{
-    tile::Tile,
-    imgui_ui::UiSystem,
-    engine::time::Seconds,
     debug::{self, popups::PopupMessages},
+    engine::time::Seconds,
     game::sim::resources::ResourceKind,
+    imgui_ui::UiSystem,
+    tile::Tile,
     utils::{
         self,
+        coords::{CellRange, WorldToScreenTransform},
         Color,
-        coords::{CellRange, WorldToScreenTransform}
-    }
+    },
 };
 
 // ----------------------------------------------
@@ -69,10 +70,7 @@ pub struct GameObjectDebugPopups {
 
 impl Default for GameObjectDebugPopups {
     fn default() -> Self {
-        Self {
-            messages: PopupMessages::default(),
-            show: debug::show_popup_messages(),
-        }
+        Self { messages: PopupMessages::default(), show: debug::show_popup_messages() }
     }
 }
 
@@ -111,23 +109,25 @@ pub trait GameObjectDebugOptions {
         let mut vars = self.get_vars();
         if !vars.is_empty() {
             let ui = ui_sys.builder();
-            if ui.collapsing_header("Debug Options##_game_obj_debug_opts", imgui::TreeNodeFlags::empty()) {
+            if ui.collapsing_header("Debug Options##_game_obj_debug_opts",
+                                    imgui::TreeNodeFlags::empty())
+            {
                 for var in &mut vars {
                     match &mut var.value {
                         GameObjectDebugVarRef::Bool(value) => {
                             ui.checkbox(utils::snake_case_to_title::<64>(var.name), value);
-                        },
+                        }
                         GameObjectDebugVarRef::I32(value) => {
                             ui.input_int(utils::snake_case_to_title::<64>(var.name), value)
-                                .step(1)
-                                .build();
-                        },
+                              .step(1)
+                              .build();
+                        }
                         GameObjectDebugVarRef::F32(value) => {
                             ui.input_float(utils::snake_case_to_title::<64>(var.name), value)
-                                .display_format("%.2f")
-                                .step(1.0)
-                                .build();
-                        },
+                              .display_format("%.2f")
+                              .step(1.0)
+                              .build();
+                        }
                     }
                 }
             }
@@ -140,7 +140,6 @@ pub trait GameObjectDebugOptions {
                            transform: WorldToScreenTransform,
                            visible_range: CellRange,
                            delta_time_secs: Seconds) {
-
         if self.show_popups() && visible_range.contains(tile.base_cell()) {
             const LIFETIME_MULTIPLIER: f32 = 3.0;
             const SCROLL_DIST: f32 = 5.0;
