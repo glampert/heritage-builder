@@ -48,8 +48,10 @@ pub struct DebugSettingsMenu {
     draw_props: bool,
     #[debug_ui(edit)]
     draw_units: bool,
-    #[debug_ui(edit, separator)]
+    #[debug_ui(edit)]
     draw_vegetation: bool,
+    #[debug_ui(edit, separator)]
+    cull_occluded_terrain: bool,
 
     #[debug_ui(edit)]
     show_terrain_debug: bool,
@@ -131,6 +133,9 @@ impl DebugSettingsMenu {
         }
         if self.draw_vegetation {
             flags.insert(TileMapRenderFlags::DrawVegetation);
+        }
+        if self.cull_occluded_terrain {
+            flags.insert(TileMapRenderFlags::CullOccludedTerrainTiles);
         }
         if self.draw_grid {
             flags.insert(TileMapRenderFlags::DrawGrid);

@@ -50,14 +50,18 @@ bitflags! {
         const DrawGrid            = 1 << 5; // Grid draws on top of terrain but under objects (buildings/units).
         const DrawGridIgnoreDepth = 1 << 6; // Grid draws on top of everything ignoring z-sort order.
 
+        // If this flag is set, terrain tiles under objects
+        // with TileFlags::OccludesTerrain are not rendered.
+        const CullOccludedTerrainTiles = 1 << 7;
+
         // Debug flags:
-        const DrawDebugBounds         = 1 << 7;
-        const DrawTerrainTileDebug    = 1 << 8;
-        const DrawBuildingsTileDebug  = 1 << 9;
-        const DrawPropsTileDebug      = 1 << 10;
-        const DrawUnitsTileDebug      = 1 << 11;
-        const DrawVegetationTileDebug = 1 << 12;
-        const DrawBlockersTileDebug   = 1 << 13;
+        const DrawDebugBounds         = 1 << 8;
+        const DrawTerrainTileDebug    = 1 << 9;
+        const DrawBuildingsTileDebug  = 1 << 10;
+        const DrawPropsTileDebug      = 1 << 11;
+        const DrawUnitsTileDebug      = 1 << 12;
+        const DrawVegetationTileDebug = 1 << 13;
+        const DrawBlockersTileDebug   = 1 << 14;
     }
 }
 
@@ -165,16 +169,20 @@ impl TileMapRenderer {
         debug_assert!(terrain.size_in_cells() == tile_map.size_in_cells());
         debug_assert!(objects.size_in_cells() == tile_map.size_in_cells());
 
+        let cull_occluded_terrain = flags.intersects(TileMapRenderFlags::CullOccludedTerrainTiles);
+
         for cell in visible_range.iter_rev() {
             if let Some(tile) = terrain.try_tile(cell) {
                 // Terrain tiles size is constrained. Sanity check it:
                 debug_assert!(tile.is(TileKind::Terrain) && tile.logical_size() == BASE_TILE_SIZE);
 
-                // As an optimization, skip drawing terrain tile if fully occluded by any
-                // objects.
-                if let Some(object) = objects.try_tile(cell) {
-                    if object.has_flags(TileFlags::OccludesTerrain) {
-                        continue;
+                // As an optimization, skip drawing terrain tile
+                // if fully occluded by any object.
+                if cull_occluded_terrain {
+                    if let Some(object) = objects.try_tile(cell) {
+                        if object.has_flags(TileFlags::OccludesTerrain) {
+                            continue;
+                        }
                     }
                 }
 

@@ -6,7 +6,6 @@
       "tile_defs": [
         {
           "name": "house0",
-          "occludes_terrain": false,
           "logical_size": {
             "width": 64,
             "height": 32
@@ -56,7 +55,6 @@
         },
         {
           "name": "house1",
-          "occludes_terrain": false,
           "logical_size": {
             "width": 128,
             "height": 64
@@ -106,7 +104,6 @@
         },
         {
           "name": "house2",
-          "occludes_terrain": false,
           "logical_size": {
             "width": 128,
             "height": 64
@@ -144,7 +141,6 @@
         },
         {
           "name": "house3",
-          "occludes_terrain": false,
           "logical_size": {
             "width": 192,
             "height": 96
@@ -207,7 +203,6 @@
         },
         {
           "name": "market",
-          "occludes_terrain": false,
           "cost": 10,
           "logical_size": {
             "width": 192,
