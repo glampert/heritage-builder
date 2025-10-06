@@ -16,7 +16,7 @@ use crate::{
     tile::{
         camera::Camera,
         rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
-        sets::{TileSets, TERRAIN_GROUND_CATEGORY},
+        sets::{TileSets, TERRAIN_GROUND_CATEGORY, TERRAIN_WATER_CATEGORY},
         TileMapLayerKind,
     },
     utils::{hash, Color},
@@ -368,6 +368,15 @@ impl DebugSettingsMenu {
                                                       hash::fnv1a_from_str("grass"));
 
             game_loop.reset_session(grass_tile_def);
+        }
+
+        if ui.button("Reset to water tiles") {
+            let water_tile_def =
+                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
+                                                      TERRAIN_WATER_CATEGORY.hash,
+                                                      hash::fnv1a_from_str("blue"));
+
+            game_loop.reset_session(water_tile_def);
         }
     }
 

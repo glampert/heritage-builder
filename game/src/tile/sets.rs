@@ -1,5 +1,4 @@
-use std::path::{Path, MAIN_SEPARATOR, MAIN_SEPARATOR_STR};
-
+use std::path::{Path, MAIN_SEPARATOR_STR};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use strum::IntoEnumIterator;
@@ -360,10 +359,10 @@ impl TileDef {
             return false;
         }
 
-        if (self.logical_size.width % BASE_TILE_SIZE.width) != 0
-           || (self.logical_size.height % BASE_TILE_SIZE.height) != 0
-        {
-            log::error!(log::channel!("tileset"), "Invalid TileDef logical size ({:?})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
+        if (self.logical_size.width  % BASE_TILE_SIZE.width)  != 0 ||
+           (self.logical_size.height % BASE_TILE_SIZE.height) != 0 {
+            log::error!(log::channel!("tileset"),
+                        "Invalid TileDef logical size ({})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
                         self.logical_size,
                         self.kind,
                         self.name);
@@ -373,7 +372,8 @@ impl TileDef {
         if self.is(TileKind::Terrain) {
             // For terrain logical_size must be BASE_TILE_SIZE.
             if self.logical_size != BASE_TILE_SIZE {
-                log::error!(log::channel!("tileset"), "Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
+                log::error!(log::channel!("tileset"),
+                            "Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
                             self.kind,
                             self.name);
                 return false;
@@ -411,7 +411,8 @@ impl TileDef {
 
                 for (frame_index, frame) in anim_set.frames.iter_mut().enumerate() {
                     if frame.name.is_empty() {
-                        log::error!(log::channel!("tileset"), "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{}' - '{}'",
+                        log::error!(log::channel!("tileset"),
+                                    "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{}' - '{}'",
                                     anim_set.name,
                                     self.kind,
                                     self.name);
@@ -420,42 +421,35 @@ impl TileDef {
 
                     frame.hash = hash::fnv1a_from_str(&frame.name);
 
-                    // Path formats:
-                    //  terrain/<category>/<tile>.png
-                    //  objects/<category>/<object_name>/<variation>/<anim_set>/<frame[N]>.png
-                    let texture_path = match layer {
-                        TileMapLayerKind::Terrain => {
-                            format!("{}{}{}.png",
-                                    tile_set_path_with_category, MAIN_SEPARATOR, frame.name)
+                    // Path format:
+                    //  <layer>/<category>/<tile_name>/<variation>/<anim_set>/<frame[N]>.png
+                    //
+                    let texture_path = {
+                        // <layer>/<category>/<tile_name>/
+                        let mut path = format!("{}{}{}{}",
+                                                       tile_set_path_with_category,
+                                                       MAIN_SEPARATOR_STR,
+                                                       self.name,
+                                                       MAIN_SEPARATOR_STR);
+
+                        // Do we have a variation? If not the anim_set name follows directly.
+                        // + <variation>/
+                        if !variation.name.is_empty() {
+                            path += &variation.name;
+                            path += MAIN_SEPARATOR_STR;
                         }
-                        TileMapLayerKind::Objects => {
-                            // objects/<category>/<object_name>/
-                            let mut path = format!("{}{}{}{}",
-                                                   tile_set_path_with_category,
-                                                   MAIN_SEPARATOR,
-                                                   self.name,
-                                                   MAIN_SEPARATOR);
 
-                            // Do we have a variation? If not the anim_set name follows directly.
-                            // + <variation>/
-                            if !variation.name.is_empty() {
-                                path += &variation.name;
-                                path += MAIN_SEPARATOR_STR;
-                            }
-
-                            // Do we have an anim_set? If not the sprite frame image follows
-                            // directly.
-                            // + <anim_set>/
-                            if !anim_set.name.is_empty() {
-                                path += &anim_set.name;
-                                path += MAIN_SEPARATOR_STR;
-                            }
-
-                            // + <frame[N]>.png
-                            path += &frame.name;
-                            path += ".png";
-                            path
+                        // Do we have an anim_set? If not the sprite frame image follows directly.
+                        // + <anim_set>/
+                        if !anim_set.name.is_empty() {
+                            path += &anim_set.name;
+                            path += MAIN_SEPARATOR_STR;
                         }
+
+                        // + <frame[N]>.png
+                        path += &frame.name;
+                        path += ".png";
+                        path
                     };
 
                     let frame_texture = tex_cache.load_texture(&texture_path);
@@ -573,7 +567,7 @@ impl TileCategory {
         }
 
         let tile_set_path_with_category =
-            format!("{}{}{}", tile_set_path, MAIN_SEPARATOR, self.name);
+            format!("{}{}{}", tile_set_path, MAIN_SEPARATOR_STR, self.name);
 
         for (index, editable_def) in self.tile_defs.iter_mut().enumerate() {
             let tile_def = editable_def.as_mut();
@@ -603,7 +597,8 @@ impl TileCategory {
             }
 
             if self.mapping.insert(tile_name_hash, index).is_some() {
-                log::error!(log::channel!("tileset"), "TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
+                log::error!(log::channel!("tileset"),
+                            "TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
                             self.name,
                             tile_def.name,
                             tile_name_hash);
@@ -691,7 +686,8 @@ impl TileSet {
             }
 
             if self.mapping.insert(category_name_hash, index).is_some() {
-                log::error!(log::channel!("tileset"), "TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
+                log::error!(log::channel!("tileset"),
+                            "TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
                             self.layer,
                             category.name,
                             category_name_hash);
@@ -914,26 +910,12 @@ impl TileSets {
         None
     }
 
-    // Terrain file structure:
-    // -----------------------
-    //  * Simple, no animations or variations. Each tile is a single .png image.
-    // Structure:
-    //  terrain/tile_set.json
-    //  terrain/<category>/<tile>.png,*
-    // Example:
-    //  terrain/ground/dirt.png
-    //  terrain/ground/grass.png
-    //  ...
-    //  terrain/water/blue.png
-    //  terrain/water/green.png
-    //
-    // Objects file structure:
+    // TileSet file structure:
     // -------------------------
-    //  * Objects can have variations and animations.
-    // Structure:
-    //  objects/tile_set.json
-    //  objects/<category>/<objects_name>/<variation>/<anim_set>/<frame[N]>.png,*
-    // Example:
+    //  <layer>/tile_set.json
+    //  <layer>/<category>/<tile_name>/<variation>/<anim_set>/<frame[N]>.png,*
+    //
+    // Examples:
     //  objects/buildings/house/var0/build
     //  objects/buildings/house/var0/fire
     // ...
@@ -946,16 +928,16 @@ impl TileSets {
     //
     // Variations and animations are optional so the structure can also be:
     //
-    //  objects/<category>/<object_name>/<anim_set>/<frame[N]>.png,*
+    //  <layer>/<category>/<tile_name>/<anim_set>/<frame[N]>.png,*
     // Or:
-    //  objects/<category>/<object_name>/<variation>/<frame[N]>.png,*
+    //  <layer>/<category>/<tile_name>/<variation>/<frame[N]>.png,*
     //
-    // Example:
+    // Examples:
     //  objects/units/ped/idle/frame0.png
     //  objects/units/ped/idle/frame1.png
     // ...
-    //  objects/units/ped/walk_left/frame0.png
-    //  objects/units/ped/walk_left/frame1.png
+    //  objects/units/ped/walk_sw/frame0.png
+    //  objects/units/ped/walk_sw/frame1.png
     //
     fn load_all_layers(&mut self, tex_cache: &mut dyn TextureCache) {
         for layer in TileMapLayerKind::iter() {

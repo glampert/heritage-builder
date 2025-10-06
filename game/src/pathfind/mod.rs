@@ -54,6 +54,16 @@ impl NodeKind {
     pub const fn is_single_kind(self) -> bool {
         self.bits().count_ones() == 1
     }
+
+    #[inline]
+    pub fn unit_placeable() -> NodeKind {
+        Self::Dirt | Self::Road | Self::VacantLot | Self::SettlersSpawnPoint
+    }
+
+    #[inline]
+    pub fn object_placeable() -> NodeKind {
+        Self::Dirt
+    }
 }
 
 impl Default for NodeKind {

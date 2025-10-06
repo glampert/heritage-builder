@@ -1,8 +1,9 @@
 use smallvec::SmallVec;
 
 use super::{
-    placement::PlacementOp, rendering::SELECTION_RECT_COLOR, Tile, TileFlags, TileKind,
-    TileMapLayerKind, TileMapLayerMutRefs, BASE_TILE_SIZE,
+    placement::{self, PlacementOp},
+    rendering::SELECTION_RECT_COLOR,
+    Tile, TileFlags, TileKind, TileMapLayerKind, TileMapLayerMutRefs, BASE_TILE_SIZE,
 };
 use crate::{
     app::input::{InputAction, MouseButton},
@@ -170,22 +171,31 @@ impl TileSelection {
             // Check if our placement candidate tile overlaps with any other Object.
             PlacementOp::Place(tile_def) => {
                 let mut flags = TileFlags::Highlighted;
-                for cell in &tile_def.cell_range(base_cell) {
-                    // Placement candidate not fully within map bounds?
-                    if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(cell) {
-                        flags = TileFlags::Invalidated;
-                        break;
-                    }
 
-                    // Terrain tiles can always be placed anywhere, so don't invalidate for terrain.
-                    if !tile_def.is(TileKind::Terrain) {
-                        // Placement candidate would overlap another object?
-                        if layers.get(TileMapLayerKind::Objects).try_tile(cell).is_some() {
+                if placement::is_placement_on_terrain_valid(layers.get(TileMapLayerKind::Terrain),
+                                                            base_cell,
+                                                            tile_def).is_err() {
+                    flags = TileFlags::Invalidated;
+                } else {
+                    for cell in &tile_def.cell_range(base_cell) {
+                        // Placement candidate not fully within map bounds?
+                        if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(cell) {
                             flags = TileFlags::Invalidated;
                             break;
                         }
+
+                        // Terrain tiles can always be placed anywhere, so don't invalidate for
+                        // terrain.
+                        if !tile_def.is(TileKind::Terrain) {
+                            // Placement candidate would overlap another object?
+                            if layers.get(TileMapLayerKind::Objects).try_tile(cell).is_some() {
+                                flags = TileFlags::Invalidated;
+                                break;
+                            }
+                        }
                     }
                 }
+
                 flags
             }
             // Explicit request to invalidate the whole range of tiles occupied by the TileDef.

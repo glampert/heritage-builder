@@ -528,30 +528,30 @@ mod preset_maps {
         debug_assert!(preset.building_tiles.len() == tile_count);
 
         let mut tile_map = TileMap::new(map_size_in_cells, None);
+        let mut query_builder = DebugQueryBuilder::new(world, &mut tile_map, map_size_in_cells);
+        let query = query_builder.new_query();
 
         // Terrain:
         for y in 0..map_size_in_cells.height {
             for x in 0..map_size_in_cells.width {
                 let tile_id = preset.terrain_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(TileMapLayerKind::Terrain, tile_id) {
-                    tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Terrain, tile_def)
+                    let tile = tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Terrain, tile_def)
                         .expect("Failed to place Terrain tile!");
+
+                    // Set a random terrain tile variation:
+                    tile.set_random_variation_index(query.rng());
                 }
             }
         }
 
         // Buildings (Objects):
-        {
-            let mut query_builder = DebugQueryBuilder::new(world, &mut tile_map, map_size_in_cells);
-            let query = query_builder.new_query();
-
-            for y in 0..map_size_in_cells.height {
-                for x in 0..map_size_in_cells.width {
-                    let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
-                    if let Some(tile_def) = find_tile(TileMapLayerKind::Objects, tile_id) {
-                        if let Err(err) = world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def) {
-                            log::error!(log::channel!("debug"), "Preset: Failed to place Building tile! {err}");
-                        }
+        for y in 0..map_size_in_cells.height {
+            for x in 0..map_size_in_cells.width {
+                let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
+                if let Some(tile_def) = find_tile(TileMapLayerKind::Objects, tile_id) {
+                    if let Err(err) = world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def) {
+                        log::error!(log::channel!("debug"), "Preset: Failed to place Building tile! {err}");
                     }
                 }
             }

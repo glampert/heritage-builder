@@ -8,16 +8,41 @@
           "name": "dirt",
           "path_kind": "Dirt",
           "draw_size": {
-            "width": 67,
-            "height": 36
+            "width": 65,
+            "height": 41
           },
           "variations": [
             {
+              "name": "var0",
               "anim_sets": [
                 {
                   "frames": [
                     {
-                      "name": "dirt"
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "var1",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "var2",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
                     }
                   ]
                 }
@@ -29,16 +54,53 @@
           "name": "grass",
           "path_kind": "Dirt",
           "draw_size": {
-            "width": 69,
-            "height": 38
+            "width": 65,
+            "height": 41
           },
           "variations": [
             {
+              "name": "var0",
               "anim_sets": [
                 {
                   "frames": [
                     {
-                      "name": "grass"
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "var1",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "var2",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "var3",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
                     }
                   ]
                 }
@@ -51,8 +113,8 @@
           "cost": 1,
           "path_kind": "Road",
           "draw_size": {
-            "width": 68,
-            "height": 36
+            "width": 65,
+            "height": 41
           },
           "variations": [
             {
@@ -60,7 +122,7 @@
                 {
                   "frames": [
                     {
-                      "name": "stone_path"
+                      "name": "frame0"
                     }
                   ]
                 }
@@ -73,16 +135,29 @@
           "cost": 1,
           "path_kind": "VacantLot",
           "draw_size": {
-            "width": 68,
-            "height": 36
+            "width": 65,
+            "height": 41
           },
           "variations": [
             {
+              "name": "grass",
               "anim_sets": [
                 {
                   "frames": [
                     {
-                      "name": "vacant_lot"
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "dirt",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
                     }
                   ]
                 }
@@ -100,8 +175,8 @@
             "a": 1
           },
           "draw_size": {
-            "width": 68,
-            "height": 36
+            "width": 65,
+            "height": 41
           },
           "variations": [
             {
@@ -109,7 +184,7 @@
                 {
                   "frames": [
                     {
-                      "name": "stone_path"
+                      "name": "frame0"
                     }
                   ]
                 }
@@ -126,16 +201,29 @@
           "name": "blue",
           "path_kind": "Water",
           "draw_size": {
-            "width": 68,
-            "height": 34
+            "width": 65,
+            "height": 41
           },
           "variations": [
             {
+              "name": "var0",
               "anim_sets": [
                 {
                   "frames": [
                     {
-                      "name": "blue"
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "var1",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
                     }
                   ]
                 }

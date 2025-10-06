@@ -1289,11 +1289,7 @@ impl<'world> BuildingContext<'world> {
     #[inline]
     fn set_random_building_variation(&self) {
         let tile = self.find_tile_mut();
-        let variation_count = tile.variation_count();
-        if variation_count > 1 {
-            let rand_variation_index = self.query.random_range(0..variation_count);
-            tile.set_variation_index(rand_variation_index);
-        }
+        tile.set_random_variation_index(self.query.rng());
     }
 
     // Road link if valid, any unobstructed surrounding cell otherwise.

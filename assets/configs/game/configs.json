@@ -16,7 +16,7 @@
           "height": 64
         },
         "terrain_tile_category": "ground",
-        "terrain_tile_name": "dirt"
+        "terrain_tile_name": "grass"
       }
     }
   },

@@ -20,9 +20,13 @@ use crate::{
     },
     imgui_ui::UiSystem,
     log,
+    pathfind::NodeKind as PathNodeKind,
     save::PostLoadContext,
     tile::{sets::TileDef, Tile, TileKind, TileMapLayerKind},
-    utils::coords::{Cell, CellRange, WorldToScreenTransform},
+    utils::{
+        coords::{Cell, CellRange, WorldToScreenTransform},
+        hash,
+    },
 };
 
 // ----------------------------------------------
@@ -657,13 +661,31 @@ impl<'world> Spawner<'world> {
             return Err(cost_error(tile_def));
         }
 
-        let result = self.query.tile_map().try_place_tile(target_cell, tile_def);
+        let prev_tile_def = self.query
+                                .tile_map()
+                                .try_tile_from_layer(target_cell, tile_def.layer_kind())
+                                .map(|tile| tile.tile_def());
 
-        if result.is_ok() {
-            self.subtract_tile_cost(tile_def);
+        match self.query.tile_map().try_place_tile(target_cell, tile_def) {
+            Ok(tile) => {
+                self.subtract_tile_cost(tile_def);
+
+                if tile.path_kind().intersects(PathNodeKind::VacantLot) && prev_tile_def.is_some() {
+                    let prev_tile_name_hash = prev_tile_def.unwrap().hash;
+                    if prev_tile_name_hash == hash::fnv1a_from_str("grass") {
+                        tile.set_variation_index(0);
+                    } else if prev_tile_name_hash == hash::fnv1a_from_str("dirt") {
+                        tile.set_variation_index(1);
+                    }
+                } else {
+                    // Set a random tile variation:
+                    tile.set_random_variation_index(self.query.rng());
+                }
+
+                Ok(tile)
+            }
+            err => err,
         }
-
-        result
     }
 }
 

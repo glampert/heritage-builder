@@ -6,6 +6,7 @@ use bitflags::bitflags;
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sets::{TileAnimSet, TileDef, TileDefHandle, TileSets, TileTexInfo};
+use rand::Rng;
 use slab::Slab;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumIter, EnumProperty};
@@ -998,6 +999,15 @@ impl Tile {
     pub fn set_variation_index(&mut self, index: usize) {
         self.variation_index =
             index.min(self.variation_count() - 1).try_into().expect("Value cannot fit into a u16!");
+    }
+
+    #[inline]
+    pub fn set_random_variation_index<R: Rng>(&mut self, rng: &mut R) {
+        let variation_count = self.variation_count();
+        if variation_count > 1 {
+            let rand_variation_index = rng.random_range(0..variation_count);
+            self.set_variation_index(rand_variation_index);
+        }
     }
 
     // ----------------------
@@ -2274,37 +2284,16 @@ impl TileMap {
             return Err("Map has no layers".into());
         }
 
+        // Prevent placing objects/props over non-walkable terrain tiles (water/roads, etc).
+        placement::is_placement_on_terrain_valid(self.layer(TileMapLayerKind::Terrain),
+                                                 target_cell,
+                                                 tile_def_to_place)?;
+
         let tile_placed_callback = self.on_tile_placed_callback;
         let layer = self.layer_mut(layer_kind);
         let prev_pool_capacity = layer.pool_capacity();
 
         placement::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
-            .map(|(tile, new_pool_capacity)| {
-                if let Some(callback) = tile_placed_callback {
-                    let did_reallocate = new_pool_capacity != prev_pool_capacity;
-                    callback(tile, did_reallocate);
-                }
-                tile
-            })
-    }
-
-    #[inline]
-    pub fn try_place_tile_at_cursor(&mut self,
-                                    cursor_screen_pos: Vec2,
-                                    transform: WorldToScreenTransform,
-                                    tile_def_to_place: &'static TileDef)
-                                    -> Result<&mut Tile, String> {
-        if self.layers.is_empty() {
-            return Err("Map has no layers".into());
-        }
-
-        let tile_placed_callback = self.on_tile_placed_callback;
-        let prev_pool_capacity = {
-            let layer = self.layer(tile_def_to_place.layer_kind());
-            layer.pool_capacity()
-        };
-
-        placement::try_place_tile_at_cursor(self, cursor_screen_pos, transform, tile_def_to_place)
             .map(|(tile, new_pool_capacity)| {
                 if let Some(callback) = tile_placed_callback {
                     let did_reallocate = new_pool_capacity != prev_pool_capacity;
@@ -2354,25 +2343,6 @@ impl TileMap {
         placement::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind),
                                                       target_index,
                                                       target_cell)
-    }
-
-    #[inline]
-    pub fn try_clear_tile_at_cursor(&mut self,
-                                    cursor_screen_pos: Vec2,
-                                    transform: WorldToScreenTransform)
-                                    -> Result<(), String> {
-        if let Some(callback) = self.on_removing_tile_callback {
-            for layer_kind in TileMapLayerKind::iter().rev() {
-                let target_cell =
-                    self.find_exact_cell_for_point(layer_kind, cursor_screen_pos, transform);
-                if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
-                    callback(tile);
-                    break;
-                }
-            }
-        }
-
-        placement::try_clear_tile_at_cursor(self, cursor_screen_pos, transform)
     }
 
     pub fn can_move_tile(&self,

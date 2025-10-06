@@ -95,6 +95,11 @@ impl Simulation {
         &mut self.task_manager
     }
 
+    #[inline]
+    pub fn rng(&mut self) -> &mut RandomGenerator {
+        &mut self.rng
+    }
+
     pub fn update(&mut self,
                   world: &mut World,
                   systems: &mut GameSystems,

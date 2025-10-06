@@ -33,7 +33,7 @@ use crate::{
         rendering::TileMapRenderFlags,
         selection::TileSelection,
         sets::{TileDef, TileSets},
-        TileMap,
+        TileKind, TileMap, TileMapLayerKind,
     },
     utils::{coords::CellRange, file_sys, hash, Size, Vec2},
 };
@@ -125,9 +125,16 @@ impl GameSession {
                         panic!("LoadMapSetting::EmptyMap: Invalid Tile Map dimensions! Width & height must not be zero.");
                     }
 
-                    TileMap::with_terrain_tile(*size_in_cells,
-                                               hash::fnv1a_from_str(terrain_tile_category),
-                                               hash::fnv1a_from_str(terrain_tile_name))
+                    let mut tile_map =
+                        TileMap::with_terrain_tile(*size_in_cells,
+                                                   hash::fnv1a_from_str(terrain_tile_category),
+                                                   hash::fnv1a_from_str(terrain_tile_name));
+
+                    tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::Terrain, |terrain| {
+                        terrain.set_random_variation_index(&mut rand::rng());
+                    });
+
+                    tile_map
                 }
                 LoadMapSetting::Preset { preset_number } => {
                     debug::utils::create_preset_tile_map(world, *preset_number)
@@ -161,6 +168,15 @@ impl GameSession {
 
         if reset_map && self.tile_map.size_in_cells().is_valid() {
             self.tile_map.reset(reset_map_with_tile_def);
+
+            if reset_map_with_tile_def.is_some() {
+                // Randomize terrain tiles.
+                self.tile_map.for_each_tile_mut(TileMapLayerKind::Terrain,
+                                                TileKind::Terrain,
+                                                |terrain| {
+                                                    terrain.set_random_variation_index(&mut rand::rng());
+                                                });
+            }
         }
     }
 }

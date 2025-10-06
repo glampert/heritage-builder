@@ -1,15 +1,5 @@
-use strum::IntoEnumIterator;
-
-use super::{
-    sets::TileDef, Tile, TileKind, TileMap, TileMapLayer, TileMapLayerKind, TilePoolIndex,
-};
-use crate::{
-    debug,
-    utils::{
-        coords::{Cell, WorldToScreenTransform},
-        Vec2,
-    },
-};
+use super::{sets::TileDef, Tile, TileKind, TileMapLayer, TileMapLayerKind, TilePoolIndex};
+use crate::{debug, pathfind::NodeKind as PathNodeKind, utils::coords::Cell};
 
 // ----------------------------------------------
 // Tile placements helpers
@@ -21,6 +11,63 @@ pub enum PlacementOp {
     Invalidate(&'static TileDef),
     Clear,
     None,
+}
+
+pub fn is_placement_on_terrain_valid(terrain: &TileMapLayer,
+                                     target_cell: Cell,
+                                     tile_def_to_place: &'static TileDef)
+                                     -> Result<(), String> {
+    debug_assert!(target_cell.is_valid());
+    debug_assert!(tile_def_to_place.is_valid());
+
+    if tile_def_to_place.is(TileKind::Object) {
+        for cell in &tile_def_to_place.cell_range(target_cell) {
+            if let Some(tile) = terrain.try_tile(cell) {
+                let path_kind = tile.path_kind();
+                if tile_def_to_place.is(TileKind::Unit)
+                   && !path_kind.intersects(PathNodeKind::unit_placeable())
+                {
+                    return Err(format!("Cannot place unit '{}' over terrain tile '{}'.",
+                                       tile_def_to_place.name,
+                                       tile.name()));
+                } else if tile_def_to_place.is(TileKind::Prop | TileKind::Vegetation)
+                          && !path_kind.intersects(PathNodeKind::object_placeable())
+                {
+                    return Err(format!("Cannot place object prop '{}' over terrain tile '{}'.",
+                                       tile_def_to_place.name,
+                                       tile.name()));
+                } else if tile_def_to_place.is(TileKind::Building)
+                          && !path_kind.intersects(PathNodeKind::object_placeable()
+                                                   | PathNodeKind::VacantLot)
+                {
+                    return Err(format!("Cannot place building '{}' over terrain tile '{}'.",
+                                       tile_def_to_place.name,
+                                       tile.name()));
+                }
+            }
+        }
+    } else if tile_def_to_place.path_kind.intersects(PathNodeKind::VacantLot) {
+        if let Some(tile) = terrain.try_tile(target_cell) {
+            if tile.path_kind().intersects(PathNodeKind::Road
+                                           | PathNodeKind::Water
+                                           | PathNodeKind::Building
+                                           | PathNodeKind::SettlersSpawnPoint)
+            {
+                return Err(format!("Cannot place vacant lot over terrain tile '{}'.",
+                                   tile.name()));
+            }
+        }
+    } else if tile_def_to_place.path_kind
+                               .intersects(PathNodeKind::Road | PathNodeKind::SettlersSpawnPoint)
+    {
+        if let Some(tile) = terrain.try_tile(target_cell) {
+            if tile.path_kind().intersects(PathNodeKind::Water) {
+                return Err(format!("Cannot place road over terrain tile '{}'.", tile.name()));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
@@ -68,7 +115,14 @@ pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
                                tile_def_to_place.name, layer.kind()));
         }
 
-        if !allow_stacking && layer.try_tile(cell).is_some() {
+        if allow_stacking {
+            if let Some(existing_tile) = layer.try_tile(cell) {
+                if !existing_tile.is(TileKind::Unit) {
+                    return Err(format!("'{}' - {}: Target cell {cell} for this unit is already occupied by '{}'",
+                                tile_def_to_place.name, layer.kind(), debug::tile_name_at(cell, layer.kind())));
+                }
+            }
+        } else if layer.try_tile(cell).is_some() {
             return Err(format!("'{}' - {}: Target cell {cell} for this tile is already occupied by '{}'",
                                tile_def_to_place.name, layer.kind(), debug::tile_name_at(cell, layer.kind())));
         }
@@ -139,42 +193,4 @@ pub fn try_clear_tile_from_layer_by_index(layer: &mut TileMapLayer,
         // Already empty.
         Err(format!("Cell {target_cell} in layer {} is already empty.", layer.kind()))
     }
-}
-
-pub fn try_place_tile_at_cursor<'tile_map>(tile_map: &'tile_map mut TileMap,
-                                           cursor_screen_pos: Vec2,
-                                           transform: WorldToScreenTransform,
-                                           tile_def_to_place: &'static TileDef)
-                                           -> Result<(&'tile_map mut Tile, usize), String> {
-    debug_assert!(transform.is_valid());
-    debug_assert!(tile_def_to_place.is_valid());
-
-    let layer_kind = tile_def_to_place.layer_kind();
-    let layer = tile_map.layer_mut(layer_kind);
-
-    let target_cell = layer.find_exact_cell_for_point(cursor_screen_pos, transform);
-
-    try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
-}
-
-pub fn try_clear_tile_at_cursor(tile_map: &mut TileMap,
-                                cursor_screen_pos: Vec2,
-                                transform: WorldToScreenTransform)
-                                -> Result<(), String> {
-    debug_assert!(transform.is_valid());
-
-    // Clear the topmost layer tile under the target cell.
-    for layer_kind in TileMapLayerKind::iter().rev() {
-        let layer = tile_map.layer_mut(layer_kind);
-
-        let target_cell = layer.find_exact_cell_for_point(cursor_screen_pos, transform);
-
-        match try_clear_tile_from_layer(layer, target_cell) {
-            Ok(_) => return Ok(()),
-            _ => continue,
-        }
-    }
-
-    // Nothing removed.
-    Err(format!("No tile found at cursor position {cursor_screen_pos}"))
 }
