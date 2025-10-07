@@ -192,7 +192,8 @@ impl HouseholdWorkerPool {
                     return;
                 }
             } else {
-                log::error!("Household: Unknown employer record: ({}, {}); employed_count={}",
+                log::error!(log::channel!("Household"),
+                            "Unknown employer record: ({}, {}); employed_count={}",
                             employer_info.kind,
                             employer_info.id,
                             employed_count);
@@ -212,7 +213,8 @@ impl HouseholdWorkerPool {
                     break;
                 }
             } else {
-                log::error!("Household: Unknown employer record: ({}, {}); employed_count={}",
+                log::error!(log::channel!("Household"),
+                            "Unknown employer record: ({}, {}); employed_count={}",
                             employer_info.kind,
                             employer_info.id,
                             employed_count);
@@ -247,18 +249,18 @@ impl HouseholdWorkerPool {
 
             if let Entry::Occupied(mut e) = self.employers.entry(source) {
                 if {
-                    *e.get_mut() = *e.get() - unemployed_amount;
+                    *e.get_mut() = e.get().saturating_sub(unemployed_amount);
                     *e.get() == 0
                 } {
                     e.remove_entry();
                 }
             } else {
-                panic!("Household: Expected to have an entry for ({}, {}); add({})",
-                       source.kind, source.id, amount);
+                log::error!(log::channel!("Household"),
+                            "Expected to have an entry for ({}, {}); add({})",
+                            source.kind, source.id, amount);
             }
 
-            return unemployed_amount; // Return amount added to unemployed
-                                      // count.
+            return unemployed_amount; // Return amount added to unemployed count.
         }
         0
     }
@@ -392,7 +394,8 @@ impl Employer {
                     return;
                 }
             } else {
-                log::error!("Employer: Unknown employee household: {house_id}; employee_count={employee_count}");
+                log::error!(log::channel!("Employer"),
+                            "Unknown employee household: {house_id}; employee_count={employee_count}");
             }
         }
     }
@@ -409,7 +412,8 @@ impl Employer {
                     break;
                 }
             } else {
-                log::error!("Employer: Unknown employee household: {house_id}; employee_count={employee_count}");
+                log::error!(log::channel!("Employer"),
+                            "Unknown employee household: {house_id}; employee_count={employee_count}");
             }
         }
 
@@ -452,14 +456,15 @@ impl Employer {
 
         if let Entry::Occupied(mut e) = self.employee_households.entry(source.id) {
             if {
-                *e.get_mut() = *e.get() - unemployed_amount;
+                *e.get_mut() = e.get().saturating_sub(unemployed_amount);
                 *e.get() == 0
             } {
                 e.remove_entry();
             }
         } else {
-            panic!("Employer: Expected to have an entry for ({}, {}); subtract({})",
-                   source.kind, source.id, amount);
+            log::error!(log::channel!("Employer"),
+                        "Expected to have an entry for ({}, {}); subtract({})",
+                        source.kind, source.id, amount);
         }
 
         unemployed_amount // Return amount subtracted from employees.
