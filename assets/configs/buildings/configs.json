@@ -90,7 +90,7 @@
   "service_configs": [
     {
       "kind": "WellSmall",
-      "name": "Well Small",
+      "name": "Small Well",
       "tile_def_name": "well_small",
       "min_workers": 0,
       "max_workers": 0,
@@ -99,7 +99,7 @@
     },
     {
       "kind": "WellBig",
-      "name": "Well Big",
+      "name": "Large Well",
       "tile_def_name": "well_big",
       "min_workers": 1,
       "max_workers": 2,
@@ -137,6 +137,26 @@
       "requires_road_access": true,
       "has_patrol_unit": true,
       "patrol_frequency_secs": 10.0
+    },
+    {
+      "kind": "Shrine",
+      "name": "Shrine",
+      "tile_def_name": "shrine",
+      "min_workers": 0,
+      "max_workers": 0,
+      "effect_radius": 5,
+      "requires_road_access": false
+    },
+    {
+      "kind": "Temple",
+      "name": "Temple",
+      "tile_def_name": "temple",
+      "min_workers": 1,
+      "max_workers": 5,
+      "effect_radius": 40,
+      "requires_road_access": true,
+      "has_patrol_unit": true,
+      "patrol_frequency_secs": 20.0
     }
   ],
   "producer_configs": [

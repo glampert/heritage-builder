@@ -568,8 +568,9 @@ impl<'world> Spawner<'world> {
                                                                 building_base_cell,
                                                                 building_tile_def);
 
-        if result.is_ok() {
+        if let Ok(ref building) = result {
             self.subtract_tile_cost(building_tile_def);
+            building.set_random_variation(self.query);
         }
 
         result

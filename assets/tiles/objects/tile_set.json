@@ -396,6 +396,80 @@
               ]
             }
           ]
+        },
+        {
+          "name": "shrine",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 70,
+            "height": 58
+          },
+          "variations": [
+            {
+              "name": "var0",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "var1",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "temple",
+          "logical_size": {
+            "width": 192,
+            "height": 96
+          },
+          "draw_size": {
+            "width": 197,
+            "height": 137
+          },
+          "variations": [
+            {
+              "name": "var0",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "var1",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },

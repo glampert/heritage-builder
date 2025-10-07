@@ -81,6 +81,8 @@ bitflags_with_display! {
         const WellBig     = 1 << 6;
         const Market      = 1 << 7;
         const TaxOffice   = 1 << 8;
+        const Shrine      = 1 << 9;
+        const Temple      = 1 << 10;
     }
 }
 
@@ -125,7 +127,9 @@ impl BuildingKind {
         Self::from_bits_retain(Self::WellSmall.bits()
                                | Self::WellBig.bits()
                                | Self::Market.bits()
-                               | Self::TaxOffice.bits())
+                               | Self::TaxOffice.bits()
+                               | Self::Shrine.bits()
+                               | Self::Temple.bits())
     }
 
     #[inline]
