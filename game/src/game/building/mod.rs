@@ -66,25 +66,28 @@ bitflags_with_display! {
     #[derive(Copy, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub struct BuildingKind: u32 {
         // Archetype: House
-        const House       = 1 << 0;
+        const House          = 1 << 0;
 
         // Archetype: Producer
-        const Farm        = 1 << 1;
-        const Factory     = 1 << 2;
+        const Farm           = 1 << 1;
+        const Factory        = 1 << 2;
 
         // Archetype: Storage
-        const Granary     = 1 << 3;
-        const StorageYard = 1 << 4;
+        const Granary        = 1 << 3;
+        const StorageYard    = 1 << 4;
 
         // Archetype: Service
-        const WellSmall   = 1 << 5;
-        const WellBig     = 1 << 6;
-        const Market      = 1 << 7;
-        const TaxOffice   = 1 << 8;
-        const Shrine      = 1 << 9;
-        const Temple      = 1 << 10;
-        const Apothecary  = 1 << 11;
-        const Hospital    = 1 << 12;
+        const WellSmall      = 1 << 5;
+        const WellBig        = 1 << 6;
+        const Market         = 1 << 7;
+        const TaxOffice      = 1 << 8;
+        const Shrine         = 1 << 9;
+        const Temple         = 1 << 10;
+        const Citadel        = 1 << 11;
+        const GovernorPalace = 1 << 12;
+        const PoliceStation  = 1 << 13;
+        const Apothecary     = 1 << 14;
+        const Hospital       = 1 << 15;
     }
 }
 
@@ -132,6 +135,9 @@ impl BuildingKind {
                                | Self::TaxOffice.bits()
                                | Self::Shrine.bits()
                                | Self::Temple.bits()
+                               | Self::Citadel.bits()
+                               | Self::GovernorPalace.bits()
+                               | Self::PoliceStation.bits()
                                | Self::Apothecary.bits()
                                | Self::Hospital.bits())
     }

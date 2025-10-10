@@ -555,6 +555,78 @@
               ]
             }
           ]
+        },
+        {
+          "name": "police_station",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 126,
+            "height": 104
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "citadel",
+          "logical_size": {
+            "width": 320,
+            "height": 160
+          },
+          "draw_size": {
+            "width": 320,
+            "height": 235
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "governor_palace",
+          "logical_size": {
+            "width": 256,
+            "height": 128
+          },
+          "draw_size": {
+            "width": 256,
+            "height": 175
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },

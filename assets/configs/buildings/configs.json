@@ -52,7 +52,8 @@
           "WellBig",
           "Market",
           "Shrine",
-          "Apothecary"
+          "Apothecary",
+          "PoliceStation"
         ]
       },
       "resources_required": {
@@ -78,7 +79,8 @@
           "Market",
           "TaxOffice",
           "Temple",
-          "Hospital"
+          "Hospital",
+          "PoliceStation"
         ]
       },
       "resources_required": {
@@ -107,7 +109,8 @@
           "Shrine",
           "Temple",
           "Apothecary",
-          "Hospital"
+          "Hospital",
+          "PoliceStation"
         ]
       },
       "resources_required": {
@@ -189,7 +192,36 @@
       "effect_radius": 40,
       "requires_road_access": true,
       "has_patrol_unit": true,
-      "patrol_frequency_secs": 20.0
+      "patrol_frequency_secs": 40.0
+    },
+    {
+      "kind": "Citadel",
+      "name": "Citadel",
+      "tile_def_name": "citadel",
+      "min_workers": 5,
+      "max_workers": 15,
+      "effect_radius": 50,
+      "requires_road_access": true
+    },
+    {
+      "kind": "GovernorPalace",
+      "name": "Governor's Palace",
+      "tile_def_name": "governor_palace",
+      "min_workers": 4,
+      "max_workers": 8,
+      "effect_radius": 50,
+      "requires_road_access": true
+    },
+    {
+      "kind": "PoliceStation",
+      "name": "Police Station",
+      "tile_def_name": "police_station",
+      "min_workers": 1,
+      "max_workers": 5,
+      "effect_radius": 40,
+      "requires_road_access": true,
+      "has_patrol_unit": true,
+      "patrol_frequency_secs": 40.0
     },
     {
       "kind": "Apothecary",
