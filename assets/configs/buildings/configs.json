@@ -51,7 +51,8 @@
         "kinds": [
           "WellBig",
           "Market",
-          "Shrine"
+          "Shrine",
+          "Apothecary"
         ]
       },
       "resources_required": {
@@ -76,7 +77,8 @@
           "WellBig",
           "Market",
           "TaxOffice",
-          "Temple"
+          "Temple",
+          "Hospital"
         ]
       },
       "resources_required": {
@@ -103,7 +105,9 @@
           "Market",
           "TaxOffice",
           "Shrine",
-          "Temple"
+          "Temple",
+          "Apothecary",
+          "Hospital"
         ]
       },
       "resources_required": {
@@ -186,6 +190,26 @@
       "requires_road_access": true,
       "has_patrol_unit": true,
       "patrol_frequency_secs": 20.0
+    },
+    {
+      "kind": "Apothecary",
+      "name": "Apothecary",
+      "tile_def_name": "apothecary",
+      "min_workers": 1,
+      "max_workers": 1,
+      "effect_radius": 8,
+      "requires_road_access": true
+    },
+    {
+      "kind": "Hospital",
+      "name": "Hospital",
+      "tile_def_name": "hospital",
+      "min_workers": 2,
+      "max_workers": 8,
+      "effect_radius": 40,
+      "requires_road_access": true,
+      "has_patrol_unit": true,
+      "patrol_frequency_secs": 40.0
     }
   ],
   "producer_configs": [

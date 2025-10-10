@@ -247,7 +247,7 @@
           },
           "draw_size": {
             "width": 128,
-            "height": 92
+            "height": 95
           },
           "variations": [
             {
@@ -496,6 +496,54 @@
             },
             {
               "name": "var1",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "apothecary",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 58
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "hospital",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 128,
+            "height": 100
+          },
+          "variations": [
+            {
               "anim_sets": [
                 {
                   "frames": [

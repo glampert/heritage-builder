@@ -83,6 +83,8 @@ bitflags_with_display! {
         const TaxOffice   = 1 << 8;
         const Shrine      = 1 << 9;
         const Temple      = 1 << 10;
+        const Apothecary  = 1 << 11;
+        const Hospital    = 1 << 12;
     }
 }
 
@@ -129,7 +131,9 @@ impl BuildingKind {
                                | Self::Market.bits()
                                | Self::TaxOffice.bits()
                                | Self::Shrine.bits()
-                               | Self::Temple.bits())
+                               | Self::Temple.bits()
+                               | Self::Apothecary.bits()
+                               | Self::Hospital.bits())
     }
 
     #[inline]
