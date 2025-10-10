@@ -1,7 +1,7 @@
 {
   "house_config": {
     "population_update_frequency_secs": 60.0,
-    "stock_update_frequency_secs": 120.0,
+    "stock_update_frequency_secs": 160.0,
     "upgrade_update_frequency_secs": 10.0,
     "generate_tax_frequency_secs": 60.0
   },
@@ -50,7 +50,8 @@
       "services_required": {
         "kinds": [
           "WellBig",
-          "Market"
+          "Market",
+          "Shrine"
         ]
       },
       "resources_required": {
@@ -74,7 +75,8 @@
         "kinds": [
           "WellBig",
           "Market",
-          "TaxOffice"
+          "TaxOffice",
+          "Temple"
         ]
       },
       "resources_required": {
@@ -85,6 +87,33 @@
         ]
       },
       "stock_capacity": 15
+    },
+    {
+      "level": "Level4",
+      "name": "House Level 4",
+      "tile_def_name": "house4",
+      "max_population": 25,
+      "base_tax_generated": 6,
+      "tax_bonus": 40,
+      "worker_percentage": 50,
+      "population_increase_chance": 50,
+      "services_required": {
+        "kinds": [
+          "WellBig",
+          "Market",
+          "TaxOffice",
+          "Shrine",
+          "Temple"
+        ]
+      },
+      "resources_required": {
+        "kinds": [
+          "Rice",
+          "Meat | Fish",
+          "Wine"
+        ]
+      },
+      "stock_capacity": 20
     }
   ],
   "service_configs": [
@@ -166,9 +195,10 @@
       "tile_def_name": "rice_farm",
       "min_workers": 2,
       "max_workers": 4,
-      "production_output_frequency_secs": 20.0,
+      "production_output_frequency_secs": 18.0,
+      "production_output_amount": 2,
       "production_output": "Rice",
-      "production_capacity": 5,
+      "production_capacity": 8,
       "deliver_to_storage_kinds": "Granary"
     },
     {
@@ -177,9 +207,10 @@
       "tile_def_name": "livestock_farm",
       "min_workers": 2,
       "max_workers": 4,
-      "production_output_frequency_secs": 20.0,
+      "production_output_frequency_secs": 18.0,
+      "production_output_amount": 2,
       "production_output": "Meat",
-      "production_capacity": 5,
+      "production_capacity": 8,
       "deliver_to_storage_kinds": "Granary"
     },
     {
@@ -189,6 +220,7 @@
       "min_workers": 2,
       "max_workers": 4,
       "production_output_frequency_secs": 20.0,
+      "production_output_amount": 1,
       "production_output": "Wine",
       "production_capacity": 5,
       "resources_required": {

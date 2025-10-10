@@ -859,23 +859,24 @@ impl HouseBuilding {
 
 #[repr(u8)]
 #[derive(Copy,
-           Clone,
-           Display,
-           PartialOrd,
-           Ord,
-           PartialEq,
-           Eq,
-           IntoPrimitive,
-           TryFromPrimitive,
-           EnumCount,
-           EnumIter,
-           Serialize,
-           Deserialize)]
+         Clone,
+         Display,
+         PartialOrd,
+         Ord,
+         PartialEq,
+         Eq,
+         IntoPrimitive,
+         TryFromPrimitive,
+         EnumCount,
+         EnumIter,
+         Serialize,
+         Deserialize)]
 pub enum HouseLevel {
     Level0,
     Level1,
     Level2,
     Level3,
+    Level4,
 }
 
 impl HouseLevel {

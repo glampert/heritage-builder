@@ -58,6 +58,7 @@ pub struct ProducerConfig {
     pub max_workers: u32,
 
     pub production_output_frequency_secs: Seconds,
+    pub production_output_amount: u32, // How many units produced per cycle.
 
     // Producer output: A raw material or a consumer good.
     pub production_output: ResourceKind,
@@ -88,6 +89,7 @@ impl Default for ProducerConfig {
                min_workers: 2,
                max_workers: 4,
                production_output_frequency_secs: 20.0,
+               production_output_amount: 1,
                production_output: ResourceKind::Rice,
                production_capacity: 5,
                resources_required: ResourceKinds::none(),
@@ -343,7 +345,7 @@ impl ProducerBuilding {
     fn production_update(&mut self) {
         // Production halts if the local stock is full.
         if !self.production_output_stock.is_full() {
-            let mut produce_one_item = true;
+            let mut produce_items = true;
 
             // If we have raw material requirements, first check if they are available in
             // stock.
@@ -353,14 +355,15 @@ impl ProducerBuilding {
                     self.production_input_stock.consume_resources(&mut self.debug);
                 } else {
                     // We are missing one or more raw materials, halt production.
-                    produce_one_item = false;
+                    produce_items = false;
                 }
             }
 
-            // Produce one item and store it locally:
-            if produce_one_item {
-                self.production_output_stock.store_resources(1);
-                self.debug.log_resources_gained(self.production_output_stock.resource_kind(), 1);
+            // Produce items and store locally:
+            if produce_items {
+                let count = self.config.unwrap().production_output_amount;
+                self.production_output_stock.store_resources(count);
+                self.debug.log_resources_gained(self.production_output_stock.resource_kind(), count);
             }
         }
     }
@@ -585,8 +588,7 @@ impl ProducerOutputLocalStock {
 
     #[inline]
     fn store_resources(&mut self, count: u32) {
-        debug_assert!(self.item.count + count <= self.capacity);
-        self.item.count += count;
+        self.item.count = (self.item.count + count).min(self.capacity);
     }
 }
 
