@@ -507,6 +507,18 @@
                   ]
                 }
               ]
+            },
+            {
+              "name": "var2",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },
@@ -570,6 +582,56 @@
           "draw_size": {
             "width": 128,
             "height": 95
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "theater",
+          "cost": 15,
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 128,
+            "height": 105
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "university",
+          "cost": 20,
+          "logical_size": {
+            "width": 192,
+            "height": 96
+          },
+          "draw_size": {
+            "width": 192,
+            "height": 144
           },
           "variations": [
             {

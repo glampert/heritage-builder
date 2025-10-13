@@ -80,7 +80,9 @@
           "TaxOffice",
           "Temple",
           "Hospital",
-          "PoliceStation"
+          "PoliceStation",
+          "Theater",
+          "University"
         ]
       },
       "resources_required": {
@@ -110,7 +112,9 @@
           "Temple",
           "Apothecary",
           "Hospital",
-          "PoliceStation"
+          "PoliceStation",
+          "Theater",
+          "University"
         ]
       },
       "resources_required": {
@@ -219,6 +223,28 @@
       "min_workers": 1,
       "max_workers": 5,
       "effect_radius": 40,
+      "requires_road_access": true,
+      "has_patrol_unit": true,
+      "patrol_frequency_secs": 40.0
+    },
+    {
+      "kind": "Theater",
+      "name": "Theater",
+      "tile_def_name": "theater",
+      "min_workers": 2,
+      "max_workers": 5,
+      "effect_radius": 40,
+      "requires_road_access": true,
+      "has_patrol_unit": true,
+      "patrol_frequency_secs": 40.0
+    },
+    {
+      "kind": "University",
+      "name": "University",
+      "tile_def_name": "university",
+      "min_workers": 5,
+      "max_workers": 15,
+      "effect_radius": 60,
       "requires_road_access": true,
       "has_patrol_unit": true,
       "patrol_frequency_secs": 40.0

@@ -86,8 +86,10 @@ bitflags_with_display! {
         const Citadel        = 1 << 11;
         const GovernorPalace = 1 << 12;
         const PoliceStation  = 1 << 13;
-        const Apothecary     = 1 << 14;
-        const Hospital       = 1 << 15;
+        const Theater        = 1 << 14;
+        const University     = 1 << 15;
+        const Apothecary     = 1 << 16;
+        const Hospital       = 1 << 17;
     }
 }
 
@@ -138,6 +140,8 @@ impl BuildingKind {
                                | Self::Citadel.bits()
                                | Self::GovernorPalace.bits()
                                | Self::PoliceStation.bits()
+                               | Self::Theater.bits()
+                               | Self::University.bits()
                                | Self::Apothecary.bits()
                                | Self::Hospital.bits())
     }
