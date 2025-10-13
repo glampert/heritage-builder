@@ -80,10 +80,10 @@ pub struct ServiceConfig {
 impl Default for ServiceConfig {
     #[inline]
     fn default() -> Self {
-        Self { kind: BuildingKind::WellSmall,
-               name: "Well Small".into(),
-               tile_def_name: "well_small".into(),
-               tile_def_name_hash: hash::fnv1a_from_str("well_small"),
+        Self { kind: BuildingKind::SmallWell,
+               name: "Small Well".into(),
+               tile_def_name: "small_well".into(),
+               tile_def_name_hash: hash::fnv1a_from_str("small_well"),
                min_workers: 0,
                max_workers: 0,
                effect_radius: 5,

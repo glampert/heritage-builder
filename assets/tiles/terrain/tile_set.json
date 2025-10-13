@@ -198,7 +198,7 @@
       "name": "water",
       "tile_defs": [
         {
-          "name": "blue",
+          "name": "water",
           "path_kind": "Water",
           "draw_size": {
             "width": 65,

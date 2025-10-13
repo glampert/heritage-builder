@@ -250,6 +250,16 @@ impl BuildingConfigs {
         }
     }
 
+    pub fn find_building_archetype_kind_for_tile_def(
+        &'static self,
+        tile_def: &TileDef)
+        -> Option<BuildingArchetypeKind> {
+        debug_assert!(tile_def.hash != hash::NULL_HASH);
+
+        self.tile_def_mapping.get(&tile_def.hash)
+            .map(|entry| entry.archetype_kind)
+    }
+
     fn post_load(&'static mut self) {
         self.house_config.kind = BuildingKind::House;
         self.house_config.post_load(0);

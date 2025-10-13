@@ -27,7 +27,7 @@
       "population_increase_chance": 70,
       "services_required": {
         "kinds": [
-          "WellSmall | WellBig",
+          "SmallWell | LargeWell",
           "Market"
         ]
       },
@@ -49,7 +49,7 @@
       "population_increase_chance": 60,
       "services_required": {
         "kinds": [
-          "WellBig",
+          "LargeWell",
           "Market",
           "Shrine",
           "Apothecary",
@@ -75,7 +75,7 @@
       "population_increase_chance": 50,
       "services_required": {
         "kinds": [
-          "WellBig",
+          "LargeWell",
           "Market",
           "TaxOffice",
           "Temple",
@@ -103,7 +103,7 @@
       "population_increase_chance": 50,
       "services_required": {
         "kinds": [
-          "WellBig",
+          "LargeWell",
           "Market",
           "TaxOffice",
           "Shrine",
@@ -125,18 +125,18 @@
   ],
   "service_configs": [
     {
-      "kind": "WellSmall",
+      "kind": "SmallWell",
       "name": "Small Well",
-      "tile_def_name": "well_small",
+      "tile_def_name": "small_well",
       "min_workers": 0,
       "max_workers": 0,
       "effect_radius": 5,
       "requires_road_access": false
     },
     {
-      "kind": "WellBig",
+      "kind": "LargeWell",
       "name": "Large Well",
-      "tile_def_name": "well_big",
+      "tile_def_name": "large_well",
       "min_workers": 1,
       "max_workers": 2,
       "effect_radius": 10,

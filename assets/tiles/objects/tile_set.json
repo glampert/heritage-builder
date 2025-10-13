@@ -264,7 +264,7 @@
           ]
         },
         {
-          "name": "well_small",
+          "name": "small_well",
           "cost": 2,
           "draw_size": {
             "width": 65,
@@ -285,7 +285,7 @@
           ]
         },
         {
-          "name": "well_big",
+          "name": "large_well",
           "cost": 5,
           "logical_size": {
             "width": 128,
@@ -436,6 +436,7 @@
         },
         {
           "name": "shrine",
+          "cost": 2,
           "logical_size": {
             "width": 64,
             "height": 32
@@ -473,6 +474,7 @@
         },
         {
           "name": "temple",
+          "cost": 15,
           "logical_size": {
             "width": 192,
             "height": 96
@@ -510,6 +512,7 @@
         },
         {
           "name": "apothecary",
+          "cost": 4,
           "logical_size": {
             "width": 64,
             "height": 32
@@ -534,6 +537,7 @@
         },
         {
           "name": "hospital",
+          "cost": 12,
           "logical_size": {
             "width": 128,
             "height": 64
@@ -558,13 +562,14 @@
         },
         {
           "name": "police_station",
+          "cost": 10,
           "logical_size": {
             "width": 128,
             "height": 64
           },
           "draw_size": {
-            "width": 126,
-            "height": 104
+            "width": 128,
+            "height": 95
           },
           "variations": [
             {
@@ -582,6 +587,7 @@
         },
         {
           "name": "citadel",
+          "cost": 1000,
           "logical_size": {
             "width": 320,
             "height": 160
@@ -606,6 +612,7 @@
         },
         {
           "name": "governor_palace",
+          "cost": 500,
           "logical_size": {
             "width": 256,
             "height": 128

@@ -347,8 +347,8 @@ mod preset_maps {
     // BUILDINGS:
     const X: i32 = -1; // empty (dummy value)
     const H: i32 = 0;  // house0
-    const W: i32 = 1;  // well_small
-    const B: i32 = 2;  // well_big
+    const W: i32 = 1;  // small_well
+    const B: i32 = 2;  // large_well
     const M: i32 = 3;  // market
     const F: i32 = 4;  // rice_farm
     const S: i32 = 5;  // granary
@@ -356,8 +356,8 @@ mod preset_maps {
     const A: i32 = 7;  // distillery
     const BUILDING_TILE_NAMES: [&str; 8] = [
         "house0",
-        "well_small",
-        "well_big",
+        "small_well",
+        "large_well",
         "market",
         "rice_farm",
         "granary",

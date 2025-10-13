@@ -1,19 +1,21 @@
 #![allow(clippy::too_many_arguments)]
 
+use smallvec::SmallVec;
+use std::cmp::Reverse;
 use std::collections::HashMap;
 
 use crate::{
     app::input::{InputAction, MouseButton},
     engine::DebugDraw,
-    game::sim::{self},
+    game::{sim, building::{config::BuildingConfigs, BuildingArchetypeKind}},
     imgui_ui::{UiInputEvent, UiSystem},
     render::{TextureCache, TextureHandle},
+    utils::{self, coords::WorldToScreenTransform, Color, Rect, RectTexCoords, Size, Vec2},
     tile::{
-        rendering::INVALID_TILE_COLOR,
-        sets::{TileDef, TileDefHandle, TileSets},
         TileKind, BASE_TILE_SIZE,
+        rendering::INVALID_TILE_COLOR,
+        sets::{TileCategory, TileDef, TileDefHandle, TileSet, TileSets},
     },
-    utils::{coords::WorldToScreenTransform, Color, Rect, RectTexCoords, Size, Vec2},
 };
 
 // ----------------------------------------------
@@ -22,10 +24,10 @@ use crate::{
 
 #[derive(Default)]
 enum SelectionState {
-    TileSelected(TileDefHandle),
-    ClearSelected,
     #[default]
     NoSelection,
+    TileSelected(TileDefHandle),
+    ClearSelected,
 }
 
 // ----------------------------------------------
@@ -111,54 +113,52 @@ impl TilePaletteMenu {
         let window_flags = imgui::WindowFlags::ALWAYS_AUTO_RESIZE | imgui::WindowFlags::NO_RESIZE;
 
         ui.window("Tile Selection")
-          .flags(window_flags)
-          .collapsed(!self.start_open, imgui::Condition::FirstUseEver)
-          .position(window_position, imgui::Condition::FirstUseEver)
-          .build(|| {
-              let tile_kinds = [TileKind::Terrain,
-                                TileKind::Vegetation,
-                                TileKind::Prop,
-                                TileKind::Building,
-                                TileKind::Unit];
+            .flags(window_flags)
+            .collapsed(!self.start_open, imgui::Condition::FirstUseEver)
+            .position(window_position, imgui::Condition::FirstUseEver)
+            .build(|| {
+                ui.text("Tools");
+                {
+                    let ui_texture = context.ui_sys.to_ui_texture(tex_cache, self.clear_button_image);
 
-              for (idx, tile_kind) in tile_kinds.into_iter().enumerate() {
-                  self.draw_tile_list(tile_kind,
-                                      context.ui_sys,
-                                      tex_cache,
-                                      tile_size,
-                                      tiles_per_row,
-                                      padding_between_tiles);
+                    let bg_color = if self.is_clear_selected() {
+                        Color::white().to_array()
+                    } else {
+                        Color::gray().to_array()
+                    };
 
-                  if idx != 0 {
-                      ui.new_line();
-                  }
-                  ui.separator();
-              }
+                    let clicked = ui
+                        .image_button_config("Clear", ui_texture, tile_size)
+                        .background_col(bg_color)
+                        .build();
 
-              ui.text("Tools");
-              {
-                  let ui_texture = context.ui_sys.to_ui_texture(tex_cache, self.clear_button_image);
+                    if ui.is_item_hovered() {
+                        ui.tooltip_text("Clear Tiles");
+                    }
 
-                  let bg_color = if self.is_clear_selected() {
-                      Color::white().to_array()
-                  } else {
-                      Color::gray().to_array()
-                  };
+                    if clicked {
+                        self.clear_selection();
+                        self.selection = SelectionState::ClearSelected;
+                    }
+                }
 
-                  let clicked = ui.image_button_config("Clear", ui_texture, tile_size)
-                                  .background_col(bg_color)
-                                  .build();
+                let sections = [
+                    ("Terrain", TileKind::Terrain),
+                    ("",        TileKind::Building),
+                    ("Props",   TileKind::Prop | TileKind::Vegetation),
+                    ("Units",   TileKind::Unit),
+                ];
 
-                  if ui.is_item_hovered() {
-                      ui.tooltip_text("Clear tiles");
-                  }
-
-                  if clicked {
-                      self.clear_selection();
-                      self.selection = SelectionState::ClearSelected;
-                  }
-              }
-          });
+                for (label, tile_kind) in sections {
+                    self.draw_tile_list(label,
+                                        tile_kind,
+                                        context.ui_sys,
+                                        tex_cache,
+                                        tile_size,
+                                        tiles_per_row,
+                                        padding_between_tiles);
+                }
+            });
 
         self.draw_selected_tile(debug_draw,
                                 cursor_screen_pos,
@@ -185,7 +185,7 @@ impl TilePaletteMenu {
                                                          - (CLEAR_ICON_SIZE.width / 2) as f32,
                                                          cursor_screen_pos.y
                                                          - (CLEAR_ICON_SIZE.height / 2) as f32),
-                                               CLEAR_ICON_SIZE);
+                                                     CLEAR_ICON_SIZE);
 
             debug_draw.textured_colored_rect(rect,
                                              &RectTexCoords::DEFAULT,
@@ -205,9 +205,7 @@ impl TilePaletteMenu {
                 };
 
             let cursor_transform = WorldToScreenTransform::new(transform.scaling, offset);
-
-            let highlight_color =
-                if has_valid_placement { Color::white() } else { INVALID_TILE_COLOR };
+            let highlight_color = if has_valid_placement { Color::white() } else { INVALID_TILE_COLOR };
 
             if let Some(sprite_frame) = selected_tile.anim_frame_by_index(0, 0, 0) {
                 debug_draw.textured_colored_rect(cursor_transform.scale_and_offset_rect(rect),
@@ -221,13 +219,13 @@ impl TilePaletteMenu {
             }
 
             if show_selection_bounds {
-                debug_draw.wireframe_rect(cursor_transform.scale_and_offset_rect(rect),
-                                          Color::red());
+                debug_draw.wireframe_rect(cursor_transform.scale_and_offset_rect(rect), Color::red());
             }
         }
     }
 
     fn draw_tile_list(&mut self,
+                      label: &str,
                       tile_kind: TileKind,
                       ui_sys: &UiSystem,
                       tex_cache: &dyn TextureCache,
@@ -235,59 +233,111 @@ impl TilePaletteMenu {
                       tiles_per_row: usize,
                       padding_between_tiles: f32) {
         let ui = ui_sys.builder();
-        ui.text(tile_kind.to_string());
+
+        if !label.is_empty() {
+            ui.text(label);
+        }
 
         let mut tile_index = 0;
+        let mut draw_tile_button = |tile_set: &TileSet, tile_category: &TileCategory, tile_def: &TileDef| {
+            if !tile_def.is(tile_kind) {
+                return true;
+            }
 
+            let tile_texture = tile_def.texture_by_index(0, 0, 0);
+            let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_texture);
+
+            let is_selected = self.selected_index.get(&tile_kind) == Some(&tile_index);
+            let bg_color = if is_selected {
+                Color::white().to_array()
+            } else {
+                Color::gray().to_array()
+            };
+
+            let button_text = utils::snake_case_to_title::<64>(&tile_def.name);
+
+            let clicked =
+                ui.image_button_config(button_text, ui_texture, tile_size)
+                    .background_col(bg_color)
+                    .tint_col(tile_def.color.to_array())
+                    .build();
+
+            // Show tooltip when hovered:
+            if ui.is_item_hovered() {
+                ui.tooltip_text(button_text);
+
+                if tile_def.cost != 0 {
+                    ui.tooltip_text(format!("Cost: {} gold", tile_def.cost));
+                }
+            }
+
+            if clicked {
+                self.clear_selection();
+                self.selection =
+                    SelectionState::TileSelected(TileDefHandle::new(tile_set,
+                                                                    tile_category,
+                                                                    tile_def));
+                self.selected_index.insert(tile_kind, tile_index);
+            }
+
+            ui.same_line_with_spacing(0.0, padding_between_tiles);
+            tile_index += 1;
+            true
+        };
+
+        let mut tile_defs = SmallVec::<[(&TileSet, &TileCategory, &TileDef, Option<BuildingArchetypeKind>); 32]>::new();
+
+        // Gather relevant tiles:
         TileSets::get().for_each_tile_def(|tile_set, tile_category, tile_def| {
-                           if !tile_def.is(tile_kind) {
-                               return true;
-                           }
+            if tile_def.is(tile_kind) {
+                let building_archetype =
+                    BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def);
 
-                           let tile_texture = tile_def.texture_by_index(0, 0, 0);
-                           let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_texture);
+                tile_defs.push((tile_set, tile_category, tile_def, building_archetype));
+            }
+            true
+        });
 
-                           let is_selected =
-                               self.selected_index.get(&tile_kind) == Some(&tile_index);
-                           let bg_color = if is_selected {
-                               Color::white().to_array()
-                           } else {
-                               Color::gray().to_array()
-                           };
+        // Group by building archetype kind (if any):
+        tile_defs.sort_by(|a, b| Reverse(a.3).cmp(&Reverse(b.3)));
 
-                           let button_text = format!("{}/{}", tile_category.name, tile_def.name);
+        let mut button_count_for_row = 0;
+        let mut prev_building_archetype: Option<BuildingArchetypeKind> = None;
 
-                           let clicked =
-                               ui.image_button_config(&button_text, ui_texture, tile_size)
-                                 .background_col(bg_color)
-                                 .tint_col(tile_def.color.to_array())
-                                 .build();
+        for (tile_set, tile_category, tile_def, building_archetype) in tile_defs {
+            if button_count_for_row == tiles_per_row {
+                button_count_for_row = 0;
+                ui.new_line();
+            }
 
-                           // Show tooltip when hovered:
-                           if ui.is_item_hovered() {
-                               ui.tooltip_text(&button_text);
+            // New named building group?
+            if building_archetype != prev_building_archetype {
+                if let Some(archetype_kind) = building_archetype {
+                    if button_count_for_row != 0 {
+                        button_count_for_row = 0;
+                        ui.new_line();
+                    }
+                    ui.text(Self::building_archetype_kind_label(archetype_kind));
+                }
+                prev_building_archetype = building_archetype;
+            }
 
-                               if tile_def.cost != 0 {
-                                   ui.tooltip_text(format!("Cost: {} gold", tile_def.cost));
-                               }
-                           }
+            // Draw ImGui button:
+            draw_tile_button(tile_set, tile_category, tile_def);
+            button_count_for_row += 1;
+        }
 
-                           if clicked {
-                               self.clear_selection();
-                               self.selection =
-                                   SelectionState::TileSelected(TileDefHandle::new(tile_set,
-                                                                                   tile_category,
-                                                                                   tile_def));
-                               self.selected_index.insert(tile_kind, tile_index);
-                           }
+        if button_count_for_row <= tiles_per_row {
+            ui.new_line();
+        }
+    }
 
-                           // Move to next column unless it's the last in row.
-                           if (tile_index + 1) % tiles_per_row != 0 {
-                               ui.same_line_with_spacing(0.0, padding_between_tiles);
-                           }
-
-                           tile_index += 1;
-                           true
-                       });
+    fn building_archetype_kind_label(archetype_kind: BuildingArchetypeKind) -> &'static str {
+        match archetype_kind {
+            BuildingArchetypeKind::ProducerBuilding => "Production",
+            BuildingArchetypeKind::StorageBuilding  => "Storage",
+            BuildingArchetypeKind::ServiceBuilding  => "Services",
+            BuildingArchetypeKind::HouseBuilding    => "Houses",
+        }
     }
 }

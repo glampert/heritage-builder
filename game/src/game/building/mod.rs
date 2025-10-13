@@ -77,8 +77,8 @@ bitflags_with_display! {
         const StorageYard    = 1 << 4;
 
         // Archetype: Service
-        const WellSmall      = 1 << 5;
-        const WellBig        = 1 << 6;
+        const SmallWell      = 1 << 5;
+        const LargeWell      = 1 << 6;
         const Market         = 1 << 7;
         const TaxOffice      = 1 << 8;
         const Shrine         = 1 << 9;
@@ -129,8 +129,8 @@ impl BuildingKind {
 
     #[inline]
     pub const fn services() -> Self {
-        Self::from_bits_retain(Self::WellSmall.bits()
-                               | Self::WellBig.bits()
+        Self::from_bits_retain(Self::SmallWell.bits()
+                               | Self::LargeWell.bits()
                                | Self::Market.bits()
                                | Self::TaxOffice.bits()
                                | Self::Shrine.bits()
@@ -1055,7 +1055,7 @@ impl Building {
 #[derive(Clone, EnumDiscriminants, Serialize, Deserialize)]
 #[strum_discriminants(repr(u32),
                       name(BuildingArchetypeKind),
-                      derive(Display, EnumCount, EnumIter, Serialize, Deserialize))]
+                      derive(Display, EnumCount, EnumIter, PartialOrd, Ord, Serialize, Deserialize))]
 pub enum BuildingArchetype {
     ProducerBuilding(ProducerBuilding),
     StorageBuilding(StorageBuilding),
