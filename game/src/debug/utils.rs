@@ -118,9 +118,9 @@ pub fn draw_screen_origin_marker(debug_draw: &mut dyn DebugDraw) {
                             Color::green());
 }
 
-pub fn draw_render_stats(ui_sys: &UiSystem,
-                         render_sys_stats: &RenderStats,
-                         tile_render_stats: &TileMapRenderStats) {
+pub fn draw_render_perf_stats(ui_sys: &UiSystem,
+                              render_sys_stats: &RenderStats,
+                              tile_render_stats: &TileMapRenderStats) {
     let ui = ui_sys.builder();
 
     let window_flags = imgui::WindowFlags::NO_DECORATION
@@ -175,6 +175,33 @@ pub fn draw_render_stats(ui_sys: &UiSystem,
 
           ui.text(format!("Points drawn: {} | Peak: {}",
                           render_sys_stats.points_drawn, render_sys_stats.peak_points_drawn));
+      });
+}
+
+pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World) {
+    let ui = ui_sys.builder();
+
+    let window_flags = imgui::WindowFlags::NO_DECORATION
+                       | imgui::WindowFlags::NO_MOVE
+                       | imgui::WindowFlags::NO_SAVED_SETTINGS
+                       | imgui::WindowFlags::NO_FOCUS_ON_APPEARING
+                       | imgui::WindowFlags::NO_NAV
+                       | imgui::WindowFlags::NO_MOUSE_INPUTS;
+
+    // Place the window at the bottom-left corner of the screen.
+    let window_position = [5.0, ui.io().display_size[1] - 55.0];
+
+    ui.window("Game Stats")
+      .position(window_position, imgui::Condition::Always)
+      .flags(window_flags)
+      .always_auto_resize(true)
+      .bg_alpha(0.6) // Semi-transparent
+      .build(|| {
+          let (units_spawned, peak_units_spawned) = world.units_stats();
+          let (buildings_spawned, peak_buildings_spawned) = world.buildings_stats();
+
+          ui.text(format!("Units: {units_spawned} | Peak: {peak_units_spawned}"));
+          ui.text(format!("Buildings: {buildings_spawned} | Peak: {peak_buildings_spawned}"));
       });
 }
 

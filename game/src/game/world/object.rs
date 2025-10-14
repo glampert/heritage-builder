@@ -118,6 +118,7 @@ pub struct SpawnPool<T> {
     instances: Vec<T>,
     spawned: BitVec,
     generation: u32,
+    peak: usize,
 }
 
 pub struct SpawnPoolIter<'a, T> {
@@ -166,9 +167,12 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
 {
     pub fn new(capacity: usize, generation: u32) -> Self {
         let default_instance = T::default();
-        Self { instances: vec![default_instance; capacity],
-               spawned: BitVec::repeat(false, capacity),
-               generation }
+        Self {
+            instances: vec![default_instance; capacity],
+            spawned: BitVec::repeat(false, capacity),
+            generation,
+            peak: 0
+        }
     }
 
     pub fn clear<F>(&mut self, query: &Query, on_despawned_fn: F)
@@ -202,6 +206,7 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
                           GenerationalIndex::new(generation, recycled_index));
 
             self.spawned.set(recycled_index, true);
+            self.peak = self.peak.max(self.spawned.count_ones());
 
             return recycled_instance;
         }
@@ -215,6 +220,7 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
 
         self.instances.push(new_instance);
         self.spawned.push(true);
+        self.peak = self.peak.max(self.spawned.count_ones());
 
         &mut self.instances[new_index]
     }
@@ -239,6 +245,11 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
     }
 
     #[inline]
+    pub fn spawned_peak(&self) -> usize {
+        self.peak
+    }
+
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.instances.len() == self.spawned.len()
     }
@@ -250,8 +261,7 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
 
     #[inline]
     pub fn iter_mut(&mut self) -> SpawnPoolIterMut<'_, T> {
-        SpawnPoolIterMut { instances: self.instances.iter_mut().enumerate(),
-                           spawned: &self.spawned }
+        SpawnPoolIterMut { instances: self.instances.iter_mut().enumerate(), spawned: &self.spawned }
     }
 
     #[inline]
@@ -449,6 +459,8 @@ impl<'de, T> Deserialize<'de> for SpawnPool<T>
                     log::error!("Expected to deserialize {} spawned instanced but found {} instead.", header.instance_count, deserialized_count);
                     return Err(serde::de::Error::custom("unexpected number of GameObject instances found"));
                 }
+
+                pool.peak = pool.spawned_count();
 
                 Ok(pool)
             }

@@ -360,7 +360,8 @@ impl DebugMenusSingleton {
         let has_valid_placement = args.tile_selection.has_valid_placement();
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
-        let show_render_stats = self.debug_settings_menu.show_render_stats();
+        let show_render_perf_stats = self.debug_settings_menu.show_render_perf_stats();
+        let show_world_perf_stats = self.debug_settings_menu.show_world_perf_stats();
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
         let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
 
@@ -386,7 +387,6 @@ impl DebugMenusSingleton {
                                     show_selection_bounds);
 
         self.tile_inspector_menu.draw(&mut context, args.sim);
-
         self.debug_settings_menu.draw(&mut context, args.sim, args.camera, game_loop);
 
         if show_popup_messages() {
@@ -405,11 +405,15 @@ impl DebugMenusSingleton {
             utils::draw_cursor_overlay(args.ui_sys, args.camera.transform(), None);
         }
 
-        if show_render_stats {
+        if show_render_perf_stats {
             let engine = game_loop.engine();
-            utils::draw_render_stats(args.ui_sys,
-                                     engine.render_stats(),
-                                     engine.tile_map_render_stats());
+            utils::draw_render_perf_stats(args.ui_sys,
+                                          engine.render_stats(),
+                                          engine.tile_map_render_stats());
+        }
+
+        if show_world_perf_stats {
+            utils::draw_world_perf_stats(args.ui_sys, args.world);
         }
 
         if show_screen_origin {

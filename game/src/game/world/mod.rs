@@ -114,6 +114,22 @@ impl World {
         &mut self.stats
     }
 
+    pub fn units_stats(&self) -> (usize,  usize) {
+        (self.unit_spawn_pool.spawned_count(), self.unit_spawn_pool.spawned_peak())
+    }
+
+    pub fn buildings_stats(&self) -> (usize,  usize) {
+        let mut buildings_spawned = 0;
+        let mut peak_buildings_spawned = 0;
+
+        for (_, buildings) in &self.building_spawn_pools {
+            buildings_spawned += buildings.spawned_count();
+            peak_buildings_spawned += buildings.spawned_peak();
+        }
+
+        (buildings_spawned, peak_buildings_spawned)
+    }
+
     // ----------------------
     // Callbacks:
     // ----------------------

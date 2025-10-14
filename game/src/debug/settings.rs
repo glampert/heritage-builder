@@ -74,8 +74,10 @@ pub struct DebugSettingsMenu {
     show_cursor_pos: bool,
     #[debug_ui(edit)]
     show_screen_origin: bool,
+    #[debug_ui(edit)]
+    show_world_perf_stats: bool,
     #[debug_ui(edit, separator)]
-    show_render_stats: bool,
+    show_render_perf_stats: bool,
 
     #[debug_ui(edit)]
     show_game_configs_debug: bool,
@@ -109,8 +111,12 @@ impl DebugSettingsMenu {
         self.show_screen_origin
     }
 
-    pub fn show_render_stats(&self) -> bool {
-        self.show_render_stats
+    pub fn show_world_perf_stats(&self) -> bool {
+        self.show_world_perf_stats
+    }
+
+    pub fn show_render_perf_stats(&self) -> bool {
+        self.show_render_perf_stats
     }
 
     pub fn show_log_viewer_window(&mut self) -> &mut bool {
