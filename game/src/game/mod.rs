@@ -92,13 +92,15 @@ impl GameSession {
 
         let debug_menus = DebugMenusSystem::new(&mut tile_map, tex_cache);
 
-        let mut session = Self { tile_map,
-                                 world,
-                                 sim,
-                                 systems,
-                                 camera,
-                                 tile_selection: TileSelection::default(),
-                                 debug_menus };
+        let mut session = Self {
+            tile_map,
+            world,
+            sim,
+            systems,
+            camera,
+            tile_selection: TileSelection::new(false),
+            debug_menus
+        };
 
         if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
             session.load_save_game(save_file_path);
@@ -370,12 +372,13 @@ impl GameLoop {
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
 
-        let instance = Self { engine,
-                              session: None,
-                              session_cmd_queue: VecDeque::new(),
-                              autosave_timer: UpdateTimer::new(configs.save
-                                                                      .autosave_frequency_secs),
-                              enable_autosave: configs.save.enable_autosave };
+        let instance = Self {
+            engine,
+            session: None,
+            session_cmd_queue: VecDeque::new(),
+            autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
+            enable_autosave: configs.save.enable_autosave
+        };
 
         GameLoop::initialize(instance); // Set global instance.
         GameLoop::get_mut()
@@ -639,19 +642,18 @@ impl GameLoop {
                                delta_time_secs: Seconds)
                                -> TileMapRenderFlags {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.begin_frame(&mut DebugMenusFrameArgs { tile_map:
-                                                                       &mut session.tile_map,
-                                                                   tile_selection:
-                                                                       &mut session.tile_selection,
-                                                                   sim: &mut session.sim,
-                                                                   world: &mut session.world,
-                                                                   systems: &mut session.systems,
-                                                                   ui_sys: self.engine
-                                                                               .ui_system(),
-                                                                   camera: &mut session.camera,
-                                                                   visible_range,
-                                                                   cursor_screen_pos,
-                                                                   delta_time_secs })
+        session.debug_menus.begin_frame(&mut DebugMenusFrameArgs {
+            tile_map: &mut session.tile_map,
+            tile_selection: &mut session.tile_selection,
+            sim: &mut session.sim,
+            world: &mut session.world,
+            systems: &mut session.systems,
+            ui_sys: self.engine.ui_system(),
+            camera: &mut session.camera,
+            visible_range,
+            cursor_screen_pos,
+            delta_time_secs
+        })
     }
 
     fn debug_menus_end_frame(&mut self,
@@ -659,19 +661,18 @@ impl GameLoop {
                              cursor_screen_pos: Vec2,
                              delta_time_secs: Seconds) {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.end_frame(&mut DebugMenusFrameArgs { tile_map:
-                                                                     &mut session.tile_map,
-                                                                 tile_selection:
-                                                                     &mut session.tile_selection,
-                                                                 sim: &mut session.sim,
-                                                                 world: &mut session.world,
-                                                                 systems: &mut session.systems,
-                                                                 ui_sys: self.engine
-                                                                             .ui_system(),
-                                                                 camera: &mut session.camera,
-                                                                 visible_range,
-                                                                 cursor_screen_pos,
-                                                                 delta_time_secs });
+        session.debug_menus.end_frame(&mut DebugMenusFrameArgs {
+            tile_map: &mut session.tile_map,
+            tile_selection: &mut session.tile_selection,
+            sim: &mut session.sim,
+            world: &mut session.world,
+            systems: &mut session.systems,
+            ui_sys: self.engine.ui_system(),
+            camera: &mut session.camera,
+            visible_range,
+            cursor_screen_pos,
+            delta_time_secs
+        });
     }
 
     fn debug_menus_key_input(&mut self,
@@ -680,16 +681,16 @@ impl GameLoop {
                              cursor_screen_pos: Vec2)
                              -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.on_key_input(&mut DebugMenusInputArgs { tile_map:
-                                                                        &mut session.tile_map,
-                                                                    tile_selection:
-                                                                        &mut session.tile_selection,
-                                                                    world: &mut session.world,
-                                                                    transform:
-                                                                        session.camera.transform(),
-                                                                    cursor_screen_pos },
-                                         key,
-                                         action)
+        session.debug_menus.on_key_input(&mut DebugMenusInputArgs {
+            sim: &mut session.sim,
+            world: &mut session.world,
+            tile_map: &mut session.tile_map,
+            tile_selection: &mut session.tile_selection,
+            transform: session.camera.transform(),
+            cursor_screen_pos
+        },
+        key,
+        action)
     }
 
     fn debug_menus_mouse_click(&mut self,
@@ -699,16 +700,17 @@ impl GameLoop {
                                cursor_screen_pos: Vec2)
                                -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus
-               .on_mouse_click(&mut DebugMenusInputArgs { tile_map: &mut session.tile_map,
-                                                          tile_selection:
-                                                              &mut session.tile_selection,
-                                                          world: &mut session.world,
-                                                          transform: session.camera.transform(),
-                                                          cursor_screen_pos },
-                               button,
-                               action,
-                               modifiers)
+        session.debug_menus.on_mouse_click(&mut DebugMenusInputArgs {
+            sim: &mut session.sim,
+            world: &mut session.world,
+            tile_map: &mut session.tile_map,
+            tile_selection: &mut session.tile_selection,
+            transform: session.camera.transform(),
+            cursor_screen_pos
+        },
+        button,
+        action,
+        modifiers)
     }
 }
 

@@ -10,6 +10,7 @@ use crate::{
     game::{sim, building::{config::BuildingConfigs, BuildingArchetypeKind}},
     imgui_ui::{UiInputEvent, UiSystem},
     render::{TextureCache, TextureHandle},
+    pathfind::NodeKind as PathNodeKind,
     utils::{self, coords::WorldToScreenTransform, Color, Rect, RectTexCoords, Size, Vec2},
     tile::{
         TileKind, BASE_TILE_SIZE,
@@ -62,6 +63,18 @@ impl TilePaletteMenu {
 
     pub fn is_clear_selected(&self) -> bool {
         matches!(self.selection, SelectionState::ClearSelected)
+    }
+
+    pub fn is_road_tile_selected(&self) -> bool {
+        if let Some(tile_def) = self.current_selection() {
+            if tile_def.path_kind.intersects(PathNodeKind::Road) &&
+              !tile_def.path_kind.intersects(PathNodeKind::SettlersSpawnPoint) {
+                // SettlersSpawnPoint is a special kind of road, but we don't consider
+                // it here for the purposes of road segment placement.
+                return true;
+            }
+        }
+        false
     }
 
     pub fn current_selection(&self) -> Option<&'static TileDef> {

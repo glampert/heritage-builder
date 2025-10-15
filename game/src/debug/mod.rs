@@ -14,14 +14,13 @@ use crate::{
         GameLoop,
     },
     imgui_ui::{UiInputEvent, UiSystem},
-    log,
-    pathfind::{self, AStarUniformCostHeuristic, Graph, Node, NodeKind, Search, SearchResult},
     render::TextureCache,
     save::{Load, PostLoadContext, Save},
     singleton_late_init,
     tile::{
         camera::Camera, rendering::TileMapRenderFlags, selection::TileSelection, PlacementOp,
-        TileFlags, TileKind, TileMap, TileMapLayerKind,
+        TileKind, TileMap, TileMapLayerKind,
+        road::{self, RoadSegment}
     },
     utils::{
         coords::{Cell, CellRange, WorldToScreenTransform},
@@ -42,6 +41,7 @@ mod settings;
 // ----------------------------------------------
 
 pub struct DebugMenusInputArgs<'game> {
+    pub sim: &'game mut Simulation,
     pub world: &'game mut World,
     pub tile_map: &'game mut TileMap,
     pub tile_selection: &'game mut TileSelection,
@@ -146,22 +146,16 @@ struct DebugMenusSingleton {
     debug_settings_menu: DebugSettingsMenu,
     tile_palette_menu: TilePaletteMenu,
     tile_inspector_menu: TileInspectorMenu,
-
-    // Test path finding:
-    //  [CTRL]+Left-Click places start and end goals.
-    //  [ENTER] runs the search and highlights path cells.
-    //  [ESCAPE] clears start/end and search results.
-    search_test_start: Cell,
-    search_test_goal: Cell,
-    search_test_mode: bool,
+    current_road_segment: RoadSegment, // For road placement.
 }
 
 impl DebugMenusSingleton {
     fn new(tex_cache: &mut dyn TextureCache, tile_palette_open: bool) -> Self {
-        Self { debug_settings_menu: DebugSettingsMenu::new(),
-               tile_palette_menu: TilePaletteMenu::new(tile_palette_open, tex_cache),
-               tile_inspector_menu: TileInspectorMenu::new(),
-               ..Default::default() }
+        Self {
+            debug_settings_menu: DebugSettingsMenu::new(),
+            tile_palette_menu: TilePaletteMenu::new(tile_palette_open, tex_cache),
+            ..Default::default()
+        }
     }
 
     fn on_key_input(&mut self,
@@ -169,60 +163,10 @@ impl DebugMenusSingleton {
                     key: InputKey,
                     action: InputAction)
                     -> UiInputEvent {
-        if key == InputKey::LeftControl || key == InputKey::RightControl {
-            if action == InputAction::Press {
-                self.search_test_mode = true;
-            } else if action == InputAction::Release {
-                self.search_test_mode = false;
-            }
-        }
-
         if key == InputKey::Escape && action == InputAction::Press {
             self.tile_inspector_menu.close();
             self.tile_palette_menu.clear_selection();
             args.tile_map.clear_selection(args.tile_selection);
-
-            // Clear search test state:
-            self.search_test_start = Cell::invalid();
-            self.search_test_goal = Cell::invalid();
-            args.tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::all(), |tile| {
-                             tile.set_flags(TileFlags::Highlighted, false)
-                         });
-
-            if let Some(ped) = args.world.find_unit_by_name_mut("Ped") {
-                ped.follow_path(None);
-            }
-
-            return UiInputEvent::Handled;
-        }
-
-        // Run search test:
-        if key == InputKey::Enter && action == InputAction::Press {
-            let graph = Graph::from_tile_map(args.tile_map);
-            let heuristic = AStarUniformCostHeuristic::new();
-            let traversable_node_kinds = NodeKind::Road;
-            let start = Node::new(self.search_test_start);
-            let goal = Node::new(self.search_test_goal);
-            let mut search = Search::with_graph(&graph);
-
-            match search.find_path(&graph, &heuristic, traversable_node_kinds, start, goal) {
-                SearchResult::PathFound(path) => {
-                    log::info!("Found a path with {} nodes.", path.len());
-                    debug_assert!(!path.is_empty());
-
-                    // Highlight path tiles:
-                    pathfind::highlight_path_tiles(args.tile_map, path);
-
-                    // Make unit follow path:
-                    if let Some(ped) = args.world.find_unit_by_name_mut("Ped") {
-                        // First teleport it to the start cell of the path:
-                        ped.teleport(args.tile_map, path[0].cell);
-                        ped.follow_path(Some(path));
-                    }
-                }
-                SearchResult::PathNotFound => log::info!("No path could be found."),
-            }
-
             return UiInputEvent::Handled;
         }
 
@@ -233,9 +177,9 @@ impl DebugMenusSingleton {
                       args: &mut DebugMenusInputArgs,
                       button: MouseButton,
                       action: InputAction,
-                      modifiers: InputModifiers)
+                      _modifiers: InputModifiers)
                       -> UiInputEvent {
-        if self.tile_palette_menu.has_selection() {
+        if self.tile_palette_menu.has_selection() && !self.tile_palette_menu.is_road_tile_selected() {
             if self.tile_palette_menu.on_mouse_click(button, action).not_handled() {
                 self.tile_palette_menu.clear_selection();
                 args.tile_map.clear_selection(args.tile_selection);
@@ -245,39 +189,37 @@ impl DebugMenusSingleton {
                    .on_mouse_click(button, action, args.cursor_screen_pos)
                    .not_handled()
             {
-                self.tile_palette_menu.clear_selection();
+                // Place road segment if valid & we can afford it:
+                let is_valid_road_placement =
+                    self.current_road_segment.is_valid &&
+                    args.sim.treasury().can_afford(args.world, self.current_road_segment.cost());
+
+                if is_valid_road_placement {
+                    let query = args.sim.new_query(args.world, args.tile_map, 0.0);
+                    let spawner = Spawner::new(&query);
+                    for cell in &self.current_road_segment.path {
+                        spawner.try_spawn_tile_with_def(*cell, road::tile_def());
+                    }
+                } else {
+                    self.tile_palette_menu.clear_selection();
+                }
+
+                // Clear road segment highlight:
+                road::mark_tiles(args.tile_map, &self.current_road_segment, false, false);
+                self.current_road_segment.clear();
+
                 args.tile_map.clear_selection(args.tile_selection);
             }
 
-            // Select search test start/goal cells:
-            if self.search_test_mode
-               && button == MouseButton::Left
-               && modifiers.intersects(InputModifiers::Control)
-            {
-                if !self.search_test_start.is_valid() {
-                    let cursor_cell = args.tile_map
-                                          .find_exact_cell_for_point(TileMapLayerKind::Terrain,
-                                                                     args.cursor_screen_pos,
-                                                                     args.transform);
-                    self.search_test_start = cursor_cell;
-                } else if !self.search_test_goal.is_valid() {
-                    let cursor_cell = args.tile_map
-                                          .find_exact_cell_for_point(TileMapLayerKind::Terrain,
-                                                                     args.cursor_screen_pos,
-                                                                     args.transform);
-                    if cursor_cell != self.search_test_start {
-                        self.search_test_goal = cursor_cell;
+            // Open inspector only if we're not in road placement mode.
+            if !self.tile_palette_menu.is_road_tile_selected() {
+                if let Some(selected_tile) = args.tile_map.topmost_selected_tile(args.tile_selection) {
+                    if self.tile_inspector_menu
+                        .on_mouse_click(button, action, selected_tile)
+                        .is_handled()
+                    {
+                        return UiInputEvent::Handled;
                     }
-                }
-                return UiInputEvent::Handled;
-            }
-
-            if let Some(selected_tile) = args.tile_map.topmost_selected_tile(args.tile_selection) {
-                if self.tile_inspector_menu
-                       .on_mouse_click(button, action, selected_tile)
-                       .is_handled()
-                {
-                    return UiInputEvent::Handled;
                 }
             }
         }
@@ -308,9 +250,29 @@ impl DebugMenusSingleton {
                                            args.cursor_screen_pos,
                                            args.camera.transform(),
                                            placement_op);
+
+            if self.tile_palette_menu.is_road_tile_selected() {
+                if let Some((start, end)) = args.tile_selection.range_selection_cells(
+                    args.tile_map,
+                    args.cursor_screen_pos,
+                    args.camera.transform())
+                {
+                    // Clear previous segment highlight:
+                    road::mark_tiles(args.tile_map, &self.current_road_segment, false, false);
+
+                    self.current_road_segment = road::build_segment(start, end, args.tile_map);
+
+                    let is_valid_road_placement =
+                        self.current_road_segment.is_valid &&
+                        args.sim.treasury().can_afford(args.world, self.current_road_segment.cost());
+
+                    // Highlight new segment:
+                    road::mark_tiles(args.tile_map, &self.current_road_segment, true, is_valid_road_placement);
+                }
+            }
         }
 
-        if self.tile_palette_menu.can_place_tile() {
+        if self.tile_palette_menu.can_place_tile() && !self.tile_palette_menu.is_road_tile_selected() {
             let placement_candidate = self.tile_palette_menu.current_selection();
 
             let did_place_or_clear = {
@@ -323,17 +285,16 @@ impl DebugMenusSingleton {
                                                                      args.camera.transform());
 
                     if target_cell.is_valid() {
-                        let query =
-                            args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
+                        let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
                         Spawner::new(&query).try_spawn_tile_with_def(target_cell, tile_def).is_ok()
                     } else {
                         false
                     }
                 } else {
+                    // Clear/remove tile:
                     let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
-                    if let Some(tile) =
-                        query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos,
-                                                                args.camera.transform())
+                    if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos,
+                                                                                args.camera.transform())
                     {
                         Spawner::new(&query).despawn_tile(tile);
                         true
@@ -391,14 +352,6 @@ impl DebugMenusSingleton {
 
         if show_popup_messages() {
             args.sim.draw_game_object_debug_popups(&mut context, args.visible_range);
-        }
-
-        if self.search_test_mode {
-            utils::draw_cursor_overlay(args.ui_sys,
-                                       args.camera.transform(),
-                                       Some(&format!("Search Test: {} -> {}",
-                                                     self.search_test_start,
-                                                     self.search_test_goal)));
         }
 
         if show_cursor_pos {
@@ -467,26 +420,22 @@ impl TileMapRawPtr {
 // Using this to get tile names from cells directly for debugging & logging.
 // SAFETY: Must make sure the tile map pointer set on initialization stays
 // valid until app termination or until it is reset.
-static TILE_MAP_DEBUG_PTR: mem::SingleThreadStatic<Option<TileMapRawPtr>> =
-    mem::SingleThreadStatic::new(None);
+static TILE_MAP_DEBUG_PTR: mem::SingleThreadStatic<Option<TileMapRawPtr>> = mem::SingleThreadStatic::new(None);
 
 fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {
     TILE_MAP_DEBUG_PTR.set(Some(TileMapRawPtr::new(tile_map)));
 
     tile_map.set_tile_placed_callback(Some(|tile, did_reallocate| {
-                                  DebugMenusSingleton::get_mut().tile_inspector_menu
-                                                                .on_tile_placed(tile,
-                                                                                did_reallocate);
-                              }));
+        DebugMenusSingleton::get_mut().tile_inspector_menu.on_tile_placed(tile, did_reallocate);
+    }));
 
     tile_map.set_removing_tile_callback(Some(|tile| {
-                                            DebugMenusSingleton::get_mut().tile_inspector_menu
-                                                                          .on_removing_tile(tile);
-                                        }));
+        DebugMenusSingleton::get_mut().tile_inspector_menu.on_removing_tile(tile);
+    }));
 
     tile_map.set_map_reset_callback(Some(|_| {
-                                        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
-                                    }));
+        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
+    }));
 }
 
 pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {

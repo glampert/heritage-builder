@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 use smallvec::SmallVec;
 
-use super::{Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, BASE_TILE_SIZE};
+use super::{road, Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, BASE_TILE_SIZE};
 use crate::{
     debug::{self},
     imgui_ui::UiSystem,
@@ -234,8 +234,7 @@ impl TileMapRenderer {
             if should_draw {
                 // Debug display for blocker tiles:
                 let tile_iso_pos = coords::cell_to_iso(cell, BASE_TILE_SIZE);
-                let tile_screen_rect =
-                    coords::iso_to_screen_rect(tile_iso_pos, BASE_TILE_SIZE, transform);
+                let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_pos, BASE_TILE_SIZE, transform);
                 debug::utils::draw_tile_debug(render_sys,
                                               ui_sys,
                                               tile_screen_rect,
@@ -266,13 +265,13 @@ impl TileMapRenderer {
 
             // Draw stacked chained tiles.
             tile_map.visit_next_tiles(tile, |next_tile| {
-                        Self::draw_tile(render_sys,
-                                        &mut self.stats,
-                                        ui_sys,
-                                        transform,
-                                        next_tile,
-                                        flags);
-                    });
+                Self::draw_tile(render_sys,
+                                &mut self.stats,
+                                ui_sys,
+                                transform,
+                                next_tile,
+                                flags);
+            });
         }
 
         self.stats.tile_sort_list_len += self.temp_tile_sort_list.len() as u32;
@@ -374,12 +373,32 @@ impl TileMapRenderer {
                     }
                 };
 
+                // Standard render:
                 let tex_coords = &tile_sprite.coords;
                 let texture = tile_sprite.texture;
                 let color = tile.tint_color() * highlight_color;
 
                 render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
                 stats.tiles_drawn += 1;
+
+                // Road placement overlay:
+                if tile.has_flags(TileFlags::RoadPlacement) {
+                    let road_tile_def = road::tile_def();
+
+                    if let Some(anim_set) = road_tile_def.anim_set_by_index(0, 0) {
+                        let tile_sprite = &anim_set.frames[0].tex_info;
+                        let tex_coords = &tile_sprite.coords;
+                        let texture = tile_sprite.texture;
+
+                        let mut color = road_tile_def.color;
+                        if tile.has_flags(TileFlags::Invalidated) {
+                            color *= INVALID_TILE_COLOR;
+                        }
+                        color.a *= 0.7;
+
+                        render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
+                    }
+                }
             }
         }
 

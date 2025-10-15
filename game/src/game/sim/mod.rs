@@ -91,6 +91,11 @@ impl Simulation {
     }
 
     #[inline]
+    pub fn treasury(&self) -> &GlobalTreasury {
+        &self.treasury
+    }
+
+    #[inline]
     pub fn task_manager(&mut self) -> &mut UnitTaskManager {
         &mut self.task_manager
     }

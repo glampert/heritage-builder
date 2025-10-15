@@ -768,6 +768,10 @@ impl GlobalTreasury {
 
     #[inline]
     pub fn can_afford(&self, world: &World, cost: u32) -> bool {
+        if cheats::get().ignore_tile_cost {
+            return true;
+        }
+
         cost <= world.stats().treasury.gold_units_total
     }
 

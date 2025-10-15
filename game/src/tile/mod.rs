@@ -30,6 +30,7 @@ pub mod camera;
 pub mod rendering;
 pub mod selection;
 pub mod sets;
+pub mod road;
 
 mod placement;
 
@@ -82,17 +83,18 @@ impl TileKind {
 
 bitflags_with_display! {
     #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct TileFlags: u8 {
+    pub struct TileFlags: u16 {
         const Hidden           = 1 << 0;
         const Highlighted      = 1 << 1;
         const Invalidated      = 1 << 2;
         const OccludesTerrain  = 1 << 3;
         const BuildingRoadLink = 1 << 4;
+        const RoadPlacement    = 1 << 5;
 
         // Debug flags:
-        const DrawDebugInfo    = 1 << 5;
-        const DrawDebugBounds  = 1 << 6;
-        const DrawBlockerInfo  = 1 << 7;
+        const DrawDebugInfo    = 1 << 6;
+        const DrawDebugBounds  = 1 << 7;
+        const DrawBlockerInfo  = 1 << 8;
     }
 }
 
@@ -281,7 +283,7 @@ impl<'de> Deserialize<'de> for TileDefRef {
 pub struct Tile {
     kind: TileKind,
     flags: TileFlags,
-    variation_index: u16,
+    variation_index: u8,
     z_sort_key: i32,
     self_index: TilePoolIndex,
     next_index: TilePoolIndex,
@@ -997,8 +999,9 @@ impl Tile {
 
     #[inline]
     pub fn set_variation_index(&mut self, index: usize) {
-        self.variation_index =
-            index.min(self.variation_count() - 1).try_into().expect("Value cannot fit into a u16!");
+        self.variation_index = index.min(self.variation_count() - 1)
+            .try_into()
+            .expect("Value cannot fit into a u8!");
     }
 
     #[inline]
@@ -2577,12 +2580,12 @@ impl Save for TileMap {
     fn pre_save(&mut self) {
         // Reset selection state. We don't save TileSelection.
         self.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::all(), |tile| {
-                tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
-            });
+            tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
+        });
 
         self.for_each_tile_mut(TileMapLayerKind::Objects, TileKind::all(), |tile| {
-                tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
-            });
+            tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
+        });
     }
 
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {

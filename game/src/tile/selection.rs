@@ -3,7 +3,7 @@ use smallvec::SmallVec;
 use super::{
     placement::{self, PlacementOp},
     rendering::SELECTION_RECT_COLOR,
-    Tile, TileFlags, TileKind, TileMapLayerKind, TileMapLayerMutRefs, BASE_TILE_SIZE,
+    Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerMutRefs, BASE_TILE_SIZE,
 };
 use crate::{
     app::input::{InputAction, MouseButton},
@@ -26,16 +26,56 @@ pub struct TileSelection {
     cursor_drag_start: Vec2,
     left_mouse_button_held: bool,
     valid_placement: bool,
+    enable_range_selection: bool,
     cells: SmallVec<[Cell; 64]>,
 }
 
 impl TileSelection {
+    pub fn new(enable_range_selection: bool) -> Self {
+        Self {
+            enable_range_selection,
+            ..Default::default()
+        }
+    }
+
     pub fn has_valid_placement(&self) -> bool {
         self.valid_placement
     }
 
+    pub fn first_cell(&self) -> Cell {
+        *self.cells.first().unwrap_or(&Cell::invalid())
+    }
+
     pub fn last_cell(&self) -> Cell {
         *self.cells.last().unwrap_or(&Cell::invalid())
+    }
+
+    pub fn range_selection_cells(&self,
+                                 tile_map: &TileMap,
+                                 cursor_screen_pos: Vec2,
+                                 transform: WorldToScreenTransform)
+                                 -> Option<(Cell, Cell)> {
+        if self.is_selecting_range() {
+            let start = tile_map.find_exact_cell_for_point(
+                TileMapLayerKind::Terrain,
+                self.cursor_drag_start,
+                transform);
+
+            let end = tile_map.find_exact_cell_for_point(
+                TileMapLayerKind::Terrain,
+                cursor_screen_pos,
+                transform);
+
+            Some((start, end))
+        } else if self.left_mouse_button_held && self.cursor_drag_start != Vec2::zero() {
+            let cell = tile_map.find_exact_cell_for_point(
+                TileMapLayerKind::Terrain,
+                self.cursor_drag_start,
+                transform);
+            Some((cell, cell)) // One cell selection.
+        } else {
+            None
+        }
     }
 
     pub fn on_mouse_click(&mut self,
@@ -57,7 +97,7 @@ impl TileSelection {
     }
 
     pub fn draw(&self, render_sys: &mut impl RenderSystem) {
-        if self.is_selecting_range() {
+        if self.enable_range_selection && self.is_selecting_range() {
             render_sys.draw_wireframe_rect_with_thickness(self.rect, SELECTION_RECT_COLOR, 1.5);
         }
     }
@@ -75,7 +115,7 @@ impl TileSelection {
             self.rect = Rect::zero();
         }
 
-        if self.is_selecting_range() {
+        if self.enable_range_selection && self.is_selecting_range() {
             // Clear previous highlighted tiles:
             self.clear(layers);
 
@@ -84,7 +124,6 @@ impl TileSelection {
             for cell in &range {
                 if let Some(base_tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                     let tile_iso_coords = base_tile.iso_coords();
-
                     let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_coords,
                                                                       base_tile.logical_size(),
                                                                       transform);
@@ -262,8 +301,7 @@ impl Load for TileSelection {
 // "Broad-Phase" tile selection based on the 4 corners of a rectangle.
 // Given the layout of the isometric tile map, this algorithm is quite greedy
 // and will select more tiles than actually intersect the rect, so a refinement
-// pass must be done after to intersect each tile's rect with the selection
-// rect.
+// pass must be done after to intersect each tile's rect with the selection rect.
 pub fn bounds(screen_rect: &Rect,
               tile_size: Size,
               map_size_in_cells: Size,
@@ -272,17 +310,25 @@ pub fn bounds(screen_rect: &Rect,
     debug_assert!(screen_rect.is_valid());
 
     // Convert screen-space corners to isometric space:
-    let top_left = coords::screen_to_iso_point(screen_rect.min, transform, BASE_TILE_SIZE);
+    let top_left = coords::screen_to_iso_point(
+        screen_rect.min,
+        transform,
+        BASE_TILE_SIZE);
 
-    let bottom_right = coords::screen_to_iso_point(screen_rect.max, transform, BASE_TILE_SIZE);
+    let bottom_right = coords::screen_to_iso_point(
+        screen_rect.max,
+        transform,
+        BASE_TILE_SIZE);
 
-    let top_right = coords::screen_to_iso_point(Vec2::new(screen_rect.max.x, screen_rect.min.y),
-                                                transform,
-                                                BASE_TILE_SIZE);
+    let top_right = coords::screen_to_iso_point(
+        Vec2::new(screen_rect.max.x, screen_rect.min.y),
+        transform,
+        BASE_TILE_SIZE);
 
-    let bottom_left = coords::screen_to_iso_point(Vec2::new(screen_rect.min.x, screen_rect.max.y),
-                                                  transform,
-                                                  BASE_TILE_SIZE);
+    let bottom_left = coords::screen_to_iso_point(
+        Vec2::new(screen_rect.min.x, screen_rect.max.y),
+        transform,
+        BASE_TILE_SIZE);
 
     // Convert isometric points to cell coordinates:
     let cell_tl = coords::iso_to_cell(top_left, tile_size);

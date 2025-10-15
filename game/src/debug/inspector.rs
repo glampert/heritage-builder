@@ -60,10 +60,6 @@ pub struct TileInspectorMenu {
 }
 
 impl TileInspectorMenu {
-    pub fn new() -> Self {
-        Self { last_tile_cell: Cell::invalid(), ..Default::default() }
-    }
-
     pub fn close(&mut self) {
         self.is_open = false;
         self.selected = None;
