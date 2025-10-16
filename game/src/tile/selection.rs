@@ -24,6 +24,7 @@ use crate::{
 pub struct TileSelection {
     rect: Rect, // Range selection rect w/ cursor click-n-drag.
     cursor_drag_start: Vec2,
+    cursor_drag_start_cell: Cell,
     left_mouse_button_held: bool,
     valid_placement: bool,
     enable_range_selection: bool,
@@ -55,12 +56,8 @@ impl TileSelection {
                                  cursor_screen_pos: Vec2,
                                  transform: WorldToScreenTransform)
                                  -> Option<(Cell, Cell)> {
-        if self.is_selecting_range() {
-            let start = tile_map.find_exact_cell_for_point(
-                TileMapLayerKind::Terrain,
-                self.cursor_drag_start,
-                transform);
-
+        if self.is_selecting_range() && self.cursor_drag_start_cell.is_valid() {
+            let start = self.cursor_drag_start_cell;
             let end = tile_map.find_exact_cell_for_point(
                 TileMapLayerKind::Terrain,
                 cursor_screen_pos,
@@ -81,15 +78,22 @@ impl TileSelection {
     pub fn on_mouse_click(&mut self,
                           button: MouseButton,
                           action: InputAction,
-                          cursor_screen_pos: Vec2)
+                          tile_map: &TileMap,
+                          cursor_screen_pos: Vec2,
+                          transform: WorldToScreenTransform)
                           -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
                 self.cursor_drag_start = cursor_screen_pos;
+                self.cursor_drag_start_cell = tile_map.find_exact_cell_for_point(
+                    TileMapLayerKind::Terrain,
+                    cursor_screen_pos,
+                    transform);
                 self.left_mouse_button_held = true;
                 return UiInputEvent::Handled;
             } else if action == InputAction::Release {
                 self.cursor_drag_start = Vec2::zero();
+                self.cursor_drag_start_cell = Cell::invalid();
                 self.left_mouse_button_held = false;
             }
         }

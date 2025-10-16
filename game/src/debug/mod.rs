@@ -186,7 +186,7 @@ impl DebugMenusSingleton {
             }
         } else {
             if args.tile_selection
-                   .on_mouse_click(button, action, args.cursor_screen_pos)
+                   .on_mouse_click(button, action, args.tile_map, args.cursor_screen_pos, args.transform)
                    .not_handled()
             {
                 // Place road segment if valid & we can afford it:
