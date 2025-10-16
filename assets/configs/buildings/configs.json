@@ -134,7 +134,7 @@
       "tile_def_name": "small_well",
       "min_workers": 0,
       "max_workers": 0,
-      "effect_radius": 5,
+      "effect_radius": 10,
       "requires_road_access": false
     },
     {
@@ -143,7 +143,7 @@
       "tile_def_name": "large_well",
       "min_workers": 1,
       "max_workers": 2,
-      "effect_radius": 10,
+      "effect_radius": 15,
       "requires_road_access": true
     },
     {
@@ -184,7 +184,7 @@
       "tile_def_name": "shrine",
       "min_workers": 0,
       "max_workers": 0,
-      "effect_radius": 5,
+      "effect_radius": 10,
       "requires_road_access": false
     },
     {
@@ -255,7 +255,7 @@
       "tile_def_name": "apothecary",
       "min_workers": 1,
       "max_workers": 1,
-      "effect_radius": 8,
+      "effect_radius": 10,
       "requires_road_access": true
     },
     {
