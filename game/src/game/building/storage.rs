@@ -181,6 +181,10 @@ impl BuildingBehavior for StorageBuilding {
     // Resources/Stock:
     // ----------------------
 
+    fn has_stock(&self) -> bool {
+        true
+    }
+
     fn is_stock_full(&self) -> bool {
         self.storage_slots.are_all_slots_full()
     }

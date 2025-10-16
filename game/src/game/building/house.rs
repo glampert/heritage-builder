@@ -328,6 +328,10 @@ impl BuildingBehavior for HouseBuilding {
     // Resources/Stock:
     // ----------------------
 
+    fn has_stock(&self) -> bool {
+        true
+    }
+
     fn is_stock_full(&self) -> bool {
         self.stock.is_full()
     }

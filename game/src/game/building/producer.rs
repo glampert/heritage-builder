@@ -222,6 +222,10 @@ impl BuildingBehavior for ProducerBuilding {
     // Resources/Stock:
     // ----------------------
 
+    fn has_stock(&self) -> bool {
+        true
+    }
+
     fn is_stock_full(&self) -> bool {
         self.production_output_stock.is_full()
     }

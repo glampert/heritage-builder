@@ -203,6 +203,10 @@ impl BuildingBehavior for ServiceBuilding {
     // Resources/Stock:
     // ----------------------
 
+    fn has_stock(&self) -> bool {
+        matches!(&self.stock_or_treasury, StockOrTreasury::Stock { .. })
+    }
+
     fn is_stock_full(&self) -> bool {
         match &self.stock_or_treasury {
             StockOrTreasury::Stock { stock, .. } => stock.is_full(),

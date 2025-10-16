@@ -82,7 +82,8 @@
           "Hospital",
           "PoliceStation",
           "Theater",
-          "University"
+          "University",
+          "Garden"
         ]
       },
       "resources_required": {
@@ -114,7 +115,8 @@
           "Hospital",
           "PoliceStation",
           "Theater",
-          "University"
+          "University",
+          "Garden"
         ]
       },
       "resources_required": {
@@ -197,6 +199,15 @@
       "requires_road_access": true,
       "has_patrol_unit": true,
       "patrol_frequency_secs": 40.0
+    },
+    {
+      "kind": "Garden",
+      "name": "Garden",
+      "tile_def_name": "garden",
+      "min_workers": 0,
+      "max_workers": 0,
+      "effect_radius": 40,
+      "requires_road_access": false
     },
     {
       "kind": "Citadel",

@@ -90,6 +90,7 @@ bitflags_with_display! {
         const University     = 1 << 15;
         const Apothecary     = 1 << 16;
         const Hospital       = 1 << 17;
+        const Garden         = 1 << 18;
     }
 }
 
@@ -143,7 +144,8 @@ impl BuildingKind {
                                | Self::Theater.bits()
                                | Self::University.bits()
                                | Self::Apothecary.bits()
-                               | Self::Hospital.bits())
+                               | Self::Hospital.bits()
+                               | Self::Garden.bits())
     }
 
     #[inline]
@@ -852,8 +854,11 @@ impl Building {
             }
         } else {
             color_bullet_bool("Is operational", self.archetype().is_operational());
-            color_bullet_bool("Stock is full", self.archetype().is_stock_full());
             color_bullet_bool("Has resources", self.archetype().has_min_required_resources());
+
+            if self.archetype().has_stock() {
+                color_bullet_bool("Stock is full", self.archetype().is_stock_full());
+            }
         }
 
         if let Some(population) = self.archetype().population() {
@@ -904,13 +909,14 @@ impl Building {
                 road_link: Cell,
                 id: BuildingId,
             }
-            let debug_vars = DrawDebugUiVariables { name: self.name(),
-                                                    kind: self.kind(),
-                                                    archetype: self.archetype_kind(),
-                                                    cells: self.cell_range(),
-                                                    road_link: self.road_link(context.query)
-                                                                   .unwrap_or_default(),
-                                                    id: self.id() };
+            let debug_vars = DrawDebugUiVariables {
+                name: self.name(),
+                kind: self.kind(),
+                archetype: self.archetype_kind(),
+                cells: self.cell_range(),
+                road_link: self.road_link(context.query).unwrap_or_default(),
+                id: self.id()
+            };
             debug_vars.draw_debug_ui(ui_sys);
         }
 
@@ -1110,8 +1116,8 @@ trait BuildingBehavior {
     // Resources/Stock:
     // ----------------------
 
+    fn has_stock(&self) -> bool;
     fn is_stock_full(&self) -> bool;
-
     fn has_min_required_resources(&self) -> bool {
         true
     }
