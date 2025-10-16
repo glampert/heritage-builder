@@ -12,6 +12,7 @@ use super::{
 };
 use crate::{
     building_config,
+    game_object_debug_options,
     engine::time::{Seconds, UpdateTimer},
     game::{
         sim::resources::{
@@ -21,7 +22,6 @@ use crate::{
         unit::Unit,
         world::stats::WorldStats,
     },
-    game_object_debug_options,
     imgui_ui::UiSystem,
     log,
     pathfind::NodeKind as PathNodeKind,
@@ -475,13 +475,13 @@ impl HouseBuilding {
 
         // Consume one of each resources this level uses.
         curr_level_resources_required.for_each(|resource| {
-                                         if self.remove_resources(resource, 1) != 0 {
-                                             // We consumed one, done.
-                                             // E.g.: resource = Meat|Fish, consume one of either.
-                                             return false;
-                                         }
-                                         true
-                                     });
+            if self.remove_resources(resource, 1) != 0 {
+                // We consumed one, done.
+                // E.g.: resource = Meat|Fish, consume one of either.
+                return false;
+            }
+            true
+        });
     }
 
     fn visited_by_market_vendor(&mut self, unit: &mut Unit, context: &BuildingContext) {
@@ -549,10 +549,10 @@ impl HouseBuilding {
         }
 
         shopping_list.for_each(|resource| {
-                         let removed_count = market.remove_resources(resource, 1);
-                         self.receive_resources(resource, removed_count);
-                         true
-                     });
+            let removed_count = market.remove_resources(resource, 1);
+            self.receive_resources(resource, removed_count);
+            true
+        });
     }
 
     // ----------------------
@@ -590,11 +590,8 @@ impl HouseBuilding {
         self.upgrade_state.is_upgrade_available(context)
     }
 
-    pub fn has_requirements_for_upgrade(&self, context: &BuildingContext) -> (bool, bool) {
-        let next_level_requirements =
-            HouseLevelRequirements::new(context, self.next_level_config(), &self.stock);
-        (next_level_requirements.has_required_resources(),
-         next_level_requirements.has_required_services())
+    pub fn upgrade_requirements(&self, context: &BuildingContext) -> HouseLevelRequirements {
+        HouseLevelRequirements::new(context, self.next_level_config(), &self.stock)
     }
 
     // ----------------------
@@ -941,7 +938,7 @@ impl HouseLevel {
 // HouseLevelRequirements
 // ----------------------------------------------
 
-struct HouseLevelRequirements {
+pub struct HouseLevelRequirements {
     level_config: &'static HouseLevelConfig,
     services_available: ServiceKind, // From the level requirements, which ones we have access to.
     resources_available: ResourceKind, // From the level requirements, which ones we have in stock.
@@ -957,18 +954,18 @@ impl HouseLevelRequirements {
                               resources_available: ResourceKind::empty() };
 
         level_config.services_required.for_each(|service| {
-                                          if context.has_access_to_service(service) {
-                                              reqs.services_available.insert(service);
-                                          }
-                                          true
-                                      });
+            if context.has_access_to_service(service) {
+               reqs.services_available.insert(service);
+            }
+            true
+        });
 
         level_config.resources_required.for_each(|resource| {
-                                           if stock.has_any_of(resource) {
-                                               reqs.resources_available.insert(resource);
-                                           }
-                                           true
-                                       });
+            if stock.has_any_of(resource) {
+                reqs.resources_available.insert(resource);
+            }
+            true
+        });
 
         reqs
     }
@@ -984,7 +981,7 @@ impl HouseLevelRequirements {
     }
 
     #[inline]
-    fn has_required_services(&self) -> bool {
+    pub fn has_required_services(&self) -> bool {
         if self.services_available_count() < self.level_config.services_required.len() {
             return false;
         }
@@ -998,7 +995,7 @@ impl HouseLevelRequirements {
     }
 
     #[inline]
-    fn has_required_resources(&self) -> bool {
+    pub fn has_required_resources(&self) -> bool {
         if self.resources_available_count() < self.level_config.resources_required.len() {
             return false;
         }
@@ -1009,6 +1006,30 @@ impl HouseLevelRequirements {
             }
         }
         true
+    }
+
+    pub fn services_missing(&self) -> ServiceKind {
+        let mut missing = ServiceKind::empty();
+
+        for service in self.level_config.services_required.iter() {
+            if !self.services_available.intersects(*service) {
+                missing.insert(*service);
+            }
+        }
+
+        missing
+    }
+
+    pub fn resources_missing(&self) -> ResourceKind {
+        let mut missing = ResourceKind::empty();
+
+        for resource in self.level_config.resources_required.iter() {
+            if !self.resources_available.intersects(*resource) {
+                missing.insert(*resource);
+            }
+        }
+
+        missing
     }
 }
 
@@ -1223,62 +1244,61 @@ impl HouseBuilding {
             return; // collapsed.
         }
 
-        let draw_level_requirements =
-            |label: &str, level_requirements: &HouseLevelRequirements, imgui_id: u32| {
-                ui.separator();
-                ui.text(label);
+        let draw_level_requirements = |label: &str, level_requirements: &HouseLevelRequirements, imgui_id: u32| {
+            ui.separator();
+            ui.text(label);
 
-                ui.text(format!("  Resources avail : {} (req: {})",
-                                level_requirements.resources_available_count(),
-                                level_requirements.level_config.resources_required.len()));
-                ui.text(format!("  Services avail  : {} (req: {})",
-                                level_requirements.services_available_count(),
-                                level_requirements.level_config.services_required.len()));
+            ui.text(format!("  Resources avail : {} (req: {})",
+                            level_requirements.resources_available_count(),
+                            level_requirements.level_config.resources_required.len()));
+            ui.text(format!("  Services avail  : {} (req: {})",
+                            level_requirements.services_available_count(),
+                            level_requirements.level_config.services_required.len()));
 
-                if ui.collapsing_header(format!("Resources##_building_resources_{}", imgui_id),
-                                        imgui::TreeNodeFlags::empty())
-                {
-                    if !level_requirements.level_config.resources_required.is_empty() {
-                        ui.text("Available:");
-                        if level_requirements.resources_available.is_empty() {
-                            ui.text("  <none>");
-                        }
-                        for resource in level_requirements.resources_available.iter() {
-                            ui.text(format!("  {}", resource));
-                        }
-                    }
-
-                    ui.text("Required:");
-                    if level_requirements.level_config.resources_required.is_empty() {
+            if ui.collapsing_header(format!("Resources##_building_resources_{}", imgui_id),
+                                    imgui::TreeNodeFlags::empty())
+            {
+                if !level_requirements.level_config.resources_required.is_empty() {
+                    ui.text("Available:");
+                    if level_requirements.resources_available.is_empty() {
                         ui.text("  <none>");
                     }
-                    for resource in level_requirements.level_config.resources_required.iter() {
+                    for resource in level_requirements.resources_available.iter() {
                         ui.text(format!("  {}", resource));
                     }
                 }
 
-                if ui.collapsing_header(format!("Services##_building_services_{}", imgui_id),
-                                        imgui::TreeNodeFlags::empty())
-                {
-                    if !level_requirements.level_config.services_required.is_empty() {
-                        ui.text("Available:");
-                        if level_requirements.services_available.is_empty() {
-                            ui.text("  <none>");
-                        }
-                        for service in level_requirements.services_available.iter() {
-                            ui.text(format!("  {}", service));
-                        }
-                    }
+                ui.text("Required:");
+                if level_requirements.level_config.resources_required.is_empty() {
+                    ui.text("  <none>");
+                }
+                for resource in level_requirements.level_config.resources_required.iter() {
+                    ui.text(format!("  {}", resource));
+                }
+            }
 
-                    ui.text("Required:");
-                    if level_requirements.level_config.services_required.is_empty() {
+            if ui.collapsing_header(format!("Services##_building_services_{}", imgui_id),
+                                    imgui::TreeNodeFlags::empty())
+            {
+                if !level_requirements.level_config.services_required.is_empty() {
+                    ui.text("Available:");
+                    if level_requirements.services_available.is_empty() {
                         ui.text("  <none>");
                     }
-                    for service in level_requirements.level_config.services_required.iter() {
+                    for service in level_requirements.services_available.iter() {
                         ui.text(format!("  {}", service));
                     }
                 }
-            };
+
+                ui.text("Required:");
+                if level_requirements.level_config.services_required.is_empty() {
+                    ui.text("  <none>");
+                }
+                for service in level_requirements.level_config.services_required.iter() {
+                    ui.text(format!("  {}", service));
+                }
+            }
+        };
 
         let color_text = |text: &str, value: bool| {
             ui.text(text);
@@ -1317,15 +1337,17 @@ impl HouseBuilding {
 
         let upgrade_state = &self.upgrade_state;
 
-        let curr_level_requirements = HouseLevelRequirements::new(context,
-                                                                  upgrade_state.curr_level_config
-                                                                               .unwrap(),
-                                                                  &self.stock);
+        let curr_level_requirements = HouseLevelRequirements::new(
+            context,
+            upgrade_state.curr_level_config.unwrap(),
+            &self.stock
+        );
 
-        let next_level_requirements = HouseLevelRequirements::new(context,
-                                                                  upgrade_state.next_level_config
-                                                                               .unwrap(),
-                                                                  &self.stock);
+        let next_level_requirements = HouseLevelRequirements::new(
+            context,
+            upgrade_state.next_level_config.unwrap(),
+            &self.stock
+        );
 
         color_text(" - Has room        :", upgrade_state.has_room_to_upgrade);
         color_text(" - Has services    :", next_level_requirements.has_required_services());

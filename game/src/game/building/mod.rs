@@ -803,8 +803,8 @@ impl Building {
     fn draw_debug_ui_overview(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
-        let color_bullet_text = |text: &str, value: bool| {
-            ui.bullet_text(format!("{text}:"));
+        let color_bullet_bool = |label: &str, value: bool| {
+            ui.bullet_text(format!("{label}:"));
             ui.same_line();
             if value {
                 ui.text("yes");
@@ -813,11 +813,17 @@ impl Building {
             }
         };
 
+        let color_bullet_text = |label: &str, value: &str| {
+            ui.bullet_text(format!("{label}:"));
+            ui.same_line();
+            ui.text_colored(Color::red().to_array(), value);
+        };
+
         let font = ui.push_font(ui_sys.fonts().large);
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
         font.pop();
 
-        color_bullet_text("Linked to road", self.is_linked_to_road(context.query));
+        color_bullet_bool("Linked to road", self.is_linked_to_road(context.query));
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
@@ -826,19 +832,28 @@ impl Building {
                                    house.tax_available()));
 
             if !house.level().is_max() {
-                let (has_required_resources, has_required_services) =
-                    house.has_requirements_for_upgrade(context);
+                let upgrade_requirements = house.upgrade_requirements(context);
+                let has_required_resources = upgrade_requirements.has_required_resources();
+                let has_required_services = upgrade_requirements.has_required_services();
 
-                color_bullet_text("Has resources to upgrade", has_required_resources);
-                color_bullet_text("Has services to upgrade", has_required_services);
-                color_bullet_text("Has room to upgrade", house.is_upgrade_available(context));
+                color_bullet_bool("Has resources to upgrade", has_required_resources);
+                if !has_required_resources {
+                    color_bullet_text("Missing", &upgrade_requirements.resources_missing().to_string());
+                }
+
+                color_bullet_bool("Has services to upgrade", has_required_services);
+                if !has_required_services {
+                    color_bullet_text("Missing", &upgrade_requirements.services_missing().to_string());
+                }
+
+                color_bullet_bool("Has room to upgrade", house.is_upgrade_available(context));
             } else {
                 ui.bullet_text("Max house level reached");
             }
         } else {
-            color_bullet_text("Is operational", self.archetype().is_operational());
-            color_bullet_text("Stock is full", self.archetype().is_stock_full());
-            color_bullet_text("Has resources", self.archetype().has_min_required_resources());
+            color_bullet_bool("Is operational", self.archetype().is_operational());
+            color_bullet_bool("Stock is full", self.archetype().is_stock_full());
+            color_bullet_bool("Has resources", self.archetype().has_min_required_resources());
         }
 
         if let Some(population) = self.archetype().population() {
@@ -854,8 +869,8 @@ impl Building {
                                        worker_pool.employed_count(),
                                        worker_pool.unemployed_count()));
             } else if let Some(employer) = workers.as_employer() {
-                color_bullet_text("Has min workers", self.archetype().has_min_required_workers());
-                color_bullet_text("Has all workers", employer.is_at_max_capacity());
+                color_bullet_bool("Has min workers", self.archetype().has_min_required_workers());
+                color_bullet_bool("Has all workers", employer.is_at_max_capacity());
                 if employer.is_below_min_required() {
                     ui.bullet_text("Workers:");
                     ui.same_line();
