@@ -820,8 +820,8 @@
           "cost": 1,
           "occludes_terrain": false,
           "draw_size": {
-            "width": 75,
-            "height": 95
+            "width": 56,
+            "height": 74
           },
           "variations": [
             {
@@ -847,18 +847,6 @@
                   ]
                 }
               ]
-            },
-            {
-              "name": "var2",
-              "anim_sets": [
-                {
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    }
-                  ]
-                }
-              ]
             }
           ]
         },
@@ -866,8 +854,8 @@
           "name": "bamboo",
           "occludes_terrain": false,
           "draw_size": {
-            "width": 70,
-            "height": 80
+            "width": 60,
+            "height": 65
           },
           "variations": [
             {
@@ -887,8 +875,30 @@
           "name": "bush",
           "occludes_terrain": false,
           "draw_size": {
-            "width": 70,
-            "height": 44
+            "width": 50,
+            "height": 50
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "palm_tree",
+          "cost": 1,
+          "occludes_terrain": false,
+          "draw_size": {
+            "width": 64,
+            "height": 90
           },
           "variations": [
             {

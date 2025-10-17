@@ -568,6 +568,12 @@ fn calc_object_z_sort_key(base_cell: Cell, logical_height: i32) -> i32 {
     coords::cell_to_iso(base_cell, BASE_TILE_SIZE).y - logical_height
 }
 
+#[inline]
+pub fn calc_unit_iso_coords(base_cell: Cell, draw_size: Size) -> Vec2 {
+    calc_object_iso_coords(TileKind::Unit, base_cell, BASE_TILE_SIZE, draw_size)
+}
+
+#[inline]
 pub fn calc_object_iso_coords(kind: TileKind,
                               base_cell: Cell,
                               logical_size: Size,
@@ -576,7 +582,7 @@ pub fn calc_object_iso_coords(kind: TileKind,
     // Convert the anchor (bottom tile for buildings) to isometric coordinates:
     let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
 
-    if kind.intersects(TileKind::Building | TileKind::Prop | TileKind::Vegetation) {
+    if kind.intersects(TileKind::Building) {
         // Center the sprite horizontally:
         tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (logical_size.width / 2);
 
@@ -585,21 +591,14 @@ pub fn calc_object_iso_coords(kind: TileKind,
         // we must offset up by (image_height - one_tile_height).
         tile_iso_coords.y -= draw_size.height - BASE_TILE_SIZE.height;
     } else if kind.intersects(TileKind::Unit) {
-        // Adjust to center the unit sprite:
+        // Adjust to center the unit sprite to the tile:
         tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
         tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2);
+    } else if kind.intersects(TileKind::Prop | TileKind::Vegetation) {
+        // Adjust to center the prop sprite to the tile:
+        tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
+        tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2) - (BASE_TILE_SIZE.height / 4);
     }
-
-    tile_iso_coords.to_vec2()
-}
-
-pub fn calc_unit_iso_coords(base_cell: Cell, draw_size: Size) -> Vec2 {
-    // Convert the anchor (bottom tile for buildings) to isometric coordinates:
-    let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
-
-    // Adjust to center the unit sprite:
-    tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
-    tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2);
 
     tile_iso_coords.to_vec2()
 }

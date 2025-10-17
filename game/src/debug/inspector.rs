@@ -414,6 +414,20 @@ impl TileInspectorMenu {
             return; // collapsed.
         }
 
+        if ui.button("Refresh all Tiles") {
+            context.tile_map.for_each_tile_mut(
+                TileMapLayerKind::Terrain,
+                TileKind::Terrain,
+                |tile| tile.on_tile_def_edited());
+
+            context.tile_map.for_each_tile_mut(
+                TileMapLayerKind::Objects,
+                TileKind::Building | TileKind::Unit | TileKind::Prop | TileKind::Vegetation,
+                |tile| tile.on_tile_def_edited());
+        }
+
+        ui.separator();
+
         let mut color = tile.tint_color();
         if imgui_ui::input_color(ui, "Color:", &mut color) {
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
