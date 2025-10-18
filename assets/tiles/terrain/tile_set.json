@@ -18,7 +18,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "dirt"
                     }
                   ]
                 }
@@ -30,7 +30,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "dirt"
                     }
                   ]
                 }
@@ -42,7 +42,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "dirt"
                     }
                   ]
                 }
@@ -64,7 +64,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "grass"
                     }
                   ]
                 }
@@ -76,7 +76,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "grass"
                     }
                   ]
                 }
@@ -88,7 +88,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "grass"
                     }
                   ]
                 }
@@ -100,7 +100,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "grass"
                     }
                   ]
                 }
@@ -326,7 +326,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "vacant_lot"
                     }
                   ]
                 }
@@ -338,7 +338,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "vacant_lot"
                     }
                   ]
                 }
@@ -365,7 +365,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "settlers_spawn_point"
                     }
                   ]
                 }
@@ -392,7 +392,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "water"
                     }
                   ]
                 }
@@ -404,7 +404,7 @@
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "water"
                     }
                   ]
                 }
