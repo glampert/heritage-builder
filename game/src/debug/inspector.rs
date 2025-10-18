@@ -6,7 +6,7 @@ use crate::{
     game::sim::{self, debug::DebugUiMode, Simulation},
     imgui_ui::{self, UiInputEvent},
     pathfind::NodeKind as PathNodeKind,
-    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE},
+    tile::{road, Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE},
     utils::{coords::Cell, mem, Color, Size},
 };
 
@@ -229,16 +229,18 @@ impl TileInspectorMenu {
             color: Color,
         }
 
-        let debug_vars = DrawDebugUiVariables { name: tile.name(),
-                                                category: tile.category_name(),
-                                                kind: tile.kind(),
-                                                flags: tile.flags(),
-                                                path_kind: tile.path_kind(),
-                                                has_game_object: tile.game_object_handle().is_valid(),
-                                                size_in_cells: tile.size_in_cells(),
-                                                draw_size: tile.draw_size(),
-                                                logical_size: tile.logical_size(),
-                                                color: tile.tint_color() };
+        let debug_vars = DrawDebugUiVariables {
+            name: tile.name(),
+            category: tile.category_name(),
+            kind: tile.kind(),
+            flags: tile.flags(),
+            path_kind: tile.path_kind(),
+            has_game_object: tile.game_object_handle().is_valid(),
+            size_in_cells: tile.size_in_cells(),
+            draw_size: tile.draw_size(),
+            logical_size: tile.logical_size(),
+            color: tile.tint_color()
+        };
 
         debug_vars.draw_debug_ui(context.ui_sys);
         ui.separator();
@@ -358,14 +360,15 @@ impl TileInspectorMenu {
             frame_play_time_secs: Seconds,
         }
 
-        let debug_vars =
-            DrawDebugUiVariables { anim_set_count,
-                                   anim_frames_count: tile.anim_frames_count(),
-                                   anim_duration_secs: anim_set.anim_duration_secs(),
-                                   looping: anim_set.looping,
-                                   frame_index: tile.anim_frame_index(),
-                                   frame_duration_secs: anim_set.frame_duration_secs(),
-                                   frame_play_time_secs: tile.anim_frame_play_time_secs() };
+        let debug_vars = DrawDebugUiVariables {
+            anim_set_count,
+            anim_frames_count: tile.anim_frames_count(),
+            anim_duration_secs: anim_set.anim_duration_secs(),
+            looping: anim_set.looping,
+            frame_index: tile.anim_frame_index(),
+            frame_duration_secs: anim_set.frame_duration_secs(),
+            frame_play_time_secs: tile.anim_frame_play_time_secs()
+        };
 
         debug_vars.draw_debug_ui(context.ui_sys);
     }
@@ -415,15 +418,26 @@ impl TileInspectorMenu {
         }
 
         if ui.button("Refresh all Tiles") {
+            let mut road_cells = Vec::new();
+
             context.tile_map.for_each_tile_mut(
                 TileMapLayerKind::Terrain,
                 TileKind::Terrain,
-                |tile| tile.on_tile_def_edited());
+                |tile| {
+                    tile.on_tile_def_edited();
+                    if tile.path_kind().intersects(PathNodeKind::Road) {
+                        road_cells.push(tile.base_cell());
+                    }
+                });
 
             context.tile_map.for_each_tile_mut(
                 TileMapLayerKind::Objects,
                 TileKind::Building | TileKind::Unit | TileKind::Prop | TileKind::Vegetation,
                 |tile| tile.on_tile_def_edited());
+
+            for cell in road_cells {
+                road::update_junctions(cell, context.tile_map);
+            }
         }
 
         ui.separator();

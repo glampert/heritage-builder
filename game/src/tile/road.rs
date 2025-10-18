@@ -46,8 +46,8 @@ static ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
     TileSets::get().find_tile_def_by_hash(
         TileMapLayerKind::Terrain,
         TERRAIN_GROUND_CATEGORY.hash,
-        hash::fnv1a_from_str("stone_path"))
-        .expect("Failed to find road tile 'stone_path'!")
+        hash::fnv1a_from_str("dirt_road"))
+        .expect("Failed to find road tile 'dirt_road'!")
 });
 
 enum RangeInclusiveIter {
@@ -98,7 +98,8 @@ fn can_place_road(cell: Cell, tile_map: &TileMap) -> bool {
 
 fn is_road(cell: Cell, tile_map: &TileMap) -> bool {
     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-        if tile.path_kind().intersects(PathNodeKind::Road) {
+        if tile.path_kind().intersects(PathNodeKind::Road) ||
+           tile.has_flags(TileFlags::RoadPlacement) {
             return true;
         }
     }
@@ -221,6 +222,64 @@ pub fn mark_tiles(tile_map: &mut TileMap, segment: &RoadSegment, highlight: bool
                     TileFlags::Invalidated,
                     false);
             }
+        }
+    }
+}
+
+// +-----------------------------------------+
+// │ Road Junctions Mask Reference (N,E,S,W) |
+// +-----------------------------------------+
+
+// Bit order (rightmost bit is the start)
+//
+// W = bit 0
+// S = bit 1
+// E = bit 2
+// N = bit 3
+// mask = N|E|S|W
+//
+// 0000 -> no connection
+// 0001 -> connects west
+// 0010 -> connects south
+// 0100 -> connects east
+// 1000 -> connects north
+//
+// Each mask maps to one of the 16 possible junctions for a road tile.
+// The road tile has one variation for each of the junction combinations.
+
+const WEST_BIT:  usize = 1 << 0;
+const SOUTH_BIT: usize = 1 << 1;
+const EAST_BIT:  usize = 1 << 2;
+const NORTH_BIT: usize = 1 << 3;
+
+pub fn junction_mask(cell: Cell, tile_map: &TileMap) -> usize {
+    let mut mask = 0;
+    if is_road(Cell::new(cell.x + 1, cell.y), tile_map) { mask |= NORTH_BIT; }
+    if is_road(Cell::new(cell.x - 1, cell.y), tile_map) { mask |= SOUTH_BIT; }
+    if is_road(Cell::new(cell.x, cell.y - 1), tile_map) { mask |= EAST_BIT;  }
+    if is_road(Cell::new(cell.x, cell.y + 1), tile_map) { mask |= WEST_BIT;  }
+    mask
+}
+
+pub fn update_junctions(cell: Cell, tile_map: &mut TileMap) {
+    update_tile_junction(cell, tile_map);
+    update_neighboring_junctions(cell, tile_map);
+}
+
+fn update_tile_junction(cell: Cell, tile_map: &mut TileMap) {
+    let variation_index = junction_mask(cell, tile_map);
+    if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {
+        if tile.path_kind().intersects(PathNodeKind::Road) {
+            tile.set_variation_index(variation_index);
+        }
+    }
+}
+
+fn update_neighboring_junctions(cell: Cell, tile_map: &mut TileMap) {
+    for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+        let cell = Cell::new(cell.x + dx, cell.y + dy);
+        if is_road(cell, tile_map) {
+            update_tile_junction(cell, tile_map);
         }
     }
 }

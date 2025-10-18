@@ -364,11 +364,11 @@ mod preset_maps {
     // TERRAIN:
     const G: i32 = 0; // grass
     const D: i32 = 1; // dirt
-    const R: i32 = 2; // stone_path (road)
+    const R: i32 = 2; // dirt_road
     const TERRAIN_TILE_NAMES: [&str; 3] = [
         "grass",
         "dirt",
-        "stone_path",
+        "dirt_road",
     ];
 
     // BUILDINGS:

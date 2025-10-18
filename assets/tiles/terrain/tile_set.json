@@ -109,20 +109,201 @@
           ]
         },
         {
-          "name": "stone_path",
+          "name": "dirt_road",
           "cost": 1,
           "path_kind": "Road",
           "draw_size": {
-            "width": 65,
-            "height": 41
+            "width": 64,
+            "height": 36
           },
           "variations": [
             {
+              "name": "0000",
               "anim_sets": [
                 {
                   "frames": [
                     {
-                      "name": "frame0"
+                      "name": "0000"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0001"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0010"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0011",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0011"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0100"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0101"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0110",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0110"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0111"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1000"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1001",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1001"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1010",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1010"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1011",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1011"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1100",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1100"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1101"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1110",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1110"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1111"
                     }
                   ]
                 }

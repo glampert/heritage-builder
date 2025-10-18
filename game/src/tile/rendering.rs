@@ -186,7 +186,13 @@ impl TileMapRenderer {
                     }
                 }
 
-                Self::draw_tile(render_sys, &mut self.stats, ui_sys, transform, tile, flags);
+                Self::draw_tile(render_sys,
+                                &mut self.stats,
+                                ui_sys,
+                                transform,
+                                tile,
+                                tile_map,
+                                flags);
             }
         }
     }
@@ -261,7 +267,13 @@ impl TileMapRenderer {
             let tile = entry.tile_ref();
             debug_assert!(tile.is(TileKind::Object));
 
-            Self::draw_tile(render_sys, &mut self.stats, ui_sys, transform, tile, flags);
+            Self::draw_tile(render_sys,
+                            &mut self.stats,
+                            ui_sys,
+                            transform,
+                            tile,
+                            tile_map,
+                            flags);
 
             // Draw stacked chained tiles.
             tile_map.visit_next_tiles(tile, |next_tile| {
@@ -270,6 +282,7 @@ impl TileMapRenderer {
                                 ui_sys,
                                 transform,
                                 next_tile,
+                                tile_map,
                                 flags);
             });
         }
@@ -353,6 +366,7 @@ impl TileMapRenderer {
                  ui_sys: &UiSystem,
                  transform: WorldToScreenTransform,
                  tile: &Tile,
+                 tile_map: &TileMap,
                  flags: TileMapRenderFlags) {
         debug_assert!(tile.is_valid());
         debug_assert!(!tile.is(TileKind::Blocker));
@@ -383,26 +397,38 @@ impl TileMapRenderer {
 
                 // Road placement overlay:
                 if tile.has_flags(TileFlags::RoadPlacement) {
-                    let road_tile_def = road::tile_def();
-
-                    if let Some(anim_set) = road_tile_def.anim_set_by_index(0, 0) {
-                        let tile_sprite = &anim_set.frames[0].tex_info;
-                        let tex_coords = &tile_sprite.coords;
-                        let texture = tile_sprite.texture;
-
-                        let mut color = road_tile_def.color;
-                        if tile.has_flags(TileFlags::Invalidated) {
-                            color *= INVALID_TILE_COLOR;
-                        }
-                        color.a *= 0.7;
-
-                        render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
-                    }
+                    Self::draw_road_placement_overlay(render_sys, transform, tile, tile_map);
                 }
             }
         }
 
         debug::utils::draw_tile_debug(render_sys, ui_sys, tile_screen_rect, transform, tile, flags);
+    }
+
+    fn draw_road_placement_overlay(render_sys: &mut impl RenderSystem,
+                                   transform: WorldToScreenTransform,
+                                   tile: &Tile,
+                                   tile_map: &TileMap) {
+        let cell = tile.base_cell();
+        let tile_def = road::tile_def();
+        let variation_index = road::junction_mask(cell, tile_map);
+
+        if let Some(anim_set) = tile_def.anim_set_by_index(variation_index, 0) {
+            let tile_sprite = &anim_set.frames[0].tex_info;
+            let tex_coords = &tile_sprite.coords;
+            let texture = tile_sprite.texture;
+
+            let iso_position = coords::cell_to_iso(cell, tile_def.logical_size).to_vec2();
+            let tile_screen_rect = coords::iso_to_screen_rect_f32(iso_position, tile_def.draw_size, transform);
+
+            let mut color = tile_def.color;
+            if tile.has_flags(TileFlags::Invalidated) {
+                color *= INVALID_TILE_COLOR;
+            }
+            color.a *= 0.7;
+
+            render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
+        }
     }
 
     #[inline]

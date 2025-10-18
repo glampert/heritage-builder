@@ -5,6 +5,8 @@ use palette::TilePaletteMenu;
 use settings::DebugSettingsMenu;
 
 use crate::{
+    singleton_late_init,
+    pathfind::NodeKind as PathNodeKind,
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     engine::time::Seconds,
     game::{
@@ -16,7 +18,6 @@ use crate::{
     imgui_ui::{UiInputEvent, UiSystem},
     render::TextureCache,
     save::{Load, PostLoadContext, Save},
-    singleton_late_init,
     tile::{
         camera::Camera, rendering::TileMapRenderFlags, selection::TileSelection, PlacementOp,
         TileKind, TileMap, TileMapLayerKind,
@@ -197,8 +198,15 @@ impl DebugMenusSingleton {
                 if is_valid_road_placement {
                     let query = args.sim.new_query(args.world, args.tile_map, 0.0);
                     let spawner = Spawner::new(&query);
+
+                    // Place tiles:
                     for cell in &self.current_road_segment.path {
                         spawner.try_spawn_tile_with_def(*cell, road::tile_def());
+                    }
+
+                    // Update road junctions (each junction is a different variation of the same tile).
+                    for cell in &self.current_road_segment.path {
+                        road::update_junctions(*cell, args.tile_map);
                     }
                 } else {
                     self.tile_palette_menu.clear_selection();
@@ -286,7 +294,12 @@ impl DebugMenusSingleton {
 
                     if target_cell.is_valid() {
                         let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
-                        Spawner::new(&query).try_spawn_tile_with_def(target_cell, tile_def).is_ok()
+                        let success = Spawner::new(&query).try_spawn_tile_with_def(target_cell, tile_def).is_ok();
+                        if success {
+                            // In case we've replaced a road tile with terrain.
+                            road::update_junctions(target_cell, args.tile_map);
+                        }
+                        success
                     } else {
                         false
                     }
@@ -296,7 +309,13 @@ impl DebugMenusSingleton {
                     if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos,
                                                                                 args.camera.transform())
                     {
+                        let is_road = tile.path_kind().intersects(PathNodeKind::Road);
+                        let target_cell = tile.base_cell();
                         Spawner::new(&query).despawn_tile(tile);
+                        // Update road junctions around the removed tile cell.
+                        if is_road {
+                            road::update_junctions(target_cell, args.tile_map);
+                        }
                         true
                     } else {
                         false
