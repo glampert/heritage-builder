@@ -373,6 +373,19 @@ pub struct NativeTextureHandle {
 
 pub trait TextureCache: Any {
     fn as_any(&self) -> &dyn Any;
+
     fn load_texture(&mut self, file_path: &str) -> TextureHandle;
     fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle;
+
+    fn new_uninitialized_texture(&mut self,
+                                 debug_name: &str,
+                                 size: Size) -> TextureHandle;
+
+    fn update_texture(&mut self,
+                      handle: TextureHandle,
+                      offset_x: u32,
+                      offset_y: u32,
+                      size: Size,
+                      mip_level: u32,
+                      pixels: &[u8]);
 }

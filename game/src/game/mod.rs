@@ -365,7 +365,7 @@ impl GameLoop {
 
         // Boot the engine and load assets:
         let mut engine = Self::init_engine(&configs.engine);
-        Self::load_assets(engine.texture_cache_mut());
+        Self::load_assets(engine.texture_cache_mut(), &configs.engine);
 
         // Global initialization:
         cheats::initialize();
@@ -502,7 +502,7 @@ impl GameLoop {
         Box::new(engine::backend::GlfwOpenGlEngine::new(configs))
     }
 
-    fn load_assets(tex_cache: &mut dyn TextureCache) {
+    fn load_assets(tex_cache: &mut dyn TextureCache, configs: &EngineConfigs) {
         log::info!(log::channel!("game"), "Loading Game Assets ...");
 
         BuildingConfigs::load();
@@ -511,7 +511,7 @@ impl GameLoop {
         UnitConfigs::load();
         log::info!(log::channel!("game"), "UnitConfigs loaded.");
 
-        TileSets::load(tex_cache);
+        TileSets::load(tex_cache, configs.use_packed_texture_atlas);
         log::info!(log::channel!("game"), "TileSets loaded.");
     }
 

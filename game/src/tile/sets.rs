@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use strum::IntoEnumIterator;
 
-use super::{TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE, TILE_MAP_LAYER_COUNT};
+use super::{
+    atlas::*,
+    TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE, TILE_MAP_LAYER_COUNT,
+};
 use crate::{
     log,
     pathfind::NodeKind as PathNodeKind,
@@ -42,10 +45,6 @@ pub struct TileTexInfo {
 }
 
 impl TileTexInfo {
-    pub fn new(texture: TextureHandle) -> Self {
-        Self { texture, coords: RectTexCoords::default() }
-    }
-
     pub fn is_valid(&self) -> bool {
         self.texture.is_valid()
     }
@@ -326,6 +325,7 @@ impl TileDef {
 
     fn post_load(&mut self,
                  tex_cache: &mut dyn TextureCache,
+                 tex_atlas: &mut impl TextureAtlas,
                  tile_set_path_with_category: &str,
                  layer: TileMapLayerKind,
                  category_hash: StringHash)
@@ -452,8 +452,7 @@ impl TileDef {
                         path
                     };
 
-                    let frame_texture = tex_cache.load_texture(&texture_path);
-                    frame.tex_info = TileTexInfo::new(frame_texture);
+                    frame.tex_info = tex_atlas.load_texture(tex_cache, &texture_path);
                 }
             }
         }
@@ -554,6 +553,7 @@ impl TileCategory {
 
     fn post_load(&mut self,
                  tex_cache: &mut dyn TextureCache,
+                 tex_atlas: &mut impl TextureAtlas,
                  tile_set_path: &str,
                  layer: TileMapLayerKind)
                  -> bool {
@@ -585,7 +585,7 @@ impl TileCategory {
             let tile_name_hash = hash::fnv1a_from_str(&tile_def.name);
             tile_def.hash = tile_name_hash;
 
-            if !tile_def.post_load(tex_cache, &tile_set_path_with_category, layer, self.hash) {
+            if !tile_def.post_load(tex_cache, tex_atlas, &tile_set_path_with_category, layer, self.hash) {
                 continue;
             }
 
@@ -665,7 +665,11 @@ impl TileSet {
         Some(&self.categories[entry_index])
     }
 
-    fn post_load(&mut self, tex_cache: &mut dyn TextureCache, tile_set_path: &str) -> bool {
+    fn post_load(&mut self,
+                 tex_cache: &mut dyn TextureCache,
+                 tex_atlas: &mut impl TextureAtlas,
+                 tile_set_path: &str)
+                 -> bool {
         debug_assert!(self.mapping.is_empty());
 
         for (index, category) in self.categories.iter_mut().enumerate() {
@@ -681,7 +685,7 @@ impl TileSet {
             let category_name_hash = hash::fnv1a_from_str(&category.name);
             category.hash = category_name_hash;
 
-            if !category.post_load(tex_cache, tile_set_path, self.layer) {
+            if !category.post_load(tex_cache, tex_atlas, tile_set_path, self.layer) {
                 continue;
             }
 
@@ -731,14 +735,14 @@ pub struct TileSets {
 }
 
 impl TileSets {
-    pub fn load(tex_cache: &mut dyn TextureCache) -> &'static Self {
+    pub fn load(tex_cache: &mut dyn TextureCache, use_packed_texture_atlas: bool) -> &'static Self {
         let mut instance = Self {
             sets: [
                 TileSet::new(TileMapLayerKind::Terrain), // 0
                 TileSet::new(TileMapLayerKind::Objects), // 1
             ],
         };
-        instance.load_all_layers(tex_cache);
+        instance.load_all_layers(tex_cache, use_packed_texture_atlas);
         TileSets::initialize(instance); // Set global instance.
         TileSets::get()
     }
@@ -939,10 +943,10 @@ impl TileSets {
     //  objects/units/ped/walk_sw/frame0.png
     //  objects/units/ped/walk_sw/frame1.png
     //
-    fn load_all_layers(&mut self, tex_cache: &mut dyn TextureCache) {
+    fn load_all_layers(&mut self, tex_cache: &mut dyn TextureCache, use_packed_texture_atlas: bool) {
         for layer in TileMapLayerKind::iter() {
             let tile_set_path = layer.assets_path();
-            if !self.load_tile_set(tex_cache, tile_set_path, layer) {
+            if !self.load_tile_set(tex_cache, tile_set_path, layer, use_packed_texture_atlas) {
                 log::error!(log::channel!("tileset"),
                             "TileSet '{layer}' ({tile_set_path}) didn't load!");
             }
@@ -952,7 +956,8 @@ impl TileSets {
     fn load_tile_set(&mut self,
                      tex_cache: &mut dyn TextureCache,
                      tile_set_path: &str,
-                     layer: TileMapLayerKind)
+                     layer: TileMapLayerKind,
+                     use_packed_texture_atlas: bool)
                      -> bool {
         debug_assert!(!tile_set_path.is_empty());
 
@@ -982,10 +987,21 @@ impl TileSets {
             return false;
         }
 
-        if !tile_set.post_load(tex_cache, tile_set_path) {
-            log::error!(log::channel!("tileset"),
-                        "Post load failed for TileSet '{layer}' - {tile_set_json_path:?}!");
-            return false;
+        if use_packed_texture_atlas {
+            log::info!(log::channel!("tileset"), "Texture Atlas Packing: YES");
+            let mut tex_atlas = PackedTextureAtlas::new(layer);
+            if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
+                log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path:?}!");
+                return false;
+            }
+            tex_atlas.commit_textures(tex_cache);
+        } else {
+            log::info!(log::channel!("tileset"), "Texture Atlas Packing: NO");
+            let mut tex_atlas = PassthroughTextureAtlas::new();
+            if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
+                log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path:?}!");
+                return false;
+            }
         }
 
         log::info!(log::channel!("tileset"),

@@ -1,6 +1,7 @@
 {
   "engine": {
-    "log_level": "Verbose"
+    "log_level": "Verbose",
+    "use_packed_texture_atlas": true
   },
   "sim": {
     "starting_gold_units": 100,

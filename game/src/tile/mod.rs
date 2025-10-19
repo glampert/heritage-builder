@@ -32,6 +32,7 @@ pub mod selection;
 pub mod sets;
 pub mod road;
 
+mod atlas;
 mod placement;
 
 // ----------------------------------------------

@@ -115,6 +115,7 @@ pub struct EngineConfigs {
     pub window_background_color: Color,
     pub fullscreen: bool,
     pub confine_cursor_to_window: bool,
+    pub use_packed_texture_atlas: bool,
 
     // Debug Grid:
     pub grid_color: Color,
@@ -129,11 +130,12 @@ pub struct EngineConfigs {
 impl Default for EngineConfigs {
     fn default() -> Self {
         Self { // Window/Rendering:
-               window_title: "CitySim".into(),
+               window_title: "Heritage Builder".into(),
                window_size: Size::new(1024, 768),
                window_background_color: rendering::MAP_BACKGROUND_COLOR,
                fullscreen: false,
                confine_cursor_to_window: true,
+               use_packed_texture_atlas: false,
 
                // Debug Grid:
                grid_color: rendering::DEFAULT_GRID_COLOR,

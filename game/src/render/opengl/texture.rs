@@ -5,6 +5,7 @@ use image::GenericImageView;
 
 use super::{
     gl_error_to_string,
+    panic_if_gl_error,
     shader::{ShaderVarTrait, ShaderVariable},
 };
 use crate::{
@@ -93,8 +94,8 @@ impl Texture2D {
 
         let mut image = match image::open(file_path) {
             Ok(image) => image,
-            Err(error_info) => {
-                return Err(format!("Failed to load image file '{}': {:?}", file_path, error_info));
+            Err(err) => {
+                return Err(format!("Failed to load image file '{file_path}': {err:?}"));
             }
         };
 
@@ -106,12 +107,12 @@ impl Texture2D {
             image.apply_orientation(image::metadata::Orientation::FlipHorizontal);
         }
 
-        let image_dims = image.dimensions();
-        let image_buffer = image.to_rgba8();
-        let image_raw_bytes = image_buffer.into_raw();
+        let (image_w, image_h) = image.dimensions();
+        let image_buffer = image.as_rgba8().expect("Expected an RGBA8 image!");
+        let image_pixels = image_buffer.as_raw();
 
-        Ok(Self::with_data_raw(image_raw_bytes.as_ptr() as *const c_void,
-                               Size::new(image_dims.0 as i32, image_dims.1 as i32),
+        Ok(Self::with_data_raw(image_pixels.as_ptr() as *const c_void,
+                               Size::new(image_w as i32, image_h as i32),
                                filter,
                                wrap_mode,
                                tex_unit,
@@ -128,7 +129,6 @@ impl Texture2D {
                          debug_name: &str)
                          -> Self {
         debug_assert!((tex_unit.0 as usize) < MAX_TEXTURE_UNITS);
-        debug_assert!(!data.is_null());
         debug_assert!(size.is_valid());
 
         let handle = unsafe {
@@ -194,6 +194,35 @@ impl Texture2D {
                wrap_mode,
                has_mipmaps: gen_mipmaps,
                name: debug_name.to_string() }
+    }
+
+    pub fn update(&self,
+                  offset_x: u32,
+                  offset_y: u32,
+                  size: Size,
+                  mip_level: u32,
+                  pixels: &[u8]) {
+        debug_assert!(self.is_valid());
+        debug_assert!(offset_x as i32 + size.width  <= self.size.width);
+        debug_assert!(offset_y as i32 + size.height <= self.size.height);
+
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE0 + self.tex_unit.0);
+            gl::BindTexture(gl::TEXTURE_2D, self.handle);
+
+            gl::TexSubImage2D(gl::TEXTURE_2D,
+                              mip_level as gl::types::GLint,
+                              offset_x as gl::types::GLint,
+                              offset_y as gl::types::GLint,
+                              size.width,
+                              size.height,
+                              gl::RGBA,
+                              gl::UNSIGNED_BYTE,
+                              pixels.as_ptr() as *const c_void);
+
+            // Unbind.
+            gl::BindTexture(gl::TEXTURE_2D, NULL_TEXTURE_HANDLE);
+        }
     }
 
     pub fn is_valid(&self) -> bool {
@@ -386,5 +415,36 @@ impl render::TextureCache for TextureCache {
     #[inline]
     fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle {
         self.handle_to_texture(handle).native_handle()
+    }
+
+    fn new_uninitialized_texture(&mut self,
+                                 debug_name: &str,
+                                 size: Size) -> TextureHandle {
+        debug_assert!(size.is_valid());
+        let texture = Texture2D::with_data_raw(core::ptr::null(),
+                                               size,
+                                               TextureFilter::Nearest,
+                                               TextureWrapMode::ClampToEdge,
+                                               TextureUnit(0),
+                                               false,
+                                               debug_name);
+        self.add_texture(texture)
+    }
+
+    fn update_texture(&mut self,
+                      handle: TextureHandle,
+                      offset_x: u32,
+                      offset_y: u32,
+                      size: Size,
+                      mip_level: u32,
+                      pixels: &[u8]) {
+        debug_assert!(handle.is_valid());
+        debug_assert!(size.is_valid());
+        debug_assert!(pixels.len() >= (size.width * size.height * 4) as usize); // RGBA images only.
+
+        let texture = self.handle_to_texture(handle);
+        texture.update(offset_x, offset_y, size, mip_level, pixels);
+
+        panic_if_gl_error();
     }
 }

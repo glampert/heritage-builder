@@ -9,6 +9,7 @@ gl = "0.14.0"
 glfw = "0.59.0"
 imgui = "0.12"
 imgui-opengl-renderer = { git = "https://github.com/glampert/rust-imgui-opengl-renderer" }
+texture_packer = { git = "https://github.com/glampert/texture_packer" }
 image = "0.25.6"
 bitflags = { version = "2.9.0", features = ["serde"] }
 paste = "1.0.15"
