@@ -109,6 +109,11 @@ impl Vec2 {
     }
 
     #[inline]
+    pub const fn to_array(self) -> [f32; 2] {
+        [self.x, self.y]
+    }
+
+    #[inline]
     #[must_use]
     pub fn dot(&self, other: Self) -> f32 {
         (self.x * other.x) + (self.y * other.y)

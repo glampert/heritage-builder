@@ -122,7 +122,6 @@ impl TilePaletteMenu {
         // X position = screen width - estimated window width - margin
         // Y position = 20px
         let window_position = [ui.io().display_size[0] - window_width - window_margin, 20.0];
-
         let window_flags = imgui::WindowFlags::ALWAYS_AUTO_RESIZE | imgui::WindowFlags::NO_RESIZE;
 
         ui.window("Tile Selection")
@@ -257,8 +256,8 @@ impl TilePaletteMenu {
                 return true;
             }
 
-            let tile_texture = tile_def.texture_by_index(0, 0, 0);
-            let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_texture);
+            let tile_sprite = tile_def.texture_by_index(0, 0, 0);
+            let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_sprite.texture);
 
             let is_selected = self.selected_index.get(&tile_kind) == Some(&tile_index);
             let bg_color = if is_selected {
@@ -269,10 +268,19 @@ impl TilePaletteMenu {
 
             let button_text = utils::snake_case_to_title::<64>(&tile_def.name);
 
+            fn to_imgui_uv(uv: Vec2) -> Vec2 {
+                Vec2::new(uv.x, 1.0 - uv.y)
+            }
+
+            let top_left_uvs = to_imgui_uv(tile_sprite.coords.top_left());
+            let bottom_right_uvs = to_imgui_uv(tile_sprite.coords.bottom_right());
+
             let clicked =
                 ui.image_button_config(button_text, ui_texture, tile_size)
                     .background_col(bg_color)
                     .tint_col(tile_def.color.to_array())
+                    .uv0([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
+                    .uv1([bottom_right_uvs.x, top_left_uvs.y])
                     .build();
 
             // Show tooltip when hovered:

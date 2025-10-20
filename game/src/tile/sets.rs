@@ -38,7 +38,7 @@ pub const OBJECTS_VEGETATION_CATEGORY: StrHashPair = StrHashPair::from_str("vege
 // TileTexInfo
 // ----------------------------------------------
 
-#[derive(Default)]
+#[derive(Copy, Clone, Default)]
 pub struct TileTexInfo {
     pub texture: TextureHandle,
     pub coords: RectTexCoords,
@@ -240,12 +240,11 @@ impl TileDef {
                             variation_index: usize,
                             anim_set_index: usize,
                             frame_index: usize)
-                            -> TextureHandle {
-        if let Some(frame) = self.anim_frame_by_index(variation_index, anim_set_index, frame_index)
-        {
-            return frame.tex_info.texture;
+                            -> TileTexInfo {
+        if let Some(frame) = self.anim_frame_by_index(variation_index, anim_set_index, frame_index) {
+            return frame.tex_info;
         }
-        TextureHandle::invalid()
+        TileTexInfo::default()
     }
 
     #[inline]
