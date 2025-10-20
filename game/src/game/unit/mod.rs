@@ -574,16 +574,25 @@ impl Unit {
         tile
     }
 
-    #[inline]
     fn idle(&mut self, query: &Query) {
-        self.update_direction_and_anim(self.find_tile_mut(query), UnitDirection::Idle);
+        if self.direction != UnitDirection::Idle {
+            let idle_anim_set_key = navigation::idle_anim_set_for_direction(self.direction);
+
+            let tile = self.find_tile_mut(query);
+            if !self.anim_sets.set_anim(tile, idle_anim_set_key) {
+                // Fallback to generic idle if no directional anim.
+                self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
+            }
+
+            self.direction = UnitDirection::Idle;
+        }
     }
 
     fn update_direction_and_anim(&mut self, tile: &mut Tile, new_direction: UnitDirection) {
         if self.direction != new_direction {
-            self.direction = new_direction;
             let new_anim_set_key = anim_set_for_direction(new_direction);
             self.anim_sets.set_anim(tile, new_anim_set_key);
+            self.direction = new_direction;
         }
     }
 

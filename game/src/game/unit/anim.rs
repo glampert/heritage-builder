@@ -22,7 +22,12 @@ pub struct UnitAnimSets {
 }
 
 impl UnitAnimSets {
-    pub const IDLE: UnitAnimSetKey = UnitAnimSetKey::from_str("idle");
+    pub const IDLE: UnitAnimSetKey = UnitAnimSetKey::from_str("idle"); // Generic idle anim.
+    pub const IDLE_NE: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_ne");
+    pub const IDLE_NW: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_nw");
+    pub const IDLE_SE: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_se");
+    pub const IDLE_SW: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_sw");
+
     pub const WALK_NE: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_ne");
     pub const WALK_NW: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_nw");
     pub const WALK_SE: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_se");
@@ -39,13 +44,17 @@ impl UnitAnimSets {
         self.anim_set_index_map.clear();
     }
 
-    pub fn set_anim(&mut self, tile: &mut Tile, new_anim_set_key: UnitAnimSetKey) {
+    pub fn set_anim(&mut self, tile: &mut Tile, new_anim_set_key: UnitAnimSetKey) -> bool {
         if self.current_anim_set_key != new_anim_set_key.hash {
-            self.current_anim_set_key = new_anim_set_key.hash;
             if let Some(index) = self.find_index(tile, new_anim_set_key) {
+                self.current_anim_set_key = new_anim_set_key.hash;
                 tile.set_anim_set_index(index);
+                return true;
+            } else {
+                return false;
             }
         }
+        true // already playing this anim set.
     }
 
     pub fn current_anim_name(&self) -> &'static str {
@@ -54,6 +63,14 @@ impl UnitAnimSets {
             "<none>"
         } else if curr == Self::IDLE.hash {
             Self::IDLE.string
+        } else if curr == Self::IDLE_NE.hash {
+            Self::IDLE_NE.string
+        } else if curr == Self::IDLE_NW.hash {
+            Self::IDLE_NW.string
+        } else if curr == Self::IDLE_SE.hash {
+            Self::IDLE_SE.string
+        } else if curr == Self::IDLE_SW.hash {
+            Self::IDLE_SW.string
         } else if curr == Self::WALK_NE.hash {
             Self::WALK_NE.string
         } else if curr == Self::WALK_NW.hash {

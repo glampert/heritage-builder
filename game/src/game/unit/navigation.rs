@@ -94,6 +94,17 @@ pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
     }
 }
 
+#[inline]
+pub fn idle_anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
+    match direction {
+        UnitDirection::Idle => UnitAnimSets::IDLE,
+        UnitDirection::NE => UnitAnimSets::IDLE_NE,
+        UnitDirection::NW => UnitAnimSets::IDLE_NW,
+        UnitDirection::SE => UnitAnimSets::IDLE_SE,
+        UnitDirection::SW => UnitAnimSets::IDLE_SW,
+    }
+}
+
 // ----------------------------------------------
 // UnitNavGoal
 // ----------------------------------------------
