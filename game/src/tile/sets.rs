@@ -990,14 +990,17 @@ impl TileSets {
         if use_packed_texture_atlas {
             log::info!(log::channel!("tileset"), "Texture Atlas Packing: YES");
             let mut tex_atlas = PackedTextureAtlas::new(layer);
+
             if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
                 log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path:?}!");
                 return false;
             }
+
             tex_atlas.commit_textures(tex_cache);
         } else {
             log::info!(log::channel!("tileset"), "Texture Atlas Packing: NO");
             let mut tex_atlas = PassthroughTextureAtlas::new();
+
             if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
                 log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path:?}!");
                 return false;

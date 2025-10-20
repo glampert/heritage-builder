@@ -25,7 +25,8 @@ pub trait TextureAtlas {
 // ----------------------------------------------
 
 // No-op implementation that doesn't build a texture atlas.
-// Each texture is a standalone image and TextureHandle. 
+// Each texture is a standalone image and TextureHandle.
+// Using this implementation disabled texture atlas packing.
 pub struct PassthroughTextureAtlas;
 
 impl PassthroughTextureAtlas {
@@ -52,6 +53,8 @@ impl TextureAtlas for PassthroughTextureAtlas {
 // PackedTextureAtlas
 // ----------------------------------------------
 
+// Packs textures with the help of the `texture_packer` crate,
+// using the "skyline" algorithm.
 pub struct PackedTextureAtlas {
     layer: TileMapLayerKind,
     packer: packer::AtlasPacker,
@@ -74,7 +77,9 @@ impl TextureAtlas for PackedTextureAtlas {
     }
 
     fn commit_textures(&self, tex_cache: &mut dyn TextureCache) {
-        log::info!(log::channel!("atlas"), "Committing texture atlas '{}' to graphics memory...", self.layer);
+        log::info!(log::channel!("atlas"),
+                   "Committing texture atlas '{}' to graphics memory...",
+                   self.layer);
 
         self.packer.for_each_page(|_, image, texture| {
             let (width, height) = image.dimensions();
@@ -88,7 +93,9 @@ impl TextureAtlas for PackedTextureAtlas {
                                      pixels);
         });
 
-        log::info!(log::channel!("atlas"), "Texture atlas '{}' committed.", self.layer);
+        log::info!(log::channel!("atlas"),
+                   "Texture atlas '{}' committed ({} pages).",
+                   self.layer, self.packer.page_count());
     }
 
     fn save_textures_to_file(&self, base_path: &str) {
@@ -194,17 +201,18 @@ mod packer {
             Self { pages: Vec::new() }
         }
 
-        pub fn pack_image(&mut self, tex_cache: &mut dyn TextureCache, path: &str, image: RgbaImage) -> TileTexInfo {
+        pub fn pack_image(&mut self,
+                          tex_cache: &mut dyn TextureCache,
+                          path: &str,
+                          image: RgbaImage) -> TileTexInfo {
             debug_assert!(!path.is_empty());
             let key = hash::fnv1a_from_str(path);
 
             // Image fits an existing page?
             for page in &mut self.pages {
-                if !page.packer.can_pack(&image) {
-                    continue;
+                if page.packer.can_pack(&image) {
+                    return Self::do_pack_image(page, key, path, image);
                 }
-
-                return Self::do_pack_image(page, key, path, image);
             }
 
             // Need a new page:
@@ -260,7 +268,7 @@ mod packer {
 
         fn copy_packed_image_to_page(page: &mut RgbaImage, sprite: &RgbaImage, frame: &Frame<StringHash>) {
             let rect = &frame.frame;
-            blit_rgba_image(page, sprite, rect.x, rect.y);
+            blit_rgba_image(page, sprite, rect.x as usize, rect.y as usize);
         }
     }
 
@@ -287,18 +295,18 @@ mod packer {
 
     // Copy `src` into a sub-rectangle of `dst`, starting at (dst_x, dst_y).
     // Both images must be RGBA8.
-    fn blit_rgba_image(dst: &mut RgbaImage, src: &RgbaImage, dst_x: u32, dst_y: u32) {
-        let dst_width  = dst.width();
-        let dst_height = dst.height();
+    fn blit_rgba_image(dst: &mut RgbaImage, src: &RgbaImage, dst_x: usize, dst_y: usize) {
+        let dst_width  = dst.width()  as usize;
+        let dst_height = dst.height() as usize;
 
-        let src_width  = src.width();
-        let src_height = src.height();
+        let src_width  = src.width()  as usize;
+        let src_height = src.height() as usize;
 
         assert!(dst_x + src_width  <= dst_width);
         assert!(dst_y + src_height <= dst_height);
 
-        let dst_stride = dst_width as usize * 4; // 4 bytes per pixel
-        let src_stride = src_width as usize * 4;
+        let dst_stride = dst_width * 4; // 4 bytes per pixel
+        let src_stride = src_width * 4;
 
         let mut dst_samples = dst.as_flat_samples_mut();
         let src_samples = src.as_flat_samples();
@@ -307,12 +315,11 @@ mod packer {
         let src_buf = src_samples.as_slice();
 
         for row in 0..src_height {
-            let dst_row_start = ((dst_y + row) as usize * dst_stride) + (dst_x as usize * 4);
-            let src_row_start = row as usize * src_stride;
+            let dst_row_start = ((dst_y + row) * dst_stride) + (dst_x * 4);
+            let src_row_start = row * src_stride;
             let dst_row_end   = dst_row_start + src_stride;
 
-            dst_buf[dst_row_start..dst_row_end]
-                .copy_from_slice(&src_buf[src_row_start..src_row_start + src_stride]);
+            dst_buf[dst_row_start..dst_row_end].copy_from_slice(&src_buf[src_row_start..src_row_start + src_stride]);
         }
     }
 }
