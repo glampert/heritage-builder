@@ -15,11 +15,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     bitflags_with_display,
+    imgui_ui::UiSystem,
+    utils::{coords::{Cell, CellRange}, Size},
     tile::{TileFlags, TileKind, TileMap, TileMapLayerKind},
-    utils::{
-        coords::{Cell, CellRange},
-        Size,
-    },
 };
 
 #[cfg(test)]
@@ -49,6 +47,12 @@ bitflags_with_display! {
     }
 }
 
+impl Default for NodeKind {
+    fn default() -> Self {
+        NodeKind::Road // Most units will only navigate on roads.
+    }
+}
+
 impl NodeKind {
     #[inline]
     pub const fn is_single_kind(self) -> bool {
@@ -64,11 +68,25 @@ impl NodeKind {
     pub fn object_placeable() -> NodeKind {
         Self::Dirt
     }
-}
 
-impl Default for NodeKind {
-    fn default() -> Self {
-        NodeKind::Road // Most units will only navigate on roads.
+    pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        macro_rules! node_kind_ui_checkbox {
+            ($ui:ident, $node_kind:ident, $flag_name:ident) => {
+                let mut value = $node_kind.intersects(NodeKind::$flag_name);
+                $ui.checkbox(stringify!($flag_name), &mut value);
+                $node_kind.set(NodeKind::$flag_name, value);
+            };
+        }
+
+        let ui = ui_sys.builder();
+        node_kind_ui_checkbox!(ui, self, Dirt);
+        node_kind_ui_checkbox!(ui, self, Road);
+        node_kind_ui_checkbox!(ui, self, Water);
+        node_kind_ui_checkbox!(ui, self, Building);
+        node_kind_ui_checkbox!(ui, self, BuildingRoadLink);
+        node_kind_ui_checkbox!(ui, self, BuildingAccess);
+        node_kind_ui_checkbox!(ui, self, VacantLot);
+        node_kind_ui_checkbox!(ui, self, SettlersSpawnPoint);
     }
 }
 
@@ -246,41 +264,42 @@ impl Graph {
         // Building tiles are handled specially since we need
         // then for building searches.
         tile_map.for_each_tile(TileMapLayerKind::Terrain, TileKind::Terrain, |tile| {
-                    let node = Node::new(tile.base_cell());
-                    let blocker_kinds = TileKind::Building
-                                        | TileKind::Blocker
-                                        | TileKind::Prop
-                                        | TileKind::Vegetation;
+            let node = Node::new(tile.base_cell());
+            let blocker_kinds = TileKind::Building
+                                | TileKind::Blocker
+                                | TileKind::Prop
+                                | TileKind::Vegetation;
 
-                    if let Some(blocker_tile) =
-                        tile_map.find_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds)
-                    {
-                        if blocker_tile.is(TileKind::Building | TileKind::Blocker) {
-                            // Buildings have a node kind for building searches, but they are not
-                            // traversable.
-                            self.grid[node] = NodeKind::Building;
+            if let Some(blocker_tile) =
+                tile_map.find_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds)
+            {
+                if blocker_tile.is(TileKind::Building | TileKind::Blocker) {
+                    // Buildings have a node kind for building searches, but they are not
+                    // traversable.
+                    self.grid[node] = NodeKind::Building;
 
-                            for_each_surrounding_cell(blocker_tile.cell_range(), |cell| {
-                                if !tile_map.has_tile(cell,
-                                                      TileMapLayerKind::Objects,
-                                                      blocker_kinds)
-                                   && tile_map.is_cell_within_bounds(cell)
-                                {
-                                    self.grid[Node::new(cell)] |= NodeKind::BuildingAccess;
-                                }
-                                true
-                            });
+                    for_each_surrounding_cell(blocker_tile.cell_range(), |cell| {
+                        if !tile_map.has_tile(cell, TileMapLayerKind::Objects, blocker_kinds)
+                            && tile_map.is_cell_within_bounds(cell)
+                        {
+                            self.grid[Node::new(cell)] |= NodeKind::BuildingAccess;
                         }
-                        // Else leave it empty.
-                    } else {
-                        // If there's no blocker over this cell, set its path kind.
-                        let mut path_kind = tile.path_kind();
-                        if tile.has_flags(TileFlags::BuildingRoadLink) {
-                            path_kind |= NodeKind::BuildingRoadLink;
-                        }
-                        self.grid[node] = path_kind;
-                    }
-                });
+                        true
+                    });
+                }
+                // Else leave it empty.
+            } else {
+                // If there's no blocker over this cell, set its path kind.
+                let mut path_kind = tile.path_kind();
+                if tile.has_flags(TileFlags::BuildingRoadLink) {
+                    path_kind |= NodeKind::BuildingRoadLink;
+                }
+                if tile.has_flags(TileFlags::SettlersSpawnPoint) {
+                    path_kind |= NodeKind::SettlersSpawnPoint;
+                }
+                self.grid[node] = path_kind;
+            }
+        });
     }
 
     #[inline]

@@ -29,7 +29,7 @@ use crate::{
         Node, NodeKind as PathNodeKind, Path, PathFilter, PathHistory, RandomDirectionalBias,
         SearchResult,
     },
-    tile::{Tile, TileKind, TileMapLayerKind},
+    tile::{Tile, TileKind, TileFlags, TileMapLayerKind},
     utils::{callback::Callback, coords::Cell, mem, Color},
 };
 
@@ -1155,14 +1155,13 @@ impl UnitTask for UnitTaskSettler {
             if let Some(tile) =
                 tile_map.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain)
             {
-                if tile.path_kind()
-                       .intersects(PathNodeKind::VacantLot | PathNodeKind::SettlersSpawnPoint)
+                if tile.path_kind().intersects(PathNodeKind::VacantLot)
+                    || tile.has_flags(TileFlags::SettlersSpawnPoint)
                 {
                     // Notify completion:
                     self.notify_completion(unit, tile, query);
 
-                    return UnitTaskResult::Completed { next_task:
-                                                           forward_task(&mut self.completion_task) };
+                    return UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) };
                 }
             }
         } else if unit_goal.is_building() {

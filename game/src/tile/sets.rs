@@ -210,6 +210,7 @@ impl TileDef {
     pub fn flags(&self) -> TileFlags {
         let mut flags = TileFlags::empty();
         flags.set(TileFlags::OccludesTerrain, self.occludes_terrain);
+        flags.set(TileFlags::SettlersSpawnPoint, self.path_kind.intersects(PathNodeKind::SettlersSpawnPoint));
         flags
     }
 

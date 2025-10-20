@@ -315,13 +315,11 @@ fn can_expand_into_cell(context: &BuildingContext, cell: Cell) -> bool {
         None => return false,
     };
 
-    if !node_kind.intersects(PathNodeKind::Dirt | PathNodeKind::VacantLot | PathNodeKind::Building)
-    {
+    if !node_kind.intersects(PathNodeKind::Dirt | PathNodeKind::VacantLot | PathNodeKind::Building) {
         return false; // Not an expandable node.
     }
 
-    if node_kind.intersects(PathNodeKind::Building) && find_house_for_cell(context, cell).is_none()
-    {
+    if node_kind.intersects(PathNodeKind::Building) && find_house_for_cell(context, cell).is_none() {
         return false; // Not a house building.
     }
 

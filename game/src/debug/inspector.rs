@@ -200,6 +200,7 @@ impl TileInspectorMenu {
 
     fn draw_tile_debug_ui(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
         Self::tile_properties_dropdown(context, tile);
+        Self::tile_flags_dropdown(context, tile);
         Self::tile_variations_dropdown(context, tile);
         Self::tile_animations_dropdown(context, tile);
         Self::tile_debug_opts_dropdown(context, tile);
@@ -297,6 +298,33 @@ impl TileInspectorMenu {
 
             ui.text("~");
         }
+    }
+
+    fn tile_flags_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+        let ui = context.ui_sys.builder();
+        if !ui.collapsing_header("Flags", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        macro_rules! tile_flag_ui_checkbox {
+            ($ui:ident, $tile:ident, $flag_name:ident) => {
+                let mut value = $tile.has_flags(TileFlags::$flag_name);
+                if $ui.checkbox(stringify!($flag_name), &mut value) {
+                    $tile.set_flags(TileFlags::$flag_name, value);
+                }
+            };
+        }
+
+        tile_flag_ui_checkbox!(ui, tile, Hidden);
+        tile_flag_ui_checkbox!(ui, tile, Highlighted);
+        tile_flag_ui_checkbox!(ui, tile, Invalidated);
+        tile_flag_ui_checkbox!(ui, tile, OccludesTerrain);
+        tile_flag_ui_checkbox!(ui, tile, BuildingRoadLink);
+        tile_flag_ui_checkbox!(ui, tile, SettlersSpawnPoint);
+        tile_flag_ui_checkbox!(ui, tile, RoadPlacement);
+        tile_flag_ui_checkbox!(ui, tile, DrawDebugInfo);
+        tile_flag_ui_checkbox!(ui, tile, DrawDebugBounds);
+        tile_flag_ui_checkbox!(ui, tile, DrawBlockerInfo);
     }
 
     fn tile_variations_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
@@ -405,8 +433,7 @@ impl TileInspectorMenu {
         }
     }
 
-    // Edit the underlying TileDef, which will apply to *all* tiles sharing this
-    // TileDef.
+    // Edit the underlying TileDef, which will apply to *all* tiles sharing this TileDef.
     fn tile_def_editor_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
         if tile.is(TileKind::Blocker) {
             return;
@@ -416,6 +443,16 @@ impl TileInspectorMenu {
         if !ui.collapsing_header("Edit TileDef", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
+
+        ui.indent_by(3.0);
+        if ui.collapsing_header("Path Flags", imgui::TreeNodeFlags::empty()) {
+            if let Some(editable_def) = tile.try_get_editable_tile_def() {
+                ui.indent_by(5.0);
+                editable_def.path_kind.draw_debug_ui(context.ui_sys);
+                ui.unindent_by(5.0);
+            }
+        }
+        ui.unindent_by(3.0);
 
         if ui.button("Refresh all Tiles") {
             let mut road_cells = Vec::new();

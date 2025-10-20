@@ -85,17 +85,18 @@ impl TileKind {
 bitflags_with_display! {
     #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct TileFlags: u16 {
-        const Hidden           = 1 << 0;
-        const Highlighted      = 1 << 1;
-        const Invalidated      = 1 << 2;
-        const OccludesTerrain  = 1 << 3;
-        const BuildingRoadLink = 1 << 4;
-        const RoadPlacement    = 1 << 5;
+        const Hidden             = 1 << 0;
+        const Highlighted        = 1 << 1;
+        const Invalidated        = 1 << 2;
+        const OccludesTerrain    = 1 << 3;
+        const BuildingRoadLink   = 1 << 4;
+        const SettlersSpawnPoint = 1 << 5;
+        const RoadPlacement      = 1 << 6;
 
         // Debug flags:
-        const DrawDebugInfo    = 1 << 6;
-        const DrawDebugBounds  = 1 << 7;
-        const DrawBlockerInfo  = 1 << 8;
+        const DrawDebugInfo      = 1 << 7;
+        const DrawDebugBounds    = 1 << 8;
+        const DrawBlockerInfo    = 1 << 9;
     }
 }
 
