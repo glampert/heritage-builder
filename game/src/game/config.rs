@@ -123,11 +123,15 @@ impl Default for SimConfigs {
 #[serde(default)]
 pub struct DebugConfigs {
     pub show_popups: bool,
+    pub tile_palette_open: bool,
+    pub enable_tile_inspector: bool,
 }
 
 impl Default for DebugConfigs {
     fn default() -> Self {
-        Self { show_popups: true }
+        Self { show_popups: true,
+               tile_palette_open: true,
+               enable_tile_inspector: true }
     }
 }
 

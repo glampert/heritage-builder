@@ -10,6 +10,7 @@ use crate::{
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     engine::time::Seconds,
     game::{
+        config::GameConfigs,
         sim::{self, Simulation},
         system::GameSystems,
         world::{object::Spawner, World},
@@ -147,14 +148,16 @@ struct DebugMenusSingleton {
     debug_settings_menu: DebugSettingsMenu,
     tile_palette_menu: TilePaletteMenu,
     tile_inspector_menu: TileInspectorMenu,
+    enable_tile_inspector: bool,
     current_road_segment: RoadSegment, // For road placement.
 }
 
 impl DebugMenusSingleton {
-    fn new(tex_cache: &mut dyn TextureCache, tile_palette_open: bool) -> Self {
+    fn new(tex_cache: &mut dyn TextureCache, tile_palette_open: bool, enable_tile_inspector: bool) -> Self {
         Self {
             debug_settings_menu: DebugSettingsMenu::new(),
             tile_palette_menu: TilePaletteMenu::new(tile_palette_open, tex_cache),
+            enable_tile_inspector,
             ..Default::default()
         }
     }
@@ -220,7 +223,7 @@ impl DebugMenusSingleton {
             }
 
             // Open inspector only if we're not in road placement mode.
-            if !self.tile_palette_menu.is_road_tile_selected() {
+            if !self.tile_palette_menu.is_road_tile_selected() && self.enable_tile_inspector {
                 if let Some(selected_tile) = args.tile_map.topmost_selected_tile(args.tile_selection) {
                     if self.tile_inspector_menu
                         .on_mouse_click(button, action, selected_tile)
@@ -353,12 +356,14 @@ impl DebugMenusSingleton {
             *show_log_viewer_window = log_viewer.draw(args.ui_sys);
         }
 
-        let mut context = sim::debug::DebugContext { ui_sys: args.ui_sys,
-                                                     world: args.world,
-                                                     systems: args.systems,
-                                                     tile_map: args.tile_map,
-                                                     transform: args.camera.transform(),
-                                                     delta_time_secs: args.delta_time_secs };
+        let mut context = sim::debug::DebugContext {
+            ui_sys: args.ui_sys,
+            world: args.world,
+            systems: args.systems,
+            tile_map: args.tile_map,
+            transform: args.camera.transform(),
+            delta_time_secs: args.delta_time_secs
+        };
 
         self.tile_palette_menu.draw(&mut context,
                                     game_loop.engine_mut().debug_draw(),
@@ -366,8 +371,15 @@ impl DebugMenusSingleton {
                                     has_valid_placement,
                                     show_selection_bounds);
 
-        self.tile_inspector_menu.draw(&mut context, args.sim);
-        self.debug_settings_menu.draw(&mut context, args.sim, args.camera, game_loop);
+        self.debug_settings_menu.draw(&mut context,
+                                      args.sim,
+                                      args.camera,
+                                      game_loop,
+                                      &mut self.enable_tile_inspector);
+
+        if self.enable_tile_inspector {
+            self.tile_inspector_menu.draw(&mut context, args.sim);
+        }
 
         if show_popup_messages() {
             args.sim.draw_game_object_debug_popups(&mut context, args.visible_range);
@@ -406,8 +418,11 @@ fn init_debug_menus_singleton_once(tex_cache: &mut dyn TextureCache) {
         return; // Already initialized.
     }
 
-    const TILE_PALETTE_OPEN: bool = true;
-    DEBUG_MENUS_SINGLETON.initialize(DebugMenusSingleton::new(tex_cache, TILE_PALETTE_OPEN));
+    let tile_palette_open = GameConfigs::get().debug.tile_palette_open;
+    let enable_tile_inspector = GameConfigs::get().debug.enable_tile_inspector;
+
+    DEBUG_MENUS_SINGLETON.initialize(DebugMenusSingleton::new(
+        tex_cache, tile_palette_open, enable_tile_inspector));
 }
 
 // ----------------------------------------------

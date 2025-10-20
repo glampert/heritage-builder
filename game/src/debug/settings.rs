@@ -177,12 +177,13 @@ impl DebugSettingsMenu {
                 context: &mut sim::debug::DebugContext,
                 sim: &mut Simulation,
                 camera: &mut Camera,
-                game_loop: &mut GameLoop) {
+                game_loop: &mut GameLoop,
+                enable_tile_inspector: &mut bool) {
         let ui = context.ui_sys.builder();
 
         if let Some(_menu_bar) = ui.begin_main_menu_bar() {
             if let Some(_menu) = ui.begin_menu("Game") {
-                self.game_menu(context, game_loop);
+                self.game_menu(context, game_loop, enable_tile_inspector);
             }
 
             if let Some(_menu) = ui.begin_menu("Camera") {
@@ -248,7 +249,10 @@ impl DebugSettingsMenu {
         cheats::get_mut().draw_debug_ui(context.ui_sys);
     }
 
-    fn game_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
+    fn game_menu(&mut self,
+                 context: &mut sim::debug::DebugContext,
+                 game_loop: &mut GameLoop,
+                 enable_tile_inspector: &mut bool) {
         let ui = context.ui_sys.builder();
 
         if ui.menu_item("Quit") {
@@ -261,7 +265,8 @@ impl DebugSettingsMenu {
         ui.checkbox("Game World", &mut self.show_game_world_debug);
         ui.checkbox("Game Systems", &mut self.show_game_systems_debug);
         ui.checkbox("Log Viewer", &mut self.show_log_viewer_window);
-
+        ui.checkbox("Tile Inspector", enable_tile_inspector);
+        
         let mut show_popup_messages = super::show_popup_messages();
         if ui.checkbox("Popup Messages", &mut show_popup_messages) {
             super::set_show_popup_messages(show_popup_messages);
