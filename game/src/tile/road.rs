@@ -4,50 +4,98 @@ use std::sync::LazyLock;
 
 use crate::{
     pathfind::NodeKind as PathNodeKind,
-    utils::{coords::Cell, hash},
+    utils::{coords::Cell, hash::StrHashPair},
     tile::{
         TileKind, TileFlags, TileMap, TileMapLayerKind,
         sets::{TileDef, TileSets, TERRAIN_GROUND_CATEGORY},
     },
 };
 
+// ----------------------------------------------
+// RoadKind
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Default)]
+pub enum RoadKind {
+    #[default]
+    Dirt,
+    Paved,
+}
+
+// ----------------------------------------------
+// RoadSegment
+// ----------------------------------------------
+
 #[derive(Default)]
 pub struct RoadSegment {
     pub path: Vec<Cell>,
+    pub kind: RoadKind,
     pub is_valid: bool,
 }
 
 impl RoadSegment {
-    fn valid(path: Vec<Cell>) -> Self {
-        Self { path, is_valid: true }
+    #[inline]
+    fn valid(path: Vec<Cell>, kind: RoadKind) -> Self {
+        Self { path, kind, is_valid: true }
     }
 
-    fn invalid(path: Vec<Cell>) -> Self {
-        Self { path, is_valid: false }
+    #[inline]
+    fn invalid(path: Vec<Cell>, kind: RoadKind) -> Self {
+        Self { path, kind, is_valid: false }
     }
 
+    #[inline]
     pub fn clear(&mut self) {
         self.path.clear();
         self.is_valid = false;
     }
 
+    #[inline]
     pub fn cost(&self) -> u32 {
         // All road tiles have the same cost.
-        (self.path.len() as u32) * tile_def().cost
+        (self.path.len() as u32) * self.tile_def().cost
+    }
+
+    #[inline]
+    pub fn tile_def(&self) -> &'static TileDef {
+        self::tile_def(self.kind)
+    }
+}
+
+// ----------------------------------------------
+// Road Placement API
+// ----------------------------------------------
+
+#[inline]
+pub const fn tile_name(kind: RoadKind) -> StrHashPair {
+    match kind {
+        RoadKind::Dirt  => StrHashPair::from_str("dirt_road"),
+        RoadKind::Paved => StrHashPair::from_str("paved_road"),
     }
 }
 
 #[inline]
-pub fn tile_def() -> &'static TileDef {
-    &ROAD_TILE_DEF
+pub fn tile_def(kind: RoadKind) -> &'static TileDef {
+    match kind {
+        RoadKind::Dirt  => &DIRT_ROAD_TILE_DEF,
+        RoadKind::Paved => &PAVED_ROAD_TILE_DEF,
+    }
 }
 
-static ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
+static DIRT_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
     TileSets::get().find_tile_def_by_hash(
         TileMapLayerKind::Terrain,
         TERRAIN_GROUND_CATEGORY.hash,
-        hash::fnv1a_from_str("dirt_road"))
-        .expect("Failed to find road tile 'dirt_road'!")
+        tile_name(RoadKind::Dirt).hash)
+            .expect("Failed to find dirt road tile!")
+});
+
+static PAVED_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
+    TileSets::get().find_tile_def_by_hash(
+        TileMapLayerKind::Terrain,
+        TERRAIN_GROUND_CATEGORY.hash,
+        tile_name(RoadKind::Paved).hash)
+            .expect("Failed to find paved road tile!")
 });
 
 enum RangeInclusiveIter {
@@ -99,7 +147,7 @@ fn can_place_road(cell: Cell, tile_map: &TileMap) -> bool {
 fn is_road(cell: Cell, tile_map: &TileMap) -> bool {
     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
         if tile.path_kind().intersects(PathNodeKind::Road) ||
-           tile.has_flags(TileFlags::RoadPlacement) {
+           tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement) {
             return true;
         }
     }
@@ -161,12 +209,12 @@ fn zigzag_path(start: Cell, end: Cell) -> Vec<Cell> {
     path
 }
 
-pub fn build_segment(start: Cell, end: Cell, tile_map: &TileMap) -> RoadSegment {
+pub fn build_segment(start: Cell, end: Cell, kind: RoadKind, tile_map: &TileMap) -> RoadSegment {
     if start == end {
         // One cell segment.
         let path = vec![start];
         let is_valid = is_path_valid(&path, tile_map);
-        return RoadSegment { path, is_valid };
+        return RoadSegment { path, kind, is_valid };
     }
 
     // Horizontal-first path:
@@ -182,34 +230,39 @@ pub fn build_segment(start: Cell, end: Cell, tile_map: &TileMap) -> RoadSegment 
     let zigzag_valid = is_path_valid(&zigzag_path, tile_map);
 
     match (hv_valid, vh_valid, zigzag_valid) {
-        (true, false, false) | (true, false, true) => RoadSegment::valid(hv_path), // Favor straight roads.
-        (false, true, false) | (false, true, true) => RoadSegment::valid(vh_path), // Favor straight roads.
+        (true, false, false) | (true, false, true) => RoadSegment::valid(hv_path, kind), // Favor straight roads.
+        (false, true, false) | (false, true, true) => RoadSegment::valid(vh_path, kind), // Favor straight roads.
         (true, true, false)  | (true, true, true)  => {
             // Prefer the one with fewer existing roads (so it expands less).
             // Favor straight roads (ignore zigzag diagonals).
             let hv_existing = hv_path.iter().filter(|cell| is_road(**cell, tile_map)).count();
             let vh_existing = vh_path.iter().filter(|cell| is_road(**cell, tile_map)).count();
             if hv_existing <= vh_existing {
-                RoadSegment::valid(hv_path)
+                RoadSegment::valid(hv_path, kind)
             } else {
-                RoadSegment::valid(vh_path)
+                RoadSegment::valid(vh_path, kind)
             }
         },
         // Only valid path is a zigzag diagonal.
-        (false, false, true)  => RoadSegment::valid(zigzag_path),
+        (false, false, true)  => RoadSegment::valid(zigzag_path, kind),
         // All blocked. Return an invalidated horiz-vert path.
-        (false, false, false) => RoadSegment::invalid(hv_path),
+        (false, false, false) => RoadSegment::invalid(hv_path, kind),
     }
 }
 
 pub fn mark_tiles(tile_map: &mut TileMap, segment: &RoadSegment, highlight: bool, valid_placement: bool) {
+    let road_placement_flag = match segment.kind {
+        RoadKind::Dirt  => TileFlags::DirtRoadPlacement,
+        RoadKind::Paved => TileFlags::PavedRoadPlacement,
+    };
+
     if highlight {
         for cell in &segment.path {
             if let Some(tile) = tile_map.try_tile_from_layer_mut(*cell, TileMapLayerKind::Terrain) {
                 if valid_placement {
-                    tile.set_flags(TileFlags::RoadPlacement | TileFlags::Highlighted, true);
+                    tile.set_flags(road_placement_flag | TileFlags::Highlighted, true);
                 } else {
-                    tile.set_flags(TileFlags::RoadPlacement | TileFlags::Invalidated, true);
+                    tile.set_flags(road_placement_flag | TileFlags::Invalidated, true);
                 }
             }
         }
@@ -217,7 +270,7 @@ pub fn mark_tiles(tile_map: &mut TileMap, segment: &RoadSegment, highlight: bool
         for cell in &segment.path {
             if let Some(tile) = tile_map.try_tile_from_layer_mut(*cell, TileMapLayerKind::Terrain) {
                 tile.set_flags(
-                    TileFlags::RoadPlacement |
+                    road_placement_flag |
                     TileFlags::Highlighted |
                     TileFlags::Invalidated,
                     false);
@@ -226,9 +279,9 @@ pub fn mark_tiles(tile_map: &mut TileMap, segment: &RoadSegment, highlight: bool
     }
 }
 
-// +-----------------------------------------+
-// │ Road Junctions Mask Reference (N,E,S,W) |
-// +-----------------------------------------+
+// ----------------------------------------------
+// Road Junctions Mask Reference (N,E,S,W)
+// ----------------------------------------------
 
 // Bit order (rightmost bit is the start)
 //

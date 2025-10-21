@@ -1,16 +1,17 @@
 use crate::{
+    log,
     engine::DebugDraw,
+    imgui_ui::UiSystem,
+    render::{RenderStats, RenderSystem},
     game::{
         cheats::{self, Cheats},
         sim::debug::DebugQueryBuilder,
         world::World,
     },
-    imgui_ui::UiSystem,
-    log,
-    render::{RenderStats, RenderSystem},
     tile::{
-        rendering::{TileMapRenderFlags, TileMapRenderStats},
+        road,
         sets::{TileDef, TileSets},
+        rendering::{TileMapRenderFlags, TileMapRenderStats},
         Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, BASE_TILE_SIZE,
     },
     utils::{
@@ -364,11 +365,11 @@ mod preset_maps {
     // TERRAIN:
     const G: i32 = 0; // grass
     const D: i32 = 1; // dirt
-    const R: i32 = 2; // dirt_road
+    const R: i32 = 2; // dirt road
     const TERRAIN_TILE_NAMES: [&str; 3] = [
         "grass",
         "dirt",
-        "dirt_road",
+        road::tile_name(road::RoadKind::Dirt).string,
     ];
 
     // BUILDINGS:

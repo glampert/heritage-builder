@@ -13,6 +13,7 @@ use crate::{
     pathfind::NodeKind as PathNodeKind,
     utils::{self, coords::WorldToScreenTransform, Color, Rect, RectTexCoords, Size, Vec2},
     tile::{
+        road,
         TileKind, BASE_TILE_SIZE,
         rendering::INVALID_TILE_COLOR,
         sets::{TileCategory, TileDef, TileDefHandle, TileSet, TileSets},
@@ -67,14 +68,24 @@ impl TilePaletteMenu {
 
     pub fn is_road_tile_selected(&self) -> bool {
         if let Some(tile_def) = self.current_selection() {
-            if tile_def.path_kind.intersects(PathNodeKind::Road) &&
-              !tile_def.path_kind.intersects(PathNodeKind::SettlersSpawnPoint) {
-                // SettlersSpawnPoint is a special kind of road, but we don't consider
-                // it here for the purposes of road segment placement.
+            if tile_def.path_kind.intersects(PathNodeKind::Road) {
                 return true;
             }
         }
         false
+    }
+
+    pub fn selected_road_kind(&self) -> road::RoadKind {
+        if let Some(tile_def) = self.current_selection() {
+            if tile_def.path_kind.intersects(PathNodeKind::Road) {
+                if tile_def.hash == road::tile_name(road::RoadKind::Dirt).hash {
+                    return road::RoadKind::Dirt;
+                } else if tile_def.hash == road::tile_name(road::RoadKind::Paved).hash {
+                    return road::RoadKind::Paved;
+                }
+            }
+        }
+        panic!("No road tile selected!");
     }
 
     pub fn current_selection(&self) -> Option<&'static TileDef> {

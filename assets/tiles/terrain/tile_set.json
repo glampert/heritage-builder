@@ -55,7 +55,7 @@
           "path_kind": "Dirt",
           "draw_size": {
             "width": 65,
-            "height": 41
+            "height": 36
           },
           "variations": [
             {
@@ -113,7 +113,7 @@
           "cost": 1,
           "path_kind": "Road",
           "draw_size": {
-            "width": 64,
+            "width": 65,
             "height": 36
           },
           "variations": [
@@ -345,6 +345,28 @@
               ]
             }
           ]
+        },
+        {
+          "name": "paved_road",
+          "path_kind": "Road",
+          "cost": 3,
+          "draw_size": {
+            "width": 65,
+            "height": 41
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "paved_road"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -356,7 +378,7 @@
           "path_kind": "Water",
           "draw_size": {
             "width": 65,
-            "height": 41
+            "height": 36
           },
           "variations": [
             {

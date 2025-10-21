@@ -204,7 +204,7 @@ impl DebugMenusSingleton {
 
                     // Place tiles:
                     for cell in &self.current_road_segment.path {
-                        spawner.try_spawn_tile_with_def(*cell, road::tile_def());
+                        spawner.try_spawn_tile_with_def(*cell, self.current_road_segment.tile_def());
                     }
 
                     // Update road junctions (each junction is a different variation of the same tile).
@@ -271,7 +271,8 @@ impl DebugMenusSingleton {
                     // Clear previous segment highlight:
                     road::mark_tiles(args.tile_map, &self.current_road_segment, false, false);
 
-                    self.current_road_segment = road::build_segment(start, end, args.tile_map);
+                    let road_kind = self.tile_palette_menu.selected_road_kind();
+                    self.current_road_segment = road::build_segment(start, end, road_kind, args.tile_map);
 
                     let is_valid_road_placement =
                         self.current_road_segment.is_valid &&

@@ -91,12 +91,13 @@ bitflags_with_display! {
         const OccludesTerrain    = 1 << 3;
         const BuildingRoadLink   = 1 << 4;
         const SettlersSpawnPoint = 1 << 5;
-        const RoadPlacement      = 1 << 6;
+        const DirtRoadPlacement  = 1 << 6;
+        const PavedRoadPlacement = 1 << 7;
 
         // Debug flags:
-        const DrawDebugInfo      = 1 << 7;
-        const DrawDebugBounds    = 1 << 8;
-        const DrawBlockerInfo    = 1 << 9;
+        const DrawDebugInfo      = 1 << 8;
+        const DrawDebugBounds    = 1 << 9;
+        const DrawBlockerInfo    = 1 << 10;
     }
 }
 

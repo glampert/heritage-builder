@@ -396,7 +396,7 @@ impl TileMapRenderer {
                 stats.tiles_drawn += 1;
 
                 // Road placement overlay:
-                if tile.has_flags(TileFlags::RoadPlacement) {
+                if tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement) {
                     Self::draw_road_placement_overlay(render_sys, transform, tile, tile_map);
                 }
             }
@@ -410,8 +410,24 @@ impl TileMapRenderer {
                                    tile: &Tile,
                                    tile_map: &TileMap) {
         let cell = tile.base_cell();
-        let tile_def = road::tile_def();
-        let variation_index = road::junction_mask(cell, tile_map);
+
+        let tile_def = {
+            if tile.has_flags(TileFlags::DirtRoadPlacement) {
+                road::tile_def(road::RoadKind::Dirt)
+            } else if tile.has_flags(TileFlags::PavedRoadPlacement) {
+                road::tile_def(road::RoadKind::Paved)
+            } else {
+                panic!("Expected one of TileFlags::RoadPlacement flags");
+            }
+        };
+
+        let variation_index = {
+            if tile_def.has_variations() {
+                road::junction_mask(cell, tile_map)
+            } else {
+                0
+            }
+        };
 
         if let Some(anim_set) = tile_def.anim_set_by_index(variation_index, 0) {
             let tile_sprite = &anim_set.frames[0].tex_info;
