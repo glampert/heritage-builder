@@ -385,7 +385,7 @@ impl DebugSettingsMenu {
             let water_tile_def =
                 TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
                                                       TERRAIN_WATER_CATEGORY.hash,
-                                                      hash::fnv1a_from_str("blue"));
+                                                      hash::fnv1a_from_str("water"));
 
             game_loop.reset_session(water_tile_def);
         }

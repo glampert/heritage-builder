@@ -3,6 +3,7 @@ use crate::{
     engine::DebugDraw,
     imgui_ui::UiSystem,
     render::{RenderStats, RenderSystem},
+    pathfind::NodeKind as PathNodeKind,
     game::{
         cheats::{self, Cheats},
         sim::debug::DebugQueryBuilder,
@@ -347,6 +348,30 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
     }
 }
 
+// Refresh state cached from TileDef during placement and road junction variations.
+pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
+    let mut road_cells = Vec::new();
+
+    tile_map.for_each_tile_mut(
+        TileMapLayerKind::Terrain,
+        TileKind::Terrain,
+        |tile| {
+            tile.on_tile_def_edited();
+            if tile.path_kind().intersects(PathNodeKind::Road) {
+                road_cells.push(tile.base_cell());
+            }
+        });
+
+    tile_map.for_each_tile_mut(
+        TileMapLayerKind::Objects,
+        TileKind::Building | TileKind::Unit | TileKind::Prop | TileKind::Vegetation,
+        |tile| tile.on_tile_def_edited());
+
+    for cell in road_cells {
+        road::update_junctions(cell, tile_map);
+    }
+}
+
 // ----------------------------------------------
 // Built-in preset test TileMaps
 // ----------------------------------------------
@@ -444,8 +469,8 @@ mod preset_maps {
             X,X,X,X,X,S,X,X,X,
             X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
-            X,F,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
+            X,F,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
@@ -463,20 +488,20 @@ mod preset_maps {
             R,R,R,R,R,R,R,R,R,
             R,G,G,G,G,G,G,G,R,
             R,G,G,G,G,G,G,G,R,
-            R,R,G,G,G,G,G,G,R,
-            R,G,G,G,G,R,R,R,R,
             R,G,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,G,R,
-            R,G,G,G,G,G,G,G,R,
+            R,R,G,G,R,R,R,R,R,
+            R,G,G,G,R,G,G,G,R,
+            R,G,G,G,R,G,G,G,R,
+            R,G,G,G,R,G,G,G,R,
             R,R,R,R,R,R,R,R,R,
         ],
         building_tiles: &[
             X,X,X,X,X,X,X,X,X,
-            X,H,X,B,X,M,X,X,X,
+            X,H,X,X,B,X,M,X,X,
+            X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
             X,X,W,X,X,X,X,X,X,
-            X,F,X,X,X,X,X,X,X,
-            X,X,X,X,X,S,X,X,X,
+            X,F,X,X,X,S,X,X,X,
             X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,
@@ -497,8 +522,8 @@ mod preset_maps {
             R,G,G,G,G,G,G,R,G,G,G,R,
             R,G,G,G,G,G,G,R,G,G,G,R,
             R,G,G,G,G,G,G,R,G,G,G,R,
-            R,R,R,R,R,R,R,R,G,G,G,R,
             R,G,G,G,G,G,G,R,G,G,G,R,
+            R,R,R,R,R,R,R,R,G,G,G,R,
             R,G,G,G,G,G,G,R,G,G,G,R,
             R,G,G,G,G,G,G,R,G,G,G,R,
             R,G,G,G,G,G,G,R,G,G,G,R,
@@ -512,8 +537,8 @@ mod preset_maps {
             X,X,X,X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,X,X,X,
-            X,F,X,X,X,X,X,X,X,X,X,X,
-            X,X,X,X,X,X,X,X,Y,X,X,X,
+            X,X,X,X,X,X,X,X,X,X,X,X,
+            X,F,X,X,X,X,X,X,Y,X,X,X,
             X,X,X,X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,X,X,X,
             X,X,X,X,X,X,X,X,X,X,X,X,
@@ -585,6 +610,7 @@ mod preset_maps {
             }
         }
 
+        refresh_cached_tile_visuals(&mut tile_map);
         tile_map
     }
 

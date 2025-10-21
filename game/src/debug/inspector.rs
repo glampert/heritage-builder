@@ -6,7 +6,7 @@ use crate::{
     game::sim::{self, debug::DebugUiMode, Simulation},
     imgui_ui::{self, UiInputEvent},
     pathfind::NodeKind as PathNodeKind,
-    tile::{road, Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE},
+    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE},
     utils::{coords::Cell, mem, Color, Size},
 };
 
@@ -456,26 +456,7 @@ impl TileInspectorMenu {
         ui.unindent_by(3.0);
 
         if ui.button("Refresh all Tiles") {
-            let mut road_cells = Vec::new();
-
-            context.tile_map.for_each_tile_mut(
-                TileMapLayerKind::Terrain,
-                TileKind::Terrain,
-                |tile| {
-                    tile.on_tile_def_edited();
-                    if tile.path_kind().intersects(PathNodeKind::Road) {
-                        road_cells.push(tile.base_cell());
-                    }
-                });
-
-            context.tile_map.for_each_tile_mut(
-                TileMapLayerKind::Objects,
-                TileKind::Building | TileKind::Unit | TileKind::Prop | TileKind::Vegetation,
-                |tile| tile.on_tile_def_edited());
-
-            for cell in road_cells {
-                road::update_junctions(cell, context.tile_map);
-            }
+            super::utils::refresh_cached_tile_visuals(context.tile_map);
         }
 
         ui.separator();

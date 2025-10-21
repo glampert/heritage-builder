@@ -43,9 +43,10 @@ bitflags_with_display! {
         // Raw materials:
         const Wood  = 1 << 4;
         const Metal = 1 << 5;
+        const Clay  = 1 << 6;
 
         // Gold (used as currency only):
-        const Gold  = 1 << 6;
+        const Gold  = 1 << 7;
     }
 }
 
@@ -72,7 +73,7 @@ impl ResourceKind {
 
     #[inline]
     pub const fn raw_materials() -> Self {
-        Self::from_bits_retain(Self::Wood.bits() | Self::Metal.bits())
+        Self::from_bits_retain(Self::Wood.bits() | Self::Metal.bits() | Self::Clay.bits())
     }
 
     #[inline]

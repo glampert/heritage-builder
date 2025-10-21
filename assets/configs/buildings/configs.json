@@ -324,6 +324,30 @@
       "resources_capacity": 8,
       "deliver_to_storage_kinds": "StorageYard",
       "fetch_from_storage_kinds": "Granary"
+    },
+    {
+      "kind": "Mine",
+      "name": "Mine",
+      "tile_def_name": "mine",
+      "min_workers": 2,
+      "max_workers": 8,
+      "production_output_frequency_secs": 30.0,
+      "production_output_amount": 1,
+      "production_output": "Metal",
+      "production_capacity": 5,
+      "deliver_to_storage_kinds": "StorageYard"
+    },
+    {
+      "kind": "Mine",
+      "name": "Clay Pit",
+      "tile_def_name": "clay_pit",
+      "min_workers": 1,
+      "max_workers": 8,
+      "production_output_frequency_secs": 30.0,
+      "production_output_amount": 1,
+      "production_output": "Clay",
+      "production_capacity": 5,
+      "deliver_to_storage_kinds": "StorageYard"
     }
   ],
   "storage_configs": [
@@ -340,7 +364,8 @@
           "Fish",
           "Wine",
           "Wood",
-          "Metal"
+          "Metal",
+          "Clay"
         ]
       },
       "num_slots": 8,

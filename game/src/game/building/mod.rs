@@ -71,26 +71,27 @@ bitflags_with_display! {
         // Archetype: Producer
         const Farm           = 1 << 1;
         const Factory        = 1 << 2;
+        const Mine           = 1 << 3;
 
         // Archetype: Storage
-        const Granary        = 1 << 3;
-        const StorageYard    = 1 << 4;
+        const Granary        = 1 << 4;
+        const StorageYard    = 1 << 5;
 
         // Archetype: Service
-        const SmallWell      = 1 << 5;
-        const LargeWell      = 1 << 6;
-        const Market         = 1 << 7;
-        const TaxOffice      = 1 << 8;
-        const Shrine         = 1 << 9;
-        const Temple         = 1 << 10;
-        const Citadel        = 1 << 11;
-        const GovernorPalace = 1 << 12;
-        const PoliceStation  = 1 << 13;
-        const Theater        = 1 << 14;
-        const University     = 1 << 15;
-        const Apothecary     = 1 << 16;
-        const Hospital       = 1 << 17;
-        const Garden         = 1 << 18;
+        const SmallWell      = 1 << 6;
+        const LargeWell      = 1 << 7;
+        const Market         = 1 << 8;
+        const TaxOffice      = 1 << 9;
+        const Shrine         = 1 << 10;
+        const Temple         = 1 << 11;
+        const Citadel        = 1 << 12;
+        const GovernorPalace = 1 << 13;
+        const PoliceStation  = 1 << 14;
+        const Theater        = 1 << 15;
+        const University     = 1 << 16;
+        const Apothecary     = 1 << 17;
+        const Hospital       = 1 << 18;
+        const Garden         = 1 << 19;
     }
 }
 
@@ -112,7 +113,7 @@ impl BuildingKind {
 
     #[inline]
     pub const fn producers() -> Self {
-        Self::from_bits_retain(Self::Farm.bits() | Self::Factory.bits())
+        Self::from_bits_retain(Self::Farm.bits() | Self::Factory.bits() | Self::Mine.bits())
     }
 
     #[inline]
