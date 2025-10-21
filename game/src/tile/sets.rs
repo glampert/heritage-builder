@@ -164,6 +164,10 @@ pub struct TileDef {
     #[serde(default = "default_occludes_terrain")]
     pub occludes_terrain: bool,
 
+    // If true, always select a random variation when placing this tile.
+    #[serde(default)]
+    pub randomize_placement: bool,
+
     #[serde(default = "default_path_kind")]
     pub path_kind: PathNodeKind,
 
@@ -210,6 +214,7 @@ impl TileDef {
     pub fn flags(&self) -> TileFlags {
         let mut flags = TileFlags::empty();
         flags.set(TileFlags::OccludesTerrain, self.occludes_terrain);
+        flags.set(TileFlags::RandomizePlacement, self.randomize_placement);
         flags.set(TileFlags::SettlersSpawnPoint, self.path_kind.intersects(PathNodeKind::SettlersSpawnPoint));
         flags
     }

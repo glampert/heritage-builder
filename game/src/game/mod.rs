@@ -33,7 +33,7 @@ use crate::{
         rendering::TileMapRenderFlags,
         selection::TileSelection,
         sets::{TileDef, TileSets},
-        TileKind, TileMap, TileMapLayerKind,
+        TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
     utils::{coords::CellRange, file_sys, hash, Size, Vec2},
 };
@@ -133,7 +133,9 @@ impl GameSession {
                                                    hash::fnv1a_from_str(terrain_tile_name));
 
                     tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::Terrain, |terrain| {
-                        terrain.set_random_variation_index(&mut rand::rng());
+                        if terrain.has_flags(TileFlags::RandomizePlacement) {
+                            terrain.set_random_variation_index(&mut rand::rng());
+                        }
                     });
 
                     tile_map
@@ -176,7 +178,9 @@ impl GameSession {
                 self.tile_map.for_each_tile_mut(TileMapLayerKind::Terrain,
                                                 TileKind::Terrain,
                                                 |terrain| {
-                                                    terrain.set_random_variation_index(&mut rand::rng());
+                                                    if terrain.has_flags(TileFlags::RandomizePlacement) {
+                                                        terrain.set_random_variation_index(&mut rand::rng());
+                                                    }
                                                 });
             }
         }

@@ -22,7 +22,7 @@ use crate::{
     log,
     pathfind::NodeKind as PathNodeKind,
     save::PostLoadContext,
-    tile::{sets::TileDef, Tile, TileKind, TileMapLayerKind},
+    tile::{sets::TileDef, Tile, TileKind, TileFlags, TileMapLayerKind},
     utils::{
         coords::{Cell, CellRange, WorldToScreenTransform},
         hash,
@@ -692,7 +692,9 @@ impl<'world> Spawner<'world> {
                     }
                 } else {
                     // Set a random tile variation:
-                    tile.set_random_variation_index(self.query.rng());
+                    if tile.has_flags(TileFlags::RandomizePlacement) {
+                        tile.set_random_variation_index(self.query.rng());
+                    }
                 }
 
                 Ok(tile)

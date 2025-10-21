@@ -593,7 +593,9 @@ mod preset_maps {
                         .expect("Failed to place Terrain tile!");
 
                     // Set a random terrain tile variation:
-                    tile.set_random_variation_index(query.rng());
+                    if tile.has_flags(TileFlags::RandomizePlacement) {
+                        tile.set_random_variation_index(query.rng());
+                    }
                 }
             }
         }

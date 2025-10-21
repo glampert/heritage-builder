@@ -93,11 +93,12 @@ bitflags_with_display! {
         const SettlersSpawnPoint = 1 << 5;
         const DirtRoadPlacement  = 1 << 6;
         const PavedRoadPlacement = 1 << 7;
+        const RandomizePlacement = 1 << 8;
 
         // Debug flags:
-        const DrawDebugInfo      = 1 << 8;
-        const DrawDebugBounds    = 1 << 9;
-        const DrawBlockerInfo    = 1 << 10;
+        const DrawDebugInfo      = 1 << 9;
+        const DrawDebugBounds    = 1 << 10;
+        const DrawBlockerInfo    = 1 << 11;
     }
 }
 
