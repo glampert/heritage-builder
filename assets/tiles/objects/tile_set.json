@@ -734,15 +734,68 @@
               ]
             }
           ]
+        },
+        {
+          "name": "mine",
+          "cost": 8,
+          "required_proximity": "Rocks",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 132,
+            "height": 102
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "mine"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "clay_pit",
+          "cost": 4,
+          "required_proximity": "Water",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 127,
+            "height": 80
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "clay_pit"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
     {
-      "name": "props",
+      "name": "rocks",
       "tile_defs": [
         {
           "name": "brown_boulder",
           "occludes_terrain": false,
+          "path_kind": "Rocks",
           "draw_size": {
             "width": 46,
             "height": 32
@@ -777,6 +830,7 @@
         {
           "name": "red_boulder",
           "occludes_terrain": false,
+          "path_kind": "Rocks",
           "draw_size": {
             "width": 46,
             "height": 32
@@ -811,6 +865,7 @@
         {
           "name": "gray_boulder",
           "occludes_terrain": false,
+          "path_kind": "Rocks",
           "draw_size": {
             "width": 46,
             "height": 32
@@ -857,6 +912,7 @@
         {
           "name": "round_stones",
           "occludes_terrain": false,
+          "path_kind": "Rocks",
           "draw_size": {
             "width": 36,
             "height": 26
@@ -884,6 +940,7 @@
           "name": "tree",
           "cost": 1,
           "occludes_terrain": false,
+          "path_kind": "Vegetation",
           "draw_size": {
             "width": 56,
             "height": 74
@@ -918,6 +975,7 @@
         {
           "name": "bamboo",
           "occludes_terrain": false,
+          "path_kind": "Vegetation",
           "draw_size": {
             "width": 60,
             "height": 65
@@ -939,6 +997,7 @@
         {
           "name": "bush",
           "occludes_terrain": false,
+          "path_kind": "Vegetation",
           "draw_size": {
             "width": 50,
             "height": 50
@@ -961,6 +1020,7 @@
           "name": "palm_tree",
           "cost": 1,
           "occludes_terrain": false,
+          "path_kind": "Vegetation",
           "draw_size": {
             "width": 64,
             "height": 90
@@ -986,6 +1046,215 @@
       "tile_defs": [
         {
           "name": "ped",
+          "occludes_terrain": false,
+          "draw_size": {
+            "width": 20,
+            "height": 36
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "name": "idle",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_ne",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_nw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_se",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_sw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_ne",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_nw",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_se",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_sw",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "runner",
+          "color": {
+            "r": 1,
+            "g": 1,
+            "b": 0.3,
+            "a": 1
+          },
           "occludes_terrain": false,
           "draw_size": {
             "width": 25,
@@ -1146,175 +1415,6 @@
                     },
                     {
                       "name": "frame8"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "name": "runner",
-          "color": {
-            "r": 1,
-            "g": 1,
-            "b": 0.3,
-            "a": 1
-          },
-          "occludes_terrain": false,
-          "draw_size": {
-            "width": 20,
-            "height": 36
-          },
-          "variations": [
-            {
-              "anim_sets": [
-                {
-                  "name": "idle",
-                  "looping": true,
-                  "duration": 15,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    }
-                  ]
-                },
-                {
-                  "name": "walk_ne",
-                  "looping": true,
-                  "duration": 2,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
-                    }
-                  ]
-                },
-                {
-                  "name": "walk_nw",
-                  "looping": true,
-                  "duration": 2,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
-                    }
-                  ]
-                },
-                {
-                  "name": "walk_se",
-                  "looping": true,
-                  "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
-                },
-                {
-                  "name": "walk_sw",
-                  "looping": true,
-                  "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
                     }
                   ]
                 }
