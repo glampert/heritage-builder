@@ -215,7 +215,7 @@ impl TileSelection {
             PlacementOp::Place(tile_def) => {
                 let mut flags = TileFlags::Highlighted;
 
-                if placement::is_placement_on_terrain_valid(layers.get(TileMapLayerKind::Terrain),
+                if placement::is_placement_on_terrain_valid(layers.to_refs(),
                                                             base_cell,
                                                             tile_def).is_err() {
                     flags = TileFlags::Invalidated;

@@ -1,4 +1,4 @@
-use super::{sets::TileDef, Tile, TileKind, TileMapLayer, TileMapLayerKind, TilePoolIndex};
+use super::{sets::TileDef, Tile, TileKind, TileMapLayer, TileMapLayerRefs, TileMapLayerKind, TilePoolIndex};
 use crate::{debug, pathfind::NodeKind as PathNodeKind, utils::coords::Cell};
 
 // ----------------------------------------------
@@ -13,7 +13,7 @@ pub enum PlacementOp {
     None,
 }
 
-pub fn is_placement_on_terrain_valid(terrain: &TileMapLayer,
+pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
                                      target_cell: Cell,
                                      tile_def_to_place: &'static TileDef)
                                      -> Result<(), String> {
@@ -21,8 +21,11 @@ pub fn is_placement_on_terrain_valid(terrain: &TileMapLayer,
     debug_assert!(tile_def_to_place.is_valid());
 
     if tile_def_to_place.is(TileKind::Object) {
+        let has_proximity_requirements = !tile_def_to_place.required_proximity.is_empty();
+        let mut found_proximity_requirements = false;
+
         for cell in &tile_def_to_place.cell_range(target_cell) {
-            if let Some(tile) = terrain.try_tile(cell) {
+            if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                 let path_kind = tile.path_kind();
                 if tile_def_to_place.is(TileKind::Unit)
                    && !path_kind.intersects(PathNodeKind::unit_placeable())
@@ -30,7 +33,7 @@ pub fn is_placement_on_terrain_valid(terrain: &TileMapLayer,
                     return Err(format!("Cannot place unit '{}' over terrain tile '{}'.",
                                        tile_def_to_place.name,
                                        tile.name()));
-                } else if tile_def_to_place.is(TileKind::Prop | TileKind::Vegetation)
+                } else if tile_def_to_place.is(TileKind::Rocks | TileKind::Vegetation)
                           && !path_kind.intersects(PathNodeKind::object_placeable())
                 {
                     return Err(format!("Cannot place object prop '{}' over terrain tile '{}'.",
@@ -44,10 +47,34 @@ pub fn is_placement_on_terrain_valid(terrain: &TileMapLayer,
                                        tile_def_to_place.name,
                                        tile.name()));
                 }
+
+                // Tile must be placed near water/rocks/etc.
+                if has_proximity_requirements && !found_proximity_requirements {
+                    let neighbors = layers.get(TileMapLayerKind::Terrain).tile_neighbors(cell, false);
+                    let is_near = neighbors
+                        .iter()
+                        .flatten()
+                        .any(|neighbor| neighbor.path_kind().intersects(tile_def_to_place.required_proximity));
+                    found_proximity_requirements = is_near;
+                }
+
+                // Check requirements again in the objects layer.
+                if has_proximity_requirements && !found_proximity_requirements {
+                    let neighbors = layers.get(TileMapLayerKind::Objects).tile_neighbors(cell, false);
+                    let is_near = neighbors
+                        .iter()
+                        .flatten()
+                        .any(|neighbor| neighbor.path_kind().intersects(tile_def_to_place.required_proximity));
+                    found_proximity_requirements = is_near;
+                }
             }
         }
+
+        if has_proximity_requirements && !found_proximity_requirements {
+            return Err(format!("This building must be placed near {}", tile_def_to_place.required_proximity));
+        }
     } else if tile_def_to_place.path_kind.intersects(PathNodeKind::VacantLot) {
-        if let Some(tile) = terrain.try_tile(target_cell) {
+        if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
             if tile.path_kind().intersects(PathNodeKind::Road
                                            | PathNodeKind::Water
                                            | PathNodeKind::Building
@@ -60,7 +87,7 @@ pub fn is_placement_on_terrain_valid(terrain: &TileMapLayer,
     } else if tile_def_to_place.path_kind
                                .intersects(PathNodeKind::Road | PathNodeKind::SettlersSpawnPoint)
     {
-        if let Some(tile) = terrain.try_tile(target_cell) {
+        if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
             if tile.path_kind().intersects(PathNodeKind::Water) {
                 return Err(format!("Cannot place road over terrain tile '{}'.", tile.name()));
             }

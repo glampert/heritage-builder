@@ -130,7 +130,7 @@ fn can_place_road(cell: Cell, tile_map: &TileMap) -> bool {
     }
 
     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-        if tile.kind().intersects(TileKind::Building | TileKind::Blocker | TileKind::Prop | TileKind::Vegetation) {
+        if tile.kind().intersects(TileKind::Building | TileKind::Blocker | TileKind::Rocks | TileKind::Vegetation) {
             return false;
         }
     }

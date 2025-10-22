@@ -35,7 +35,7 @@ mod tests;
 
 bitflags_with_display! {
     #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct NodeKind: u8 {
+    pub struct NodeKind: u16 {
         const Dirt               = 1 << 0;
         const Road               = 1 << 1;
         const Water              = 1 << 2;
@@ -44,6 +44,8 @@ bitflags_with_display! {
         const BuildingAccess     = 1 << 5;
         const VacantLot          = 1 << 6;
         const SettlersSpawnPoint = 1 << 7;
+        const Rocks              = 1 << 8;
+        const Vegetation         = 1 << 9;
     }
 }
 
@@ -87,6 +89,8 @@ impl NodeKind {
         node_kind_ui_checkbox!(ui, self, BuildingAccess);
         node_kind_ui_checkbox!(ui, self, VacantLot);
         node_kind_ui_checkbox!(ui, self, SettlersSpawnPoint);
+        node_kind_ui_checkbox!(ui, self, Rocks);
+        node_kind_ui_checkbox!(ui, self, Vegetation);
     }
 }
 
@@ -267,7 +271,7 @@ impl Graph {
             let node = Node::new(tile.base_cell());
             let blocker_kinds = TileKind::Building
                                 | TileKind::Blocker
-                                | TileKind::Prop
+                                | TileKind::Rocks
                                 | TileKind::Vegetation;
 
             if let Some(blocker_tile) =
@@ -286,6 +290,10 @@ impl Graph {
                         }
                         true
                     });
+                } else if blocker_tile.is(TileKind::Rocks) {
+                    self.grid[node] = NodeKind::Rocks;
+                } else if blocker_tile.is(TileKind::Vegetation) {
+                    self.grid[node] = NodeKind::Vegetation;
                 }
                 // Else leave it empty.
             } else {

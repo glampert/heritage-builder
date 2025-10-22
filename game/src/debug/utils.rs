@@ -10,7 +10,7 @@ use crate::{
         world::World,
     },
     tile::{
-        road,
+        road, water,
         sets::{TileDef, TileSets},
         rendering::{TileMapRenderFlags, TileMapRenderStats},
         Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, BASE_TILE_SIZE,
@@ -36,8 +36,8 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
         (tile.is(TileKind::Terrain)    && flags.contains(TileMapRenderFlags::DrawTerrainTileDebug))   ||
         (tile.is(TileKind::Blocker)    && flags.contains(TileMapRenderFlags::DrawBlockersTileDebug))  ||
         (tile.is(TileKind::Building)   && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebug)) ||
-        (tile.is(TileKind::Prop)       && flags.contains(TileMapRenderFlags::DrawPropsTileDebug))     ||
         (tile.is(TileKind::Unit)       && flags.contains(TileMapRenderFlags::DrawUnitsTileDebug))     ||
+        (tile.is(TileKind::Rocks)      && flags.contains(TileMapRenderFlags::DrawPropsTileDebug))     ||
         (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetationTileDebug))
     };
 
@@ -234,7 +234,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
             Color::red().to_array()
         } else if tile.is(TileKind::Building) {
             Color::yellow().to_array()
-        } else if tile.is(TileKind::Prop) {
+        } else if tile.is(TileKind::Rocks) {
             Color::magenta().to_array()
         } else if tile.is(TileKind::Unit) {
             Color::cyan().to_array()
@@ -314,7 +314,7 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
             Color::red()
         } else if tile.is(TileKind::Building) {
             Color::yellow()
-        } else if tile.is(TileKind::Prop) {
+        } else if tile.is(TileKind::Rocks) {
             Color::magenta()
         } else if tile.is(TileKind::Unit) {
             Color::cyan()
@@ -351,6 +351,7 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
 // Refresh state cached from TileDef during placement and road junction variations.
 pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
     let mut road_cells = Vec::new();
+    let mut water_cells = Vec::new();
 
     tile_map.for_each_tile_mut(
         TileMapLayerKind::Terrain,
@@ -360,15 +361,22 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
             if tile.path_kind().intersects(PathNodeKind::Road) {
                 road_cells.push(tile.base_cell());
             }
+            if tile.path_kind().intersects(PathNodeKind::Water) {
+                water_cells.push(tile.base_cell());
+            }
         });
 
     tile_map.for_each_tile_mut(
         TileMapLayerKind::Objects,
-        TileKind::Building | TileKind::Unit | TileKind::Prop | TileKind::Vegetation,
+        TileKind::Building | TileKind::Unit | TileKind::Rocks | TileKind::Vegetation,
         |tile| tile.on_tile_def_edited());
 
     for cell in road_cells {
         road::update_junctions(cell, tile_map);
+    }
+
+    for cell in water_cells {
+        water::update_transitions(cell, tile_map);
     }
 }
 

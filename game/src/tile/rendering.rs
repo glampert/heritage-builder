@@ -220,8 +220,8 @@ impl TileMapRenderer {
             let should_draw = {
                 !tile.is(TileKind::Blocker)    &&
                 (tile.is(TileKind::Building)   && flags.contains(TileMapRenderFlags::DrawBuildings)) ||
-                (tile.is(TileKind::Prop)       && flags.contains(TileMapRenderFlags::DrawProps))     ||
                 (tile.is(TileKind::Unit)       && flags.contains(TileMapRenderFlags::DrawUnits))     ||
+                (tile.is(TileKind::Rocks)      && flags.contains(TileMapRenderFlags::DrawProps))     ||
                 (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetation))
             };
 

@@ -13,7 +13,7 @@ use crate::{
         config::GameConfigs,
         sim::{self, Simulation},
         system::GameSystems,
-        world::{object::Spawner, World},
+        world::{object::{Spawner, SpawnerResult}, World},
         GameLoop,
     },
     imgui_ui::{UiInputEvent, UiSystem},
@@ -22,7 +22,8 @@ use crate::{
     tile::{
         camera::Camera, rendering::TileMapRenderFlags, selection::TileSelection, PlacementOp,
         TileKind, TileMap, TileMapLayerKind,
-        road::{self, RoadSegment}
+        road::{self, RoadSegment},
+        water,
     },
     utils::{
         coords::{Cell, CellRange, WorldToScreenTransform},
@@ -298,12 +299,18 @@ impl DebugMenusSingleton {
 
                     if target_cell.is_valid() {
                         let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
-                        let success = Spawner::new(&query).try_spawn_tile_with_def(target_cell, tile_def).is_ok();
-                        if success {
-                            // In case we've replaced a road tile with terrain.
-                            road::update_junctions(target_cell, args.tile_map);
+                        let spawner = Spawner::new(&query);
+                        let spawn_result = spawner.try_spawn_tile_with_def(target_cell, tile_def);
+                        if let SpawnerResult::Tile(tile) = &spawn_result {
+                            if tile.is(TileKind::Terrain) {
+                                // In case we've replaced a road tile with terrain.
+                                road::update_junctions(target_cell, args.tile_map);
+
+                                // In case we've placed a water tile or replaced water with terrain.
+                                water::update_transitions(target_cell, args.tile_map);
+                            }
                         }
-                        success
+                        spawn_result.is_ok()
                     } else {
                         false
                     }
@@ -313,12 +320,16 @@ impl DebugMenusSingleton {
                     if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos,
                                                                                 args.camera.transform())
                     {
-                        let is_road = tile.path_kind().intersects(PathNodeKind::Road);
+                        let is_road  = tile.path_kind().intersects(PathNodeKind::Road);
+                        let is_water = tile.path_kind().intersects(PathNodeKind::Water);
                         let target_cell = tile.base_cell();
                         Spawner::new(&query).despawn_tile(tile);
-                        // Update road junctions around the removed tile cell.
+                        // Update road junctions / water transitions around the removed tile cell.
                         if is_road {
                             road::update_junctions(target_cell, args.tile_map);
+                        }
+                        if is_water {
+                            water::update_transitions(target_cell, args.tile_map);
                         }
                         true
                     } else {

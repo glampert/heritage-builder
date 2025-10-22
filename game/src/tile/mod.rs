@@ -31,6 +31,7 @@ pub mod rendering;
 pub mod selection;
 pub mod sets;
 pub mod road;
+pub mod water;
 
 mod atlas;
 mod placement;
@@ -55,8 +56,8 @@ bitflags_with_display! {
 
         // Specialized tile kinds (Object Archetype & Objects Layer):
         const Building   = 1 << 3;
-        const Prop       = 1 << 4;
-        const Unit       = 1 << 5;
+        const Unit       = 1 << 4;
+        const Rocks      = 1 << 5;
         const Vegetation = 1 << 6;
     }
 }
@@ -66,10 +67,10 @@ impl TileKind {
     fn specialized_kind_for_category(category_hash: StringHash) -> Self {
         if category_hash == sets::OBJECTS_BUILDINGS_CATEGORY.hash {
             TileKind::Building
-        } else if category_hash == sets::OBJECTS_PROPS_CATEGORY.hash {
-            TileKind::Prop
         } else if category_hash == sets::OBJECTS_UNITS_CATEGORY.hash {
             TileKind::Unit
+        } else if category_hash == sets::OBJECTS_ROCKS_CATEGORY.hash {
+            TileKind::Rocks
         } else if category_hash == sets::OBJECTS_VEGETATION_CATEGORY.hash {
             TileKind::Vegetation
         } else {
@@ -598,7 +599,7 @@ pub fn calc_object_iso_coords(kind: TileKind,
         // Adjust to center the unit sprite to the tile:
         tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
         tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2);
-    } else if kind.intersects(TileKind::Prop | TileKind::Vegetation) {
+    } else if kind.intersects(TileKind::Rocks | TileKind::Vegetation) {
         // Adjust to center the prop sprite to the tile:
         tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
         tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2) - (BASE_TILE_SIZE.height / 4);
@@ -1261,6 +1262,12 @@ impl TileMapLayerMutRefs {
     #[inline(always)]
     pub fn get(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer {
         self.ptrs[kind as usize].as_mut()
+    }
+
+    // Mutable -> immutable conversion.
+    #[inline]
+    pub fn to_refs(self) -> TileMapLayerRefs {
+        TileMapLayerRefs { ptrs: self.ptrs }
     }
 }
 
@@ -2291,7 +2298,7 @@ impl TileMap {
         }
 
         // Prevent placing objects/props over non-walkable terrain tiles (water/roads, etc).
-        placement::is_placement_on_terrain_valid(self.layer(TileMapLayerKind::Terrain),
+        placement::is_placement_on_terrain_valid(self.layers(),
                                                  target_cell,
                                                  tile_def_to_place)?;
 

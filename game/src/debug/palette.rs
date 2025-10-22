@@ -168,7 +168,7 @@ impl TilePaletteMenu {
                 let sections = [
                     ("Terrain", TileKind::Terrain),
                     ("",        TileKind::Building),
-                    ("Props",   TileKind::Prop | TileKind::Vegetation),
+                    ("Props",   TileKind::Rocks | TileKind::Vegetation),
                     ("Units",   TileKind::Unit),
                 ];
 
@@ -219,7 +219,7 @@ impl TilePaletteMenu {
             let rect = Rect::from_pos_and_size(cursor_screen_pos, selected_tile.draw_size);
 
             let offset =
-                if selected_tile.is(TileKind::Building | TileKind::Prop | TileKind::Vegetation) {
+                if selected_tile.is(TileKind::Building | TileKind::Rocks | TileKind::Vegetation) {
                     Vec2::new(-(selected_tile.draw_size.width as f32 / 2.0),
                               -(selected_tile.draw_size.height as f32))
                 } else {

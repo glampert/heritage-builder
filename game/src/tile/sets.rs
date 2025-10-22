@@ -30,8 +30,8 @@ pub const TERRAIN_WATER_CATEGORY: StrHashPair = StrHashPair::from_str("water");
 
 // Objects Layer:
 pub const OBJECTS_BUILDINGS_CATEGORY: StrHashPair = StrHashPair::from_str("buildings");
-pub const OBJECTS_PROPS_CATEGORY: StrHashPair = StrHashPair::from_str("props");
 pub const OBJECTS_UNITS_CATEGORY: StrHashPair = StrHashPair::from_str("units");
+pub const OBJECTS_ROCKS_CATEGORY: StrHashPair = StrHashPair::from_str("rocks");
 pub const OBJECTS_VEGETATION_CATEGORY: StrHashPair = StrHashPair::from_str("vegetation");
 
 // ----------------------------------------------
@@ -170,6 +170,9 @@ pub struct TileDef {
 
     #[serde(default = "default_path_kind")]
     pub path_kind: PathNodeKind,
+
+    #[serde(default = "default_path_kind")]
+    pub required_proximity: PathNodeKind,
 
     // Cost/price to place this tile in the world. Optional, can be zero.
     #[serde(default)]
