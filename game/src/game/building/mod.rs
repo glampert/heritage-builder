@@ -73,26 +73,27 @@ bitflags_with_display! {
         const FishingWharf   = 1 << 2;
         const Factory        = 1 << 3;
         const Mine           = 1 << 4;
+        const Lumberyard     = 1 << 5;
 
         // Archetype: Storage
-        const Granary        = 1 << 5;
-        const StorageYard    = 1 << 6;
+        const Granary        = 1 << 6;
+        const StorageYard    = 1 << 7;
 
         // Archetype: Service
-        const SmallWell      = 1 << 7;
-        const LargeWell      = 1 << 8;
-        const Market         = 1 << 9;
-        const TaxOffice      = 1 << 10;
-        const Shrine         = 1 << 11;
-        const Temple         = 1 << 12;
-        const Citadel        = 1 << 13;
-        const GovernorPalace = 1 << 14;
-        const PoliceStation  = 1 << 15;
-        const Theater        = 1 << 16;
-        const University     = 1 << 17;
-        const Apothecary     = 1 << 18;
-        const Hospital       = 1 << 19;
-        const Garden         = 1 << 20;
+        const SmallWell      = 1 << 8;
+        const LargeWell      = 1 << 9;
+        const Market         = 1 << 10;
+        const TaxOffice      = 1 << 11;
+        const Shrine         = 1 << 12;
+        const Temple         = 1 << 13;
+        const Citadel        = 1 << 14;
+        const GovernorPalace = 1 << 15;
+        const PoliceStation  = 1 << 16;
+        const Theater        = 1 << 17;
+        const University     = 1 << 18;
+        const Apothecary     = 1 << 19;
+        const Hospital       = 1 << 20;
+        const Garden         = 1 << 21;
     }
 }
 
@@ -117,7 +118,8 @@ impl BuildingKind {
         Self::from_bits_retain(Self::Farm.bits()
                                | Self::FishingWharf.bits()
                                | Self::Factory.bits()
-                               | Self::Mine.bits())
+                               | Self::Mine.bits()
+                               | Self::Lumberyard.bits())
     }
 
     #[inline]
@@ -1067,7 +1069,7 @@ impl Building {
  - Only evolves if it has required resources and services.
 
 * Producer Building:
- - Produces a resource/consumer good (farm, fishing wharf, factory) or raw material (mine, logging camp).
+ - Produces a resource/consumer good (farm, fishing wharf, factory) or raw material (mine, lumberyard).
  - Uses workers (min, max workers needed). Production output depends on number of workers.
  - May need other raw materials to function (factory needs wood, metal, etc).
  - Needs Storage Buildings to store production.

@@ -464,9 +464,9 @@ impl TileInspectorMenu {
             super::utils::refresh_cached_tile_visuals(context.tile_map);
         }
 
-        ui.separator();
-
         if tile.has_variations() {
+            ui.separator();
+
             let mut variation_offset = tile.variation_offset();
             if imgui_ui::input_f32_xy(ui, "Var Offset:", &mut variation_offset, false, None, None) {
                 if let Some(editable_def) = tile.try_get_editable_tile_def() {

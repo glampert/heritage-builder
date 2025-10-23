@@ -354,10 +354,22 @@
       "name": "Clay Pit",
       "tile_def_name": "clay_pit",
       "min_workers": 1,
-      "max_workers": 8,
+      "max_workers": 6,
       "production_output_frequency_secs": 30.0,
       "production_output_amount": 1,
       "production_output": "Clay",
+      "production_capacity": 5,
+      "deliver_to_storage_kinds": "StorageYard"
+    },
+    {
+      "kind": "Lumberyard",
+      "name": "Lumberyard",
+      "tile_def_name": "lumberyard",
+      "min_workers": 2,
+      "max_workers": 6,
+      "production_output_frequency_secs": 30.0,
+      "production_output_amount": 1,
+      "production_output": "Wood",
       "production_capacity": 5,
       "deliver_to_storage_kinds": "StorageYard"
     }

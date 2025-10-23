@@ -864,6 +864,31 @@
               ]
             }
           ]
+        },
+        {
+          "name": "lumberyard",
+          "cost": 4,
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 130,
+            "height": 96
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "lumberyard"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
