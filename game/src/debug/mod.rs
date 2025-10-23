@@ -301,14 +301,19 @@ impl DebugMenusSingleton {
                         let query = args.sim.new_query(args.world, args.tile_map, args.delta_time_secs);
                         let spawner = Spawner::new(&query);
                         let spawn_result = spawner.try_spawn_tile_with_def(target_cell, tile_def);
-                        if let SpawnerResult::Tile(tile) = &spawn_result {
-                            if tile.is(TileKind::Terrain) {
+                        match &spawn_result {
+                            SpawnerResult::Tile(tile) if tile.is(TileKind::Terrain) => {
                                 // In case we've replaced a road tile with terrain.
                                 road::update_junctions(target_cell, args.tile_map);
-
                                 // In case we've placed a water tile or replaced water with terrain.
                                 water::update_transitions(target_cell, args.tile_map);
                             }
+                            SpawnerResult::Building(_) if water::is_port_or_wharf(tile_def) => {
+                                // If we've placed a port/wharf, select the correct
+                                // tile orientation in relation to the water.
+                                water::update_port_wharf_orientation(target_cell, args.tile_map);
+                            }
+                            _ => {}
                         }
                         spawn_result.is_ok()
                     } else {
@@ -338,10 +343,13 @@ impl DebugMenusSingleton {
                 }
             };
 
-            let placing_an_object = placement_candidate.is_some_and(|def| def.is(TileKind::Object));
+            let placing_building_or_unit =
+                placement_candidate
+                    .is_some_and(|def| def.is(TileKind::Building | TileKind::Unit));
+
             let clearing_a_tile = self.tile_palette_menu.is_clear_selected();
 
-            if did_place_or_clear && (placing_an_object || clearing_a_tile) {
+            if did_place_or_clear && (placing_building_or_unit || clearing_a_tile) {
                 // Place or remove building/unit and exit tile placement mode.
                 self.tile_palette_menu.clear_selection();
                 args.tile_map.clear_selection(args.tile_selection);

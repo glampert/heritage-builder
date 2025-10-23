@@ -315,6 +315,7 @@ trait TileBehavior {
     fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
     fn set_base_cell(&mut self, cell: Cell);
     fn set_iso_coords_f32(&mut self, iso_coords: Vec2);
+    fn set_variation_index(&mut self, index: usize);
 
     fn game_object_handle(&self) -> TileGameObjectHandle;
     fn set_game_object_handle(&mut self, handle: TileGameObjectHandle);
@@ -385,6 +386,9 @@ impl TileBehavior for TerrainTile {
     fn set_iso_coords_f32(&mut self, iso_coords: Vec2) {
         self.iso_coords_f32 = iso_coords;
     }
+
+    #[inline]
+    fn set_variation_index(&mut self, _index: usize) {}
 
     #[inline]
     fn game_object_handle(&self) -> TileGameObjectHandle {
@@ -515,6 +519,9 @@ impl TileBehavior for ObjectTile {
     fn set_iso_coords_f32(&mut self, iso_coords: Vec2) {
         self.iso_coords_f32 = iso_coords;
     }
+
+    #[inline]
+    fn set_variation_index(&mut self, _index: usize) {}
 
     #[inline]
     fn game_object_handle(&self) -> TileGameObjectHandle {
@@ -677,6 +684,12 @@ impl TileBehavior for BlockerTile {
     #[inline]
     fn set_iso_coords_f32(&mut self, _iso_coords: Vec2) {
         unimplemented!("Not implemented for BlockerTile!");
+    }
+
+    #[inline]
+    fn set_variation_index(&mut self, index: usize) {
+        // Propagate back to owner tile:
+        self.owner_mut().set_variation_index(index);
     }
 
     #[inline]
@@ -912,9 +925,12 @@ impl Tile {
     }
 
     #[inline]
-    pub fn screen_rect(&self, transform: WorldToScreenTransform) -> Rect {
+    pub fn screen_rect(&self, transform: WorldToScreenTransform, apply_variation_offset: bool) -> Rect {
         let draw_size = self.draw_size();
-        let iso_position = self.iso_coords_f32();
+        let mut iso_position = self.iso_coords_f32();
+        if apply_variation_offset {
+            iso_position += self.variation_offset();
+        }
         coords::iso_to_screen_rect_f32(iso_position, draw_size, transform)
     }
 
@@ -997,6 +1013,17 @@ impl Tile {
     }
 
     #[inline]
+    pub fn variation_offset(&self) -> Vec2 {
+        let tile_def = self.tile_def();
+        if tile_def.has_variations() {
+            let variation = &tile_def.variations[self.variation_index()];
+            variation.iso_offset
+        } else {
+            Vec2::zero()
+        }
+    }
+
+    #[inline]
     pub fn variation_index(&self) -> usize {
         self.variation_index.into()
     }
@@ -1006,6 +1033,9 @@ impl Tile {
         self.variation_index = index.min(self.variation_count() - 1)
             .try_into()
             .expect("Value cannot fit into a u8!");
+
+        // Propagate to owner tile in case this is a blocker.
+        self.archetype.set_variation_index(self.variation_index());
     }
 
     #[inline]

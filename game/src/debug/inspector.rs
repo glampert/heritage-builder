@@ -7,7 +7,7 @@ use crate::{
     imgui_ui::{self, UiInputEvent},
     pathfind::NodeKind as PathNodeKind,
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE},
-    utils::{coords::Cell, mem, Color, Size},
+    utils::{coords::Cell, mem, Color, Size, Vec2},
 };
 
 // ----------------------------------------------
@@ -115,7 +115,7 @@ impl TileInspectorMenu {
                     return;
                 }
             };
-            (tile.screen_rect(context.transform), Self::make_stable_imgui_window_label(tile))
+            (tile.screen_rect(context.transform, true), Self::make_stable_imgui_window_label(tile))
         };
 
         let window_position =
@@ -228,6 +228,7 @@ impl TileInspectorMenu {
             size_in_cells: Size,
             draw_size: Size,
             logical_size: Size,
+            variation_offset: Vec2,
             color: Color,
         }
 
@@ -242,6 +243,7 @@ impl TileInspectorMenu {
             size_in_cells: tile.size_in_cells(),
             draw_size: tile.draw_size(),
             logical_size: tile.logical_size(),
+            variation_offset: tile.variation_offset(),
             color: tile.tint_color()
         };
 
@@ -278,7 +280,7 @@ impl TileInspectorMenu {
             tile.set_iso_coords(iso_coords);
         }
 
-        let mut screen_coords = tile.screen_rect(context.transform).position();
+        let mut screen_coords = tile.screen_rect(context.transform, true).position();
         imgui_ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
 
         let mut z_sort_key = tile.z_sort_key();
@@ -460,6 +462,18 @@ impl TileInspectorMenu {
 
         if ui.button("Refresh all Tiles") {
             super::utils::refresh_cached_tile_visuals(context.tile_map);
+        }
+
+        ui.separator();
+
+        if tile.has_variations() {
+            let mut variation_offset = tile.variation_offset();
+            if imgui_ui::input_f32_xy(ui, "Var Offset:", &mut variation_offset, false, None, None) {
+                if let Some(editable_def) = tile.try_get_editable_tile_def() {
+                    editable_def.variations[tile.variation_index()].iso_offset = variation_offset;
+                    tile.on_tile_def_edited();
+                }
+            }
         }
 
         ui.separator();

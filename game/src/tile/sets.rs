@@ -16,7 +16,7 @@ use crate::{
     utils::{
         coords::{Cell, CellRange},
         hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
-        mem, Color, RectTexCoords, Size,
+        mem, Color, RectTexCoords, Size, Vec2,
     },
 };
 
@@ -126,6 +126,10 @@ pub struct TileVariation {
 
     // AnimSet may contain one or more animation frames.
     pub anim_sets: SmallVec<[TileAnimSet; 1]>,
+
+    // Optional draw offset applied to the isometric tile coordinated before rendering.
+    #[serde(default)]
+    pub iso_offset: Vec2,
 }
 
 // ----------------------------------------------

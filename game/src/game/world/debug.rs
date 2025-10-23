@@ -147,7 +147,7 @@ pub trait GameObjectDebugOptions {
             const START_BG_ALPHA: f32 = 0.6;
 
             let popups = self.get_popups();
-            let screen_pos = tile.screen_rect(transform).center();
+            let screen_pos = tile.screen_rect(transform, true).center();
 
             popups.messages.update(LIFETIME_MULTIPLIER, delta_time_secs);
             popups.messages.draw(ui_sys, screen_pos, SCROLL_DIST, SCROLL_SPEED, START_BG_ALPHA);

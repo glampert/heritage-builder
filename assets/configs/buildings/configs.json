@@ -307,6 +307,18 @@
       "deliver_to_storage_kinds": "Granary"
     },
     {
+      "kind": "FishingWharf",
+      "name": "Fishing Wharf",
+      "tile_def_name": "fishing_wharf",
+      "min_workers": 2,
+      "max_workers": 8,
+      "production_output_frequency_secs": 30.0,
+      "production_output_amount": 1,
+      "production_output": "Fish",
+      "production_capacity": 8,
+      "deliver_to_storage_kinds": "Granary"
+    },
+    {
       "kind": "Factory",
       "name": "Distillery",
       "tile_def_name": "distillery",

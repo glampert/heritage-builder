@@ -350,8 +350,9 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
 
 // Refresh state cached from TileDef during placement and road junction variations.
 pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
-    let mut road_cells = Vec::new();
+    let mut road_cells  = Vec::new();
     let mut water_cells = Vec::new();
+    let mut port_cells  = Vec::new();
 
     tile_map.for_each_tile_mut(
         TileMapLayerKind::Terrain,
@@ -369,7 +370,12 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
     tile_map.for_each_tile_mut(
         TileMapLayerKind::Objects,
         TileKind::Building | TileKind::Unit | TileKind::Rocks | TileKind::Vegetation,
-        |tile| tile.on_tile_def_edited());
+        |tile| {
+            tile.on_tile_def_edited();
+            if water::is_port_or_wharf(tile.tile_def()) {
+                port_cells.push(tile.base_cell());
+            }
+        });
 
     for cell in road_cells {
         road::update_junctions(cell, tile_map);
@@ -377,6 +383,10 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
 
     for cell in water_cells {
         water::update_transitions(cell, tile_map);
+    }
+
+    for cell in port_cells {
+        water::update_port_wharf_orientation(cell, tile_map);
     }
 }
 

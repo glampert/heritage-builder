@@ -70,28 +70,29 @@ bitflags_with_display! {
 
         // Archetype: Producer
         const Farm           = 1 << 1;
-        const Factory        = 1 << 2;
-        const Mine           = 1 << 3;
+        const FishingWharf   = 1 << 2;
+        const Factory        = 1 << 3;
+        const Mine           = 1 << 4;
 
         // Archetype: Storage
-        const Granary        = 1 << 4;
-        const StorageYard    = 1 << 5;
+        const Granary        = 1 << 5;
+        const StorageYard    = 1 << 6;
 
         // Archetype: Service
-        const SmallWell      = 1 << 6;
-        const LargeWell      = 1 << 7;
-        const Market         = 1 << 8;
-        const TaxOffice      = 1 << 9;
-        const Shrine         = 1 << 10;
-        const Temple         = 1 << 11;
-        const Citadel        = 1 << 12;
-        const GovernorPalace = 1 << 13;
-        const PoliceStation  = 1 << 14;
-        const Theater        = 1 << 15;
-        const University     = 1 << 16;
-        const Apothecary     = 1 << 17;
-        const Hospital       = 1 << 18;
-        const Garden         = 1 << 19;
+        const SmallWell      = 1 << 7;
+        const LargeWell      = 1 << 8;
+        const Market         = 1 << 9;
+        const TaxOffice      = 1 << 10;
+        const Shrine         = 1 << 11;
+        const Temple         = 1 << 12;
+        const Citadel        = 1 << 13;
+        const GovernorPalace = 1 << 14;
+        const PoliceStation  = 1 << 15;
+        const Theater        = 1 << 16;
+        const University     = 1 << 17;
+        const Apothecary     = 1 << 18;
+        const Hospital       = 1 << 19;
+        const Garden         = 1 << 20;
     }
 }
 
@@ -113,7 +114,10 @@ impl BuildingKind {
 
     #[inline]
     pub const fn producers() -> Self {
-        Self::from_bits_retain(Self::Farm.bits() | Self::Factory.bits() | Self::Mine.bits())
+        Self::from_bits_retain(Self::Farm.bits()
+                               | Self::FishingWharf.bits()
+                               | Self::Factory.bits()
+                               | Self::Mine.bits())
     }
 
     #[inline]

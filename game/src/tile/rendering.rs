@@ -371,7 +371,7 @@ impl TileMapRenderer {
         debug_assert!(tile.is_valid());
         debug_assert!(!tile.is(TileKind::Blocker));
 
-        let tile_screen_rect = tile.screen_rect(transform);
+        let tile_screen_rect = tile.screen_rect(transform, true);
 
         if !tile.has_flags(TileFlags::Hidden) {
             if let Some(tile_sprite) = tile.anim_frame_tex_info() {

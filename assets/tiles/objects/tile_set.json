@@ -360,6 +360,84 @@
           ]
         },
         {
+          "name": "fishing_wharf",
+          "cost": 5,
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 125,
+            "height": 120
+          },
+          "variations": [
+            {
+              "name": "north_bank",
+              "iso_offset": {
+                "x" : 2,
+                "y" : 27
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "fishing_wharf"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "south_bank",
+              "iso_offset": {
+                "x" : 10,
+                "y" : 1
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "fishing_wharf"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "east_bank",
+              "iso_offset": {
+                "x" : 1,
+                "y" : 22
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "fishing_wharf"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "west_bank",
+              "iso_offset": {
+                "x" : 3,
+                "y" : 27
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "fishing_wharf"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "storage_yard",
           "cost": 10,
           "logical_size": {
