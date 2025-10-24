@@ -319,7 +319,7 @@ fn can_expand_into_cell(context: &BuildingContext, cell: Cell) -> bool {
         return false; // Not an expandable node.
     }
 
-    if node_kind.intersects(PathNodeKind::Building) && find_house_for_cell(context, cell).is_none() {
+    if node_kind.is_building() && find_house_for_cell(context, cell).is_none() {
         return false; // Not a house building.
     }
 

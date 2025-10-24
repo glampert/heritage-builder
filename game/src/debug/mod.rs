@@ -6,7 +6,6 @@ use settings::DebugSettingsMenu;
 
 use crate::{
     singleton_late_init,
-    pathfind::NodeKind as PathNodeKind,
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     engine::time::Seconds,
     game::{
@@ -210,7 +209,7 @@ impl DebugMenusSingleton {
 
                     // Update road junctions (each junction is a different variation of the same tile).
                     for cell in &self.current_road_segment.path {
-                        road::update_junctions(*cell, args.tile_map);
+                        road::update_junctions(args.tile_map, *cell);
                     }
                 } else {
                     self.tile_palette_menu.clear_selection();
@@ -273,7 +272,7 @@ impl DebugMenusSingleton {
                     road::mark_tiles(args.tile_map, &self.current_road_segment, false, false);
 
                     let road_kind = self.tile_palette_menu.selected_road_kind();
-                    self.current_road_segment = road::build_segment(start, end, road_kind, args.tile_map);
+                    self.current_road_segment = road::build_segment(args.tile_map, start, end, road_kind);
 
                     let is_valid_road_placement =
                         self.current_road_segment.is_valid &&
@@ -304,14 +303,14 @@ impl DebugMenusSingleton {
                         match &spawn_result {
                             SpawnerResult::Tile(tile) if tile.is(TileKind::Terrain) => {
                                 // In case we've replaced a road tile with terrain.
-                                road::update_junctions(target_cell, args.tile_map);
+                                road::update_junctions(args.tile_map, target_cell);
                                 // In case we've placed a water tile or replaced water with terrain.
-                                water::update_transitions(target_cell, args.tile_map);
+                                water::update_transitions(args.tile_map, target_cell);
                             }
                             SpawnerResult::Building(_) if water::is_port_or_wharf(tile_def) => {
                                 // If we've placed a port/wharf, select the correct
                                 // tile orientation in relation to the water.
-                                water::update_port_wharf_orientation(target_cell, args.tile_map);
+                                water::update_port_wharf_orientation(args.tile_map, target_cell);
                             }
                             _ => {}
                         }
@@ -325,16 +324,16 @@ impl DebugMenusSingleton {
                     if let Some(tile) = query.tile_map().topmost_tile_at_cursor(args.cursor_screen_pos,
                                                                                 args.camera.transform())
                     {
-                        let is_road  = tile.path_kind().intersects(PathNodeKind::Road);
-                        let is_water = tile.path_kind().intersects(PathNodeKind::Water);
+                        let is_road  = tile.path_kind().is_road();
+                        let is_water = tile.path_kind().is_water();
                         let target_cell = tile.base_cell();
                         Spawner::new(&query).despawn_tile(tile);
                         // Update road junctions / water transitions around the removed tile cell.
                         if is_road {
-                            road::update_junctions(target_cell, args.tile_map);
+                            road::update_junctions(args.tile_map, target_cell);
                         }
                         if is_water {
-                            water::update_transitions(target_cell, args.tile_map);
+                            water::update_transitions(args.tile_map, target_cell);
                         }
                         true
                     } else {

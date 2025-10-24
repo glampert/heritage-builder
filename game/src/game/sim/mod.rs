@@ -499,8 +499,7 @@ impl Query {
                 let node_kind = self.query.graph().node_kind(goal).unwrap();
                 debug_assert!(node_kind.intersects(PathNodeKind::BuildingRoadLink
                                                    | PathNodeKind::BuildingAccess),
-                              "Unexpected PathNodeKind: {}",
-                              node_kind);
+                              "Unexpected PathNodeKind: {node_kind}");
 
                 let neighbors = self.query.graph().neighbors(goal, PathNodeKind::Building);
                 for neighbor in neighbors {
@@ -515,7 +514,7 @@ impl Query {
                             // If we're looking for buildings connected to roads, check that this
                             // road link goal actually belongs to this
                             // building. Buildings can share the same road link tile.
-                            if self.traversable_node_kinds.intersects(PathNodeKind::Road) {
+                            if self.traversable_node_kinds.is_road() {
                                 if building.road_link(self.query)
                                            .is_some_and(|link| link == goal.cell)
                                 {

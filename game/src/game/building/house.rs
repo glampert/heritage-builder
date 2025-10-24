@@ -24,7 +24,6 @@ use crate::{
     },
     imgui_ui::UiSystem,
     log,
-    pathfind::NodeKind as PathNodeKind,
     save::PostLoadContext,
     tile::{
         sets::{TileDef, TileSets, TERRAIN_GROUND_CATEGORY},
@@ -242,7 +241,7 @@ impl BuildingBehavior for HouseBuilding {
 
         // Clear the vacant lot tile this house was placed over.
         if let Some(tile) = tile_map.try_tile_from_layer(cell, LAYER_KIND) {
-            if tile.path_kind().intersects(PathNodeKind::VacantLot) {
+            if tile.path_kind().is_vacant_lot() {
                 match tile_map.try_clear_tile_from_layer(cell, LAYER_KIND) {
                     Ok(_) => {
                         if let Some(tile_def_to_place) =

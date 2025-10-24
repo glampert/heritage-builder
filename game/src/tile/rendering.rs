@@ -423,7 +423,7 @@ impl TileMapRenderer {
 
         let variation_index = {
             if tile_def.has_variations() {
-                road::junction_mask(cell, tile_map)
+                road::junction_mask(tile_map, cell)
             } else {
                 0
             }

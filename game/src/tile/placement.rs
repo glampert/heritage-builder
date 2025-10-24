@@ -27,7 +27,7 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
             // Ports/wharfs must be contained withing water tiles...
             for cell in &cell_range {
                 if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
-                    if !tile.path_kind().intersects(PathNodeKind::Water) {
+                    if !tile.path_kind().is_water() {
                         return Err("Building must be placed near the water edge.".into());
                     }
                 }
@@ -38,7 +38,7 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
             let mut is_near_land = false;
             pathfind::for_each_surrounding_cell(cell_range, |cell| {
                 if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
-                    if !tile.path_kind().intersects(PathNodeKind::Water) {
+                    if !tile.path_kind().is_water() {
                         is_near_land = true;
                         return false; // done
                     }
@@ -57,21 +57,18 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
                 if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                     let path_kind = tile.path_kind();
 
-                    if tile_def_to_place.is(TileKind::Unit)
-                    && !path_kind.intersects(PathNodeKind::unit_placeable())
-                    {
+                    if tile_def_to_place.is(TileKind::Unit) && !path_kind.is_unit_placeable() {
                         return Err(format!("Cannot place unit '{}' over terrain tile '{}'.",
                                         tile_def_to_place.name,
                                         tile.name()));
                     } else if tile_def_to_place.is(TileKind::Rocks | TileKind::Vegetation)
-                            && !path_kind.intersects(PathNodeKind::object_placeable())
+                            && !path_kind.is_object_placeable()
                     {
                         return Err(format!("Cannot place object prop '{}' over terrain tile '{}'.",
                                         tile_def_to_place.name,
                                         tile.name()));
                     } else if tile_def_to_place.is(TileKind::Building)
-                            && !path_kind.intersects(PathNodeKind::object_placeable()
-                                                    | PathNodeKind::VacantLot)
+                            && !path_kind.is_object_placeable() && !path_kind.is_vacant_lot()
                     {
                         return Err(format!("Cannot place building '{}' over terrain tile '{}'.",
                                         tile_def_to_place.name,
@@ -106,7 +103,7 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
                 return Err(format!("Building must be placed near {}.", tile_def_to_place.required_proximity));
             }
         }
-    } else if tile_def_to_place.path_kind.intersects(PathNodeKind::VacantLot) {
+    } else if tile_def_to_place.path_kind.is_vacant_lot() {
         if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
             if tile.path_kind().intersects(PathNodeKind::Road
                                            | PathNodeKind::Water
@@ -119,7 +116,7 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
         }
     } else if tile_def_to_place.path_kind.intersects(PathNodeKind::Road | PathNodeKind::SettlersSpawnPoint) {
         if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
-            if tile.path_kind().intersects(PathNodeKind::Water) {
+            if tile.path_kind().is_water() {
                 return Err(format!("Cannot place road over terrain tile '{}'.", tile.name()));
             }
         }

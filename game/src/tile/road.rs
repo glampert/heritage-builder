@@ -124,7 +124,7 @@ fn range_inclusive(a: i32, b: i32) -> RangeInclusiveIter {
     }
 }
 
-fn can_place_road(cell: Cell, tile_map: &TileMap) -> bool {
+fn can_place_road(tile_map: &TileMap, cell: Cell) -> bool {
     if !tile_map.is_cell_within_bounds(cell) {
         return false;
     }
@@ -144,9 +144,9 @@ fn can_place_road(cell: Cell, tile_map: &TileMap) -> bool {
     true
 }
 
-fn is_road(cell: Cell, tile_map: &TileMap) -> bool {
+fn is_road(tile_map: &TileMap, cell: Cell) -> bool {
     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-        if tile.path_kind().intersects(PathNodeKind::Road) ||
+        if tile.path_kind().is_road() ||
            tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement) {
             return true;
         }
@@ -154,8 +154,8 @@ fn is_road(cell: Cell, tile_map: &TileMap) -> bool {
     false
 }
 
-fn is_path_valid(path: &[Cell], tile_map: &TileMap) -> bool {
-    path.iter().all(|cell| can_place_road(*cell, tile_map))
+fn is_path_valid(tile_map: &TileMap, path: &[Cell]) -> bool {
+    path.iter().all(|cell| can_place_road(tile_map, *cell))
 }
 
 fn horizontal_vertical_path(start: Cell, end: Cell) -> Vec<Cell> {
@@ -209,25 +209,25 @@ fn zigzag_path(start: Cell, end: Cell) -> Vec<Cell> {
     path
 }
 
-pub fn build_segment(start: Cell, end: Cell, kind: RoadKind, tile_map: &TileMap) -> RoadSegment {
+pub fn build_segment(tile_map: &TileMap, start: Cell, end: Cell, kind: RoadKind) -> RoadSegment {
     if start == end {
         // One cell segment.
         let path = vec![start];
-        let is_valid = is_path_valid(&path, tile_map);
+        let is_valid = is_path_valid(tile_map, &path);
         return RoadSegment { path, kind, is_valid };
     }
 
     // Horizontal-first path:
     let hv_path = horizontal_vertical_path(start, end);
-    let hv_valid = is_path_valid(&hv_path, tile_map);
+    let hv_valid = is_path_valid(tile_map, &hv_path);
 
     // Vertical-first path:
     let vh_path = vertical_horizontal_path(start, end);
-    let vh_valid = is_path_valid(&vh_path, tile_map);
+    let vh_valid = is_path_valid(tile_map, &vh_path);
 
     // Diagonal zigzag path:
     let zigzag_path = zigzag_path(start, end);
-    let zigzag_valid = is_path_valid(&zigzag_path, tile_map);
+    let zigzag_valid = is_path_valid(tile_map, &zigzag_path);
 
     match (hv_valid, vh_valid, zigzag_valid) {
         (true, false, false) | (true, false, true) => RoadSegment::valid(hv_path, kind), // Favor straight roads.
@@ -235,8 +235,8 @@ pub fn build_segment(start: Cell, end: Cell, kind: RoadKind, tile_map: &TileMap)
         (true, true, false)  | (true, true, true)  => {
             // Prefer the one with fewer existing roads (so it expands less).
             // Favor straight roads (ignore zigzag diagonals).
-            let hv_existing = hv_path.iter().filter(|cell| is_road(**cell, tile_map)).count();
-            let vh_existing = vh_path.iter().filter(|cell| is_road(**cell, tile_map)).count();
+            let hv_existing = hv_path.iter().filter(|cell| is_road(tile_map, **cell)).count();
+            let vh_existing = vh_path.iter().filter(|cell| is_road(tile_map, **cell)).count();
             if hv_existing <= vh_existing {
                 RoadSegment::valid(hv_path, kind)
             } else {
@@ -305,34 +305,34 @@ const SOUTH_BIT: usize = 1 << 1;
 const EAST_BIT:  usize = 1 << 2;
 const NORTH_BIT: usize = 1 << 3;
 
-pub fn junction_mask(cell: Cell, tile_map: &TileMap) -> usize {
+pub fn junction_mask(tile_map: &TileMap, cell: Cell) -> usize {
     let mut mask = 0;
-    if is_road(Cell::new(cell.x + 1, cell.y), tile_map) { mask |= NORTH_BIT; }
-    if is_road(Cell::new(cell.x - 1, cell.y), tile_map) { mask |= SOUTH_BIT; }
-    if is_road(Cell::new(cell.x, cell.y - 1), tile_map) { mask |= EAST_BIT;  }
-    if is_road(Cell::new(cell.x, cell.y + 1), tile_map) { mask |= WEST_BIT;  }
+    if is_road(tile_map, Cell::new(cell.x + 1, cell.y)) { mask |= NORTH_BIT; }
+    if is_road(tile_map, Cell::new(cell.x - 1, cell.y)) { mask |= SOUTH_BIT; }
+    if is_road(tile_map, Cell::new(cell.x, cell.y - 1)) { mask |= EAST_BIT;  }
+    if is_road(tile_map, Cell::new(cell.x, cell.y + 1)) { mask |= WEST_BIT;  }
     mask
 }
 
-pub fn update_junctions(cell: Cell, tile_map: &mut TileMap) {
-    update_tile_junction(cell, tile_map);
-    update_neighboring_junctions(cell, tile_map);
+pub fn update_junctions(tile_map: &mut TileMap, cell: Cell) {
+    update_tile_junction(tile_map, cell);
+    update_neighboring_junctions(tile_map, cell);
 }
 
-fn update_tile_junction(cell: Cell, tile_map: &mut TileMap) {
-    let variation_index = junction_mask(cell, tile_map);
+fn update_tile_junction(tile_map: &mut TileMap, cell: Cell) {
+    let variation_index = junction_mask(tile_map, cell);
     if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {
-        if tile.path_kind().intersects(PathNodeKind::Road) {
+        if tile.path_kind().is_road() {
             tile.set_variation_index(variation_index);
         }
     }
 }
 
-fn update_neighboring_junctions(cell: Cell, tile_map: &mut TileMap) {
+fn update_neighboring_junctions(tile_map: &mut TileMap, cell: Cell) {
     for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
         let cell = Cell::new(cell.x + dx, cell.y + dy);
-        if is_road(cell, tile_map) {
-            update_tile_junction(cell, tile_map);
+        if is_road(tile_map, cell) {
+            update_tile_junction(tile_map, cell);
         }
     }
 }

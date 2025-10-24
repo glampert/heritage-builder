@@ -319,7 +319,7 @@
           "path_kind": "VacantLot",
           "draw_size": {
             "width": 65,
-            "height": 41
+            "height": 36
           },
           "variations": [
             {
@@ -486,6 +486,54 @@
                   "frames": [
                     {
                       "name": "1100"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ne_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ne_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "nw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "nw_corner"
                     }
                   ]
                 }

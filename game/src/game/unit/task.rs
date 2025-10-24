@@ -1155,9 +1155,7 @@ impl UnitTask for UnitTaskSettler {
             if let Some(tile) =
                 tile_map.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain)
             {
-                if tile.path_kind().intersects(PathNodeKind::VacantLot)
-                    || tile.has_flags(TileFlags::SettlersSpawnPoint)
-                {
+                if tile.path_kind().is_vacant_lot() || tile.has_flags(TileFlags::SettlersSpawnPoint) {
                     // Notify completion:
                     self.notify_completion(unit, tile, query);
 

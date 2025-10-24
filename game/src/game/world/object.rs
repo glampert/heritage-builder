@@ -18,9 +18,8 @@ use crate::{
         sim::{debug::DebugUiMode, Query},
         unit::{config::UnitConfigKey, Unit},
     },
-    imgui_ui::UiSystem,
     log,
-    pathfind::NodeKind as PathNodeKind,
+    imgui_ui::UiSystem,
     save::PostLoadContext,
     tile::{sets::TileDef, Tile, TileKind, TileFlags, TileMapLayerKind},
     utils::{
@@ -683,7 +682,7 @@ impl<'world> Spawner<'world> {
             Ok(tile) => {
                 self.subtract_tile_cost(tile_def);
 
-                if tile.path_kind().intersects(PathNodeKind::VacantLot) && prev_tile_def.is_some() {
+                if tile.path_kind().is_vacant_lot() && prev_tile_def.is_some() {
                     let prev_tile_name_hash = prev_tile_def.unwrap().hash;
                     if prev_tile_name_hash == hash::fnv1a_from_str("grass") {
                         tile.set_variation_index(0);

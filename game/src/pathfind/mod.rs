@@ -62,13 +62,53 @@ impl NodeKind {
     }
 
     #[inline]
-    pub fn unit_placeable() -> NodeKind {
-        Self::Dirt | Self::Road | Self::VacantLot | Self::SettlersSpawnPoint
+    pub fn is_road(self) -> bool {
+        self.intersects(Self::Road)
     }
 
     #[inline]
-    pub fn object_placeable() -> NodeKind {
-        Self::Dirt
+    pub fn is_land(self) -> bool {
+        !self.intersects(Self::Water)
+    }
+
+    #[inline]
+    pub fn is_water(self) -> bool {
+        self.intersects(Self::Water)
+    }
+
+    #[inline]
+    pub fn is_building(self) -> bool {
+        self.intersects(Self::Building)
+    }
+
+    #[inline]
+    pub fn is_vacant_lot(self) -> bool {
+        self.intersects(Self::VacantLot)
+    }
+
+    #[inline]
+    pub fn is_rocks(self) -> bool {
+        self.intersects(Self::Rocks)
+    }
+
+    #[inline]
+    pub fn is_vegetation(self) -> bool {
+        self.intersects(Self::Vegetation)
+    }
+
+    #[inline]
+    pub fn is_prop(self) -> bool {
+        self.intersects(Self::Rocks | Self::Vegetation)
+    }
+
+    #[inline]
+    pub fn is_unit_placeable(self) -> bool {
+        self.intersects(Self::Dirt | Self::Road | Self::VacantLot | Self::SettlersSpawnPoint)
+    }
+
+    #[inline]
+    pub fn is_object_placeable(self) -> bool {
+        self.intersects(Self::Dirt)
     }
 
     pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {

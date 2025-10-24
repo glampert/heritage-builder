@@ -3,7 +3,6 @@ use crate::{
     engine::DebugDraw,
     imgui_ui::UiSystem,
     render::{RenderStats, RenderSystem},
-    pathfind::NodeKind as PathNodeKind,
     game::{
         cheats::{self, Cheats},
         sim::debug::DebugQueryBuilder,
@@ -359,10 +358,10 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
         TileKind::Terrain,
         |tile| {
             tile.on_tile_def_edited();
-            if tile.path_kind().intersects(PathNodeKind::Road) {
+            if tile.path_kind().is_road() {
                 road_cells.push(tile.base_cell());
             }
-            if tile.path_kind().intersects(PathNodeKind::Water) {
+            if tile.path_kind().is_water() {
                 water_cells.push(tile.base_cell());
             }
         });
@@ -378,15 +377,15 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
         });
 
     for cell in road_cells {
-        road::update_junctions(cell, tile_map);
+        road::update_junctions(tile_map, cell);
     }
 
     for cell in water_cells {
-        water::update_transitions(cell, tile_map);
+        water::update_transitions(tile_map, cell);
     }
 
     for cell in port_cells {
-        water::update_port_wharf_orientation(cell, tile_map);
+        water::update_port_wharf_orientation(tile_map, cell);
     }
 }
 

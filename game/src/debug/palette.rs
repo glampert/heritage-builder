@@ -10,7 +10,6 @@ use crate::{
     game::{sim, building::{config::BuildingConfigs, BuildingArchetypeKind}},
     imgui_ui::{UiInputEvent, UiSystem},
     render::{TextureCache, TextureHandle},
-    pathfind::NodeKind as PathNodeKind,
     utils::{self, coords::WorldToScreenTransform, Color, Rect, RectTexCoords, Size, Vec2},
     tile::{
         road,
@@ -68,7 +67,7 @@ impl TilePaletteMenu {
 
     pub fn is_road_tile_selected(&self) -> bool {
         if let Some(tile_def) = self.current_selection() {
-            if tile_def.path_kind.intersects(PathNodeKind::Road) {
+            if tile_def.path_kind.is_road() {
                 return true;
             }
         }
@@ -77,7 +76,7 @@ impl TilePaletteMenu {
 
     pub fn selected_road_kind(&self) -> road::RoadKind {
         if let Some(tile_def) = self.current_selection() {
-            if tile_def.path_kind.intersects(PathNodeKind::Road) {
+            if tile_def.path_kind.is_road() {
                 if tile_def.hash == road::tile_name(road::RoadKind::Dirt).hash {
                     return road::RoadKind::Dirt;
                 } else if tile_def.hash == road::tile_name(road::RoadKind::Paved).hash {
