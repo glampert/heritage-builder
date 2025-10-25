@@ -83,27 +83,21 @@ impl Runner {
                                   context: &BuildingContext,
                                   unit_origin: Cell,
                                   storage_buildings_accepted: BuildingKind,
-                                  resources_to_fetch: ShoppingList, /* Will fetch at most
-                                                                     * *one* of these. This
-                                                                     * is a list of desired
-                                                                     * options. */
+                                  resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
                                   completion_callback: Callback<UnitTaskFetchCompletionCallback>)
                                   -> bool {
         self.try_spawn_with_task(context.debug_name(),
                                  context.query,
                                  unit_origin,
                                  config::UNIT_RUNNER,
-                                 UnitTaskFetchFromStorage { origin_building:
-                                                                context.kind_and_id(),
-                                                            origin_building_tile:
-                                                                context.tile_info(),
-                                                            storage_buildings_accepted,
-                                                            resources_to_fetch,
-                                                            completion_callback,
-                                                            completion_task:
-                                                                context.query
-                                                                       .task_manager()
-                                                                       .new_task(UnitTaskDespawn),
-                                                            is_returning_to_origin: false })
+                                 UnitTaskFetchFromStorage {
+                                     origin_building: context.kind_and_id(),
+                                     origin_building_tile: context.tile_info(),
+                                     storage_buildings_accepted,
+                                     resources_to_fetch,
+                                     completion_callback,
+                                     completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
+                                     is_returning_to_origin: false,
+                                 })
     }
 }

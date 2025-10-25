@@ -1,11 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 
 use std::any::Any;
-
+use slab::Slab;
 use enum_dispatch::enum_dispatch;
 use rand::{seq::SliceRandom, Rng};
 use serde::{Deserialize, Serialize};
-use slab::Slab;
 use strum_macros::Display;
 
 use super::{

@@ -1352,16 +1352,10 @@
         },
         {
           "name": "runner",
-          "color": {
-            "r": 1,
-            "g": 1,
-            "b": 0.3,
-            "a": 1
-          },
           "occludes_terrain": false,
           "draw_size": {
-            "width": 25,
-            "height": 32
+            "width": 20,
+            "height": 36
           },
           "variations": [
             {
@@ -1369,26 +1363,72 @@
                 {
                   "name": "idle",
                   "looping": true,
-                  "duration": 15,
+                  "duration": 1,
                   "frames": [
                     {
                       "name": "frame0"
                     },
                     {
                       "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_ne",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
                     },
                     {
-                      "name": "frame2"
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_nw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
                     },
                     {
-                      "name": "frame3"
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_se",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_sw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
                     }
                   ]
                 },
                 {
                   "name": "walk_ne",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1413,16 +1453,13 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 },
                 {
                   "name": "walk_nw",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1447,16 +1484,13 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 },
                 {
                   "name": "walk_se",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1481,16 +1515,13 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 },
                 {
                   "name": "walk_sw",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1515,9 +1546,6 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 }
@@ -1527,16 +1555,10 @@
         },
         {
           "name": "patrol",
-          "color": {
-            "r": 0.5,
-            "g": 0.5,
-            "b": 1,
-            "a": 1
-          },
           "occludes_terrain": false,
           "draw_size": {
-            "width": 25,
-            "height": 32
+            "width": 20,
+            "height": 38
           },
           "variations": [
             {
@@ -1544,26 +1566,72 @@
                 {
                   "name": "idle",
                   "looping": true,
-                  "duration": 15,
+                  "duration": 1,
                   "frames": [
                     {
                       "name": "frame0"
                     },
                     {
                       "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_ne",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
                     },
                     {
-                      "name": "frame2"
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_nw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
                     },
                     {
-                      "name": "frame3"
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_se",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_sw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
                     }
                   ]
                 },
                 {
                   "name": "walk_ne",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1588,16 +1656,13 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 },
                 {
                   "name": "walk_nw",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1622,16 +1687,13 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 },
                 {
                   "name": "walk_se",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1656,16 +1718,13 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 },
                 {
                   "name": "walk_sw",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1690,9 +1749,6 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 }
@@ -1702,16 +1758,10 @@
         },
         {
           "name": "settler",
-          "color": {
-            "r": 0.8,
-            "g": 0.4,
-            "b": 0.4,
-            "a": 1
-          },
           "occludes_terrain": false,
           "draw_size": {
-            "width": 25,
-            "height": 32
+            "width": 20,
+            "height": 38
           },
           "variations": [
             {
@@ -1719,26 +1769,72 @@
                 {
                   "name": "idle",
                   "looping": true,
-                  "duration": 15,
+                  "duration": 1,
                   "frames": [
                     {
                       "name": "frame0"
                     },
                     {
                       "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_ne",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
                     },
                     {
-                      "name": "frame2"
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_nw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
                     },
                     {
-                      "name": "frame3"
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_se",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_sw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
                     }
                   ]
                 },
                 {
                   "name": "walk_ne",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1763,16 +1859,13 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 },
                 {
                   "name": "walk_nw",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1797,16 +1890,13 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 },
                 {
                   "name": "walk_se",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1831,16 +1921,13 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 },
                 {
                   "name": "walk_sw",
                   "looping": true,
-                  "duration": 2,
+                  "duration": 0.7,
                   "frames": [
                     {
                       "name": "frame0"
@@ -1865,9 +1952,6 @@
                     },
                     {
                       "name": "frame7"
-                    },
-                    {
-                      "name": "frame8"
                     }
                   ]
                 }
