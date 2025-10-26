@@ -1,5 +1,9 @@
 {
   "engine": {
+    "window_size": {
+      "width": 1440,
+      "height": 800
+    },
     "log_level": "Verbose",
     "use_packed_texture_atlas": true
   },

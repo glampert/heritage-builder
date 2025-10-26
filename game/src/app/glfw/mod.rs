@@ -54,6 +54,7 @@ impl ApplicationFactory for GlfwApplication {
         glfw_instance.window_hint(glfw::WindowHint::ContextVersion(3, 3));
         glfw_instance.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
         glfw_instance.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
+        glfw_instance.window_hint(glfw::WindowHint::Resizable(false));
 
         // TODO: Handle fullscreen window (need to select a monitor).
         let window_mode = glfw::WindowMode::Windowed;
