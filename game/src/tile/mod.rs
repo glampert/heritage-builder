@@ -1015,8 +1015,9 @@ impl Tile {
     #[inline]
     pub fn variation_offset(&self) -> Vec2 {
         let tile_def = self.tile_def();
-        if tile_def.has_variations() {
-            let variation = &tile_def.variations[self.variation_index()];
+        let variation_index = self.variation_index();
+        if variation_index < tile_def.variations.len() {
+            let variation = &tile_def.variations[variation_index];
             variation.iso_offset
         } else {
             Vec2::zero()

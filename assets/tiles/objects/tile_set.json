@@ -1156,6 +1156,10 @@
           },
           "variations": [
             {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
               "anim_sets": [
                 {
                   "name": "idle",
@@ -1354,11 +1358,15 @@
           "name": "runner",
           "occludes_terrain": false,
           "draw_size": {
-            "width": 20,
-            "height": 36
+            "width": 48,
+            "height": 45
           },
           "variations": [
             {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 15
+              },
               "anim_sets": [
                 {
                   "name": "idle",
@@ -1562,6 +1570,10 @@
           },
           "variations": [
             {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
               "anim_sets": [
                 {
                   "name": "idle",
@@ -1765,6 +1777,10 @@
           },
           "variations": [
             {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
               "anim_sets": [
                 {
                   "name": "idle",

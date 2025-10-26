@@ -464,7 +464,7 @@ impl TileInspectorMenu {
             super::utils::refresh_cached_tile_visuals(context.tile_map);
         }
 
-        if tile.has_variations() {
+        if tile.is(TileKind::Object) {
             ui.separator();
 
             let mut variation_offset = tile.variation_offset();
