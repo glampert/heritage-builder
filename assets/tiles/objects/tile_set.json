@@ -1041,7 +1041,6 @@
       "tile_defs": [
         {
           "name": "tree",
-          "cost": 1,
           "occludes_terrain": false,
           "path_kind": "Vegetation | HarvestableTree",
           "draw_size": {
@@ -1063,6 +1062,18 @@
             },
             {
               "name": "var1",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "tree"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "depleted",
               "anim_sets": [
                 {
                   "frames": [
@@ -1121,7 +1132,6 @@
         },
         {
           "name": "palm_tree",
-          "cost": 1,
           "occludes_terrain": false,
           "path_kind": "Vegetation | HarvestableTree",
           "draw_size": {
@@ -1130,6 +1140,19 @@
           },
           "variations": [
             {
+              "name": "var0",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palm_tree"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "depleted",
               "anim_sets": [
                 {
                   "frames": [
@@ -1151,8 +1174,8 @@
           "name": "ped",
           "occludes_terrain": false,
           "draw_size": {
-            "width": 20,
-            "height": 36
+            "width": 22,
+            "height": 40
           },
           "variations": [
             {
@@ -1565,7 +1588,7 @@
           "name": "patrol",
           "occludes_terrain": false,
           "draw_size": {
-            "width": 20,
+            "width": 38,
             "height": 38
           },
           "variations": [
