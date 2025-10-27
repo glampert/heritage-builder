@@ -1241,7 +1241,7 @@ impl UnitTaskHarvestWood {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
 
-        // FIXME: Need to find multiple HarvestableTree nodes and choose the one that is free.
+        // FIXME: Need to find multiple HarvestableTree nodes and choose one that is free instead.
         let bias = RandomDirectionalBias::new(query.rng(), 0.1, 0.5);
 
         // Find a harvestable tree node:
@@ -1449,6 +1449,8 @@ impl UnitTask for UnitTaskHarvestWood {
 
         ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
         ui.text(format!("Is Returning To Origin  : {}", self.is_returning_to_origin));
+        ui.separator();
+        ui.text(format!("Harvest Target          : {}", self.harvest_target));
         ui.text(format!("Harvest Countdown Timer : {:.2}", self.harvest_timer.remaining_secs()));
         ui.separator();
         ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
