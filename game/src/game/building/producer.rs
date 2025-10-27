@@ -1,8 +1,7 @@
 use std::cmp::Reverse;
-
+use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
 
 use super::{
     config::{BuildingConfig, BuildingConfigs},
@@ -10,6 +9,7 @@ use super::{
 };
 use crate::{
     building_config,
+    game_object_debug_options,
     engine::time::{Seconds, UpdateTimer},
     game::{
         cheats,
@@ -19,17 +19,18 @@ use crate::{
         },
         unit::{
             runner::Runner,
+            harvester::Harvester,
+            Unit, UnitTaskHelper,
             task::{
                 UnitTaskDeliverToStorage, UnitTaskDeliveryCompletionCallback,
                 UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage,
+                UnitTaskHarvestWood,
             },
-            Unit, UnitTaskHelper,
         },
         world::{object::GameObject, stats::WorldStats},
     },
-    game_object_debug_options,
-    imgui_ui::UiSystem,
     log,
+    imgui_ui::UiSystem,
     save::PostLoadContext,
     tile::Tile,
     utils::{
@@ -71,6 +72,10 @@ pub struct ProducerConfig {
     #[serde(default)]
     pub resources_capacity: u32,
 
+    // If this is set, we're a harvester producer (e.g., lumberyard).
+    #[serde(default)]
+    pub harvested_resource: ResourceKind,
+
     // Where we can deliver our production to (Granary, StorageYard).
     pub deliver_to_storage_kinds: BuildingKind,
 
@@ -94,6 +99,7 @@ impl Default for ProducerConfig {
                production_capacity: 5,
                resources_required: ResourceKinds::none(),
                resources_capacity: 0,
+               harvested_resource: ResourceKind::empty(),
                deliver_to_storage_kinds: BuildingKind::Granary,
                fetch_from_storage_kinds: BuildingKind::empty() }
     }
@@ -109,6 +115,8 @@ building_config! {
 
 game_object_debug_options! {
     ProducerDebug,
+
+    freeze_harvesting: bool,
 
     // Stops goods from being produced and stock from being spent.
     freeze_production: bool,
@@ -137,6 +145,9 @@ pub struct ProducerBuilding {
 
     // Runner Unit we may send out to deliver our production or fetch raw materials.
     runner: Runner,
+
+    // Harvester for buildings that spawn one (e.g. lumberyards).
+    harvester: Harvester,
 
     #[serde(skip)]
     debug: ProducerDebug,
@@ -167,12 +178,25 @@ impl BuildingBehavior for ProducerBuilding {
         if self.production_update_timer.tick(delta_time_secs).should_update()
            && self.has_min_required_workers()
         {
-            if !self.debug.freeze_production() {
+            let is_harvester_building = self.is_harvester_building();
+
+            if !self.debug.freeze_harvesting() && is_harvester_building {
+                if self.harvesting_update(context) {
+                    // If we've sent out a harvester unit wait until
+                    // next update to send out a delivery runner.
+                    return;
+                }
+            }
+
+            // Harvester buildings are handled by harvesting_update() above.
+            if !self.debug.freeze_production() && !is_harvester_building {
                 self.production_update();
             }
+
             if !self.debug.freeze_storage_delivery() {
                 self.deliver_to_storage(context);
             }
+
             if !self.debug.freeze_storage_fetching() {
                 self.fetch_from_storage(context);
             }
@@ -181,8 +205,7 @@ impl BuildingBehavior for ProducerBuilding {
 
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
         // We can only accept resource deliveries here.
-        debug_assert!(unit.is_running_task::<UnitTaskDeliverToStorage>(context.query
-                                                                              .task_manager()));
+        debug_assert!(unit.is_running_task::<UnitTaskDeliverToStorage>(context.query.task_manager()));
 
         if self.is_runner_fetching_resources(context.query) || !self.has_min_required_workers() {
             // If we've already sent out a runner to fetch some resources we'll refuse
@@ -201,8 +224,7 @@ impl BuildingBehavior for ProducerBuilding {
                 let removed_count = unit.remove_resources(item.kind, received_count);
                 debug_assert!(removed_count == received_count);
 
-                self.debug
-                    .popup_msg(format!("{} received delivery -> {}", self.name(), unit.name()));
+                self.debug.popup_msg(format!("{} received delivery -> {}", self.name(), unit.name()));
             }
         }
     }
@@ -336,6 +358,7 @@ impl ProducerBuilding {
                production_output_stock: ProducerOutputLocalStock::new(config.production_output,
                                                                       config.production_capacity),
                runner: Runner::default(),
+               harvester: Harvester::default(),
                debug: ProducerDebug::default() }
     }
 
@@ -344,6 +367,35 @@ impl ProducerBuilding {
             callback::register!(ProducerBuilding::on_resources_delivered);
         let _: Callback<UnitTaskFetchCompletionCallback> =
             callback::register!(ProducerBuilding::on_resources_fetched);
+        let _: Callback<UnitTaskFetchCompletionCallback> =
+            callback::register!(ProducerBuilding::on_resources_harvested);
+    }
+
+    fn harvesting_update(&mut self, context: &BuildingContext) -> bool {
+        let harvested_resource = self.config.unwrap().harvested_resource;
+        if harvested_resource != ResourceKind::Wood {
+            panic!("Only wood harvesting supported for now!");
+        }
+
+        if self.production_output_stock.is_full() {
+            return false; // No room.
+        }
+
+        if self.is_waiting_on_harvester() {
+            return false; // A harvester is already out fetching resources.
+        }
+
+        // Unit spawns at the nearest road link.
+        let unit_origin = match context.road_link {
+            Some(road_link) => road_link,
+            None => return false, // We are not connected to a road. No harvesting possible!
+        };
+
+        // Send out a harvester:
+        self.harvester
+            .try_harvest_wood(context,
+                              unit_origin,
+                              callback::create!(ProducerBuilding::on_resources_harvested))
     }
 
     fn production_update(&mut self) {
@@ -491,6 +543,36 @@ impl ProducerBuilding {
         this_producer.debug.popup_msg_color(Color::cyan(), "Fetch Task complete");
     }
 
+    fn on_resources_harvested(this_building: &mut Building, harvester_unit: &mut Unit, query: &Query) {
+        let this_producer = this_building.as_producer_mut();
+
+        debug_assert!(this_producer.is_harvester_fetching_resources(query), "No Harvester was sent out by this building!");
+        debug_assert!(this_producer.harvester.unit_id() == harvester_unit.id(), "Harvester unit ID mismatch!");
+
+        // Try unload harvest:
+        if let Some(item) = harvester_unit.peek_inventory() {
+            debug_assert!(item.count != 0, "{item}");
+            debug_assert!(item.kind == ResourceKind::Wood, "Expected wood, got {} instead", item.kind);
+            this_producer.production_output_stock.store_resources(item.count);
+            harvester_unit.clear_inventory();
+        } else {
+            log::error!(log::channel!("producer"), "Harvester Unit '{}' inventory shouldn't be empty!", harvester_unit.name());
+        }
+
+        this_producer.harvester.reset();
+        this_producer.debug.popup_msg_color(Color::cyan(), "Harvest Task complete");
+    }
+
+    #[inline]
+    fn is_harvester_building(&self) -> bool {
+        !self.config.unwrap().harvested_resource.is_empty()
+    }
+
+    #[inline]
+    fn is_waiting_on_harvester(&self) -> bool {
+        self.harvester.is_spawned()
+    }
+
     #[inline]
     fn is_waiting_on_runner(&self) -> bool {
         self.runner.is_spawned()
@@ -507,8 +589,13 @@ impl ProducerBuilding {
     }
 
     #[inline]
+    fn is_harvester_fetching_resources(&self, query: &Query) -> bool {
+        self.harvester.is_running_task::<UnitTaskHarvestWood>(query)
+    }
+
+    #[inline]
     fn is_production_halted(&self) -> bool {
-        if self.debug.freeze_production() {
+        if self.debug.freeze_production() || self.debug.freeze_harvesting() {
             return true;
         }
         if self.production_output_stock.is_full() {
@@ -787,48 +874,64 @@ impl ProducerBuilding {
 
     fn draw_debug_ui_production_output(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
-        if ui.collapsing_header("Production Output", imgui::TreeNodeFlags::empty()) {
-            if self.is_production_halted() {
-                ui.text_colored(Color::red().to_array(), "Production Halted:");
-                ui.same_line();
-                if self.production_output_stock.is_full() {
-                    ui.text_colored(Color::red().to_array(), "Local Stock Full!");
-                } else if self.production_input_stock.requires_any_resource()
-                          && !self.production_input_stock.has_required_resources()
-                {
-                    ui.text_colored(Color::red().to_array(), "Missing Resources!");
-                } else {
-                    ui.text_colored(Color::red().to_array(), "Production Frozen.");
-                }
+        if !ui.collapsing_header("Production Output", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if self.is_production_halted() {
+            ui.text_colored(Color::red().to_array(), "Production Halted:");
+            ui.same_line();
+            if self.production_output_stock.is_full() {
+                ui.text_colored(Color::red().to_array(), "Local Stock Full!");
+            } else if self.production_input_stock.requires_any_resource()
+                        && !self.production_input_stock.has_required_resources()
+            {
+                ui.text_colored(Color::red().to_array(), "Missing Resources!");
+            } else {
+                ui.text_colored(Color::red().to_array(), "Production Frozen.");
+            }
+        }
+
+        if self.runner.failed_to_spawn() {
+            ui.text_colored(Color::red().to_array(), "Failed to spawn last Runner!");
+        }
+
+        if self.harvester.failed_to_spawn() {
+            ui.text_colored(Color::red().to_array(), "Failed to spawn last Harvester!");
+        }
+
+        if self.is_waiting_on_runner() {
+            if self.is_runner_delivering_resources(context.query) {
+                ui.text_colored(Color::yellow().to_array(), "Runner sent on Delivery Task.");
+            } else if self.is_runner_fetching_resources(context.query) {
+                ui.text_colored(Color::yellow().to_array(), "Runner sent on Fetch Task.");
+            } else {
+                ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
             }
 
-            if self.runner.failed_to_spawn() {
-                ui.text_colored(Color::red().to_array(), "Failed to spawn last Runner!");
+            if ui.button("Forget Runner") {
+                self.runner.reset();
+            }
+        }
+
+        if self.is_waiting_on_harvester() {
+            if self.is_harvester_fetching_resources(context.query) {
+                ui.text_colored(Color::yellow().to_array(), "Harvester sent out. Waiting...");
             }
 
-            if self.is_waiting_on_runner() {
-                if self.is_runner_delivering_resources(context.query) {
-                    ui.text_colored(Color::yellow().to_array(), "Runner sent on Delivery Task.");
-                } else if self.is_runner_fetching_resources(context.query) {
-                    ui.text_colored(Color::yellow().to_array(), "Runner sent on Fetch Task.");
-                } else {
-                    ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
-                }
-
-                if ui.button("Forget Runner") {
-                    self.runner.reset();
-                }
+            if ui.button("Forget Harvester") {
+                self.harvester.reset();
             }
+        }
 
-            self.production_update_timer.draw_debug_ui("Update", 0, ui_sys);
-            self.production_output_stock.draw_debug_ui(ui_sys);
+        self.production_update_timer.draw_debug_ui("Update", 0, ui_sys);
+        self.production_output_stock.draw_debug_ui(ui_sys);
 
-            if ui.button("Fill Stock##_fill_output_stock") {
-                self.production_output_stock.fill();
-            }
-            if ui.button("Clear Stock##_clear_output_stock") {
-                self.production_output_stock.clear();
-            }
+        if ui.button("Fill Stock##_fill_output_stock") {
+            self.production_output_stock.fill();
+        }
+        if ui.button("Clear Stock##_clear_output_stock") {
+            self.production_output_stock.clear();
         }
     }
 }

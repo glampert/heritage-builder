@@ -367,10 +367,11 @@
       "tile_def_name": "lumberyard",
       "min_workers": 2,
       "max_workers": 6,
-      "production_output_frequency_secs": 30.0,
-      "production_output_amount": 1,
+      "production_output_frequency_secs": 20.0,
+      "production_output_amount": 0,
+      "harvested_resource": "Wood",
       "production_output": "Wood",
-      "production_capacity": 5,
+      "production_capacity": 6,
       "deliver_to_storage_kinds": "StorageYard"
     }
   ],

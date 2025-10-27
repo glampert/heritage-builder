@@ -1,33 +1,34 @@
 #![allow(clippy::enum_variant_names)]
 
 use bitflags::{bitflags, Flags};
-use config::{BuildingConfig, BuildingConfigs};
 use enum_dispatch::enum_dispatch;
-use house::HouseBuilding;
 use paste::paste;
 use proc_macros::DrawDebugUi;
-use producer::ProducerBuilding;
 use serde::{Deserialize, Serialize};
-use service::ServiceBuilding;
 use smallvec::SmallVec;
-use storage::StorageBuilding;
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
 
+use house::HouseBuilding;
+use producer::ProducerBuilding;
+use service::ServiceBuilding;
+use storage::StorageBuilding;
+use config::{BuildingConfig, BuildingConfigs};
+
 use super::{
     sim::{
+        Query,
         debug::DebugUiMode,
         resources::{
-            Population, ResourceKind, ResourceKinds, ResourceStock, ServiceKind, StockItem,
-            Workers, RESOURCE_KIND_COUNT,
+            Population, ResourceKind, ResourceKinds, ResourceStock,
+            ServiceKind, StockItem, Workers, RESOURCE_KIND_COUNT,
         },
-        Query,
     },
     unit::{patrol::Patrol, runner::Runner, Unit},
     world::{
+        stats::WorldStats,
         debug::GameObjectDebugOptions,
         object::{GameObject, GenerationalIndex},
-        stats::WorldStats,
     },
 };
 use crate::{
@@ -40,7 +41,8 @@ use crate::{
     save::PostLoadContext,
     tile::{
         sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY},
-        Tile, TileFlags, TileGameObjectHandle, TileKind, TileMap, TileMapLayerKind,
+        Tile, TileFlags, TileGameObjectHandle, TileKind,
+        TileMap, TileMapLayerKind,
     },
     utils::{
         coords::{Cell, CellRange, WorldToScreenTransform},

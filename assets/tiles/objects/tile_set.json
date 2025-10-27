@@ -1043,7 +1043,7 @@
           "name": "tree",
           "cost": 1,
           "occludes_terrain": false,
-          "path_kind": "Vegetation",
+          "path_kind": "Vegetation | HarvestableTree",
           "draw_size": {
             "width": 56,
             "height": 74
@@ -1123,7 +1123,7 @@
           "name": "palm_tree",
           "cost": 1,
           "occludes_terrain": false,
-          "path_kind": "Vegetation",
+          "path_kind": "Vegetation | HarvestableTree",
           "draw_size": {
             "width": 64,
             "height": 90

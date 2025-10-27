@@ -22,8 +22,8 @@ use crate::{
         unit::Unit,
         world::stats::WorldStats,
     },
-    imgui_ui::UiSystem,
     log,
+    imgui_ui::UiSystem,
     save::PostLoadContext,
     tile::{
         sets::{TileDef, TileSets, TERRAIN_GROUND_CATEGORY},

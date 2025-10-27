@@ -9,6 +9,7 @@ use super::{
 };
 use crate::{
     building_config,
+    game_object_debug_options,
     engine::time::{Seconds, UpdateTimer},
     game::{
         cheats,
@@ -26,9 +27,8 @@ use crate::{
         },
         world::{object::GameObject, stats::WorldStats},
     },
-    game_object_debug_options,
-    imgui_ui::UiSystem,
     log,
+    imgui_ui::UiSystem,
     save::PostLoadContext,
     tile::Tile,
     utils::{

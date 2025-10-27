@@ -126,3 +126,41 @@ impl UpdateTimer {
           .build();
     }
 }
+
+// ----------------------------------------------
+// CountdownTimer
+// ----------------------------------------------
+
+// Triggers an event when countdown reaches zero.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct CountdownTimer {
+    countdown: Seconds,
+}
+
+impl CountdownTimer {
+    #[inline]
+    pub fn new(countdown: Seconds) -> Self {
+        Self { countdown }
+    }
+
+    #[inline]
+    pub fn reset(&mut self, countdown: Seconds) {
+        self.countdown = countdown;
+    }
+
+    #[inline]
+    pub fn remaining_secs(&self) -> Seconds{
+        self.countdown
+    }
+
+    #[inline]
+    pub fn tick(&mut self, delta_time_secs: Seconds) -> bool {
+        self.countdown -= delta_time_secs;
+        if self.countdown <= 0.0 {
+            self.countdown = 0.0;
+            true
+        } else {
+            false
+        }
+    }
+}

@@ -10,6 +10,7 @@ use super::{
 };
 use crate::{
     building_config,
+    game_object_debug_options,
     game::{
         cheats,
         sim::resources::{ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers},
@@ -19,7 +20,6 @@ use crate::{
         },
         world::stats::WorldStats,
     },
-    game_object_debug_options,
     imgui_ui::UiSystem,
     save::PostLoadContext,
     tile::Tile,

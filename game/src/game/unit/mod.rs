@@ -37,6 +37,7 @@ pub mod config;
 pub mod navigation;
 pub mod patrol;
 pub mod runner;
+pub mod harvester;
 pub mod task;
 
 mod anim;

@@ -12,23 +12,24 @@ use super::{
     Unit,
 };
 use crate::{
+    log,
+    imgui_ui::UiSystem,
     debug::{self},
     game::{
-        building::{Building, BuildingId, BuildingKind, BuildingKindAndId, BuildingTileInfo},
         constants::*,
         sim::{
-            resources::{ResourceKind, ShoppingList},
             Query,
+            resources::{ResourceKind, ShoppingList},
         },
         world::object::{GameObject, GenerationalIndex, Spawner},
+        building::{Building, BuildingId, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     },
-    imgui_ui::UiSystem,
-    log,
     pathfind::{
-        Node, NodeKind as PathNodeKind, Path, PathFilter, PathHistory, RandomDirectionalBias,
-        SearchResult,
+        self, Node, NodeKind as PathNodeKind, Path, PathFilter, PathHistory,
+        RandomDirectionalBias, SearchResult,
     },
-    tile::{Tile, TileKind, TileFlags, TileMapLayerKind},
+    engine::time::{Seconds, CountdownTimer},
+    tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
     utils::{callback::Callback, coords::Cell, mem, Color},
 };
 
@@ -157,8 +158,7 @@ pub trait UnitTask: Any {
     }
 
     // Logic to execute once the task is marked as completed.
-    // Returns the next task to run when completed or `None` if the task chain is
-    // over.
+    // Returns the next task to run when completed or `None` if the task chain is over.
     fn completed(&mut self, _unit: &mut Unit, _query: &Query) -> UnitTaskResult {
         UnitTaskResult::Completed { next_task: UnitTaskForwarded(None) }
     }
@@ -180,6 +180,7 @@ pub enum UnitTaskArchetype {
     UnitTaskDeliverToStorage,
     UnitTaskFetchFromStorage,
     UnitTaskSettler,
+    UnitTaskHarvestWood,
 }
 
 // ----------------------------------------------
@@ -295,7 +296,7 @@ fn path_direction(path: &Path) -> UnitDirection {
 // ----------------------------------------------
 
 const PATROL_MIN_PREFERRED_PATH_LEN: i32 = 4;
-const PATROL_MAX_REPEATED_DIR_AXIS: i32 = 2;
+const PATROL_MAX_REPEATED_DIR_AXIS:  i32 = 2;
 
 struct UnitPatrolWaypointFilter<'task, R: Rng> {
     rng: &'task mut R,
@@ -459,8 +460,7 @@ impl UnitTaskRandomizedPatrol {
     }
 
     fn try_return_to_origin(&self, unit: &mut Unit, query: &Query) -> bool {
-        if query.world().find_building(self.origin_building.kind, self.origin_building.id).is_none()
-        {
+        if query.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
             log::error!(log::channel!("task"),
                         "Origin building is no longer valid! TaskPatrol will abort.");
             return false;
@@ -494,8 +494,7 @@ impl UnitTaskRandomizedPatrol {
 
     fn is_returning_to_origin(&self, unit_goal: &UnitNavGoal) -> bool {
         if unit_goal.is_building() {
-            unit_goal.building_destination()
-            == (self.origin_building.kind, self.origin_building_tile.base_cell)
+            unit_goal.building_destination() == (self.origin_building.kind, self.origin_building_tile.base_cell)
         } else {
             false
         }
@@ -605,16 +604,14 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         let building_cell = self.origin_building_tile.base_cell;
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
-        ui.text(format!("Origin Building         : {}, '{}', {}",
-                        building_kind, building_name, building_cell));
+        ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
         ui.text(format!("Max Distance            : {}", self.max_distance));
         ui.text(format!("Min Path Bias           : {}", self.path_bias_min));
         ui.text(format!("Max Path Bias           : {}", self.path_bias_max));
 
         self.path_record.draw_debug_ui(ui_sys);
 
-        ui.text(format!("Buildings To Visit      : {}",
-                        self.buildings_to_visit.unwrap_or(BuildingKind::empty())));
+        ui.text(format!("Buildings To Visit      : {}", self.buildings_to_visit.unwrap_or(BuildingKind::empty())));
         ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
         ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
 
@@ -770,8 +767,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         let building_cell = self.origin_building_tile.base_cell;
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
-        ui.text(format!("Origin Building            : {}, '{}', {}",
-                        building_kind, building_name, building_cell));
+        ui.text(format!("Origin Building            : {}, '{}', {}", building_kind, building_name, building_cell));
         ui.separator();
         ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
         ui.text(format!("Resource Kind To Deliver   : {}", self.resource_kind_to_deliver));
@@ -922,12 +918,10 @@ impl UnitTask for UnitTaskFetchFromStorage {
 
         if self.is_returning_to_origin {
             debug_assert!(unit.goal().is_some_and(|goal| {
-                                         goal.is_building()
-                                         && goal.building_destination()
-                                            == (self.origin_building.kind,
-                                                self.origin_building_tile.base_cell)
-                                     }),
-                          "Unit goal is not its origin building!");
+                            goal.is_building()
+                                && goal.building_destination()
+                                    == (self.origin_building.kind, self.origin_building_tile.base_cell)
+                          }), "Unit goal is not its origin building!");
 
             // We've reached our origin building with the resources we were supposed to
             // fetch. Invoke the completion callback and end the task.
@@ -965,8 +959,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
             if let Some(item) = unit.peek_inventory() {
                 debug_assert!(item.count != 0, "{item}");
                 debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == item.kind),
-                              "Expected to have item kind {}",
-                              item.kind);
+                              "Expected to have item kind {}", item.kind);
 
                 // If we couldn't find a path back to the origin, maybe because the origin
                 // building was destroyed, we'll have to abort the task. Any
@@ -994,8 +987,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         let building_cell = self.origin_building_tile.base_cell;
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
-        ui.text(format!("Origin Building            : {}, '{}', {}",
-                        building_kind, building_name, building_cell));
+        ui.text(format!("Origin Building            : {}, '{}', {}", building_kind, building_name, building_cell));
         ui.text(format!("Is Returning To Origin     : {}", self.is_returning_to_origin));
         ui.separator();
         ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
@@ -1196,8 +1188,7 @@ impl UnitTask for UnitTaskSettler {
                     // Notify completion:
                     self.notify_completion(unit, house_tile, query);
 
-                    return UnitTaskResult::Completed { next_task:
-                                                           forward_task(&mut self.completion_task) };
+                    return UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) };
                 }
             }
         }
@@ -1210,6 +1201,230 @@ impl UnitTask for UnitTaskSettler {
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
         ui.text(format!("Population To Add : {}", self.population_to_add));
+    }
+}
+ 
+// ----------------------------------------------
+// UnitTaskHarvestWood
+// ----------------------------------------------
+
+pub type UnitTaskHarvestCompletionCallback = fn(&mut Building, &mut Unit, &Query);
+
+// How long it takes for a unit to complete a harvest once it arrives at a tree.
+const WOOD_HARVEST_TIME_INTERVAL: Seconds = 20.0;
+
+#[derive(Serialize, Deserialize)]
+pub struct UnitTaskHarvestWood {
+    // Origin building info:
+    pub origin_building: BuildingKindAndId,
+    pub origin_building_tile: BuildingTileInfo,
+
+    // Optional completion callback.
+    // |origin_building, harvester_unit, query|
+    pub completion_callback: Callback<UnitTaskHarvestCompletionCallback>,
+
+    // Optional completion task to run after this task.
+    pub completion_task: Option<UnitTaskId>,
+
+    pub harvest_timer: CountdownTimer,
+    pub is_returning_to_origin: bool,
+}
+
+impl UnitTaskHarvestWood {
+    fn try_find_goal(&self, unit: &mut Unit, query: &Query) {
+        let start = unit.cell();
+        let traversable_node_kinds = unit.traversable_node_kinds();
+
+        // Find a harvestable tree node:
+        let result = query.find_path_to_node(&pathfind::Unbiased::new(),
+                                             traversable_node_kinds | PathNodeKind::HarvestableTree,
+                                             start,
+                                             PathNodeKind::HarvestableTree);
+
+        if let SearchResult::PathFound(path_to_harvestable_tree) = result {
+            let tree_cell = path_to_harvestable_tree.last().unwrap().cell;
+
+            if let Some(tree_tile) =
+                query.tile_map().find_tile(tree_cell, TileMapLayerKind::Objects, TileKind::Vegetation)
+            {
+                // Tree tile itself is not walkable, find nearby traversable neighbor we can path to.
+                pathfind::for_each_surrounding_cell(tree_tile.cell_range(),
+                    |neighbor_cell| {
+                        let node_kind = query.graph().node_kind(Node::new(neighbor_cell)).unwrap();
+                        // Find a nearby node we can traverse/reach:
+                        if node_kind.intersects(traversable_node_kinds) {
+                            // Trace new path to reachable empty node:
+                            if let SearchResult::PathFound(dest_path) =
+                                query.find_path(traversable_node_kinds, start, neighbor_cell)
+                            {
+                                unit.move_to_goal(dest_path, UnitNavGoal::tile(start, dest_path));
+                                return false; // done
+                            }
+                        }
+                        true // continue
+                    });
+            }
+        }
+    }
+
+    fn try_return_to_origin(&mut self, unit: &mut Unit, query: &Query) -> bool {
+        if query.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
+            log::warn!(log::channel!("task"), "Origin building is no longer valid! TaskHarvestWood will abort.");
+            return false;
+        }
+
+        let start = unit.cell();
+        let goal = self.origin_building_tile.road_link;
+        let traversable_node_kinds = unit.traversable_node_kinds();
+
+        match query.find_path(traversable_node_kinds, start, goal) {
+            SearchResult::PathFound(path) => {
+                let goal = UnitNavGoal::building(self.origin_building.kind,
+                                                 self.origin_building_tile.base_cell,
+                                                 self.origin_building.kind,
+                                                 self.origin_building_tile);
+                unit.move_to_goal(path, goal);
+                self.is_returning_to_origin = true;
+                true
+            }
+            SearchResult::PathNotFound => {
+                log::warn!(log::channel!("task"), "Origin building is no longer reachable! TaskHarvestWood will abort.");
+                false
+            }
+        }
+    }
+}
+
+impl UnitTask for UnitTaskHarvestWood {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn post_load(&mut self) {
+        self.completion_callback.post_load();
+    }
+
+    fn initialize(&mut self, unit: &mut Unit, query: &Query) {
+        // Time it takes to harvest a tree.
+        self.harvest_timer.reset(WOOD_HARVEST_TIME_INTERVAL);
+
+        // Harvesters can go off-road.
+        let current_node_kinds = unit.traversable_node_kinds();
+        unit.set_traversable_node_kinds(current_node_kinds
+                                        | PathNodeKind::Dirt
+                                        | PathNodeKind::Road
+                                        | PathNodeKind::VacantLot
+                                        | PathNodeKind::SettlersSpawnPoint);
+
+        self.try_find_goal(unit, query);
+    }
+
+    fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
+        if let Some(task_id) = self.completion_task {
+            task_pool.free(task_id);
+        }
+    }
+
+    fn update(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskState {
+        // If we have a goal we're already moving somewhere,
+        // otherwise we may need to pathfind again.
+        if unit.goal().is_none() {
+            if self.is_returning_to_origin {
+                if !self.try_return_to_origin(unit, query) {
+                    // Not possible to recover if the origin building is gone.
+                    log::warn!(log::channel!("task"), "Aborting TaskHarvestWood. Unable to return to origin building...");
+                    unit.clear_inventory();
+                    return UnitTaskState::Completed;
+                }
+            } else {
+                self.try_find_goal(unit, query);
+            }
+        }
+
+        if unit.has_reached_goal() {
+            UnitTaskState::Completed
+        } else {
+            UnitTaskState::Running
+        }
+    }
+
+    fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskResult {
+        let mut task_completed = false;
+
+        if self.is_returning_to_origin {
+            debug_assert!(unit.goal().is_some_and(|goal| {
+                            goal.is_building()
+                                && goal.building_destination()
+                                    == (self.origin_building.kind, self.origin_building_tile.base_cell)
+                          }), "Unit goal is not its origin building!");
+
+            // We've reached our origin building with the resources we were supposed to
+            // harvest. Invoke the completion callback and end the task.
+            debug_assert!(!unit.inventory_is_empty());
+            debug_assert!(unit.peek_inventory().unwrap().kind == ResourceKind::Wood);
+
+            if self.completion_callback.is_valid() {
+                invoke_completion_callback(unit,
+                                           query,
+                                           self.origin_building.kind,
+                                           self.origin_building.id,
+                                           self.completion_callback.get());
+            }
+
+            if !unit.inventory_is_empty() {
+                log::warn!(log::channel!("task"), "TaskHarvestWood: Failed to unload all resources.");
+                unit.clear_inventory();
+            }
+
+            task_completed = true;
+            unit.follow_path(None);
+        } else {
+            // Reached the tree we want to harvest.
+            debug_assert!(unit.inventory_is_empty());
+
+            // Once enough time has elapsed, give it the harvested wood.
+            if self.harvest_timer.tick(query.delta_time_secs()) {
+                unit.receive_resources(ResourceKind::Wood, 1);
+                unit.follow_path(None);
+            }
+
+            // If we've harvested resources we are done and can return to our origin building.
+            if let Some(item) = unit.peek_inventory() {
+                debug_assert!(item.count != 0, "{item}");
+                debug_assert!(item.kind == ResourceKind::Wood, "Expected to have item kind {}", ResourceKind::Wood);
+
+                // If we couldn't find a path back to the origin, maybe because the origin
+                // building was destroyed, we'll have to abort the task. Any
+                // resources harvested will be lost.
+                if !self.try_return_to_origin(unit, query) {
+                    // Not possible to recover if the origin building is gone.
+                    log::warn!(log::channel!("task"), "Aborting TaskHarvestWood. Unable to return to origin building...");
+                    unit.clear_inventory();
+                    task_completed = true;
+                }
+            }
+        }
+
+        if task_completed {
+            UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) }
+        } else {
+            UnitTaskResult::Retry
+        }
+    }
+
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+
+        let building_kind = self.origin_building.kind;
+        let building_cell = self.origin_building_tile.base_cell;
+        let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
+
+        ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
+        ui.text(format!("Is Returning To Origin  : {}", self.is_returning_to_origin));
+        ui.text(format!("Harvest Countdown Timer : {:.2}", self.harvest_timer.remaining_secs()));
+        ui.separator();
+        ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
+        ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
     }
 }
 
@@ -1280,7 +1495,7 @@ impl UnitTaskInstance {
         };
 
         let archetype_text = format!("Task   : {}", self.archetype);
-        let status_text = format!("Status : {}", self.state);
+        let status_text    = format!("Status : {}", self.state);
 
         ui.text(archetype_text);
         ui.text_colored(status_color.to_array(), status_text);
@@ -1541,8 +1756,7 @@ fn visit_destination(unit: &mut Unit, query: &Query) {
     let tile_map = query.tile_map();
 
     // Visit destination building:
-    if let Some(destination_building) = world.find_building_for_cell_mut(destination_cell, tile_map)
-    {
+    if let Some(destination_building) = world.find_building_for_cell_mut(destination_cell, tile_map) {
         // NOTE: No need to check for generation match here. If the destination building
         // is still the same kind of building we where looking for, it doesn't matter if
         // it was destroyed and recreated since we started the task.
@@ -1641,13 +1855,12 @@ fn find_delivery_candidate(query: &Query,
                                      traversable_node_kinds,
                                      None,
                                      |building, _path| {
-                                         if building.receivable_resources(resource_kind_to_deliver)
-                                            != 0
+                                         if building.receivable_resources(resource_kind_to_deliver) != 0
                                             && building.is_linked_to_road(query)
                                          {
                                              return false; // Accept this
-                                                           // building and end
-                                                           // the search.
+                                                           // building and
+                                                           // end the search.
                                          }
                                          // Else we couldn't find a free slot in this building or it
                                          // is not connected to a road. Try again with another one.
@@ -1676,14 +1889,12 @@ fn find_storage_fetch_candidate(query: &Query,
                                          traversable_node_kinds,
                                          None,
                                          |building, _path| {
-                                             if building.available_resources(resource_kind_to_fetch)
-                                                != 0
+                                             if building.available_resources(resource_kind_to_fetch) != 0
                                                 && building.is_linked_to_road(query)
                                              {
                                                  return false; // Accept this
                                                                // building and
                                                                // end the search.
-                                                               //
                                              }
                                              // Else we couldn't find the resource we're looking for
                                              // in this building

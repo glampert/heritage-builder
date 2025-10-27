@@ -46,6 +46,7 @@ bitflags_with_display! {
         const SettlersSpawnPoint = 1 << 7;
         const Rocks              = 1 << 8;
         const Vegetation         = 1 << 9;
+        const HarvestableTree    = 1 << 10;
     }
 }
 
@@ -94,6 +95,11 @@ impl NodeKind {
     #[inline]
     pub fn is_vegetation(self) -> bool {
         self.intersects(Self::Vegetation)
+    }
+
+    #[inline]
+    pub fn is_harvestable_tree(self) -> bool {
+        self.intersects(Self::HarvestableTree)
     }
 
     #[inline]
@@ -334,6 +340,9 @@ impl Graph {
                     self.grid[node] = NodeKind::Rocks;
                 } else if blocker_tile.is(TileKind::Vegetation) {
                     self.grid[node] = NodeKind::Vegetation;
+                    if blocker_tile.path_kind().intersects(NodeKind::HarvestableTree) {
+                        self.grid[node] |= NodeKind::HarvestableTree;
+                    }
                 }
                 // Else leave it empty.
             } else {

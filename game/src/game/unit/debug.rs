@@ -9,6 +9,7 @@ use super::{
     Unit, UnitId,
 };
 use crate::{
+    log,
     game::{
         building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
         sim::{
@@ -20,8 +21,8 @@ use crate::{
             object::{GameObject, Spawner},
         },
     },
+    engine::time::CountdownTimer,
     imgui_ui::{self, DPadDirection, UiSystem},
-    log,
     pathfind::{self, NodeKind as PathNodeKind, Path},
     tile::{self, Tile, TileMapLayerKind, TilePoolIndex},
     utils::{
@@ -188,6 +189,7 @@ impl Unit {
         self.debug_dropdown_runner_tasks(query, ui_sys);
         self.debug_dropdown_patrol_tasks(query, ui_sys);
         self.debug_dropdown_pathfinding_tasks(query, ui_sys);
+        self.debug_dropdown_harvest_tasks(query, ui_sys);
     }
 
     fn debug_dropdown_despawn_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
@@ -474,6 +476,42 @@ impl Unit {
             self.assign_task(task_manager, task);
         }
     }
+
+    fn debug_dropdown_harvest_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.builder();
+        if !ui.collapsing_header("Harvest Tasks", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        let task_manager = query.task_manager();
+        let world = query.world();
+
+        if ui.button("Give Harvest Wood Task") {
+            // We need a building to own the task, so this assumes there's at least one
+            // lumberyard placed on the map.
+            if let Some(building) = world.find_building_by_name("Lumberyard", BuildingKind::Lumberyard) {
+                let start_cell = building.road_link(query).unwrap_or_default();
+                if self.teleport(query.tile_map(), start_cell) {
+                    let completion_task = task_manager.new_task(UnitTaskDespawn);
+                    let task = task_manager.new_task(UnitTaskHarvestWood {
+                        origin_building: BuildingKindAndId {
+                            kind: building.kind(),
+                            id: building.id(),
+                        },
+                        origin_building_tile: BuildingTileInfo {
+                            road_link: start_cell,
+                            base_cell: building.base_cell(),
+                        },
+                        completion_callback: callback::create!(unit_debug_harvest_wood_task_completed),
+                        completion_task,
+                        harvest_timer: CountdownTimer::default(),
+                        is_returning_to_origin: false,
+                    });
+                    self.assign_task(task_manager, task);
+                }
+            }
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -493,6 +531,8 @@ pub fn register_callbacks() {
         callback::register!(unit_debug_settle_task_completed);
     let _: Callback<UnitTaskPostDespawnCallback> =
         callback::register!(unit_debug_settle_task_post_despawn);
+    let _: Callback<UnitTaskHarvestCompletionCallback> =
+        callback::register!(unit_debug_harvest_wood_task_completed);
 }
 
 static mut PATROL_ROUNDS: i32 = 5;
@@ -569,4 +609,14 @@ fn unit_debug_settle_task_post_despawn(query: &Query,
     } else {
         log::info!("Unit settled into existing household.");
     }
+}
+
+fn unit_debug_harvest_wood_task_completed(building: &mut Building, unit: &mut Unit, _: &Query) {
+    let item = unit.inventory.peek().unwrap();
+    log::info!("Unit {}: Harvested for: {}. Task Completed. Got: {}, {}",
+               unit.name(),
+               building.name(),
+               item.kind,
+               item.count);
+    unit.inventory.clear();
 }
