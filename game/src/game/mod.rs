@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
     path::{Path, PathBuf},
@@ -5,10 +6,10 @@ use std::{
 
 use building::config::BuildingConfigs;
 use config::{GameConfigs, LoadMapSetting};
-use serde::{Deserialize, Serialize};
-use sim::Simulation;
 use system::{settlers, GameSystems};
 use unit::config::UnitConfigs;
+use prop::config::PropConfigs;
+use sim::Simulation;
 use world::World;
 
 use crate::{
@@ -23,8 +24,8 @@ use crate::{
         time::{Seconds, UpdateTimer},
         Engine,
     },
-    imgui_ui::UiInputEvent,
     log,
+    imgui_ui::UiInputEvent,
     render::TextureCache,
     save::{self, *},
     singleton_late_init,
@@ -39,6 +40,7 @@ use crate::{
 };
 
 pub mod building;
+pub mod prop;
 pub mod cheats;
 pub mod config;
 pub mod constants;
@@ -514,6 +516,9 @@ impl GameLoop {
 
         UnitConfigs::load();
         log::info!(log::channel!("game"), "UnitConfigs loaded.");
+
+        PropConfigs::load();
+        log::info!(log::channel!("game"), "PropConfigs loaded.");
 
         TileSets::load(tex_cache, configs.use_packed_texture_atlas);
         log::info!(log::channel!("game"), "TileSets loaded.");

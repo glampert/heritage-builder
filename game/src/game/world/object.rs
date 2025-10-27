@@ -1,7 +1,6 @@
 #![allow(clippy::while_let_on_iterator)]
 
 use core::{iter, slice};
-
 use bitvec::vec::BitVec;
 use serde::{
     de::{SeqAccess, Visitor},
@@ -12,11 +11,12 @@ use serde::{
 use super::stats::WorldStats;
 use crate::{
     game::{
-        building::Building,
         cheats,
         constants::*,
+        building::Building,
         sim::{debug::DebugUiMode, Query},
         unit::{config::UnitConfigKey, Unit},
+        prop::Prop,
     },
     log,
     imgui_ui::UiSystem,
@@ -480,6 +480,7 @@ pub struct Spawner<'world> {
 pub enum SpawnerResult<'world> {
     Building(&'world mut Building),
     Unit(&'world mut Unit),
+    Prop(&'world mut Prop),
     Tile(&'world mut Tile),
     Err(String),
 }
@@ -502,8 +503,8 @@ impl<'world> Spawner<'world> {
         Self { query }
     }
 
-    // Spawn a GameObject (Building, Unit) or place a Tile without associated game
-    // state.
+    // Spawn a GameObject (Building, Unit, Prop) or place a Tile
+    // without any associated game state.
     pub fn try_spawn_tile_with_def(&self,
                                    target_cell: Cell,
                                    tile_def: &'static TileDef)
@@ -521,6 +522,12 @@ impl<'world> Spawner<'world> {
             // Spawn Unit:
             match self.try_spawn_unit_with_tile_def(target_cell, tile_def) {
                 Ok(unit) => SpawnerResult::Unit(unit),
+                Err(err) => SpawnerResult::Err(err),
+            }
+        } else if tile_def.is(TileKind::Prop) && tile_def.path_kind.is_harvestable_tree() {
+            // Spawn Prop:
+            match self.try_spawn_prop_with_tile_def(target_cell, tile_def) {
+                Ok(prop) => SpawnerResult::Prop(prop),
                 Err(err) => SpawnerResult::Err(err),
             }
         } else {
@@ -545,6 +552,9 @@ impl<'world> Spawner<'world> {
         } else if tile.is(TileKind::Unit) && has_game_object {
             // Despawn Unit:
             self.despawn_unit_at_cell(base_cell);
+        } else if tile.is(TileKind::Prop) && has_game_object {
+            // Despawn Prop:
+            self.despawn_prop_at_cell(base_cell);
         } else {
             // No GameObject, just remove the tile directly.
             if let Err(err) =
@@ -642,6 +652,40 @@ impl<'world> Spawner<'world> {
     pub fn despawn_unit_at_cell(&self, unit_base_cell: Cell) {
         if let Err(err) = self.query.world().despawn_unit_at_cell(self.query, unit_base_cell) {
             despawn_error("Unit", &err);
+        }
+    }
+
+    // ----------------------
+    // Props:
+    // ----------------------
+
+    pub fn try_spawn_prop_with_tile_def(&self,
+                                        prop_base_cell: Cell,
+                                        prop_tile_def: &'static TileDef)
+                                        -> Result<&'world mut Prop, String> {
+        if !self.can_afford_tile(prop_tile_def) {
+            return Err(cost_error(prop_tile_def));
+        }
+
+        let result =
+            self.query.world().try_spawn_prop_with_tile_def(self.query, prop_base_cell, prop_tile_def);
+
+        if result.is_ok() {
+            self.subtract_tile_cost(prop_tile_def);
+        }
+
+        result
+    }
+
+    pub fn despawn_prop(&self, prop: &mut Prop) {
+        if let Err(err) = self.query.world().despawn_prop(self.query, prop) {
+            despawn_error("Prop", &err);
+        }
+    }
+
+    pub fn despawn_prop_at_cell(&self, prop_base_cell: Cell) {
+        if let Err(err) = self.query.world().despawn_prop_at_cell(self.query, prop_base_cell) {
+            despawn_error("Prop", &err);
         }
     }
 

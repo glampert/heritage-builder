@@ -59,6 +59,9 @@ bitflags_with_display! {
         const Unit       = 1 << 4;
         const Rocks      = 1 << 5;
         const Vegetation = 1 << 6;
+
+        // Aliases:
+        const Prop       = Self::Vegetation.bits(); // Only harvestable trees for now.
     }
 }
 
@@ -128,6 +131,15 @@ impl TileGameObjectHandle {
 
     #[inline]
     pub fn new_unit(index: usize, generation: u32) -> Self {
+        // Reserved value for invalid.
+        debug_assert!(index < u32::MAX as usize);
+        debug_assert!(generation < u32::MAX);
+        Self { index: index.try_into().expect("Index cannot fit into u32!"),
+               kind_or_generation: generation }
+    }
+
+    #[inline]
+    pub fn new_prop(index: usize, generation: u32) -> Self {
         // Reserved value for invalid.
         debug_assert!(index < u32::MAX as usize);
         debug_assert!(generation < u32::MAX);

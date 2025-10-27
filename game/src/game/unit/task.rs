@@ -9,7 +9,7 @@ use strum_macros::Display;
 
 use super::{
     navigation::{self, UnitDirection, UnitNavGoal},
-    Unit,
+    Unit, UnitId,
 };
 use crate::{
     log,
@@ -21,6 +21,7 @@ use crate::{
             Query,
             resources::{ResourceKind, ShoppingList},
         },
+        prop::PropId,
         world::object::{GameObject, GenerationalIndex, Spawner},
         building::{Building, BuildingId, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     },
@@ -1213,6 +1214,9 @@ pub type UnitTaskHarvestCompletionCallback = fn(&mut Building, &mut Unit, &Query
 // How long it takes for a unit to complete a harvest once it arrives at a tree.
 const WOOD_HARVEST_TIME_INTERVAL: Seconds = 20.0;
 
+// Take a random range between 1 and this for the amount of wood harvested each time.
+const WOOD_HARVEST_MAX_AMOUNT: u32 = 5;
+
 #[derive(Serialize, Deserialize)]
 pub struct UnitTaskHarvestWood {
     // Origin building info:
@@ -1226,43 +1230,51 @@ pub struct UnitTaskHarvestWood {
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
 
+    // Internal - set to defaults.
     pub harvest_timer: CountdownTimer,
+    pub harvest_target: PropId,
     pub is_returning_to_origin: bool,
 }
 
 impl UnitTaskHarvestWood {
-    fn try_find_goal(&self, unit: &mut Unit, query: &Query) {
+    fn try_find_goal(&mut self, unit: &mut Unit, query: &Query) {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
 
+        // FIXME: Need to find multiple HarvestableTree nodes and choose the one that is free.
+        let bias = RandomDirectionalBias::new(query.rng(), 0.1, 0.5);
+
         // Find a harvestable tree node:
-        let result = query.find_path_to_node(&pathfind::Unbiased::new(),
+        let result = query.find_path_to_node(&bias,
                                              traversable_node_kinds | PathNodeKind::HarvestableTree,
                                              start,
                                              PathNodeKind::HarvestableTree);
 
         if let SearchResult::PathFound(path_to_harvestable_tree) = result {
             let tree_cell = path_to_harvestable_tree.last().unwrap().cell;
-
-            if let Some(tree_tile) =
-                query.tile_map().find_tile(tree_cell, TileMapLayerKind::Objects, TileKind::Vegetation)
-            {
-                // Tree tile itself is not walkable, find nearby traversable neighbor we can path to.
-                pathfind::for_each_surrounding_cell(tree_tile.cell_range(),
-                    |neighbor_cell| {
-                        let node_kind = query.graph().node_kind(Node::new(neighbor_cell)).unwrap();
-                        // Find a nearby node we can traverse/reach:
-                        if node_kind.intersects(traversable_node_kinds) {
-                            // Trace new path to reachable empty node:
-                            if let SearchResult::PathFound(dest_path) =
-                                query.find_path(traversable_node_kinds, start, neighbor_cell)
-                            {
-                                unit.move_to_goal(dest_path, UnitNavGoal::tile(start, dest_path));
-                                return false; // done
+            if let Some(tree) = query.world().find_prop_for_cell_mut(tree_cell, query.tile_map()) {
+                // Choose trees that are not already being harvested by another unit.
+                if !tree.is_being_harvested() {
+                    // Tree tile itself is not walkable, find nearby traversable neighbor we can path to.
+                    pathfind::for_each_surrounding_cell(tree.cell_range(),
+                        |neighbor_cell| {
+                            let node_kind = query.graph().node_kind(Node::new(neighbor_cell)).unwrap();
+                            // Find a nearby node we can traverse/reach:
+                            if node_kind.intersects(traversable_node_kinds) {
+                                // Trace new path to reachable empty node:
+                                if let SearchResult::PathFound(dest_path) =
+                                    query.find_path(traversable_node_kinds, start, neighbor_cell)
+                                {
+                                     // Call dibs on this tree.
+                                    tree.set_harvester_unit(unit.id());
+                                    self.harvest_target = tree.id();
+                                    unit.move_to_goal(dest_path, UnitNavGoal::tile(start, dest_path));
+                                    return false; // done
+                                }
                             }
-                        }
-                        true // continue
-                    });
+                            true // continue
+                        });
+                }
             }
         }
     }
@@ -1305,6 +1317,8 @@ impl UnitTask for UnitTaskHarvestWood {
     }
 
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
+        debug_assert!(!self.harvest_target.is_valid());
+
         // Time it takes to harvest a tree.
         self.harvest_timer.reset(WOOD_HARVEST_TIME_INTERVAL);
 
@@ -1379,29 +1393,43 @@ impl UnitTask for UnitTaskHarvestWood {
             task_completed = true;
             unit.follow_path(None);
         } else {
-            // Reached the tree we want to harvest.
             debug_assert!(unit.inventory_is_empty());
 
-            // Once enough time has elapsed, give it the harvested wood.
-            if self.harvest_timer.tick(query.delta_time_secs()) {
-                unit.receive_resources(ResourceKind::Wood, 1);
+            fn reroute(unit: &mut Unit, harvest_target: &mut PropId) {
                 unit.follow_path(None);
+                *harvest_target = PropId::invalid();
             }
 
-            // If we've harvested resources we are done and can return to our origin building.
-            if let Some(item) = unit.peek_inventory() {
-                debug_assert!(item.count != 0, "{item}");
-                debug_assert!(item.kind == ResourceKind::Wood, "Expected to have item kind {}", ResourceKind::Wood);
+            // Reached the tree we wanted to harvest.
+            if let Some(tree) = query.world().find_prop_mut(self.harvest_target) {
+                if tree.harvester_unit() == unit.id() {
+                    // Once enough time has elapsed, give it the harvested wood.
+                    if self.harvest_timer.tick(query.delta_time_secs()) {
+                        // Finished.
+                        let harvest_amount = query.random_range(1..WOOD_HARVEST_MAX_AMOUNT);
+                        let harvested_resource = tree.harvest(query, harvest_amount);
 
-                // If we couldn't find a path back to the origin, maybe because the origin
-                // building was destroyed, we'll have to abort the task. Any
-                // resources harvested will be lost.
-                if !self.try_return_to_origin(unit, query) {
-                    // Not possible to recover if the origin building is gone.
-                    log::warn!(log::channel!("task"), "Aborting TaskHarvestWood. Unable to return to origin building...");
-                    unit.clear_inventory();
-                    task_completed = true;
+                        debug_assert!(harvested_resource.kind == ResourceKind::Wood, "Expected to have ResourceKind::Wood");
+                        unit.receive_resources(harvested_resource.kind, harvested_resource.count);
+
+                        tree.set_harvester_unit(UnitId::invalid());
+                        self.harvest_target = PropId::invalid();
+
+                        // If we couldn't find a path back to the origin, maybe because the origin
+                        // building was destroyed, we'll have to abort the task. Any
+                        // resources harvested will be lost.
+                        if !self.try_return_to_origin(unit, query) {
+                            // Not possible to recover if the origin building is gone.
+                            log::warn!(log::channel!("task"), "Aborting TaskHarvestWood. Unable to return to origin building...");
+                            unit.clear_inventory();
+                            task_completed = true;
+                        }
+                    }
+                } else {
+                    reroute(unit, &mut self.harvest_target);
                 }
+            } else {
+                reroute(unit, &mut self.harvest_target);
             }
         }
 

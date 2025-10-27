@@ -11,6 +11,7 @@ use super::{
 use crate::{
     log,
     game::{
+        prop::PropId,
         building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
         sim::{
             resources::{ResourceKind, ShoppingList, StockItem},
@@ -96,10 +97,12 @@ impl Unit {
             id: UnitId,
             tile_index: TilePoolIndex,
         }
-        let debug_vars = DrawDebugUiVariables { name: self.name(),
-                                                cell: self.cell(),
-                                                id: self.id(),
-                                                tile_index: self.tile_index() };
+        let debug_vars = DrawDebugUiVariables {
+            name: self.name(),
+            cell: self.cell(),
+            id: self.id(),
+            tile_index: self.tile_index()
+        };
         debug_vars.draw_debug_ui(ui_sys);
     }
 
@@ -505,6 +508,7 @@ impl Unit {
                         completion_callback: callback::create!(unit_debug_harvest_wood_task_completed),
                         completion_task,
                         harvest_timer: CountdownTimer::default(),
+                        harvest_target: PropId::default(),
                         is_returning_to_origin: false,
                     });
                     self.assign_task(task_manager, task);

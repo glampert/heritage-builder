@@ -1,9 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use anim::*;
 use config::*;
 use inventory::*;
 use navigation::*;
 use patrol::*;
-use serde::{Deserialize, Serialize};
 use task::*;
 
 use super::{

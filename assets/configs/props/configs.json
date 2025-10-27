@@ -1,0 +1,18 @@
+{
+  "configs": [
+    {
+      "name": "Tree",
+      "tile_def_name": "tree",
+      "harvestable_resource": "Wood",
+      "harvestable_amount": 25,
+      "reset_time_secs": 250.0
+    },
+    {
+      "name": "Palm Tree",
+      "tile_def_name": "palm_tree",
+      "harvestable_resource": "Wood",
+      "harvestable_amount": 20,
+      "reset_time_secs": 250.0
+    }
+  ]
+}

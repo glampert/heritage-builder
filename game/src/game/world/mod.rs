@@ -1,25 +1,29 @@
-use object::*;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use stats::*;
 use strum::IntoDiscriminant;
 
+use object::*;
+use stats::*;
+
 use crate::{
+    log,
+    save::*,
+    imgui_ui::UiSystem,
     game::{
-        building::{
-            config::BuildingConfigs, Building, BuildingArchetypeKind, BuildingId, BuildingKind,
-            BUILDING_ARCHETYPE_COUNT,
-        },
         constants::*,
-        sim::{debug::DebugUiMode, resources::GlobalTreasury, Query},
+        prop::{Prop, PropId, config::PropConfigs},
+        sim::{
+            debug::DebugUiMode, resources::GlobalTreasury, Query
+        },
         unit::{
             config::{UnitConfigKey, UnitConfigs},
             Unit, UnitId,
         },
+        building::{
+            config::BuildingConfigs, Building, BuildingArchetypeKind,
+            BuildingId, BuildingKind, BUILDING_ARCHETYPE_COUNT,
+        },
     },
-    imgui_ui::UiSystem,
-    log,
-    save::*,
     tile::{
         sets::{TileDef, TileSets, OBJECTS_UNITS_CATEGORY},
         Tile, TileGameObjectHandle, TileKind, TileMap, TileMapLayerKind, TilePoolIndex,
@@ -48,27 +52,34 @@ pub struct World {
     // All units, spawned and despawned.
     // Iteration yields only *spawned* units.
     unit_spawn_pool: SpawnPool<Unit>,
+
+    // All world props (e.g. trees).
+    prop_spawn_pool: SpawnPool<Prop>,
 }
 
 impl World {
     pub fn new() -> Self {
-        Self { // World Stats:
-               stats: WorldStats::default(),
-               // Buildings:
-               building_spawn_pools: [(BuildingArchetypeKind::ProducerBuilding,
-                                       SpawnPool::new(PRODUCER_BUILDINGS_POOL_CAPACITY,
-                                                      INITIAL_GENERATION)),
-                                      (BuildingArchetypeKind::StorageBuilding,
-                                       SpawnPool::new(STORAGE_BUILDINGS_POOL_CAPACITY,
-                                                      INITIAL_GENERATION)),
-                                      (BuildingArchetypeKind::ServiceBuilding,
-                                       SpawnPool::new(SERVICE_BUILDINGS_POOL_CAPACITY,
-                                                      INITIAL_GENERATION)),
-                                      (BuildingArchetypeKind::HouseBuilding,
-                                       SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY,
-                                                      INITIAL_GENERATION))],
-               // Units:
-               unit_spawn_pool: SpawnPool::new(UNIT_SPAWN_POOL_CAPACITY, INITIAL_GENERATION) }
+        Self {
+            // World Stats:
+            stats: WorldStats::default(),
+            // Buildings:
+            building_spawn_pools: [(BuildingArchetypeKind::ProducerBuilding,
+                                    SpawnPool::new(PRODUCER_BUILDINGS_POOL_CAPACITY,
+                                                    INITIAL_GENERATION)),
+                                    (BuildingArchetypeKind::StorageBuilding,
+                                    SpawnPool::new(STORAGE_BUILDINGS_POOL_CAPACITY,
+                                                    INITIAL_GENERATION)),
+                                    (BuildingArchetypeKind::ServiceBuilding,
+                                    SpawnPool::new(SERVICE_BUILDINGS_POOL_CAPACITY,
+                                                    INITIAL_GENERATION)),
+                                    (BuildingArchetypeKind::HouseBuilding,
+                                    SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY,
+                                                    INITIAL_GENERATION))],
+            // Units:
+            unit_spawn_pool: SpawnPool::new(UNIT_SPAWN_POOL_CAPACITY, INITIAL_GENERATION),
+            // Props:
+            prop_spawn_pool: SpawnPool::new(PROP_SPAWN_POOL_CAPACITY, INITIAL_GENERATION),
+        }
     }
 
     pub fn reset(&mut self, query: &Query) {
@@ -77,6 +88,7 @@ impl World {
         }
 
         self.unit_spawn_pool.clear(query, Unit::despawned);
+        self.prop_spawn_pool.clear(query, Prop::despawned);
     }
 
     pub fn update_unit_navigation(&mut self, query: &Query) {
@@ -93,6 +105,11 @@ impl World {
         for unit in self.unit_spawn_pool.iter_mut() {
             unit.update(query);
             unit.tally(&mut self.stats);
+        }
+
+        for prop in self.prop_spawn_pool.iter_mut() {
+            prop.update(query);
+            prop.tally(&mut self.stats);
         }
 
         for (archetype_kind, buildings) in &mut self.building_spawn_pools {
@@ -114,10 +131,6 @@ impl World {
         &mut self.stats
     }
 
-    pub fn units_stats(&self) -> (usize,  usize) {
-        (self.unit_spawn_pool.spawned_count(), self.unit_spawn_pool.spawned_peak())
-    }
-
     pub fn buildings_stats(&self) -> (usize,  usize) {
         let mut buildings_spawned = 0;
         let mut peak_buildings_spawned = 0;
@@ -130,6 +143,14 @@ impl World {
         (buildings_spawned, peak_buildings_spawned)
     }
 
+    pub fn units_stats(&self) -> (usize,  usize) {
+        (self.unit_spawn_pool.spawned_count(), self.unit_spawn_pool.spawned_peak())
+    }
+
+    pub fn prop_stats(&self) -> (usize,  usize) {
+        (self.prop_spawn_pool.spawned_count(), self.prop_spawn_pool.spawned_peak())
+    }
+
     // ----------------------
     // Callbacks:
     // ----------------------
@@ -137,6 +158,7 @@ impl World {
     pub fn register_callbacks() {
         Building::register_callbacks();
         Unit::register_callbacks();
+        Prop::register_callbacks();
     }
 
     // ----------------------
@@ -419,9 +441,10 @@ impl World {
             match query.tile_map().try_place_tile(unit_origin, tile_def) {
                 Ok(tile) => {
                     // Spawn unit:
-                    let unit = self.unit_spawn_pool.spawn(query, |unit, _query, id| {
-                                                       unit.spawned(tile, config, id);
-                                                   });
+                    let unit = self.unit_spawn_pool.spawn(query,
+                        |unit, _query, id| {
+                            unit.spawned(tile, config, id);
+                        });
                     debug_assert!(unit.is_spawned());
 
                     // Store unit index so we can refer back to it from the Tile instance.
@@ -456,9 +479,10 @@ impl World {
                 let config = configs.find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn unit:
-                let unit = self.unit_spawn_pool.spawn(query, |unit, _query, id| {
-                                                   unit.spawned(tile, config, id);
-                                               });
+                let unit = self.unit_spawn_pool.spawn(query,
+                    |unit, _query, id| {
+                        unit.spawned(tile, config, id);
+                    });
                 debug_assert!(unit.is_spawned());
 
                 // Store unit index so we can refer back to it from the Tile instance.
@@ -688,6 +712,194 @@ impl World {
     }
 
     // ----------------------
+    // Props API:
+    // ----------------------
+
+    pub fn try_spawn_prop_with_tile_def(&mut self,
+                                        query: &Query,
+                                        prop_base_cell: Cell,
+                                        tile_def: &'static TileDef)
+                                        -> Result<&mut Prop, String> {
+        debug_assert!(prop_base_cell.is_valid());
+        debug_assert!(tile_def.is_valid());
+        debug_assert!(tile_def.is(TileKind::Prop));
+
+        // Allocate & place a Tile:
+        match query.tile_map().try_place_tile(prop_base_cell, tile_def) {
+            Ok(tile) => {
+                let configs = PropConfigs::get();
+                let config = configs.find_config_by_hash(tile_def.hash, &tile_def.name);
+
+                // Spawn prop:
+                let prop = self.prop_spawn_pool.spawn(query,
+                    |prop, _query, id| {
+                        prop.spawned(tile, config, id);
+                    });
+                debug_assert!(prop.is_spawned());
+
+                // Store prop index so we can refer back to it from the Tile instance.
+                tile.set_game_object_handle(TileGameObjectHandle::new_prop(prop.id().index(),
+                                                                           prop.id().generation()));
+
+                Ok(prop)
+            }
+            Err(err) => Err(format!("Failed to spawn Prop at cell {} with TileDef '{}': {}",
+                                    prop_base_cell, tile_def.name, err)),
+        }
+    }
+
+    pub fn despawn_prop(&mut self,
+                        query: &Query,
+                        prop: &mut Prop)
+                        -> Result<(), String> {
+        let tile_base_cell = prop.cell();
+        debug_assert!(tile_base_cell.is_valid());
+
+        let tile_map = query.tile_map();
+
+        // Find and validate associated Tile:
+        let tile =
+            tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Prop)
+                    .ok_or("Prop should have an associated Tile in the TileMap!")?;
+
+        let game_object_handle = tile.game_object_handle();
+        if !game_object_handle.is_valid() {
+            return Err(format!("Prop tile '{}' {} should have a valid TileGameObjectHandle!",
+                               tile.name(),
+                               tile_base_cell));
+        }
+
+        debug_assert!(game_object_handle.index() == prop.id().index());
+        debug_assert!(game_object_handle.generation() == prop.id().generation());
+
+        // Remove the associated Tile:
+        tile_map.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
+
+        // Despawn prop instance:
+        self.prop_spawn_pool.despawn(prop, query, Prop::despawned);
+        Ok(())
+    }
+
+    #[inline]
+    pub fn despawn_prop_at_cell(&mut self,
+                                query: &Query,
+                                tile_base_cell: Cell)
+                                -> Result<(), String> {
+        debug_assert!(tile_base_cell.is_valid());
+
+        let prop = query.world()
+                            .find_prop_for_cell_mut(tile_base_cell, query.tile_map())
+                            .expect("Tile cell does not contain a Prop!");
+
+        self.despawn_prop(query, prop)
+    }
+
+    #[inline]
+    pub fn find_prop(&self, id: PropId) -> Option<&Prop> {
+        self.prop_spawn_pool.try_get(id)
+    }
+
+    #[inline]
+    pub fn find_prop_mut(&mut self, id: PropId) -> Option<&mut Prop> {
+        self.prop_spawn_pool.try_get_mut(id)
+    }
+
+    #[inline]
+    pub fn find_prop_for_tile(&self, tile: &Tile) -> Option<&Prop> {
+        let game_object_handle = tile.game_object_handle();
+        if game_object_handle.is_valid() {
+            let id = PropId::new(game_object_handle.generation(), game_object_handle.index());
+            return self.prop_spawn_pool.try_get(id);
+        }
+        None
+    }
+
+    #[inline]
+    pub fn find_prop_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Prop> {
+        let game_object_handle = tile.game_object_handle();
+        if game_object_handle.is_valid() {
+            let id = PropId::new(game_object_handle.generation(), game_object_handle.index());
+            return self.prop_spawn_pool.try_get_mut(id);
+        }
+        None
+    }
+
+    #[inline]
+    pub fn find_prop_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Prop> {
+        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Prop) {
+            return self.find_prop_for_tile(tile);
+        }
+        None
+    }
+
+    #[inline]
+    pub fn find_prop_for_cell_mut(&mut self,
+                                  cell: Cell,
+                                  tile_map: &mut TileMap)
+                                  -> Option<&mut Prop> {
+        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Prop) {
+            return self.find_prop_for_tile_mut(tile);
+        }
+        None
+    }
+
+    #[inline]
+    pub fn find_prop_by_name(&self, name: &str) -> Option<&Prop> {
+        self.prop_spawn_pool.iter().find(|prop| prop.name() == name)
+    }
+
+    #[inline]
+    pub fn find_prop_by_name_mut(&mut self, name: &str) -> Option<&mut Prop> {
+        self.prop_spawn_pool.iter_mut().find(|prop| prop.name() == name)
+    }
+
+    #[inline]
+    pub fn for_each_prop<F>(&self, mut visitor_fn: F)
+        where F: FnMut(&Prop) -> bool
+    {
+        for prop in self.prop_spawn_pool.iter() {
+            if !visitor_fn(prop) {
+                break;
+            }
+        }
+    }
+
+    #[inline]
+    pub fn for_each_prop_mut<F>(&mut self, mut visitor_fn: F)
+        where F: FnMut(&mut Prop) -> bool
+    {
+        for prop in self.prop_spawn_pool.iter_mut() {
+            if !visitor_fn(prop) {
+                break;
+            }
+        }
+    }
+
+    // ----------------------
+    // Props debug:
+    // ----------------------
+
+    pub fn draw_prop_debug_popups(&mut self,
+                                  query: &Query,
+                                  ui_sys: &UiSystem,
+                                  transform: WorldToScreenTransform,
+                                  visible_range: CellRange) {
+        for prop in self.prop_spawn_pool.iter_mut() {
+            prop.draw_debug_popups(query, ui_sys, transform, visible_range);
+        }
+    }
+
+    pub fn draw_prop_debug_ui(&mut self,
+                              query: &Query,
+                              ui_sys: &UiSystem,
+                              tile: &Tile,
+                              mode: DebugUiMode) {
+        if let Some(prop) = self.find_prop_for_tile_mut(tile) {
+            prop.draw_debug_ui(query, ui_sys, mode);
+        }
+    }
+
+    // ----------------------
     // World debug:
     // ----------------------
 
@@ -720,6 +932,11 @@ impl Load for World {
         for unit in self.unit_spawn_pool.iter_mut() {
             unit.post_load(context);
             unit.tally(&mut self.stats);
+        }
+
+        for prop in self.prop_spawn_pool.iter_mut() {
+            prop.post_load(context);
+            prop.tally(&mut self.stats);
         }
 
         for (archetype_kind, buildings) in &mut self.building_spawn_pools {

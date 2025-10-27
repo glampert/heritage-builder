@@ -181,9 +181,9 @@ impl BuildingBehavior for ProducerBuilding {
             let is_harvester_building = self.is_harvester_building();
 
             if !self.debug.freeze_harvesting() && is_harvester_building {
+                // If we've sent out a harvester unit wait until
+                // next update to send out a delivery runner.
                 if self.harvesting_update(context) {
-                    // If we've sent out a harvester unit wait until
-                    // next update to send out a delivery runner.
                     return;
                 }
             }

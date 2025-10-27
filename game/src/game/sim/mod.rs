@@ -171,6 +171,8 @@ impl Simulation {
             self.draw_building_debug_ui(context, tile, mode);
         } else if tile.is(TileKind::Unit) {
             self.draw_unit_debug_ui(context, tile, mode);
+        } else if tile.is(TileKind::Prop) {
+            self.draw_prop_debug_ui(context, tile, mode);
         }
     }
 
@@ -179,6 +181,7 @@ impl Simulation {
                                          visible_range: CellRange) {
         self.draw_building_debug_popups(context, visible_range);
         self.draw_unit_debug_popups(context, visible_range);
+        self.draw_prop_debug_popups(context, visible_range);
     }
 
     // Buildings:
@@ -219,6 +222,25 @@ impl Simulation {
         let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
 
         context.world.draw_unit_debug_ui(&query, context.ui_sys, tile, mode);
+    }
+
+    // Props:
+    fn draw_prop_debug_popups(&mut self,
+                              context: &mut debug::DebugContext,
+                              visible_range: CellRange) {
+        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
+
+        context.world
+               .draw_prop_debug_popups(&query, context.ui_sys, context.transform, visible_range);
+    }
+
+    fn draw_prop_debug_ui(&mut self,
+                          context: &mut debug::DebugContext,
+                          tile: &Tile,
+                          mode: debug::DebugUiMode) {
+        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
+
+        context.world.draw_prop_debug_ui(&query, context.ui_sys, tile, mode);
     }
 }
 

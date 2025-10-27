@@ -190,7 +190,7 @@ pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World) {
                        | imgui::WindowFlags::NO_MOUSE_INPUTS;
 
     // Place the window at the bottom-left corner of the screen.
-    let window_position = [5.0, ui.io().display_size[1] - 55.0];
+    let window_position = [5.0, ui.io().display_size[1] - 70.0];
 
     ui.window("Game Stats")
       .position(window_position, imgui::Condition::Always)
@@ -198,11 +198,13 @@ pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World) {
       .always_auto_resize(true)
       .bg_alpha(0.6) // Semi-transparent
       .build(|| {
-          let (units_spawned, peak_units_spawned) = world.units_stats();
           let (buildings_spawned, peak_buildings_spawned) = world.buildings_stats();
+          let (units_spawned, peak_units_spawned) = world.units_stats();
+          let (props_spawned, peak_props_spawned) = world.prop_stats();
 
-          ui.text(format!("Units: {units_spawned} | Peak: {peak_units_spawned}"));
           ui.text(format!("Buildings: {buildings_spawned} | Peak: {peak_buildings_spawned}"));
+          ui.text(format!("Units: {units_spawned} | Peak: {peak_units_spawned}"));
+          ui.text(format!("Props: {props_spawned} | Peak: {peak_props_spawned}"));
       });
 }
 

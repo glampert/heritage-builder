@@ -10,6 +10,7 @@ use crate::{
         config::GameConfigs,
         sim::{self, Simulation},
         unit::config::UnitConfigs,
+        prop::config::PropConfigs,
         GameLoop,
     },
     log,
@@ -467,6 +468,9 @@ impl DebugSettingsMenu {
                   }
                   if let Some(_tab) = ui.tab_item("Units") {
                       UnitConfigs::get().draw_debug_ui(context.ui_sys);
+                  }
+                  if let Some(_tab) = ui.tab_item("Props") {
+                      PropConfigs::get().draw_debug_ui(context.ui_sys);
                   }
               }
           });

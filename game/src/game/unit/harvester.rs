@@ -10,6 +10,7 @@ use super::{
 };
 use crate::{
     engine::time::CountdownTimer,
+    game::prop::PropId,
     game::building::BuildingContext,
     utils::{callback::Callback, coords::Cell},
 };
@@ -66,6 +67,7 @@ impl Harvester {
                 completion_callback,
                 completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
                 harvest_timer: CountdownTimer::default(),
+                harvest_target: PropId::default(),
                 is_returning_to_origin: false,
             }
         )
