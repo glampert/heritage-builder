@@ -900,12 +900,16 @@
           "occludes_terrain": false,
           "path_kind": "Rocks",
           "draw_size": {
-            "width": 46,
-            "height": 32
+            "width": 70,
+            "height": 45
           },
           "variations": [
             {
               "name": "var0",
+              "iso_offset": {
+                "x" : 3,
+                "y" : 15
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -918,6 +922,10 @@
             },
             {
               "name": "var1",
+              "iso_offset": {
+                "x" : 2,
+                "y" : 13
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -935,12 +943,16 @@
           "occludes_terrain": false,
           "path_kind": "Rocks",
           "draw_size": {
-            "width": 46,
-            "height": 32
+            "width": 75,
+            "height": 45
           },
           "variations": [
             {
               "name": "var0",
+              "iso_offset": {
+                "x" : 1,
+                "y" : 13
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -953,6 +965,10 @@
             },
             {
               "name": "var1",
+              "iso_offset": {
+                "x" : -3,
+                "y" : 8
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -970,12 +986,16 @@
           "occludes_terrain": false,
           "path_kind": "Rocks",
           "draw_size": {
-            "width": 46,
-            "height": 32
+            "width": 64,
+            "height": 45
           },
           "variations": [
             {
               "name": "var0",
+              "iso_offset": {
+                "x" : 0,
+                "y" : 11
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -988,6 +1008,10 @@
             },
             {
               "name": "var1",
+              "iso_offset": {
+                "x" : 0,
+                "y" : 10
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -1000,6 +1024,10 @@
             },
             {
               "name": "var2",
+              "iso_offset": {
+                "x" : 0,
+                "y" : 14
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -1017,11 +1045,15 @@
           "occludes_terrain": false,
           "path_kind": "Rocks",
           "draw_size": {
-            "width": 36,
-            "height": 26
+            "width": 50,
+            "height": 36
           },
           "variations": [
             {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -1044,12 +1076,16 @@
           "occludes_terrain": false,
           "path_kind": "Vegetation | HarvestableTree",
           "draw_size": {
-            "width": 56,
-            "height": 74
+            "width": 60,
+            "height": 85
           },
           "variations": [
             {
               "name": "var0",
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -1062,6 +1098,10 @@
             },
             {
               "name": "var1",
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -1074,6 +1114,10 @@
             },
             {
               "name": "depleted",
+              "iso_offset": {
+                "x" : 0,
+                "y" : 6
+              },
               "anim_sets": [
                 {
                   "frames": [
@@ -1118,6 +1162,10 @@
           },
           "variations": [
             {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 12
+              },
               "anim_sets": [
                 {
                   "frames": [
