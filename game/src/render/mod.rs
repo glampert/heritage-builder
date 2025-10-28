@@ -57,6 +57,7 @@ pub trait RenderSystem: Any {
 
     fn viewport(&self) -> Rect;
     fn set_viewport_size(&mut self, new_size: Size);
+    fn set_framebuffer_size(&mut self, new_size: Size);
 
     // ----------------------
     // Draw commands:

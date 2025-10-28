@@ -167,6 +167,11 @@ impl render::RenderSystem for RenderSystem {
         self.update_viewport(new_size);
     }
 
+    #[inline]
+    fn set_framebuffer_size(&mut self, new_size: Size) {
+        self.render_context.set_framebuffer_size(new_size);
+    }
+
     fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[u16], color: Color) {
         debug_assert!(self.frame_started);
         debug_assert!(!vertices.is_empty() && !indices.is_empty());

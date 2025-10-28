@@ -132,6 +132,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
             ApplicationBuilder::new().window_title(&configs.window_title)
                                      .window_size(configs.window_size)
                                      .fullscreen(configs.fullscreen)
+                                     .resizable_window(configs.resizable_window)
                                      .confine_cursor_to_window(configs.confine_cursor_to_window)
                                      .build();
 
@@ -148,6 +149,9 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
         let debug_draw = DebugDrawBackend::new(&*render_system);
 
         log::info!(log::channel!("engine"), "Debug UI initialized.");
+        log::info!(log::channel!("engine"), "Window Size: {}", app.window_size());
+        log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
+        log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());
 
         Self { app,
                render_system,
@@ -176,6 +180,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                 }
                 ApplicationEvent::WindowResize(window_size) => {
                     self.render_system.set_viewport_size(window_size);
+                    self.render_system.set_framebuffer_size(self.app.framebuffer_size());
                     events_forwarded.push(event);
                 }
                 ApplicationEvent::KeyInput(key, action, modifiers) => {

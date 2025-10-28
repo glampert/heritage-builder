@@ -1,10 +1,12 @@
 {
   "engine": {
+    "log_level": "Verbose",
     "window_size": {
       "width": 1440,
       "height": 800
     },
-    "log_level": "Verbose",
+    "resizable_window": false,
+    "confine_cursor_to_window": true,
     "use_packed_texture_atlas": true
   },
   "sim": {

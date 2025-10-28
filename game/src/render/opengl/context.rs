@@ -1,12 +1,12 @@
 use std::ffi::c_void;
 
 use super::{
-    buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE},
     log_gl_info, panic_if_gl_error,
+    buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE},
     shader::{ShaderProgram, NULL_SHADER_HANDLE},
     texture::{Texture2D, TextureUnit, MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE},
 };
-use crate::utils::{Color, Rect};
+use crate::utils::{Color, Rect, Size};
 
 // ----------------------------------------------
 // Constants
@@ -148,6 +148,13 @@ impl RenderContext {
                          viewport.y() as gl::types::GLint,
                          viewport.width() as gl::types::GLint,
                          viewport.height() as gl::types::GLint);
+        }
+        self
+    }
+
+    pub fn set_framebuffer_size(&mut self, size: Size) -> &mut Self {
+        unsafe {
+            gl::Viewport(0, 0, size.width, size.height);
         }
         self
     }

@@ -114,6 +114,7 @@ pub struct EngineConfigs {
     pub window_size: Size,
     pub window_background_color: Color,
     pub fullscreen: bool,
+    pub resizable_window: bool,
     pub confine_cursor_to_window: bool,
     pub use_packed_texture_atlas: bool,
 
@@ -134,6 +135,7 @@ impl Default for EngineConfigs {
                window_size: Size::new(1024, 768),
                window_background_color: rendering::MAP_BACKGROUND_COLOR,
                fullscreen: false,
+               resizable_window: false,
                confine_cursor_to_window: true,
                use_packed_texture_atlas: false,
 

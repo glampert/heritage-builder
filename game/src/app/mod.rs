@@ -36,7 +36,11 @@ pub trait Application: Any {
 }
 
 pub trait ApplicationFactory: Sized {
-    fn new(title: &str, window_size: Size, fullscreen: bool, confine_cursor: bool) -> Self;
+    fn new(title: &str,
+           window_size: Size,
+           fullscreen: bool,
+           confine_cursor: bool,
+           resizable_window: bool) -> Self;
 }
 
 // ----------------------------------------------
@@ -64,6 +68,7 @@ pub struct ApplicationBuilder<'a> {
     window_size: Size,
     fullscreen: bool,
     confine_cursor: bool,
+    resizable_window: bool,
 }
 
 impl<'a> ApplicationBuilder<'a> {
@@ -71,7 +76,8 @@ impl<'a> ApplicationBuilder<'a> {
         Self { title: "",
                window_size: Size::new(1024, 768),
                fullscreen: false,
-               confine_cursor: false }
+               confine_cursor: false,
+               resizable_window: false }
     }
 
     pub fn window_title(&mut self, title: &'a str) -> &mut Self {
@@ -94,12 +100,18 @@ impl<'a> ApplicationBuilder<'a> {
         self
     }
 
+    pub fn resizable_window(&mut self, resizable: bool) -> &mut Self {
+        self.resizable_window = resizable;
+        self
+    }
+
     pub fn build<AppBackendImpl>(&self) -> Box<AppBackendImpl>
         where AppBackendImpl: Application + ApplicationFactory + 'static
     {
         Box::new(AppBackendImpl::new(self.title,
                                      self.window_size,
                                      self.fullscreen,
-                                     self.confine_cursor))
+                                     self.confine_cursor,
+                                     self.resizable_window))
     }
 }

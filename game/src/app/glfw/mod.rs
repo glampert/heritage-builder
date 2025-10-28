@@ -45,7 +45,7 @@ impl GlfwApplication {
 }
 
 impl ApplicationFactory for GlfwApplication {
-    fn new(title: &str, window_size: Size, mut fullscreen: bool, confine_cursor: bool) -> Self {
+    fn new(title: &str, window_size: Size, mut fullscreen: bool, confine_cursor: bool, resizable_window: bool) -> Self {
         debug_assert!(window_size.is_valid());
 
         let mut glfw_instance =
@@ -54,7 +54,7 @@ impl ApplicationFactory for GlfwApplication {
         glfw_instance.window_hint(glfw::WindowHint::ContextVersion(3, 3));
         glfw_instance.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
         glfw_instance.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
-        glfw_instance.window_hint(glfw::WindowHint::Resizable(false));
+        glfw_instance.window_hint(glfw::WindowHint::Resizable(resizable_window));
 
         // TODO: Handle fullscreen window (need to select a monitor).
         let window_mode = glfw::WindowMode::Windowed;
@@ -63,16 +63,16 @@ impl ApplicationFactory for GlfwApplication {
             fullscreen = false;
         }
 
-        let (mut window, event_receiver) = glfw_instance.create_window(window_size.width as u32,
-                                                                       window_size.height as u32,
-                                                                       title,
-                                                                       window_mode)
-                                                        .expect("Failed to create GLFW window!");
+        let (mut window, event_receiver) =
+            glfw_instance.create_window(window_size.width as u32,
+                                        window_size.height as u32,
+                                        title,
+                                        window_mode).expect("Failed to create GLFW window!");
 
         window.make_current();
 
         // Listen to these application events:
-        window.set_size_polling(true);
+        window.set_size_polling(resizable_window);
         window.set_close_polling(true);
         window.set_key_polling(true);
         window.set_char_polling(true);
@@ -130,8 +130,7 @@ impl Application for GlfwApplication {
                 glfw::WindowEvent::Size(width, height) => {
                     self.window_size.width = width;
                     self.window_size.height = height;
-                    translated_events.push(ApplicationEvent::WindowResize(Size::new(width,
-                                                                                    height)));
+                    translated_events.push(ApplicationEvent::WindowResize(Size::new(width, height)));
                 }
                 glfw::WindowEvent::Close => {
                     translated_events.push(ApplicationEvent::Quit);
@@ -146,13 +145,10 @@ impl Application for GlfwApplication {
                     translated_events.push(ApplicationEvent::Scroll(Vec2::new(x as f32, y as f32)));
                 }
                 glfw::WindowEvent::MouseButton(button, action, modifiers) => {
-                    translated_events.push(ApplicationEvent::MouseButton(button, action,
-                                                                         modifiers));
+                    translated_events.push(ApplicationEvent::MouseButton(button, action, modifiers));
                 }
                 unhandled_event => {
-                    log::error!(log::channel!("app"),
-                                "Unhandled GLFW window event: {:?}",
-                                unhandled_event);
+                    log::warn!(log::channel!("app"), "Unhandled GLFW window event: {unhandled_event:?}");
                 }
             }
         }
