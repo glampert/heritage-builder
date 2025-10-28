@@ -1,8 +1,8 @@
 {
   "configs": [
     {
-      "name": "Ped",
-      "tile_def_name": "ped",
+      "name": "Peasant",
+      "tile_def_name": "Peasant",
       "traversable_node_kinds": "Road",
       "movement_speed": 1.66
     },

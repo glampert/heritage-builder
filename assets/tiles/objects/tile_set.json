@@ -1219,7 +1219,7 @@
       "name": "units",
       "tile_defs": [
         {
-          "name": "ped",
+          "name": "peasant",
           "occludes_terrain": false,
           "draw_size": {
             "width": 22,

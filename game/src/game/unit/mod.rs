@@ -285,8 +285,8 @@ impl Unit {
     }
 
     #[inline]
-    pub fn is_ped(&self) -> bool {
-        self.is(config::UNIT_PED)
+    pub fn is_peasant(&self) -> bool {
+        self.is(config::UNIT_PEASANT)
     }
 
     #[inline]

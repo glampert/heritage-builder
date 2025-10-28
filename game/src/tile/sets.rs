@@ -949,11 +949,11 @@ impl TileSets {
     //  <layer>/<category>/<tile_name>/<variation>/<frame[N]>.png,*
     //
     // Examples:
-    //  objects/units/ped/idle/frame0.png
-    //  objects/units/ped/idle/frame1.png
+    //  objects/units/peasant/idle/frame0.png
+    //  objects/units/peasant/idle/frame1.png
     // ...
-    //  objects/units/ped/walk_sw/frame0.png
-    //  objects/units/ped/walk_sw/frame1.png
+    //  objects/units/peasant/walk_sw/frame0.png
+    //  objects/units/peasant/walk_sw/frame1.png
     //
     fn load_all_layers(&mut self, tex_cache: &mut dyn TextureCache, use_packed_texture_atlas: bool) {
         for layer in TileMapLayerKind::iter() {

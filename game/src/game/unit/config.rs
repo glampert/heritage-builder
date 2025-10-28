@@ -15,7 +15,7 @@ use crate::{
 
 pub type UnitConfigKey = StrHashPair;
 
-pub const UNIT_PED: UnitConfigKey = UnitConfigKey::from_str("ped");
+pub const UNIT_PEASANT: UnitConfigKey = UnitConfigKey::from_str("peasant");
 pub const UNIT_RUNNER: UnitConfigKey = UnitConfigKey::from_str("runner");
 pub const UNIT_PATROL: UnitConfigKey = UnitConfigKey::from_str("patrol");
 pub const UNIT_SETTLER: UnitConfigKey = UnitConfigKey::from_str("settler");
@@ -42,9 +42,9 @@ pub struct UnitConfig {
 impl Default for UnitConfig {
     #[inline]
     fn default() -> Self {
-        Self { name: "Ped".into(),
-               tile_def_name: UNIT_PED.string.into(),
-               tile_def_name_hash: UNIT_PED.hash,
+        Self { name: "Peasant".into(),
+               tile_def_name: UNIT_PEASANT.string.into(),
+               tile_def_name_hash: UNIT_PEASANT.hash,
                traversable_node_kinds: PathNodeKind::default(),
                movement_speed: 1.66 }
     }

@@ -60,7 +60,7 @@ impl Harvester {
             context.debug_name(),
             context.query,
             unit_origin,
-            config::UNIT_PED,
+            config::UNIT_PEASANT,
             UnitTaskHarvestWood {
                 origin_building: context.kind_and_id(),
                 origin_building_tile: context.tile_info(),
