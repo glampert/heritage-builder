@@ -1,24 +1,31 @@
 use proc_macros::DrawDebugUi;
+use strum_macros::Display;
+use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    log,
     configurations,
     imgui_ui::UiSystem,
-    log,
     pathfind::NodeKind as PathNodeKind,
-    utils::hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
+    utils::hash::{self, PreHashedKeyMap, StringHash},
 };
 
 // ----------------------------------------------
-// Constants
+// UnitConfigKey
 // ----------------------------------------------
 
-pub type UnitConfigKey = StrHashPair;
-
-pub const UNIT_PEASANT: UnitConfigKey = UnitConfigKey::from_str("peasant");
-pub const UNIT_RUNNER: UnitConfigKey = UnitConfigKey::from_str("runner");
-pub const UNIT_PATROL: UnitConfigKey = UnitConfigKey::from_str("patrol");
-pub const UNIT_SETTLER: UnitConfigKey = UnitConfigKey::from_str("settler");
+#[repr(u64)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Display, TryFromPrimitive, Serialize, Deserialize)]
+pub enum UnitConfigKey {
+    #[default]
+    Peasant      = hash::fnv1a_from_str("peasant"),
+    Monk         = hash::fnv1a_from_str("monk"),
+    Runner       = hash::fnv1a_from_str("runner"),
+    Settler      = hash::fnv1a_from_str("settler"),
+    Vendor       = hash::fnv1a_from_str("vendor"),
+    TaxCollector = hash::fnv1a_from_str("tax_collector"),
+}
 
 // ----------------------------------------------
 // UnitConfig
@@ -43,8 +50,8 @@ impl Default for UnitConfig {
     #[inline]
     fn default() -> Self {
         Self { name: "Peasant".into(),
-               tile_def_name: UNIT_PEASANT.string.into(),
-               tile_def_name_hash: UNIT_PEASANT.hash,
+               tile_def_name: "peasant".into(),
+               tile_def_name_hash: UnitConfigKey::Peasant as StringHash,
                traversable_node_kinds: PathNodeKind::default(),
                movement_speed: 1.66 }
     }
@@ -53,7 +60,12 @@ impl Default for UnitConfig {
 impl UnitConfig {
     #[inline]
     pub fn is(&self, key: UnitConfigKey) -> bool {
-        self.key_hash() == key.hash
+        self.key() == key
+    }
+
+    #[inline]
+    pub fn key(&self) -> UnitConfigKey {
+        UnitConfigKey::try_from_primitive(self.tile_def_name_hash).unwrap()
     }
 
     #[inline]

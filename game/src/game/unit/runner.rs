@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    config,
     task::{
         UnitTaskDeliverToStorage, UnitTaskDeliveryCompletionCallback, UnitTaskDespawn,
         UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage,
     },
+    config::UnitConfigKey,
     UnitId, UnitTaskHelper,
 };
 use crate::{
@@ -64,7 +64,7 @@ impl Runner {
             context.debug_name(),
             context.query,
             unit_origin,
-            config::UNIT_RUNNER,
+            UnitConfigKey::Runner,
             UnitTaskDeliverToStorage {
                 origin_building: context.kind_and_id(),
                 origin_building_tile: context.tile_info(),
@@ -89,7 +89,7 @@ impl Runner {
         self.try_spawn_with_task(context.debug_name(),
                                  context.query,
                                  unit_origin,
-                                 config::UNIT_RUNNER,
+                                 UnitConfigKey::Runner,
                                  UnitTaskFetchFromStorage {
                                      origin_building: context.kind_and_id(),
                                      origin_building_tile: context.tile_info(),

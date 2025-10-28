@@ -28,7 +28,7 @@ use crate::{
         sets::{TileDef, TileSets, OBJECTS_UNITS_CATEGORY},
         Tile, TileGameObjectHandle, TileKind, TileMap, TileMapLayerKind, TilePoolIndex,
     },
-    utils::coords::{Cell, CellRange, WorldToScreenTransform},
+    utils::{coords::{Cell, CellRange, WorldToScreenTransform}, hash::StringHash},
 };
 
 pub mod debug;
@@ -427,10 +427,9 @@ impl World {
                                       unit_config_key: UnitConfigKey)
                                       -> Result<&mut Unit, String> {
         debug_assert!(unit_origin.is_valid());
-        debug_assert!(unit_config_key.is_valid());
 
         let configs = UnitConfigs::get();
-        let config = configs.find_config_by_hash(unit_config_key.hash, unit_config_key.string);
+        let config = configs.find_config_by_hash(unit_config_key as StringHash, &unit_config_key.to_string());
 
         // Find TileDef:
         if let Some(tile_def) = TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Objects,
@@ -459,7 +458,7 @@ impl World {
             }
         } else {
             Err(format!("Failed to spawn Unit at cell {} with config '{}': Cannot find TileDef '{}'!",
-                        unit_origin, unit_config_key.string, config.tile_def_name))
+                        unit_origin, unit_config_key, config.tile_def_name))
         }
     }
 

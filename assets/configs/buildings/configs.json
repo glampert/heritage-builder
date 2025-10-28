@@ -157,6 +157,7 @@
       "effect_radius": 40,
       "requires_road_access": true,
       "has_patrol_unit": true,
+      "patrol_unit": "Vendor",
       "patrol_frequency_secs": 10.0,
       "stock_update_frequency_secs": 20.0,
       "stock_capacity": 10,
@@ -178,6 +179,7 @@
       "effect_radius": 40,
       "requires_road_access": true,
       "has_patrol_unit": true,
+      "patrol_unit": "TaxCollector",
       "patrol_frequency_secs": 10.0
     },
     {
@@ -198,6 +200,7 @@
       "effect_radius": 40,
       "requires_road_access": true,
       "has_patrol_unit": true,
+      "patrol_unit": "Monk",
       "patrol_frequency_secs": 40.0
     },
     {

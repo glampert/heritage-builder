@@ -73,7 +73,7 @@ pub struct Unit {
     id: UnitId,
     map_cell: Cell,
     tile_index: TilePoolIndex,
-    config_key_hash: StringHash,
+    config_key: UnitConfigKey,
     direction: UnitDirection,
     anim_sets: UnitAnimSets,
     inventory: UnitInventory,
@@ -113,7 +113,9 @@ impl GameObject for Unit {
             stats.add_unit_resources(item.kind, item.count);
 
             // Tax Collector / TaxOffice patrol.
-            if item.kind == ResourceKind::Gold && self.is_patrol() {
+            if item.kind == ResourceKind::Gold
+                && self.is(UnitConfigKey::TaxCollector)
+            {
                 stats.treasury.tax_collected += item.count;
             }
         }
@@ -122,10 +124,9 @@ impl GameObject for Unit {
     fn post_load(&mut self, _context: &PostLoadContext) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.tile_index.is_valid());
-        debug_assert!(self.config_key_hash != hash::NULL_HASH);
 
         let configs = UnitConfigs::get();
-        let config = configs.find_config_by_hash(self.config_key_hash, "<unit>");
+        let config = configs.find_config_by_hash(self.config_key as StringHash, &self.config_key.to_string());
 
         self.config = Some(config);
     }
@@ -178,7 +179,7 @@ impl Unit {
         self.map_cell = tile.base_cell();
         self.tile_index = tile.index();
         self.config = Some(config);
-        self.config_key_hash = config.key_hash();
+        self.config_key = config.key();
         self.direction = UnitDirection::Idle;
 
         self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
@@ -193,7 +194,7 @@ impl Unit {
         self.map_cell = Cell::default();
         self.tile_index = TilePoolIndex::default();
         self.config = None;
-        self.config_key_hash = hash::NULL_HASH;
+        self.config_key = UnitConfigKey::default();
         self.direction = UnitDirection::default();
 
         self.anim_sets.clear();
@@ -278,42 +279,12 @@ impl Unit {
     #[inline]
     pub fn is(&self, config_key: UnitConfigKey) -> bool {
         debug_assert!(self.is_spawned());
-        debug_assert!(config_key.is_valid());
-        debug_assert!(self.config_key_hash != hash::NULL_HASH);
-
-        self.config_key_hash == config_key.hash
-    }
-
-    #[inline]
-    pub fn is_peasant(&self) -> bool {
-        self.is(config::UNIT_PEASANT)
-    }
-
-    #[inline]
-    pub fn is_runner(&self) -> bool {
-        self.is(config::UNIT_RUNNER)
-    }
-
-    #[inline]
-    pub fn is_patrol(&self) -> bool {
-        self.is(config::UNIT_PATROL)
-    }
-
-    #[inline]
-    pub fn is_market_vendor(&self, query: &Query) -> bool {
-        self.is_patrol()
-        && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
-    }
-
-    #[inline]
-    pub fn is_tax_collector(&self, query: &Query) -> bool {
-        self.is_patrol()
-        && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::TaxOffice)
+        self.config_key == config_key
     }
 
     #[inline]
     pub fn is_settler(&self) -> bool {
-        self.is(config::UNIT_SETTLER)
+        self.is(UnitConfigKey::Settler)
     }
 
     #[inline]
@@ -322,6 +293,18 @@ impl Unit {
         let task = self.current_task_as::<UnitTaskSettler>(query.task_manager())
                        .expect("Expected unit to be running a UnitTaskSettler!");
         task.population_to_add
+    }
+
+    #[inline]
+    pub fn is_market_vendor(&self, query: &Query) -> bool {
+        self.is(UnitConfigKey::Vendor)
+        && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
+    }
+
+    #[inline]
+    pub fn is_tax_collector(&self, query: &Query) -> bool {
+        self.is(UnitConfigKey::TaxCollector)
+        && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::TaxOffice)
     }
 
     // ----------------------
@@ -488,7 +471,6 @@ impl Unit {
               UnitTaskArchetype: From<Task>
     {
         debug_assert!(unit_origin.is_valid());
-        debug_assert!(unit_config.is_valid());
 
         let task_manager = query.task_manager();
         let task_id = task_manager.new_task(task);

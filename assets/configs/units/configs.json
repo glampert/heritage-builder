@@ -1,14 +1,14 @@
 {
   "configs": [
     {
-      "name": "Peasant",
-      "tile_def_name": "Peasant",
+      "name": "Monk",
+      "tile_def_name": "monk",
       "traversable_node_kinds": "Road",
       "movement_speed": 1.66
     },
     {
-      "name": "Patrol",
-      "tile_def_name": "patrol",
+      "name": "Peasant",
+      "tile_def_name": "peasant",
       "traversable_node_kinds": "Road",
       "movement_speed": 1.66
     },
@@ -22,6 +22,18 @@
       "name": "Settler",
       "tile_def_name": "settler",
       "traversable_node_kinds": "Dirt | Road | VacantLot | SettlersSpawnPoint",
+      "movement_speed": 1.66
+    },
+    {
+      "name": "Vendor",
+      "tile_def_name": "vendor",
+      "traversable_node_kinds": "Road",
+      "movement_speed": 1.66
+    },
+    {
+      "name": "TaxCollector",
+      "tile_def_name": "tax_collector",
+      "traversable_node_kinds": "Road",
       "movement_speed": 1.66
     }
   ]

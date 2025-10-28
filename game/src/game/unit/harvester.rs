@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    config,
     task::{
         UnitTaskHarvestWood, UnitTaskDespawn,
         UnitTaskHarvestCompletionCallback,
     },
+    config::UnitConfigKey,
     UnitId, UnitTaskHelper,
 };
 use crate::{
@@ -60,7 +60,7 @@ impl Harvester {
             context.debug_name(),
             context.query,
             unit_origin,
-            config::UNIT_PEASANT,
+            UnitConfigKey::Peasant,
             UnitTaskHarvestWood {
                 origin_building: context.kind_and_id(),
                 origin_building_tile: context.tile_info(),

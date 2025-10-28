@@ -1633,7 +1633,7 @@
           ]
         },
         {
-          "name": "patrol",
+          "name": "vendor",
           "occludes_terrain": false,
           "draw_size": {
             "width": 38,
@@ -1841,6 +1841,420 @@
         },
         {
           "name": "settler",
+          "occludes_terrain": false,
+          "draw_size": {
+            "width": 20,
+            "height": 38
+          },
+          "variations": [
+            {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
+              "anim_sets": [
+                {
+                  "name": "idle",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_ne",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_nw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_se",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_sw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_ne",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_nw",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_se",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_sw",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "tax_collector",
+          "occludes_terrain": false,
+          "draw_size": {
+            "width": 20,
+            "height": 38
+          },
+          "variations": [
+            {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
+              "anim_sets": [
+                {
+                  "name": "idle",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_ne",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_nw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_se",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_sw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_ne",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_nw",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_se",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_sw",
+                  "looping": true,
+                  "duration": 0.7,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    },
+                    {
+                      "name": "frame5"
+                    },
+                    {
+                      "name": "frame6"
+                    },
+                    {
+                      "name": "frame7"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "monk",
           "occludes_terrain": false,
           "draw_size": {
             "width": 20,

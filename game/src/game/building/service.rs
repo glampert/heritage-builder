@@ -1,5 +1,4 @@
 use std::cmp::Reverse;
-
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +22,7 @@ use crate::{
             task::{
                 UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskRandomizedPatrol,
             },
+            config::UnitConfigKey,
             Unit, UnitTaskHelper,
         },
         world::{object::GameObject, stats::WorldStats},
@@ -63,6 +63,9 @@ pub struct ServiceConfig {
     pub has_patrol_unit: bool,
 
     #[serde(default)]
+    pub patrol_unit: UnitConfigKey,
+
+    #[serde(default)]
     pub patrol_frequency_secs: Seconds,
 
     #[serde(default)] // Optional if no `resources_required`.
@@ -89,6 +92,7 @@ impl Default for ServiceConfig {
                effect_radius: 5,
                requires_road_access: false,
                has_patrol_unit: false,
+               patrol_unit: UnitConfigKey::default(),
                patrol_frequency_secs: 0.0,
                stock_update_frequency_secs: 0.0,
                resources_required: ResourceKinds::none(),
@@ -518,11 +522,15 @@ impl ServiceBuilding {
             None => return, // We are not connected to a road!
         };
 
+        let unit_config = self.config.unwrap().patrol_unit;
+        let max_patrol_distance = self.config.unwrap().effect_radius;
+
         // Look for houses to visit:
         self.patrol
             .start_randomized_patrol(context,
                                      unit_origin,
-                                     self.config.unwrap().effect_radius,
+                                     unit_config,
+                                     max_patrol_distance,
                                      Some(BuildingKind::House),
                                      callback::create!(ServiceBuilding::on_patrol_completed));
     }

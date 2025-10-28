@@ -10,12 +10,12 @@ use crate::{
         config::GameConfigs,
         sim::Query,
         unit::{
-            config,
             navigation::{self, UnitNavGoal},
             task::{
                 UnitTaskArg, UnitTaskArgs, UnitTaskDespawnWithCallback,
                 UnitTaskPostDespawnCallback, UnitTaskSettler,
             },
+            config::UnitConfigKey,
             UnitId, UnitTaskHelper,
         },
     },
@@ -167,7 +167,7 @@ impl Settler {
             "SettlersSpawnSystem",
             query,
             unit_origin,
-            config::UNIT_SETTLER,
+            UnitConfigKey::Settler,
             UnitTaskSettler {
                 completion_callback: Callback::default(),
                 completion_task: query.task_manager().new_task(UnitTaskDespawnWithCallback {

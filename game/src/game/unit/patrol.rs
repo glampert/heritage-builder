@@ -2,7 +2,7 @@ use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    config,
+    config::UnitConfigKey,
     task::{
         UnitPatrolPathRecord, UnitTaskDespawn, UnitTaskPatrolCompletionCallback,
         UnitTaskRandomizedPatrol,
@@ -102,6 +102,7 @@ impl Patrol {
     pub fn start_randomized_patrol(&mut self,
                                    context: &BuildingContext,
                                    unit_origin: Cell,
+                                   unit_config: UnitConfigKey,
                                    max_patrol_distance: i32,
                                    buildings_to_visit: Option<BuildingKind>,
                                    completion_callback: Callback<PatrolCompletionCallback>)
@@ -123,7 +124,7 @@ impl Patrol {
             context.debug_name(),
             context.query,
             unit_origin,
-            config::UNIT_PATROL,
+            unit_config,
             UnitTaskRandomizedPatrol {
                 origin_building: context.kind_and_id(),
                 origin_building_tile: context.tile_info(),
