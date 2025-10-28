@@ -1236,45 +1236,83 @@ pub struct UnitTaskHarvestWood {
     pub is_returning_to_origin: bool,
 }
 
+struct FindHarvestableTreeFilter<'task> {
+    query: &'task Query,
+}
+
+impl<'task> FindHarvestableTreeFilter<'task> {
+    fn new(query: &'task Query) -> Self {
+        Self { query }
+    }
+}
+
+impl PathFilter for FindHarvestableTreeFilter<'_> {
+    fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {
+        // Last node should be our tree prop.
+        debug_assert!(goal == *path.last().unwrap());
+
+        if let Some(tree) = self.query.world().find_prop_for_cell(goal.cell, self.query.tile_map()) {
+            if !tree.is_being_harvested() && tree.harvestable_amount() != 0 {
+                return true; // Accept path.
+            }
+        }
+
+        false // Refuse path.
+    }
+
+    fn shuffle(&mut self, nodes: &mut [Node]) {
+        nodes.shuffle(self.query.rng());
+    }
+}
+
 impl UnitTaskHarvestWood {
     fn try_find_goal(&mut self, unit: &mut Unit, query: &Query) {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
 
-        // FIXME: Need to find multiple HarvestableTree nodes and choose one that is free instead.
-        let bias = RandomDirectionalBias::new(query.rng(), 0.1, 0.5);
+        let bias = pathfind::Unbiased::new();
+        let mut path_filter = FindHarvestableTreeFilter::new(query);
 
         // Find a harvestable tree node:
-        let result = query.find_path_to_node(&bias,
-                                             traversable_node_kinds | PathNodeKind::HarvestableTree,
-                                             start,
-                                             PathNodeKind::HarvestableTree);
+        let result = query.find_paths_to_node(&bias,
+                                              &mut path_filter,
+                                              traversable_node_kinds | PathNodeKind::HarvestableTree,
+                                              start,
+                                              PathNodeKind::HarvestableTree);
 
         if let SearchResult::PathFound(path_to_harvestable_tree) = result {
+            // Last node should be our tree prop.
             let tree_cell = path_to_harvestable_tree.last().unwrap().cell;
+
             if let Some(tree) = query.world().find_prop_for_cell_mut(tree_cell, query.tile_map()) {
-                // Choose trees that are not already being harvested by another unit.
-                if !tree.is_being_harvested() {
-                    // Tree tile itself is not walkable, find nearby traversable neighbor we can path to.
-                    pathfind::for_each_surrounding_cell(tree.cell_range(),
-                        |neighbor_cell| {
-                            let node_kind = query.graph().node_kind(Node::new(neighbor_cell)).unwrap();
-                            // Find a nearby node we can traverse/reach:
-                            if node_kind.intersects(traversable_node_kinds) {
-                                // Trace new path to reachable empty node:
-                                if let SearchResult::PathFound(dest_path) =
-                                    query.find_path(traversable_node_kinds, start, neighbor_cell)
-                                {
-                                     // Call dibs on this tree.
-                                    tree.set_harvester_unit(unit.id());
-                                    self.harvest_target = tree.id();
-                                    unit.move_to_goal(dest_path, UnitNavGoal::tile(start, dest_path));
-                                    return false; // done
-                                }
+                // Filter should only accept paths to trees that are not being harvested by another unit.
+                debug_assert!(!tree.is_being_harvested());
+
+                // Tree tile itself is not walkable, so find a nearby traversable neighbor we can path to.
+                pathfind::for_each_surrounding_cell(tree.cell_range(),
+                    |neighbor_cell| {
+                        let node_kind = query.graph().node_kind(Node::new(neighbor_cell)).unwrap();
+
+                        // Find a nearby node we can traverse/reach:
+                        if node_kind.intersects(traversable_node_kinds) {
+
+                            // Trace new path to reachable empty node:
+                            if let SearchResult::PathFound(dest_path) =
+                                query.find_path(traversable_node_kinds, start, neighbor_cell)
+                            {
+                                // Call dibs on this tree.
+                                tree.set_harvester_unit(unit.id());
+                                self.harvest_target = tree.id();
+
+                                // Time it takes to harvest a tree.
+                                self.harvest_timer.reset(WOOD_HARVEST_TIME_INTERVAL);
+
+                                unit.move_to_goal(dest_path, UnitNavGoal::tile(start, dest_path));
+                                return false; // done
                             }
-                            true // continue
-                        });
-                }
+                        }
+                        true // continue to next neighbor
+                    });
             }
         }
     }
@@ -1318,9 +1356,7 @@ impl UnitTask for UnitTaskHarvestWood {
 
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
         debug_assert!(!self.harvest_target.is_valid());
-
-        // Time it takes to harvest a tree.
-        self.harvest_timer.reset(WOOD_HARVEST_TIME_INTERVAL);
+        debug_assert!(!self.is_returning_to_origin);
 
         // Harvesters can go off-road.
         let current_node_kinds = unit.traversable_node_kinds();

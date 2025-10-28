@@ -866,7 +866,7 @@ impl Search {
             }
 
             let mut neighbors = graph.neighbors(current, traversable_node_kinds);
-            path_filter.shuffle(neighbors.as_mut_slice());
+            path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
                 let new_cost =
@@ -957,10 +957,9 @@ impl Search {
         }
 
         debug_assert!(!destination_kinds.is_empty(),
-                      "Unsupported traversable node kinds: {}",
-                      traversable_node_kinds);
-        let wanted_neighbor_kinds = traversable_node_kinds | destination_kinds;
+                      "Unsupported traversable node kinds: {traversable_node_kinds}");
 
+        let wanted_neighbor_kinds = traversable_node_kinds | destination_kinds;
         let mut paths_found: usize = 0;
 
         while let Some((current, _)) = self.frontier.pop() {
@@ -989,7 +988,7 @@ impl Search {
             }
 
             let mut neighbors = graph.neighbors(current, wanted_neighbor_kinds);
-            path_filter.shuffle(neighbors.as_mut_slice());
+            path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
                 let new_cost =
@@ -1020,36 +1019,51 @@ impl Search {
         SearchResult::PathNotFound
     }
 
-    // Find path to first node matching any of the NodeKinds.
-    pub fn find_path_to_node(&mut self,
-                             graph: &Graph,
-                             heuristic: &impl Heuristic,
-                             bias: &impl Bias,
-                             traversable_node_kinds: NodeKind,
-                             start: Node,
-                             goal_node_kinds: NodeKind)
-                             -> SearchResult<'_> {
+    // Find path to nodes matching any of the NodeKinds.
+    pub fn find_path_to_node<Filter>(&mut self,
+                                     graph: &Graph,
+                                     heuristic: &impl Heuristic,
+                                     bias: &impl Bias,
+                                     path_filter: &mut Filter,
+                                     traversable_node_kinds: NodeKind,
+                                     start: Node,
+                                     goal_node_kinds: NodeKind)
+                                     -> SearchResult<'_>
+        where Filter: PathFilter
+    {
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(!goal_node_kinds.is_empty()
                       && goal_node_kinds.intersects(traversable_node_kinds));
 
         if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
-            // Start/end nodes are invalid or not traversable!
+            // Start node is invalid or not traversable!
             return SearchResult::PathNotFound;
         }
 
         self.reset(start);
 
+        let mut paths_found: usize = 0;
+
         while let Some((current, _)) = self.frontier.pop() {
             if current != start {
                 let current_node_kind = graph.node_kind(current).unwrap();
+
+                // Found a desired goal node kind:
                 if current_node_kind.intersects(goal_node_kinds) {
-                    // Found a desired goal node kind.
-                    return self.reconstruct_path(start, current);
+                    let valid_path =
+                        Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
+                    if valid_path && path_filter.accepts(paths_found, &self.path, current) {
+                        // Filter accepted this path, we're done.
+                        return SearchResult::PathFound(&self.path);
+                    }
+
+                    paths_found += 1;
+                    self.path.clear(); // Else keep searching.
                 }
             }
 
-            let neighbors = graph.neighbors(current, traversable_node_kinds);
+            let mut neighbors = graph.neighbors(current, traversable_node_kinds);
+            path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
                 let new_cost =

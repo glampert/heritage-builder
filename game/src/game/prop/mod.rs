@@ -93,9 +93,11 @@ impl GameObject for Prop {
         debug_assert!(self.is_spawned());
         debug_assert!(self.config.is_some());
 
-        if self.harvestable.amount == 0
-            && self.harvestable.respawn_timer.tick(query.delta_time_secs()) {
-            self.reset_harvestable_amount(query);
+        if self.is_harvestable()
+            && self.harvestable.amount == 0
+            && self.harvestable.respawn_timer.tick(query.delta_time_secs())
+        {
+            self.respawn_harvestable(query);
         }
     }
 
@@ -264,7 +266,7 @@ impl Prop {
         StockItem { kind: resource, count: amount_harvested }
     }
 
-    fn reset_harvestable_amount(&mut self, query: &Query) {
+    fn respawn_harvestable(&mut self, query: &Query) {
         let config = self.config.unwrap();
         self.harvestable.amount = config.harvestable_amount;
         self.harvestable.respawn_timer.reset(config.respawn_time_secs);
@@ -347,6 +349,8 @@ impl Prop {
     fn draw_debug_ui_detailed(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
+        self.config.unwrap().draw_debug_ui_with_header("Config", ui_sys);
+
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
         if !ui.collapsing_header("Properties##_prop_properties", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -379,13 +383,17 @@ impl Prop {
             #[allow(static_mut_refs)]
             unsafe {
                 static mut HARVEST_AMOUNT: u32 = 1;
-                ui.input_scalar("Amount", &mut HARVEST_AMOUNT)
+                ui.input_scalar("Harvest Amount", &mut HARVEST_AMOUNT)
                     .step(1)
                     .build();
 
                 if ui.button("Harvest") {
                     self.harvest(query, HARVEST_AMOUNT);
                 }
+            }
+
+            if ui.button("Respawn Now") {
+                self.respawn_harvestable(query);
             }
         }
     }

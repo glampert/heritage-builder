@@ -21,7 +21,7 @@ use crate::{
     log,
     pathfind::{
         self, AStarUniformCostHeuristic, Bias, Graph, Node, NodeKind as PathNodeKind, Path,
-        PathFilter, Search, SearchResult, Unbiased,
+        PathFilter, Search, SearchResult, Unbiased, DefaultPathFilter,
     },
     save::*,
     tile::{
@@ -469,6 +469,26 @@ impl Query {
         self.search().find_path_to_node(self.graph(),
                                         &AStarUniformCostHeuristic::new(),
                                         bias,
+                                        &mut DefaultPathFilter::new(),
+                                        traversable_node_kinds,
+                                        Node::new(start),
+                                        goal_node_kinds)
+    }
+
+    #[inline]
+    pub fn find_paths_to_node<Filter>(&self,
+                                      bias: &impl Bias,
+                                      path_filter: &mut Filter,
+                                      traversable_node_kinds: PathNodeKind,
+                                      start: Cell,
+                                      goal_node_kinds: PathNodeKind)
+                                      -> SearchResult
+        where Filter: PathFilter
+    {
+        self.search().find_path_to_node(self.graph(),
+                                        &AStarUniformCostHeuristic::new(),
+                                        bias,
+                                        path_filter,
                                         traversable_node_kinds,
                                         Node::new(start),
                                         goal_node_kinds)
