@@ -28,7 +28,7 @@ use crate::{
         sets::{TileDef, TileSets, OBJECTS_UNITS_CATEGORY},
         Tile, TileGameObjectHandle, TileKind, TileMap, TileMapLayerKind, TilePoolIndex,
     },
-    utils::{coords::{Cell, CellRange, WorldToScreenTransform}, hash::StringHash},
+    utils::coords::{Cell, CellRange, WorldToScreenTransform},
 };
 
 pub mod debug;
@@ -424,12 +424,11 @@ impl World {
     pub fn try_spawn_unit_with_config(&mut self,
                                       query: &Query,
                                       unit_origin: Cell,
-                                      unit_config_key: UnitConfigKey)
+                                      unit_config: UnitConfigKey)
                                       -> Result<&mut Unit, String> {
         debug_assert!(unit_origin.is_valid());
 
-        let configs = UnitConfigs::get();
-        let config = configs.find_config_by_hash(unit_config_key as StringHash, &unit_config_key.to_string());
+        let config = UnitConfigs::get().find_config_by_key(unit_config);
 
         // Find TileDef:
         if let Some(tile_def) = TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Objects,
@@ -458,7 +457,7 @@ impl World {
             }
         } else {
             Err(format!("Failed to spawn Unit at cell {} with config '{}': Cannot find TileDef '{}'!",
-                        unit_origin, unit_config_key, config.tile_def_name))
+                        unit_origin, unit_config, config.tile_def_name))
         }
     }
 
@@ -474,8 +473,7 @@ impl World {
         // Allocate & place a Tile:
         match query.tile_map().try_place_tile(unit_origin, tile_def) {
             Ok(tile) => {
-                let configs = UnitConfigs::get();
-                let config = configs.find_config_by_hash(tile_def.hash, &tile_def.name);
+                let config = UnitConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn unit:
                 let unit = self.unit_spawn_pool.spawn(query,
@@ -726,8 +724,7 @@ impl World {
         // Allocate & place a Tile:
         match query.tile_map().try_place_tile(prop_base_cell, tile_def) {
             Ok(tile) => {
-                let configs = PropConfigs::get();
-                let config = configs.find_config_by_hash(tile_def.hash, &tile_def.name);
+                let config = PropConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn prop:
                 let prop = self.prop_spawn_pool.spawn(query,

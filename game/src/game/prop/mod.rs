@@ -66,7 +66,7 @@ pub type PropId = GenerationalIndex;
 pub struct Prop {
     id: PropId,
     map_cell: Cell,
-    config_key_hash: StringHash,
+    config_key: StringHash,
 
     // Resource harvesting state.
     harvestable: HarvestablePropState,
@@ -108,10 +108,9 @@ impl GameObject for Prop {
 
     fn post_load(&mut self, _context: &PostLoadContext) {
         debug_assert!(self.is_spawned());
-        debug_assert!(self.config_key_hash != hash::NULL_HASH);
+        debug_assert!(self.config_key != hash::NULL_HASH);
 
-        let configs = PropConfigs::get();
-        let config = configs.find_config_by_hash(self.config_key_hash, "<prop>");
+        let config = PropConfigs::get().find_config_by_hash(self.config_key, "<prop>");
 
         self.config = Some(config);
     }
@@ -164,7 +163,7 @@ impl Prop {
         self.id = id;
         self.map_cell = tile.base_cell();
         self.config = Some(config);
-        self.config_key_hash = config.key_hash();
+        self.config_key = config.key_hash();
 
         self.harvestable.resource = config.harvestable_resource;
         self.harvestable.amount = config.harvestable_amount;
@@ -178,7 +177,7 @@ impl Prop {
         self.id = PropId::default();
         self.map_cell = Cell::default();
         self.config = None;
-        self.config_key_hash = hash::NULL_HASH;
+        self.config_key = hash::NULL_HASH;
         self.harvestable = HarvestablePropState::default();
     }
 

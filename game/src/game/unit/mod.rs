@@ -29,7 +29,7 @@ use crate::{
     utils::{
         self,
         coords::{Cell, CellRange, WorldToScreenTransform},
-        hash::{self, StringHash},
+        hash,
         Color,
     },
 };
@@ -125,8 +125,7 @@ impl GameObject for Unit {
         debug_assert!(self.is_spawned());
         debug_assert!(self.tile_index.is_valid());
 
-        let configs = UnitConfigs::get();
-        let config = configs.find_config_by_hash(self.config_key as StringHash, &self.config_key.to_string());
+        let config = UnitConfigs::get().find_config_by_key(self.config_key);
 
         self.config = Some(config);
     }

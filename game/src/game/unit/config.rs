@@ -114,6 +114,15 @@ pub struct UnitConfigs {
 }
 
 impl UnitConfigs {
+    pub fn find_config_by_key(&'static self, unit_config: UnitConfigKey) -> &'static UnitConfig {
+        let tile_def_name = if cfg!(debug_assertions) {
+            &unit_config.to_string()
+        } else {
+            ""
+        };
+        self.find_config_by_hash(unit_config as StringHash, tile_def_name)
+    }
+
     pub fn find_config_by_name(&'static self, tile_def_name: &str) -> &'static UnitConfig {
         self.find_config_by_hash(hash::fnv1a_from_str(tile_def_name), tile_def_name)
     }
