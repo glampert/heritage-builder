@@ -10,15 +10,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'CitySim'",
+            "name": "Debug executable 'HeritageBuilder'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=CitySim",
-                    "--package=CitySim"
+                    "--bin=HeritageBuilder",
+                    "--package=HeritageBuilder"
                 ],
                 "filter": {
-                    "name": "CitySim",
+                    "name": "HeritageBuilder",
                     "kind": "bin"
                 }
             },
@@ -31,16 +31,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'CitySim'",
+            "name": "Debug unit tests in executable 'HeritageBuilder'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=CitySim",
-                    "--package=CitySim"
+                    "--bin=HeritageBuilder",
+                    "--package=HeritageBuilder"
                 ],
                 "filter": {
-                    "name": "CitySim",
+                    "name": "HeritageBuilder",
                     "kind": "bin"
                 }
             },
