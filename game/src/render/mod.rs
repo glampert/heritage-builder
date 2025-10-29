@@ -41,7 +41,7 @@ pub trait RenderSystem: Any {
     // Render frame markers:
     // ----------------------
 
-    fn begin_frame(&mut self);
+    fn begin_frame(&mut self, window_size: Size, framebuffer_size: Size);
     fn end_frame(&mut self) -> RenderStats;
 
     // ----------------------

@@ -120,13 +120,9 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
 {
     pub fn new(configs: &EngineConfigs) -> Self {
         log::set_level(configs.log_level);
-        let log_viewer =
-            LogViewerWindow::new(configs.log_viewer_start_open, configs.log_viewer_max_lines);
+        let log_viewer = LogViewerWindow::new();
 
         log::info!(log::channel!("engine"), "--- Engine Initialization ---");
-        log::info!(log::channel!("engine"),
-                   "The current directory is: {:?}",
-                   std::env::current_dir().unwrap());
 
         let app: Box<AppBackendImpl> =
             ApplicationBuilder::new().window_title(&configs.window_title)
@@ -309,7 +305,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
 
         self.frame_clock.begin_frame();
         self.ui_system.begin_frame(&*self.app, input_sys, self.frame_clock.delta_time());
-        self.render_system.begin_frame();
+        self.render_system.begin_frame(self.app.window_size(), self.app.framebuffer_size());
 
         (self.frame_clock.delta_time(), input_sys.cursor_pos())
     }

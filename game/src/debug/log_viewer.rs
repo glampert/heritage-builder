@@ -33,14 +33,13 @@ impl LogViewerSingleton {
     fn push_line(&mut self, line: log::Record) {
         if let Some(channel) = &line.channel {
             if !self.channel_filter.contains_key(channel) {
-                self.channel_filter.insert(*channel, true); // Defaults to
-                                                            // enabled.
+                self.channel_filter.insert(*channel, true); // Defaults to enabled.
             }
         }
 
         match line.level {
             log::Level::Error => self.error_count += 1,
-            log::Level::Warn => self.warning_count += 1,
+            log::Level::Warn  => self.warning_count += 1,
             _ => {}
         }
 
@@ -129,7 +128,6 @@ impl LogViewerSingleton {
 
     fn line_prefix(line: &log::Record) -> String {
         let chan_str = line.channel.as_ref().map(|chan| chan.name).unwrap_or_default();
-
         format!("[{:?}]{}", line.level, chan_str)
     }
 
@@ -155,13 +153,20 @@ singleton_late_init! { LOG_VIEWER_SINGLETON, LogViewerSingleton }
 pub struct LogViewerWindow;
 
 impl LogViewerWindow {
-    pub fn new(start_open: bool, max_lines: usize) -> Self {
-        LogViewerSingleton::initialize(LogViewerSingleton::new(start_open, max_lines));
+    pub fn early_init() {
+        const START_OPEN: bool = false;
+        const MAX_LINES: usize = 64;
+        LogViewerSingleton::initialize(LogViewerSingleton::new(START_OPEN, MAX_LINES));
 
         log::set_listener(|line| {
             LogViewerSingleton::get_mut().push_line(line);
         });
+    }
 
+    pub fn new() -> Self {
+        if !LogViewerSingleton::is_initialized() {
+            Self::early_init();
+        }
         Self
     }
 

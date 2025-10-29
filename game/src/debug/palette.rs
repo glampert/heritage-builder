@@ -10,7 +10,7 @@ use crate::{
     game::{sim, building::{config::BuildingConfigs, BuildingArchetypeKind}},
     imgui_ui::{UiInputEvent, UiSystem},
     render::{TextureCache, TextureHandle},
-    utils::{self, coords::WorldToScreenTransform, Color, Rect, RectTexCoords, Size, Vec2},
+    utils::{self, platform::paths, coords::WorldToScreenTransform, Color, Rect, RectTexCoords, Size, Vec2},
     tile::{
         road,
         TileKind, BASE_TILE_SIZE,
@@ -46,8 +46,9 @@ pub struct TilePaletteMenu {
 
 impl TilePaletteMenu {
     pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
+        let clear_button_image_path = paths::asset_path("ui/x.png");
         Self { start_open,
-               clear_button_image: tex_cache.load_texture("assets/ui/x.png"),
+               clear_button_image: tex_cache.load_texture(clear_button_image_path.to_str().unwrap()),
                ..Default::default() }
     }
 

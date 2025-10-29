@@ -1,5 +1,4 @@
-use std::path::Path;
-
+use std::path::{Path, PathBuf};
 use proc_macros::DrawDebugUi;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -8,14 +7,16 @@ use crate::{
     log,
     save::{self, *},
     tile::rendering,
-    utils::{Color, Size},
+    utils::{platform::paths, Color, Size},
 };
 
 // ----------------------------------------------
 // Configs
 // ----------------------------------------------
 
-pub const CONFIGS_DIR_PATH: &str = "assets/configs";
+pub fn configs_path() -> PathBuf {
+    paths::asset_path("configs")
+}
 
 pub trait Configs {
     fn draw_debug_ui(&'static self, _ui_sys: &UiSystem) {}
@@ -28,11 +29,11 @@ pub trait Configs {
         debug_assert!(!config_file_name.is_empty());
 
         let config_json_path =
-            Path::new(CONFIGS_DIR_PATH).join(config_file_name).with_extension("json");
+            Path::new(&configs_path()).join(config_file_name).with_extension("json");
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
-        let _ = std::fs::create_dir_all(CONFIGS_DIR_PATH);
+        let _ = std::fs::create_dir_all(configs_path());
 
         let mut state = save::backend::new_json_save_state(true);
 
@@ -58,7 +59,7 @@ pub trait Configs {
         debug_assert!(!config_file_name.is_empty());
 
         let config_json_path =
-            Path::new(CONFIGS_DIR_PATH).join(config_file_name).with_extension("json");
+            Path::new(&configs_path()).join(config_file_name).with_extension("json");
 
         let mut state = save::backend::new_json_save_state(false);
 
@@ -124,8 +125,6 @@ pub struct EngineConfigs {
 
     // Debug Log:
     pub log_level: log::Level,
-    pub log_viewer_start_open: bool,
-    pub log_viewer_max_lines: usize,
 }
 
 impl Default for EngineConfigs {
@@ -144,8 +143,6 @@ impl Default for EngineConfigs {
                grid_line_thickness: 1.0,
 
                // Debug Log:
-               log_level: log::Level::Verbose,
-               log_viewer_start_open: false,
-               log_viewer_max_lines: 32 }
+               log_level: log::Level::Verbose }
     }
 }

@@ -1,5 +1,6 @@
 [package]
 name = "HeritageBuilder"
+authors = ["Core System"]
 version = "0.1.0"
 edition = "2024"
 
@@ -29,3 +30,27 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 rand = "0.9.1"
 rand_pcg = { version = "0.9.0", features = ["serde"] }
+
+# ----------------------------
+#    Bundle/Package Builds
+# ----------------------------
+# Invoke these **from the game/ directory** after cargo build:
+#
+#  `cargo run -p bundler -- debug`
+#  `cargo run -p bundler -- release`
+#
+# To build and produce a package (e.g., `Heritage Builder.app` on MacOS).
+#
+# Running these will invoke our bundler tool. It requires `cargo bundle`
+# to be already installed (run `cargo install cargo-bundle` first).
+
+[package.metadata.bundle]
+name = "Heritage Builder"
+identifier = "com.coresystem.heritagebuilder"
+icon = ["../assets/ui/icon.png"]
+version = "0.1.0"
+category = "Game"
+resources = ["assets"]
+copyright = "Copyright (c) Core System 2025. All rights reserved."
+short_description = "A Classic City Builder Game"
+long_description = "Build the world heritage!"

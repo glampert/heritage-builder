@@ -28,6 +28,7 @@
     }
   },
   "debug": {
-    "show_popups": true
+    "show_popups": true,
+    "enable_tile_inspector": true
   }
 }

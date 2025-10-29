@@ -958,9 +958,8 @@ impl TileSets {
     fn load_all_layers(&mut self, tex_cache: &mut dyn TextureCache, use_packed_texture_atlas: bool) {
         for layer in TileMapLayerKind::iter() {
             let tile_set_path = layer.assets_path();
-            if !self.load_tile_set(tex_cache, tile_set_path, layer, use_packed_texture_atlas) {
-                log::error!(log::channel!("tileset"),
-                            "TileSet '{layer}' ({tile_set_path}) didn't load!");
+            if !self.load_tile_set(tex_cache, tile_set_path.to_str().unwrap(), layer, use_packed_texture_atlas) {
+                log::error!(log::channel!("tileset"), "TileSet '{layer}' ({tile_set_path:?}) didn't load!");
             }
         }
     }

@@ -363,6 +363,11 @@ macro_rules! singleton_late_init {
             }
 
             #[inline]
+            pub fn is_initialized() -> bool {
+                $singleton_name.is_initialized()
+            }
+
+            #[inline]
             pub fn terminate() {
                 $singleton_name.terminate();
             }

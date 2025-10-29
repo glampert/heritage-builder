@@ -113,7 +113,7 @@ impl render::RenderSystem for RenderSystem {
         self
     }
 
-    fn begin_frame(&mut self) {
+    fn begin_frame(&mut self, window_size: Size, framebuffer_size: Size) {
         debug_assert!(!self.frame_started);
 
         self.render_context.begin_frame();
@@ -124,6 +124,9 @@ impl render::RenderSystem for RenderSystem {
         self.stats.points_drawn = 0;
         self.stats.texture_changes = 0;
         self.stats.draw_calls = 0;
+
+        self.set_viewport_size(window_size);
+        self.set_framebuffer_size(framebuffer_size);
     }
 
     fn end_frame(&mut self) -> RenderStats {

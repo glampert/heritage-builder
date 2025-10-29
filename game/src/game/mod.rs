@@ -17,7 +17,10 @@ use crate::{
         input::{InputAction, InputKey, InputModifiers, MouseButton},
         ApplicationEvent,
     },
-    debug::{self, DebugMenusFrameArgs, DebugMenusInputArgs, DebugMenusSystem},
+    debug::{
+        self, DebugMenusFrameArgs, DebugMenusInputArgs,
+        DebugMenusSystem, log_viewer::LogViewerWindow,
+    },
     engine::{
         self,
         config::EngineConfigs,
@@ -36,7 +39,7 @@ use crate::{
         sets::{TileDef, TileSets},
         TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
-    utils::{coords::CellRange, file_sys, hash, Size, Vec2},
+    utils::{platform::paths, coords::CellRange, file_sys, hash, Size, Vec2},
 };
 
 pub mod building;
@@ -367,6 +370,19 @@ impl GameLoop {
     // ----------------------
 
     pub fn new() -> &'static mut Self {
+        LogViewerWindow::early_init();
+        paths::set_default_working_dir();
+
+        log::info!(log::channel!("game"), "--- Game Initialization ---");
+        log::info!(log::channel!("game"), "Assets path: {:?}", paths::assets_dir());
+
+        if cfg!(debug_assertions) {
+            log::info!(log::channel!("game"), "Running in DEBUG mode (with debug_assertions).");
+        } else {
+            log::info!(log::channel!("game"), "Running in RELEASE mode.");
+        }
+
+        log::info!(log::channel!("game"), "Loading Game Configs ...");
         let configs = GameConfigs::load();
 
         // Boot the engine and load assets:
@@ -400,7 +416,7 @@ impl GameLoop {
             GameSession::new(tex_cache, &GameConfigs::get().save.load_map_setting, viewport_size);
 
         self.session = Some(Box::new(new_session));
-        log::info!(log::channel!("game"), "Game Session created.");
+        log::info!(log::channel!("game"), "--- Game Session created ---");
     }
 
     pub fn terminate_session(&mut self) {
@@ -408,7 +424,7 @@ impl GameLoop {
             session.reset(false, None);
         }
         self.session = None;
-        log::info!(log::channel!("game"), "Game Session destroyed.");
+        log::info!(log::channel!("game"), "--- Game Session destroyed ---");
     }
 
     pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>) {
@@ -485,6 +501,8 @@ impl GameLoop {
             self.handle_event(event, cursor_screen_pos);
         }
 
+        self.session.as_mut().unwrap().camera.set_viewport_size(self.engine.app().window_size());
+
         // Game Logic:
         let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
 
@@ -509,7 +527,8 @@ impl GameLoop {
     }
 
     fn load_assets(tex_cache: &mut dyn TextureCache, configs: &EngineConfigs) {
-        log::info!(log::channel!("game"), "Loading Game Assets ...");
+        log::info!(log::channel!("game"), "--- Loading Game Assets ---");
+        paths::set_default_working_dir();
 
         BuildingConfigs::load();
         log::info!(log::channel!("game"), "BuildingConfigs loaded.");
@@ -628,7 +647,7 @@ impl GameLoop {
         let new_session = GameSession::load_preset_map(preset_number, tex_cache, viewport_size);
 
         self.session = Some(Box::new(new_session));
-        log::info!(log::channel!("game"), "Game Session created.");
+        log::info!(log::channel!("game"), "--- Game Session created ---");
     }
 
     fn session_cmd_load_save_game(&mut self, save_file_path: String) {

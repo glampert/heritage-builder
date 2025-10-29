@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
-use std::ops::{Index, IndexMut};
+use std::{ops::{Index, IndexMut}, path::PathBuf};
 use arrayvec::ArrayVec;
 use bitflags::bitflags;
 use enum_dispatch::enum_dispatch;
@@ -21,6 +21,7 @@ use crate::{
     save::*,
     utils::{
         coords::{self, Cell, CellRange, IsoPoint, WorldToScreenTransform},
+        platform::paths,
         hash::StringHash,
         mem, Color, Rect, Size, Vec2,
     },
@@ -1243,10 +1244,10 @@ impl Tile {
          Serialize,
          Deserialize)]
 pub enum TileMapLayerKind {
-    #[strum(props(AssetsPath = "assets/tiles/terrain"))]
+    #[strum(props(AssetsPath = "tiles/terrain"))]
     Terrain,
 
-    #[strum(props(AssetsPath = "assets/tiles/objects"))]
+    #[strum(props(AssetsPath = "tiles/objects"))]
     Objects,
 }
 
@@ -1254,8 +1255,9 @@ pub const TILE_MAP_LAYER_COUNT: usize = TileMapLayerKind::COUNT;
 
 impl TileMapLayerKind {
     #[inline]
-    pub fn assets_path(self) -> &'static str {
-        self.get_str("AssetsPath").unwrap()
+    pub fn assets_path(self) -> PathBuf {
+        let path = self.get_str("AssetsPath").unwrap();
+        paths::asset_path(path)
     }
 
     #[inline]
