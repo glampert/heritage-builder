@@ -78,12 +78,15 @@ impl Default for SaveGameConfigs {
 #[serde(default)]
 pub struct CameraConfigs {
     pub zoom: f32,
+    pub step_zoom: f32,
     pub offset: CameraOffset,
 }
 
 impl Default for CameraConfigs {
     fn default() -> Self {
-        Self { zoom: CameraZoom::MIN, offset: CameraOffset::Center }
+        Self { zoom: CameraZoom::MIN,
+               step_zoom: 0.5,
+               offset: CameraOffset::Center }
     }
 }
 

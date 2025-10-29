@@ -19,8 +19,8 @@ use crate::{
     render::TextureCache,
     save::{Load, PostLoadContext, Save},
     tile::{
-        camera::Camera, rendering::TileMapRenderFlags, selection::TileSelection, PlacementOp,
-        TileKind, TileMap, TileMapLayerKind,
+        camera::{Camera, CameraZoom}, rendering::TileMapRenderFlags,
+        selection::TileSelection, PlacementOp, TileKind, TileMap, TileMapLayerKind,
         road::{self, RoadSegment},
         water,
     },
@@ -28,6 +28,7 @@ use crate::{
         coords::{Cell, CellRange, WorldToScreenTransform},
         mem, Vec2,
     },
+    log
 };
 
 pub mod log_viewer;
@@ -48,6 +49,7 @@ pub struct DebugMenusInputArgs<'game> {
     pub tile_map: &'game mut TileMap,
     pub tile_selection: &'game mut TileSelection,
     pub transform: WorldToScreenTransform,
+    pub camera: &'game mut Camera,
     pub cursor_screen_pos: Vec2,
 }
 
@@ -92,9 +94,10 @@ impl DebugMenusSystem {
     pub fn on_key_input(&mut self,
                         args: &mut DebugMenusInputArgs,
                         key: InputKey,
-                        action: InputAction)
+                        action: InputAction,
+                        modifiers: InputModifiers)
                         -> UiInputEvent {
-        DebugMenusSingleton::get_mut().on_key_input(args, key, action)
+        DebugMenusSingleton::get_mut().on_key_input(args, key, action, modifiers)
     }
 
     pub fn on_mouse_click(&mut self,
@@ -165,13 +168,28 @@ impl DebugMenusSingleton {
     fn on_key_input(&mut self,
                     args: &mut DebugMenusInputArgs,
                     key: InputKey,
-                    action: InputAction)
+                    action: InputAction,
+                    modifiers: InputModifiers)
                     -> UiInputEvent {
         if key == InputKey::Escape && action == InputAction::Press {
             self.tile_inspector_menu.close();
             self.tile_palette_menu.clear_selection();
             args.tile_map.clear_selection(args.tile_selection);
             return UiInputEvent::Handled;
+        }
+
+        // Zoom in/out by a fixed step with CTRL + [-][+]
+        if modifiers.intersects(InputModifiers::Control) {
+            if key == InputKey::Minus && action == InputAction::Press {
+                let step = CameraZoom::fixed_step_amount();
+                log::info!("Zoom out {step}");
+                args.camera.set_zoom(args.camera.current_zoom() - step);
+            }
+            if key == InputKey::Equal && action == InputAction::Press {
+                let step = CameraZoom::fixed_step_amount();
+                log::info!("Zoom in {step}");
+                args.camera.set_zoom(args.camera.current_zoom() + step);
+            }
         }
 
         UiInputEvent::NotHandled

@@ -27,6 +27,9 @@
       }
     }
   },
+  "camera": {
+    "step_zoom": 0.5
+  },
   "debug": {
     "show_popups": true,
     "enable_tile_inspector": true

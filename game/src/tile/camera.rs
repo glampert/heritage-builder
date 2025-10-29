@@ -8,7 +8,7 @@ use crate::{
     utils::{
         self,
         coords::{Cell, CellRange, WorldToScreenTransform},
-        Rect, Size, Vec2,
+        Rect, Size, Vec2, mem,
     },
 };
 
@@ -43,7 +43,18 @@ impl CameraZoom {
     pub const MIN: f32 = 1.0;
     pub const MAX: f32 = 10.0;
     pub const SPEED: f32 = 1.0; // pixels per second
+
+    pub fn fixed_step_amount() -> f32 {
+        *FIXED_STEP_ZOOM_AMOUNT
+    }
+
+    pub fn set_fixed_step_amount(zoom: f32) {
+        FIXED_STEP_ZOOM_AMOUNT.set(zoom);
+    }
 }
+
+// For fixed step zoom with CTRL +/- key shortcuts.
+static FIXED_STEP_ZOOM_AMOUNT: mem::SingleThreadStatic<f32> = mem::SingleThreadStatic::new(0.5);
 
 // ----------------------------------------------
 // Camera

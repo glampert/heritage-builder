@@ -393,6 +393,7 @@ impl GameLoop {
         cheats::initialize();
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
+        CameraZoom::set_fixed_step_amount(configs.camera.step_zoom);
 
         let instance = Self {
             engine,
@@ -548,8 +549,8 @@ impl GameLoop {
             ApplicationEvent::WindowResize(window_size) => {
                 self.session.as_mut().unwrap().camera.set_viewport_size(window_size);
             }
-            ApplicationEvent::KeyInput(key, action, _modifiers) => {
-                self.debug_menus_key_input(key, action, cursor_screen_pos);
+            ApplicationEvent::KeyInput(key, action, modifiers) => {
+                self.debug_menus_key_input(key, action, modifiers, cursor_screen_pos);
             }
             ApplicationEvent::Scroll(amount) => {
                 let session = self.session.as_mut().unwrap();
@@ -706,6 +707,7 @@ impl GameLoop {
     fn debug_menus_key_input(&mut self,
                              key: InputKey,
                              action: InputAction,
+                             modifiers: InputModifiers,
                              cursor_screen_pos: Vec2)
                              -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
@@ -715,10 +717,12 @@ impl GameLoop {
             tile_map: &mut session.tile_map,
             tile_selection: &mut session.tile_selection,
             transform: session.camera.transform(),
+            camera: &mut session.camera,
             cursor_screen_pos
         },
         key,
-        action)
+        action,
+        modifiers)
     }
 
     fn debug_menus_mouse_click(&mut self,
@@ -734,6 +738,7 @@ impl GameLoop {
             tile_map: &mut session.tile_map,
             tile_selection: &mut session.tile_selection,
             transform: session.camera.transform(),
+            camera: &mut session.camera,
             cursor_screen_pos
         },
         button,

@@ -15,7 +15,7 @@ use crate::{
     },
     log,
     tile::{
-        camera::Camera,
+        camera::{Camera, CameraZoom},
         rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
         sets::{TileSets, TERRAIN_GROUND_CATEGORY, TERRAIN_WATER_CATEGORY},
         TileMapLayerKind,
@@ -277,11 +277,20 @@ impl DebugSettingsMenu {
     fn camera_menu(&self, context: &mut sim::debug::DebugContext, camera: &mut Camera) {
         let ui = context.ui_sys.builder();
 
-        let zoom_limits = camera.zoom_limits();
+        let (zoom_min, zoom_max) = camera.zoom_limits();
         let mut zoom = camera.current_zoom();
 
-        if ui.slider("Zoom", zoom_limits.0, zoom_limits.1, &mut zoom) {
+        if ui.slider("Zoom", zoom_min, zoom_max, &mut zoom) {
             camera.set_zoom(zoom);
+        }
+
+        let mut step_zoom = CameraZoom::fixed_step_amount();
+        if ui.input_float("Step Zoom", &mut step_zoom)
+            .display_format("%.1f")
+            .step(0.5)
+            .build()
+        {
+            CameraZoom::set_fixed_step_amount(step_zoom.clamp(zoom_min, zoom_max));
         }
 
         let scroll_limits = camera.scroll_limits();
