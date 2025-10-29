@@ -2050,8 +2050,8 @@
           "name": "tax_collector",
           "occludes_terrain": false,
           "draw_size": {
-            "width": 20,
-            "height": 38
+            "width": 24,
+            "height": 40
           },
           "variations": [
             {
