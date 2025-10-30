@@ -2,18 +2,20 @@ use serde::{Deserialize, Serialize};
 
 use super::{selection, BASE_TILE_SIZE};
 use crate::{
+    singleton,
     engine::time::Seconds,
+    game::config::GameConfigs,
     imgui_ui::UiSystem,
     save::*,
     utils::{
         self,
         coords::{Cell, CellRange, WorldToScreenTransform},
-        Rect, Size, Vec2, mem,
+        Rect, Size, Vec2
     },
 };
 
 // ----------------------------------------------
-// Camera Enums
+// Camera Helpers
 // ----------------------------------------------
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
@@ -43,18 +45,41 @@ impl CameraZoom {
     pub const MIN: f32 = 1.0;
     pub const MAX: f32 = 10.0;
     pub const SPEED: f32 = 1.0; // pixels per second
-
-    pub fn fixed_step_amount() -> f32 {
-        *FIXED_STEP_ZOOM_AMOUNT
-    }
-
-    pub fn set_fixed_step_amount(zoom: f32) {
-        FIXED_STEP_ZOOM_AMOUNT.set(zoom);
-    }
 }
 
-// For fixed step zoom with CTRL +/- key shortcuts.
-static FIXED_STEP_ZOOM_AMOUNT: mem::SingleThreadStatic<f32> = mem::SingleThreadStatic::new(0.5);
+pub struct CameraGlobalSettings {
+    // For fixed step zoom with CTRL +/- key shortcuts.
+    pub fixed_step_zoom_amount: f32,
+
+    // Use fixed step zoom with mouse scroll zoom instead of smooth interpolation.
+    pub disable_smooth_mouse_scroll_zoom: bool,
+
+    // Disables mouse scroll zoom altogether.
+    pub disable_mouse_scroll_zoom: bool,
+
+    // Disables zooming with keyboard shortcuts.
+    pub disable_key_shortcut_zoom: bool,
+}
+
+singleton! { GLOBAL_SETTINGS_SINGLETON, CameraGlobalSettings }
+
+impl CameraGlobalSettings {
+    const fn new() -> Self {
+        Self {
+            fixed_step_zoom_amount: 0.5,
+            disable_smooth_mouse_scroll_zoom: false,
+            disable_mouse_scroll_zoom: false,
+            disable_key_shortcut_zoom: false,
+        }
+    }
+
+    pub fn set_from_game_configs(&mut self, configs: &GameConfigs) {
+        self.fixed_step_zoom_amount           = configs.camera.fixed_step_zoom_amount;
+        self.disable_smooth_mouse_scroll_zoom = configs.camera.disable_smooth_mouse_scroll_zoom;
+        self.disable_mouse_scroll_zoom        = configs.camera.disable_mouse_scroll_zoom;
+        self.disable_key_shortcut_zoom        = configs.camera.disable_key_shortcut_zoom;
+    }
+}
 
 // ----------------------------------------------
 // Camera

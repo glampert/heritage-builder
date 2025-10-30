@@ -19,7 +19,7 @@ use crate::{
     render::TextureCache,
     save::{Load, PostLoadContext, Save},
     tile::{
-        camera::{Camera, CameraZoom}, rendering::TileMapRenderFlags,
+        camera::{Camera, CameraGlobalSettings}, rendering::TileMapRenderFlags,
         selection::TileSelection, PlacementOp, TileKind, TileMap, TileMapLayerKind,
         road::{self, RoadSegment},
         water,
@@ -179,14 +179,16 @@ impl DebugMenusSingleton {
         }
 
         // Zoom in/out by a fixed step with CTRL + [-][+]
-        if modifiers.intersects(InputModifiers::Control) {
+        if !CameraGlobalSettings::get().disable_key_shortcut_zoom
+            && modifiers.intersects(InputModifiers::Control)
+        {
             if key == InputKey::Minus && action == InputAction::Press {
-                let step = CameraZoom::fixed_step_amount();
+                let step = CameraGlobalSettings::get().fixed_step_zoom_amount;
                 log::info!("Zoom out {step}");
                 args.camera.set_zoom(args.camera.current_zoom() - step);
             }
             if key == InputKey::Equal && action == InputAction::Press {
-                let step = CameraZoom::fixed_step_amount();
+                let step = CameraGlobalSettings::get().fixed_step_zoom_amount;
                 log::info!("Zoom in {step}");
                 args.camera.set_zoom(args.camera.current_zoom() + step);
             }

@@ -78,15 +78,21 @@ impl Default for SaveGameConfigs {
 #[serde(default)]
 pub struct CameraConfigs {
     pub zoom: f32,
-    pub step_zoom: f32,
     pub offset: CameraOffset,
+    pub fixed_step_zoom_amount: f32,
+    pub disable_smooth_mouse_scroll_zoom: bool,
+    pub disable_mouse_scroll_zoom: bool,
+    pub disable_key_shortcut_zoom: bool,
 }
 
 impl Default for CameraConfigs {
     fn default() -> Self {
         Self { zoom: CameraZoom::MIN,
-               step_zoom: 0.5,
-               offset: CameraOffset::Center }
+               offset: CameraOffset::Center,
+               fixed_step_zoom_amount: 0.5,
+               disable_smooth_mouse_scroll_zoom: false,
+               disable_mouse_scroll_zoom: false,
+               disable_key_shortcut_zoom: false }
     }
 }
 

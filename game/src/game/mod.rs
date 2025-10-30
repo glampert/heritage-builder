@@ -393,7 +393,7 @@ impl GameLoop {
         cheats::initialize();
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
-        CameraZoom::set_fixed_step_amount(configs.camera.step_zoom);
+        CameraGlobalSettings::get_mut().set_from_game_configs(configs);
 
         let instance = Self {
             engine,
@@ -404,7 +404,7 @@ impl GameLoop {
         };
 
         GameLoop::initialize(instance); // Set global instance.
-        GameLoop::get_mut()
+        GameLoop::get_mut() // Return it.
     }
 
     pub fn create_session(&mut self) {
@@ -553,11 +553,26 @@ impl GameLoop {
                 self.debug_menus_key_input(key, action, modifiers, cursor_screen_pos);
             }
             ApplicationEvent::Scroll(amount) => {
-                let session = self.session.as_mut().unwrap();
-                if amount.y < 0.0 {
-                    session.camera.request_zoom(CameraZoom::In);
-                } else if amount.y > 0.0 {
-                    session.camera.request_zoom(CameraZoom::Out);
+                let camera_settings = CameraGlobalSettings::get();
+
+                if !camera_settings.disable_mouse_scroll_zoom {
+                    let session = self.session.as_mut().unwrap();
+
+                    if camera_settings.disable_smooth_mouse_scroll_zoom {
+                        if amount.y < 0.0 {
+                            let step = camera_settings.fixed_step_zoom_amount;
+                            session.camera.set_zoom(session.camera.current_zoom() + step);
+                        } else if amount.y > 0.0 {
+                            let step = camera_settings.fixed_step_zoom_amount;
+                            session.camera.set_zoom(session.camera.current_zoom() - step);
+                        }
+                    } else {
+                        if amount.y < 0.0 {
+                            session.camera.request_zoom(CameraZoom::In);
+                        } else if amount.y > 0.0 {
+                            session.camera.request_zoom(CameraZoom::Out);
+                        }
+                    }
                 }
             }
             ApplicationEvent::MouseButton(button, action, modifiers) => {

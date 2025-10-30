@@ -15,7 +15,7 @@ use crate::{
     },
     log,
     tile::{
-        camera::{Camera, CameraZoom},
+        camera::{Camera, CameraGlobalSettings},
         rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
         sets::{TileSets, TERRAIN_GROUND_CATEGORY, TERRAIN_WATER_CATEGORY},
         TileMapLayerKind,
@@ -277,6 +277,21 @@ impl DebugSettingsMenu {
     fn camera_menu(&self, context: &mut sim::debug::DebugContext, camera: &mut Camera) {
         let ui = context.ui_sys.builder();
 
+        let mut key_shortcut_zoom = !CameraGlobalSettings::get().disable_key_shortcut_zoom;
+        if ui.checkbox("Keyboard Zoom", &mut key_shortcut_zoom) {
+            CameraGlobalSettings::get_mut().disable_key_shortcut_zoom = !key_shortcut_zoom;
+        }
+
+        let mut mouse_scroll_zoom = !CameraGlobalSettings::get().disable_mouse_scroll_zoom;
+        if ui.checkbox("Mouse Scroll Zoom", &mut mouse_scroll_zoom) {
+            CameraGlobalSettings::get_mut().disable_mouse_scroll_zoom = !mouse_scroll_zoom;
+        }
+
+        let mut smooth_mouse_scroll_zoom = !CameraGlobalSettings::get().disable_smooth_mouse_scroll_zoom;
+        if ui.checkbox("Smooth Mouse Scroll Zoom", &mut smooth_mouse_scroll_zoom) {
+            CameraGlobalSettings::get_mut().disable_smooth_mouse_scroll_zoom = !smooth_mouse_scroll_zoom;
+        }
+
         let (zoom_min, zoom_max) = camera.zoom_limits();
         let mut zoom = camera.current_zoom();
 
@@ -284,14 +299,16 @@ impl DebugSettingsMenu {
             camera.set_zoom(zoom);
         }
 
-        let mut step_zoom = CameraZoom::fixed_step_amount();
+        let mut step_zoom = CameraGlobalSettings::get().fixed_step_zoom_amount;
         if ui.input_float("Step Zoom", &mut step_zoom)
             .display_format("%.1f")
             .step(0.5)
             .build()
         {
-            CameraZoom::set_fixed_step_amount(step_zoom.clamp(zoom_min, zoom_max));
+            CameraGlobalSettings::get_mut().fixed_step_zoom_amount = step_zoom.clamp(zoom_min, zoom_max);
         }
+
+        ui.separator();
 
         let scroll_limits = camera.scroll_limits();
         let mut scroll = camera.current_scroll();
