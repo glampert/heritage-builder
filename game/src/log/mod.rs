@@ -2,6 +2,7 @@ use std::{
     fmt,
     hash::{Hash, Hasher},
     io::Write,
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
         OnceLock,
@@ -13,6 +14,7 @@ use strum_macros::Display;
 
 use crate::utils::{
     hash::{self, StringHash},
+    platform::paths,
     Color,
 };
 
@@ -127,6 +129,10 @@ pub fn enable_source_location(enable: bool) {
 
 pub fn enable_tty_colors(enable: bool) {
     ENABLE_TTY_COLORS.store(enable, Ordering::Relaxed);
+}
+
+pub fn logs_dir() -> PathBuf {
+    paths::base_path("logs")
 }
 
 // ----------------------------------------------

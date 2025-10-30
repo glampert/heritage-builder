@@ -24,7 +24,7 @@ fn main() {
 
     let game_dir = Path::new("../game");
     if !game_dir.exists() {
-        panic!("❌ Run this from `tools/bundler` directory or adjust path!");
+        panic!("❌ Run this tool from `<project_root>/game` directory or adjust path!");
     };
 
     println!("🧩 Building bundle for '{APP_NAME}' in {bundle_kind} mode...");

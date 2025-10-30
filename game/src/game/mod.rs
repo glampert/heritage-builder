@@ -108,7 +108,7 @@ impl GameSession {
         };
 
         if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
-            session.load_save_game(save_file_path);
+            session.load_save_game(&make_save_game_file_path(save_file_path));
         }
 
         session
@@ -254,13 +254,16 @@ impl Load for GameSession {
 
 pub const AUTOSAVE_FILE_NAME: &str = "autosave.json";
 pub const DEFAULT_SAVE_FILE_NAME: &str = "save_game.json";
-pub const SAVE_GAMES_DIR_PATH: &str = "saves";
+
+fn save_games_dir() -> PathBuf {
+    paths::base_path("saves")
+}
 
 fn make_save_game_file_path(save_file_name: &str) -> String {
-    Path::new(SAVE_GAMES_DIR_PATH).join(save_file_name)
-                                  .with_extension("json")
-                                  .to_string_lossy()
-                                  .into()
+    Path::new(&save_games_dir()).join(save_file_name)
+                                .with_extension("json")
+                                .to_string_lossy()
+                                .into()
 }
 
 impl GameSession {
@@ -289,7 +292,7 @@ impl GameSession {
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
-        let _ = std::fs::create_dir_all(SAVE_GAMES_DIR_PATH);
+        let _ = std::fs::create_dir_all(save_games_dir());
 
         if !can_write_save_file(save_file_path) {
             log::error!(log::channel!("session"),
@@ -374,7 +377,8 @@ impl GameLoop {
         paths::set_default_working_dir();
 
         log::info!(log::channel!("game"), "--- Game Initialization ---");
-        log::info!(log::channel!("game"), "Assets path: {:?}", paths::assets_dir());
+        log::info!(log::channel!("game"), "Base dir: {:?}", paths::base_dir());
+        log::info!(log::channel!("game"), "Assets dir: {:?}", paths::assets_dir());
 
         if cfg!(debug_assertions) {
             log::info!(log::channel!("game"), "Running in DEBUG mode (with debug_assertions).");
@@ -454,14 +458,14 @@ impl GameLoop {
             return;
         }
 
-        self.session_cmd_queue
-            .push_back(GameSessionCmd::SaveGame { save_file_path:
-                                                      make_save_game_file_path(save_file_name) });
+        self.session_cmd_queue.push_back(GameSessionCmd::SaveGame {
+            save_file_path: make_save_game_file_path(save_file_name)
+        });
     }
 
     #[inline]
     pub fn save_files_list(&self) -> Vec<PathBuf> {
-        file_sys::collect_files(&SAVE_GAMES_DIR_PATH,
+        file_sys::collect_files(&save_games_dir(),
                                 file_sys::CollectFlags::FilenamesOnly,
                                 Some("json"))
     }
@@ -559,6 +563,7 @@ impl GameLoop {
                     let session = self.session.as_mut().unwrap();
 
                     if camera_settings.disable_smooth_mouse_scroll_zoom {
+                        // Fixed step zoom.
                         if amount.y < 0.0 {
                             let step = camera_settings.fixed_step_zoom_amount;
                             session.camera.set_zoom(session.camera.current_zoom() + step);
@@ -567,6 +572,7 @@ impl GameLoop {
                             session.camera.set_zoom(session.camera.current_zoom() - step);
                         }
                     } else {
+                        // Smooth interpolated zoom.
                         if amount.y < 0.0 {
                             session.camera.request_zoom(CameraZoom::In);
                         } else if amount.y > 0.0 {

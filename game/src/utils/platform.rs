@@ -8,13 +8,22 @@ pub mod paths {
     use std::{sync::LazyLock, env, path::{Path, PathBuf}};
     use crate::log;
 
+    // Sets the current working directory to base_dir.
     pub fn set_default_working_dir() {
-        let mut path = assets_dir().clone();
-        path.pop(); // E.g. back to `Contents/Resources` on MacOS.
-
+        let path = base_dir();
         if let Err(err) = env::set_current_dir(path) {
             log::warn!("Failed to set default working directory: {err}");
         }
+    }
+
+    // Absolute path where the application runs from. Parent of assets_dir.
+    pub fn base_dir() -> &'static PathBuf {
+        &CACHED_BASE_DIR
+    }
+
+    // Joins base_dir and the given relative path.
+    pub fn base_path(relative_path: impl AsRef<Path>) -> PathBuf {
+        CACHED_BASE_DIR.join(relative_path)
     }
 
     // Returns the absolute path to the game's assets directory.
@@ -25,14 +34,29 @@ pub mod paths {
     }
 
     // Resolves a path within the assets directory.
-    pub fn asset_path(rel: impl AsRef<Path>) -> PathBuf {
-        CACHED_ASSETS_DIR.join(rel)
+    pub fn asset_path(relative_path: impl AsRef<Path>) -> PathBuf {
+        CACHED_ASSETS_DIR.join(relative_path)
     }
 
     // Cached on first use.
-    static CACHED_ASSETS_DIR: LazyLock<PathBuf> = LazyLock::new(find_assets_dir);
+    static CACHED_BASE_DIR:   LazyLock<PathBuf> = LazyLock::new(cache_base_dir);
+    static CACHED_ASSETS_DIR: LazyLock<PathBuf> = LazyLock::new(cache_assets_dir);
 
-    fn find_assets_dir() -> PathBuf {
+    fn cache_base_dir() -> PathBuf {
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(bundle_resources) = macos_bundle_resources_dir() {
+                if bundle_resources.exists() {
+                    return bundle_resources;
+                }
+            }
+        }
+
+        // Default for dev / non-MacOS.
+        project_relative("")
+    }
+
+    fn cache_assets_dir() -> PathBuf {
         #[cfg(target_os = "macos")]
         {
             if let Some(bundle_resources) = macos_bundle_resources_dir() {
@@ -67,14 +91,18 @@ pub mod paths {
 
     // Fallback for non-MacOS platforms or when running unbundled.
     // Returns a path relative to the project root.
-    fn project_relative(rel: impl AsRef<Path>) -> PathBuf {
+    fn project_relative(relative_path: impl AsRef<Path>) -> PathBuf {
         // Try CARGO_MANIFEST_DIR for a stable dev path:
         if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
-            return PathBuf::from(manifest_dir).join(rel);
+            return PathBuf::from(manifest_dir).join(relative_path);
         }
 
         // Fallback: current working directory.
-        env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(rel)
+        let mut dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        if !relative_path.as_ref().as_os_str().is_empty() {
+            dir = dir.join(relative_path);
+        }
+        dir
     }
 }
 
@@ -90,14 +118,15 @@ pub fn macos_redirect_stderr<F, R>(f: F, filename: &str) -> R
     use std::{fs::{self, OpenOptions}, path::Path, os::unix::io::AsRawFd};
     use libc::{close, dup, dup2, STDERR_FILENO};
 
-    let _ = fs::create_dir("logs");
+    let logs_dir = crate::log::logs_dir();
+    let _ = fs::create_dir(&logs_dir);
 
     unsafe {
         let saved_fd = dup(STDERR_FILENO);
         let file = OpenOptions::new().create(true)
                                      .write(true)
                                      .truncate(true)
-                                     .open(Path::new("logs").join(filename))
+                                     .open(Path::new(&logs_dir).join(filename))
                                      .expect("Failed to open stderr log file!");
         dup2(file.as_raw_fd(), STDERR_FILENO);
         let result = f();
