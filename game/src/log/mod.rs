@@ -1,11 +1,12 @@
 use std::{
+    fs,
+    io,
     fmt,
+    path::{Path, PathBuf},
     hash::{Hash, Hasher},
-    io::Write,
-    path::PathBuf,
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
-        OnceLock,
+        OnceLock, LazyLock, RwLock
     },
 };
 
@@ -116,11 +117,16 @@ pub fn set_listener<F>(listener_fn: F)
 // ----------------------------------------------
 
 static MIN_LOG_LEVEL: AtomicU32 = AtomicU32::new(Level::Verbose as u32);
+static REDIRECT_TO_FILE: AtomicBool = AtomicBool::new(false);
 static ENABLE_SRC_LOCATION: AtomicBool = AtomicBool::new(false);
 static ENABLE_TTY_COLORS: AtomicBool = AtomicBool::new(true);
 
 pub fn set_level(level: Level) {
     MIN_LOG_LEVEL.store(level as u32, Ordering::Relaxed);
+}
+
+pub fn redirect_to_file(redirect: bool) {
+    REDIRECT_TO_FILE.store(redirect, Ordering::Relaxed);
 }
 
 pub fn enable_source_location(enable: bool) {
@@ -134,6 +140,60 @@ pub fn enable_tty_colors(enable: bool) {
 pub fn logs_dir() -> PathBuf {
     paths::base_path("logs")
 }
+
+const LOG_FILENAME: &str = "runtime.log";
+
+// ----------------------------------------------
+// Log Output Selection
+// ----------------------------------------------
+
+enum LogOutput {
+    Stdout(io::Stdout),
+    File(fs::File),
+}
+
+impl io::Write for LogOutput {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Stdout(stdout) => stdout.write(buf),
+            Self::File(file) => file.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::Stdout(stdout) => stdout.flush(),
+            Self::File(file) => file.flush(),
+        }
+    }
+}
+
+fn init_log_output() -> LogOutput {
+    if REDIRECT_TO_FILE.load(Ordering::Relaxed) {
+        let logs_dir = logs_dir();
+        let _ = fs::create_dir(&logs_dir);
+
+        if let Ok(file) = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(Path::new(&logs_dir).join(LOG_FILENAME))
+        {
+            enable_tty_colors(false);
+            LogOutput::File(file)
+        } else {
+            // Fallback to TTY
+            LogOutput::Stdout(io::stdout())
+        }
+    } else {
+        // TTY
+        LogOutput::Stdout(io::stdout())
+    }
+}
+
+static LOG_OUTPUT: LazyLock<RwLock<LogOutput>> = LazyLock::new(|| {
+    RwLock::new(init_log_output())
+});
 
 // ----------------------------------------------
 // Internal Implementation
@@ -154,6 +214,9 @@ pub fn print_internal(level: Level,
         return;
     }
 
+    use io::Write;
+    let mut output = LOG_OUTPUT.write().unwrap();
+
     let chan_str = channel.as_ref().map(|chan| chan.name).unwrap_or_default();
 
     let (color_start, color_end) = {
@@ -164,10 +227,8 @@ pub fn print_internal(level: Level,
         }
     };
 
-    let mut out = std::io::stdout();
-
     if ENABLE_SRC_LOCATION.load(Ordering::Relaxed) {
-        writeln!(&mut out,
+        writeln!(output,
                  "{}[{:?}]{}{} {}:{} {} - {}",
                  color_start,
                  level,
@@ -179,7 +240,7 @@ pub fn print_internal(level: Level,
                  args).unwrap();
     } else {
         writeln!(
-            &mut out,
+            output,
             "{}[{:?}]{}{} {}",
             color_start, level, chan_str, color_end, args
         ).unwrap();

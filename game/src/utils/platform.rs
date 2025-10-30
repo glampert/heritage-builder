@@ -1,3 +1,5 @@
+use strum_macros::Display;
+
 // ----------------------------------------------
 // Platform Path Handling
 // ----------------------------------------------
@@ -107,6 +109,51 @@ pub mod paths {
 }
 
 // ----------------------------------------------
+// Build Profile / App Bundle Detection
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Display, PartialEq, Eq)]
+pub enum BuildProfile {
+    Debug,
+    Release,
+}
+
+#[derive(Copy, Clone, Display, PartialEq, Eq)]
+pub enum RunEnvironment {
+    Standalone,
+    MacOSAppBundle,
+}
+
+pub fn build_profile() -> BuildProfile {
+    if cfg!(debug_assertions) {
+        BuildProfile::Debug
+    } else {
+        BuildProfile::Release
+    }
+}
+
+pub fn run_environment() -> RunEnvironment {
+    #[cfg(target_os = "macos")]
+    {
+        // Example: /Applications/MyGame.app/Contents/MacOS/MyGame
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                if exe_dir
+                    .parent()
+                    .and_then(|contents| contents.parent())
+                    .filter(|p| p.extension().is_some_and(|ext| ext == "app"))
+                    .is_some()
+                {
+                    return RunEnvironment::MacOSAppBundle;
+                }
+            }
+        }
+    }
+
+    RunEnvironment::Standalone
+}
+
+// ----------------------------------------------
 // macos_redirect_stderr()
 // ----------------------------------------------
 
@@ -123,11 +170,12 @@ pub fn macos_redirect_stderr<F, R>(f: F, filename: &str) -> R
 
     unsafe {
         let saved_fd = dup(STDERR_FILENO);
-        let file = OpenOptions::new().create(true)
-                                     .write(true)
-                                     .truncate(true)
-                                     .open(Path::new(&logs_dir).join(filename))
-                                     .expect("Failed to open stderr log file!");
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(Path::new(&logs_dir).join(filename))
+            .expect("Failed to open stderr log file!");
         dup2(file.as_raw_fd(), STDERR_FILENO);
         let result = f();
         dup2(saved_fd, STDERR_FILENO);

@@ -39,7 +39,7 @@ use crate::{
         sets::{TileDef, TileSets},
         TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
-    utils::{platform::paths, coords::CellRange, file_sys, hash, Size, Vec2},
+    utils::{platform::{self, paths}, coords::CellRange, file_sys, hash, Size, Vec2},
 };
 
 pub mod building;
@@ -373,18 +373,22 @@ impl GameLoop {
     // ----------------------
 
     pub fn new() -> &'static mut Self {
+        let build_profile = platform::build_profile();
+        let run_environment = platform::run_environment();
+        let redirect_log_to_file = run_environment == platform::RunEnvironment::MacOSAppBundle;
+
+        log::redirect_to_file(redirect_log_to_file);
         LogViewerWindow::early_init();
         paths::set_default_working_dir();
 
         log::info!(log::channel!("game"), "--- Game Initialization ---");
+
         log::info!(log::channel!("game"), "Base dir: {:?}", paths::base_dir());
         log::info!(log::channel!("game"), "Assets dir: {:?}", paths::assets_dir());
 
-        if cfg!(debug_assertions) {
-            log::info!(log::channel!("game"), "Running in DEBUG mode (with debug_assertions).");
-        } else {
-            log::info!(log::channel!("game"), "Running in RELEASE mode.");
-        }
+        log::info!(log::channel!("game"), "Running in {build_profile} profile.");
+        log::info!(log::channel!("game"), "{run_environment} environment.");
+        log::info!(log::channel!("game"), "Redirect log to file: {redirect_log_to_file}.");
 
         log::info!(log::channel!("game"), "Loading Game Configs ...");
         let configs = GameConfigs::load();
