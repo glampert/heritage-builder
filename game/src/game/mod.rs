@@ -39,7 +39,7 @@ use crate::{
         sets::{TileDef, TileSets},
         TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
-    utils::{platform::{self, paths}, coords::CellRange, file_sys, hash, Size, Vec2},
+    utils::{crash_report, platform::{self, paths}, coords::CellRange, file_sys, hash, Size, Vec2},
 };
 
 pub mod building;
@@ -375,11 +375,15 @@ impl GameLoop {
     pub fn new() -> &'static mut Self {
         let build_profile = platform::build_profile();
         let run_environment = platform::run_environment();
-        let redirect_log_to_file = run_environment == platform::RunEnvironment::MacOSAppBundle;
+        let is_app_bundle = run_environment == platform::RunEnvironment::MacOSAppBundle;
 
-        log::redirect_to_file(redirect_log_to_file);
+        // Early initialization:
+        log::redirect_to_file(is_app_bundle);
         LogViewerWindow::early_init();
         paths::set_default_working_dir();
+
+        // Only log panics when running from a bundle. Otherwise the default behavior is fine.
+        crash_report::initialize(is_app_bundle);
 
         log::info!(log::channel!("game"), "--- Game Initialization ---");
 
@@ -388,7 +392,7 @@ impl GameLoop {
 
         log::info!(log::channel!("game"), "Running in {build_profile} profile.");
         log::info!(log::channel!("game"), "{run_environment} environment.");
-        log::info!(log::channel!("game"), "Redirect log to file: {redirect_log_to_file}.");
+        log::info!(log::channel!("game"), "Redirect log to file: {is_app_bundle}.");
 
         log::info!(log::channel!("game"), "Loading Game Configs ...");
         let configs = GameConfigs::load();

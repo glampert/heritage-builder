@@ -4,6 +4,7 @@ use arrayvec::ArrayString;
 
 pub mod callback;
 pub mod coords;
+pub mod crash_report;
 pub mod file_sys;
 pub mod hash;
 pub mod mem;

@@ -359,6 +359,19 @@ impl DebugSettingsMenu {
 
         ui.checkbox("Draw grid", &mut self.draw_grid);
         ui.checkbox("Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
+
+        ui.separator();
+
+        if ui.button("Panic Now!") {
+            panic!("Testing a runtime panic!");
+        }
+
+        if ui.button("Crash Now!") {
+            unsafe {
+                let bad_ptr: *mut i64 = core::ptr::null_mut();
+                *bad_ptr = 1;
+            }
+        }
     }
 
     fn tile_map_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
