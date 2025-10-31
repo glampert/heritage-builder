@@ -20,15 +20,15 @@ impl GameMenusSystem for HudMenus {
         self
     }
 
-    fn handle_input(&mut self, _args: &mut GameMenusInputArgs) -> UiInputEvent {
+    fn handle_input(&mut self, _context: &mut GameMenusContext, _args: &GameMenusInputArgs) -> UiInputEvent {
         UiInputEvent::NotHandled
     }
 
-    fn begin_frame(&mut self, _args: &mut GameMenusFrameArgs) -> TileMapRenderFlags {
+    fn begin_frame(&mut self, _context: &mut GameMenusContext) -> TileMapRenderFlags {
         TileMapRenderFlags::DrawTerrainAndObjects
     }
 
-    fn end_frame(&mut self, _args: &mut GameMenusFrameArgs) {
+    fn end_frame(&mut self, _context: &mut GameMenusContext, _visible_range: CellRange) {
     }
 }
 

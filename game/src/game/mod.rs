@@ -541,7 +541,7 @@ impl GameLoop {
 
         // Input Events:
         for event in self.engine.app_events().clone() {
-            self.handle_event(event, cursor_screen_pos);
+            self.handle_event(event, cursor_screen_pos, delta_time_secs);
         }
 
         self.session.as_mut().unwrap().camera.set_viewport_size(self.engine.app().window_size());
@@ -550,8 +550,7 @@ impl GameLoop {
         let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
 
         // Rendering:
-        let render_flags =
-            self.menus_begin_frame(visible_range, cursor_screen_pos, delta_time_secs);
+        let render_flags = self.menus_begin_frame(cursor_screen_pos, delta_time_secs);
 
         self.draw_tile_map(visible_range, render_flags);
 
@@ -586,7 +585,7 @@ impl GameLoop {
         log::info!(log::channel!("game"), "TileSets loaded.");
     }
 
-    fn handle_event(&mut self, event: ApplicationEvent, cursor_screen_pos: Vec2) {
+    fn handle_event(&mut self, event: ApplicationEvent, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
         match event {
             ApplicationEvent::WindowResize(window_size) => {
                 self.session.as_mut().unwrap().camera.set_viewport_size(window_size);
@@ -622,7 +621,7 @@ impl GameLoop {
                 }
 
                 if propagate {
-                    self.menus_on_key_input(key, action, modifiers, cursor_screen_pos);
+                    self.menus_on_key_input(key, action, modifiers, cursor_screen_pos, delta_time_secs);
                 }
             }
             ApplicationEvent::Scroll(amount) => {
@@ -657,11 +656,11 @@ impl GameLoop {
                 }
 
                 if propagate {
-                    self.menus_on_scroll(amount, cursor_screen_pos);
+                    self.menus_on_scroll(amount, cursor_screen_pos, delta_time_secs);
                 }
             }
             ApplicationEvent::MouseButton(button, action, modifiers) => {
-                self.menus_on_mouse_button(button, action, modifiers, cursor_screen_pos);
+                self.menus_on_mouse_button(button, action, modifiers, cursor_screen_pos, delta_time_secs);
             }
             _ => {}
         }
@@ -764,13 +763,12 @@ impl GameLoop {
     // ----------------------
 
     fn menus_begin_frame(&mut self,
-                         visible_range: CellRange,
                          cursor_screen_pos: Vec2,
                          delta_time_secs: Seconds)
                          -> TileMapRenderFlags {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.begin_frame(&mut GameMenusFrameArgs {
+            menus.begin_frame(&mut GameMenusContext {
                 ui_sys: self.engine.ui_system(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
@@ -778,7 +776,6 @@ impl GameLoop {
                 world: &mut session.world,
                 systems: &mut session.systems,
                 camera: &mut session.camera,
-                visible_range,
                 cursor_screen_pos,
                 delta_time_secs
             })
@@ -793,7 +790,7 @@ impl GameLoop {
                        delta_time_secs: Seconds) {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.end_frame(&mut GameMenusFrameArgs {
+            menus.end_frame(&mut GameMenusContext {
                 ui_sys: self.engine.ui_system(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
@@ -801,10 +798,10 @@ impl GameLoop {
                 world: &mut session.world,
                 systems: &mut session.systems,
                 camera: &mut session.camera,
-                visible_range,
                 cursor_screen_pos,
                 delta_time_secs
-            });
+            },
+            visible_range);
         }
     }
 
@@ -812,19 +809,23 @@ impl GameLoop {
                           key: InputKey,
                           action: InputAction,
                           modifiers: InputModifiers,
-                          cursor_screen_pos: Vec2)
+                          cursor_screen_pos: Vec2,
+                          delta_time_secs: Seconds)
                           -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.handle_input(&mut GameMenusInputArgs {
-                cmd: GameMenusInputCmd::Key { key, action, modifiers },
+            menus.handle_input(&mut GameMenusContext {
+                ui_sys: self.engine.ui_system(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
                 sim: &mut session.sim,
                 world: &mut session.world,
-                transform: session.camera.transform(),
-                cursor_screen_pos
-            })
+                systems: &mut session.systems,
+                camera: &mut session.camera,
+                cursor_screen_pos,
+                delta_time_secs
+            },
+            &GameMenusInputArgs::Key { key, action, modifiers })
         } else {
             UiInputEvent::NotHandled
         }
@@ -834,19 +835,23 @@ impl GameLoop {
                              button: MouseButton,
                              action: InputAction,
                              modifiers: InputModifiers,
-                             cursor_screen_pos: Vec2)
+                             cursor_screen_pos: Vec2,
+                             delta_time_secs: Seconds)
                              -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.handle_input(&mut GameMenusInputArgs {
-                cmd: GameMenusInputCmd::Mouse { button, action, modifiers },
+            menus.handle_input(&mut GameMenusContext {
+                ui_sys: self.engine.ui_system(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
                 sim: &mut session.sim,
                 world: &mut session.world,
-                transform: session.camera.transform(),
-                cursor_screen_pos
-            })
+                systems: &mut session.systems,
+                camera: &mut session.camera,
+                cursor_screen_pos,
+                delta_time_secs
+            },
+            &GameMenusInputArgs::Mouse { button, action, modifiers })
         } else {
             UiInputEvent::NotHandled
         }
@@ -854,19 +859,23 @@ impl GameLoop {
 
     fn menus_on_scroll(&mut self,
                        amount: Vec2,
-                       cursor_screen_pos: Vec2)
+                       cursor_screen_pos: Vec2,
+                       delta_time_secs: Seconds)
                        -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.handle_input(&mut GameMenusInputArgs {
-                cmd: GameMenusInputCmd::Scroll { amount },
+            menus.handle_input(&mut GameMenusContext {
+                ui_sys: self.engine.ui_system(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
                 sim: &mut session.sim,
                 world: &mut session.world,
-                transform: session.camera.transform(),
-                cursor_screen_pos
-            })
+                systems: &mut session.systems,
+                camera: &mut session.camera,
+                cursor_screen_pos,
+                delta_time_secs
+            },
+            &GameMenusInputArgs::Scroll { amount })
         } else {
             UiInputEvent::NotHandled
         }
