@@ -11,6 +11,7 @@ use unit::config::UnitConfigs;
 use prop::config::PropConfigs;
 use sim::Simulation;
 use world::World;
+use menu::hud::HudMenus;
 use menu::*;
 
 use crate::{
@@ -73,10 +74,7 @@ struct GameSession {
 }
 
 impl GameSession {
-    fn new(tex_cache: &mut dyn TextureCache,
-           load_map_setting: &LoadMapSetting,
-           viewport_size: Size)
-           -> Self {
+    fn new(load_map_setting: &LoadMapSetting, viewport_size: Size) -> Self {
         if !viewport_size.is_valid() {
             panic!("Invalid game viewport size!");
         }
@@ -94,7 +92,7 @@ impl GameSession {
                                  configs.camera.zoom,
                                  configs.camera.offset);
 
-        let menus = Self::create_game_menus(configs, &mut tile_map, tex_cache);
+        let menus = Self::create_game_menus(configs.debug.start_in_dev_editor_mode, &mut tile_map);
 
         let mut session = Self {
             tile_map,
@@ -113,24 +111,23 @@ impl GameSession {
         session
     }
 
-    // Called once during session initialization.
-    fn create_game_menus(configs: &GameConfigs,
-                         tile_map: &mut TileMap,
-                         tex_cache: &mut dyn TextureCache)
-                         -> Box<dyn GameMenusSystem> {
-        if configs.debug.start_in_dev_editor_mode {
-            Box::new(DevEditorMenus::new(tile_map, tex_cache))
+    fn create_game_menus(dev_editor_mode: bool, tile_map: &mut TileMap) -> Box<dyn GameMenusSystem> {
+        if dev_editor_mode {
+            Box::new(DevEditorMenus::new(tile_map))
         } else {
-            Box::new(hud::HudMenus::new())
+            Box::new(HudMenus::new())
         }
     }
 
-    // Called by post_load().
-    fn reset_game_menus(configs: &GameConfigs) -> Box<dyn GameMenusSystem> {
-        if configs.debug.start_in_dev_editor_mode {
-            Box::new(DevEditorMenus::default())
-        } else {
-            Box::new(hud::HudMenus::default())
+    fn toggle_menu_mode(&mut self) {
+        if let Some(menus) = &mut self.menus {
+            if menus.as_any().is::<DevEditorMenus>() {
+                *menus = Self::create_game_menus(false, &mut self.tile_map);
+                log::info!(log::channel!("session"), "Switching to HudMenus ...");
+            } else if menus.as_any().is::<HudMenus>() {
+                *menus = Self::create_game_menus(true, &mut self.tile_map);
+                log::info!(log::channel!("session"), "Switching to DevEditorMenus ...");
+            }
         }
     }
 
@@ -143,10 +140,8 @@ impl GameSession {
                 LoadMapSetting::EmptyMap { size_in_cells,
                                            terrain_tile_category,
                                            terrain_tile_name, } => {
-                    log::info!(
-                        log::channel!("session"),
-                        "Creating empty Tile Map. Size: {size_in_cells}, Fill: {terrain_tile_name}"
-                    );
+                    log::info!(log::channel!("session"),
+                               "Creating empty Tile Map. Size: {size_in_cells}, Fill: {terrain_tile_name}");
 
                     if !size_in_cells.is_valid() {
                         panic!("LoadMapSetting::EmptyMap: Invalid Tile Map dimensions! Width & height must not be zero.");
@@ -181,13 +176,10 @@ impl GameSession {
         Box::new(tile_map)
     }
 
-    fn load_preset_map(preset_number: usize,
-                       tex_cache: &mut dyn TextureCache,
-                       viewport_size: Size)
-                       -> Self {
+    fn load_preset_map(preset_number: usize, viewport_size: Size) -> Self {
         // Override GameConfigs.load_map_setting
         let load_map_setting = LoadMapSetting::Preset { preset_number };
-        Self::new(tex_cache, &load_map_setting, viewport_size)
+        Self::new(&load_map_setting, viewport_size)
     }
 
     fn reset(&mut self, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
@@ -281,7 +273,8 @@ impl Load for GameSession {
         self.camera.post_load(context);
         self.tile_selection.post_load(context);
 
-        let mut menus = Self::reset_game_menus(GameConfigs::get());
+        let dev_editor_mode = GameConfigs::get().debug.start_in_dev_editor_mode;
+        let mut menus = Self::create_game_menus(dev_editor_mode, context.tile_map_mut());
         menus.post_load(context);
         self.menus = Some(menus);
     }
@@ -444,6 +437,7 @@ impl GameLoop {
         cheats::initialize();
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
+        debug::init_dev_editor_menus(configs, engine.texture_cache_mut());
         CameraGlobalSettings::get_mut().set_from_game_configs(configs);
 
         let instance = Self {
@@ -462,10 +456,7 @@ impl GameLoop {
         debug_assert!(self.session.is_none());
 
         let viewport_size = self.engine.viewport().size();
-        let tex_cache = self.engine.texture_cache_mut();
-
-        let new_session =
-            GameSession::new(tex_cache, &GameConfigs::get().save.load_map_setting, viewport_size);
+        let new_session = GameSession::new(&GameConfigs::get().save.load_map_setting, viewport_size);
 
         self.session = Some(Box::new(new_session));
         log::info!(log::channel!("game"), "--- Game Session created ---");
@@ -623,6 +614,13 @@ impl GameLoop {
                     }
                 }
 
+                // Toggle between DevEditor menu / HUD menu.
+                if modifiers.intersects(InputModifiers::Control)
+                    && key == InputKey::Slash && action == InputAction::Press
+                {
+                    self.session.as_mut().unwrap().toggle_menu_mode();
+                }
+
                 if propagate {
                     self.menus_on_key_input(key, action, modifiers, cursor_screen_pos);
                 }
@@ -745,9 +743,7 @@ impl GameLoop {
         self.terminate_session();
 
         let viewport_size = self.engine.viewport().size();
-        let tex_cache = self.engine.texture_cache_mut();
-
-        let new_session = GameSession::load_preset_map(preset_number, tex_cache, viewport_size);
+        let new_session = GameSession::load_preset_map(preset_number, viewport_size);
 
         self.session = Some(Box::new(new_session));
         log::info!(log::channel!("game"), "--- Game Session created ---");

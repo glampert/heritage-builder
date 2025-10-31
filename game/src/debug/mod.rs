@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::any::Any;
 
 use inspector::TileInspectorMenu;
 use palette::TilePaletteMenu;
@@ -41,22 +42,21 @@ mod settings;
 // DevEditorMenus
 // ----------------------------------------------
 
-#[derive(Default)]
 pub struct DevEditorMenus;
 
 impl DevEditorMenus {
-    pub fn new(tile_map: &mut TileMap, tex_cache: &mut dyn TextureCache) -> Self {
-        // Initialize the singleton exactly once:
-        init_dev_editor_menus_singleton_once(tex_cache);
-
+    pub fn new(tile_map: &mut TileMap) -> Self {
         // Register TileMap global callbacks & debug ref:
         register_tile_map_debug_callbacks(tile_map);
-
         Self
     }
 }
 
 impl GameMenusSystem for DevEditorMenus {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn handle_input(&mut self, args: &mut GameMenusInputArgs) -> UiInputEvent {
         DevEditorMenusSingleton::get_mut().handle_input(args)
     }
@@ -79,8 +79,8 @@ impl Drop for DevEditorMenus {
         // Make sure tile inspector is closed.
         DevEditorMenusSingleton::get_mut().tile_inspector_menu.close();
 
-        // Clear the cached global tile map ptr.
-        TILE_MAP_DEBUG_PTR.set(None);
+        // Clear all registered callbacks and global tile map ref.
+        remove_tile_map_debug_callbacks();
     }
 }
 
@@ -408,19 +408,16 @@ impl DevEditorMenusSingleton {
 
 singleton_late_init! { DEV_EDITOR_MENUS_SINGLETON, DevEditorMenusSingleton }
 
-fn init_dev_editor_menus_singleton_once(tex_cache: &mut dyn TextureCache) {
+pub fn init_dev_editor_menus(configs: &GameConfigs, tex_cache: &mut dyn TextureCache) {
     if DEV_EDITOR_MENUS_SINGLETON.is_initialized() {
         return; // Already initialized.
     }
 
-    let tile_palette_open = GameConfigs::get().debug.tile_palette_open;
-    let enable_tile_inspector = GameConfigs::get().debug.enable_tile_inspector;
-
     DEV_EDITOR_MENUS_SINGLETON.initialize(
         DevEditorMenusSingleton::new(
             tex_cache,
-            tile_palette_open,
-            enable_tile_inspector)
+            configs.debug.tile_palette_open,
+            configs.debug.enable_tile_inspector)
     );
 }
 
@@ -469,6 +466,17 @@ fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {
     tile_map.set_map_reset_callback(Some(|_| {
         DevEditorMenusSingleton::get_mut().tile_inspector_menu.close();
     }));
+}
+
+fn remove_tile_map_debug_callbacks() {
+    if let Some(tile_map) = TILE_MAP_DEBUG_PTR.as_mut() {
+        tile_map.0.set_tile_placed_callback(None);
+        tile_map.0.set_removing_tile_callback(None);
+        tile_map.0.set_map_reset_callback(None);
+    }
+
+    // Clear the cached global tile map ptr.
+    TILE_MAP_DEBUG_PTR.set(None);
 }
 
 pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {

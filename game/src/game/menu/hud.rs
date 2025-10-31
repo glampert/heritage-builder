@@ -1,10 +1,10 @@
+use std::any::Any;
 use super::*;
 
 // ----------------------------------------------
 // HUD -> Heads Up Display, AKA in-game menus
 // ----------------------------------------------
 
-#[derive(Default)]
 pub struct HudMenus {
     // TODO / WIP
 }
@@ -16,6 +16,10 @@ impl HudMenus {
 }
 
 impl GameMenusSystem for HudMenus {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn handle_input(&mut self, _args: &mut GameMenusInputArgs) -> UiInputEvent {
         UiInputEvent::NotHandled
     }

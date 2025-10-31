@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::{
     engine::time::Seconds,
     save::{Save, Load},
@@ -71,6 +73,7 @@ pub struct GameMenusFrameArgs<'game> {
 // ----------------------------------------------
 
 pub trait GameMenusSystem: Save + Load {
+    fn as_any(&self) -> &dyn Any;
     fn handle_input(&mut self, args: &mut GameMenusInputArgs) -> UiInputEvent;
     fn begin_frame(&mut self, args: &mut GameMenusFrameArgs) -> TileMapRenderFlags;
     fn end_frame(&mut self, args: &mut GameMenusFrameArgs);

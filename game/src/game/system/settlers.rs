@@ -48,6 +48,7 @@ impl GameSystem for SettlersSpawnSystem {
     fn name(&self) -> &str {
         "Settlers Spawn System"
     }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
