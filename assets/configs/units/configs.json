@@ -35,6 +35,12 @@
       "tile_def_name": "tax_collector",
       "traversable_node_kinds": "Road",
       "movement_speed": 1.66
+    },
+    {
+      "name": "WaterCarrier",
+      "tile_def_name": "water_carrier",
+      "traversable_node_kinds": "Road",
+      "movement_speed": 1.66
     }
   ]
 }

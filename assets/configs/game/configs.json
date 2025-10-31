@@ -34,7 +34,7 @@
     "disable_key_shortcut_zoom": false
   },
   "debug": {
-    "show_popups": true,
+    "show_popups": false,
     "enable_tile_inspector": true
   }
 }
