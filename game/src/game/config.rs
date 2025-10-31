@@ -87,7 +87,7 @@ pub struct CameraConfigs {
 
 impl Default for CameraConfigs {
     fn default() -> Self {
-        Self { zoom: CameraZoom::MIN,
+        Self { zoom: CameraZoom::DEFAULT,
                offset: CameraOffset::Center,
                fixed_step_zoom_amount: 0.5,
                disable_smooth_mouse_scroll_zoom: false,
@@ -134,13 +134,15 @@ pub struct DebugConfigs {
     pub show_popups: bool,
     pub tile_palette_open: bool,
     pub enable_tile_inspector: bool,
+    pub start_in_dev_editor_mode: bool,
 }
 
 impl Default for DebugConfigs {
     fn default() -> Self {
         Self { show_popups: true,
                tile_palette_open: true,
-               enable_tile_inspector: true }
+               enable_tile_inspector: true,
+               start_in_dev_editor_mode: true }
     }
 }
 

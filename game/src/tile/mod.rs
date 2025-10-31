@@ -2038,7 +2038,7 @@ impl TileMap {
                                   on_tile_placed_callback: None,
                                   on_removing_tile_callback: None,
                                   on_map_reset_callback: None };
-        tile_map.reset(fill_with_def);
+        tile_map.reset(fill_with_def, None);
         tile_map
     }
 
@@ -2053,11 +2053,15 @@ impl TileMap {
         Self::new(size_in_cells, fill_with_def)
     }
 
-    pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>) {
+    pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
         self.layers.clear();
 
         if let Some(callback) = self.on_map_reset_callback {
             callback(self);
+        }
+
+        if let Some(size_in_cells) = new_map_size {
+            self.size_in_cells = size_in_cells;
         }
 
         for layer_kind in TileMapLayerKind::iter() {

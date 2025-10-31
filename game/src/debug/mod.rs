@@ -6,27 +6,26 @@ use settings::DebugSettingsMenu;
 
 use crate::{
     singleton_late_init,
-    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
-    engine::time::Seconds,
-    game::{
-        config::GameConfigs,
-        sim::{self, Simulation},
-        system::GameSystems,
-        world::{object::{Spawner, SpawnerResult}, World},
-        GameLoop,
-    },
-    imgui_ui::{UiInputEvent, UiSystem},
     render::TextureCache,
+    imgui_ui::UiInputEvent,
     save::{Load, PostLoadContext, Save},
+    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
+    game::{
+        sim,
+        world::{object::{Spawner, SpawnerResult}},
+        config::GameConfigs,
+        GameLoop,
+        menu::*,
+    },
     tile::{
-        camera::Camera, rendering::TileMapRenderFlags,
-        selection::TileSelection, PlacementOp, TileKind, TileMap, TileMapLayerKind,
+        rendering::TileMapRenderFlags,
+        PlacementOp, TileKind, TileMap, TileMapLayerKind,
         road::{self, RoadSegment},
         water,
     },
     utils::{
-        coords::{Cell, CellRange, WorldToScreenTransform},
-        mem, Vec2,
+        coords::Cell,
+        mem::{self, SingleThreadStatic},
     }
 };
 
@@ -39,87 +38,46 @@ mod palette;
 mod settings;
 
 // ----------------------------------------------
-// Args helper structs
-// ----------------------------------------------
-
-pub struct DebugMenusInputArgs<'game> {
-    pub sim: &'game mut Simulation,
-    pub world: &'game mut World,
-    pub tile_map: &'game mut TileMap,
-    pub tile_selection: &'game mut TileSelection,
-    pub transform: WorldToScreenTransform,
-    pub camera: &'game mut Camera,
-    pub cursor_screen_pos: Vec2,
-}
-
-pub struct DebugMenusFrameArgs<'game> {
-    // Tile Map:
-    pub tile_map: &'game mut TileMap,
-    pub tile_selection: &'game mut TileSelection,
-
-    // Sim/World:
-    pub sim: &'game mut Simulation,
-    pub world: &'game mut World,
-    pub systems: &'game mut GameSystems,
-
-    // UI/Debug:
-    pub ui_sys: &'game UiSystem,
-
-    // Camera/Input:
-    pub camera: &'game mut Camera,
-    pub visible_range: CellRange,
-    pub cursor_screen_pos: Vec2,
-    pub delta_time_secs: Seconds,
-}
-
-// ----------------------------------------------
-// DebugMenusSystem
+// DevEditorMenus
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct DebugMenusSystem;
+pub struct DevEditorMenus;
 
-impl DebugMenusSystem {
+impl DevEditorMenus {
     pub fn new(tile_map: &mut TileMap, tex_cache: &mut dyn TextureCache) -> Self {
         // Initialize the singleton exactly once:
-        init_debug_menus_singleton_once(tex_cache);
+        init_dev_editor_menus_singleton_once(tex_cache);
 
         // Register TileMap global callbacks & debug ref:
         register_tile_map_debug_callbacks(tile_map);
 
         Self
     }
+}
 
-    pub fn on_key_input(&mut self,
-                        args: &mut DebugMenusInputArgs,
-                        key: InputKey,
-                        action: InputAction,
-                        modifiers: InputModifiers)
-                        -> UiInputEvent {
-        DebugMenusSingleton::get_mut().on_key_input(args, key, action, modifiers)
+impl GameMenusSystem for DevEditorMenus {
+    fn handle_input(&mut self, args: &mut GameMenusInputArgs) -> UiInputEvent {
+        DevEditorMenusSingleton::get_mut().handle_input(args)
     }
 
-    pub fn on_mouse_click(&mut self,
-                          args: &mut DebugMenusInputArgs,
-                          button: MouseButton,
-                          action: InputAction,
-                          modifiers: InputModifiers)
-                          -> UiInputEvent {
-        DebugMenusSingleton::get_mut().on_mouse_click(args, button, action, modifiers)
+    fn begin_frame(&mut self, args: &mut GameMenusFrameArgs) -> TileMapRenderFlags {
+        DevEditorMenusSingleton::get_mut().begin_frame(args)
     }
 
-    pub fn begin_frame(&mut self, args: &mut DebugMenusFrameArgs) -> TileMapRenderFlags {
-        DebugMenusSingleton::get_mut().begin_frame(args)
-    }
-
-    pub fn end_frame(&mut self, args: &mut DebugMenusFrameArgs) {
-        DebugMenusSingleton::get_mut().end_frame(args);
+    fn end_frame(&mut self, args: &mut GameMenusFrameArgs) {
+        DevEditorMenusSingleton::get_mut().end_frame(args);
     }
 }
 
-impl Drop for DebugMenusSystem {
+// ----------------------------------------------
+// Drop for DevEditorMenus
+// ----------------------------------------------
+
+impl Drop for DevEditorMenus {
     fn drop(&mut self) {
-        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
+        // Make sure tile inspector is closed.
+        DevEditorMenusSingleton::get_mut().tile_inspector_menu.close();
 
         // Clear the cached global tile map ptr.
         TILE_MAP_DEBUG_PTR.set(None);
@@ -127,14 +85,15 @@ impl Drop for DebugMenusSystem {
 }
 
 // ----------------------------------------------
-// Save/Load for DebugMenusSystem
+// Save/Load for DevEditorMenus
 // ----------------------------------------------
 
-impl Save for DebugMenusSystem {}
+impl Save for DevEditorMenus {}
 
-impl Load for DebugMenusSystem {
+impl Load for DevEditorMenus {
     fn post_load(&mut self, context: &PostLoadContext) {
-        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
+        // Make sure tile inspector is closed.
+        DevEditorMenusSingleton::get_mut().tile_inspector_menu.close();
 
         // Re-register debug editor callbacks and reset the global tile map ref.
         register_tile_map_debug_callbacks(context.tile_map_mut());
@@ -142,11 +101,11 @@ impl Load for DebugMenusSystem {
 }
 
 // ----------------------------------------------
-// DebugMenusSingleton
+// DevEditorMenusSingleton
 // ----------------------------------------------
 
 #[derive(Default)]
-struct DebugMenusSingleton {
+struct DevEditorMenusSingleton {
     debug_settings_menu: DebugSettingsMenu,
     tile_palette_menu: TilePaletteMenu,
     tile_inspector_menu: TileInspectorMenu,
@@ -154,7 +113,7 @@ struct DebugMenusSingleton {
     current_road_segment: RoadSegment, // For road placement.
 }
 
-impl DebugMenusSingleton {
+impl DevEditorMenusSingleton {
     fn new(tex_cache: &mut dyn TextureCache, tile_palette_open: bool, enable_tile_inspector: bool) -> Self {
         Self {
             debug_settings_menu: DebugSettingsMenu::new(),
@@ -165,7 +124,7 @@ impl DebugMenusSingleton {
     }
 
     fn on_key_input(&mut self,
-                    args: &mut DebugMenusInputArgs,
+                    args: &mut GameMenusInputArgs,
                     key: InputKey,
                     action: InputAction,
                     _modifiers: InputModifiers)
@@ -180,12 +139,12 @@ impl DebugMenusSingleton {
         UiInputEvent::NotHandled
     }
 
-    fn on_mouse_click(&mut self,
-                      args: &mut DebugMenusInputArgs,
-                      button: MouseButton,
-                      action: InputAction,
-                      _modifiers: InputModifiers)
-                      -> UiInputEvent {
+    fn on_mouse_button(&mut self,
+                       args: &mut GameMenusInputArgs,
+                       button: MouseButton,
+                       action: InputAction,
+                       _modifiers: InputModifiers)
+                       -> UiInputEvent {
         if self.tile_palette_menu.has_selection() && !self.tile_palette_menu.is_road_tile_selected() {
             if self.tile_palette_menu.on_mouse_click(button, action).not_handled() {
                 self.tile_palette_menu.clear_selection();
@@ -241,7 +200,21 @@ impl DebugMenusSingleton {
         UiInputEvent::NotHandled
     }
 
-    fn begin_frame(&mut self, args: &mut DebugMenusFrameArgs) -> TileMapRenderFlags {
+    fn handle_input(&mut self, args: &mut GameMenusInputArgs) -> UiInputEvent {
+        match args.cmd {
+            GameMenusInputCmd::Key { key, action, modifiers } => {
+                self.on_key_input(args, key, action, modifiers)
+            }
+            GameMenusInputCmd::Mouse { button, action, modifiers } => {
+                self.on_mouse_button(args, button, action, modifiers)
+            }
+            GameMenusInputCmd::Scroll { .. } => {
+                UiInputEvent::NotHandled
+            }
+        }
+    }
+
+    fn begin_frame(&mut self, args: &mut GameMenusFrameArgs) -> TileMapRenderFlags {
         // If we're not hovering over an ImGui menu...
         if !args.ui_sys.is_handling_mouse_input() {
             // Tile hovering and selection:
@@ -361,7 +334,7 @@ impl DebugMenusSingleton {
         self.debug_settings_menu.selected_render_flags()
     }
 
-    fn end_frame(&mut self, args: &mut DebugMenusFrameArgs) {
+    fn end_frame(&mut self, args: &mut GameMenusFrameArgs) {
         let has_valid_placement = args.tile_selection.has_valid_placement();
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
@@ -430,21 +403,25 @@ impl DebugMenusSingleton {
 }
 
 // ----------------------------------------------
-// DebugMenusSingleton Instance
+// DevEditorMenusSingleton Instance
 // ----------------------------------------------
 
-singleton_late_init! { DEBUG_MENUS_SINGLETON, DebugMenusSingleton }
+singleton_late_init! { DEV_EDITOR_MENUS_SINGLETON, DevEditorMenusSingleton }
 
-fn init_debug_menus_singleton_once(tex_cache: &mut dyn TextureCache) {
-    if DEBUG_MENUS_SINGLETON.is_initialized() {
+fn init_dev_editor_menus_singleton_once(tex_cache: &mut dyn TextureCache) {
+    if DEV_EDITOR_MENUS_SINGLETON.is_initialized() {
         return; // Already initialized.
     }
 
     let tile_palette_open = GameConfigs::get().debug.tile_palette_open;
     let enable_tile_inspector = GameConfigs::get().debug.enable_tile_inspector;
 
-    DEBUG_MENUS_SINGLETON.initialize(DebugMenusSingleton::new(
-        tex_cache, tile_palette_open, enable_tile_inspector));
+    DEV_EDITOR_MENUS_SINGLETON.initialize(
+        DevEditorMenusSingleton::new(
+            tex_cache,
+            tile_palette_open,
+            enable_tile_inspector)
+    );
 }
 
 // ----------------------------------------------
@@ -476,21 +453,21 @@ impl TileMapRawPtr {
 // Using this to get tile names from cells directly for debugging & logging.
 // SAFETY: Must make sure the tile map pointer set on initialization stays
 // valid until app termination or until it is reset.
-static TILE_MAP_DEBUG_PTR: mem::SingleThreadStatic<Option<TileMapRawPtr>> = mem::SingleThreadStatic::new(None);
+static TILE_MAP_DEBUG_PTR: SingleThreadStatic<Option<TileMapRawPtr>> = SingleThreadStatic::new(None);
 
 fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {
     TILE_MAP_DEBUG_PTR.set(Some(TileMapRawPtr::new(tile_map)));
 
     tile_map.set_tile_placed_callback(Some(|tile, did_reallocate| {
-        DebugMenusSingleton::get_mut().tile_inspector_menu.on_tile_placed(tile, did_reallocate);
+        DevEditorMenusSingleton::get_mut().tile_inspector_menu.on_tile_placed(tile, did_reallocate);
     }));
 
     tile_map.set_removing_tile_callback(Some(|tile| {
-        DebugMenusSingleton::get_mut().tile_inspector_menu.on_removing_tile(tile);
+        DevEditorMenusSingleton::get_mut().tile_inspector_menu.on_removing_tile(tile);
     }));
 
     tile_map.set_map_reset_callback(Some(|_| {
-        DebugMenusSingleton::get_mut().tile_inspector_menu.close();
+        DevEditorMenusSingleton::get_mut().tile_inspector_menu.close();
     }));
 }
 

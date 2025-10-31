@@ -2,6 +2,7 @@ use std::path::{Path, MAIN_SEPARATOR_STR};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use strum::IntoEnumIterator;
+use strum_macros::Display;
 
 use super::{
     atlas::*,
@@ -33,6 +34,25 @@ pub const OBJECTS_BUILDINGS_CATEGORY: StrHashPair = StrHashPair::from_str("build
 pub const OBJECTS_UNITS_CATEGORY: StrHashPair = StrHashPair::from_str("units");
 pub const OBJECTS_ROCKS_CATEGORY: StrHashPair = StrHashPair::from_str("rocks");
 pub const OBJECTS_VEGETATION_CATEGORY: StrHashPair = StrHashPair::from_str("vegetation");
+
+#[repr(u64)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Display)]
+pub enum PresetTiles {
+    #[default]
+    Grass     = hash::fnv1a_from_str("grass"),
+    Dirt      = hash::fnv1a_from_str("dirt"),
+    Water     = hash::fnv1a_from_str("water"),
+    VacantLot = hash::fnv1a_from_str("vacant_lot"),
+    DirtRoad  = hash::fnv1a_from_str("dirt_road"),
+    PavedRoad = hash::fnv1a_from_str("paved_road"),
+}
+
+impl PresetTiles {
+    #[inline]
+    pub const fn hash(self) -> StringHash {
+        self as StringHash
+    }
+}
 
 // ----------------------------------------------
 // TileTexInfo

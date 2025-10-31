@@ -21,11 +21,8 @@ use crate::{
     log,
     imgui_ui::UiSystem,
     save::PostLoadContext,
-    tile::{sets::TileDef, Tile, TileKind, TileFlags, TileMapLayerKind},
-    utils::{
-        coords::{Cell, CellRange, WorldToScreenTransform},
-        hash,
-    },
+    tile::{sets::{TileDef, PresetTiles}, Tile, TileKind, TileFlags, TileMapLayerKind},
+    utils::{coords::{Cell, CellRange, WorldToScreenTransform}},
 };
 
 // ----------------------------------------------
@@ -728,9 +725,9 @@ impl<'world> Spawner<'world> {
 
                 if tile.path_kind().is_vacant_lot() && prev_tile_def.is_some() {
                     let prev_tile_name_hash = prev_tile_def.unwrap().hash;
-                    if prev_tile_name_hash == hash::fnv1a_from_str("grass") {
+                    if prev_tile_name_hash == PresetTiles::Grass.hash() {
                         tile.set_variation_index(0);
-                    } else if prev_tile_name_hash == hash::fnv1a_from_str("dirt") {
+                    } else if prev_tile_name_hash == PresetTiles::Dirt.hash() {
                         tile.set_variation_index(1);
                     }
                 } else {

@@ -42,8 +42,9 @@ pub enum CameraZoom {
 
 impl CameraZoom {
     // Zoom / scaling defaults:
-    pub const MIN: f32 = 1.0;
+    pub const MIN: f32 = 0.1;
     pub const MAX: f32 = 10.0;
+    pub const DEFAULT: f32 = 1.0;
     pub const SPEED: f32 = 1.0; // pixels per second
 }
 

@@ -11,15 +11,17 @@ use unit::config::UnitConfigs;
 use prop::config::PropConfigs;
 use sim::Simulation;
 use world::World;
+use menu::*;
 
 use crate::{
+    log,
+    singleton_late_init,
+    imgui_ui::UiInputEvent,
+    render::TextureCache,
+    save::{self, *},
     app::{
         input::{InputAction, InputKey, InputModifiers, MouseButton},
         ApplicationEvent,
-    },
-    debug::{
-        self, DebugMenusFrameArgs, DebugMenusInputArgs,
-        DebugMenusSystem, log_viewer::LogViewerWindow,
     },
     engine::{
         self,
@@ -27,11 +29,6 @@ use crate::{
         time::{Seconds, UpdateTimer},
         Engine,
     },
-    log,
-    imgui_ui::UiInputEvent,
-    render::TextureCache,
-    save::{self, *},
-    singleton_late_init,
     tile::{
         camera::*,
         rendering::TileMapRenderFlags,
@@ -39,10 +36,12 @@ use crate::{
         sets::{TileDef, TileSets},
         TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
+    debug::{self, log_viewer::LogViewerWindow, DevEditorMenus},
     utils::{crash_report, platform::{self, paths}, coords::CellRange, file_sys, hash, Size, Vec2},
 };
 
 pub mod building;
+pub mod menu;
 pub mod prop;
 pub mod cheats;
 pub mod config;
@@ -70,7 +69,7 @@ struct GameSession {
     tile_selection: TileSelection,
 
     #[serde(skip)]
-    debug_menus: DebugMenusSystem,
+    menus: Option<Box<dyn GameMenusSystem>>,
 }
 
 impl GameSession {
@@ -95,7 +94,7 @@ impl GameSession {
                                  configs.camera.zoom,
                                  configs.camera.offset);
 
-        let debug_menus = DebugMenusSystem::new(&mut tile_map, tex_cache);
+        let menus = Self::create_game_menus(configs, &mut tile_map, tex_cache);
 
         let mut session = Self {
             tile_map,
@@ -104,7 +103,7 @@ impl GameSession {
             systems,
             camera,
             tile_selection: TileSelection::new(false),
-            debug_menus
+            menus: Some(menus),
         };
 
         if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
@@ -112,6 +111,27 @@ impl GameSession {
         }
 
         session
+    }
+
+    // Called once during session initialization.
+    fn create_game_menus(configs: &GameConfigs,
+                         tile_map: &mut TileMap,
+                         tex_cache: &mut dyn TextureCache)
+                         -> Box<dyn GameMenusSystem> {
+        if configs.debug.start_in_dev_editor_mode {
+            Box::new(DevEditorMenus::new(tile_map, tex_cache))
+        } else {
+            Box::new(hud::HudMenus::new())
+        }
+    }
+
+    // Called by post_load().
+    fn reset_game_menus(configs: &GameConfigs) -> Box<dyn GameMenusSystem> {
+        if configs.debug.start_in_dev_editor_mode {
+            Box::new(DevEditorMenus::default())
+        } else {
+            Box::new(hud::HudMenus::default())
+        }
     }
 
     fn create_tile_map(world: &mut World, load_map_setting: &LoadMapSetting) -> Box<TileMap> {
@@ -170,13 +190,11 @@ impl GameSession {
         Self::new(tex_cache, &load_map_setting, viewport_size)
     }
 
-    fn reset(&mut self, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>) {
+    fn reset(&mut self, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
         self.tile_selection = TileSelection::default();
 
-        self.sim.reset(&mut self.world, &mut self.systems, &mut self.tile_map);
-
         if reset_map && self.tile_map.size_in_cells().is_valid() {
-            self.tile_map.reset(reset_map_with_tile_def);
+            self.tile_map.reset(reset_map_with_tile_def, new_map_size);
 
             if reset_map_with_tile_def.is_some() {
                 // Randomize terrain tiles.
@@ -188,7 +206,16 @@ impl GameSession {
                                                     }
                                                 });
             }
+
+            log::info!(log::channel!("session"),
+                       "Map size: {}x{}.",
+                       self.tile_map.size_in_cells().width,
+                       self.tile_map.size_in_cells().height);
+
+            self.camera.set_map_size_in_cells(self.tile_map.size_in_cells());
         }
+
+        self.sim.reset(&mut self.world, &mut self.systems, &mut self.tile_map);
     }
 }
 
@@ -204,7 +231,10 @@ impl Save for GameSession {
         self.systems.pre_save();
         self.camera.pre_save();
         self.tile_selection.pre_save();
-        self.debug_menus.pre_save();
+
+        if let Some(menus) = &mut self.menus {
+            menus.pre_save();
+        }
     }
 
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
@@ -218,7 +248,10 @@ impl Save for GameSession {
         self.systems.post_save();
         self.camera.post_save();
         self.tile_selection.post_save();
-        self.debug_menus.post_save();
+
+        if let Some(menus) = &mut self.menus {
+            menus.post_save();
+        }
     }
 }
 
@@ -230,7 +263,10 @@ impl Load for GameSession {
         self.systems.pre_load();
         self.camera.pre_load();
         self.tile_selection.pre_load();
-        self.debug_menus.pre_load();
+
+        if let Some(menus) = &mut self.menus {
+            menus.pre_load();
+        }
     }
 
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
@@ -244,7 +280,10 @@ impl Load for GameSession {
         self.systems.post_load(context);
         self.camera.post_load(context);
         self.tile_selection.post_load(context);
-        self.debug_menus.post_load(context);
+
+        let mut menus = Self::reset_game_menus(GameConfigs::get());
+        menus.post_load(context);
+        self.menus = Some(menus);
     }
 }
 
@@ -347,7 +386,7 @@ impl GameSession {
 // GameLoop update. These are kept in a queue and consumed every iteration of
 // the loop.
 enum GameSessionCmd {
-    Reset { reset_map_with_tile_def: Option<&'static TileDef> },
+    Reset { reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size> },
     LoadPreset { preset_number: usize },
     LoadSaveGame { save_file_path: String },
     SaveGame { save_file_path: String },
@@ -434,14 +473,14 @@ impl GameLoop {
 
     pub fn terminate_session(&mut self) {
         if let Some(session) = &mut self.session {
-            session.reset(false, None);
+            session.reset(false, None, None);
         }
         self.session = None;
         log::info!(log::channel!("game"), "--- Game Session destroyed ---");
     }
 
-    pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>) {
-        self.session_cmd_queue.push_back(GameSessionCmd::Reset { reset_map_with_tile_def });
+    pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
+        self.session_cmd_queue.push_back(GameSessionCmd::Reset { reset_map_with_tile_def, new_map_size });
     }
 
     pub fn load_preset_map(&mut self, preset_tile_map_number: usize) {
@@ -521,11 +560,11 @@ impl GameLoop {
 
         // Rendering:
         let render_flags =
-            self.debug_menus_begin_frame(visible_range, cursor_screen_pos, delta_time_secs);
+            self.menus_begin_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
         self.draw_tile_map(visible_range, render_flags);
 
-        self.debug_menus_end_frame(visible_range, cursor_screen_pos, delta_time_secs);
+        self.menus_end_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
         self.engine.end_frame();
     }
@@ -585,36 +624,46 @@ impl GameLoop {
                 }
 
                 if propagate {
-                    self.debug_menus_key_input(key, action, modifiers, cursor_screen_pos);
+                    self.menus_on_key_input(key, action, modifiers, cursor_screen_pos);
                 }
             }
             ApplicationEvent::Scroll(amount) => {
+                let mut propagate = true;
                 let camera_settings = CameraGlobalSettings::get();
 
-                if !camera_settings.disable_mouse_scroll_zoom {
+                // If we're not hovering over an ImGui menu...
+                if !camera_settings.disable_mouse_scroll_zoom
+                    && !self.engine().ui_system().is_handling_mouse_input()
+                {
                     let camera = &mut self.session.as_mut().unwrap().camera;
 
                     if camera_settings.disable_smooth_mouse_scroll_zoom {
                         // Fixed step zoom.
                         if amount.y < 0.0 {
-                            let step = camera_settings.fixed_step_zoom_amount;
-                            camera.set_zoom(camera.current_zoom() + step);
+                            camera.set_zoom(camera.current_zoom() + camera_settings.fixed_step_zoom_amount);
+                            propagate = false;
                         } else if amount.y > 0.0 {
-                            let step = camera_settings.fixed_step_zoom_amount;
-                            camera.set_zoom(camera.current_zoom() - step);
+                            camera.set_zoom(camera.current_zoom() - camera_settings.fixed_step_zoom_amount);
+                            propagate = false;
                         }
                     } else {
                         // Smooth interpolated zoom.
                         if amount.y < 0.0 {
                             camera.request_zoom(CameraZoom::In);
+                            propagate = false;
                         } else if amount.y > 0.0 {
                             camera.request_zoom(CameraZoom::Out);
+                            propagate = false;
                         }
                     }
                 }
+
+                if propagate {
+                    self.menus_on_scroll(amount, cursor_screen_pos);
+                }
             }
             ApplicationEvent::MouseButton(button, action, modifiers) => {
-                self.debug_menus_mouse_click(button, action, modifiers, cursor_screen_pos);
+                self.menus_on_mouse_button(button, action, modifiers, cursor_screen_pos);
             }
             _ => {}
         }
@@ -671,8 +720,8 @@ impl GameLoop {
     fn process_session_commands(&mut self) {
         while let Some(cmd) = self.session_cmd_queue.pop_front() {
             match cmd {
-                GameSessionCmd::Reset { reset_map_with_tile_def } => {
-                    self.session_cmd_reset(reset_map_with_tile_def);
+                GameSessionCmd::Reset { reset_map_with_tile_def, new_map_size } => {
+                    self.session_cmd_reset(reset_map_with_tile_def, new_map_size);
                 }
                 GameSessionCmd::LoadPreset { preset_number } => {
                     self.session_cmd_load_preset(preset_number);
@@ -687,8 +736,8 @@ impl GameLoop {
         }
     }
 
-    fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'static TileDef>) {
-        self.session.as_mut().unwrap().reset(true, reset_map_with_tile_def);
+    fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
+        self.session.as_mut().unwrap().reset(true, reset_map_with_tile_def, new_map_size);
         log::info!(log::channel!("game"), "Game Session reset.");
     }
 
@@ -715,88 +764,116 @@ impl GameLoop {
     }
 
     // ----------------------
-    // Debug UI:
+    // In-Game UI / Debug UI:
     // ----------------------
 
-    fn debug_menus_begin_frame(&mut self,
-                               visible_range: CellRange,
-                               cursor_screen_pos: Vec2,
-                               delta_time_secs: Seconds)
-                               -> TileMapRenderFlags {
+    fn menus_begin_frame(&mut self,
+                         visible_range: CellRange,
+                         cursor_screen_pos: Vec2,
+                         delta_time_secs: Seconds)
+                         -> TileMapRenderFlags {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.begin_frame(&mut DebugMenusFrameArgs {
-            tile_map: &mut session.tile_map,
-            tile_selection: &mut session.tile_selection,
-            sim: &mut session.sim,
-            world: &mut session.world,
-            systems: &mut session.systems,
-            ui_sys: self.engine.ui_system(),
-            camera: &mut session.camera,
-            visible_range,
-            cursor_screen_pos,
-            delta_time_secs
-        })
+        if let Some(menus) = &mut session.menus {
+            menus.begin_frame(&mut GameMenusFrameArgs {
+                ui_sys: self.engine.ui_system(),
+                tile_map: &mut session.tile_map,
+                tile_selection: &mut session.tile_selection,
+                sim: &mut session.sim,
+                world: &mut session.world,
+                systems: &mut session.systems,
+                camera: &mut session.camera,
+                visible_range,
+                cursor_screen_pos,
+                delta_time_secs
+            })
+        } else {
+            TileMapRenderFlags::DrawTerrainAndObjects
+        }
     }
 
-    fn debug_menus_end_frame(&mut self,
-                             visible_range: CellRange,
-                             cursor_screen_pos: Vec2,
-                             delta_time_secs: Seconds) {
+    fn menus_end_frame(&mut self,
+                       visible_range: CellRange,
+                       cursor_screen_pos: Vec2,
+                       delta_time_secs: Seconds) {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.end_frame(&mut DebugMenusFrameArgs {
-            tile_map: &mut session.tile_map,
-            tile_selection: &mut session.tile_selection,
-            sim: &mut session.sim,
-            world: &mut session.world,
-            systems: &mut session.systems,
-            ui_sys: self.engine.ui_system(),
-            camera: &mut session.camera,
-            visible_range,
-            cursor_screen_pos,
-            delta_time_secs
-        });
+        if let Some(menus) = &mut session.menus {
+            menus.end_frame(&mut GameMenusFrameArgs {
+                ui_sys: self.engine.ui_system(),
+                tile_map: &mut session.tile_map,
+                tile_selection: &mut session.tile_selection,
+                sim: &mut session.sim,
+                world: &mut session.world,
+                systems: &mut session.systems,
+                camera: &mut session.camera,
+                visible_range,
+                cursor_screen_pos,
+                delta_time_secs
+            });
+        }
     }
 
-    fn debug_menus_key_input(&mut self,
-                             key: InputKey,
+    fn menus_on_key_input(&mut self,
+                          key: InputKey,
+                          action: InputAction,
+                          modifiers: InputModifiers,
+                          cursor_screen_pos: Vec2)
+                          -> UiInputEvent {
+        let session = self.session.as_mut().unwrap();
+        if let Some(menus) = &mut session.menus {
+            menus.handle_input(&mut GameMenusInputArgs {
+                cmd: GameMenusInputCmd::Key { key, action, modifiers },
+                tile_map: &mut session.tile_map,
+                tile_selection: &mut session.tile_selection,
+                sim: &mut session.sim,
+                world: &mut session.world,
+                transform: session.camera.transform(),
+                cursor_screen_pos
+            })
+        } else {
+            UiInputEvent::NotHandled
+        }
+    }
+
+    fn menus_on_mouse_button(&mut self,
+                             button: MouseButton,
                              action: InputAction,
                              modifiers: InputModifiers,
                              cursor_screen_pos: Vec2)
                              -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.on_key_input(&mut DebugMenusInputArgs {
-            sim: &mut session.sim,
-            world: &mut session.world,
-            tile_map: &mut session.tile_map,
-            tile_selection: &mut session.tile_selection,
-            transform: session.camera.transform(),
-            camera: &mut session.camera,
-            cursor_screen_pos
-        },
-        key,
-        action,
-        modifiers)
+        if let Some(menus) = &mut session.menus {
+            menus.handle_input(&mut GameMenusInputArgs {
+                cmd: GameMenusInputCmd::Mouse { button, action, modifiers },
+                tile_map: &mut session.tile_map,
+                tile_selection: &mut session.tile_selection,
+                sim: &mut session.sim,
+                world: &mut session.world,
+                transform: session.camera.transform(),
+                cursor_screen_pos
+            })
+        } else {
+            UiInputEvent::NotHandled
+        }
     }
 
-    fn debug_menus_mouse_click(&mut self,
-                               button: MouseButton,
-                               action: InputAction,
-                               modifiers: InputModifiers,
-                               cursor_screen_pos: Vec2)
-                               -> UiInputEvent {
+    fn menus_on_scroll(&mut self,
+                       amount: Vec2,
+                       cursor_screen_pos: Vec2)
+                       -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
-        session.debug_menus.on_mouse_click(&mut DebugMenusInputArgs {
-            sim: &mut session.sim,
-            world: &mut session.world,
-            tile_map: &mut session.tile_map,
-            tile_selection: &mut session.tile_selection,
-            transform: session.camera.transform(),
-            camera: &mut session.camera,
-            cursor_screen_pos
-        },
-        button,
-        action,
-        modifiers)
+        if let Some(menus) = &mut session.menus {
+            menus.handle_input(&mut GameMenusInputArgs {
+                cmd: GameMenusInputCmd::Scroll { amount },
+                tile_map: &mut session.tile_map,
+                tile_selection: &mut session.tile_selection,
+                sim: &mut session.sim,
+                world: &mut session.world,
+                transform: session.camera.transform(),
+                cursor_screen_pos
+            })
+        } else {
+            UiInputEvent::NotHandled
+        }
     }
 }
 

@@ -1,9 +1,9 @@
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use proc_macros::DrawDebugUi;
 use rand::Rng;
+use proc_macros::DrawDebugUi;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
-use strum::EnumCount;
 use strum_macros::{Display, EnumCount, EnumIter};
+use strum::EnumCount;
 
 use super::{
     config::{BuildingConfig, BuildingConfigs},
@@ -26,11 +26,11 @@ use crate::{
     imgui_ui::UiSystem,
     save::PostLoadContext,
     tile::{
-        sets::{TileDef, TileSets, TERRAIN_GROUND_CATEGORY},
+        sets::{TileDef, TileSets, PresetTiles, TERRAIN_GROUND_CATEGORY},
         Tile, TileMapLayerKind,
     },
     utils::{
-        hash::{self, StrHashPair, StringHash},
+        hash::{self, StringHash},
         Color,
     },
 };
@@ -237,7 +237,7 @@ impl BuildingBehavior for HouseBuilding {
         let tile_map = context.query.tile_map();
 
         const LAYER_KIND: TileMapLayerKind = TileMapLayerKind::Terrain;
-        const TILE_DEF_NAME: StrHashPair = StrHashPair::from_str("dirt");
+        const TILE_DEF: PresetTiles = PresetTiles::Grass;
 
         // Clear the vacant lot tile this house was placed over.
         if let Some(tile) = tile_map.try_tile_from_layer(cell, LAYER_KIND) {
@@ -247,7 +247,7 @@ impl BuildingBehavior for HouseBuilding {
                         if let Some(tile_def_to_place) =
                             TileSets::get().find_tile_def_by_hash(LAYER_KIND,
                                                                   TERRAIN_GROUND_CATEGORY.hash,
-                                                                  TILE_DEF_NAME.hash)
+                                                                  TILE_DEF.hash())
                         {
                             let _ = tile_map.try_place_tile_in_layer(cell,
                                                                      LAYER_KIND,
@@ -258,8 +258,7 @@ impl BuildingBehavior for HouseBuilding {
                                             });
                         } else {
                             log::error!(log::channel!("house"),
-                                        "Couldn't find '{}' TileDef!",
-                                        TILE_DEF_NAME.string);
+                                        "Couldn't find '{TILE_DEF}' TileDef!");
                         }
                     }
                     Err(err) => {

@@ -41,10 +41,14 @@ bitflags! {
         const DrawProps      = 1 << 2;
         const DrawUnits      = 1 << 3;
         const DrawVegetation = 1 << 4;
+
         const DrawAllObjects = Self::DrawBuildings.bits()
                              | Self::DrawProps.bits()
                              | Self::DrawUnits.bits()
                              | Self::DrawVegetation.bits();
+
+        const DrawTerrainAndObjects = Self::DrawTerrain.bits()
+                                    | Self::DrawAllObjects.bits();
 
         // Grid rendering:
         const DrawGrid            = 1 << 5; // Grid draws on top of terrain but under objects (buildings/units).

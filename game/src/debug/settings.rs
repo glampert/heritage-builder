@@ -1,8 +1,11 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
+    log,
     debug,
+    imgui_ui,
     engine::config::Configs,
+    utils::{Color, Size},
     game::{
         self,
         building::config::BuildingConfigs,
@@ -13,14 +16,12 @@ use crate::{
         prop::config::PropConfigs,
         GameLoop,
     },
-    log,
     tile::{
         camera::{Camera, CameraGlobalSettings},
         rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
-        sets::{TileSets, TERRAIN_GROUND_CATEGORY, TERRAIN_WATER_CATEGORY},
+        sets::{TileSets, PresetTiles, TERRAIN_GROUND_CATEGORY, TERRAIN_WATER_CATEGORY},
         TileMapLayerKind,
     },
-    utils::{hash, Color},
 };
 
 // ----------------------------------------------
@@ -251,7 +252,7 @@ impl DebugSettingsMenu {
                  game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
 
-        if ui.menu_item("Quit") {
+        if ui.button("Quit") {
             game_loop.engine_mut().app().request_quit();
         }
 
@@ -278,33 +279,57 @@ impl DebugSettingsMenu {
         ui.separator();
 
         if ui.button("Reset to empty map") {
-            game_loop.reset_session(None);
+            game_loop.reset_session(None, None);
         }
 
         if ui.button("Reset to dirt tiles") {
             let dirt_tile_def = TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
                                                                       TERRAIN_GROUND_CATEGORY.hash,
-                                                                      hash::fnv1a_from_str("dirt"));
+                                                                      PresetTiles::Dirt.hash());
 
-            game_loop.reset_session(dirt_tile_def);
+            game_loop.reset_session(dirt_tile_def, None);
         }
 
         if ui.button("Reset to grass tiles") {
             let grass_tile_def =
                 TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
                                                       TERRAIN_GROUND_CATEGORY.hash,
-                                                      hash::fnv1a_from_str("grass"));
+                                                      PresetTiles::Grass.hash());
 
-            game_loop.reset_session(grass_tile_def);
+            game_loop.reset_session(grass_tile_def, None);
         }
 
         if ui.button("Reset to water tiles") {
             let water_tile_def =
                 TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
                                                       TERRAIN_WATER_CATEGORY.hash,
-                                                      hash::fnv1a_from_str("water"));
+                                                      PresetTiles::Water.hash());
 
-            game_loop.reset_session(water_tile_def);
+            game_loop.reset_session(water_tile_def, None);
+        }
+
+        // New game options:
+        ui.separator();
+
+        #[allow(static_mut_refs)]
+        let new_map_size = unsafe {
+            static mut NEW_MAP_SIZE: Size = Size::new(64, 64);
+            imgui_ui::input_i32_xy(ui,
+                "New Map Size",
+                &mut NEW_MAP_SIZE,
+                false,
+                Some([32, 32]),
+                Some(["Width", "Height"]));
+            NEW_MAP_SIZE
+        };
+
+        if ui.button("New Game") {
+            let grass_tile_def =
+                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
+                                                      TERRAIN_GROUND_CATEGORY.hash,
+                                                      PresetTiles::Grass.hash());
+
+            game_loop.reset_session(grass_tile_def, Some(new_map_size));
         }
     }
 

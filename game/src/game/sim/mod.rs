@@ -133,8 +133,12 @@ impl Simulation {
 
     pub fn reset(&mut self, world: &mut World, systems: &mut GameSystems, tile_map: &mut TileMap) {
         let query = self.new_query(world, tile_map, 0.0);
+
         world.reset(&query);
         systems.reset();
+
+        self.graph  = Graph::from_tile_map(tile_map);
+        self.search = Search::with_graph(&self.graph);
     }
 
     // ----------------------
