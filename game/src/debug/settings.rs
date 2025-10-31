@@ -252,27 +252,9 @@ impl DebugSettingsMenu {
                  game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
 
+        // Quit game:
         if ui.button("Quit") {
             game_loop.engine_mut().app().request_quit();
-        }
-
-        ui.separator();
-
-        let preset_tile_map_names = debug::utils::preset_tile_maps_list();
-
-        if ui.combo_simple_string("Preset Map",
-                                  &mut self.preset_tile_map_number,
-                                  &preset_tile_map_names)
-        {
-            self.preset_tile_map_number =
-                self.preset_tile_map_number.min(preset_tile_map_names.len());
-        }
-
-        if ui.button("Load Preset") {
-            log::info!(log::channel!("debug"),
-                       "Loading preset tile map '{}' ...",
-                       preset_tile_map_names[self.preset_tile_map_number]);
-            game_loop.load_preset_map(self.preset_tile_map_number);
         }
 
         // Reset map options:
@@ -306,6 +288,26 @@ impl DebugSettingsMenu {
                                                       PresetTiles::Water.hash());
 
             game_loop.reset_session(water_tile_def, None);
+        }
+
+        // Map presets:
+        ui.separator();
+
+        let preset_tile_map_names = debug::utils::preset_tile_maps_list();
+
+        if ui.combo_simple_string("Preset Map",
+                                  &mut self.preset_tile_map_number,
+                                  &preset_tile_map_names)
+        {
+            self.preset_tile_map_number =
+                self.preset_tile_map_number.min(preset_tile_map_names.len());
+        }
+
+        if ui.button("Load Preset") {
+            log::info!(log::channel!("debug"),
+                       "Loading preset tile map '{}' ...",
+                       preset_tile_map_names[self.preset_tile_map_number]);
+            game_loop.load_preset_map(self.preset_tile_map_number);
         }
 
         // New game options:
