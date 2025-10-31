@@ -562,29 +562,53 @@ impl GameLoop {
                 self.session.as_mut().unwrap().camera.set_viewport_size(window_size);
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
-                self.debug_menus_key_input(key, action, modifiers, cursor_screen_pos);
+                let mut propagate = true;
+                let camera_settings = CameraGlobalSettings::get();
+
+                // Zoom in/out by a fixed step with CTRL + [-][+]
+                if !camera_settings.disable_key_shortcut_zoom
+                    && modifiers.intersects(InputModifiers::Control)
+                {
+                    let camera = &mut self.session.as_mut().unwrap().camera;
+
+                    if key == InputKey::Minus && action == InputAction::Press {
+                        let step = camera_settings.fixed_step_zoom_amount;
+                        camera.set_zoom(camera.current_zoom() - step);
+                        propagate = false;
+                    }
+
+                    if key == InputKey::Equal && action == InputAction::Press {
+                        let step = camera_settings.fixed_step_zoom_amount;
+                        camera.set_zoom(camera.current_zoom() + step);
+                        propagate = false;
+                    }
+                }
+
+                if propagate {
+                    self.debug_menus_key_input(key, action, modifiers, cursor_screen_pos);
+                }
             }
             ApplicationEvent::Scroll(amount) => {
                 let camera_settings = CameraGlobalSettings::get();
 
                 if !camera_settings.disable_mouse_scroll_zoom {
-                    let session = self.session.as_mut().unwrap();
+                    let camera = &mut self.session.as_mut().unwrap().camera;
 
                     if camera_settings.disable_smooth_mouse_scroll_zoom {
                         // Fixed step zoom.
                         if amount.y < 0.0 {
                             let step = camera_settings.fixed_step_zoom_amount;
-                            session.camera.set_zoom(session.camera.current_zoom() + step);
+                            camera.set_zoom(camera.current_zoom() + step);
                         } else if amount.y > 0.0 {
                             let step = camera_settings.fixed_step_zoom_amount;
-                            session.camera.set_zoom(session.camera.current_zoom() - step);
+                            camera.set_zoom(camera.current_zoom() - step);
                         }
                     } else {
                         // Smooth interpolated zoom.
                         if amount.y < 0.0 {
-                            session.camera.request_zoom(CameraZoom::In);
+                            camera.request_zoom(CameraZoom::In);
                         } else if amount.y > 0.0 {
-                            session.camera.request_zoom(CameraZoom::Out);
+                            camera.request_zoom(CameraZoom::Out);
                         }
                     }
                 }

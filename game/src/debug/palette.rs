@@ -1,7 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
 use smallvec::SmallVec;
-use std::cmp::Reverse;
 use std::collections::HashMap;
 
 use crate::{
@@ -331,7 +330,19 @@ impl TilePaletteMenu {
         });
 
         // Group by building archetype kind (if any):
-        tile_defs.sort_by(|a, b| Reverse(a.3).cmp(&Reverse(b.3)));
+        tile_defs.sort_by_key(|entry|
+            if let Some(archetype) = entry.3 {
+                match archetype {
+                    // Custom sort order.
+                    BuildingArchetypeKind::ServiceBuilding  => 0,
+                    BuildingArchetypeKind::ProducerBuilding => 1,
+                    BuildingArchetypeKind::StorageBuilding  => 2,
+                    BuildingArchetypeKind::HouseBuilding    => 3,
+                }
+            } else {
+                4
+            }
+        );
 
         let mut button_count_for_row = 0;
         let mut prev_building_archetype: Option<BuildingArchetypeKind> = None;

@@ -19,7 +19,7 @@ use crate::{
     render::TextureCache,
     save::{Load, PostLoadContext, Save},
     tile::{
-        camera::{Camera, CameraGlobalSettings}, rendering::TileMapRenderFlags,
+        camera::Camera, rendering::TileMapRenderFlags,
         selection::TileSelection, PlacementOp, TileKind, TileMap, TileMapLayerKind,
         road::{self, RoadSegment},
         water,
@@ -27,8 +27,7 @@ use crate::{
     utils::{
         coords::{Cell, CellRange, WorldToScreenTransform},
         mem, Vec2,
-    },
-    log
+    }
 };
 
 pub mod log_viewer;
@@ -169,29 +168,13 @@ impl DebugMenusSingleton {
                     args: &mut DebugMenusInputArgs,
                     key: InputKey,
                     action: InputAction,
-                    modifiers: InputModifiers)
+                    _modifiers: InputModifiers)
                     -> UiInputEvent {
         if key == InputKey::Escape && action == InputAction::Press {
             self.tile_inspector_menu.close();
             self.tile_palette_menu.clear_selection();
             args.tile_map.clear_selection(args.tile_selection);
             return UiInputEvent::Handled;
-        }
-
-        // Zoom in/out by a fixed step with CTRL + [-][+]
-        if !CameraGlobalSettings::get().disable_key_shortcut_zoom
-            && modifiers.intersects(InputModifiers::Control)
-        {
-            if key == InputKey::Minus && action == InputAction::Press {
-                let step = CameraGlobalSettings::get().fixed_step_zoom_amount;
-                log::info!("Zoom out {step}");
-                args.camera.set_zoom(args.camera.current_zoom() - step);
-            }
-            if key == InputKey::Equal && action == InputAction::Press {
-                let step = CameraGlobalSettings::get().fixed_step_zoom_amount;
-                log::info!("Zoom in {step}");
-                args.camera.set_zoom(args.camera.current_zoom() + step);
-            }
         }
 
         UiInputEvent::NotHandled

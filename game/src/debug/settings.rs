@@ -184,19 +184,15 @@ impl DebugSettingsMenu {
 
         if let Some(_menu_bar) = ui.begin_main_menu_bar() {
             if let Some(_menu) = ui.begin_menu("Game") {
-                self.game_menu(context, game_loop, enable_tile_inspector);
-            }
-
-            if let Some(_menu) = ui.begin_menu("Camera") {
-                self.camera_menu(context, camera);
+                self.game_menu(context, game_loop);
             }
 
             if let Some(_menu) = ui.begin_menu("Save") {
                 self.save_game_menu(context, game_loop);
             }
 
-            if let Some(_menu) = ui.begin_menu("Map") {
-                self.tile_map_menu(context, game_loop);
+            if let Some(_menu) = ui.begin_menu("Camera") {
+                self.camera_menu(context, camera);
             }
 
             if let Some(_menu) = ui.begin_menu("Cheats") {
@@ -204,7 +200,7 @@ impl DebugSettingsMenu {
             }
 
             if let Some(_menu) = ui.begin_menu("Debug") {
-                self.debug_options_menu(context, game_loop);
+                self.debug_options_menu(context, game_loop, enable_tile_inspector);
             }
 
             self.menu_bar_text(context, game_loop);
@@ -252,8 +248,7 @@ impl DebugSettingsMenu {
 
     fn game_menu(&mut self,
                  context: &mut sim::debug::DebugContext,
-                 game_loop: &mut GameLoop,
-                 enable_tile_inspector: &mut bool) {
+                 game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
 
         if ui.menu_item("Quit") {
@@ -262,15 +257,54 @@ impl DebugSettingsMenu {
 
         ui.separator();
 
-        ui.checkbox("Game Configs", &mut self.show_game_configs_debug);
-        ui.checkbox("Game World", &mut self.show_game_world_debug);
-        ui.checkbox("Game Systems", &mut self.show_game_systems_debug);
-        ui.checkbox("Log Viewer", &mut self.show_log_viewer_window);
-        ui.checkbox("Tile Inspector", enable_tile_inspector);
-        
-        let mut show_popup_messages = super::show_popup_messages();
-        if ui.checkbox("Popup Messages", &mut show_popup_messages) {
-            super::set_show_popup_messages(show_popup_messages);
+        let preset_tile_map_names = debug::utils::preset_tile_maps_list();
+
+        if ui.combo_simple_string("Preset Map",
+                                  &mut self.preset_tile_map_number,
+                                  &preset_tile_map_names)
+        {
+            self.preset_tile_map_number =
+                self.preset_tile_map_number.min(preset_tile_map_names.len());
+        }
+
+        if ui.button("Load Preset") {
+            log::info!(log::channel!("debug"),
+                       "Loading preset tile map '{}' ...",
+                       preset_tile_map_names[self.preset_tile_map_number]);
+            game_loop.load_preset_map(self.preset_tile_map_number);
+        }
+
+        // Reset map options:
+        ui.separator();
+
+        if ui.button("Reset to empty map") {
+            game_loop.reset_session(None);
+        }
+
+        if ui.button("Reset to dirt tiles") {
+            let dirt_tile_def = TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
+                                                                      TERRAIN_GROUND_CATEGORY.hash,
+                                                                      hash::fnv1a_from_str("dirt"));
+
+            game_loop.reset_session(dirt_tile_def);
+        }
+
+        if ui.button("Reset to grass tiles") {
+            let grass_tile_def =
+                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
+                                                      TERRAIN_GROUND_CATEGORY.hash,
+                                                      hash::fnv1a_from_str("grass"));
+
+            game_loop.reset_session(grass_tile_def);
+        }
+
+        if ui.button("Reset to water tiles") {
+            let water_tile_def =
+                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
+                                                      TERRAIN_WATER_CATEGORY.hash,
+                                                      hash::fnv1a_from_str("water"));
+
+            game_loop.reset_session(water_tile_def);
         }
     }
 
@@ -334,7 +368,8 @@ impl DebugSettingsMenu {
 
     fn debug_options_menu(&mut self,
                           context: &mut sim::debug::DebugContext,
-                          game_loop: &mut GameLoop) {
+                          game_loop: &mut GameLoop,
+                          enable_tile_inspector: &mut bool) {
         let ui = context.ui_sys.builder();
 
         self.draw_debug_ui(context.ui_sys);
@@ -343,6 +378,8 @@ impl DebugSettingsMenu {
         if ui.checkbox("Show Popup Messages", &mut show_popup_messages) {
             super::set_show_popup_messages(show_popup_messages);
         }
+
+        ui.checkbox("Enable Tile Inspector", enable_tile_inspector);
 
         // Debug grid options:
         ui.separator();
@@ -371,63 +408,6 @@ impl DebugSettingsMenu {
                 let bad_ptr: *mut i64 = core::ptr::null_mut();
                 *bad_ptr = 1;
             }
-        }
-    }
-
-    fn tile_map_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
-        let ui = context.ui_sys.builder();
-
-        // Preset tile maps:
-        ui.separator();
-
-        let preset_tile_map_names = debug::utils::preset_tile_maps_list();
-
-        if ui.combo_simple_string("Preset",
-                                  &mut self.preset_tile_map_number,
-                                  &preset_tile_map_names)
-        {
-            self.preset_tile_map_number =
-                self.preset_tile_map_number.min(preset_tile_map_names.len());
-        }
-
-        if ui.button("Load Preset") {
-            log::info!(log::channel!("debug"),
-                       "Loading preset tile map '{}' ...",
-                       preset_tile_map_names[self.preset_tile_map_number]);
-            game_loop.load_preset_map(self.preset_tile_map_number);
-        }
-
-        // Reset map options:
-        ui.separator();
-
-        if ui.button("Reset to empty map") {
-            game_loop.reset_session(None);
-        }
-
-        if ui.button("Reset to dirt tiles") {
-            let dirt_tile_def = TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                                                      TERRAIN_GROUND_CATEGORY.hash,
-                                                                      hash::fnv1a_from_str("dirt"));
-
-            game_loop.reset_session(dirt_tile_def);
-        }
-
-        if ui.button("Reset to grass tiles") {
-            let grass_tile_def =
-                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                                      TERRAIN_GROUND_CATEGORY.hash,
-                                                      hash::fnv1a_from_str("grass"));
-
-            game_loop.reset_session(grass_tile_def);
-        }
-
-        if ui.button("Reset to water tiles") {
-            let water_tile_def =
-                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                                      TERRAIN_WATER_CATEGORY.hash,
-                                                      hash::fnv1a_from_str("water"));
-
-            game_loop.reset_session(water_tile_def);
         }
     }
 
