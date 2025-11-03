@@ -233,6 +233,12 @@ impl TileDef {
     }
 
     #[inline]
+    pub fn is_house(&self) -> bool {
+        // FIXME: Could do with a better of way of telling if a tile is a house.
+        self.name.starts_with("house")
+    }
+
+    #[inline]
     pub fn is_valid(&self) -> bool {
         !self.kind.is_empty() && self.logical_size.is_valid() && self.draw_size.is_valid()
     }

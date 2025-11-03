@@ -95,6 +95,7 @@ impl TileSelection {
                 self.cursor_drag_start = Vec2::zero();
                 self.cursor_drag_start_cell = Cell::invalid();
                 self.left_mouse_button_held = false;
+                return UiInputEvent::Handled;
             }
         }
         UiInputEvent::NotHandled

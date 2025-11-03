@@ -68,11 +68,21 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
                                         tile_def_to_place.name,
                                         tile.name()));
                     } else if tile_def_to_place.is(TileKind::Building)
-                            && !path_kind.is_object_placeable() && !path_kind.is_vacant_lot()
+                            && !path_kind.is_object_placeable()
                     {
-                        return Err(format!("Cannot place building '{}' over terrain tile '{}'.",
-                                        tile_def_to_place.name,
-                                        tile.name()));
+                        let can_place_building = {
+                            if path_kind.is_vacant_lot() && tile_def_to_place.is_house() {
+                                true
+                            } else {
+                                false
+                            }
+                        };
+
+                        if !can_place_building {
+                            return Err(format!("Cannot place building '{}' over terrain tile '{}'.",
+                                            tile_def_to_place.name,
+                                            tile.name()));
+                        }
                     }
 
                     // Tile must be placed near water/rocks/etc.
@@ -114,11 +124,28 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
                                    tile.name()));
             }
         }
+
+        // Objects layer mut be empty.
+        if layers.get(TileMapLayerKind::Objects).try_tile(target_cell).is_some() {
+            return Err(format!("Cannot place vacant lot here."));
+        }
     } else if tile_def_to_place.path_kind.intersects(PathNodeKind::Road | PathNodeKind::SettlersSpawnPoint) {
         if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
             if tile.path_kind().is_water() {
                 return Err(format!("Cannot place road over terrain tile '{}'.", tile.name()));
             }
+        }
+    } else if tile_def_to_place.path_kind.intersects(PathNodeKind::Dirt | PathNodeKind::Water) {
+        // Dirt/water can only be placed over other dirt/water tiles.
+        if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
+            if !tile.path_kind().intersects(PathNodeKind::Dirt | PathNodeKind::Water) {
+                return Err(format!("Cannot place '{}' tile over terrain tile '{}'.", tile_def_to_place.name, tile.name()));
+            }
+        }
+
+        // Objects layer mut be empty.
+        if layers.get(TileMapLayerKind::Objects).try_tile(target_cell).is_some() {
+            return Err(format!("Cannot place terrain tile '{}' here.", tile_def_to_place.name));
         }
     }
 

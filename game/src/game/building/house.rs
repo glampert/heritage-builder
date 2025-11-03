@@ -13,6 +13,10 @@ use super::{
 use crate::{
     building_config,
     game_object_debug_options,
+    log,
+    imgui_ui::UiSystem,
+    save::PostLoadContext,
+    tile::{sets::TileDef, Tile},
     engine::time::{Seconds, UpdateTimer},
     game::{
         sim::resources::{
@@ -21,13 +25,6 @@ use crate::{
         system::settlers::Settler,
         unit::Unit,
         world::stats::WorldStats,
-    },
-    log,
-    imgui_ui::UiSystem,
-    save::PostLoadContext,
-    tile::{
-        sets::{TileDef, TileSets, PresetTiles, TERRAIN_GROUND_CATEGORY},
-        Tile, TileMapLayerKind,
     },
     utils::{
         hash::{self, StringHash},
@@ -228,46 +225,6 @@ impl BuildingBehavior for HouseBuilding {
 
     fn configs(&self) -> &dyn BuildingConfig {
         self.current_level_config()
-    }
-
-    fn spawned(&mut self, context: &BuildingContext) {
-        debug_assert!(context.base_cell().is_valid());
-
-        let cell = context.base_cell();
-        let tile_map = context.query.tile_map();
-
-        const LAYER_KIND: TileMapLayerKind = TileMapLayerKind::Terrain;
-        const TILE_DEF: PresetTiles = PresetTiles::Grass;
-
-        // Clear the vacant lot tile this house was placed over.
-        if let Some(tile) = tile_map.try_tile_from_layer(cell, LAYER_KIND) {
-            if tile.path_kind().is_vacant_lot() {
-                match tile_map.try_clear_tile_from_layer(cell, LAYER_KIND) {
-                    Ok(_) => {
-                        if let Some(tile_def_to_place) =
-                            TileSets::get().find_tile_def_by_hash(LAYER_KIND,
-                                                                  TERRAIN_GROUND_CATEGORY.hash,
-                                                                  TILE_DEF.hash())
-                        {
-                            let _ = tile_map.try_place_tile_in_layer(cell,
-                                                                     LAYER_KIND,
-                                                                     tile_def_to_place)
-                                            .inspect_err(|err| {
-                                                log::error!(log::channel!("house"),
-                                                            "Failed to place new tile: {err}")
-                                            });
-                        } else {
-                            log::error!(log::channel!("house"),
-                                        "Couldn't find '{TILE_DEF}' TileDef!");
-                        }
-                    }
-                    Err(err) => {
-                        log::error!(log::channel!("house"),
-                                    "Failed to clear VacantLot tile: {err}");
-                    }
-                }
-            }
-        }
     }
 
     fn update(&mut self, context: &BuildingContext) {

@@ -51,6 +51,11 @@ impl RoadSegment {
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.path.is_empty()
+    }
+
+    #[inline]
     pub fn cost(&self) -> u32 {
         // All road tiles have the same cost.
         (self.path.len() as u32) * self.tile_def().cost
