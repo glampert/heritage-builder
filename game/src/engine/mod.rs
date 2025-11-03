@@ -195,7 +195,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                     }
                 }
                 ApplicationEvent::MouseButton(button, action, modifiers) => {
-                    if self.ui_system.on_mouse_click(button, action, modifiers).not_handled() {
+                    if self.ui_system.on_mouse_button(button, action, modifiers).not_handled() {
                         events_forwarded.push(event);
                     }
                 }

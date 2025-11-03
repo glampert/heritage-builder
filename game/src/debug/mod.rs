@@ -8,26 +8,10 @@ use settings::DebugSettingsMenu;
 use crate::{
     singleton_late_init,
     render::TextureCache,
-    imgui_ui::UiInputEvent,
     save::{Load, PostLoadContext, Save},
-    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
-    game::{
-        sim,
-        world::{object::{Spawner, SpawnerResult}},
-        config::GameConfigs,
-        GameLoop,
-        menu::*,
-    },
-    tile::{
-        rendering::TileMapRenderFlags,
-        PlacementOp, TileKind, TileMap, TileMapLayerKind,
-        road::{self, RoadSegment},
-        water,
-    },
-    utils::{
-        coords::{Cell, CellRange},
-        mem::{self, SingleThreadStatic},
-    }
+    game::{sim, config::GameConfigs, GameLoop, menu::*},
+    tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind},
+    utils::{coords::{Cell, CellRange}, mem::{self, SingleThreadStatic}}
 };
 
 pub mod log_viewer;
@@ -57,16 +41,29 @@ impl GameMenusSystem for DevEditorMenus {
         self
     }
 
-    fn handle_input(&mut self, context: &mut GameMenusContext, args: &GameMenusInputArgs) -> UiInputEvent {
-        DevEditorMenusSingleton::get_mut().handle_input(context, args)
+    fn tile_placement(&mut self) -> &mut TilePlacement {
+        &mut DevEditorMenusSingleton::get_mut().tile_placement
     }
 
-    fn begin_frame(&mut self, context: &mut GameMenusContext) -> TileMapRenderFlags {
-        DevEditorMenusSingleton::get_mut().begin_frame(context)
+    fn tile_palette(&mut self) -> &mut dyn TilePalette {
+        &mut DevEditorMenusSingleton::get_mut().tile_palette_menu
+    }
+
+    fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {
+        let singleton = DevEditorMenusSingleton::get_mut();
+        if singleton.enable_tile_inspector {
+            Some(&mut singleton.tile_inspector_menu)
+        } else {
+            None
+        }
+    }
+
+    fn selected_render_flags(&self) -> TileMapRenderFlags {
+        DevEditorMenusSingleton::get().debug_settings_menu.selected_render_flags()
     }
 
     fn end_frame(&mut self, context: &mut GameMenusContext, visible_range: CellRange) {
-        DevEditorMenusSingleton::get_mut().end_frame(context, visible_range);
+        DevEditorMenusSingleton::get_mut().draw_debug_menus(context, visible_range);
     }
 }
 
@@ -101,254 +98,29 @@ impl Load for DevEditorMenus {
 }
 
 // ----------------------------------------------
-//
-// ----------------------------------------------
-
-// TODO WIP
-
-struct TileSelectionAndPlacement {
-    current_road_segment: RoadSegment, // For road placement.
-}
-
-impl TileSelectionAndPlacement {
-    fn place_road(&mut self, _args: &mut GameMenusInputArgs) -> bool {
-        false
-    }
-}
-
-// ----------------------------------------------
 // DevEditorMenusSingleton
 // ----------------------------------------------
 
-#[derive(Default)]
 struct DevEditorMenusSingleton {
+    tile_placement: TilePlacement,
     debug_settings_menu: DebugSettingsMenu,
     tile_palette_menu: TilePaletteMenu,
     tile_inspector_menu: TileInspectorMenu,
     enable_tile_inspector: bool,
-    current_road_segment: RoadSegment, // For road placement.
 }
 
 impl DevEditorMenusSingleton {
     fn new(tex_cache: &mut dyn TextureCache, tile_palette_open: bool, enable_tile_inspector: bool) -> Self {
         Self {
+            tile_placement: TilePlacement::new(),
             debug_settings_menu: DebugSettingsMenu::new(),
             tile_palette_menu: TilePaletteMenu::new(tile_palette_open, tex_cache),
+            tile_inspector_menu: TileInspectorMenu::default(),
             enable_tile_inspector,
-            ..Default::default()
         }
     }
 
-    fn on_key_input(&mut self,
-                    menu_context: &mut GameMenusContext,
-                    key: InputKey,
-                    action: InputAction,
-                    _modifiers: InputModifiers)
-                    -> UiInputEvent {
-        if key == InputKey::Escape && action == InputAction::Press {
-            self.tile_inspector_menu.close();
-            self.tile_palette_menu.clear_selection();
-            menu_context.tile_map.clear_selection(menu_context.tile_selection);
-            return UiInputEvent::Handled;
-        }
-
-        UiInputEvent::NotHandled
-    }
-
-    fn on_mouse_button(&mut self,
-                       menu_context: &mut GameMenusContext,
-                       button: MouseButton,
-                       action: InputAction,
-                       _modifiers: InputModifiers)
-                       -> UiInputEvent {
-        if self.tile_palette_menu.has_selection() && !self.tile_palette_menu.is_road_tile_selected() {
-            if self.tile_palette_menu.on_mouse_click(button, action).not_handled() {
-                self.tile_palette_menu.clear_selection();
-                menu_context.tile_map.clear_selection(menu_context.tile_selection);
-            }
-        } else {
-            if menu_context.tile_selection
-                   .on_mouse_click(button, action, menu_context.tile_map, menu_context.cursor_screen_pos, menu_context.camera.transform())
-                   .not_handled()
-            {
-                // Place road segment if valid & we can afford it:
-                let is_valid_road_placement =
-                    self.current_road_segment.is_valid &&
-                    menu_context.sim.treasury().can_afford(menu_context.world, self.current_road_segment.cost());
-
-                if is_valid_road_placement {
-                    let query = menu_context.sim.new_query(menu_context.world, menu_context.tile_map, 0.0);
-                    let spawner = Spawner::new(&query);
-
-                    // Place tiles:
-                    for cell in &self.current_road_segment.path {
-                        spawner.try_spawn_tile_with_def(*cell, self.current_road_segment.tile_def());
-                    }
-
-                    // Update road junctions (each junction is a different variation of the same tile).
-                    for cell in &self.current_road_segment.path {
-                        road::update_junctions(menu_context.tile_map, *cell);
-                    }
-                } else {
-                    self.tile_palette_menu.clear_selection();
-                }
-
-                // Clear road segment highlight:
-                road::mark_tiles(menu_context.tile_map, &self.current_road_segment, false, false);
-                self.current_road_segment.clear();
-
-                menu_context.tile_map.clear_selection(menu_context.tile_selection);
-            }
-
-            // Open inspector only if we're not in road placement mode.
-            if !self.tile_palette_menu.is_road_tile_selected() && self.enable_tile_inspector {
-                if let Some(selected_tile) = menu_context.tile_map.topmost_selected_tile(menu_context.tile_selection) {
-                    if self.tile_inspector_menu
-                        .on_mouse_click(button, action, selected_tile)
-                        .is_handled()
-                    {
-                        return UiInputEvent::Handled;
-                    }
-                }
-            }
-        }
-
-        UiInputEvent::NotHandled
-    }
-
-    fn handle_input(&mut self, menu_context: &mut GameMenusContext, args: &GameMenusInputArgs) -> UiInputEvent {
-        match *args {
-            GameMenusInputArgs::Key { key, action, modifiers } => {
-                self.on_key_input(menu_context, key, action, modifiers)
-            }
-            GameMenusInputArgs::Mouse { button, action, modifiers } => {
-                self.on_mouse_button(menu_context, button, action, modifiers)
-            }
-            GameMenusInputArgs::Scroll { .. } => {
-                UiInputEvent::NotHandled
-            }
-        }
-    }
-
-    fn begin_frame(&mut self, menu_context: &mut GameMenusContext) -> TileMapRenderFlags {
-        // If we're not hovering over an ImGui menu...
-        if !menu_context.ui_sys.is_handling_mouse_input() {
-            // Tile hovering and selection:
-            let placement_op = {
-                if let Some(tile_def) = self.tile_palette_menu.current_selection() {
-                    let query = menu_context.sim.new_query(menu_context.world, menu_context.tile_map, menu_context.delta_time_secs);
-                    if Spawner::new(&query).can_afford_tile(tile_def) {
-                        PlacementOp::Place(tile_def)
-                    } else {
-                        PlacementOp::Invalidate(tile_def)
-                    }
-                } else if self.tile_palette_menu.is_clear_selected() {
-                    PlacementOp::Clear
-                } else {
-                    PlacementOp::None
-                }
-            };
-
-            menu_context.tile_map.update_selection(menu_context.tile_selection,
-                                                   menu_context.cursor_screen_pos,
-                                                   menu_context.camera.transform(),
-                                                   placement_op);
-
-            if self.tile_palette_menu.is_road_tile_selected() {
-                if let Some((start, end)) = menu_context.tile_selection.range_selection_cells(
-                    menu_context.tile_map,
-                    menu_context.cursor_screen_pos,
-                    menu_context.camera.transform())
-                {
-                    // Clear previous segment highlight:
-                    road::mark_tiles(menu_context.tile_map, &self.current_road_segment, false, false);
-
-                    let road_kind = self.tile_palette_menu.selected_road_kind();
-                    self.current_road_segment = road::build_segment(menu_context.tile_map, start, end, road_kind);
-
-                    let is_valid_road_placement =
-                        self.current_road_segment.is_valid &&
-                        menu_context.sim.treasury().can_afford(menu_context.world, self.current_road_segment.cost());
-
-                    // Highlight new segment:
-                    road::mark_tiles(menu_context.tile_map, &self.current_road_segment, true, is_valid_road_placement);
-                }
-            }
-        }
-
-        if self.tile_palette_menu.can_place_tile() && !self.tile_palette_menu.is_road_tile_selected() {
-            let placement_candidate = self.tile_palette_menu.current_selection();
-
-            let did_place_or_clear = {
-                // If we have a selection place it, otherwise we want to try clearing the tile
-                // under the cursor.
-                if let Some(tile_def) = placement_candidate {
-                    let target_cell = menu_context.tile_map
-                                          .find_exact_cell_for_point(tile_def.layer_kind(),
-                                                                     menu_context.cursor_screen_pos,
-                                                                     menu_context.camera.transform());
-
-                    if target_cell.is_valid() {
-                        let query = menu_context.sim.new_query(menu_context.world, menu_context.tile_map, menu_context.delta_time_secs);
-                        let spawner = Spawner::new(&query);
-                        let spawn_result = spawner.try_spawn_tile_with_def(target_cell, tile_def);
-                        match &spawn_result {
-                            SpawnerResult::Tile(tile) if tile.is(TileKind::Terrain) => {
-                                // In case we've replaced a road tile with terrain.
-                                road::update_junctions(menu_context.tile_map, target_cell);
-                                // In case we've placed a water tile or replaced water with terrain.
-                                water::update_transitions(menu_context.tile_map, target_cell);
-                            }
-                            SpawnerResult::Building(_) if water::is_port_or_wharf(tile_def) => {
-                                // If we've placed a port/wharf, select the correct
-                                // tile orientation in relation to the water.
-                                water::update_port_wharf_orientation(menu_context.tile_map, target_cell);
-                            }
-                            _ => {}
-                        }
-                        spawn_result.is_ok()
-                    } else {
-                        false
-                    }
-                } else {
-                    // Clear/remove tile:
-                    let query = menu_context.sim.new_query(menu_context.world, menu_context.tile_map, menu_context.delta_time_secs);
-                    if let Some(tile) = query.tile_map().topmost_tile_at_cursor(menu_context.cursor_screen_pos, menu_context.camera.transform()) {
-                        let is_road  = tile.path_kind().is_road();
-                        let is_water = tile.path_kind().is_water();
-                        let target_cell = tile.base_cell();
-                        Spawner::new(&query).despawn_tile(tile);
-                        // Update road junctions / water transitions around the removed tile cell.
-                        if is_road {
-                            road::update_junctions(menu_context.tile_map, target_cell);
-                        }
-                        if is_water {
-                            water::update_transitions(menu_context.tile_map, target_cell);
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                }
-            };
-
-            let placing_building_or_unit =
-                placement_candidate
-                    .is_some_and(|def| def.is(TileKind::Building | TileKind::Unit));
-
-            let clearing_a_tile = self.tile_palette_menu.is_clear_selected();
-
-            if did_place_or_clear && (placing_building_or_unit || clearing_a_tile) {
-                // Place or remove building/unit and exit tile placement mode.
-                self.tile_palette_menu.clear_selection();
-                menu_context.tile_map.clear_selection(menu_context.tile_selection);
-            }
-        }
-
-        self.debug_settings_menu.selected_render_flags()
-    }
-
-    fn end_frame(&mut self, menu_context: &mut GameMenusContext, visible_range: CellRange) {
+    fn draw_debug_menus(&mut self, menu_context: &mut GameMenusContext, visible_range: CellRange) {
         let has_valid_placement = menu_context.tile_selection.has_valid_placement();
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();

@@ -75,13 +75,13 @@ impl TileSelection {
         }
     }
 
-    pub fn on_mouse_click(&mut self,
-                          button: MouseButton,
-                          action: InputAction,
-                          tile_map: &TileMap,
-                          cursor_screen_pos: Vec2,
-                          transform: WorldToScreenTransform)
-                          -> UiInputEvent {
+    pub fn on_mouse_button(&mut self,
+                           button: MouseButton,
+                           action: InputAction,
+                           tile_map: &TileMap,
+                           cursor_screen_pos: Vec2,
+                           transform: WorldToScreenTransform)
+                           -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
                 self.cursor_drag_start = cursor_screen_pos;

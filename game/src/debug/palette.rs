@@ -4,31 +4,24 @@ use smallvec::SmallVec;
 use std::collections::HashMap;
 
 use crate::{
-    app::input::{InputAction, MouseButton},
     engine::DebugDraw,
-    game::{sim, building::{config::BuildingConfigs, BuildingArchetypeKind}},
+    app::input::{InputAction, MouseButton},
     imgui_ui::{UiInputEvent, UiSystem},
     render::{TextureCache, TextureHandle},
-    utils::{self, platform::paths, coords::WorldToScreenTransform, Color, Rect, RectTexCoords, Size, Vec2},
+    utils::{
+        self, platform::paths, coords::WorldToScreenTransform,
+        Color, Rect, RectTexCoords, Size, Vec2,
+    },
+    game::{
+        sim, building::{config::BuildingConfigs, BuildingArchetypeKind},
+        menu::{TilePalette, TilePaletteSelection},
+    },
     tile::{
-        road,
         TileKind, BASE_TILE_SIZE,
         rendering::INVALID_TILE_COLOR,
         sets::{TileCategory, TileDef, TileDefHandle, TileSet, TileSets},
     },
 };
-
-// ----------------------------------------------
-// SelectionState
-// ----------------------------------------------
-
-#[derive(Default)]
-enum SelectionState {
-    #[default]
-    NoSelection,
-    TileSelected(TileDefHandle),
-    ClearSelected,
-}
 
 // ----------------------------------------------
 // TilePaletteMenu
@@ -38,69 +31,13 @@ enum SelectionState {
 pub struct TilePaletteMenu {
     start_open: bool,
     left_mouse_button_held: bool,
-    selection: SelectionState,
+    selection: TilePaletteSelection,
     selected_index: HashMap<TileKind, usize>, // For highlighting the selected button.
     clear_button_image: TextureHandle,
 }
 
-impl TilePaletteMenu {
-    pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
-        let clear_button_image_path = paths::asset_path("ui/x.png");
-        Self { start_open,
-               clear_button_image: tex_cache.load_texture(clear_button_image_path.to_str().unwrap()),
-               ..Default::default() }
-    }
-
-    pub fn clear_selection(&mut self) {
-        self.selection = SelectionState::NoSelection;
-        self.selected_index = HashMap::default();
-        self.left_mouse_button_held = false;
-    }
-
-    pub fn has_selection(&self) -> bool {
-        !matches!(self.selection, SelectionState::NoSelection)
-    }
-
-    pub fn is_clear_selected(&self) -> bool {
-        matches!(self.selection, SelectionState::ClearSelected)
-    }
-
-    pub fn is_road_tile_selected(&self) -> bool {
-        if let Some(tile_def) = self.current_selection() {
-            if tile_def.path_kind.is_road() {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn selected_road_kind(&self) -> road::RoadKind {
-        if let Some(tile_def) = self.current_selection() {
-            if tile_def.path_kind.is_road() {
-                if tile_def.hash == road::tile_name(road::RoadKind::Dirt).hash {
-                    return road::RoadKind::Dirt;
-                } else if tile_def.hash == road::tile_name(road::RoadKind::Paved).hash {
-                    return road::RoadKind::Paved;
-                }
-            }
-        }
-        panic!("No road tile selected!");
-    }
-
-    pub fn current_selection(&self) -> Option<&'static TileDef> {
-        match self.selection {
-            SelectionState::TileSelected(selected_tile_def_handle) => {
-                TileSets::get().handle_to_tile_def(selected_tile_def_handle)
-            }
-            _ => None,
-        }
-    }
-
-    pub fn can_place_tile(&self) -> bool {
-        self.left_mouse_button_held && self.has_selection()
-    }
-
-    pub fn on_mouse_click(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent {
+impl TilePalette for TilePaletteMenu {
+    fn on_mouse_button(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
                 self.left_mouse_button_held = true;
@@ -110,6 +47,31 @@ impl TilePaletteMenu {
             UiInputEvent::Handled
         } else {
             UiInputEvent::NotHandled
+        }
+    }
+
+    fn wants_to_place_tile(&self) -> bool {
+        self.left_mouse_button_held && self.has_selection()
+    }
+
+    fn current_selection(&self) -> TilePaletteSelection {
+        self.selection
+    }
+
+    fn clear_selection(&mut self) {
+        self.selection = TilePaletteSelection::None;
+        self.selected_index = HashMap::default();
+        self.left_mouse_button_held = false;
+    }
+}
+
+impl TilePaletteMenu {
+    pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
+        let clear_button_image_path = paths::asset_path("ui/x.png");
+        Self {
+            start_open,
+            clear_button_image: tex_cache.load_texture(clear_button_image_path.to_str().unwrap()),
+            ..Default::default()
         }
     }
 
@@ -143,7 +105,7 @@ impl TilePaletteMenu {
                 {
                     let ui_texture = context.ui_sys.to_ui_texture(tex_cache, self.clear_button_image);
 
-                    let bg_color = if self.is_clear_selected() {
+                    let bg_color = if self.current_selection().is_clear() {
                         Color::white().to_array()
                     } else {
                         Color::gray().to_array()
@@ -160,7 +122,7 @@ impl TilePaletteMenu {
 
                     if clicked {
                         self.clear_selection();
-                        self.selection = SelectionState::ClearSelected;
+                        self.selection = TilePaletteSelection::Clear;
                     }
                 }
 
@@ -200,7 +162,7 @@ impl TilePaletteMenu {
         }
 
         // Draw clear tile icon under the cursor:
-        if self.is_clear_selected() {
+        if self.current_selection().is_clear() {
             const CLEAR_ICON_SIZE: Size = Size::new(64, 32);
 
             let rect = Rect::from_pos_and_size(Vec2::new(cursor_screen_pos.x
@@ -214,7 +176,7 @@ impl TilePaletteMenu {
                                              self.clear_button_image,
                                              Color::white());
         } else {
-            let selected_tile = self.current_selection().unwrap();
+            let selected_tile = self.current_selection().as_tile_def().unwrap();
             let rect = Rect::from_pos_and_size(cursor_screen_pos, selected_tile.draw_size);
 
             let offset =
@@ -304,10 +266,7 @@ impl TilePaletteMenu {
 
             if clicked {
                 self.clear_selection();
-                self.selection =
-                    SelectionState::TileSelected(TileDefHandle::new(tile_set,
-                                                                    tile_category,
-                                                                    tile_def));
+                self.selection = TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def));
                 self.selected_index.insert(tile_kind, tile_index);
             }
 

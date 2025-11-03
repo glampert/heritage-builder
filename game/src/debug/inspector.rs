@@ -1,13 +1,13 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    app::input::{InputAction, MouseButton},
     engine::time::Seconds,
-    game::sim::{self, debug::DebugUiMode, Simulation},
     imgui_ui::{self, UiInputEvent},
     pathfind::NodeKind as PathNodeKind,
-    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE},
+    app::input::{InputAction, MouseButton},
     utils::{coords::Cell, mem, Color, Size, Vec2},
+    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE},
+    game::{sim::{self, debug::DebugUiMode, Simulation}, menu::TileInspector},
 };
 
 // ----------------------------------------------
@@ -32,8 +32,7 @@ impl TileWeakRef {
     }
 
     fn try_tile(&self) -> Option<&Tile> {
-        // Still same layer and kind, chances are our weak pointer is still in good
-        // shape.
+        // Still same layer and kind, chances are our weak pointer is still in good shape.
         if self.tile_ptr.kind() == self.tile_kind && self.tile_ptr.layer_kind() == self.tile_layer {
             return Some(self.tile_ptr.as_ref());
         }
@@ -59,19 +58,14 @@ pub struct TileInspectorMenu {
     last_tile_cell: Cell,
 }
 
-impl TileInspectorMenu {
-    pub fn close(&mut self) {
-        self.is_open = false;
-        self.selected = None;
-    }
-
-    pub fn on_mouse_click(&mut self,
-                          button: MouseButton,
-                          action: InputAction,
-                          selected_tile: &Tile)
-                          -> UiInputEvent {
+impl TileInspector for TileInspectorMenu {
+    fn on_mouse_button(&mut self,
+                       button: MouseButton,
+                       action: InputAction,
+                       selected_tile: &Tile)
+                       -> UiInputEvent {
         if button == MouseButton::Left && action == InputAction::Press {
-            self.is_open = true;
+            self.is_open  = true;
             self.selected = Some(TileWeakRef::new(selected_tile));
             UiInputEvent::Handled
         } else {
@@ -79,6 +73,13 @@ impl TileInspectorMenu {
         }
     }
 
+    fn close(&mut self) {
+        self.is_open  = false;
+        self.selected = None;
+    }
+}
+
+impl TileInspectorMenu {
     pub fn on_tile_placed(&mut self, tile: &Tile, did_reallocate: bool) {
         if did_reallocate {
             // Tidy any local Tile references if the tile map has

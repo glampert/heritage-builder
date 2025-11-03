@@ -114,11 +114,11 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn on_mouse_click(&mut self,
-                          _: MouseButton,
-                          _: InputAction,
-                          _: InputModifiers)
-                          -> UiInputEvent {
+    pub fn on_mouse_button(&mut self,
+                           _: MouseButton,
+                           _: InputAction,
+                           _: InputModifiers)
+                           -> UiInputEvent {
         // Mouse events are polled from the InputSystem instead;
         // Just perform a quick check to see if mouse clicks are being consumed by
         // ImGui.

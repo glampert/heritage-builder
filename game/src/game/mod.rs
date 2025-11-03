@@ -4,15 +4,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use building::config::BuildingConfigs;
+use menu::{GameMenusSystem, GameMenusContext, GameMenusInputArgs, hud::HudMenus};
 use config::{GameConfigs, LoadMapSetting};
 use system::{settlers, GameSystems};
+use building::config::BuildingConfigs;
 use unit::config::UnitConfigs;
 use prop::config::PropConfigs;
 use sim::Simulation;
 use world::World;
-use menu::hud::HudMenus;
-use menu::*;
 
 use crate::{
     log,
@@ -778,7 +777,8 @@ impl GameLoop {
                 camera: &mut session.camera,
                 cursor_screen_pos,
                 delta_time_secs
-            })
+            });
+            menus.selected_render_flags()
         } else {
             TileMapRenderFlags::DrawTerrainAndObjects
         }
@@ -825,7 +825,7 @@ impl GameLoop {
                 cursor_screen_pos,
                 delta_time_secs
             },
-            &GameMenusInputArgs::Key { key, action, modifiers })
+            GameMenusInputArgs::Key { key, action, modifiers })
         } else {
             UiInputEvent::NotHandled
         }
@@ -851,7 +851,7 @@ impl GameLoop {
                 cursor_screen_pos,
                 delta_time_secs
             },
-            &GameMenusInputArgs::Mouse { button, action, modifiers })
+            GameMenusInputArgs::Mouse { button, action, modifiers })
         } else {
             UiInputEvent::NotHandled
         }
@@ -875,7 +875,7 @@ impl GameLoop {
                 cursor_screen_pos,
                 delta_time_secs
             },
-            &GameMenusInputArgs::Scroll { amount })
+            GameMenusInputArgs::Scroll { amount })
         } else {
             UiInputEvent::NotHandled
         }
