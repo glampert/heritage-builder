@@ -70,13 +70,8 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
                     } else if tile_def_to_place.is(TileKind::Building)
                             && !path_kind.is_object_placeable()
                     {
-                        let can_place_building = {
-                            if path_kind.is_vacant_lot() && tile_def_to_place.is_house() {
-                                true
-                            } else {
-                                false
-                            }
-                        };
+                        let can_place_building =
+                            path_kind.is_vacant_lot() && tile_def_to_place.is_house();
 
                         if !can_place_building {
                             return Err(format!("Cannot place building '{}' over terrain tile '{}'.",
@@ -127,7 +122,7 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
 
         // Objects layer mut be empty.
         if layers.get(TileMapLayerKind::Objects).try_tile(target_cell).is_some() {
-            return Err(format!("Cannot place vacant lot here."));
+            return Err("Cannot place vacant lot here.".into());
         }
     } else if tile_def_to_place.path_kind.intersects(PathNodeKind::Road | PathNodeKind::SettlersSpawnPoint) {
         if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {

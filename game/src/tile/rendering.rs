@@ -17,9 +17,9 @@ use crate::{
 // ----------------------------------------------
 
 pub const HIGHLIGHT_TILE_COLOR: Color = Color::new(0.76, 0.96, 0.39, 1.0); // light green
-pub const INVALID_TILE_COLOR: Color = Color::new(0.95, 0.60, 0.60, 1.0); // light red
+pub const INVALID_TILE_COLOR: Color   = Color::new(0.95, 0.60, 0.60, 1.0); // light red
 
-pub const SELECTION_RECT_COLOR: Color = Color::new(0.2, 0.7, 0.2, 1.0); // green-ish
+pub const SELECTION_RECT_COLOR: Color = Color::new(0.7, 0.2, 0.2, 1.0); // red-ish
 pub const MAP_BACKGROUND_COLOR: Color = Color::gray();
 
 pub const DEFAULT_GRID_COLOR: Color = Color::white();

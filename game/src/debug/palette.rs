@@ -50,7 +50,7 @@ impl TilePalette for TilePaletteMenu {
         }
     }
 
-    fn wants_to_place_tile(&self) -> bool {
+    fn wants_to_place_or_clear_tile(&self) -> bool {
         self.left_mouse_button_held && self.has_selection()
     }
 

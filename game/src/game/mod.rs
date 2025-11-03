@@ -99,7 +99,7 @@ impl GameSession {
             sim,
             systems,
             camera,
-            tile_selection: TileSelection::new(false),
+            tile_selection: TileSelection::default(),
             menus: Some(menus),
         };
 
