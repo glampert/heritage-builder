@@ -151,6 +151,30 @@ impl World {
         (self.prop_spawn_pool.spawned_count(), self.prop_spawn_pool.spawned_peak())
     }
 
+    pub fn find_game_object_for_tile(&self, tile: &Tile) -> Option<&dyn GameObject> {
+        if tile.is(TileKind::Building) {
+            self.find_building_for_tile(tile).map(|building| building as &dyn GameObject)
+        } else if tile.is(TileKind::Unit) {
+            self.find_unit_for_tile(tile).map(|unit| unit as &dyn GameObject)
+        } else if tile.is(TileKind::Prop) {
+            self.find_prop_for_tile(tile).map(|prop| prop as &dyn GameObject)
+        } else {
+            None
+        }
+    }
+
+    pub fn find_game_object_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut dyn GameObject> {
+        if tile.is(TileKind::Building) {
+            self.find_building_for_tile_mut(tile).map(|building| building as &mut dyn GameObject)
+        } else if tile.is(TileKind::Unit) {
+            self.find_unit_for_tile_mut(tile).map(|unit| unit as &mut dyn GameObject)
+        } else if tile.is(TileKind::Prop) {
+            self.find_prop_for_tile_mut(tile).map(|prop| prop as &mut dyn GameObject)
+        } else {
+            None
+        }
+    }
+
     // ----------------------
     // Callbacks:
     // ----------------------

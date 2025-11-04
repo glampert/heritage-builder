@@ -40,6 +40,7 @@ use crate::{
     utils::{crash_report, platform::{self, paths}, coords::CellRange, file_sys, hash, Size, Vec2},
 };
 
+pub mod undo_redo;
 pub mod building;
 pub mod menu;
 pub mod prop;
@@ -434,6 +435,7 @@ impl GameLoop {
 
         // Global initialization:
         cheats::initialize();
+        undo_redo::initialize();
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
         debug::init_dev_editor_menus(configs, engine.texture_cache_mut());

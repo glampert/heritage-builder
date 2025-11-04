@@ -1,7 +1,10 @@
 use std::{
+    hash::Hash,
     collections::HashMap,
     hash::{BuildHasherDefault, Hasher},
 };
+
+use small_map::SmallMap;
 
 // ----------------------------------------------
 // PreHashedKeyMap / IdentityHasher
@@ -39,6 +42,45 @@ pub type PreHashedKeyMap<K, V> = HashMap<K, V, BuildHasherDefault<IdentityHasher
 #[inline]
 pub const fn new_const_hash_map<K, V>() -> PreHashedKeyMap<K, V> {
     PreHashedKeyMap::with_hasher(BuildHasherDefault::<IdentityHasher>::new())
+}
+
+// SmallMap starts with a fixed-size buffer but can expand into the heap.
+// This allows us to mostly stay on the stack and avoid any allocations.
+// We only care about the key being present or not, so value is an empty type.
+pub struct SmallSet<const N: usize, T>(SmallMap<N, T, ()>);
+
+impl<const N: usize, T> SmallSet<N, T>
+    where T: Eq + Hash
+{
+    #[inline]
+    pub fn new() -> Self {
+        Self(SmallMap::new())
+    }
+
+    #[inline]
+    pub fn contains(&self, key: &T) -> bool {
+        self.0.get(key).is_some()
+    }
+
+    #[inline]
+    pub fn insert(&mut self, key: T) {
+        self.0.insert(key, ());
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    #[inline]
+    pub fn iter(&self) -> small_map::Iter<'_, N, T, ()> {
+        self.0.iter()
+    }
 }
 
 // ----------------------------------------------

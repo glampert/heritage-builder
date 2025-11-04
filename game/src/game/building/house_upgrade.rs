@@ -1,5 +1,4 @@
 use heapless;
-use small_map;
 use smallvec::SmallVec;
 
 use super::{
@@ -15,7 +14,7 @@ use crate::{
     tile::{sets::TileDef, TileFlags, TileKind, TileMapLayerKind},
     utils::{
         coords::{Cell, CellRange},
-        Size,
+        Size, hash::SmallSet,
     },
 };
 
@@ -64,8 +63,7 @@ pub fn can_expand_house(context: &BuildingContext,
     true
 }
 
-// Attempts to expand the house by *one cell* in each dimension, e.g.: 1x1 ->
-// 2x2.
+// Attempts to expand the house by *one cell* in each dimension, e.g.: 1x1 -> 2x2.
 pub fn try_expand_house(context: &BuildingContext,
                         house_id: BuildingId,
                         current_level: HouseLevel,
@@ -209,8 +207,7 @@ pub fn try_replace_tile(context: &BuildingContext,
             graph.set_node_kind(Node::new(cell), PathNodeKind::Dirt); // Traversable
         }
         for cell in &new_cell_range {
-            graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not
-                                                                          // Traversable
+            graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
         }
     }
 
@@ -269,7 +266,7 @@ fn evaluate_target_rect(context: &BuildingContext,
         if let Some(neighbor_house) = find_house_for_cell(context, cell) {
             if valid_merge_sizes(current_size, neighbor_house) {
                 let search_start_id = neighbor_house.id();
-                if !visited.contains(search_start_id) {
+                if !visited.contains(&search_start_id) {
                     collect_merge_candidates(context,
                                              search_start_id,
                                              current_size,
@@ -388,7 +385,7 @@ fn collect_merge_candidates(context: &BuildingContext,
                 if let Some(neighbor_house) = find_house_for_cell(context, neighbor_cell) {
                     if valid_merge_sizes(current_size, neighbor_house) {
                         let neighbor_id = neighbor_house.id();
-                        if !visited.contains(neighbor_id) {
+                        if !visited.contains(&neighbor_id) {
                             visited.insert(neighbor_id);
                             queue.push_back(neighbor_id);
                         }
@@ -546,34 +543,7 @@ fn destroy_house(context: &BuildingContext, merged_building: &mut Building) {
 // SmallMap starts with a fixed-size buffer but can expand into the heap.
 // This allows us to mostly stay on the stack and avoid any allocations.
 // We only care about the key being present or not, so value is an empty type.
-struct HouseIdsSet(small_map::SmallMap<32, BuildingId, ()>);
-
-impl HouseIdsSet {
-    #[inline]
-    fn new() -> Self {
-        Self(small_map::SmallMap::new())
-    }
-
-    #[inline]
-    fn contains(&self, id: BuildingId) -> bool {
-        self.0.get(&id).is_some()
-    }
-
-    #[inline]
-    fn insert(&mut self, id: BuildingId) {
-        self.0.insert(id, ());
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    #[inline]
-    fn iter(&self) -> small_map::Iter<'_, 32, BuildingId, ()> {
-        self.0.iter()
-    }
-}
+type HouseIdsSet = SmallSet<32, BuildingId>;
 
 fn house_for_id<'world>(context: &'world BuildingContext, id: BuildingId) -> &'world Building {
     let world = context.query.world();

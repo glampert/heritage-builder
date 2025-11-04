@@ -199,6 +199,8 @@ impl TileAnimState {
     const DEFAULT: Self = Self { anim_set_index: 0, frame_index: 0, frame_play_time_secs: 0.0 };
 }
 
+pub type TileVariationIndex = u8;
+
 // ----------------------------------------------
 // TileMapLayerPtr
 // ----------------------------------------------
@@ -301,7 +303,7 @@ impl<'de> Deserialize<'de> for TileDefRef {
 pub struct Tile {
     kind: TileKind,
     flags: TileFlags,
-    variation_index: u8,
+    variation_index: TileVariationIndex,
     z_sort_key: i32,
     self_index: TilePoolIndex,
     next_index: TilePoolIndex,
@@ -1046,7 +1048,7 @@ impl Tile {
     pub fn set_variation_index(&mut self, index: usize) {
         self.variation_index = index.min(self.variation_count() - 1)
             .try_into()
-            .expect("Value cannot fit into a u8!");
+            .expect("Value cannot fit into a TileVariationIndex!");
 
         // Propagate to owner tile in case this is a blocker.
         self.archetype.set_variation_index(self.variation_index());

@@ -5,12 +5,12 @@ use crate::{
     save::{Save, Load},
     engine::time::Seconds,
     imgui_ui::{UiSystem, UiInputEvent},
-    pathfind::{NodeKind as PathNodeKind},
-    utils::{Vec2, coords::{Cell, CellRange}},
+    utils::{Vec2, coords::{Cell, CellRange}, hash::SmallSet},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     game::{
         world::{object::{Spawner, SpawnerResult}, World},
         sim::{Query, Simulation}, system::GameSystems,
+        undo_redo::{self, EditAction},
     },
     tile::{
         Tile, TileKind, TileMap, TileMapLayerKind, selection::TileSelection,
@@ -201,18 +201,38 @@ pub trait GameMenusSystem: Save + Load {
                         let query = context.new_query();
                         let tile_map = query.tile_map();
 
+                        // Ensure each cell is unique with a hash set.
+                        let mut clearable_cells: SmallSet<64, Cell> = SmallSet::new();
+
                         for &cell in context.tile_selection.cells() {
                             if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                                TilePlacement::clear(&query, tile);
-                            }
-                            if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-                                if tile.path_kind().intersects(PathNodeKind::Road | PathNodeKind::VacantLot) {
-                                    TilePlacement::clear(&query, tile);
+                                if TilePlacement::can_clear(tile) {
+                                    clearable_cells.insert(cell);
+                                }
+                            } else if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
+                                if TilePlacement::can_clear(tile) {
+                                    clearable_cells.insert(cell);
                                 }
                             }
                         }
 
-                        context.clear_selection();
+                        if !clearable_cells.is_empty() {
+                            undo_redo::record(EditAction::ClearingTiles,
+                                              clearable_cells.iter(),
+                                              context.tile_map,
+                                              context.world);
+
+                            for (&cell, _) in clearable_cells.iter() {
+                                if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                                    TilePlacement::clear(&query, tile, false);
+                                }
+                                if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
+                                    TilePlacement::clear(&query, tile, false);
+                                }
+                            }
+
+                            context.clear_selection();
+                        }
                     }
                 } else {
                     // Mouse button click other than [LEFT_BTN], clear selection state.
@@ -277,6 +297,11 @@ impl TilePlacement {
             for cell in &self.current_road_segment.path {
                 road::update_junctions(context.tile_map, *cell);
             }
+
+            undo_redo::record(EditAction::PlacedTiles,
+                              &self.current_road_segment.path,
+                              context.tile_map,
+                              context.world);
         }
 
         // Clear road segment highlight:
@@ -329,7 +354,7 @@ impl TilePlacement {
                                                                          context.camera.transform());
             if target_cell.is_valid() {
                 let query = context.new_query();
-                return Self::place(&query, target_cell, tile_def);
+                return Self::place(&query, target_cell, tile_def, true);
             }
         } else if selection.is_clear() {
             // Clear/remove tile:
@@ -338,13 +363,13 @@ impl TilePlacement {
                     context.cursor_screen_pos,
                     context.camera.transform())
             {
-                return Self::clear(&query, tile);
+                return Self::clear(&query, tile, true);
             }
         }
         PlaceOrClearResult::Failed
     }
 
-    fn place(query: &Query, target_cell: Cell, tile_def: &'static TileDef) -> PlaceOrClearResult {
+    fn place(query: &Query, target_cell: Cell, tile_def: &'static TileDef, undo_redo: bool) -> PlaceOrClearResult {
         let spawner = Spawner::new(query);
         let spawn_result = spawner.try_spawn_tile_with_def(target_cell, tile_def);
 
@@ -364,13 +389,19 @@ impl TilePlacement {
         }
 
         if spawn_result.is_ok() {
+            if undo_redo {
+                undo_redo::record(EditAction::PlacedTiles,
+                                  &[target_cell],
+                                  query.tile_map(),
+                                  query.world());
+            }
             PlaceOrClearResult::PlacedTile(tile_def)
         } else {
             PlaceOrClearResult::Failed
         }
     }
 
-    fn clear(query: &Query, tile: &Tile) -> PlaceOrClearResult {
+    fn clear(query: &Query, tile: &Tile, undo_redo: bool) -> PlaceOrClearResult {
         let tile_def = tile.tile_def();
 
         let is_terrain = tile.is(TileKind::Terrain);
@@ -379,12 +410,19 @@ impl TilePlacement {
 
         // Cannot explicit remove terrain tiles except for roads and vacant lots.
         if !is_terrain || is_road || is_vacant_lot {
+            let target_cell  = tile.base_cell();
+
+            if undo_redo {
+                undo_redo::record(EditAction::ClearingTiles,
+                                  &[target_cell],
+                                  query.tile_map(),
+                                  query.world());
+            }
+
             let spawner = Spawner::new(query);
             spawner.despawn_tile(tile);
 
             if is_road || is_vacant_lot {
-                let target_cell  = tile.base_cell();
-
                 // Replace removed road tile with a regular terrain tile.
                 let replacement_tile_def =
                     TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
@@ -407,6 +445,16 @@ impl TilePlacement {
         }
 
         PlaceOrClearResult::Failed
+    }
+
+    fn can_clear(tile: &Tile) -> bool {
+        let tile_def = tile.tile_def();
+
+        let is_terrain = tile.is(TileKind::Terrain);
+        let is_road = tile_def.path_kind.is_road();
+        let is_vacant_lot = tile_def.path_kind.is_vacant_lot();
+
+        !is_terrain || is_road || is_vacant_lot
     }
 }
 

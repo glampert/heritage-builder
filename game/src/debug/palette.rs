@@ -14,7 +14,7 @@ use crate::{
     },
     game::{
         sim, building::{config::BuildingConfigs, BuildingArchetypeKind},
-        menu::{TilePalette, TilePaletteSelection},
+        menu::{TilePalette, TilePaletteSelection}, undo_redo,
     },
     tile::{
         TileKind, BASE_TILE_SIZE,
@@ -103,6 +103,14 @@ impl TilePaletteMenu {
             .build(|| {
                 ui.text("Tools");
                 {
+                    if ui.button("Undo") {
+                        undo_redo::undo(context.tile_map, context.world);
+                    }
+                    ui.same_line();
+                    if ui.button("Redo") {
+                        undo_redo::redo(context.tile_map, context.world);
+                    }
+
                     let ui_texture = context.ui_sys.to_ui_texture(tex_cache, self.clear_button_image);
 
                     let bg_color = if self.current_selection().is_clear() {
