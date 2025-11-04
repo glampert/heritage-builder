@@ -29,7 +29,7 @@
   },
   "camera": {
     "fixed_step_zoom_amount": 0.5,
-    "disable_smooth_mouse_scroll_zoom": false,
+    "disable_smooth_mouse_scroll_zoom": true,
     "disable_mouse_scroll_zoom": false,
     "disable_key_shortcut_zoom": false
   },
