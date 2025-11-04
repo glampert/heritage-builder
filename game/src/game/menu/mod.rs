@@ -372,7 +372,6 @@ impl TilePlacement {
 
     fn clear(query: &Query, tile: &Tile) -> PlaceOrClearResult {
         let tile_def = tile.tile_def();
-        let target_cell  = tile.base_cell();
 
         let is_terrain = tile.is(TileKind::Terrain);
         let is_road = tile_def.path_kind.is_road();
@@ -384,6 +383,8 @@ impl TilePlacement {
             spawner.despawn_tile(tile);
 
             if is_road || is_vacant_lot {
+                let target_cell  = tile.base_cell();
+
                 // Replace removed road tile with a regular terrain tile.
                 let replacement_tile_def =
                     TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
