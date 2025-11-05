@@ -637,7 +637,7 @@ impl Query {
             if connected_to_road_only {
                 PathNodeKind::Road
             } else {
-                PathNodeKind::Dirt | PathNodeKind::Road
+                PathNodeKind::EmptyLand | PathNodeKind::Road
             }
         };
 
@@ -655,8 +655,7 @@ impl Query {
                                     traversable_node_kinds,
                                     Some(effect_radius),
                                     |_building, _path| {
-                                        false // Stop iterating, we'll take the
-                                              // first match.
+                                        false // Stop iterating, we'll take the first match.
                                     })
             .is_some()
     }

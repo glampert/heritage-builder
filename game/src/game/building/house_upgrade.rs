@@ -204,7 +204,7 @@ pub fn try_replace_tile(context: &BuildingContext,
         // Update path finding graph:
         let graph = context.query.graph();
         for cell in &prev_cell_range {
-            graph.set_node_kind(Node::new(cell), PathNodeKind::Dirt); // Traversable
+            graph.set_node_kind(Node::new(cell), PathNodeKind::EmptyLand); // Traversable
         }
         for cell in &new_cell_range {
             graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
@@ -312,7 +312,7 @@ fn can_expand_into_cell(context: &BuildingContext, cell: Cell) -> bool {
         None => return false,
     };
 
-    if !node_kind.intersects(PathNodeKind::Dirt | PathNodeKind::VacantLot | PathNodeKind::Building) {
+    if !node_kind.intersects(PathNodeKind::EmptyLand | PathNodeKind::VacantLot | PathNodeKind::Building) {
         return false; // Not an expandable node.
     }
 

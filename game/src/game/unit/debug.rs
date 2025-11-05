@@ -375,7 +375,7 @@ impl Unit {
                 traversable_node_kinds |= PathNodeKind::Road;
             }
             if USE_DIRT_PATHS {
-                traversable_node_kinds |= PathNodeKind::Dirt;
+                traversable_node_kinds |= PathNodeKind::EmptyLand;
             }
 
             (traversable_node_kinds,
@@ -420,7 +420,7 @@ impl Unit {
            && !traversable_node_kinds.is_empty()
         {
             let connected_to_road_only = traversable_node_kinds.intersects(PathNodeKind::Road)
-                                         && !traversable_node_kinds.intersects(PathNodeKind::Dirt);
+                                         && !traversable_node_kinds.intersects(PathNodeKind::EmptyLand);
 
             let is_near = query.is_near_building(self.cell(),
                                                  search_building_kind,

@@ -7,7 +7,7 @@ use crate::{
     utils::{coords::Cell, hash::StrHashPair},
     tile::{
         TileKind, TileFlags, TileMap, TileMapLayerKind,
-        sets::{TileDef, TileSets, TERRAIN_GROUND_CATEGORY},
+        sets::{TileDef, TileSets, TERRAIN_LAND_CATEGORY},
     },
 };
 
@@ -90,7 +90,7 @@ pub fn tile_def(kind: RoadKind) -> &'static TileDef {
 static DIRT_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
     TileSets::get().find_tile_def_by_hash(
         TileMapLayerKind::Terrain,
-        TERRAIN_GROUND_CATEGORY.hash,
+        TERRAIN_LAND_CATEGORY.hash,
         tile_name(RoadKind::Dirt).hash)
             .expect("Failed to find dirt road tile!")
 });
@@ -98,7 +98,7 @@ static DIRT_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
 static PAVED_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
     TileSets::get().find_tile_def_by_hash(
         TileMapLayerKind::Terrain,
-        TERRAIN_GROUND_CATEGORY.hash,
+        TERRAIN_LAND_CATEGORY.hash,
         tile_name(RoadKind::Paved).hash)
             .expect("Failed to find paved road tile!")
 });

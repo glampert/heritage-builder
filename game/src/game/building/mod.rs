@@ -324,8 +324,9 @@ impl GameObject for Building {
                          visible_range: CellRange) {
         debug_assert!(self.is_spawned());
 
-        let tile = query.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
-                        .unwrap();
+        let tile =
+            query.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+                 .unwrap();
 
         self.archetype_mut().debug_options().draw_popup_messages(tile,
                                                                  ui_sys,
@@ -354,8 +355,7 @@ impl Building {
         self.id = id;
         self.map_cells = map_cells;
         self.kind = kind;
-        self.workers_update_timer =
-            UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
+        self.workers_update_timer = UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
         self.archetype = Some(archetype);
 
         self.update_road_link(query);

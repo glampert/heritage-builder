@@ -19,8 +19,7 @@ use crate::{
     tile::{
         camera::{Camera, CameraGlobalSettings},
         rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
-        sets::{TileSets, PresetTiles, TERRAIN_GROUND_CATEGORY, TERRAIN_WATER_CATEGORY},
-        TileMapLayerKind,
+        sets::PresetTiles,
     },
 };
 
@@ -265,28 +264,17 @@ impl DebugSettingsMenu {
         }
 
         if ui.button("Reset to dirt tiles") {
-            let dirt_tile_def = TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                                                      TERRAIN_GROUND_CATEGORY.hash,
-                                                                      PresetTiles::Dirt.hash());
-
+            let dirt_tile_def = PresetTiles::Dirt.find_tile_def();
             game_loop.reset_session(dirt_tile_def, None);
         }
 
         if ui.button("Reset to grass tiles") {
-            let grass_tile_def =
-                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                                      TERRAIN_GROUND_CATEGORY.hash,
-                                                      PresetTiles::Grass.hash());
-
+            let grass_tile_def = PresetTiles::Grass.find_tile_def();
             game_loop.reset_session(grass_tile_def, None);
         }
 
         if ui.button("Reset to water tiles") {
-            let water_tile_def =
-                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                                      TERRAIN_WATER_CATEGORY.hash,
-                                                      PresetTiles::Water.hash());
-
+            let water_tile_def = PresetTiles::Water.find_tile_def();
             game_loop.reset_session(water_tile_def, None);
         }
 
@@ -326,11 +314,7 @@ impl DebugSettingsMenu {
         };
 
         if ui.button("New Game") {
-            let grass_tile_def =
-                TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                                      TERRAIN_GROUND_CATEGORY.hash,
-                                                      PresetTiles::Grass.hash());
-
+            let grass_tile_def = PresetTiles::Grass.find_tile_def();
             game_loop.reset_session(grass_tile_def, Some(new_map_size));
         }
     }

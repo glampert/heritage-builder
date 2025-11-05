@@ -1109,7 +1109,7 @@ impl UnitTask for UnitTaskSettler {
 
         let current_node_kinds = unit.traversable_node_kinds();
         unit.set_traversable_node_kinds(current_node_kinds
-                                        | PathNodeKind::Dirt
+                                        | PathNodeKind::EmptyLand
                                         | PathNodeKind::Road
                                         | PathNodeKind::VacantLot
                                         | PathNodeKind::SettlersSpawnPoint);
@@ -1361,7 +1361,7 @@ impl UnitTask for UnitTaskHarvestWood {
         // Harvesters can go off-road.
         let current_node_kinds = unit.traversable_node_kinds();
         unit.set_traversable_node_kinds(current_node_kinds
-                                        | PathNodeKind::Dirt
+                                        | PathNodeKind::EmptyLand
                                         | PathNodeKind::Road
                                         | PathNodeKind::VacantLot
                                         | PathNodeKind::SettlersSpawnPoint);

@@ -130,10 +130,10 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
                 return Err(format!("Cannot place road over terrain tile '{}'.", tile.name()));
             }
         }
-    } else if tile_def_to_place.path_kind.intersects(PathNodeKind::Dirt | PathNodeKind::Water) {
-        // Dirt/water can only be placed over other dirt/water tiles.
+    } else if tile_def_to_place.path_kind.intersects(PathNodeKind::EmptyLand | PathNodeKind::Water) {
+        // Land/water can only be placed over other land/water tiles.
         if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
-            if !tile.path_kind().intersects(PathNodeKind::Dirt | PathNodeKind::Water) {
+            if !tile.path_kind().intersects(PathNodeKind::EmptyLand | PathNodeKind::Water) {
                 return Err(format!("Cannot place '{}' tile over terrain tile '{}'.", tile_def_to_place.name, tile.name()));
             }
         }
