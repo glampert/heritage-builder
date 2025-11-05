@@ -14,7 +14,7 @@ use crate::{
     },
     tile::{
         Tile, TileKind, TileMap, TileMapLayerKind, selection::TileSelection,
-        sets::{TileSets, TileDef, TileDefHandle, TERRAIN_GROUND_CATEGORY, PresetTiles},
+        sets::{TileSets, TileDef, TileDefHandle, PresetTiles},
         rendering::TileMapRenderFlags, PlacementOp, camera::Camera,
         water, road::{self, RoadSegment, RoadKind},
     },
@@ -166,15 +166,32 @@ pub trait GameMenusSystem: Save + Load {
 
     fn handle_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
         match args {
-            GameMenusInputArgs::Key { key, action, .. } => {
-                // [ESCAPE]: Clear current selection / close tile inspector.
-                if key == InputKey::Escape && action == InputAction::Press {
-                    self.tile_palette().clear_selection();
-                    context.clear_selection();
-                    if let Some(tile_inspector) = self.tile_inspector() {
-                        tile_inspector.close();
+            GameMenusInputArgs::Key { key, action, modifiers } => {
+                if action == InputAction::Press {
+                    // [ESCAPE]: Clear current selection / close tile inspector.
+                    if key == InputKey::Escape {
+                        self.tile_palette().clear_selection();
+                        context.clear_selection();
+                        if let Some(tile_inspector) = self.tile_inspector() {
+                            tile_inspector.close();
+                        }
+                        return UiInputEvent::Handled;
                     }
-                    return UiInputEvent::Handled;
+
+                    let shift = modifiers.intersects(InputModifiers::Shift);
+                    let ctrl_or_cmd = modifiers.intersects(InputModifiers::Control | InputModifiers::Super);
+
+                    // [SHIFT]+[CTRL]+[Z] / [SHIFT]+[CMD]+[Z] (MacOS): Redo last action.
+                    if key == InputKey::Z && ctrl_or_cmd && shift {
+                        undo_redo::redo(&context.new_query());
+                        return UiInputEvent::Handled;
+                    }
+
+                    // [CTRL]+[Z] / [CMD]+[Z] (MacOs): Undo last action.
+                    if key == InputKey::Z && ctrl_or_cmd {
+                        undo_redo::undo(&context.new_query());
+                        return UiInputEvent::Handled;
+                    }
                 }
             }
             GameMenusInputArgs::Mouse { button, action, .. } => {
@@ -224,10 +241,10 @@ pub trait GameMenusSystem: Save + Load {
 
                             for (&cell, _) in clearable_cells.iter() {
                                 if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                                    TilePlacement::clear(&query, tile, false);
+                                    TilePlacement::clear(&query, tile, false, false);
                                 }
                                 if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-                                    TilePlacement::clear(&query, tile, false);
+                                    TilePlacement::clear(&query, tile, false, false);
                                 }
                             }
 
@@ -264,10 +281,22 @@ pub struct TilePlacement {
     current_road_segment: RoadSegment, // For road placement.
 }
 
-enum PlaceOrClearResult {
+pub enum PlaceOrClearResult {
     PlacedTile(&'static TileDef),
     ClearedTile(&'static TileDef),
     Failed,
+}
+
+impl PlaceOrClearResult {
+    #[inline]
+    pub fn is_ok(&self) -> bool {
+        !self.failed()
+    }
+
+    #[inline]
+    pub fn failed(&self) -> bool {
+        matches!(self, Self::Failed)
+    }
 }
 
 impl TilePlacement {
@@ -354,7 +383,7 @@ impl TilePlacement {
                                                                          context.camera.transform());
             if target_cell.is_valid() {
                 let query = context.new_query();
-                return Self::place(&query, target_cell, tile_def, true);
+                return Self::place(&query, target_cell, tile_def, true, true);
             }
         } else if selection.is_clear() {
             // Clear/remove tile:
@@ -363,14 +392,21 @@ impl TilePlacement {
                     context.cursor_screen_pos,
                     context.camera.transform())
             {
-                return Self::clear(&query, tile, true);
+                return Self::clear(&query, tile, false, true);
             }
         }
         PlaceOrClearResult::Failed
     }
 
-    fn place(query: &Query, target_cell: Cell, tile_def: &'static TileDef, undo_redo: bool) -> PlaceOrClearResult {
-        let spawner = Spawner::new(query);
+    pub fn place(query: &Query,
+                 target_cell: Cell,
+                 tile_def: &'static TileDef,
+                 subtract_tile_cost: bool,
+                 undo_redo: bool)
+                 -> PlaceOrClearResult {
+        let mut spawner = Spawner::new(query);
+        spawner.set_subtract_tile_cost(subtract_tile_cost);
+
         let spawn_result = spawner.try_spawn_tile_with_def(target_cell, tile_def);
 
         match &spawn_result {
@@ -401,7 +437,11 @@ impl TilePlacement {
         }
     }
 
-    fn clear(query: &Query, tile: &Tile, undo_redo: bool) -> PlaceOrClearResult {
+    pub fn clear(query: &Query,
+                 tile: &Tile,
+                 restore_tile_cost: bool,
+                 undo_redo: bool)
+                 -> PlaceOrClearResult {
         let tile_def = tile.tile_def();
 
         let is_terrain = tile.is(TileKind::Terrain);
@@ -419,15 +459,14 @@ impl TilePlacement {
                                   query.world());
             }
 
-            let spawner = Spawner::new(query);
+            let mut spawner = Spawner::new(query);
+            spawner.set_restore_tile_cost(restore_tile_cost);
+
             spawner.despawn_tile(tile);
 
             if is_road || is_vacant_lot {
                 // Replace removed road tile with a regular terrain tile.
-                let replacement_tile_def =
-                    TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                                          TERRAIN_GROUND_CATEGORY.hash,
-                                                          PresetTiles::Grass.hash());
+                let replacement_tile_def = PresetTiles::Grass.find_tile_def();
 
                 if let Some(tile_def) = replacement_tile_def {
                     let _ = spawner.try_spawn_tile_with_def(target_cell, tile_def);

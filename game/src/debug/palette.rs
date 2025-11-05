@@ -77,6 +77,7 @@ impl TilePaletteMenu {
 
     pub fn draw(&mut self,
                 context: &mut sim::debug::DebugContext,
+                sim: &mut sim::Simulation,
                 debug_draw: &mut dyn DebugDraw,
                 cursor_screen_pos: Vec2,
                 has_valid_placement: bool,
@@ -104,11 +105,11 @@ impl TilePaletteMenu {
                 ui.text("Tools");
                 {
                     if ui.button("Undo") {
-                        undo_redo::undo(context.tile_map, context.world);
+                        undo_redo::undo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
                     ui.same_line();
                     if ui.button("Redo") {
-                        undo_redo::redo(context.tile_map, context.world);
+                        undo_redo::redo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
 
                     let ui_texture = context.ui_sys.to_ui_texture(tex_cache, self.clear_button_image);

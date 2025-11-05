@@ -183,6 +183,7 @@ impl GameSession {
     }
 
     fn reset(&mut self, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
+        undo_redo::clear();
         self.tile_selection = TileSelection::default();
 
         if reset_map && self.tile_map.size_in_cells().is_valid() {
@@ -266,6 +267,8 @@ impl Load for GameSession {
     }
 
     fn post_load(&mut self, context: &PostLoadContext) {
+        undo_redo::clear();
+
         self.tile_map.post_load(context);
         self.world.post_load(context);
         self.sim.post_load(context);
@@ -595,28 +598,28 @@ impl GameLoop {
                 let mut propagate = true;
                 let camera_settings = CameraGlobalSettings::get();
 
-                // Zoom in/out by a fixed step with CTRL + [-][+]
+                // [CTRL]+[-] / [CTRL]+[=]: Zoom in/out by a fixed step.
                 if !camera_settings.disable_key_shortcut_zoom
+                    && action == InputAction::Press
                     && modifiers.intersects(InputModifiers::Control)
                 {
                     let camera = &mut self.session.as_mut().unwrap().camera;
 
-                    if key == InputKey::Minus && action == InputAction::Press {
+                    if key == InputKey::Minus {
                         let step = camera_settings.fixed_step_zoom_amount;
                         camera.set_zoom(camera.current_zoom() - step);
                         propagate = false;
-                    }
-
-                    if key == InputKey::Equal && action == InputAction::Press {
+                    } else if key == InputKey::Equal {
                         let step = camera_settings.fixed_step_zoom_amount;
                         camera.set_zoom(camera.current_zoom() + step);
                         propagate = false;
                     }
                 }
 
-                // Toggle between DevEditor menu / HUD menu.
-                if modifiers.intersects(InputModifiers::Control)
-                    && key == InputKey::Slash && action == InputAction::Press
+                // [CTRL]+[/]: Toggle between DevEditor menu / HUD menu.
+                if action == InputAction::Press
+                    && key == InputKey::Slash
+                    && modifiers.intersects(InputModifiers::Control)
                 {
                     self.session.as_mut().unwrap().toggle_menu_mode();
                 }

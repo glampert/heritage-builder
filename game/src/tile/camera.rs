@@ -49,7 +49,7 @@ impl CameraZoom {
 }
 
 pub struct CameraGlobalSettings {
-    // For fixed step zoom with CTRL +/- key shortcuts.
+    // For fixed step zoom with CTRL +/= key shortcuts.
     pub fixed_step_zoom_amount: f32,
 
     // Use fixed step zoom with mouse scroll zoom instead of smooth interpolation.

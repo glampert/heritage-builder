@@ -147,6 +147,7 @@ impl DevEditorMenusSingleton {
         };
 
         self.tile_palette_menu.draw(&mut sim_context,
+                                    menu_context.sim,
                                     game_loop.engine_mut().debug_draw(),
                                     menu_context.cursor_screen_pos,
                                     has_valid_placement,

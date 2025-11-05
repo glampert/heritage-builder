@@ -472,6 +472,8 @@ impl<'de, T> Deserialize<'de> for SpawnPool<T>
 
 pub struct Spawner<'world> {
     query: &'world Query,
+    subtract_tile_cost: bool, // Decrement tile cost when spawning? Default = true.
+    restore_tile_cost: bool,  // Restore back tile cost when despawning? Default = false.
 }
 
 pub enum SpawnerResult<'world> {
@@ -497,7 +499,19 @@ impl SpawnerResult<'_> {
 impl<'world> Spawner<'world> {
     #[inline]
     pub fn new(query: &'world Query) -> Self {
-        Self { query }
+        Self {
+            query,
+            subtract_tile_cost: true,
+            restore_tile_cost: false,
+        }
+    }
+
+    pub fn set_subtract_tile_cost(&mut self, subtract: bool) {
+        self.subtract_tile_cost = subtract;
+    }
+
+    pub fn set_restore_tile_cost(&mut self, restore: bool) {
+        self.restore_tile_cost = restore;
     }
 
     // Spawn a GameObject (Building, Unit, Prop) or place a Tile
@@ -540,6 +554,8 @@ impl<'world> Spawner<'world> {
     pub fn despawn_tile(&self, tile: &Tile) {
         debug_assert!(tile.is_valid());
 
+        self.restore_tile_cost(tile.tile_def());
+
         let base_cell = tile.base_cell();
         let has_game_object = tile.game_object_handle().is_valid();
 
@@ -554,9 +570,7 @@ impl<'world> Spawner<'world> {
             self.despawn_prop_at_cell(base_cell);
         } else {
             // No GameObject, just remove the tile directly.
-            if let Err(err) =
-                self.query.tile_map().try_clear_tile_from_layer(base_cell, tile.layer_kind())
-            {
+            if let Err(err) = self.query.tile_map().try_clear_tile_from_layer(base_cell, tile.layer_kind()) {
                 despawn_error("Tile", &err);
             }
         }
@@ -601,9 +615,7 @@ impl<'world> Spawner<'world> {
     }
 
     pub fn despawn_building_at_cell(&self, building_base_cell: Cell) {
-        if let Err(err) =
-            self.query.world().despawn_building_at_cell(self.query, building_base_cell)
-        {
+        if let Err(err) = self.query.world().despawn_building_at_cell(self.query, building_base_cell) {
             despawn_error("Building", &err);
         }
     }
@@ -692,7 +704,7 @@ impl<'world> Spawner<'world> {
 
     #[inline]
     pub fn can_afford_tile(&self, tile_def: &'static TileDef) -> bool {
-        if tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
+        if self.subtract_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
             return self.query.treasury().can_afford(self.query.world(), tile_def.cost);
         }
         true
@@ -700,8 +712,15 @@ impl<'world> Spawner<'world> {
 
     #[inline]
     fn subtract_tile_cost(&self, tile_def: &'static TileDef) {
-        if tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
+        if self.subtract_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
             self.query.treasury().subtract_gold_units_global(self.query.world(), tile_def.cost);
+        }
+    }
+
+    #[inline]
+    fn restore_tile_cost(&self, tile_def: &'static TileDef) {
+        if self.restore_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
+            self.query.treasury().add_gold_units(tile_def.cost);
         }
     }
 
