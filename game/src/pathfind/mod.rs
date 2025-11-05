@@ -36,7 +36,7 @@ mod tests;
 bitflags_with_display! {
     #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct NodeKind: u16 {
-        const Dirt               = 1 << 0;
+        const EmptyLand          = 1 << 0;
         const Road               = 1 << 1;
         const Water              = 1 << 2;
         const Building           = 1 << 3;
@@ -109,12 +109,12 @@ impl NodeKind {
 
     #[inline]
     pub fn is_unit_placeable(self) -> bool {
-        self.intersects(Self::Dirt | Self::Road | Self::VacantLot | Self::SettlersSpawnPoint)
+        self.intersects(Self::EmptyLand | Self::Road | Self::VacantLot | Self::SettlersSpawnPoint)
     }
 
     #[inline]
     pub fn is_object_placeable(self) -> bool {
-        self.intersects(Self::Dirt)
+        self.intersects(Self::EmptyLand)
     }
 
     pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
@@ -127,7 +127,7 @@ impl NodeKind {
         }
 
         let ui = ui_sys.builder();
-        node_kind_ui_checkbox!(ui, self, Dirt);
+        node_kind_ui_checkbox!(ui, self, EmptyLand);
         node_kind_ui_checkbox!(ui, self, Road);
         node_kind_ui_checkbox!(ui, self, Water);
         node_kind_ui_checkbox!(ui, self, Building);
@@ -951,8 +951,8 @@ impl Search {
             // Paved road paths:
             destination_kinds |= NodeKind::BuildingRoadLink;
         }
-        if traversable_node_kinds.intersects(NodeKind::Dirt) {
-            // Dirt paths:
+        if traversable_node_kinds.intersects(NodeKind::EmptyLand) {
+            // Empty land paths:
             destination_kinds |= NodeKind::BuildingAccess;
         }
 

@@ -22,7 +22,7 @@
           "width": 64,
           "height": 64
         },
-        "terrain_tile_category": "ground",
+        "terrain_tile_category": "land",
         "terrain_tile_name": "grass"
       }
     }

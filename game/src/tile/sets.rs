@@ -26,7 +26,7 @@ use crate::{
 // ----------------------------------------------
 
 // Terrain Layer:
-pub const TERRAIN_GROUND_CATEGORY: StrHashPair = StrHashPair::from_str("ground");
+pub const TERRAIN_LAND_CATEGORY: StrHashPair = StrHashPair::from_str("land");
 pub const TERRAIN_WATER_CATEGORY: StrHashPair = StrHashPair::from_str("water");
 
 // Objects Layer:
@@ -51,6 +51,18 @@ impl PresetTiles {
     #[inline]
     pub const fn hash(self) -> StringHash {
         self as StringHash
+    }
+
+    #[inline]
+    pub fn find_tile_def(self) -> Option<&'static TileDef> {
+        let category_name_hash = if self == Self::Water {
+            TERRAIN_WATER_CATEGORY.hash
+        } else {
+            TERRAIN_LAND_CATEGORY.hash
+        };
+        TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
+                                              category_name_hash,
+                                              self.hash())
     }
 }
 

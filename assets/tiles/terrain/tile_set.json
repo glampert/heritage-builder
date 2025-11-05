@@ -2,11 +2,11 @@
   "layer": "Terrain",
   "categories": [
     {
-      "name": "ground",
+      "name": "land",
       "tile_defs": [
         {
           "name": "dirt",
-          "path_kind": "Dirt",
+          "path_kind": "EmptyLand",
           "randomize_placement": true,
           "draw_size": {
             "width": 65,
@@ -53,7 +53,7 @@
         },
         {
           "name": "grass",
-          "path_kind": "Dirt",
+          "path_kind": "EmptyLand",
           "randomize_placement": true,
           "draw_size": {
             "width": 65,

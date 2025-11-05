@@ -21,7 +21,7 @@
     {
       "name": "Settler",
       "tile_def_name": "settler",
-      "traversable_node_kinds": "Dirt | Road | VacantLot | SettlersSpawnPoint",
+      "traversable_node_kinds": "EmptyLand | Road | VacantLot | SettlersSpawnPoint",
       "movement_speed": 1.66
     },
     {
