@@ -32,6 +32,32 @@ const SUPPORTED_OBJECT_KINDS: TileKind =
     );
 
 // ----------------------------------------------
+// Macros
+// ----------------------------------------------
+
+#[macro_export]
+macro_rules! game_object_undo_redo_state {
+    ($struct_name:ident) => {
+        impl $crate::game::undo_redo::GameObjectSavedState for $struct_name {
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+        }
+
+        impl $struct_name {
+            fn new_state(instance: $struct_name) -> Option<Box<dyn $crate::game::undo_redo::GameObjectSavedState>> {
+                Some(Box::new(instance))
+            }
+            fn downcast(state: &dyn $crate::game::undo_redo::GameObjectSavedState) -> &$struct_name {
+                state.as_any()
+                    .downcast_ref::<$struct_name>()
+                    .unwrap_or_else(|| panic!("Expected an {} instance!", stringify!($struct_name)))
+            }
+        }
+    };
+}
+
+// ----------------------------------------------
 // Helper types
 // ----------------------------------------------
 

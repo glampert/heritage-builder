@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cmp::Reverse;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
@@ -10,6 +9,7 @@ use super::{
 use crate::{
     building_config,
     game_object_debug_options,
+    game_object_undo_redo_state,
     engine::time::{Seconds, UpdateTimer},
     game::{
         cheats,
@@ -128,10 +128,8 @@ struct UndoRedoServiceSavedState {
     stock_or_treasury: StockOrTreasury,
 }
 
-impl GameObjectSavedState for UndoRedoServiceSavedState {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+game_object_undo_redo_state! {
+    UndoRedoServiceSavedState
 }
 
 // ----------------------------------------------
@@ -387,16 +385,13 @@ impl BuildingBehavior for ServiceBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        let saved_state = UndoRedoServiceSavedState {
+        UndoRedoServiceSavedState::new_state(UndoRedoServiceSavedState {
             stock_or_treasury: self.stock_or_treasury.clone(),
-        };
-        Some(Box::new(saved_state))
+        })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = state.as_any()
-            .downcast_ref::<UndoRedoServiceSavedState>()
-            .expect("Expected an UndoRedoServiceSavedState instance!");
+        let saved_state = UndoRedoServiceSavedState::downcast(state);
 
         // NOTE: Only stock is preserved on undo/redo. Runners/patrols and workers are reset.
         match &mut self.stock_or_treasury {

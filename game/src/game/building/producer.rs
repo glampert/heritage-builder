@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cmp::Reverse;
 use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
@@ -11,6 +10,7 @@ use super::{
 use crate::{
     building_config,
     game_object_debug_options,
+    game_object_undo_redo_state,
     engine::time::{Seconds, UpdateTimer},
     game::{
         cheats,
@@ -139,10 +139,8 @@ struct UndoRedoProducerSavedState {
     production_output_stock: ProducerOutputLocalStock,
 }
 
-impl GameObjectSavedState for UndoRedoProducerSavedState {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+game_object_undo_redo_state! {
+    UndoRedoProducerSavedState
 }
 
 // ----------------------------------------------
@@ -352,17 +350,14 @@ impl BuildingBehavior for ProducerBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        let saved_state = UndoRedoProducerSavedState {
+        UndoRedoProducerSavedState::new_state(UndoRedoProducerSavedState {
             production_input_stock:  self.production_input_stock.clone(),
             production_output_stock: self.production_output_stock.clone(),
-        };
-        Some(Box::new(saved_state))
+        })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = state.as_any()
-            .downcast_ref::<UndoRedoProducerSavedState>()
-            .expect("Expected an UndoRedoProducerSavedState instance!");
+        let saved_state = UndoRedoProducerSavedState::downcast(state);
 
         // NOTE: Only stocks are preserved on undo/redo. Runners/harvesters and workers are reset.
         self.production_input_stock  = saved_state.production_input_stock.clone();

@@ -1,4 +1,3 @@
-use std::any::Any;
 use rand::Rng;
 use proc_macros::DrawDebugUi;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -14,6 +13,7 @@ use super::{
 use crate::{
     building_config,
     game_object_debug_options,
+    game_object_undo_redo_state,
     log,
     imgui_ui::UiSystem,
     save::PostLoadContext,
@@ -195,10 +195,8 @@ struct UndoRedoHouseSavedState {
     stock: BuildingStock,
 }
 
-impl GameObjectSavedState for UndoRedoHouseSavedState {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+game_object_undo_redo_state! {
+    UndoRedoHouseSavedState
 }
 
 // ----------------------------------------------
@@ -381,17 +379,14 @@ impl BuildingBehavior for HouseBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        let saved_state = UndoRedoHouseSavedState {
+        UndoRedoHouseSavedState::new_state(UndoRedoHouseSavedState {
             tax_available: self.tax_available,
             stock: self.stock.clone(),
-        };
-        Some(Box::new(saved_state))
+        })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = state.as_any()
-            .downcast_ref::<UndoRedoHouseSavedState>()
-            .expect("Expected an UndoRedoHouseSavedState instance!");
+        let saved_state = UndoRedoHouseSavedState::downcast(state);
 
         // NOTE: We don't preserve household population and workers on undo/redo.
         // When a house is destroyed, it will evict a settler that carries the house

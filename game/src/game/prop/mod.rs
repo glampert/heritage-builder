@@ -1,4 +1,3 @@
-use std::any::Any;
 use serde::{Deserialize, Serialize};
 use proc_macros::DrawDebugUi;
 
@@ -17,6 +16,7 @@ use super::{
 };
 use crate::{
     game_object_debug_options,
+    game_object_undo_redo_state,
     imgui_ui::UiSystem,
     save::PostLoadContext,
     engine::time::{CountdownTimer, Seconds},
@@ -68,10 +68,8 @@ struct UndoRedoPropSavedState {
     initial_variation: u32,
 }
 
-impl GameObjectSavedState for UndoRedoPropSavedState {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+game_object_undo_redo_state! {
+    UndoRedoPropSavedState
 }
 
 // ----------------------------------------------
@@ -134,19 +132,15 @@ impl GameObject for Prop {
     }
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        let saved_state = UndoRedoPropSavedState {
+        UndoRedoPropSavedState::new_state(UndoRedoPropSavedState {
             harvestable_amount: self.harvestable.amount,
             respawn_countdown: self.harvestable.respawn_timer.remaining_secs(),
             initial_variation: self.harvestable.initial_variation,
-        };
-        Some(Box::new(saved_state))
+        })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = state.as_any()
-            .downcast_ref::<UndoRedoPropSavedState>()
-            .expect("Expected an UndoRedoPropSavedState instance!");
-
+        let saved_state = UndoRedoPropSavedState::downcast(state);
         self.harvestable.amount = saved_state.harvestable_amount;
         self.harvestable.respawn_timer.reset(saved_state.respawn_countdown);
         self.harvestable.initial_variation = saved_state.initial_variation;

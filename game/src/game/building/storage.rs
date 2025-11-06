@@ -1,4 +1,3 @@
-use std::any::Any;
 use arrayvec::ArrayVec;
 use proc_macros::DrawDebugUi;
 use rand::seq::IteratorRandom;
@@ -12,6 +11,7 @@ use super::{
 use crate::{
     building_config,
     game_object_debug_options,
+    game_object_undo_redo_state,
     game::{
         cheats,
         sim::resources::{ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers},
@@ -89,10 +89,8 @@ struct UndoRedoStorageSavedState {
     storage_slots: StorageSlots,
 }
 
-impl GameObjectSavedState for UndoRedoStorageSavedState {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+game_object_undo_redo_state! {
+    UndoRedoStorageSavedState
 }
 
 // ----------------------------------------------
@@ -275,16 +273,13 @@ impl BuildingBehavior for StorageBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        let saved_state = UndoRedoStorageSavedState {
+        UndoRedoStorageSavedState::new_state(UndoRedoStorageSavedState {
             storage_slots: self.storage_slots.as_ref().clone(),
-        };
-        Some(Box::new(saved_state))
+        })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = state.as_any()
-            .downcast_ref::<UndoRedoStorageSavedState>()
-            .expect("Expected an UndoRedoStorageSavedState instance!");
+        let saved_state = UndoRedoStorageSavedState::downcast(state);
 
         // NOTE: Only stock is preserved on undo/redo. Runners and workers are reset.
         *self.storage_slots = saved_state.storage_slots.clone();
