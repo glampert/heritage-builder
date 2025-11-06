@@ -179,7 +179,7 @@ impl DevEditorMenusSingleton {
         }
 
         if show_world_perf_stats {
-            utils::draw_world_perf_stats(menu_context.ui_sys, menu_context.world);
+            utils::draw_world_perf_stats(menu_context.ui_sys, menu_context.world, menu_context.tile_map);
         }
 
         if show_screen_origin {

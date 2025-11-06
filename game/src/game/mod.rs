@@ -185,6 +185,7 @@ impl GameSession {
     fn reset(&mut self, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
         undo_redo::clear();
         self.tile_selection = TileSelection::default();
+        self.sim.reset_world(&mut self.world, &mut self.systems, &mut self.tile_map);
 
         if reset_map && self.tile_map.size_in_cells().is_valid() {
             self.tile_map.reset(reset_map_with_tile_def, new_map_size);
@@ -208,7 +209,7 @@ impl GameSession {
             self.camera.set_map_size_in_cells(self.tile_map.size_in_cells());
         }
 
-        self.sim.reset(&mut self.world, &mut self.systems, &mut self.tile_map);
+        self.sim.reset_search_graph(&self.tile_map);
     }
 }
 

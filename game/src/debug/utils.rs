@@ -179,7 +179,7 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem,
       });
 }
 
-pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World) {
+pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World, tile_map: &TileMap) {
     let ui = ui_sys.builder();
 
     let window_flags = imgui::WindowFlags::NO_DECORATION
@@ -190,7 +190,7 @@ pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World) {
                        | imgui::WindowFlags::NO_MOUSE_INPUTS;
 
     // Place the window at the bottom-left corner of the screen.
-    let window_position = [5.0, ui.io().display_size[1] - 70.0];
+    let window_position = [5.0, ui.io().display_size[1] - 205.0];
 
     ui.window("Game Stats")
       .position(window_position, imgui::Condition::Always)
@@ -202,9 +202,36 @@ pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World) {
           let (units_spawned, peak_units_spawned) = world.units_stats();
           let (props_spawned, peak_props_spawned) = world.prop_stats();
 
-          ui.text(format!("Buildings: {buildings_spawned} | Peak: {peak_buildings_spawned}"));
-          ui.text(format!("Units: {units_spawned} | Peak: {peak_units_spawned}"));
-          ui.text(format!("Props: {props_spawned} | Peak: {peak_props_spawned}"));
+          let mut building_tiles = 0;
+          let mut blocker_tiles = 0;
+          let mut unit_tiles = 0;
+          let mut vegetation_tiles = 0;
+          let mut rock_tiles = 0;
+
+          tile_map.for_each_tile(TileMapLayerKind::Objects, TileKind::Object, |tile| {
+              if tile.is(TileKind::Building) {
+                  building_tiles += 1;
+              } else if tile.is(TileKind::Blocker) {
+                  blocker_tiles += 1;
+              } else if tile.is(TileKind::Unit) {
+                  unit_tiles += 1;
+              } else if tile.is(TileKind::Vegetation) {
+                  vegetation_tiles += 1;
+              } else if tile.is(TileKind::Rocks) {
+                  rock_tiles += 1;
+              }
+          });
+
+          ui.text("Game Objects:");
+          ui.text(format!("- Buildings  : {buildings_spawned} | Peak: {peak_buildings_spawned}"));
+          ui.text(format!("- Units      : {units_spawned} | Peak: {peak_units_spawned}"));
+          ui.text(format!("- Props      : {props_spawned} | Peak: {peak_props_spawned}"));
+          ui.text("Tiles:");
+          ui.text(format!("- Buildings  : {building_tiles}"));
+          ui.text(format!("- Blockers   : {blocker_tiles}"));
+          ui.text(format!("- Units      : {unit_tiles}"));
+          ui.text(format!("- Vegetation : {vegetation_tiles}"));
+          ui.text(format!("- Rocks      : {rock_tiles}"));
       });
 }
 
