@@ -138,9 +138,11 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
             }
         }
 
-        // Objects layer mut be empty.
-        if layers.get(TileMapLayerKind::Objects).try_tile(target_cell).is_some() {
-            return Err(format!("Cannot place terrain tile '{}' here.", tile_def_to_place.name));
+        // Cannot place water under existing objects.
+        if layers.get(TileMapLayerKind::Objects).try_tile(target_cell).is_some()
+            && tile_def_to_place.path_kind.is_water()
+        {
+            return Err("Cannot place water tile here.".into());
         }
     }
 

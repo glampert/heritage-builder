@@ -10,7 +10,7 @@ use crate::{
     game::{
         world::{object::{Spawner, SpawnerResult}, World},
         sim::{Query, Simulation}, system::GameSystems,
-        undo_redo::{self, EditAction},
+        undo_redo::{self, EditAction, EditedLayer},
     },
     tile::{
         Tile, TileKind, TileMap, TileMapLayerKind, selection::TileSelection,
@@ -220,15 +220,18 @@ pub trait GameMenusSystem: Save + Load {
 
                         // Ensure each cell is unique with a hash set.
                         let mut clearable_cells: SmallSet<64, Cell> = SmallSet::new();
+                        let mut layers = EditedLayer::empty();
 
                         for &cell in context.tile_selection.cells() {
                             if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
                                 if TilePlacement::can_clear(tile) {
                                     clearable_cells.insert(cell);
+                                    layers |= EditedLayer::Objects;
                                 }
                             } else if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
                                 if TilePlacement::can_clear(tile) {
                                     clearable_cells.insert(cell);
+                                    layers |= EditedLayer::Terrain;
                                 }
                             }
                         }
@@ -236,15 +239,21 @@ pub trait GameMenusSystem: Save + Load {
                         if !clearable_cells.is_empty() {
                             undo_redo::record(EditAction::ClearingTiles,
                                               clearable_cells.iter(),
+                                              layers,
                                               context.tile_map,
                                               context.world);
 
                             for (&cell, _) in clearable_cells.iter() {
-                                if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                                    TilePlacement::clear(&query, tile, false, false);
+                                if layers.intersects(EditedLayer::Objects) {
+                                    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                                        TilePlacement::clear(&query, tile, false, false);
+                                    }
                                 }
-                                if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-                                    TilePlacement::clear(&query, tile, false, false);
+
+                                if layers.intersects(EditedLayer::Terrain) {
+                                    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
+                                        TilePlacement::clear(&query, tile, false, false);
+                                    }
                                 }
                             }
 
@@ -329,6 +338,7 @@ impl TilePlacement {
 
             undo_redo::record(EditAction::PlacedTiles,
                               &self.current_road_segment.path,
+                              EditedLayer::Terrain,
                               context.tile_map,
                               context.world);
         }
@@ -426,8 +436,14 @@ impl TilePlacement {
 
         if spawn_result.is_ok() {
             if undo_redo {
+                let layers = if tile_def.is(TileKind::Terrain) {
+                    EditedLayer::Terrain
+                } else {
+                    EditedLayer::Objects
+                };
                 undo_redo::record(EditAction::PlacedTiles,
                                   &[target_cell],
+                                  layers,
                                   query.tile_map(),
                                   query.world());
             }
@@ -453,8 +469,14 @@ impl TilePlacement {
             let target_cell  = tile.base_cell();
 
             if undo_redo {
+                let layers = if is_terrain {
+                    EditedLayer::Terrain
+                } else {
+                    EditedLayer::Objects
+                };
                 undo_redo::record(EditAction::ClearingTiles,
                                   &[target_cell],
+                                  layers,
                                   query.tile_map(),
                                   query.world());
             }
@@ -466,10 +488,10 @@ impl TilePlacement {
 
             if is_road || is_vacant_lot {
                 // Replace removed road tile with a regular terrain tile.
-                let replacement_tile_def = PresetTiles::Grass.find_tile_def();
-
-                if let Some(tile_def) = replacement_tile_def {
-                    let _ = spawner.try_spawn_tile_with_def(target_cell, tile_def);
+                if let Some(terrain_tile_def) = PresetTiles::Grass.find_tile_def() {
+                    if let SpawnerResult::Err(err) = spawner.try_spawn_tile_with_def(target_cell, terrain_tile_def) {
+                        log::error!("Failed to place tile '{}': {}", terrain_tile_def.name, err);
+                    }
                 } else {
                     log::error!("Cannot find TileDef '{}' to replace removed tile!", PresetTiles::Grass);
                 }

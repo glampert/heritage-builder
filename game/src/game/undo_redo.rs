@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::collections::VecDeque;
+use bitflags::bitflags;
 
 use crate::{
     log,
@@ -245,7 +246,7 @@ impl UndoRedoSingleton {
         self.redo_stack.clear();
     }
 
-    fn record<I, C>(&mut self, action: EditAction, affected_cells: I, tile_map: &TileMap, world: &World)
+    fn record<I, C>(&mut self, action: EditAction, affected_cells: I, layers: EditedLayer, tile_map: &TileMap, world: &World)
         where
             I: IntoIterator<Item = C>,
             C: CellKey,
@@ -256,18 +257,22 @@ impl UndoRedoSingleton {
             let cell = *cell_key.to_cell();
             let mut saved_state = SavedState::default();
 
-            if let Some(terrain_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-                if terrain_tile.path_kind().intersects(SUPPORTED_TERRAIN_KINDS) {
-                    saved_state.terrain_tile_state = record_tile_state(terrain_tile);
+            if layers.intersects(EditedLayer::Terrain) {
+                if let Some(terrain_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
+                    if terrain_tile.path_kind().intersects(SUPPORTED_TERRAIN_KINDS) {
+                        saved_state.terrain_tile_state = record_tile_state(terrain_tile);
+                    }
                 }
             }
 
-            if let Some(object_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                if object_tile.is(SUPPORTED_OBJECT_KINDS) {
-                    saved_state.object_tile_state = record_tile_state(object_tile);
+            if layers.intersects(EditedLayer::Objects) {
+                if let Some(object_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                    if object_tile.is(SUPPORTED_OBJECT_KINDS) {
+                        saved_state.object_tile_state = record_tile_state(object_tile);
 
-                    if let Some(game_object) = world.find_game_object_for_tile(object_tile) {
-                        saved_state.game_object_state = game_object.undo_redo_record();
+                        if let Some(game_object) = world.find_game_object_for_tile(object_tile) {
+                            saved_state.game_object_state = game_object.undo_redo_record();
+                        }
                     }
                 }
             }
@@ -326,6 +331,14 @@ pub enum EditAction {
     ClearingTiles,
 }
 
+bitflags! {
+    #[derive(Copy, Clone)]
+    pub struct EditedLayer: u32 {
+        const Terrain = 1 << 0;
+        const Objects = 1 << 1;
+    }
+}
+
 pub fn initialize() {
     UndoRedoSingleton::initialize(UndoRedoSingleton::new());
 }
@@ -334,12 +347,12 @@ pub fn clear() {
     UndoRedoSingleton::get_mut().clear();
 }
 
-pub fn record<I, C>(action: EditAction, affected_cells: I, tile_map: &TileMap, world: &World)
+pub fn record<I, C>(action: EditAction, affected_cells: I, layers: EditedLayer, tile_map: &TileMap, world: &World)
     where
         I: IntoIterator<Item = C>,
         C: CellKey,
 {
-    UndoRedoSingleton::get_mut().record(action, affected_cells, tile_map, world);
+    UndoRedoSingleton::get_mut().record(action, affected_cells, layers, tile_map, world);
 }
 
 pub fn undo(query: &Query) {
