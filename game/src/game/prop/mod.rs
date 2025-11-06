@@ -1,3 +1,4 @@
+use std::any::Any;
 use serde::{Deserialize, Serialize};
 use proc_macros::DrawDebugUi;
 
@@ -11,13 +12,14 @@ use super::{
         object::{GameObject, GenerationalIndex},
         stats::WorldStats,
     },
+    undo_redo::GameObjectSavedState,
     unit::UnitId,
 };
 use crate::{
     game_object_debug_options,
     imgui_ui::UiSystem,
     save::PostLoadContext,
-    engine::time::CountdownTimer,
+    engine::time::{CountdownTimer, Seconds},
     tile::{Tile, TileKind, TileMapLayerKind},
     utils::{
         coords::{Cell, CellRange, WorldToScreenTransform},
@@ -54,6 +56,22 @@ struct HarvestablePropState {
     respawn_timer: CountdownTimer,
     harvester_unit: UnitId,
     initial_variation: u32,
+}
+
+// ----------------------------------------------
+// UndoRedoPropSavedState
+// ----------------------------------------------
+
+struct UndoRedoPropSavedState {
+    harvestable_amount: u32,
+    respawn_countdown: Seconds,
+    initial_variation: u32,
+}
+
+impl GameObjectSavedState for UndoRedoPropSavedState {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 // ----------------------------------------------
@@ -113,6 +131,25 @@ impl GameObject for Prop {
         let config = PropConfigs::get().find_config_by_hash(self.config_key, "<prop>");
 
         self.config = Some(config);
+    }
+
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
+        let saved_state = UndoRedoPropSavedState {
+            harvestable_amount: self.harvestable.amount,
+            respawn_countdown: self.harvestable.respawn_timer.remaining_secs(),
+            initial_variation: self.harvestable.initial_variation,
+        };
+        Some(Box::new(saved_state))
+    }
+
+    fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
+        let saved_state = state.as_any()
+            .downcast_ref::<UndoRedoPropSavedState>()
+            .expect("Expected an UndoRedoPropSavedState instance!");
+
+        self.harvestable.amount = saved_state.harvestable_amount;
+        self.harvestable.respawn_timer.reset(saved_state.respawn_countdown);
+        self.harvestable.initial_variation = saved_state.initial_variation;
     }
 
     fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem, mode: DebugUiMode) {

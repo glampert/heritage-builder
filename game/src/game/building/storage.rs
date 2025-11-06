@@ -1,3 +1,4 @@
+use std::any::Any;
 use arrayvec::ArrayVec;
 use proc_macros::DrawDebugUi;
 use rand::seq::IteratorRandom;
@@ -19,14 +20,12 @@ use crate::{
             Unit,
         },
         world::stats::WorldStats,
+        undo_redo::GameObjectSavedState,
     },
+    tile::Tile,
     imgui_ui::UiSystem,
     save::PostLoadContext,
-    tile::Tile,
-    utils::{
-        hash::{self, StringHash},
-        Color,
-    },
+    utils::{hash::{self, StringHash}, Color},
 };
 
 // ----------------------------------------------
@@ -80,6 +79,20 @@ building_config! {
 
 game_object_debug_options! {
     StorageDebug,
+}
+
+// ----------------------------------------------
+// UndoRedoStorageSavedState
+// ----------------------------------------------
+
+struct UndoRedoStorageSavedState {
+    storage_slots: StorageSlots,
+}
+
+impl GameObjectSavedState for UndoRedoStorageSavedState {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 // ----------------------------------------------
@@ -255,6 +268,26 @@ impl BuildingBehavior for StorageBuilding {
             return true;
         }
         self.workers.as_employer().unwrap().has_min_required()
+    }
+
+    // ----------------------
+    // Undo/Redo:
+    // ----------------------
+
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
+        let saved_state = UndoRedoStorageSavedState {
+            storage_slots: self.storage_slots.as_ref().clone(),
+        };
+        Some(Box::new(saved_state))
+    }
+
+    fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
+        let saved_state = state.as_any()
+            .downcast_ref::<UndoRedoStorageSavedState>()
+            .expect("Expected an UndoRedoStorageSavedState instance!");
+
+        // NOTE: Only stock is preserved on undo/redo. Runners and workers are reset.
+        *self.storage_slots = saved_state.storage_slots.clone();
     }
 
     // ----------------------

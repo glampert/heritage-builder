@@ -14,6 +14,7 @@ use crate::{
         cheats,
         constants::*,
         building::Building,
+        undo_redo::GameObjectSavedState,
         sim::{debug::DebugUiMode, Query},
         unit::{config::UnitConfigKey, Unit},
         prop::Prop,
@@ -94,11 +95,27 @@ pub trait GameObject {
         self.id().is_valid()
     }
 
+    // Update:
     fn update(&mut self, query: &Query);
     fn tally(&self, stats: &mut WorldStats);
+
+    // Save/load support:
     fn post_load(&mut self, context: &PostLoadContext);
 
-    fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem, mode: DebugUiMode);
+    // Optional undo/redo support:
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
+        None
+    }
+
+    fn undo_redo_apply(&mut self, _state: &dyn GameObjectSavedState) {
+    }
+
+    // Debug:
+    fn draw_debug_ui(&mut self,
+                     query: &Query,
+                     ui_sys: &UiSystem,
+                     mode: DebugUiMode);
+
     fn draw_debug_popups(&mut self,
                          query: &Query,
                          ui_sys: &UiSystem,
@@ -506,10 +523,12 @@ impl<'world> Spawner<'world> {
         }
     }
 
+    #[inline]
     pub fn set_subtract_tile_cost(&mut self, subtract: bool) {
         self.subtract_tile_cost = subtract;
     }
 
+    #[inline]
     pub fn set_restore_tile_cost(&mut self, restore: bool) {
         self.restore_tile_cost = restore;
     }

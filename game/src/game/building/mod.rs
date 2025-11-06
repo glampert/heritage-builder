@@ -25,6 +25,7 @@ use super::{
         },
     },
     unit::{patrol::Patrol, runner::Runner, Unit},
+    undo_redo::GameObjectSavedState,
     world::{
         stats::WorldStats,
         debug::GameObjectDebugOptions,
@@ -295,6 +296,17 @@ impl GameObject for Building {
         debug_assert!(tile.is_valid());
 
         self.archetype_mut().post_load(context, kind, tile);
+    }
+
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
+        self.archetype().undo_redo_record()
+    }
+
+    fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
+        self.archetype_mut().undo_redo_apply(state);
+
+        // Force a workers update right after this.
+        self.workers_update_timer.force_update();
     }
 
     fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem, mode: DebugUiMode) {
@@ -1195,6 +1207,17 @@ trait BuildingBehavior {
 
     fn has_min_required_workers(&self) -> bool {
         true
+    }
+
+    // ----------------------
+    // Undo/Redo:
+    // ----------------------
+
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
+        None
+    }
+
+    fn undo_redo_apply(&mut self, _state: &dyn GameObjectSavedState) {
     }
 
     // ----------------------

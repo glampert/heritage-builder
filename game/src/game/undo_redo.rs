@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::VecDeque;
 
 use crate::{
@@ -5,12 +6,12 @@ use crate::{
     singleton_late_init,
     utils::coords::Cell,
     pathfind::NodeKind as PathNodeKind,
+    game::{world::World, sim::Query, menu::TilePlacement},
     tile::{Tile, TileKind, TileFlags, TileMap, TileMapLayerKind, sets::TileDef},
-    game::{world::{World, object::GameObject}, sim::Query, menu::TilePlacement},
 };
 
 // ----------------------------------------------
-// Undo/Redo Support
+// Constants
 // ----------------------------------------------
 
 const UNDO_REDO_STACK_MAX_SIZE: usize = 16;
@@ -30,28 +31,26 @@ const SUPPORTED_OBJECT_KINDS: TileKind =
         | TileKind::Vegetation.bits()
     );
 
-#[derive(Copy, Clone)]
-enum Command {
-    Undo,
-    Redo,
+// ----------------------------------------------
+// Helper types
+// ----------------------------------------------
+
+pub trait GameObjectSavedState {
+    fn as_any(&self) -> &dyn Any;
 }
 
 struct TileSavedState {
     tile_base_cell: Cell,
     tile_def: &'static TileDef,
     tile_flags: TileFlags,
-    tile_variation_index: usize,
-}
-
-struct GameObjectSavedState {
-    // TODO: serialize game object.
+    tile_variation_index: u32,
 }
 
 #[derive(Default)]
 struct SavedState {
     terrain_tile_state: Option<TileSavedState>,
     object_tile_state:  Option<TileSavedState>,
-    game_object_state:  Option<GameObjectSavedState>,
+    game_object_state:  Option<Box<dyn GameObjectSavedState>>,
 }
 
 impl SavedState {
@@ -62,51 +61,61 @@ impl SavedState {
     }
 }
 
-fn save_tile_state(tile: &Tile) -> Option<TileSavedState> {
+fn record_tile_state(tile: &Tile) -> Option<TileSavedState> {
     Some(TileSavedState {
         tile_base_cell: tile.base_cell(),
         tile_def: tile.tile_def(),
         tile_flags: tile.flags(),
-        tile_variation_index: tile.variation_index(),
+        tile_variation_index: tile.variation_index().try_into().unwrap(),
     })
 }
 
-fn save_game_object_state(_object: &dyn GameObject) -> Option<GameObjectSavedState> {
-    //let c = object.clone();
-    // TODO: serialize game object.
-    Some(GameObjectSavedState {})
+pub trait CellKey {
+    fn to_cell(&self) -> &Cell;
 }
 
-// ----------------------------------------------
-// Undo/Redo Record
-// ----------------------------------------------
+impl CellKey for &Cell {
+    #[inline]
+    fn to_cell(&self) -> &Cell { self }
+}
+
+// Allows us to get Cells from HashMap pairs.
+impl<T> CellKey for (&Cell, T) {
+    #[inline]
+    fn to_cell(&self) -> &Cell { self.0 }
+}
+
+#[derive(Copy, Clone)]
+enum Command {
+    Undo,
+    Redo,
+}
 
 struct Record {
     action: EditAction,
     saved_states: Vec<SavedState>,
 }
 
-// Undo:
-// - Place Tiles: Delete tiles added.
-// - Clear Tiles: Place back deleted tiles.
-//
-// Redo:
-// - Place Tiles: Place back deleted tiles.
-// - Clear Tiles: Delete tiles added.
-//
 impl Record {
+    // Undo:
+    // - Place Tiles: Delete tiles added.
+    // - Clear Tiles: Place back deleted tiles.
+    //
+    // Redo:
+    // - Place Tiles: Place back deleted tiles.
+    // - Clear Tiles: Delete tiles added.
     fn apply_action(&self, command: Command, query: &Query) {
         match command {
             Command::Undo => {
                 match self.action {
-                    EditAction::PlacedTiles   => self.clear_tiles(query),
+                    EditAction::PlacedTiles   => self.clear_tiles(query, true),
                     EditAction::ClearingTiles => self.place_tiles(query, false),
                 }
             }
             Command::Redo => {
                 match self.action {
                     EditAction::PlacedTiles   => self.place_tiles(query, true),
-                    EditAction::ClearingTiles => self.clear_tiles(query),
+                    EditAction::ClearingTiles => self.clear_tiles(query, false),
                 }
             }
         }
@@ -131,7 +140,7 @@ impl Record {
                     if let Some(game_object) =
                         query.world().find_game_object_for_tile_mut(object_tile)
                     {
-                        Self::apply_game_object_state(game_object, game_object_state);
+                        game_object.undo_redo_apply(game_object_state.as_ref());
                     }
                 }
             }
@@ -154,7 +163,7 @@ impl Record {
 
         if TilePlacement::place(query, target_cell, tile_def, subtract_tile_cost, false).is_ok() {
             if let Some(tile) = query.find_tile_mut(target_cell, layer, tile_def.kind()) {
-                tile.set_variation_index(tile_variation_index);
+                tile.set_variation_index(tile_variation_index as usize);
                 if !tile_flags.is_empty() {
                     tile.set_flags(tile_flags, true);
                 }
@@ -165,29 +174,25 @@ impl Record {
         None
     }
 
-    fn clear_tiles(&self, query: &Query) {
+    fn clear_tiles(&self, query: &Query, restore_tile_cost: bool) {
         for state in &self.saved_states {
             if let Some(terrain_tile_state) = &state.terrain_tile_state {
-                Self::clear_tile(query, TileMapLayerKind::Terrain, terrain_tile_state);
+                Self::clear_tile(query, TileMapLayerKind::Terrain, terrain_tile_state, restore_tile_cost);
             }
 
             if let Some(object_tile_state) = &state.object_tile_state {
-                Self::clear_tile(query, TileMapLayerKind::Objects, object_tile_state);
+                Self::clear_tile(query, TileMapLayerKind::Objects, object_tile_state, restore_tile_cost);
             }
         }
     }
 
-    fn clear_tile(query: &Query, layer: TileMapLayerKind, tile_state: &TileSavedState) {
+    fn clear_tile(query: &Query, layer: TileMapLayerKind, tile_state: &TileSavedState, restore_tile_cost: bool) {
         let tile_def = tile_state.tile_def;
         debug_assert!(tile_def.layer_kind() == layer);
 
         if let Some(tile) = query.find_tile(tile_state.tile_base_cell, layer, tile_def.kind()) {
-            TilePlacement::clear(query, tile, true, false);
+            TilePlacement::clear(query, tile, restore_tile_cost, false);
         }
-    }
-
-    fn apply_game_object_state(_game_object: &mut dyn GameObject, _game_object_state: &GameObjectSavedState) {
-        // TODO!
     }
 }
 
@@ -195,6 +200,7 @@ impl Record {
 // UndoRedoSingleton
 // ----------------------------------------------
 
+// Holds the undo/redo stacks.
 struct UndoRedoSingleton {
     undo_stack: VecDeque<Record>,
     redo_stack: VecDeque<Record>,
@@ -226,16 +232,16 @@ impl UndoRedoSingleton {
 
             if let Some(terrain_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
                 if terrain_tile.path_kind().intersects(SUPPORTED_TERRAIN_KINDS) {
-                    saved_state.terrain_tile_state = save_tile_state(terrain_tile);
+                    saved_state.terrain_tile_state = record_tile_state(terrain_tile);
                 }
             }
 
             if let Some(object_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
                 if object_tile.is(SUPPORTED_OBJECT_KINDS) {
-                    saved_state.object_tile_state = save_tile_state(object_tile);
+                    saved_state.object_tile_state = record_tile_state(object_tile);
 
                     if let Some(game_object) = world.find_game_object_for_tile(object_tile) {
-                        saved_state.game_object_state = save_game_object_state(game_object);
+                        saved_state.game_object_state = game_object.undo_redo_record();
                     }
                 }
             }
@@ -266,7 +272,7 @@ impl UndoRedoSingleton {
 
     fn undo(&mut self, query: &Query) {
         if let Some(record) = self.undo_stack.pop_back() {
-            log::info!(log::channel!("undo_redo"), "Undo: {:?}", record.action);
+            log::info!(log::channel!("undo_redo"), "Undo: {:?} ({} items)", record.action, record.saved_states.len());
             record.apply_action(Command::Undo, query);
             self.push_redo_record(record);
         }
@@ -274,7 +280,7 @@ impl UndoRedoSingleton {
 
     fn redo(&mut self, query: &Query) {
         if let Some(record) = self.redo_stack.pop_back() {
-            log::info!(log::channel!("undo_redo"), "Redo: {:?}", record.action);
+            log::info!(log::channel!("undo_redo"), "Redo: {:?} ({} items)", record.action, record.saved_states.len());
             record.apply_action(Command::Redo, query);
             self.push_undo_record(record);
         }
@@ -316,19 +322,4 @@ pub fn undo(query: &Query) {
 
 pub fn redo(query: &Query) {
     UndoRedoSingleton::get_mut().redo(query);
-}
-
-pub trait CellKey {
-    fn to_cell(&self) -> &Cell;
-}
-
-impl CellKey for &Cell {
-    #[inline]
-    fn to_cell(&self) -> &Cell { self }
-}
-
-// Allows us to get Cells from HashMap pairs.
-impl<T> CellKey for (&Cell, T) {
-    #[inline]
-    fn to_cell(&self) -> &Cell { self.0 }
 }

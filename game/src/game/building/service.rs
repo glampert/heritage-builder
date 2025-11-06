@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cmp::Reverse;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,7 @@ use crate::{
             Unit, UnitTaskHelper,
         },
         world::{object::GameObject, stats::WorldStats},
+        undo_redo::GameObjectSavedState,
     },
     log,
     imgui_ui::UiSystem,
@@ -119,6 +121,20 @@ game_object_debug_options! {
 }
 
 // ----------------------------------------------
+// UndoRedoServiceSavedState
+// ----------------------------------------------
+
+struct UndoRedoServiceSavedState {
+    stock_or_treasury: StockOrTreasury,
+}
+
+impl GameObjectSavedState for UndoRedoServiceSavedState {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+// ----------------------------------------------
 // ServiceBuilding
 // ----------------------------------------------
 
@@ -126,6 +142,7 @@ game_object_debug_options! {
 pub struct ServiceBuilding {
     #[serde(skip)]
     config: Option<&'static ServiceConfig>,
+
     workers: Workers,
 
     // Stock of required resources for this service or a treasury for a TaxOffice.
@@ -363,6 +380,36 @@ impl BuildingBehavior for ServiceBuilding {
             return true;
         }
         self.workers.as_employer().unwrap().has_min_required()
+    }
+
+    // ----------------------
+    // Undo/Redo:
+    // ----------------------
+
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
+        let saved_state = UndoRedoServiceSavedState {
+            stock_or_treasury: self.stock_or_treasury.clone(),
+        };
+        Some(Box::new(saved_state))
+    }
+
+    fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
+        let saved_state = state.as_any()
+            .downcast_ref::<UndoRedoServiceSavedState>()
+            .expect("Expected an UndoRedoServiceSavedState instance!");
+
+        // NOTE: Only stock is preserved on undo/redo. Runners/patrols and workers are reset.
+        match &mut self.stock_or_treasury {
+            StockOrTreasury::Stock { stock, .. } => {
+                *stock = saved_state.stock_or_treasury.as_stock().clone();
+            }
+            StockOrTreasury::Treasury { gold_units } => {
+                *gold_units = saved_state.stock_or_treasury.as_treasury();
+            }
+            StockOrTreasury::None => {
+                debug_assert!(matches!(saved_state.stock_or_treasury, StockOrTreasury::None));
+            }
+        }
     }
 
     // ----------------------
@@ -627,6 +674,13 @@ impl StockOrTreasury {
         match self {
             Self::Stock { stock, .. } => stock,
             _ => panic!("Not a BuildingStock!"),
+        }
+    }
+
+    fn as_treasury(&self) -> u32 {
+        match self {
+            Self::Treasury { gold_units, .. } => *gold_units,
+            _ => panic!("Not a Treasury!"),
         }
     }
 }

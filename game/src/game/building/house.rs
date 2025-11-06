@@ -1,3 +1,4 @@
+use std::any::Any;
 use rand::Rng;
 use proc_macros::DrawDebugUi;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -7,8 +8,8 @@ use strum::EnumCount;
 
 use super::{
     config::{BuildingConfig, BuildingConfigs},
-    house_upgrade, Building, BuildingBehavior, BuildingContext, BuildingKind, BuildingKindAndId,
-    BuildingStock,
+    house_upgrade, Building, BuildingBehavior, BuildingContext,
+    BuildingKind, BuildingKindAndId, BuildingStock,
 };
 use crate::{
     building_config,
@@ -18,17 +19,16 @@ use crate::{
     save::PostLoadContext,
     tile::{sets::TileDef, Tile},
     engine::time::{Seconds, UpdateTimer},
+    utils::{hash::{self, StringHash}, Color},
     game::{
         sim::resources::{
-            Population, ResourceKind, ResourceKinds, ServiceKind, ServiceKinds, Workers,
+            Population, ResourceKind, ResourceKinds,
+            ServiceKind, ServiceKinds, Workers,
         },
         system::settlers::Settler,
-        unit::Unit,
         world::stats::WorldStats,
-    },
-    utils::{
-        hash::{self, StringHash},
-        Color,
+        undo_redo::GameObjectSavedState,
+        unit::Unit,
     },
 };
 
@@ -184,6 +184,21 @@ game_object_debug_options! {
 
     // Stops tax income from being generated.
     freeze_tax_generation: bool,
+}
+
+// ----------------------------------------------
+// UndoRedoHouseSavedState
+// ----------------------------------------------
+
+struct UndoRedoHouseSavedState {
+    tax_available: u32,
+    stock: BuildingStock,
+}
+
+impl GameObjectSavedState for UndoRedoHouseSavedState {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 // ----------------------------------------------
@@ -359,6 +374,31 @@ impl BuildingBehavior for HouseBuilding {
     }
     fn workers_mut(&mut self) -> Option<&mut Workers> {
         Some(&mut self.workers)
+    }
+
+    // ----------------------
+    // Undo/Redo:
+    // ----------------------
+
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
+        let saved_state = UndoRedoHouseSavedState {
+            tax_available: self.tax_available,
+            stock: self.stock.clone(),
+        };
+        Some(Box::new(saved_state))
+    }
+
+    fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
+        let saved_state = state.as_any()
+            .downcast_ref::<UndoRedoHouseSavedState>()
+            .expect("Expected an UndoRedoHouseSavedState instance!");
+
+        // NOTE: We don't preserve household population and workers on undo/redo.
+        // When a house is destroyed, it will evict a settler that carries the house
+        // population, so we can't retain it since the settler might have settled
+        // elsewhere. Only the house resources and tax will be preserved.
+        self.tax_available = saved_state.tax_available;
+        self.stock = saved_state.stock.clone();
     }
 
     // ----------------------
@@ -726,18 +766,17 @@ impl HouseBuilding {
             self.debug.popup_msg_color(Color::magenta(), format!("-{difference} workers"));
 
             workers.for_each_employer_mut(context.query.world(), |employer, employed_count| {
-                       let removed_count =
-                           employer.remove_workers((*employed_count).min(difference),
-                                                   context.kind_and_id());
+                let removed_count =
+                    employer.remove_workers((*employed_count).min(difference), context.kind_and_id());
 
-                       *employed_count -= removed_count;
+                *employed_count -= removed_count;
 
-                       difference = difference.saturating_sub(removed_count);
-                       if difference == 0 {
-                           return false; // stop
-                       }
-                       true // continue
-                   });
+                difference = difference.saturating_sub(removed_count);
+                if difference == 0 {
+                    return false; // stop
+                }
+                true // continue
+            });
         }
 
         workers.set_counts(new_employed, new_unemployed);

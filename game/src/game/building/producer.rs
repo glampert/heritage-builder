@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cmp::Reverse;
 use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
@@ -28,6 +29,7 @@ use crate::{
             },
         },
         world::{object::GameObject, stats::WorldStats},
+        undo_redo::GameObjectSavedState,
     },
     log,
     imgui_ui::UiSystem,
@@ -129,6 +131,21 @@ game_object_debug_options! {
 }
 
 // ----------------------------------------------
+// UndoRedoProducerSavedState
+// ----------------------------------------------
+
+struct UndoRedoProducerSavedState {
+    production_input_stock: ProducerInputsLocalStock,
+    production_output_stock: ProducerOutputLocalStock,
+}
+
+impl GameObjectSavedState for UndoRedoProducerSavedState {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+// ----------------------------------------------
 // ProducerBuilding
 // ----------------------------------------------
 
@@ -140,7 +157,7 @@ pub struct ProducerBuilding {
     workers: Workers,
 
     production_update_timer: UpdateTimer,
-    production_input_stock: ProducerInputsLocalStock, // Local stock of required raw materials.
+    production_input_stock: ProducerInputsLocalStock,  // Local stock of required raw materials.
     production_output_stock: ProducerOutputLocalStock, // Local production output storage.
 
     // Runner Unit we may send out to deliver our production or fetch raw materials.
@@ -328,6 +345,28 @@ impl BuildingBehavior for ProducerBuilding {
             return true;
         }
         self.workers.as_employer().unwrap().has_min_required()
+    }
+
+    // ----------------------
+    // Undo/Redo:
+    // ----------------------
+
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
+        let saved_state = UndoRedoProducerSavedState {
+            production_input_stock:  self.production_input_stock.clone(),
+            production_output_stock: self.production_output_stock.clone(),
+        };
+        Some(Box::new(saved_state))
+    }
+
+    fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
+        let saved_state = state.as_any()
+            .downcast_ref::<UndoRedoProducerSavedState>()
+            .expect("Expected an UndoRedoProducerSavedState instance!");
+
+        // NOTE: Only stocks are preserved on undo/redo. Runners/harvesters and workers are reset.
+        self.production_input_stock  = saved_state.production_input_stock.clone();
+        self.production_output_stock = saved_state.production_output_stock.clone();
     }
 
     // ----------------------

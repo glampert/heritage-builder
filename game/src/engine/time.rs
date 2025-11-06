@@ -103,6 +103,16 @@ impl UpdateTimer {
     }
 
     #[inline]
+    pub fn reset(&mut self) {
+        self.time_since_last_update_secs = 0.0;
+    }
+
+    #[inline]
+    pub fn force_update(&mut self) {
+        self.time_since_last_update_secs = self.update_frequency_secs;
+    }
+
+    #[inline]
     pub fn post_load(&mut self, update_frequency_secs: Seconds) {
         debug_assert!(update_frequency_secs.is_finite());
         self.update_frequency_secs = update_frequency_secs;
@@ -149,7 +159,7 @@ impl CountdownTimer {
     }
 
     #[inline]
-    pub fn remaining_secs(&self) -> Seconds{
+    pub fn remaining_secs(&self) -> Seconds {
         self.countdown
     }
 
