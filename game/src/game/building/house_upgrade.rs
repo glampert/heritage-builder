@@ -1,5 +1,5 @@
-use heapless;
 use smallvec::SmallVec;
+use std::collections::VecDeque;
 
 use super::{
     config::BuildingConfigs,
@@ -328,24 +328,7 @@ fn can_expand_into_cell(context: &BuildingContext, cell: Cell) -> bool {
     true
 }
 
-struct MergeCandidateQueue(heapless::Deque<BuildingId, 32>);
-
-impl MergeCandidateQueue {
-    #[inline]
-    fn new() -> Self {
-        Self(heapless::Deque::new())
-    }
-
-    #[inline]
-    fn push_back(&mut self, id: BuildingId) {
-        self.0.push_back(id).expect("BFS candidates queue overflow! Increase max size.");
-    }
-
-    #[inline]
-    fn pop_front(&mut self) -> Option<BuildingId> {
-        self.0.pop_front()
-    }
-}
+type MergeCandidateQueue = VecDeque<BuildingId>;
 
 // Breadth First Search (BFS) for possible merge candidate houses.
 fn collect_merge_candidates(context: &BuildingContext,
