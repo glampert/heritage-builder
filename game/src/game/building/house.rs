@@ -82,8 +82,11 @@ pub struct HouseConfig {
     pub upgrade_update_frequency_secs: Seconds,
     pub generate_tax_frequency_secs: Seconds,
 
-    pub ambient_ped_spawn_frequency_secs: Seconds,
-    pub ambient_ped_spawn_chance: u32, // [0,100] % chance of spawning an ambient ped patrol every ambient_ped_spawn_frequency_secs.
+    // Ambient ped min/max spawn frequency (randomized in this range).
+    #[debug_ui(format = "Ambient Ped Spawn Frequency Secs : {:?}")]
+    pub ambient_ped_spawn_frequency_secs: [Seconds; 2],
+    // [0,100] % chance of spawning an ambient ped patrol every ambient_ped_spawn_frequency_secs.
+    pub ambient_ped_spawn_chance: u32,
     pub ambient_ped_patrol_max_distance: i32,
 }
 
@@ -98,7 +101,7 @@ impl Default for HouseConfig {
                stock_update_frequency_secs: 60.0,
                upgrade_update_frequency_secs: 10.0,
                generate_tax_frequency_secs: 60.0,
-               ambient_ped_spawn_frequency_secs: 100.0,
+               ambient_ped_spawn_frequency_secs: [80.0, 120.0],
                ambient_ped_spawn_chance: 10,
                ambient_ped_patrol_max_distance: 40 }
     }
@@ -308,7 +311,7 @@ impl BuildingBehavior for HouseBuilding {
         self.stock_update_timer.post_load(config.stock_update_frequency_secs);
         self.upgrade_update_timer.post_load(config.upgrade_update_frequency_secs);
         self.generate_tax_timer.post_load(config.generate_tax_frequency_secs);
-        self.ambient_ped_spawn_timer.post_load(config.ambient_ped_spawn_frequency_secs);
+        self.ambient_ped_spawn_timer.post_load(Self::ambient_ped_spawn_frequency());
 
         self.upgrade_state.post_load();
     }
@@ -459,22 +462,20 @@ impl HouseBuilding {
                                                                          .unwrap()
                                                                          .stock_capacity);
 
-        Self { workers: Workers::household_worker_pool(0, 0),
-               population_update_timer:
-                   UpdateTimer::new(house_config.population_update_frequency_secs),
-               population: Population::new(0,
-                                           upgrade_state.curr_level_config
-                                                        .unwrap()
-                                                        .max_population),
-               stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
-               stock,
-               upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
-               upgrade_state,
-               generate_tax_timer: UpdateTimer::new(house_config.generate_tax_frequency_secs),
-               tax_available: 0,
-               ambient_ped: Patrol::default(),
-               ambient_ped_spawn_timer: UpdateTimer::new(house_config.ambient_ped_spawn_frequency_secs),
-               debug: HouseDebug::default() }
+        Self {
+            workers: Workers::household_worker_pool(0, 0),
+            population_update_timer: UpdateTimer::new(house_config.population_update_frequency_secs),
+            population: Population::new(0, upgrade_state.curr_level_config.unwrap().max_population),
+            stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
+            stock,
+            upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
+            upgrade_state,
+            generate_tax_timer: UpdateTimer::new(house_config.generate_tax_frequency_secs),
+            tax_available: 0,
+            ambient_ped: Patrol::default(),
+            ambient_ped_spawn_timer: UpdateTimer::new(Self::ambient_ped_spawn_frequency()),
+            debug: HouseDebug::default()
+        }
     }
 
     pub fn register_callbacks() {
@@ -906,14 +907,16 @@ impl HouseBuilding {
         };
 
         let unit_config = UnitConfigKey::Dog;
-        let max_patrol_distance = config.ambient_ped_patrol_max_distance;
+        let max_patrol_distance: i32 = config.ambient_ped_patrol_max_distance;
+        let idle_countdown_secs: f32 = context.query.random_range(15.0..30.0);
 
         self.ambient_ped.start_randomized_patrol(context,
             unit_origin,
             unit_config,
             max_patrol_distance,
             None,
-            callback::create!(HouseBuilding::on_ambient_ped_patrol_completed));
+            callback::create!(HouseBuilding::on_ambient_ped_patrol_completed),
+            Some(idle_countdown_secs.round()));
     }
 
     fn on_ambient_ped_patrol_completed(this_building: &mut Building,
@@ -930,6 +933,18 @@ impl HouseBuilding {
         this_house.debug.popup_msg_color(Color::magenta(), "Ambient ped back home");
 
         true
+    }
+
+    fn ambient_ped_spawn_frequency() -> Seconds {
+        let config = BuildingConfigs::get().find_house_config();
+
+        // FIXME: Should use our own sim RNG here.
+        let rng = &mut rand::rng();
+
+        let frequency_min = config.ambient_ped_spawn_frequency_secs[0];
+        let frequency_max = config.ambient_ped_spawn_frequency_secs[1];
+
+        rng.random_range(frequency_min..frequency_max).round()
     }
 }
 

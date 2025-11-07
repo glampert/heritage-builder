@@ -574,7 +574,8 @@ impl ServiceBuilding {
                                      unit_config,
                                      max_patrol_distance,
                                      Some(BuildingKind::House),
-                                     callback::create!(ServiceBuilding::on_patrol_completed));
+                                     callback::create!(ServiceBuilding::on_patrol_completed),
+                                     None);
     }
 
     #[inline]

@@ -4,21 +4,23 @@ use serde::{Deserialize, Serialize};
 use super::{
     config::UnitConfigKey,
     task::{
-        UnitPatrolPathRecord, UnitTaskDespawn, UnitTaskPatrolCompletionCallback,
+        UnitPatrolPathRecord, UnitTaskDespawn,
+        UnitTaskPatrolCompletionCallback,
         UnitTaskRandomizedPatrol,
     },
     Unit, UnitId, UnitTaskHelper,
 };
 use crate::{
-    game::{
-        building::{Building, BuildingContext, BuildingKind},
-        sim::Query,
-    },
     imgui_ui::UiSystem,
+    engine::time::{Seconds, CountdownTimer},
+    game::{
+        sim::Query,
+        building::{Building, BuildingContext, BuildingKind},
+    },
     utils::{
         callback::{self, Callback},
         coords::Cell,
-    },
+    }
 };
 
 // ----------------------------------------------
@@ -105,7 +107,8 @@ impl Patrol {
                                    unit_config: UnitConfigKey,
                                    max_patrol_distance: i32,
                                    buildings_to_visit: Option<BuildingKind>,
-                                   completion_callback: Callback<PatrolCompletionCallback>)
+                                   completion_callback: Callback<PatrolCompletionCallback>,
+                                   idle_countdown_secs: Option<Seconds>)
                                    -> bool {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(max_patrol_distance > 0, "Patrol max distance cannot be zero!");
@@ -135,6 +138,7 @@ impl Patrol {
                 buildings_to_visit,
                 completion_callback: callback::create!(Patrol::on_randomized_patrol_completed),
                 completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
+                idle_countdown: idle_countdown_secs.map(|countdown| (CountdownTimer::new(countdown), countdown)),
             }
         )
     }

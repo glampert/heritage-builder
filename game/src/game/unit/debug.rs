@@ -335,6 +335,7 @@ impl Unit {
                         buildings_to_visit: Some(BuildingKind::House),
                         completion_callback: callback::create!(unit_debug_patrol_task_completed),
                         completion_task,
+                        idle_countdown: None,
                     });
                     self.assign_task(task_manager, task);
                 }

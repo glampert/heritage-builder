@@ -434,6 +434,9 @@ pub struct UnitTaskRandomizedPatrol {
 
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
+
+    // Optional idle timeout between goals.
+    pub idle_countdown: Option<(CountdownTimer, Seconds)>,
 }
 
 impl UnitTaskRandomizedPatrol {
@@ -453,6 +456,7 @@ impl UnitTaskRandomizedPatrol {
             SearchResult::PathFound(path) => {
                 unit.move_to_goal(path, UnitNavGoal::tile(start, path));
                 self.path_record.update(path); // Path taken.
+                self.reset_idle_countdown();
             }
             SearchResult::PathNotFound => {
                 // Didn't find a possible path. Retry next update.
@@ -460,7 +464,7 @@ impl UnitTaskRandomizedPatrol {
         }
     }
 
-    fn try_return_to_origin(&self, unit: &mut Unit, query: &Query) -> bool {
+    fn try_return_to_origin(&mut self, unit: &mut Unit, query: &Query) -> bool {
         if query.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
             log::error!(log::channel!("task"),
                         "Origin building is no longer valid! TaskPatrol will abort.");
@@ -484,6 +488,7 @@ impl UnitTaskRandomizedPatrol {
                                                  self.origin_building.kind,
                                                  self.origin_building_tile);
                 unit.move_to_goal(path, goal);
+                self.reset_idle_countdown();
                 true
             }
             SearchResult::PathNotFound => {
@@ -498,6 +503,12 @@ impl UnitTaskRandomizedPatrol {
             unit_goal.building_destination() == (self.origin_building.kind, self.origin_building_tile.base_cell)
         } else {
             false
+        }
+    }
+
+    fn reset_idle_countdown(&mut self) {
+        if let Some((idle_countdown, countdown)) = &mut self.idle_countdown {
+            idle_countdown.reset(*countdown);
         }
     }
 }
@@ -520,7 +531,9 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         debug_assert!(self.max_distance > PATROL_MIN_PREFERRED_PATH_LEN);
         debug_assert!(self.path_bias_min <= self.path_bias_max);
 
-        self.try_find_goal(unit, query);
+        if self.idle_countdown.is_none() {
+            self.try_find_goal(unit, query);
+        }
     }
 
     fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
@@ -533,7 +546,17 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
         if unit.goal().is_none() {
-            self.try_find_goal(unit, query);
+            // If we have an idle countdown, only transition to the next goal when it has elapsed.
+            if let Some((idle_countdown, _)) = &mut self.idle_countdown {
+                if idle_countdown.tick(query.delta_time_secs()) {
+                    self.try_find_goal(unit, query);
+                } else {
+                    unit.idle(query);
+                }
+            } else {
+                // Move to goal immediately.
+                self.try_find_goal(unit, query);
+            }
         }
 
         if let Some(buildings_to_visit) = self.buildings_to_visit {
@@ -560,6 +583,14 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         }
 
         if unit.has_reached_goal() {
+            if let Some((idle_countdown, _)) = &mut self.idle_countdown {
+                if idle_countdown.tick(query.delta_time_secs()) {
+                    return UnitTaskState::Completed;
+                } else {
+                    unit.idle(query);
+                    return UnitTaskState::Running;
+                }
+            }
             UnitTaskState::Completed
         } else {
             UnitTaskState::Running
@@ -615,6 +646,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         ui.text(format!("Buildings To Visit      : {}", self.buildings_to_visit.unwrap_or(BuildingKind::empty())));
         ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
         ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
+        ui.text(format!("Idle Countdown Timer    : {:.2}", self.idle_countdown.as_ref().map_or(0.0, |(countdown, _)| countdown.remaining_secs())));
 
         ui.separator();
 
@@ -626,6 +658,18 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         if ui.button("Find New Goal") {
             unit.follow_path(None);
             self.try_find_goal(unit, query);
+        }
+
+        if let Some((idle_countdown, countdown)) = &mut self.idle_countdown {
+            ui.separator();
+
+            if ui.button("Restart Idle Countdown") {
+                idle_countdown.reset(*countdown);
+            }
+
+            if ui.button("Clear Idle Countdown") {
+                idle_countdown.reset(0.0);
+            }
         }
     }
 }

@@ -157,6 +157,7 @@ pub struct BuildingConfigs {
 }
 
 impl BuildingConfigs {
+    #[inline]
     pub fn find_house_config(&'static self) -> &'static HouseConfig {
         &self.house_config
     }
