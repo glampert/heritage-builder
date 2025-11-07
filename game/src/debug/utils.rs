@@ -132,7 +132,7 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem,
                        | imgui::WindowFlags::NO_MOUSE_INPUTS;
 
     // Place the window at the bottom-left corner of the screen.
-    let window_position = [5.0, ui.io().display_size[1] - 185.0];
+    let window_position = [5.0, ui.io().display_size[1] - 190.0];
 
     ui.window("Render Stats")
       .position(window_position, imgui::Condition::Always)
@@ -141,40 +141,40 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem,
       .bg_alpha(0.6) // Semi-transparent
       .build(|| {
           ui.text_colored(Color::yellow().to_array(),
-                          format!("Tiles drawn: {} | Peak: {}",
+                          format!("Tiles drawn       : {} | Peak: {}",
                                   tile_render_stats.tiles_drawn,
                                   tile_render_stats.peak_tiles_drawn));
 
           ui.text_colored(Color::yellow().to_array(),
-                          format!("Triangles drawn: {} | Peak: {}",
+                          format!("Triangles drawn   : {} | Peak: {}",
                                   render_sys_stats.triangles_drawn,
                                   render_sys_stats.peak_triangles_drawn));
 
           ui.text_colored(Color::yellow().to_array(),
-                          format!("Texture changes: {} | Peak: {}",
+                          format!("Texture changes   : {} | Peak: {}",
                                   render_sys_stats.texture_changes,
                                   render_sys_stats.peak_texture_changes));
 
           ui.text_colored(Color::yellow().to_array(),
-                          format!("Draw calls: {} | Peak: {}",
+                          format!("Draw calls        : {} | Peak: {}",
                                   render_sys_stats.draw_calls, render_sys_stats.peak_draw_calls));
 
-          ui.text(format!("Tile sort list: {} | Peak: {}",
+          ui.text(format!("Tile sort list    : {} | Peak: {}",
                           tile_render_stats.tile_sort_list_len,
                           tile_render_stats.peak_tile_sort_list_len));
 
-          ui.text(format!("Tiles highlighted: {} | Peak: {}",
+          ui.text(format!("Tiles highlighted : {} | Peak: {}",
                           tile_render_stats.tiles_drawn_highlighted,
                           tile_render_stats.peak_tiles_drawn_highlighted));
 
-          ui.text(format!("Tiles invalidated: {} | Peak: {}",
+          ui.text(format!("Tiles invalidated : {} | Peak: {}",
                           tile_render_stats.tiles_drawn_invalidated,
                           tile_render_stats.peak_tiles_drawn_invalidated));
 
-          ui.text(format!("Lines drawn: {} | Peak: {}",
+          ui.text(format!("Lines drawn       : {} | Peak: {}",
                           render_sys_stats.lines_drawn, render_sys_stats.peak_lines_drawn));
 
-          ui.text(format!("Points drawn: {} | Peak: {}",
+          ui.text(format!("Points drawn      : {} | Peak: {}",
                           render_sys_stats.points_drawn, render_sys_stats.peak_points_drawn));
       });
 }
@@ -190,7 +190,7 @@ pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World, tile_map: &TileMa
                        | imgui::WindowFlags::NO_MOUSE_INPUTS;
 
     // Place the window at the bottom-left corner of the screen.
-    let window_position = [5.0, ui.io().display_size[1] - 205.0];
+    let window_position = [5.0, ui.io().display_size[1] - 210.0];
 
     ui.window("Game Stats")
       .position(window_position, imgui::Condition::Always)

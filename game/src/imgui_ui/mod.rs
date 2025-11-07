@@ -176,6 +176,12 @@ pub struct UiFonts {
     pub large: UiFontHandle,
 }
 
+impl UiFonts {
+    const NORMAL_FONT_SIZE: f32 = 14.0;
+    const SMALL_FONT_SIZE:  f32 = 10.0;
+    const LARGE_FONT_SIZE:  f32 = 16.0;
+}
+
 // ----------------------------------------------
 // UiRenderer / UiRendererFactory
 // ----------------------------------------------
@@ -210,7 +216,7 @@ fn new_ui_context() -> Box<imgui::Context> {
 pub struct UiContext {
     ctx: Box<imgui::Context>,
     renderer: Box<dyn UiRenderer>,
-    fonts_ids: UiFonts,
+    fonts: UiFonts,
     frame_started: bool,
 }
 
@@ -225,40 +231,16 @@ impl UiContext {
 
         Self::apply_custom_theme(ctx.style_mut());
 
-        // Load default fonts:
-        const NORMAL_FONT_SIZE: f32 = 13.0;
-        let font_normal = ctx.fonts().add_font(
-            &[imgui::FontSource::DefaultFontData {
-                config: Some(imgui::FontConfig {
-                    size_pixels: NORMAL_FONT_SIZE,
-                    ..imgui::FontConfig::default()
-                }),
-            }]);
-
-        const SMALL_FONT_SIZE: f32 = 10.0;
-        let font_small = ctx.fonts().add_font(
-            &[imgui::FontSource::DefaultFontData {
-                config: Some(imgui::FontConfig {
-                    size_pixels: SMALL_FONT_SIZE,
-                    ..imgui::FontConfig::default()
-                }),
-            }]);
-
-        const LARGE_FONT_SIZE: f32 = 14.0;
-        let font_large = ctx.fonts().add_font(
-            &[imgui::FontSource::DefaultFontData {
-                config: Some(imgui::FontConfig {
-                    size_pixels: LARGE_FONT_SIZE,
-                    ..imgui::FontConfig::default()
-                }),
-            }]);
+        let fonts = Self::load_custom_fonts(&mut ctx);
 
         let renderer = new_ui_renderer::<UiRendererBackendImpl>(&mut ctx, app);
 
-        Self { ctx,
-               renderer,
-               fonts_ids: UiFonts { normal: font_normal, small: font_small, large: font_large },
-               frame_started: false }
+        Self {
+            ctx,
+            renderer,
+            fonts,
+            frame_started: false
+        }
     }
 
     pub fn begin_frame(&mut self,
@@ -289,7 +271,7 @@ impl UiContext {
     }
 
     pub fn fonts(&self) -> &UiFonts {
-        &self.fonts_ids
+        &self.fonts
     }
 
     pub fn end_frame(&mut self) {
@@ -475,6 +457,33 @@ impl UiContext {
         style.grab_rounding = 3.0;
         style.log_slider_deadzone = 4.0;
         style.tab_rounding = 4.0;
+    }
+
+    fn load_custom_fonts(ctx: &mut imgui::Context) -> UiFonts {
+        const FONT_DATA: &[u8] = include_bytes!(
+            "../../../assets/fonts/source_code_pro_semi_bold.ttf"
+        );
+
+        // NOTE: First font loaded will be set as the imgui default.
+        let fonts = ctx.fonts();
+        UiFonts {
+            normal: Self::load_font(fonts, FONT_DATA, UiFonts::NORMAL_FONT_SIZE),
+            small:  Self::load_font(fonts, FONT_DATA, UiFonts::SMALL_FONT_SIZE),
+            large:  Self::load_font(fonts, FONT_DATA, UiFonts::LARGE_FONT_SIZE),
+        }
+    }
+
+    fn load_font(fonts: &mut imgui::FontAtlas, font_data: &[u8], font_size: f32) -> UiFontHandle {
+        fonts.add_font(&[imgui::FontSource::TtfData {
+            data: font_data,
+            size_pixels: font_size,
+            config: Some(imgui::FontConfig {
+                oversample_h: 3,
+                oversample_v: 3,
+                pixel_snap_h: false,
+                ..Default::default()
+            }),
+        }])
     }
 }
 
