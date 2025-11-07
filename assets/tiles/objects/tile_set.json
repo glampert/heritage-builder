@@ -2666,6 +2666,177 @@
               ]
             }
           ]
+        },
+        {
+          "name": "dog",
+          "occludes_terrain": false,
+          "draw_size": {
+            "width": 22,
+            "height": 22
+          },
+          "variations": [
+            {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
+              "anim_sets": [
+                {
+                  "name": "idle",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_ne",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_nw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_se",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "idle_sw",
+                  "looping": true,
+                  "duration": 1,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_ne",
+                  "looping": true,
+                  "duration": 0.5,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_nw",
+                  "looping": true,
+                  "duration": 0.5,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_se",
+                  "looping": true,
+                  "duration": 0.5,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    }
+                  ]
+                },
+                {
+                  "name": "walk_sw",
+                  "looping": true,
+                  "duration": 0.5,
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    },
+                    {
+                      "name": "frame4"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     }

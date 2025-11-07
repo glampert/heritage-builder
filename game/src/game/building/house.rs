@@ -19,16 +19,20 @@ use crate::{
     save::PostLoadContext,
     tile::{sets::TileDef, Tile},
     engine::time::{Seconds, UpdateTimer},
-    utils::{hash::{self, StringHash}, Color},
+    utils::{hash::{self, StringHash}, callback::{self, Callback}, Color},
     game::{
+        sim::Query,
         sim::resources::{
             Population, ResourceKind, ResourceKinds,
             ServiceKind, ServiceKinds, Workers,
         },
+        unit::{
+            Unit, UnitTaskHelper, patrol::{Patrol, PatrolCompletionCallback},
+            task::UnitTaskRandomizedPatrol, config::UnitConfigKey,
+        },
         system::settlers::Settler,
-        world::stats::WorldStats,
         undo_redo::GameObjectSavedState,
-        unit::Unit,
+        world::{object::GameObject, stats::WorldStats},
     },
 };
 
@@ -77,6 +81,10 @@ pub struct HouseConfig {
     pub stock_update_frequency_secs: Seconds,
     pub upgrade_update_frequency_secs: Seconds,
     pub generate_tax_frequency_secs: Seconds,
+
+    pub ambient_ped_spawn_frequency_secs: Seconds,
+    pub ambient_ped_spawn_chance: u32, // [0,100] % chance of spawning an ambient ped patrol every ambient_ped_spawn_frequency_secs.
+    pub ambient_ped_patrol_max_distance: i32,
 }
 
 impl Default for HouseConfig {
@@ -89,7 +97,10 @@ impl Default for HouseConfig {
                population_update_frequency_secs: 60.0,
                stock_update_frequency_secs: 60.0,
                upgrade_update_frequency_secs: 10.0,
-               generate_tax_frequency_secs: 60.0 }
+               generate_tax_frequency_secs: 60.0,
+               ambient_ped_spawn_frequency_secs: 100.0,
+               ambient_ped_spawn_chance: 10,
+               ambient_ped_patrol_max_distance: 40 }
     }
 }
 
@@ -219,6 +230,11 @@ pub struct HouseBuilding {
     generate_tax_timer: UpdateTimer,
     tax_available: u32,
 
+    // House may spawn an ambient ped every once in a while to wander around the neighborhood.
+    ambient_ped: Patrol,
+    // Min time before we can spawn a new ambient ped.
+    ambient_ped_spawn_timer: UpdateTimer,
+
     #[serde(skip)]
     debug: HouseDebug,
 }
@@ -267,6 +283,10 @@ impl BuildingBehavior for HouseBuilding {
         {
             self.generate_tax();
         }
+
+        if self.ambient_ped_spawn_timer.tick(delta_time_secs).should_update() {
+            self.spawn_ambient_ped(context, false);
+        }
     }
 
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
@@ -288,6 +308,7 @@ impl BuildingBehavior for HouseBuilding {
         self.stock_update_timer.post_load(config.stock_update_frequency_secs);
         self.upgrade_update_timer.post_load(config.upgrade_update_frequency_secs);
         self.generate_tax_timer.post_load(config.generate_tax_frequency_secs);
+        self.ambient_ped_spawn_timer.post_load(config.ambient_ped_spawn_frequency_secs);
 
         self.upgrade_state.post_load();
     }
@@ -333,6 +354,14 @@ impl BuildingBehavior for HouseBuilding {
 
         stats.treasury.tax_generated += self.tax_generated();
         stats.treasury.tax_available += self.tax_available();
+    }
+
+    // ----------------------
+    // Patrol Unit:
+    // ----------------------
+
+    fn active_patrol(&mut self) -> Option<&mut Patrol> {
+        Some(&mut self.ambient_ped)
     }
 
     // ----------------------
@@ -406,8 +435,8 @@ impl BuildingBehavior for HouseBuilding {
 
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         house_upgrade::draw_debug_ui(context, ui_sys);
-        self.draw_debug_ui_timers(ui_sys);
-        self.draw_debug_ui_stock(ui_sys);
+        self.draw_debug_ui_timers(context, ui_sys);
+        self.draw_debug_ui_stock(context, ui_sys);
         self.draw_debug_ui_upgrade_state(context, ui_sys);
     }
 }
@@ -443,10 +472,15 @@ impl HouseBuilding {
                upgrade_state,
                generate_tax_timer: UpdateTimer::new(house_config.generate_tax_frequency_secs),
                tax_available: 0,
+               ambient_ped: Patrol::default(),
+               ambient_ped_spawn_timer: UpdateTimer::new(house_config.ambient_ped_spawn_frequency_secs),
                debug: HouseDebug::default() }
     }
 
-    pub fn register_callbacks() {}
+    pub fn register_callbacks() {
+        let _: Callback<PatrolCompletionCallback> =
+            callback::register!(HouseBuilding::on_ambient_ped_patrol_completed);
+    }
 
     #[inline]
     fn current_level_config(&self) -> &'static HouseLevelConfig {
@@ -840,6 +874,62 @@ impl HouseBuilding {
 
             self.debug.popup_msg_color(Color::red(), format!("Tax collected -{tax_collected}"));
         }
+    }
+
+    // ----------------------
+    // Ambient Ped Unit:
+    // ----------------------
+
+    fn spawn_ambient_ped(&mut self, context: &BuildingContext, force_spawn: bool) {
+        if self.ambient_ped.is_spawned() {
+            return; // A ped is already spawned. Try again later.
+        }
+
+        let config = BuildingConfigs::get().find_house_config();
+
+        if !force_spawn {
+            let chance = config.ambient_ped_spawn_chance.min(100); // 0-100%
+            if chance == 0 {
+                return;
+            }
+
+            let should_spawn = context.query.rng().random_bool(chance as f64 / 100.0);
+            if !should_spawn {
+                return;
+            }
+        }
+
+        // Unit spawns at the nearest road link.
+        let unit_origin = match context.road_link {
+            Some(road_link) => road_link,
+            None => return, // We are not connected to a road!
+        };
+
+        let unit_config = UnitConfigKey::Dog;
+        let max_patrol_distance = config.ambient_ped_patrol_max_distance;
+
+        self.ambient_ped.start_randomized_patrol(context,
+            unit_origin,
+            unit_config,
+            max_patrol_distance,
+            None,
+            callback::create!(HouseBuilding::on_ambient_ped_patrol_completed));
+    }
+
+    fn on_ambient_ped_patrol_completed(this_building: &mut Building,
+                                       patrol_unit: &mut Unit,
+                                       query: &Query)
+                                       -> bool {
+        let this_house = this_building.as_house_mut();
+
+        debug_assert!(this_house.ambient_ped.unit_id() == patrol_unit.id());
+        debug_assert!(this_house.ambient_ped.is_running_task::<UnitTaskRandomizedPatrol>(query),
+                      "No ambient ped patrol was sent out by this house!");
+
+        this_house.ambient_ped.reset();
+        this_house.debug.popup_msg_color(Color::magenta(), "Ambient ped back home");
+
+        true
     }
 }
 
@@ -1358,7 +1448,7 @@ impl HouseBuilding {
         }
     }
 
-    fn draw_debug_ui_timers(&mut self, ui_sys: &UiSystem) {
+    fn draw_debug_ui_timers(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.builder();
 
         if !ui.collapsing_header("Timers", imgui::TreeNodeFlags::empty()) {
@@ -1369,9 +1459,18 @@ impl HouseBuilding {
         self.upgrade_update_timer.draw_debug_ui("Upgrade Update", 1, ui_sys);
         self.stock_update_timer.draw_debug_ui("Stock Update", 2, ui_sys);
         self.generate_tax_timer.draw_debug_ui("Gen Tax", 3, ui_sys);
+        self.ambient_ped_spawn_timer.draw_debug_ui("Spawn Ped", 4, ui_sys);
+
+        if ui.button("Force Spawn Ambient Ped") {
+            self.spawn_ambient_ped(context, true);
+        }
+
+        if self.ambient_ped.is_spawned() {
+            ui.text_colored(Color::yellow().to_array(), "Ambient Ped spawned...");
+        }
     }
 
-    fn draw_debug_ui_stock(&mut self, ui_sys: &UiSystem) {
+    fn draw_debug_ui_stock(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
         self.stock.draw_debug_ui("Stock", ui_sys);
     }
 }

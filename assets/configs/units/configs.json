@@ -41,6 +41,12 @@
       "tile_def_name": "water_carrier",
       "traversable_node_kinds": "Road",
       "movement_speed": 1.66
+    },
+    {
+      "name": "Dog",
+      "tile_def_name": "dog",
+      "traversable_node_kinds": "EmptyLand | Road",
+      "movement_speed": 1.66
     }
   ]
 }
