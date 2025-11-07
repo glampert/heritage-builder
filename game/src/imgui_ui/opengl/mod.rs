@@ -27,10 +27,10 @@ impl UiRendererFactory for UiRendererOpenGl {
         // is a hack to stop the TTY spamming but still keep a record
         // of the errors if ever required for inspection.
         let backend = utils::platform::macos_redirect_stderr(|| {
-                                                                 // Set up the OpenGL renderer:
-                                                                 ImGuiOpenGlRenderer::new(ctx, |func_name| glfw_app.load_gl_func(func_name))
-                                                             },
-                                                             "stderr_gl_load_imgui.log");
+            // Set up the OpenGL renderer:
+            ImGuiOpenGlRenderer::new(ctx, |func_name| glfw_app.load_gl_func(func_name))
+        },
+        "stderr_gl_load_imgui.log");
 
         Self { backend }
     }

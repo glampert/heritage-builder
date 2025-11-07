@@ -84,11 +84,11 @@ impl ApplicationFactory for GlfwApplication {
         // is a hack to stop the TTY spamming but still keep a record
         // of the errors if ever required for inspection.
         utils::platform::macos_redirect_stderr(|| {
-                                                   gl::load_with(|symbol| {
-                                                       window.get_proc_address(symbol)
-                                                   })
-                                               },
-                                               "stderr_gl_load_app.log");
+            gl::load_with(|symbol| {
+                window.get_proc_address(symbol)
+            })
+        },
+        "stderr_gl_load_app.log");
 
         // NOTE: PWindow is a Box<Window>, so the address is stable.
         let window_ptr = mem::RawPtr::from_ref(&*window);
