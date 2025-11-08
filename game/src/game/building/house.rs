@@ -314,6 +314,7 @@ impl BuildingBehavior for HouseBuilding {
         self.ambient_ped_spawn_timer.post_load(Self::ambient_ped_spawn_frequency());
 
         self.upgrade_state.post_load();
+        self.ambient_ped.post_load();
     }
 
     // ----------------------

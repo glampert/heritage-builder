@@ -53,8 +53,11 @@ impl<F> Callback<F> where F: 'static + Copy + Clone + PartialEq
     #[inline]
     pub fn get(&self) -> F {
         debug_assert!(self.is_valid(), "Callback '{}' is not valid!", self.name);
-        self.fptr
-            .unwrap_or_else(|| panic!("Function pointer for callback '{}' is not set!", self.name))
+        self.fptr.unwrap_or_else(|| {
+            panic!("Function pointer for callback '{}' ({:X}) is not set! Did you forget to call Callback::post_load()?",
+                   self.name,
+                   self.key.hash);
+        })
     }
 
     #[inline]
