@@ -27,6 +27,7 @@ pub enum UnitConfigKey {
     TaxCollector = hash::fnv1a_from_str("tax_collector"),
     WaterCarrier = hash::fnv1a_from_str("water_carrier"),
     Dog          = hash::fnv1a_from_str("dog"),
+    Guard        = hash::fnv1a_from_str("guard"),
 }
 
 // ----------------------------------------------
