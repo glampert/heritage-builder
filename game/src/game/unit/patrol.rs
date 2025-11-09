@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 

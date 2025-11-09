@@ -1,5 +1,6 @@
-use std::{any::Any, ffi::c_void};
+#![allow(clippy::too_many_arguments)]
 
+use std::{any::Any, ffi::c_void};
 use bitflags::bitflags;
 use image::GenericImageView;
 
@@ -56,6 +57,8 @@ pub enum TextureFilter {
     Nearest = gl::NEAREST,
     Linear = gl::LINEAR,
     NearestMipmapNearest = gl::NEAREST_MIPMAP_NEAREST,
+    LinearMipmapNearest = gl::LINEAR_MIPMAP_NEAREST,
+    NearestMipmapLinear = gl::NEAREST_MIPMAP_LINEAR,
     LinearMipmapLinear = gl::LINEAR_MIPMAP_LINEAR,
 }
 
@@ -131,7 +134,7 @@ impl Texture2D {
         debug_assert!((tex_unit.0 as usize) < MAX_TEXTURE_UNITS);
         debug_assert!(size.is_valid());
 
-        let handle = unsafe {
+        let (handle, has_mipmaps) = unsafe {
             let mut handle = NULL_TEXTURE_HANDLE;
             gl::GenTextures(1, &mut handle);
             if handle == NULL_TEXTURE_HANDLE {
@@ -151,21 +154,28 @@ impl Texture2D {
                            gl::UNSIGNED_BYTE,
                            data);
 
-            if gen_mipmaps {
-                gl::GenerateMipmap(gl::TEXTURE_2D);
+            let has_mipmaps = {
+                if gen_mipmaps && gl::GenerateMipmap::is_loaded() {
+                    gl::GenerateMipmap(gl::TEXTURE_2D);
 
-                let error_code = gl::GetError();
-                if error_code != gl::NO_ERROR {
-                    panic!("Failed to generate texture mipmaps. OpenGL Error: {} (0x{:X})",
-                           gl_error_to_string(error_code),
-                           error_code);
+                    let error_code = gl::GetError();
+                    if error_code != gl::NO_ERROR {
+                        panic!("Failed to generate texture mipmaps. OpenGL Error: {} (0x{:X})",
+                            gl_error_to_string(error_code),
+                            error_code);
+                    }
+                    true
+                } else {
+                    false
                 }
-            }
+            };
 
             let (gl_min_filter, gl_mag_filter) = match filter {
                 TextureFilter::Nearest => (gl::NEAREST, gl::NEAREST),
                 TextureFilter::Linear => (gl::LINEAR, gl::LINEAR),
                 TextureFilter::NearestMipmapNearest => (gl::NEAREST_MIPMAP_NEAREST, gl::NEAREST),
+                TextureFilter::LinearMipmapNearest => (gl::LINEAR_MIPMAP_NEAREST, gl::LINEAR),
+                TextureFilter::NearestMipmapLinear => (gl::NEAREST_MIPMAP_LINEAR, gl::NEAREST),
                 TextureFilter::LinearMipmapLinear => (gl::LINEAR_MIPMAP_LINEAR, gl::LINEAR),
             };
 
@@ -184,7 +194,7 @@ impl Texture2D {
             // Unbind.
             gl::BindTexture(gl::TEXTURE_2D, NULL_TEXTURE_HANDLE);
 
-            handle
+            (handle, has_mipmaps)
         };
 
         Self { handle,
@@ -192,7 +202,7 @@ impl Texture2D {
                size,
                filter,
                wrap_mode,
-               has_mipmaps: gen_mipmaps,
+               has_mipmaps,
                name: debug_name.to_string() }
     }
 
@@ -222,6 +232,56 @@ impl Texture2D {
 
             // Unbind.
             gl::BindTexture(gl::TEXTURE_2D, NULL_TEXTURE_HANDLE);
+        }
+    }
+
+    fn change_settings(&mut self, settings: OpenGlTextureSettings) {
+        debug_assert!(self.is_valid());
+
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE0 + self.tex_unit.0);
+            gl::BindTexture(gl::TEXTURE_2D, self.handle);
+
+            if settings.gen_mipmaps && gl::GenerateMipmap::is_loaded() {
+                gl::GenerateMipmap(gl::TEXTURE_2D);
+
+                let error_code = gl::GetError();
+                if error_code != gl::NO_ERROR {
+                    panic!("Failed to generate texture mipmaps. OpenGL Error: {} (0x{:X})",
+                           gl_error_to_string(error_code),
+                           error_code);
+                }
+                self.has_mipmaps = true;
+            } else {
+                self.has_mipmaps = false;
+            }
+
+            let (gl_min_filter, gl_mag_filter) = match settings.filter {
+                TextureFilter::Nearest => (gl::NEAREST, gl::NEAREST),
+                TextureFilter::Linear => (gl::LINEAR, gl::LINEAR),
+                TextureFilter::NearestMipmapNearest => (gl::NEAREST_MIPMAP_NEAREST, gl::NEAREST),
+                TextureFilter::LinearMipmapNearest => (gl::LINEAR_MIPMAP_NEAREST, gl::LINEAR),
+                TextureFilter::NearestMipmapLinear => (gl::NEAREST_MIPMAP_LINEAR, gl::NEAREST),
+                TextureFilter::LinearMipmapLinear => (gl::LINEAR_MIPMAP_LINEAR, gl::LINEAR),
+            };
+
+            gl::TexParameteri(gl::TEXTURE_2D,
+                              gl::TEXTURE_MIN_FILTER,
+                              gl_min_filter as gl::types::GLint);
+            gl::TexParameteri(gl::TEXTURE_2D,
+                              gl::TEXTURE_MAG_FILTER,
+                              gl_mag_filter as gl::types::GLint);
+
+            let gl_wrap_mode = settings.wrap_mode as gl::types::GLint;
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl_wrap_mode);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl_wrap_mode);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_R, gl_wrap_mode);
+
+            // Unbind.
+            gl::BindTexture(gl::TEXTURE_2D, NULL_TEXTURE_HANDLE);
+
+            self.filter = settings.filter;
+            self.wrap_mode = settings.wrap_mode;
         }
     }
 
@@ -275,11 +335,46 @@ impl Drop for Texture2D {
 }
 
 // ----------------------------------------------
+// OpenGlTextureSettings
+// ----------------------------------------------
+
+#[derive(Copy, Clone)]
+struct OpenGlTextureSettings {
+    filter: TextureFilter,
+    wrap_mode: TextureWrapMode,
+    gen_mipmaps: bool,
+}
+
+impl From<render::TextureSettings> for OpenGlTextureSettings {
+    fn from(settings: render::TextureSettings) -> Self {
+        let filter = match settings.filter {
+            render::TextureFilter::Nearest => TextureFilter::Nearest,
+            render::TextureFilter::Linear => TextureFilter::Linear,
+            render::TextureFilter::NearestMipmapNearest => TextureFilter::NearestMipmapNearest,
+            render::TextureFilter::LinearMipmapNearest => TextureFilter::LinearMipmapNearest,
+            render::TextureFilter::NearestMipmapLinear => TextureFilter::NearestMipmapLinear,
+            render::TextureFilter::LinearMipmapLinear => TextureFilter::LinearMipmapLinear,
+        };
+        let wrap_mode = match settings.wrap_mode {
+            render::TextureWrapMode::Repeat => TextureWrapMode::Repeat,
+            render::TextureWrapMode::ClampToEdge => TextureWrapMode::ClampToEdge,
+            render::TextureWrapMode::ClampToBorder => TextureWrapMode::ClampToBorder,
+        };
+        Self {
+            filter,
+            wrap_mode,
+            gen_mipmaps: settings.gen_mipmaps,
+        }
+    }
+}
+
+// ----------------------------------------------
 // TextureCache
 // ----------------------------------------------
 
 pub struct TextureCache {
-    textures: Vec<Texture2D>,
+    textures: Vec<(Texture2D, bool)>, // (texture, allow_settings_change)
+    settings: render::TextureSettings,
 
     // These are 8x8 pixels.
     dummy_texture_handle: TextureHandle, // TextureHandle::Invalid
@@ -288,9 +383,12 @@ pub struct TextureCache {
 
 impl TextureCache {
     pub fn new(initial_capacity: usize) -> Self {
-        let mut tex_cache = Self { textures: Vec::with_capacity(initial_capacity),
-                                   dummy_texture_handle: TextureHandle::invalid(),
-                                   white_texture_handle: TextureHandle::invalid() };
+        let mut tex_cache = Self {
+            textures: Vec::with_capacity(initial_capacity),
+            settings: render::TextureSettings::default(),
+            dummy_texture_handle: TextureHandle::invalid(),
+            white_texture_handle: TextureHandle::invalid(),
+        };
 
         tex_cache.dummy_texture_handle =
             tex_cache.create_color_filled_8x8_texture("dummy_texture", [255, 0, 255, 255]); // magenta
@@ -309,7 +407,7 @@ impl TextureCache {
             TextureHandle::Index(handle_index) => {
                 let index = handle_index as usize;
                 if index < self.textures.len() {
-                    &self.textures[index]
+                    &self.textures[index].0
                 } else {
                     self.dummy_texture()
                 }
@@ -320,7 +418,7 @@ impl TextureCache {
     #[inline]
     pub fn dummy_texture(&self) -> &Texture2D {
         match self.dummy_texture_handle {
-            TextureHandle::Index(index) => &self.textures[index as usize],
+            TextureHandle::Index(index) => &self.textures[index as usize].0,
             _ => panic!("Unexpected value for dummy_texture_handle!"),
         }
     }
@@ -328,26 +426,27 @@ impl TextureCache {
     #[inline]
     pub fn white_texture(&self) -> &Texture2D {
         match self.white_texture_handle {
-            TextureHandle::Index(index) => &self.textures[index as usize],
+            TextureHandle::Index(index) => &self.textures[index as usize].0,
             _ => panic!("Unexpected value for white_texture_handle!"),
         }
     }
 
     #[inline]
-    fn add_texture(&mut self, texture: Texture2D) -> TextureHandle {
+    fn add_texture(&mut self, texture: Texture2D, allow_settings_change: bool) -> TextureHandle {
         let index = self.textures.len();
-        self.textures.push(texture);
+        self.textures.push((texture, allow_settings_change));
         TextureHandle::Index(index as u32)
     }
 
-    fn load_texture_with_settings(&mut self,
-                                  file_path: &str,
-                                  flags: TextureLoaderFlags,
-                                  filter: TextureFilter,
-                                  wrap_mode: TextureWrapMode,
-                                  tex_unit: TextureUnit,
-                                  gen_mipmaps: bool)
-                                  -> TextureHandle {
+    fn load_texture_with_settings_internal(&mut self,
+                                           file_path: &str,
+                                           flags: TextureLoaderFlags,
+                                           filter: TextureFilter,
+                                           wrap_mode: TextureWrapMode,
+                                           tex_unit: TextureUnit,
+                                           gen_mipmaps: bool,
+                                           allow_settings_change: bool)
+                                           -> TextureHandle {
         let texture = match Texture2D::from_file(file_path,
                                                  flags,
                                                  filter,
@@ -362,15 +461,13 @@ impl TextureCache {
             }
         };
 
-        self.add_texture(texture)
+        self.add_texture(texture, allow_settings_change)
     }
 
     fn create_color_filled_8x8_texture(&mut self,
                                        debug_name: &str,
                                        color: [u8; 4])
                                        -> TextureHandle {
-        use std::ffi::c_void;
-
         #[repr(C)]
         #[derive(Copy, Clone)]
         struct RGBA8 {
@@ -385,15 +482,16 @@ impl TextureCache {
         const PIXEL_COUNT: usize = (SIZE.width * SIZE.height) as usize;
         let pixels = [RGBA8 { r: color[0], g: color[1], b: color[2], a: color[3] }; PIXEL_COUNT];
 
-        let texture = Texture2D::with_data_raw(pixels.as_ptr() as *const c_void,
+        let gl_settings = OpenGlTextureSettings::from(self.settings);
+        let texture = Texture2D::with_data_raw(pixels.as_ptr() as _,
                                                SIZE,
-                                               TextureFilter::Nearest,
-                                               TextureWrapMode::ClampToEdge,
+                                               gl_settings.filter,
+                                               gl_settings.wrap_mode,
                                                TextureUnit(0),
-                                               false,
+                                               gl_settings.gen_mipmaps,
                                                debug_name);
 
-        self.add_texture(texture)
+        self.add_texture(texture, true)
     }
 }
 
@@ -402,33 +500,81 @@ impl render::TextureCache for TextureCache {
         self
     }
 
-    #[inline]
     fn load_texture(&mut self, file_path: &str) -> TextureHandle {
-        self.load_texture_with_settings(file_path,
-                                        TextureLoaderFlags::empty(),
-                                        TextureFilter::Nearest,
-                                        TextureWrapMode::ClampToEdge,
-                                        TextureUnit(0),
-                                        false)
+        let allow_settings_change = true;
+        let gl_settings = OpenGlTextureSettings::from(self.settings);
+
+        self.load_texture_with_settings_internal(file_path,
+                                                 TextureLoaderFlags::empty(),
+                                                 gl_settings.filter,
+                                                 gl_settings.wrap_mode,
+                                                 TextureUnit(0),
+                                                 gl_settings.gen_mipmaps,
+                                                 allow_settings_change)
     }
 
-    #[inline]
     fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle {
         self.handle_to_texture(handle).native_handle()
     }
 
+    fn load_texture_with_settings(&mut self,
+                                  file_path: &str,
+                                  settings: Option<render::TextureSettings>)
+                                  -> TextureHandle {
+        let allow_settings_change = settings.is_none();
+        let gl_settings = OpenGlTextureSettings::from(settings.unwrap_or(self.settings));
+
+        self.load_texture_with_settings_internal(file_path,
+                                                 TextureLoaderFlags::empty(),
+                                                 gl_settings.filter,
+                                                 gl_settings.wrap_mode,
+                                                 TextureUnit(0),
+                                                 gl_settings.gen_mipmaps,
+                                                 allow_settings_change)
+    }
+
+    fn change_texture_settings(&mut self, settings: render::TextureSettings) {
+        log::info!(log::channel!("render"),
+                   "Changing texture settings to: filter={}, wrap={}, mipmaps={}",
+                   settings.filter,
+                   settings.wrap_mode,
+                   settings.gen_mipmaps);
+
+        self.settings = settings;
+        let gl_settings = OpenGlTextureSettings::from(settings);
+
+        for (texture, allow_settings_change) in &mut self.textures {
+            if *allow_settings_change {
+                texture.change_settings(gl_settings);
+            }
+        }
+
+        panic_if_gl_error();
+    }
+
+    fn current_texture_settings(&self) -> render::TextureSettings {
+        self.settings
+    }
+
     fn new_uninitialized_texture(&mut self,
                                  debug_name: &str,
-                                 size: Size) -> TextureHandle {
+                                 size: Size,
+                                 settings: Option<render::TextureSettings>)
+                                 -> TextureHandle {
         debug_assert!(size.is_valid());
+
+        let allow_settings_change = settings.is_none();
+        let gl_settings = OpenGlTextureSettings::from(settings.unwrap_or(self.settings));
+
         let texture = Texture2D::with_data_raw(core::ptr::null(),
                                                size,
-                                               TextureFilter::Nearest,
-                                               TextureWrapMode::ClampToEdge,
+                                               gl_settings.filter,
+                                               gl_settings.wrap_mode,
                                                TextureUnit(0),
-                                               false,
+                                               gl_settings.gen_mipmaps,
                                                debug_name);
-        self.add_texture(texture)
+
+        self.add_texture(texture, allow_settings_change)
     }
 
     fn update_texture(&mut self,

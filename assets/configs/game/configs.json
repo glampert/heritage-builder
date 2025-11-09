@@ -7,7 +7,12 @@
     },
     "resizable_window": false,
     "confine_cursor_to_window": true,
-    "use_packed_texture_atlas": true
+    "use_packed_texture_atlas": true,
+    "texture_settings": {
+      "filter": "Linear",
+      "wrap_mode": "ClampToEdge",
+      "gen_mipmaps": false
+    }
   },
   "sim": {
     "starting_gold_units": 100,

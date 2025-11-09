@@ -3,8 +3,9 @@ use proc_macros::DrawDebugUi;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
-    imgui_ui::UiSystem,
     log,
+    imgui_ui::UiSystem,
+    render::TextureSettings,
     save::{self, *},
     tile::rendering,
     utils::{platform::paths, Color, Size},
@@ -110,14 +111,18 @@ macro_rules! configurations {
 #[derive(DrawDebugUi, Serialize, Deserialize)]
 #[serde(default)] // Missing fields in the config file get defaults from EngineConfigs::default().
 pub struct EngineConfigs {
-    // Window/Rendering:
+    // Window:
     pub window_title: String,
     pub window_size: Size,
     pub window_background_color: Color,
     pub fullscreen: bool,
     pub resizable_window: bool,
     pub confine_cursor_to_window: bool,
+
+    // Graphics:
     pub use_packed_texture_atlas: bool,
+    #[debug_ui(nested)]
+    pub texture_settings: TextureSettings,
 
     // Debug Grid:
     pub grid_color: Color,
@@ -136,7 +141,10 @@ impl Default for EngineConfigs {
                fullscreen: false,
                resizable_window: false,
                confine_cursor_to_window: true,
+
+               // Graphics:
                use_packed_texture_atlas: false,
+               texture_settings: TextureSettings::default(),
 
                // Debug Grid:
                grid_color: rendering::DEFAULT_GRID_COLOR,

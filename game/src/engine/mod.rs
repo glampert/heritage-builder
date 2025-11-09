@@ -134,11 +134,12 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
 
         log::info!(log::channel!("engine"), "Application created.");
 
-        let render_system: Box<RenderSystemBackendImpl> =
+        let mut render_system: Box<RenderSystemBackendImpl> =
             RenderSystemBuilder::new().viewport_size(configs.window_size)
                                       .clear_color(configs.window_background_color)
                                       .build();
 
+        render_system.texture_cache_mut().change_texture_settings(configs.texture_settings);
         log::info!(log::channel!("engine"), "RenderSystem created.");
 
         let ui_system = UiSystem::new::<UiRendererBackendImpl>(&*app);

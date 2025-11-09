@@ -6,8 +6,8 @@ use image::{RgbaImage, ImageReader};
 use super::{sets::TileTexInfo, TileMapLayerKind};
 use crate::{
     log,
-    render::{TextureCache, TextureHandle},
     utils::{RectTexCoords, Size},
+    render::{TextureCache, TextureHandle, TextureSettings},
 };
 
 // ----------------------------------------------
@@ -20,6 +20,8 @@ pub trait TextureAtlas {
     fn save_textures_to_file(&self, base_path: &str);
 }
 
+
+
 // ----------------------------------------------
 // PassthroughTextureAtlas
 // ----------------------------------------------
@@ -27,18 +29,31 @@ pub trait TextureAtlas {
 // No-op implementation that doesn't build a texture atlas.
 // Each texture is a standalone image and TextureHandle.
 // Using this implementation disabled texture atlas packing.
-pub struct PassthroughTextureAtlas;
+pub struct PassthroughTextureAtlas {
+    layer: TileMapLayerKind,
+}
 
 impl PassthroughTextureAtlas {
     #[inline]
-    pub fn new() -> Self { Self }
+    pub fn new(layer: TileMapLayerKind) -> Self {
+        Self { layer }
+    }
 }
 
 impl TextureAtlas for PassthroughTextureAtlas {
     #[inline]
     fn load_texture(&mut self, tex_cache: &mut dyn TextureCache, texture_path: &str) -> TileTexInfo {
         debug_assert!(!texture_path.is_empty());
-        let texture = tex_cache.load_texture(texture_path);
+
+        let texture = {
+            // Terrain must always use nearest-neighbor filtering (default) to avoid seams.
+            if self.layer == TileMapLayerKind::Terrain {
+                tex_cache.load_texture_with_settings(texture_path, Some(TextureSettings::default()))
+            } else {
+                tex_cache.load_texture(texture_path)
+            }
+        };
+
         TileTexInfo { texture, coords: RectTexCoords::default() }
     }
 
@@ -62,7 +77,7 @@ pub struct PackedTextureAtlas {
 
 impl PackedTextureAtlas {
     pub fn new(layer: TileMapLayerKind) -> Self {
-        Self { layer, packer: packer::AtlasPacker::new() }
+        Self { layer, packer: packer::AtlasPacker::new(layer) }
     }
 }
 
@@ -193,12 +208,13 @@ mod packer {
     }
 
     pub struct AtlasPacker {
+        layer: TileMapLayerKind,
         pages: Vec<AtlasPage>,
     }
 
     impl AtlasPacker {
-        pub fn new() -> Self {
-            Self { pages: Vec::new() }
+        pub fn new(layer: TileMapLayerKind) -> Self {
+            Self { layer, pages: Vec::new() }
         }
 
         pub fn pack_image(&mut self,
@@ -242,7 +258,15 @@ mod packer {
 
             let tex_name = format!("tex_atlas_page_{}", self.page_count());
             let tex_size = Size::new(img_width as i32, img_height as i32);
-            let texture = tex_cache.new_uninitialized_texture(&tex_name, tex_size);
+
+            let texture = {
+                if self.layer == TileMapLayerKind::Terrain {
+                    // Terrain must always use nearest-neighbor filtering (default) to avoid seams.
+                    tex_cache.new_uninitialized_texture(&tex_name, tex_size, Some(TextureSettings::default()))
+                } else {
+                    tex_cache.new_uninitialized_texture(&tex_name, tex_size, None)
+                }
+            };
 
             self.pages.push(AtlasPage { packer, image, texture });
             self.pages.last_mut().unwrap()

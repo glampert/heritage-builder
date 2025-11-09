@@ -1,3 +1,5 @@
+use num_enum::TryFromPrimitive;
+use strum::VariantArray;
 use proc_macros::DrawDebugUi;
 
 use crate::{
@@ -5,6 +7,7 @@ use crate::{
     debug,
     imgui_ui,
     engine::config::Configs,
+    render::{TextureFilter, TextureWrapMode},
     utils::{Color, Size},
     game::{
         self,
@@ -77,8 +80,10 @@ pub struct DebugSettingsMenu {
     show_screen_origin: bool,
     #[debug_ui(edit)]
     show_world_perf_stats: bool,
-    #[debug_ui(edit, separator)]
+    #[debug_ui(edit)]
     show_render_perf_stats: bool,
+    #[debug_ui(edit, separator)]
+    show_texture_settings: bool,
 
     #[debug_ui(edit)]
     show_game_configs_debug: bool,
@@ -206,7 +211,7 @@ impl DebugSettingsMenu {
             self.menu_bar_text(context, game_loop);
         }
 
-        self.draw_child_windows(context, sim);
+        self.draw_child_windows(context, sim, game_loop);
     }
 
     fn menu_bar_text(&self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
@@ -457,8 +462,7 @@ impl DebugSettingsMenu {
 
         let save_files = game_loop.save_files_list();
 
-        if ui.combo("Load File", &mut self.save_file_selected, &save_files, |s| s.to_string_lossy())
-        {
+        if ui.combo("Load File", &mut self.save_file_selected, &save_files, |s| s.to_string_lossy()) {
             self.save_file_selected = self.save_file_selected.min(save_files.len());
         }
 
@@ -467,7 +471,7 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn draw_child_windows(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation) {
+    fn draw_child_windows(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation, game_loop: &mut GameLoop) {
         if self.show_game_configs_debug {
             self.draw_game_configs_window(context);
         }
@@ -478,6 +482,10 @@ impl DebugSettingsMenu {
 
         if self.show_game_systems_debug {
             self.draw_game_systems_debug_window(context, sim);
+        }
+
+        if self.show_texture_settings {
+            self.draw_texture_settings_window(context, game_loop);
         }
     }
 
@@ -528,5 +536,52 @@ impl DebugSettingsMenu {
           .position([400.0, 20.0], imgui::Condition::FirstUseEver)
           .size([400.0, 350.0], imgui::Condition::FirstUseEver)
           .build(|| sim.draw_game_systems_debug_ui(context));
+    }
+
+    fn draw_texture_settings_window(&mut self,
+                                    context: &mut sim::debug::DebugContext,
+                                    game_loop: &mut GameLoop) {
+        let ui = context.ui_sys.builder();
+
+        ui.window("Texture Settings")
+          .opened(&mut self.show_texture_settings)
+          .position([500.0, 20.0], imgui::Condition::FirstUseEver)
+          .size([250.0, 100.0], imgui::Condition::FirstUseEver)
+          .build(|| {
+              let tex_cache = game_loop.engine_mut().texture_cache_mut();
+
+              let mut current_settings = tex_cache.current_texture_settings();
+              let mut settings_changed = false;
+
+              let mut current_filter_index = current_settings.filter as usize;
+              if ui.combo("Filter",
+                          &mut current_filter_index,
+                          TextureFilter::VARIANTS,
+                          |v| { v.to_string().into() })
+              {
+                  settings_changed = true;
+              }
+
+              let mut current_wrap_mode_index = current_settings.wrap_mode as usize;
+              if ui.combo("Wrap Mode",
+                          &mut current_wrap_mode_index,
+                          TextureWrapMode::VARIANTS,
+                          |v| { v.to_string().into() })
+              {
+                  settings_changed = true;
+              }
+
+              let mut gen_mipmaps = current_settings.gen_mipmaps;
+              if ui.checkbox("Mipmaps", &mut gen_mipmaps) {
+                  settings_changed = true;
+              }
+
+              if settings_changed {
+                  current_settings.filter = TextureFilter::try_from_primitive(current_filter_index as u32).unwrap();
+                  current_settings.wrap_mode = TextureWrapMode::try_from_primitive(current_wrap_mode_index as u32).unwrap();
+                  current_settings.gen_mipmaps = gen_mipmaps;
+                  tex_cache.change_texture_settings(current_settings);
+              }
+          });
     }
 }

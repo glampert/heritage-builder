@@ -1,4 +1,8 @@
 use std::any::Any;
+use serde::{Serialize, Deserialize};
+use strum_macros::{Display, VariantArray};
+use num_enum::TryFromPrimitive;
+use proc_macros::DrawDebugUi;
 
 use crate::utils::{Color, Rect, RectTexCoords, Size, Vec2};
 
@@ -369,18 +373,71 @@ pub struct NativeTextureHandle {
 }
 
 // ----------------------------------------------
+// TextureSettings
+// ----------------------------------------------
+
+#[repr(u32)]
+#[derive(Copy, Clone, Display, VariantArray, TryFromPrimitive, Serialize, Deserialize)]
+pub enum TextureFilter {
+    Nearest,
+    Linear,
+    NearestMipmapNearest,
+    LinearMipmapNearest,
+    NearestMipmapLinear,
+    LinearMipmapLinear,
+}
+
+#[repr(u32)]
+#[derive(Copy, Clone, Display, VariantArray, TryFromPrimitive, Serialize, Deserialize)]
+pub enum TextureWrapMode {
+    Repeat,
+    ClampToEdge,
+    ClampToBorder,
+}
+
+#[derive(Copy, Clone, DrawDebugUi, Serialize, Deserialize)]
+pub struct TextureSettings {
+    pub filter: TextureFilter,
+    pub wrap_mode: TextureWrapMode,
+    pub gen_mipmaps: bool,
+}
+
+impl Default for TextureSettings {
+    fn default() -> Self {
+        Self {
+            filter: TextureFilter::Nearest,
+            wrap_mode: TextureWrapMode::ClampToEdge,
+            gen_mipmaps: false,
+        }
+    }
+}
+
+// ----------------------------------------------
 // TextureCache
 // ----------------------------------------------
 
 pub trait TextureCache: Any {
     fn as_any(&self) -> &dyn Any;
 
+    // Load texture with default settings, which can be overridden by change_texture_settings().
     fn load_texture(&mut self, file_path: &str) -> TextureHandle;
     fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle;
 
+    // If settings are provided they will be used and will not be affected by change_texture_settings().
+    fn load_texture_with_settings(&mut self,
+                                  file_path: &str,
+                                  settings: Option<TextureSettings>)
+                                  -> TextureHandle;
+
+    fn change_texture_settings(&mut self, settings: TextureSettings);
+    fn current_texture_settings(&self) -> TextureSettings;
+
+    // If settings are provided they will be used and will not be affected by change_texture_settings().
     fn new_uninitialized_texture(&mut self,
                                  debug_name: &str,
-                                 size: Size) -> TextureHandle;
+                                 size: Size,
+                                 settings: Option<TextureSettings>)
+                                 -> TextureHandle;
 
     fn update_texture(&mut self,
                       handle: TextureHandle,

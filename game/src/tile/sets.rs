@@ -1048,7 +1048,7 @@ impl TileSets {
             tex_atlas.commit_textures(tex_cache);
         } else {
             log::info!(log::channel!("tileset"), "Texture Atlas Packing: NO");
-            let mut tex_atlas = PassthroughTextureAtlas::new();
+            let mut tex_atlas = PassthroughTextureAtlas::new(layer);
 
             if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
                 log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path:?}!");
