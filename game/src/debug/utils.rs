@@ -9,6 +9,7 @@ use crate::{
         world::World,
     },
     tile::{
+        self,
         road, water,
         sets::{TileDef, TileSets},
         rendering::{TileMapRenderFlags, TileMapRenderStats},
@@ -607,8 +608,8 @@ mod preset_maps {
         }
 
         let category_name = match layer_kind {
-            TileMapLayerKind::Terrain => "ground",
-            TileMapLayerKind::Objects => "buildings",
+            TileMapLayerKind::Terrain => tile::sets::TERRAIN_LAND_CATEGORY.string,
+            TileMapLayerKind::Objects => tile::sets::OBJECTS_BUILDINGS_CATEGORY.string,
         };
 
         let tile_name = match layer_kind {
