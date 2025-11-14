@@ -1,6 +1,7 @@
 use std::{any::Any, ptr::null};
 
 pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
+pub mod icons;
 
 use crate::{
     app::{
@@ -174,12 +175,14 @@ pub struct UiFonts {
     pub normal: UiFontHandle,
     pub small: UiFontHandle,
     pub large: UiFontHandle,
+    pub icons: UiFontHandle,
 }
 
 impl UiFonts {
     const NORMAL_FONT_SIZE: f32 = 14.0;
     const SMALL_FONT_SIZE:  f32 = 10.0;
     const LARGE_FONT_SIZE:  f32 = 16.0;
+    const ICONS_FONT_SIZE:  f32 = 16.0;
 }
 
 // ----------------------------------------------
@@ -460,20 +463,35 @@ impl UiContext {
     }
 
     fn load_custom_fonts(ctx: &mut imgui::Context) -> UiFonts {
-        const FONT_DATA: &[u8] = include_bytes!(
+        const STD_FONT_DATA: &[u8] = include_bytes!(
             "../../../assets/fonts/source_code_pro_semi_bold.ttf"
         );
+
+        const ICON_FONT_DATA: &[u8] = include_bytes!(
+            "../../../assets/fonts/fa-solid-900.ttf"
+        );
+
+        let icon_glyph_ranges = imgui::FontGlyphRanges::from_slice(&[
+            icons::ICON_MIN as u32,
+            icons::ICON_MAX as u32,
+            0
+        ]);
 
         // NOTE: First font loaded will be set as the imgui default.
         let fonts = ctx.fonts();
         UiFonts {
-            normal: Self::load_font(fonts, FONT_DATA, UiFonts::NORMAL_FONT_SIZE),
-            small:  Self::load_font(fonts, FONT_DATA, UiFonts::SMALL_FONT_SIZE),
-            large:  Self::load_font(fonts, FONT_DATA, UiFonts::LARGE_FONT_SIZE),
+            normal: Self::load_font(fonts, STD_FONT_DATA,  UiFonts::NORMAL_FONT_SIZE, None),
+            small:  Self::load_font(fonts, STD_FONT_DATA,  UiFonts::SMALL_FONT_SIZE,  None),
+            large:  Self::load_font(fonts, STD_FONT_DATA,  UiFonts::LARGE_FONT_SIZE,  None),
+            icons:  Self::load_font(fonts, ICON_FONT_DATA, UiFonts::ICONS_FONT_SIZE,  Some(icon_glyph_ranges)),
         }
     }
 
-    fn load_font(fonts: &mut imgui::FontAtlas, font_data: &[u8], font_size: f32) -> UiFontHandle {
+    fn load_font(fonts: &mut imgui::FontAtlas,
+                 font_data: &[u8],
+                 font_size: f32,
+                 glyph_ranges: Option<imgui::FontGlyphRanges>)
+                 -> UiFontHandle {
         fonts.add_font(&[imgui::FontSource::TtfData {
             data: font_data,
             size_pixels: font_size,
@@ -481,6 +499,7 @@ impl UiContext {
                 oversample_h: 3,
                 oversample_v: 3,
                 pixel_snap_h: false,
+                glyph_ranges: glyph_ranges.unwrap_or_default(),
                 ..Default::default()
             }),
         }])
@@ -658,4 +677,20 @@ pub fn dpad_buttons(ui: &imgui::Ui) -> Option<DPadDirection> {
     ui.text("SW");
 
     direction_pressed
+}
+
+pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool {
+    let ui = ui_sys.builder();
+
+    let icon_font = ui.push_font(ui_sys.fonts().icons);
+    let clicked = ui.button(icon.to_string());
+    icon_font.pop();
+
+    if let Some(tooltip_text) = tooltip {
+        if ui.is_item_hovered() {
+            ui.tooltip_text(tooltip_text)
+        }
+    }
+
+    clicked
 }

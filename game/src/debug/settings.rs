@@ -310,7 +310,7 @@ impl DebugSettingsMenu {
         let new_map_size = unsafe {
             static mut NEW_MAP_SIZE: Size = Size::new(64, 64);
             imgui_ui::input_i32_xy(ui,
-                "New Map Size",
+                "New Map Size:",
                 &mut NEW_MAP_SIZE,
                 false,
                 Some([32, 32]),
@@ -322,6 +322,48 @@ impl DebugSettingsMenu {
             let grass_tile_def = PresetTiles::Grass.find_tile_def();
             game_loop.reset_session(grass_tile_def, Some(new_map_size));
         }
+
+        // Simulation/game speed:
+        ui.separator();
+        ui.text("Game Speed:");
+
+        #[allow(static_mut_refs)]
+        let (speed, paused) = unsafe {
+            static mut SPEED: i32 = 1;
+            static mut PAUSED: bool = false;
+
+            if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_PLAY, Some("Continue")) {
+                PAUSED = false;
+            }
+            ui.same_line();
+            if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_PAUSE, Some("Pause")) {
+                PAUSED = true;
+            }
+            ui.same_line();
+            if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_FAST_FORWARD, Some("Speedup")) {
+                PAUSED = false;
+                SPEED = (SPEED + 1).min(10);
+            }
+            ui.same_line();
+            if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_FAST_BACKWARD, Some("Slowdown")) {
+                PAUSED = false;
+                SPEED = (SPEED - 1).max(1);
+            }
+
+            (SPEED, PAUSED)
+        };
+
+        ui.same_line();
+        ui.text("|");
+        ui.same_line();
+
+        if paused {
+            ui.text_colored(Color::red().to_array(), "Paused");
+        } else {
+            ui.text(format!("Speed: {speed}x"));
+        }
+
+        // TODO: implement sim speed & play/pause logic.
     }
 
     fn camera_menu(&self, context: &mut sim::debug::DebugContext, camera: &mut Camera) {

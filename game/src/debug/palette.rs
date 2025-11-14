@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::{
     engine::DebugDraw,
     app::input::{InputAction, MouseButton},
-    imgui_ui::{UiInputEvent, UiSystem},
+    imgui_ui::{self, UiInputEvent, UiSystem},
     render::{TextureCache, TextureHandle},
     utils::{
         self, platform::paths, coords::WorldToScreenTransform,
@@ -104,11 +104,11 @@ impl TilePaletteMenu {
             .build(|| {
                 ui.text("Tools");
                 {
-                    if ui.button("Undo") {
+                    if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_UNDO, Some("Undo")) {
                         undo_redo::undo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
                     ui.same_line();
-                    if ui.button("Redo") {
+                    if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_REDO, Some("Redo")) {
                         undo_redo::redo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
 
