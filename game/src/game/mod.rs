@@ -689,7 +689,11 @@ impl GameLoop {
                            delta_time_secs);
 
         let visible_range = session.camera.visible_cells_range();
-        session.tile_map.update_anims(visible_range, delta_time_secs);
+
+        if !session.sim.is_paused() {
+            let scaled_delta_time_secs = delta_time_secs * session.sim.speed();
+            session.tile_map.update_anims(visible_range, scaled_delta_time_secs);
+        }
 
         visible_range
     }

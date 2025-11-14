@@ -61,17 +61,25 @@ pub struct Simulation {
     search: Search,
 
     treasury: GlobalTreasury,
+
+    // Sim speed:
+    speed: f32,
+    is_paused: bool,
 }
 
 impl Simulation {
     pub fn new(tile_map: &TileMap) -> Self {
         let configs = GameConfigs::get();
-        Self { rng: RandomGenerator::seed_from_u64(configs.sim.random_seed),
-               update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
-               task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
-               graph: Graph::from_tile_map(tile_map),
-               search: Search::with_grid_size(tile_map.size_in_cells()),
-               treasury: GlobalTreasury::new(configs.sim.starting_gold_units) }
+        Self {
+            rng: RandomGenerator::seed_from_u64(configs.sim.random_seed),
+            update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
+            task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
+            graph: Graph::from_tile_map(tile_map),
+            search: Search::with_grid_size(tile_map.size_in_cells()),
+            treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
+            speed: Self::MIN_SIM_SPEED,
+            is_paused: false,
+        }
     }
 
     #[inline]
@@ -114,16 +122,22 @@ impl Simulation {
         // add/remove tile changes will be reflected on the graph.
         self.graph.rebuild_from_tile_map(tile_map, true);
 
+        if self.is_paused {
+            return;
+        }
+
+        let scaled_delta_time_secs = delta_time_secs * self.speed;
+
         // Units movement needs to be smooth, so it updates every frame.
         {
-            let query = self.new_query(world, tile_map, delta_time_secs);
+            let query = self.new_query(world, tile_map, scaled_delta_time_secs);
             world.update_unit_navigation(&query);
         }
 
         // Fixed step world & systems update.
         {
-            let world_update_delta_time_secs = self.update_timer.time_since_last_secs();
-            if self.update_timer.tick(delta_time_secs).should_update() {
+            let world_update_delta_time_secs = self.update_timer.time_since_last_secs() * self.speed;
+            if self.update_timer.tick(scaled_delta_time_secs).should_update() {
                 let query = self.new_query(world, tile_map, world_update_delta_time_secs);
                 world.update(&query);
                 systems.update(&query);
@@ -140,6 +154,39 @@ impl Simulation {
     pub fn reset_search_graph(&mut self, tile_map: &TileMap) {
         self.graph  = Graph::from_tile_map(tile_map);
         self.search = Search::with_graph(&self.graph);
+    }
+
+    // ----------------------
+    // Sim speed:
+    // ----------------------
+
+    const MIN_SIM_SPEED: f32 = 1.0;
+    const MAX_SIM_SPEED: f32 = 10.0;
+
+    #[inline]
+    pub fn is_paused(&self) -> bool {
+        self.is_paused
+    }
+
+    #[inline]
+    pub fn speed(&mut self) -> f32 {
+        self.speed
+    }
+
+    pub fn pause(&mut self) {
+        self.is_paused = true;
+    }
+
+    pub fn resume(&mut self) {
+        self.is_paused = false;
+    }
+
+    pub fn speedup(&mut self) {
+        self.speed = (self.speed + 1.0).min(Self::MAX_SIM_SPEED);
+    }
+
+    pub fn slowdown(&mut self) {
+        self.speed = (self.speed - 1.0).max(Self::MIN_SIM_SPEED);
     }
 
     // ----------------------

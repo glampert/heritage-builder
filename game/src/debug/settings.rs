@@ -189,7 +189,7 @@ impl DebugSettingsMenu {
 
         if let Some(_menu_bar) = ui.begin_main_menu_bar() {
             if let Some(_menu) = ui.begin_menu("Game") {
-                self.game_menu(context, game_loop);
+                self.game_menu(context, sim, game_loop);
             }
 
             if let Some(_menu) = ui.begin_menu("Save") {
@@ -253,6 +253,7 @@ impl DebugSettingsMenu {
 
     fn game_menu(&mut self,
                  context: &mut sim::debug::DebugContext,
+                 sim: &mut Simulation,
                  game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
 
@@ -327,43 +328,31 @@ impl DebugSettingsMenu {
         ui.separator();
         ui.text("Game Speed:");
 
-        #[allow(static_mut_refs)]
-        let (speed, paused) = unsafe {
-            static mut SPEED: i32 = 1;
-            static mut PAUSED: bool = false;
-
-            if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_PLAY, Some("Continue")) {
-                PAUSED = false;
-            }
-            ui.same_line();
-            if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_PAUSE, Some("Pause")) {
-                PAUSED = true;
-            }
-            ui.same_line();
-            if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_FAST_FORWARD, Some("Speedup")) {
-                PAUSED = false;
-                SPEED = (SPEED + 1).min(10);
-            }
-            ui.same_line();
-            if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_FAST_BACKWARD, Some("Slowdown")) {
-                PAUSED = false;
-                SPEED = (SPEED - 1).max(1);
-            }
-
-            (SPEED, PAUSED)
-        };
+        if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_PAUSE, Some("Pause")) {
+            sim.pause();
+        }
+        ui.same_line();
+        if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_PLAY, Some("Resume")) {
+            sim.resume();
+        }
+        ui.same_line();
+        if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_FAST_FORWARD, Some("Speedup")) {
+            sim.speedup();
+        }
+        ui.same_line();
+        if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_FAST_BACKWARD, Some("Slowdown")) {
+            sim.slowdown();
+        }
 
         ui.same_line();
         ui.text("|");
         ui.same_line();
 
-        if paused {
+        if sim.is_paused() {
             ui.text_colored(Color::red().to_array(), "Paused");
         } else {
-            ui.text(format!("Speed: {speed}x"));
+            ui.text(format!("Speed: {:1}x", sim.speed()));
         }
-
-        // TODO: implement sim speed & play/pause logic.
     }
 
     fn camera_menu(&self, context: &mut sim::debug::DebugContext, camera: &mut Camera) {
