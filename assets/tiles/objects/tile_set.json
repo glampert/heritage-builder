@@ -1245,7 +1245,8 @@
                 {
                   "name": "idle_nw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
                 },
                 {
                   "name": "idle_se",
@@ -1255,7 +1256,8 @@
                 {
                   "name": "idle_sw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "walk_ne",
@@ -1265,7 +1267,8 @@
                 {
                   "name": "walk_nw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
@@ -1275,7 +1278,8 @@
                 {
                   "name": "walk_sw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
                 }
               ]
             }
@@ -1308,7 +1312,8 @@
                 {
                   "name": "idle_nw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
                 },
                 {
                   "name": "idle_se",
@@ -1318,7 +1323,8 @@
                 {
                   "name": "idle_sw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "walk_ne",
@@ -1328,7 +1334,8 @@
                 {
                   "name": "walk_nw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
@@ -1338,7 +1345,8 @@
                 {
                   "name": "walk_sw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
                 }
               ]
             }
@@ -1371,7 +1379,8 @@
                 {
                   "name": "idle_nw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
                 },
                 {
                   "name": "idle_se",
@@ -1381,7 +1390,8 @@
                 {
                   "name": "idle_sw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "walk_ne",
@@ -1391,7 +1401,8 @@
                 {
                   "name": "walk_nw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
@@ -1401,7 +1412,8 @@
                 {
                   "name": "walk_sw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
                 }
               ]
             }
@@ -1434,7 +1446,8 @@
                 {
                   "name": "idle_nw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
                 },
                 {
                   "name": "idle_se",
@@ -1444,7 +1457,8 @@
                 {
                   "name": "idle_sw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "walk_ne",
@@ -1454,7 +1468,8 @@
                 {
                   "name": "walk_nw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
@@ -1464,7 +1479,8 @@
                 {
                   "name": "walk_sw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
                 }
               ]
             }
@@ -1497,7 +1513,8 @@
                 {
                   "name": "idle_nw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
                 },
                 {
                   "name": "idle_se",
@@ -1507,7 +1524,8 @@
                 {
                   "name": "idle_sw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "walk_ne",
@@ -1517,7 +1535,8 @@
                 {
                   "name": "walk_nw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
@@ -1527,7 +1546,8 @@
                 {
                   "name": "walk_sw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
                 }
               ]
             }
@@ -1560,7 +1580,8 @@
                 {
                   "name": "idle_nw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
                 },
                 {
                   "name": "idle_se",
@@ -1570,7 +1591,8 @@
                 {
                   "name": "idle_sw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "walk_ne",
@@ -1580,7 +1602,8 @@
                 {
                   "name": "walk_nw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
@@ -1590,7 +1613,8 @@
                 {
                   "name": "walk_sw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
                 }
               ]
             }
@@ -1623,7 +1647,8 @@
                 {
                   "name": "idle_nw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
                 },
                 {
                   "name": "idle_se",
@@ -1633,7 +1658,8 @@
                 {
                   "name": "idle_sw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "walk_ne",
@@ -1643,7 +1669,8 @@
                 {
                   "name": "walk_nw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
@@ -1653,7 +1680,8 @@
                 {
                   "name": "walk_sw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
                 }
               ]
             }
@@ -1686,7 +1714,8 @@
                 {
                   "name": "idle_nw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
                 },
                 {
                   "name": "idle_se",
@@ -1696,7 +1725,8 @@
                 {
                   "name": "idle_sw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "walk_ne",
@@ -1706,7 +1736,8 @@
                 {
                   "name": "walk_nw",
                   "duration": 0.5,
-                  "frames_source": { "Files": 5 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
@@ -1716,7 +1747,8 @@
                 {
                   "name": "walk_sw",
                   "duration": 0.5,
-                  "frames_source": { "Files": 5 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
                 }
               ]
             }
@@ -1749,7 +1781,8 @@
                 {
                   "name": "idle_nw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
                 },
                 {
                   "name": "idle_se",
@@ -1759,7 +1792,8 @@
                 {
                   "name": "idle_sw",
                   "duration": 1,
-                  "frames_source": { "Files": 2 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "walk_ne",
@@ -1769,7 +1803,8 @@
                 {
                   "name": "walk_nw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
@@ -1779,7 +1814,8 @@
                 {
                   "name": "walk_sw",
                   "duration": 0.7,
-                  "frames_source": { "Files": 8 }
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
                 }
               ]
             }
