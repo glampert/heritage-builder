@@ -120,7 +120,7 @@ pub struct TileAnimSet {
 
     // True if the animation will loop, false for play only once.
     // Ignored when there's only one frame.
-    #[serde(default)]
+    #[serde(default = "default_looping_anim")]
     pub looping: bool,
 
     #[serde(default)]
@@ -773,6 +773,11 @@ const fn default_occludes_terrain() -> bool {
 #[inline]
 const fn default_path_kind() -> PathNodeKind {
     PathNodeKind::empty()
+}
+
+#[inline]
+const fn default_looping_anim() -> bool {
+    true
 }
 
 // ----------------------------------------------

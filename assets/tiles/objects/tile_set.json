@@ -1234,192 +1234,48 @@
               "anim_sets": [
                 {
                   "name": "idle",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "idle_ne",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_nw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_se",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_sw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "walk_ne",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_nw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_se",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_sw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 }
               ]
             }
@@ -1441,192 +1297,48 @@
               "anim_sets": [
                 {
                   "name": "idle",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "idle_ne",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_nw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_se",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_sw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "walk_ne",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_nw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_se",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_sw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 }
               ]
             }
@@ -1648,192 +1360,48 @@
               "anim_sets": [
                 {
                   "name": "idle",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "idle_ne",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_nw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_se",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_sw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "walk_ne",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_nw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_se",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_sw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 }
               ]
             }
@@ -1855,192 +1423,48 @@
               "anim_sets": [
                 {
                   "name": "idle",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "idle_ne",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_nw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_se",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_sw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "walk_ne",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_nw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_se",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_sw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 }
               ]
             }
@@ -2062,192 +1486,48 @@
               "anim_sets": [
                 {
                   "name": "idle",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "idle_ne",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_nw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_se",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_sw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "walk_ne",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_nw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_se",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_sw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 }
               ]
             }
@@ -2269,192 +1549,48 @@
               "anim_sets": [
                 {
                   "name": "idle",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "idle_ne",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_nw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_se",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_sw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "walk_ne",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_nw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_se",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_sw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 }
               ]
             }
@@ -2476,192 +1612,48 @@
               "anim_sets": [
                 {
                   "name": "idle",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "idle_ne",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_nw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_se",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_sw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "walk_ne",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_nw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_se",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_sw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 }
               ]
             }
@@ -2683,156 +1675,48 @@
               "anim_sets": [
                 {
                   "name": "idle",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "idle_ne",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_nw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_se",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_sw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "walk_ne",
-                  "looping": true,
                   "duration": 0.5,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    }
-                  ]
+                  "frames_source": { "Files": 5 }
                 },
                 {
                   "name": "walk_nw",
-                  "looping": true,
                   "duration": 0.5,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    }
-                  ]
+                  "frames_source": { "Files": 5 }
                 },
                 {
                   "name": "walk_se",
-                  "looping": true,
                   "duration": 0.5,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    }
-                  ]
+                  "frames_source": { "Files": 5 }
                 },
                 {
                   "name": "walk_sw",
-                  "looping": true,
                   "duration": 0.5,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    }
-                  ]
+                  "frames_source": { "Files": 5 }
                 }
               ]
             }
@@ -2854,192 +1738,48 @@
               "anim_sets": [
                 {
                   "name": "idle",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "CopyAllFrom": "idle_se" }
                 },
                 {
                   "name": "idle_ne",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_nw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_se",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "idle_sw",
-                  "looping": true,
                   "duration": 1,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    }
-                  ]
+                  "frames_source": { "Files": 2 }
                 },
                 {
                   "name": "walk_ne",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_nw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_se",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_sw",
-                  "looping": true,
                   "duration": 0.7,
-                  "frames": [
-                    {
-                      "name": "frame0"
-                    },
-                    {
-                      "name": "frame1"
-                    },
-                    {
-                      "name": "frame2"
-                    },
-                    {
-                      "name": "frame3"
-                    },
-                    {
-                      "name": "frame4"
-                    },
-                    {
-                      "name": "frame5"
-                    },
-                    {
-                      "name": "frame6"
-                    },
-                    {
-                      "name": "frame7"
-                    }
-                  ]
+                  "frames_source": { "Files": 8 }
                 }
               ]
             }
