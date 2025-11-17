@@ -86,7 +86,7 @@ impl TileTexInfo {
 // TileSprite
 // ----------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 pub struct TileSprite {
     // Name of the tile texture. Resolved into a TextureHandle post load.
     pub name: String,
@@ -123,9 +123,32 @@ pub struct TileAnimSet {
     #[serde(default)]
     pub looping: bool,
 
+    #[serde(default)]
+    frames_source: AnimSetFramesSource,
+
     // Textures for each animation frame. Texture handles are resolved after loading.
     // SmallVec optimizes for Terrain (single frame anim).
+    #[serde(default)]
     pub frames: SmallVec<[TileSprite; 1]>,
+}
+
+#[derive(Default, Deserialize)]
+enum AnimSetFramesSource {
+    // Explicitly stated frames[] list with all entries (default behavior).
+    #[default]
+    List,
+
+    // Implicit list of `count` entries. Looks for this many image files on disk
+    // following the file naming convention: frame0.png, frame1.png, ... frame[N].png
+    Files(usize),
+
+    // Copies all frames from the specified anim set instead, without loading any new images.
+    CopyAllFrom(String),
+
+    // Copies some frames from the given anim_set. Any frame with name starting with '@' is treated
+    // as a reference to a frame of the specified anim_set that should be copied. Any others not
+    // starting with '@' are treated as images to be loaded instead.
+    CopyFrom(String),
 }
 
 impl TileAnimSet {
@@ -139,6 +162,249 @@ impl TileAnimSet {
         let frame_count = self.frames.len();
         debug_assert!(frame_count != 0, "At least one animation frame required");
         self.duration / (frame_count as f32)
+    }
+
+    fn post_load(&mut self,
+                 tex_cache: &mut dyn TextureCache,
+                 tex_atlas: &mut impl TextureAtlas,
+                 tile_set_path_with_category: &str,
+                 variation_name: &str,
+                 tile_def_name: &str,
+                 tile_def_kind: TileKind)
+                 -> bool {
+
+        self.hash = hash::fnv1a_from_str(&self.name);
+
+        match &self.frames_source {
+            AnimSetFramesSource::List => {
+                // Explicit list of frame image names provided:
+                //
+                // "frames": [ {"name": "frame0"}, {"name": "frame1"}, ... ]
+
+                for (frame_index, frame) in self.frames.iter_mut().enumerate() {
+                    if frame.name.is_empty() {
+                        log::error!(log::channel!("tileset"),
+                                    "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                                    self.name);
+                        return false;
+                    }
+
+                    Self::load_frame_texture(frame,
+                                             tex_cache,
+                                             tex_atlas,
+                                             tile_set_path_with_category,
+                                             variation_name,
+                                             &self.name,
+                                             tile_def_name);
+                }
+
+                if self.frames.is_empty() {
+                    log::warn!(log::channel!("tileset"),
+                               "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                               self.name);
+                }
+            }
+            AnimSetFramesSource::Files(frame_count) => {
+                // Frames is empty; each image file is expected to follow
+                // the naming convention: "frame[N].png". Expect to load up
+                // to `frame_count` images.
+                //
+                // "frames_source": { "Files": 2 } // look for frame0.png, frame1.png 
+    
+                if !self.frames.is_empty() {
+                    log::error!(log::channel!("tileset"),
+                                "Cannot specify both `frames` and `frames_source`. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                                self.name);
+                    return false;
+                }
+
+                for frame_index in 0..*frame_count {
+                    let mut frame = TileSprite {
+                        name: format!("frame{frame_index}"),
+                        ..Default::default()
+                    };
+
+                    Self::load_frame_texture(&mut frame,
+                                             tex_cache,
+                                             tex_atlas,
+                                             tile_set_path_with_category,
+                                             variation_name,
+                                             &self.name,
+                                             tile_def_name);
+
+                    self.frames.push(frame);
+                }
+            }
+            AnimSetFramesSource::CopyAllFrom(_) => {
+                // Resolved later by resolve_frame_references().
+                if !self.frames.is_empty() {
+                    log::error!(log::channel!("tileset"),
+                                "Cannot specify both `frames` and `frames_source`. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                                self.name);
+                    return false;
+                }
+            }
+            AnimSetFramesSource::CopyFrom(_) => {
+                // Resolved later by resolve_frame_references().
+                // NOTE: self.frames may contain both @anim_set references or explicit frame image names.
+            }
+        }
+
+        true
+    }
+
+    fn resolve_frame_references(&mut self,
+                                tex_cache: &mut dyn TextureCache,
+                                tex_atlas: &mut impl TextureAtlas,
+                                tile_set_path_with_category: &str,
+                                tile_def_name: &str,
+                                tile_def_kind: TileKind,
+                                variation: &TileVariation) -> bool {
+
+        fn find_anim_set<'a>(variation: &'a TileVariation, anim_set_name: &str) -> Option<&'a TileAnimSet> {
+            (&variation.anim_sets).into_iter().find(|&anim_set| anim_set.name == anim_set_name)
+        }
+
+        match &self.frames_source {
+            AnimSetFramesSource::CopyAllFrom(anim_set_name) => {
+                // Copy all from specified anim set.
+                //
+                // "frames_source": { "CopyAllFrom": "idle_se" }
+
+                if self.name == *anim_set_name {
+                    log::error!(log::channel!("tileset"),
+                                "AnimSet `frames_source` cannot reference self! '{anim_set_name}'");
+                    return false;
+                }
+
+                let src_anim_set = find_anim_set(variation, anim_set_name);
+                if src_anim_set.is_none() {
+                    log::error!(log::channel!("tileset"),
+                                "Couldn't find AnimSet '{anim_set_name}' to copy frames from for '{}'.",
+                                self.name);
+                    return false;
+                }
+
+                self.frames = src_anim_set.unwrap().frames.clone();
+            }
+            AnimSetFramesSource::CopyFrom(anim_set_name) => {
+                // Copy some frames from specified anim set and potentially load new images.
+                //
+                // "frames_source": { "CopyFrom": "idle_se" },
+                // "frames": [ {"name": "frame0"}, {"name": "@1"} ]
+
+                if self.name == *anim_set_name {
+                    log::error!(log::channel!("tileset"),
+                                "AnimSet `frames_source` cannot reference self! '{anim_set_name}'");
+                    return false;
+                }
+
+                let src_anim_set = find_anim_set(variation, anim_set_name);
+                if src_anim_set.is_none() {
+                    log::error!(log::channel!("tileset"),
+                                "Couldn't find AnimSet '{anim_set_name}' to copy frames from for '{}'.",
+                                self.name);
+                    return false;
+                }
+
+                for (frame_index, frame) in self.frames.iter_mut().enumerate() {
+                    if frame.name.is_empty() {
+                        log::error!(log::channel!("tileset"),
+                                    "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                                    self.name);
+                        return false;
+                    }
+
+                    if frame.name.starts_with('@') {
+                        // Is a reference to a frame of `src_anim_set`. Index follows the @ sign.
+                        let src_frame_index: Option<usize> = frame.name
+                            .strip_prefix('@')
+                            .map(|num_str| num_str.parse().unwrap_or_default());
+
+                        if src_frame_index.is_none() {
+                            log::error!(log::channel!("tileset"),
+                                        "Invalid frame index after '@' sign when copying frame [{frame_index}] for '{}'.",
+                                        self.name);
+                            return false;
+                        }
+
+                        let src_idx = src_frame_index.unwrap();
+                        let src_frames = &src_anim_set.unwrap().frames;
+                        if src_idx >= src_frames.len() {
+                            log::error!(log::channel!("tileset"),
+                                        "Out-of-bounds frame index after '@' sign when copying frame [{frame_index}] for '{}'.",
+                                        self.name);
+                            return false;
+                        }
+
+                        *frame = src_frames[src_idx].clone();
+                    } else {
+                        // Load a new unique image file.
+                        Self::load_frame_texture(frame,
+                                                 tex_cache,
+                                                 tex_atlas,
+                                                 tile_set_path_with_category,
+                                                 &variation.name,
+                                                 &self.name,
+                                                 tile_def_name);
+                    }
+                }
+
+                if self.frames.is_empty() {
+                    log::warn!(log::channel!("tileset"),
+                               "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                               self.name);
+                }
+            }
+            _ => {}
+        }
+
+        true
+    }
+
+    fn load_frame_texture(frame: &mut TileSprite,
+                          tex_cache: &mut dyn TextureCache,
+                          tex_atlas: &mut impl TextureAtlas,
+                          tile_set_path_with_category: &str,
+                          variation_name: &str,
+                          anim_set_name: &str,
+                          tile_def_name: &str) {
+
+        debug_assert!(!frame.name.is_empty());
+        frame.hash = hash::fnv1a_from_str(&frame.name);
+
+        // Path format:
+        //  <layer>/<category>/<tile_name>/<variation>/<anim_set>/<frame[N]>.png
+        //
+        let texture_path = {
+            // <layer>/<category>/<tile_name>/
+            let mut path = format!("{}{}{}{}",
+                                           tile_set_path_with_category,
+                                           MAIN_SEPARATOR_STR,
+                                           tile_def_name,
+                                           MAIN_SEPARATOR_STR);
+
+            // Do we have a variation? If not the anim_set name follows directly.
+            // + <variation>/
+            if !variation_name.is_empty() {
+                path += variation_name;
+                path += MAIN_SEPARATOR_STR;
+            }
+
+            // Do we have an anim_set? If not the sprite frame image follows directly.
+            // + <anim_set>/
+            if !anim_set_name.is_empty() {
+                path += anim_set_name;
+                path += MAIN_SEPARATOR_STR;
+            }
+
+            // + <frame[N]>.png
+            path += &frame.name;
+            path += ".png";
+            path
+        };
+
+        frame.tex_info = tex_atlas.load_texture(tex_cache, &texture_path);
     }
 }
 
@@ -449,60 +715,34 @@ impl TileDef {
             variation.hash = hash::fnv1a_from_str(&variation.name);
 
             for anim_set in &mut variation.anim_sets {
-                if anim_set.frames.is_empty() {
-                    log::error!(log::channel!("tileset"),
-                                "At least one animation frame is required! TileDef: '{}' - '{}'",
-                                self.kind,
-                                self.name);
+                if !anim_set.post_load(tex_cache,
+                                       tex_atlas,
+                                       tile_set_path_with_category,
+                                       &variation.name,
+                                       &self.name,
+                                       self.kind)
+                {
                     return false;
                 }
+            }
+        }
 
-                anim_set.hash = hash::fnv1a_from_str(&anim_set.name);
+        // Once all variations are loaded we can resolve any frame references/copies.
+        for v in 0..self.variations.len() {
+            // NOTE: Need this temporary to deal with borrow issues.
+            // resolve_frame_references will never allow referencing
+            // self, only other variations, so this is safe.
+            let mut variation = mem::RawPtr::from_ref(&self.variations[v]);
 
-                for (frame_index, frame) in anim_set.frames.iter_mut().enumerate() {
-                    if frame.name.is_empty() {
-                        log::error!(log::channel!("tileset"),
-                                    "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{}' - '{}'",
-                                    anim_set.name,
-                                    self.kind,
-                                    self.name);
-                        return false;
-                    }
-
-                    frame.hash = hash::fnv1a_from_str(&frame.name);
-
-                    // Path format:
-                    //  <layer>/<category>/<tile_name>/<variation>/<anim_set>/<frame[N]>.png
-                    //
-                    let texture_path = {
-                        // <layer>/<category>/<tile_name>/
-                        let mut path = format!("{}{}{}{}",
-                                                       tile_set_path_with_category,
-                                                       MAIN_SEPARATOR_STR,
-                                                       self.name,
-                                                       MAIN_SEPARATOR_STR);
-
-                        // Do we have a variation? If not the anim_set name follows directly.
-                        // + <variation>/
-                        if !variation.name.is_empty() {
-                            path += &variation.name;
-                            path += MAIN_SEPARATOR_STR;
-                        }
-
-                        // Do we have an anim_set? If not the sprite frame image follows directly.
-                        // + <anim_set>/
-                        if !anim_set.name.is_empty() {
-                            path += &anim_set.name;
-                            path += MAIN_SEPARATOR_STR;
-                        }
-
-                        // + <frame[N]>.png
-                        path += &frame.name;
-                        path += ".png";
-                        path
-                    };
-
-                    frame.tex_info = tex_atlas.load_texture(tex_cache, &texture_path);
+            for anim_set in &mut variation.as_mut().anim_sets {
+                if !anim_set.resolve_frame_references(tex_cache,
+                                                      tex_atlas,
+                                                      tile_set_path_with_category,
+                                                      &self.name,
+                                                      self.kind,
+                                                      &self.variations[v])
+                {
+                    return false;
                 }
             }
         }
