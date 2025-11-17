@@ -124,6 +124,9 @@ pub struct TileAnimSet {
     pub looping: bool,
 
     #[serde(default)]
+    mirror: bool,
+
+    #[serde(default)]
     frames_source: AnimSetFramesSource,
 
     // Textures for each animation frame. Texture handles are resolved after loading.
@@ -196,6 +199,10 @@ impl TileAnimSet {
                                              variation_name,
                                              &self.name,
                                              tile_def_name);
+
+                    if self.mirror {
+                        frame.tex_info.coords.mirror();
+                    }
                 }
 
                 if self.frames.is_empty() {
@@ -231,6 +238,10 @@ impl TileAnimSet {
                                              variation_name,
                                              &self.name,
                                              tile_def_name);
+
+                    if self.mirror {
+                        frame.tex_info.coords.mirror();
+                    }
 
                     self.frames.push(frame);
                 }
@@ -286,6 +297,12 @@ impl TileAnimSet {
                 }
 
                 self.frames = src_anim_set.unwrap().frames.clone();
+
+                if self.mirror {
+                    for frame in &mut self.frames {
+                        frame.tex_info.coords.mirror();
+                    }
+                }
             }
             AnimSetFramesSource::CopyFrom(anim_set_name) => {
                 // Copy some frames from specified anim set and potentially load new images.
@@ -347,6 +364,10 @@ impl TileAnimSet {
                                                  &variation.name,
                                                  &self.name,
                                                  tile_def_name);
+                    }
+
+                    if self.mirror {
+                        frame.tex_info.coords.mirror();
                     }
                 }
 

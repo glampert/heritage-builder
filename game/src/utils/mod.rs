@@ -23,6 +23,16 @@ macro_rules! name_of {
     }};
 }
 
+// Swaps two values in-place.
+#[macro_export]
+macro_rules! swap2 {
+    ($a:expr, $b:expr) => {{
+        let tmp = $a;
+        $a = $b;
+        $b = tmp;
+    }};
+}
+
 // Defines a bitflags struct with a Display implementation.
 #[macro_export]
 macro_rules! bitflags_with_display {
@@ -626,6 +636,13 @@ impl RectTexCoords {
     #[inline]
     pub const fn zero() -> Self {
         Self { coords: [Vec2::zero(); 4] }
+    }
+
+    #[inline]
+    pub fn mirror(&mut self) {
+        // Mirror/flip UVs vertically.
+        swap2!(self.coords[0].x, self.coords[2].x); // swap(top_left.x, top_right.x)
+        swap2!(self.coords[1].x, self.coords[3].x); // swap(bottom_left.x, bottom_right.x)
     }
 
     //
