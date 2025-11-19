@@ -1,14 +1,15 @@
 #![allow(dead_code)]
 
+mod log;
 mod app;
 mod debug;
 mod engine;
 mod game;
 mod imgui_ui;
-mod log;
 mod pathfind;
 mod render;
 mod save;
+mod sound;
 mod tile;
 mod utils;
 

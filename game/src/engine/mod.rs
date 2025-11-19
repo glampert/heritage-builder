@@ -85,9 +85,10 @@ pub trait Engine {
 // ----------------------------------------------
 
 pub struct EngineBackend<AppBackendImpl,
- InputSystemBackendImpl,
- RenderSystemBackendImpl,
- UiRendererBackendImpl> {
+                         InputSystemBackendImpl,
+                         RenderSystemBackendImpl,
+                         UiRendererBackendImpl>
+{
     app: Box<AppBackendImpl>,
 
     render_system: Box<RenderSystemBackendImpl>,
