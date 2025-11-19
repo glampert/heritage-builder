@@ -1,4 +1,5 @@
 use slab::Slab;
+use proc_macros::DrawDebugUi;
 
 use std::{
     time::Duration,
@@ -136,20 +137,33 @@ pub enum SoundEvent {
 // SoundGlobalSettings
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, DrawDebugUi)]
 pub struct SoundGlobalSettings {
     // Cutoff distance from the camera where we mute spatial sounds.
+    #[debug_ui(edit, widget = "slider")]
     pub spatial_cutoff_distance: f32,
+    #[debug_ui(edit, widget = "slider")]
     pub spatial_transition_secs: Seconds,
 
     // Fade times:
-    pub ambience_fade_in_secs: Seconds,
-    pub ambience_fade_out_secs: Seconds,
+    #[debug_ui(edit, widget = "slider")]
     pub spatial_fade_in_secs: Seconds,
+    #[debug_ui(edit, widget = "slider")]
     pub spatial_fade_out_secs: Seconds,
+
+    #[debug_ui(edit, widget = "slider")]
+    pub ambience_fade_in_secs: Seconds,
+    #[debug_ui(edit, widget = "slider")]
+    pub ambience_fade_out_secs: Seconds,
+
+    #[debug_ui(edit, widget = "slider")]
     pub music_fade_in_secs: Seconds,
+    #[debug_ui(edit, widget = "slider")]
     pub music_fade_out_secs: Seconds,
+
+    #[debug_ui(edit, widget = "slider")]
     pub narration_fade_in_secs: Seconds,
+    #[debug_ui(edit, widget = "slider")]
     pub narration_fade_out_secs: Seconds,
 }
 
@@ -158,10 +172,10 @@ impl Default for SoundGlobalSettings {
         Self {
             spatial_cutoff_distance: 20.0,
             spatial_transition_secs: 5.0,
-            ambience_fade_in_secs: 5.0,
-            ambience_fade_out_secs: 5.0,
             spatial_fade_in_secs: 5.0,
             spatial_fade_out_secs: 5.0,
+            ambience_fade_in_secs: 5.0,
+            ambience_fade_out_secs: 5.0,
             music_fade_in_secs: 5.0,
             music_fade_out_secs: 5.0,
             narration_fade_in_secs: 5.0,
@@ -195,8 +209,8 @@ impl SoundSystem {
         &self.settings
     }
 
-    pub fn update_settings(&mut self, new_settings: SoundGlobalSettings) {
-        self.settings = new_settings;
+    pub fn settings_mut(&mut self) -> &mut SoundGlobalSettings {
+        &mut self.settings
     }
 
     pub fn update(&mut self, camera_world_position: Vec2) {

@@ -4,13 +4,14 @@ use config::EngineConfigs;
 use time::{FrameClock, Seconds};
 
 use crate::{
+    log,
+    sound::SoundSystem,
+    debug::log_viewer::LogViewerWindow,
+    imgui_ui::{self, UiRenderer, UiRendererFactory, UiSystem},
     app::{
         self, input::*, Application, ApplicationBuilder, ApplicationEvent, ApplicationEventList,
         ApplicationFactory,
     },
-    debug::log_viewer::LogViewerWindow,
-    imgui_ui::{self, UiRenderer, UiRendererFactory, UiSystem},
-    log,
     render::{
         self, RenderStats, RenderSystem, RenderSystemBuilder, RenderSystemFactory, TextureCache,
         TextureHandle,
@@ -57,6 +58,7 @@ pub trait Engine {
     fn texture_cache_mut(&mut self) -> &mut dyn TextureCache;
 
     fn ui_system(&self) -> &UiSystem;
+    fn sound_system(&mut self) -> &mut SoundSystem;
     fn debug_draw(&mut self) -> &mut dyn DebugDraw;
 
     fn frame_clock(&self) -> &FrameClock;
@@ -98,6 +100,7 @@ pub struct EngineBackend<AppBackendImpl,
     tile_map_render_stats: TileMapRenderStats,
 
     ui_system: UiSystem,
+    sound_system: SoundSystem,
     debug_draw: DebugDrawBackend<RenderSystemBackendImpl>,
 
     frame_clock: FrameClock,
@@ -133,7 +136,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                                      .confine_cursor_to_window(configs.confine_cursor_to_window)
                                      .build();
 
-        log::info!(log::channel!("engine"), "Application created.");
+        log::info!(log::channel!("engine"), "App instance initialized.");
 
         let mut render_system: Box<RenderSystemBackendImpl> =
             RenderSystemBuilder::new().viewport_size(configs.window_size)
@@ -141,7 +144,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                                       .build();
 
         render_system.texture_cache_mut().change_texture_settings(configs.texture_settings);
-        log::info!(log::channel!("engine"), "RenderSystem created.");
+        log::info!(log::channel!("engine"), "RenderSystem initialized.");
 
         let ui_system = UiSystem::new::<UiRendererBackendImpl>(&*app);
         let debug_draw = DebugDrawBackend::new(&*render_system);
@@ -151,18 +154,24 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
         log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
         log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());
 
-        Self { app,
-               render_system,
-               render_stats: RenderStats::default(),
-               tile_map_renderer: TileMapRenderer::new(configs.grid_color, configs.grid_line_thickness),
-               tile_map_render_stats: TileMapRenderStats::default(),
-               ui_system,
-               debug_draw,
-               frame_clock: FrameClock::new(),
-               log_viewer,
-               frame_events: ApplicationEventList::new(),
-               _ui_marker: PhantomData,
-               _input_marker: PhantomData }
+        let sound_system = SoundSystem::new();
+        log::info!(log::channel!("engine"), "SoundSystem initialized.");
+
+        Self {
+            app,
+            render_system,
+            render_stats: RenderStats::default(),
+            tile_map_renderer: TileMapRenderer::new(configs.grid_color, configs.grid_line_thickness),
+            tile_map_render_stats: TileMapRenderStats::default(),
+            ui_system,
+            sound_system,
+            debug_draw,
+            frame_clock: FrameClock::new(),
+            log_viewer,
+            frame_events: ApplicationEventList::new(),
+            _ui_marker: PhantomData,
+            _input_marker: PhantomData
+        }
     }
 
     #[must_use]
@@ -256,6 +265,11 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     #[inline]
     fn ui_system(&self) -> &UiSystem {
         &self.ui_system
+    }
+
+    #[inline]
+    fn sound_system(&mut self) -> &mut SoundSystem {
+        &mut self.sound_system
     }
 
     #[inline]

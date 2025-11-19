@@ -82,8 +82,10 @@ pub struct DebugSettingsMenu {
     show_world_perf_stats: bool,
     #[debug_ui(edit)]
     show_render_perf_stats: bool,
-    #[debug_ui(edit, separator)]
+    #[debug_ui(edit)]
     show_texture_settings: bool,
+    #[debug_ui(edit, separator)]
+    show_sound_settings: bool,
 
     #[debug_ui(edit)]
     show_game_configs_debug: bool,
@@ -518,6 +520,10 @@ impl DebugSettingsMenu {
         if self.show_texture_settings {
             self.draw_texture_settings_window(context, game_loop);
         }
+
+        if self.show_sound_settings {
+            self.draw_sound_settings_window(context, game_loop);
+        }
     }
 
     fn draw_game_configs_window(&mut self, context: &mut sim::debug::DebugContext) {
@@ -613,6 +619,22 @@ impl DebugSettingsMenu {
                   current_settings.gen_mipmaps = gen_mipmaps;
                   tex_cache.change_texture_settings(current_settings);
               }
+          });
+    }
+
+    fn draw_sound_settings_window(&mut self,
+                                  context: &mut sim::debug::DebugContext,
+                                  game_loop: &mut GameLoop) {
+        let ui = context.ui_sys.builder();
+
+        ui.window("Sound Settings")
+          .opened(&mut self.show_sound_settings)
+          .position([350.0, 20.0], imgui::Condition::FirstUseEver)
+          .size([500.0, 300.0], imgui::Condition::FirstUseEver)
+          .build(|| {
+              let sound_sys = game_loop.engine_mut().sound_system();
+              let sound_settings = sound_sys.settings_mut();
+              sound_settings.draw_debug_ui(context.ui_sys);
           });
     }
 }
