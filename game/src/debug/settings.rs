@@ -630,11 +630,10 @@ impl DebugSettingsMenu {
         ui.window("Sound Settings")
           .opened(&mut self.show_sound_settings)
           .position([350.0, 20.0], imgui::Condition::FirstUseEver)
-          .size([500.0, 300.0], imgui::Condition::FirstUseEver)
+          .size([500.0, 400.0], imgui::Condition::FirstUseEver)
           .build(|| {
               let sound_sys = game_loop.engine_mut().sound_system();
-              let sound_settings = sound_sys.settings_mut();
-              sound_settings.draw_debug_ui(context.ui_sys);
+              sound_sys.draw_debug_ui(context.ui_sys);
           });
     }
 }

@@ -155,6 +155,17 @@ impl Camera {
         self.map_size_in_cells
     }
 
+    #[inline]
+    pub fn listener_position(&self) -> Vec2 {
+        let viewport_center = Vec2::new(
+            self.viewport_size.width  as f32 * 0.5,
+            self.viewport_size.height as f32 * 0.5,
+        );
+
+        // Convert screen -> iso/world
+        (viewport_center - self.transform.offset) / self.transform.scaling
+    }
+
     // ----------------------
     // Zoom/scaling:
     // ----------------------

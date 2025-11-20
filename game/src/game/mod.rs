@@ -561,6 +561,9 @@ impl GameLoop {
 
         self.menus_end_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
+        let listener_position = self.session.as_ref().unwrap().camera.listener_position();
+        self.engine.sound_system().update(listener_position);
+
         self.engine.end_frame();
     }
 

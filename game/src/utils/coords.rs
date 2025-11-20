@@ -1,7 +1,6 @@
 #![allow(clippy::collapsible_else_if)]
 
 use std::{iter::FusedIterator, ops::RangeInclusive};
-
 use serde::{Deserialize, Serialize};
 
 use super::{FieldAccessorXY, Rect, Size, Vec2};
