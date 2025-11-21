@@ -524,6 +524,11 @@ impl GameLoop {
     }
 
     #[inline]
+    pub fn is_running(&self) -> bool {
+        self.session.is_some() && self.engine.is_running()
+    }
+
+    #[inline]
     pub fn engine(&self) -> &dyn Engine {
         self.engine.as_ref()
     }
@@ -534,8 +539,13 @@ impl GameLoop {
     }
 
     #[inline]
-    pub fn is_running(&self) -> bool {
-        self.session.is_some() && self.engine.is_running()
+    pub fn camera(&self) -> &Camera {
+        &self.session.as_ref().unwrap().camera
+    }
+
+    #[inline]
+    pub fn camera_mut(&mut self) -> &mut Camera {
+        &mut self.session.as_mut().unwrap().camera
     }
 
     pub fn update(&mut self) {
@@ -549,7 +559,8 @@ impl GameLoop {
             self.handle_event(event, cursor_screen_pos, delta_time_secs);
         }
 
-        self.session.as_mut().unwrap().camera.set_viewport_size(self.engine.app().window_size());
+        let viewport_size = self.engine.app().window_size();
+        self.camera_mut().set_viewport_size(viewport_size);
 
         // Game Logic:
         let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
@@ -561,7 +572,7 @@ impl GameLoop {
 
         self.menus_end_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
-        let listener_position = self.session.as_ref().unwrap().camera.listener_position();
+        let listener_position = self.camera().listener_position();
         self.engine.sound_system().update(listener_position);
 
         self.engine.end_frame();
@@ -596,7 +607,7 @@ impl GameLoop {
     fn handle_event(&mut self, event: ApplicationEvent, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
         match event {
             ApplicationEvent::WindowResize(window_size) => {
-                self.session.as_mut().unwrap().camera.set_viewport_size(window_size);
+                self.camera_mut().set_viewport_size(window_size);
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
                 let mut propagate = true;
@@ -607,7 +618,7 @@ impl GameLoop {
                     && action == InputAction::Press
                     && modifiers.intersects(InputModifiers::Control)
                 {
-                    let camera = &mut self.session.as_mut().unwrap().camera;
+                    let camera = self.camera_mut();
 
                     if key == InputKey::Minus {
                         let step = camera_settings.fixed_step_zoom_amount;
@@ -640,7 +651,7 @@ impl GameLoop {
                 if !camera_settings.disable_mouse_scroll_zoom
                     && !self.engine().ui_system().is_handling_mouse_input()
                 {
-                    let camera = &mut self.session.as_mut().unwrap().camera;
+                    let camera = self.camera_mut();
 
                     if camera_settings.disable_smooth_mouse_scroll_zoom {
                         // Fixed step zoom.

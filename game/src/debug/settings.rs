@@ -11,18 +11,18 @@ use crate::{
     utils::{Color, Size},
     game::{
         self,
-        building::config::BuildingConfigs,
         cheats,
+        GameLoop,
         config::GameConfigs,
         sim::{self, Simulation},
         unit::config::UnitConfigs,
         prop::config::PropConfigs,
-        GameLoop,
+        building::config::BuildingConfigs,
     },
     tile::{
-        camera::{Camera, CameraGlobalSettings},
-        rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
         sets::PresetTiles,
+        camera::CameraGlobalSettings,
+        rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
     },
 };
 
@@ -183,15 +183,14 @@ impl DebugSettingsMenu {
 
     pub fn draw(&mut self,
                 context: &mut sim::debug::DebugContext,
-                sim: &mut Simulation,
-                camera: &mut Camera,
                 game_loop: &mut GameLoop,
+                sim: &mut Simulation,
                 enable_tile_inspector: &mut bool) {
         let ui = context.ui_sys.builder();
 
         if let Some(_menu_bar) = ui.begin_main_menu_bar() {
             if let Some(_menu) = ui.begin_menu("Game") {
-                self.game_menu(context, sim, game_loop);
+                self.game_menu(context, game_loop, sim);
             }
 
             if let Some(_menu) = ui.begin_menu("Save") {
@@ -199,7 +198,7 @@ impl DebugSettingsMenu {
             }
 
             if let Some(_menu) = ui.begin_menu("Camera") {
-                self.camera_menu(context, camera);
+                self.camera_menu(context, game_loop);
             }
 
             if let Some(_menu) = ui.begin_menu("Cheats") {
@@ -213,7 +212,7 @@ impl DebugSettingsMenu {
             self.menu_bar_text(context, game_loop);
         }
 
-        self.draw_child_windows(context, sim, game_loop);
+        self.draw_child_windows(context, game_loop, sim);
     }
 
     fn menu_bar_text(&self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
@@ -255,8 +254,8 @@ impl DebugSettingsMenu {
 
     fn game_menu(&mut self,
                  context: &mut sim::debug::DebugContext,
-                 sim: &mut Simulation,
-                 game_loop: &mut GameLoop) {
+                 game_loop: &mut GameLoop,
+                 sim: &mut Simulation) {
         let ui = context.ui_sys.builder();
 
         // Quit game:
@@ -357,7 +356,7 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn camera_menu(&self, context: &mut sim::debug::DebugContext, camera: &mut Camera) {
+    fn camera_menu(&self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
         let ui = context.ui_sys.builder();
 
         let mut key_shortcut_zoom = !CameraGlobalSettings::get().disable_key_shortcut_zoom;
@@ -374,6 +373,8 @@ impl DebugSettingsMenu {
         if ui.checkbox("Smooth Mouse Scroll Zoom", &mut smooth_mouse_scroll_zoom) {
             CameraGlobalSettings::get_mut().disable_smooth_mouse_scroll_zoom = !smooth_mouse_scroll_zoom;
         }
+
+        let camera = game_loop.camera_mut();
 
         let (zoom_min, zoom_max) = camera.zoom_limits();
         let mut zoom = camera.current_zoom();
@@ -504,7 +505,10 @@ impl DebugSettingsMenu {
         }
     }
 
-    fn draw_child_windows(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation, game_loop: &mut GameLoop) {
+    fn draw_child_windows(&mut self,
+                          context: &mut sim::debug::DebugContext,
+                          game_loop: &mut GameLoop,
+                          sim: &mut Simulation) {
         if self.show_game_configs_debug {
             self.draw_game_configs_window(context);
         }

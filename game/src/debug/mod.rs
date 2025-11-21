@@ -154,9 +154,8 @@ impl DevEditorMenusSingleton {
                                     show_selection_bounds);
 
         self.debug_settings_menu.draw(&mut sim_context,
-                                      menu_context.sim,
-                                      menu_context.camera,
                                       game_loop,
+                                      menu_context.sim,
                                       &mut self.enable_tile_inspector);
 
         if self.enable_tile_inspector {
