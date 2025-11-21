@@ -24,12 +24,12 @@ use crate::{
     imgui_ui::{self, UiSystem},
     utils::{
         hash::{self, StringHash, PreHashedKeyMap},
-        Vec2, platform::paths, mem
+        Vec2, platform::paths, mem,
     },
 };
 
 // ----------------------------------------------
-// SoundKeys / SoundKind
+// SoundKeys
 // ----------------------------------------------
 
 macro_rules! declare_sound_keys {
@@ -67,6 +67,10 @@ declare_sound_keys! {
     NarrationSoundKey,
 }
 
+// ----------------------------------------------
+// SoundKind
+// ----------------------------------------------
+
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum SoundKind {
@@ -91,7 +95,7 @@ pub struct SoundHandle {
 impl SoundHandle {
     #[inline]
     fn new(kind: SoundKind, index: usize, generation: u32) -> Self {
-        debug_assert!(index < u32::MAX as usize);
+        debug_assert!(index < u32::MAX as usize); // Reserved for invalid.
         debug_assert!(generation != 0);
         Self {
             kind,
@@ -162,7 +166,7 @@ pub struct SoundGlobalSettings {
 
     #[debug_ui(edit, widget = "slider", min = "0", max = "10")]
     pub sfx_fade_in_secs: Seconds,
-    #[debug_ui(edit, widget = "slider", min = "0", max = "10", separator)]
+    #[debug_ui(edit, widget = "slider", min = "0", max = "10")]
     pub sfx_fade_out_secs: Seconds,
 }
 
@@ -219,12 +223,9 @@ impl SoundSystem {
         self.backend.is_some()
     }
 
+    #[inline]
     pub fn settings(&self) -> &SoundGlobalSettings {
         &self.settings
-    }
-
-    pub fn settings_mut(&mut self) -> &mut SoundGlobalSettings {
-        &mut self.settings
     }
 
     pub fn update(&mut self, listener_position: Vec2) {
@@ -266,6 +267,12 @@ impl SoundSystem {
         self.registry.load_narration(path)
     }
 
+    // Clears the sound registry. Note that any sound still playing is
+    // not freed immediately, only after it finishes playing or is stopped.
+    pub fn unload_all(&mut self) {
+        self.registry.unload_all();
+    }
+
     // ----------------------
     // Sound Play/Stop:
     // ----------------------
@@ -296,7 +303,8 @@ impl SoundSystem {
 
     pub fn play_spatial_ambience(&mut self, sound_key: AmbienceSoundKey, world_position: Vec2, looping: bool) -> SoundHandle {
         if let Some(backend) = &mut self.backend {
-            if let Some(sound) = self.registry.ambience.get(&sound_key.hash) { // Same as ambience.
+            // Same as ambience registry.
+            if let Some(sound) = self.registry.ambience.get(&sound_key.hash) {
                 return backend.spatial.play(sound,
                                             world_position,
                                             self.settings.spatial_master_volume,
@@ -398,6 +406,31 @@ impl SoundSystem {
         }
     }
 
+    // True if the sound is advancing and producing audio output (Fading-in, Playing, Fading-out).
+    // False if the sound is not advancing (Paused, Stopped).
+    pub fn is_playing(&self, sound_handle: SoundHandle) -> bool {
+        if let Some(backend) = &self.backend {
+            match sound_handle.kind {
+                SoundKind::Sfx => {
+                    return backend.sfx.is_playing(sound_handle);
+                }
+                SoundKind::Ambience => {
+                    return backend.ambience.is_playing(sound_handle);
+                }
+                SoundKind::SpatialAmbience => {
+                    return backend.spatial.is_playing(sound_handle);
+                }
+                SoundKind::Music => {
+                    return backend.music.is_playing(sound_handle);
+                }
+                SoundKind::Narration => {
+                    return backend.narration.is_playing(sound_handle);
+                }
+            }
+        }
+        false
+    }
+
     // ----------------------
     // Debug UI:
     // ----------------------
@@ -430,6 +463,11 @@ impl SoundSystem {
         ui.separator();
 
         if ui.collapsing_header("Debug", imgui::TreeNodeFlags::empty()) {
+            if ui.button("Unload All Sounds") {
+                self.stop_all();
+                self.unload_all();
+            }
+
             #[allow(static_mut_refs)]
             let looping = unsafe {
                 static mut LOOPING: bool = false;
@@ -635,7 +673,7 @@ struct SoundAssetRegistry {
 
 struct StaticSound {
     path: String,
-    data: StaticSoundData,
+    data: StaticSoundData, // Sound data loaded in memory.
 }
 
 struct StreamedSound {
@@ -721,6 +759,13 @@ impl SoundAssetRegistry {
 
     fn load_narration(&mut self, path: &str) -> NarrationSoundKey {
         load_streamed_sound!(NarrationSoundKey, self.narration, self.paths.narration, path)
+    }
+
+    fn unload_all(&mut self) {
+        self.sfx.clear();
+        self.ambience.clear();
+        self.music.clear();
+        self.narration.clear();
     }
 
     fn sounds_loaded(&self) -> usize {
@@ -830,6 +875,17 @@ impl StaticSoundController {
                 handle.set_volume(volume_db, Tween::default());
             }
         }
+    }
+
+    fn is_playing(&self, sound_handle: SoundHandle) -> bool {
+        if sound_handle.kind == self.kind {
+            if let Some((generation, handle)) = self.sounds.get(sound_handle.index as usize) {
+                if *generation == sound_handle.generation && handle.state().is_advancing() {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn playing_count(&self) -> usize {
@@ -943,6 +999,17 @@ impl StreamedSoundController {
         }
     }
 
+    fn is_playing(&self, sound_handle: SoundHandle) -> bool {
+        if sound_handle.kind == self.kind {
+            if let Some(handle) = &self.current {
+                if self.generation == sound_handle.generation && handle.state().is_advancing() {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     fn playing_count(&self) -> usize {
         if self.current.is_some() { 1 } else { 0 }
     }
@@ -963,7 +1030,7 @@ struct SpatialController {
 struct SpatialSound {
     handle: StaticSoundHandle,
     position: Vec2,
-    base_volume: f32, // linear volume [0-1] range.
+    volume: f32, // linear volume [0-1] range.
 }
 
 impl SpatialController {
@@ -1004,7 +1071,7 @@ impl SpatialController {
         }
 
         self.generation += 1;
-        let index = self.sounds.insert((self.generation, SpatialSound { handle, position, base_volume: volume }));
+        let index = self.sounds.insert((self.generation, SpatialSound { handle, position, volume }));
 
         SoundHandle::new(SoundKind::SpatialAmbience, index, self.generation)
     }
@@ -1052,7 +1119,7 @@ impl SpatialController {
             let dist_factor = 1.0 - (distance / settings.spatial_cutoff_distance).clamp(0.0, 1.0);
 
             // Convert linear volume [0-1] to decibels:
-            let volume_db = linear_to_decibels(sound.base_volume * dist_factor);
+            let volume_db = linear_to_decibels(sound.volume * dist_factor);
             sound.handle.set_volume(volume_db, Tween {
                 duration: Duration::from_secs_f32(settings.spatial_transition_secs),
                 ..Default::default()
@@ -1072,8 +1139,19 @@ impl SpatialController {
 
     fn set_volume(&mut self, volume: f32) {
         for (_, (_, sound)) in &mut self.sounds {
-            sound.base_volume = volume;
+            sound.volume = volume;
         }
+    }
+
+    fn is_playing(&self, sound_handle: SoundHandle) -> bool {
+        if sound_handle.kind == SoundKind::SpatialAmbience {
+            if let Some((generation, sound)) = self.sounds.get(sound_handle.index as usize) {
+                if *generation == sound_handle.generation && sound.handle.state().is_advancing() {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn playing_count(&self) -> usize {
