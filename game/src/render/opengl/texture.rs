@@ -11,8 +11,8 @@ use super::{
 };
 use crate::{
     log,
-    render::{self, NativeTextureHandle, TextureHandle},
     utils::Size,
+    render::{self, NativeTextureHandle, TextureHandle},
 };
 
 // ----------------------------------------------
@@ -41,7 +41,7 @@ impl ShaderVarTrait for &Texture2D {
         unsafe {
             gl::ProgramUniform1i(variable.program_handle,
                                  variable.location,
-                                 texture.tex_unit.0 as gl::types::GLint);
+                                 texture.tex_unit.0 as _);
         }
     }
 }
@@ -114,8 +114,8 @@ impl Texture2D {
         let image_buffer = image.as_rgba8().expect("Expected an RGBA8 image!");
         let image_pixels = image_buffer.as_raw();
 
-        Ok(Self::with_data_raw(image_pixels.as_ptr() as *const c_void,
-                               Size::new(image_w as i32, image_h as i32),
+        Ok(Self::with_data_raw(image_pixels.as_ptr() as _,
+                               Size::new(image_w as _, image_h as _),
                                filter,
                                wrap_mode,
                                tex_unit,
@@ -141,58 +141,24 @@ impl Texture2D {
                 panic!("Failed to create texture handle!");
             }
 
-            gl::ActiveTexture(gl::TEXTURE0 + tex_unit.0);
-            gl::BindTexture(gl::TEXTURE_2D, handle);
+            bind_gl_texture(handle, tex_unit);
 
             gl::TexImage2D(gl::TEXTURE_2D,
                            0,
-                           gl::RGBA as gl::types::GLint, // Only RGBA images supported for now.
-                           size.width as gl::types::GLsizei,
-                           size.height as gl::types::GLsizei,
+                           gl::RGBA as _, // Only RGBA images supported for now.
+                           size.width as _,
+                           size.height as _,
                            0,
                            gl::RGBA,
                            gl::UNSIGNED_BYTE,
                            data);
 
-            let has_mipmaps = {
-                if gen_mipmaps && gl::GenerateMipmap::is_loaded() {
-                    gl::GenerateMipmap(gl::TEXTURE_2D);
+            let has_mipmaps = set_current_gl_texture_params(filter,
+                                                                  wrap_mode,
+                                                                  gen_mipmaps,
+                                                                  debug_name);
 
-                    let error_code = gl::GetError();
-                    if error_code != gl::NO_ERROR {
-                        panic!("Failed to generate texture mipmaps. OpenGL Error: {} (0x{:X})",
-                            gl_error_to_string(error_code),
-                            error_code);
-                    }
-                    true
-                } else {
-                    false
-                }
-            };
-
-            let (gl_min_filter, gl_mag_filter) = match filter {
-                TextureFilter::Nearest => (gl::NEAREST, gl::NEAREST),
-                TextureFilter::Linear => (gl::LINEAR, gl::LINEAR),
-                TextureFilter::NearestMipmapNearest => (gl::NEAREST_MIPMAP_NEAREST, gl::NEAREST),
-                TextureFilter::LinearMipmapNearest => (gl::LINEAR_MIPMAP_NEAREST, gl::LINEAR),
-                TextureFilter::NearestMipmapLinear => (gl::NEAREST_MIPMAP_LINEAR, gl::NEAREST),
-                TextureFilter::LinearMipmapLinear => (gl::LINEAR_MIPMAP_LINEAR, gl::LINEAR),
-            };
-
-            gl::TexParameteri(gl::TEXTURE_2D,
-                              gl::TEXTURE_MIN_FILTER,
-                              gl_min_filter as gl::types::GLint);
-            gl::TexParameteri(gl::TEXTURE_2D,
-                              gl::TEXTURE_MAG_FILTER,
-                              gl_mag_filter as gl::types::GLint);
-
-            let gl_wrap_mode = wrap_mode as gl::types::GLint;
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl_wrap_mode);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl_wrap_mode);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_R, gl_wrap_mode);
-
-            // Unbind.
-            gl::BindTexture(gl::TEXTURE_2D, NULL_TEXTURE_HANDLE);
+            unbind_gl_texture();
 
             (handle, has_mipmaps)
         };
@@ -216,73 +182,36 @@ impl Texture2D {
         debug_assert!(offset_x as i32 + size.width  <= self.size.width);
         debug_assert!(offset_y as i32 + size.height <= self.size.height);
 
-        unsafe {
-            gl::ActiveTexture(gl::TEXTURE0 + self.tex_unit.0);
-            gl::BindTexture(gl::TEXTURE_2D, self.handle);
+        bind_gl_texture(self.handle, self.tex_unit);
 
+        unsafe {
             gl::TexSubImage2D(gl::TEXTURE_2D,
-                              mip_level as gl::types::GLint,
-                              offset_x as gl::types::GLint,
-                              offset_y as gl::types::GLint,
+                              mip_level as _,
+                              offset_x as _,
+                              offset_y as _,
                               size.width,
                               size.height,
                               gl::RGBA,
                               gl::UNSIGNED_BYTE,
-                              pixels.as_ptr() as *const c_void);
-
-            // Unbind.
-            gl::BindTexture(gl::TEXTURE_2D, NULL_TEXTURE_HANDLE);
+                              pixels.as_ptr() as _);
         }
+
+        unbind_gl_texture();
     }
 
     fn change_settings(&mut self, settings: OpenGlTextureSettings) {
         debug_assert!(self.is_valid());
 
-        unsafe {
-            gl::ActiveTexture(gl::TEXTURE0 + self.tex_unit.0);
-            gl::BindTexture(gl::TEXTURE_2D, self.handle);
+        bind_gl_texture(self.handle, self.tex_unit);
 
-            if settings.gen_mipmaps && gl::GenerateMipmap::is_loaded() {
-                gl::GenerateMipmap(gl::TEXTURE_2D);
+        self.filter = settings.filter;
+        self.wrap_mode = settings.wrap_mode;
+        self.has_mipmaps = set_current_gl_texture_params(settings.filter,
+                                                         settings.wrap_mode,
+                                                         settings.gen_mipmaps,
+                                                         &self.name);
 
-                let error_code = gl::GetError();
-                if error_code != gl::NO_ERROR {
-                    panic!("Failed to generate texture mipmaps. OpenGL Error: {} (0x{:X})",
-                           gl_error_to_string(error_code),
-                           error_code);
-                }
-                self.has_mipmaps = true;
-            } else {
-                self.has_mipmaps = false;
-            }
-
-            let (gl_min_filter, gl_mag_filter) = match settings.filter {
-                TextureFilter::Nearest => (gl::NEAREST, gl::NEAREST),
-                TextureFilter::Linear => (gl::LINEAR, gl::LINEAR),
-                TextureFilter::NearestMipmapNearest => (gl::NEAREST_MIPMAP_NEAREST, gl::NEAREST),
-                TextureFilter::LinearMipmapNearest => (gl::LINEAR_MIPMAP_NEAREST, gl::LINEAR),
-                TextureFilter::NearestMipmapLinear => (gl::NEAREST_MIPMAP_LINEAR, gl::NEAREST),
-                TextureFilter::LinearMipmapLinear => (gl::LINEAR_MIPMAP_LINEAR, gl::LINEAR),
-            };
-
-            gl::TexParameteri(gl::TEXTURE_2D,
-                              gl::TEXTURE_MIN_FILTER,
-                              gl_min_filter as gl::types::GLint);
-            gl::TexParameteri(gl::TEXTURE_2D,
-                              gl::TEXTURE_MAG_FILTER,
-                              gl_mag_filter as gl::types::GLint);
-
-            let gl_wrap_mode = settings.wrap_mode as gl::types::GLint;
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl_wrap_mode);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl_wrap_mode);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_R, gl_wrap_mode);
-
-            // Unbind.
-            gl::BindTexture(gl::TEXTURE_2D, NULL_TEXTURE_HANDLE);
-
-            self.filter = settings.filter;
-            self.wrap_mode = settings.wrap_mode;
-        }
+        unbind_gl_texture();
     }
 
     pub fn is_valid(&self) -> bool {
@@ -365,6 +294,63 @@ impl From<render::TextureSettings> for OpenGlTextureSettings {
             wrap_mode,
             gen_mipmaps: settings.gen_mipmaps,
         }
+    }
+}
+
+#[inline]
+fn bind_gl_texture(handle: gl::types::GLuint, tex_unit: TextureUnit) {
+    unsafe {
+        gl::ActiveTexture(gl::TEXTURE0 + tex_unit.0);
+        gl::BindTexture(gl::TEXTURE_2D, handle);
+    }
+}
+
+#[inline]
+fn unbind_gl_texture() {
+    unsafe {
+        gl::BindTexture(gl::TEXTURE_2D, NULL_TEXTURE_HANDLE);
+    }
+}
+
+// Set params for currently bound texture.
+// Returns true if gen_mipmaps & mipmap building succeeded.
+fn set_current_gl_texture_params(filter: TextureFilter,
+                                 wrap_mode: TextureWrapMode,
+                                 gen_mipmaps: bool,
+                                 debug_name: &str) -> bool {
+    unsafe {
+        let has_mipmaps = {
+            if gen_mipmaps && gl::GenerateMipmap::is_loaded() {
+                gl::GenerateMipmap(gl::TEXTURE_2D);
+                let error_code = gl::GetError();
+                if error_code != gl::NO_ERROR {
+                    panic!("Failed to generate texture mipmaps for '{debug_name}'. OpenGL Error: {} (0x{:X})",
+                           gl_error_to_string(error_code),
+                           error_code);
+                }
+                true
+            } else {
+                false
+            }
+        };
+
+        let (gl_min_filter, gl_mag_filter) = match filter {
+            TextureFilter::Nearest => (gl::NEAREST, gl::NEAREST),
+            TextureFilter::Linear  => (gl::LINEAR,  gl::LINEAR),
+            TextureFilter::NearestMipmapNearest => (gl::NEAREST_MIPMAP_NEAREST, gl::NEAREST),
+            TextureFilter::LinearMipmapNearest  => (gl::LINEAR_MIPMAP_NEAREST,  gl::LINEAR),
+            TextureFilter::NearestMipmapLinear  => (gl::NEAREST_MIPMAP_LINEAR,  gl::NEAREST),
+            TextureFilter::LinearMipmapLinear   => (gl::LINEAR_MIPMAP_LINEAR,   gl::LINEAR),
+        };
+
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl_min_filter as _);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl_mag_filter as _);
+
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, wrap_mode as _);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, wrap_mode as _);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_R, wrap_mode as _);
+
+        has_mipmaps
     }
 }
 
