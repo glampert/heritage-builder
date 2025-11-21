@@ -1,4 +1,4 @@
-use std::{any::Any, ptr::null};
+use std::{any::Any, ptr::null, cell::UnsafeCell, ops::{Deref, DerefMut}};
 
 pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
 pub mod icons;
@@ -693,4 +693,56 @@ pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool
     }
 
     clicked
+}
+
+// ----------------------------------------------
+// ImGui UiStaticVar
+// ----------------------------------------------
+
+pub struct UiStaticVar<T> {
+    value: UnsafeCell<T>,
+}
+
+impl<T> UiStaticVar<T> {
+    #[inline]
+    pub const fn new(value: T) -> Self {
+        Self { value: UnsafeCell::new(value) }
+    }
+
+    #[inline]
+    pub fn set(&'static self, value: T) {
+        *self.as_mut() = value;
+    }
+
+    #[inline]
+    pub fn as_ref(&'static self) -> &'static T {
+        unsafe { &*self.value.get() }
+    }
+
+    #[inline]
+    #[allow(clippy::mut_from_ref)] // intentional.
+    pub fn as_mut(&'static self) -> &'static mut T {
+        unsafe { &mut *self.value.get() }
+    }
+}
+
+// SAFETY: ImGui code always executes from the main thread, so we don't mind
+// using local static config vars for debug ImGui widgets.
+unsafe impl<T> Sync for UiStaticVar<T> {}
+
+// Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
+impl<T> Deref for UiStaticVar<T> {
+    type Target = T;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.value.get() }
+    }
+}
+
+impl<T> DerefMut for UiStaticVar<T> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.value.get() }
+    }
 }

@@ -5,7 +5,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     log,
     debug,
-    imgui_ui,
+    imgui_ui::{self, UiStaticVar},
     engine::config::Configs,
     render::{TextureFilter, TextureWrapMode},
     utils::{Color, Size},
@@ -308,21 +308,17 @@ impl DebugSettingsMenu {
         // New game options:
         ui.separator();
 
-        #[allow(static_mut_refs)]
-        let new_map_size = unsafe {
-            static mut NEW_MAP_SIZE: Size = Size::new(64, 64);
-            imgui_ui::input_i32_xy(ui,
-                "New Map Size:",
-                &mut NEW_MAP_SIZE,
-                false,
-                Some([32, 32]),
-                Some(["Width", "Height"]));
-            NEW_MAP_SIZE
-        };
+        static NEW_MAP_SIZE: UiStaticVar<Size> = UiStaticVar::new(Size::new(64, 64));
+        imgui_ui::input_i32_xy(ui,
+            "New Map Size:",
+            NEW_MAP_SIZE.as_mut(),
+            false,
+            Some([32, 32]),
+            Some(["Width", "Height"]));
 
         if ui.button("New Game") {
             let grass_tile_def = PresetTiles::Grass.find_tile_def();
-            game_loop.reset_session(grass_tile_def, Some(new_map_size));
+            game_loop.reset_session(grass_tile_def, Some(*NEW_MAP_SIZE));
         }
 
         // Simulation/game speed:

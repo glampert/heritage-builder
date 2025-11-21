@@ -17,7 +17,7 @@ use super::{
 use crate::{
     game_object_debug_options,
     game_object_undo_redo_state,
-    imgui_ui::UiSystem,
+    imgui_ui::{UiSystem, UiStaticVar},
     save::PostLoadContext,
     engine::time::{CountdownTimer, Seconds},
     tile::{Tile, TileKind, TileMapLayerKind},
@@ -410,16 +410,13 @@ impl Prop {
                 ui.text(format!("Time Until Respawn   : {:.2}", self.harvestable.respawn_timer.remaining_secs()));
             }
 
-            #[allow(static_mut_refs)]
-            unsafe {
-                static mut HARVEST_AMOUNT: u32 = 1;
-                ui.input_scalar("Harvest Amount", &mut HARVEST_AMOUNT)
-                    .step(1)
-                    .build();
+            static HARVEST_AMOUNT: UiStaticVar<u32> = UiStaticVar::new(1);
+            ui.input_scalar("Harvest Amount", HARVEST_AMOUNT.as_mut())
+                .step(1)
+                .build();
 
-                if ui.button("Harvest") {
-                    self.harvest(query, HARVEST_AMOUNT);
-                }
+            if ui.button("Harvest") {
+                self.harvest(query, *HARVEST_AMOUNT);
             }
 
             if ui.button("Respawn Now") {

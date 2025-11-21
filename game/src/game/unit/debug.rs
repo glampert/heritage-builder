@@ -1,7 +1,7 @@
-use bitflags::Flags;
-use proc_macros::DrawDebugUi;
 use rand::Rng;
+use bitflags::Flags;
 use smallvec::SmallVec;
+use proc_macros::DrawDebugUi;
 
 use super::{
     navigation::{self, *},
@@ -23,7 +23,7 @@ use crate::{
         },
     },
     engine::time::CountdownTimer,
-    imgui_ui::{self, DPadDirection, UiSystem},
+    imgui_ui::{self, DPadDirection, UiSystem, UiStaticVar},
     pathfind::{self, NodeKind as PathNodeKind, Path},
     tile::{self, Tile, TileMapLayerKind, TilePoolIndex},
     utils::{
@@ -287,27 +287,22 @@ impl Unit {
             return; // collapsed.
         }
 
-        #[allow(static_mut_refs)]
-        let (max_patrol_distance, path_bias_min, path_bias_max) = unsafe {
-            // SAFETY: Debug code only called from the main thread (ImGui is inherently
-            // single-threaded).
-            static mut MAX_PATROL_DISTANCE: i32 = 50;
-            static mut PATH_BIAS_MIN: f32 = 0.1;
-            static mut PATH_BIAS_MAX: f32 = 0.5;
+        // SAFETY: Debug code only called from the main thread (ImGui is inherently
+        // single-threaded).
+        static MAX_PATROL_DISTANCE: UiStaticVar<i32> = UiStaticVar::new(50);
+        static PATH_BIAS_MIN: UiStaticVar<f32> = UiStaticVar::new(0.1);
+        static PATH_BIAS_MAX: UiStaticVar<f32> = UiStaticVar::new(0.5);
 
-            ui.input_int("Patrol Rounds", &mut PATROL_ROUNDS).step(1).build();
-            ui.input_int("Patrol Max Distance", &mut MAX_PATROL_DISTANCE).step(1).build();
-            ui.input_float("Patrol Path Bias Min", &mut PATH_BIAS_MIN)
-              .display_format("%.2f")
-              .step(0.1)
-              .build();
-            ui.input_float("Patrol Path Bias Max", &mut PATH_BIAS_MAX)
-              .display_format("%.2f")
-              .step(0.1)
-              .build();
-
-            (MAX_PATROL_DISTANCE, PATH_BIAS_MIN, PATH_BIAS_MAX)
-        };
+        ui.input_int("Patrol Rounds", PATROL_ROUNDS.as_mut()).step(1).build();
+        ui.input_int("Patrol Max Distance", MAX_PATROL_DISTANCE.as_mut()).step(1).build();
+        ui.input_float("Patrol Path Bias Min", PATH_BIAS_MIN.as_mut())
+            .display_format("%.2f")
+            .step(0.1)
+            .build();
+        ui.input_float("Patrol Path Bias Max", PATH_BIAS_MAX.as_mut())
+            .display_format("%.2f")
+            .step(0.1)
+            .build();
 
         let task_manager = query.task_manager();
         let world = query.world();
@@ -328,9 +323,9 @@ impl Unit {
                             road_link: start_cell,
                             base_cell: building.base_cell(),
                         },
-                        max_distance: max_patrol_distance,
-                        path_bias_min,
-                        path_bias_max,
+                        max_distance: *MAX_PATROL_DISTANCE,
+                        path_bias_min: *PATH_BIAS_MIN,
+                        path_bias_max: *PATH_BIAS_MAX,
                         path_record: UnitPatrolPathRecord::default(),
                         buildings_to_visit: Some(BuildingKind::House),
                         completion_callback: callback::create!(unit_debug_patrol_task_completed),
@@ -349,39 +344,35 @@ impl Unit {
             return; // collapsed.
         }
 
-        #[allow(static_mut_refs)]
-        let (traversable_node_kinds, max_search_distance, search_building_kind) = unsafe {
+        let (traversable_node_kinds, max_search_distance, search_building_kind) = {
             // SAFETY: Debug code only called from the main thread (ImGui is inherently
             // single-threaded).
-            static mut USE_ROAD_PATHS: bool = true;
-            static mut USE_DIRT_PATHS: bool = false;
-            static mut MAX_SEARCH_DISTANCE: i32 = 50;
-            static mut BUILDING_KIND_IDX: usize = 0;
+            static USE_ROAD_PATHS: UiStaticVar<bool> = UiStaticVar::new(true);
+            static USE_DIRT_PATHS: UiStaticVar<bool> = UiStaticVar::new(false);
+            static MAX_SEARCH_DISTANCE: UiStaticVar<i32> = UiStaticVar::new(50);
+            static BUILDING_KIND_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
 
-            let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> =
-                SmallVec::new();
+            let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
             for kind in BuildingKind::FLAGS {
                 building_kind_names.push(kind.name());
             }
 
-            ui.checkbox("Road Paths", &mut USE_ROAD_PATHS);
-            ui.checkbox("Dirt Paths", &mut USE_DIRT_PATHS);
-            ui.input_int("Max Search Distance", &mut MAX_SEARCH_DISTANCE).step(1).build();
+            ui.checkbox("Road Paths", USE_ROAD_PATHS.as_mut());
+            ui.checkbox("Dirt Paths", USE_DIRT_PATHS.as_mut());
+            ui.input_int("Max Search Distance", MAX_SEARCH_DISTANCE.as_mut()).step(1).build();
             ui.combo_simple_string("Dest Building Kind",
-                                   &mut BUILDING_KIND_IDX,
+                                   BUILDING_KIND_IDX.as_mut(),
                                    &building_kind_names);
 
             let mut traversable_node_kinds = PathNodeKind::empty();
-            if USE_ROAD_PATHS {
+            if *USE_ROAD_PATHS {
                 traversable_node_kinds |= PathNodeKind::Road;
             }
-            if USE_DIRT_PATHS {
+            if *USE_DIRT_PATHS {
                 traversable_node_kinds |= PathNodeKind::EmptyLand;
             }
 
-            (traversable_node_kinds,
-             MAX_SEARCH_DISTANCE,
-             *BuildingKind::FLAGS[BUILDING_KIND_IDX].value())
+            (traversable_node_kinds, *MAX_SEARCH_DISTANCE, *BuildingKind::FLAGS[*BUILDING_KIND_IDX].value())
         };
 
         if ui.button(format!("Path To Nearest Building ({})", search_building_kind))
@@ -540,15 +531,12 @@ pub fn register_callbacks() {
         callback::register!(unit_debug_harvest_wood_task_completed);
 }
 
-static mut PATROL_ROUNDS: i32 = 5;
+static PATROL_ROUNDS: UiStaticVar<i32> = UiStaticVar::new(5);
 
 fn unit_debug_patrol_task_completed(_: &mut Building, unit: &mut Unit, _: &Query) -> bool {
-    let patrol_rounds = unsafe {
-        PATROL_ROUNDS -= 1;
-        PATROL_ROUNDS
-    };
-    log::info!("Unit {}: Patrol Task Round {} Completed.", unit.name(), patrol_rounds);
-    patrol_rounds <= 0 // Run the task a few times.
+    PATROL_ROUNDS.set(*PATROL_ROUNDS - 1);
+    log::info!("Unit {}: Patrol Task Round {} Completed.", unit.name(), *PATROL_ROUNDS);
+    *PATROL_ROUNDS <= 0 // Run the task a few times.
 }
 
 fn unit_debug_delivery_task_completed(building: &mut Building, unit: &mut Unit, _: &Query) {

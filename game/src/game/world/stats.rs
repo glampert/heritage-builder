@@ -3,7 +3,7 @@ use crate::{
         building::HouseLevel,
         sim::resources::{GlobalTreasury, ResourceKind, ResourceStock},
     },
-    imgui_ui::UiSystem,
+    imgui_ui::{UiSystem, UiStaticVar},
     utils::Color,
 };
 
@@ -257,19 +257,15 @@ impl WorldStats {
 
             ui.separator();
 
-            #[allow(static_mut_refs)]
-            let gold_units = unsafe {
-                static mut GOLD_UNITS: u32 = 0;
-                ui.input_scalar("Gold Units", &mut GOLD_UNITS).step(100).build();
-                GOLD_UNITS
-            };
+            static GOLD_UNITS: UiStaticVar<u32> = UiStaticVar::new(0);
+            ui.input_scalar("Gold Units", GOLD_UNITS.as_mut()).step(100).build();
 
             if ui.button("Give Gold") {
-                treasury.add_gold_units(gold_units);
+                treasury.add_gold_units(*GOLD_UNITS);
             }
 
             if ui.button("Subtract Gold") {
-                treasury.subtract_gold_units(gold_units);
+                treasury.subtract_gold_units(*GOLD_UNITS);
             }
         }
 

@@ -9,7 +9,7 @@ use super::{
 use crate::{
     log,
     game::world::object::{GameObject, Spawner},
-    imgui_ui::UiSystem,
+    imgui_ui::{UiSystem, UiStaticVar},
     pathfind::{Node, NodeKind as PathNodeKind},
     tile::{sets::TileDef, TileFlags, TileKind, TileMapLayerKind},
     utils::{
@@ -577,23 +577,18 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
         return; // collapsed.
     }
 
-    #[allow(static_mut_refs)]
-    let (highlight_start_cell, candidate_rect_idx) = unsafe {
-        static mut HIGHLIGHT_START_CELL: bool = false;
-        static mut CANDIDATE_RECT_IDX: usize = 0;
+    static HIGHLIGHT_START_CELL: UiStaticVar<bool> = UiStaticVar::new(false);
+    static CANDIDATE_RECT_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
 
-        ui.checkbox("Mark Start Cell", &mut HIGHLIGHT_START_CELL);
+    ui.checkbox("Mark Start Cell", HIGHLIGHT_START_CELL.as_mut());
 
-        if ui.input_scalar("Candidate Rect", &mut CANDIDATE_RECT_IDX).step(1).build() {
-            CANDIDATE_RECT_IDX = CANDIDATE_RECT_IDX.min(CANDIDATE_RECTS_COUNT - 1);
-        }
-
-        (HIGHLIGHT_START_CELL, CANDIDATE_RECT_IDX)
-    };
+    if ui.input_scalar("Candidate Rect", CANDIDATE_RECT_IDX.as_mut()).step(1).build() {
+        CANDIDATE_RECT_IDX.set((*CANDIDATE_RECT_IDX).min(CANDIDATE_RECTS_COUNT - 1));
+    }
 
     if ui.button("Visualize Merge Candidate Cells") {
         let candidate_rects = candidate_target_rects(context.cell_range());
-        let target_rect = candidate_rects[candidate_rect_idx];
+        let target_rect = candidate_rects[*CANDIDATE_RECT_IDX];
 
         let tile_map = context.query.tile_map();
 
@@ -609,7 +604,7 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
             }
         }
 
-        if highlight_start_cell {
+        if *HIGHLIGHT_START_CELL {
             let start_cell = Cell::new(target_rect.min_x, target_rect.min_y);
 
             if let Some(tile) =

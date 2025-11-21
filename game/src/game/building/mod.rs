@@ -36,7 +36,7 @@ use crate::{
     bitflags_with_display,
     engine::time::UpdateTimer,
     game::config::GameConfigs,
-    imgui_ui::UiSystem,
+    imgui_ui::{UiSystem, UiStaticVar},
     log,
     pathfind::{self, NodeKind as PathNodeKind},
     save::PostLoadContext,
@@ -969,11 +969,10 @@ impl Building {
                 workers.draw_debug_ui(context.query.world(), ui_sys);
                 ui.separator();
 
-                #[allow(static_mut_refs)]
-                let source = unsafe {
-                    static mut BUILDING_KIND_IDX: usize = 0;
-                    static mut BUILDING_GEN: u32 = 0;
-                    static mut BUILDING_ID: usize = 0;
+                let source = {
+                    static BUILDING_KIND_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
+                    static BUILDING_GEN: UiStaticVar<u32> = UiStaticVar::new(0);
+                    static BUILDING_ID: UiStaticVar<usize> = UiStaticVar::new(0);
 
                     if is_household_worker_pool {
                         ui.text("Select Employer:");
@@ -984,8 +983,8 @@ impl Building {
                     let kind = {
                         if is_employer {
                             // Employers only source workers from houses.
-                            BUILDING_KIND_IDX = 0;
-                            ui.combo_simple_string("Kind", &mut BUILDING_KIND_IDX, &["House"]);
+                            BUILDING_KIND_IDX.set(0);
+                            ui.combo_simple_string("Kind", BUILDING_KIND_IDX.as_mut(), &["House"]);
                             BuildingKind::House
                         } else {
                             let mut building_kind_names: SmallVec<[&'static str;
@@ -997,16 +996,16 @@ impl Building {
                                 }
                             }
                             ui.combo_simple_string("Kind",
-                                                   &mut BUILDING_KIND_IDX,
+                                                   BUILDING_KIND_IDX.as_mut(),
                                                    &building_kind_names);
-                            *BuildingKind::FLAGS[BUILDING_KIND_IDX + 1].value() // We've skipped House @ [0]
+                            *BuildingKind::FLAGS[*BUILDING_KIND_IDX + 1].value() // We've skipped House @ [0]
                         }
                     };
 
-                    ui.input_scalar("Gen", &mut BUILDING_GEN).step(1).build();
-                    ui.input_scalar("Idx", &mut BUILDING_ID).step(1).build();
+                    ui.input_scalar("Gen", BUILDING_GEN.as_mut()).step(1).build();
+                    ui.input_scalar("Idx", BUILDING_ID.as_mut()).step(1).build();
 
-                    BuildingKindAndId { kind, id: BuildingId::new(BUILDING_GEN, BUILDING_ID) }
+                    BuildingKindAndId { kind, id: BuildingId::new(*BUILDING_GEN, *BUILDING_ID) }
                 };
 
                 if ui.button("Add Worker (+1)") && !self.workers_is_maxed() {

@@ -22,7 +22,7 @@ use kira::{
 use crate::{
     log,
     engine::time::Seconds,
-    imgui_ui::{self, UiSystem},
+    imgui_ui::{self, UiSystem, UiStaticVar},
     utils::{
         hash::{self, StringHash, PreHashedKeyMap},
         Vec2, platform::paths, mem::RawPtr,
@@ -482,23 +482,19 @@ impl SoundSystem {
                 self.unload_all();
             }
 
-            #[allow(static_mut_refs)]
-            let looping = unsafe {
-                static mut LOOPING: bool = false;
-                ui.checkbox("Looping", &mut LOOPING);
-                LOOPING
-            };
+            static LOOPING: UiStaticVar<bool> = UiStaticVar::new(false);
+            ui.checkbox("Looping", LOOPING.as_mut());
 
             ui.text("SFX:");
 
             if ui.button("Play SFX (bleep)") {
                 let sound_key = self.load_sfx("test/bleep.ogg");
-                self.play_sfx(sound_key, looping);
+                self.play_sfx(sound_key, *LOOPING);
             }
 
             if ui.button("Play SFX (drums)") {
                 let sound_key = self.load_sfx("test/drums.ogg");
-                self.play_sfx(sound_key, looping);
+                self.play_sfx(sound_key, *LOOPING);
             }
 
             if ui.button("Stop All SFX") {
@@ -509,7 +505,7 @@ impl SoundSystem {
 
             if ui.button("Play Music") {
                 let sound_key = self.load_music("dynasty_legacy.mp3");
-                self.play_music(sound_key, looping);
+                self.play_music(sound_key, *LOOPING);
             }
 
             if ui.button("Stop All Music") {
@@ -520,23 +516,19 @@ impl SoundSystem {
 
             if ui.button("Play Ambience") {
                 let sound_key = self.load_ambience("birds_chirping_ambiance.mp3");
-                self.play_ambience(sound_key, looping);
+                self.play_ambience(sound_key, *LOOPING);
             }
 
             if ui.button("Stop All Ambience") {
                 self.stop_ambience();
             }
 
-            #[allow(static_mut_refs)]
-            let spatial_origin = unsafe {
-                static mut SPATIAL_ORIGIN: Vec2 = Vec2::zero();
-                imgui_ui::input_f32_xy(ui, "Spatial:", &mut SPATIAL_ORIGIN, false, None, None);
-                SPATIAL_ORIGIN
-            };
+            static SPATIAL_ORIGIN: UiStaticVar<Vec2> = UiStaticVar::new(Vec2::zero());
+            imgui_ui::input_f32_xy(ui, "Spatial:", SPATIAL_ORIGIN.as_mut(), false, None, None);
 
             if ui.button("Play Spatial") {
                 let sound_key = self.load_ambience("birds_chirping_ambiance.mp3");
-                self.play_spatial_ambience(sound_key, spatial_origin, looping);
+                self.play_spatial_ambience(sound_key, *SPATIAL_ORIGIN, *LOOPING);
             }
 
             if ui.button("Stop All Spatial") {
