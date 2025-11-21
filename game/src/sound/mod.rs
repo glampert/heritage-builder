@@ -4,6 +4,7 @@ use proc_macros::DrawDebugUi;
 
 use std::{
     time::Duration,
+    marker::PhantomData,
     path::{Path, PathBuf, MAIN_SEPARATOR},
 };
 
@@ -24,13 +25,19 @@ use crate::{
     imgui_ui::{self, UiSystem},
     utils::{
         hash::{self, StringHash, PreHashedKeyMap},
-        Vec2, platform::paths, mem,
+        Vec2, platform::paths, mem::RawPtr,
     },
 };
 
 // ----------------------------------------------
-// SoundKeys
+// SoundKey
 // ----------------------------------------------
+
+pub trait SoundKey {
+    fn new(hash: StringHash) -> Self;
+    fn invalid() -> Self;
+    fn is_valid(&self) -> bool;
+}
 
 macro_rules! declare_sound_keys {
     ($($struct_name:ident),* $(,)?) => {
@@ -40,7 +47,7 @@ macro_rules! declare_sound_keys {
                 hash: StringHash,
             }
 
-            impl $struct_name {
+            impl SoundKey for $struct_name {
                 #[inline]
                 fn new(hash: StringHash) -> Self {
                     Self { hash }
@@ -281,8 +288,10 @@ impl SoundSystem {
         if let Some(backend) = &mut self.backend {
             if let Some(sound) = self.registry.sfx.get(&sound_key.hash) {
                 return backend.sfx.play(sound,
+                                        Vec2::zero(),
                                         self.settings.sfx_master_volume,
                                         self.settings.sfx_fade_in_secs,
+                                        self.settings.sfx_fade_out_secs,
                                         looping);
             }
         }
@@ -293,8 +302,10 @@ impl SoundSystem {
         if let Some(backend) = &mut self.backend {
             if let Some(sound) = self.registry.ambience.get(&sound_key.hash) {
                 return backend.ambience.play(sound,
+                                             Vec2::zero(),
                                              self.settings.ambience_master_volume,
                                              self.settings.ambience_fade_in_secs,
+                                             self.settings.ambience_fade_out_secs,
                                              looping);
             }
         }
@@ -309,6 +320,7 @@ impl SoundSystem {
                                             world_position,
                                             self.settings.spatial_master_volume,
                                             self.settings.spatial_fade_in_secs,
+                                            self.settings.spatial_fade_out_secs,
                                             looping);
             }
         }
@@ -319,6 +331,7 @@ impl SoundSystem {
         if let Some(backend) = &mut self.backend {
             if let Some(sound) = self.registry.music.get(&sound_key.hash) {
                 return backend.music.play(sound,
+                                          Vec2::zero(),
                                           self.settings.music_master_volume,
                                           self.settings.music_fade_in_secs,
                                           self.settings.music_fade_out_secs,
@@ -332,6 +345,7 @@ impl SoundSystem {
         if let Some(backend) = &mut self.backend {
             if let Some(sound) = self.registry.narration.get(&sound_key.hash) {
                 return backend.narration.play(sound,
+                                              Vec2::zero(),
                                               self.settings.narration_master_volume,
                                               self.settings.narration_fade_in_secs,
                                               self.settings.narration_fade_out_secs,
@@ -547,7 +561,7 @@ struct SoundSystemBackend {
     music: MusicController,
     narration: NarrationController,
 
-    // Stats/debug:
+    // Debug:
     listener_position: Vec2,
 }
 
@@ -594,8 +608,8 @@ impl SoundSystemBackend {
         };
 
         let sfx = SfxController::new(sfx_track, SoundKind::Sfx);
-        let ambience = AmbienceController::new(ambience_track, SoundKind::Ambience);
-        let spatial = SpatialController::new(&ambience.track); // NOTE: Track shared with ambience.
+        let ambience = AmbienceController::new(Box::new(ambience_track), SoundKind::Ambience);
+        let spatial = SpatialController::new(RawPtr::from_ref(&ambience.track), SoundKind::SpatialAmbience); // NOTE: Track shared with ambience.
         let music = MusicController::new(music_track, SoundKind::Music);
         let narration = NarrationController::new(narration_track, SoundKind::Narration);
 
@@ -612,11 +626,11 @@ impl SoundSystemBackend {
 
     fn update(&mut self, listener_position: Vec2, settings: &SoundGlobalSettings) {
         self.listener_position = listener_position;
-        self.sfx.update();
-        self.ambience.update();
+        self.sfx.update(listener_position, settings);
+        self.ambience.update(listener_position, settings);
         self.spatial.update(listener_position, settings);
-        self.music.update();
-        self.narration.update();
+        self.music.update(listener_position, settings);
+        self.narration.update(listener_position, settings);
     }
 
     fn set_volumes(&mut self, settings: &SoundGlobalSettings) {
@@ -653,6 +667,108 @@ fn linear_to_decibels(mut volume: f32) -> f32 {
 }
 
 // ----------------------------------------------
+// SoundAsset/StaticSoundAsset/StreamedSoundAsset
+// ----------------------------------------------
+
+trait SoundAsset {
+    // Low-level Kira API handle, AKA StaticSoundHandle or StreamingSoundHandle.
+    type BackendSoundHandle;
+
+    // Returns a Kira sound handle for the playing sound.
+    fn play(&self,
+            track: &mut TrackHandle,
+            volume: f32,
+            fade_in_secs: Seconds,
+            looping: bool) -> Option<Self::BackendSoundHandle>;
+}
+
+struct StaticSoundAsset {
+    path: String,
+    data: StaticSoundData, // Sound data loaded in memory.
+}
+
+struct StreamedSoundAsset {
+    path: String,
+    // Data lazily loaded on first play.
+}
+
+impl SoundAsset for StaticSoundAsset {
+    type BackendSoundHandle = StaticSoundHandle;
+
+    fn play(&self,
+            track: &mut TrackHandle,
+            volume: f32,
+            fade_in_secs: Seconds,
+            looping: bool) -> Option<Self::BackendSoundHandle>
+    {
+        debug_assert!(!self.path.is_empty());
+
+        let sound_data = self.data.volume(linear_to_decibels(volume));
+
+        let mut handle = match track.play(
+            sound_data.fade_in_tween(Tween {
+                duration: Duration::from_secs_f32(fade_in_secs),
+                ..Default::default()
+        }))
+        {
+            Ok(handle) => handle,
+            Err(err) => {
+                log::warn!(log::channel!("sound"), "Failed to play StaticSound: {err}");
+                return None;
+            }
+        };
+
+        if looping {
+            // Play in a loop until told to stop.
+            handle.set_loop_region(..);
+        }
+
+        Some(handle)
+    }
+}
+
+impl SoundAsset for StreamedSoundAsset {
+    type BackendSoundHandle = StreamingSoundHandle<FromFileError>;
+
+    fn play(&self,
+            track: &mut TrackHandle,
+            volume: f32,
+            fade_in_secs: Seconds,
+            looping: bool) -> Option<Self::BackendSoundHandle>
+    {
+        debug_assert!(!self.path.is_empty());
+
+        let sound_data = match StreamingSoundData::from_file(&self.path) {
+            Ok(sound_data) => sound_data.volume(linear_to_decibels(volume)),
+            Err(err) => {
+                log::error!(log::channel!("sound"), "Failed to load StreamedSound '{}': {err}", self.path);
+                return None;
+            }
+        };
+
+        let mut handle = match track.play(
+            sound_data.fade_in_tween(Tween {
+                duration: Duration::from_secs_f32(fade_in_secs),
+                ..Default::default()
+        }))
+        {
+            Ok(handle) => handle,
+            Err(err) => {
+                log::warn!(log::channel!("sound"), "Failed to play StreamedSound '{}': {err}", self.path);
+                return None;
+            }
+        };
+
+        if looping {
+            // Play in a loop until told to stop.
+            handle.set_loop_region(..);
+        }
+
+        Some(handle)
+    }
+}
+
+// ----------------------------------------------
 // SoundAssetRegistry
 // ----------------------------------------------
 
@@ -662,23 +778,13 @@ struct SoundAssetRegistry {
     // SFX, Ambience, Spatial: StaticSoundData
     // Music & Narration: StreamingSoundData
 
-    sfx: PreHashedKeyMap<StringHash, StaticSound>,
-    ambience: PreHashedKeyMap<StringHash, StaticSound>, // Spatial sounds are the same as ambience.
+    sfx: PreHashedKeyMap<StringHash, StaticSoundAsset>,
+    ambience: PreHashedKeyMap<StringHash, StaticSoundAsset>, // Spatial sounds are the same as ambience.
 
-    music: PreHashedKeyMap<StringHash, StreamedSound>,
-    narration: PreHashedKeyMap<StringHash, StreamedSound>,
+    music: PreHashedKeyMap<StringHash, StreamedSoundAsset>,
+    narration: PreHashedKeyMap<StringHash, StreamedSoundAsset>,
 
     paths: SoundAssetPaths,
-}
-
-struct StaticSound {
-    path: String,
-    data: StaticSoundData, // Sound data loaded in memory.
-}
-
-struct StreamedSound {
-    path: String,
-    // Data lazily loaded on first reference.
 }
 
 #[derive(Default)]
@@ -687,52 +793,6 @@ struct SoundAssetPaths {
     ambience: PathBuf,
     music: PathBuf,
     narration: PathBuf,
-}
-
-macro_rules! load_static_sound {
-    ($sound_key_kind:ty, $hash_map:expr, $base_path:expr, $sound_path:expr) => {{
-        debug_assert!(!$sound_path.is_empty());
-
-        let sound_path = format!("{}{}{}", $base_path.to_str().unwrap(), MAIN_SEPARATOR, $sound_path);
-        let sound_hash = hash::fnv1a_from_str(&sound_path);
-
-        if $hash_map.get(&sound_hash).is_some() {
-            return <$sound_key_kind>::new(sound_hash); // Already loaded.
-        }
-
-        let sound_data = match StaticSoundData::from_file(&sound_path) {
-            Ok(sound_data) => sound_data,
-            Err(err) => {
-                log::error!(log::channel!("sound"), "Failed to load sound '{sound_path}': {err}");
-                return <$sound_key_kind>::invalid();
-            }
-        };
-
-        $hash_map.insert(sound_hash, StaticSound { path: sound_path, data: sound_data });
-        <$sound_key_kind>::new(sound_hash)
-    }};
-}
-
-macro_rules! load_streamed_sound {
-    ($sound_key_kind:ty, $hash_map:expr, $base_path:expr, $sound_path:expr) => {{
-        debug_assert!(!$sound_path.is_empty());
-
-        let sound_path = format!("{}{}{}", $base_path.to_str().unwrap(), MAIN_SEPARATOR, $sound_path);
-        let sound_hash = hash::fnv1a_from_str(&sound_path);
-
-        if $hash_map.get(&sound_hash).is_some() {
-            return <$sound_key_kind>::new(sound_hash); // Already loaded.
-        }
-
-        // Only probe file path now. Data is lazily loaded on first reference.
-        if std::fs::exists(&sound_path).is_err() {
-            log::error!(log::channel!("sound"), "Sound file path '{sound_path}' is invalid!");
-            return <$sound_key_kind>::invalid();
-        }
-
-        $hash_map.insert(sound_hash, StreamedSound { path: sound_path });
-        <$sound_key_kind>::new(sound_hash)
-    }};
 }
 
 impl SoundAssetRegistry {
@@ -745,20 +805,24 @@ impl SoundAssetRegistry {
         registry
     }
 
+    #[inline]
     fn load_sfx(&mut self, path: &str) -> SfxSoundKey {
-        load_static_sound!(SfxSoundKey, self.sfx, self.paths.sfx, path)
+        load_static_sound(&mut self.sfx, &self.paths.sfx, path)
     }
 
+    #[inline]
     fn load_ambience(&mut self, path: &str) -> AmbienceSoundKey {
-        load_static_sound!(AmbienceSoundKey, self.ambience, self.paths.ambience, path)
+        load_static_sound(&mut self.ambience, &self.paths.ambience, path)
     }
 
+    #[inline]
     fn load_music(&mut self, path: &str) -> MusicSoundKey {
-        load_streamed_sound!(MusicSoundKey, self.music, self.paths.music, path)
+        load_streamed_sound(&mut self.music, &self.paths.music, path)
     }
 
+    #[inline]
     fn load_narration(&mut self, path: &str) -> NarrationSoundKey {
-        load_streamed_sound!(NarrationSoundKey, self.narration, self.paths.narration, path)
+        load_streamed_sound(&mut self.narration, &self.paths.narration, path)
     }
 
     fn unload_all(&mut self) {
@@ -769,62 +833,140 @@ impl SoundAssetRegistry {
     }
 
     fn sounds_loaded(&self) -> usize {
-        self.sfx.len() + self.ambience.len() + self.music.len() + self.narration.len()
+        self.sfx.len()
+        + self.ambience.len()
+        + self.music.len()
+        + self.narration.len()
     }
 }
 
-// ----------------------------------------------
-// StaticSoundController
-// ----------------------------------------------
+fn load_static_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, StaticSoundAsset>,
+                                    base_path: &Path,
+                                    asset_path: &str) -> Key {
+    debug_assert!(!asset_path.is_empty());
 
-struct StaticSoundController {
-    track: Box<TrackHandle>,
-    sounds: Slab<(u32, StaticSoundHandle)>,
-    kind: SoundKind,
-    generation: u32,
+    let sound_path = format!("{}{}{}", base_path.to_str().unwrap(), MAIN_SEPARATOR, asset_path);
+    let sound_hash = hash::fnv1a_from_str(&sound_path);
+
+    if hash_map.get(&sound_hash).is_some() {
+        return Key::new(sound_hash); // Already loaded.
+    }
+
+    let sound_data = match StaticSoundData::from_file(&sound_path) {
+        Ok(sound_data) => sound_data,
+        Err(err) => {
+            log::error!(log::channel!("sound"), "Failed to load sound '{sound_path}': {err}");
+            return Key::invalid();
+        }
+    };
+
+    hash_map.insert(sound_hash, StaticSoundAsset { path: sound_path, data: sound_data });
+    Key::new(sound_hash)
 }
 
-impl StaticSoundController {
-    fn new(track: TrackHandle, kind: SoundKind) -> Self {
+fn load_streamed_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, StreamedSoundAsset>,
+                                      base_path: &Path,
+                                      asset_path: &str) -> Key {
+    debug_assert!(!asset_path.is_empty());
+
+    let sound_path = format!("{}{}{}", base_path.to_str().unwrap(), MAIN_SEPARATOR, asset_path);
+    let sound_hash = hash::fnv1a_from_str(&sound_path);
+
+    if hash_map.get(&sound_hash).is_some() {
+        return Key::new(sound_hash); // Already loaded.
+    }
+
+    // Only probe file path now. Data is lazily loaded on first reference.
+    if std::fs::exists(&sound_path).is_err() {
+        log::error!(log::channel!("sound"), "Sound file path '{sound_path}' is invalid!");
+        return Key::invalid();
+    }
+
+    hash_map.insert(sound_hash, StreamedSoundAsset { path: sound_path });
+    Key::new(sound_hash)
+}
+
+// ----------------------------------------------
+// SoundInstance/SoundController
+// ----------------------------------------------
+
+trait SoundInstance {
+    // Low-level Kira API handle, AKA StaticSoundHandle or StreamingSoundHandle.
+    type BackendSoundHandle;
+
+    fn new(handle: Self::BackendSoundHandle, generation: u32, position: Vec2, volume: f32) -> Self;
+    fn generation(&self) -> u32;
+
+    fn spatial_update(&mut self, _listener_position: Vec2, _settings: &SoundGlobalSettings) {}
+    fn stop(&mut self, fade_out_secs: Seconds);
+    fn set_volume(&mut self, volume: f32);
+
+    fn is_playing(&self) -> bool;
+    fn is_stopped(&self) -> bool;
+}
+
+struct SoundController<const SINGLE_SOUND: bool, const SPATIAL: bool, Track, Inst, Asset, Handle> {
+    track: Track,
+    kind: SoundKind,
+    sounds: Slab<Inst>,
+    generation: u32,
+    _asset_type: PhantomData<Asset>,
+    _handle_type: PhantomData<Handle>,
+}
+
+impl<const SINGLE_SOUND: bool, const SPATIAL: bool, Track, Inst, Asset, Handle>
+    SoundController<SINGLE_SOUND, SPATIAL, Track, Inst, Asset, Handle>
+{
+    fn new(track: Track, kind: SoundKind) -> Self {
         Self {
-            track: Box::new(track),
-            sounds: Slab::new(),
+            track,
             kind,
+            sounds: Slab::new(),
             generation: 0,
+            _asset_type: PhantomData,
+            _handle_type: PhantomData,
         }
     }
+}
 
+impl<const SINGLE_SOUND: bool, const SPATIAL: bool, Track, Inst, Asset, Handle>
+    SoundController<SINGLE_SOUND, SPATIAL, Track, Inst, Asset, Handle>
+        where
+            Track: AsTrackHandle,
+            Inst:  SoundInstance<BackendSoundHandle = Handle>,
+            Asset: SoundAsset<BackendSoundHandle = Handle>,
+{
     fn play(&mut self,
-            sound: &StaticSound,
+            sound_asset: &Asset,
+            position: Vec2,
             volume: f32,
             fade_in_secs: Seconds,
-            looping: bool)
-            -> SoundHandle
+            fade_out_secs: Seconds,
+            looping: bool) -> SoundHandle
     {
-        let sound_data = sound.data.volume(linear_to_decibels(volume));
-
-        let mut handle = match self.track.play(
-            sound_data.fade_in_tween(Tween {
-                duration: Duration::from_secs_f32(fade_in_secs),
-                ..Default::default()
-        }))
-        {
-            Ok(handle) => handle,
-            Err(err) => {
-                log::warn!(log::channel!("sound"), "Failed to play sound effect '{}': {err}", sound.path);
-                return SoundHandle::invalid(self.kind);
-            }
-        };
-
-        if looping {
-            // Play in a loop until told to stop.
-            handle.set_loop_region(..);
+        if SINGLE_SOUND {
+            // Stop current if any is already playing.
+            self.stop_all(fade_out_secs);
         }
 
-        self.generation += 1;
-        let index = self.sounds.insert((self.generation, handle));
+        if let Some(handle) =
+            sound_asset.play(self.track.as_handle_mut(), volume, fade_in_secs, looping)
+        {
+            self.generation += 1;
+            let index = self.sounds.insert(Inst::new(handle, self.generation, position, volume));
+            return SoundHandle::new(self.kind, index, self.generation);
+        }
 
-        SoundHandle::new(self.kind, index, self.generation)
+        SoundHandle::invalid(self.kind)
+    }
+
+    fn is_playing(&self, sound_handle: SoundHandle) -> bool {
+        if sound_handle.is_valid() && sound_handle.kind == self.kind {
+            if let Some(sound) = self.try_get_sound(sound_handle) {
+                return sound.is_playing();
+            }
+        }
+        false
     }
 
     fn stop(&mut self, sound_handle: SoundHandle, fade_out_secs: Seconds) {
@@ -832,33 +974,38 @@ impl StaticSoundController {
             return;
         }
 
-        if let Some((generation, handle)) = self.sounds.get_mut(sound_handle.index as usize) {
-            if *generation == sound_handle.generation {
-                handle.stop(Tween {
-                    duration: Duration::from_secs_f32(fade_out_secs),
-                    ..Default::default()
-                });
-                self.sounds.remove(sound_handle.index as usize);
-            }
+        if let Some(sound) = self.try_get_sound_mut(sound_handle) {
+            sound.stop(fade_out_secs);
         }
     }
 
     fn stop_all(&mut self, fade_out_secs: Seconds) {
-        for (_, (_, handle)) in &mut self.sounds {
-            handle.stop(Tween {
-                duration: Duration::from_secs_f32(fade_out_secs),
-                ..Default::default()
-            });
+        for (_, sound) in &mut self.sounds {
+            sound.stop(fade_out_secs);
         }
-        self.sounds.clear();
     }
 
-    fn update(&mut self) {
-        // Tidy up stopped sounds.
-        let mut indices_to_remove: SmallVec<[usize; 32]> = SmallVec::new();
+    fn set_volume(&mut self, volume: f32) {
+        for (_, sound) in &mut self.sounds {
+            sound.set_volume(volume);
+        }
+    }
 
-        for (index, (_, handle)) in &self.sounds {
-            if handle.state() == PlaybackState::Stopped {
+    fn update(&mut self, listener_position: Vec2, settings: &SoundGlobalSettings) {
+        self.remove_stopped_sounds();
+
+        if SPATIAL {
+            for (_, sound) in &mut self.sounds {
+                sound.spatial_update(listener_position, settings);
+            }
+        }
+    }
+
+    fn remove_stopped_sounds(&mut self) {
+        let mut indices_to_remove = SmallVec::<[usize; 32]>::new();
+
+        for (index, sound) in &self.sounds {
+            if sound.is_stopped() {
                 indices_to_remove.push(index);
             }
         }
@@ -868,294 +1015,175 @@ impl StaticSoundController {
         }
     }
 
-    fn set_volume(&mut self, volume: f32) {
-        let volume_db = linear_to_decibels(volume);
-        for (_, (_, handle)) in &mut self.sounds {
-            if handle.state() != PlaybackState::Stopped {
-                handle.set_volume(volume_db, Tween::default());
+    #[inline]
+    fn try_get_sound(&self, sound_handle: SoundHandle) -> Option<&Inst> {
+        if let Some(sound) = self.sounds.get(sound_handle.index as usize) {
+            if sound_handle.generation == sound.generation() {
+                return Some(sound);
             }
         }
+        None
     }
 
-    fn is_playing(&self, sound_handle: SoundHandle) -> bool {
-        if sound_handle.kind == self.kind {
-            if let Some((generation, handle)) = self.sounds.get(sound_handle.index as usize) {
-                if *generation == sound_handle.generation && handle.state().is_advancing() {
-                    return true;
-                }
+    #[inline]
+    fn try_get_sound_mut(&mut self, sound_handle: SoundHandle) -> Option<&mut Inst> {
+        if let Some(sound) = self.sounds.get_mut(sound_handle.index as usize) {
+            if sound_handle.generation == sound.generation() {
+                return Some(sound);
             }
         }
-        false
+        None
     }
 
+    #[inline]
     fn playing_count(&self) -> usize {
         self.sounds.len()
     }
 }
 
 // ----------------------------------------------
-// StreamedSoundController
+// AsTrackHandle
 // ----------------------------------------------
 
-struct StreamedSoundController {
-    track: TrackHandle,
-
-    // Only one streamed sound plays at a time.
-    current: Option<StreamingSoundHandle<FromFileError>>,
-
-    kind: SoundKind,
-    generation: u32,
+trait AsTrackHandle {
+    fn as_handle_mut(&mut self) -> &mut TrackHandle;
 }
 
-impl StreamedSoundController {
-    fn new(track: TrackHandle, kind: SoundKind) -> Self {
-        Self {
-            track,
-            current: None,
-            kind,
-            generation: 0,
-        }
+impl AsTrackHandle for TrackHandle {
+    fn as_handle_mut(&mut self) -> &mut TrackHandle {
+        self
     }
+}
 
-    fn play(&mut self,
-            sound: &StreamedSound,
-            volume: f32,
-            fade_in_secs: Seconds,
-            fade_out_secs: Seconds,
-            looping: bool)
-            -> SoundHandle
-    {
-        debug_assert!(!sound.path.is_empty());
+impl AsTrackHandle for Box<TrackHandle> {
+    fn as_handle_mut(&mut self) -> &mut TrackHandle {
+        self.as_mut()
+    }
+}
 
-        let sound_data = match StreamingSoundData::from_file(&sound.path) {
-            Ok(sound_data) => sound_data.volume(linear_to_decibels(volume)),
-            Err(err) => {
-                log::error!(log::channel!("sound"), "Failed to load streamed sound '{}': {err}", sound.path);
-                return SoundHandle::invalid(self.kind);
+impl AsTrackHandle for RawPtr<TrackHandle> {
+    fn as_handle_mut(&mut self) -> &mut TrackHandle {
+        self.as_mut()
+    }
+}
+
+// ----------------------------------------------
+// StaticSoundInstance/StreamedSoundInstance
+// ----------------------------------------------
+
+macro_rules! declare_sound_instance {
+    ($struct_name:ident, $handle_type:path) => {
+        struct $struct_name {
+            handle: $handle_type,
+            generation: u32,
+        }
+
+        impl SoundInstance for $struct_name {
+            type BackendSoundHandle = $handle_type;
+
+            #[inline]
+            fn new(handle: Self::BackendSoundHandle, generation: u32, _: Vec2, _: f32) -> Self {
+                Self { handle, generation }
             }
-        };
 
-        // Stop current if any is already playing.
-        self.stop_all(fade_out_secs);
-
-        let mut handle = match self.track.play(
-            sound_data.fade_in_tween(Tween {
-                duration: Duration::from_secs_f32(fade_in_secs),
-                ..Default::default()
-        }))
-        {
-            Ok(handle) => handle,
-            Err(err) => {
-                log::warn!(log::channel!("sound"), "Failed to play streamed sound '{}': {err}", sound.path);
-                return SoundHandle::invalid(self.kind);
+            #[inline]
+            fn generation(&self) -> u32 {
+                self.generation
             }
-        };
 
-        if looping {
-            // Play in a loop until told to stop.
-            handle.set_loop_region(..);
-        }
-
-        self.generation += 1;
-        self.current = Some(handle);
-
-        SoundHandle::new(self.kind, 0, self.generation) // index not used here.
-    }
-
-    fn stop(&mut self, sound_handle: SoundHandle, fade_out_secs: Seconds) {
-        if !sound_handle.is_valid()
-            || sound_handle.kind != self.kind
-            || sound_handle.generation != self.generation
-        {
-            return;
-        }
-        self.stop_all(fade_out_secs);
-    }
-
-    fn stop_all(&mut self, fade_out_secs: Seconds) {
-        if let Some(handle) = &mut self.current {
-            handle.stop(Tween {
-                duration: Duration::from_secs_f32(fade_out_secs),
-                ..Default::default()
-            });
-            self.current = None;
-        }
-    }
-
-    fn update(&mut self) {
-        if let Some(handle) = &self.current {
-            if handle.state() == PlaybackState::Stopped {
-                self.current = None;
+            #[inline]
+            fn stop(&mut self, fade_out_secs: Seconds) {
+                self.handle.stop(Tween {
+                    duration: Duration::from_secs_f32(fade_out_secs),
+                    ..Default::default()
+                });
             }
-        }
-    }
 
-    fn set_volume(&mut self, volume: f32) {
-        if let Some(handle) = &mut self.current {
-            if handle.state() != PlaybackState::Stopped {
+            #[inline]
+            fn set_volume(&mut self, volume: f32) {
                 let volume_db = linear_to_decibels(volume);
-                handle.set_volume(volume_db, Tween::default());
+                self.handle.set_volume(volume_db, Tween::default());
+            }
+
+            #[inline]
+            fn is_playing(&self) -> bool {
+                self.handle.state().is_advancing()
+            }
+
+            #[inline]
+            fn is_stopped(&self) -> bool {
+                self.handle.state() == PlaybackState::Stopped
             }
         }
-    }
-
-    fn is_playing(&self, sound_handle: SoundHandle) -> bool {
-        if sound_handle.kind == self.kind {
-            if let Some(handle) = &self.current {
-                if self.generation == sound_handle.generation && handle.state().is_advancing() {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    fn playing_count(&self) -> usize {
-        if self.current.is_some() { 1 } else { 0 }
-    }
+    };
 }
 
+declare_sound_instance! { StaticSoundInstance, StaticSoundHandle }
+declare_sound_instance! { StreamedSoundInstance, StreamingSoundHandle<FromFileError> }
+
 // ----------------------------------------------
-// SpatialController
+// SpatialSoundInstance: Spatial emulation in 2D
 // ----------------------------------------------
 
-// Fake 3D positional sound. Shares the ambiance track.
-// Plays sounds that have a specific origin in the world. E.g.: fire, building collapsed.
-struct SpatialController {
-    track: mem::RawPtr<TrackHandle>, // NOTE: Owned by AmbienceController.
-    sounds: Slab<(u32, SpatialSound)>,
-    generation: u32,
-}
-
-struct SpatialSound {
-    handle: StaticSoundHandle,
+struct SpatialSoundInstance {
+    inner: StaticSoundInstance,
     position: Vec2,
     volume: f32, // linear volume [0-1] range.
 }
 
-impl SpatialController {
-    fn new(track: &TrackHandle) -> Self {
-        Self {
-            track: mem::RawPtr::from_ref(track),
-            sounds: Slab::new(),
-            generation: 0,
-        }
+impl SoundInstance for SpatialSoundInstance {
+    type BackendSoundHandle = StaticSoundHandle;
+
+    #[inline]
+    fn new(handle: Self::BackendSoundHandle, generation: u32, position: Vec2, volume: f32) -> Self {
+        Self { inner: StaticSoundInstance { handle, generation }, position, volume }
     }
 
-    fn play(&mut self,
-            sound: &StaticSound,
-            position: Vec2,
-            volume: f32,
-            fade_in_secs: Seconds,
-            looping: bool)
-            -> SoundHandle
-    {
-        let sound_data = sound.data.volume(linear_to_decibels(volume));
-
-        let mut handle = match self.track.play(
-            sound_data.fade_in_tween(Tween {
-                duration: Duration::from_secs_f32(fade_in_secs),
-                ..Default::default()
-        }))
-        {
-            Ok(handle) => handle,
-            Err(err) => {
-                log::warn!(log::channel!("sound"), "Failed to play spatial ambiance loop: {err}");
-                return SoundHandle::invalid(SoundKind::SpatialAmbience);
-            }
-        };
-
-        if looping {
-            // Play in a loop until told to stop.
-            handle.set_loop_region(..);
-        }
-
-        self.generation += 1;
-        let index = self.sounds.insert((self.generation, SpatialSound { handle, position, volume }));
-
-        SoundHandle::new(SoundKind::SpatialAmbience, index, self.generation)
+    #[inline]
+    fn generation(&self) -> u32 {
+        self.inner.generation
     }
 
-    fn stop(&mut self, sound_handle: SoundHandle, fade_out_secs: Seconds) {
-        if !sound_handle.is_valid() || sound_handle.kind != SoundKind::SpatialAmbience {
-            return;
-        }
-
-        if let Some((generation, sound)) = self.sounds.get_mut(sound_handle.index as usize) {
-            if *generation == sound_handle.generation {
-                sound.handle.stop(Tween {
-                    duration: Duration::from_secs_f32(fade_out_secs),
-                    ..Default::default()
-                });
-                self.sounds.remove(sound_handle.index as usize);
-            }
-        }
+    #[inline]
+    fn stop(&mut self, fade_out_secs: Seconds) {
+        self.inner.stop(fade_out_secs);
     }
 
-    fn stop_all(&mut self, fade_out_secs: Seconds) {
-        for (_, (_, sound)) in &mut self.sounds {
-            sound.handle.stop(Tween {
-                duration: Duration::from_secs_f32(fade_out_secs),
-                ..Default::default()
-            });
-        }
-        self.sounds.clear();
-    }
-
-    fn update(&mut self, listener_position: Vec2, settings: &SoundGlobalSettings) {        
-        let mut indices_to_remove: SmallVec<[usize; 32]> = SmallVec::new();
-
-        for (index, (_, sound)) in &mut self.sounds {
-            // Tidy up stopped sounds.
-            if sound.handle.state() == PlaybackState::Stopped {
-                indices_to_remove.push(index);
-                continue;
-            }
-
-            let dx = sound.position.x - listener_position.x;
-            let dy = sound.position.y - listener_position.y;
-
-            let distance = ((dx * dx) + (dy * dy)).sqrt();
-            let dist_factor = 1.0 - (distance / settings.spatial_cutoff_distance).clamp(0.0, 1.0);
-
-            // Convert linear volume [0-1] to decibels:
-            let volume_db = linear_to_decibels(sound.volume * dist_factor);
-            sound.handle.set_volume(volume_db, Tween {
-                duration: Duration::from_secs_f32(settings.spatial_transition_secs),
-                ..Default::default()
-            });
-
-            let panning = (dx / settings.spatial_cutoff_distance).clamp(-1.0, 1.0);
-            sound.handle.set_panning(panning, Tween {
-                duration: Duration::from_secs_f32(settings.spatial_transition_secs),
-                ..Default::default()
-            });
-        }
-
-        for index in indices_to_remove {
-            self.sounds.remove(index);
-        }
-    }
-
+    #[inline]
     fn set_volume(&mut self, volume: f32) {
-        for (_, (_, sound)) in &mut self.sounds {
-            sound.volume = volume;
-        }
+        self.volume = volume.clamp(0.0, 1.0);
     }
 
-    fn is_playing(&self, sound_handle: SoundHandle) -> bool {
-        if sound_handle.kind == SoundKind::SpatialAmbience {
-            if let Some((generation, sound)) = self.sounds.get(sound_handle.index as usize) {
-                if *generation == sound_handle.generation && sound.handle.state().is_advancing() {
-                    return true;
-                }
-            }
-        }
-        false
+    #[inline]
+    fn is_playing(&self) -> bool {
+        self.inner.is_playing()
     }
 
-    fn playing_count(&self) -> usize {
-        self.sounds.len()
+    #[inline]
+    fn is_stopped(&self) -> bool {
+        self.inner.is_stopped()
+    }
+
+    fn spatial_update(&mut self, listener_position: Vec2, settings: &SoundGlobalSettings) {
+        let dx = self.position.x - listener_position.x;
+        let dy = self.position.y - listener_position.y;
+
+        let distance = ((dx * dx) + (dy * dy)).sqrt();
+        let dist_factor = 1.0 - (distance / settings.spatial_cutoff_distance).clamp(0.0, 1.0);
+
+        // Convert linear volume [0-1] to decibels:
+        let volume_db = linear_to_decibels(self.volume * dist_factor);
+        self.inner.handle.set_volume(volume_db, Tween {
+            duration: Duration::from_secs_f32(settings.spatial_transition_secs),
+            ..Default::default()
+        });
+
+        // -1.0 is hard left, 0.0 is center, and 1.0 is hard right.
+        let panning = (dx / settings.spatial_cutoff_distance).clamp(-1.0, 1.0);
+        self.inner.handle.set_panning(panning, Tween {
+            duration: Duration::from_secs_f32(settings.spatial_transition_secs),
+            ..Default::default()
+        });
     }
 }
 
@@ -1164,13 +1192,52 @@ impl SpatialController {
 // ----------------------------------------------
 
 // Plays general sound effects like UI clicks, alerts, popups.
-type SfxController = StaticSoundController;
+type SfxController = SoundController<
+    false,
+    false,
+    TrackHandle,
+    StaticSoundInstance,
+    StaticSoundAsset,
+    StaticSoundHandle
+>;
 
 // Plays non-positional ambience sounds. E.g.: global city noises, nature sounds.
-type AmbienceController = StaticSoundController;
+type AmbienceController = SoundController<
+    false,
+    false,
+    Box<TrackHandle>,
+    StaticSoundInstance,
+    StaticSoundAsset,
+    StaticSoundHandle
+>;
+
+// Fake 3D positional sound. Shares the ambiance track.
+// Plays sounds that have a specific origin in the world. E.g.: fire, building collapsed.
+type SpatialController = SoundController<
+    false,
+    true,
+    RawPtr<TrackHandle>,
+    SpatialSoundInstance,
+    StaticSoundAsset,
+    StaticSoundHandle
+>;
 
 // Plays streamed background soundtrack music.
-type MusicController = StreamedSoundController;
+type MusicController = SoundController<
+    true,
+    false,
+    TrackHandle,
+    StreamedSoundInstance,
+    StreamedSoundAsset,
+    StreamingSoundHandle<FromFileError>
+>;
 
 // Plays streamed narration / voice-over tracks.
-type NarrationController = StreamedSoundController;
+type NarrationController = SoundController<
+    true,
+    false,
+    TrackHandle,
+    StreamedSoundInstance,
+    StreamedSoundAsset,
+    StreamingSoundHandle<FromFileError>
+>;
