@@ -1,5 +1,3 @@
-use std::ffi::c_void;
-
 use super::{
     log_gl_info, panic_if_gl_error,
     buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE},
@@ -47,6 +45,10 @@ pub enum FrontFacing {
     Cw,
     Ccw,
 }
+
+// ----------------------------------------------
+// RenderContext
+// ----------------------------------------------
 
 pub struct RenderContext {
     clear_color: Color,
@@ -144,10 +146,10 @@ impl RenderContext {
 
     pub fn set_viewport(&mut self, viewport: Rect) -> &mut Self {
         unsafe {
-            gl::Viewport(viewport.x() as gl::types::GLint,
-                         viewport.y() as gl::types::GLint,
-                         viewport.width() as gl::types::GLint,
-                         viewport.height() as gl::types::GLint);
+            gl::Viewport(viewport.x() as _,
+                         viewport.y() as _,
+                         viewport.width() as _,
+                         viewport.height() as _);
         }
         self
     }
@@ -161,10 +163,10 @@ impl RenderContext {
 
     pub fn set_scissor(&mut self, rect: Rect) -> &mut Self {
         unsafe {
-            gl::Scissor(rect.x() as gl::types::GLint,
-                        rect.y() as gl::types::GLint,
-                        rect.width() as gl::types::GLint,
-                        rect.height() as gl::types::GLint);
+            gl::Scissor(rect.x() as _,
+                        rect.y() as _,
+                        rect.width() as _,
+                        rect.height() as _);
         }
         self
     }
@@ -247,9 +249,7 @@ impl RenderContext {
         debug_assert!(self.current_vertex_array != NULL_VERTEX_ARRAY_HANDLE);
 
         unsafe {
-            gl::DrawArrays(self.primitive_topology as gl::types::GLenum,
-                           first_vertex as gl::types::GLint,
-                           vertex_count as gl::types::GLint);
+            gl::DrawArrays(self.primitive_topology as _, first_vertex as _, vertex_count as _);
         }
 
         self.draw_call_count += 1;
@@ -267,10 +267,10 @@ impl RenderContext {
         let offset_in_bytes: usize = (first_index as usize) * index_type_size_in_bytes;
 
         unsafe {
-            gl::DrawElements(self.primitive_topology as gl::types::GLenum,
-                             index_count as gl::types::GLsizei,
+            gl::DrawElements(self.primitive_topology as _,
+                             index_count as _,
                              gl_index_type,
-                             offset_in_bytes as *const c_void);
+                             offset_in_bytes as _);
         }
 
         self.draw_call_count += 1;
