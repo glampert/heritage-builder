@@ -137,6 +137,7 @@ impl NodeKind {
         node_kind_ui_checkbox!(ui, self, SettlersSpawnPoint);
         node_kind_ui_checkbox!(ui, self, Rocks);
         node_kind_ui_checkbox!(ui, self, Vegetation);
+        node_kind_ui_checkbox!(ui, self, HarvestableTree);
     }
 }
 
@@ -172,10 +173,12 @@ impl Node {
     // 4 neighbor cells of this node's cell.
     #[inline]
     pub fn neighbors(self) -> [Node; 4] {
-        [Node::new(Cell::new(self.cell.x + 1, self.cell.y)), // right
-         Node::new(Cell::new(self.cell.x - 1, self.cell.y)), // left
-         Node::new(Cell::new(self.cell.x, self.cell.y + 1)), // top
-         Node::new(Cell::new(self.cell.x, self.cell.y - 1))  /* bottom */]
+        [
+            Node::new(Cell::new(self.cell.x + 1, self.cell.y)), // right
+            Node::new(Cell::new(self.cell.x - 1, self.cell.y)), // left
+            Node::new(Cell::new(self.cell.x, self.cell.y + 1)), // top
+            Node::new(Cell::new(self.cell.x, self.cell.y - 1))  // bottom
+        ]
     }
 
     #[inline]
