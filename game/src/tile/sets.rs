@@ -1051,14 +1051,20 @@ pub struct TileSets {
 }
 
 impl TileSets {
-    pub fn load(tex_cache: &mut dyn TextureCache, use_packed_texture_atlas: bool) -> &'static Self {
+    pub fn load(tex_cache: &mut dyn TextureCache,
+                use_packed_texture_atlas: bool,
+                skip_loading_tile_sets: bool) -> &'static Self {
         let mut instance = Self {
             sets: [
                 TileSet::new(TileMapLayerKind::Terrain), // 0
                 TileSet::new(TileMapLayerKind::Objects), // 1
             ],
         };
-        instance.load_all_layers(tex_cache, use_packed_texture_atlas);
+
+        if !skip_loading_tile_sets {
+            instance.load_all_layers(tex_cache, use_packed_texture_atlas);
+        }
+
         TileSets::initialize(instance); // Set global instance.
         TileSets::get()
     }
