@@ -1,18 +1,19 @@
 #![allow(clippy::enum_variant_names)]
 
-use std::{ops::{Index, IndexMut}, path::PathBuf};
+use rand::Rng;
+use slab::Slab;
 use arrayvec::ArrayVec;
 use bitflags::bitflags;
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sets::{TileAnimSet, TileDef, TileDefHandle, TileSets, TileTexInfo};
-use rand::Rng;
-use slab::Slab;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumIter, EnumProperty};
+use std::{ops::{Index, IndexMut}, path::PathBuf};
 
 pub use placement::PlacementOp;
+use minimap::Minimap;
 use selection::TileSelection;
+use sets::{TileAnimSet, TileDef, TileDefHandle, TileSets, TileTexInfo};
 
 use crate::{
     bitflags_with_display,
@@ -28,6 +29,7 @@ use crate::{
 };
 
 pub mod camera;
+pub mod minimap;
 pub mod rendering;
 pub mod selection;
 pub mod sets;
@@ -2015,6 +2017,10 @@ pub struct TileMap {
     size_in_cells: Size,
     layers: ArrayVec<Box<TileMapLayer>, TILE_MAP_LAYER_COUNT>,
 
+    // Minimap is reconstructed on post_load().
+    #[serde(skip)]
+    minimap: Minimap,
+
     // NOTE: TileMap callbacks are *not* serialized. These must be manually
     // reset on the user's post_load() after deserialization.
 
@@ -2035,11 +2041,16 @@ pub struct TileMap {
 impl TileMap {
     pub fn new(size_in_cells: Size, fill_with_def: Option<&'static TileDef>) -> Self {
         debug_assert!(size_in_cells.is_valid());
-        let mut tile_map = Self { size_in_cells,
-                                  layers: ArrayVec::new(),
-                                  on_tile_placed_callback: None,
-                                  on_removing_tile_callback: None,
-                                  on_map_reset_callback: None };
+
+        let mut tile_map = Self {
+            size_in_cells,
+            layers: ArrayVec::new(),
+            minimap: Minimap::new(size_in_cells),
+            on_tile_placed_callback: None,
+            on_removing_tile_callback: None,
+            on_map_reset_callback: None
+        };
+
         tile_map.reset(fill_with_def, None);
         tile_map
     }
@@ -2057,6 +2068,7 @@ impl TileMap {
 
     pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
         self.layers.clear();
+        self.minimap.reset(fill_with_def, new_map_size);
 
         if let Some(callback) = self.on_map_reset_callback {
             callback(self);
@@ -2067,8 +2079,7 @@ impl TileMap {
         }
 
         for layer_kind in TileMapLayerKind::iter() {
-            // Find which layer this tile belong to if we're not just setting everything to
-            // empty.
+            // Find which layer this tile belong to if we're not just setting everything to empty.
             let fill_opt = {
                 if let Some(fill_tile_def) = fill_with_def {
                     if fill_tile_def.layer_kind() == layer_kind {
@@ -2082,13 +2093,12 @@ impl TileMap {
             };
 
             const ALLOW_STACKING: bool = false;
-            self.layers
-                .push(TileMapLayer::new(layer_kind, self.size_in_cells, fill_opt, ALLOW_STACKING));
+            self.layers.push(TileMapLayer::new(layer_kind, self.size_in_cells, fill_opt, ALLOW_STACKING));
         }
     }
 
     pub fn memory_usage_estimate(&self) -> usize {
-        let mut estimate = 0;
+        let mut estimate = self.minimap.memory_usage_estimate();
         for layer in &self.layers {
             estimate += layer.memory_usage_estimate();
         }
@@ -2259,6 +2269,16 @@ impl TileMap {
     }
 
     #[inline]
+    pub fn minimap(&self) -> &Minimap {
+        &self.minimap
+    }
+
+    #[inline]
+    pub fn minimap_mut(&mut self) -> &mut Minimap {
+        &mut self.minimap
+    }
+
+    #[inline]
     pub fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: Seconds) {
         if !self.layers.is_empty() {
             // NOTE: Terrain layer is not animated by design. Only objects animate.
@@ -2353,18 +2373,26 @@ impl TileMap {
                                                  target_cell,
                                                  tile_def_to_place)?;
 
+        let mut minimap = mem::RawPtr::from_ref(&self.minimap);
+
         let tile_placed_callback = self.on_tile_placed_callback;
         let layer = self.layer_mut(layer_kind);
         let prev_pool_capacity = layer.pool_capacity();
 
-        placement::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
+        let result = placement::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
             .map(|(tile, new_pool_capacity)| {
                 if let Some(callback) = tile_placed_callback {
                     let did_reallocate = new_pool_capacity != prev_pool_capacity;
                     callback(tile, did_reallocate);
                 }
                 tile
-            })
+            });
+
+        if result.is_ok() {
+            minimap.place_tile(target_cell, tile_def_to_place);
+        }
+
+        result
     }
 
     #[inline]
@@ -2382,7 +2410,14 @@ impl TileMap {
             }
         }
 
-        placement::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell)
+        let result =
+            placement::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
+
+        if let Ok(tile_def) = result {
+            self.minimap.clear_tile(target_cell, tile_def);
+        }
+
+        result.map(|_| ())
     }
 
     #[inline]
@@ -2404,9 +2439,16 @@ impl TileMap {
             }
         }
 
-        placement::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind),
-                                                      target_index,
-                                                      target_cell)
+        let result =
+            placement::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind),
+                                                          target_index,
+                                                          target_cell);
+
+        if let Ok(tile_def) = result {
+            self.minimap.clear_tile(target_cell, tile_def);
+        }
+
+        result.map(|_| ())
     }
 
     pub fn can_move_tile(&self,
@@ -2659,7 +2701,7 @@ impl Load for TileMap {
         state.load(self)
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext) {
+    fn post_load(&mut self, context: &PostLoadContext) {
         debug_assert!(self.size_in_cells >= Size::zero());
 
         // These are *not* serialized, so should be unset.
@@ -2671,5 +2713,7 @@ impl Load for TileMap {
         for layer in &mut self.layers {
             layer.post_load();
         }
+
+        self.minimap.post_load(context);
     }
 }

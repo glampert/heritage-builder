@@ -225,14 +225,17 @@ pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
 
 pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
                                  target_cell: Cell)
-                                 -> Result<(), String> {
+                                 -> Result<&'static TileDef, String> {
     if let Some(tile) = layer.try_tile(target_cell) {
+        let tile_def = tile.tile_def();
+
         // Make sure we clear the base tile + any child blockers.
         for cell in &tile.cell_range() {
             let did_remove_tile = layer.remove_tile(cell);
             assert!(did_remove_tile);
         }
-        Ok(())
+
+        Ok(tile_def)
     } else {
         // Already empty.
         Err(format!("Cell {target_cell} in layer {} is already empty.", layer.kind()))
@@ -242,12 +245,13 @@ pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
 pub fn try_clear_tile_from_layer_by_index(layer: &mut TileMapLayer,
                                           target_index: TilePoolIndex,
                                           target_cell: Cell)
-                                          -> Result<(), String> {
+                                          -> Result<&'static TileDef, String> {
     if let Some(tile) = layer.try_tile(target_cell) {
         // For now only Units are supported.
         debug_assert!(tile.is(TileKind::Unit));
         debug_assert!(!tile.occupies_multiple_cells());
 
+        let tile_def = tile.tile_def();
         let mut found_tile = false;
 
         // Find which tile in the stack we are removing:
@@ -255,16 +259,16 @@ pub fn try_clear_tile_from_layer_by_index(layer: &mut TileMapLayer,
             found_tile = true;
         } else {
             layer.visit_next_tiles(tile.next_index, |next_tile| {
-                     if next_tile.index() == target_index {
-                         found_tile = true;
-                     }
-                 });
+                if next_tile.index() == target_index {
+                    found_tile = true;
+                }
+            });
         }
 
         if found_tile {
             let did_remove_tile = layer.remove_tile_by_index(target_index, target_cell);
             assert!(did_remove_tile);
-            Ok(())
+            Ok(tile_def)
         } else {
             Err(format!("Failed to find tile for index: {target_index:?}, cell: {target_cell}."))
         }

@@ -435,7 +435,7 @@ impl GameLoop {
 
         // Boot the engine and load assets:
         let mut engine = Self::init_engine(&configs.engine);
-        Self::load_assets(engine.texture_cache_mut(), &configs);
+        Self::load_assets(engine.texture_cache_mut(), configs);
 
         // Global initialization:
         cheats::initialize();
@@ -713,7 +713,10 @@ impl GameLoop {
     }
 
     fn draw_tile_map(&mut self, visible_range: CellRange, flags: TileMapRenderFlags) {
-        let session = self.session.as_ref().unwrap();
+        let session = self.session.as_mut().unwrap();
+
+        session.tile_map.minimap_mut().update(self.engine.texture_cache_mut());
+
         self.engine.draw_tile_map(&session.tile_map,
                                   &session.tile_selection,
                                   session.camera.transform(),

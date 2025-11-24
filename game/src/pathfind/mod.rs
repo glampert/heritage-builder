@@ -68,7 +68,12 @@ impl NodeKind {
     }
 
     #[inline]
-    pub fn is_land(self) -> bool {
+    pub fn is_empty_land(self) -> bool {
+        self.intersects(Self::EmptyLand)
+    }
+
+    #[inline]
+    pub fn is_land(self) -> bool { // Anything besides water.
         !self.intersects(Self::Water)
     }
 

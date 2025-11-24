@@ -355,6 +355,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                                                                      flags);
 
         tile_selection.draw(render_sys);
+        tile_map.minimap().draw(render_sys, ui_sys);
     }
 }
 
