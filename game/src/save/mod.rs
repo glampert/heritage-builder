@@ -1,7 +1,7 @@
 use std::{fs, io, path::Path};
 use enum_dispatch::enum_dispatch;
 use serde::{de::DeserializeOwned, Serialize};
-use crate::{tile::TileMap, utils::mem};
+use crate::{render::TextureCache, tile::TileMap, utils::mem};
 
 // ----------------------------------------------
 // Save / Load Traits
@@ -14,13 +14,13 @@ pub trait Save {
 }
 
 pub trait Load {
-    fn pre_load(&mut self) {}
+    fn pre_load(&mut self, _context: &PreLoadContext) {}
     fn load(&mut self, _state: &SaveStateImpl) -> LoadResult { Ok(()) }
     fn post_load(&mut self, _context: &PostLoadContext) {}
 }
 
 // ----------------------------------------------
-// SaveState Helpers / PostLoadContext
+// SaveState Helpers / Pre-PostLoadContext
 // ----------------------------------------------
 
 pub type SaveResult = Result<(), String>;
@@ -47,6 +47,27 @@ pub trait SaveState {
 #[enum_dispatch]
 pub enum SaveStateImpl {
     Json(backend::JsonSaveState),
+}
+
+pub struct PreLoadContext {
+    tex_cache: mem::RawPtr<dyn TextureCache>,
+}
+
+impl PreLoadContext {
+    #[inline]
+    pub fn new(tex_cache: &dyn TextureCache) -> Self {
+        Self { tex_cache: mem::RawPtr::from_ref(tex_cache) }
+    }
+
+    #[inline]
+    pub fn tex_cache(&self) -> &dyn TextureCache {
+        self.tex_cache.as_ref()
+    }
+
+    #[inline]
+    pub fn tex_cache_mut(&self) -> &mut dyn TextureCache {
+        self.tex_cache.mut_ref_cast()
+    }
 }
 
 pub struct PostLoadContext {

@@ -167,7 +167,10 @@ impl DevEditorMenusSingleton {
         }
 
         if show_cursor_pos {
-            utils::draw_cursor_overlay(menu_context.ui_sys, menu_context.camera.transform(), None);
+            utils::draw_cursor_overlay(menu_context.ui_sys,
+                                       menu_context.camera.transform(),
+                                       menu_context.cursor_screen_pos,
+                                       None);
         }
 
         if show_render_perf_stats {

@@ -19,11 +19,11 @@ use crate::{
     tile::{
         rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
         selection::TileSelection,
-        TileMap,
+        TileMap, camera::Camera,
     },
     utils::{
-        coords::{CellRange, WorldToScreenTransform},
-        mem, Color, Rect, RectTexCoords, Vec2,
+        coords::CellRange, mem,
+        Color, Rect, RectTexCoords, Vec2,
     },
 };
 
@@ -77,7 +77,7 @@ pub trait Engine {
     fn draw_tile_map(&mut self,
                      tile_map: &TileMap,
                      tile_selection: &TileSelection,
-                     transform: WorldToScreenTransform,
+                     camera: &Camera,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags);
 }
@@ -337,7 +337,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     fn draw_tile_map(&mut self,
                      tile_map: &TileMap,
                      tile_selection: &TileSelection,
-                     transform: WorldToScreenTransform,
+                     camera: &Camera,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags) {
         if !tile_map.size_in_cells().is_valid() {
@@ -350,12 +350,12 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
         self.tile_map_render_stats = self.tile_map_renderer.draw_map(render_sys,
                                                                      ui_sys,
                                                                      tile_map,
-                                                                     transform,
+                                                                     camera.transform(),
                                                                      visible_range,
                                                                      flags);
 
         tile_selection.draw(render_sys);
-        tile_map.minimap().draw(render_sys, ui_sys);
+        tile_map.minimap().draw(render_sys, ui_sys, camera);
     }
 }
 

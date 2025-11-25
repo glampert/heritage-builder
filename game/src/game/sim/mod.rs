@@ -307,7 +307,7 @@ impl Save for Simulation {
 }
 
 impl Load for Simulation {
-    fn pre_load(&mut self) {
+    fn pre_load(&mut self, _context: &PreLoadContext) {
         self.task_manager.pre_load();
     }
 

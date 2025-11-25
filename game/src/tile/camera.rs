@@ -156,7 +156,7 @@ impl Camera {
     }
 
     #[inline]
-    pub fn listener_position(&self) -> Vec2 {
+    pub fn iso_world_position(&self) -> Vec2 {
         let viewport_center = Vec2::new(
             self.viewport_size.width  as f32 * 0.5,
             self.viewport_size.height as f32 * 0.5,
@@ -241,8 +241,7 @@ impl Camera {
 
     #[inline]
     pub fn scroll_limits(&self) -> (Vec2, Vec2) {
-        let bounds =
-            calc_map_bounds(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
+        let bounds = calc_map_bounds(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
         (bounds.min, bounds.max)
     }
 

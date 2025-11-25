@@ -2697,6 +2697,10 @@ impl Save for TileMap {
 }
 
 impl Load for TileMap {
+    fn pre_load(&mut self, context: &PreLoadContext) {
+        self.minimap.pre_load(context);
+    }
+
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         state.load(self)
     }

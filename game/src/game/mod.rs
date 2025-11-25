@@ -250,16 +250,16 @@ impl Save for GameSession {
 }
 
 impl Load for GameSession {
-    fn pre_load(&mut self) {
-        self.tile_map.pre_load();
-        self.world.pre_load();
-        self.sim.pre_load();
-        self.systems.pre_load();
-        self.camera.pre_load();
-        self.tile_selection.pre_load();
+    fn pre_load(&mut self, context: &PreLoadContext) {
+        self.tile_map.pre_load(context);
+        self.world.pre_load(context);
+        self.sim.pre_load(context);
+        self.systems.pre_load(context);
+        self.camera.pre_load(context);
+        self.tile_selection.pre_load(context);
 
         if let Some(menus) = &mut self.menus {
-            menus.pre_load();
+            menus.pre_load(context);
         }
     }
 
@@ -367,7 +367,7 @@ impl GameSession {
             }
         };
 
-        self.pre_load();
+        self.pre_load(&PreLoadContext::new(GameLoop::get_mut().engine_mut().texture_cache_mut()));
         *self = session;
         self.post_load(&PostLoadContext::new(&self.tile_map));
 
@@ -572,7 +572,7 @@ impl GameLoop {
 
         self.menus_end_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
-        let listener_position = self.camera().listener_position();
+        let listener_position = self.camera().iso_world_position();
         self.engine.sound_system().update(listener_position);
 
         self.engine.end_frame();
@@ -719,7 +719,7 @@ impl GameLoop {
 
         self.engine.draw_tile_map(&session.tile_map,
                                   &session.tile_selection,
-                                  session.camera.transform(),
+                                  &session.camera,
                                   visible_range,
                                   flags);
     }

@@ -1,11 +1,12 @@
 use super::{
-    TileKind, TileMap, TileMapLayerKind, sets::TileDef, water,
+    TileKind, TileMap, TileMapLayerKind, sets::TileDef,
+    water, camera::Camera, BASE_TILE_SIZE,
 };
 
 use crate::{
-    save::PostLoadContext,
-    utils::{Size, coords::Cell},
+    save::{PreLoadContext, PostLoadContext},
     imgui_ui::{self, UiSystem, UiTextureHandle, UiStaticVar},
+    utils::{Size, Vec2, coords::{self, Cell, IsoPoint, WorldToScreenTransform}},
     render::{RenderSystem, TextureCache, TextureHandle, TextureSettings, TextureFilter},
 };
 
@@ -123,20 +124,22 @@ impl Default for MinimapTileColor {
 
 #[derive(Default)]
 struct MinimapTexture {
-    size_in_pixels: Size,
+    size: Size,
     pixels: Vec<MinimapTileColor>,
     handle: TextureHandle,
-    changed: bool,
+    need_update: bool,
+    size_changed: bool,
 }
 
 impl MinimapTexture {
-    fn new(size_in_pixels: Size) -> Self {
-        let pixel_count = (size_in_pixels.width * size_in_pixels.height) as usize;
+    fn new(size: Size) -> Self {
+        let pixel_count = (size.width * size.height) as usize;
         Self {
-            size_in_pixels,
+            size,
             pixels: vec![MinimapTileColor::default(); pixel_count],
             handle: TextureHandle::invalid(),
-            changed: true,
+            need_update: true,
+            size_changed: false,
         }
     }
 
@@ -144,25 +147,31 @@ impl MinimapTexture {
         self.pixels.capacity() * std::mem::size_of::<MinimapTileColor>()
     }
 
-    fn reset(&mut self, size_in_pixels: Size, fill_color: MinimapTileColor) {
-        self.changed = true;
+    fn reset(&mut self, size: Size, fill_color: MinimapTileColor) {
+        self.need_update = true;
 
-        if size_in_pixels == self.size_in_pixels {
+        if size == self.size {
             self.pixels.fill(fill_color);
             return; // No change in size.
         }
 
         self.pixels.clear();
 
-        let pixel_count = (size_in_pixels.width * size_in_pixels.height) as usize;
+        let pixel_count = (size.width * size.height) as usize;
         self.pixels.resize(pixel_count, fill_color);
 
-        self.size_in_pixels = size_in_pixels;
+        self.size = size;
+        self.size_changed = true;
     }
 
     fn update(&mut self, tex_cache: &mut dyn TextureCache) {
-        if !self.changed || !self.size_in_pixels.is_valid() {
+        if !self.need_update || !self.size.is_valid() {
             return;
+        }
+
+        if self.size_changed {
+            tex_cache.release_texture(&mut self.handle);
+            self.size_changed = false;
         }
 
         if !self.handle.is_valid() {
@@ -172,7 +181,7 @@ impl MinimapTexture {
                 ..Default::default()
             };
             self.handle = tex_cache.new_uninitialized_texture("minimap",
-                                                              self.size_in_pixels,
+                                                              self.size,
                                                               Some(settings));
         }
 
@@ -180,9 +189,14 @@ impl MinimapTexture {
         let bytes_ptr = self.pixels.as_ptr() as *const u8;
         let pixels = unsafe { std::slice::from_raw_parts(bytes_ptr, len_in_bytes) };
 
-        tex_cache.update_texture(self.handle, 0, 0, self.size_in_pixels, 0, pixels);
+        tex_cache.update_texture(self.handle, 0, 0, self.size, 0, pixels);
+        self.need_update = false;
+    }
 
-        self.changed = false;
+    fn pre_load(&mut self, context: &PreLoadContext) {
+        // Release the current minimap texture. It will be recreated
+        // with the correct dimensions on next update().
+        context.tex_cache_mut().release_texture(&mut self.handle);
     }
 
     fn post_load(&mut self, tile_map: &TileMap) {
@@ -209,12 +223,12 @@ impl MinimapTexture {
     fn set_pixel(&mut self, cell: Cell, color: MinimapTileColor) {
         let index = self.cell_to_index(cell);
         self.pixels[index] = color;
-        self.changed = true;
+        self.need_update = true;
     }
 
     #[inline]
     fn cell_to_index(&self, cell: Cell) -> usize {
-        let cell_index = cell.x + (cell.y * self.size_in_pixels.width);
+        let cell_index = cell.x + (cell.y * self.size.width);
         cell_index as usize
     }
 }
@@ -238,8 +252,8 @@ impl Minimap {
 
     #[inline]
     fn is_cell_within_bounds(&self, cell: Cell) -> bool {
-        if (cell.x < 0 || cell.x >= self.texture.size_in_pixels.width)
-            || (cell.y < 0 || cell.y >= self.texture.size_in_pixels.height)
+        if (cell.x < 0 || cell.x >= self.texture.size.width)
+            || (cell.y < 0 || cell.y >= self.texture.size.height)
         {
             return false;
         }
@@ -252,13 +266,13 @@ impl Minimap {
     }
 
     #[inline]
-    pub fn post_load(&mut self, context: &PostLoadContext) {
-        self.texture.post_load(context.tile_map());
+    pub fn pre_load(&mut self, context: &PreLoadContext) {
+        self.texture.pre_load(context);
     }
 
     #[inline]
-    pub fn texture_handle(&self) -> TextureHandle {
-        self.texture.handle
+    pub fn post_load(&mut self, context: &PostLoadContext) {
+        self.texture.post_load(context.tile_map());
     }
 
     #[inline]
@@ -269,7 +283,7 @@ impl Minimap {
     #[inline]
     pub fn tile_count(&self) -> usize {
         // 1 pixel = 1 tile
-        (self.texture.size_in_pixels.width * self.texture.size_in_pixels.height) as usize
+        (self.texture.size.width * self.texture.size.height) as usize
     }
 
     pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
@@ -281,8 +295,8 @@ impl Minimap {
             }
         };
 
-        let size_in_pixels = new_map_size.unwrap_or(self.texture.size_in_pixels);
-        self.texture.reset(size_in_pixels, fill_color);
+        let size = new_map_size.unwrap_or(self.texture.size);
+        self.texture.reset(size, fill_color);
     }
 
     pub fn place_tile(&mut self, target_cell: Cell, tile_def: &'static TileDef) {
@@ -315,26 +329,27 @@ impl Minimap {
         }
     }
 
-    pub fn draw(&self, render_sys: &mut impl RenderSystem, ui_sys: &UiSystem) {
+    // Draw the minimap using ImGui, nestled inside a window.
+    pub fn draw(&self, render_sys: &mut impl RenderSystem, ui_sys: &UiSystem, camera: &Camera) {
         static SHOW_MINIMAP: UiStaticVar<bool> = UiStaticVar::new(true);
         let ui = ui_sys.builder();
 
         if *SHOW_MINIMAP {
+            let minimap = MinimapDrawParams {
+                screen_pos: Vec2::new(35.0, 55.0),
+                screen_size: Vec2::new(140.0, 140.0),
+                map_size: self.texture.size, // Same as tile map size in cells.
+                rotated: true,
+            };
+
+            let window_size = [212.0, 230.0];
+            let window_position = [5.0, ui.io().display_size[1] - window_size[1] - 5.0];
+
             let window_flags =
                 imgui::WindowFlags::NO_RESIZE
                 | imgui::WindowFlags::NO_SCROLLBAR
                 | imgui::WindowFlags::NO_MOVE
                 | imgui::WindowFlags::NO_COLLAPSE;
-
-            let window_size = [
-                210.0,
-                230.0,
-            ];
-
-            let window_position = [
-                5.0,
-                ui.io().display_size[1] - window_size[1] - 5.0,
-            ];
 
             ui.window("Minimap")
                 .opened(SHOW_MINIMAP.as_mut())
@@ -343,11 +358,13 @@ impl Minimap {
                 .size(window_size, imgui::Condition::Always)
                 .build(|| {
                     let tex_cache = render_sys.texture_cache();
-                    let texture_id = ui_sys.to_ui_texture(tex_cache, self.texture.handle);
-                    let angle_radians = -45.0 * (std::f32::consts::PI / 180.0);
-                    draw_rotated_minimap(ui, texture_id, [35.0, 55.0], [140.0, 140.0], angle_radians);
+                    let texture = ui_sys.to_ui_texture(tex_cache, self.texture.handle);
+                    draw_minimap(ui, camera, &minimap, texture);
                 });
-        } else { // Minimap open/close button:
+        } else {
+            // Minimap open/close button:
+            let window_position = [5.0, ui.io().display_size[1] - 35.0];
+
             let window_flags =
                 imgui::WindowFlags::NO_DECORATION
                 | imgui::WindowFlags::NO_BACKGROUND
@@ -356,15 +373,11 @@ impl Minimap {
                 | imgui::WindowFlags::NO_MOVE
                 | imgui::WindowFlags::NO_COLLAPSE;
 
-            let window_position = [
-                5.0,
-                ui.io().display_size[1] - 35.0,
-            ];
-
             ui.window("Minimap Button")
                 .flags(window_flags)
                 .position(window_position, imgui::Condition::Always)
                 .always_auto_resize(true)
+                .bg_alpha(0.0)
                 .build(|| {
                     if imgui_ui::icon_button(ui_sys, imgui_ui::icons::ICON_MAP, Some("Open Minimap")) {
                         SHOW_MINIMAP.set(true);
@@ -378,51 +391,190 @@ impl Minimap {
 // ImGui draw helpers
 // ----------------------------------------------
 
-fn rotate_around_center(p: [f32; 2], center: [f32; 2], angle_radians: f32) -> [f32; 2] {
-    let s = angle_radians.sin();
-    let c = angle_radians.cos();
+// Rotate the minimap -45 degrees to match our world isometric projection.
+const MINIMAP_ROTATION_ANGLE: f32 = -45.0 * (std::f32::consts::PI / 180.0);
 
+fn draw_minimap(ui: &imgui::Ui,
+                camera: &Camera,
+                minimap: &MinimapDrawParams,
+                texture: UiTextureHandle) {
+    let draw_list = ui.get_window_draw_list();
+
+    let origin = ui.window_pos();
+    let rect_x = origin[0] + minimap.screen_pos.x;
+    let rect_y = origin[1] + minimap.screen_pos.y;
+    let rect_w = minimap.screen_size.x;
+    let rect_h = minimap.screen_size.y;
+    let center = [rect_x + rect_w * 0.5, rect_y + rect_h * 0.5];
+
+    // Draw the minimap rect:
+    {
+        // Rect vertices in screen space (unrotated):
+        let mut points = [
+            [rect_x, rect_y],
+            [rect_x + rect_w, rect_y],
+            [rect_x + rect_w, rect_y + rect_h],
+            [rect_x, rect_y + rect_h],
+        ];
+
+        // Rotate around the center of the rect:
+        if minimap.rotated {
+            for point in &mut points {
+                *point = rotate_around_center(*point, center, MINIMAP_ROTATION_ANGLE);
+            }
+        }
+
+        draw_list
+            .add_image_quad(texture, points[0], points[1], points[2], points[3])
+            .uv([0.0, 1.0],
+                [1.0, 1.0],
+                [1.0, 0.0],
+                [0.0, 0.0])
+            .build();
+    }
+
+    // Draw camera rectangle overlay:
+    {
+        let vp_size = camera.viewport_size().to_vec2();
+        let transform = camera.transform();
+
+        let (top_left, bottom_right) = minimap_camera_rect(minimap, vp_size, transform);
+
+        let mut tl = top_left.to_array();
+        tl[0] += origin[0];
+        tl[1] += origin[1];
+
+        let mut br = bottom_right.to_array();
+        br[0] += origin[0];
+        br[1] += origin[1];
+
+        if minimap.rotated {
+            tl = rotate_around_center(tl, center, MINIMAP_ROTATION_ANGLE);
+            br = rotate_around_center(br, center, MINIMAP_ROTATION_ANGLE);
+        }
+
+        draw_list.add_rect(tl, br, imgui::ImColor32::WHITE).build();
+    }
+}
+
+fn rotate_around_center(p: [f32; 2], center: [f32; 2], angle_radians: f32) -> [f32; 2] {
+    let (s, c) = angle_radians.sin_cos();
     let dx = p[0] - center[0];
     let dy = p[1] - center[1];
-
     [
         center[0] + dx * c - dy * s,
         center[1] + dx * s + dy * c,
     ]
 }
 
-fn draw_rotated_minimap(ui: &imgui::Ui, texture_id: UiTextureHandle, pos: [f32; 2], size: [f32; 2], angle_radians: f32) {
-    let draw_list = ui.get_window_draw_list();
+// ----------------------------------------------
+// Coordinate space conversion helpers
+// ----------------------------------------------
 
-    // Screen-space position where the window is located.
-    let origin = ui.window_pos();
+struct MinimapDrawParams {
+    screen_pos: Vec2,  // Top-left corner in screen space.
+    screen_size: Vec2, // Display size in pixels.
+    map_size: Size,    // Tile map size in cells.
+    rotated: bool,     // Apply the 45 degrees isometric rotation when drawing the minimap?
+}
 
-    // Add window offset to the local position:
-    let x = origin[0] + pos[0];
-    let y = origin[1] + pos[1];
-    let w = size[0];
-    let h = size[1];
+fn cell_to_minimap_uv(cell: Cell, map_size: Size) -> Vec2 {
+    Vec2::new(
+        cell.x as f32 / map_size.width  as f32,
+        // Flip V for ImGui (because OpenGL textures have V=0 at bottom).
+        1.0 - (cell.y as f32 / map_size.height as f32)
+    )
+}
 
-    // Quad vertices in screen space (unrotated):
-    let mut p0 = [x,     y];
-    let mut p1 = [x + w, y];
-    let mut p2 = [x + w, y + h];
-    let mut p3 = [x,     y + h];
+fn minimap_uv_to_cell(uv: Vec2, map_size: Size) -> Cell {
+    Cell::new(
+        (uv.x * map_size.width  as f32).round() as i32,
+        (uv.y * map_size.height as f32).round() as i32
+    )
+}
 
-    // Rotate around the center of the quad:
-    let center = [x + w * 0.5, y + h * 0.5];
-    p0 = rotate_around_center(p0, center, angle_radians);
-    p1 = rotate_around_center(p1, center, angle_radians);
-    p2 = rotate_around_center(p2, center, angle_radians);
-    p3 = rotate_around_center(p3, center, angle_radians);
+fn minimap_uv_to_screen_rect(minimap: &MinimapDrawParams, uv: Vec2) -> Vec2 {
+    minimap.screen_pos + (uv * minimap.screen_size)
+}
 
-    let uv0 = [0.0, 1.0];
-    let uv1 = [1.0, 1.0];
-    let uv2 = [1.0, 0.0];
-    let uv3 = [0.0, 0.0];
+fn minimap_screen_rect_to_uv(minimap: &MinimapDrawParams, minimap_point: Vec2) -> Vec2 {
+    (minimap_point - minimap.screen_pos) / minimap.screen_size
+}
 
-    draw_list
-        .add_image_quad(texture_id, p0, p1, p2, p3)
-        .uv(uv0, uv1, uv2, uv3)
-        .build();
+// ----------------------------------------------
+// TileMap cell -> minimap screen rect
+// ----------------------------------------------
+
+fn cell_to_minimap_rect(minimap: &MinimapDrawParams, cell: Cell) -> Vec2 {
+    let uv = cell_to_minimap_uv(cell, minimap.map_size);
+    minimap_uv_to_screen_rect(minimap, uv)
+}
+
+fn minimap_rect_to_cell(minimap: &MinimapDrawParams, minimap_point: Vec2) -> Cell {
+    let uv = minimap_screen_rect_to_uv(minimap, minimap_point);
+
+    if uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 {
+        return Cell::invalid(); // outside minimap.
+    }
+
+    minimap_uv_to_cell(uv, minimap.map_size)
+}
+
+// ----------------------------------------------
+// Iso coords -> minimap screen rect
+// ----------------------------------------------
+
+fn iso_to_minimap_rect(minimap: &MinimapDrawParams, iso_point: Vec2) -> Vec2 {
+    // NOTE: This is the same as coords::iso_to_cell() but using f32.
+    let half_tile_width  = (BASE_TILE_SIZE.width  / 2) as f32;
+    let half_tile_height = (BASE_TILE_SIZE.height / 2) as f32;
+
+    // Invert Y axis to match top-left origin.
+    let cell_x = ((iso_point.x / half_tile_width) + (-iso_point.y / half_tile_height)) / 2.0;
+    let cell_y = ((-iso_point.y / half_tile_height) - (iso_point.x / half_tile_width)) / 2.0;
+    let cell = Cell::new(cell_x.round() as i32, cell_y.round() as i32);
+
+    cell_to_minimap_rect(minimap, cell)
+}
+
+fn minimap_rect_to_iso(minimap: &MinimapDrawParams, minimap_point: Vec2) -> IsoPoint {
+    let cell = minimap_rect_to_cell(minimap, minimap_point);
+    coords::cell_to_iso(cell, BASE_TILE_SIZE)
+}
+
+// ----------------------------------------------
+// Viewport -> minimap screen rect
+// ----------------------------------------------
+
+fn viewport_to_minimap_rect(minimap: &MinimapDrawParams, vp_size: Vec2, vp_point: Vec2) -> Vec2 {
+    let uv = vp_point / vp_size;     // normalized point in full screen
+    minimap_uv_to_screen_rect(minimap, uv) // map into minimap rect
+}
+
+fn minimap_rect_to_viewport(minimap: &MinimapDrawParams, vp_size: Vec2, minimap_point: Vec2) -> Vec2 {
+    let uv = minimap_screen_rect_to_uv(minimap, minimap_point);
+    uv * vp_size
+}
+
+// ----------------------------------------------
+// Camera rect minimap overlay
+// ----------------------------------------------
+
+fn minimap_camera_rect(minimap: &MinimapDrawParams, vp_size: Vec2, transform: WorldToScreenTransform) -> (Vec2, Vec2) {
+    // Camera center in world/iso coords:
+    let viewport_center_screen = vp_size * 0.5;
+    let center_iso = (viewport_center_screen - transform.offset) / transform.scaling;
+
+    // Half-extent of viewport in world units:
+    let half_iso = vp_size * 0.5 / transform.scaling;
+
+    // World TL and BR corners:
+    let iso_tl = center_iso + Vec2::new(-half_iso.x, -half_iso.y);
+    let iso_br = center_iso + Vec2::new( half_iso.x,  half_iso.y);
+
+    let mm_tl = iso_to_minimap_rect(minimap, iso_tl);
+    let mm_br = iso_to_minimap_rect(minimap, iso_br);
+
+    // Return axis-aligned rectangle:
+    (mm_tl, mm_br)
 }

@@ -61,9 +61,9 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
 // provided text.
 pub fn draw_cursor_overlay(ui_sys: &UiSystem,
                            transform: WorldToScreenTransform,
+                           cursor_screen_pos: Vec2,
                            opt_text: Option<&str>) {
     let ui = ui_sys.builder();
-    let cursor_screen_pos = Vec2::new(ui.io().mouse_pos[0], ui.io().mouse_pos[1]);
 
     // Make the window background transparent and remove decorations.
     let window_flags = imgui::WindowFlags::NO_DECORATION
