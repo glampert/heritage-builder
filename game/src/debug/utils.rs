@@ -16,7 +16,7 @@ use crate::{
         Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, BASE_TILE_SIZE,
     },
     utils::{
-        coords::{self, Cell, WorldToScreenTransform},
+        coords::{self, Cell, CellRange, WorldToScreenTransform},
         Color, Rect, Size, Vec2,
     },
 };
@@ -133,7 +133,7 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem,
                        | imgui::WindowFlags::NO_MOUSE_INPUTS;
 
     // Place the window at the bottom-left corner of the screen.
-    let window_position = [5.0, ui.io().display_size[1] - 190.0];
+    let window_position = [5.0, ui.io().display_size[1] - 220.0];
 
     ui.window("Render Stats")
       .position(window_position, imgui::Condition::Always)
@@ -180,7 +180,7 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem,
       });
 }
 
-pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World, tile_map: &TileMap) {
+pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World, tile_map: &TileMap, visible_range: CellRange) {
     let ui = ui_sys.builder();
 
     let window_flags = imgui::WindowFlags::NO_DECORATION
@@ -191,7 +191,7 @@ pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World, tile_map: &TileMa
                        | imgui::WindowFlags::NO_MOUSE_INPUTS;
 
     // Place the window at the bottom-left corner of the screen.
-    let window_position = [5.0, ui.io().display_size[1] - 210.0];
+    let window_position = [5.0, ui.io().display_size[1] - 300.0];
 
     ui.window("Game Stats")
       .position(window_position, imgui::Condition::Always)
@@ -233,6 +233,9 @@ pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World, tile_map: &TileMa
           ui.text(format!("- Units      : {unit_tiles}"));
           ui.text(format!("- Vegetation : {vegetation_tiles}"));
           ui.text(format!("- Rocks      : {rock_tiles}"));
+          ui.text("Visible Cells:");
+          ui.text(format!("- Start      : [{},{}]", visible_range.x(), visible_range.y()));
+          ui.text(format!("- Count      : {}x{}", visible_range.width(), visible_range.height()));
       });
 }
 
