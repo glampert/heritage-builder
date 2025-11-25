@@ -17,11 +17,11 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 // Store a non-null raw pointer. This allows bypassing the language lifetime
 // guarantees, so should be used with care.
-pub struct RawPtr<T> {
+pub struct RawPtr<T: ?Sized> {
     ptr: NonNull<T>,
 }
 
-impl<T> RawPtr<T> {
+impl<T: ?Sized> RawPtr<T> {
     #[inline]
     pub fn from_ref(reference: &T) -> Self {
         let ptr_mut = reference as *const T as *mut T;
@@ -57,7 +57,7 @@ impl<T> RawPtr<T> {
 }
 
 // Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
-impl<T> Deref for RawPtr<T> {
+impl<T: ?Sized> Deref for RawPtr<T> {
     type Target = T;
 
     #[inline(always)]
@@ -66,7 +66,7 @@ impl<T> Deref for RawPtr<T> {
     }
 }
 
-impl<T> DerefMut for RawPtr<T> {
+impl<T: ?Sized> DerefMut for RawPtr<T> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: Caller must ensure exclusive access (no aliasing).
@@ -74,8 +74,8 @@ impl<T> DerefMut for RawPtr<T> {
     }
 }
 
-impl<T> Copy for RawPtr<T> {}
-impl<T> Clone for RawPtr<T> {
+impl<T: ?Sized> Copy for RawPtr<T> {}
+impl<T: ?Sized> Clone for RawPtr<T> {
     #[inline]
     fn clone(&self) -> Self {
         *self // Just a cheap pointer copy.
