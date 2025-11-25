@@ -446,4 +446,6 @@ pub trait TextureCache: Any {
                       size: Size,
                       mip_level: u32,
                       pixels: &[u8]);
+
+    fn release_texture(&mut self, handle: &mut TextureHandle);
 }

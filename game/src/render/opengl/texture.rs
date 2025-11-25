@@ -1,8 +1,9 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::{any::Any, ffi::c_void};
-use bitflags::bitflags;
 use image::GenericImageView;
+use bitflags::bitflags;
+use slab::Slab;
 
 use super::{
     gl_error_to_string,
@@ -358,8 +359,13 @@ fn set_current_gl_texture_params(filter: TextureFilter,
 // TextureCache
 // ----------------------------------------------
 
+struct TexCacheEntry {
+    texture: Texture2D,
+    allow_settings_change: bool,
+}
+
 pub struct TextureCache {
-    textures: Vec<(Texture2D, bool)>, // (texture, allow_settings_change)
+    textures: Slab<TexCacheEntry>,
     settings: render::TextureSettings,
 
     // These are 8x8 pixels.
@@ -370,7 +376,7 @@ pub struct TextureCache {
 impl TextureCache {
     pub fn new(initial_capacity: usize) -> Self {
         let mut tex_cache = Self {
-            textures: Vec::with_capacity(initial_capacity),
+            textures: Slab::with_capacity(initial_capacity),
             settings: render::TextureSettings::default(),
             dummy_texture_handle: TextureHandle::invalid(),
             white_texture_handle: TextureHandle::invalid(),
@@ -391,9 +397,8 @@ impl TextureCache {
             TextureHandle::Invalid => self.dummy_texture(),
             TextureHandle::White => self.white_texture(),
             TextureHandle::Index(handle_index) => {
-                let index = handle_index as usize;
-                if index < self.textures.len() {
-                    &self.textures[index].0
+                if let Some(entry) = self.textures.get(handle_index as usize) {
+                    &entry.texture
                 } else {
                     self.dummy_texture()
                 }
@@ -404,7 +409,9 @@ impl TextureCache {
     #[inline]
     pub fn dummy_texture(&self) -> &Texture2D {
         match self.dummy_texture_handle {
-            TextureHandle::Index(index) => &self.textures[index as usize].0,
+            TextureHandle::Index(index) => {
+                &self.textures.get(index as usize).unwrap().texture
+            }
             _ => panic!("Unexpected value for dummy_texture_handle!"),
         }
     }
@@ -412,15 +419,16 @@ impl TextureCache {
     #[inline]
     pub fn white_texture(&self) -> &Texture2D {
         match self.white_texture_handle {
-            TextureHandle::Index(index) => &self.textures[index as usize].0,
+            TextureHandle::Index(index) => {
+                &self.textures.get(index as usize).unwrap().texture
+            }
             _ => panic!("Unexpected value for white_texture_handle!"),
         }
     }
 
     #[inline]
     fn add_texture(&mut self, texture: Texture2D, allow_settings_change: bool) -> TextureHandle {
-        let index = self.textures.len();
-        self.textures.push((texture, allow_settings_change));
+        let index = self.textures.insert(TexCacheEntry { texture, allow_settings_change });
         TextureHandle::Index(index as u32)
     }
 
@@ -521,7 +529,7 @@ impl render::TextureCache for TextureCache {
 
     fn change_texture_settings(&mut self, settings: render::TextureSettings) {
         log::info!(log::channel!("render"),
-                   "Changing texture settings to: filter={}, wrap={}, mipmaps={}",
+                   "Changing texture settings: filter:{}, wrap:{}, mipmaps:{}",
                    settings.filter,
                    settings.wrap_mode,
                    settings.gen_mipmaps);
@@ -529,9 +537,9 @@ impl render::TextureCache for TextureCache {
         self.settings = settings;
         let gl_settings = OpenGlTextureSettings::from(settings);
 
-        for (texture, allow_settings_change) in &mut self.textures {
-            if *allow_settings_change {
-                texture.change_settings(gl_settings);
+        for (_, entry) in &mut self.textures {
+            if entry.allow_settings_change {
+                entry.texture.change_settings(gl_settings);
             }
         }
 
@@ -578,5 +586,12 @@ impl render::TextureCache for TextureCache {
         texture.update(offset_x, offset_y, size, mip_level, pixels);
 
         panic_if_gl_error();
+    }
+
+    fn release_texture(&mut self, handle: &mut TextureHandle) {
+        if let TextureHandle::Index(handle_index) = handle {
+            self.textures.try_remove(*handle_index as usize);
+        }
+        *handle = TextureHandle::invalid();
     }
 }
