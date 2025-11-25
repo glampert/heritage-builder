@@ -185,8 +185,7 @@ impl Camera {
         let current_zoom = self.transform.scaling;
         let new_zoom = zoom.clamp(CameraZoom::MIN, CameraZoom::MAX);
 
-        let current_bounds =
-            calc_map_bounds(self.map_size_in_cells, current_zoom, self.viewport_size);
+        let current_bounds = calc_map_bounds(self.map_size_in_cells, current_zoom, self.viewport_size);
         let new_bounds = calc_map_bounds(self.map_size_in_cells, new_zoom, self.viewport_size);
 
         // Remap the offset to the new scaled map bounds, so we stay at the same
@@ -276,8 +275,7 @@ impl Camera {
 
     // Center camera to the map.
     pub fn center(&mut self) {
-        let map_center =
-            calc_map_center(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
+        let map_center = calc_map_center(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
         self.set_scroll(map_center);
     }
 }
@@ -317,14 +315,13 @@ fn calc_visible_cells_range(map_size_in_cells: Size,
         return CellRange::new(Cell::zero(), Cell::zero());
     }
 
-    // Add one extra row of tiles on each end to avoid any visual popping while
-    // scrolling.
-    let tile_width = (BASE_TILE_SIZE.width as f32) * transform.scaling;
+    // Add one extra row of tiles on each end to avoid any visual popping while scrolling.
+    let tile_width  = (BASE_TILE_SIZE.width  as f32) * transform.scaling;
     let tile_height = (BASE_TILE_SIZE.height as f32) * transform.scaling;
 
-    let screen_rect = Rect::new(Vec2::new(-tile_width, -tile_height),
-                                Vec2::new((viewport_size.width as f32) + tile_width,
-                                          (viewport_size.height as f32) + tile_height));
+    let pos  = Vec2::new(-tile_width, -tile_height);
+    let size = Vec2::new((viewport_size.width as f32) + tile_width, (viewport_size.height as f32) + tile_height);
+    let screen_rect = Rect::new(pos, size);
 
     selection::bounds(&screen_rect, BASE_TILE_SIZE, map_size_in_cells, transform)
 }
@@ -398,21 +395,22 @@ fn calc_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -
         return Rect::from_pos_and_size(Vec2::zero(), viewport_size);
     }
 
-    let tile_width_pixels = (BASE_TILE_SIZE.width as f32) * scaling;
+    let tile_width_pixels  = (BASE_TILE_SIZE.width  as f32) * scaling;
     let tile_height_pixels = (BASE_TILE_SIZE.height as f32) * scaling;
 
-    let map_width_pixels = (map_size_in_cells.width as f32) * tile_width_pixels;
+    let map_width_pixels  = (map_size_in_cells.width  as f32) * tile_width_pixels;
     let map_height_pixels = (map_size_in_cells.height as f32) * tile_height_pixels;
 
     let half_tile_width_pixels = tile_width_pixels / 2.0;
-    let half_map_width_pixels = map_width_pixels / 2.0;
+    let half_map_width_pixels  = map_width_pixels  / 2.0;
 
-    let min_pt = Vec2::new(-(half_map_width_pixels + half_tile_width_pixels
-                             - (viewport_size.width as f32)),
-                           (viewport_size.height as f32) - tile_height_pixels);
+    let min_pt = Vec2::new(
+        -(half_map_width_pixels + half_tile_width_pixels - (viewport_size.width as f32)),
+        (viewport_size.height as f32) - tile_height_pixels);
 
-    let max_pt = Vec2::new(half_map_width_pixels - half_tile_width_pixels,
-                           map_height_pixels - tile_height_pixels);
+    let max_pt = Vec2::new(
+        half_map_width_pixels - half_tile_width_pixels,
+        map_height_pixels - tile_height_pixels);
 
     Rect::from_extents(min_pt, max_pt)
 }
