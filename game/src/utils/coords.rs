@@ -162,6 +162,16 @@ impl CellRange {
     }
 
     #[inline]
+    pub fn x(&self) -> i32 {
+        self.start.x
+    }
+
+    #[inline]
+    pub fn y(&self) -> i32 {
+        self.start.y
+    }
+
+    #[inline]
     pub fn width(&self) -> i32 {
         self.end.x - self.start.x + 1
     }
