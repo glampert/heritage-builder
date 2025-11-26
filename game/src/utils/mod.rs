@@ -120,6 +120,11 @@ impl Vec2 {
     }
 
     #[inline]
+    pub const fn from_array(xy: [f32; 2]) -> Self {
+        Self { x: xy[0], y: xy[1] }
+    }
+
+    #[inline]
     pub const fn to_array(self) -> [f32; 2] {
         [self.x, self.y]
     }
@@ -147,6 +152,18 @@ impl Vec2 {
     pub fn normalize(&self) -> Self {
         let inv_len = 1.0 / self.length();
         Self { x: self.x * inv_len, y: self.y * inv_len }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn rotate_around_point(&self, point: Vec2, angle_radians: f32) -> Vec2 {
+        let (s, c) = angle_radians.sin_cos();
+        let dx = self.x - point.x;
+        let dy = self.y - point.y;
+        Self {
+            x: point.x + (dx * c) - (dy * s),
+            y: point.y + (dx * s) + (dy * c)
+        }
     }
 }
 
@@ -486,6 +503,23 @@ impl Rect {
     }
 
     #[inline]
+    pub fn aabb(points: &[Vec2]) -> Self {
+        let mut aabb = Self {
+            min: Vec2::new(f32::MAX, f32::MAX),
+            max: Vec2::new(f32::MIN, f32::MIN)
+        };
+
+        for point in points {
+            aabb.min.x = aabb.min.x.min(point.x);
+            aabb.min.y = aabb.min.y.min(point.y);
+            aabb.max.x = aabb.max.x.max(point.x);
+            aabb.max.y = aabb.max.y.max(point.y);
+        }
+
+        aabb
+    }
+
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.width() > 0.0 && self.height() > 0.0
     }
@@ -608,6 +642,28 @@ impl Rect {
     #[inline]
     pub fn bottom_right(&self) -> Vec2 {
         Vec2::new(self.x() + self.width(), self.y())
+    }
+
+    // Counter-clockwise corners, from bottom left to top left.
+    #[inline]
+    pub fn corners_ccw(&self) -> [Vec2; 4] {
+        [
+            self.bottom_left(),
+            self.bottom_right(),
+            self.top_right(),
+            self.top_left(),
+        ]
+    }
+
+    // Clockwise corners, from bottom left to bottom right.
+    #[inline]
+    pub fn corners_cw(&self) -> [Vec2; 4] {
+        [
+            self.bottom_left(),
+            self.top_left(),
+            self.top_right(),
+            self.bottom_right(),
+        ]
     }
 }
 
