@@ -28,6 +28,7 @@ pub enum UnitConfigKey {
     WaterCarrier = hash::fnv1a_from_str("water_carrier"),
     Dog          = hash::fnv1a_from_str("dog"),
     Guard        = hash::fnv1a_from_str("guard"),
+    Teacher      = hash::fnv1a_from_str("teacher"),
 }
 
 // ----------------------------------------------

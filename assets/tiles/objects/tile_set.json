@@ -1820,6 +1820,73 @@
               ]
             }
           ]
+        },
+        {
+          "name": "teacher",
+          "occludes_terrain": false,
+          "draw_size": {
+            "width": 25,
+            "height": 43
+          },
+          "variations": [
+            {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
+              "anim_sets": [
+                {
+                  "name": "idle",
+                  "duration": 1,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
+                },
+                {
+                  "name": "idle_ne",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_nw",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
+                },
+                {
+                  "name": "idle_se",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_sw",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
+                },
+                {
+                  "name": "walk_ne",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_nw",
+                  "duration": 0.7,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
+                },
+                {
+                  "name": "walk_se",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_sw",
+                  "duration": 0.7,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
+                }
+              ]
+            }
+          ]
         }
       ]
     }

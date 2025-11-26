@@ -53,6 +53,12 @@
       "tile_def_name": "guard",
       "traversable_node_kinds": "Road",
       "movement_speed": 1.66
+    },
+    {
+      "name": "Teacher",
+      "tile_def_name": "teacher",
+      "traversable_node_kinds": "Road",
+      "movement_speed": 1.66
     }
   ]
 }
