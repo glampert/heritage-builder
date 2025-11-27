@@ -368,12 +368,12 @@ impl Minimap {
                     let tex_cache = render_sys.texture_cache();
                     let texture = ui_sys.to_ui_texture(tex_cache, self.texture.handle);
 
-                    let hovered_cell =
+                    let hovered_tile_iso =
                         draw_minimap_widget(&minimap, texture, camera, cursor_screen_pos, ui);
 
-                    if let Some(destination_cell) = hovered_cell {
+                    if let Some(destination_iso) = hovered_tile_iso {
                         if ui.is_mouse_down(imgui::MouseButton::Left) {
-                            camera.teleport(destination_cell);
+                            camera.teleport_iso(destination_iso);
                         }
                     }
 
@@ -477,26 +477,13 @@ fn minimap_px_to_cell(minimap: &MinimapWidget, origin: Vec2, minimap_px: Vec2) -
 // ----------------------------------------------
 
 fn iso_to_minimap_px(minimap: &MinimapWidget, origin: Vec2, iso_point: Vec2) -> Vec2 {
-    let cell_frac = iso_to_cell_frac(iso_point);
+    let cell_frac = coords::iso_to_cell_f32(iso_point, BASE_TILE_SIZE);
     let cell = Cell::new(cell_frac.x.floor() as i32, cell_frac.y.floor() as i32);
     cell_to_minimap_px(minimap, origin, cell)
 }
 
 fn minimap_px_to_iso(minimap: &MinimapWidget, origin: Vec2, minimap_px: Vec2) -> Option<IsoPoint> {
     minimap_px_to_cell(minimap, origin, minimap_px).map(|cell| coords::cell_to_iso(cell, BASE_TILE_SIZE))
-}
-
-// Returns fractional (float) cell coords for a given iso point.
-// NOTE: This is the same as coords::iso_to_cell() but using f32.
-fn iso_to_cell_frac(iso_point: Vec2) -> Vec2 {
-    const HALF_TILE_WIDTH:  f32 = (BASE_TILE_SIZE.width  / 2) as f32;
-    const HALF_TILE_HEIGHT: f32 = (BASE_TILE_SIZE.height / 2) as f32;
-
-    // Invert Y axis to match top-left origin.
-    let cell_x = (( iso_point.x / HALF_TILE_WIDTH)  + (-iso_point.y / HALF_TILE_HEIGHT)) / 2.0;
-    let cell_y = ((-iso_point.y / HALF_TILE_HEIGHT) - ( iso_point.x / HALF_TILE_WIDTH))  / 2.0;
-
-    Vec2::new(cell_x, cell_y)
 }
 
 // ----------------------------------------------
@@ -528,8 +515,8 @@ fn minimap_camera_rect(minimap: &MinimapWidget, origin: Vec2, camera: &Camera) -
     let (uv_min, uv_max) = {
         if minimap.rotated {
             // Convert iso rect corners to fractional cell coordinates (continuous):
-            let cell_min_frac = iso_to_cell_frac(center_iso - half_iso);
-            let cell_max_frac = iso_to_cell_frac(center_iso + half_iso);
+            let cell_min_frac = coords::iso_to_cell_f32(center_iso - half_iso, BASE_TILE_SIZE);
+            let cell_max_frac = coords::iso_to_cell_f32(center_iso + half_iso, BASE_TILE_SIZE);
 
             // Important: ensure correct ordering (min <= max) after transform.
             let cell_x_min = cell_min_frac.x.min(cell_max_frac.x);
@@ -549,15 +536,15 @@ fn minimap_camera_rect(minimap: &MinimapWidget, origin: Vec2, camera: &Camera) -
             // Convert iso -> UV directly using world iso bounds:
             fn point_to_uv(rect: &Rect, p: Vec2) -> Vec2 {
                 Vec2::new(
-                    (p.x - rect.min.x) / (rect.max.x - rect.min.x),
-                    (p.y - rect.min.y) / (rect.max.y - rect.min.y),
+                    (p.x - rect.min.x) / rect.width(),
+                    (p.y - rect.min.y) / rect.height()
                 )
             }
 
-            let bounds = calc_map_bounds_iso(minimap.map_size);
             let iso_min = center_iso - half_iso;
             let iso_max = center_iso + half_iso;
 
+            let bounds = calc_map_bounds_iso(minimap.map_size);
             let uv_min = point_to_uv(&bounds, iso_min);
             let uv_max = point_to_uv(&bounds, iso_max);
 
@@ -572,40 +559,63 @@ fn minimap_camera_rect(minimap: &MinimapWidget, origin: Vec2, camera: &Camera) -
 }
 
 fn calc_map_bounds_iso(map_size_in_cells: Size) -> Rect {
-    const HALF_TILE_WIDTH:  f32 = (BASE_TILE_SIZE.width  / 2) as f32;
-    const HALF_TILE_HEIGHT: f32 = (BASE_TILE_SIZE.height / 2) as f32;
-
     let map_width  = map_size_in_cells.width  as f32;
     let map_height = map_size_in_cells.height as f32;
 
-    let min_x = -map_height * HALF_TILE_WIDTH;                // iso of (0, h)
-    let max_x =  map_width  * HALF_TILE_WIDTH;                // iso of (w, 0)
-    let min_y = -(map_width + map_height) * HALF_TILE_HEIGHT; // iso of (w, h)
-    let max_y = 0.0;                                          // iso of (0, 0)
+    let points = [
+        coords::cell_to_iso_f32(Vec2::new(0.0, 0.0), BASE_TILE_SIZE),
+        coords::cell_to_iso_f32(Vec2::new(0.0, map_height), BASE_TILE_SIZE),
+        coords::cell_to_iso_f32(Vec2::new(map_width, 0.0), BASE_TILE_SIZE),
+        coords::cell_to_iso_f32(Vec2::new(map_width, map_height), BASE_TILE_SIZE),
+    ];
 
-    Rect { min: Vec2::new(min_x, min_y), max: Vec2::new(max_x, max_y) }
+    Rect::aabb(&points)
 }
 
 // ----------------------------------------------
 // Cursor -> minimap cell picking
 // ----------------------------------------------
 
-// High-level pick: converts an absolute screen cursor point into a Cell if on minimap.
-// - origin: ui.window_pos() (absolute).
-// - cursor_screen_pos: absolute screen coordinates of mouse.
-fn pick_minimap_cell(minimap: &MinimapWidget, origin: Vec2, cursor_screen_pos: Vec2) -> Option<Cell> {
-    // If minimap is rotated when drawn, undo that rotation first.
-    // Rotate around the absolute center.
-    let minimap_px = if minimap.rotated {
+fn unrotate_cursor_pos(minimap: &MinimapWidget, origin: Vec2, cursor_screen_pos: Vec2) -> Vec2 {
+    if minimap.rotated {
         let minimap_abs_pos = origin + minimap.screen_pos;
         let center = minimap_abs_pos + minimap.screen_size * 0.5;
-        // Inverse rotate the point into the minimap's texture space:
         cursor_screen_pos.rotate_around_point(center, -MINIMAP_ROTATION_ANGLE)
     } else {
         cursor_screen_pos
-    };
+    }
+}
 
-    minimap_px_to_cell(minimap, origin, minimap_px)
+// Returns floating-point isometric coords without rounding to cell space.
+fn pick_minimap_iso(minimap: &MinimapWidget, origin: Vec2, cursor_screen_pos: Vec2) -> Option<Vec2> {
+    let minimap_px = unrotate_cursor_pos(minimap, origin, cursor_screen_pos);
+
+    // Convert to local minimap uv coordinates, [0..1] range:
+    let uv = minimap_px_to_minimap_uv(minimap, origin, minimap_px);
+    if uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 {
+        return None; // outside minimap.
+    }
+
+    // Rotated: sample continuous cell coordinates.
+    if minimap.rotated {
+        // Compute corresponding *continuous* cell coordinates.
+        // (0..map_width, 0..map_height), no rounding.
+        let cell_frac = Vec2::new(
+            uv.x * minimap.map_size.width as f32,
+            // Flip V for ImGui (because OpenGL textures have V=0 at bottom).
+            (1.0 - uv.y) * minimap.map_size.height as f32
+        );
+
+        Some(coords::cell_to_iso_f32(cell_frac, BASE_TILE_SIZE))
+    } else {
+        // Unrotated: sample continuous iso coords directly.
+        let bounds = calc_map_bounds_iso(minimap.map_size);
+
+        let iso_x = bounds.min.x + (uv.x * bounds.width());
+        let iso_y = bounds.min.y + (uv.y * bounds.height());
+
+        Some(Vec2::new(iso_x, iso_y))
+    }
 }
 
 // ----------------------------------------------
@@ -616,21 +626,14 @@ fn draw_minimap_widget(minimap: &MinimapWidget,
                        texture: UiTextureHandle,
                        camera: &Camera,
                        cursor_screen_pos: Vec2,
-                       ui: &imgui::Ui) -> Option<Cell> {
+                       ui: &imgui::Ui) -> Option<Vec2> {
     let draw_list = ui.get_window_draw_list();
     let origin = Vec2::from_array(ui.window_pos());
 
     let rect = Rect::new(origin + minimap.screen_pos, minimap.screen_size);
     let center = rect.center();
 
-    let corners = {
-        if minimap.rotated {
-            rotated_corners(&rect, center)
-        } else {
-            rect.corners_ccw()
-        }
-    };
-
+    let corners = corners(&rect, center, minimap.rotated);
     let aabb = Rect::aabb(&corners);
 
     draw_texture_rect(&draw_list, texture, &corners);
@@ -639,19 +642,20 @@ fn draw_minimap_widget(minimap: &MinimapWidget,
 
     let cursor_inside_minimap = coords::is_screen_point_inside_diamond(cursor_screen_pos, &corners);
     if cursor_inside_minimap {
-        return pick_minimap_cell(minimap, origin, cursor_screen_pos);
+        return pick_minimap_iso(minimap, origin, cursor_screen_pos);
     }
 
     None
 }
 
-fn rotated_corners(rect: &Rect, center: Vec2) -> [Vec2; 4] {
-    let corners = rect.corners_ccw();
-    let mut rotated = [Vec2::zero(); 4];
-    for (i, corner) in corners.iter().enumerate() {
-        rotated[i] = corner.rotate_around_point(center, MINIMAP_ROTATION_ANGLE);
+fn corners(rect: &Rect, center: Vec2, rotated: bool) -> [Vec2; 4] {
+    let mut corners = rect.corners_ccw();
+    if rotated {
+        for corner in &mut corners {
+            *corner = corner.rotate_around_point(center, MINIMAP_ROTATION_ANGLE);
+        }
     }
-    rotated
+    corners
 }
 
 fn draw_texture_rect(draw_list: &imgui::DrawListMut<'_>,

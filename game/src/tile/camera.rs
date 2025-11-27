@@ -300,6 +300,23 @@ impl Camera {
         self.set_scroll(viewport_center - screen_point);
         true
     }
+
+    // Snaps the camera to `destination_iso` isometric point.
+    pub fn teleport_iso(&mut self, destination_iso: Vec2) -> bool {
+        let viewport_center = Vec2::new(
+            self.viewport_size.width  as f32 / 2.0,
+            self.viewport_size.height as f32 / 2.0
+        );
+
+        let transform_no_offset =
+            WorldToScreenTransform::new(self.transform.scaling, Vec2::zero());
+
+        let screen_point =
+            coords::iso_to_screen_rect_f32(destination_iso, BASE_TILE_SIZE, transform_no_offset);
+
+        self.set_scroll(viewport_center - screen_point.position());
+        true
+    }
 }
 
 // ----------------------------------------------

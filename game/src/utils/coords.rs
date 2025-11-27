@@ -392,10 +392,37 @@ pub fn cell_to_iso(cell: Cell, tile_size: Size) -> IsoPoint {
     let half_tile_width  = tile_size.width  / 2;
     let half_tile_height = tile_size.height / 2;
 
-    let iso_x = (cell.x - cell.y) * half_tile_width;
+    let iso_x = (cell.x - cell.y) *  half_tile_width;
     let iso_y = (cell.x + cell.y) * -half_tile_height; // flip Y (top-left origin)
 
     IsoPoint::new(iso_x, iso_y)
+}
+
+// Returns fractional (float) cell coords for a given iso point.
+// NOTE: This is the same as coords::iso_to_cell() but using f32.
+#[inline]
+pub fn iso_to_cell_f32(iso_point: Vec2, tile_size: Size) -> Vec2 {
+    let half_tile_width  = (tile_size.width  / 2) as f32;
+    let half_tile_height = (tile_size.height / 2) as f32;
+
+    // Invert Y axis to match top-left origin.
+    let cell_x = (( iso_point.x / half_tile_width)  + (-iso_point.y / half_tile_height)) / 2.0;
+    let cell_y = ((-iso_point.y / half_tile_height) - ( iso_point.x / half_tile_width))  / 2.0;
+
+    Vec2::new(cell_x, cell_y)
+}
+
+// Returns fractional (float) iso coords for a given tile map cell.
+// NOTE: This is the same as coords::cell_to_iso() but using f32.
+#[inline]
+pub fn cell_to_iso_f32(cell: Vec2, tile_size: Size) -> Vec2 {
+    let half_tile_width  = (tile_size.width  / 2) as f32;
+    let half_tile_height = (tile_size.height / 2) as f32;
+
+    let iso_x = (cell.x - cell.y) *  half_tile_width;
+    let iso_y = (cell.x + cell.y) * -half_tile_height; // flip Y (top-left origin)
+
+    Vec2::new(iso_x, iso_y)
 }
 
 #[inline]
