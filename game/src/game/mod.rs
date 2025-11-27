@@ -548,6 +548,16 @@ impl GameLoop {
         &mut self.session.as_mut().unwrap().camera
     }
 
+    #[inline]
+    fn session(&self) -> &GameSession {
+        self.session.as_ref().unwrap()
+    }
+
+    #[inline]
+    fn session_mut(&mut self) -> &mut GameSession {
+        self.session.as_mut().unwrap()
+    }
+
     pub fn update(&mut self) {
         self.update_autosave();
         self.process_session_commands();
@@ -636,7 +646,7 @@ impl GameLoop {
                     && key == InputKey::Slash
                     && modifiers.intersects(InputModifiers::Control)
                 {
-                    self.session.as_mut().unwrap().toggle_menu_mode();
+                    self.session_mut().toggle_menu_mode();
                 }
 
                 if propagate {
@@ -719,7 +729,7 @@ impl GameLoop {
 
         self.engine.draw_tile_map(&session.tile_map,
                                   &session.tile_selection,
-                                  &session.camera,
+                                  &mut session.camera,
                                   visible_range,
                                   flags);
     }
@@ -760,7 +770,7 @@ impl GameLoop {
     }
 
     fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
-        self.session.as_mut().unwrap().reset(true, reset_map_with_tile_def, new_map_size);
+        self.session_mut().reset(true, reset_map_with_tile_def, new_map_size);
         log::info!(log::channel!("game"), "Game Session reset.");
     }
 
@@ -776,12 +786,12 @@ impl GameLoop {
 
     fn session_cmd_load_save_game(&mut self, save_file_path: String) {
         debug_assert!(!save_file_path.is_empty());
-        self.session.as_mut().unwrap().load_save_game(&save_file_path);
+        self.session_mut().load_save_game(&save_file_path);
     }
 
     fn session_cmd_save_game(&mut self, save_file_path: String) {
         debug_assert!(!save_file_path.is_empty());
-        self.session.as_mut().unwrap().save_game(&save_file_path);
+        self.session_mut().save_game(&save_file_path);
     }
 
     // ----------------------

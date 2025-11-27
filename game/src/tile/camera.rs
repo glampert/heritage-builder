@@ -277,6 +277,12 @@ impl Camera {
         let map_center = calc_map_center(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
         self.set_scroll(map_center);
     }
+
+    pub fn teleport(&mut self, _destination_cell: Cell) -> bool {
+        // TODO
+        println!("Teleporting camera to: {_destination_cell}");
+        false
+    }
 }
 
 // ----------------------------------------------

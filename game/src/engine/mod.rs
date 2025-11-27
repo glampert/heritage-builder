@@ -77,7 +77,7 @@ pub trait Engine {
     fn draw_tile_map(&mut self,
                      tile_map: &TileMap,
                      tile_selection: &TileSelection,
-                     camera: &Camera,
+                     camera: &mut Camera,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags);
 }
@@ -337,13 +337,14 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     fn draw_tile_map(&mut self,
                      tile_map: &TileMap,
                      tile_selection: &TileSelection,
-                     camera: &Camera,
+                     camera: &mut Camera,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags) {
         if !tile_map.size_in_cells().is_valid() {
             return;
         }
 
+        let cursor_screen_pos = self.app.input_system().cursor_pos();
         let render_sys = &mut *self.render_system;
         let ui_sys = &self.ui_system;
 
@@ -355,7 +356,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                                                                      flags);
 
         tile_selection.draw(render_sys);
-        tile_map.minimap().draw(render_sys, ui_sys, camera);
+        tile_map.minimap().draw(camera, render_sys, ui_sys, cursor_screen_pos);
     }
 }
 
