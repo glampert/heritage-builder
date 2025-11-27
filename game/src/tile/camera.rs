@@ -9,7 +9,7 @@ use crate::{
     save::*,
     utils::{
         self,
-        coords::{Cell, CellRange, WorldToScreenTransform},
+        coords::{self, Cell, CellRange, WorldToScreenTransform},
         Rect, Size, Vec2
     },
 };
@@ -278,10 +278,27 @@ impl Camera {
         self.set_scroll(map_center);
     }
 
-    pub fn teleport(&mut self, _destination_cell: Cell) -> bool {
-        // TODO
-        println!("Teleporting camera to: {_destination_cell}");
-        false
+    // Snaps the camera to `destination_cell`.
+    pub fn teleport(&mut self, destination_cell: Cell) -> bool {
+        if !destination_cell.is_valid() {
+            return false;
+        }
+
+        let viewport_center = Vec2::new(
+            self.viewport_size.width  as f32 / 2.0,
+            self.viewport_size.height as f32 / 2.0
+        );
+
+        let iso_point = coords::cell_to_iso(destination_cell, BASE_TILE_SIZE);
+
+        let transform_no_offset =
+            WorldToScreenTransform::new(self.transform.scaling, Vec2::zero());
+
+        let screen_point =
+            coords::iso_to_screen_point(iso_point, transform_no_offset, BASE_TILE_SIZE);
+
+        self.set_scroll(viewport_center - screen_point);
+        true
     }
 }
 
