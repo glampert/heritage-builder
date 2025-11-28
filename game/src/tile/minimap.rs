@@ -192,18 +192,20 @@ impl MinimapTexture {
         self.pixels.capacity() * std::mem::size_of::<MinimapTileColor>()
     }
 
-    fn reset(&mut self, size: Size, fill_color: MinimapTileColor) {
+    fn reset<F>(&mut self, size: Size, fill_fn: F)
+        where F: Fn() -> MinimapTileColor
+    {
         self.need_update = true;
 
         if size == self.size {
-            self.pixels.fill(fill_color);
+            self.pixels.fill_with(fill_fn);
             return; // No change in size.
         }
 
         self.pixels.clear();
 
         let pixel_count = (size.width * size.height) as usize;
-        self.pixels.resize(pixel_count, fill_color);
+        self.pixels.resize_with(pixel_count, fill_fn);
 
         self.size = size;
         self.size_changed = true;
@@ -245,7 +247,7 @@ impl MinimapTexture {
     }
 
     fn post_load(&mut self, tile_map: &TileMap) {
-        self.reset(tile_map.size_in_cells(), MinimapTileColor::default());
+        self.reset(tile_map.size_in_cells(), || MinimapTileColor::default());
 
         tile_map.for_each_tile(TileMapLayerKind::Terrain, TileKind::Terrain,
             |terrain| {
@@ -332,16 +334,14 @@ impl Minimap {
     }
 
     pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
-        let fill_color = {
+        let size = new_map_size.unwrap_or(self.texture.size);
+        self.texture.reset(size, || {
             if let Some(tile_def) = fill_with_def {
                 MinimapTileColor::from_tile_def(tile_def).unwrap_or_default()
             } else {
                 MinimapTileColor::default()
             }
-        };
-
-        let size = new_map_size.unwrap_or(self.texture.size);
-        self.texture.reset(size, fill_color);
+        });
     }
 
     pub fn place_tile(&mut self, target_cell: Cell, tile_def: &'static TileDef) {
