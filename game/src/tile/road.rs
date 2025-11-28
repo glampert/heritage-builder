@@ -87,6 +87,17 @@ pub fn tile_def(kind: RoadKind) -> &'static TileDef {
     }
 }
 
+#[inline]
+pub fn kind(tile_def: &'static TileDef) -> RoadKind {
+    if tile_def.hash == DIRT_ROAD_TILE_DEF.hash {
+        RoadKind::Dirt
+    } else if tile_def.hash == PAVED_ROAD_TILE_DEF.hash {
+        RoadKind::Paved
+    } else {
+        unimplemented!()
+    }
+}
+
 static DIRT_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
     TileSets::get().find_tile_def_by_hash(
         TileMapLayerKind::Terrain,

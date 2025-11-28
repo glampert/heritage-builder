@@ -1,6 +1,8 @@
+use rand::Rng;
+
 use super::{
     TileKind, TileMap, TileMapLayerKind, sets::TileDef,
-    water, camera::Camera, BASE_TILE_SIZE,
+    camera::Camera, water, road, BASE_TILE_SIZE,
 };
 
 use crate::{
@@ -37,58 +39,78 @@ struct MinimapTileColor {
 }
 
 impl MinimapTileColor {
-    const BLACK:        Self = Self { r: 0,   g: 0,   b: 0,   a: 255 };
-    const WHITE:        Self = Self { r: 255, g: 255, b: 255, a: 255 };
-    const CYAN:         Self = Self { r: 0,   g: 255, b: 255, a: 255 };
-    const MAGENTA:      Self = Self { r: 255, g: 0,   b: 255, a: 255 };
-    const LIGHT_RED:    Self = Self { r: 250, g: 35,  b: 35,  a: 255 };
-    const DARK_RED:     Self = Self { r: 195, g: 15,  b: 15,  a: 255 };
-    const LIGHT_PINK:   Self = Self { r: 220, g: 20,  b: 195, a: 255 };
-    const DARK_PINK:    Self = Self { r: 140, g: 5,   b: 120, a: 255 };
-    const LIGHT_PURPLE: Self = Self { r: 165, g: 70,  b: 185, a: 255 };
-    const DARK_PURPLE:  Self = Self { r: 80,  g: 25,  b: 90,  a: 255 };
-    const LIGHT_GREEN:  Self = Self { r: 112, g: 125, b: 55,  a: 255 };
-    const DARK_GREEN:   Self = Self { r: 10,  g: 115, b: 25,  a: 255 };
-    const LIGHT_YELLOW: Self = Self { r: 210, g: 225, b: 20,  a: 255 };
-    const DARK_YELLOW:  Self = Self { r: 225, g: 200, b: 20,  a: 255 };
-    const LIGHT_BLUE:   Self = Self { r: 15,  g: 100, b: 230, a: 255 };
-    const DARK_BLUE:    Self = Self { r: 30,  g: 100, b: 115, a: 255 };
-    const LIGHT_BROWN:  Self = Self { r: 110, g: 65,  b: 35,  a: 255 };
-    const DARK_BROWN:   Self = Self { r: 75,  g: 35,  b: 10,  a: 255 };
-    const LIGHT_GRAY:   Self = Self { r: 115, g: 110, b: 105, a: 255 };
-    const DARK_GRAY:    Self = Self { r: 70,  g: 65,  b: 60,  a: 255 };
+    const BLACK:         Self = Self { r: 0,   g: 0,   b: 0,   a: 255 };
+    const WHITE:         Self = Self { r: 255, g: 255, b: 255, a: 255 };
+    const CYAN:          Self = Self { r: 0,   g: 255, b: 255, a: 255 };
+    const MAGENTA:       Self = Self { r: 255, g: 0,   b: 255, a: 255 };
+    const LIGHT_RED:     Self = Self { r: 250, g: 35,  b: 35,  a: 255 };
+    const DARK_RED:      Self = Self { r: 195, g: 15,  b: 15,  a: 255 };
+    const LIGHT_PINK:    Self = Self { r: 220, g: 20,  b: 195, a: 255 };
+    const DARK_PINK:     Self = Self { r: 140, g: 5,   b: 120, a: 255 };
+    const LIGHT_PURPLE:  Self = Self { r: 165, g: 70,  b: 185, a: 255 };
+    const DARK_PURPLE:   Self = Self { r: 80,  g: 25,  b: 90,  a: 255 };
+    const LIGHT_GREEN_1: Self = Self { r: 112, g: 125, b: 55,  a: 255 };
+    const LIGHT_GREEN_2: Self = Self { r: 100, g: 120, b: 50,  a: 255 };
+    const DARK_GREEN_1:  Self = Self { r: 10,  g: 115, b: 25,  a: 255 };
+    const DARK_GREEN_2:  Self = Self { r: 25,  g: 125, b: 40,  a: 255 };
+    const LIGHT_YELLOW:  Self = Self { r: 210, g: 225, b: 20,  a: 255 };
+    const DARK_YELLOW:   Self = Self { r: 225, g: 200, b: 20,  a: 255 };
+    const LIGHT_BLUE:    Self = Self { r: 15,  g: 100, b: 230, a: 255 };
+    const DARK_BLUE:     Self = Self { r: 30,  g: 100, b: 115, a: 255 };
+    const LIGHT_BROWN:   Self = Self { r: 143, g: 90,  b: 53,  a: 255 };
+    const DARK_BROWN:    Self = Self { r: 75,  g: 35,  b: 10,  a: 255 };
+    const LIGHT_GRAY:    Self = Self { r: 100, g: 100, b: 100, a: 255 };
+    const DARK_GRAY_1:   Self = Self { r: 90,  g: 85,  b: 75,  a: 255 };
+    const DARK_GRAY_2:   Self = Self { r: 80,  g: 75,  b: 65,  a: 255 };
 
-    const EMPTY_LAND:   Self = Self::LIGHT_GREEN;
-    const VACANT_LOT:   Self = Self::LIGHT_YELLOW;
-    const WATER:        Self = Self::DARK_BLUE;
-    const ROAD:         Self = Self::LIGHT_BROWN;
-    const ROCKS:        Self = Self::DARK_GRAY;
-    const VEGETATION:   Self = Self::DARK_GREEN;
-
-    fn from_tile_def(tile_def: &TileDef) -> Option<Self> {
-        Some({
-            if tile_def.path_kind.is_empty_land() {
-                Self::EMPTY_LAND
-            } else if tile_def.path_kind.is_vacant_lot() {
-                Self::VACANT_LOT
-            } else if tile_def.path_kind.is_water() {
-                Self::WATER
-            } else if tile_def.path_kind.is_road() {
-                Self::ROAD
-            } else if tile_def.path_kind.is_rocks() {
-                Self::ROCKS
-            } else if tile_def.path_kind.is_vegetation() {
-                Self::VEGETATION
-            } else if tile_def.is(TileKind::Building) {
-                Self::for_building_tile(tile_def)
-            } else {
-                // Units or anything else we don't display on the minimap.
-                return None;
-            }
-        })
+    #[inline]
+    fn vacant_lot() -> Self {
+        Self::LIGHT_YELLOW
     }
 
-    fn for_building_tile(tile_def: &TileDef) -> Self {
+    #[inline]
+    fn water() -> Self {
+        Self::DARK_BLUE
+    }
+
+    #[inline]
+    fn road(tile_def: &'static TileDef) -> Self {
+        match road::kind(tile_def) {
+            road::RoadKind::Dirt  => Self::LIGHT_BROWN,
+            road::RoadKind::Paved => Self::LIGHT_GRAY,
+        }
+    }
+
+    #[inline]
+    fn empty_land() -> Self {
+        // Alternate randomly between two similar colors
+        // to give the minimap a more pleasant texture.
+        if rand::rng().random_bool(0.5) {
+            Self::LIGHT_GREEN_1
+        } else {
+            Self::LIGHT_GREEN_2
+        }
+    }
+
+    #[inline]
+    fn vegetation() -> Self {
+        if rand::rng().random_bool(0.5) {
+            Self::DARK_GREEN_1
+        } else {
+            Self::DARK_GREEN_2
+        }
+    }
+
+    #[inline]
+    fn rocks() -> Self {
+        if rand::rng().random_bool(0.5) {
+            Self::DARK_GRAY_1
+        } else {
+            Self::DARK_GRAY_2
+        }
+    }
+
+    fn building(tile_def: &'static TileDef) -> Self {
         if tile_def.is_house() {
             return Self::DARK_YELLOW;
         }
@@ -106,8 +128,31 @@ impl MinimapTileColor {
         } else if size.width == 5 {
             Self::LIGHT_RED
         } else {
-            Self::DARK_GRAY
+            Self::DARK_PINK
         }
+    }
+
+    fn from_tile_def(tile_def: &'static TileDef) -> Option<Self> {
+        Some({
+            if tile_def.path_kind.is_empty_land() {
+                Self::empty_land()
+            } else if tile_def.path_kind.is_vacant_lot() {
+                Self::vacant_lot()
+            } else if tile_def.path_kind.is_water() {
+                Self::water()
+            } else if tile_def.path_kind.is_road() {
+                Self::road(tile_def)
+            } else if tile_def.path_kind.is_rocks() {
+                Self::rocks()
+            } else if tile_def.path_kind.is_vegetation() {
+                Self::vegetation()
+            } else if tile_def.is(TileKind::Building) {
+                Self::building(tile_def)
+            } else {
+                // Units or anything else we don't display on the minimap.
+                return None;
+            }
+        })
     }
 }
 
@@ -320,14 +365,16 @@ impl Minimap {
             self.texture.set_pixel(target_cell, MinimapTileColor::default());
         } else if water::is_port_or_wharf(tile_def) {
             for cell in &tile_def.cell_range(target_cell) {
-                self.texture.set_pixel(cell, MinimapTileColor::WATER);
+                self.texture.set_pixel(cell, MinimapTileColor::water());
             }
         } else if tile_def.is(MINIMAP_OBJECT_TILE_KINDS) {
             for cell in &tile_def.cell_range(target_cell) {
-                self.texture.set_pixel(cell, MinimapTileColor::EMPTY_LAND);
+                self.texture.set_pixel(cell, MinimapTileColor::empty_land());
             }
         }
     }
+
+    const ENABLE_DEBUG_CONTROLS: bool = false;
 
     // Draw the minimap using ImGui, nestled inside a window.
     pub fn draw(&self,
@@ -339,7 +386,7 @@ impl Minimap {
 
         static SHOW_MINIMAP:    UiStaticVar<bool> = UiStaticVar::new(true);
         static ROTATED_MINIMAP: UiStaticVar<bool> = UiStaticVar::new(true);
-        static DEBUG_MINIMAP:   UiStaticVar<bool> = UiStaticVar::new(true);
+        static DEBUG_MINIMAP:   UiStaticVar<bool> = UiStaticVar::new(Minimap::ENABLE_DEBUG_CONTROLS);
 
         if *SHOW_MINIMAP {
             let minimap = MinimapWidget {
@@ -377,13 +424,15 @@ impl Minimap {
                         }
                     }
 
-                    // Debug controls at the widget's bottom:
-                    ui.dummy([0.0, window_size[1] - 60.0]);
-                    ui.checkbox("Rotated", ROTATED_MINIMAP.as_mut());
-                    ui.same_line();
-                    ui.dummy([50.0, 0.0]);
-                    ui.same_line();
-                    ui.checkbox("Debug", DEBUG_MINIMAP.as_mut());
+                    if Minimap::ENABLE_DEBUG_CONTROLS {
+                        // Debug controls at the widget's bottom:
+                        ui.dummy([0.0, window_size[1] - 60.0]);
+                        ui.checkbox("Rotated", ROTATED_MINIMAP.as_mut());
+                        ui.same_line();
+                        ui.dummy([50.0, 0.0]);
+                        ui.same_line();
+                        ui.checkbox("Debug", DEBUG_MINIMAP.as_mut());
+                    }
                 });
         } else {
             // Minimap open/close button:
