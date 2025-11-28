@@ -48,7 +48,7 @@ kira = "0.11.0"
 [package.metadata.bundle]
 name = "Heritage Builder"
 identifier = "com.coresystem.heritagebuilder"
-icon = ["../assets/ui/icon.png"]
+icon = ["../assets/ui/app_icon.png"]
 version = "0.1.0"
 category = "Game"
 resources = ["assets"]
