@@ -318,7 +318,7 @@ impl GameObject for Building {
                 self.draw_debug_ui_overview(&context, ui_sys);
             }
             DebugUiMode::Detailed => {
-                let ui = ui_sys.builder();
+                let ui = ui_sys.ui();
                 if ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
                     let context = self.new_context(query);
@@ -824,7 +824,7 @@ impl Building {
     // ----------------------
 
     fn draw_debug_ui_overview(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         let color_bullet_bool = |label: &str, value: bool| {
             ui.bullet_text(format!("{label}:"));
@@ -917,7 +917,7 @@ impl Building {
     }
 
     fn draw_debug_ui_detailed(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
         if ui.collapsing_header("Properties##_building_properties", imgui::TreeNodeFlags::empty()) {
@@ -1536,7 +1536,7 @@ impl BuildingStock {
     }
 
     fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }

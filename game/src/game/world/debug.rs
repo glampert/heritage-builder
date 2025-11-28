@@ -107,7 +107,7 @@ pub trait GameObjectDebugOptions {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let mut vars = self.get_vars();
         if !vars.is_empty() {
-            let ui = ui_sys.builder();
+            let ui = ui_sys.ui();
             if ui.collapsing_header("Debug Options##_game_obj_debug_opts",
                                     imgui::TreeNodeFlags::empty())
             {

@@ -691,7 +691,7 @@ impl ServiceBuilding {
             return;
         }
 
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header("Stock", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -732,7 +732,7 @@ impl ServiceBuilding {
             return;
         }
 
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header("Patrol", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -754,7 +754,7 @@ impl ServiceBuilding {
 
     fn draw_debug_ui_treasury(&mut self, ui_sys: &UiSystem) {
         if let StockOrTreasury::Treasury { gold_units } = &mut self.stock_or_treasury {
-            let ui = ui_sys.builder();
+            let ui = ui_sys.ui();
             if ui.collapsing_header("Treasury", imgui::TreeNodeFlags::empty()) {
                 ui.input_scalar("Gold Units", gold_units).step(1).build();
             }

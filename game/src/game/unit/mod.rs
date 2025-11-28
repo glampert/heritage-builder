@@ -138,7 +138,7 @@ impl GameObject for Unit {
                 self.draw_debug_ui_overview(query, ui_sys);
             }
             DebugUiMode::Detailed => {
-                let ui = ui_sys.builder();
+                let ui = ui_sys.ui();
                 if ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
                     self.draw_debug_ui_detailed(query, ui_sys);

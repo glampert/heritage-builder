@@ -68,7 +68,7 @@ impl GameSystem for SettlersSpawnSystem {
     }
 
     fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         self.spawn_timer.draw_debug_ui("Settler Spawn", 0, ui_sys);
 
         let color_text = |text, cond: bool| {

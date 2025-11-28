@@ -1337,7 +1337,7 @@ impl HouseUpgradeState {
 
 impl HouseBuilding {
     fn draw_debug_ui_upgrade_state(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         if !ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -1465,7 +1465,7 @@ impl HouseBuilding {
     }
 
     fn draw_debug_ui_timers(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         if !ui.collapsing_header("Timers", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.

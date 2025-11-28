@@ -49,7 +49,7 @@ impl UiInputEvent {
 
 pub struct UiSystem {
     context: UiContext,
-    builder_ptr: *const imgui::Ui,
+    ui_ptr: *const imgui::Ui,
 }
 
 impl UiSystem {
@@ -57,7 +57,7 @@ impl UiSystem {
         where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
     {
         Self { context: UiContext::new::<UiRendererBackendImpl>(app),
-               builder_ptr: null::<imgui::Ui>() }
+               ui_ptr: null::<imgui::Ui>() }
     }
 
     #[inline]
@@ -65,15 +65,15 @@ impl UiSystem {
                        app: &impl Application,
                        input_sys: &impl InputSystem,
                        delta_time_secs: Seconds) {
-        debug_assert!(self.builder_ptr.is_null());
-        let ui_builder = self.context.begin_frame(app, input_sys, delta_time_secs);
-        self.builder_ptr = ui_builder as *const imgui::Ui;
+        debug_assert!(self.ui_ptr.is_null());
+        let ui = self.context.begin_frame(app, input_sys, delta_time_secs);
+        self.ui_ptr = ui as *const imgui::Ui;
     }
 
     #[inline]
     pub fn end_frame(&mut self) {
-        debug_assert!(!self.builder_ptr.is_null());
-        self.builder_ptr = null::<imgui::Ui>();
+        debug_assert!(!self.ui_ptr.is_null());
+        self.ui_ptr = null::<imgui::Ui>();
         self.context.end_frame();
     }
 
@@ -151,9 +151,9 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn builder(&self) -> &imgui::Ui {
-        debug_assert!(!self.builder_ptr.is_null());
-        unsafe { &*self.builder_ptr }
+    pub fn ui(&self) -> &imgui::Ui {
+        debug_assert!(!self.ui_ptr.is_null());
+        unsafe { &*self.ui_ptr }
     }
 
     #[inline]
@@ -680,7 +680,7 @@ pub fn dpad_buttons(ui: &imgui::Ui) -> Option<DPadDirection> {
 }
 
 pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool {
-    let ui = ui_sys.builder();
+    let ui = ui_sys.ui();
 
     let icon_font = ui.push_font(ui_sys.fonts().icons);
     let clicked = ui.button(icon.to_string());

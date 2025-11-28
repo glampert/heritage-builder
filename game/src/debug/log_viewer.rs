@@ -77,7 +77,7 @@ impl LogViewerSingleton {
             return false;
         }
 
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         ui.window("Log Viewer")
           .opened(&mut is_window_open)

@@ -278,7 +278,7 @@ impl UnitPatrolPathRecord {
     }
 
     pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         ui.text(format!("Previous Path Hashes    : {}", self.history));
         ui.text(format!("Current Path Length     : {}", self.current_length));
         ui.text(format!("Current Path Direction  : {}", self.current_direction));
@@ -630,7 +630,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
     }
 
     fn draw_debug_ui(&mut self, unit: &mut Unit, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         let building_kind = self.origin_building.kind;
         let building_cell = self.origin_building_tile.base_cell;
@@ -806,7 +806,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
     }
 
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         let building_kind = self.origin_building.kind;
         let building_cell = self.origin_building_tile.base_cell;
@@ -1026,7 +1026,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
     }
 
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         let building_kind = self.origin_building.kind;
         let building_cell = self.origin_building_tile.base_cell;
@@ -1244,7 +1244,7 @@ impl UnitTask for UnitTaskSettler {
     }
 
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         ui.text(format!("Population To Add : {}", self.population_to_add));
     }
 }
@@ -1521,7 +1521,7 @@ impl UnitTask for UnitTaskHarvestWood {
     }
 
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         let building_kind = self.origin_building.kind;
         let building_cell = self.origin_building_tile.base_cell;
@@ -1595,7 +1595,7 @@ impl UnitTaskInstance {
     }
 
     fn draw_debug_ui(&mut self, unit: &mut Unit, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         let status_color = match self.state {
             UnitTaskState::Uninitialized => Color::yellow(),
@@ -1833,7 +1833,7 @@ impl UnitTaskManager {
     }
 
     pub fn draw_tasks_debug_ui(&mut self, unit: &mut Unit, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         if !ui.collapsing_header("Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.

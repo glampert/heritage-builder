@@ -154,7 +154,7 @@ impl GameObject for Prop {
                 self.draw_debug_ui_overview(query, ui_sys);
             }
             DebugUiMode::Detailed => {
-                let ui = ui_sys.builder();
+                let ui = ui_sys.ui();
                 if ui.collapsing_header("Prop", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
                     self.draw_debug_ui_detailed(query, ui_sys);
@@ -356,7 +356,7 @@ impl Prop {
     // ----------------------
 
     fn draw_debug_ui_overview(&mut self, _query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         let font = ui.push_font(ui_sys.fonts().large);
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
@@ -377,7 +377,7 @@ impl Prop {
     }
 
     fn draw_debug_ui_detailed(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         self.config.unwrap().draw_debug_ui_with_header("Config", ui_sys);
 

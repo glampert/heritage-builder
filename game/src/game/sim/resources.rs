@@ -305,7 +305,7 @@ impl HouseholdWorkerPool {
     }
 
     pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         ui.text(format!("Employed   : {}", self.employed_count));
         ui.text(format!("Unemployed : {}", self.unemployed_count));
         ui.text(format!("Total      : {}", self.total_workers()));
@@ -487,7 +487,7 @@ impl Employer {
     }
 
     pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         ui.text(format!("Workers Employed : {}", self.employee_count));
         ui.text(format!("Min Required     : {}", self.min_employees));
         ui.text(format!("Max Employed     : {}", self.max_employees));
@@ -978,7 +978,7 @@ impl ResourceStock {
 
     // Read-only debug display.
     pub fn draw_debug_ui(&self, label: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
             ui.indent_by(5.0);
             self.for_each(|index, item| {

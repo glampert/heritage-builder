@@ -84,7 +84,7 @@ impl UnitInventory {
     }
 
     pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         if !ui.collapsing_header("Inventory", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.

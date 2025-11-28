@@ -186,7 +186,7 @@ impl DebugSettingsMenu {
                 game_loop: &mut GameLoop,
                 sim: &mut Simulation,
                 enable_tile_inspector: &mut bool) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         if let Some(_menu_bar) = ui.begin_main_menu_bar() {
             if let Some(_menu) = ui.begin_menu("Game") {
@@ -216,7 +216,7 @@ impl DebugSettingsMenu {
     }
 
     fn menu_bar_text(&self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         // Log error/warning count:
         {
@@ -256,7 +256,7 @@ impl DebugSettingsMenu {
                  context: &mut sim::debug::DebugContext,
                  game_loop: &mut GameLoop,
                  sim: &mut Simulation) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         // Quit game:
         if ui.button("Quit") {
@@ -353,7 +353,7 @@ impl DebugSettingsMenu {
     }
 
     fn camera_menu(&self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         let mut key_shortcut_zoom = !CameraGlobalSettings::get().disable_key_shortcut_zoom;
         if ui.checkbox("Keyboard Zoom", &mut key_shortcut_zoom) {
@@ -416,7 +416,7 @@ impl DebugSettingsMenu {
                           context: &mut sim::debug::DebugContext,
                           game_loop: &mut GameLoop,
                           enable_tile_inspector: &mut bool) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         self.draw_debug_ui(context.ui_sys);
 
@@ -458,7 +458,7 @@ impl DebugSettingsMenu {
     }
 
     fn save_game_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         // Autosave:
         let mut autosave_enabled = game_loop.is_autosave_enabled();
@@ -527,7 +527,7 @@ impl DebugSettingsMenu {
     }
 
     fn draw_game_configs_window(&mut self, context: &mut sim::debug::DebugContext) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         ui.window("Game Configs")
           .opened(&mut self.show_game_configs_debug)
@@ -554,7 +554,7 @@ impl DebugSettingsMenu {
     fn draw_world_debug_window(&mut self,
                                context: &mut sim::debug::DebugContext,
                                sim: &mut Simulation) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         ui.window("World Debug")
           .opened(&mut self.show_game_world_debug)
@@ -566,7 +566,7 @@ impl DebugSettingsMenu {
     fn draw_game_systems_debug_window(&mut self,
                                       context: &mut sim::debug::DebugContext,
                                       sim: &mut Simulation) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         ui.window("Game Systems Debug")
           .opened(&mut self.show_game_systems_debug)
@@ -578,7 +578,7 @@ impl DebugSettingsMenu {
     fn draw_texture_settings_window(&mut self,
                                     context: &mut sim::debug::DebugContext,
                                     game_loop: &mut GameLoop) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         ui.window("Texture Settings")
           .opened(&mut self.show_texture_settings)
@@ -625,7 +625,7 @@ impl DebugSettingsMenu {
     fn draw_sound_settings_window(&mut self,
                                   context: &mut sim::debug::DebugContext,
                                   game_loop: &mut GameLoop) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         ui.window("Sound Settings")
           .opened(&mut self.show_sound_settings)

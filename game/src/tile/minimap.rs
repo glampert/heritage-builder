@@ -471,7 +471,7 @@ impl Minimap {
             return;
         }
 
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         let tex_cache = render_sys.texture_cache();
 
         let draw_list = ui.get_window_draw_list();
@@ -546,7 +546,7 @@ impl Minimap {
                 render_sys: &mut impl RenderSystem,
                 ui_sys: &UiSystem,
                 cursor_screen_pos: Vec2) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         static SHOW_MINIMAP:    UiStaticVar<bool> = UiStaticVar::new(true);
         static ROTATED_MINIMAP: UiStaticVar<bool> = UiStaticVar::new(true);

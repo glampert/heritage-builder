@@ -159,7 +159,7 @@ impl Patrol {
     pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
         let unit_id = self.unit_id();
         if let Some(state) = self.try_get_state_mut() {
-            let ui = ui_sys.builder();
+            let ui = ui_sys.ui();
             if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
                 ui.text(format!("Unit Id : {}", unit_id));
                 state.path_record.draw_debug_ui(ui_sys);

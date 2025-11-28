@@ -843,7 +843,7 @@ impl ProducerInputsLocalStock {
 
 impl ProducerOutputLocalStock {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         ui.text("Local Stock:");
 
         if ui.input_scalar(format!("{}", self.item.kind), &mut self.item.count).step(1).build() {
@@ -862,7 +862,7 @@ impl ProducerOutputLocalStock {
 
 impl ProducerInputsLocalStock {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if self.slots.is_empty() {
             ui.text("<none>");
         } else {
@@ -892,7 +892,7 @@ impl ProducerInputsLocalStock {
 impl ProducerBuilding {
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
         if self.production_input_stock.requires_any_resource() {
-            let ui = ui_sys.builder();
+            let ui = ui_sys.ui();
             if ui.collapsing_header("Raw Materials In Stock", imgui::TreeNodeFlags::empty()) {
                 self.production_input_stock.draw_debug_ui(ui_sys);
 
@@ -907,7 +907,7 @@ impl ProducerBuilding {
     }
 
     fn draw_debug_ui_production_output(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header("Production Output", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }

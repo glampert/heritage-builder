@@ -450,7 +450,7 @@ impl SoundSystem {
     // ----------------------
 
     pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         if !self.is_initialized() {
             ui.text("No Sound System available!");

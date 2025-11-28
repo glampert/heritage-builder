@@ -388,7 +388,7 @@ impl BuildingConfigs {
     }
 
     fn draw_debug_ui_with_header(&'static self, _header: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         self.house_config.draw_debug_ui_with_header("House", ui_sys);
 

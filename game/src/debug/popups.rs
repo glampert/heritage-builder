@@ -212,7 +212,7 @@ fn draw_popup_message(ui_sys: &UiSystem,
                       scroll_dist: f32,
                       scroll_speed: f32,
                       start_bg_alpha: f32) {
-    let ui = ui_sys.builder();
+    let ui = ui_sys.ui();
 
     let lifetime_percentage = match message.lifetime {
         Some(lifetime) => calc_message_lifetime_percentage(lifetime.0, lifetime.1),

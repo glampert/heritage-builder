@@ -571,7 +571,7 @@ fn find_tile_def_for_level(context: &BuildingContext,
 // ----------------------------------------------
 
 pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
-    let ui = ui_sys.builder();
+    let ui = ui_sys.ui();
 
     if !ui.collapsing_header("Merge Debug", imgui::TreeNodeFlags::empty()) {
         return; // collapsed.

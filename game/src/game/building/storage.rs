@@ -616,7 +616,7 @@ impl StorageSlots {
             return;
         }
 
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }

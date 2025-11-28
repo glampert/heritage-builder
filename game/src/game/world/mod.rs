@@ -924,7 +924,7 @@ impl World {
     // ----------------------
 
     pub fn draw_debug_ui(&self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if let Some(_tab_bar) = ui.tab_bar("World Stats Tab Bar") {
             self.stats.draw_debug_ui(treasury, ui_sys);
         }

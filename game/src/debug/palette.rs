@@ -82,7 +82,7 @@ impl TilePaletteMenu {
                 cursor_screen_pos: Vec2,
                 has_valid_placement: bool,
                 show_selection_bounds: bool) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
         let tex_cache = debug_draw.texture_cache();
 
         let tile_size = [BASE_TILE_SIZE.width as f32, BASE_TILE_SIZE.height as f32];
@@ -225,7 +225,7 @@ impl TilePaletteMenu {
                       tile_size: [f32; 2],
                       tiles_per_row: usize,
                       padding_between_tiles: f32) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         if !label.is_empty() {
             ui.text(label);

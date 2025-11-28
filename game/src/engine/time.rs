@@ -119,7 +119,7 @@ impl UpdateTimer {
     }
 
     pub fn draw_debug_ui(&mut self, label: &str, imgui_id: u32, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         ui.text(format!("{}:", label));
 

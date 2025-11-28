@@ -375,7 +375,7 @@ fn calc_scroll_delta(ui_sys: &UiSystem, cursor_screen_pos: Vec2, viewport_size: 
     }
 
     // Only block scrolling if hovering an ImGui item (like menu buttons).
-    let hovering_imgui_item = ui_sys.builder().is_any_item_hovered();
+    let hovering_imgui_item = ui_sys.ui().is_any_item_hovered();
 
     if !hovering_imgui_item {
         if cursor_screen_pos.y < Camera::SCROLL_MARGIN {
@@ -389,7 +389,7 @@ fn calc_scroll_delta(ui_sys: &UiSystem, cursor_screen_pos: Vec2, viewport_size: 
 }
 
 fn calc_scroll_speed(ui_sys: &UiSystem, cursor_screen_pos: Vec2, viewport_size: Size) -> f32 {
-    if ui_sys.builder().is_any_item_hovered() {
+    if ui_sys.ui().is_any_item_hovered() {
         return 0.0; // Stop scrolling entirely while over menu items.
     }
 

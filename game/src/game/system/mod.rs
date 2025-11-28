@@ -109,7 +109,7 @@ impl GameSystems {
     }
 
     pub fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if let Some(_tab_bar) = ui.tab_bar("Game Systems Tab Bar") {
             for entry in &mut self.systems {
                 if let Some(_tab) = ui.tab_item(entry.system.name()) {

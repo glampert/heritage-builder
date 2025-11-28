@@ -42,7 +42,7 @@ use crate::{
 
 impl Unit {
     pub fn draw_debug_ui_overview(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         let font = ui.push_font(ui_sys.fonts().large);
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
@@ -86,7 +86,7 @@ impl Unit {
     }
 
     fn draw_debug_ui_properties(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
         if !ui.collapsing_header("Properties##_unit_properties", imgui::TreeNodeFlags::empty()) {
@@ -120,7 +120,7 @@ impl Unit {
     }
 
     fn draw_debug_ui_navigation(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         if !ui.collapsing_header("Navigation", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -177,7 +177,7 @@ impl Unit {
     }
 
     fn draw_debug_ui_misc(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -207,7 +207,7 @@ impl Unit {
     }
 
     fn debug_dropdown_despawn_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header("Despawn Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -223,7 +223,7 @@ impl Unit {
     }
 
     fn debug_dropdown_runner_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header("Runner Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -293,7 +293,7 @@ impl Unit {
     }
 
     fn debug_dropdown_patrol_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header("Patrol Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -350,7 +350,7 @@ impl Unit {
     }
 
     fn debug_dropdown_pathfinding_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header("Pathfind Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -484,7 +484,7 @@ impl Unit {
     }
 
     fn debug_dropdown_harvest_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         if !ui.collapsing_header("Harvest Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }

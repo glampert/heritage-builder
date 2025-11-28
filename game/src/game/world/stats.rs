@@ -163,7 +163,7 @@ impl WorldStats {
     }
 
     pub fn draw_debug_ui(&self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
 
         let highlight_zero_value = |label: &str, value: u32, color: Color| {
             if value == 0 {

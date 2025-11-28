@@ -131,7 +131,7 @@ impl NodeKind {
             };
         }
 
-        let ui = ui_sys.builder();
+        let ui = ui_sys.ui();
         node_kind_ui_checkbox!(ui, self, EmptyLand);
         node_kind_ui_checkbox!(ui, self, Road);
         node_kind_ui_checkbox!(ui, self, Water);

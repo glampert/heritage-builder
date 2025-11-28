@@ -63,7 +63,7 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem,
                            transform: WorldToScreenTransform,
                            cursor_screen_pos: Vec2,
                            opt_text: Option<&str>) {
-    let ui = ui_sys.builder();
+    let ui = ui_sys.ui();
 
     // Make the window background transparent and remove decorations.
     let window_flags = imgui::WindowFlags::NO_DECORATION
@@ -123,7 +123,7 @@ pub fn draw_screen_origin_marker(debug_draw: &mut dyn DebugDraw) {
 pub fn draw_render_perf_stats(ui_sys: &UiSystem,
                               render_sys_stats: &RenderStats,
                               tile_render_stats: &TileMapRenderStats) {
-    let ui = ui_sys.builder();
+    let ui = ui_sys.ui();
 
     let window_flags = imgui::WindowFlags::NO_DECORATION
                        | imgui::WindowFlags::NO_MOVE
@@ -181,7 +181,7 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem,
 }
 
 pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World, tile_map: &TileMap, visible_range: CellRange) {
-    let ui = ui_sys.builder();
+    let ui = ui_sys.ui();
 
     let window_flags = imgui::WindowFlags::NO_DECORATION
                        | imgui::WindowFlags::NO_MOVE
@@ -285,7 +285,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
         }
     };
 
-    let ui = ui_sys.builder();
+    let ui = ui_sys.ui();
 
     // Adjust window background color based on tile kind.
     // The returned tokens take care of popping back to the previous color/font.

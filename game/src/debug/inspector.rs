@@ -124,7 +124,7 @@ impl TileInspectorMenu {
 
         let window_flags = imgui::WindowFlags::ALWAYS_AUTO_RESIZE;
 
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
         let mut is_open = self.is_open;
 
         ui.window(window_label)
@@ -209,7 +209,7 @@ impl TileInspectorMenu {
     }
 
     fn tile_properties_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
         if !ui.collapsing_header("Properties##_tile_properties", imgui::TreeNodeFlags::empty()) {
@@ -306,7 +306,7 @@ impl TileInspectorMenu {
     }
 
     fn tile_flags_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
         if !ui.collapsing_header("Flags", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -339,7 +339,7 @@ impl TileInspectorMenu {
             return;
         }
 
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
         if !ui.collapsing_header("Variations", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -358,7 +358,7 @@ impl TileInspectorMenu {
             return;
         }
 
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
         if !ui.collapsing_header("Animations", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
@@ -409,7 +409,7 @@ impl TileInspectorMenu {
     }
 
     fn tile_debug_opts_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Debug
         // Options.
@@ -446,7 +446,7 @@ impl TileInspectorMenu {
             return;
         }
 
-        let ui = context.ui_sys.builder();
+        let ui = context.ui_sys.ui();
         if !ui.collapsing_header("Edit TileDef", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
