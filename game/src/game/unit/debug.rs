@@ -25,7 +25,10 @@ use crate::{
     engine::time::CountdownTimer,
     imgui_ui::{self, DPadDirection, UiSystem, UiStaticVar},
     pathfind::{self, NodeKind as PathNodeKind, Path},
-    tile::{self, Tile, TileMapLayerKind, TilePoolIndex},
+    tile::{
+        self, Tile, TileMapLayerKind, TilePoolIndex,
+        minimap::{MinimapIcon, MINIMAP_ICON_DEFAULT_LIFETIME}
+    },
     utils::{
         callback::{self, Callback},
         coords::Cell,
@@ -181,6 +184,14 @@ impl Unit {
 
         if ui.button("Say Hello") {
             self.debug.popup_msg("Hello!");
+        }
+
+        if ui.button("Push Minimap Alert") {
+            let minimap = query.tile_map().minimap_mut();
+            minimap.push_icon(MinimapIcon::Alert,
+                              self.cell(),
+                              Color::default(),
+                              MINIMAP_ICON_DEFAULT_LIFETIME);
         }
 
         if ui.button("Clear Current Task") {

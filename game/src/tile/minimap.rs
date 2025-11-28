@@ -1,4 +1,8 @@
 use rand::Rng;
+use std::path::PathBuf;
+use smallvec::SmallVec;
+use strum::{EnumCount, IntoEnumIterator, EnumProperty};
+use strum_macros::{EnumCount, EnumIter, EnumProperty};
 
 use super::{
     TileKind, TileMap, TileMapLayerKind, sets::TileDef,
@@ -6,9 +10,10 @@ use super::{
 };
 
 use crate::{
+    engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
-    utils::{Size, Rect, Vec2, coords::{self, Cell, IsoPoint}},
     imgui_ui::{self, UiSystem, UiTextureHandle, UiStaticVar},
+    utils::{Size, Rect, Vec2, Color, platform::paths, coords::{self, Cell, IsoPoint}},
     render::{RenderSystem, TextureCache, TextureHandle, TextureSettings, TextureFilter},
 };
 
@@ -247,7 +252,7 @@ impl MinimapTexture {
     }
 
     fn post_load(&mut self, tile_map: &TileMap) {
-        self.reset(tile_map.size_in_cells(), || MinimapTileColor::default());
+        self.reset(tile_map.size_in_cells(), MinimapTileColor::default);
 
         tile_map.for_each_tile(TileMapLayerKind::Terrain, TileKind::Terrain,
             |terrain| {
@@ -291,12 +296,49 @@ impl MinimapTexture {
 }
 
 // ----------------------------------------------
+// MinimapIcon / MinimapIconInstance
+// ----------------------------------------------
+
+#[repr(u8)]
+#[derive(Copy, Clone, EnumCount, EnumIter, EnumProperty)]
+pub enum MinimapIcon {
+    #[strum(props(AssetPath = "ui/alert_icon.png"))]
+    Alert
+}
+
+impl MinimapIcon {
+    #[inline]
+    fn asset_path(self) -> PathBuf {
+        let path = self.get_str("AssetPath").unwrap();
+        paths::asset_path(path)
+    }
+}
+
+pub const MINIMAP_ICON_DEFAULT_LIFETIME: Seconds = 5.0;
+pub const MINIMAP_ICON_SIZE: f32 = 20.0; // W & H in pixels.
+
+#[derive(Copy, Clone)]
+struct MinimapIconInstance {
+    icon: MinimapIcon,
+
+    target_cell: Cell,
+    texture: TextureHandle,
+    tint: Color,
+
+    // One time_left reaches zero the icon expires and is removed.
+    lifetime: Seconds,
+    time_left: Seconds,
+}
+
+// ----------------------------------------------
 // Minimap
 // ----------------------------------------------
 
 #[derive(Default)]
 pub struct Minimap {
     texture: MinimapTexture,
+    icons: Vec<MinimapIconInstance>,
+    icon_textures: [TextureHandle; MinimapIcon::COUNT],
 }
 
 impl Minimap {
@@ -304,17 +346,26 @@ impl Minimap {
         Self {
             // One pixel per tile map cell.
             texture: MinimapTexture::new(size_in_cells),
+            icons: Vec::new(),
+            icon_textures: [TextureHandle::invalid(); MinimapIcon::COUNT],
         }
     }
 
     #[inline]
-    pub fn update(&mut self, tex_cache: &mut dyn TextureCache) {
+    pub fn update(&mut self, tex_cache: &mut dyn TextureCache, delta_time_secs: Seconds) {
+        // Preload icon textures once:
+        if !self.icon_textures[0].is_valid() {
+            self.load_icon_textures(tex_cache);
+        }
+
         self.texture.update(tex_cache);
+        self.update_icons(delta_time_secs);
     }
 
     #[inline]
     pub fn pre_load(&mut self, context: &PreLoadContext) {
         self.texture.pre_load(context.tex_cache_mut());
+        self.icons.clear();
     }
 
     #[inline]
@@ -343,6 +394,10 @@ impl Minimap {
             }
         });
     }
+
+    // ----------------------
+    // Tile placement:
+    // ----------------------
 
     pub fn place_tile(&mut self, target_cell: Cell, tile_def: &'static TileDef) {
         if !self.texture.is_cell_within_bounds(target_cell) {
@@ -373,6 +428,115 @@ impl Minimap {
             }
         }
     }
+
+    // ----------------------
+    // Minimap icons:
+    // ----------------------
+
+    pub fn push_icon(&mut self, icon: MinimapIcon, target_cell: Cell, tint: Color, lifetime_secs: Seconds) {
+        self.icons.push(MinimapIconInstance {
+            icon,
+            target_cell,
+            texture: self.icon_texture(icon),
+            tint,
+            lifetime: lifetime_secs,
+            time_left: lifetime_secs,
+        });
+    }
+
+    fn update_icons(&mut self, delta_time_secs: Seconds) {
+        if self.icons.is_empty() {
+            return;
+        }
+
+        let mut expired_indices = SmallVec::<[usize; 16]>::new();
+
+        // Update time left and expire icons:
+        for (index, icon) in self.icons.iter_mut().enumerate() {
+            icon.time_left -= delta_time_secs;
+            if icon.time_left <= 0.0 {
+                expired_indices.push(index);
+            }
+        }
+
+        // Remove in reverse order so any vector shuffles will not invalidate the
+        // remaining indices.
+        for expired_index in expired_indices.iter().rev() {
+            self.icons.swap_remove(*expired_index);
+        }
+    }
+
+    fn draw_icons(&self, render_sys: &mut impl RenderSystem, ui_sys: &UiSystem, minimap: &MinimapWidget) {
+        if self.icons.is_empty() {
+            return;
+        }
+
+        let ui = ui_sys.builder();
+        let tex_cache = render_sys.texture_cache();
+
+        let draw_list = ui.get_window_draw_list();
+        let origin = Vec2::from_array(ui.window_pos());
+
+        // Minimap center.
+        let center = Rect::new(origin + minimap.screen_pos, minimap.screen_size).center();
+
+        for icon in &self.icons {
+            if icon.lifetime <= 0.0 || icon.time_left <= 0.0 {
+                continue;
+            }
+
+            let mut icon_center = cell_to_minimap_px(minimap, origin, icon.target_cell);
+            if minimap.rotated {
+                icon_center = icon_center.rotate_around_point(center, MINIMAP_ROTATION_ANGLE);
+            }
+
+            let icon_half_size = MINIMAP_ICON_SIZE / 2.0;
+            let icon_rect = Rect::from_extents(
+                Vec2::new(icon_center.x - icon_half_size, icon_center.y - icon_half_size),
+                Vec2::new(icon_center.x + icon_half_size, icon_center.y + icon_half_size)
+            );
+
+            // Fade-out based on remaining lifetime seconds.
+            let icon_tint_alpha = (icon.time_left / icon.lifetime).clamp(0.0, 1.0);
+            let icon_tint = Color::new(icon.tint.r, icon.tint.g, icon.tint.b, icon_tint_alpha);
+
+            let icon_texture = ui_sys.to_ui_texture(tex_cache, icon.texture);
+
+            draw_list
+                .add_image(icon_texture, icon_rect.min.to_array(), icon_rect.max.to_array())
+                .col(imgui::ImColor32::from_rgba_f32s(icon_tint.r, icon_tint.g, icon_tint.b, icon_tint_alpha))
+                .build();
+        }
+    }
+
+    fn load_icon_textures(&mut self, tex_cache: &mut dyn TextureCache) {
+        let settings = TextureSettings {
+            filter: TextureFilter::Linear,
+            gen_mipmaps: false,
+            ..Default::default()
+        };
+
+        for icon in MinimapIcon::iter() {
+            let texture = &mut self.icon_textures[icon as usize];
+            debug_assert!(!texture.is_valid(), "Minimap icon texture is already loaded!");
+
+            *texture = tex_cache.load_texture_with_settings(
+                icon.asset_path().to_str().unwrap(),
+                Some(settings)
+            );
+        }
+    }
+
+    #[inline]
+    fn icon_texture(&self, icon: MinimapIcon) -> TextureHandle {
+        let texture = self.icon_textures[icon as usize];
+        debug_assert!(texture.is_valid());
+        texture
+    }
+
+    // ----------------------
+    // Minimap rendering:
+    // ----------------------
 
     const ENABLE_DEBUG_CONTROLS: bool = false;
 
@@ -417,6 +581,8 @@ impl Minimap {
 
                     let hovered_tile_iso =
                         draw_minimap_widget(&minimap, texture, camera, cursor_screen_pos, ui);
+
+                    self.draw_icons(render_sys, ui_sys, &minimap);
 
                     if let Some(destination_iso) = hovered_tile_iso {
                         if ui.is_mouse_down(imgui::MouseButton::Left) {

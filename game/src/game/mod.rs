@@ -578,7 +578,7 @@ impl GameLoop {
         // Rendering:
         let render_flags = self.menus_begin_frame(cursor_screen_pos, delta_time_secs);
 
-        self.draw_tile_map(visible_range, render_flags);
+        self.draw_tile_map(delta_time_secs, visible_range, render_flags);
 
         self.menus_end_frame(visible_range, cursor_screen_pos, delta_time_secs);
 
@@ -722,10 +722,13 @@ impl GameLoop {
         visible_range
     }
 
-    fn draw_tile_map(&mut self, visible_range: CellRange, flags: TileMapRenderFlags) {
+    fn draw_tile_map(&mut self,
+                     delta_time_secs: Seconds,
+                     visible_range: CellRange,
+                     flags: TileMapRenderFlags) {
         let session = self.session.as_mut().unwrap();
 
-        session.tile_map.minimap_mut().update(self.engine.texture_cache_mut());
+        session.tile_map.minimap_mut().update(self.engine.texture_cache_mut(), delta_time_secs);
 
         self.engine.draw_tile_map(&session.tile_map,
                                   &session.tile_selection,
