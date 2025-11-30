@@ -62,8 +62,8 @@ impl MinimapTileColor {
     const DARK_YELLOW:   Self = Self { r: 225, g: 200, b: 20,  a: 255 };
     const LIGHT_BLUE:    Self = Self { r: 15,  g: 100, b: 230, a: 255 };
     const DARK_BLUE:     Self = Self { r: 30,  g: 100, b: 115, a: 255 };
-    const LIGHT_BROWN:   Self = Self { r: 143, g: 90,  b: 53,  a: 255 };
-    const DARK_BROWN:    Self = Self { r: 75,  g: 35,  b: 10,  a: 255 };
+    const LIGHT_BROWN:   Self = Self { r: 165, g: 122, b: 81,  a: 255 };
+    const DARK_BROWN:    Self = Self { r: 138, g: 92,  b: 68,  a: 255 };
     const LIGHT_GRAY:    Self = Self { r: 100, g: 100, b: 100, a: 255 };
     const DARK_GRAY_1:   Self = Self { r: 90,  g: 85,  b: 75,  a: 255 };
     const DARK_GRAY_2:   Self = Self { r: 80,  g: 75,  b: 65,  a: 255 };
@@ -82,7 +82,7 @@ impl MinimapTileColor {
     fn road(tile_def: &'static TileDef) -> Self {
         match road::kind(tile_def) {
             road::RoadKind::Dirt  => Self::LIGHT_BROWN,
-            road::RoadKind::Paved => Self::LIGHT_GRAY,
+            road::RoadKind::Paved => Self::DARK_BROWN,
         }
     }
 
@@ -538,8 +538,6 @@ impl Minimap {
     // Minimap rendering:
     // ----------------------
 
-    const ENABLE_DEBUG_CONTROLS: bool = false;
-
     // Draw the minimap using ImGui, nestled inside a window.
     pub fn draw(&self,
                 camera: &mut Camera,
@@ -548,9 +546,11 @@ impl Minimap {
                 cursor_screen_pos: Vec2) {
         let ui = ui_sys.ui();
 
+        const ENABLE_DEBUG_CONTROLS: bool = false;
+
         static SHOW_MINIMAP:    UiStaticVar<bool> = UiStaticVar::new(true);
         static ROTATED_MINIMAP: UiStaticVar<bool> = UiStaticVar::new(true);
-        static DEBUG_MINIMAP:   UiStaticVar<bool> = UiStaticVar::new(Minimap::ENABLE_DEBUG_CONTROLS);
+        static DEBUG_MINIMAP:   UiStaticVar<bool> = UiStaticVar::new(ENABLE_DEBUG_CONTROLS);
 
         if *SHOW_MINIMAP {
             let minimap = MinimapWidget {
@@ -590,7 +590,7 @@ impl Minimap {
                         }
                     }
 
-                    if Minimap::ENABLE_DEBUG_CONTROLS {
+                    if ENABLE_DEBUG_CONTROLS {
                         // Debug controls at the widget's bottom:
                         ui.dummy([0.0, window_size[1] - 60.0]);
                         ui.checkbox("Rotated", ROTATED_MINIMAP.as_mut());
@@ -631,11 +631,11 @@ impl Minimap {
 // ----------------------------------------------
 
 struct MinimapWidget {
-    screen_pos: Vec2,  // Top-left corner in screen space.
+    screen_pos: Vec2,  // Top-left corner in screen space, relative to `origin`.
     screen_size: Vec2, // Display size in pixels.
     map_size: Size,    // Tile map size in cells.
     rotated: bool,     // Apply the 45 degrees isometric rotation when drawing the minimap?
-    debug: bool,       // Enable debug drawing.
+    debug: bool,       // Enable debug drawing?
 }
 
 // Rotate the minimap -45 degrees to match our isometric world projection.
