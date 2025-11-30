@@ -639,7 +639,7 @@ impl render::TextureCache for TextureCache {
             }
 
             if let Some(_tab) = ui.tab_item("Loaded Textures") {
-                let table_row = |label: &str| {
+                let table_col = |label: &str| {
                     ui.text(label);
                     ui.next_column();
                 };
@@ -655,26 +655,26 @@ impl render::TextureCache for TextureCache {
                 ui.columns(8, "texture_columns", true);
 
                 // Header row:
-                table_row("Index");
-                table_row("Name");
-                table_row("Size");
-                table_row("Change Settings");
-                table_row("Mipmaps");
-                table_row("Filter");
-                table_row("Wrap");
-                table_row("Unit");
+                table_col("Index");
+                table_col("Name");
+                table_col("Size");
+                table_col("Change Settings");
+                table_col("Mipmaps");
+                table_col("Filter");
+                table_col("Wrap");
+                table_col("Unit");
 
                 ui.separator();
 
                 for (index, entry) in &mut self.textures {
-                    table_row(&format!("{}", index));
-                    table_row(&entry.texture.name);
-                    table_row(&format!("{}x{}", entry.texture.size.width, entry.texture.size.height));
-                    table_row(bool_str(entry.allow_settings_change));
-                    table_row(bool_str(entry.texture.has_mipmaps));
-                    table_row(&entry.texture.filter.to_string());
-                    table_row(&entry.texture.wrap_mode.to_string());
-                    table_row(&format!("{}", entry.texture.tex_unit.0));
+                    table_col(&format!("{}", index));
+                    table_col(&entry.texture.name);
+                    table_col(&format!("{}x{}", entry.texture.size.width, entry.texture.size.height));
+                    table_col(bool_str(entry.allow_settings_change));
+                    table_col(bool_str(entry.texture.has_mipmaps));
+                    table_col(&entry.texture.filter.to_string());
+                    table_col(&entry.texture.wrap_mode.to_string());
+                    table_col(&format!("{}", entry.texture.tex_unit.0));
                 }
 
                 // Return to single column.
