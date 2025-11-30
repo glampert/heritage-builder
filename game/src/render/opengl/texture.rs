@@ -1,6 +1,9 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::{any::Any, ffi::c_void};
+use num_enum::TryFromPrimitive;
+use strum::VariantArray;
+use strum_macros::Display;
 use image::GenericImageView;
 use bitflags::bitflags;
 use slab::Slab;
@@ -13,6 +16,7 @@ use super::{
 use crate::{
     log,
     utils::Size,
+    imgui_ui::UiSystem,
     render::{self, NativeTextureHandle, TextureHandle},
 };
 
@@ -53,7 +57,7 @@ impl ShaderVarTrait for &Texture2D {
 
 // Equivalent to the GL_TEXTURE_FILTER enums.
 #[repr(u32)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Display)]
 pub enum TextureFilter {
     Nearest = gl::NEAREST,
     Linear = gl::LINEAR,
@@ -65,7 +69,7 @@ pub enum TextureFilter {
 
 // Equivalent to the GL_TEXTURE_WRAP enums.
 #[repr(u32)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Display)]
 pub enum TextureWrapMode {
     Repeat = gl::REPEAT,
     ClampToEdge = gl::CLAMP_TO_EDGE,
@@ -494,6 +498,10 @@ impl render::TextureCache for TextureCache {
         self
     }
 
+    fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle {
+        self.handle_to_texture(handle).native_handle()
+    }
+
     fn load_texture(&mut self, file_path: &str) -> TextureHandle {
         let allow_settings_change = true;
         let gl_settings = OpenGlTextureSettings::from(self.settings);
@@ -505,10 +513,6 @@ impl render::TextureCache for TextureCache {
                                                  TextureUnit(0),
                                                  gl_settings.gen_mipmaps,
                                                  allow_settings_change)
-    }
-
-    fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle {
-        self.handle_to_texture(handle).native_handle()
     }
 
     fn load_texture_with_settings(&mut self,
@@ -593,5 +597,89 @@ impl render::TextureCache for TextureCache {
             self.textures.try_remove(*handle_index as usize);
         }
         *handle = TextureHandle::invalid();
+    }
+
+    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+
+        if let Some(_tab_bar) = ui.tab_bar("Texture Cache Tab Bar") {
+            if let Some(_tab) = ui.tab_item("Filtering") {
+                let mut current_settings = self.current_texture_settings();
+                let mut settings_changed = false;
+
+                let mut current_filter_index = current_settings.filter as usize;
+                if ui.combo("Filter",
+                            &mut current_filter_index,
+                            render::TextureFilter::VARIANTS,
+                            |v| { v.to_string().into() })
+                {
+                    settings_changed = true;
+                }
+
+                let mut current_wrap_mode_index = current_settings.wrap_mode as usize;
+                if ui.combo("Wrap Mode",
+                            &mut current_wrap_mode_index,
+                            render::TextureWrapMode::VARIANTS,
+                            |v| { v.to_string().into() })
+                {
+                    settings_changed = true;
+                }
+
+                let mut gen_mipmaps = current_settings.gen_mipmaps;
+                if ui.checkbox("Mipmaps", &mut gen_mipmaps) {
+                    settings_changed = true;
+                }
+
+                if settings_changed {
+                    current_settings.filter = render::TextureFilter::try_from_primitive(current_filter_index as u32).unwrap();
+                    current_settings.wrap_mode = render::TextureWrapMode::try_from_primitive(current_wrap_mode_index as u32).unwrap();
+                    current_settings.gen_mipmaps = gen_mipmaps;
+                    self.change_texture_settings(current_settings);
+                }
+            }
+
+            if let Some(_tab) = ui.tab_item("Loaded Textures") {
+                let table_row = |label: &str| {
+                    ui.text(label);
+                    ui.next_column();
+                };
+
+                let bool_str = |val: bool| {
+                    if val { "yes" } else { "no" }
+                };
+
+                ui.text(format!("Loaded Count: {}", self.textures.len()));
+                ui.separator();
+
+                // Set number of rows (emulated with columns):
+                ui.columns(8, "texture_columns", true);
+
+                // Header row:
+                table_row("Index");
+                table_row("Name");
+                table_row("Size");
+                table_row("Change Settings");
+                table_row("Mipmaps");
+                table_row("Filter");
+                table_row("Wrap");
+                table_row("Unit");
+
+                ui.separator();
+
+                for (index, entry) in &mut self.textures {
+                    table_row(&format!("{}", index));
+                    table_row(&entry.texture.name);
+                    table_row(&format!("{}x{}", entry.texture.size.width, entry.texture.size.height));
+                    table_row(bool_str(entry.allow_settings_change));
+                    table_row(bool_str(entry.texture.has_mipmaps));
+                    table_row(&entry.texture.filter.to_string());
+                    table_row(&entry.texture.wrap_mode.to_string());
+                    table_row(&format!("{}", entry.texture.tex_unit.0));
+                }
+
+                // Return to single column.
+                ui.columns(1, "", false);
+            }
+        }
     }
 }

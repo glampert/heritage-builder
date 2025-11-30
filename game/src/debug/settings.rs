@@ -1,5 +1,3 @@
-use num_enum::TryFromPrimitive;
-use strum::VariantArray;
 use proc_macros::DrawDebugUi;
 
 use crate::{
@@ -7,7 +5,6 @@ use crate::{
     debug,
     imgui_ui::{self, UiStaticVar},
     engine::config::Configs,
-    render::{TextureFilter, TextureWrapMode},
     utils::{Color, Size},
     game::{
         self,
@@ -583,42 +580,10 @@ impl DebugSettingsMenu {
         ui.window("Texture Settings")
           .opened(&mut self.show_texture_settings)
           .position([500.0, 20.0], imgui::Condition::FirstUseEver)
-          .size([250.0, 100.0], imgui::Condition::FirstUseEver)
+          .size([300.0, 150.0], imgui::Condition::FirstUseEver)
           .build(|| {
               let tex_cache = game_loop.engine_mut().texture_cache_mut();
-
-              let mut current_settings = tex_cache.current_texture_settings();
-              let mut settings_changed = false;
-
-              let mut current_filter_index = current_settings.filter as usize;
-              if ui.combo("Filter",
-                          &mut current_filter_index,
-                          TextureFilter::VARIANTS,
-                          |v| { v.to_string().into() })
-              {
-                  settings_changed = true;
-              }
-
-              let mut current_wrap_mode_index = current_settings.wrap_mode as usize;
-              if ui.combo("Wrap Mode",
-                          &mut current_wrap_mode_index,
-                          TextureWrapMode::VARIANTS,
-                          |v| { v.to_string().into() })
-              {
-                  settings_changed = true;
-              }
-
-              let mut gen_mipmaps = current_settings.gen_mipmaps;
-              if ui.checkbox("Mipmaps", &mut gen_mipmaps) {
-                  settings_changed = true;
-              }
-
-              if settings_changed {
-                  current_settings.filter = TextureFilter::try_from_primitive(current_filter_index as u32).unwrap();
-                  current_settings.wrap_mode = TextureWrapMode::try_from_primitive(current_wrap_mode_index as u32).unwrap();
-                  current_settings.gen_mipmaps = gen_mipmaps;
-                  tex_cache.change_texture_settings(current_settings);
-              }
+              tex_cache.draw_debug_ui(context.ui_sys);
           });
     }
 

@@ -4,7 +4,10 @@ use strum_macros::{Display, VariantArray};
 use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 
-use crate::utils::{Color, Rect, RectTexCoords, Size, Vec2};
+use crate::{
+    imgui_ui::UiSystem,
+    utils::{Color, Rect, RectTexCoords, Size, Vec2}
+};
 
 // Internal implementation.
 mod opengl;
@@ -418,10 +421,11 @@ impl Default for TextureSettings {
 
 pub trait TextureCache: Any {
     fn as_any(&self) -> &dyn Any;
+    fn draw_debug_ui(&mut self, ui_sys: &UiSystem);
+    fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle;
 
     // Load texture with default settings, which can be overridden by change_texture_settings().
     fn load_texture(&mut self, file_path: &str) -> TextureHandle;
-    fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle;
 
     // If settings are provided they will be used and will not be affected by change_texture_settings().
     fn load_texture_with_settings(&mut self,
@@ -429,6 +433,7 @@ pub trait TextureCache: Any {
                                   settings: Option<TextureSettings>)
                                   -> TextureHandle;
 
+    // Global texture settings override:
     fn change_texture_settings(&mut self, settings: TextureSettings);
     fn current_texture_settings(&self) -> TextureSettings;
 
@@ -439,6 +444,7 @@ pub trait TextureCache: Any {
                                  settings: Option<TextureSettings>)
                                  -> TextureHandle;
 
+    // Update texture mip-level sub-rect or whole texture.
     fn update_texture(&mut self,
                       handle: TextureHandle,
                       offset_x: u32,
@@ -447,5 +453,6 @@ pub trait TextureCache: Any {
                       mip_level: u32,
                       pixels: &[u8]);
 
+    // Explicitly unloads a texture. `handle` is set to invalid after this call.
     fn release_texture(&mut self, handle: &mut TextureHandle);
 }
