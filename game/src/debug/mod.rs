@@ -8,7 +8,7 @@ use settings::DebugSettingsMenu;
 use crate::{
     singleton_late_init,
     render::TextureCache,
-    save::{Load, PostLoadContext, Save},
+    save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{sim, config::GameConfigs, GameLoop, menu::*},
     tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind},
     utils::{coords::{Cell, CellRange}, mem::{self, SingleThreadStatic}}
@@ -74,10 +74,10 @@ impl GameMenusSystem for DevEditorMenus {
 impl Drop for DevEditorMenus {
     fn drop(&mut self) {
         // Make sure tile inspector is closed.
-        DevEditorMenusSingleton::get_mut().tile_inspector_menu.close();
+        DevEditorMenusSingleton::get_mut().close_tile_inspector();
 
-        // Clear all registered callbacks and global tile map ref.
-        remove_tile_map_debug_callbacks();
+        // Clear the cached global tile map ptr.
+        TILE_MAP_DEBUG_PTR.set(None);
     }
 }
 
@@ -88,9 +88,17 @@ impl Drop for DevEditorMenus {
 impl Save for DevEditorMenus {}
 
 impl Load for DevEditorMenus {
+    fn pre_load(&mut self, _context: &PreLoadContext) {
+        // Make sure tile inspector is closed.
+        DevEditorMenusSingleton::get_mut().close_tile_inspector();
+
+        // Clear all registered callbacks and global tile map ref.
+        remove_tile_map_debug_callbacks();
+    }
+
     fn post_load(&mut self, context: &PostLoadContext) {
         // Make sure tile inspector is closed.
-        DevEditorMenusSingleton::get_mut().tile_inspector_menu.close();
+        DevEditorMenusSingleton::get_mut().close_tile_inspector();
 
         // Re-register debug editor callbacks and reset the global tile map ref.
         register_tile_map_debug_callbacks(context.tile_map_mut());
@@ -118,6 +126,10 @@ impl DevEditorMenusSingleton {
             tile_inspector_menu: TileInspectorMenu::default(),
             enable_tile_inspector,
         }
+    }
+
+    fn close_tile_inspector(&mut self) {
+        self.tile_inspector_menu.close();
     }
 
     fn draw_debug_menus(&mut self, menu_context: &mut GameMenusContext, visible_range: CellRange) {
