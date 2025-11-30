@@ -256,7 +256,7 @@ mod packer {
             let img_height = TEXTURE_PACKER_CONFIG.max_height;
             let image = RgbaImage::new(img_width, img_height);
 
-            let tex_name = format!("tex_atlas_page_{}", self.page_count());
+            let tex_name = format!("tex_atlas_{}_page_{}", self.layer.to_string().to_lowercase(), self.page_count());
             let tex_size = Size::new(img_width as i32, img_height as i32);
 
             let texture = {
