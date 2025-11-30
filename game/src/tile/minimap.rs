@@ -10,6 +10,7 @@ use super::{
 };
 
 use crate::{
+    singleton,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
     imgui_ui::{self, UiSystem, UiTextureHandle, UiStaticVar},
@@ -299,6 +300,10 @@ impl MinimapTexture {
 // MinimapIcon / MinimapIconInstance
 // ----------------------------------------------
 
+pub const MINIMAP_ICON_SIZE: f32 = 20.0; // W & H in pixels.
+pub const MINIMAP_ICON_COUNT: usize = MinimapIcon::COUNT;
+pub const MINIMAP_ICON_DEFAULT_LIFETIME: Seconds = 5.0;
+
 #[repr(u8)]
 #[derive(Copy, Clone, EnumCount, EnumIter, EnumProperty)]
 pub enum MinimapIcon {
@@ -314,9 +319,6 @@ impl MinimapIcon {
     }
 }
 
-pub const MINIMAP_ICON_DEFAULT_LIFETIME: Seconds = 5.0;
-pub const MINIMAP_ICON_SIZE: f32 = 20.0; // W & H in pixels.
-
 #[derive(Copy, Clone)]
 struct MinimapIconInstance {
     icon: MinimapIcon,
@@ -330,6 +332,49 @@ struct MinimapIconInstance {
     time_left: Seconds,
 }
 
+// Takes care of loading the icon textures exactly once.
+struct MinimapIconTexCache {
+    textures: [TextureHandle; MINIMAP_ICON_COUNT],
+}
+
+impl MinimapIconTexCache {
+    const fn new() -> Self {
+        Self { textures: [TextureHandle::invalid(); MINIMAP_ICON_COUNT] }
+    }
+
+    #[inline]
+    fn icon_texture(&self, icon: MinimapIcon) -> TextureHandle {
+        let texture = self.textures[icon as usize];
+        debug_assert!(texture.is_valid());
+        texture
+    }
+
+    #[inline]
+    fn are_icon_textures_loaded(&self) -> bool {
+        self.textures[0].is_valid()
+    }
+
+    fn load_icon_textures(&mut self, tex_cache: &mut dyn TextureCache) {
+        let settings = TextureSettings {
+            filter: TextureFilter::Linear,
+            gen_mipmaps: false,
+            ..Default::default()
+        };
+
+        for icon in MinimapIcon::iter() {
+            let texture = &mut self.textures[icon as usize];
+            debug_assert!(!texture.is_valid(), "Minimap icon texture is already loaded!");
+
+            *texture = tex_cache.load_texture_with_settings(
+                icon.asset_path().to_str().unwrap(),
+                Some(settings)
+            );
+        }
+    }
+}
+
+singleton! { MINIMAP_ICON_TEX_CACHE_SINGLETON, MinimapIconTexCache }
+
 // ----------------------------------------------
 // Minimap
 // ----------------------------------------------
@@ -338,7 +383,6 @@ struct MinimapIconInstance {
 pub struct Minimap {
     texture: MinimapTexture,
     icons: Vec<MinimapIconInstance>,
-    icon_textures: [TextureHandle; MinimapIcon::COUNT],
 }
 
 impl Minimap {
@@ -347,15 +391,14 @@ impl Minimap {
             // One pixel per tile map cell.
             texture: MinimapTexture::new(size_in_cells),
             icons: Vec::new(),
-            icon_textures: [TextureHandle::invalid(); MinimapIcon::COUNT],
         }
     }
 
     #[inline]
     pub fn update(&mut self, tex_cache: &mut dyn TextureCache, delta_time_secs: Seconds) {
         // Preload icon textures once:
-        if !self.icon_textures[0].is_valid() {
-            self.load_icon_textures(tex_cache);
+        if !MinimapIconTexCache::get().are_icon_textures_loaded() {
+            MinimapIconTexCache::get_mut().load_icon_textures(tex_cache);
         }
 
         self.texture.update(tex_cache);
@@ -437,7 +480,7 @@ impl Minimap {
         self.icons.push(MinimapIconInstance {
             icon,
             target_cell,
-            texture: self.icon_texture(icon),
+            texture: MinimapIconTexCache::get().icon_texture(icon),
             tint,
             lifetime: lifetime_secs,
             time_left: lifetime_secs,
@@ -507,31 +550,6 @@ impl Minimap {
                 .col(imgui::ImColor32::from_rgba_f32s(icon_tint.r, icon_tint.g, icon_tint.b, icon_tint_alpha))
                 .build();
         }
-    }
-
-    fn load_icon_textures(&mut self, tex_cache: &mut dyn TextureCache) {
-        let settings = TextureSettings {
-            filter: TextureFilter::Linear,
-            gen_mipmaps: false,
-            ..Default::default()
-        };
-
-        for icon in MinimapIcon::iter() {
-            let texture = &mut self.icon_textures[icon as usize];
-            debug_assert!(!texture.is_valid(), "Minimap icon texture is already loaded!");
-
-            *texture = tex_cache.load_texture_with_settings(
-                icon.asset_path().to_str().unwrap(),
-                Some(settings)
-            );
-        }
-    }
-
-    #[inline]
-    fn icon_texture(&self, icon: MinimapIcon) -> TextureHandle {
-        let texture = self.icon_textures[icon as usize];
-        debug_assert!(texture.is_valid());
-        texture
     }
 
     // ----------------------
