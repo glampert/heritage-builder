@@ -520,6 +520,18 @@ impl Rect {
     }
 
     #[inline]
+    pub fn scaled(&self, factor: f32) -> Self {
+        if factor == 1.0 {
+            return *self;
+        }
+
+        let center    = (self.min + self.max) * 0.5;
+        let half_size = (self.max - self.min) * 0.5 * factor;
+
+        Self { min: center - half_size, max: center + half_size }
+    }
+
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.width() > 0.0 && self.height() > 0.0
     }
