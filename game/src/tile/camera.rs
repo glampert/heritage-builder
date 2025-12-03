@@ -94,6 +94,9 @@ pub struct Camera {
     current_zoom: f32,
     target_zoom: f32,
     is_zooming: bool,
+
+    #[serde(skip)]
+    is_scrolling: bool,
 }
 
 impl Camera {
@@ -117,12 +120,15 @@ impl Camera {
                                                              Vec2::new(x, y)),
         };
 
-        Self { viewport_size,
-               map_size_in_cells,
-               transform: WorldToScreenTransform::new(clamped_scaling, clamped_offset),
-               current_zoom: clamped_scaling,
-               target_zoom: clamped_scaling,
-               is_zooming: false }
+        Self {
+            viewport_size,
+            map_size_in_cells,
+            transform: WorldToScreenTransform::new(clamped_scaling, clamped_offset),
+            current_zoom: clamped_scaling,
+            target_zoom: clamped_scaling,
+            is_zooming: false,
+            is_scrolling: false
+        }
     }
 
     #[inline]
@@ -240,6 +246,11 @@ impl Camera {
     // ----------------------
 
     #[inline]
+    pub fn is_scrolling(&self) -> bool {
+        self.is_scrolling
+    }
+
+    #[inline]
     pub fn scroll_limits(&self) -> (Vec2, Vec2) {
         let bounds = calc_map_bounds(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
         (bounds.min, bounds.max)
@@ -264,12 +275,14 @@ impl Camera {
                             cursor_screen_pos: Vec2,
                             delta_time_secs: Seconds) {
         let scroll_delta = calc_scroll_delta(ui_sys, cursor_screen_pos, self.viewport_size);
-        let scroll_speed = calc_scroll_speed(ui_sys, cursor_screen_pos, self.viewport_size);
+        let scroll_speed  = calc_scroll_speed(ui_sys, cursor_screen_pos, self.viewport_size);
 
         let offset_change = scroll_delta * scroll_speed * delta_time_secs;
         let current = self.current_scroll();
 
         self.set_scroll(Vec2::new(current.x + offset_change.x, current.y + offset_change.y));
+
+        self.is_scrolling = (offset_change.x > 0.0 || offset_change.y > 0.0) && current != self.current_scroll();
     }
 
     // Center camera to the map.
