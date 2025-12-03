@@ -163,13 +163,15 @@ impl Camera {
 
     #[inline]
     pub fn iso_world_position(&self) -> Vec2 {
-        let viewport_center = Vec2::new(
-            self.viewport_size.width  as f32 * 0.5,
-            self.viewport_size.height as f32 * 0.5,
-        );
-
+        let viewport_center = self.viewport_size.to_vec2() * 0.5;
         // Convert screen -> iso/world
         (viewport_center - self.transform.offset) / self.transform.scaling
+    }
+
+    #[inline]
+    pub fn iso_viewport_center(&self) -> Vec2 {
+        let viewport_center = self.viewport_size.to_vec2() * 0.5;
+        viewport_center / self.transform.scaling
     }
 
     // ----------------------
