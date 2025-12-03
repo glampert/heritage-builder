@@ -678,7 +678,7 @@ impl Minimap {
 
         let window_position = [
             parent_window_position[0] + parent_window_size[0] + 10.0,
-            parent_window_position[1] - 30.0,
+            parent_window_position[1] - 50.0,
         ];
 
         let window_flags =
@@ -716,6 +716,8 @@ impl Minimap {
                     minimap.scroll_speed_px = minimap.scroll_speed_px.max(1.0);
                 }
 
+                let camera_center = minimap_camera_center_in_cells(camera);
+
                 if imgui_ui::input_f32(ui,
                     "Zoom:",
                     &mut minimap.zoom,
@@ -724,7 +726,6 @@ impl Minimap {
                 {
                     minimap.zoom = minimap.zoom.clamp(1.0, 5.0);
 
-                    let camera_center = minimap_camera_center_in_cells(camera);
                     minimap.offsets = calc_minimap_offsets_from_center(
                         camera_center,
                         minimap.size.to_vec2(),
@@ -741,7 +742,9 @@ impl Minimap {
 
                 let (uv_min, uv_max) =
                     calc_minimap_rect_uvs(minimap.size.to_vec2(), minimap.offsets, minimap.zoom);
+
                 ui.text(format!("UVs min:{uv_min} max:{uv_max}"));
+                ui.text(format!("Cam Center Cell: {camera_center}"));
 
                 if camera_corners_outside_minimap.is_empty() {
                     ui.text("Camera Corners Out: None");
