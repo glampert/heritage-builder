@@ -1,5 +1,6 @@
-use std::marker::PhantomData;
+#![allow(clippy::mut_from_ref)]
 
+use std::marker::PhantomData;
 use config::EngineConfigs;
 use time::{FrameClock, Seconds};
 
@@ -51,11 +52,9 @@ pub trait Engine {
     fn input_system(&self) -> &dyn InputSystem;
 
     fn render_system(&mut self) -> &mut dyn RenderSystem;
+    fn texture_cache(&self) -> &mut dyn TextureCache;
     fn render_stats(&self) -> &RenderStats;
     fn tile_map_render_stats(&self) -> &TileMapRenderStats;
-
-    fn texture_cache(&self) -> &dyn TextureCache;
-    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache;
 
     fn ui_system(&self) -> &UiSystem;
     fn sound_system(&mut self) -> &mut SoundSystem;
@@ -75,9 +74,9 @@ pub trait Engine {
     fn end_frame(&mut self);
 
     fn draw_tile_map(&mut self,
-                     tile_map: &TileMap,
+                     tile_map: &mut TileMap,
                      tile_selection: &TileSelection,
-                     camera: &mut Camera,
+                     camera: &Camera,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags);
 }
@@ -253,13 +252,8 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 
     #[inline]
-    fn texture_cache(&self) -> &dyn TextureCache {
-        self.render_system.texture_cache()
-    }
-
-    #[inline]
-    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache {
-        self.render_system.texture_cache_mut()
+    fn texture_cache(&self) -> &mut dyn TextureCache {
+        mem::mut_ref_cast(self.render_system.as_ref()).texture_cache_mut()
     }
 
     #[inline]
@@ -335,16 +329,15 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 
     fn draw_tile_map(&mut self,
-                     tile_map: &TileMap,
+                     tile_map: &mut TileMap,
                      tile_selection: &TileSelection,
-                     camera: &mut Camera,
+                     camera: &Camera,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags) {
         if !tile_map.size_in_cells().is_valid() {
             return;
         }
 
-        let cursor_screen_pos = self.app.input_system().cursor_pos();
         let render_sys = &mut *self.render_system;
         let ui_sys = &self.ui_system;
 
@@ -356,7 +349,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                                                                      flags);
 
         tile_selection.draw(render_sys);
-        tile_map.minimap().draw(camera, render_sys, ui_sys, cursor_screen_pos);
+        tile_map.minimap_mut().draw(render_sys, ui_sys, camera);
     }
 }
 
@@ -365,9 +358,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
 // ----------------------------------------------
 
 pub trait DebugDraw {
-    fn texture_cache(&self) -> &dyn TextureCache;
-    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache;
-
+    fn texture_cache(&self) -> &mut dyn TextureCache;
     fn point(&mut self, pt: Vec2, color: Color, size: f32);
 
     fn line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color);
@@ -404,13 +395,8 @@ impl<RenderSystemBackendImpl> DebugDraw for DebugDrawBackend<RenderSystemBackend
     where RenderSystemBackendImpl: RenderSystem
 {
     #[inline]
-    fn texture_cache(&self) -> &dyn TextureCache {
-        self.render_system.texture_cache()
-    }
-
-    #[inline]
-    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache {
-        self.render_system.texture_cache_mut()
+    fn texture_cache(&self) -> &mut dyn TextureCache {
+        self.render_system.mut_ref_cast().texture_cache_mut()
     }
 
     #[inline]

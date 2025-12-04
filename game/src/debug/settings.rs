@@ -582,7 +582,7 @@ impl DebugSettingsMenu {
           .position([500.0, 20.0], imgui::Condition::FirstUseEver)
           .size([300.0, 150.0], imgui::Condition::FirstUseEver)
           .build(|| {
-              let tex_cache = game_loop.engine_mut().texture_cache_mut();
+              let tex_cache = game_loop.engine_mut().texture_cache();
               tex_cache.draw_debug_ui(context.ui_sys);
           });
     }

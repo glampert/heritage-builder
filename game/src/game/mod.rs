@@ -371,7 +371,7 @@ impl GameSession {
             }
         };
 
-        self.pre_load(&PreLoadContext::new(GameLoop::get_mut().engine_mut().texture_cache_mut()));
+        self.pre_load(&PreLoadContext::new(GameLoop::get().engine().texture_cache()));
         *self = session;
         self.post_load(&PostLoadContext::new(&self.tile_map));
 
@@ -438,15 +438,15 @@ impl GameLoop {
         let configs = GameConfigs::load();
 
         // Boot the engine and load assets:
-        let mut engine = Self::init_engine(&configs.engine);
-        Self::load_assets(engine.texture_cache_mut(), configs);
+        let engine = Self::init_engine(&configs.engine);
+        Self::load_assets(engine.texture_cache(), configs);
 
         // Global initialization:
         cheats::initialize();
         undo_redo::initialize();
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
-        debug::init_dev_editor_menus(configs, engine.texture_cache_mut());
+        debug::init_dev_editor_menus(configs, engine.texture_cache());
         CameraGlobalSettings::get_mut().set_from_game_configs(configs);
 
         let instance = Self {
@@ -730,15 +730,26 @@ impl GameLoop {
                      delta_time_secs: Seconds,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags) {
+        let tex_cache = self.engine.texture_cache();
+        let input_sys = self.engine.input_system();
+        let ui_sys = self.engine.ui_system();
+
         let session = self.session.as_mut().unwrap();
 
-        session.tile_map.minimap_mut().update(self.engine.texture_cache_mut(), delta_time_secs);
+        session.tile_map.minimap_mut().update(&mut session.camera,
+                                              tex_cache,
+                                              input_sys,
+                                              ui_sys,
+                                              delta_time_secs);
 
-        self.engine.draw_tile_map(&session.tile_map,
+        self.engine.draw_tile_map(&mut session.tile_map,
                                   &session.tile_selection,
-                                  &mut session.camera,
+                                  &session.camera,
                                   visible_range,
                                   flags);
+
+        session.tile_map.minimap_mut().draw_debug_ui(&mut session.camera,
+                                                     self.engine.ui_system());
     }
 
     fn update_autosave(&mut self) {
