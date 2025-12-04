@@ -21,7 +21,7 @@ use crate::{
     pathfind::NodeKind as PathNodeKind,
     save::*,
     utils::{
-        coords::{self, Cell, CellRange, IsoPoint, WorldToScreenTransform},
+        coords::{self, Cell, CellRange, IsoPoint, WorldToScreenTransform, IsoPointF32},
         platform::paths,
         hash::StringHash,
         mem, Color, Rect, Size, Vec2,
@@ -331,14 +331,14 @@ trait TileBehavior {
 
     fn set_flags(&mut self, current_flags: &mut TileFlags, new_flags: TileFlags, value: bool);
     fn set_base_cell(&mut self, cell: Cell);
-    fn set_iso_coords_f32(&mut self, iso_coords: Vec2);
+    fn set_iso_coords_f32(&mut self, iso_coords: IsoPointF32);
     fn set_variation_index(&mut self, index: usize);
 
     fn game_object_handle(&self) -> TileGameObjectHandle;
     fn set_game_object_handle(&mut self, handle: TileGameObjectHandle);
 
     fn z_sort_key(&self) -> i32;
-    fn iso_coords_f32(&self) -> Vec2;
+    fn iso_coords_f32(&self) -> IsoPointF32;
 
     fn actual_base_cell(&self) -> Cell;
     fn cell_range(&self) -> CellRange;
@@ -370,14 +370,14 @@ struct TerrainTile {
     cell: Cell,
 
     // Cached on construction.
-    iso_coords_f32: Vec2,
+    iso_coords_f32: IsoPointF32,
 }
 
 impl TerrainTile {
     fn new(cell: Cell, tile_def: &'static TileDef) -> Self {
         Self { def: TileDefRef::new(tile_def),
                cell,
-               iso_coords_f32: coords::cell_to_iso(cell, BASE_TILE_SIZE).to_vec2() }
+               iso_coords_f32: IsoPointF32::from_integer_iso(coords::cell_to_iso(cell, BASE_TILE_SIZE)) }
     }
 }
 
@@ -396,11 +396,11 @@ impl TileBehavior for TerrainTile {
     #[inline]
     fn set_base_cell(&mut self, cell: Cell) {
         self.cell = cell;
-        self.iso_coords_f32 = coords::cell_to_iso(cell, BASE_TILE_SIZE).to_vec2();
+        self.iso_coords_f32 = IsoPointF32::from_integer_iso(coords::cell_to_iso(cell, BASE_TILE_SIZE));
     }
 
     #[inline]
-    fn set_iso_coords_f32(&mut self, iso_coords: Vec2) {
+    fn set_iso_coords_f32(&mut self, iso_coords: IsoPointF32) {
         self.iso_coords_f32 = iso_coords;
     }
 
@@ -417,11 +417,11 @@ impl TileBehavior for TerrainTile {
 
     #[inline]
     fn z_sort_key(&self) -> i32 {
-        self.iso_coords_f32.y as i32
+        self.iso_coords_f32.0.y as i32
     }
 
     #[inline]
-    fn iso_coords_f32(&self) -> Vec2 {
+    fn iso_coords_f32(&self) -> IsoPointF32 {
         self.iso_coords_f32
     }
 
@@ -481,7 +481,7 @@ struct ObjectTile {
     anim_state: TileAnimState,
 
     // Cached on construction.
-    iso_coords_f32: Vec2,
+    iso_coords_f32: IsoPointF32,
 }
 
 impl ObjectTile {
@@ -533,7 +533,7 @@ impl TileBehavior for ObjectTile {
     }
 
     #[inline]
-    fn set_iso_coords_f32(&mut self, iso_coords: Vec2) {
+    fn set_iso_coords_f32(&mut self, iso_coords: IsoPointF32) {
         self.iso_coords_f32 = iso_coords;
     }
 
@@ -556,7 +556,7 @@ impl TileBehavior for ObjectTile {
     }
 
     #[inline]
-    fn iso_coords_f32(&self) -> Vec2 {
+    fn iso_coords_f32(&self) -> IsoPointF32 {
         self.iso_coords_f32
     }
 
@@ -598,7 +598,7 @@ fn calc_object_z_sort_key(base_cell: Cell, logical_height: i32) -> i32 {
 }
 
 #[inline]
-pub fn calc_unit_iso_coords(base_cell: Cell, draw_size: Size) -> Vec2 {
+pub fn calc_unit_iso_coords(base_cell: Cell, draw_size: Size) -> IsoPointF32 {
     calc_object_iso_coords(TileKind::Unit, base_cell, BASE_TILE_SIZE, draw_size)
 }
 
@@ -607,7 +607,7 @@ pub fn calc_object_iso_coords(kind: TileKind,
                               base_cell: Cell,
                               logical_size: Size,
                               draw_size: Size)
-                              -> Vec2 {
+                              -> IsoPointF32 {
     // Convert the anchor (bottom tile for buildings) to isometric coordinates:
     let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
 
@@ -629,7 +629,7 @@ pub fn calc_object_iso_coords(kind: TileKind,
         tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2) - (BASE_TILE_SIZE.height / 4);
     }
 
-    tile_iso_coords.to_vec2()
+    IsoPointF32::from_integer_iso(tile_iso_coords)
 }
 
 // ----------------------------------------------
@@ -699,7 +699,7 @@ impl TileBehavior for BlockerTile {
     }
 
     #[inline]
-    fn set_iso_coords_f32(&mut self, _iso_coords: Vec2) {
+    fn set_iso_coords_f32(&mut self, _iso_coords: IsoPointF32) {
         unimplemented!("Not implemented for BlockerTile!");
     }
 
@@ -725,7 +725,7 @@ impl TileBehavior for BlockerTile {
     }
 
     #[inline]
-    fn iso_coords_f32(&self) -> Vec2 {
+    fn iso_coords_f32(&self) -> IsoPointF32 {
         self.owner().iso_coords_f32()
     }
 
@@ -914,22 +914,22 @@ impl Tile {
     #[inline]
     pub fn iso_coords(&self) -> IsoPoint {
         let coords_f32 = self.iso_coords_f32();
-        IsoPoint::new(coords_f32.x as i32, coords_f32.y as i32)
+        coords_f32.to_integer_iso()
     }
 
     #[inline]
-    pub fn iso_coords_f32(&self) -> Vec2 {
+    pub fn iso_coords_f32(&self) -> IsoPointF32 {
         self.archetype.iso_coords_f32()
     }
 
     #[inline]
     pub fn set_iso_coords(&mut self, iso_coords: IsoPoint) {
-        let coords_f32 = iso_coords.to_vec2();
+        let coords_f32 = IsoPointF32::from_integer_iso(iso_coords);
         self.set_iso_coords_f32(coords_f32);
     }
 
     #[inline]
-    pub fn set_iso_coords_f32(&mut self, iso_coords: Vec2) {
+    pub fn set_iso_coords_f32(&mut self, iso_coords: IsoPointF32) {
         // Native internal format is f32.
         self.archetype.set_iso_coords_f32(iso_coords);
 
@@ -946,7 +946,7 @@ impl Tile {
         let draw_size = self.draw_size();
         let mut iso_position = self.iso_coords_f32();
         if apply_variation_offset {
-            iso_position += self.variation_offset();
+            iso_position.0 += self.variation_offset();
         }
         coords::iso_to_screen_rect_f32(iso_position, draw_size, transform)
     }

@@ -16,7 +16,7 @@ use crate::{
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
     imgui_ui::{self, UiStaticVar, UiSystem, UiTextureHandle},
-    utils::{Color, Rect, Size, Vec2, coords::{self, Cell}, platform::paths},
+    utils::{Color, Rect, Size, Vec2, coords::{self, Cell, CellF32, IsoPointF32}, platform::paths},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
 };
 
@@ -716,7 +716,7 @@ impl Minimap {
                     minimap.scroll_speed_px = minimap.scroll_speed_px.max(1.0);
                 }
 
-                let camera_center = minimap_camera_center_in_cells(camera);
+                let camera_center = minimap_camera_center_cell(camera);
 
                 if imgui_ui::input_f32(ui,
                     "Zoom:",
@@ -744,7 +744,7 @@ impl Minimap {
                     calc_minimap_rect_uvs(minimap.size.to_vec2(), minimap.offsets, minimap.zoom);
 
                 ui.text(format!("UVs min:{uv_min} max:{uv_max}"));
-                ui.text(format!("Cam Center Cell: {camera_center}"));
+                ui.text(format!("Cam Center Cell: {}", camera_center.0));
 
                 if camera_corners_outside_minimap.is_empty() {
                     ui.text("Camera Corners Out: None");
@@ -864,12 +864,12 @@ fn cell_to_minimap_uv_f32(x: f32, y: f32, size: Size) -> Vec2 {
     )
 }
 
-fn minimap_uv_to_cell_f32(uv: Vec2, size: Size) -> Vec2 {
-    Vec2::new(
+fn minimap_uv_to_cell_f32(uv: Vec2, size: Size) -> CellF32 {
+    CellF32(Vec2::new(
         uv.x * size.width as f32,
         // NOTE: Flip V for ImGui (because OpenGL textures have V=0 at bottom).
         (1.0 - uv.y) * size.height as f32,
-    )
+    ))
 }
 
 // Map minimap UVs in [0,1] range into minimap screen pixels.
@@ -892,8 +892,8 @@ fn cell_to_minimap_px(minimap: &MinimapWidget, origin: Vec2, cell: Cell) -> Vec2
     minimap_uv_to_minimap_px(minimap, origin, uv)
 }
 
-fn cell_to_minimap_px_f32(minimap: &MinimapWidget, origin: Vec2, cell_frac: Vec2) -> Vec2 {
-    let uv = cell_to_minimap_uv_f32(cell_frac.x, cell_frac.y, minimap.size);
+fn cell_to_minimap_px_f32(minimap: &MinimapWidget, origin: Vec2, cell: CellF32) -> Vec2 {
+    let uv = cell_to_minimap_uv_f32(cell.0.x, cell.0.y, minimap.size);
     minimap_uv_to_minimap_px(minimap, origin, uv)
 }
 
@@ -902,7 +902,7 @@ fn cell_to_minimap_px_f32(minimap: &MinimapWidget, origin: Vec2, cell_frac: Vec2
 // ----------------------------------------------
 
 // Returns floating-point isometric coords without rounding to cell space.
-fn pick_minimap_iso(minimap: &MinimapWidget, origin: Vec2, cursor_screen_pos: Vec2) -> Option<Vec2> {
+fn pick_minimap_iso(minimap: &MinimapWidget, origin: Vec2, cursor_screen_pos: Vec2) -> Option<IsoPointF32> {
     // Undo minimap rotation first if needed:
     let minimap_px = {
         if minimap.rotated {
@@ -924,9 +924,9 @@ fn pick_minimap_iso(minimap: &MinimapWidget, origin: Vec2, cursor_screen_pos: Ve
     if minimap.rotated {
         // Compute corresponding *continuous* cell coordinates.
         // (0..map_width, 0..map_height), no rounding.
-        let cell_frac = minimap_uv_to_cell_f32(uv, minimap.size);
+        let cell = minimap_uv_to_cell_f32(uv, minimap.size);
 
-        Some(coords::cell_to_iso_f32(cell_frac, BASE_TILE_SIZE))
+        Some(coords::cell_to_iso_f32(cell, BASE_TILE_SIZE))
     } else {
         // Unrotated: sample continuous iso coords directly.
         let bounds = calc_map_bounds_iso(minimap.size);
@@ -934,7 +934,7 @@ fn pick_minimap_iso(minimap: &MinimapWidget, origin: Vec2, cursor_screen_pos: Ve
         let iso_x = bounds.min.x + (uv.x * bounds.width());
         let iso_y = bounds.min.y + (uv.y * bounds.height());
 
-        Some(Vec2::new(iso_x, iso_y))
+        Some(IsoPointF32(Vec2::new(iso_x, iso_y)))
     }
 }
 
@@ -960,14 +960,14 @@ fn minimap_camera_rect_in_screen_px(minimap: &MinimapWidget, origin: Vec2, camer
     let (uv_min, uv_max) = {
         if minimap.rotated {
             // Convert iso rect corners to fractional cell coordinates (continuous):
-            let cell_min_frac = coords::iso_to_cell_f32(center_iso - half_iso, BASE_TILE_SIZE);
-            let cell_max_frac = coords::iso_to_cell_f32(center_iso + half_iso, BASE_TILE_SIZE);
+            let cell_min_frac = coords::iso_to_cell_f32(IsoPointF32(center_iso.0 - half_iso.0), BASE_TILE_SIZE);
+            let cell_max_frac = coords::iso_to_cell_f32(IsoPointF32(center_iso.0 + half_iso.0), BASE_TILE_SIZE);
 
             // Important: ensure correct ordering (min <= max) after transform.
-            let cell_x_min = cell_min_frac.x.min(cell_max_frac.x);
-            let cell_x_max = cell_min_frac.x.max(cell_max_frac.x);
-            let cell_y_min = cell_min_frac.y.min(cell_max_frac.y);
-            let cell_y_max = cell_min_frac.y.max(cell_max_frac.y);
+            let cell_x_min = cell_min_frac.0.x.min(cell_max_frac.0.x);
+            let cell_x_max = cell_min_frac.0.x.max(cell_max_frac.0.x);
+            let cell_y_min = cell_min_frac.0.y.min(cell_max_frac.0.y);
+            let cell_y_max = cell_min_frac.0.y.max(cell_max_frac.0.y);
 
             let uv_min = cell_to_minimap_uv_f32(cell_x_min, cell_y_min, minimap.size);
             let uv_max = cell_to_minimap_uv_f32(cell_x_max, cell_y_max, minimap.size);
@@ -982,8 +982,8 @@ fn minimap_camera_rect_in_screen_px(minimap: &MinimapWidget, origin: Vec2, camer
                 )
             }
 
-            let iso_min = center_iso - half_iso;
-            let iso_max = center_iso + half_iso;
+            let iso_min = center_iso.0 - half_iso.0;
+            let iso_max = center_iso.0 + half_iso.0;
 
             let bounds = calc_map_bounds_iso(minimap.size);
             let uv_min = point_to_uv(&bounds, iso_min);
@@ -1004,28 +1004,28 @@ fn calc_map_bounds_iso(map_size_in_cells: Size) -> Rect {
     let map_height = map_size_in_cells.height as f32;
 
     let points = [
-        coords::cell_to_iso_f32(Vec2::new(0.0, 0.0), BASE_TILE_SIZE),
-        coords::cell_to_iso_f32(Vec2::new(0.0, map_height), BASE_TILE_SIZE),
-        coords::cell_to_iso_f32(Vec2::new(map_width, 0.0), BASE_TILE_SIZE),
-        coords::cell_to_iso_f32(Vec2::new(map_width, map_height), BASE_TILE_SIZE),
+        coords::cell_to_iso_f32(CellF32(Vec2::new(0.0, 0.0)), BASE_TILE_SIZE).0,
+        coords::cell_to_iso_f32(CellF32(Vec2::new(0.0, map_height)), BASE_TILE_SIZE).0,
+        coords::cell_to_iso_f32(CellF32(Vec2::new(map_width, 0.0)), BASE_TILE_SIZE).0,
+        coords::cell_to_iso_f32(CellF32(Vec2::new(map_width, map_height)), BASE_TILE_SIZE).0,
     ];
 
     Rect::aabb(&points)
 }
 
-fn minimap_camera_center_in_cells(camera: &Camera) -> Vec2 {
+fn minimap_camera_center_cell(camera: &Camera) -> CellF32 {
     let center_iso = camera.iso_world_position();
     coords::iso_to_cell_f32(center_iso, BASE_TILE_SIZE)
 }
 
 // Compute minimap scrolling offset so that we zoom *around the camera center*.
 // `camera_center` is the world camera center in minimap pixels (cell coords).
-fn calc_minimap_offsets_from_center(camera_center: Vec2, minimap_size_px: Vec2, zoom: f32) -> Vec2 {
+fn calc_minimap_offsets_from_center(camera_center: CellF32, minimap_size_px: Vec2, zoom: f32) -> Vec2 {
     // Size of the visible window in minimap pixels.
     let visible_size = minimap_size_px / zoom.max(1.0);
 
     // Offset so camera center stays fixed regardless of zoom.
-    let mut offset = camera_center - (visible_size * 0.5);
+    let mut offset = camera_center.0 - (visible_size * 0.5);
 
     // Clamp to texture bounds.
     offset.x = offset.x.clamp(0.0, minimap_size_px.x - visible_size.x);
@@ -1051,7 +1051,7 @@ fn draw_minimap_widget(minimap: &MinimapWidget,
                        texture: UiTextureHandle,
                        camera: &Camera,
                        cursor_screen_pos: Vec2,
-                       ui: &imgui::Ui) -> (Option<Vec2>, CameraRectCorners) {
+                       ui: &imgui::Ui) -> (Option<IsoPointF32>, CameraRectCorners) {
     let draw_list = ui.get_window_draw_list();
     let origin = Vec2::from_array(ui.window_pos());
 
@@ -1178,7 +1178,7 @@ fn draw_camera_rect(draw_list: &imgui::DrawListMut<'_>,
         let screen_point = {
             if minimap.rotated {
                 // We want to visualize the result of minimap_camera_center_in_cells:
-                let camera_center = minimap_camera_center_in_cells(camera);
+                let camera_center = minimap_camera_center_cell(camera);
                 let screen_point  = cell_to_minimap_px_f32(minimap, origin, camera_center);
                 screen_point.rotate_around_point(center, MINIMAP_ROTATION_ANGLE)
             } else {

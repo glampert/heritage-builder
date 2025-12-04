@@ -9,7 +9,7 @@ use crate::{
     save::*,
     utils::{
         self,
-        coords::{self, Cell, CellRange, WorldToScreenTransform},
+        coords::{self, Cell, CellRange, WorldToScreenTransform, IsoPointF32},
         Rect, Size, Vec2
     },
 };
@@ -162,16 +162,16 @@ impl Camera {
     }
 
     #[inline]
-    pub fn iso_world_position(&self) -> Vec2 {
+    pub fn iso_world_position(&self) -> IsoPointF32 {
         let viewport_center = self.viewport_size.to_vec2() * 0.5;
         // Convert screen -> iso/world
-        (viewport_center - self.transform.offset) / self.transform.scaling
+        IsoPointF32((viewport_center - self.transform.offset) / self.transform.scaling)
     }
 
     #[inline]
-    pub fn iso_viewport_center(&self) -> Vec2 {
+    pub fn iso_viewport_center(&self) -> IsoPointF32 {
         let viewport_center = self.viewport_size.to_vec2() * 0.5;
-        viewport_center / self.transform.scaling
+        IsoPointF32(viewport_center / self.transform.scaling)
     }
 
     // ----------------------
@@ -299,10 +299,7 @@ impl Camera {
             return false;
         }
 
-        let viewport_center = Vec2::new(
-            self.viewport_size.width  as f32 / 2.0,
-            self.viewport_size.height as f32 / 2.0
-        );
+        let viewport_center = self.viewport_size.to_vec2() * 0.5;
 
         let iso_point = coords::cell_to_iso(destination_cell, BASE_TILE_SIZE);
 
@@ -317,11 +314,8 @@ impl Camera {
     }
 
     // Snaps the camera to `destination_iso` isometric point.
-    pub fn teleport_iso(&mut self, destination_iso: Vec2) -> bool {
-        let viewport_center = Vec2::new(
-            self.viewport_size.width  as f32 / 2.0,
-            self.viewport_size.height as f32 / 2.0
-        );
+    pub fn teleport_iso(&mut self, destination_iso: IsoPointF32) -> bool {
+        let viewport_center = self.viewport_size.to_vec2() * 0.5;
 
         let transform_no_offset =
             WorldToScreenTransform::new(self.transform.scaling, Vec2::zero());

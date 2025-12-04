@@ -7,7 +7,7 @@ use crate::{
     imgui_ui::UiSystem,
     render::RenderSystem,
     utils::{
-        coords::{self, CellRange, WorldToScreenTransform},
+        coords::{self, CellRange, WorldToScreenTransform, IsoPointF32},
         mem, Color, Vec2,
     },
 };
@@ -438,7 +438,7 @@ impl TileMapRenderer {
             let tex_coords = &tile_sprite.coords;
             let texture = tile_sprite.texture;
 
-            let iso_position = coords::cell_to_iso(cell, tile_def.logical_size).to_vec2();
+            let iso_position = IsoPointF32::from_integer_iso(coords::cell_to_iso(cell, tile_def.logical_size));
             let tile_screen_rect = coords::iso_to_screen_rect_f32(iso_position, tile_def.draw_size, transform);
 
             let mut color = tile_def.color;

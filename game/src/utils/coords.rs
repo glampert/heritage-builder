@@ -43,6 +43,22 @@ impl std::fmt::Display for IsoPoint {
 
 field_accessor_xy! { IsoPoint, i32, x, y }
 
+// IsoPoint with fractional coords.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct IsoPointF32(pub Vec2);
+
+impl IsoPointF32 {
+    #[inline]
+    pub fn from_integer_iso(iso: IsoPoint) -> Self {
+        Self(Vec2::new(iso.x as f32, iso.y as f32))
+    }
+
+    #[inline]
+    pub fn to_integer_iso(self) -> IsoPoint {
+        IsoPoint::new(self.0.x.floor() as i32, self.0.y.floor() as i32)
+    }
+}
+
 // ----------------------------------------------
 // Cell
 // ----------------------------------------------
@@ -104,6 +120,22 @@ impl std::fmt::Display for Cell {
 }
 
 field_accessor_xy! { Cell, i32, x, y }
+
+// Cell with fractional coords.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct CellF32(pub Vec2);
+
+impl CellF32 {
+    #[inline]
+    pub fn from_integer_cell(cell: Cell) -> Self {
+        Self(Vec2::new(cell.x as f32, cell.y as f32))
+    }
+
+    #[inline]
+    pub fn to_integer_cell(self) -> Cell {
+        Cell::new(self.0.x.floor() as i32, self.0.y.floor() as i32)
+    }
+}
 
 // ----------------------------------------------
 // CellRange
@@ -401,28 +433,28 @@ pub fn cell_to_iso(cell: Cell, tile_size: Size) -> IsoPoint {
 // Returns fractional (float) cell coords for a given iso point.
 // NOTE: This is the same as coords::iso_to_cell() but using f32.
 #[inline]
-pub fn iso_to_cell_f32(iso_point: Vec2, tile_size: Size) -> Vec2 {
+pub fn iso_to_cell_f32(iso_point: IsoPointF32, tile_size: Size) -> CellF32 {
     let half_tile_width  = (tile_size.width  / 2) as f32;
     let half_tile_height = (tile_size.height / 2) as f32;
 
     // Invert Y axis to match top-left origin.
-    let cell_x = (( iso_point.x / half_tile_width)  + (-iso_point.y / half_tile_height)) / 2.0;
-    let cell_y = ((-iso_point.y / half_tile_height) - ( iso_point.x / half_tile_width))  / 2.0;
+    let cell_x = (( iso_point.0.x / half_tile_width)  + (-iso_point.0.y / half_tile_height)) / 2.0;
+    let cell_y = ((-iso_point.0.y / half_tile_height) - ( iso_point.0.x / half_tile_width))  / 2.0;
 
-    Vec2::new(cell_x, cell_y)
+    CellF32(Vec2::new(cell_x, cell_y))
 }
 
 // Returns fractional (float) iso coords for a given tile map cell.
 // NOTE: This is the same as coords::cell_to_iso() but using f32.
 #[inline]
-pub fn cell_to_iso_f32(cell: Vec2, tile_size: Size) -> Vec2 {
+pub fn cell_to_iso_f32(cell: CellF32, tile_size: Size) -> IsoPointF32 {
     let half_tile_width  = (tile_size.width  / 2) as f32;
     let half_tile_height = (tile_size.height / 2) as f32;
 
-    let iso_x = (cell.x - cell.y) *  half_tile_width;
-    let iso_y = (cell.x + cell.y) * -half_tile_height; // flip Y (top-left origin)
+    let iso_x = (cell.0.x - cell.0.y) *  half_tile_width;
+    let iso_y = (cell.0.x + cell.0.y) * -half_tile_height; // flip Y (top-left origin)
 
-    Vec2::new(iso_x, iso_y)
+    IsoPointF32(Vec2::new(iso_x, iso_y))
 }
 
 #[inline]
@@ -462,13 +494,13 @@ pub fn iso_to_screen_rect(iso_position: IsoPoint,
 
 // Same as iso_to_screen_rect() but the position is already in floating point.
 #[inline]
-pub fn iso_to_screen_rect_f32(iso_position: Vec2,
+pub fn iso_to_screen_rect_f32(iso_position: IsoPointF32,
                               size: Size,
                               transform: WorldToScreenTransform)
                               -> Rect {
     // Apply offset and scaling:
-    let screen_x = (iso_position.x * transform.scaling) + transform.offset.x;
-    let screen_y = (iso_position.y * transform.scaling) + transform.offset.y;
+    let screen_x = (iso_position.0.x * transform.scaling) + transform.offset.x;
+    let screen_y = (iso_position.0.y * transform.scaling) + transform.offset.y;
 
     // Apply scaling:
     let screen_width  = (size.width  as f32) * transform.scaling;

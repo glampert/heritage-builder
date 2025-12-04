@@ -20,17 +20,15 @@ use super::{
     },
 };
 use crate::{
+    log,
     game_object_debug_options,
     imgui_ui::UiSystem,
-    log,
-    pathfind::{NodeKind as PathNodeKind, Path},
     save::PostLoadContext,
+    pathfind::{NodeKind as PathNodeKind, Path},
     tile::{self, Tile, TileKind, TileMap, TileMapLayerKind, TilePoolIndex},
     utils::{
-        self,
-        coords::{Cell, CellRange, WorldToScreenTransform},
-        hash,
-        Color,
+        self, hash, Color,
+        coords::{Cell, CellRange, WorldToScreenTransform, IsoPointF32},
     },
 };
 
@@ -371,7 +369,7 @@ impl Unit {
                 let from_iso = tile::calc_unit_iso_coords(from_cell, draw_size);
                 let to_iso = tile::calc_unit_iso_coords(to_cell, draw_size);
 
-                let new_iso_coords = utils::lerp(from_iso, to_iso, progress);
+                let new_iso_coords = IsoPointF32(utils::lerp(from_iso.0, to_iso.0, progress));
                 tile.set_iso_coords_f32(new_iso_coords);
 
                 self.update_direction_and_anim(tile, direction);

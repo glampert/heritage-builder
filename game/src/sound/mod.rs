@@ -26,6 +26,7 @@ use crate::{
     utils::{
         hash::{self, StringHash, PreHashedKeyMap},
         Vec2, platform::paths, mem::RawPtr,
+        coords::IsoPointF32
     },
 };
 
@@ -235,7 +236,7 @@ impl SoundSystem {
         &self.settings
     }
 
-    pub fn update(&mut self, listener_position: Vec2) {
+    pub fn update(&mut self, listener_position: IsoPointF32) {
         if let Some(backend) = &mut self.backend {
             backend.update(listener_position, &self.settings);
         }
@@ -288,7 +289,7 @@ impl SoundSystem {
         if let Some(backend) = &mut self.backend {
             if let Some(sound) = self.registry.sfx.get(&sound_key.hash) {
                 return backend.sfx.play(sound,
-                                        Vec2::zero(),
+                                        IsoPointF32::default(),
                                         self.settings.sfx_master_volume,
                                         self.settings.sfx_fade_in_secs,
                                         self.settings.sfx_fade_out_secs,
@@ -302,7 +303,7 @@ impl SoundSystem {
         if let Some(backend) = &mut self.backend {
             if let Some(sound) = self.registry.ambience.get(&sound_key.hash) {
                 return backend.ambience.play(sound,
-                                             Vec2::zero(),
+                                             IsoPointF32::default(),
                                              self.settings.ambience_master_volume,
                                              self.settings.ambience_fade_in_secs,
                                              self.settings.ambience_fade_out_secs,
@@ -312,7 +313,7 @@ impl SoundSystem {
         SoundHandle::invalid(SoundKind::Ambience)
     }
 
-    pub fn play_spatial_ambience(&mut self, sound_key: AmbienceSoundKey, world_position: Vec2, looping: bool) -> SoundHandle {
+    pub fn play_spatial_ambience(&mut self, sound_key: AmbienceSoundKey, world_position: IsoPointF32, looping: bool) -> SoundHandle {
         if let Some(backend) = &mut self.backend {
             // Same as ambience registry.
             if let Some(sound) = self.registry.ambience.get(&sound_key.hash) {
@@ -331,7 +332,7 @@ impl SoundSystem {
         if let Some(backend) = &mut self.backend {
             if let Some(sound) = self.registry.music.get(&sound_key.hash) {
                 return backend.music.play(sound,
-                                          Vec2::zero(),
+                                          IsoPointF32::default(),
                                           self.settings.music_master_volume,
                                           self.settings.music_fade_in_secs,
                                           self.settings.music_fade_out_secs,
@@ -345,7 +346,7 @@ impl SoundSystem {
         if let Some(backend) = &mut self.backend {
             if let Some(sound) = self.registry.narration.get(&sound_key.hash) {
                 return backend.narration.play(sound,
-                                              Vec2::zero(),
+                                              IsoPointF32::default(),
                                               self.settings.narration_master_volume,
                                               self.settings.narration_fade_in_secs,
                                               self.settings.narration_fade_out_secs,
@@ -459,7 +460,7 @@ impl SoundSystem {
 
         let backend = self.backend.as_mut().unwrap();
 
-        ui.text(format!("Listener Pos   : {}", backend.listener_position()));
+        ui.text(format!("Listener Pos   : {}", backend.listener_position().0));
         ui.text(format!("Sounds Playing : {}", backend.sounds_playing()));
         ui.text(format!("Sounds Loaded  : {}", self.registry.sounds_loaded()));
 
@@ -528,7 +529,7 @@ impl SoundSystem {
 
             if ui.button("Play Spatial") {
                 let sound_key = self.load_ambience("birds_chirping_ambiance.mp3");
-                self.play_spatial_ambience(sound_key, *SPATIAL_ORIGIN, *LOOPING);
+                self.play_spatial_ambience(sound_key, IsoPointF32(*SPATIAL_ORIGIN), *LOOPING);
             }
 
             if ui.button("Stop All Spatial") {
@@ -554,7 +555,7 @@ struct SoundSystemBackend {
     narration: NarrationController,
 
     // Debug:
-    listener_position: Vec2,
+    listener_position: IsoPointF32,
 }
 
 impl SoundSystemBackend {
@@ -612,11 +613,11 @@ impl SoundSystemBackend {
             spatial,
             music,
             narration,
-            listener_position: Vec2::zero(),
+            listener_position: IsoPointF32::default(),
         }))
     }
 
-    fn update(&mut self, listener_position: Vec2, settings: &SoundGlobalSettings) {
+    fn update(&mut self, listener_position: IsoPointF32, settings: &SoundGlobalSettings) {
         self.listener_position = listener_position;
         self.sfx.update(listener_position, settings);
         self.ambience.update(listener_position, settings);
@@ -633,7 +634,7 @@ impl SoundSystemBackend {
         self.narration.set_volume(settings.narration_master_volume);
     }
 
-    fn listener_position(&self) -> Vec2 {
+    fn listener_position(&self) -> IsoPointF32 {
         self.listener_position
     }
 
@@ -886,10 +887,10 @@ trait SoundInstance {
     // Low-level Kira API handle, AKA StaticSoundHandle or StreamingSoundHandle.
     type BackendSoundHandle;
 
-    fn new(handle: Self::BackendSoundHandle, generation: u32, position: Vec2, volume: f32) -> Self;
+    fn new(handle: Self::BackendSoundHandle, generation: u32, position: IsoPointF32, volume: f32) -> Self;
     fn generation(&self) -> u32;
 
-    fn spatial_update(&mut self, _listener_position: Vec2, _settings: &SoundGlobalSettings) {}
+    fn spatial_update(&mut self, _listener_position: IsoPointF32, _settings: &SoundGlobalSettings) {}
     fn stop(&mut self, fade_out_secs: Seconds);
     fn set_volume(&mut self, volume: f32);
 
@@ -930,7 +931,7 @@ impl<const SINGLE_SOUND: bool, const SPATIAL: bool, Track, Inst, Asset, Handle>
 {
     fn play(&mut self,
             sound_asset: &Asset,
-            position: Vec2,
+            position: IsoPointF32,
             volume: f32,
             fade_in_secs: Seconds,
             fade_out_secs: Seconds,
@@ -983,7 +984,7 @@ impl<const SINGLE_SOUND: bool, const SPATIAL: bool, Track, Inst, Asset, Handle>
         }
     }
 
-    fn update(&mut self, listener_position: Vec2, settings: &SoundGlobalSettings) {
+    fn update(&mut self, listener_position: IsoPointF32, settings: &SoundGlobalSettings) {
         self.remove_stopped_sounds();
 
         if SPATIAL {
@@ -1074,7 +1075,7 @@ macro_rules! declare_sound_instance {
             type BackendSoundHandle = $handle_type;
 
             #[inline]
-            fn new(handle: Self::BackendSoundHandle, generation: u32, _: Vec2, _: f32) -> Self {
+            fn new(handle: Self::BackendSoundHandle, generation: u32, _: IsoPointF32, _: f32) -> Self {
                 Self { handle, generation }
             }
 
@@ -1119,7 +1120,7 @@ declare_sound_instance! { StreamedSoundInstance, StreamingSoundHandle<FromFileEr
 
 struct SpatialSoundInstance {
     inner: StaticSoundInstance,
-    position: Vec2,
+    position: IsoPointF32,
     volume: f32, // linear volume [0-1] range.
 }
 
@@ -1127,7 +1128,7 @@ impl SoundInstance for SpatialSoundInstance {
     type BackendSoundHandle = StaticSoundHandle;
 
     #[inline]
-    fn new(handle: Self::BackendSoundHandle, generation: u32, position: Vec2, volume: f32) -> Self {
+    fn new(handle: Self::BackendSoundHandle, generation: u32, position: IsoPointF32, volume: f32) -> Self {
         Self { inner: StaticSoundInstance { handle, generation }, position, volume }
     }
 
@@ -1156,9 +1157,9 @@ impl SoundInstance for SpatialSoundInstance {
         self.inner.is_stopped()
     }
 
-    fn spatial_update(&mut self, listener_position: Vec2, settings: &SoundGlobalSettings) {
-        let dx = self.position.x - listener_position.x;
-        let dy = self.position.y - listener_position.y;
+    fn spatial_update(&mut self, listener_position: IsoPointF32, settings: &SoundGlobalSettings) {
+        let dx = self.position.0.x - listener_position.0.x;
+        let dy = self.position.0.y - listener_position.0.y;
 
         let distance = ((dx * dx) + (dy * dy)).sqrt();
         let dist_factor = 1.0 - (distance / settings.spatial_cutoff_distance).clamp(0.0, 1.0);
