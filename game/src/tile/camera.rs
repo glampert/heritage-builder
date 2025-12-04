@@ -282,7 +282,7 @@ impl Camera {
         let offset_change = scroll_delta * scroll_speed * delta_time_secs;
         let current = self.current_scroll();
 
-        self.set_scroll(Vec2::new(current.x + offset_change.x, current.y + offset_change.y));
+        self.set_scroll(current + offset_change);
 
         self.is_scrolling = (offset_change.x > 0.0 || offset_change.y > 0.0) && current != self.current_scroll();
     }
