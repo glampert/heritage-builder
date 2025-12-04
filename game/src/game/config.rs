@@ -103,6 +103,7 @@ pub struct SimConfigs {
     pub random_seed: u64,
     pub update_frequency_secs: Seconds,
     pub starting_gold_units: u32,
+    pub start_paused: bool,
 
     // Workers/Population:
     pub workers_search_radius: i32,
@@ -119,6 +120,7 @@ impl Default for SimConfigs {
                random_seed: 0xCAFE1CAFE2CAFE3A,
                update_frequency_secs: 0.5,
                starting_gold_units: 0,
+               start_paused: false,
                // Workers/Population:
                workers_search_radius: 20,
                workers_update_frequency_secs: 20.0,

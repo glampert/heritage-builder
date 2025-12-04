@@ -108,6 +108,10 @@ impl GameSession {
             session.load_save_game(&make_save_game_file_path(save_file_path));
         }
 
+        if configs.sim.start_paused {
+            session.sim.pause();
+        }
+
         session
     }
 
