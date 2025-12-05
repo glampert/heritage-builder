@@ -532,6 +532,12 @@ impl Rect {
     }
 
     #[inline]
+    pub fn translated(&self, offsets: Vec2) -> Self {
+        let mut r = Self { min: self.min + offsets, max: self.max + offsets };
+        *r.canonicalize()
+    }
+
+    #[inline]
     pub fn is_valid(&self) -> bool {
         self.width() > 0.0 && self.height() > 0.0
     }
@@ -582,26 +588,27 @@ impl Rect {
     }
 
     #[inline]
-    pub fn canonicalize(&mut self) {
+    pub fn canonicalize(&mut self) -> &mut Self {
         if self.min.x > self.max.x {
             std::mem::swap(&mut self.min.x, &mut self.max.x);
         }
         if self.min.y > self.max.y {
             std::mem::swap(&mut self.min.y, &mut self.max.y);
         }
+        self
     }
 
     // Flips min/max bounds if needed.
     #[inline]
-    pub fn update_min_extent(&mut self, new_min: Vec2) {
+    pub fn update_min_extent(&mut self, new_min: Vec2) -> &mut Self {
         self.min = new_min;
-        self.canonicalize();
+        self.canonicalize()
     }
 
     #[inline]
-    pub fn update_max_extent(&mut self, new_max: Vec2) {
+    pub fn update_max_extent(&mut self, new_max: Vec2) -> &mut Self {
         self.max = new_max;
-        self.canonicalize();
+        self.canonicalize()
     }
 
     // Returns `true` if this rect intersects with another.
