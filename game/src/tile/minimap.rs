@@ -585,23 +585,47 @@ bitflags_with_display! {
     }
 }
 
-#[derive(Default)]
-struct MinimapDrawInfo {
-    rect: Rect,
-    aabb: Rect, // Axis-aligned bounding box of `rect` if rotated, same as `rect` if not.
-    corners: [Vec2; 4],
-}
-
 struct MinimapTransform {
-    offsets: Vec2, // Minimap texture offset/panning in pixels, from minimap origin (0,0).
+    offsets: Vec2, // Minimap texture offset/panning in cells (pixels), from minimap origin (0,0).
     scale: f32,    // Zoom amount [1..N] range. 1=draw full minimap, >1 zooms in.
     rotated: bool, // Apply 45 degrees isometric rotation when drawing the minimap?
+}
+
+impl MinimapTransform {
+    #[inline]
+    fn zoom(&self) -> f32 {
+        self.scale.max(1.0)
+    }
+
+    #[inline]
+    fn is_valid(&self) -> bool {
+        self.scale >= 1.0
+    }
 }
 
 impl Default for MinimapTransform {
     fn default() -> Self {
         Self { offsets: Vec2::default(), scale: 1.0, rotated: true }
     }
+}
+
+struct MinimapScroll {
+    auto_scroll: bool, // Scroll minimap when camera rect touches the minimap edges?
+    speed_px: f32,     // Scroll speed in pixels per second when `auto_scroll=true`.
+    offsets: Vec2,     // Scroll offsets (translation) in cells/pixels.
+}
+
+impl Default for MinimapScroll {
+    fn default() -> Self {
+        Self { auto_scroll: true, speed_px: 30.0, offsets: Vec2::default() }
+    }
+}
+
+#[derive(Default)]
+struct MinimapDrawInfo {
+    rect: Rect,
+    aabb: Rect, // Axis-aligned bounding box of `rect` if rotated, same as `rect` if not.
+    corners: [Vec2; 4],
 }
 
 pub // *** TEMP pub
@@ -611,15 +635,14 @@ struct MinimapWidgetImGui {
     widget_rect: Rect, // Minimap widget screen space rect, relative to window rect.
     window_rect: Rect, // Widget window screen rect in absolute screen space.
 
+    minimap_scroll: MinimapScroll,
     minimap_transform: MinimapTransform, // Zoom (scale) & XY offsets (translation).
     minimap_draw_info: MinimapDrawInfo,  // Absolute screen rect where we render the minimap texture.
     minimap_size_in_cells: Vec2,         // Minimap/TileMap size in cells (1 TileMap cell = 1 minimap pixel).
-    minimap_visible_cells: Vec2,         // Visible area in cells derived from zoom/scale.
-    minimap_uv_min: Vec2,
-    minimap_uv_max: Vec2,
+    minimap_uvs: (Vec2, Vec2),           // Min/Max minimap texture UVs for rendering.
 
     camera_center: CellF32,   // Camera center cell / minimap pixel.
-    camera_screen_rect: Rect, // Camera rect in absolute screen space.
+    camera_screen_rect: Rect, // Camera rect in absolute screen space, ready for overlay rendering.
     camera_corners_out_of_bounds: RectCorners,
 
     // Debug switches:
@@ -638,12 +661,11 @@ impl Default for MinimapWidgetImGui {
                 Vec2::new(128.0, 128.0)
             ),
             window_rect: Rect::default(),
+            minimap_scroll: MinimapScroll::default(),
             minimap_transform: MinimapTransform::default(),
             minimap_draw_info: MinimapDrawInfo::default(),
             minimap_size_in_cells: Vec2::default(),
-            minimap_visible_cells: Vec2::default(),
-            minimap_uv_min: Vec2::default(),
-            minimap_uv_max: Vec2::default(),
+            minimap_uvs: (Vec2::default(), Vec2::default()),
             camera_center: CellF32::default(),
             camera_screen_rect: Rect::default(),
             camera_corners_out_of_bounds: RectCorners::default(),
@@ -660,35 +682,32 @@ impl MinimapWidget for MinimapWidgetImGui {
               input_sys: &dyn InputSystem,
               ui_sys: &UiSystem,
               size_in_cells: Size,
-              _delta_time_secs: Seconds) {
+              delta_time_secs: Seconds) {
         debug_assert!(size_in_cells.is_valid());
         debug_assert!(self.widget_rect.is_valid());
-        debug_assert!(self.minimap_transform.scale >= 1.0);
+        debug_assert!(self.minimap_transform.is_valid());
 
         // Must update these every frame:
         self.cursor_pos = input_sys.cursor_pos();
         self.window_rect = Self::calc_window_rect(&self.widget_rect, ui_sys);
         self.minimap_size_in_cells = size_in_cells.to_vec2();
+        self.camera_center = Self::calc_camera_center_cell(camera);
+        self.camera_screen_rect = self.calc_camera_rect_in_screen_px(camera);
 
         self.minimap_draw_info =
             Self::calc_minimap_draw_info(&self.widget_rect,
                                          &self.window_rect,
                                          self.is_minimap_rotated());
 
-        self.minimap_visible_cells =
-            Self::calc_minimap_visible_cells(self.minimap_size_in_cells,
-                                             self.minimap_transform.scale);
+        self.minimap_transform.offsets =
+            Self::calc_minimap_offsets_from_center(self.minimap_size_in_cells,
+                                                   CellF32(self.minimap_size_in_cells * 0.5), // TileMap center.
+                                                   self.minimap_transform.zoom());
 
-        let (minimap_uv_min, minimap_uv_max) =
+        self.minimap_uvs =
             Self::calc_minimap_rect_uvs(self.minimap_size_in_cells,
                                         self.minimap_transform.offsets,
-                                        self.minimap_transform.scale);
-
-        self.minimap_uv_min = minimap_uv_min;
-        self.minimap_uv_max = minimap_uv_max;
-
-        self.camera_center = Self::calc_camera_center_cell(camera);
-        self.camera_screen_rect = self.calc_camera_rect_in_screen_px(camera);
+                                        self.minimap_transform.zoom());
 
         self.camera_corners_out_of_bounds =
             Self::calc_camera_corners_out_of_bounds(&self.camera_screen_rect,
@@ -700,6 +719,10 @@ impl MinimapWidget for MinimapWidgetImGui {
             if let Some(teleport_destination_iso) = self.pick_cursor_pos() {
                 camera.teleport_iso(teleport_destination_iso);
             }
+        }
+
+        if self.minimap_scroll.auto_scroll && self.minimap_transform.zoom() > 1.0 {
+            self.update_minimap_scrolling(delta_time_secs);
         }
     }
 
@@ -801,7 +824,7 @@ impl MinimapWidgetImGui {
 
         let window_pos = [
             parent_window_pos[0] + parent_window_size[0] + 10.0,
-            parent_window_pos[1] - 50.0,
+            parent_window_pos[1] - 55.0,
         ];
 
         let window_flags =
@@ -821,34 +844,50 @@ impl MinimapWidgetImGui {
                 if ui.small_button("Reset") {
                     self.minimap_transform.scale   = 1.0;
                     self.minimap_transform.offsets = Vec2::default();
+                    self.minimap_scroll.offsets    = Vec2::default();
                     camera.center();
                 }
 
                 ui.same_line();
                 ui.checkbox("Rotated", &mut self.minimap_transform.rotated);
                 ui.same_line();
+                ui.checkbox("Auto Scroll", &mut self.minimap_scroll.auto_scroll);
+                ui.same_line();
                 ui.checkbox("Debug Draw", &mut self.enable_debug_draw);
 
-                if imgui_ui::input_f32(ui,
-                    "Zoom:",
-                    &mut self.minimap_transform.scale,
-                    false,
-                    Some(0.1))
+                ui.input_float("Scroll Speed", &mut self.minimap_scroll.speed_px)
+                    .display_format("%.2f")
+                    .step(1.0)
+                    .build();
+
+                ui.input_float("Scroll X", &mut self.minimap_scroll.offsets.x)
+                    .display_format("%.2f")
+                    .step(1.0)
+                    .build();
+
+                ui.input_float("Scroll Y", &mut self.minimap_scroll.offsets.y)
+                    .display_format("%.2f")
+                    .step(1.0)
+                    .build();
+
+                if ui.input_float("Zoom", &mut self.minimap_transform.scale)
+                    .display_format("%.2f")
+                    .step(0.1)
+                    .build()
                 {
                     // Clamp to 10x max zoom.
                     self.minimap_transform.scale = self.minimap_transform.scale.clamp(1.0, 10.0);
                 }
 
-                imgui_ui::input_f32_xy(
-                    ui,
-                    "Offsets:",
-                    &mut self.minimap_transform.offsets,
-                    false,
-                    None,
-                    None);
+                let minimap_visible_cells =
+                    Self::calc_minimap_visible_cells(self.minimap_size_in_cells,
+                                                     self.minimap_transform.zoom());
 
-                ui.text(format!("UVs Min:{} Max:{}", self.minimap_uv_min, self.minimap_uv_max));
-                ui.text(format!("Visible Cells: {}", self.minimap_visible_cells));
+                ui.separator();
+
+                ui.text(format!("XY Offsets: {}", self.minimap_transform.offsets));
+                ui.text(format!("UVs: (Min:{}, Max:{})", self.minimap_uvs.0, self.minimap_uvs.1));
+                ui.text(format!("Visible Cells: {}", minimap_visible_cells));
                 ui.text(format!("Camera Center: {}", self.camera_center.0));
                 ui.text(format!("Camera Rect: {}", self.camera_screen_rect));
 
@@ -896,7 +935,9 @@ impl MinimapWidgetImGui {
                 continue;
             }
 
-            let mut icon_center = self.cell_to_minimap_px(icon.target_cell);
+            let mut icon_center =
+                self.cell_to_scaled_minimap_widget_px(CellF32::from_integer_cell(icon.target_cell));
+
             if self.is_minimap_rotated() {
                 icon_center = icon_center.rotate_around_point(minimap_center, MINIMAP_ROTATION_ANGLE);
             }
@@ -922,8 +963,13 @@ impl MinimapWidgetImGui {
 
     fn draw_texture_rect(&self, draw_list: &imgui::DrawListMut<'_>, ui_texture: UiTextureHandle) {
         let minimap_corners = &self.minimap_draw_info.corners;
-        let uv_min = self.minimap_uv_min;
-        let uv_max = self.minimap_uv_max;
+        let mut uv_min = self.minimap_uvs.0;
+        let mut uv_max = self.minimap_uvs.1;
+
+        let scroll = self.minimap_scroll.offsets / self.minimap_size_in_cells;
+
+        uv_min += scroll;
+        uv_max += scroll;
 
         draw_list
             .add_image_quad(
@@ -941,11 +987,10 @@ impl MinimapWidgetImGui {
     }
 
     fn draw_outline_rect(&self, draw_list: &imgui::DrawListMut<'_>) {
-        let minimap_corners = &self.minimap_draw_info.corners;
-        let minimap_aabb = &self.minimap_draw_info.aabb;
-
         let (rect_color, cursor_inside_minimap) = {
-            if self.enable_debug_draw && coords::is_screen_point_inside_diamond(self.cursor_pos, minimap_corners) {
+            if self.enable_debug_draw
+                && coords::is_screen_point_inside_diamond(self.cursor_pos, &self.minimap_draw_info.corners)
+            {
                 (imgui::ImColor32::from_rgb(255, 0, 0), true) // Red when cursor inside.
             } else {
                 (imgui::ImColor32::BLACK, false)
@@ -959,15 +1004,13 @@ impl MinimapWidgetImGui {
                                  .build();
         }
 
-        draw_list.add_rect(minimap_aabb.min.to_array(),
-                           minimap_aabb.max.to_array(),
+        draw_list.add_rect(self.minimap_draw_info.aabb.min.to_array(),
+                           self.minimap_draw_info.aabb.max.to_array(),
                            rect_color)
                            .build();
     }
 
     fn draw_camera_rect(&self, draw_list: &imgui::DrawListMut<'_>) {
-        let camera_screen_rect = &self.camera_screen_rect;
-
         let outline_color = {
             if self.enable_debug_draw && !self.camera_corners_out_of_bounds.is_empty() {
                 // Color it red if any corner of the camera rect falls outside the minimap.
@@ -977,8 +1020,8 @@ impl MinimapWidgetImGui {
             }
         };
 
-        draw_list.add_rect(camera_screen_rect.min.to_array(),
-                           camera_screen_rect.max.to_array(),
+        draw_list.add_rect(self.camera_screen_rect.min.to_array(),
+                           self.camera_screen_rect.max.to_array(),
                            outline_color)
                            .build();
 
@@ -987,18 +1030,27 @@ impl MinimapWidgetImGui {
             let camera_center_point = {
                 if self.is_minimap_rotated() {
                     // We want to visualize the computed `camera_center` cell.
-                    let camera_center_screen  = self.cell_to_minimap_px_f32(self.camera_center);
+                    let camera_center_screen  = self.cell_to_scaled_minimap_widget_px(self.camera_center);
                     let minimap_center_screen = self.minimap_draw_info.rect.center();
                     camera_center_screen.rotate_around_point(minimap_center_screen, MINIMAP_ROTATION_ANGLE)
                 } else {
-                    camera_screen_rect.center()
+                    self.camera_screen_rect.center()
                 }
             };
 
-            draw_list.add_circle(camera_center_point.to_array(),
-                                 4.0,
-                                 imgui::ImColor32::from_rgb(0, 255, 0))
-                                 .build();
+            // Clip to AABB:
+            const POINT_RADIUS: f32 = 4.0;
+            let point_rect = Rect::from_extents(
+                camera_center_point - Vec2::new(POINT_RADIUS, POINT_RADIUS),
+                camera_center_point + Vec2::new(POINT_RADIUS, POINT_RADIUS)
+            );
+
+            if self.minimap_draw_info.aabb.contains_rect(&point_rect) {
+                draw_list.add_circle(camera_center_point.to_array(),
+                                     POINT_RADIUS,
+                                     imgui::ImColor32::from_rgb(0, 255, 0))
+                                     .build();
+            }
         }
     }
 
@@ -1018,16 +1070,75 @@ impl MinimapWidgetImGui {
             }
         };
 
-        // Convert to local minimap uv coordinates, [0,1] range:
-        let uv = self.minimap_px_to_minimap_uv(minimap_px);
-        if uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 {
-            return None; // Cursor outside minimap.
+        // Convert widget px -> fractional cell (using UV window inverse).
+        let cell = self.scaled_minimap_widget_px_to_cell(minimap_px);
+
+        // UV may be outside window -> return None if outside full map.
+        if cell.0.x < 0.0 || cell.0.x > self.minimap_size_in_cells.x ||
+           cell.0.y < 0.0 || cell.0.y > self.minimap_size_in_cells.y
+        {
+            return None;
         }
 
-        // Compute corresponding *continuous* cell coordinates.
-        // (0..map_width, 0..map_height), no rounding.
-        let cell = self.minimap_uv_to_cell_f32(uv);
         Some(coords::cell_to_iso_f32(cell, BASE_TILE_SIZE))
+    }
+
+    fn update_minimap_scrolling(&mut self, delta_time_secs: Seconds) {
+        let (uv_min, uv_max) = self.minimap_uvs;
+        let mut scrollable_corners = RectCorners::all();
+
+        // Corners already at their limits will not scroll further.
+        if uv_min.x <= 0.0 {
+            scrollable_corners.remove(RectCorners::BottomLeft);
+        }
+        if uv_min.y <= 0.0 {
+            scrollable_corners.remove(RectCorners::BottomRight);
+        }
+        if uv_max.x >= 1.0 {
+            scrollable_corners.remove(RectCorners::TopRight);
+        }
+        if uv_max.y >= 1.0 {
+            scrollable_corners.remove(RectCorners::TopLeft);
+        }
+
+        if scrollable_corners.is_empty() || self.camera_corners_out_of_bounds.is_empty() {
+            return;
+        }
+
+        // Minimap scrolling:
+        if self.camera_corners_out_of_bounds.intersects(RectCorners::TopLeft)
+            && scrollable_corners.intersects(RectCorners::TopLeft)
+        {
+            self.minimap_scroll.offsets.y += self.minimap_scroll.speed_px * delta_time_secs;
+        }
+        if self.camera_corners_out_of_bounds.intersects(RectCorners::BottomRight)
+            && scrollable_corners.intersects(RectCorners::BottomRight)
+        {
+            self.minimap_scroll.offsets.y -= self.minimap_scroll.speed_px * delta_time_secs;
+        }
+        if self.camera_corners_out_of_bounds.intersects(RectCorners::TopRight)
+            && scrollable_corners.intersects(RectCorners::TopRight)
+        {
+            self.minimap_scroll.offsets.x += self.minimap_scroll.speed_px * delta_time_secs;
+        }
+        if self.camera_corners_out_of_bounds.intersects(RectCorners::BottomLeft)
+            && scrollable_corners.intersects(RectCorners::BottomLeft)
+        {
+            self.minimap_scroll.offsets.x -= self.minimap_scroll.speed_px * delta_time_secs;
+        }
+
+        // Clamp to minimap scrollable size:
+        let minimap_visible_cells =
+            Self::calc_minimap_visible_cells(self.minimap_size_in_cells,
+                                             self.minimap_transform.zoom());
+
+        // We can scroll this many tiles on each side, so divide by 2.
+        let scrollable_cells = (self.minimap_size_in_cells - minimap_visible_cells) * 0.5;
+
+        self.minimap_scroll.offsets.x = self.minimap_scroll.offsets.x.min(scrollable_cells.x);
+        self.minimap_scroll.offsets.y = self.minimap_scroll.offsets.y.min(scrollable_cells.y);
+        self.minimap_scroll.offsets.x = self.minimap_scroll.offsets.x.max(-scrollable_cells.x);
+        self.minimap_scroll.offsets.y = self.minimap_scroll.offsets.y.max(-scrollable_cells.y);
     }
 
     const CAMERA_CORNER_MARGIN_PX: f32 = 4.0;
@@ -1087,27 +1198,34 @@ impl MinimapWidgetImGui {
 
     // Rect in screen space, ready to be drawn with ImGui.
     fn calc_camera_rect_in_screen_px(&self, camera: &Camera) -> Rect {
+        debug_assert!(self.minimap_size_in_cells != Vec2::zero());
+
         let center_iso = camera.iso_world_position();
         let half_iso   = camera.iso_viewport_center();
 
         let iso_min = IsoPointF32(center_iso.0 - half_iso.0);
         let iso_max = IsoPointF32(center_iso.0 + half_iso.0);
 
-        let (uv_min, uv_max) = if self.is_minimap_rotated() {
+        let mut camera_rect = if self.is_minimap_rotated() {
             // Convert iso rect corners to fractional cell coordinates (continuous):
-            let cell_min_frac = coords::iso_to_cell_f32(iso_min, BASE_TILE_SIZE);
-            let cell_max_frac = coords::iso_to_cell_f32(iso_max, BASE_TILE_SIZE);
+            let cell_min = coords::iso_to_cell_f32(iso_min, BASE_TILE_SIZE);
+            let cell_max = coords::iso_to_cell_f32(iso_max, BASE_TILE_SIZE);
 
             // Ensure correct ordering (min <= max).
-            let cell_x_min = cell_min_frac.0.x.min(cell_max_frac.0.x);
-            let cell_x_max = cell_min_frac.0.x.max(cell_max_frac.0.x);
-            let cell_y_min = cell_min_frac.0.y.min(cell_max_frac.0.y);
-            let cell_y_max = cell_min_frac.0.y.max(cell_max_frac.0.y);
+            let cell_x_min = cell_min.0.x.min(cell_max.0.x);
+            let cell_x_max = cell_min.0.x.max(cell_max.0.x);
+            let cell_y_min = cell_min.0.y.min(cell_max.0.y);
+            let cell_y_max = cell_min.0.y.max(cell_max.0.y);
 
-            (
-                self.cell_to_minimap_uv_f32(cell_x_min, cell_y_min),
-                self.cell_to_minimap_uv_f32(cell_x_max, cell_y_max)
-            )
+            // Build cell rect corners in fractional cell coords (CellF32):
+            let top_left     = CellF32(Vec2::new(cell_x_min, cell_y_min));
+            let bottom_right = CellF32(Vec2::new(cell_x_max, cell_y_max));
+
+            // Map these cell coords into widget pixels using the zoom-aware mapper:
+            let px_min = self.cell_to_scaled_minimap_widget_px(top_left);
+            let px_max = self.cell_to_scaled_minimap_widget_px(bottom_right);
+
+            Rect::from_extents(px_min, px_max)
         } else {
             // Convert iso -> UV directly using world iso bounds:
             fn point_to_uv(rect: &Rect, iso: IsoPointF32) -> Vec2 {
@@ -1116,17 +1234,19 @@ impl MinimapWidgetImGui {
             }
 
             let bounds = Self::calc_map_iso_bounds(self.minimap_size_in_cells);
+            let uv_min_full = point_to_uv(&bounds, iso_min);
+            let uv_max_full = point_to_uv(&bounds, iso_max);
 
-            (
-                point_to_uv(&bounds, iso_min),
-                point_to_uv(&bounds, iso_max)
-            )
+            // Convert full-map UV -> zoomed-window UV:
+            let uv_min_win = self.fullmap_uv_to_window_uv(uv_min_full);
+            let uv_max_win = self.fullmap_uv_to_window_uv(uv_max_full);
+
+            // Convert zoomed-window-UV -> widget pixels:
+            let px_min = self.minimap_uv_to_minimap_px(uv_min_win);
+            let px_max = self.minimap_uv_to_minimap_px(uv_max_win);
+
+            Rect::from_extents(px_min, px_max)
         };
-
-        let mut camera_rect = Rect::from_extents(
-            self.minimap_uv_to_minimap_px(uv_min),
-            self.minimap_uv_to_minimap_px(uv_max))
-        .scaled(self.minimap_transform.scale.max(1.0));
 
         // Rotate if necessary:
         if self.is_minimap_rotated() {
@@ -1137,11 +1257,10 @@ impl MinimapWidgetImGui {
         }
 
         // Clamp camera rect to minimap aabb minus margin:
-        let minimap_aabb = &self.minimap_draw_info.aabb;
-        camera_rect.max.x = camera_rect.max.x.min(minimap_aabb.max.x - Self::CAMERA_CORNER_MARGIN_PX);
-        camera_rect.max.y = camera_rect.max.y.min(minimap_aabb.max.y - Self::CAMERA_CORNER_MARGIN_PX);
-        camera_rect.min.x = camera_rect.min.x.max(minimap_aabb.min.x + Self::CAMERA_CORNER_MARGIN_PX);
-        camera_rect.min.y = camera_rect.min.y.max(minimap_aabb.min.y + Self::CAMERA_CORNER_MARGIN_PX);
+        camera_rect.max.x = camera_rect.max.x.min(self.minimap_draw_info.aabb.max.x - Self::CAMERA_CORNER_MARGIN_PX);
+        camera_rect.max.y = camera_rect.max.y.min(self.minimap_draw_info.aabb.max.y - Self::CAMERA_CORNER_MARGIN_PX);
+        camera_rect.min.x = camera_rect.min.x.max(self.minimap_draw_info.aabb.min.x + Self::CAMERA_CORNER_MARGIN_PX);
+        camera_rect.min.y = camera_rect.min.y.max(self.minimap_draw_info.aabb.min.y + Self::CAMERA_CORNER_MARGIN_PX);
         camera_rect.canonicalize();
 
         camera_rect
@@ -1158,12 +1277,27 @@ impl MinimapWidgetImGui {
         size_in_cells / zoom.max(1.0)
     }
 
+    // `offsets` are in minimap cells/pixels (same units as minimap_size_in_cells).
     #[inline]
     fn calc_minimap_rect_uvs(size_in_cells: Vec2, offsets: Vec2, zoom: f32) -> (Vec2, Vec2) {
         let visible_cells = Self::calc_minimap_visible_cells(size_in_cells, zoom);
         let uv_min = offsets / size_in_cells;
         let uv_max = (offsets + visible_cells) / size_in_cells;
         (uv_min, uv_max)
+    }
+
+    #[inline]
+    fn calc_minimap_offsets_from_center(size_in_cells: Vec2, center_cell: CellF32, zoom: f32) -> Vec2 {
+        let visible_cells = Self::calc_minimap_visible_cells(size_in_cells, zoom);
+
+        // Offset so center cell stays fixed regardless of zoom.
+        let mut offsets = center_cell.0 - (visible_cells * 0.5);
+
+        // Clamp to texture bounds.
+        offsets.x = offsets.x.clamp(0.0, size_in_cells.x - visible_cells.x);
+        offsets.y = offsets.y.clamp(0.0, size_in_cells.y - visible_cells.y);
+
+        offsets
     }
 
     #[inline]
@@ -1200,22 +1334,30 @@ impl MinimapWidgetImGui {
         self.minimap_transform.rotated
     }
 
+    // Convenience to return the current UV window used by drawing code.
+    #[inline]
+    fn current_minimap_uv_window(&self) -> (Vec2, Vec2) {
+        Self::calc_minimap_rect_uvs(self.minimap_size_in_cells,
+                                    self.minimap_transform.offsets,
+                                    self.minimap_transform.zoom())
+    }
+
     // ----------------------------------------------
     // Coordinate space conversion helpers
     // ----------------------------------------------
 
-    // Maps fractional cell coords to minimap UV [0,1] and vice-versa.
+    // Maps fractional cell coords to full minimap UVs [0,1] and vice-versa.
     #[inline]
-    fn cell_to_minimap_uv_f32(&self, x: f32, y: f32) -> Vec2 {
+    fn cell_to_minimap_uv(&self, cell: CellF32) -> Vec2 {
         Vec2::new(
-            x / self.minimap_size_in_cells.x,
+            cell.0.x / self.minimap_size_in_cells.x,
             // NOTE: Flip V for ImGui (because OpenGL textures have V=0 at bottom).
-            1.0 - (y / self.minimap_size_in_cells.y)
+            1.0 - (cell.0.y / self.minimap_size_in_cells.y)
         )
     }
 
     #[inline]
-    fn minimap_uv_to_cell_f32(&self, uv: Vec2) -> CellF32 {
+    fn minimap_uv_to_cell(&self, uv: Vec2) -> CellF32 {
         CellF32(Vec2::new(
             uv.x * self.minimap_size_in_cells.x,
             // NOTE: Flip V for ImGui (because OpenGL textures have V=0 at bottom).
@@ -1234,17 +1376,51 @@ impl MinimapWidgetImGui {
         (minimap_px - self.minimap_draw_info.rect.position()) / self.minimap_draw_info.rect.size_as_vec2()
     }
 
-    // Tile Map cell -> minimap screen pixel and vice-versa.
+    // Map fractional cell coords (CellF32) -> widget (screen) pixels in the axis-aligned
+    // minimap rectangle (self.minimap_draw_info.rect). This respects the current
+    // minimap UV visible window (zoom + offsets).
     #[inline]
-    fn cell_to_minimap_px(&self, cell: Cell) -> Vec2 {
-        let uv = self.cell_to_minimap_uv_f32(cell.x as f32, cell.y as f32);
-        self.minimap_uv_to_minimap_px(uv)
+    fn cell_to_scaled_minimap_widget_px(&self, cell: CellF32) -> Vec2 {
+        // Base UV in full-map space to zoomed minimap window:
+        let fullmap_uv = self.cell_to_minimap_uv(cell);
+        let window_uv  = self.fullmap_uv_to_window_uv(fullmap_uv);
+
+        // Map normalized window coords -> widget pixels.
+        self.minimap_uv_to_minimap_px(window_uv)
     }
 
+    // Inverse: widget pixel -> fractional cell coords (CellF32).
+    // `widget_px` is in absolute screen coordinates. If the minimap is rotated,
+    // call this only after un-rotating the point into the widget AABB (see cursor cell picking).
     #[inline]
-    fn cell_to_minimap_px_f32(&self, cell: CellF32) -> Vec2 {
-        let uv = self.cell_to_minimap_uv_f32(cell.0.x, cell.0.y);
-        self.minimap_uv_to_minimap_px(uv)
+    fn scaled_minimap_widget_px_to_cell(&self, widget_px: Vec2) -> CellF32 {
+        let (uv_min, uv_max) = self.current_minimap_uv_window();
+
+        let widget_origin = self.minimap_draw_info.rect.position();
+        let widget_size   = self.minimap_draw_info.rect.size_as_vec2();
+
+        let window_uv  = (widget_px - widget_origin) / widget_size; // Normalized [0,1] within visible window.
+        let fullmap_uv = uv_min + window_uv * (uv_max - uv_min);    // Convert to full-map UV.
+
+        self.minimap_uv_to_cell(fullmap_uv)
+    }
+
+    // Convert UV in full-map space into minimap UV in the current visible window.
+    // Input: fullmap_uv [0,1] relative to the whole minimap texture.
+    // Return: window_uv [0,1] relative to the zoomed/translated minimap window.
+    #[inline]
+    fn fullmap_uv_to_window_uv(&self, fullmap_uv: Vec2) -> Vec2 {
+        // Current visible uv window (uv_min, uv_max) where both in full-map UV space:
+        let (uv_min, uv_max) = self.current_minimap_uv_window();
+
+        // Map fullmap_uv into visible window-local normalized [0,1]:
+        let win_size = uv_max - uv_min;
+        debug_assert!(win_size.x > 0.0 && win_size.y > 0.0);
+
+        let window_uv = (fullmap_uv - uv_min) / win_size;
+        debug_assert!(window_uv.x.is_finite() && window_uv.y.is_finite());
+
+        window_uv
     }
 }
 
