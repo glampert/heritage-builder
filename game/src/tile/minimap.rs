@@ -594,12 +594,12 @@ struct MinimapTransform {
 impl MinimapTransform {
     #[inline]
     fn zoom(&self) -> f32 {
-        self.scale.max(1.0)
+        self.scale
     }
 
     #[inline]
     fn is_valid(&self) -> bool {
-        self.scale >= 1.0
+        self.scale > 0.0
     }
 }
 
@@ -1274,7 +1274,7 @@ impl MinimapWidgetImGui {
 
     #[inline]
     fn calc_minimap_visible_cells(size_in_cells: Vec2, zoom: f32) -> Vec2 {
-        size_in_cells / zoom.max(1.0)
+        size_in_cells / zoom
     }
 
     // `offsets` are in minimap cells/pixels (same units as minimap_size_in_cells).
@@ -1288,6 +1288,11 @@ impl MinimapWidgetImGui {
 
     #[inline]
     fn calc_minimap_offsets_from_center(size_in_cells: Vec2, center_cell: CellF32, zoom: f32) -> Vec2 {
+        if zoom <= 1.0 {
+            // Full minimap already visible.
+            return Vec2::zero();
+        }
+
         let visible_cells = Self::calc_minimap_visible_cells(size_in_cells, zoom);
 
         // Offset so center cell stays fixed regardless of zoom.
