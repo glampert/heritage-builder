@@ -679,6 +679,12 @@ impl Rect {
     }
 }
 
+impl std::fmt::Display for Rect {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "(P:{}, S:{})", self.position(), self.size_as_vec2())
+    }
+}
+
 // ----------------------------------------------
 // RectTexCoords
 // ----------------------------------------------
