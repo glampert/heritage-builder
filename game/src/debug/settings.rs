@@ -5,7 +5,7 @@ use crate::{
     debug,
     imgui_ui::{self, UiStaticVar},
     engine::config::Configs,
-    utils::{Color, Size},
+    utils::{Color, Size, coords::Cell},
     game::{
         self,
         cheats,
@@ -402,6 +402,15 @@ impl DebugSettingsMenu {
              .build(&mut scroll.y)
         {
             camera.set_scroll(scroll);
+        }
+
+        ui.separator();
+
+        static TELEPORT_CELL: UiStaticVar<Cell> = UiStaticVar::new(Cell::invalid());
+        imgui_ui::input_i32_xy(ui, "Teleport To Cell:", TELEPORT_CELL.as_mut(), false, None, None);
+
+        if ui.button("Teleport") {
+            camera.teleport(*TELEPORT_CELL);
         }
 
         if ui.button("Re-center") {
