@@ -630,6 +630,7 @@ struct MinimapWidgetImGui {
     enable_debug_draw: bool,
     enable_debug_controls: bool,
     show_debug_controls: bool,
+    show_origin_markers: bool,
 }
 
 impl Default for MinimapWidgetImGui {
@@ -653,6 +654,7 @@ impl Default for MinimapWidgetImGui {
             enable_debug_draw: MINIMAP_WITH_DEBUG_CONTROLS,
             enable_debug_controls: MINIMAP_WITH_DEBUG_CONTROLS,
             show_debug_controls: MINIMAP_WITH_DEBUG_CONTROLS,
+            show_origin_markers: false,
         }
     }
 }
@@ -792,7 +794,7 @@ impl MinimapWidgetImGui {
 
         let window_pos = [
             parent_window_pos[0] + parent_window_size[0] + 10.0,
-            parent_window_pos[1] - 40.0,
+            parent_window_pos[1] - 70.0,
         ];
 
         let window_flags =
@@ -820,6 +822,8 @@ impl MinimapWidgetImGui {
                 ui.same_line();
                 ui.checkbox("Auto Scroll", &mut self.minimap_auto_scroll);
                 ui.same_line();
+                ui.checkbox("Show Origins", &mut self.show_origin_markers);
+                ui.same_line();
                 ui.checkbox("Debug Draw", &mut self.enable_debug_draw);
 
                 ui.input_float("Scroll Speed", &mut self.scroll_speed_px_per_sec)
@@ -846,21 +850,24 @@ impl MinimapWidgetImGui {
                     self.minimap_transform.scale = self.minimap_transform.scale.clamp(1.0, 10.0);
                 }
 
+                let camera_center_iso = camera.iso_world_position();
                 let (uv_min, uv_max) = self.current_minimap_uv_window();
                 let minimap_visible_cells = Self::calc_minimap_visible_cells(self.minimap_size_in_cells,
                                                                              self.minimap_transform.zoom());
 
                 ui.separator();
 
-                ui.text(format!("UV Window: (Min:{}, Max:{})", uv_min, uv_max));
-                ui.text(format!("Visible Cells: {}", minimap_visible_cells));
-                ui.text(format!("Camera Center: {}", self.camera_center.0));
-                ui.text(format!("Camera Rect: {}", self.camera_screen_rect));
+                ui.text(format!("UV Window          : {}", uv_max - uv_min));
+                ui.text(format!("UV Window Min/Max  : {} / {}", uv_min, uv_max));
+                ui.text(format!("Visible Cells      : {}", minimap_visible_cells));
+                ui.text(format!("Camera Center Cell : {}", self.camera_center.0));
+                ui.text(format!("Camera Center Iso  : {}", camera_center_iso.0));
+                ui.text(format!("Camera Screen Rect : {}", self.camera_screen_rect));
 
                 if self.camera_corners_near_minimap_edge.is_empty() {
-                    ui.text("Camera Corners Near Edge: None");
+                    ui.text("Camera Corners Near Edge : None");
                 } else {
-                    ui.text("Camera Corners Near Edge:");
+                    ui.text("Camera Corners Near Edge :");
                     ui.same_line();
                     ui.text_colored(Color::red().to_array(), self.camera_corners_near_minimap_edge.to_string());
                 }
@@ -878,6 +885,11 @@ impl MinimapWidgetImGui {
         self.draw_texture_rect(&draw_list, ui_texture);
         self.draw_outline_rect(&draw_list);
         self.draw_camera_rect(&draw_list);
+
+        // Show minimap widget screen origin (local [0,0] coord) and UV/Map origins:
+        if self.enable_debug_draw && self.show_origin_markers {
+            self.draw_origin_debug_markers(&draw_list);
+        }
     }
 
     fn draw_icons(&self,
@@ -938,6 +950,11 @@ impl MinimapWidgetImGui {
         let minimap_corners  = &self.minimap_draw_info.corners;
         let (uv_min, uv_max) = self.current_minimap_uv_window();
 
+        let uv1 = [uv_min.x, 1.0 - uv_min.y];
+        let uv2 = [uv_max.x, 1.0 - uv_min.y];
+        let uv3 = [uv_max.x, 1.0 - uv_max.y];
+        let uv4 = [uv_min.x, 1.0 - uv_max.y];
+
         draw_list
             .add_image_quad(
                 ui_texture,
@@ -945,11 +962,7 @@ impl MinimapWidgetImGui {
                 minimap_corners[1].to_array(),
                 minimap_corners[2].to_array(),
                 minimap_corners[3].to_array())
-            .uv(
-                [uv_min.x, uv_max.y],
-                uv_max.to_array(),
-                [uv_max.x, uv_min.y],
-                uv_min.to_array())
+            .uv(uv1, uv2, uv3, uv4)
             .build();
     }
 
@@ -1023,13 +1036,57 @@ impl MinimapWidgetImGui {
             draw_list.add_circle(self.camera_screen_rect.min.to_array(),
                                  2.0,
                                  imgui::ImColor32::from_rgb(0, 0, 255))
+                                 .filled(true)
                                  .build();
 
             draw_list.add_circle(self.camera_screen_rect.max.to_array(),
                                  2.0,
                                  imgui::ImColor32::from_rgb(255, 255, 0))
+                                 .filled(true)
                                  .build();
         }
+    }
+
+    fn draw_origin_debug_markers(&self, draw_list: &imgui::DrawListMut<'_>) {
+        // Widget screen space: Top-left origin (CYAN circle).
+        let widget_origin = self.minimap_draw_info.rect.position();
+        draw_list.add_circle(widget_origin.to_array(),
+                             10.0,
+                             imgui::ImColor32::from_rgb(0, 255, 255))
+                             .build();
+
+        // Minimap texture rect UVs: Top-left origin (RED circle).
+        let uv_origin = self.minimap_uv_to_minimap_px(Vec2::new(0.0, 0.0));
+        draw_list.add_circle(uv_origin.to_array(),
+                             8.0,
+                             imgui::ImColor32::from_rgb(255, 0, 0))
+                             .build();
+
+        // Full-map texture rect UVs: Top-left origin (GREEN circle).
+        let fullmap_uv_origin = self.minimap_uv_to_minimap_px(
+            self.fullmap_uv_to_window_uv(Vec2::new(0.0, 0.0))
+        );
+        draw_list.add_circle(fullmap_uv_origin.to_array(),
+                             6.0,
+                             imgui::ImColor32::from_rgb(0, 255, 0))
+                             .build();
+
+        // Tile map cells: Bottom-left origin (YELLOW circle).
+        let cell_origin = self.cell_to_scaled_minimap_widget_px(CellF32(Vec2::new(0.0, 0.0)));
+        draw_list.add_circle(cell_origin.to_array(),
+                             4.0,
+                             imgui::ImColor32::from_rgb(255, 255, 0))
+                             .build();
+
+        // Tile map iso coords: Bottom-left origin (BLUE circle).
+        let iso_origin = self.cell_to_scaled_minimap_widget_px(
+            coords::iso_to_cell_f32(IsoPointF32(Vec2::new(0.0, 0.0)), BASE_TILE_SIZE)
+        );
+        draw_list.add_circle(iso_origin.to_array(),
+                             2.0,
+                             imgui::ImColor32::from_rgb(0, 0, 255))
+                             .filled(true)
+                             .build();
     }
 
     // Returns floating-point isometric coords without rounding to integer cell space.
@@ -1076,13 +1133,13 @@ impl MinimapWidgetImGui {
         if uv_min.x <= 0.0 {
             scrollable_corners.remove(RectCorners::BottomLeft);
         }
-        if uv_min.y <= 0.0 {
+        if uv_max.y >= 1.0 {
             scrollable_corners.remove(RectCorners::BottomRight);
         }
         if uv_max.x >= 1.0 {
             scrollable_corners.remove(RectCorners::TopRight);
         }
-        if uv_max.y >= 1.0 {
+        if uv_min.y <= 0.0 {
             scrollable_corners.remove(RectCorners::TopLeft);
         }
         if scrollable_corners.is_empty() {
@@ -1093,12 +1150,12 @@ impl MinimapWidgetImGui {
         if self.camera_corners_near_minimap_edge.intersects(RectCorners::TopLeft)
             && scrollable_corners.intersects(RectCorners::TopLeft)
         {
-            self.minimap_transform.offsets.y += self.scroll_speed_px_per_sec * delta_time_secs;
+            self.minimap_transform.offsets.y -= self.scroll_speed_px_per_sec * delta_time_secs;
         }
         if self.camera_corners_near_minimap_edge.intersects(RectCorners::BottomRight)
             && scrollable_corners.intersects(RectCorners::BottomRight)
         {
-            self.minimap_transform.offsets.y -= self.scroll_speed_px_per_sec * delta_time_secs;
+            self.minimap_transform.offsets.y += self.scroll_speed_px_per_sec * delta_time_secs;
         }
         if self.camera_corners_near_minimap_edge.intersects(RectCorners::TopRight)
             && scrollable_corners.intersects(RectCorners::TopRight)
@@ -1365,13 +1422,11 @@ impl MinimapWidgetImGui {
     // call this only after un-rotating the point into the widget AABB (see cursor cell picking).
     #[inline]
     fn scaled_minimap_widget_px_to_cell(&self, widget_px: Vec2) -> CellF32 {
+        // Normalized [0,1] within visible window.
+        let window_uv  = self.minimap_px_to_minimap_uv(widget_px);
+
         let (uv_min, uv_max) = self.current_minimap_uv_window();
-
-        let widget_origin = self.minimap_draw_info.rect.position();
-        let widget_size   = self.minimap_draw_info.rect.size_as_vec2();
-
-        let window_uv  = (widget_px - widget_origin) / widget_size; // Normalized [0,1] within visible window.
-        let fullmap_uv = uv_min + window_uv * (uv_max - uv_min);    // Convert to full-map UV.
+        let fullmap_uv = uv_min + window_uv * (uv_max - uv_min); // Convert to full-map UV.
 
         self.minimap_uv_to_cell(fullmap_uv)
     }
