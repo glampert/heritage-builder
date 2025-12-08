@@ -533,8 +533,17 @@ impl Rect {
 
     #[inline]
     pub fn translated(&self, offsets: Vec2) -> Self {
-        let mut r = Self { min: self.min + offsets, max: self.max + offsets };
-        *r.canonicalize()
+        Self { min: self.min + offsets, max: self.max + offsets }
+    }
+
+    #[inline]
+    pub fn expanded(&self, offsets: Vec2) -> Self {
+        Self { min: self.min - offsets, max: self.max + offsets }
+    }
+
+    #[inline]
+    pub fn shrunk(&self, offsets: Vec2) -> Self {
+        Self { min: self.min + offsets, max: self.max - offsets }
     }
 
     #[inline]
@@ -595,6 +604,15 @@ impl Rect {
         if self.min.y > self.max.y {
             std::mem::swap(&mut self.min.y, &mut self.max.y);
         }
+        self
+    }
+
+    #[inline]
+    pub fn clamp(&mut self, other: &Rect) -> &mut Self {
+        self.max.x = self.max.x.min(other.max.x);
+        self.max.y = self.max.y.min(other.max.y);
+        self.min.x = self.min.x.max(other.min.x);
+        self.min.y = self.min.y.max(other.min.y);
         self
     }
 
