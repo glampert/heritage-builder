@@ -695,6 +695,96 @@ pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool
     clicked
 }
 
+pub struct UiImageButtonParams<'a> {
+    pub id: &'a str,
+    pub size: Vec2,
+    pub ui_texture: UiTextureHandle,
+    pub tooltip: Option<&'a str>,
+    pub normal_color: Option<Color>,
+    pub hovered_color: Option<Color>,
+    pub selected_color: Option<Color>,
+    pub tint_color: Option<Color>,
+    pub top_left_uvs: Option<Vec2>,
+    pub bottom_right_uvs: Option<Vec2>,
+    pub selected: bool,
+}
+
+impl Default for UiImageButtonParams<'_> {
+    fn default() -> Self {
+        Self {
+            id: "",
+            size: Vec2::zero(),
+            ui_texture: UiTextureHandle::new(usize::MAX),
+            tooltip: None,
+            normal_color: None,
+            hovered_color: None,
+            selected_color: None,
+            tint_color: None,
+            top_left_uvs: None,
+            bottom_right_uvs: None,
+            selected: false,
+        }
+    }
+}
+
+pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
+    debug_assert!(!params.id.is_empty());
+    debug_assert!(params.size != Vec2::zero());
+    debug_assert!(params.ui_texture.id() != usize::MAX);
+
+    fn to_imgui_uvs(uv: Vec2) -> Vec2 {
+        Vec2::new(uv.x, 1.0 - uv.y) // Invert Y
+    }
+
+    let tint_col = params.tint_color.unwrap_or_default().to_array();
+    let bg_col = if params.selected {
+        params.selected_color.unwrap_or_default().to_array()
+    } else {
+        params.normal_color.unwrap_or_default().to_array()
+    };
+
+    let top_left_uvs = to_imgui_uvs(params.top_left_uvs.unwrap_or(Vec2::new(0.0, 0.0)));
+    let bottom_right_uvs = to_imgui_uvs(params.bottom_right_uvs.unwrap_or(Vec2::new(1.0, 1.0)));
+
+    let ui = ui_sys.ui();
+
+    // No frame padding.
+    let frame_padding = ui.push_style_var(imgui::StyleVar::FramePadding([0.0, 0.0]));
+
+    let clicked =
+        ui.image_button_config(params.id, params.ui_texture, params.size.to_array())
+            .background_col(bg_col)
+            .tint_col(tint_col)
+            .uv0([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
+            .uv1([bottom_right_uvs.x, top_left_uvs.y])
+            .build();
+
+    frame_padding.pop();
+
+    if ui.is_item_hovered() {
+        if let Some(hovered) = params.hovered_color {
+            // NOTE: ImGui hack to highlight a hovered button.
+            // Since we only know if the button was hovered *after* it has already
+            // been rendered, draw an semi-transparent overlay on top of the button
+            // that will be blended to simulate the hovered effect.
+            let draw_list = ui.get_window_draw_list();
+            let color = imgui::ImColor32::from_rgba_f32s(hovered.r, hovered.g, hovered.b, hovered.a);
+            draw_list.add_rect(ui.item_rect_min(),
+                               ui.item_rect_max(),
+                               color)
+                               .filled(true)
+                               .build();
+        }
+
+        // Show tooltip when hovered:
+        if let Some(tooltip) = params.tooltip {
+            ui.tooltip_text(tooltip);
+        }
+    }
+
+    clicked
+}
+
 // ----------------------------------------------
 // ImGui UiStaticVar
 // ----------------------------------------------

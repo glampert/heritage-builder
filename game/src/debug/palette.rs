@@ -85,51 +85,50 @@ impl TilePaletteMenu {
         let ui = context.ui_sys.ui();
         let tex_cache = debug_draw.texture_cache();
 
-        let tile_size = [BASE_TILE_SIZE.width as f32, BASE_TILE_SIZE.height as f32];
         let tiles_per_row = 2;
-        let padding_between_tiles = 4.0;
+        let spacing_between_tiles = 4.0;
 
-        let window_width = (tile_size[0] + padding_between_tiles) * tiles_per_row as f32;
-        let window_margin = 45.0; // pixels from the right edge
+        let window_width = (BASE_TILE_SIZE.width as f32 + spacing_between_tiles) * tiles_per_row as f32;
+        let window_margin = 26.0; // pixels from the right edge
 
         // X position = screen width - estimated window width - margin
         // Y position = 20px
         let window_position = [ui.io().display_size[0] - window_width - window_margin, 20.0];
         let window_flags = imgui::WindowFlags::ALWAYS_AUTO_RESIZE | imgui::WindowFlags::NO_RESIZE;
 
+        let _item_spacing =
+            ui.push_style_var(imgui::StyleVar::ItemSpacing([spacing_between_tiles, spacing_between_tiles]));
+
         ui.window("Tile Selection")
             .flags(window_flags)
             .collapsed(!self.start_open, imgui::Condition::FirstUseEver)
             .position(window_position, imgui::Condition::FirstUseEver)
             .build(|| {
+                let ui_sys = context.ui_sys;
+
                 ui.text("Tools");
                 {
-                    if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_UNDO, Some("Undo")) {
+                    if imgui_ui::icon_button(ui_sys, imgui_ui::icons::ICON_UNDO, Some("Undo")) {
                         undo_redo::undo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
                     ui.same_line();
-                    if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_REDO, Some("Redo")) {
+                    if imgui_ui::icon_button(ui_sys, imgui_ui::icons::ICON_REDO, Some("Redo")) {
                         undo_redo::redo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
 
-                    let ui_texture = context.ui_sys.to_ui_texture(tex_cache, self.clear_button_image);
-
-                    let bg_color = if self.current_selection().is_clear() {
-                        Color::white().to_array()
-                    } else {
-                        Color::gray().to_array()
+                    let btn_params = imgui_ui::UiImageButtonParams {
+                        id: "Clear",
+                        size: BASE_TILE_SIZE.to_vec2(),
+                        ui_texture: ui_sys.to_ui_texture(tex_cache, self.clear_button_image),
+                        tooltip: Some("Clear Tiles"),
+                        normal_color: Some(Color::gray()),
+                        hovered_color: Some(Color::new(1.0, 1.0, 0.0, 0.1)), // Faint yellow
+                        selected_color: Some(Color::white()),
+                        selected: self.current_selection().is_clear(),
+                        ..Default::default()
                     };
 
-                    let clicked = ui
-                        .image_button_config("Clear", ui_texture, tile_size)
-                        .background_col(bg_color)
-                        .build();
-
-                    if ui.is_item_hovered() {
-                        ui.tooltip_text("Clear Tiles");
-                    }
-
-                    if clicked {
+                    if imgui_ui::image_button(ui_sys, &btn_params) {
                         self.clear_selection();
                         self.selection = TilePaletteSelection::Clear;
                     }
@@ -145,11 +144,10 @@ impl TilePaletteMenu {
                 for (label, tile_kind) in sections {
                     self.draw_tile_list(label,
                                         tile_kind,
-                                        context.ui_sys,
+                                        ui_sys,
                                         tex_cache,
-                                        tile_size,
                                         tiles_per_row,
-                                        padding_between_tiles);
+                                        spacing_between_tiles);
                 }
             });
 
@@ -222,7 +220,6 @@ impl TilePaletteMenu {
                       tile_kind: TileKind,
                       ui_sys: &UiSystem,
                       tex_cache: &dyn TextureCache,
-                      tile_size: [f32; 2],
                       tiles_per_row: usize,
                       padding_between_tiles: f32) {
         let ui = ui_sys.ui();
@@ -237,43 +234,33 @@ impl TilePaletteMenu {
                 return true;
             }
 
+            let selected = self.selected_index.get(&tile_kind) == Some(&tile_index);
+
             let tile_sprite = tile_def.texture_by_index(0, 0, 0);
             let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_sprite.texture);
 
-            let is_selected = self.selected_index.get(&tile_kind) == Some(&tile_index);
-            let bg_color = if is_selected {
-                Color::white().to_array()
+            let btn_id = utils::snake_case_to_title::<64>(&tile_def.name);
+            let btn_tooltip = if tile_def.cost != 0 {
+                &format!("{}\nCost: {} gold", btn_id, tile_def.cost)
             } else {
-                Color::gray().to_array()
+                btn_id.as_str()
             };
 
-            let button_text = utils::snake_case_to_title::<64>(&tile_def.name);
+            let btn_params = imgui_ui::UiImageButtonParams {
+                id: &btn_id,
+                size: BASE_TILE_SIZE.to_vec2(),
+                ui_texture,
+                tooltip: Some(btn_tooltip),
+                normal_color: Some(Color::gray()),
+                hovered_color: Some(Color::new(1.0, 1.0, 0.0, 0.1)), // Faint yellow
+                selected_color: Some(Color::white()),
+                tint_color: Some(tile_def.color),
+                top_left_uvs: Some(tile_sprite.coords.top_left()),
+                bottom_right_uvs: Some(tile_sprite.coords.bottom_right()),
+                selected,
+            };
 
-            fn to_imgui_uv(uv: Vec2) -> Vec2 {
-                Vec2::new(uv.x, 1.0 - uv.y)
-            }
-
-            let top_left_uvs = to_imgui_uv(tile_sprite.coords.top_left());
-            let bottom_right_uvs = to_imgui_uv(tile_sprite.coords.bottom_right());
-
-            let clicked =
-                ui.image_button_config(button_text, ui_texture, tile_size)
-                    .background_col(bg_color)
-                    .tint_col(tile_def.color.to_array())
-                    .uv0([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
-                    .uv1([bottom_right_uvs.x, top_left_uvs.y])
-                    .build();
-
-            // Show tooltip when hovered:
-            if ui.is_item_hovered() {
-                ui.tooltip_text(button_text);
-
-                if tile_def.cost != 0 {
-                    ui.tooltip_text(format!("Cost: {} gold", tile_def.cost));
-                }
-            }
-
-            if clicked {
+            if imgui_ui::image_button(ui_sys, &btn_params) {
                 self.clear_selection();
                 self.selection = TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def));
                 self.selected_index.insert(tile_kind, tile_index);
