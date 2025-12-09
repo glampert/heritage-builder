@@ -761,11 +761,10 @@ impl<'world> Spawner<'world> {
             Ok(tile) => {
                 self.subtract_tile_cost(tile_def);
 
-                if tile.path_kind().is_vacant_lot() && prev_tile_def.is_some() {
-                    let prev_tile_name_hash = prev_tile_def.unwrap().hash;
-                    if prev_tile_name_hash == PresetTiles::Grass.hash() {
+                if tile.path_kind().is_vacant_lot() && let Some(prev_tile) = prev_tile_def {
+                    if prev_tile.hash == PresetTiles::Grass.hash() {
                         tile.set_variation_index(0);
-                    } else if prev_tile_name_hash == PresetTiles::Dirt.hash() {
+                    } else if prev_tile.hash == PresetTiles::Dirt.hash() {
                         tile.set_variation_index(1);
                     }
                 } else {

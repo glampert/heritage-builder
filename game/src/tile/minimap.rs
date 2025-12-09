@@ -950,6 +950,7 @@ impl MinimapWidgetImGui {
         let minimap_corners  = &self.minimap_draw_info.corners;
         let (uv_min, uv_max) = self.current_minimap_uv_window();
 
+        // NOTE: Flip V for ImGui.
         let uv1 = [uv_min.x, 1.0 - uv_min.y];
         let uv2 = [uv_max.x, 1.0 - uv_min.y];
         let uv3 = [uv_max.x, 1.0 - uv_max.y];

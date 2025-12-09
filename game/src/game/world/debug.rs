@@ -85,7 +85,7 @@ impl GameObjectDebugPopups {
 
 pub trait GameObjectDebugOptions {
     fn get_popups(&mut self) -> &mut GameObjectDebugPopups;
-    fn get_vars(&mut self) -> SmallVec<[GameObjectDebugVar; 16]>;
+    fn get_vars(&mut self) -> SmallVec<[GameObjectDebugVar<'_>; 16]>;
 
     #[inline]
     fn show_popups(&mut self) -> bool {
@@ -237,7 +237,7 @@ macro_rules! game_object_debug_options {
                 }
 
                 #[inline]
-                fn get_vars(&mut self) -> smallvec::SmallVec<[GameObjectDebugVar; 16]> {
+                fn get_vars(&mut self) -> smallvec::SmallVec<[GameObjectDebugVar<'_>; 16]> {
                     let mut vars = smallvec::smallvec![
                         $(
                             GameObjectDebugVar::new(stringify!($field_name), &mut self.[<opt_ $field_name>]),

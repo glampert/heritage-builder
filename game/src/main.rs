@@ -1,4 +1,6 @@
+// NOTE: Allow these for the whole project.
 #![allow(dead_code)]
+#![allow(clippy::collapsible_if)]
 
 mod log;
 mod app;

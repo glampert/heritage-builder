@@ -178,7 +178,7 @@ impl render::RenderSystem for RenderSystem {
     fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[u16], color: Color) {
         debug_assert!(self.frame_started);
         debug_assert!(!vertices.is_empty() && !indices.is_empty());
-        debug_assert!((indices.len() % 3) == 0); // We expect triangles.
+        debug_assert!(indices.len().is_multiple_of(3)); // We expect triangles.
 
         // Expand to sprite vertices with defaulted (unused) texture coordinates.
         let mut sprite_verts: ArrayVec<SpriteVertex2D, 64> = ArrayVec::new();

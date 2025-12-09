@@ -465,7 +465,7 @@ impl Query {
                      traversable_node_kinds: PathNodeKind,
                      start: Cell,
                      goal: Cell)
-                     -> SearchResult {
+                     -> SearchResult<'_> {
         self.search().find_path(self.graph(),
                                 &AStarUniformCostHeuristic::new(),
                                 traversable_node_kinds,
@@ -480,7 +480,7 @@ impl Query {
                               traversable_node_kinds: PathNodeKind,
                               start: Cell,
                               goal: Cell)
-                              -> SearchResult
+                              -> SearchResult<'_>
         where Filter: PathFilter
     {
         self.search().find_paths(self.graph(),
@@ -499,7 +499,7 @@ impl Query {
                                   traversable_node_kinds: PathNodeKind,
                                   start: Cell,
                                   max_distance: i32)
-                                  -> SearchResult
+                                  -> SearchResult<'_>
         where Filter: PathFilter
     {
         self.search().find_waypoints(self.graph(),
@@ -517,7 +517,7 @@ impl Query {
                              traversable_node_kinds: PathNodeKind,
                              start: Cell,
                              goal_node_kinds: PathNodeKind)
-                             -> SearchResult {
+                             -> SearchResult<'_> {
         self.search().find_path_to_node(self.graph(),
                                         &AStarUniformCostHeuristic::new(),
                                         bias,
@@ -534,7 +534,7 @@ impl Query {
                                       traversable_node_kinds: PathNodeKind,
                                       start: Cell,
                                       goal_node_kinds: PathNodeKind)
-                                      -> SearchResult
+                                      -> SearchResult<'_>
         where Filter: PathFilter
     {
         self.search().find_path_to_node(self.graph(),
@@ -582,7 +582,7 @@ impl Query {
         impl<F> PathFilter for BuildingPathFilter<'_, F> where F: FnMut(&Building, &Path) -> bool
         {
             fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {
-                if self.visited_nodes.iter().any(|node| *node == goal) {
+                if self.visited_nodes.contains(&goal) {
                     // Already visited, continue searching.
                     return false;
                 }
