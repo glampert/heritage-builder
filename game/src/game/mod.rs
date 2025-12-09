@@ -748,8 +748,10 @@ impl GameLoop {
                                   visible_range,
                                   flags);
 
+        let enable_minimap_debug_controls = GameConfigs::get().debug.enable_minimap_debug_controls;
         session.tile_map.minimap_mut().draw_debug_ui(&mut session.camera,
-                                                     self.engine.ui_system());
+                                                     self.engine.ui_system(),
+                                                     enable_minimap_debug_controls);
     }
 
     fn update_autosave(&mut self) {

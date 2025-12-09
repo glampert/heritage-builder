@@ -349,7 +349,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                                                                      flags);
 
         tile_selection.draw(render_sys);
-        tile_map.minimap_mut().draw(render_sys, ui_sys);
+        tile_map.minimap_mut().draw(render_sys, camera, ui_sys);
     }
 }
 

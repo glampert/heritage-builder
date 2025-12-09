@@ -138,6 +138,7 @@ pub struct DebugConfigs {
     pub enable_tile_inspector: bool,
     pub start_in_dev_editor_mode: bool,
     pub skip_loading_tile_sets: bool,
+    pub enable_minimap_debug_controls: bool,
 }
 
 impl Default for DebugConfigs {
@@ -146,7 +147,8 @@ impl Default for DebugConfigs {
                tile_palette_open: true,
                enable_tile_inspector: true,
                start_in_dev_editor_mode: true,
-               skip_loading_tile_sets: false }
+               skip_loading_tile_sets: false,
+               enable_minimap_debug_controls: true, }
     }
 }
 

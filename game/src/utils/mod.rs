@@ -1,6 +1,7 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 use serde::{Deserialize, Serialize};
 use arrayvec::ArrayString;
+use bitflags::bitflags;
 
 pub mod callback;
 pub mod coords;
@@ -707,6 +708,16 @@ impl Rect {
 impl std::fmt::Display for Rect {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "(P:{}, S:{})", self.position(), self.size_as_vec2())
+    }
+}
+
+bitflags_with_display! {
+    #[derive(Copy, Clone, Default)]
+    pub struct RectCorners: u32 {
+        const TopLeft     = 1 << 0;
+        const TopRight    = 1 << 1;
+        const BottomLeft  = 1 << 2;
+        const BottomRight = 1 << 3;
     }
 }
 
