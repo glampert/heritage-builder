@@ -663,7 +663,10 @@ impl MinimapWidget for MinimapWidgetImGui {
               ui_sys: &UiSystem,
               size_in_cells: Size,
               delta_time_secs: Seconds) {
-        debug_assert!(size_in_cells.is_valid());
+        if !size_in_cells.is_valid() {
+            return;
+        }
+
         debug_assert!(self.widget_rect.is_valid());
         debug_assert!(self.minimap_transform.is_valid());
 
