@@ -20,6 +20,9 @@ pub mod backend {
     pub type UiRendererOpenGl = opengl::UiRendererOpenGl;
 }
 
+// usize::MAX == invalid/unset
+pub const INVALID_UI_TEXTURE_HANDLE: UiTextureHandle = UiTextureHandle::new(usize::MAX);
+
 // ----------------------------------------------
 // UiInputEvent
 // ----------------------------------------------
@@ -714,7 +717,7 @@ impl Default for UiImageButtonParams<'_> {
         Self {
             id: "",
             size: Vec2::zero(),
-            ui_texture: UiTextureHandle::new(usize::MAX),
+            ui_texture: INVALID_UI_TEXTURE_HANDLE,
             tooltip: None,
             normal_color: None,
             hovered_color: None,
@@ -730,7 +733,7 @@ impl Default for UiImageButtonParams<'_> {
 pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
     debug_assert!(!params.id.is_empty());
     debug_assert!(params.size != Vec2::zero());
-    debug_assert!(params.ui_texture.id() != usize::MAX);
+    debug_assert!(params.ui_texture != INVALID_UI_TEXTURE_HANDLE);
 
     fn to_imgui_uvs(uv: Vec2) -> Vec2 {
         Vec2::new(uv.x, 1.0 - uv.y) // Invert Y
