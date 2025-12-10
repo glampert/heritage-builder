@@ -1423,8 +1423,8 @@
           "name": "settler",
           "occludes_terrain": false,
           "draw_size": {
-            "width": 20,
-            "height": 38
+            "width": 40,
+            "height": 45
           },
           "variations": [
             {
@@ -1462,23 +1462,23 @@
                 },
                 {
                   "name": "walk_ne",
-                  "duration": 0.7,
+                  "duration": 0.9,
                   "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_nw",
-                  "duration": 0.7,
+                  "duration": 0.9,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_ne" }
                 },
                 {
                   "name": "walk_se",
-                  "duration": 0.7,
+                  "duration": 0.9,
                   "frames_source": { "Files": 8 }
                 },
                 {
                   "name": "walk_sw",
-                  "duration": 0.7,
+                  "duration": 0.9,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_se" }
                 }
