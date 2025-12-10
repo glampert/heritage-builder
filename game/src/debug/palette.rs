@@ -67,7 +67,7 @@ impl TilePalette for TilePaletteMenu {
 
 impl TilePaletteMenu {
     pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
-        let clear_button_image_path = paths::asset_path("ui/x.png");
+        let clear_button_image_path = paths::asset_path("ui/red_x_icon.png");
         Self {
             start_open,
             clear_button_image: tex_cache.load_texture(clear_button_image_path.to_str().unwrap()),
