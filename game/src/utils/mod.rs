@@ -432,12 +432,12 @@ impl Size {
     }
 
     #[inline]
-    pub fn to_vec2(self) -> Vec2 {
+    pub const fn to_vec2(self) -> Vec2 {
         Vec2::new(self.width as f32, self.height as f32)
     }
 
     #[inline]
-    pub fn to_array(self) -> [i32; 2] {
+    pub const fn to_array(self) -> [i32; 2] {
         [self.width, self.height]
     }
 }

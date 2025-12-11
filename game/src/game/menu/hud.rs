@@ -1,5 +1,22 @@
 use std::any::Any;
-use super::*;
+
+use super::{
+    GameMenusSystem,
+    GameMenusContext,
+    TilePlacement,
+    TileInspector,
+    TilePalette,
+    TilePaletteSelection,
+    widgets::TilePaletteWidget,
+};
+use crate::{
+    tile::Tile,
+    save::{Save, Load},
+    render::TextureCache,
+    utils::coords::CellRange,
+    imgui_ui::{UiInputEvent, UiSystem},
+    app::input::{InputAction, MouseButton},
+};
 
 // ----------------------------------------------
 // HUD -> Heads Up Display, AKA in-game menus
@@ -7,10 +24,9 @@ use super::*;
 
 type HudTilePlacement = TilePlacement;
 
-// TODO / WIP
 pub struct HudMenus {
     tile_placement: HudTilePlacement,
-    tile_palette: HudTilePalette,
+    tile_palette:   HudTilePalette,
     tile_inspector: HudTileInspector,
 }
 
@@ -18,7 +34,7 @@ impl HudMenus {
     pub fn new() -> Self {
         Self {
             tile_placement: HudTilePlacement::new(),
-            tile_palette: HudTilePalette::new(),
+            tile_palette:   HudTilePalette::new(),
             tile_inspector: HudTileInspector::new(),
         }
     }
@@ -40,6 +56,10 @@ impl GameMenusSystem for HudMenus {
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {
         Some(&mut self.tile_inspector)
     }
+
+    fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
+        self.tile_palette.draw(context.tex_cache, context.ui_sys);
+    }
 }
 
 // ----------------------------------------------
@@ -55,15 +75,21 @@ impl Load for HudMenus {}
 // ----------------------------------------------
 
 struct HudTilePalette {
-    // TODO / WIP
+    widget: TilePaletteWidget,
 }
 
 impl HudTilePalette {
     fn new() -> Self {
-        Self {}
+        Self { widget: TilePaletteWidget::new() }
+    }
+
+    #[inline]
+    fn draw(&mut self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) {
+        self.widget.draw(tex_cache, ui_sys);
     }
 }
 
+// TODO / WIP
 impl TilePalette for HudTilePalette {
     fn on_mouse_button(&mut self,
                        _button: MouseButton,

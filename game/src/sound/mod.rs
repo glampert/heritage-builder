@@ -505,7 +505,7 @@ impl SoundSystem {
             ui.text("Music:");
 
             if ui.button("Play Music") {
-                let sound_key = self.load_music("dynasty_legacy.mp3");
+                let sound_key = self.load_music("dynastys_legacy_1.mp3");
                 self.play_music(sound_key, *LOOPING);
             }
 

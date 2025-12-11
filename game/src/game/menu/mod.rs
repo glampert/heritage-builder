@@ -1,11 +1,12 @@
-use std::any::Any;
+use std::{any::Any, path::PathBuf};
 
 use crate::{
     log,
     save::{Save, Load},
     engine::time::Seconds,
+    render::TextureCache,
     imgui_ui::{UiSystem, UiInputEvent},
-    utils::{Vec2, coords::{Cell, CellRange}, hash::SmallSet},
+    utils::{Vec2, coords::{Cell, CellRange}, hash::SmallSet, platform::paths},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     game::{
         world::{object::{Spawner, SpawnerResult}, World},
@@ -21,6 +22,7 @@ use crate::{
 };
 
 pub mod hud;
+mod widgets;
 
 // ----------------------------------------------
 // Helper structs
@@ -45,6 +47,7 @@ pub enum GameMenusInputArgs {
 pub struct GameMenusContext<'game> {
     // UI System:
     pub ui_sys: &'game UiSystem,
+    pub tex_cache: &'game mut dyn TextureCache,
 
     // Tile Map:
     pub tile_map: &'game mut TileMap,
@@ -103,6 +106,10 @@ impl GameMenusContext<'_> {
     fn clear_selection(&mut self) {
         self.tile_map.clear_selection(self.tile_selection);
     }
+}
+
+pub fn ui_assets_path() -> PathBuf {
+    paths::asset_path("ui")
 }
 
 // ----------------------------------------------
