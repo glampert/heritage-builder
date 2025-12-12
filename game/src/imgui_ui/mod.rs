@@ -175,17 +175,25 @@ impl UiSystem {
 // ----------------------------------------------
 
 pub struct UiFonts {
+    // Debug / Dev fonts:
     pub normal: UiFontHandle,
     pub small: UiFontHandle,
     pub large: UiFontHandle,
     pub icons: UiFontHandle,
+
+    // In-game UI / HUD fonts:
+    pub game_hud: UiFontHandle,
 }
 
 impl UiFonts {
+    // Debug / Dev fonts:
     const NORMAL_FONT_SIZE: f32 = 14.0;
     const SMALL_FONT_SIZE:  f32 = 10.0;
     const LARGE_FONT_SIZE:  f32 = 16.0;
     const ICONS_FONT_SIZE:  f32 = 16.0;
+
+    // In-game UI / HUD fonts:
+    const GAME_HUD_FONT_SIZE: f32 = 15.0;
 }
 
 // ----------------------------------------------
@@ -466,12 +474,16 @@ impl UiContext {
     }
 
     fn load_custom_fonts(ctx: &mut imgui::Context) -> UiFonts {
-        const STD_FONT_DATA: &[u8] = include_bytes!(
+        const DEV_FONT_DATA: &[u8] = include_bytes!(
             "../../../assets/fonts/source_code_pro_semi_bold.ttf"
         );
 
         const ICON_FONT_DATA: &[u8] = include_bytes!(
             "../../../assets/fonts/fa-solid-900.ttf"
+        );
+
+        const GAME_HUD_FONT_DATA: &[u8] = include_bytes!(
+            "../../../assets/fonts/protest_revolution_regular.ttf"
         );
 
         let icon_glyph_ranges = imgui::FontGlyphRanges::from_slice(&[
@@ -483,17 +495,22 @@ impl UiContext {
         // NOTE: First font loaded will be set as the imgui default.
         let fonts = ctx.fonts();
         UiFonts {
-            normal: Self::load_font(fonts, STD_FONT_DATA,  UiFonts::NORMAL_FONT_SIZE, None),
-            small:  Self::load_font(fonts, STD_FONT_DATA,  UiFonts::SMALL_FONT_SIZE,  None),
-            large:  Self::load_font(fonts, STD_FONT_DATA,  UiFonts::LARGE_FONT_SIZE,  None),
-            icons:  Self::load_font(fonts, ICON_FONT_DATA, UiFonts::ICONS_FONT_SIZE,  Some(icon_glyph_ranges)),
+            // Debug / Dev fonts:
+            normal: Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::NORMAL_FONT_SIZE, None, None),
+            small:  Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::SMALL_FONT_SIZE,  None, None),
+            large:  Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::LARGE_FONT_SIZE,  None, None),
+            icons:  Self::load_font(fonts, ICON_FONT_DATA, UiFonts::ICONS_FONT_SIZE,  Some(icon_glyph_ranges), None),
+
+            // In-game UI / HUD fonts:
+            game_hud: Self::load_font(fonts, GAME_HUD_FONT_DATA, UiFonts::GAME_HUD_FONT_SIZE, None, Some([1.0, 0.0])),
         }
     }
 
     fn load_font(fonts: &mut imgui::FontAtlas,
                  font_data: &[u8],
                  font_size: f32,
-                 glyph_ranges: Option<imgui::FontGlyphRanges>)
+                 glyph_ranges: Option<imgui::FontGlyphRanges>,
+                 glyph_extra_spacing: Option<[f32; 2]>)
                  -> UiFontHandle {
         fonts.add_font(&[imgui::FontSource::TtfData {
             data: font_data,
@@ -503,6 +520,7 @@ impl UiContext {
                 oversample_v: 3,
                 pixel_snap_h: false,
                 glyph_ranges: glyph_ranges.unwrap_or_default(),
+                glyph_extra_spacing: glyph_extra_spacing.unwrap_or([0.0, 0.0]),
                 ..Default::default()
             }),
         }])

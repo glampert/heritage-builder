@@ -501,6 +501,10 @@ pub struct TileDef {
     #[serde(default)]
     pub cost: u32,
 
+    // Name of UI tile palette button this tile displays under.
+    #[serde(default)]
+    pub palette_button: String,
+
     // Tile kind & archetype combined, also defines which layer the tile can be placed on.
     // Resolved post-load based on layer and category.
     #[serde(skip, default = "default_tile_kind")]
@@ -865,6 +869,17 @@ impl TileCategory {
             }
         };
         Some(&self.tile_defs[entry_index])
+    }
+
+    pub fn for_each_tile_def<F>(&'static self, mut visitor_fn: F)
+        where F: FnMut(&'static TileDef) -> bool
+    {
+        for editable_def in &self.tile_defs {
+            let should_continue = visitor_fn(editable_def);
+            if !should_continue {
+                return;
+            }
+        }
     }
 
     fn post_load(&mut self,

@@ -825,8 +825,7 @@ impl GameLoop {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
             menus.begin_frame(&mut GameMenusContext {
-                ui_sys: self.engine.ui_system(),
-                tex_cache: self.engine.texture_cache(),
+                engine: self.engine.as_mut(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
                 sim: &mut session.sim,
@@ -849,8 +848,7 @@ impl GameLoop {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
             menus.end_frame(&mut GameMenusContext {
-                ui_sys: self.engine.ui_system(),
-                tex_cache: self.engine.texture_cache(),
+                engine: self.engine.as_mut(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
                 sim: &mut session.sim,
@@ -874,8 +872,7 @@ impl GameLoop {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
             menus.handle_input(&mut GameMenusContext {
-                ui_sys: self.engine.ui_system(),
-                tex_cache: self.engine.texture_cache(),
+                engine: self.engine.as_mut(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
                 sim: &mut session.sim,
@@ -901,8 +898,7 @@ impl GameLoop {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
             menus.handle_input(&mut GameMenusContext {
-                ui_sys: self.engine.ui_system(),
-                tex_cache: self.engine.texture_cache(),
+                engine: self.engine.as_mut(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
                 sim: &mut session.sim,
@@ -926,8 +922,7 @@ impl GameLoop {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
             menus.handle_input(&mut GameMenusContext {
-                ui_sys: self.engine.ui_system(),
-                tex_cache: self.engine.texture_cache(),
+                engine: self.engine.as_mut(),
                 tile_map: &mut session.tile_map,
                 tile_selection: &mut session.tile_selection,
                 sim: &mut session.sim,

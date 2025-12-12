@@ -115,8 +115,16 @@ impl Texture2D {
             image.apply_orientation(image::metadata::Orientation::FlipHorizontal);
         }
 
+        // Avoid conversion if the image is already in RGBA8 format.
+        let image_buffer = {
+            if image.color() != image::ColorType::Rgba8 {
+                &image.to_rgba8()
+            } else {
+                image.as_rgba8().expect("Expected an RGBA8 image!")
+            }
+        };
+
         let (image_w, image_h) = image.dimensions();
-        let image_buffer = image.as_rgba8().expect("Expected an RGBA8 image!");
         let image_pixels = image_buffer.as_raw();
 
         Ok(Self::with_data_raw(image_pixels.as_ptr() as _,
@@ -368,6 +376,8 @@ struct TexCacheEntry {
     allow_settings_change: bool,
 }
 
+// FIXME: Have to make this a proper cache now.
+// Keep a map with all loaded textures, key is file path + TextureSettings.
 pub struct TextureCache {
     textures: Slab<TexCacheEntry>,
     settings: render::TextureSettings,

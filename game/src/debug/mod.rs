@@ -146,11 +146,11 @@ impl DevEditorMenusSingleton {
         if *show_log_viewer_window {
             let log_viewer = game_loop.engine_mut().log_viewer();
             log_viewer.show(true);
-            *show_log_viewer_window = log_viewer.draw(menu_context.ui_sys);
+            *show_log_viewer_window = log_viewer.draw(menu_context.engine.ui_system());
         }
 
         let mut sim_context = sim::debug::DebugContext {
-            ui_sys: menu_context.ui_sys,
+            ui_sys: menu_context.engine.ui_system(),
             world: menu_context.world,
             systems: menu_context.systems,
             tile_map: menu_context.tile_map,
@@ -179,7 +179,7 @@ impl DevEditorMenusSingleton {
         }
 
         if show_cursor_pos {
-            utils::draw_cursor_overlay(menu_context.ui_sys,
+            utils::draw_cursor_overlay(menu_context.engine.ui_system(),
                                        menu_context.camera.transform(),
                                        menu_context.cursor_screen_pos,
                                        None);
@@ -187,13 +187,13 @@ impl DevEditorMenusSingleton {
 
         if show_render_perf_stats {
             let engine = game_loop.engine();
-            utils::draw_render_perf_stats(menu_context.ui_sys,
+            utils::draw_render_perf_stats(menu_context.engine.ui_system(),
                                           engine.render_stats(),
                                           engine.tile_map_render_stats());
         }
 
         if show_world_perf_stats {
-            utils::draw_world_perf_stats(menu_context.ui_sys,
+            utils::draw_world_perf_stats(menu_context.engine.ui_system(),
                                          menu_context.world,
                                          menu_context.tile_map,
                                          visible_range);

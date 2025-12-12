@@ -3,9 +3,8 @@ use std::{any::Any, path::PathBuf};
 use crate::{
     log,
     save::{Save, Load},
-    engine::time::Seconds,
-    render::TextureCache,
-    imgui_ui::{UiSystem, UiInputEvent},
+    imgui_ui::UiInputEvent,
+    engine::{Engine, time::Seconds},
     utils::{Vec2, coords::{Cell, CellRange}, hash::SmallSet, platform::paths},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     game::{
@@ -45,9 +44,8 @@ pub enum GameMenusInputArgs {
 }
 
 pub struct GameMenusContext<'game> {
-    // UI System:
-    pub ui_sys: &'game UiSystem,
-    pub tex_cache: &'game mut dyn TextureCache,
+    // Engine:
+    pub engine: &'game mut dyn Engine,
 
     // Tile Map:
     pub tile_map: &'game mut TileMap,
@@ -129,7 +127,7 @@ pub trait GameMenusSystem: Save + Load {
 
     fn begin_frame(&mut self, context: &mut GameMenusContext) {
         // Bail if we're hovering over an ImGui menu...
-        if context.ui_sys.is_handling_mouse_input() {
+        if context.engine.ui_system().is_handling_mouse_input() {
             return;
         }
 

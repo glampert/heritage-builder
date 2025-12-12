@@ -170,13 +170,14 @@ impl TilePaletteMenu {
 
         // Draw clear tile icon under the cursor:
         if self.current_selection().is_clear() {
-            const CLEAR_ICON_SIZE: Size = Size::new(64, 32);
+            const CLEAR_ICON_SIZE: Size = BASE_TILE_SIZE;
 
-            let rect = Rect::from_pos_and_size(Vec2::new(cursor_screen_pos.x
-                                                         - (CLEAR_ICON_SIZE.width / 2) as f32,
-                                                         cursor_screen_pos.y
-                                                         - (CLEAR_ICON_SIZE.height / 2) as f32),
-                                                     CLEAR_ICON_SIZE);
+            let rect = Rect::from_pos_and_size(
+                Vec2::new(
+                    cursor_screen_pos.x - (CLEAR_ICON_SIZE.width  / 2) as f32,
+                    cursor_screen_pos.y - (CLEAR_ICON_SIZE.height / 2) as f32),
+                CLEAR_ICON_SIZE
+            );
 
             debug_draw.textured_colored_rect(rect,
                                              &RectTexCoords::DEFAULT,
@@ -188,10 +189,10 @@ impl TilePaletteMenu {
 
             let offset =
                 if selected_tile.is(TileKind::Building | TileKind::Rocks | TileKind::Vegetation) {
-                    Vec2::new(-(selected_tile.draw_size.width as f32 / 2.0),
+                    Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
                               -(selected_tile.draw_size.height as f32))
                 } else {
-                    Vec2::new(-(selected_tile.draw_size.width as f32 / 2.0),
+                    Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
                               -(selected_tile.draw_size.height as f32 / 2.0))
                 };
 
@@ -199,14 +200,17 @@ impl TilePaletteMenu {
             let highlight_color = if has_valid_placement { Color::white() } else { INVALID_TILE_COLOR };
 
             if let Some(sprite_frame) = selected_tile.anim_frame_by_index(0, 0, 0) {
+                let tile_color = Color::new(
+                    selected_tile.color.r,
+                    selected_tile.color.g,
+                    selected_tile.color.b,
+                    0.7 // Semi-transparent
+                );
+
                 debug_draw.textured_colored_rect(cursor_transform.scale_and_offset_rect(rect),
                                                  &sprite_frame.tex_info.coords,
                                                  sprite_frame.tex_info.texture,
-                                                 Color::new(selected_tile.color.r,
-                                                            selected_tile.color.g,
-                                                            selected_tile.color.b,
-                                                            0.7)
-                                                 * highlight_color);
+                                                 tile_color * highlight_color);
             }
 
             if show_selection_bounds {
