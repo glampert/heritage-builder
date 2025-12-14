@@ -22,6 +22,7 @@ use crate::{
 
 pub mod hud;
 mod widgets;
+mod palette;
 
 // ----------------------------------------------
 // Helper structs

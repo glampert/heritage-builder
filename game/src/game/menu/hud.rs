@@ -7,26 +7,23 @@ use super::{
     TileInspector,
     TilePalette,
     TilePaletteSelection,
-    widgets::TilePaletteWidget,
+    palette::TilePaletteWidget,
 };
 use crate::{
-    save::{Save, Load},
+    tile::Tile,
     engine::Engine,
+    save::{Save, Load},
     imgui_ui::UiInputEvent,
-    render::{RenderSystem, TextureHandle},
     app::input::{InputAction, MouseButton},
-    tile::{self, Tile, TileKind, BASE_TILE_SIZE},
-    utils::{Size, Color, Vec2, Rect, RectTexCoords, coords::{CellRange, WorldToScreenTransform}},
+    utils::{Vec2, coords::{CellRange, WorldToScreenTransform}},
 };
 
 // ----------------------------------------------
 // HUD -> Heads Up Display, AKA in-game menus
 // ----------------------------------------------
 
-type HudTilePlacement = TilePlacement;
-
 pub struct HudMenus {
-    tile_placement: HudTilePlacement,
+    tile_placement: TilePlacement,
     tile_palette:   HudTilePalette,
     tile_inspector: HudTileInspector,
 }
@@ -34,7 +31,7 @@ pub struct HudMenus {
 impl HudMenus {
     pub fn new() -> Self {
         Self {
-            tile_placement: HudTilePlacement::new(),
+            tile_placement: TilePlacement::new(),
             tile_palette:   HudTilePalette::new(),
             tile_inspector: HudTileInspector::new(),
         }
@@ -80,16 +77,14 @@ impl Load for HudMenus {}
 
 struct HudTilePalette {
     widget: TilePaletteWidget,
-    clear_icon_sprite: TextureHandle,
-    left_mouse_button_held: bool,
+    left_mouse_button_pressed: bool,
 }
 
 impl HudTilePalette {
     fn new() -> Self {
         Self {
             widget: TilePaletteWidget::new(),
-            clear_icon_sprite: TextureHandle::invalid(),
-            left_mouse_button_held: false,
+            left_mouse_button_pressed: false,
         }
     }
 
@@ -98,70 +93,8 @@ impl HudTilePalette {
             cursor_screen_pos: Vec2,
             transform: WorldToScreenTransform,
             has_valid_placement: bool) {
-        // Lazily loaded on first rendered frame.
-        if !self.clear_icon_sprite.is_valid() {
-            let file_path = super::ui_assets_path().join("red_x_icon.png");
-            self.clear_icon_sprite = engine.texture_cache().load_texture(file_path.to_str().unwrap());
-        }
-
         self.widget.draw(engine.texture_cache(), engine.ui_system());
-        self.draw_selected_tile(engine.render_system(), cursor_screen_pos, transform, has_valid_placement);
-    }
-
-    fn draw_selected_tile(&self,
-                          render_sys: &mut dyn RenderSystem,
-                          cursor_screen_pos: Vec2,
-                          transform: WorldToScreenTransform,
-                          has_valid_placement: bool) {
-        if !self.has_selection() {
-            return;
-        }
-
-        // Draw clear icon under the cursor:
-        if self.current_selection().is_clear() {
-            const CLEAR_ICON_SIZE: Size = BASE_TILE_SIZE;
-
-            let rect = Rect::from_pos_and_size(
-                Vec2::new(
-                    cursor_screen_pos.x - (CLEAR_ICON_SIZE.width  / 2) as f32,
-                    cursor_screen_pos.y - (CLEAR_ICON_SIZE.height / 2) as f32),
-                CLEAR_ICON_SIZE
-            );
-
-            render_sys.draw_textured_colored_rect(rect,
-                                                  &RectTexCoords::DEFAULT,
-                                                  self.clear_icon_sprite,
-                                                  Color::white());
-        } else {
-            let selected_tile = self.current_selection().as_tile_def().unwrap();
-            let rect = Rect::from_pos_and_size(cursor_screen_pos, selected_tile.draw_size);
-
-            let offset =
-                if selected_tile.is(TileKind::Building | TileKind::Rocks | TileKind::Vegetation) {
-                    Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
-                              -(selected_tile.draw_size.height as f32))
-                } else {
-                    Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
-                              -(selected_tile.draw_size.height as f32 / 2.0))
-                };
-
-            let cursor_transform = WorldToScreenTransform::new(transform.scaling, offset);
-            let highlight_color = if has_valid_placement { Color::white() } else { tile::rendering::INVALID_TILE_COLOR };
-
-            if let Some(sprite_frame) = selected_tile.anim_frame_by_index(0, 0, 0) {
-                let tile_color = Color::new(
-                    selected_tile.color.r,
-                    selected_tile.color.g,
-                    selected_tile.color.b,
-                    0.7 // Semi-transparent
-                );
-
-                render_sys.draw_textured_colored_rect(cursor_transform.scale_and_offset_rect(rect),
-                                                      &sprite_frame.tex_info.coords,
-                                                      sprite_frame.tex_info.texture,
-                                                      tile_color * highlight_color);
-            }
-        }
+        self.widget.draw_selected_tile(engine.render_system(), cursor_screen_pos, transform, has_valid_placement);
     }
 }
 
@@ -169,9 +102,9 @@ impl TilePalette for HudTilePalette {
     fn on_mouse_button(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
-                self.left_mouse_button_held = true;
+                self.left_mouse_button_pressed = true;
             } else if action == InputAction::Release {
-                self.left_mouse_button_held = false;
+                self.left_mouse_button_pressed = false;
             }
             UiInputEvent::Handled
         } else {
@@ -180,7 +113,7 @@ impl TilePalette for HudTilePalette {
     }
 
     fn wants_to_place_or_clear_tile(&self) -> bool {
-        self.left_mouse_button_held && self.has_selection()
+        self.left_mouse_button_pressed && self.has_selection()
     }
 
     fn current_selection(&self) -> TilePaletteSelection {
@@ -189,7 +122,7 @@ impl TilePalette for HudTilePalette {
 
     fn clear_selection(&mut self) {
         self.widget.clear_selection();
-        self.left_mouse_button_held = false;
+        self.left_mouse_button_pressed = false;
     }
 }
 
