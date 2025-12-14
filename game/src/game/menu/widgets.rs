@@ -3,8 +3,8 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use crate::{
-    render::TextureCache,
     utils::{Size, Vec2, Rect, Color},
+    render::{TextureCache, TextureSettings, TextureFilter},
     imgui_ui::{UiSystem, UiTextureHandle, INVALID_UI_TEXTURE_HANDLE},
 };
 
@@ -38,8 +38,14 @@ impl ButtonState {
     }
 
     fn load_texture(self, name: &str, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> UiTextureHandle {
+        let settings = TextureSettings {
+            filter: TextureFilter::Linear,
+            gen_mipmaps: false,
+            ..Default::default()
+        };
+
         let sprite_path = self.asset_path(name);
-        let tex_handle = tex_cache.load_texture(sprite_path.to_str().unwrap());
+        let tex_handle = tex_cache.load_texture_with_settings(sprite_path.to_str().unwrap(), Some(settings));
         ui_sys.to_ui_texture(tex_cache, tex_handle)
     }
 }

@@ -7,7 +7,7 @@ use crate::{
     engine::DebugDraw,
     app::input::{InputAction, MouseButton},
     imgui_ui::{self, UiInputEvent, UiSystem},
-    render::{TextureCache, TextureHandle},
+    render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
     utils::{
         self, platform::paths, coords::WorldToScreenTransform,
         Color, Rect, RectTexCoords, Size, Vec2,
@@ -67,10 +67,15 @@ impl TilePalette for TilePaletteMenu {
 
 impl TilePaletteMenu {
     pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
-        let clear_button_image_path = paths::asset_path("ui/red_x_icon.png");
+        let settings = TextureSettings {
+            filter: TextureFilter::Linear,
+            gen_mipmaps: false,
+            ..Default::default()
+        };
+        let clear_button_path = paths::asset_path("ui/red_x_icon.png");
         Self {
             start_open,
-            clear_button_image: tex_cache.load_texture(clear_button_image_path.to_str().unwrap()),
+            clear_button_image: tex_cache.load_texture_with_settings(clear_button_path.to_str().unwrap(), Some(settings)),
             ..Default::default()
         }
     }

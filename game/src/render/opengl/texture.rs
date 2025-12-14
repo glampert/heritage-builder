@@ -15,8 +15,8 @@ use super::{
 };
 use crate::{
     log,
-    utils::Size,
     imgui_ui::UiSystem,
+    utils::{Size, hash::{self, PreHashedKeyMap, StringHash}},
     render::{self, NativeTextureHandle, TextureHandle},
 };
 
@@ -259,6 +259,10 @@ impl Texture2D {
         &self.name
     }
 
+    pub fn hash(&self) -> StringHash {
+        hash::fnv1a_from_str(&self.name)
+    }
+
     #[inline]
     pub fn native_handle(&self) -> NativeTextureHandle {
         NativeTextureHandle { bits: self.handle as usize }
@@ -376,9 +380,8 @@ struct TexCacheEntry {
     allow_settings_change: bool,
 }
 
-// FIXME: Have to make this a proper cache now.
-// Keep a map with all loaded textures, key is file path + TextureSettings.
 pub struct TextureCache {
+    lookup: PreHashedKeyMap<StringHash, usize>,
     textures: Slab<TexCacheEntry>,
     settings: render::TextureSettings,
 
@@ -390,6 +393,7 @@ pub struct TextureCache {
 impl TextureCache {
     pub fn new(initial_capacity: usize) -> Self {
         let mut tex_cache = Self {
+            lookup: PreHashedKeyMap::default(),
             textures: Slab::with_capacity(initial_capacity),
             settings: render::TextureSettings::default(),
             dummy_texture_handle: TextureHandle::invalid(),
@@ -440,10 +444,46 @@ impl TextureCache {
         }
     }
 
+    // ----------------------
+    // Internals:
+    // ----------------------
+
     #[inline]
-    fn add_texture(&mut self, texture: Texture2D, allow_settings_change: bool) -> TextureHandle {
+    fn add_texture_internal(&mut self, texture: Texture2D, allow_settings_change: bool) -> TextureHandle {
+        debug_assert!(self.textures.len() == self.lookup.len());
+
+        let hash = texture.hash();
         let index = self.textures.insert(TexCacheEntry { texture, allow_settings_change });
+
+        if let Some(existing_index) = self.lookup.insert(hash, index) {
+            let entry_name = self.textures[existing_index].texture.name();
+            panic!("Texture '{entry_name}' ({hash:X}) is already present in TextureCache at index [{existing_index}].");
+        }
+
         TextureHandle::Index(index as u32)
+    }
+
+    #[inline]
+    fn remove_texture_internal(&mut self, index: usize) {
+        debug_assert!(self.textures.len() == self.lookup.len());
+
+        if let Some(entry) = self.textures.try_remove(index) {
+            if self.lookup.remove(&entry.texture.hash()).is_none() {
+                panic!("Failed to remove TextureCache entry for '{}'!", entry.texture.name());
+            }
+        }
+    }
+
+    #[inline]
+    fn find_texture_internal(&self, name: &str) -> TextureHandle {
+        debug_assert!(self.textures.len() == self.lookup.len());
+
+        if let Some(index) = self.lookup.get(&hash::fnv1a_from_str(name)) {
+            debug_assert!(self.textures.get(*index).is_some());
+            TextureHandle::Index(*index as u32)
+        } else {
+            TextureHandle::Invalid
+        }
     }
 
     fn load_texture_with_settings_internal(&mut self,
@@ -469,37 +509,45 @@ impl TextureCache {
             }
         };
 
-        self.add_texture(texture, allow_settings_change)
+        self.add_texture_internal(texture, allow_settings_change)
     }
 
-    fn create_color_filled_8x8_texture(&mut self,
-                                       debug_name: &str,
-                                       color: [u8; 4])
-                                       -> TextureHandle {
-        #[repr(C)]
-        #[derive(Copy, Clone)]
-        struct RGBA8 {
-            r: u8,
-            g: u8,
-            b: u8,
-            a: u8,
+    fn new_texture_with_data_internal(&mut self,
+                                      debug_name: &str,
+                                      size: Size,
+                                      data: *const c_void,
+                                      settings: Option<render::TextureSettings>)
+                                      -> TextureHandle {
+        debug_assert!(!debug_name.is_empty());
+        debug_assert!(size.is_valid());
+
+        if self.find_texture_internal(debug_name).is_valid() {
+            panic!("TextureCache: A texture with name '{debug_name}' already exists! Choose a different name.");
         }
-        debug_assert!(std::mem::size_of::<RGBA8>() == 4); // Ensure no padding.
 
-        const SIZE: Size = Size::new(8, 8);
-        const PIXEL_COUNT: usize = (SIZE.width * SIZE.height) as usize;
-        let pixels = [RGBA8 { r: color[0], g: color[1], b: color[2], a: color[3] }; PIXEL_COUNT];
+        let allow_settings_change = settings.is_none();
+        let gl_settings = OpenGlTextureSettings::from(settings.unwrap_or(self.settings));
 
-        let gl_settings = OpenGlTextureSettings::from(self.settings);
-        let texture = Texture2D::with_data_raw(pixels.as_ptr() as _,
-                                               SIZE,
+        let texture = Texture2D::with_data_raw(data,
+                                               size,
                                                gl_settings.filter,
                                                gl_settings.wrap_mode,
                                                TextureUnit(0),
                                                gl_settings.gen_mipmaps,
                                                debug_name);
 
-        self.add_texture(texture, true)
+        self.add_texture_internal(texture, allow_settings_change)
+    }
+
+    fn create_color_filled_8x8_texture(&mut self,
+                                       debug_name: &str,
+                                       color: [u8; 4])
+                                       -> TextureHandle {
+        const SIZE: Size = Size::new(8, 8);
+        const PIXEL_COUNT: usize = (SIZE.width * SIZE.height) as usize;
+
+        let pixels = [color; PIXEL_COUNT];
+        self.new_texture_with_data_internal(debug_name, SIZE, pixels.as_ptr() as _, None)
     }
 }
 
@@ -513,22 +561,18 @@ impl render::TextureCache for TextureCache {
     }
 
     fn load_texture(&mut self, file_path: &str) -> TextureHandle {
-        let allow_settings_change = true;
-        let gl_settings = OpenGlTextureSettings::from(self.settings);
-
-        self.load_texture_with_settings_internal(file_path,
-                                                 TextureLoaderFlags::empty(),
-                                                 gl_settings.filter,
-                                                 gl_settings.wrap_mode,
-                                                 TextureUnit(0),
-                                                 gl_settings.gen_mipmaps,
-                                                 allow_settings_change)
+        self.load_texture_with_settings(file_path, None)
     }
 
     fn load_texture_with_settings(&mut self,
                                   file_path: &str,
                                   settings: Option<render::TextureSettings>)
                                   -> TextureHandle {
+        let loaded_texture = self.find_texture_internal(file_path);
+        if loaded_texture.is_valid() {
+            return loaded_texture;
+        }
+
         let allow_settings_change = settings.is_none();
         let gl_settings = OpenGlTextureSettings::from(settings.unwrap_or(self.settings));
 
@@ -569,20 +613,7 @@ impl render::TextureCache for TextureCache {
                                  size: Size,
                                  settings: Option<render::TextureSettings>)
                                  -> TextureHandle {
-        debug_assert!(size.is_valid());
-
-        let allow_settings_change = settings.is_none();
-        let gl_settings = OpenGlTextureSettings::from(settings.unwrap_or(self.settings));
-
-        let texture = Texture2D::with_data_raw(core::ptr::null(),
-                                               size,
-                                               gl_settings.filter,
-                                               gl_settings.wrap_mode,
-                                               TextureUnit(0),
-                                               gl_settings.gen_mipmaps,
-                                               debug_name);
-
-        self.add_texture(texture, allow_settings_change)
+        self.new_texture_with_data_internal(debug_name, size, core::ptr::null(), settings)
     }
 
     fn update_texture(&mut self,
@@ -592,9 +623,9 @@ impl render::TextureCache for TextureCache {
                       size: Size,
                       mip_level: u32,
                       pixels: &[u8]) {
-        debug_assert!(handle.is_valid());
         debug_assert!(size.is_valid());
         debug_assert!(pixels.len() >= (size.width * size.height * 4) as usize); // RGBA images only.
+        debug_assert!(!matches!(handle, TextureHandle::Invalid | TextureHandle::White));
 
         let texture = self.handle_to_texture(handle);
         texture.update(offset_x, offset_y, size, mip_level, pixels);
@@ -604,7 +635,7 @@ impl render::TextureCache for TextureCache {
 
     fn release_texture(&mut self, handle: &mut TextureHandle) {
         if let TextureHandle::Index(handle_index) = handle {
-            self.textures.try_remove(*handle_index as usize);
+            self.remove_texture_internal(*handle_index as usize);
         }
         *handle = TextureHandle::invalid();
     }

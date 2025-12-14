@@ -8,7 +8,7 @@ use super::{
 
 use crate::{
     imgui_ui::UiSystem,
-    render::{RenderSystem, TextureCache, TextureHandle},
+    render::{RenderSystem, TextureCache, TextureHandle, TextureSettings, TextureFilter},
     utils::{self, Size, Vec2, Color, Rect, RectTexCoords, coords::WorldToScreenTransform},
     tile::{
         TileKind, BASE_TILE_SIZE, rendering::INVALID_TILE_COLOR,
@@ -404,8 +404,15 @@ impl TilePaletteWidget {
                               has_valid_placement: bool) {
         // Lazily loaded on first rendered frame.
         if !self.clear_icon_sprite.is_valid() {
+            let settings = TextureSettings {
+                filter: TextureFilter::Linear,
+                gen_mipmaps: false,
+                ..Default::default()
+            };
+
             let file_path = super::ui_assets_path().join("red_x_icon.png");
-            self.clear_icon_sprite = render_sys.texture_cache_mut().load_texture(file_path.to_str().unwrap());
+            self.clear_icon_sprite = render_sys.texture_cache_mut()
+                .load_texture_with_settings(file_path.to_str().unwrap(), Some(settings));
         }
 
         if self.current_selection.is_none() {
