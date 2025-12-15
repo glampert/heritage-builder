@@ -8,6 +8,7 @@ use super::{
     TilePalette,
     TilePaletteSelection,
     palette::TilePaletteWidget,
+    bar::MenuBarWidget,
 };
 use crate::{
     tile::Tile,
@@ -22,23 +23,25 @@ use crate::{
 // HUD -> Heads Up Display, AKA in-game menus
 // ----------------------------------------------
 
-pub struct HudMenus {
+pub struct InGameHudMenus {
     tile_placement: TilePlacement,
-    tile_palette:   HudTilePalette,
-    tile_inspector: HudTileInspector,
+    tile_palette: TilePaletteMenu,
+    tile_inspector: TileInspectorMenu,
+    menu_bar: MenuBarWidget,
 }
 
-impl HudMenus {
+impl InGameHudMenus {
     pub fn new() -> Self {
         Self {
             tile_placement: TilePlacement::new(),
-            tile_palette:   HudTilePalette::new(),
-            tile_inspector: HudTileInspector::new(),
+            tile_palette: TilePaletteMenu::new(),
+            tile_inspector: TileInspectorMenu::new(),
+            menu_bar: MenuBarWidget::new(),
         }
     }
 }
 
-impl GameMenusSystem for HudMenus {
+impl GameMenusSystem for InGameHudMenus {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -60,27 +63,29 @@ impl GameMenusSystem for HudMenus {
                                context.cursor_screen_pos,
                                context.camera.transform(),
                                context.tile_selection.has_valid_placement());
+
+        self.menu_bar.draw(context.engine.texture_cache(),
+                           context.engine.ui_system());
     }
 }
 
 // ----------------------------------------------
-// Save/Load for HudMenus
+// Save/Load for InGameHudMenus
 // ----------------------------------------------
 
-impl Save for HudMenus {}
-
-impl Load for HudMenus {}
+impl Save for InGameHudMenus {}
+impl Load for InGameHudMenus {}
 
 // ----------------------------------------------
-// HudTilePalette
+// TilePaletteMenu
 // ----------------------------------------------
 
-struct HudTilePalette {
+struct TilePaletteMenu {
     widget: TilePaletteWidget,
     left_mouse_button_pressed: bool,
 }
 
-impl HudTilePalette {
+impl TilePaletteMenu {
     fn new() -> Self {
         Self {
             widget: TilePaletteWidget::new(),
@@ -98,7 +103,7 @@ impl HudTilePalette {
     }
 }
 
-impl TilePalette for HudTilePalette {
+impl TilePalette for TilePaletteMenu {
     fn on_mouse_button(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
@@ -127,20 +132,20 @@ impl TilePalette for HudTilePalette {
 }
 
 // ----------------------------------------------
-// HudTileInspector
+// TileInspectorMenu
 // ----------------------------------------------
 
-struct HudTileInspector {
+struct TileInspectorMenu {
     // TODO / WIP
 }
 
-impl HudTileInspector {
+impl TileInspectorMenu {
     fn new() -> Self {
         Self {}
     }
 }
 
-impl TileInspector for HudTileInspector {
+impl TileInspector for TileInspectorMenu {
     fn on_mouse_button(&mut self,
                        _button: MouseButton,
                        _action: InputAction,

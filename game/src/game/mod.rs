@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use menu::{GameMenusSystem, GameMenusContext, GameMenusInputArgs, hud::HudMenus};
+use menu::{GameMenusSystem, GameMenusContext, GameMenusInputArgs, hud::InGameHudMenus, widgets::UiStyleOverrides};
 use config::{GameConfigs, LoadMapSetting};
 use system::{settlers, GameSystems};
 use building::config::BuildingConfigs;
@@ -119,7 +119,7 @@ impl GameSession {
         if dev_editor_mode {
             Box::new(DevEditorMenus::new(tile_map))
         } else {
-            Box::new(HudMenus::new())
+            Box::new(InGameHudMenus::new())
         }
     }
 
@@ -127,12 +127,21 @@ impl GameSession {
         if let Some(menus) = &mut self.menus {
             if menus.as_any().is::<DevEditorMenus>() {
                 *menus = Self::create_game_menus(false, &mut self.tile_map);
-                log::info!(log::channel!("session"), "Switching to HudMenus ...");
-            } else if menus.as_any().is::<HudMenus>() {
+                log::info!(log::channel!("session"), "Switching to InGameHudMenus ...");
+            } else if menus.as_any().is::<InGameHudMenus>() {
                 *menus = Self::create_game_menus(true, &mut self.tile_map);
                 log::info!(log::channel!("session"), "Switching to DevEditorMenus ...");
             }
         }
+    }
+
+    fn is_dev_editor_menu_mode(&self) -> bool {
+        if let Some(menus) = &self.menus {
+            if menus.as_any().is::<DevEditorMenus>() {
+                return true;
+            }
+        }
+        false
     }
 
     fn create_tile_map(world: &mut World, load_map_setting: &LoadMapSetting) -> Box<TileMap> {
@@ -735,6 +744,7 @@ impl GameLoop {
         let ui_sys = self.engine.ui_system();
 
         let session = self.session.as_mut().unwrap();
+        let dev_editor_menus = session.is_dev_editor_menu_mode();
 
         session.tile_map.minimap_mut().update(&mut session.camera,
                                               tex_cache,
@@ -742,13 +752,22 @@ impl GameLoop {
                                               ui_sys,
                                               delta_time_secs);
 
+        // Match minimap style with the in-game UI.
+        let _ui_style_overrides = if dev_editor_menus {
+            UiStyleOverrides::dev_editor_menus(ui_sys)
+        } else {
+            UiStyleOverrides::in_game_hud_menus(ui_sys)
+        };
+
         self.engine.draw_tile_map(&mut session.tile_map,
                                   &session.tile_selection,
                                   &session.camera,
                                   visible_range,
                                   flags);
 
-        let enable_minimap_debug_controls = GameConfigs::get().debug.enable_minimap_debug_controls;
+        let enable_minimap_debug_controls =
+            GameConfigs::get().debug.enable_minimap_debug_controls && dev_editor_menus;
+
         session.tile_map.minimap_mut().draw_debug_ui(&mut session.camera,
                                                      self.engine.ui_system(),
                                                      enable_minimap_debug_controls);

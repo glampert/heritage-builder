@@ -221,6 +221,98 @@ pub fn invisible_window_flags() -> imgui::WindowFlags {
     //| imgui::WindowFlags::NO_BACKGROUND // Add this back when we switch to a sprite background.
 }
 
+pub struct UiStyleOverrides<'ui> {
+    window_bg_color: imgui::ColorStackToken<'ui>,
+    window_title_bg_color_active: imgui::ColorStackToken<'ui>,
+    window_title_bg_color_inactive: imgui::ColorStackToken<'ui>,
+    window_title_bg_color_collapsed: imgui::ColorStackToken<'ui>,
+
+    text_color: imgui::ColorStackToken<'ui>,
+    text_font: imgui::FontStackToken<'ui>,
+
+    button_color: imgui::ColorStackToken<'ui>,
+    button_color_hovered: imgui::ColorStackToken<'ui>,
+    button_color_active: imgui::ColorStackToken<'ui>,
+
+    // Tooltips:
+    popup_bg_color: imgui::ColorStackToken<'ui>,
+    popup_border_size: imgui::StyleStackToken<'ui>,
+}
+
+impl<'ui> UiStyleOverrides<'ui> {
+    #[inline]
+    #[must_use]
+    pub fn dev_editor_menus(_ui_sys: &UiSystem) -> Option<Self> {
+        None // Default style is already the dev/editor menus style.
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn in_game_hud_menus(ui_sys: &UiSystem) -> Option<Self> {
+        let ui = unsafe { &*ui_sys.raw_ui_ptr() };
+
+        let bg_color    = [0.93, 0.91, 0.77, 1.0];
+        let btn_hovered = [0.98, 0.95, 0.83, 1.0];
+        let btn_active  = [0.88, 0.83, 0.68, 1.0];
+
+        Some(Self {
+            window_bg_color: ui.push_style_color(imgui::StyleColor::WindowBg, bg_color),
+            window_title_bg_color_active: ui.push_style_color(imgui::StyleColor::TitleBgActive, bg_color),
+            window_title_bg_color_inactive: ui.push_style_color(imgui::StyleColor::TitleBg, bg_color),
+            window_title_bg_color_collapsed: ui.push_style_color(imgui::StyleColor::TitleBgCollapsed, bg_color),
+
+            text_color: ui.push_style_color(imgui::StyleColor::Text, Color::black().to_array()),
+            text_font: ui.push_font(ui_sys.fonts().game_hud),
+
+            button_color: ui.push_style_color(imgui::StyleColor::Button, bg_color),
+            button_color_hovered: ui.push_style_color(imgui::StyleColor::ButtonHovered, btn_hovered),
+            button_color_active: ui.push_style_color(imgui::StyleColor::ButtonActive, btn_active),
+
+            // Tooltips:
+            popup_bg_color: ui.push_style_color(imgui::StyleColor::PopupBg, bg_color),
+            popup_border_size: ui.push_style_var(imgui::StyleVar::PopupBorderSize(1.0)), // No border
+        })
+    }
+
+    #[inline]
+    pub fn set_item_spacing(ui_sys: &'ui UiSystem, horizontal: f32, vertical: f32) -> imgui::StyleStackToken<'ui> {
+        ui_sys.ui().push_style_var(imgui::StyleVar::ItemSpacing([horizontal, vertical]))
+    }
+}
+
+// Draws a vertical separator immediately after the last submitted item.
+//
+// Call this *after* an item (Button, Text, Image, etc.) and typically before
+// calling `same_line()` again.
+//
+// Example:
+//     ui.button("Button");
+//     draw_vertical_separator(ui, 1.0, 6.0);
+//     ui.same_line();
+//     ui.text("Text");
+pub fn draw_vertical_separator(ui: &imgui::Ui, thickness: f32, spacing: f32) {
+    let item_min = ui.item_rect_min();
+    let item_max = ui.item_rect_max();
+
+    // Height matches the previous item.
+    let y1 = item_min[1];
+    let y2 = item_max[1];
+
+    // X position is just to the right of the item.
+    let x = item_max[0] + (spacing * 0.5);
+
+    let color = ui.style_color(imgui::StyleColor::Separator);
+    let draw_list = ui.get_window_draw_list();
+
+    draw_list
+        .add_line([x, y1], [x, y2], color)
+        .thickness(thickness)
+        .build();
+
+    // Advance cursor so following items don't overlap the separator.
+    ui.dummy([spacing, 0.0]);
+}
+
 // ----------------------------------------------
 // Debug helpers
 // ----------------------------------------------

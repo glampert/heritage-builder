@@ -1,11 +1,11 @@
-use strum::{EnumCount, EnumProperty};
+use arrayvec::ArrayVec;
+use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
     TilePaletteSelection,
-    widgets::{self, Button, ButtonState, ButtonDef},
+    widgets::{self, Button, ButtonState, ButtonDef, UiStyleOverrides},
 };
-
 use crate::{
     imgui_ui::UiSystem,
     render::{RenderSystem, TextureCache, TextureHandle, TextureSettings, TextureFilter},
@@ -132,19 +132,12 @@ impl TilePaletteMainButtonKind {
         }
     }
 
-    fn create_all() -> [TilePaletteMainButton; TILE_PALETTE_MAIN_BUTTON_COUNT] {
-        [
-            Self::ClearLand.new_button(),
-            Self::Housing.new_button(),
-            Self::Roads.new_button(),
-            Self::FoodAndFarming.new_button(),
-            Self::IndustryAndResources.new_button(),
-            Self::Services.new_button(),
-            Self::Infrastructure.new_button(),
-            Self::CultureAndReligion.new_button(),
-            Self::TradeAndEconomy.new_button(),
-            Self::Beautification.new_button(),
-        ]
+    fn create_all() -> ArrayVec<TilePaletteMainButton, TILE_PALETTE_MAIN_BUTTON_COUNT> {
+        let mut buttons = ArrayVec::new();
+        for btn_kind in Self::iter() {
+            buttons.push(btn_kind.new_button());
+        }
+        buttons
     }
 }
 
@@ -201,16 +194,7 @@ impl TilePaletteMainButton {
         ];
 
         let _item_spacing =
-            ui.push_style_var(imgui::StyleVar::ItemSpacing([0.0, VERTICAL_SPACING]));
-
-        let _btn_color1 =
-            ui.push_style_color(imgui::StyleColor::Button, [0.93, 0.91, 0.77, 1.0]);
-
-        let _btn_color2 =
-            ui.push_style_color(imgui::StyleColor::ButtonHovered, [0.98, 0.95, 0.83, 1.0]);
-
-        let _btn_color3 =
-            ui.push_style_color(imgui::StyleColor::ButtonActive, [0.88, 0.83, 0.68, 1.0]);
+            UiStyleOverrides::set_item_spacing(ui_sys, 0.0, VERTICAL_SPACING);
 
         ui.window(format!("Child Window {:?}", self.kind))
             .position(window_position, imgui::Condition::Always)
@@ -274,7 +258,7 @@ struct TilePaletteChildButton {
 pub struct TilePaletteWidget {
     pub current_selection: TilePaletteSelection,
 
-    main_buttons: [TilePaletteMainButton; TILE_PALETTE_MAIN_BUTTON_COUNT],
+    main_buttons: ArrayVec<TilePaletteMainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
     pressed_main_button: Option<usize>,
 
     clear_icon_sprite: TextureHandle,
@@ -315,23 +299,11 @@ impl TilePaletteWidget {
             WINDOW_TOP_MARGIN
         ];
 
-        let _window_bg_color =
-            ui.push_style_color(imgui::StyleColor::WindowBg, [0.93, 0.91, 0.77, 1.0]);
+        let _style_overrides =
+            UiStyleOverrides::in_game_hud_menus(ui_sys);
 
         let _item_spacing =
-            ui.push_style_var(imgui::StyleVar::ItemSpacing(BUTTON_SPACING.to_array()));
-
-        let _font =
-            ui.push_font(ui_sys.fonts().game_hud);
-
-        let _text_color =
-            ui.push_style_color(imgui::StyleColor::Text, Color::black().to_array());
-
-        let _tooltip_bg_color =
-            ui.push_style_color(imgui::StyleColor::PopupBg, [0.93, 0.91, 0.77, 1.0]);
-
-        let _tooltip_border =
-            ui.push_style_var(imgui::StyleVar::PopupBorderSize(1.0)); // No border
+            UiStyleOverrides::set_item_spacing(ui_sys, BUTTON_SPACING.x, BUTTON_SPACING.y);
 
         ui.window("Tile Palette Widget")
             .position(window_position, imgui::Condition::Always)

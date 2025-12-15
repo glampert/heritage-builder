@@ -20,9 +20,11 @@ use crate::{
     },
 };
 
+pub mod widgets;
 pub mod hud;
-mod widgets;
+
 mod palette;
+mod bar;
 
 // ----------------------------------------------
 // Helper structs

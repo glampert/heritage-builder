@@ -796,7 +796,7 @@ impl MinimapWidgetImGui {
 
         let window_pos = [
             parent_window_pos[0] + parent_window_size[0] + 10.0,
-            parent_window_pos[1] - 95.0,
+            parent_window_pos[1] - 100.0,
         ];
 
         let window_flags =

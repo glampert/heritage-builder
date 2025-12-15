@@ -160,6 +160,12 @@ impl UiSystem {
     }
 
     #[inline]
+    pub unsafe fn raw_ui_ptr(&self) -> *const imgui::Ui {
+        debug_assert!(!self.ui_ptr.is_null());
+        self.ui_ptr
+    }
+
+    #[inline]
     pub fn to_ui_texture(&self,
                          tex_cache: &dyn TextureCache,
                          tex_handle: TextureHandle)
