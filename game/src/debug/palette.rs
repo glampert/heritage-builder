@@ -72,7 +72,7 @@ impl TilePaletteMenu {
             gen_mipmaps: false,
             ..Default::default()
         };
-        let clear_button_path = paths::asset_path("ui/red_x_icon.png");
+        let clear_button_path = paths::asset_path("ui/icons/red_x_icon.png");
         Self {
             start_open,
             clear_button_image: tex_cache.load_texture_with_settings(clear_button_path.to_str().unwrap(), Some(settings)),

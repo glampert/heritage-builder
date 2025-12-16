@@ -274,7 +274,7 @@ impl TilePaletteWidget {
             ..Default::default()
         };
 
-        let file_path = super::ui_assets_path().join("red_x_icon.png");
+        let file_path = super::ui_assets_path().join("icons/red_x_icon.png");
         let clear_icon_sprite = tex_cache.load_texture_with_settings(
             file_path.to_str().unwrap(),
             Some(settings)
@@ -303,8 +303,8 @@ impl TilePaletteWidget {
         const BUTTON_SIZE: Vec2 = TilePaletteMainButtonKind::BUTTON_SIZE.to_vec2();
         const BUTTON_SPACING: Vec2 = Vec2::new(4.0, 4.0);
 
-        const WINDOW_TOP_MARGIN: f32 = 15.0;
-        const WINDOW_RIGHT_MARGIN: f32 = 15.0;
+        const WINDOW_TOP_MARGIN: f32 = 0.0;
+        const WINDOW_RIGHT_MARGIN: f32 = 10.0;
         const WINDOW_WIDTH: f32 = BUTTON_SIZE.x + BUTTON_SPACING.x;
 
         // X position = screen width - estimated window width - margin

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use arrayvec::ArrayVec;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
@@ -6,9 +7,9 @@ use super::{
     widgets::{self, Button, ButtonState, ButtonDef, UiStyleOverrides},
 };
 use crate::{
-    imgui_ui::UiSystem,
-    render::TextureCache,
-    utils::{self, Size},
+    utils::{self, Size, Color, Rect, Vec2},
+    imgui_ui::{UiSystem, UiTextureHandle},
+    render::{TextureCache, TextureSettings, TextureFilter},
 };
 
 // ----------------------------------------------
@@ -16,15 +17,17 @@ use crate::{
 // ----------------------------------------------
 
 pub struct MenuBarWidget {
-    left_bar_buttons: LeftBarButtons,
-    game_speed_control_buttons: GameSpeedControlButtons,
+    top_bar: TopBar,
+    left_bar: LeftBar,
+    game_speed_controls: GameSpeedControls,
 }
 
 impl MenuBarWidget {
     pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
         Self {
-            left_bar_buttons: LeftBarButtons::new(tex_cache, ui_sys),
-            game_speed_control_buttons: GameSpeedControlButtons::new(tex_cache, ui_sys),
+            top_bar: TopBar::new(tex_cache, ui_sys),
+            left_bar: LeftBar::new(tex_cache, ui_sys),
+            game_speed_controls: GameSpeedControls::new(tex_cache, ui_sys),
         }
     }
 
@@ -40,44 +43,46 @@ impl MenuBarWidget {
         let _item_spacing =
             UiStyleOverrides::set_item_spacing(ui_sys, HORIZONTAL_SPACING, VERTICAL_SPACING);
 
-        // Screen-centered horizontal top bar:
-        let top_bar_width = 500.0;
-        let top_bar_position = [
-            (ui.io().display_size[0] * 0.5) - (top_bar_width * 0.5),
-            0.0
-        ];
+        // We use buttons for text items so that the text label is centered automatically.
+        // Make all button backgrounds and frames transparent/invisible.
+        let _border = ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0));
+        let _btn_color = ui.push_style_color(imgui::StyleColor::Button, [0.0, 0.0, 0.0, 0.0]);
+        let _btn_active = ui.push_style_color(imgui::StyleColor::ButtonActive, [0.0, 0.0, 0.0, 0.0]);
+        let _btn_hovered = ui.push_style_color(imgui::StyleColor::ButtonHovered, [0.0, 0.0, 0.0, 0.0]);
+
+        // Center top bar to the middle of the display:
+        widgets::set_next_window_pos(
+            Vec2::new(ui.io().display_size[0] * 0.5, 0.0),
+            Vec2::new(0.5, 0.0),
+            imgui::Condition::Always
+        );
         Self::draw_bar_widget(ui_sys,
-                              top_bar_position,
+                              None, // Handled by set_next_window_pos instead.
                               "Menu Bar Widget Top",
-                              |_ui_sys| {
-                                  // TODO
-                              });
+                              |ui_sys| self.top_bar.draw(ui_sys));
 
         // Left-hand-side vertical bar:
         Self::draw_bar_widget(ui_sys,
-                              [0.0, 60.0],
+                              Some([0.0, 60.0]),
                               "Menu Bar Widget Left",
-                              |ui_sys| {
-                                  self.left_bar_buttons.draw(ui_sys);
-                              });
+                              |ui_sys| self.left_bar.draw(ui_sys));
 
         // Game speed controls horizontal top bar:
         Self::draw_bar_widget(ui_sys,
-                              [0.0, 0.0],
+                              Some([0.0, 0.0]),
                               "Menu Bar Widget Speed Ctrls",
-                              |ui_sys| {
-                                  self.game_speed_control_buttons.draw(ui_sys);
-                              });
+                              |ui_sys| self.game_speed_controls.draw(ui_sys));
     }
 
     fn draw_bar_widget<F>(ui_sys: &UiSystem,
-                          position: [f32; 2],
+                          position: Option<[f32; 2]>,
                           name: &str,
                           builder: F)
         where F: FnOnce(&UiSystem)
     {
+        let pos_cond = if position.is_some() { imgui::Condition::Always } else { imgui::Condition::Never };
         ui_sys.ui().window(name)
-            .position(position, imgui::Condition::Always)
+            .position(position.unwrap_or([0.0, 0.0]), pos_cond)
             .flags(widgets::invisible_window_flags())
             .build(|| {
                 builder(ui_sys);
@@ -89,7 +94,151 @@ impl MenuBarWidget {
 }
 
 // ----------------------------------------------
-// LeftBarButtons
+// TopBar
+// ----------------------------------------------
+
+const TOP_BAR_ICON_COUNT: usize = TopBarIcon::COUNT;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
+enum TopBarIcon {
+    #[strum(props(Sprite = "population_icon", Width = 35, Height = 20))]
+    Population,
+
+    #[strum(props(Sprite = "player_icon"))]
+    Player,
+
+    #[strum(props(Sprite = "gold_icon", Width = 35, Height = 20))]
+    Gold,
+}
+
+impl TopBarIcon {
+    fn size(self) -> Vec2 {
+        let width  = self.get_int("Width").unwrap()  as f32;
+        let height = self.get_int("Height").unwrap() as f32;
+        Vec2::new(width, height)
+    }
+
+    fn asset_path(self) -> PathBuf {
+        let sprite_name = self.get_str("Sprite").unwrap();
+        super::ui_assets_path()
+            .join("icons")
+            .join(sprite_name)
+            .with_extension("png")
+    }
+
+    fn load_texture(self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> UiTextureHandle {
+        let settings = TextureSettings {
+            filter: TextureFilter::Linear,
+            gen_mipmaps: false,
+            ..Default::default()
+        };
+
+        let sprite_path = self.asset_path();
+        let tex_handle = tex_cache.load_texture_with_settings(sprite_path.to_str().unwrap(), Some(settings));
+        ui_sys.to_ui_texture(tex_cache, tex_handle)
+    }
+}
+
+struct TopBar {
+    icon_textures: ArrayVec<UiTextureHandle, TOP_BAR_ICON_COUNT>,
+}
+
+impl TopBar {
+    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+        let mut icon_textures = ArrayVec::new();
+        for icon in TopBarIcon::iter() {
+            icon_textures.push(icon.load_texture(tex_cache, ui_sys));
+        }
+        Self { icon_textures }
+    }
+
+    fn draw(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+        let draw_list = ui.get_window_draw_list();
+
+        // Spacing is handled manually with dummy items.
+        let _item_spacing = UiStyleOverrides::set_item_spacing(ui_sys, 0.0, 0.0);
+
+        // POPULATION:
+        {
+            let icon_size = TopBarIcon::Population.size().to_array();
+
+            ui.invisible_button_flags("Population", icon_size, imgui::ButtonFlags::empty());
+            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::blue());
+            ui.same_line(); // Horizontal layout.
+
+            let icon_rect_min = ui.item_rect_min();
+            let icon_rect_max = ui.item_rect_max();
+            let icon_texture = self.icon_textures[TopBarIcon::Population as usize];
+
+            draw_list
+                .add_image(icon_texture, icon_rect_min, icon_rect_max)
+                .build();
+
+            ui.button_with_size("1000", [50.0, icon_size[1]]);
+            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::green());
+
+            ui.same_line();
+            ui.dummy([30.0, 0.0]);
+            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::yellow());
+            ui.same_line();
+        }
+
+        // PLAYER ICON / NAME:
+        {
+            let icon_size = [45.0, 40.0];
+
+            ui.dummy([icon_size[0], 0.0]);
+            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::green());
+            ui.same_line();
+
+            let icon_texture = self.icon_textures[TopBarIcon::Player as usize];
+            let rect = Rect::from_extents(
+                Vec2::new(ui.item_rect_min()[0], 0.0),
+                Vec2::new(ui.item_rect_max()[0], icon_size[1])
+            );
+
+            let foreground_draw_list = ui.get_foreground_draw_list();
+            widgets::draw_window_style_rect(
+                ui,
+                &foreground_draw_list,
+                rect.min,
+                rect.max
+            );
+
+            foreground_draw_list
+                .add_image(icon_texture, rect.min.to_array(), rect.max.to_array())
+                .build();
+
+            ui.dummy([30.0, 0.0]);
+            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::yellow());
+            ui.same_line();
+        }
+
+        // GOLD:
+        {
+            let icon_size = TopBarIcon::Gold.size().to_array();
+
+            ui.invisible_button_flags("Gold", icon_size, imgui::ButtonFlags::empty());
+            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::blue());
+            ui.same_line(); // Horizontal layout.
+
+            let icon_rect_min = ui.item_rect_min();
+            let icon_rect_max = ui.item_rect_max();
+            let icon_texture = self.icon_textures[TopBarIcon::Gold as usize];
+
+            draw_list
+                .add_image(icon_texture, icon_rect_min, icon_rect_max)
+                .build();
+
+            ui.button_with_size("8888", [50.0, icon_size[1]]);
+            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::green());
+        }
+    }
+}
+
+// ----------------------------------------------
+// LeftBar
 // ----------------------------------------------
 
 const LEFT_BAR_BUTTON_COUNT: usize = LeftBarButtonKind::COUNT;
@@ -158,11 +307,11 @@ struct LeftBarButton {
     kind: LeftBarButtonKind,
 }
 
-struct LeftBarButtons {
+struct LeftBar {
     buttons: ArrayVec<LeftBarButton, LEFT_BAR_BUTTON_COUNT>,
 }
 
-impl LeftBarButtons {
+impl LeftBar {
     fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
         Self { buttons: LeftBarButtonKind::create_all(tex_cache, ui_sys) }
     }
@@ -175,10 +324,10 @@ impl LeftBarButtons {
 }
 
 // ----------------------------------------------
-// GameSpeedControlButtons
+// GameSpeedControls
 // ----------------------------------------------
 
-const GAME_SPEED_CONTROL_BUTTON_COUNT: usize = GameSpeedControlButtonKind::COUNT;
+const GAME_SPEED_CONTROLS_BUTTON_COUNT: usize = GameSpeedControlButtonKind::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 enum GameSpeedControlButtonKind {
@@ -196,7 +345,7 @@ enum GameSpeedControlButtonKind {
 }
 
 impl GameSpeedControlButtonKind {
-    const BUTTON_SIZE: Size = Size::new(18, 18);
+    const BUTTON_SIZE: Size = Size::new(20, 20);
 
     fn sprite_path(self) -> &'static str {
         self.get_str("Sprite").unwrap()
@@ -232,7 +381,7 @@ impl GameSpeedControlButtonKind {
     }
 
     fn create_all(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem)
-                  -> ArrayVec<GameSpeedControlButton, GAME_SPEED_CONTROL_BUTTON_COUNT>
+                  -> ArrayVec<GameSpeedControlButton, GAME_SPEED_CONTROLS_BUTTON_COUNT>
     {
         let mut buttons = ArrayVec::new();
         for btn_kind in Self::iter() {
@@ -247,11 +396,11 @@ struct GameSpeedControlButton {
     kind: GameSpeedControlButtonKind,
 }
 
-struct GameSpeedControlButtons {
-    buttons: ArrayVec<GameSpeedControlButton, GAME_SPEED_CONTROL_BUTTON_COUNT>,
+struct GameSpeedControls {
+    buttons: ArrayVec<GameSpeedControlButton, GAME_SPEED_CONTROLS_BUTTON_COUNT>,
 }
 
-impl GameSpeedControlButtons {
+impl GameSpeedControls {
     fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
         Self { buttons: GameSpeedControlButtonKind::create_all(tex_cache, ui_sys) }
     }
@@ -264,8 +413,11 @@ impl GameSpeedControlButtons {
             ui.same_line(); // Horizontal layout.
         }
 
-        widgets::draw_vertical_separator(ui, 1.0, 6.0);
+        widgets::draw_vertical_separator(ui, 1.0, 6.0, 0.0);
         ui.same_line();
-        ui.text("Paused");
+
+        let width = ui.calc_text_size("Paused")[0];
+        let size = [width + 5.0, GameSpeedControlButtonKind::BUTTON_SIZE.height as f32];
+        ui.button_with_size("Paused", size);
     }
 }

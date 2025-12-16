@@ -294,7 +294,7 @@ impl<'ui> UiStyleOverrides<'ui> {
 //     draw_vertical_separator(ui, 1.0, 6.0);
 //     ui.same_line();
 //     ui.text("Text");
-pub fn draw_vertical_separator(ui: &imgui::Ui, thickness: f32, spacing: f32) {
+pub fn draw_vertical_separator(ui: &imgui::Ui, thickness: f32, spacing_left: f32, spacing_right: f32) {
     let item_min = ui.item_rect_min();
     let item_max = ui.item_rect_max();
 
@@ -303,7 +303,7 @@ pub fn draw_vertical_separator(ui: &imgui::Ui, thickness: f32, spacing: f32) {
     let y2 = item_max[1];
 
     // X position is just to the right of the item.
-    let x = item_max[0] + (spacing * 0.5);
+    let x = item_max[0] + (spacing_left * 0.5);
 
     let color = ui.style_color(imgui::StyleColor::Separator);
     let draw_list = ui.get_window_draw_list();
@@ -314,7 +314,47 @@ pub fn draw_vertical_separator(ui: &imgui::Ui, thickness: f32, spacing: f32) {
         .build();
 
     // Advance cursor so following items don't overlap the separator.
-    ui.dummy([spacing, 0.0]);
+    ui.dummy([spacing_right, 0.0]);
+}
+
+pub fn draw_window_style_rect(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, min: Vec2, max: Vec2) {
+    // Match window visuals:
+    let style = unsafe { ui.style() };
+    let rounding = style.window_rounding;
+    let border_thickness = style.window_border_size;
+    let bg_color = ui.style_color(imgui::StyleColor::WindowBg);
+    let border_color = ui.style_color(imgui::StyleColor::Border);
+
+    // Background:
+    draw_list
+        .add_rect(min.to_array(), max.to_array(), bg_color)
+        .filled(true)
+        .rounding(rounding)
+        .build();
+
+    // Border (pixel-aligned):
+    if border_thickness > 0.0 {
+        let inset = border_thickness * 0.5;
+        let border_min = [min.x - inset, min.y - inset];
+        let border_max = [max.x + inset, max.y + inset];
+
+        draw_list
+            .add_rect(border_min, border_max, border_color)
+            .filled(false)
+            .rounding(rounding)
+            .thickness(border_thickness)
+            .build();
+    }
+}
+
+pub fn set_next_window_pos(pos: Vec2, pivot: Vec2, cond: imgui::Condition) {
+    unsafe {
+        imgui::sys::igSetNextWindowPos(
+            imgui::sys::ImVec2 { x: pos.x, y: pos.y },
+            cond as _,
+            imgui::sys::ImVec2 { x: pivot.x, y: pivot.y },
+        );
+    }
 }
 
 // ----------------------------------------------
@@ -338,6 +378,19 @@ pub fn draw_debug_rect(draw_list: &imgui::DrawListMut<'_>, rect: &Rect, color: C
                        rect.max.to_array(),
                        imgui::ImColor32::from_rgba_f32s(color.r, color.g, color.b, color.a))
                        .build();
+}
+
+pub fn draw_last_item_debug_rect(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, color: Color) {
+    if !is_debug_draw_enabled() {
+        return;
+    }
+
+    let rect = Rect::from_extents(
+        Vec2::from_array(ui.item_rect_min()),
+        Vec2::from_array(ui.item_rect_max())
+    );
+
+    draw_debug_rect(draw_list, &rect, color);
 }
 
 pub fn draw_current_window_debug_rect(ui: &imgui::Ui) {

@@ -308,7 +308,7 @@ pub const MINIMAP_ICON_DEFAULT_LIFETIME: Seconds = 5.0;
 #[repr(u8)]
 #[derive(Copy, Clone, EnumCount, EnumIter, EnumProperty)]
 pub enum MinimapIcon {
-    #[strum(props(AssetPath = "ui/alert_icon.png"))]
+    #[strum(props(AssetPath = "ui/icons/alert_icon.png"))]
     Alert
 }
 
