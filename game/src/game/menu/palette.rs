@@ -58,15 +58,21 @@ enum TilePaletteMainButtonKind {
 impl TilePaletteMainButtonKind {
     const BUTTON_SIZE: Size = Size::new(50, 50);
 
+    fn sprite_path(self) -> &'static str {
+        self.get_str("Sprite").unwrap()
+    }
+
     fn name(self) -> &'static str {
         let sprite_path = self.sprite_path();
         // Take the base sprite name following "palette/":
-        let (_left, right) = sprite_path.split_at(sprite_path.find("/").unwrap() + 1);
-        right
+        sprite_path.split_at(sprite_path.find("/").unwrap() + 1).1
     }
 
-    fn sprite_path(self) -> &'static str {
-        self.get_str("Sprite").unwrap()
+    fn tooltip(self) -> String {
+        if let Some(tooltip) = self.get_str("Tooltip") {
+            return tooltip.to_string();
+        }
+        utils::snake_case_to_title::<64>(self.name()).to_string()
     }
 
     fn separator_follows(self) -> bool {
@@ -79,14 +85,6 @@ impl TilePaletteMainButtonKind {
             ButtonState::Disabled
         } else {
             ButtonState::Idle
-        }
-    }
-
-    fn tooltip(self) -> String {
-        if let Some(tooltip) = self.get_str("Tooltip") {
-            tooltip.to_string()
-        } else {
-            utils::snake_case_to_title::<64>(self.name()).to_string()
         }
     }
 
@@ -116,10 +114,12 @@ impl TilePaletteMainButtonKind {
         children
     }
 
-    fn new_button(self) -> TilePaletteMainButton {
+    fn new_button(self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> TilePaletteMainButton {
         let children = self.build_child_button_list();
         TilePaletteMainButton {
             btn: Button::new(
+                tex_cache,
+                ui_sys,
                 ButtonDef {
                     name: self.sprite_path(),
                     size: Self::BUTTON_SIZE,
@@ -132,10 +132,12 @@ impl TilePaletteMainButtonKind {
         }
     }
 
-    fn create_all() -> ArrayVec<TilePaletteMainButton, TILE_PALETTE_MAIN_BUTTON_COUNT> {
+    fn create_all(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem)
+                  -> ArrayVec<TilePaletteMainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>
+    {
         let mut buttons = ArrayVec::new();
         for btn_kind in Self::iter() {
-            buttons.push(btn_kind.new_button());
+            buttons.push(btn_kind.new_button(tex_cache, ui_sys));
         }
         buttons
     }
@@ -164,11 +166,11 @@ impl TilePaletteMainButton {
         self.btn.is_pressed()
     }
 
-    fn draw_main_button(&mut self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> bool {
-        self.btn.draw(tex_cache, ui_sys)
+    fn draw_main_button(&mut self, ui_sys: &UiSystem) -> bool {
+        self.btn.draw(ui_sys)
     }
 
-    fn draw_child_buttons(&mut self, _tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Option<usize> {
+    fn draw_child_buttons(&mut self, ui_sys: &UiSystem) -> Option<usize> {
         if self.children.is_empty() {
             return None;
         }
@@ -265,12 +267,24 @@ pub struct TilePaletteWidget {
 }
 
 impl TilePaletteWidget {
-    pub fn new() -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+        let settings = TextureSettings {
+            filter: TextureFilter::Linear,
+            gen_mipmaps: false,
+            ..Default::default()
+        };
+
+        let file_path = super::ui_assets_path().join("red_x_icon.png");
+        let clear_icon_sprite = tex_cache.load_texture_with_settings(
+            file_path.to_str().unwrap(),
+            Some(settings)
+        );
+
         Self {
             current_selection: TilePaletteSelection::None,
-            main_buttons: TilePaletteMainButtonKind::create_all(),
+            main_buttons: TilePaletteMainButtonKind::create_all(tex_cache, ui_sys),
             pressed_main_button: None,
-            clear_icon_sprite: TextureHandle::invalid(),
+            clear_icon_sprite,
         }
     }
 
@@ -283,7 +297,7 @@ impl TilePaletteWidget {
         self.pressed_main_button = None;
     }
 
-    pub fn draw(&mut self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) {
+    pub fn draw(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         const BUTTON_SIZE: Vec2 = TilePaletteMainButtonKind::BUTTON_SIZE.to_vec2();
@@ -312,7 +326,7 @@ impl TilePaletteWidget {
                 let previously_pressed_button = self.pressed_main_button;
 
                 for (index, button) in self.main_buttons.iter_mut().enumerate() {
-                    let was_pressed_this_frame = button.draw_main_button(tex_cache, ui_sys);
+                    let was_pressed_this_frame = button.draw_main_button(ui_sys);
 
                     if button.kind.separator_follows() {
                         ui.separator();
@@ -350,7 +364,7 @@ impl TilePaletteWidget {
                         if pressed_button.has_children() {
                             // Keep the parent button pressed but close the child panel when we have a selection.
                             if self.current_selection.is_none() {
-                                let pressed_child_index = pressed_button.draw_child_buttons(tex_cache, ui_sys);
+                                let pressed_child_index = pressed_button.draw_child_buttons(ui_sys);
                                 self.current_selection = pressed_button.current_selection(pressed_child_index);
                             }
                             // Else hold current selection.
@@ -374,19 +388,6 @@ impl TilePaletteWidget {
                               cursor_screen_pos: Vec2,
                               transform: WorldToScreenTransform,
                               has_valid_placement: bool) {
-        // Lazily loaded on first rendered frame.
-        if !self.clear_icon_sprite.is_valid() {
-            let settings = TextureSettings {
-                filter: TextureFilter::Linear,
-                gen_mipmaps: false,
-                ..Default::default()
-            };
-
-            let file_path = super::ui_assets_path().join("red_x_icon.png");
-            self.clear_icon_sprite = render_sys.texture_cache_mut()
-                .load_texture_with_settings(file_path.to_str().unwrap(), Some(settings));
-        }
-
         if self.current_selection.is_none() {
             return;
         }

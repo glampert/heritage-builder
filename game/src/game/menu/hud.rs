@@ -14,7 +14,8 @@ use crate::{
     tile::Tile,
     engine::Engine,
     save::{Save, Load},
-    imgui_ui::UiInputEvent,
+    render::TextureCache,
+    imgui_ui::{UiSystem, UiInputEvent},
     app::input::{InputAction, MouseButton},
     utils::{Vec2, coords::{CellRange, WorldToScreenTransform}},
 };
@@ -31,12 +32,12 @@ pub struct InGameHudMenus {
 }
 
 impl InGameHudMenus {
-    pub fn new() -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
         Self {
             tile_placement: TilePlacement::new(),
-            tile_palette: TilePaletteMenu::new(),
+            tile_palette: TilePaletteMenu::new(tex_cache, ui_sys),
             tile_inspector: TileInspectorMenu::new(),
-            menu_bar: MenuBarWidget::new(),
+            menu_bar: MenuBarWidget::new(tex_cache, ui_sys),
         }
     }
 }
@@ -64,8 +65,7 @@ impl GameMenusSystem for InGameHudMenus {
                                context.camera.transform(),
                                context.tile_selection.has_valid_placement());
 
-        self.menu_bar.draw(context.engine.texture_cache(),
-                           context.engine.ui_system());
+        self.menu_bar.draw(context.engine.ui_system());
     }
 }
 
@@ -86,9 +86,9 @@ struct TilePaletteMenu {
 }
 
 impl TilePaletteMenu {
-    fn new() -> Self {
+    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
         Self {
-            widget: TilePaletteWidget::new(),
+            widget: TilePaletteWidget::new(tex_cache, ui_sys),
             left_mouse_button_pressed: false,
         }
     }
@@ -98,7 +98,7 @@ impl TilePaletteMenu {
             cursor_screen_pos: Vec2,
             transform: WorldToScreenTransform,
             has_valid_placement: bool) {
-        self.widget.draw(engine.texture_cache(), engine.ui_system());
+        self.widget.draw(engine.ui_system());
         self.widget.draw_selected_tile(engine.render_system(), cursor_screen_pos, transform, has_valid_placement);
     }
 }

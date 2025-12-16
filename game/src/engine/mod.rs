@@ -1,6 +1,6 @@
 #![allow(clippy::mut_from_ref)]
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, any::Any};
 use config::EngineConfigs;
 use time::{FrameClock, Seconds};
 
@@ -47,7 +47,9 @@ pub mod backend {
 // Engine
 // ----------------------------------------------
 
-pub trait Engine {
+pub trait Engine: Any {
+    fn as_any(&self) -> &dyn Any;
+
     fn app(&mut self) -> &mut dyn Application;
     fn input_system(&self) -> &dyn InputSystem;
 
@@ -226,6 +228,11 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
           RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static,
           UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
 {
+    #[inline]
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     #[inline]
     fn app(&mut self) -> &mut dyn Application {
         &mut *self.app

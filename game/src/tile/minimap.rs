@@ -414,7 +414,7 @@ impl Minimap {
 
     #[inline]
     pub fn pre_load(&mut self, context: &PreLoadContext) {
-        self.texture.pre_load(context.tex_cache_mut());
+        self.texture.pre_load(context.engine().texture_cache());
         self.icons.clear();
     }
 
@@ -1374,7 +1374,7 @@ impl MinimapWidgetImGui {
     fn calc_window_rect(&self, ui_sys: &UiSystem) -> Rect {
         debug_assert!(self.widget_rect.is_valid());
         let size = Vec2::new(self.widget_rect.width() + 70.0, self.widget_rect.height() + 90.0);
-        let pos: Vec2  = Vec2::new(5.0, ui_sys.ui().io().display_size[1] - size.y - 5.0);
+        let pos  = Vec2::new(0.0, ui_sys.ui().io().display_size[1] - size.y);
         Rect::new(pos, size)
     }
 

@@ -59,8 +59,10 @@ struct ButtonSprites {
 }
 
 impl ButtonSprites {
-    fn new() -> Self {
-        Self { tex_handles: [INVALID_UI_TEXTURE_HANDLE; BUTTON_STATE_COUNT] }
+    fn new(name: &str, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+        let mut sprites = Self { tex_handles: [INVALID_UI_TEXTURE_HANDLE; BUTTON_STATE_COUNT] };
+        sprites.load_textures(name, tex_cache, ui_sys);
+        sprites
     }
 
     fn load_textures(&mut self, name: &str, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) {
@@ -103,19 +105,21 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(def: ButtonDef, initial_state: ButtonState) -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache,
+               ui_sys: &UiSystem,
+               def: ButtonDef,
+               initial_state: ButtonState) -> Self {
+        let name = def.name;
         Self {
             def,
             rect: Rect::default(),
-            sprites: ButtonSprites::new(),
+            sprites: ButtonSprites::new(name, tex_cache, ui_sys),
             state: initial_state,
         }
     }
 
-    pub fn draw(&mut self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> bool {
-        if !self.sprites.are_textures_loaded() {
-            self.sprites.load_textures(self.name(), tex_cache, ui_sys);
-        }
+    pub fn draw(&mut self, ui_sys: &UiSystem) -> bool {
+        debug_assert!(self.sprites.are_textures_loaded());
 
         let ui = ui_sys.ui();
         let ui_texture = self.sprites.texture_for_state(self.state);

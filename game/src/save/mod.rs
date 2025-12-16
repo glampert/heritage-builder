@@ -1,7 +1,7 @@
 use std::{fs, io, path::Path};
 use enum_dispatch::enum_dispatch;
 use serde::{de::DeserializeOwned, Serialize};
-use crate::{render::TextureCache, tile::TileMap, utils::mem};
+use crate::{engine::Engine, tile::TileMap, utils::mem};
 
 // ----------------------------------------------
 // Save / Load Traits
@@ -50,34 +50,48 @@ pub enum SaveStateImpl {
 }
 
 pub struct PreLoadContext {
-    tex_cache: mem::RawPtr<dyn TextureCache>,
+    engine: mem::RawPtr<dyn Engine>,
 }
 
 impl PreLoadContext {
     #[inline]
-    pub fn new(tex_cache: &dyn TextureCache) -> Self {
-        Self { tex_cache: mem::RawPtr::from_ref(tex_cache) }
+    pub fn new(engine: &dyn Engine) -> Self {
+        Self { engine: mem::RawPtr::from_ref(engine) }
     }
 
     #[inline]
-    pub fn tex_cache(&self) -> &dyn TextureCache {
-        self.tex_cache.as_ref()
+    pub fn engine(&self) -> &dyn Engine {
+        self.engine.as_ref()
     }
 
     #[inline]
-    pub fn tex_cache_mut(&self) -> &mut dyn TextureCache {
-        self.tex_cache.mut_ref_cast()
+    pub fn engine_mut(&self) -> &mut dyn Engine {
+        self.engine.mut_ref_cast()
     }
 }
 
 pub struct PostLoadContext {
+    engine: mem::RawPtr<dyn Engine>,
     tile_map: mem::RawPtr<TileMap>,
 }
 
 impl PostLoadContext {
     #[inline]
-    pub fn new(tile_map: &TileMap) -> Self {
-        Self { tile_map: mem::RawPtr::from_ref(tile_map) }
+    pub fn new(engine: &dyn Engine, tile_map: &TileMap) -> Self {
+        Self {
+            engine: mem::RawPtr::from_ref(engine),
+            tile_map: mem::RawPtr::from_ref(tile_map),
+        }
+    }
+
+    #[inline]
+    pub fn engine(&self) -> &dyn Engine {
+        self.engine.as_ref()
+    }
+
+    #[inline]
+    pub fn engine_mut(&self) -> &mut dyn Engine {
+        self.engine.mut_ref_cast()
     }
 
     #[inline]
