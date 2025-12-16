@@ -20,7 +20,9 @@ mod utils;
 // ----------------------------------------------
 
 fn main() {
-    let game_loop = game::GameLoop::new();
+    use game::GameLoop;
+
+    let game_loop = GameLoop::new();
 
     game_loop.create_session();
 
@@ -29,4 +31,6 @@ fn main() {
     }
 
     game_loop.terminate_session();
+
+    GameLoop::terminate();
 }
