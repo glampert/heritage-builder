@@ -300,7 +300,10 @@ impl LeftBar {
 
     fn draw(&mut self, ui_sys: &UiSystem) {
         for button in &mut self.buttons {
-            button.btn.draw(ui_sys);
+            let pressed = button.btn.draw(ui_sys);
+            if pressed {
+                // TODO: Open modal popup menu / pause simulation.
+            }
         }
     }
 }
@@ -387,19 +390,54 @@ impl GameSpeedControls {
         Self { buttons: GameSpeedControlButtonKind::create_all(tex_cache, ui_sys) }
     }
 
-    fn draw(&mut self, _sim: &mut Simulation, ui_sys: &UiSystem) {
+    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
+        let mut pressed_button_index: Option<usize> = None;
 
-        for button in &mut self.buttons {
-            button.btn.draw(ui_sys);
+        for (index, button) in self.buttons.iter_mut().enumerate() {
+            let pressed = button.btn.draw(ui_sys);
             ui.same_line(); // Horizontal layout.
+
+            if pressed && pressed_button_index.is_none() {
+                pressed_button_index = Some(index);
+            }
+        }
+
+        if let Some(pressed_index) = pressed_button_index {
+            // Unpress all buttons. Pressed state doesn't persist.
+            for button in &mut self.buttons {
+                button.btn.unpress();
+            }
+
+            match self.buttons[pressed_index].kind {
+                GameSpeedControlButtonKind::Play => {
+                    sim.resume();
+                }
+                GameSpeedControlButtonKind::Pause => {
+                    sim.pause();
+                }
+                GameSpeedControlButtonKind::Slowdown => {
+                    sim.resume();
+                    sim.slowdown();
+                }
+                GameSpeedControlButtonKind::Speedup => {
+                    sim.resume();
+                    sim.speedup();
+                }
+            }
         }
 
         widgets::draw_vertical_separator(ui, &ui.get_window_draw_list(), 1.0, 6.0, 0.0);
         ui.same_line();
 
-        let width = ui.calc_text_size("Paused")[0];
+        let label = if sim.is_paused() {
+            "Paused"
+        } else {
+            &format!("{:1}x", sim.speed())
+        };
+
+        let width = ui.calc_text_size(label)[0];
         let size = [width + 5.0, GameSpeedControlButtonKind::BUTTON_SIZE.height as f32];
-        ui.button_with_size("Paused", size);
+        ui.button_with_size(label, size);
     }
 }
