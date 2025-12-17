@@ -215,10 +215,7 @@ impl TilePaletteMainButton {
                     }
                 }
 
-                if widgets::is_debug_draw_enabled() {
-                    widgets::draw_current_window_debug_rect(ui);
-                }
-
+                widgets::draw_current_window_debug_rect(ui);
                 pressed_button_index
             }).unwrap()
     }
@@ -377,9 +374,7 @@ impl TilePaletteWidget {
                     }
                 }
 
-                if widgets::is_debug_draw_enabled() {
-                    widgets::draw_current_window_debug_rect(ui);
-                }
+                widgets::draw_current_window_debug_rect(ui);
             });
     }
 

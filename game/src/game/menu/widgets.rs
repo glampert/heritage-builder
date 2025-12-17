@@ -284,17 +284,38 @@ impl<'ui> UiStyleOverrides<'ui> {
     }
 }
 
+pub struct UiStyleTextLabelInvisibleButtons<'ui> {
+    border_size: imgui::StyleStackToken<'ui>,
+    button_color: imgui::ColorStackToken<'ui>,
+    button_color_hovered: imgui::ColorStackToken<'ui>,
+    button_color_active: imgui::ColorStackToken<'ui>,
+}
+
+impl<'ui> UiStyleTextLabelInvisibleButtons<'ui> {
+    #[inline]
+    #[must_use]
+    pub fn apply_overrides(ui_sys: &UiSystem) -> Self {
+        let ui = unsafe { &*ui_sys.raw_ui_ptr() };
+
+        Self {
+            // We use buttons for text items so that the text label is centered automatically.
+            // Make all button backgrounds and frames transparent/invisible.
+            border_size: ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0)),
+            button_color: ui.push_style_color(imgui::StyleColor::Button, [0.0, 0.0, 0.0, 0.0]),
+            button_color_hovered: ui.push_style_color(imgui::StyleColor::ButtonHovered, [0.0, 0.0, 0.0, 0.0]),
+            button_color_active: ui.push_style_color(imgui::StyleColor::ButtonActive, [0.0, 0.0, 0.0, 0.0]),
+        }
+    }
+}
+
 // Draws a vertical separator immediately after the last submitted item.
-//
 // Call this *after* an item (Button, Text, Image, etc.) and typically before
 // calling `same_line()` again.
-//
-// Example:
-//     ui.button("Button");
-//     draw_vertical_separator(ui, 1.0, 6.0);
-//     ui.same_line();
-//     ui.text("Text");
-pub fn draw_vertical_separator(ui: &imgui::Ui, thickness: f32, spacing_left: f32, spacing_right: f32) {
+pub fn draw_vertical_separator(ui: &imgui::Ui,
+                               draw_list: &imgui::DrawListMut<'_>,
+                               thickness: f32,
+                               spacing_left: f32,
+                               spacing_right: f32) {
     let item_min = ui.item_rect_min();
     let item_max = ui.item_rect_max();
 
@@ -306,7 +327,6 @@ pub fn draw_vertical_separator(ui: &imgui::Ui, thickness: f32, spacing_left: f32
     let x = item_max[0] + (spacing_left * 0.5);
 
     let color = ui.style_color(imgui::StyleColor::Separator);
-    let draw_list = ui.get_window_draw_list();
 
     draw_list
         .add_line([x, y1], [x, y2], color)
@@ -345,6 +365,35 @@ pub fn draw_window_style_rect(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>
             .thickness(border_thickness)
             .build();
     }
+}
+
+pub fn draw_sprite(ui: &imgui::Ui,
+                   draw_list: &imgui::DrawListMut<'_>,
+                   id: &str,
+                   size: Vec2,
+                   texture: UiTextureHandle,
+                   tooltip: Option<&str>) {
+    ui.invisible_button_flags(id, size.to_array(), imgui::ButtonFlags::empty());
+    draw_list.add_image(texture, ui.item_rect_min(), ui.item_rect_max()).build();
+    draw_last_item_debug_rect(ui, draw_list, Color::blue());
+
+    if ui.is_item_hovered() && let Some(tooltip) = tooltip {
+        ui.tooltip_text(tooltip);
+    }
+}
+
+// NOTE: This assumes UiStyleTextLabelInvisibleButtons overrides are already set.
+pub fn draw_centered_text_label(ui: &imgui::Ui,
+                                draw_list: &imgui::DrawListMut<'_>,
+                                label: &str,
+                                size: Vec2) {
+    ui.button_with_size(label, size.to_array());
+    draw_last_item_debug_rect(ui, draw_list, Color::green());
+}
+
+pub fn spacing(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, size: Vec2) {
+    ui.dummy(size.to_array());
+    draw_last_item_debug_rect(ui, draw_list, Color::yellow());
 }
 
 pub fn set_next_window_pos(pos: Vec2, pivot: Vec2, cond: imgui::Condition) {
@@ -394,6 +443,10 @@ pub fn draw_last_item_debug_rect(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<
 }
 
 pub fn draw_current_window_debug_rect(ui: &imgui::Ui) {
+    if !is_debug_draw_enabled() {
+        return;
+    }
+
     // NOTE: Shrink the rect so it falls within the window bounds,
     // otherwise ImGui would cull it.
     let window_rect = Rect::new(

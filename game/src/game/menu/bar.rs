@@ -4,11 +4,15 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    widgets::{self, Button, ButtonState, ButtonDef, UiStyleOverrides},
+    widgets::{
+        self, Button, ButtonState, ButtonDef,
+        UiStyleOverrides, UiStyleTextLabelInvisibleButtons
+    },
 };
 use crate::{
-    utils::{self, Size, Color, Rect, Vec2},
+    utils::{self, Size, Rect, Vec2},
     imgui_ui::{UiSystem, UiTextureHandle},
+    game::{sim::Simulation, world::World},
     render::{TextureCache, TextureSettings, TextureFilter},
 };
 
@@ -31,7 +35,7 @@ impl MenuBarWidget {
         }
     }
 
-    pub fn draw(&mut self, ui_sys: &UiSystem) {
+    pub fn draw(&mut self, sim: &mut Simulation, world: &World, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         const HORIZONTAL_SPACING: f32 = 2.0;
@@ -43,12 +47,8 @@ impl MenuBarWidget {
         let _item_spacing =
             UiStyleOverrides::set_item_spacing(ui_sys, HORIZONTAL_SPACING, VERTICAL_SPACING);
 
-        // We use buttons for text items so that the text label is centered automatically.
-        // Make all button backgrounds and frames transparent/invisible.
-        let _border = ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0));
-        let _btn_color = ui.push_style_color(imgui::StyleColor::Button, [0.0, 0.0, 0.0, 0.0]);
-        let _btn_active = ui.push_style_color(imgui::StyleColor::ButtonActive, [0.0, 0.0, 0.0, 0.0]);
-        let _btn_hovered = ui.push_style_color(imgui::StyleColor::ButtonHovered, [0.0, 0.0, 0.0, 0.0]);
+        let _btn_style_overrides =
+            UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
 
         // Center top bar to the middle of the display:
         widgets::set_next_window_pos(
@@ -59,36 +59,34 @@ impl MenuBarWidget {
         Self::draw_bar_widget(ui_sys,
                               None, // Handled by set_next_window_pos instead.
                               "Menu Bar Widget Top",
-                              |ui_sys| self.top_bar.draw(ui_sys));
+                              || self.top_bar.draw(world, ui_sys));
 
         // Left-hand-side vertical bar:
         Self::draw_bar_widget(ui_sys,
                               Some([0.0, 60.0]),
                               "Menu Bar Widget Left",
-                              |ui_sys| self.left_bar.draw(ui_sys));
+                              || self.left_bar.draw(ui_sys));
 
         // Game speed controls horizontal top bar:
         Self::draw_bar_widget(ui_sys,
                               Some([0.0, 0.0]),
                               "Menu Bar Widget Speed Ctrls",
-                              |ui_sys| self.game_speed_controls.draw(ui_sys));
+                              || self.game_speed_controls.draw(sim, ui_sys));
     }
 
     fn draw_bar_widget<F>(ui_sys: &UiSystem,
                           position: Option<[f32; 2]>,
                           name: &str,
-                          builder: F)
-        where F: FnOnce(&UiSystem)
+                          f: F)
+        where F: FnOnce()
     {
         let pos_cond = if position.is_some() { imgui::Condition::Always } else { imgui::Condition::Never };
         ui_sys.ui().window(name)
             .position(position.unwrap_or([0.0, 0.0]), pos_cond)
             .flags(widgets::invisible_window_flags())
             .build(|| {
-                builder(ui_sys);
-                if widgets::is_debug_draw_enabled() {
-                    widgets::draw_current_window_debug_rect(ui_sys.ui());
-                }
+                f();
+                widgets::draw_current_window_debug_rect(ui_sys.ui());
             });
     }
 }
@@ -104,7 +102,7 @@ enum TopBarIcon {
     #[strum(props(Sprite = "population_icon", Width = 35, Height = 20))]
     Population,
 
-    #[strum(props(Sprite = "player_icon"))]
+    #[strum(props(Sprite = "player_icon", Width = 45, Height = 45))]
     Player,
 
     #[strum(props(Sprite = "gold_icon", Width = 35, Height = 20))]
@@ -152,87 +150,71 @@ impl TopBar {
         Self { icon_textures }
     }
 
-    fn draw(&mut self, ui_sys: &UiSystem) {
+    fn draw(&mut self, world: &World, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         let draw_list = ui.get_window_draw_list();
 
         // Spacing is handled manually with dummy items.
-        let _item_spacing = UiStyleOverrides::set_item_spacing(ui_sys, 0.0, 0.0);
+        let _item_spacing =
+            UiStyleOverrides::set_item_spacing(ui_sys, 0.0, 0.0);
 
         // POPULATION:
         {
-            let icon_size = TopBarIcon::Population.size().to_array();
-
-            ui.invisible_button_flags("Population", icon_size, imgui::ButtonFlags::empty());
-            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::blue());
-            ui.same_line(); // Horizontal layout.
-
-            let icon_rect_min = ui.item_rect_min();
-            let icon_rect_max = ui.item_rect_max();
+            let icon_size = TopBarIcon::Population.size();
             let icon_texture = self.icon_textures[TopBarIcon::Population as usize];
 
-            draw_list
-                .add_image(icon_texture, icon_rect_min, icon_rect_max)
-                .build();
+            widgets::draw_sprite(ui, &draw_list, "Population", icon_size, icon_texture, Some("Population"));
+            ui.same_line(); // Horizontal layout.
 
-            ui.button_with_size("1000", [50.0, icon_size[1]]);
-            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::green());
-
+            let population = world.stats().population.total;
+            widgets::draw_centered_text_label(ui, &draw_list, &population.to_string(), Vec2::new(50.0, icon_size.y));
             ui.same_line();
-            ui.dummy([30.0, 0.0]);
-            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::yellow());
+
+            widgets::spacing(ui, &draw_list, Vec2::new(30.0, 0.0));
             ui.same_line();
         }
 
-        // PLAYER ICON / NAME:
+        // PLAYER ICON:
         {
-            let icon_size = [45.0, 40.0];
+            let icon_size = TopBarIcon::Player.size();
+            let icon_texture = self.icon_textures[TopBarIcon::Player as usize];
 
-            ui.dummy([icon_size[0], 0.0]);
-            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::green());
+            widgets::spacing(ui, &draw_list, Vec2::new(icon_size.x, 0.0));
             ui.same_line();
 
-            let icon_texture = self.icon_textures[TopBarIcon::Player as usize];
-            let rect = Rect::from_extents(
+            let icon_rect = Rect::from_extents(
                 Vec2::new(ui.item_rect_min()[0], 0.0),
-                Vec2::new(ui.item_rect_max()[0], icon_size[1])
+                Vec2::new(ui.item_rect_max()[0], icon_size.y)
             );
 
-            let foreground_draw_list = ui.get_foreground_draw_list();
-            widgets::draw_window_style_rect(
-                ui,
-                &foreground_draw_list,
-                rect.min,
-                rect.max
-            );
+            // NOTE: Draw with fullscreen clip rect so that the player icon is allowed to overflow the window bounds.
+            draw_list.with_clip_rect([0.0, 0.0], ui.io().display_size, || {
+                widgets::draw_window_style_rect(
+                    ui,
+                    &draw_list,
+                    icon_rect.min,
+                    icon_rect.max
+                );
+                draw_list
+                    .add_image(icon_texture, icon_rect.min.to_array(), icon_rect.max.to_array())
+                    .build();
+            });
 
-            foreground_draw_list
-                .add_image(icon_texture, rect.min.to_array(), rect.max.to_array())
-                .build();
-
-            ui.dummy([30.0, 0.0]);
-            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::yellow());
+            widgets::spacing(ui, &draw_list, Vec2::new(30.0, 0.0));
             ui.same_line();
         }
 
         // GOLD:
         {
-            let icon_size = TopBarIcon::Gold.size().to_array();
-
-            ui.invisible_button_flags("Gold", icon_size, imgui::ButtonFlags::empty());
-            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::blue());
-            ui.same_line(); // Horizontal layout.
-
-            let icon_rect_min = ui.item_rect_min();
-            let icon_rect_max = ui.item_rect_max();
+            let icon_size = TopBarIcon::Gold.size();
             let icon_texture = self.icon_textures[TopBarIcon::Gold as usize];
 
-            draw_list
-                .add_image(icon_texture, icon_rect_min, icon_rect_max)
-                .build();
+            widgets::draw_sprite(ui, &draw_list, "Gold", icon_size, icon_texture, Some("Gold"));
+            ui.same_line(); // Horizontal layout.
 
-            ui.button_with_size("8888", [50.0, icon_size[1]]);
-            widgets::draw_last_item_debug_rect(ui, &draw_list, Color::green());
+            let gold_units_total = world.stats().treasury.gold_units_total;
+            widgets::draw_centered_text_label(ui, &draw_list, &gold_units_total.to_string(), Vec2::new(50.0, icon_size.y));
+            ui.same_line();
         }
     }
 }
@@ -245,14 +227,14 @@ const LEFT_BAR_BUTTON_COUNT: usize = LeftBarButtonKind::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 enum LeftBarButtonKind {
+    #[strum(props(Sprite = "menu_bar/main_menu"))]
+    MainMenu,
+
     #[strum(props(Sprite = "menu_bar/save_game"))]
     SaveGame,
 
     #[strum(props(Sprite = "menu_bar/settings"))]
     Settings,
-
-    #[strum(props(Sprite = "menu_bar/mission_info"))]
-    MissionInfo,
 }
 
 impl LeftBarButtonKind {
@@ -405,7 +387,7 @@ impl GameSpeedControls {
         Self { buttons: GameSpeedControlButtonKind::create_all(tex_cache, ui_sys) }
     }
 
-    fn draw(&mut self, ui_sys: &UiSystem) {
+    fn draw(&mut self, _sim: &mut Simulation, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         for button in &mut self.buttons {
@@ -413,7 +395,7 @@ impl GameSpeedControls {
             ui.same_line(); // Horizontal layout.
         }
 
-        widgets::draw_vertical_separator(ui, 1.0, 6.0, 0.0);
+        widgets::draw_vertical_separator(ui, &ui.get_window_draw_list(), 1.0, 6.0, 0.0);
         ui.same_line();
 
         let width = ui.calc_text_size("Paused")[0];

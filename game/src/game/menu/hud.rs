@@ -65,7 +65,9 @@ impl GameMenusSystem for InGameHudMenus {
                                context.camera.transform(),
                                context.tile_selection.has_valid_placement());
 
-        self.menu_bar.draw(context.engine.ui_system());
+        self.menu_bar.draw(context.sim,
+                           context.world,
+                           context.engine.ui_system());
     }
 }
 
