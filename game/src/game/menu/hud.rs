@@ -12,9 +12,9 @@ use super::{
 };
 use crate::{
     tile::Tile,
-    engine::Engine,
     save::{Save, Load},
     render::TextureCache,
+    engine::{Engine, time::Seconds},
     imgui_ui::{UiSystem, UiInputEvent},
     app::input::{InputAction, MouseButton},
     utils::{Vec2, coords::{CellRange, WorldToScreenTransform}},
@@ -63,11 +63,13 @@ impl GameMenusSystem for InGameHudMenus {
         self.tile_palette.draw(context.engine,
                                context.cursor_screen_pos,
                                context.camera.transform(),
-                               context.tile_selection.has_valid_placement());
+                               context.tile_selection.has_valid_placement(),
+                               context.delta_time_secs);
 
         self.menu_bar.draw(context.sim,
                            context.world,
-                           context.engine.ui_system());
+                           context.engine.ui_system(),
+                           context.delta_time_secs);
     }
 }
 
@@ -99,8 +101,9 @@ impl TilePaletteMenu {
             engine: &mut dyn Engine,
             cursor_screen_pos: Vec2,
             transform: WorldToScreenTransform,
-            has_valid_placement: bool) {
-        self.widget.draw(engine.ui_system());
+            has_valid_placement: bool,
+            delta_time_secs: Seconds) {
+        self.widget.draw(engine.ui_system(), delta_time_secs);
         self.widget.draw_selected_tile(engine.render_system(), cursor_screen_pos, transform, has_valid_placement);
     }
 }

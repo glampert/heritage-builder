@@ -10,6 +10,7 @@ use super::{
     },
 };
 use crate::{
+    engine::time::Seconds,
     utils::{self, Size, Rect, Vec2},
     imgui_ui::{UiSystem, UiTextureHandle},
     game::{sim::Simulation, world::World},
@@ -35,7 +36,7 @@ impl MenuBarWidget {
         }
     }
 
-    pub fn draw(&mut self, sim: &mut Simulation, world: &World, ui_sys: &UiSystem) {
+    pub fn draw(&mut self, sim: &mut Simulation, world: &World, ui_sys: &UiSystem, delta_time_secs: Seconds) {
         let ui = ui_sys.ui();
 
         const HORIZONTAL_SPACING: f32 = 2.0;
@@ -65,13 +66,13 @@ impl MenuBarWidget {
         Self::draw_bar_widget(ui_sys,
                               Some([0.0, 60.0]),
                               "Menu Bar Widget Left",
-                              || self.left_bar.draw(ui_sys));
+                              || self.left_bar.draw(sim, ui_sys, delta_time_secs));
 
         // Game speed controls horizontal top bar:
         Self::draw_bar_widget(ui_sys,
                               Some([0.0, 0.0]),
                               "Menu Bar Widget Speed Ctrls",
-                              || self.game_speed_controls.draw(sim, ui_sys));
+                              || self.game_speed_controls.draw(sim, ui_sys, delta_time_secs));
     }
 
     fn draw_bar_widget<F>(ui_sys: &UiSystem,
@@ -265,7 +266,9 @@ impl LeftBarButtonKind {
                 ButtonDef {
                     name: self.sprite_path(),
                     size: Self::BUTTON_SIZE,
-                    tooltip: Some(self.tooltip())
+                    tooltip: Some(self.tooltip()),
+                    show_tooltip_when_pressed: true,
+                    state_transition_secs: 0.5,
                 },
                 ButtonState::Idle,
             ),
@@ -298,11 +301,34 @@ impl LeftBar {
         Self { buttons: LeftBarButtonKind::create_all(tex_cache, ui_sys) }
     }
 
-    fn draw(&mut self, ui_sys: &UiSystem) {
-        for button in &mut self.buttons {
-            let pressed = button.btn.draw(ui_sys);
-            if pressed {
-                // TODO: Open modal popup menu / pause simulation.
+    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, delta_time_secs: Seconds) {
+        let mut pressed_button_index: Option<usize> = None;
+
+        for (index, button) in self.buttons.iter_mut().enumerate() {
+            let pressed = button.btn.draw(ui_sys, delta_time_secs);
+
+            if pressed && pressed_button_index.is_none() {
+                pressed_button_index = Some(index);
+            }
+
+            // Pressed state doesn't persist.
+            button.btn.unpress();
+        }
+
+        if let Some(pressed_index) = pressed_button_index {
+            match self.buttons[pressed_index].kind {
+                LeftBarButtonKind::MainMenu => {
+                    sim.pause();
+                    // TODO: Open modal popup menu.
+                }
+                LeftBarButtonKind::SaveGame => {
+                    sim.pause();
+                    // TODO: Open modal popup menu.
+                }
+                LeftBarButtonKind::Settings => {
+                    sim.pause();
+                    // TODO: Open modal popup menu.
+                }
             }
         }
     }
@@ -357,7 +383,9 @@ impl GameSpeedControlButtonKind {
                 ButtonDef {
                     name: self.sprite_path(),
                     size: Self::BUTTON_SIZE,
-                    tooltip: Some(self.tooltip())
+                    tooltip: Some(self.tooltip()),
+                    show_tooltip_when_pressed: true,
+                    state_transition_secs: 0.5,
                 },
                 ButtonState::Idle,
             ),
@@ -390,25 +418,23 @@ impl GameSpeedControls {
         Self { buttons: GameSpeedControlButtonKind::create_all(tex_cache, ui_sys) }
     }
 
-    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
+    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, delta_time_secs: Seconds) {
         let ui = ui_sys.ui();
         let mut pressed_button_index: Option<usize> = None;
 
         for (index, button) in self.buttons.iter_mut().enumerate() {
-            let pressed = button.btn.draw(ui_sys);
+            let pressed = button.btn.draw(ui_sys, delta_time_secs);
             ui.same_line(); // Horizontal layout.
 
             if pressed && pressed_button_index.is_none() {
                 pressed_button_index = Some(index);
             }
+
+            // Pressed state doesn't persist.
+            button.btn.unpress();
         }
 
         if let Some(pressed_index) = pressed_button_index {
-            // Unpress all buttons. Pressed state doesn't persist.
-            for button in &mut self.buttons {
-                button.btn.unpress();
-            }
-
             match self.buttons[pressed_index].kind {
                 GameSpeedControlButtonKind::Play => {
                     sim.resume();

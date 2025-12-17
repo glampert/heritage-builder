@@ -4,6 +4,7 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use crate::{
     utils::{Size, Vec2, Rect, Color},
+    engine::time::{Seconds, CountdownTimer},
     render::{TextureCache, TextureSettings, TextureFilter},
     imgui_ui::{UiSystem, UiTextureHandle, INVALID_UI_TEXTURE_HANDLE},
 };
@@ -91,6 +92,8 @@ pub struct ButtonDef {
     pub name: &'static str,
     pub size: Size,
     pub tooltip: Option<String>,
+    pub show_tooltip_when_pressed: bool,
+    pub state_transition_secs: Seconds,
 }
 
 // ----------------------------------------------
@@ -100,8 +103,12 @@ pub struct ButtonDef {
 pub struct Button {
     pub def: ButtonDef,
     pub rect: Rect, // NOTE: Cached from ImGui on every draw().
+
     sprites: ButtonSprites,
-    state: ButtonState,
+    logical_state: ButtonState,
+
+    visual_state: ButtonState,
+    visual_state_transition_timer: CountdownTimer,
 }
 
 impl Button {
@@ -110,19 +117,22 @@ impl Button {
                def: ButtonDef,
                initial_state: ButtonState) -> Self {
         let name = def.name;
+        let countdown = def.state_transition_secs;
         Self {
             def,
             rect: Rect::default(),
             sprites: ButtonSprites::new(name, tex_cache, ui_sys),
-            state: initial_state,
+            logical_state: initial_state,
+            visual_state: initial_state,
+            visual_state_transition_timer: CountdownTimer::new(countdown),
         }
     }
 
-    pub fn draw(&mut self, ui_sys: &UiSystem) -> bool {
+    pub fn draw(&mut self, ui_sys: &UiSystem, delta_time_secs: Seconds) -> bool {
         debug_assert!(self.sprites.are_textures_loaded());
 
         let ui = ui_sys.ui();
-        let ui_texture = self.sprites.texture_for_state(self.state);
+        let ui_texture = self.sprites.texture_for_state(self.visual_state);
 
         let flags = imgui::ButtonFlags::MOUSE_BUTTON_LEFT | imgui::ButtonFlags::MOUSE_BUTTON_RIGHT;
         ui.invisible_button_flags(self.name(), self.size(), flags);
@@ -141,9 +151,11 @@ impl Button {
                             .build();
 
         self.rect = Rect::from_extents(Vec2::from_array(rect_min), Vec2::from_array(rect_max));
-        self.update_state(hovered, left_click, right_click);
+        self.update_state(hovered, left_click, right_click, delta_time_secs);
 
-        if hovered && !self.is_pressed() && let Some(tooltip) = &self.def.tooltip {
+        let show_tooltip = hovered && (!self.is_pressed() || self.def.show_tooltip_when_pressed);
+
+        if show_tooltip && let Some(tooltip) = &self.def.tooltip {
             ui.tooltip_text(tooltip);
         }
 
@@ -156,24 +168,24 @@ impl Button {
 
     #[inline]
     pub fn disable(&mut self) {
-        self.state = ButtonState::Disabled;
+        self.logical_state = ButtonState::Disabled;
     }
 
     #[inline]
     pub fn enable(&mut self) {
-        self.state = ButtonState::Idle;
+        self.logical_state = ButtonState::Idle;
     }
 
     #[inline]
     pub fn unpress(&mut self) {
-        if self.state == ButtonState::Pressed {
-            self.state = ButtonState::Idle;
+        if self.logical_state == ButtonState::Pressed {
+            self.logical_state = ButtonState::Idle;
         }
     }
 
     #[inline]
     pub fn is_pressed(&self) -> bool {
-        self.state == ButtonState::Pressed
+        self.logical_state == ButtonState::Pressed
     }
 
     #[inline]
@@ -187,25 +199,40 @@ impl Button {
     }
 
     #[inline]
-    fn update_state(&mut self, hovered: bool, left_click: bool, right_click: bool) {
-        match self.state {
+    fn update_state(&mut self, hovered: bool, left_click: bool, right_click: bool, delta_time_secs: Seconds) {
+        match self.logical_state {
             ButtonState::Idle | ButtonState::Hovered => {
                 // Left click selects/presses button.
                 if left_click {
-                    self.state = ButtonState::Pressed;
+                    self.logical_state = ButtonState::Pressed;
                 } else if hovered {
-                    self.state = ButtonState::Hovered;
+                    self.logical_state = ButtonState::Hovered;
                 } else {
-                    self.state = ButtonState::Idle;
+                    self.logical_state = ButtonState::Idle;
                 }
             }
             ButtonState::Pressed => {
                 // Right click deselects/unpresses.
                 if right_click {
-                    self.state = ButtonState::Idle;
+                    self.logical_state = ButtonState::Idle;
                 }
             }
             ButtonState::Disabled => {}
+        }
+
+        if left_click {
+            // Reset transition if pressed.
+            self.visual_state_transition_timer.reset(self.def.state_transition_secs);
+        }
+
+        if self.visual_state == ButtonState::Pressed {
+            // Run a timed transition between idle/hovered and pressed.
+            if self.visual_state_transition_timer.tick(delta_time_secs) {
+                self.visual_state_transition_timer.reset(self.def.state_transition_secs);
+                self.visual_state = self.logical_state;
+            }
+        } else {
+            self.visual_state = self.logical_state;
         }
     }
 }

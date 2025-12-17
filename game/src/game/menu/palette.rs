@@ -8,6 +8,7 @@ use super::{
 };
 use crate::{
     imgui_ui::UiSystem,
+    engine::time::Seconds,
     render::{RenderSystem, TextureCache, TextureHandle, TextureSettings, TextureFilter},
     utils::{self, Size, Vec2, Color, Rect, RectTexCoords, coords::WorldToScreenTransform},
     tile::{
@@ -123,7 +124,9 @@ impl TilePaletteMainButtonKind {
                 ButtonDef {
                     name: self.sprite_path(),
                     size: Self::BUTTON_SIZE,
-                    tooltip: Some(self.tooltip())
+                    tooltip: Some(self.tooltip()),
+                    show_tooltip_when_pressed: false,
+                    state_transition_secs: 0.0,
                 },
                 self.initial_state(&children),
             ),
@@ -166,8 +169,8 @@ impl TilePaletteMainButton {
         self.btn.is_pressed()
     }
 
-    fn draw_main_button(&mut self, ui_sys: &UiSystem) -> bool {
-        self.btn.draw(ui_sys)
+    fn draw_main_button(&mut self, ui_sys: &UiSystem, delta_time_secs: Seconds) -> bool {
+        self.btn.draw(ui_sys, delta_time_secs)
     }
 
     fn draw_child_buttons(&mut self, ui_sys: &UiSystem) -> Option<usize> {
@@ -294,7 +297,7 @@ impl TilePaletteWidget {
         self.pressed_main_button = None;
     }
 
-    pub fn draw(&mut self, ui_sys: &UiSystem) {
+    pub fn draw(&mut self, ui_sys: &UiSystem, delta_time_secs: Seconds) {
         let ui = ui_sys.ui();
 
         const BUTTON_SIZE: Vec2 = TilePaletteMainButtonKind::BUTTON_SIZE.to_vec2();
@@ -323,7 +326,7 @@ impl TilePaletteWidget {
                 let previously_pressed_button = self.pressed_main_button;
 
                 for (index, button) in self.main_buttons.iter_mut().enumerate() {
-                    let was_pressed_this_frame = button.draw_main_button(ui_sys);
+                    let was_pressed_this_frame = button.draw_main_button(ui_sys, delta_time_secs);
 
                     if button.kind.separator_follows() {
                         ui.separator();
