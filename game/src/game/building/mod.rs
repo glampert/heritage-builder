@@ -842,7 +842,7 @@ impl Building {
             ui.text_colored(Color::red().to_array(), value);
         };
 
-        let font = ui.push_font(ui_sys.fonts().large);
+        let font = ui.push_font(ui_sys.fonts().dev_large);
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
         font.pop();
 

@@ -358,7 +358,7 @@ impl Prop {
     fn draw_debug_ui_overview(&mut self, _query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
-        let font = ui.push_font(ui_sys.fonts().large);
+        let font = ui.push_font(ui_sys.fonts().dev_large);
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
         font.pop();
 

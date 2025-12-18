@@ -577,6 +577,10 @@ impl GameLoop {
         self.session.as_mut().unwrap()
     }
 
+    pub fn request_quit(&mut self) {
+        self.engine_mut().app().request_quit();
+    }
+
     pub fn update(&mut self) {
         self.update_autosave();
         self.process_session_commands();

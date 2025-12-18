@@ -182,24 +182,26 @@ impl UiSystem {
 
 pub struct UiFonts {
     // Debug / Dev fonts:
-    pub normal: UiFontHandle,
-    pub small: UiFontHandle,
-    pub large: UiFontHandle,
-    pub icons: UiFontHandle,
+    pub dev_normal: UiFontHandle,
+    pub dev_small: UiFontHandle,
+    pub dev_large: UiFontHandle,
+    pub dev_icons: UiFontHandle,
 
     // In-game UI / HUD fonts:
-    pub game_hud: UiFontHandle,
+    pub game_hud_normal: UiFontHandle,
+    pub game_hud_large: UiFontHandle,
 }
 
 impl UiFonts {
     // Debug / Dev fonts:
-    const NORMAL_FONT_SIZE: f32 = 14.0;
-    const SMALL_FONT_SIZE:  f32 = 10.0;
-    const LARGE_FONT_SIZE:  f32 = 16.0;
-    const ICONS_FONT_SIZE:  f32 = 16.0;
+    const DEV_NORMAL_FONT_SIZE: f32 = 14.0;
+    const DEV_SMALL_FONT_SIZE:  f32 = 10.0;
+    const DEV_LARGE_FONT_SIZE:  f32 = 16.0;
+    const DEV_ICONS_FONT_SIZE:  f32 = 16.0;
 
     // In-game UI / HUD fonts:
-    const GAME_HUD_FONT_SIZE: f32 = 15.0;
+    const GAME_HUD_NORMAL_FONT_SIZE: f32 = 15.0;
+    const GAME_HUD_LARGE_FONT_SIZE:  f32 = 20.0;
 }
 
 // ----------------------------------------------
@@ -502,13 +504,14 @@ impl UiContext {
         let fonts = ctx.fonts();
         UiFonts {
             // Debug / Dev fonts:
-            normal: Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::NORMAL_FONT_SIZE, None, None),
-            small:  Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::SMALL_FONT_SIZE,  None, None),
-            large:  Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::LARGE_FONT_SIZE,  None, None),
-            icons:  Self::load_font(fonts, ICON_FONT_DATA, UiFonts::ICONS_FONT_SIZE,  Some(icon_glyph_ranges), None),
+            dev_normal: Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::DEV_NORMAL_FONT_SIZE, None, None),
+            dev_small:  Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::DEV_SMALL_FONT_SIZE,  None, None),
+            dev_large:  Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::DEV_LARGE_FONT_SIZE,  None, None),
+            dev_icons:  Self::load_font(fonts, ICON_FONT_DATA, UiFonts::DEV_ICONS_FONT_SIZE,  Some(icon_glyph_ranges), None),
 
             // In-game UI / HUD fonts:
-            game_hud: Self::load_font(fonts, GAME_HUD_FONT_DATA, UiFonts::GAME_HUD_FONT_SIZE, None, Some([1.0, 0.0])),
+            game_hud_normal: Self::load_font(fonts, GAME_HUD_FONT_DATA, UiFonts::GAME_HUD_NORMAL_FONT_SIZE, None, Some([1.0, 0.0])),
+            game_hud_large:  Self::load_font(fonts, GAME_HUD_FONT_DATA, UiFonts::GAME_HUD_LARGE_FONT_SIZE,  None, Some([1.0, 0.0])),
         }
     }
 
@@ -709,7 +712,7 @@ pub fn dpad_buttons(ui: &imgui::Ui) -> Option<DPadDirection> {
 pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool {
     let ui = ui_sys.ui();
 
-    let icon_font = ui.push_font(ui_sys.fonts().icons);
+    let icon_font = ui.push_font(ui_sys.fonts().dev_icons);
     let clicked = ui.button(icon.to_string());
     icon_font.pop();
 

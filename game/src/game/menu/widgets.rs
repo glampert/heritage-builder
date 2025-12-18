@@ -280,7 +280,7 @@ impl BasicModalMenu {
     }
 
     pub fn draw<F>(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, f: F)
-        where F: FnOnce()
+        where F: FnOnce(&mut Simulation)
     {
         if !self.is_open {
             return;
@@ -302,18 +302,21 @@ impl BasicModalMenu {
         let mut window_flags = invisible_window_flags();
         window_flags.remove(imgui::WindowFlags::NO_TITLE_BAR);
 
+        let mut is_open = self.is_open;
+
         ui.window(&self.title)
-            .opened(&mut self.is_open)
+            .opened(&mut is_open)
             .size(window_size.to_array(), size_cond)
             .flags(window_flags)
             .build(|| {
-                f();
+                f(sim);
                 draw_current_window_debug_rect(ui);
             });
 
-        // If close button pressed, resume the simulation.
-        if !self.is_open {
-            self.close(sim);
+        // Resume game if closed by user.
+        if !is_open {
+            self.is_open = false;
+            sim.resume();
         }
     }
 }
@@ -374,7 +377,7 @@ impl<'ui> UiStyleOverrides<'ui> {
             window_title_bg_color_collapsed: ui.push_style_color(imgui::StyleColor::TitleBgCollapsed, bg_color),
 
             text_color: ui.push_style_color(imgui::StyleColor::Text, Color::black().to_array()),
-            text_font: ui.push_font(ui_sys.fonts().game_hud),
+            text_font: ui.push_font(ui_sys.fonts().game_hud_normal),
 
             button_color: ui.push_style_color(imgui::StyleColor::Button, bg_color),
             button_color_hovered: ui.push_style_color(imgui::StyleColor::ButtonHovered, btn_hovered),
@@ -414,6 +417,63 @@ impl<'ui> UiStyleTextLabelInvisibleButtons<'ui> {
             button_color_active: ui.push_style_color(imgui::StyleColor::ButtonActive, [0.0, 0.0, 0.0, 0.0]),
         }
     }
+}
+
+pub fn draw_centered_button_group(ui: &imgui::Ui,
+                                  draw_list: &imgui::DrawListMut<'_>,
+                                  labels: &[&str],
+                                  size: Option<Size>) -> Option<usize> {
+    if labels.is_empty() {
+        return None;
+    }
+
+    let style = unsafe { ui.style() };
+
+    let button_size = {
+        if let Some(size) = size {
+            size.to_vec2().to_array()
+        } else {
+            // Compute from labels:
+            let mut longest_label = 0.0;
+            let mut highest_label = 0.0;
+            for label in labels {
+                let label_size = ui.calc_text_size(label);
+                if label_size[0] > longest_label {
+                    longest_label = label_size[0];
+                }
+                if label_size[1] > highest_label {
+                    highest_label = label_size[1];
+                }
+            }
+            [longest_label + style.frame_padding[0], highest_label + style.frame_padding[1]]
+        }
+    };
+
+    let spacing_y = style.item_spacing[1];
+
+    let total_height =
+        labels.len() as f32 * button_size[1] +
+        (labels.len().saturating_sub(1) as f32 * spacing_y);
+
+    let avail = ui.content_region_avail();
+    let start_x = (avail[0] - button_size[0]) * 0.5;
+    let start_y = (avail[1] - total_height) * 0.5;
+    ui.set_cursor_pos([0.0, start_y]);
+
+    let mut pressed_index = None;
+
+    for (index, label) in labels.iter().enumerate() {
+        let cursor = ui.cursor_pos();
+        ui.set_cursor_pos([start_x, cursor[1]]);
+
+        if ui.button_with_size(label, button_size) {
+            pressed_index = Some(index);
+        }
+
+        draw_last_item_debug_rect(ui, draw_list, Color::blue());
+    }
+
+    pressed_index
 }
 
 // Draws a vertical separator immediately after the last submitted item.

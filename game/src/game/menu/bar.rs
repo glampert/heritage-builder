@@ -29,7 +29,7 @@ use crate::{
 
 pub struct MenuBarWidget {
     top_bar: TopBar,
-    left_bar: LeftBar,
+    left_bar: Box<LeftBar>,
     game_speed_controls: GameSpeedControls,
 }
 
@@ -57,9 +57,6 @@ impl MenuBarWidget {
 
         let _item_spacing =
             UiStyleOverrides::set_item_spacing(ui_sys, HORIZONTAL_SPACING, VERTICAL_SPACING);
-
-        let _btn_style_overrides =
-            UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
 
         // Center top bar to the middle of the display:
         widgets::set_next_window_pos(
@@ -169,6 +166,10 @@ impl TopBar {
         let _item_spacing =
             UiStyleOverrides::set_item_spacing(ui_sys, 0.0, 0.0);
 
+        // We'll use buttons for text labels, for straightforward text centering and layout.
+        let _btn_style_overrides =
+            UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+
         // POPULATION:
         {
             let icon_size = TopBarIcon::Population.size();
@@ -237,11 +238,11 @@ impl TopBar {
 const LEFT_BAR_BUTTON_COUNT: usize = LeftBarButtonKind::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
-enum LeftBarButtonKind {
-    #[strum(props(Sprite = "menu_bar/main_menu"))]
+pub enum LeftBarButtonKind {
+    #[strum(props(Sprite = "menu_bar/main_menu", Tooltip = "Game"))]
     MainMenu,
 
-    #[strum(props(Sprite = "menu_bar/save_game"))]
+    #[strum(props(Sprite = "menu_bar/save_game", Tooltip = "Load / Save Game"))]
     SaveGame,
 
     #[strum(props(Sprite = "menu_bar/settings"))]
@@ -302,42 +303,58 @@ struct LeftBarButton {
     kind: LeftBarButtonKind,
 }
 
-struct LeftBar {
+pub type LeftBarModalMenu = LeftBarButtonKind;
+
+pub struct LeftBar {
     buttons: ArrayVec<LeftBarButton, LEFT_BAR_BUTTON_COUNT>,
     modal_menus: ArrayVec<Box<dyn ModalMenu>, LEFT_BAR_BUTTON_COUNT>,
 }
 
 impl LeftBar {
-    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
-        let mut bar = Self {
+    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Box<Self> {
+        let mut bar = Box::new(Self {
             buttons: LeftBarButtonKind::create_all(tex_cache, ui_sys),
             modal_menus: ArrayVec::new(),
-        };
+        });
 
         for button_kind in LeftBarButtonKind::iter() {
             match button_kind {
-                LeftBarButtonKind::MainMenu => bar.modal_menus.push(Box::new(MainModalMenu::new())),
-                LeftBarButtonKind::SaveGame => bar.modal_menus.push(Box::new(SaveGameModalMenu::new())),
-                LeftBarButtonKind::Settings => bar.modal_menus.push(Box::new(SettingsModalMenu::new())),
+                LeftBarButtonKind::MainMenu =>{
+                    bar.modal_menus.push(Box::new(MainModalMenu::new(LeftBarButtonKind::MainMenu.tooltip(), &bar)))
+                }
+                LeftBarButtonKind::SaveGame => {
+                    bar.modal_menus.push(Box::new(SaveGameModalMenu::new(LeftBarButtonKind::SaveGame.tooltip())))
+                }
+                LeftBarButtonKind::Settings => {
+                    bar.modal_menus.push(Box::new(SettingsModalMenu::new(LeftBarButtonKind::Settings.tooltip())))
+                }
             }
         }
 
         bar
     }
 
+    pub fn close_all_modal_menus(&mut self, sim: &mut Simulation) -> bool {
+        let mut any_modal_menu_open = false;
+        for modal in &mut self.modal_menus {
+            if modal.is_open() {
+                modal.close(sim);
+                any_modal_menu_open = true;
+            }
+        }
+        any_modal_menu_open
+    }
+
+    pub fn open_modal_menu(&mut self, sim: &mut Simulation, menu: LeftBarModalMenu) {
+        self.close_all_modal_menus(sim);
+        self.modal_menus[menu as usize].open(sim);
+    }
+
     fn handle_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
             if action == InputAction::Press && key == InputKey::Escape {
-                let mut any_modal_menu_open = false;
-
                 // Close all modal menus and return to game.
-                for modal in &mut self.modal_menus {
-                    if modal.is_open() {
-                        modal.close(context.sim);
-                        any_modal_menu_open = true;
-                    }
-                }
-
+                let any_modal_menu_open = self.close_all_modal_menus(context.sim);
                 if any_modal_menu_open {
                     // Handled the key press.
                     return UiInputEvent::Handled;
@@ -367,18 +384,22 @@ impl LeftBar {
 
         if let Some(pressed_index) = pressed_button_index {
             // Ensure any other menus are closed first.
-            for (index, modal) in self.modal_menus.iter_mut().enumerate() {
-                if index != pressed_index {
-                    modal.close(sim);
-                }
-            }
-
+            self.close_all_modal_menus(sim);
             // Open new menu.
             self.modal_menus[pressed_index].open(sim);
         }
 
+        // Draw open modal menus.
+        let mut any_modal_menu_open = false;
         for modal in &mut self.modal_menus {
             modal.draw(sim, ui_sys);
+            if modal.is_open() {
+                any_modal_menu_open = true;
+            }
+        }
+
+        if any_modal_menu_open {
+            sim.pause();
         }
     }
 }
@@ -468,6 +489,10 @@ impl GameSpeedControls {
     }
 
     fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, delta_time_secs: Seconds) {
+        // We'll use buttons for text labels, for straightforward text centering and layout.
+        let _btn_style_overrides =
+            UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+
         let ui = ui_sys.ui();
         let mut pressed_button_index: Option<usize> = None;
 
