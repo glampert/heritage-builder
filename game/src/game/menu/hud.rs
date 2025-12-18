@@ -3,6 +3,7 @@ use std::any::Any;
 use super::{
     GameMenusSystem,
     GameMenusContext,
+    GameMenusInputArgs,
     TilePlacement,
     TileInspector,
     TilePalette,
@@ -57,6 +58,10 @@ impl GameMenusSystem for InGameHudMenus {
 
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {
         Some(&mut self.tile_inspector)
+    }
+
+    fn handle_custom_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
+        self.menu_bar.handle_input(context, args)
     }
 
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {

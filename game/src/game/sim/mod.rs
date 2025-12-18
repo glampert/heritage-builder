@@ -173,18 +173,22 @@ impl Simulation {
         self.speed
     }
 
+    #[inline]
     pub fn pause(&mut self) {
         self.is_paused = true;
     }
 
+    #[inline]
     pub fn resume(&mut self) {
         self.is_paused = false;
     }
 
+    #[inline]
     pub fn speedup(&mut self) {
         self.speed = (self.speed + 1.0).min(Self::MAX_SIM_SPEED);
     }
 
+    #[inline]
     pub fn slowdown(&mut self) {
         self.speed = (self.speed - 1.0).max(Self::MIN_SIM_SPEED);
     }

@@ -4,16 +4,22 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
+    GameMenusContext,
+    GameMenusInputArgs,
+    modal::*,
     widgets::{
-        self, Button, ButtonState, ButtonDef,
+        self,
+        ModalMenu,
+        Button, ButtonState, ButtonDef,
         UiStyleOverrides, UiStyleTextLabelInvisibleButtons
     },
 };
 use crate::{
     engine::time::Seconds,
     utils::{self, Size, Rect, Vec2},
-    imgui_ui::{UiSystem, UiTextureHandle},
     game::{sim::Simulation, world::World},
+    app::input::{InputAction, InputKey},
+    imgui_ui::{UiSystem, UiTextureHandle, UiInputEvent},
     render::{TextureCache, TextureSettings, TextureFilter},
 };
 
@@ -34,6 +40,10 @@ impl MenuBarWidget {
             left_bar: LeftBar::new(tex_cache, ui_sys),
             game_speed_controls: GameSpeedControls::new(tex_cache, ui_sys),
         }
+    }
+
+    pub fn handle_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
+        self.left_bar.handle_input(context, args)
     }
 
     pub fn draw(&mut self, sim: &mut Simulation, world: &World, ui_sys: &UiSystem, delta_time_secs: Seconds) {
@@ -294,14 +304,54 @@ struct LeftBarButton {
 
 struct LeftBar {
     buttons: ArrayVec<LeftBarButton, LEFT_BAR_BUTTON_COUNT>,
+    modal_menus: ArrayVec<Box<dyn ModalMenu>, LEFT_BAR_BUTTON_COUNT>,
 }
 
 impl LeftBar {
     fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
-        Self { buttons: LeftBarButtonKind::create_all(tex_cache, ui_sys) }
+        let mut bar = Self {
+            buttons: LeftBarButtonKind::create_all(tex_cache, ui_sys),
+            modal_menus: ArrayVec::new(),
+        };
+
+        for button_kind in LeftBarButtonKind::iter() {
+            match button_kind {
+                LeftBarButtonKind::MainMenu => bar.modal_menus.push(Box::new(MainModalMenu::new())),
+                LeftBarButtonKind::SaveGame => bar.modal_menus.push(Box::new(SaveGameModalMenu::new())),
+                LeftBarButtonKind::Settings => bar.modal_menus.push(Box::new(SettingsModalMenu::new())),
+            }
+        }
+
+        bar
+    }
+
+    fn handle_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
+        if let GameMenusInputArgs::Key { key, action, .. } = args {
+            if action == InputAction::Press && key == InputKey::Escape {
+                let mut any_modal_menu_open = false;
+
+                // Close all modal menus and return to game.
+                for modal in &mut self.modal_menus {
+                    if modal.is_open() {
+                        modal.close(context.sim);
+                        any_modal_menu_open = true;
+                    }
+                }
+
+                if any_modal_menu_open {
+                    // Handled the key press.
+                    return UiInputEvent::Handled;
+                }
+            }
+        }
+
+        // Let the event propagate.
+        UiInputEvent::NotHandled
     }
 
     fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, delta_time_secs: Seconds) {
+        debug_assert!(self.buttons.len() == self.modal_menus.len()); // Each button is associated with a modal menu.
+
         let mut pressed_button_index: Option<usize> = None;
 
         for (index, button) in self.buttons.iter_mut().enumerate() {
@@ -316,20 +366,19 @@ impl LeftBar {
         }
 
         if let Some(pressed_index) = pressed_button_index {
-            match self.buttons[pressed_index].kind {
-                LeftBarButtonKind::MainMenu => {
-                    sim.pause();
-                    // TODO: Open modal popup menu.
-                }
-                LeftBarButtonKind::SaveGame => {
-                    sim.pause();
-                    // TODO: Open modal popup menu.
-                }
-                LeftBarButtonKind::Settings => {
-                    sim.pause();
-                    // TODO: Open modal popup menu.
+            // Ensure any other menus are closed first.
+            for (index, modal) in self.modal_menus.iter_mut().enumerate() {
+                if index != pressed_index {
+                    modal.close(sim);
                 }
             }
+
+            // Open new menu.
+            self.modal_menus[pressed_index].open(sim);
+        }
+
+        for modal in &mut self.modal_menus {
+            modal.draw(sim, ui_sys);
         }
     }
 }

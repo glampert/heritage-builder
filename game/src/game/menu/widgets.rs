@@ -3,6 +3,7 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use crate::{
+    game::sim::Simulation,
     utils::{Size, Vec2, Rect, Color},
     engine::time::{Seconds, CountdownTimer},
     render::{TextureCache, TextureSettings, TextureFilter},
@@ -233,6 +234,86 @@ impl Button {
             }
         } else {
             self.visual_state = self.logical_state;
+        }
+    }
+}
+
+// ----------------------------------------------
+// ModalMenu
+// ----------------------------------------------
+
+// A modal popup window / dialog menu that pauses the game while open.
+pub trait ModalMenu {
+    fn is_open(&self) -> bool;
+    fn open(&mut self, sim: &mut Simulation);
+    fn close(&mut self, sim: &mut Simulation);
+    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem);
+}
+
+pub struct BasicModalMenu {
+    title: String,
+    size: Option<Size>,
+    is_open: bool,
+}
+
+impl BasicModalMenu {
+    pub fn new(title: String, size: Option<Size>) -> Self {
+        Self {
+            title,
+            size,
+            is_open: false,
+        }
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.is_open
+    }
+
+    pub fn open(&mut self, sim: &mut Simulation) {
+        self.is_open = true;
+        sim.pause();
+    }
+
+    pub fn close(&mut self, sim: &mut Simulation) {
+        self.is_open = false;
+        sim.resume();
+    }
+
+    pub fn draw<F>(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, f: F)
+        where F: FnOnce()
+    {
+        if !self.is_open {
+            return;
+        }
+
+        let ui = ui_sys.ui();
+        let display_size = ui.io().display_size;
+
+        // Center popup window to the middle of the display:
+        set_next_window_pos(
+            Vec2::new(display_size[0] * 0.5, display_size[1] * 0.5),
+            Vec2::new(0.5, 0.5),
+            imgui::Condition::Always
+        );
+
+        let window_size = self.size.unwrap_or_default().to_vec2();
+        let size_cond = if self.size.is_some() { imgui::Condition::Always } else { imgui::Condition::Never };
+
+        let mut window_flags = invisible_window_flags();
+        window_flags.remove(imgui::WindowFlags::NO_TITLE_BAR);
+
+        ui.window(&self.title)
+            .opened(&mut self.is_open)
+            .size(window_size.to_array(), size_cond)
+            .flags(window_flags)
+            .build(|| {
+                f();
+                draw_current_window_debug_rect(ui);
+            });
+
+        // If close button pressed, resume the simulation.
+        if !self.is_open {
+            self.close(sim);
         }
     }
 }

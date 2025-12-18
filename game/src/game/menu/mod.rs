@@ -24,12 +24,14 @@ pub mod widgets;
 pub mod hud;
 
 mod palette;
+mod modal;
 mod bar;
 
 // ----------------------------------------------
 // Helper structs
 // ----------------------------------------------
 
+#[derive(Copy, Clone)]
 pub enum GameMenusInputArgs {
     Key {
         key: InputKey,
@@ -173,6 +175,10 @@ pub trait GameMenusSystem: Save + Load {
     }
 
     fn handle_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
+        if self.handle_custom_input(context, args).is_handled() {
+            return UiInputEvent::Handled;
+        }
+
         match args {
             GameMenusInputArgs::Key { key, action, modifiers } => {
                 if action == InputAction::Press {
@@ -286,6 +292,12 @@ pub trait GameMenusSystem: Save + Load {
             _ => {}
         }
 
+        UiInputEvent::NotHandled
+    }
+
+    // Optional override to add extended input handling behavior on top of the default handle_input().
+    // This is called before handle_input(), so returning UiInputEvent::Handled will stop handle_input() logic from running.
+    fn handle_custom_input(&mut self, _context: &mut GameMenusContext, _args: GameMenusInputArgs) -> UiInputEvent {
         UiInputEvent::NotHandled
     }
 }
