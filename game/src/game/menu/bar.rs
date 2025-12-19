@@ -109,7 +109,7 @@ pub trait MenuBar: Any {
         UiInputEvent::NotHandled
     }
 
-    fn open_modal_menu(&mut self, _sim: &mut Simulation, _menu_id: ModalMenuId) {}
+    fn open_modal_menu(&mut self, _sim: &mut Simulation, _menu_id: ModalMenuId) -> Option<&mut dyn ModalMenu> { None }
     fn close_modal_menu(&mut self, _sim: &mut Simulation, _menu_id: ModalMenuId) {}
     fn close_all_modal_menus(&mut self, _sim: &mut Simulation) -> bool { false }
 }
@@ -263,7 +263,7 @@ enum LeftBarButtonKind {
     #[strum(props(Sprite = "menu_bar/main_menu", Tooltip = "Game"))]
     MainMenu,
 
-    #[strum(props(Sprite = "menu_bar/save_game", Tooltip = "Load / Save Game"))]
+    #[strum(props(Sprite = "menu_bar/save_game", Tooltip = "Load | Save"))]
     SaveGame,
 
     #[strum(props(Sprite = "menu_bar/settings"))]
@@ -422,14 +422,14 @@ impl MenuBar for LeftBar {
         UiInputEvent::NotHandled
     }
 
-    fn open_modal_menu(&mut self, sim: &mut Simulation, menu_id: ModalMenuId) {
+    fn open_modal_menu(&mut self, sim: &mut Simulation, menu_id: ModalMenuId) -> Option<&mut dyn ModalMenu> {
         // Only one modal menu open at a time.
         self.close_all_modal_menus(sim);
 
         for modal in &mut self.modal_menus {
             if modal.id() == menu_id {
                 modal.open(sim);
-                return;
+                return Some(modal.as_mut());
             }
         }
 

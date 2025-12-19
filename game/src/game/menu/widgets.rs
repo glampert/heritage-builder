@@ -10,14 +10,17 @@ use crate::{
 // ----------------------------------------------
 
 pub struct UiStyleOverrides<'ui> {
+    // Main Windows:
     window_bg_color: imgui::ColorStackToken<'ui>,
     window_title_bg_color_active: imgui::ColorStackToken<'ui>,
     window_title_bg_color_inactive: imgui::ColorStackToken<'ui>,
     window_title_bg_color_collapsed: imgui::ColorStackToken<'ui>,
 
+    // Text:
     text_color: imgui::ColorStackToken<'ui>,
     text_font: imgui::FontStackToken<'ui>,
 
+    // Buttons:
     button_color: imgui::ColorStackToken<'ui>,
     button_color_hovered: imgui::ColorStackToken<'ui>,
     button_color_active: imgui::ColorStackToken<'ui>,
@@ -25,6 +28,25 @@ pub struct UiStyleOverrides<'ui> {
     // Tooltips:
     popup_bg_color: imgui::ColorStackToken<'ui>,
     popup_border_size: imgui::StyleStackToken<'ui>,
+
+    // Child Windows:
+    child_bg_color: imgui::ColorStackToken<'ui>,
+
+    // InputText:
+    frame_bg_color: imgui::ColorStackToken<'ui>,
+    frame_bg_color_hovered: imgui::ColorStackToken<'ui>,
+    frame_bg_color_active: imgui::ColorStackToken<'ui>,
+
+    // Selectable / TreeNode / Collapsing Header:
+    header_color: imgui::ColorStackToken<'ui>,
+    header_color_hovered: imgui::ColorStackToken<'ui>,
+    header_color_active: imgui::ColorStackToken<'ui>,
+
+    // Scrollbar:
+    scrollbar_bg_color: imgui::ColorStackToken<'ui>,
+    scrollbar_grab_color: imgui::ColorStackToken<'ui>,
+    scrollbar_grab_color_hovered: imgui::ColorStackToken<'ui>,
+    scrollbar_grab_color_active: imgui::ColorStackToken<'ui>,
 }
 
 impl<'ui> UiStyleOverrides<'ui> {
@@ -44,14 +66,17 @@ impl<'ui> UiStyleOverrides<'ui> {
         let btn_active  = [0.88, 0.83, 0.68, 1.0];
 
         Some(Self {
+            // Main Windows:
             window_bg_color: ui.push_style_color(imgui::StyleColor::WindowBg, bg_color),
             window_title_bg_color_active: ui.push_style_color(imgui::StyleColor::TitleBgActive, bg_color),
             window_title_bg_color_inactive: ui.push_style_color(imgui::StyleColor::TitleBg, bg_color),
             window_title_bg_color_collapsed: ui.push_style_color(imgui::StyleColor::TitleBgCollapsed, bg_color),
 
+            // Text:
             text_color: ui.push_style_color(imgui::StyleColor::Text, Color::black().to_array()),
             text_font: ui.push_font(ui_sys.fonts().game_hud_normal),
 
+            // Buttons:
             button_color: ui.push_style_color(imgui::StyleColor::Button, bg_color),
             button_color_hovered: ui.push_style_color(imgui::StyleColor::ButtonHovered, btn_hovered),
             button_color_active: ui.push_style_color(imgui::StyleColor::ButtonActive, btn_active),
@@ -59,6 +84,25 @@ impl<'ui> UiStyleOverrides<'ui> {
             // Tooltips:
             popup_bg_color: ui.push_style_color(imgui::StyleColor::PopupBg, bg_color),
             popup_border_size: ui.push_style_var(imgui::StyleVar::PopupBorderSize(1.0)), // No border
+
+            // Child Windows:
+            child_bg_color: ui.push_style_color(imgui::StyleColor::ChildBg, btn_active),
+
+            // InputText:
+            frame_bg_color: ui.push_style_color(imgui::StyleColor::FrameBg, btn_active),
+            frame_bg_color_hovered: ui.push_style_color(imgui::StyleColor::FrameBgHovered, btn_hovered),
+            frame_bg_color_active: ui.push_style_color(imgui::StyleColor::FrameBgActive, btn_active),
+
+            // Selectable / TreeNode / Collapsing Header:
+            header_color: ui.push_style_color(imgui::StyleColor::Header, btn_active),
+            header_color_hovered: ui.push_style_color(imgui::StyleColor::HeaderHovered, [0.83, 0.78, 0.62, 1.0]),
+            header_color_active: ui.push_style_color(imgui::StyleColor::HeaderActive, btn_active),
+
+            // Scrollbar:
+            scrollbar_bg_color: ui.push_style_color(imgui::StyleColor::ScrollbarBg, [0.78, 0.73, 0.60, 1.0]),
+            scrollbar_grab_color: ui.push_style_color(imgui::StyleColor::ScrollbarGrab, [0.55, 0.50, 0.38, 1.0]),
+            scrollbar_grab_color_hovered: ui.push_style_color(imgui::StyleColor::ScrollbarGrabHovered, [0.62, 0.56, 0.42, 1.0]),
+            scrollbar_grab_color_active: ui.push_style_color(imgui::StyleColor::ScrollbarGrabActive, [0.68, 0.61, 0.45, 1.0]),
         })
     }
 

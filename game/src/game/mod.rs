@@ -110,6 +110,8 @@ impl GameSession {
 
         if configs.sim.start_paused {
             session.sim.pause();
+        } else {
+            session.sim.resume();
         }
 
         session
@@ -389,6 +391,12 @@ impl GameSession {
         self.pre_load(&PreLoadContext::new(engine));
         *self = session;
         self.post_load(&PostLoadContext::new(engine, &self.tile_map));
+
+        if GameConfigs::get().sim.start_paused {
+            self.sim.pause();
+        } else {
+            self.sim.resume();
+        }
 
         true
     }
