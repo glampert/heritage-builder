@@ -1037,8 +1037,14 @@ impl TileSet {
 // TileDefHandle
 // ----------------------------------------------
 
-// (tileset_index, tileset_category_index, category_tiledef_index)
-#[derive(Copy, Clone, Serialize, Deserialize)]
+// Runtime-suitable handle. Stores raw indices for fast access.
+// Should not be used in serialized data as indices are not
+// guaranteed to be stable across TileSet versions.
+//
+// Stores:
+//  (tileset_index, tileset_category_index, category_tiledef_index)
+//
+#[derive(Copy, Clone)]
 pub struct TileDefHandle(u16, u16, u16);
 
 impl TileDefHandle {
@@ -1054,6 +1060,40 @@ impl TileDefHandle {
         Self(tile_def.layer_kind() as u16,
              tile_def.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
              tile_def.category_tiledef_index.try_into().expect("Index cannot fit in a u16"))
+    }
+}
+
+// ----------------------------------------------
+// SerializableTileDefHandle
+// ----------------------------------------------
+
+// TileDef handle suitable for serialization to/from file.
+// Stable across TileSet versions.
+//
+// Stores:
+//  (tileset_index, category_hash, tile_def_hash)
+//
+#[derive(Copy, Clone, Serialize, Deserialize)]
+pub struct SerializableTileDefHandle(u8, u64, u64);
+
+impl SerializableTileDefHandle {
+    #[inline]
+    pub fn new(tile_set: &TileSet, tile_category: &TileCategory, tile_def: &TileDef) -> Self {
+        let tileset_index = tile_set.layer as u8;
+        Self(tileset_index, tile_category.hash, tile_def.hash)
+    }
+
+    #[inline]
+    pub fn from_tile_def(tile_def: &'static TileDef) -> Self {
+        let tileset_index = tile_def.layer_kind() as u8;
+        let category_hash = TileSets::get().find_category_for_tile_def(tile_def).unwrap().hash;
+        Self(tileset_index, category_hash, tile_def.hash)
+    }
+
+    #[inline]
+    pub fn from_tile_def_handle(handle: TileDefHandle) -> Self {
+        let tile_def = TileSets::get().handle_to_tile_def(handle).unwrap();
+        Self::from_tile_def(tile_def)
     }
 }
 
@@ -1116,6 +1156,19 @@ impl TileSets {
         debug_assert!(tile_def.category_tiledef_index as usize == tile_idx);
 
         Some(tile_def)
+    }
+
+    #[inline]
+    pub fn serializable_handle_to_tile_def(&'static self, handle: SerializableTileDefHandle) -> Option<&'static TileDef> {
+        let set_idx       = handle.0; // TileSet index into TileSets, same as layer kind.
+        let category_hash = handle.1; // TileCategory name hash.
+        let tile_def_hash = handle.2; // TileDef name hash.
+
+        let layer =
+            TileMapLayerKind::try_from(set_idx)
+            .expect("Invalid TileSet index / layer kind!");
+
+        self.find_tile_def_by_hash(layer, category_hash, tile_def_hash)
     }
 
     pub fn find_category_for_tile_def(&'static self,

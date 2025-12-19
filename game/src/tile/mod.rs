@@ -5,6 +5,7 @@ use slab::Slab;
 use arrayvec::ArrayVec;
 use bitflags::bitflags;
 use enum_dispatch::enum_dispatch;
+use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumIter, EnumProperty};
@@ -13,7 +14,7 @@ use std::{ops::{Index, IndexMut}, path::PathBuf};
 pub use placement::PlacementOp;
 use minimap::Minimap;
 use selection::TileSelection;
-use sets::{TileAnimSet, TileDef, TileDefHandle, TileSets, TileTexInfo};
+use sets::{TileAnimSet, TileDef, SerializableTileDefHandle, TileSets, TileTexInfo};
 
 use crate::{
     bitflags_with_display,
@@ -236,7 +237,7 @@ impl TileMapLayerPtr {
 #[derive(Copy, Clone)]
 enum TileDefRef {
     Ref(&'static TileDef),
-    Handle(TileDefHandle),
+    Handle(SerializableTileDefHandle),
 }
 
 impl TileDefRef {
@@ -254,18 +255,18 @@ impl TileDefRef {
     }
 
     #[inline]
-    fn as_handle(&self) -> TileDefHandle {
+    fn as_handle(&self) -> SerializableTileDefHandle {
         match self {
             Self::Handle(handle) => *handle,
-            _ => panic!("TileDefRef does not hold a TileDefHandle! Check deserialization/post_load()..."),
+            _ => panic!("TileDefRef does not hold a SerializableTileDefHandle! Check deserialization/post_load()..."),
         }
     }
 
     #[inline]
     fn post_load(&mut self) {
         let handle = self.as_handle();
-        let def = TileSets::get().handle_to_tile_def(handle)
-                                 .expect("Invalid TileDefHandle! Check serialization code...");
+        let def = TileSets::get().serializable_handle_to_tile_def(handle)
+                                 .expect("Invalid SerializableTileDefHandle! Check serialization code...");
         *self = Self::Ref(def);
     }
 }
@@ -274,8 +275,8 @@ impl Serialize for TileDefRef {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        let handle: TileDefHandle = match self {
-            Self::Ref(def) => TileDefHandle::from_tile_def(def),
+        let handle: SerializableTileDefHandle = match self {
+            Self::Ref(def) => SerializableTileDefHandle::from_tile_def(def),
             Self::Handle(handle) => *handle,
         };
 
@@ -289,7 +290,7 @@ impl<'de> Deserialize<'de> for TileDefRef {
         where D: Deserializer<'de>
     {
         // Always deserialize as handle. post_load() converts back to reference.
-        let handle = TileDefHandle::deserialize(deserializer)?;
+        let handle = SerializableTileDefHandle::deserialize(deserializer)?;
         Ok(TileDefRef::Handle(handle))
     }
 }
@@ -1245,6 +1246,7 @@ impl Tile {
          EnumCount,
          EnumIter,
          EnumProperty,
+         TryFromPrimitive,
          Serialize,
          Deserialize)]
 pub enum TileMapLayerKind {
