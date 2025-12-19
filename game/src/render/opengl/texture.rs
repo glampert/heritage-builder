@@ -560,6 +560,14 @@ impl render::TextureCache for TextureCache {
         self.handle_to_texture(handle).native_handle()
     }
 
+    fn find_loaded_texture(&self, name_or_file_path: &str) -> Option<TextureHandle> {
+        let loaded_texture = self.find_texture_internal(name_or_file_path);
+        if loaded_texture.is_valid() {
+            return Some(loaded_texture);
+        }
+        None
+    }
+
     fn load_texture(&mut self, file_path: &str) -> TextureHandle {
         self.load_texture_with_settings(file_path, None)
     }

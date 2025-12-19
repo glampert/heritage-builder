@@ -424,6 +424,9 @@ pub trait TextureCache: Any {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem);
     fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle;
 
+    // Tries to find an already loaded texture with the given name or file path.
+    fn find_loaded_texture(&self, name_or_file_path: &str) -> Option<TextureHandle>;
+
     // Load texture with default settings, which can be overridden by change_texture_settings().
     fn load_texture(&mut self, file_path: &str) -> TextureHandle;
 

@@ -229,12 +229,19 @@ impl MinimapTexture {
         }
 
         if !self.handle.is_valid() {
+            const TEXTURE_NAME: &str = "minimap";
+
+            // Make sure we remove it from the cache first before attempting to recreate it.
+            if let Some(mut existing_texture) = tex_cache.find_loaded_texture(TEXTURE_NAME) {
+                tex_cache.release_texture(&mut existing_texture);
+            }
+
             let settings = TextureSettings {
                 filter: TextureFilter::Nearest,
                 wrap_mode: TextureWrapMode::ClampToBorder,
                 gen_mipmaps: false,
             };
-            self.handle = tex_cache.new_uninitialized_texture("minimap",
+            self.handle = tex_cache.new_uninitialized_texture(TEXTURE_NAME,
                                                               self.size,
                                                               Some(settings));
         }
