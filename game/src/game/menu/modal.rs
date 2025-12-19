@@ -1,18 +1,16 @@
 use arrayvec::ArrayVec;
+use std::any::{Any, TypeId};
 use num_enum::TryFromPrimitive;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    widgets::{
-        self,
-        ModalMenu, BasicModalMenu
-    },
-    bar::{LeftBar, LeftBarModalMenu}
+    widgets,
+    bar::MenuBar,
 };
 use crate::{
     imgui_ui::UiSystem,
-    utils::{Size, mem::RawPtr},
+    utils::{Size, Vec2, mem},
     game::{sim::Simulation, GameLoop},
 };
 
@@ -22,6 +20,96 @@ use crate::{
 
 const MODAL_BUTTON_DEFAULT_SIZE: Size = Size::new(150, 30);
 const MODAL_WINDOW_DEFAULT_SIZE: Size = Size::new(400, 400);
+
+// ----------------------------------------------
+// ModalMenu / BasicModalMenu
+// ----------------------------------------------
+
+pub type ModalMenuId = TypeId;
+
+// A modal popup window / dialog menu that pauses the game while open.
+pub trait ModalMenu: Any {
+    fn as_any(&self) -> &dyn Any;
+    fn id(&self) -> ModalMenuId {
+        self.as_any().type_id()
+    }
+
+    fn is_open(&self) -> bool;
+    fn open(&mut self, sim: &mut Simulation);
+    fn close(&mut self, sim: &mut Simulation);
+    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem);
+}
+
+struct BasicModalMenu {
+    title: String,
+    size: Option<Size>,
+    is_open: bool,
+}
+
+impl BasicModalMenu {
+    fn new(title: String, size: Option<Size>) -> Self {
+        Self {
+            title,
+            size,
+            is_open: false,
+        }
+    }
+
+    fn is_open(&self) -> bool {
+        self.is_open
+    }
+
+    fn open(&mut self, sim: &mut Simulation) {
+        self.is_open = true;
+        sim.pause();
+    }
+
+    fn close(&mut self, sim: &mut Simulation) {
+        self.is_open = false;
+        sim.resume();
+    }
+
+    fn draw<F>(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, f: F)
+        where F: FnOnce(&mut Simulation)
+    {
+        if !self.is_open {
+            return;
+        }
+
+        let ui = ui_sys.ui();
+        let display_size = ui.io().display_size;
+
+        // Center popup window to the middle of the display:
+        widgets::set_next_window_pos(
+            Vec2::new(display_size[0] * 0.5, display_size[1] * 0.5),
+            Vec2::new(0.5, 0.5),
+            imgui::Condition::Always
+        );
+
+        let window_size = self.size.unwrap_or_default().to_vec2();
+        let size_cond = if self.size.is_some() { imgui::Condition::Always } else { imgui::Condition::Never };
+
+        let mut window_flags = widgets::window_flags();
+        window_flags.remove(imgui::WindowFlags::NO_TITLE_BAR);
+
+        let mut is_open = self.is_open;
+
+        ui.window(&self.title)
+            .opened(&mut is_open)
+            .size(window_size.to_array(), size_cond)
+            .flags(window_flags)
+            .build(|| {
+                f(sim);
+                widgets::draw_current_window_debug_rect(ui);
+            });
+
+        // Resume game if closed by user.
+        if !is_open {
+            self.is_open = false;
+            sim.resume();
+        }
+    }
+}
 
 // ----------------------------------------------
 // MainModalMenu
@@ -56,18 +144,18 @@ impl MainModalMenuButton {
 
 pub struct MainModalMenu {
     menu: BasicModalMenu,
-    parent: RawPtr<LeftBar>,
+    parent: mem::RawPtr<dyn MenuBar>,
 }
 
 impl MainModalMenu {
-    pub fn new(title: String, parent: &LeftBar) -> Self {
+    pub fn new(title: String, parent: &dyn MenuBar) -> Self {
         Self {
             menu: BasicModalMenu::new(title, Some(MODAL_WINDOW_DEFAULT_SIZE)),
-            parent: RawPtr::from_ref(parent),
+            parent: mem::RawPtr::from_ref(parent),
         }
     }
 
-    fn handle_button_click(sim: &mut Simulation, parent: &mut LeftBar, button: MainModalMenuButton) {
+    fn handle_button_click(sim: &mut Simulation, parent: &mut dyn MenuBar, button: MainModalMenuButton) {
         match button {
             MainModalMenuButton::NewGame  => Self::on_new_game_button(),
             MainModalMenuButton::LoadGame => Self::on_load_game_button(sim, parent),
@@ -78,19 +166,19 @@ impl MainModalMenu {
     }
 
     fn on_new_game_button() {
-        // TODO: Maybe a hidden modal menu of parent?
+        // TODO: Maybe a hidden modal menu of parent bar?
     }
 
-    fn on_load_game_button(sim: &mut Simulation, parent: &mut LeftBar) {
-        parent.open_modal_menu(sim, LeftBarModalMenu::SaveGame);
+    fn on_load_game_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
+        parent.open_modal_menu(sim, ModalMenuId::of::<SaveGameModalMenu>());
     }
 
-    fn on_save_game_button(sim: &mut Simulation, parent: &mut LeftBar) {
-        parent.open_modal_menu(sim, LeftBarModalMenu::SaveGame);
+    fn on_save_game_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
+        parent.open_modal_menu(sim, ModalMenuId::of::<SaveGameModalMenu>());
     }
 
-    fn on_settings_button(sim: &mut Simulation, parent: &mut LeftBar) {
-        parent.open_modal_menu(sim, LeftBarModalMenu::Settings);
+    fn on_settings_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
+        parent.open_modal_menu(sim, ModalMenuId::of::<SettingsModalMenu>());
     }
 
     fn on_quit_button() {
@@ -99,6 +187,10 @@ impl MainModalMenu {
 }
 
 impl ModalMenu for MainModalMenu {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn is_open(&self) -> bool {
         self.menu.is_open()
     }
@@ -145,7 +237,7 @@ pub struct SaveGameModalMenu {
 }
 
 impl SaveGameModalMenu {
-    pub fn new(title: String) -> Self {
+    pub fn new(title: String, _parent: &dyn MenuBar) -> Self {
         Self {
             menu: BasicModalMenu::new(title, Some(MODAL_WINDOW_DEFAULT_SIZE)),
         }
@@ -153,6 +245,10 @@ impl SaveGameModalMenu {
 }
 
 impl ModalMenu for SaveGameModalMenu {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn is_open(&self) -> bool {
         self.menu.is_open()
     }
@@ -179,7 +275,7 @@ pub struct SettingsModalMenu {
 }
 
 impl SettingsModalMenu {
-    pub fn new(title: String) -> Self {
+    pub fn new(title: String, _parent: &dyn MenuBar) -> Self {
         Self {
             menu: BasicModalMenu::new(title, Some(MODAL_WINDOW_DEFAULT_SIZE)),
         }
@@ -187,6 +283,10 @@ impl SettingsModalMenu {
 }
 
 impl ModalMenu for SettingsModalMenu {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn is_open(&self) -> bool {
         self.menu.is_open()
     }

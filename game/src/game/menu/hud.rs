@@ -9,7 +9,7 @@ use super::{
     TilePalette,
     TilePaletteSelection,
     palette::TilePaletteWidget,
-    bar::MenuBarWidget,
+    bar::MenuBarsWidget,
 };
 use crate::{
     tile::Tile,
@@ -29,7 +29,7 @@ pub struct InGameHudMenus {
     tile_placement: TilePlacement,
     tile_palette: TilePaletteMenu,
     tile_inspector: TileInspectorMenu,
-    menu_bar: MenuBarWidget,
+    menu_bars: MenuBarsWidget,
 }
 
 impl InGameHudMenus {
@@ -38,7 +38,7 @@ impl InGameHudMenus {
             tile_placement: TilePlacement::new(),
             tile_palette: TilePaletteMenu::new(tex_cache, ui_sys),
             tile_inspector: TileInspectorMenu::new(),
-            menu_bar: MenuBarWidget::new(tex_cache, ui_sys),
+            menu_bars: MenuBarsWidget::new(tex_cache, ui_sys),
         }
     }
 }
@@ -61,7 +61,7 @@ impl GameMenusSystem for InGameHudMenus {
     }
 
     fn handle_custom_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
-        self.menu_bar.handle_input(context, args)
+        self.menu_bars.handle_input(context, args)
     }
 
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
@@ -71,10 +71,10 @@ impl GameMenusSystem for InGameHudMenus {
                                context.tile_selection.has_valid_placement(),
                                context.delta_time_secs);
 
-        self.menu_bar.draw(context.sim,
-                           context.world,
-                           context.engine.ui_system(),
-                           context.delta_time_secs);
+        self.menu_bars.draw(context.sim,
+                            context.world,
+                            context.engine.ui_system(),
+                            context.delta_time_secs);
     }
 }
 

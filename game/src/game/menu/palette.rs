@@ -4,7 +4,8 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
     TilePaletteSelection,
-    widgets::{self, Button, ButtonState, ButtonDef, UiStyleOverrides},
+    button::{Button, ButtonState, ButtonDef},
+    widgets::{self, UiStyleOverrides},
 };
 use crate::{
     imgui_ui::UiSystem,
@@ -203,7 +204,7 @@ impl TilePaletteMainButton {
 
         ui.window(format!("Child Window {:?}", self.kind))
             .position(window_position, imgui::Condition::Always)
-            .flags(widgets::invisible_window_flags())
+            .flags(widgets::window_flags())
             .build(|| {
                 let button_size = Vec2::new(longest_label + LABEL_PADDING, BUTTON_HEIGHT);
                 let mut pressed_button_index: Option<usize> = None;
@@ -321,7 +322,7 @@ impl TilePaletteWidget {
 
         ui.window("Tile Palette Widget")
             .position(window_position, imgui::Condition::Always)
-            .flags(widgets::invisible_window_flags())
+            .flags(widgets::window_flags())
             .build(|| {
                 let previously_pressed_button = self.pressed_main_button;
 

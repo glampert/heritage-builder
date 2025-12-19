@@ -23,6 +23,7 @@ use crate::{
 pub mod widgets;
 pub mod hud;
 
+mod button;
 mod palette;
 mod modal;
 mod bar;
@@ -119,7 +120,7 @@ pub fn ui_assets_path() -> PathBuf {
 // GameMenusSystem
 // ----------------------------------------------
 
-pub trait GameMenusSystem: Save + Load {
+pub trait GameMenusSystem: Any + Save + Load {
     fn as_any(&self) -> &dyn Any;
 
     fn tile_placement(&mut self) -> &mut TilePlacement;
