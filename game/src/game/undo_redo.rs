@@ -62,7 +62,7 @@ macro_rules! game_object_undo_redo_state {
 // Helper types
 // ----------------------------------------------
 
-pub trait GameObjectSavedState {
+pub trait GameObjectSavedState: Any {
     fn as_any(&self) -> &dyn Any;
 }
 

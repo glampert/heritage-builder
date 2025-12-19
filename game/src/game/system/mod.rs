@@ -16,7 +16,7 @@ use settlers::SettlersSpawnSystem;
 // ----------------------------------------------
 
 #[enum_dispatch(GameSystemImpl)]
-pub trait GameSystem {
+pub trait GameSystem: Any {
     // Required overrides:
     fn name(&self) -> &str;
     fn as_any(&self) -> &dyn Any;
