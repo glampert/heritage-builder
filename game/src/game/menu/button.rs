@@ -63,8 +63,12 @@ struct ButtonSprites {
 }
 
 impl ButtonSprites {
-    fn new(name: &str, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
-        let mut sprites = Self { tex_handles: [INVALID_UI_TEXTURE_HANDLE; BUTTON_STATE_COUNT] };
+    fn unloaded() -> Self {
+        Self { tex_handles: [INVALID_UI_TEXTURE_HANDLE; BUTTON_STATE_COUNT] }
+    }
+
+    fn load(name: &str, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+        let mut sprites = Self::unloaded();
         sprites.load_textures(name, tex_cache, ui_sys);
         sprites
     }
@@ -97,6 +101,7 @@ pub struct ButtonDef {
     pub tooltip: Option<String>,
     pub show_tooltip_when_pressed: bool,
     pub state_transition_secs: Seconds,
+    pub hidden: bool,
 }
 
 // ----------------------------------------------
@@ -120,11 +125,12 @@ impl Button {
                def: ButtonDef,
                initial_state: ButtonState) -> Self {
         let name = def.name;
+        let hidden = def.hidden;
         let countdown = def.state_transition_secs;
         Self {
             def,
             rect: Rect::default(),
-            sprites: ButtonSprites::new(name, tex_cache, ui_sys),
+            sprites: if hidden { ButtonSprites::unloaded() } else { ButtonSprites::load(name, tex_cache, ui_sys) },
             logical_state: initial_state,
             visual_state: initial_state,
             visual_state_transition_timer: CountdownTimer::new(countdown),

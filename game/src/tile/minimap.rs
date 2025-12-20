@@ -456,6 +456,7 @@ impl Minimap {
                 MinimapTileColor::default()
             }
         });
+        self.widget.reset();
     }
 
     // ----------------------
@@ -550,6 +551,8 @@ impl Minimap {
 // ----------------------------------------------
 
 trait MinimapWidget {
+    fn reset(&mut self);
+
     fn update(&mut self,
               camera: &mut Camera,
               input_sys: &dyn InputSystem,
@@ -664,6 +667,10 @@ impl Default for MinimapWidgetImGui {
 }
 
 impl MinimapWidget for MinimapWidgetImGui {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+
     fn update(&mut self,
               camera: &mut Camera,
               input_sys: &dyn InputSystem,

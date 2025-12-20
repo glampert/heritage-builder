@@ -225,6 +225,7 @@ impl GameSession {
         }
 
         self.sim.reset_search_graph(&self.tile_map);
+        self.camera.center();
     }
 }
 

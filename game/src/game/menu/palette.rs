@@ -128,6 +128,7 @@ impl TilePaletteMainButtonKind {
                     tooltip: Some(self.tooltip()),
                     show_tooltip_when_pressed: false,
                     state_transition_secs: 0.0,
+                    hidden: false,
                 },
                 self.initial_state(&children),
             ),

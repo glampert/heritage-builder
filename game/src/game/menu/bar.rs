@@ -268,6 +268,9 @@ enum LeftBarButtonKind {
 
     #[strum(props(Sprite = "menu_bar/settings"))]
     Settings,
+
+    #[strum(props(Sprite = "menu_bar/new_game", Hidden = true))]
+    NewGame,
 }
 
 impl LeftBarButtonKind {
@@ -290,6 +293,10 @@ impl LeftBarButtonKind {
         utils::snake_case_to_title::<64>(self.name()).to_string()
     }
 
+    fn is_hidden(self) -> bool {
+        self.get_bool("Hidden").unwrap_or(false)
+    }
+
     fn new_button(self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> LeftBarButton {
         LeftBarButton {
             btn: Button::new(
@@ -301,6 +308,7 @@ impl LeftBarButtonKind {
                     tooltip: Some(self.tooltip()),
                     show_tooltip_when_pressed: true,
                     state_transition_secs: 0.5,
+                    hidden: self.is_hidden(),
                 },
                 ButtonState::Idle,
             ),
@@ -359,6 +367,13 @@ impl LeftBar {
                         )
                     )
                 }
+                LeftBarButtonKind::NewGame => {
+                    left_bar.modal_menus.push(
+                        Box::new(
+                            NewGameModalMenu::new(LeftBarButtonKind::NewGame.tooltip(), left_bar.as_ref())
+                        )
+                    )
+                }
             }
         }
 
@@ -378,6 +393,10 @@ impl MenuBar for LeftBar {
         let mut pressed_button_index: Option<usize> = None;
 
         for (index, button) in self.buttons.iter_mut().enumerate() {
+            if button.kind.is_hidden() {
+                continue;
+            }
+
             let pressed = button.btn.draw(ui_sys, delta_time_secs);
 
             if pressed && pressed_button_index.is_none() {
@@ -511,6 +530,7 @@ impl GameSpeedControlButtonKind {
                     tooltip: Some(self.tooltip()),
                     show_tooltip_when_pressed: true,
                     state_transition_secs: 0.5,
+                    hidden: false,
                 },
                 ButtonState::Idle,
             ),

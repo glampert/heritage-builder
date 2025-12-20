@@ -10,8 +10,9 @@ use super::{
     bar::MenuBar,
 };
 use crate::{
-    imgui_ui::UiSystem,
     utils::{Size, Vec2, mem},
+    tile::sets::PresetTiles,
+    imgui_ui::{UiSystem, UiStaticVar},
     game::{sim::Simulation, GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
 };
 
@@ -163,7 +164,7 @@ impl MainModalMenu {
 
     fn handle_button_click(sim: &mut Simulation, parent: &mut dyn MenuBar, button: MainModalMenuButton) {
         match button {
-            MainModalMenuButton::NewGame  => Self::on_new_game_button(),
+            MainModalMenuButton::NewGame  => Self::on_new_game_button(sim, parent),
             MainModalMenuButton::LoadGame => Self::on_load_game_button(sim, parent),
             MainModalMenuButton::SaveGame => Self::on_save_game_button(sim, parent),
             MainModalMenuButton::Settings => Self::on_settings_button(sim, parent),
@@ -171,10 +172,10 @@ impl MainModalMenu {
         }
     }
 
-    fn on_new_game_button() {
-        // TODO: Maybe a hidden modal menu of parent bar?
-        // Actually this should be a "Restart Level" button instead.
-        // New Game can be selected from main menu, when we have it.
+    fn on_new_game_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
+        parent.open_modal_menu(sim, ModalMenuId::of::<NewGameModalMenu>()).unwrap();
+        // TODO: Actually this should be a "Restart Level" button instead.
+        // "New Game" can be selected from main menu, when we have it.
     }
 
     fn on_load_game_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
@@ -196,7 +197,7 @@ impl MainModalMenu {
     }
 
     fn on_settings_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
-        parent.open_modal_menu(sim, ModalMenuId::of::<SettingsModalMenu>());
+        parent.open_modal_menu(sim, ModalMenuId::of::<SettingsModalMenu>()).unwrap();
     }
 
     fn on_quit_button() {
@@ -410,7 +411,7 @@ impl ModalMenu for SaveGameModalMenu {
                     if file_list.iter().any(
                         |file| file.file_stem().unwrap().eq_ignore_ascii_case(&self.save_file_name))
                     {
-                        // TODO: Show confirmation popup asking if user wants to overwrite existing save file.
+                        // TODO: Show confirmation popup dialog asking if user wants to overwrite existing save file.
                     }
 
                     game_loop.save_game(&self.save_file_name);
@@ -455,5 +456,117 @@ impl ModalMenu for SettingsModalMenu {
 
     fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
         self.menu.draw(sim, ui_sys, |_sim| {});
+    }
+}
+
+// ----------------------------------------------
+// NewGameModalMenu
+// ----------------------------------------------
+
+pub struct NewGameModalMenu {
+    menu: BasicModalMenu,
+    new_map_size: Size,
+}
+
+impl NewGameModalMenu {
+    pub fn new(title: String, _parent: &dyn MenuBar) -> Self {
+        Self {
+            menu: BasicModalMenu::new(title, Some(MODAL_WINDOW_DEFAULT_SIZE)),
+            new_map_size: Size::new(64, 64),
+        }
+    }
+
+    fn calc_centered_group_start(ui: &imgui::Ui, group_width: f32) -> Vec2 {
+        let avail = ui.content_region_avail();
+        let avail_width = avail[0];
+        let avail_height = avail[1];
+
+        let group_height =
+            ui.text_line_height_with_spacing()     // "Map Size"
+            + ui.frame_height_with_spacing() * 2.0 // width + height inputs
+            + ui.text_line_height_with_spacing()   // spacing
+            + ui.text_line_height_with_spacing()   // "Terrain Kind"
+            + ui.frame_height_with_spacing()       // combo
+            + ui.text_line_height_with_spacing()   // spacing
+            + ui.frame_height_with_spacing();      // button
+
+        let start_x = ((avail_width  - group_width)  * 0.5).max(0.0);
+        let start_y = ((avail_height - group_height) * 0.5).max(0.0);
+
+        Vec2::new(start_x, start_y)
+    }
+}
+
+impl ModalMenu for NewGameModalMenu {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn is_open(&self) -> bool {
+        self.menu.is_open()
+    }
+
+    fn open(&mut self, sim: &mut Simulation) {
+        self.menu.open(sim);
+    }
+
+    fn close(&mut self, sim: &mut Simulation) {
+        self.menu.close(sim);
+    }
+
+    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
+        let mut starting_new_game = false;
+
+        self.menu.draw(sim, ui_sys, |_sim| {
+            let ui = ui_sys.ui();
+            let _font = ui.push_font(ui_sys.fonts().game_hud_large);
+
+            let group_width = 200.0;
+            let group_start = Self::calc_centered_group_start(ui, group_width);
+
+            ui.set_cursor_pos([group_start.x, group_start.y]);
+            ui.text("Map Size");
+
+            ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
+            ui.set_next_item_width(group_width - ui.calc_text_size("Height")[0]); // NOTE: Use "Height" here to keep both sizes even.
+            let w_edited = ui.input_int("Width", &mut self.new_map_size.width).step(32).build();
+
+            ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
+            ui.set_next_item_width(group_width - ui.calc_text_size("Height")[0]);
+            let h_edited = ui.input_int("Height", &mut self.new_map_size.height).step(32).build();
+
+            if w_edited || h_edited {
+                self.new_map_size.width = self.new_map_size.width.clamp(32, 256);
+                self.new_map_size.height = self.new_map_size.height.clamp(32, 256);
+            }
+
+            ui.spacing();
+
+            ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
+            ui.text("Terrain Kind");
+
+            const TILE_KIND_NAMES: [&str; 3] = ["Grass", "Dirt", "Water"];
+            const TILE_KIND_HASHES: [PresetTiles; 3] = [PresetTiles::Grass, PresetTiles::Dirt, PresetTiles::Water];
+            static CURRENT_TILE_KIND: UiStaticVar<usize> = UiStaticVar::new(0);
+
+            ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
+            ui.set_next_item_width(group_width);
+            ui.combo_simple_string("##TileKind", CURRENT_TILE_KIND.as_mut(), &TILE_KIND_NAMES);
+
+            ui.spacing();
+
+            ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
+            if ui.button("Start New Game") {
+                let selected_tile_kind = TILE_KIND_HASHES[*CURRENT_TILE_KIND];
+                let opt_tile_def = selected_tile_kind.find_tile_def();
+                GameLoop::get_mut().reset_session(opt_tile_def, Some(self.new_map_size));
+                starting_new_game = true;
+            }
+        });
+
+        // Close modal window if user clicked the new game button.
+        if starting_new_game {
+            self.close(sim);
+        }
     }
 }
