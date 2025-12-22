@@ -1,5 +1,8 @@
+#![allow(clippy::type_complexity)]
+
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
+use smallvec::{SmallVec, smallvec};
 use num_enum::TryFromPrimitive;
 use std::{any::{Any, TypeId}, path::Path};
 use strum::{EnumCount, EnumProperty, IntoEnumIterator, VariantArray};
@@ -52,6 +55,7 @@ struct BasicModalMenu {
     title: String,
     size: Option<Size>,
     is_open: bool,
+    dialog: Option<Box<ModalPopupDialog>>,
 }
 
 impl BasicModalMenu {
@@ -60,6 +64,7 @@ impl BasicModalMenu {
             title,
             size,
             is_open: false,
+            dialog: None,
         }
     }
 
@@ -69,15 +74,21 @@ impl BasicModalMenu {
 
     fn open(&mut self, sim: &mut Simulation) {
         self.is_open = true;
+        self.dialog = None;
         sim.pause();
     }
 
     fn close(&mut self, sim: &mut Simulation) {
         self.is_open = false;
+        self.dialog = None;
         sim.resume();
     }
 
-    fn draw<F>(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, f: F)
+    fn size(&self) -> Vec2 {
+        self.size.unwrap_or_default().to_vec2()
+    }
+
+    fn draw<F>(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, draw_menu_fn: F)
         where F: FnOnce(&mut Simulation)
     {
         if !self.is_open {
@@ -86,6 +97,10 @@ impl BasicModalMenu {
 
         let ui = ui_sys.ui();
         let display_size = ui.io().display_size;
+        let _font = ui.push_font(ui_sys.fonts().game_hud_large);
+
+        let window_size = self.size();
+        let mut is_open = self.is_open;
 
         // Center popup window to the middle of the display:
         widgets::set_next_window_pos(
@@ -94,27 +109,128 @@ impl BasicModalMenu {
             imgui::Condition::Always
         );
 
-        let window_size = self.size.unwrap_or_default().to_vec2();
-        let size_cond = if self.size.is_some() { imgui::Condition::Always } else { imgui::Condition::Never };
+        if let Some(dialog) = &self.dialog {
+            ui.window(&self.title)
+                .flags(widgets::window_flags())
+                .build(|| {
+                    ui.child_window("DialogTextContainer")
+                        .size(dialog.size)
+                        .no_inputs()
+                        .scroll_bar(false)
+                        .border(true)
+                        .build(|| {
+                            let dialog_draw_fn = &dialog.draw_fn;
+                            dialog_draw_fn(ui);
+                        });
 
-        let mut window_flags = widgets::window_flags();
-        window_flags.remove(imgui::WindowFlags::NO_TITLE_BAR);
+                    let mut pressed_button_index: Option<usize> = None;
 
-        let mut is_open = self.is_open;
+                    for (index, button) in dialog.buttons.iter().enumerate() {
+                        if ui.button(button.label) && pressed_button_index.is_none() {
+                            pressed_button_index = Some(index);
+                        }
 
-        ui.window(&self.title)
-            .opened(&mut is_open)
-            .size(window_size.to_array(), size_cond)
-            .flags(window_flags)
-            .build(|| {
-                f(sim);
-                widgets::draw_current_window_debug_rect(ui);
-            });
+                        // Horizontal layout (side-by-side buttons).
+                        ui.same_line();
+                        // Extra spacing between buttons.
+                        widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
+                        ui.same_line();
+                    }
+
+                    if let Some(pressed_index) = pressed_button_index {
+                        let button_click_fn = &dialog.buttons[pressed_index].on_click_fn;
+                        button_click_fn(dialog.parent.mut_ref_cast(), sim);
+                    }
+
+                    widgets::draw_current_window_debug_rect(ui);
+                });
+        } else {
+            let size_cond = if self.size.is_some() {
+                imgui::Condition::Always
+            } else {
+                imgui::Condition::Never
+            };
+
+            let mut window_flags = widgets::window_flags();
+            window_flags.remove(imgui::WindowFlags::NO_TITLE_BAR);
+
+            ui.window(&self.title)
+                .opened(&mut is_open)
+                .size(window_size.to_array(), size_cond)
+                .flags(window_flags)
+                .build(|| {
+                    draw_menu_fn(sim);
+                    widgets::draw_current_window_debug_rect(ui);
+                });
+        }
 
         // Resume game if closed by user.
         if !is_open {
-            self.is_open = false;
-            sim.resume();
+            self.close(sim);
+        }
+    }
+
+    fn show_popup_dialog<DrawFn>(&self,
+                                 parent: &dyn ModalMenu,
+                                 size: [f32; 2],
+                                 draw_fn: DrawFn,
+                                 buttons: ModalPopupDialogButtonList)
+        where DrawFn: Fn(&imgui::Ui) + 'static
+    {
+        // NOTE: Need to take self as immutable here so we can also receive the parent ModalMenu ref.
+        // SAFETY: Parent owns the BasicMenu and therefore the ModalPopupDialog. Holding a weak parent
+        // reference is safe. Mut ref cast is a necessary workaround for this.
+        let mut_self = mem::mut_ref_cast(self);
+        mut_self.dialog = Some(Box::new(ModalPopupDialog::new(parent, size, draw_fn, buttons)));
+    }
+}
+
+// ----------------------------------------------
+// ModalPopupDialog
+// ----------------------------------------------
+
+type ModalPopupDialogButtonList = SmallVec<[ModalPopupDialogButton; 4]>;
+
+// Child popup dialog of a ModalMenu.
+struct ModalPopupDialog {
+    parent: mem::RawPtr<dyn ModalMenu>,
+    size: [f32; 2],
+    draw_fn: Box<dyn Fn(&imgui::Ui) + 'static>,
+    buttons: ModalPopupDialogButtonList,
+}
+
+impl ModalPopupDialog {
+    fn new<DrawFn>(parent: &dyn ModalMenu,
+                   size: [f32; 2],
+                   draw_fn: DrawFn,
+                   buttons: ModalPopupDialogButtonList) -> Self
+        where DrawFn: Fn(&imgui::Ui) + 'static
+    {
+        Self {
+            parent: mem::RawPtr::from_ref(parent),
+            size,
+            draw_fn: Box::new(draw_fn),
+            buttons,
+        }
+    }
+}
+
+// ----------------------------------------------
+// ModalPopupDialogButton
+// ----------------------------------------------
+
+struct ModalPopupDialogButton {
+    label: &'static str,
+    on_click_fn: Box<dyn Fn(&mut dyn ModalMenu, &mut Simulation) + 'static>
+}
+
+impl ModalPopupDialogButton {
+    fn new<OnClickFn>(label: &'static str, on_click_fn: OnClickFn) -> Self
+        where OnClickFn: Fn(&mut dyn ModalMenu, &mut Simulation) + 'static
+    {
+        Self {
+            label,
+            on_click_fn: Box::new(on_click_fn),
         }
     }
 }
@@ -166,52 +282,63 @@ impl MainModalMenu {
         }
     }
 
-    fn handle_button_click(sim: &mut Simulation, parent: &mut dyn MenuBar, button: MainModalMenuButton) {
+    fn handle_button_click(&mut self, ui_sys: &UiSystem, sim: &mut Simulation, button: MainModalMenuButton) {
         match button {
-            MainModalMenuButton::NewGame  => Self::on_new_game_button(sim, parent),
-            MainModalMenuButton::LoadGame => Self::on_load_game_button(sim, parent),
-            MainModalMenuButton::SaveGame => Self::on_save_game_button(sim, parent),
-            MainModalMenuButton::Settings => Self::on_settings_button(sim, parent),
-            MainModalMenuButton::Quit     => Self::on_quit_button(sim, parent),
-            MainModalMenuButton::Resume   => Self::on_resume_button(sim, parent),
+            MainModalMenuButton::NewGame  => self.on_new_game_button(ui_sys, sim),
+            MainModalMenuButton::LoadGame => self.on_load_game_button(ui_sys, sim),
+            MainModalMenuButton::SaveGame => self.on_save_game_button(ui_sys, sim),
+            MainModalMenuButton::Settings => self.on_settings_button(ui_sys, sim),
+            MainModalMenuButton::Quit     => self.on_quit_button(ui_sys, sim),
+            MainModalMenuButton::Resume   => self.on_resume_button(ui_sys, sim),
         }
     }
 
-    fn on_new_game_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
-        parent.open_modal_menu(sim, ModalMenuId::of::<NewGameModalMenu>()).unwrap();
+    fn on_new_game_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
+        self.parent.open_modal_menu(sim, ModalMenuId::of::<NewGameModalMenu>()).unwrap();
         // TODO: Actually this should be a "Restart Level" button instead.
         // "New Game" can be selected from main menu, when we have it.
     }
 
-    fn on_load_game_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
+    fn on_load_game_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
         let modal_menu =
-            parent.open_modal_menu(sim, ModalMenuId::of::<SaveGameModalMenu>()).unwrap();
+            self.parent.open_modal_menu(sim, ModalMenuId::of::<SaveGameModalMenu>()).unwrap();
         debug_assert!(modal_menu.is_open());
 
         let save_menu = modal_menu.as_any_mut().downcast_mut::<SaveGameModalMenu>().unwrap();
         save_menu.set_actions(SaveGameActions::Load);
     }
 
-    fn on_save_game_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
+    fn on_save_game_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
         let modal_menu =
-            parent.open_modal_menu(sim, ModalMenuId::of::<SaveGameModalMenu>()).unwrap();
+            self.parent.open_modal_menu(sim, ModalMenuId::of::<SaveGameModalMenu>()).unwrap();
         debug_assert!(modal_menu.is_open());
 
         let save_menu = modal_menu.as_any_mut().downcast_mut::<SaveGameModalMenu>().unwrap();
         save_menu.set_actions(SaveGameActions::Save);
     }
 
-    fn on_settings_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
-        parent.open_modal_menu(sim, ModalMenuId::of::<SettingsModalMenu>()).unwrap();
+    fn on_settings_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
+        self.parent.open_modal_menu(sim, ModalMenuId::of::<SettingsModalMenu>()).unwrap();
     }
 
-    fn on_quit_button(_: &mut Simulation, _: &mut dyn MenuBar) {
-        GameLoop::get_mut().request_quit();
-        // TODO: Should open a child modal popup with the options: "Quit to Main Menu" and "Exit Game".
+    fn on_quit_button(&mut self, ui_sys: &UiSystem, _sim: &mut Simulation) {
+        self.menu.show_popup_dialog(
+            self,
+            [self.menu.size().x, ui_sys.ui().text_line_height_with_spacing() * 3.0],
+            |ui| {
+                ui.text("Quit Game?");
+                ui.text("Any unsaved progress will be lost...");
+            },
+            smallvec![
+                ModalPopupDialogButton::new("Quit to Main Menu", |_, _| {}), // TODO: Redirect to main menu.
+                ModalPopupDialogButton::new("Exit Game", |_, _| GameLoop::get_mut().request_quit()),
+                ModalPopupDialogButton::new("Cancel", |parent, sim| parent.close(sim)),
+            ]
+        );
     }
 
-    fn on_resume_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
-        parent.close_all_modal_menus(sim);
+    fn on_resume_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
+        self.parent.close_all_modal_menus(sim);
     }
 }
 
@@ -233,9 +360,10 @@ impl ModalMenu for MainModalMenu {
     }
 
     fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
-        self.menu.draw(sim, ui_sys, |sim| {
+        let mut pressed_button: Option<MainModalMenuButton> = None;
+
+        self.menu.draw(sim, ui_sys, |_| {
             let ui = ui_sys.ui();
-            let _font = ui.push_font(ui_sys.fonts().game_hud_large);
 
             let mut labels = ArrayVec::<&str, MAIN_MODAL_MENU_BUTTON_COUNT>::new();
             for button in MainModalMenuButton::iter() {
@@ -250,10 +378,13 @@ impl ModalMenu for MainModalMenu {
             );
 
             if let Some(pressed_index) = pressed_button_index {
-                let button = MainModalMenuButton::try_from_primitive(pressed_index).unwrap();
-                Self::handle_button_click(sim, self.parent.as_mut(), button);
+                pressed_button = MainModalMenuButton::try_from_primitive(pressed_index).ok();
             }
         });
+
+        if let Some(button) = pressed_button {
+            self.handle_button_click(ui_sys, sim, button);
+        }
     }
 }
 
@@ -346,14 +477,15 @@ impl ModalMenu for SaveGameModalMenu {
         }
 
         self.set_default_save_file_name();
+
+        let mut load_game = false;
+        let mut overwrite_save_game = false;
+        let mut create_new_save_game = false;
         let mut should_close = false;
 
         self.menu.draw(sim, ui_sys, |_sim| {
-            let game_loop = GameLoop::get_mut();
-            let file_list = game_loop.save_files_list();
-
+            let save_files_list = GameLoop::get().save_files_list();
             let ui = ui_sys.ui();
-            let _font = ui.push_font(ui_sys.fonts().game_hud_large);
 
             let container_size = [
                 ui.content_region_avail()[0],
@@ -368,7 +500,7 @@ impl ModalMenu for SaveGameModalMenu {
                 .border(true)
                 .build(|| {
                     let mut selected_file_index: Option<usize> = None;
-                    for (index, path) in file_list.iter().enumerate() {
+                    for (index, path) in save_files_list.iter().enumerate() {
                         let is_selected = selected_file_index == Some(index);
                         let file_name_no_ext = path.with_extension("");
                         let save_file_name = file_name_no_ext.to_str().unwrap();
@@ -384,7 +516,7 @@ impl ModalMenu for SaveGameModalMenu {
 
             if self.actions.intersects(SaveGameActions::Load) {
                 if ui.button("Load Game") && !self.save_file_name.is_empty() {
-                    game_loop.load_save_game(&self.save_file_name);
+                    load_game = true;
                 }
 
                 ui.same_line();
@@ -395,13 +527,13 @@ impl ModalMenu for SaveGameModalMenu {
 
             if self.actions.intersects(SaveGameActions::Save) {
                 if ui.button("Save Game") && !self.save_file_name.is_empty() {
-                    if file_list.iter().any(
+                    if save_files_list.iter().any(
                         |file| file.file_stem().unwrap().eq_ignore_ascii_case(&self.save_file_name))
                     {
-                        // TODO: Show confirmation popup dialog asking if user wants to overwrite existing save file.
+                        overwrite_save_game = true;
+                    } else {
+                        create_new_save_game = true;
                     }
-
-                    game_loop.save_game(&self.save_file_name);
                 }
 
                 ui.same_line();
@@ -417,6 +549,34 @@ impl ModalMenu for SaveGameModalMenu {
 
         if should_close {
             self.close(sim);
+        }
+
+        if load_game {
+            debug_assert!(!create_new_save_game && !overwrite_save_game);
+            GameLoop::get_mut().load_save_game(&self.save_file_name);   
+        } else if create_new_save_game {
+            debug_assert!(!load_game && !overwrite_save_game);
+            GameLoop::get_mut().save_game(&self.save_file_name);
+        } else if overwrite_save_game {
+            debug_assert!(!load_game && !create_new_save_game);
+            // User wants to overwrite existing save file. Ask for confirmation first.
+            let save_file_name = self.save_file_name.clone();
+            self.menu.show_popup_dialog(
+                self,
+                [self.menu.size().x, ui_sys.ui().text_line_height_with_spacing() * 2.0],
+                |ui| {
+                    ui.text("Overwrite existing save game?");
+                },
+                smallvec![
+                    ModalPopupDialogButton::new("Yes", move |parent, sim| {
+                        GameLoop::get_mut().save_game(&save_file_name);
+                        parent.close(sim);
+                    }),
+                    ModalPopupDialogButton::new("No", |parent, sim| {
+                        parent.close(sim);
+                    }),
+                ]
+            );
         }
     }
 }
@@ -597,7 +757,6 @@ impl ModalMenu for SettingsModalMenu {
 
         self.menu.draw(sim, ui_sys, |_sim| {
             let ui = ui_sys.ui();
-            let _font = ui.push_font(ui_sys.fonts().game_hud_large);
 
             // A settings button is selected, draw its sub-menu:
             if let Some(selection) = self.current_selection {
@@ -725,7 +884,6 @@ impl ModalMenu for NewGameModalMenu {
 
         self.menu.draw(sim, ui_sys, |_sim| {
             let ui = ui_sys.ui();
-            let _font = ui.push_font(ui_sys.fonts().game_hud_large);
 
             const GROUP_WIDTH: f32 = 210.0;
             let group_start = Self::calc_centered_group_start(ui, GROUP_WIDTH);
