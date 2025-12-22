@@ -232,8 +232,15 @@ impl SoundSystem {
     }
 
     #[inline]
-    pub fn settings(&self) -> &SoundGlobalSettings {
-        &self.settings
+    pub fn current_sound_settings(&self) -> SoundGlobalSettings {
+        self.settings
+    }
+
+    pub fn change_sound_settings(&mut self, settings: SoundGlobalSettings) {
+        self.settings = settings;
+        if let Some(backend) = &mut self.backend {
+            backend.set_volumes(&self.settings);
+        }
     }
 
     pub fn update(&mut self, listener_position: IsoPointF32) {
@@ -471,8 +478,7 @@ impl SoundSystem {
 
         // Only update volumes if anything was changed.
         if new_settings != self.settings {
-            self.settings = new_settings;
-            backend.set_volumes(&new_settings);
+            self.change_sound_settings(new_settings);
         }
 
         ui.separator();

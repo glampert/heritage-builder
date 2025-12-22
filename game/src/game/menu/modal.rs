@@ -2,7 +2,7 @@ use bitflags::bitflags;
 use arrayvec::ArrayVec;
 use num_enum::TryFromPrimitive;
 use std::{any::{Any, TypeId}, path::Path};
-use strum::{EnumCount, EnumProperty, IntoEnumIterator};
+use strum::{EnumCount, EnumProperty, IntoEnumIterator, VariantArray};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
@@ -10,9 +10,10 @@ use super::{
     bar::MenuBar,
 };
 use crate::{
+    render::TextureFilter,
     utils::{Size, Vec2, mem},
-    tile::sets::PresetTiles,
     imgui_ui::{UiSystem, UiStaticVar},
+    tile::{sets::PresetTiles, camera::CameraGlobalSettings},
     game::{sim::Simulation, GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
 };
 
@@ -141,6 +142,9 @@ enum MainModalMenuButton {
 
     #[strum(props(Label = "Quit"))]
     Quit,
+
+    #[strum(props(Label = "Resume"))]
+    Resume,
 }
 
 impl MainModalMenuButton {
@@ -168,7 +172,8 @@ impl MainModalMenu {
             MainModalMenuButton::LoadGame => Self::on_load_game_button(sim, parent),
             MainModalMenuButton::SaveGame => Self::on_save_game_button(sim, parent),
             MainModalMenuButton::Settings => Self::on_settings_button(sim, parent),
-            MainModalMenuButton::Quit     => Self::on_quit_button(),
+            MainModalMenuButton::Quit     => Self::on_quit_button(sim, parent),
+            MainModalMenuButton::Resume   => Self::on_resume_button(sim, parent),
         }
     }
 
@@ -200,9 +205,13 @@ impl MainModalMenu {
         parent.open_modal_menu(sim, ModalMenuId::of::<SettingsModalMenu>()).unwrap();
     }
 
-    fn on_quit_button() {
+    fn on_quit_button(_: &mut Simulation, _: &mut dyn MenuBar) {
         GameLoop::get_mut().request_quit();
         // TODO: Should open a child modal popup with the options: "Quit to Main Menu" and "Exit Game".
+    }
+
+    fn on_resume_button(sim: &mut Simulation, parent: &mut dyn MenuBar) {
+        parent.close_all_modal_menus(sim);
     }
 }
 
@@ -260,11 +269,6 @@ bitflags! {
     }
 }
 
-const SAVE_GAME_LIST_FRAME_SIZE: Size = Size::new(
-    MODAL_WINDOW_DEFAULT_SIZE.width - 100,
-    MODAL_WINDOW_DEFAULT_SIZE.height / 2
-);
-
 pub struct SaveGameModalMenu {
     menu: BasicModalMenu,
     actions: SaveGameActions,
@@ -315,22 +319,6 @@ impl SaveGameModalMenu {
                 .with_extension("")
                 .to_str().unwrap().into();
     }
-
-    fn calc_centered_group_start(ui: &imgui::Ui, group_width: f32, list_height: f32) -> Vec2 {
-        let avail = ui.content_region_avail();
-        let avail_width = avail[0];
-        let avail_height = avail[1];
-
-        let group_height =
-            ui.frame_height_with_spacing() + // input_text
-            list_height +                    // child window
-            ui.frame_height_with_spacing();  // buttons row
-
-        let start_x = ((avail_width  - group_width)  * 0.5).max(0.0);
-        let start_y = ((avail_height - group_height) * 0.5).max(0.0);
-
-        Vec2::new(start_x, start_y)
-    }
 }
 
 impl ModalMenu for SaveGameModalMenu {
@@ -358,6 +346,7 @@ impl ModalMenu for SaveGameModalMenu {
         }
 
         self.set_default_save_file_name();
+        let mut should_close = false;
 
         self.menu.draw(sim, ui_sys, |_sim| {
             let game_loop = GameLoop::get_mut();
@@ -366,17 +355,16 @@ impl ModalMenu for SaveGameModalMenu {
             let ui = ui_sys.ui();
             let _font = ui.push_font(ui_sys.fonts().game_hud_large);
 
-            // Align the following group of widgets to the window center.
-            let group_size  = SAVE_GAME_LIST_FRAME_SIZE.to_vec2();
-            let group_start = Self::calc_centered_group_start(ui, group_size.x, group_size.y);
+            let container_size = [
+                ui.content_region_avail()[0],
+                MODAL_WINDOW_DEFAULT_SIZE.height as f32 - 100.0
+            ];
 
-            ui.set_cursor_pos([group_start.x, group_start.y]);
-            ui.set_next_item_width(group_size.x);
+            ui.set_next_item_width(container_size[0]);
             ui.input_text("##SaveFileName", &mut self.save_file_name).build();
 
-            ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
             ui.child_window("SaveFileList")
-                .size(group_size.to_array())
+                .size(container_size)
                 .border(true)
                 .build(|| {
                     let mut selected_file_index: Option<usize> = None;
@@ -394,7 +382,6 @@ impl ModalMenu for SaveGameModalMenu {
                     }
                 });
 
-            ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
             if self.actions.intersects(SaveGameActions::Load) {
                 if ui.button("Load Game") && !self.save_file_name.is_empty() {
                     game_loop.load_save_game(&self.save_file_name);
@@ -416,8 +403,21 @@ impl ModalMenu for SaveGameModalMenu {
 
                     game_loop.save_game(&self.save_file_name);
                 }
+
+                ui.same_line();
+                // Extra spacing between buttons.
+                widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
+                ui.same_line();
+            }
+
+            if ui.button("Cancel") {
+                should_close = true;
             }
         });
+
+        if should_close {
+            self.close(sim);
+        }
     }
 }
 
@@ -425,14 +425,148 @@ impl ModalMenu for SaveGameModalMenu {
 // SettingsModalMenu
 // ----------------------------------------------
 
+const SETTINGS_MENU_BUTTON_COUNT: usize = SettingsMenuButton::COUNT;
+
+#[repr(usize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, TryFromPrimitive, EnumCount, EnumProperty, EnumIter)]
+enum SettingsMenuButton {
+    #[strum(props(Label = "Game"))]
+    Game,
+
+    #[strum(props(Label = "Sound"))]
+    Sound,
+
+    #[strum(props(Label = "Graphics"))]
+    Graphics,
+
+    #[strum(props(Label = "Resume"))]
+    Resume,
+}
+
+impl SettingsMenuButton {
+    fn label(self) -> &'static str {
+        self.get_str("Label").unwrap()
+    }
+}
+
 pub struct SettingsModalMenu {
     menu: BasicModalMenu,
+    current_selection: Option<SettingsMenuButton>,
 }
 
 impl SettingsModalMenu {
     pub fn new(title: String, _parent: &dyn MenuBar) -> Self {
         Self {
             menu: BasicModalMenu::new(title, Some(MODAL_WINDOW_DEFAULT_SIZE)),
+            current_selection: None,
+        }
+    }
+
+    fn draw_game_settings_menu(ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+
+        let game_loop = GameLoop::get_mut();
+        let camera_settings = CameraGlobalSettings::get_mut();
+
+        let mut autosave = game_loop.is_autosave_enabled();
+        if ui.checkbox("Autosave", &mut autosave) {
+            game_loop.enable_autosave(autosave);
+        }
+
+        let mut camera_keyboard_zoom = !camera_settings.disable_key_shortcut_zoom;
+        if ui.checkbox("Keyboard Shortcut Camera Zoom", &mut camera_keyboard_zoom) {
+            camera_settings.disable_key_shortcut_zoom = !camera_keyboard_zoom;
+        }
+
+        let mut camera_mouse_scroll_zoom = !camera_settings.disable_mouse_scroll_zoom;
+        if ui.checkbox("Mouse Scroll Camera Zoom", &mut camera_mouse_scroll_zoom) {
+            camera_settings.disable_mouse_scroll_zoom = !camera_mouse_scroll_zoom;
+        }
+
+        let mut camera_smooth_mouse_scroll_zoom = !camera_settings.disable_smooth_mouse_scroll_zoom;
+        if ui.checkbox("Smooth Mouse Scroll Camera Zoom", &mut camera_smooth_mouse_scroll_zoom) {
+            camera_settings.disable_smooth_mouse_scroll_zoom = !camera_smooth_mouse_scroll_zoom;
+        }
+    }
+
+    fn draw_sound_settings_menu(ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+
+        let game_loop = GameLoop::get_mut();
+        let sound_sys = game_loop.engine_mut().sound_system();
+
+        let mut current_sound_settings = sound_sys.current_sound_settings();
+        let mut sound_settings_changed = false;
+
+        let mut volume_sliders = [
+            ("SFX Volume: ", &mut current_sound_settings.sfx_master_volume),
+            ("Music Volume: ", &mut current_sound_settings.music_master_volume),
+            ("Ambience Volume: ", &mut current_sound_settings.ambience_master_volume),
+            ("Narration Volume: ", &mut current_sound_settings.narration_master_volume),
+            ("Spatial Volume: ", &mut current_sound_settings.spatial_master_volume),
+        ];
+
+        let mut longest_label: f32 = 0.0;
+        for (label, _) in &volume_sliders {
+            let width = ui.calc_text_size(label)[0];
+            if width > longest_label {
+                longest_label = width;
+            }
+        }
+        longest_label += 5.0; // Extra padding between the label & slider.
+
+        let mut draw_volume_slider = |label: &str, master_volume: &mut f32| {
+            ui.text(label);
+            ui.same_line();
+            ui.set_next_item_width(-1.0);
+            ui.set_cursor_pos([longest_label, ui.cursor_pos()[1]]);
+            let mut volume = (*master_volume * 100.0) as u32;
+            if ui.slider_config(format!("##{label}"), 0, 100)
+                .flags(imgui::SliderFlags::ALWAYS_CLAMP | imgui::SliderFlags::NO_INPUT)
+                .build(&mut volume)    
+            {
+                *master_volume = volume.clamp(0, 100) as f32 / 100.0;
+                sound_settings_changed = true;
+            }
+        };
+
+        for (label, master_volume) in &mut volume_sliders {
+            draw_volume_slider(label, master_volume);
+        }
+
+        if sound_settings_changed {
+            sound_sys.change_sound_settings(current_sound_settings);
+        }
+    }
+
+    fn draw_graphics_settings_menu(ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+
+        let game_loop = GameLoop::get_mut();
+        let tex_cache = game_loop.engine_mut().texture_cache();
+
+        let mut current_texture_settings = tex_cache.current_texture_settings();
+        let mut texture_settings_changed = false;
+
+        if ui.checkbox("Use Texture Mipmaps", &mut current_texture_settings.gen_mipmaps) {
+            texture_settings_changed = true;
+        }
+
+        ui.text("Texture Filtering: ");
+        ui.same_line();
+        ui.set_next_item_width(-1.0);
+        let mut current_texture_filter_index = current_texture_settings.filter as usize;
+        if ui.combo("##TextureFiltering",
+                    &mut current_texture_filter_index,
+                    TextureFilter::VARIANTS,
+                    |v| { v.to_string().into() })
+        {
+            current_texture_settings.filter = TextureFilter::try_from_primitive(current_texture_filter_index as u32).unwrap();
+            texture_settings_changed = true;
+        }
+
+        if texture_settings_changed {
+            tex_cache.change_texture_settings(current_texture_settings);
         }
     }
 }
@@ -448,14 +582,86 @@ impl ModalMenu for SettingsModalMenu {
 
     fn open(&mut self, sim: &mut Simulation) {
         self.menu.open(sim);
+        self.current_selection = None;
     }
 
     fn close(&mut self, sim: &mut Simulation) {
         self.menu.close(sim);
+        self.current_selection = None;
     }
 
     fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
-        self.menu.draw(sim, ui_sys, |_sim| {});
+        let mut ok_pressed = false;
+        let mut cancel_pressed = false;
+        let mut should_close = false;
+
+        self.menu.draw(sim, ui_sys, |_sim| {
+            let ui = ui_sys.ui();
+            let _font = ui.push_font(ui_sys.fonts().game_hud_large);
+
+            // A settings button is selected, draw its sub-menu:
+            if let Some(selection) = self.current_selection {
+                type DrawMenuFn = fn(&UiSystem);
+
+                let (label, draw_fn): (&str, DrawMenuFn) = match selection {
+                    SettingsMenuButton::Game => ("Game Settings", Self::draw_game_settings_menu),
+                    SettingsMenuButton::Sound => ("Sound Settings", Self::draw_sound_settings_menu),
+                    SettingsMenuButton::Graphics => ("Graphics Settings", Self::draw_graphics_settings_menu),
+                    SettingsMenuButton::Resume => {
+                        should_close = true;
+                        return;
+                    }
+                };
+
+                // Frame the settings inside a child container window.
+                let container_size = [
+                    ui.content_region_avail()[0],
+                    MODAL_WINDOW_DEFAULT_SIZE.height as f32 - 100.0
+                ];
+
+                ui.text(label);
+                ui.child_window("SettingsList")
+                    .size(container_size)
+                    .border(true)
+                    .build(|| {
+                        draw_fn(ui_sys);
+                    });
+
+                ok_pressed |= ui.button("Ok");
+
+                ui.same_line();
+                // Extra spacing between buttons.
+                widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
+                ui.same_line();
+
+                cancel_pressed |= ui.button("Cancel");
+            } else {
+                // Draw main settings menu:
+                let mut labels = ArrayVec::<&str, SETTINGS_MENU_BUTTON_COUNT>::new();
+                for button in SettingsMenuButton::iter() {
+                    labels.push(button.label());
+                }
+
+                let pressed_button_index = widgets::draw_centered_button_group(
+                    ui,
+                    &ui.get_window_draw_list(),
+                    &labels,
+                    Some(MODAL_BUTTON_DEFAULT_SIZE)
+                );
+
+                if let Some(pressed_index) = pressed_button_index {
+                    self.current_selection = SettingsMenuButton::try_from_primitive(pressed_index).ok();
+                }
+            }
+        });
+
+        if ok_pressed || cancel_pressed {
+            self.current_selection = None; // Go back to main settings.
+        }
+
+        if should_close {
+            self.close(sim);
+        }
     }
 }
 
@@ -484,10 +690,10 @@ impl NewGameModalMenu {
         let group_height =
             ui.text_line_height_with_spacing()     // "Map Size"
             + ui.frame_height_with_spacing() * 2.0 // width + height inputs
-            + ui.text_line_height_with_spacing()   // spacing
+            + 8.0                                  // widgets::spacing
             + ui.text_line_height_with_spacing()   // "Terrain Kind"
             + ui.frame_height_with_spacing()       // combo
-            + ui.text_line_height_with_spacing()   // spacing
+            + 8.0                                  // widgets::spacing
             + ui.frame_height_with_spacing();      // button
 
         let start_x = ((avail_width  - group_width)  * 0.5).max(0.0);
@@ -515,57 +721,76 @@ impl ModalMenu for NewGameModalMenu {
     }
 
     fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
-        let mut starting_new_game = false;
+        let mut should_close = false;
 
         self.menu.draw(sim, ui_sys, |_sim| {
             let ui = ui_sys.ui();
             let _font = ui.push_font(ui_sys.fonts().game_hud_large);
 
-            let group_width = 200.0;
-            let group_start = Self::calc_centered_group_start(ui, group_width);
+            const GROUP_WIDTH: f32 = 210.0;
+            let group_start = Self::calc_centered_group_start(ui, GROUP_WIDTH);
 
             ui.set_cursor_pos([group_start.x, group_start.y]);
-            ui.text("Map Size");
+            ui.text("Map Size:");
+
+            // NOTE: Use "Height" here to keep both sizes even (it's the longest label).
+            let map_size_label_width = ui.calc_text_size("Height ")[0];
+
+            // Left-hand-side labels.
+            ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
+            ui.text("Width ");
+            ui.same_line();
+            ui.set_cursor_pos([group_start.x + map_size_label_width, ui.cursor_pos()[1]]);
+            ui.set_next_item_width(GROUP_WIDTH - map_size_label_width);
+            let w_edited = ui.input_int("##Width", &mut self.new_map_size.width).step(32).build();
 
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
-            ui.set_next_item_width(group_width - ui.calc_text_size("Height")[0]); // NOTE: Use "Height" here to keep both sizes even.
-            let w_edited = ui.input_int("Width", &mut self.new_map_size.width).step(32).build();
-
-            ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
-            ui.set_next_item_width(group_width - ui.calc_text_size("Height")[0]);
-            let h_edited = ui.input_int("Height", &mut self.new_map_size.height).step(32).build();
+            ui.text("Height ");
+            ui.same_line();
+            ui.set_cursor_pos([group_start.x + map_size_label_width, ui.cursor_pos()[1]]);
+            ui.set_next_item_width(GROUP_WIDTH - map_size_label_width);
+            let h_edited = ui.input_int("##Height", &mut self.new_map_size.height).step(32).build();
 
             if w_edited || h_edited {
                 self.new_map_size.width = self.new_map_size.width.clamp(32, 256);
                 self.new_map_size.height = self.new_map_size.height.clamp(32, 256);
             }
 
-            ui.spacing();
+            widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(0.0, 8.0));
 
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
-            ui.text("Terrain Kind");
+            ui.text("Terrain Kind:");
 
             const TILE_KIND_NAMES: [&str; 3] = ["Grass", "Dirt", "Water"];
             const TILE_KIND_HASHES: [PresetTiles; 3] = [PresetTiles::Grass, PresetTiles::Dirt, PresetTiles::Water];
             static CURRENT_TILE_KIND: UiStaticVar<usize> = UiStaticVar::new(0);
 
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
-            ui.set_next_item_width(group_width);
+            ui.set_next_item_width(GROUP_WIDTH);
             ui.combo_simple_string("##TileKind", CURRENT_TILE_KIND.as_mut(), &TILE_KIND_NAMES);
 
-            ui.spacing();
+            widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(0.0, 8.0));
 
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
             if ui.button("Start New Game") {
                 let selected_tile_kind = TILE_KIND_HASHES[*CURRENT_TILE_KIND];
                 let opt_tile_def = selected_tile_kind.find_tile_def();
                 GameLoop::get_mut().reset_session(opt_tile_def, Some(self.new_map_size));
-                starting_new_game = true;
+                should_close = true;
+            }
+
+            ui.same_line();
+            // Extra spacing between buttons.
+            widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
+            ui.same_line();
+
+            if ui.button("Cancel") {
+                should_close = true;
             }
         });
 
-        // Close modal window if user clicked the new game button.
-        if starting_new_game {
+        // Close modal window if user clicked the new game or cancel button.
+        if should_close {
             self.close(sim);
         }
     }
