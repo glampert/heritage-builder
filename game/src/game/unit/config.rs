@@ -20,15 +20,17 @@ use crate::{
 pub enum UnitConfigKey {
     #[default]
     Peasant      = hash::fnv1a_from_str("peasant"),
-    Monk         = hash::fnv1a_from_str("monk"),
     Runner       = hash::fnv1a_from_str("runner"),
     Settler      = hash::fnv1a_from_str("settler"),
     Vendor       = hash::fnv1a_from_str("vendor"),
     TaxCollector = hash::fnv1a_from_str("tax_collector"),
     WaterCarrier = hash::fnv1a_from_str("water_carrier"),
-    Dog          = hash::fnv1a_from_str("dog"),
     Guard        = hash::fnv1a_from_str("guard"),
     Teacher      = hash::fnv1a_from_str("teacher"),
+    Actor        = hash::fnv1a_from_str("actor"),
+    Monk         = hash::fnv1a_from_str("monk"),
+    Dog          = hash::fnv1a_from_str("dog"),
+    Bird         = hash::fnv1a_from_str("bird"),
 }
 
 // ----------------------------------------------

@@ -49,6 +49,12 @@
       "movement_speed": 1.66
     },
     {
+      "name": "Bird",
+      "tile_def_name": "bird",
+      "traversable_node_kinds": "Water | EmptyLand | Road | VacantLot | Building | Vegetation | HarvestableTree | Rocks",
+      "movement_speed": 1.66
+    },
+    {
       "name": "Guard",
       "tile_def_name": "guard",
       "traversable_node_kinds": "Road",
@@ -57,6 +63,12 @@
     {
       "name": "Teacher",
       "tile_def_name": "teacher",
+      "traversable_node_kinds": "Road",
+      "movement_speed": 1.66
+    },
+    {
+      "name": "Actor",
+      "tile_def_name": "actor",
       "traversable_node_kinds": "Road",
       "movement_speed": 1.66
     }
