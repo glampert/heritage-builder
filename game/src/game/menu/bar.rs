@@ -349,28 +349,28 @@ impl LeftBar {
                 LeftBarButtonKind::MainMenu =>{
                     left_bar.modal_menus.push(
                         Box::new(
-                            MainModalMenu::new(LeftBarButtonKind::MainMenu.tooltip(), left_bar.as_ref())
+                            MainModalMenu::new(tex_cache, ui_sys, LeftBarButtonKind::MainMenu.tooltip(), left_bar.as_ref())
                         )
                     )
                 }
                 LeftBarButtonKind::SaveGame => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            SaveGameModalMenu::new(LeftBarButtonKind::SaveGame.tooltip(), left_bar.as_ref())
+                            SaveGameModalMenu::new(tex_cache, ui_sys)
                         )
                     )
                 }
                 LeftBarButtonKind::Settings => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            SettingsModalMenu::new(LeftBarButtonKind::Settings.tooltip(), left_bar.as_ref())
+                            SettingsModalMenu::new(tex_cache, ui_sys, LeftBarButtonKind::Settings.tooltip())
                         )
                     )
                 }
                 LeftBarButtonKind::NewGame => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            NewGameModalMenu::new(LeftBarButtonKind::NewGame.tooltip(), left_bar.as_ref())
+                            NewGameModalMenu::new(tex_cache, ui_sys, LeftBarButtonKind::NewGame.tooltip())
                         )
                     )
                 }

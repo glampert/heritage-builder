@@ -13,9 +13,9 @@ use super::{
     bar::MenuBar,
 };
 use crate::{
-    render::TextureFilter,
-    utils::{Size, Vec2, mem},
-    imgui_ui::{UiSystem, UiStaticVar},
+    utils::{Size, Rect, Vec2, mem},
+    render::{TextureCache, TextureSettings, TextureFilter},
+    imgui_ui::{UiSystem, UiTextureHandle, UiStaticVar},
     tile::{sets::PresetTiles, camera::CameraGlobalSettings},
     game::{sim::Simulation, GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
 };
@@ -51,44 +51,73 @@ pub trait ModalMenu: Any {
     fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem);
 }
 
-struct BasicModalMenu {
+#[derive(Default)]
+pub struct ModalMenuParams {
+    pub title: Option<String>,
+    pub size: Option<Size>,
+    pub position: Option<Vec2>,
+    pub background_sprite: Option<&'static str>,
+    pub start_open: bool,
+}
+
+pub struct BasicModalMenu {
     title: String,
     size: Option<Size>,
+    position: Option<Vec2>,
+    background_sprite: Option<UiTextureHandle>,
     is_open: bool,
+    with_title_bar: bool,
     dialog: Option<Box<ModalPopupDialog>>,
 }
 
 impl BasicModalMenu {
-    fn new(title: String, size: Option<Size>) -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, params: ModalMenuParams) -> Self {
+        let background_sprite = params.background_sprite.map(|sprite_path| {
+            let settings = TextureSettings {
+                filter: TextureFilter::Linear,
+                gen_mipmaps: false,
+                ..Default::default()
+            };
+            let file_path = super::ui_assets_path().join(sprite_path);
+            let tex_handle = tex_cache.load_texture_with_settings(file_path.to_str().unwrap(), Some(settings));
+            ui_sys.to_ui_texture(tex_cache, tex_handle)
+        });
+
+        let with_title_bar = params.title.is_some();
+        let title = params.title.unwrap_or("##ModalMenu".to_string());
+
         Self {
             title,
-            size,
-            is_open: false,
+            size: params.size,
+            position: params.position,
+            background_sprite,
+            is_open: params.start_open,
+            with_title_bar,
             dialog: None,
         }
     }
 
-    fn is_open(&self) -> bool {
+    pub fn is_open(&self) -> bool {
         self.is_open
     }
 
-    fn open(&mut self, sim: &mut Simulation) {
+    pub fn open(&mut self, sim: &mut Simulation) {
         self.is_open = true;
         self.dialog = None;
         sim.pause();
     }
 
-    fn close(&mut self, sim: &mut Simulation) {
+    pub fn close(&mut self, sim: &mut Simulation) {
         self.is_open = false;
         self.dialog = None;
         sim.resume();
     }
 
-    fn size(&self) -> Vec2 {
+    pub fn size(&self) -> Vec2 {
         self.size.unwrap_or_default().to_vec2()
     }
 
-    fn draw<F>(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, draw_menu_fn: F)
+    pub fn draw<F>(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, draw_menu_fn: F)
         where F: FnOnce(&mut Simulation)
     {
         if !self.is_open {
@@ -102,12 +131,20 @@ impl BasicModalMenu {
         let window_size = self.size();
         let mut is_open = self.is_open;
 
-        // Center popup window to the middle of the display:
-        widgets::set_next_window_pos(
-            Vec2::new(display_size[0] * 0.5, display_size[1] * 0.5),
-            Vec2::new(0.5, 0.5),
-            imgui::Condition::Always
-        );
+        if let Some(window_position) = self.position {
+            widgets::set_next_window_pos(
+                window_position,
+                Vec2::zero(),
+                imgui::Condition::Always
+            );
+        } else {
+            // Center dialog window to the middle of the display if no explicit position is specified.
+            widgets::set_next_window_pos(
+                Vec2::new(display_size[0] * 0.5, display_size[1] * 0.5),
+                Vec2::new(0.5, 0.5),
+                imgui::Condition::Always
+            );
+        }
 
         if let Some(dialog) = &self.dialog {
             ui.window(&self.title)
@@ -152,13 +189,29 @@ impl BasicModalMenu {
             };
 
             let mut window_flags = widgets::window_flags();
-            window_flags.remove(imgui::WindowFlags::NO_TITLE_BAR);
+
+            if self.with_title_bar {
+                window_flags.remove(imgui::WindowFlags::NO_TITLE_BAR);
+            }
+
+            if self.background_sprite.is_some() {
+                window_flags.insert(imgui::WindowFlags::NO_BACKGROUND);
+            }
 
             ui.window(&self.title)
                 .opened(&mut is_open)
                 .size(window_size.to_array(), size_cond)
                 .flags(window_flags)
                 .build(|| {
+                    if let Some(background_texture) = self.background_sprite {
+                        let window_rect = Rect::new(
+                            Vec2::from_array(ui.window_pos()),
+                            Vec2::from_array(ui.window_size())
+                        );
+                        ui.get_window_draw_list()
+                            .add_image(background_texture, window_rect.min.to_array(), window_rect.max.to_array())
+                            .build();
+                    }
                     draw_menu_fn(sim);
                     widgets::draw_current_window_debug_rect(ui);
                 });
@@ -170,11 +223,11 @@ impl BasicModalMenu {
         }
     }
 
-    fn show_popup_dialog<DrawFn>(&self,
-                                 parent: &dyn ModalMenu,
-                                 size: [f32; 2],
-                                 draw_fn: DrawFn,
-                                 buttons: ModalPopupDialogButtonList)
+    pub fn show_popup_dialog<DrawFn>(&self,
+                                     parent: &dyn ModalMenu,
+                                     size: [f32; 2],
+                                     draw_fn: DrawFn,
+                                     buttons: ModalPopupDialogButtonList)
         where DrawFn: Fn(&imgui::Ui) + 'static
     {
         // NOTE: Need to take self as immutable here so we can also receive the parent ModalMenu ref.
@@ -189,7 +242,7 @@ impl BasicModalMenu {
 // ModalPopupDialog
 // ----------------------------------------------
 
-type ModalPopupDialogButtonList = SmallVec<[ModalPopupDialogButton; 4]>;
+pub type ModalPopupDialogButtonList = SmallVec<[ModalPopupDialogButton; 4]>;
 
 // Child popup dialog of a ModalMenu.
 struct ModalPopupDialog {
@@ -219,13 +272,13 @@ impl ModalPopupDialog {
 // ModalPopupDialogButton
 // ----------------------------------------------
 
-struct ModalPopupDialogButton {
+pub struct ModalPopupDialogButton {
     label: &'static str,
     on_click_fn: Box<dyn Fn(&mut dyn ModalMenu, &mut Simulation) + 'static>
 }
 
 impl ModalPopupDialogButton {
-    fn new<OnClickFn>(label: &'static str, on_click_fn: OnClickFn) -> Self
+    pub fn new<OnClickFn>(label: &'static str, on_click_fn: OnClickFn) -> Self
         where OnClickFn: Fn(&mut dyn ModalMenu, &mut Simulation) + 'static
     {
         Self {
@@ -275,9 +328,13 @@ pub struct MainModalMenu {
 }
 
 impl MainModalMenu {
-    pub fn new(title: String, parent: &dyn MenuBar) -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, title: String, parent: &dyn MenuBar) -> Self {
         Self {
-            menu: BasicModalMenu::new(title, Some(MODAL_WINDOW_DEFAULT_SIZE)),
+            menu: BasicModalMenu::new(
+                tex_cache,
+                ui_sys,
+                ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
+            ),
             parent: mem::RawPtr::from_ref(parent),
         }
     }
@@ -407,9 +464,13 @@ pub struct SaveGameModalMenu {
 }
 
 impl SaveGameModalMenu {
-    pub fn new(_title: String, _parent: &dyn MenuBar) -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
         let mut menu = Self {
-            menu: BasicModalMenu::new(String::new(), Some(MODAL_WINDOW_DEFAULT_SIZE)),
+            menu: BasicModalMenu::new(
+                tex_cache,
+                ui_sys,
+                ModalMenuParams { title: Some("".to_string()), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
+            ),
             actions: SaveGameActions::empty(),
             save_file_name: String::new(),
         };
@@ -615,9 +676,13 @@ pub struct SettingsModalMenu {
 }
 
 impl SettingsModalMenu {
-    pub fn new(title: String, _parent: &dyn MenuBar) -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, title: String) -> Self {
         Self {
-            menu: BasicModalMenu::new(title, Some(MODAL_WINDOW_DEFAULT_SIZE)),
+            menu: BasicModalMenu::new(
+                tex_cache,
+                ui_sys,
+                ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
+            ),
             current_selection: None,
         }
     }
@@ -834,9 +899,13 @@ pub struct NewGameModalMenu {
 }
 
 impl NewGameModalMenu {
-    pub fn new(title: String, _parent: &dyn MenuBar) -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, title: String) -> Self {
         Self {
-            menu: BasicModalMenu::new(title, Some(MODAL_WINDOW_DEFAULT_SIZE)),
+            menu: BasicModalMenu::new(
+                tex_cache,
+                ui_sys,
+                ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
+            ),
             new_map_size: Size::new(64, 64),
         }
     }

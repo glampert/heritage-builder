@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use super::{
+    widgets,
     GameMenuMode,
     GameMenusSystem,
     GameMenusContext,
@@ -8,10 +9,11 @@ use super::{
     TilePalette,
     TilePlacement,
     TileInspector,
+    modal::{BasicModalMenu, ModalMenuParams},
 };
 use crate::{
     save::{Save, Load},
-    utils::coords::CellRange,
+    utils::{Size, Vec2, coords::CellRange},
     tile::rendering::TileMapRenderFlags,
     imgui_ui::{UiSystem, UiInputEvent},
     render::{TextureHandle, TextureCache, TextureSettings, TextureFilter},
@@ -23,14 +25,24 @@ use crate::{
 
 pub struct HomeMenus {
     background: FullScreenBackground,
-    menu_bg_tex: TextureHandle,
+    main_menu: BasicModalMenu,
 }
 
 impl HomeMenus {
-    pub fn new(tex_cache: &mut dyn TextureCache) -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, viewport_size: Size) -> Self {
         Self {
             background: FullScreenBackground::load(tex_cache),
-            menu_bg_tex: tex_cache.load_texture(super::ui_assets_path().join("misc/scroll_bg.png").to_str().unwrap()),
+            main_menu: BasicModalMenu::new(
+                tex_cache,
+                ui_sys,
+                ModalMenuParams {
+                    start_open: true,
+                    position: Some(Vec2::new(50.0, 50.0)),
+                    size: Some(Size::new(550, viewport_size.height - 100)),
+                    background_sprite: Some("misc/scroll_bg.png"),
+                    ..Default::default()
+                }
+            ),
         }
     }
 }
@@ -67,14 +79,17 @@ impl GameMenusSystem for HomeMenus {
         let tex_cache = context.engine.texture_cache();
         let ui_sys = context.engine.ui_system();
 
-        let ui = ui_sys.ui();
-        let ui_texture = ui_sys.to_ui_texture(tex_cache, self.menu_bg_tex);
-        ui.get_foreground_draw_list().add_image(ui_texture, [50.0, 50.0], [600.0, ui.io().display_size[1] - 50.0]).build();
+        self.main_menu.draw(context.sim, ui_sys, |_sim| {
+            let ui = ui_sys.ui();
+            ui.set_window_font_scale(1.5);
 
-        // TODO:
-        // Could modify ModalMenu/BasicModalMenu so we can reuse the in-game menus.
-        // Could make them render with invisible background or with specified image background.
-        // Add option to manually position as well, rather than always screen centered.
+            let _pressed_button_index = widgets::draw_centered_button_group(
+                ui,
+                &ui.get_window_draw_list(),
+                &["New Game", "Continue", "Load Game", "Custom Game", "Settings", "About", "Exit Game"],
+                Some(Size::new(200, 60))
+            );
+        });
 
         self.background.draw(tex_cache, ui_sys);
     }

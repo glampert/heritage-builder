@@ -137,7 +137,7 @@ impl GameSession {
             }
             GameMenuMode::Home => {
                 log::info!(log::channel!("session"), "Loading HomeMenus ...");
-                Box::new(HomeMenus::new(engine.texture_cache()))
+                Box::new(HomeMenus::new(engine.texture_cache(), engine.ui_system(), engine.viewport().size()))
             }
         }
     }
