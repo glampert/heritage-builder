@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use super::{
+    GameMenuMode,
     GameMenusSystem,
     GameMenusContext,
     GameMenusInputArgs,
@@ -48,12 +49,16 @@ impl GameMenusSystem for InGameHudMenus {
         self
     }
 
-    fn tile_placement(&mut self) -> &mut TilePlacement {
-        &mut self.tile_placement
+    fn mode(&self) -> GameMenuMode {
+        GameMenuMode::InGameHud
     }
 
-    fn tile_palette(&mut self) -> &mut dyn TilePalette {
-        &mut self.tile_palette
+    fn tile_placement(&mut self) -> Option<&mut TilePlacement> {
+        Some(&mut self.tile_placement)
+    }
+
+    fn tile_palette(&mut self) -> Option<&mut dyn TilePalette> {
+        Some(&mut self.tile_palette)
     }
 
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {

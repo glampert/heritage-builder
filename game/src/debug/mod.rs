@@ -41,12 +41,16 @@ impl GameMenusSystem for DevEditorMenus {
         self
     }
 
-    fn tile_placement(&mut self) -> &mut TilePlacement {
-        &mut DevEditorMenusSingleton::get_mut().tile_placement
+    fn mode(&self) -> GameMenuMode {
+        GameMenuMode::DevEditor
     }
 
-    fn tile_palette(&mut self) -> &mut dyn TilePalette {
-        &mut DevEditorMenusSingleton::get_mut().tile_palette_menu
+    fn tile_placement(&mut self) -> Option<&mut TilePlacement> {
+        Some(&mut DevEditorMenusSingleton::get_mut().tile_placement)
+    }
+
+    fn tile_palette(&mut self) -> Option<&mut dyn TilePalette> {
+        Some(&mut DevEditorMenusSingleton::get_mut().tile_palette_menu)
     }
 
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {

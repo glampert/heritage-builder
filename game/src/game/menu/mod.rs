@@ -21,6 +21,7 @@ use crate::{
 };
 
 pub mod widgets;
+pub mod home;
 pub mod hud;
 
 mod button;
@@ -116,15 +117,23 @@ pub fn ui_assets_path() -> PathBuf {
     paths::asset_path("ui")
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum GameMenuMode {
+    DevEditor,
+    InGameHud,
+    Home,
+}
+
 // ----------------------------------------------
 // GameMenusSystem
 // ----------------------------------------------
 
 pub trait GameMenusSystem: Any + Save + Load {
     fn as_any(&self) -> &dyn Any;
+    fn mode(&self) -> GameMenuMode;
 
-    fn tile_placement(&mut self) -> &mut TilePlacement;
-    fn tile_palette(&mut self) -> &mut dyn TilePalette;
+    fn tile_placement(&mut self) -> Option<&mut TilePlacement>;
+    fn tile_palette(&mut self) -> Option<&mut dyn TilePalette>;
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector>;
 
     fn selected_render_flags(&self) -> TileMapRenderFlags {
@@ -138,22 +147,22 @@ pub trait GameMenusSystem: Any + Save + Load {
         }
 
         // Tile hovering and selection:
-        let selection = self.tile_palette().current_selection();
-        let placement_op = self.tile_placement().placement_operation(selection, context);
+        let selection = self.tile_palette().unwrap().current_selection();
+        let placement_op = self.tile_placement().unwrap().placement_operation(selection, context);
 
         context.update_selection(placement_op);
 
         // Incrementally build road segment (drag and draw segment):
-        let is_road_tile_selected = self.tile_palette().is_road_tile_selected();
+        let is_road_tile_selected = self.tile_palette().unwrap().is_road_tile_selected();
         if is_road_tile_selected {
             if let Some((start, end)) = context.range_selection_cells() {
-                let road_kind = self.tile_palette().selected_road_kind();
-                self.tile_placement().update_road_segment(road_kind, start, end, context);
+                let road_kind = self.tile_palette().unwrap().selected_road_kind();
+                self.tile_placement().unwrap().update_road_segment(road_kind, start, end, context);
             }
         }
 
         // Place a regular (non-road) tile or clear a tile:
-        if !is_road_tile_selected && self.tile_palette().wants_to_place_or_clear_tile() {
+        if !is_road_tile_selected && self.tile_palette().unwrap().wants_to_place_or_clear_tile() {
             let placed_building_or_unit = {
                 match TilePlacement::try_place_or_clear_tile(selection, context) {
                     PlaceOrClearResult::PlacedTile(tile_def) => {
@@ -165,7 +174,7 @@ pub trait GameMenusSystem: Any + Save + Load {
 
             // Exit tile placement mode if we've placed a building|unit.
             if placed_building_or_unit {
-                self.tile_palette().clear_selection();
+                self.tile_palette().unwrap().clear_selection();
                 context.clear_selection();
             }
         }
@@ -185,7 +194,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                 if action == InputAction::Press {
                     // [ESCAPE]: Clear current selection / close tile inspector.
                     if key == InputKey::Escape {
-                        self.tile_palette().clear_selection();
+                        self.tile_palette().unwrap().clear_selection();
                         context.clear_selection();
                         if let Some(tile_inspector) = self.tile_inspector() {
                             tile_inspector.close();
@@ -210,14 +219,14 @@ pub trait GameMenusSystem: Any + Save + Load {
                 }
             }
             GameMenusInputArgs::Mouse { button, action, .. } => {
-                let is_road_tile_selected = self.tile_palette().is_road_tile_selected();
-                let is_clear_selected = self.tile_palette().current_selection().is_clear();
+                let is_road_tile_selected = self.tile_palette().unwrap().is_road_tile_selected();
+                let is_clear_selected = self.tile_palette().unwrap().current_selection().is_clear();
 
-                if !is_road_tile_selected && !is_clear_selected && self.tile_palette().has_selection() {
-                    let input_event = self.tile_palette().on_mouse_button(button, action);
+                if !is_road_tile_selected && !is_clear_selected && self.tile_palette().unwrap().has_selection() {
+                    let input_event = self.tile_palette().unwrap().on_mouse_button(button, action);
                     if input_event.not_handled() {
                         // Mouse button click other than [LEFT_BTN], clear selection state.
-                        self.tile_palette().clear_selection();
+                        self.tile_palette().unwrap().clear_selection();
                         context.clear_selection();
                     }
                     return input_event;
@@ -227,7 +236,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                     // Handle road placement (drag and draw segment).
                     if is_road_tile_selected {
                         // Place road segment if valid & we can afford it.
-                        self.tile_placement().try_place_road_segment(context);
+                        self.tile_placement().unwrap().try_place_road_segment(context);
                     } else if is_clear_selected && !context.tile_selection.cells().is_empty() {
                         // Clear batch of selected tiles:
                         let query = context.new_query();
@@ -277,7 +286,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                     }
                 } else {
                     // Mouse button click other than [LEFT_BTN], clear selection state.
-                    self.tile_palette().clear_selection();
+                    self.tile_palette().unwrap().clear_selection();
                     context.clear_selection();
                 }
 
