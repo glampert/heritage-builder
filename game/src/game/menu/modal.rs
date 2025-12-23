@@ -324,7 +324,7 @@ impl MainModalMenu {
     fn on_quit_button(&mut self, ui_sys: &UiSystem, _sim: &mut Simulation) {
         self.menu.show_popup_dialog(
             self,
-            [self.menu.size().x, ui_sys.ui().text_line_height_with_spacing() * 3.0],
+            [self.menu.size().x, ui_sys.ui().text_line_height_with_spacing() * 3.0], // Space for roughly 3 lines of text.
             |ui| {
                 ui.text("Quit Game?");
                 ui.text("Any unsaved progress will be lost...");
@@ -563,7 +563,7 @@ impl ModalMenu for SaveGameModalMenu {
             let save_file_name = self.save_file_name.clone();
             self.menu.show_popup_dialog(
                 self,
-                [self.menu.size().x, ui_sys.ui().text_line_height_with_spacing() * 2.0],
+                [self.menu.size().x, ui_sys.ui().text_line_height_with_spacing() * 2.0], // Space for roughly 2 lines of text.
                 |ui| {
                     ui.text("Overwrite existing save game?");
                 },
