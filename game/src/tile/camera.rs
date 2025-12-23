@@ -5,7 +5,6 @@ use crate::{
     singleton,
     engine::time::Seconds,
     game::config::GameConfigs,
-    imgui_ui::UiSystem,
     save::*,
     utils::{
         self,
@@ -273,11 +272,11 @@ impl Camera {
 
     #[inline]
     pub fn update_scrolling(&mut self,
-                            ui_sys: &UiSystem,
+                            ui_hovered: bool,
                             cursor_screen_pos: Vec2,
                             delta_time_secs: Seconds) {
-        let scroll_delta = calc_scroll_delta(ui_sys, cursor_screen_pos, self.viewport_size);
-        let scroll_speed  = calc_scroll_speed(ui_sys, cursor_screen_pos, self.viewport_size);
+        let scroll_delta = calc_scroll_delta(ui_hovered, cursor_screen_pos, self.viewport_size);
+        let scroll_speed  = calc_scroll_speed(ui_hovered, cursor_screen_pos, self.viewport_size);
 
         let offset_change = scroll_delta * scroll_speed * delta_time_secs;
         let current = self.current_scroll();
@@ -374,7 +373,7 @@ fn calc_visible_cells_range(map_size_in_cells: Size,
     selection::bounds(&screen_rect, BASE_TILE_SIZE, map_size_in_cells, transform)
 }
 
-fn calc_scroll_delta(ui_sys: &UiSystem, cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
+fn calc_scroll_delta(ui_hovered: bool, cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
     let mut scroll_delta = Vec2::zero();
 
     if cursor_screen_pos.x < Camera::SCROLL_MARGIN {
@@ -384,9 +383,7 @@ fn calc_scroll_delta(ui_sys: &UiSystem, cursor_screen_pos: Vec2, viewport_size: 
     }
 
     // Only block scrolling if hovering an ImGui item (like menu buttons).
-    let hovering_imgui_item = ui_sys.ui().is_any_item_hovered();
-
-    if !hovering_imgui_item {
+    if !ui_hovered {
         if cursor_screen_pos.y < Camera::SCROLL_MARGIN {
             scroll_delta.y += 1.0;
         } else if cursor_screen_pos.y > (viewport_size.height as f32) - Camera::SCROLL_MARGIN {
@@ -397,8 +394,8 @@ fn calc_scroll_delta(ui_sys: &UiSystem, cursor_screen_pos: Vec2, viewport_size: 
     scroll_delta
 }
 
-fn calc_scroll_speed(ui_sys: &UiSystem, cursor_screen_pos: Vec2, viewport_size: Size) -> f32 {
-    if ui_sys.ui().is_any_item_hovered() {
+fn calc_scroll_speed(ui_hovered: bool, cursor_screen_pos: Vec2, viewport_size: Size) -> f32 {
+    if ui_hovered {
         return 0.0; // Stop scrolling entirely while over menu items.
     }
 
