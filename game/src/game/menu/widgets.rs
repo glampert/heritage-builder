@@ -140,6 +140,23 @@ pub fn draw_centered_button_group(ui: &imgui::Ui,
                                   draw_list: &imgui::DrawListMut<'_>,
                                   labels: &[&str],
                                   size: Option<Size>) -> Option<usize> {
+    draw_centered_button_group_ex::<fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize)>(
+        ui,
+        draw_list,
+        labels,
+        size,
+        None,
+        None)
+}
+
+pub fn draw_centered_button_group_ex<OnHovered>(ui: &imgui::Ui,
+                                                draw_list: &imgui::DrawListMut<'_>,
+                                                labels: &[&str],
+                                                size: Option<Size>,
+                                                offsets: Option<Vec2>,
+                                                on_hovered: Option<OnHovered>) -> Option<usize>
+    where OnHovered: Fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize)
+{
     if labels.is_empty() {
         return None;
     }
@@ -166,6 +183,7 @@ pub fn draw_centered_button_group(ui: &imgui::Ui,
         }
     };
 
+    let start_offset = offsets.unwrap_or_default();
     let spacing_y = style.item_spacing[1];
 
     let total_height =
@@ -173,8 +191,8 @@ pub fn draw_centered_button_group(ui: &imgui::Ui,
         (labels.len().saturating_sub(1) as f32 * spacing_y);
 
     let avail = ui.content_region_avail();
-    let start_x = (avail[0] - button_size[0]) * 0.5;
-    let start_y = (avail[1] - total_height) * 0.5;
+    let start_x = ((avail[0] - button_size[0]) * 0.5) + start_offset.x;
+    let start_y = ((avail[1] - total_height)   * 0.5) + start_offset.y;
     ui.set_cursor_pos([0.0, start_y]);
 
     let mut pressed_index = None;
@@ -188,6 +206,10 @@ pub fn draw_centered_button_group(ui: &imgui::Ui,
         }
 
         draw_last_item_debug_rect(ui, draw_list, Color::blue());
+
+        if ui.is_item_hovered() && let Some(on_hovered) = &on_hovered {
+            on_hovered(ui, draw_list, index);
+        }
     }
 
     pressed_index
