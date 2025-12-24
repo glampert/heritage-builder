@@ -5,6 +5,7 @@ use crate::{
     save::{Save, Load},
     imgui_ui::UiInputEvent,
     engine::{Engine, time::Seconds},
+    render::{TextureSettings, TextureFilter},
     utils::{Vec2, coords::{Cell, CellRange}, hash::SmallSet, platform::paths},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     game::{
@@ -115,6 +116,15 @@ impl GameMenusContext<'_> {
 
 pub fn ui_assets_path() -> PathBuf {
     paths::asset_path("ui")
+}
+
+pub fn ui_texture_settings() -> TextureSettings {
+    // Use linear filter without mipmaps for all UI textures.
+    TextureSettings {
+        filter: TextureFilter::Linear,
+        gen_mipmaps: false,
+        ..Default::default()
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

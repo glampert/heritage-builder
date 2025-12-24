@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     utils::{Size, Rect, Vec2, mem},
-    render::{TextureCache, TextureSettings, TextureFilter},
+    render::{TextureCache, TextureFilter},
     imgui_ui::{UiSystem, UiTextureHandle, UiStaticVar},
     tile::{sets::PresetTiles, camera::CameraGlobalSettings},
     game::{sim::Simulation, GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
@@ -73,13 +73,8 @@ pub struct BasicModalMenu {
 impl BasicModalMenu {
     pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, params: ModalMenuParams) -> Self {
         let background_sprite = params.background_sprite.map(|sprite_path| {
-            let settings = TextureSettings {
-                filter: TextureFilter::Linear,
-                gen_mipmaps: false,
-                ..Default::default()
-            };
             let file_path = super::ui_assets_path().join(sprite_path);
-            let tex_handle = tex_cache.load_texture_with_settings(file_path.to_str().unwrap(), Some(settings));
+            let tex_handle = tex_cache.load_texture_with_settings(file_path.to_str().unwrap(), Some(super::ui_texture_settings()));
             ui_sys.to_ui_texture(tex_cache, tex_handle)
         });
 

@@ -10,7 +10,7 @@ use super::{
 use crate::{
     imgui_ui::UiSystem,
     engine::time::Seconds,
-    render::{RenderSystem, TextureCache, TextureHandle, TextureSettings, TextureFilter},
+    render::{RenderSystem, TextureCache, TextureHandle},
     utils::{self, Size, Vec2, Color, Rect, RectTexCoords, coords::WorldToScreenTransform},
     tile::{
         TileKind, BASE_TILE_SIZE, rendering::INVALID_TILE_COLOR,
@@ -270,16 +270,10 @@ pub struct TilePaletteWidget {
 
 impl TilePaletteWidget {
     pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
-        let settings = TextureSettings {
-            filter: TextureFilter::Linear,
-            gen_mipmaps: false,
-            ..Default::default()
-        };
-
-        let file_path = super::ui_assets_path().join("icons/red_x_icon.png");
+        let clear_icon_path = super::ui_assets_path().join("icons/red_x_icon.png");
         let clear_icon_sprite = tex_cache.load_texture_with_settings(
-            file_path.to_str().unwrap(),
-            Some(settings)
+            clear_icon_path.to_str().unwrap(),
+            Some(super::ui_texture_settings())
         );
 
         Self {

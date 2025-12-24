@@ -16,7 +16,7 @@ use crate::{
     utils::{Size, Vec2, coords::CellRange},
     tile::rendering::TileMapRenderFlags,
     imgui_ui::{UiSystem, UiInputEvent},
-    render::{TextureHandle, TextureCache, TextureSettings, TextureFilter},
+    render::{TextureHandle, TextureCache},
 };
 
 // ----------------------------------------------
@@ -116,18 +116,9 @@ struct FullScreenBackground {
 
 impl FullScreenBackground {
     fn load(tex_cache: &mut dyn TextureCache) -> Self {
-        let settings = TextureSettings {
-            filter: TextureFilter::Linear,
-            gen_mipmaps: false,
-            ..Default::default()
-        };
-
-        let bg_file_path =
-            super::ui_assets_path()
-            .join("misc/home_menu_bg.png");
-
+        let bg_file_path = super::ui_assets_path().join("misc/home_menu_bg.png");
         Self {
-            tex_handle: tex_cache.load_texture_with_settings(bg_file_path.to_str().unwrap(), Some(settings))
+            tex_handle: tex_cache.load_texture_with_settings(bg_file_path.to_str().unwrap(), Some(super::ui_texture_settings()))
         }
     }
 

@@ -11,12 +11,12 @@ use super::{
     widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons},
 };
 use crate::{
+    render::TextureCache,
     engine::time::Seconds,
     utils::{self, Size, Rect, Vec2},
     game::{sim::Simulation, world::World},
     app::input::{InputAction, InputKey},
     imgui_ui::{UiSystem, UiTextureHandle, UiInputEvent},
-    render::{TextureCache, TextureSettings, TextureFilter},
 };
 
 // ----------------------------------------------
@@ -148,14 +148,8 @@ impl TopBarIcon {
     }
 
     fn load_texture(self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> UiTextureHandle {
-        let settings = TextureSettings {
-            filter: TextureFilter::Linear,
-            gen_mipmaps: false,
-            ..Default::default()
-        };
-
         let sprite_path = self.asset_path();
-        let tex_handle = tex_cache.load_texture_with_settings(sprite_path.to_str().unwrap(), Some(settings));
+        let tex_handle = tex_cache.load_texture_with_settings(sprite_path.to_str().unwrap(), Some(super::ui_texture_settings()));
         ui_sys.to_ui_texture(tex_cache, tex_handle)
     }
 }

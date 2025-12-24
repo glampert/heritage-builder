@@ -11,6 +11,7 @@ use super::{
 
 use crate::{
     singleton,
+    game::menu,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
     imgui_ui::{self, UiSystem, UiTextureHandle},
@@ -236,14 +237,14 @@ impl MinimapTexture {
                 tex_cache.release_texture(&mut existing_texture);
             }
 
-            let settings = TextureSettings {
+            let minimap_texture_settings = TextureSettings {
                 filter: TextureFilter::Nearest,
                 wrap_mode: TextureWrapMode::ClampToBorder,
                 gen_mipmaps: false,
             };
             self.handle = tex_cache.new_uninitialized_texture(TEXTURE_NAME,
                                                               self.size,
-                                                              Some(settings));
+                                                              Some(minimap_texture_settings));
         }
 
         let len_in_bytes  = self.pixels.len() * std::mem::size_of::<MinimapTileColor>();
@@ -363,19 +364,13 @@ impl MinimapIconTexCache {
     }
 
     fn load_icon_textures(&mut self, tex_cache: &mut dyn TextureCache) {
-        let settings = TextureSettings {
-            filter: TextureFilter::Linear,
-            gen_mipmaps: false,
-            ..Default::default()
-        };
-
         for icon in MinimapIcon::iter() {
             let texture = &mut self.textures[icon as usize];
             debug_assert!(!texture.is_valid(), "Minimap icon texture is already loaded!");
 
             *texture = tex_cache.load_texture_with_settings(
                 icon.asset_path().to_str().unwrap(),
-                Some(settings)
+                Some(menu::ui_texture_settings())
             );
         }
     }
