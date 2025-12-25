@@ -11,13 +11,13 @@ use super::{
     TilePaletteSelection,
     palette::TilePaletteWidget,
     bar::MenuBarsWidget,
+    widgets::UiWidgetContext,
 };
 use crate::{
     tile::Tile,
     save::{Save, Load},
-    render::TextureCache,
-    engine::{Engine, time::Seconds},
-    imgui_ui::{UiSystem, UiInputEvent},
+    render::RenderSystem,
+    imgui_ui::UiInputEvent,
     app::input::{InputAction, MouseButton},
     utils::{Vec2, coords::{CellRange, WorldToScreenTransform}},
 };
@@ -34,12 +34,12 @@ pub struct InGameHudMenus {
 }
 
 impl InGameHudMenus {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+    pub fn new(context: &mut UiWidgetContext) -> Self {
         Self {
             tile_placement: TilePlacement::new(),
-            tile_palette: TilePaletteMenu::new(tex_cache, ui_sys),
+            tile_palette: TilePaletteMenu::new(context),
             tile_inspector: TileInspectorMenu::new(),
-            menu_bars: MenuBarsWidget::new(tex_cache, ui_sys),
+            menu_bars: MenuBarsWidget::new(context),
         }
     }
 }
@@ -66,20 +66,40 @@ impl GameMenusSystem for InGameHudMenus {
     }
 
     fn handle_custom_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
-        self.menu_bars.handle_input(context, args)
+        let mut widget_context = UiWidgetContext {
+            ui_sys: context.engine.ui_system(),
+            tex_cache: context.engine.texture_cache(),
+            sim: context.sim,
+            world: context.world,
+            viewport_size: context.engine.viewport().size(),
+            delta_time_secs: context.delta_time_secs,
+        };
+
+        self.menu_bars.handle_input(&mut widget_context, args)
     }
 
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
-        self.tile_palette.draw(context.engine,
+        let ui_sys = context.engine.ui_system();
+        let viewport_size = context.engine.viewport().size();
+        let render_sys = context.engine.render_system();
+        let tex_cache = context.engine.texture_cache();
+
+        let mut widget_context = UiWidgetContext {
+            ui_sys,
+            tex_cache,
+            sim: context.sim,
+            world: context.world,
+            viewport_size,
+            delta_time_secs: context.delta_time_secs,
+        };
+
+        self.tile_palette.draw(&mut widget_context,
+                               render_sys,
                                context.cursor_screen_pos,
                                context.camera.transform(),
-                               context.tile_selection.has_valid_placement(),
-                               context.delta_time_secs);
-
-        self.menu_bars.draw(context.sim,
-                            context.world,
-                            context.engine.ui_system(),
-                            context.delta_time_secs);
+                               context.tile_selection.has_valid_placement());
+    
+        self.menu_bars.draw(&mut widget_context);
     }
 }
 
@@ -100,21 +120,22 @@ struct TilePaletteMenu {
 }
 
 impl TilePaletteMenu {
-    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+    fn new(context: &mut UiWidgetContext) -> Self {
         Self {
-            widget: TilePaletteWidget::new(tex_cache, ui_sys),
+            widget: TilePaletteWidget::new(context),
             left_mouse_button_pressed: false,
         }
     }
 
     fn draw(&mut self,
-            engine: &mut dyn Engine,
+            widget_context: &mut UiWidgetContext,
+            render_sys: &mut dyn RenderSystem,
             cursor_screen_pos: Vec2,
             transform: WorldToScreenTransform,
-            has_valid_placement: bool,
-            delta_time_secs: Seconds) {
-        self.widget.draw(engine.ui_system(), delta_time_secs);
-        self.widget.draw_selected_tile(engine.render_system(), cursor_screen_pos, transform, has_valid_placement);
+            has_valid_placement: bool)
+    {
+        self.widget.draw(widget_context);
+        self.widget.draw_selected_tile(render_sys, cursor_screen_pos, transform, has_valid_placement);
     }
 }
 

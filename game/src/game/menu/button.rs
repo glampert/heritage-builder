@@ -3,13 +3,12 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    widgets,
+    widgets::{self, UiWidgetContext},
 };
 use crate::{
-    render::TextureCache,
     utils::{Size, Vec2, Rect, Color},
     engine::time::{Seconds, CountdownTimer},
-    imgui_ui::{UiSystem, UiTextureHandle, INVALID_UI_TEXTURE_HANDLE},
+    imgui_ui::{UiTextureHandle, INVALID_UI_TEXTURE_HANDLE},
 };
 
 // ----------------------------------------------
@@ -41,10 +40,13 @@ impl ButtonState {
         super::ui_assets_path().join("buttons").join(sprite_name)
     }
 
-    fn load_texture(self, name: &str, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> UiTextureHandle {
+    fn load_texture(self, name: &str, context: &mut UiWidgetContext) -> UiTextureHandle {
         let sprite_path = self.asset_path(name);
-        let tex_handle = tex_cache.load_texture_with_settings(sprite_path.to_str().unwrap(), Some(super::ui_texture_settings()));
-        ui_sys.to_ui_texture(tex_cache, tex_handle)
+        let tex_handle = context.tex_cache.load_texture_with_settings(
+            sprite_path.to_str().unwrap(),
+            Some(super::ui_texture_settings())
+        );
+        context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
     }
 }
 
@@ -61,15 +63,15 @@ impl ButtonSprites {
         Self { tex_handles: [INVALID_UI_TEXTURE_HANDLE; BUTTON_STATE_COUNT] }
     }
 
-    fn load(name: &str, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+    fn load(name: &str, context: &mut UiWidgetContext) -> Self {
         let mut sprites = Self::unloaded();
-        sprites.load_textures(name, tex_cache, ui_sys);
+        sprites.load_textures(name, context);
         sprites
     }
 
-    fn load_textures(&mut self, name: &str, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) {
+    fn load_textures(&mut self, name: &str, context: &mut UiWidgetContext) {
         for state in ButtonState::iter() {
-            self.tex_handles[state as usize] = state.load_texture(name, tex_cache, ui_sys);
+            self.tex_handles[state as usize] = state.load_texture(name, context);
         }
     }
 
@@ -114,27 +116,24 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(tex_cache: &mut dyn TextureCache,
-               ui_sys: &UiSystem,
-               def: ButtonDef,
-               initial_state: ButtonState) -> Self {
+    pub fn new(context: &mut UiWidgetContext, def: ButtonDef, initial_state: ButtonState) -> Self {
         let name = def.name;
         let hidden = def.hidden;
         let countdown = def.state_transition_secs;
         Self {
             def,
             rect: Rect::default(),
-            sprites: if hidden { ButtonSprites::unloaded() } else { ButtonSprites::load(name, tex_cache, ui_sys) },
+            sprites: if hidden { ButtonSprites::unloaded() } else { ButtonSprites::load(name, context) },
             logical_state: initial_state,
             visual_state: initial_state,
             visual_state_transition_timer: CountdownTimer::new(countdown),
         }
     }
 
-    pub fn draw(&mut self, ui_sys: &UiSystem, delta_time_secs: Seconds) -> bool {
+    pub fn draw(&mut self, context: &mut UiWidgetContext) -> bool {
         debug_assert!(self.sprites.are_textures_loaded());
 
-        let ui = ui_sys.ui();
+        let ui = context.ui_sys.ui();
         let ui_texture = self.sprites.texture_for_state(self.visual_state);
 
         let flags = imgui::ButtonFlags::MOUSE_BUTTON_LEFT | imgui::ButtonFlags::MOUSE_BUTTON_RIGHT;
@@ -154,7 +153,7 @@ impl Button {
                             .build();
 
         self.rect = Rect::from_extents(Vec2::from_array(rect_min), Vec2::from_array(rect_max));
-        self.update_state(hovered, left_click, right_click, delta_time_secs);
+        self.update_state(hovered, left_click, right_click, context.delta_time_secs);
 
         let show_tooltip = hovered && (!self.is_pressed() || self.def.show_tooltip_when_pressed);
 

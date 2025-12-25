@@ -1,9 +1,27 @@
 use std::{sync::atomic::{AtomicBool, Ordering}};
 
 use crate::{
-    utils::{Size, Vec2, Rect, Color},
+    engine::time::Seconds,
+    render::TextureCache,
     imgui_ui::{UiSystem, UiTextureHandle},
+    game::{sim::Simulation, world::World},
+    utils::{Size, Vec2, Rect, Color},
 };
+
+// ----------------------------------------------
+// UiWidgetContext
+// ----------------------------------------------
+
+pub struct UiWidgetContext<'game> {
+    pub ui_sys: &'game UiSystem,
+    pub tex_cache: &'game mut dyn TextureCache,
+
+    pub sim: &'game mut Simulation,
+    pub world: &'game World,
+
+    pub viewport_size: Size,
+    pub delta_time_secs: Seconds,
+}
 
 // ----------------------------------------------
 // ImGui helpers
@@ -321,7 +339,6 @@ pub fn window_flags() -> imgui::WindowFlags {
     | imgui::WindowFlags::NO_SCROLLBAR
     | imgui::WindowFlags::NO_MOVE
     | imgui::WindowFlags::NO_COLLAPSE
-    //| imgui::WindowFlags::NO_BACKGROUND // Add this back when we switch to a sprite background.
 }
 
 // ----------------------------------------------

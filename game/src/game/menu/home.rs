@@ -13,15 +13,14 @@ use super::{
     TilePlacement,
     TileInspector,
     modal::*,
-    widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons},
+    widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons, UiWidgetContext},
 };
 use crate::{
+    game::GameLoop,
     save::{Save, Load},
-    render::TextureCache,
     tile::rendering::TileMapRenderFlags,
-    game::{sim::Simulation, GameLoop},
     utils::{Size, Rect, Vec2, coords::CellRange},
-    imgui_ui::{UiSystem, UiInputEvent, UiTextureHandle},
+    imgui_ui::{UiInputEvent, UiTextureHandle},
 };
 
 // ----------------------------------------------
@@ -34,10 +33,10 @@ pub struct HomeMenus {
 }
 
 impl HomeMenus {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, viewport_size: Size) -> Self {
+    pub fn new(context: &mut UiWidgetContext) -> Self {
         Self {
-            main_menu: HomeMainMenu::new(tex_cache, ui_sys, viewport_size),
-            background: FullScreenBackground::new(tex_cache, ui_sys),
+            main_menu: HomeMainMenu::new(context),
+            background: FullScreenBackground::new(context),
         }
     }
 }
@@ -76,8 +75,17 @@ impl GameMenusSystem for HomeMenus {
         let _style_overrides =
             UiStyleOverrides::in_game_hud_menus(ui_sys);
 
-        self.main_menu.draw(context.sim, ui_sys);
-        self.background.draw(ui_sys);
+        let mut widget_context = UiWidgetContext {
+            ui_sys,
+            tex_cache: context.engine.texture_cache(),
+            sim: context.sim,
+            world: context.world,
+            viewport_size: context.engine.viewport().size(),
+            delta_time_secs: context.delta_time_secs,
+        };
+
+        self.main_menu.draw(&mut widget_context);
+        self.background.draw(&mut widget_context);
     }
 
     fn handle_input(&mut self, _context: &mut GameMenusContext, _args: GameMenusInputArgs) -> UiInputEvent {
@@ -144,25 +152,24 @@ struct HomeMainMenu {
 }
 
 impl HomeMainMenu {
-    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, viewport_size: Size) -> Self {
-        let separator_tex_handle = tex_cache.load_texture_with_settings(
+    fn new(context: &mut UiWidgetContext) -> Self {
+        let separator_tex_handle = context.tex_cache.load_texture_with_settings(
             super::ui_assets_path().join("misc/brush_stroke_divider.png").to_str().unwrap(),
             Some(super::ui_texture_settings())
         );
         Self {
             menu: BasicModalMenu::new(
-                tex_cache,
-                ui_sys,
+                context,
                 ModalMenuParams {
                     start_open: true,
                     position: Some(Vec2::new(50.0, 50.0)),
-                    size: Some(Size::new(550, viewport_size.height - 100)),
+                    size: Some(Size::new(550, context.viewport_size.height - 100)),
                     background_sprite: Some("misc/scroll_bg.png"),
                     ..Default::default()
                 }
             ),
-            separator_ui_texture: ui_sys.to_ui_texture(tex_cache, separator_tex_handle),
-            child_menus: Self::create_child_menus(tex_cache, ui_sys),
+            separator_ui_texture: context.ui_sys.to_ui_texture(context.tex_cache, separator_tex_handle),
+            child_menus: Self::create_child_menus(context),
         }
     }
 
@@ -172,92 +179,86 @@ impl HomeMainMenu {
             .map(|menu| menu.as_mut())
     }
 
-    fn close_child_menus(&mut self, sim: &mut Simulation) {
-        for child_menu in &mut self.child_menus {
-            if let Some(menu) = child_menu {
-                menu.close(sim);
-            }
+    fn close_child_menus(&mut self, context: &mut UiWidgetContext) {
+        for menu in (&mut self.child_menus).into_iter().flatten() {
+            menu.close(context);
         }
     }
 
-    fn draw_child_menus(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
-        for child_menu in &mut self.child_menus {
-            if let Some(menu) = child_menu {
-                menu.draw(sim, ui_sys);
-            }
+    fn draw_child_menus(&mut self, context: &mut UiWidgetContext) {
+        for menu in (&mut self.child_menus).into_iter().flatten() {
+            menu.draw(context);
         }
     }
 
-    fn create_child_menus(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem)
-                          -> ArrayVec<Option<Box<dyn ModalMenu>>, MAIN_MENU_BUTTON_COUNT> {
+    fn create_child_menus(context: &mut UiWidgetContext) -> ArrayVec<Option<Box<dyn ModalMenu>>, MAIN_MENU_BUTTON_COUNT> {
         let mut menus = ArrayVec::new();
         for button in HomeMainMenuButton::iter() {
-            menus.push(Self::create_child_menu_for_button(tex_cache, ui_sys, button));
+            menus.push(Self::create_child_menu_for_button(context, button));
         }
         menus
     }
 
-    fn create_child_menu_for_button(tex_cache: &mut dyn TextureCache,
-                                    ui_sys: &UiSystem,
+    fn create_child_menu_for_button(context: &mut UiWidgetContext,
                                     button: HomeMainMenuButton)
                                     -> Option<Box<dyn ModalMenu>> {
         let menu: Box<dyn ModalMenu> = match button {
-            HomeMainMenuButton::NewGame    => Box::new(NewGameModalMenu::new(tex_cache, ui_sys, "New Game".into())),
+            HomeMainMenuButton::NewGame    => Box::new(NewGameModalMenu::new(context, "New Game".into())),
             HomeMainMenuButton::Continue   => return None, // TODO
-            HomeMainMenuButton::LoadGame   => Box::new(SaveGameModalMenu::new(tex_cache, ui_sys, SaveGameActions::Load)),
+            HomeMainMenuButton::LoadGame   => Box::new(SaveGameModalMenu::new(context, SaveGameActions::Load)),
             HomeMainMenuButton::CustomGame => return None, // TODO
-            HomeMainMenuButton::Settings   => Box::new(SettingsModalMenu::new(tex_cache, ui_sys, "Settings".into())),
+            HomeMainMenuButton::Settings   => Box::new(SettingsModalMenu::new(context, "Settings".into())),
             HomeMainMenuButton::About      => return None, // TODO
             HomeMainMenuButton::Exit       => return None, // Exit - no menu.
         };
         Some(menu)
     }
 
-    fn handle_button_click(&mut self, sim: &mut Simulation, button: HomeMainMenuButton) {
+    fn handle_button_click(&mut self, context: &mut UiWidgetContext, button: HomeMainMenuButton) {
         match button {
-            HomeMainMenuButton::NewGame    => self.on_new_game_button(sim),
-            HomeMainMenuButton::Continue   => self.on_continue_button(sim),
-            HomeMainMenuButton::LoadGame   => self.on_load_game_button(sim),
-            HomeMainMenuButton::CustomGame => self.on_custom_game_button(sim),
-            HomeMainMenuButton::Settings   => self.on_settings_button(sim),
-            HomeMainMenuButton::About      => self.on_about_button(sim),
-            HomeMainMenuButton::Exit       => self.on_exit_button(sim),
+            HomeMainMenuButton::NewGame    => self.on_new_game_button(context),
+            HomeMainMenuButton::Continue   => self.on_continue_button(context),
+            HomeMainMenuButton::LoadGame   => self.on_load_game_button(context),
+            HomeMainMenuButton::CustomGame => self.on_custom_game_button(context),
+            HomeMainMenuButton::Settings   => self.on_settings_button(context),
+            HomeMainMenuButton::About      => self.on_about_button(context),
+            HomeMainMenuButton::Exit       => self.on_exit_button(context),
         }
     }
 
-    fn on_new_game_button(&mut self, sim: &mut Simulation) {
+    fn on_new_game_button(&mut self, context: &mut UiWidgetContext) {
         if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::NewGame) {
-            menu.open(sim);
+            menu.open(context);
         }
     }
 
-    fn on_continue_button(&mut self, sim: &mut Simulation) {
+    fn on_continue_button(&mut self, context: &mut UiWidgetContext) {
         if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::Continue) {
-            menu.open(sim);
+            menu.open(context);
         }
     }
 
-    fn on_load_game_button(&mut self, sim: &mut Simulation) {
+    fn on_load_game_button(&mut self, context: &mut UiWidgetContext) {
         if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::LoadGame) {
-            menu.open(sim);
+            menu.open(context);
         }
     }
 
-    fn on_custom_game_button(&mut self, sim: &mut Simulation) {
+    fn on_custom_game_button(&mut self, context: &mut UiWidgetContext) {
         if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::CustomGame) {
-            menu.open(sim);
+            menu.open(context);
         }
     }
 
-    fn on_settings_button(&mut self, sim: &mut Simulation) {
+    fn on_settings_button(&mut self, context: &mut UiWidgetContext) {
         if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::Settings) {
-            menu.open(sim);
+            menu.open(context);
         }
     }
 
-    fn on_about_button(&mut self, sim: &mut Simulation) {
+    fn on_about_button(&mut self, context: &mut UiWidgetContext) {
         if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::About) {
-            menu.open(sim);
+            menu.open(context);
         }
 
         // TODO
@@ -265,7 +266,7 @@ impl HomeMainMenu {
         //ui.text("COPYRIGHT (C) 2025. ALL RIGHTS RESERVED");
     }
 
-    fn on_exit_button(&mut self, _sim: &mut Simulation) {
+    fn on_exit_button(&mut self, _context: &mut UiWidgetContext) {
         GameLoop::get_mut().request_quit();
     }
 }
@@ -279,28 +280,28 @@ impl ModalMenu for HomeMainMenu {
         self.menu.is_open()
     }
 
-    fn open(&mut self, sim: &mut Simulation) {
-        self.menu.open(sim);
+    fn open(&mut self, context: &mut UiWidgetContext) {
+        self.menu.open(context);
     }
 
-    fn close(&mut self, sim: &mut Simulation) {
-        self.menu.close(sim);
+    fn close(&mut self, context: &mut UiWidgetContext) {
+        self.menu.close(context);
     }
 
-    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
+    fn draw(&mut self, context: &mut UiWidgetContext) {
         let mut pressed_button: Option<HomeMainMenuButton> = None;
 
-        self.menu.draw(sim, ui_sys, |_sim| {
-            let ui = ui_sys.ui();
+        self.menu.draw(context, |context| {
+            let ui = context.ui_sys.ui();
             let window_draw_list = ui.get_window_draw_list();
 
             // Make button background transparent and borderless.
             let _button_style_overrides =
-                UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+                UiStyleTextLabelInvisibleButtons::apply_overrides(context.ui_sys);
 
             const BUTTON_SPACING: Vec2 = Vec2::new(6.0, 6.0);
             let _item_spacing =
-                UiStyleOverrides::set_item_spacing(ui_sys, BUTTON_SPACING.x, BUTTON_SPACING.y);
+                UiStyleOverrides::set_item_spacing(context.ui_sys, BUTTON_SPACING.x, BUTTON_SPACING.y);
 
             // Bigger font for the heading.
             ui.set_window_font_scale(1.8);
@@ -364,11 +365,11 @@ impl ModalMenu for HomeMainMenu {
         });
 
         if let Some(button) = pressed_button {
-            self.close_child_menus(sim);
-            self.handle_button_click(sim, button);
+            self.close_child_menus(context);
+            self.handle_button_click(context, button);
         }
 
-        self.draw_child_menus(sim, ui_sys);
+        self.draw_child_menus(context);
     }
 }
 
@@ -381,18 +382,18 @@ struct FullScreenBackground {
 }
 
 impl FullScreenBackground {
-    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
-        let bg_tex_handle = tex_cache.load_texture_with_settings(
+    fn new(context: &mut UiWidgetContext) -> Self {
+        let bg_tex_handle = context.tex_cache.load_texture_with_settings(
             super::ui_assets_path().join("misc/home_menu_bg.png").to_str().unwrap(),
             Some(super::ui_texture_settings())
         );
         Self {
-            ui_texture: ui_sys.to_ui_texture(tex_cache, bg_tex_handle),
+            ui_texture: context.ui_sys.to_ui_texture(context.tex_cache, bg_tex_handle),
         }
     }
 
-    fn draw(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
+    fn draw(&self, context: &mut UiWidgetContext) {
+        let ui = context.ui_sys.ui();
         let draw_list = ui.get_background_draw_list();
 
         // Draw full-screen rectangle with the background image:

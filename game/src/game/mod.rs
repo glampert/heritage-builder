@@ -18,7 +18,7 @@ use menu::{
     GameMenusInputArgs,
     home::HomeMenus,
     hud::InGameHudMenus,
-    widgets::UiStyleOverrides
+    widgets::{UiStyleOverrides, UiWidgetContext}
 };
 
 use crate::{
@@ -88,7 +88,7 @@ impl GameSession {
         }
 
         let mut world = World::new();
-        let mut tile_map = Self::new_tile_map(&mut world, load_map_setting);
+        let tile_map = Self::new_tile_map(&mut world, load_map_setting);
         let sim = Simulation::new(&tile_map);
 
         let mut systems = GameSystems::new();
@@ -100,8 +100,6 @@ impl GameSession {
                                  configs.camera.zoom,
                                  configs.camera.offset);
 
-        let menus = Self::new_game_menus_from_config(&mut tile_map, engine, home_menu);
-
         let mut session = Self {
             tile_map,
             world,
@@ -109,8 +107,10 @@ impl GameSession {
             systems,
             camera,
             tile_selection: TileSelection::default(),
-            menus: Some(menus),
+            menus: None,
         };
+
+        session.menus = Some(session.new_game_menus_from_config(engine, home_menu));
 
         if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
             session.load_save_game(&make_save_game_file_path(save_file_path));
@@ -125,24 +125,40 @@ impl GameSession {
         session
     }
 
-    fn new_game_menus(menu_mode: GameMenuMode, tile_map: &mut TileMap, engine: &dyn Engine) -> Box<dyn GameMenusSystem> {
+    fn new_game_menus(&mut self, engine: &dyn Engine, menu_mode: GameMenuMode) -> Box<dyn GameMenusSystem> {
         match menu_mode {
             GameMenuMode::DevEditor => {
                 log::info!(log::channel!("session"), "Loading DevEditorMenus ...");
-                Box::new(DevEditorMenus::new(tile_map))
+                Box::new(DevEditorMenus::new(&mut self.tile_map))
             }
             GameMenuMode::InGameHud => {
                 log::info!(log::channel!("session"), "Loading InGameHudMenus ...");
-                Box::new(InGameHudMenus::new(engine.texture_cache(), engine.ui_system()))
+                let mut context = UiWidgetContext {
+                    ui_sys: engine.ui_system(),
+                    tex_cache: engine.texture_cache(),
+                    sim: &mut self.sim,
+                    world: &mut self.world,
+                    viewport_size: engine.viewport().size(),
+                    delta_time_secs: engine.frame_clock().delta_time(),
+                };
+                Box::new(InGameHudMenus::new(&mut context))
             }
             GameMenuMode::Home => {
                 log::info!(log::channel!("session"), "Loading HomeMenus ...");
-                Box::new(HomeMenus::new(engine.texture_cache(), engine.ui_system(), engine.viewport().size()))
+                let mut context = UiWidgetContext {
+                    ui_sys: engine.ui_system(),
+                    tex_cache: engine.texture_cache(),
+                    sim: &mut self.sim,
+                    world: &mut self.world,
+                    viewport_size: engine.viewport().size(),
+                    delta_time_secs: engine.frame_clock().delta_time(),
+                };
+                Box::new(HomeMenus::new(&mut context))
             }
         }
     }
 
-    fn new_game_menus_from_config(tile_map: &mut TileMap, engine: &dyn Engine, home_menu: bool) -> Box<dyn GameMenusSystem> {
+    fn new_game_menus_from_config(&mut self, engine: &dyn Engine, home_menu: bool) -> Box<dyn GameMenusSystem> {
         let configs = GameConfigs::get();
         let menu_mode = {
             if configs.debug.skip_home_menu || !home_menu {
@@ -155,17 +171,17 @@ impl GameSession {
                 GameMenuMode::Home
             }
         };
-        Self::new_game_menus(menu_mode, tile_map, engine)
+        self.new_game_menus(engine, menu_mode)
     }
 
     fn toggle_menu_mode(&mut self, engine: &dyn Engine) {
-        if let Some(menus) = &mut self.menus {
-            match menus.mode() {
+        if let Some(mode) = self.current_menu_mode() {
+            match mode {
                 GameMenuMode::DevEditor => {
-                    *menus = Self::new_game_menus(GameMenuMode::InGameHud, &mut self.tile_map, engine);
+                    self.menus = Some(self.new_game_menus(engine, GameMenuMode::InGameHud));
                 }
                 GameMenuMode::InGameHud => {
-                    *menus = Self::new_game_menus(GameMenuMode::DevEditor, &mut self.tile_map, engine);
+                    self.menus = Some(self.new_game_menus(engine, GameMenuMode::DevEditor));
                 }
                 GameMenuMode::Home => {} // Cannot toggle out of home menu.
             }
@@ -230,7 +246,7 @@ impl GameSession {
     fn reset(&mut self, engine: &dyn Engine, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>, home_menu: bool) {
         undo_redo::clear();
         self.tile_selection = TileSelection::default();
-        self.menus = Some(Self::new_game_menus_from_config(&mut self.tile_map, engine, home_menu));
+        self.menus = Some(self.new_game_menus_from_config(engine, home_menu));
         self.sim.reset_world(&mut self.world, &mut self.systems, &mut self.tile_map);
 
         if reset_map && (self.tile_map.size_in_cells().is_valid() || new_map_size.is_some()) {
@@ -324,7 +340,7 @@ impl Load for GameSession {
         self.camera.post_load(context);
         self.tile_selection.post_load(context);
 
-        let mut menus = Self::new_game_menus_from_config(context.tile_map_mut(), context.engine(), false);
+        let mut menus = self.new_game_menus_from_config(context.engine(), false);
         menus.post_load(context);
         self.menus = Some(menus);
     }

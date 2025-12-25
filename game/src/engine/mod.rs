@@ -53,7 +53,7 @@ pub trait Engine: Any {
     fn app(&mut self) -> &mut dyn Application;
     fn input_system(&self) -> &dyn InputSystem;
 
-    fn render_system(&mut self) -> &mut dyn RenderSystem;
+    fn render_system(&self) -> &mut dyn RenderSystem;
     fn texture_cache(&self) -> &mut dyn TextureCache;
     fn render_stats(&self) -> &RenderStats;
     fn tile_map_render_stats(&self) -> &TileMapRenderStats;
@@ -244,8 +244,8 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 
     #[inline]
-    fn render_system(&mut self) -> &mut dyn RenderSystem {
-        &mut *self.render_system
+    fn render_system(&self) -> &mut dyn RenderSystem {
+        mem::mut_ref_cast(self.render_system.as_ref())
     }
 
     #[inline]

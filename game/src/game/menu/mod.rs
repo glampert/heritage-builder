@@ -34,6 +34,13 @@ mod bar;
 // Helper structs
 // ----------------------------------------------
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum GameMenuMode {
+    DevEditor,
+    InGameHud,
+    Home,
+}
+
 #[derive(Copy, Clone)]
 pub enum GameMenusInputArgs {
     Key {
@@ -114,6 +121,10 @@ impl GameMenusContext<'_> {
     }
 }
 
+// ----------------------------------------------
+// Helper functions
+// ----------------------------------------------
+
 pub fn ui_assets_path() -> PathBuf {
     paths::asset_path("ui")
 }
@@ -125,13 +136,6 @@ pub fn ui_texture_settings() -> TextureSettings {
         gen_mipmaps: false,
         ..Default::default()
     }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum GameMenuMode {
-    DevEditor,
-    InGameHud,
-    Home,
 }
 
 // ----------------------------------------------

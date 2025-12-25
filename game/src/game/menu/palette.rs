@@ -5,12 +5,10 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 use super::{
     TilePaletteSelection,
     button::{Button, ButtonState, ButtonDef},
-    widgets::{self, UiStyleOverrides},
+    widgets::{self, UiStyleOverrides, UiWidgetContext},
 };
 use crate::{
-    imgui_ui::UiSystem,
-    engine::time::Seconds,
-    render::{RenderSystem, TextureCache, TextureHandle},
+    render::{RenderSystem, TextureHandle},
     utils::{self, Size, Vec2, Color, Rect, RectTexCoords, coords::WorldToScreenTransform},
     tile::{
         TileKind, BASE_TILE_SIZE, rendering::INVALID_TILE_COLOR,
@@ -116,12 +114,11 @@ impl TilePaletteMainButtonKind {
         children
     }
 
-    fn new_button(self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> TilePaletteMainButton {
+    fn new_button(self, context: &mut UiWidgetContext) -> TilePaletteMainButton {
         let children = self.build_child_button_list();
         TilePaletteMainButton {
             btn: Button::new(
-                tex_cache,
-                ui_sys,
+                context,
                 ButtonDef {
                     name: self.sprite_path(),
                     size: Self::BUTTON_SIZE,
@@ -137,12 +134,10 @@ impl TilePaletteMainButtonKind {
         }
     }
 
-    fn create_all(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem)
-                  -> ArrayVec<TilePaletteMainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>
-    {
+    fn create_all(context: &mut UiWidgetContext) -> ArrayVec<TilePaletteMainButton, TILE_PALETTE_MAIN_BUTTON_COUNT> {
         let mut buttons = ArrayVec::new();
         for btn_kind in Self::iter() {
-            buttons.push(btn_kind.new_button(tex_cache, ui_sys));
+            buttons.push(btn_kind.new_button(context));
         }
         buttons
     }
@@ -171,16 +166,16 @@ impl TilePaletteMainButton {
         self.btn.is_pressed()
     }
 
-    fn draw_main_button(&mut self, ui_sys: &UiSystem, delta_time_secs: Seconds) -> bool {
-        self.btn.draw(ui_sys, delta_time_secs)
+    fn draw_main_button(&mut self, context: &mut UiWidgetContext) -> bool {
+        self.btn.draw(context)
     }
 
-    fn draw_child_buttons(&mut self, ui_sys: &UiSystem) -> Option<usize> {
+    fn draw_child_buttons(&mut self, context: &mut UiWidgetContext) -> Option<usize> {
         if self.children.is_empty() {
             return None;
         }
 
-        let ui = ui_sys.ui();
+        let ui = context.ui_sys.ui();
 
         const BUTTON_HEIGHT: f32 = 20.0;
         const LABEL_PADDING: f32 = 25.0;
@@ -201,7 +196,7 @@ impl TilePaletteMainButton {
         ];
 
         let _item_spacing =
-            UiStyleOverrides::set_item_spacing(ui_sys, 0.0, VERTICAL_SPACING);
+            UiStyleOverrides::set_item_spacing(context.ui_sys, 0.0, VERTICAL_SPACING);
 
         ui.window(format!("Child Window {:?}", self.kind))
             .position(window_position, imgui::Condition::Always)
@@ -269,16 +264,16 @@ pub struct TilePaletteWidget {
 }
 
 impl TilePaletteWidget {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+    pub fn new(context: &mut UiWidgetContext) -> Self {
         let clear_icon_path = super::ui_assets_path().join("icons/red_x_icon.png");
-        let clear_icon_sprite = tex_cache.load_texture_with_settings(
+        let clear_icon_sprite = context.tex_cache.load_texture_with_settings(
             clear_icon_path.to_str().unwrap(),
             Some(super::ui_texture_settings())
         );
 
         Self {
             current_selection: TilePaletteSelection::None,
-            main_buttons: TilePaletteMainButtonKind::create_all(tex_cache, ui_sys),
+            main_buttons: TilePaletteMainButtonKind::create_all(context),
             pressed_main_button: None,
             clear_icon_sprite,
         }
@@ -293,7 +288,8 @@ impl TilePaletteWidget {
         self.pressed_main_button = None;
     }
 
-    pub fn draw(&mut self, ui_sys: &UiSystem, delta_time_secs: Seconds) {
+    pub fn draw(&mut self, context: &mut UiWidgetContext) {
+        let ui_sys = context.ui_sys;
         let ui = ui_sys.ui();
 
         const BUTTON_SIZE: Vec2 = TilePaletteMainButtonKind::BUTTON_SIZE.to_vec2();
@@ -322,7 +318,7 @@ impl TilePaletteWidget {
                 let previously_pressed_button = self.pressed_main_button;
 
                 for (index, button) in self.main_buttons.iter_mut().enumerate() {
-                    let was_pressed_this_frame = button.draw_main_button(ui_sys, delta_time_secs);
+                    let was_pressed_this_frame = button.draw_main_button(context);
 
                     if button.kind.separator_follows() {
                         ui.separator();
@@ -360,7 +356,7 @@ impl TilePaletteWidget {
                         if pressed_button.has_children() {
                             // Keep the parent button pressed but close the child panel when we have a selection.
                             if self.current_selection.is_none() {
-                                let pressed_child_index = pressed_button.draw_child_buttons(ui_sys);
+                                let pressed_child_index = pressed_button.draw_child_buttons(context);
                                 self.current_selection = pressed_button.current_selection(pressed_child_index);
                             }
                             // Else hold current selection.

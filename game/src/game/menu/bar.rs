@@ -4,19 +4,15 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    GameMenusContext,
-    GameMenusInputArgs,
     modal::*,
     button::{Button, ButtonState, ButtonDef},
-    widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons},
+    widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons, UiWidgetContext},
+    GameMenusInputArgs,
 };
 use crate::{
-    render::TextureCache,
-    engine::time::Seconds,
     utils::{self, Size, Rect, Vec2},
-    game::{sim::Simulation, world::World},
     app::input::{InputAction, InputKey},
-    imgui_ui::{UiSystem, UiTextureHandle, UiInputEvent},
+    imgui_ui::{UiTextureHandle, UiInputEvent},
 };
 
 // ----------------------------------------------
@@ -32,29 +28,29 @@ pub struct MenuBarsWidget {
 }
 
 impl MenuBarsWidget {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+    pub fn new(context: &mut UiWidgetContext) -> Self {
         Self {
-            top_bar: TopBar::new(tex_cache, ui_sys),
-            left_bar: LeftBar::new(tex_cache, ui_sys),
-            game_speed_controls_bar: GameSpeedControlsBar::new(tex_cache, ui_sys),
+            top_bar: TopBar::new(context),
+            left_bar: LeftBar::new(context),
+            game_speed_controls_bar: GameSpeedControlsBar::new(context),
         }
     }
 
-    pub fn handle_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
+    pub fn handle_input(&mut self, context: &mut UiWidgetContext, args: GameMenusInputArgs) -> UiInputEvent {
         self.left_bar.handle_input(context, args)
     }
 
-    pub fn draw(&mut self, sim: &mut Simulation, world: &World, ui_sys: &UiSystem, delta_time_secs: Seconds) {
-        let ui = ui_sys.ui();
+    pub fn draw(&mut self, context: &mut UiWidgetContext) {
+        let ui = context.ui_sys.ui();
 
         const HORIZONTAL_SPACING: f32 = 2.0;
         const VERTICAL_SPACING: f32 = 4.0;
 
         let _style_overrides =
-            UiStyleOverrides::in_game_hud_menus(ui_sys);
+            UiStyleOverrides::in_game_hud_menus(context.ui_sys);
 
         let _item_spacing =
-            UiStyleOverrides::set_item_spacing(ui_sys, HORIZONTAL_SPACING, VERTICAL_SPACING);
+            UiStyleOverrides::set_item_spacing(context.ui_sys, HORIZONTAL_SPACING, VERTICAL_SPACING);
 
         // Center top bar to the middle of the display:
         widgets::set_next_window_pos(
@@ -62,37 +58,37 @@ impl MenuBarsWidget {
             Vec2::new(0.5, 0.0),
             imgui::Condition::Always
         );
-        Self::draw_bar_widget(ui_sys,
+        Self::draw_bar_widget(context,
                               None, // Handled by set_next_window_pos instead.
                               "Menu Bar Widget Top",
-                              || self.top_bar.draw(sim, world, ui_sys, delta_time_secs));
+                              |context| self.top_bar.draw(context));
 
         // Left-hand-side vertical bar:
-        Self::draw_bar_widget(ui_sys,
+        Self::draw_bar_widget(context,
                               Some([0.0, 60.0]),
                               "Menu Bar Widget Left",
-                              || self.left_bar.draw(sim, world, ui_sys, delta_time_secs));
+                              |context| self.left_bar.draw(context));
 
         // Game speed controls horizontal top bar:
-        Self::draw_bar_widget(ui_sys,
+        Self::draw_bar_widget(context,
                               Some([0.0, 0.0]),
                               "Menu Bar Widget Speed Ctrls",
-                              || self.game_speed_controls_bar.draw(sim, world, ui_sys, delta_time_secs));
+                              |context| self.game_speed_controls_bar.draw(context));
     }
 
-    fn draw_bar_widget<F>(ui_sys: &UiSystem,
-                          position: Option<[f32; 2]>,
-                          name: &str,
-                          f: F)
-        where F: FnOnce()
+    fn draw_bar_widget<DrawFn>(context: &mut UiWidgetContext,
+                               position: Option<[f32; 2]>,
+                               name: &str,
+                               draw_fn: DrawFn)
+        where DrawFn: FnOnce(&mut UiWidgetContext)
     {
         let pos_cond = if position.is_some() { imgui::Condition::Always } else { imgui::Condition::Never };
-        ui_sys.ui().window(name)
+        context.ui_sys.ui().window(name)
             .position(position.unwrap_or([0.0, 0.0]), pos_cond)
             .flags(widgets::window_flags())
             .build(|| {
-                f();
-                widgets::draw_current_window_debug_rect(ui_sys.ui());
+                draw_fn(context);
+                widgets::draw_current_window_debug_rect(context.ui_sys.ui());
             });
     }
 }
@@ -104,14 +100,14 @@ impl MenuBarsWidget {
 pub trait MenuBar: Any {
     fn as_any(&self) -> &dyn Any;
 
-    fn draw(&mut self, sim: &mut Simulation, world: &World, ui_sys: &UiSystem, delta_time_secs: Seconds);
-    fn handle_input(&mut self, _context: &mut GameMenusContext, _args: GameMenusInputArgs) -> UiInputEvent {
+    fn draw(&mut self, context: &mut UiWidgetContext);
+    fn handle_input(&mut self, _context: &mut UiWidgetContext, _args: GameMenusInputArgs) -> UiInputEvent {
         UiInputEvent::NotHandled
     }
 
-    fn open_modal_menu(&mut self, _sim: &mut Simulation, _menu_id: ModalMenuId) -> Option<&mut dyn ModalMenu> { None }
-    fn close_modal_menu(&mut self, _sim: &mut Simulation, _menu_id: ModalMenuId) {}
-    fn close_all_modal_menus(&mut self, _sim: &mut Simulation) -> bool { false }
+    fn open_modal_menu(&mut self, _context: &mut UiWidgetContext, _menu_id: ModalMenuId) -> Option<&mut dyn ModalMenu> { None }
+    fn close_modal_menu(&mut self, _context: &mut UiWidgetContext, _menu_id: ModalMenuId) {}
+    fn close_all_modal_menus(&mut self, _context: &mut UiWidgetContext) -> bool { false }
 }
 
 // ----------------------------------------------
@@ -147,10 +143,13 @@ impl TopBarIcon {
             .with_extension("png")
     }
 
-    fn load_texture(self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> UiTextureHandle {
+    fn load_texture(self, context: &mut UiWidgetContext) -> UiTextureHandle {
         let sprite_path = self.asset_path();
-        let tex_handle = tex_cache.load_texture_with_settings(sprite_path.to_str().unwrap(), Some(super::ui_texture_settings()));
-        ui_sys.to_ui_texture(tex_cache, tex_handle)
+        let tex_handle = context.tex_cache.load_texture_with_settings(
+            sprite_path.to_str().unwrap(),
+            Some(super::ui_texture_settings())
+        );
+        context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
     }
 }
 
@@ -159,10 +158,10 @@ struct TopBar {
 }
 
 impl TopBar {
-    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Box<Self> {
+    fn new(context: &mut UiWidgetContext) -> Box<Self> {
         let mut icon_textures = ArrayVec::new();
         for icon in TopBarIcon::iter() {
-            icon_textures.push(icon.load_texture(tex_cache, ui_sys));
+            icon_textures.push(icon.load_texture(context));
         }
         Box::new(Self { icon_textures })
     }
@@ -173,17 +172,17 @@ impl MenuBar for TopBar {
         self
     }
 
-    fn draw(&mut self, _sim: &mut Simulation, world: &World, ui_sys: &UiSystem, _delta_time_secs: Seconds) {
-        let ui = ui_sys.ui();
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        let ui = context.ui_sys.ui();
         let draw_list = ui.get_window_draw_list();
 
         // Spacing is handled manually with dummy items.
         let _item_spacing =
-            UiStyleOverrides::set_item_spacing(ui_sys, 0.0, 0.0);
+            UiStyleOverrides::set_item_spacing(context.ui_sys, 0.0, 0.0);
 
         // We'll use buttons for text labels, for straightforward text centering and layout.
         let _btn_style_overrides =
-            UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+            UiStyleTextLabelInvisibleButtons::apply_overrides(context.ui_sys);
 
         // Population:
         {
@@ -193,7 +192,7 @@ impl MenuBar for TopBar {
             widgets::draw_sprite(ui, &draw_list, "Population", icon_size, icon_texture, Some("Population"));
             ui.same_line(); // Horizontal layout.
 
-            let population = world.stats().population.total;
+            let population = context.world.stats().population.total;
             widgets::draw_centered_text_label(ui, &draw_list, &population.to_string(), Vec2::new(50.0, icon_size.y));
             ui.same_line();
 
@@ -239,7 +238,7 @@ impl MenuBar for TopBar {
             widgets::draw_sprite(ui, &draw_list, "Gold", icon_size, icon_texture, Some("Gold"));
             ui.same_line(); // Horizontal layout.
 
-            let gold_units_total = world.stats().treasury.gold_units_total;
+            let gold_units_total = context.world.stats().treasury.gold_units_total;
             widgets::draw_centered_text_label(ui, &draw_list, &gold_units_total.to_string(), Vec2::new(50.0, icon_size.y));
             ui.same_line();
         }
@@ -291,11 +290,10 @@ impl LeftBarButtonKind {
         self.get_bool("Hidden").unwrap_or(false)
     }
 
-    fn new_button(self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> LeftBarButton {
+    fn new_button(self, context: &mut UiWidgetContext) -> LeftBarButton {
         LeftBarButton {
             btn: Button::new(
-                tex_cache,
-                ui_sys,
+                context,
                 ButtonDef {
                     name: self.sprite_path(),
                     size: Self::BUTTON_SIZE,
@@ -310,12 +308,10 @@ impl LeftBarButtonKind {
         }
     }
 
-    fn create_all(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem)
-                  -> ArrayVec<LeftBarButton, LEFT_BAR_BUTTON_COUNT>
-    {
+    fn create_all(context: &mut UiWidgetContext) -> ArrayVec<LeftBarButton, LEFT_BAR_BUTTON_COUNT> {
         let mut buttons = ArrayVec::new();
         for btn_kind in Self::iter() {
-            buttons.push(btn_kind.new_button(tex_cache, ui_sys));
+            buttons.push(btn_kind.new_button(context));
         }
         buttons
     }
@@ -332,9 +328,9 @@ struct LeftBar {
 }
 
 impl LeftBar {
-    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Box<Self> {
+    fn new(context: &mut UiWidgetContext) -> Box<Self> {
         let mut left_bar = Box::new(Self {
-            buttons: LeftBarButtonKind::create_all(tex_cache, ui_sys),
+            buttons: LeftBarButtonKind::create_all(context),
             modal_menus: ArrayVec::new(),
         });
 
@@ -343,28 +339,28 @@ impl LeftBar {
                 LeftBarButtonKind::MainMenu =>{
                     left_bar.modal_menus.push(
                         Box::new(
-                            MainModalMenu::new(tex_cache, ui_sys, LeftBarButtonKind::MainMenu.tooltip(), left_bar.as_ref())
+                            MainModalMenu::new(context, LeftBarButtonKind::MainMenu.tooltip(), left_bar.as_ref())
                         )
                     )
                 }
                 LeftBarButtonKind::SaveGame => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            SaveGameModalMenu::new(tex_cache, ui_sys, SaveGameActions::Save | SaveGameActions::Load)
+                            SaveGameModalMenu::new(context, SaveGameActions::Save | SaveGameActions::Load)
                         )
                     )
                 }
                 LeftBarButtonKind::Settings => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            SettingsModalMenu::new(tex_cache, ui_sys, LeftBarButtonKind::Settings.tooltip())
+                            SettingsModalMenu::new(context, LeftBarButtonKind::Settings.tooltip())
                         )
                     )
                 }
                 LeftBarButtonKind::NewGame => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            NewGameModalMenu::new(tex_cache, ui_sys, LeftBarButtonKind::NewGame.tooltip())
+                            NewGameModalMenu::new(context, LeftBarButtonKind::NewGame.tooltip())
                         )
                     )
                 }
@@ -380,7 +376,7 @@ impl MenuBar for LeftBar {
         self
     }
 
-    fn draw(&mut self, sim: &mut Simulation, _world: &World, ui_sys: &UiSystem, delta_time_secs: Seconds) {
+    fn draw(&mut self, context: &mut UiWidgetContext) {
         // Each button is associated with a modal menu.
         debug_assert!(self.buttons.len() == self.modal_menus.len());
 
@@ -391,7 +387,7 @@ impl MenuBar for LeftBar {
                 continue;
             }
 
-            let pressed = button.btn.draw(ui_sys, delta_time_secs);
+            let pressed = button.btn.draw(context);
 
             if pressed && pressed_button_index.is_none() {
                 pressed_button_index = Some(index);
@@ -403,28 +399,28 @@ impl MenuBar for LeftBar {
 
         if let Some(pressed_index) = pressed_button_index {
             // Ensure any other menus are closed first.
-            self.close_all_modal_menus(sim);
+            self.close_all_modal_menus(context);
             // Open new menu.
-            self.modal_menus[pressed_index].open(sim);
+            self.modal_menus[pressed_index].open(context);
         }
 
         // Draw open modal menus.
         let mut any_modal_menu_open = false;
         for modal in &mut self.modal_menus {
-            modal.draw(sim, ui_sys);
+            modal.draw(context);
             any_modal_menu_open |= modal.is_open();
         }
 
         if any_modal_menu_open {
-            sim.pause();
+            context.sim.pause();
         }
     }
 
-    fn handle_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
+    fn handle_input(&mut self, context: &mut UiWidgetContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
             if action == InputAction::Press && key == InputKey::Escape {
                 // Close all modal menus and return to game.
-                if self.close_all_modal_menus(context.sim) {
+                if self.close_all_modal_menus(context) {
                     // Handled the key press.
                     return UiInputEvent::Handled;
                 }
@@ -435,13 +431,13 @@ impl MenuBar for LeftBar {
         UiInputEvent::NotHandled
     }
 
-    fn open_modal_menu(&mut self, sim: &mut Simulation, menu_id: ModalMenuId) -> Option<&mut dyn ModalMenu> {
+    fn open_modal_menu(&mut self, context: &mut UiWidgetContext, menu_id: ModalMenuId) -> Option<&mut dyn ModalMenu> {
         // Only one modal menu open at a time.
-        self.close_all_modal_menus(sim);
+        self.close_all_modal_menus(context);
 
         for modal in &mut self.modal_menus {
             if modal.id() == menu_id {
-                modal.open(sim);
+                modal.open(context);
                 return Some(modal.as_mut());
             }
         }
@@ -449,10 +445,10 @@ impl MenuBar for LeftBar {
         panic!("Modal Menu not found!");
     }
 
-    fn close_modal_menu(&mut self, sim: &mut Simulation, menu_id: ModalMenuId) {
+    fn close_modal_menu(&mut self, context: &mut UiWidgetContext, menu_id: ModalMenuId) {
         for modal in &mut self.modal_menus {
             if modal.id() == menu_id {
-                modal.close(sim);
+                modal.close(context);
                 return;
             }
         }
@@ -460,11 +456,11 @@ impl MenuBar for LeftBar {
         panic!("Modal Menu not found!");
     }
 
-    fn close_all_modal_menus(&mut self, sim: &mut Simulation) -> bool {
+    fn close_all_modal_menus(&mut self, context: &mut UiWidgetContext) -> bool {
         let mut any_modal_menu_open = false;
         for modal in &mut self.modal_menus {
             if modal.is_open() {
-                modal.close(sim);
+                modal.close(context);
                 any_modal_menu_open = true;
             }
         }
@@ -513,11 +509,10 @@ impl GameSpeedControlButtonKind {
         utils::snake_case_to_title::<64>(self.name()).to_string()
     }
 
-    fn new_button(self, tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> GameSpeedControlButton {
+    fn new_button(self, context: &mut UiWidgetContext) -> GameSpeedControlButton {
         GameSpeedControlButton {
             btn: Button::new(
-                tex_cache,
-                ui_sys,
+                context,
                 ButtonDef {
                     name: self.sprite_path(),
                     size: Self::BUTTON_SIZE,
@@ -532,12 +527,10 @@ impl GameSpeedControlButtonKind {
         }
     }
 
-    fn create_all(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem)
-                  -> ArrayVec<GameSpeedControlButton, GAME_SPEED_CONTROLS_BUTTON_COUNT>
-    {
+    fn create_all(context: &mut UiWidgetContext) -> ArrayVec<GameSpeedControlButton, GAME_SPEED_CONTROLS_BUTTON_COUNT> {
         let mut buttons = ArrayVec::new();
         for btn_kind in Self::iter() {
-            buttons.push(btn_kind.new_button(tex_cache, ui_sys));
+            buttons.push(btn_kind.new_button(context));
         }
         buttons
     }
@@ -553,8 +546,8 @@ struct GameSpeedControlsBar {
 }
 
 impl GameSpeedControlsBar {
-    fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Box<Self> {
-        Box::new(Self { buttons: GameSpeedControlButtonKind::create_all(tex_cache, ui_sys) })
+    fn new(context: &mut UiWidgetContext) -> Box<Self> {
+        Box::new(Self { buttons: GameSpeedControlButtonKind::create_all(context) })
     }
 }
 
@@ -563,16 +556,16 @@ impl MenuBar for GameSpeedControlsBar {
         self
     }
 
-    fn draw(&mut self, sim: &mut Simulation, _world: &World, ui_sys: &UiSystem, delta_time_secs: Seconds) {
+    fn draw(&mut self, context: &mut UiWidgetContext) {
         // We'll use buttons for text labels, for straightforward text centering and layout.
         let _btn_style_overrides =
-            UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+            UiStyleTextLabelInvisibleButtons::apply_overrides(context.ui_sys);
 
-        let ui = ui_sys.ui();
+        let ui = context.ui_sys.ui();
         let mut pressed_button_index: Option<usize> = None;
 
         for (index, button) in self.buttons.iter_mut().enumerate() {
-            let pressed = button.btn.draw(ui_sys, delta_time_secs);
+            let pressed = button.btn.draw(context);
             ui.same_line(); // Horizontal layout.
 
             if pressed && pressed_button_index.is_none() {
@@ -586,18 +579,18 @@ impl MenuBar for GameSpeedControlsBar {
         if let Some(pressed_index) = pressed_button_index {
             match self.buttons[pressed_index].kind {
                 GameSpeedControlButtonKind::Play => {
-                    sim.resume();
+                    context.sim.resume();
                 }
                 GameSpeedControlButtonKind::Pause => {
-                    sim.pause();
+                    context.sim.pause();
                 }
                 GameSpeedControlButtonKind::Slowdown => {
-                    sim.resume();
-                    sim.slowdown();
+                    context.sim.resume();
+                    context.sim.slowdown();
                 }
                 GameSpeedControlButtonKind::Speedup => {
-                    sim.resume();
-                    sim.speedup();
+                    context.sim.resume();
+                    context.sim.speedup();
                 }
             }
         }
@@ -605,10 +598,10 @@ impl MenuBar for GameSpeedControlsBar {
         widgets::draw_vertical_separator(ui, &ui.get_window_draw_list(), 1.0, 6.0, 0.0);
         ui.same_line();
 
-        let label = if sim.is_paused() {
+        let label = if context.sim.is_paused() {
             "Paused"
         } else {
-            &format!("{:1}x", sim.speed())
+            &format!("{:1}x", context.sim.speed())
         };
 
         let width = ui.calc_text_size(label)[0];

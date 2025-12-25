@@ -9,15 +9,15 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator, VariantArray};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    widgets,
+    widgets::{self, UiWidgetContext},
     bar::MenuBar,
 };
 use crate::{
+    render::TextureFilter,
     utils::{Size, Rect, Vec2, mem},
-    render::{TextureCache, TextureFilter},
     imgui_ui::{UiSystem, UiTextureHandle, UiStaticVar},
     tile::{sets::PresetTiles, camera::CameraGlobalSettings},
-    game::{sim::Simulation, GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
+    game::{GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
 };
 
 // ----------------------------------------------
@@ -46,9 +46,9 @@ pub trait ModalMenu: Any {
     }
 
     fn is_open(&self) -> bool;
-    fn open(&mut self, sim: &mut Simulation);
-    fn close(&mut self, sim: &mut Simulation);
-    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem);
+    fn open(&mut self, context: &mut UiWidgetContext);
+    fn close(&mut self, context: &mut UiWidgetContext);
+    fn draw(&mut self, context: &mut UiWidgetContext);
 }
 
 #[derive(Default)]
@@ -71,11 +71,14 @@ pub struct BasicModalMenu {
 }
 
 impl BasicModalMenu {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, params: ModalMenuParams) -> Self {
+    pub fn new(context: &mut UiWidgetContext, params: ModalMenuParams) -> Self {
         let background_sprite = params.background_sprite.map(|sprite_path| {
             let file_path = super::ui_assets_path().join(sprite_path);
-            let tex_handle = tex_cache.load_texture_with_settings(file_path.to_str().unwrap(), Some(super::ui_texture_settings()));
-            ui_sys.to_ui_texture(tex_cache, tex_handle)
+            let tex_handle = context.tex_cache.load_texture_with_settings(
+                file_path.to_str().unwrap(),
+                Some(super::ui_texture_settings())
+            );
+            context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
         });
 
         let with_title_bar = params.title.is_some();
@@ -96,32 +99,32 @@ impl BasicModalMenu {
         self.is_open
     }
 
-    pub fn open(&mut self, sim: &mut Simulation) {
+    pub fn open(&mut self, context: &mut UiWidgetContext) {
         self.is_open = true;
         self.dialog = None;
-        sim.pause();
+        context.sim.pause();
     }
 
-    pub fn close(&mut self, sim: &mut Simulation) {
+    pub fn close(&mut self, context: &mut UiWidgetContext) {
         self.is_open = false;
         self.dialog = None;
-        sim.resume();
+        context.sim.resume();
     }
 
     pub fn size(&self) -> Vec2 {
         self.size.unwrap_or_default().to_vec2()
     }
 
-    pub fn draw<F>(&mut self, sim: &mut Simulation, ui_sys: &UiSystem, draw_menu_fn: F)
-        where F: FnOnce(&mut Simulation)
+    pub fn draw<F>(&mut self, context: &mut UiWidgetContext, draw_menu_fn: F)
+        where F: FnOnce(&mut UiWidgetContext)
     {
         if !self.is_open {
             return;
         }
 
-        let ui = ui_sys.ui();
+        let ui = context.ui_sys.ui();
         let display_size = ui.io().display_size;
-        let _font = ui.push_font(ui_sys.fonts().game_hud_large);
+        let _font = ui.push_font(context.ui_sys.fonts().game_hud_large);
 
         let window_size = self.size();
         let mut is_open = self.is_open;
@@ -170,8 +173,8 @@ impl BasicModalMenu {
                     }
 
                     if let Some(pressed_index) = pressed_button_index {
-                        let button_click_fn = &dialog.buttons[pressed_index].on_click_fn;
-                        button_click_fn(dialog.parent.mut_ref_cast(), sim);
+                        let button_press_fn = &dialog.buttons[pressed_index].on_press_fn;
+                        button_press_fn(dialog.parent.mut_ref_cast(), context);
                     }
 
                     widgets::draw_current_window_debug_rect(ui);
@@ -207,14 +210,14 @@ impl BasicModalMenu {
                             .add_image(background_texture, window_rect.min.to_array(), window_rect.max.to_array())
                             .build();
                     }
-                    draw_menu_fn(sim);
+                    draw_menu_fn(context);
                     widgets::draw_current_window_debug_rect(ui);
                 });
         }
 
         // Resume game if closed by user.
         if !is_open {
-            self.close(sim);
+            self.close(context);
         }
     }
 
@@ -273,16 +276,16 @@ impl ModalPopupDialog {
 
 pub struct ModalPopupDialogButton {
     label: &'static str,
-    on_click_fn: Box<dyn Fn(&mut dyn ModalMenu, &mut Simulation) + 'static>
+    on_press_fn: Box<dyn Fn(&mut dyn ModalMenu, &mut UiWidgetContext) + 'static>
 }
 
 impl ModalPopupDialogButton {
-    pub fn new<OnClickFn>(label: &'static str, on_click_fn: OnClickFn) -> Self
-        where OnClickFn: Fn(&mut dyn ModalMenu, &mut Simulation) + 'static
+    pub fn new<OnPressFn>(label: &'static str, on_press_fn: OnPressFn) -> Self
+        where OnPressFn: Fn(&mut dyn ModalMenu, &mut UiWidgetContext) + 'static
     {
         Self {
             label,
-            on_click_fn: Box::new(on_click_fn),
+            on_press_fn: Box::new(on_press_fn),
         }
     }
 }
@@ -327,60 +330,59 @@ pub struct MainModalMenu {
 }
 
 impl MainModalMenu {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, title: String, parent: &dyn MenuBar) -> Self {
+    pub fn new(context: &mut UiWidgetContext, title: String, parent: &dyn MenuBar) -> Self {
         Self {
             menu: BasicModalMenu::new(
-                tex_cache,
-                ui_sys,
+                context,
                 ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
             ),
             parent: mem::RawPtr::from_ref(parent),
         }
     }
 
-    fn handle_button_click(&mut self, ui_sys: &UiSystem, sim: &mut Simulation, button: MainModalMenuButton) {
+    fn handle_button_click(&mut self, context: &mut UiWidgetContext, button: MainModalMenuButton) {
         match button {
-            MainModalMenuButton::NewGame  => self.on_new_game_button(ui_sys, sim),
-            MainModalMenuButton::LoadGame => self.on_load_game_button(ui_sys, sim),
-            MainModalMenuButton::SaveGame => self.on_save_game_button(ui_sys, sim),
-            MainModalMenuButton::Settings => self.on_settings_button(ui_sys, sim),
-            MainModalMenuButton::Quit     => self.on_quit_button(ui_sys, sim),
-            MainModalMenuButton::Resume   => self.on_resume_button(ui_sys, sim),
+            MainModalMenuButton::NewGame  => self.on_new_game_button(context),
+            MainModalMenuButton::LoadGame => self.on_load_game_button(context),
+            MainModalMenuButton::SaveGame => self.on_save_game_button(context),
+            MainModalMenuButton::Settings => self.on_settings_button(context),
+            MainModalMenuButton::Quit     => self.on_quit_button(context),
+            MainModalMenuButton::Resume   => self.on_resume_button(context),
         }
     }
 
-    fn on_new_game_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
-        self.parent.open_modal_menu(sim, ModalMenuId::of::<NewGameModalMenu>()).unwrap();
+    fn on_new_game_button(&mut self, context: &mut UiWidgetContext) {
+        self.parent.open_modal_menu(context, ModalMenuId::of::<NewGameModalMenu>()).unwrap();
         // TODO: Actually this should be a "Restart Level" button instead.
         // "New Game" can be selected from main menu, when we have it.
     }
 
-    fn on_load_game_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
+    fn on_load_game_button(&mut self, context: &mut UiWidgetContext) {
         let modal_menu =
-            self.parent.open_modal_menu(sim, ModalMenuId::of::<SaveGameModalMenu>()).unwrap();
+            self.parent.open_modal_menu(context, ModalMenuId::of::<SaveGameModalMenu>()).unwrap();
         debug_assert!(modal_menu.is_open());
 
         let save_menu = modal_menu.as_any_mut().downcast_mut::<SaveGameModalMenu>().unwrap();
         save_menu.set_actions(SaveGameActions::Load);
     }
 
-    fn on_save_game_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
+    fn on_save_game_button(&mut self, context: &mut UiWidgetContext) {
         let modal_menu =
-            self.parent.open_modal_menu(sim, ModalMenuId::of::<SaveGameModalMenu>()).unwrap();
+            self.parent.open_modal_menu(context, ModalMenuId::of::<SaveGameModalMenu>()).unwrap();
         debug_assert!(modal_menu.is_open());
 
         let save_menu = modal_menu.as_any_mut().downcast_mut::<SaveGameModalMenu>().unwrap();
         save_menu.set_actions(SaveGameActions::Save);
     }
 
-    fn on_settings_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
-        self.parent.open_modal_menu(sim, ModalMenuId::of::<SettingsModalMenu>()).unwrap();
+    fn on_settings_button(&mut self, context: &mut UiWidgetContext) {
+        self.parent.open_modal_menu(context, ModalMenuId::of::<SettingsModalMenu>()).unwrap();
     }
 
-    fn on_quit_button(&mut self, ui_sys: &UiSystem, _sim: &mut Simulation) {
+    fn on_quit_button(&mut self, context: &mut UiWidgetContext) {
         self.menu.show_popup_dialog(
             self,
-            [self.menu.size().x, ui_sys.ui().text_line_height_with_spacing() * 3.0], // Space for roughly 3 lines of text.
+            [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 3.0], // Space for roughly 3 lines of text.
             |ui| {
                 ui.text("Quit Game?");
                 ui.text("Any unsaved progress will be lost...");
@@ -388,13 +390,13 @@ impl MainModalMenu {
             smallvec![
                 ModalPopupDialogButton::new("Quit to Main Menu", |_, _| GameLoop::get_mut().quit_to_main_menu()),
                 ModalPopupDialogButton::new("Exit Game", |_, _| GameLoop::get_mut().request_quit()),
-                ModalPopupDialogButton::new("Cancel", |parent, sim| parent.close(sim)),
+                ModalPopupDialogButton::new("Cancel", |parent, context| parent.close(context)),
             ]
         );
     }
 
-    fn on_resume_button(&mut self, _ui_sys: &UiSystem, sim: &mut Simulation) {
-        self.parent.close_all_modal_menus(sim);
+    fn on_resume_button(&mut self, context: &mut UiWidgetContext) {
+        self.parent.close_all_modal_menus(context);
     }
 }
 
@@ -407,19 +409,19 @@ impl ModalMenu for MainModalMenu {
         self.menu.is_open()
     }
 
-    fn open(&mut self, sim: &mut Simulation) {
-        self.menu.open(sim);
+    fn open(&mut self, context: &mut UiWidgetContext) {
+        self.menu.open(context);
     }
 
-    fn close(&mut self, sim: &mut Simulation) {
-        self.menu.close(sim);
+    fn close(&mut self, context: &mut UiWidgetContext) {
+        self.menu.close(context);
     }
 
-    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
+    fn draw(&mut self, context: &mut UiWidgetContext) {
         let mut pressed_button: Option<MainModalMenuButton> = None;
 
-        self.menu.draw(sim, ui_sys, |_| {
-            let ui = ui_sys.ui();
+        self.menu.draw(context, |context| {
+            let ui = context.ui_sys.ui();
 
             let mut labels = ArrayVec::<&str, MAIN_MODAL_MENU_BUTTON_COUNT>::new();
             for button in MainModalMenuButton::iter() {
@@ -439,7 +441,7 @@ impl ModalMenu for MainModalMenu {
         });
 
         if let Some(button) = pressed_button {
-            self.handle_button_click(ui_sys, sim, button);
+            self.handle_button_click(context, button);
         }
     }
 }
@@ -463,11 +465,10 @@ pub struct SaveGameModalMenu {
 }
 
 impl SaveGameModalMenu {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, actions: SaveGameActions) -> Self {
+    pub fn new(context: &mut UiWidgetContext, actions: SaveGameActions) -> Self {
         let mut menu = Self {
             menu: BasicModalMenu::new(
-                tex_cache,
-                ui_sys,
+                context,
                 ModalMenuParams { title: Some("".to_string()), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
             ),
             actions: SaveGameActions::empty(),
@@ -521,17 +522,17 @@ impl ModalMenu for SaveGameModalMenu {
         self.menu.is_open()
     }
 
-    fn open(&mut self, sim: &mut Simulation) {
+    fn open(&mut self, context: &mut UiWidgetContext) {
         // Default value when opened. Can be overwritten.
         self.set_actions(SaveGameActions::Save | SaveGameActions::Load);
-        self.menu.open(sim);
+        self.menu.open(context);
     }
 
-    fn close(&mut self, sim: &mut Simulation) {
-        self.menu.close(sim);
+    fn close(&mut self, context: &mut UiWidgetContext) {
+        self.menu.close(context);
     }
 
-    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
+    fn draw(&mut self, context: &mut UiWidgetContext) {
         if !self.is_open() {
             return;
         }
@@ -543,9 +544,9 @@ impl ModalMenu for SaveGameModalMenu {
         let mut create_new_save_game = false;
         let mut should_close = false;
 
-        self.menu.draw(sim, ui_sys, |_sim| {
+        self.menu.draw(context, |context| {
             let save_files_list = GameLoop::get().save_files_list();
-            let ui = ui_sys.ui();
+            let ui = context.ui_sys.ui();
 
             let container_size = [
                 ui.content_region_avail()[0],
@@ -608,7 +609,7 @@ impl ModalMenu for SaveGameModalMenu {
         });
 
         if should_close {
-            self.close(sim);
+            self.close(context);
         }
 
         if load_game {
@@ -623,7 +624,7 @@ impl ModalMenu for SaveGameModalMenu {
             let save_file_name = self.save_file_name.clone();
             self.menu.show_popup_dialog(
                 self,
-                [self.menu.size().x, ui_sys.ui().text_line_height_with_spacing() * 2.0], // Space for roughly 2 lines of text.
+                [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 2.0], // Space for roughly 2 lines of text.
                 |ui| {
                     ui.text("Overwrite existing save game?");
                 },
@@ -675,11 +676,10 @@ pub struct SettingsModalMenu {
 }
 
 impl SettingsModalMenu {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, title: String) -> Self {
+    pub fn new(context: &mut UiWidgetContext, title: String) -> Self {
         Self {
             menu: BasicModalMenu::new(
-                tex_cache,
-                ui_sys,
+                context,
                 ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
             ),
             current_selection: None,
@@ -804,23 +804,23 @@ impl ModalMenu for SettingsModalMenu {
         self.menu.is_open()
     }
 
-    fn open(&mut self, sim: &mut Simulation) {
-        self.menu.open(sim);
+    fn open(&mut self, context: &mut UiWidgetContext) {
+        self.menu.open(context);
         self.current_selection = None;
     }
 
-    fn close(&mut self, sim: &mut Simulation) {
-        self.menu.close(sim);
+    fn close(&mut self, context: &mut UiWidgetContext) {
+        self.menu.close(context);
         self.current_selection = None;
     }
 
-    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
+    fn draw(&mut self, context: &mut UiWidgetContext) {
         let mut ok_pressed = false;
         let mut cancel_pressed = false;
         let mut should_close = false;
 
-        self.menu.draw(sim, ui_sys, |_sim| {
-            let ui = ui_sys.ui();
+        self.menu.draw(context, |context| {
+            let ui = context.ui_sys.ui();
 
             // A settings button is selected, draw its sub-menu:
             if let Some(selection) = self.current_selection {
@@ -847,7 +847,7 @@ impl ModalMenu for SettingsModalMenu {
                     .size(container_size)
                     .border(true)
                     .build(|| {
-                        draw_fn(ui_sys);
+                        draw_fn(context.ui_sys);
                     });
 
                 ok_pressed |= ui.button("Ok");
@@ -883,7 +883,7 @@ impl ModalMenu for SettingsModalMenu {
         }
 
         if should_close {
-            self.close(sim);
+            self.close(context);
         }
     }
 }
@@ -898,11 +898,10 @@ pub struct NewGameModalMenu {
 }
 
 impl NewGameModalMenu {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, title: String) -> Self {
+    pub fn new(context: &mut UiWidgetContext, title: String) -> Self {
         Self {
             menu: BasicModalMenu::new(
-                tex_cache,
-                ui_sys,
+                context,
                 ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
             ),
             new_map_size: Size::new(64, 64),
@@ -939,19 +938,19 @@ impl ModalMenu for NewGameModalMenu {
         self.menu.is_open()
     }
 
-    fn open(&mut self, sim: &mut Simulation) {
-        self.menu.open(sim);
+    fn open(&mut self, context: &mut UiWidgetContext) {
+        self.menu.open(context);
     }
 
-    fn close(&mut self, sim: &mut Simulation) {
-        self.menu.close(sim);
+    fn close(&mut self, context: &mut UiWidgetContext) {
+        self.menu.close(context);
     }
 
-    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
+    fn draw(&mut self, context: &mut UiWidgetContext) {
         let mut should_close = false;
 
-        self.menu.draw(sim, ui_sys, |_sim| {
-            let ui = ui_sys.ui();
+        self.menu.draw(context, |context| {
+            let ui = context.ui_sys.ui();
 
             const GROUP_WIDTH: f32 = 210.0;
             let group_start = Self::calc_centered_group_start(ui, GROUP_WIDTH);
@@ -1017,7 +1016,7 @@ impl ModalMenu for NewGameModalMenu {
 
         // Close modal window if user clicked the new game or cancel button.
         if should_close {
-            self.close(sim);
+            self.close(context);
         }
     }
 }
