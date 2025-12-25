@@ -350,7 +350,7 @@ impl LeftBar {
                 LeftBarButtonKind::SaveGame => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            SaveGameModalMenu::new(tex_cache, ui_sys)
+                            SaveGameModalMenu::new(tex_cache, ui_sys, SaveGameActions::Save | SaveGameActions::Load)
                         )
                     )
                 }

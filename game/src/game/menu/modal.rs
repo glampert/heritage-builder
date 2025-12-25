@@ -231,6 +231,10 @@ impl BasicModalMenu {
         let mut_self = mem::mut_ref_cast(self);
         mut_self.dialog = Some(Box::new(ModalPopupDialog::new(parent, size, draw_fn, buttons)));
     }
+
+    pub fn close_popup_dialog(&mut self) {
+        self.dialog = None;
+    }
 }
 
 // ----------------------------------------------
@@ -382,7 +386,7 @@ impl MainModalMenu {
                 ui.text("Any unsaved progress will be lost...");
             },
             smallvec![
-                ModalPopupDialogButton::new("Quit to Main Menu", |_, _| {}), // TODO: Redirect to main menu.
+                ModalPopupDialogButton::new("Quit to Main Menu", |_, _| GameLoop::get_mut().quit_to_main_menu()),
                 ModalPopupDialogButton::new("Exit Game", |_, _| GameLoop::get_mut().request_quit()),
                 ModalPopupDialogButton::new("Cancel", |parent, sim| parent.close(sim)),
             ]
@@ -459,7 +463,7 @@ pub struct SaveGameModalMenu {
 }
 
 impl SaveGameModalMenu {
-    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem) -> Self {
+    pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, actions: SaveGameActions) -> Self {
         let mut menu = Self {
             menu: BasicModalMenu::new(
                 tex_cache,
@@ -470,7 +474,7 @@ impl SaveGameModalMenu {
             save_file_name: String::new(),
         };
         // NOTE: Title set here instead.
-        menu.set_actions(SaveGameActions::Save | SaveGameActions::Load);
+        menu.set_actions(actions);
         menu
     }
 

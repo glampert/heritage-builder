@@ -12,14 +12,14 @@ use super::{
     TilePalette,
     TilePlacement,
     TileInspector,
-    modal::{BasicModalMenu, ModalMenuParams},
+    modal::*,
     widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons},
 };
 use crate::{
     save::{Save, Load},
-    game::sim::Simulation,
     render::TextureCache,
     tile::rendering::TileMapRenderFlags,
+    game::{sim::Simulation, GameLoop},
     utils::{Size, Rect, Vec2, coords::CellRange},
     imgui_ui::{UiSystem, UiInputEvent, UiTextureHandle},
 };
@@ -29,14 +29,14 @@ use crate::{
 // ----------------------------------------------
 
 pub struct HomeMenus {
-    main_menu: MainMenu,
+    main_menu: HomeMainMenu,
     background: FullScreenBackground,
 }
 
 impl HomeMenus {
     pub fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, viewport_size: Size) -> Self {
         Self {
-            main_menu: MainMenu::new(tex_cache, ui_sys, viewport_size),
+            main_menu: HomeMainMenu::new(tex_cache, ui_sys, viewport_size),
             background: FullScreenBackground::new(tex_cache, ui_sys),
         }
     }
@@ -93,19 +93,19 @@ impl Save for HomeMenus {}
 impl Load for HomeMenus {}
 
 // ----------------------------------------------
-// MainMenu
+// HomeMainMenu
 // ----------------------------------------------
 
-const MAIN_MENU_BUTTON_COUNT: usize = MainMenuButton::COUNT;
+const MAIN_MENU_BUTTON_COUNT: usize = HomeMainMenuButton::COUNT;
 
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, TryFromPrimitive, EnumCount, EnumProperty, EnumIter)]
-enum MainMenuButton {
+enum HomeMainMenuButton {
     #[strum(props(Label = "NEW GAME"))]
     NewGame,
 
     #[strum(props(Label = "CONTINUE"))]
-    ContinueGame,
+    Continue,
 
     #[strum(props(Label = "LOAD GAME"))]
     LoadGame,
@@ -123,18 +123,27 @@ enum MainMenuButton {
     Exit,
 }
 
-impl MainMenuButton {
+impl HomeMainMenuButton {
     fn label(self) -> &'static str {
         self.get_str("Label").unwrap()
     }
+
+    fn labels() -> ArrayVec<&'static str, MAIN_MENU_BUTTON_COUNT> {
+        let mut labels = ArrayVec::new();
+        for button in HomeMainMenuButton::iter() {
+            labels.push(button.label());
+        }
+        labels
+    }
 }
 
-struct MainMenu {
+struct HomeMainMenu {
     menu: BasicModalMenu,
     separator_ui_texture: UiTextureHandle,
+    child_menus: ArrayVec<Option<Box<dyn ModalMenu>>, MAIN_MENU_BUTTON_COUNT>,
 }
 
-impl MainMenu {
+impl HomeMainMenu {
     fn new(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem, viewport_size: Size) -> Self {
         let separator_tex_handle = tex_cache.load_texture_with_settings(
             super::ui_assets_path().join("misc/brush_stroke_divider.png").to_str().unwrap(),
@@ -153,21 +162,145 @@ impl MainMenu {
                 }
             ),
             separator_ui_texture: ui_sys.to_ui_texture(tex_cache, separator_tex_handle),
+            child_menus: Self::create_child_menus(tex_cache, ui_sys),
         }
     }
 
-    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
-        // Make button background transparent and borderless.
-        let _button_style_overrides =
-            UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+    fn child_menu_for_button(&mut self, button: HomeMainMenuButton) -> Option<&mut dyn ModalMenu> {
+        self.child_menus[button as usize]
+            .as_mut()
+            .map(|menu| menu.as_mut())
+    }
 
-        const BUTTON_SPACING: Vec2 = Vec2::new(6.0, 6.0);
-        let _item_spacing =
-            UiStyleOverrides::set_item_spacing(ui_sys, BUTTON_SPACING.x, BUTTON_SPACING.y);
+    fn close_child_menus(&mut self, sim: &mut Simulation) {
+        for child_menu in &mut self.child_menus {
+            if let Some(menu) = child_menu {
+                menu.close(sim);
+            }
+        }
+    }
+
+    fn draw_child_menus(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
+        for child_menu in &mut self.child_menus {
+            if let Some(menu) = child_menu {
+                menu.draw(sim, ui_sys);
+            }
+        }
+    }
+
+    fn create_child_menus(tex_cache: &mut dyn TextureCache, ui_sys: &UiSystem)
+                          -> ArrayVec<Option<Box<dyn ModalMenu>>, MAIN_MENU_BUTTON_COUNT> {
+        let mut menus = ArrayVec::new();
+        for button in HomeMainMenuButton::iter() {
+            menus.push(Self::create_child_menu_for_button(tex_cache, ui_sys, button));
+        }
+        menus
+    }
+
+    fn create_child_menu_for_button(tex_cache: &mut dyn TextureCache,
+                                    ui_sys: &UiSystem,
+                                    button: HomeMainMenuButton)
+                                    -> Option<Box<dyn ModalMenu>> {
+        let menu: Box<dyn ModalMenu> = match button {
+            HomeMainMenuButton::NewGame    => Box::new(NewGameModalMenu::new(tex_cache, ui_sys, "New Game".into())),
+            HomeMainMenuButton::Continue   => return None, // TODO
+            HomeMainMenuButton::LoadGame   => Box::new(SaveGameModalMenu::new(tex_cache, ui_sys, SaveGameActions::Load)),
+            HomeMainMenuButton::CustomGame => return None, // TODO
+            HomeMainMenuButton::Settings   => Box::new(SettingsModalMenu::new(tex_cache, ui_sys, "Settings".into())),
+            HomeMainMenuButton::About      => return None, // TODO
+            HomeMainMenuButton::Exit       => return None, // Exit - no menu.
+        };
+        Some(menu)
+    }
+
+    fn handle_button_click(&mut self, sim: &mut Simulation, button: HomeMainMenuButton) {
+        match button {
+            HomeMainMenuButton::NewGame    => self.on_new_game_button(sim),
+            HomeMainMenuButton::Continue   => self.on_continue_button(sim),
+            HomeMainMenuButton::LoadGame   => self.on_load_game_button(sim),
+            HomeMainMenuButton::CustomGame => self.on_custom_game_button(sim),
+            HomeMainMenuButton::Settings   => self.on_settings_button(sim),
+            HomeMainMenuButton::About      => self.on_about_button(sim),
+            HomeMainMenuButton::Exit       => self.on_exit_button(sim),
+        }
+    }
+
+    fn on_new_game_button(&mut self, sim: &mut Simulation) {
+        if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::NewGame) {
+            menu.open(sim);
+        }
+    }
+
+    fn on_continue_button(&mut self, sim: &mut Simulation) {
+        if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::Continue) {
+            menu.open(sim);
+        }
+    }
+
+    fn on_load_game_button(&mut self, sim: &mut Simulation) {
+        if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::LoadGame) {
+            menu.open(sim);
+        }
+    }
+
+    fn on_custom_game_button(&mut self, sim: &mut Simulation) {
+        if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::CustomGame) {
+            menu.open(sim);
+        }
+    }
+
+    fn on_settings_button(&mut self, sim: &mut Simulation) {
+        if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::Settings) {
+            menu.open(sim);
+        }
+    }
+
+    fn on_about_button(&mut self, sim: &mut Simulation) {
+        if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::About) {
+            menu.open(sim);
+        }
+
+        // TODO
+        //ui.text("HERITAGE BUILDER, A CITY BUILDER BY CORE SYSTEM GAMES");
+        //ui.text("COPYRIGHT (C) 2025. ALL RIGHTS RESERVED");
+    }
+
+    fn on_exit_button(&mut self, _sim: &mut Simulation) {
+        GameLoop::get_mut().request_quit();
+    }
+}
+
+impl ModalMenu for HomeMainMenu {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn is_open(&self) -> bool {
+        self.menu.is_open()
+    }
+
+    fn open(&mut self, sim: &mut Simulation) {
+        self.menu.open(sim);
+    }
+
+    fn close(&mut self, sim: &mut Simulation) {
+        self.menu.close(sim);
+    }
+
+    fn draw(&mut self, sim: &mut Simulation, ui_sys: &UiSystem) {
+        let mut pressed_button: Option<HomeMainMenuButton> = None;
 
         self.menu.draw(sim, ui_sys, |_sim| {
             let ui = ui_sys.ui();
             let window_draw_list = ui.get_window_draw_list();
+
+            // Make button background transparent and borderless.
+            let _button_style_overrides =
+                UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+
+            const BUTTON_SPACING: Vec2 = Vec2::new(6.0, 6.0);
+            let _item_spacing =
+                UiStyleOverrides::set_item_spacing(ui_sys, BUTTON_SPACING.x, BUTTON_SPACING.y);
 
             // Bigger font for the heading.
             ui.set_window_font_scale(1.8);
@@ -192,18 +325,13 @@ impl MainMenu {
                                        heading_separator_rect.max.to_array())
                                        .build();
 
-            let mut button_labels = ArrayVec::<&str, MAIN_MENU_BUTTON_COUNT>::new();
-            for button in MainMenuButton::iter() {
-                button_labels.push(button.label());
-            }
-
             // Bigger font for the buttons.
             ui.set_window_font_scale(1.5);
             // Draw actual menu buttons:
-            widgets::draw_centered_button_group_ex(
+            let pressed_button_index = widgets::draw_centered_button_group_ex(
                 ui,
                 &window_draw_list,
-                &button_labels,
+                &HomeMainMenuButton::labels(),
                 Some(Size::new(180, 40)),
                 Some(Vec2::new(0.0, 150.0)),
                 Some(|ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, _button_index: usize| {
@@ -227,8 +355,20 @@ impl MainMenu {
                 })
             );
 
-            // TODO: Handle button clicks.
+            // Restore default.
+            ui.set_window_font_scale(1.0);
+
+            if let Some(pressed_index) = pressed_button_index {
+                pressed_button = HomeMainMenuButton::try_from_primitive(pressed_index).ok();
+            }
         });
+
+        if let Some(button) = pressed_button {
+            self.close_child_menus(sim);
+            self.handle_button_click(sim, button);
+        }
+
+        self.draw_child_menus(sim, ui_sys);
     }
 }
 

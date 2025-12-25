@@ -82,7 +82,7 @@ struct GameSession {
 }
 
 impl GameSession {
-    fn new(load_map_setting: &LoadMapSetting, viewport_size: Size, engine: &dyn Engine) -> Self {
+    fn new(load_map_setting: &LoadMapSetting, viewport_size: Size, engine: &dyn Engine, home_menu: bool) -> Self {
         if !viewport_size.is_valid() {
             panic!("Invalid game viewport size!");
         }
@@ -100,7 +100,7 @@ impl GameSession {
                                  configs.camera.zoom,
                                  configs.camera.offset);
 
-        let menus = Self::new_game_menus_from_config(&mut tile_map, engine);
+        let menus = Self::new_game_menus_from_config(&mut tile_map, engine, home_menu);
 
         let mut session = Self {
             tile_map,
@@ -142,10 +142,10 @@ impl GameSession {
         }
     }
 
-    fn new_game_menus_from_config(tile_map: &mut TileMap, engine: &dyn Engine) -> Box<dyn GameMenusSystem> {
+    fn new_game_menus_from_config(tile_map: &mut TileMap, engine: &dyn Engine, home_menu: bool) -> Box<dyn GameMenusSystem> {
         let configs = GameConfigs::get();
         let menu_mode = {
-            if configs.debug.skip_home_menu {
+            if configs.debug.skip_home_menu || !home_menu {
                 if configs.debug.start_in_dev_editor_mode {
                     GameMenuMode::DevEditor
                 } else {
@@ -224,15 +224,16 @@ impl GameSession {
     fn load_preset_map(preset_number: usize, viewport_size: Size, engine: &dyn Engine) -> Self {
         // Override GameConfigs.load_map_setting
         let load_map_setting = LoadMapSetting::Preset { preset_number };
-        Self::new(&load_map_setting, viewport_size, engine)
+        Self::new(&load_map_setting, viewport_size, engine, false)
     }
 
-    fn reset(&mut self, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
+    fn reset(&mut self, engine: &dyn Engine, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>, home_menu: bool) {
         undo_redo::clear();
         self.tile_selection = TileSelection::default();
+        self.menus = Some(Self::new_game_menus_from_config(&mut self.tile_map, engine, home_menu));
         self.sim.reset_world(&mut self.world, &mut self.systems, &mut self.tile_map);
 
-        if reset_map && self.tile_map.size_in_cells().is_valid() {
+        if reset_map && (self.tile_map.size_in_cells().is_valid() || new_map_size.is_some()) {
             self.tile_map.reset(reset_map_with_tile_def, new_map_size);
 
             if reset_map_with_tile_def.is_some() {
@@ -323,7 +324,7 @@ impl Load for GameSession {
         self.camera.post_load(context);
         self.tile_selection.post_load(context);
 
-        let mut menus = Self::new_game_menus_from_config(context.tile_map_mut(), context.engine());
+        let mut menus = Self::new_game_menus_from_config(context.tile_map_mut(), context.engine(), false);
         menus.post_load(context);
         self.menus = Some(menus);
     }
@@ -440,6 +441,7 @@ enum GameSessionCmd {
     LoadPreset { preset_number: usize },
     LoadSaveGame { save_file_path: String },
     SaveGame { save_file_path: String },
+    QuitToMainMenu,
 }
 
 // ----------------------------------------------
@@ -513,8 +515,11 @@ impl GameLoop {
     pub fn create_session(&mut self) {
         debug_assert!(self.session.is_none());
 
+        let config = GameConfigs::get();
+        let home_menu = !config.debug.skip_home_menu;
+
         let viewport_size = self.engine.viewport().size();
-        let new_session = GameSession::new(&GameConfigs::get().save.load_map_setting, viewport_size, self.engine());
+        let new_session = GameSession::new(&config.save.load_map_setting, viewport_size, self.engine(), home_menu);
 
         self.session = Some(Box::new(new_session));
         log::info!(log::channel!("game"), "--- Game Session created ---");
@@ -522,7 +527,7 @@ impl GameLoop {
 
     pub fn terminate_session(&mut self) {
         if let Some(session) = &mut self.session {
-            session.reset(false, None, None);
+            session.reset(self.engine.as_ref(), false, None, None, false);
         }
         self.session = None;
         log::info!(log::channel!("game"), "--- Game Session destroyed ---");
@@ -530,6 +535,10 @@ impl GameLoop {
 
     pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
         self.session_cmd_queue.push_back(GameSessionCmd::Reset { reset_map_with_tile_def, new_map_size });
+    }
+
+    pub fn quit_to_main_menu(&mut self) {
+        self.session_cmd_queue.push_back(GameSessionCmd::QuitToMainMenu);
     }
 
     pub fn load_preset_map(&mut self, preset_tile_map_number: usize) {
@@ -848,12 +857,15 @@ impl GameLoop {
                 GameSessionCmd::SaveGame { save_file_path } => {
                     self.session_cmd_save_game(save_file_path);
                 }
+                GameSessionCmd::QuitToMainMenu => {
+                    self.session_cmd_quit_to_main_menu();
+                }
             }
         }
     }
 
     fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
-        self.session_mut().reset(true, reset_map_with_tile_def, new_map_size);
+        self.session.as_mut().unwrap().reset(self.engine.as_ref(), true, reset_map_with_tile_def, new_map_size, false);
         log::info!(log::channel!("game"), "Game Session reset.");
     }
 
@@ -875,6 +887,11 @@ impl GameLoop {
     fn session_cmd_save_game(&mut self, save_file_path: String) {
         debug_assert!(!save_file_path.is_empty());
         self.session_mut().save_game(&save_file_path);
+    }
+
+    fn session_cmd_quit_to_main_menu(&mut self) {
+        self.terminate_session();
+        self.create_session();
     }
 
     // ----------------------
