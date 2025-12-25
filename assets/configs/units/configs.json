@@ -55,6 +55,12 @@
       "movement_speed": 1.66
     },
     {
+      "name": "Buffalo",
+      "tile_def_name": "buffalo",
+      "traversable_node_kinds": "EmptyLand | Road",
+      "movement_speed": 1.33
+    },
+    {
       "name": "Guard",
       "tile_def_name": "guard",
       "traversable_node_kinds": "Road",

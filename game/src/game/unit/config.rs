@@ -31,6 +31,7 @@ pub enum UnitConfigKey {
     Monk         = hash::fnv1a_from_str("monk"),
     Dog          = hash::fnv1a_from_str("dog"),
     Bird         = hash::fnv1a_from_str("bird"),
+    Buffalo      = hash::fnv1a_from_str("buffalo"),
 }
 
 // ----------------------------------------------
