@@ -1,8 +1,8 @@
 use std::{sync::atomic::{AtomicBool, Ordering}};
 
 use crate::{
-    engine::time::Seconds,
     render::TextureCache,
+    engine::{Engine, time::Seconds},
     imgui_ui::{UiSystem, UiTextureHandle},
     game::{sim::Simulation, world::World},
     utils::{Size, Vec2, Rect, Color},
@@ -13,14 +13,28 @@ use crate::{
 // ----------------------------------------------
 
 pub struct UiWidgetContext<'game> {
-    pub ui_sys: &'game UiSystem,
-    pub tex_cache: &'game mut dyn TextureCache,
-
     pub sim: &'game mut Simulation,
     pub world: &'game World,
 
+    pub ui_sys: &'game UiSystem,
+    pub tex_cache: &'game mut dyn TextureCache,
+
     pub viewport_size: Size,
     pub delta_time_secs: Seconds,
+}
+
+impl<'game> UiWidgetContext<'game> {
+    #[inline]
+    pub fn new(sim: &'game mut Simulation, world: &'game World, engine: &'game dyn Engine) -> Self {
+        Self {
+            sim,
+            world,
+            ui_sys: engine.ui_system(),
+            tex_cache: engine.texture_cache(),
+            viewport_size: engine.viewport().size(),
+            delta_time_secs: engine.frame_clock().delta_time(),
+        }
+    }
 }
 
 // ----------------------------------------------

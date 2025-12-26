@@ -66,32 +66,13 @@ impl GameMenusSystem for InGameHudMenus {
     }
 
     fn handle_custom_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
-        let mut widget_context = UiWidgetContext {
-            ui_sys: context.engine.ui_system(),
-            tex_cache: context.engine.texture_cache(),
-            sim: context.sim,
-            world: context.world,
-            viewport_size: context.engine.viewport().size(),
-            delta_time_secs: context.delta_time_secs,
-        };
-
+        let mut widget_context = UiWidgetContext::new(context.sim, context.world, context.engine);
         self.menu_bars.handle_input(&mut widget_context, args)
     }
 
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
-        let ui_sys = context.engine.ui_system();
-        let viewport_size = context.engine.viewport().size();
         let render_sys = context.engine.render_system();
-        let tex_cache = context.engine.texture_cache();
-
-        let mut widget_context = UiWidgetContext {
-            ui_sys,
-            tex_cache,
-            sim: context.sim,
-            world: context.world,
-            viewport_size,
-            delta_time_secs: context.delta_time_secs,
-        };
+        let mut widget_context = UiWidgetContext::new(context.sim, context.world, context.engine);
 
         self.tile_palette.draw(&mut widget_context,
                                render_sys,

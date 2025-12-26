@@ -75,14 +75,8 @@ impl GameMenusSystem for HomeMenus {
         let _style_overrides =
             UiStyleOverrides::in_game_hud_menus(ui_sys);
 
-        let mut widget_context = UiWidgetContext {
-            ui_sys,
-            tex_cache: context.engine.texture_cache(),
-            sim: context.sim,
-            world: context.world,
-            viewport_size: context.engine.viewport().size(),
-            delta_time_secs: context.delta_time_secs,
-        };
+        let mut widget_context =
+            UiWidgetContext::new(context.sim, context.world, context.engine);
 
         self.main_menu.draw(&mut widget_context);
         self.background.draw(&mut widget_context);

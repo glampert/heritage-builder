@@ -133,26 +133,12 @@ impl GameSession {
             }
             GameMenuMode::InGameHud => {
                 log::info!(log::channel!("session"), "Loading InGameHudMenus ...");
-                let mut context = UiWidgetContext {
-                    ui_sys: engine.ui_system(),
-                    tex_cache: engine.texture_cache(),
-                    sim: &mut self.sim,
-                    world: &mut self.world,
-                    viewport_size: engine.viewport().size(),
-                    delta_time_secs: engine.frame_clock().delta_time(),
-                };
+                let mut context = UiWidgetContext::new(&mut self.sim, &self.world, engine);
                 Box::new(InGameHudMenus::new(&mut context))
             }
             GameMenuMode::Home => {
                 log::info!(log::channel!("session"), "Loading HomeMenus ...");
-                let mut context = UiWidgetContext {
-                    ui_sys: engine.ui_system(),
-                    tex_cache: engine.texture_cache(),
-                    sim: &mut self.sim,
-                    world: &mut self.world,
-                    viewport_size: engine.viewport().size(),
-                    delta_time_secs: engine.frame_clock().delta_time(),
-                };
+                let mut context = UiWidgetContext::new(&mut self.sim, &self.world, engine);
                 Box::new(HomeMenus::new(&mut context))
             }
         }
