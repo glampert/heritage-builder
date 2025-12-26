@@ -96,6 +96,10 @@ macro_rules! field_accessor_xy {
     };
 }
 
+pub fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
 // ----------------------------------------------
 // Vec2
 // ----------------------------------------------

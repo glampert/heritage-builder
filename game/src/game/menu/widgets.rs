@@ -168,26 +168,47 @@ impl<'ui> UiStyleTextLabelInvisibleButtons<'ui> {
     }
 }
 
+#[inline]
 pub fn draw_centered_button_group(ui: &imgui::Ui,
                                   draw_list: &imgui::DrawListMut<'_>,
                                   labels: &[&str],
                                   size: Option<Size>) -> Option<usize> {
-    draw_centered_button_group_ex::<fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize)>(
+    draw_centered_button_group_ex::<fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize), fn(usize) -> bool>(
         ui,
         draw_list,
         labels,
         size,
         None,
+        None,
         None)
 }
 
-pub fn draw_centered_button_group_ex<OnHovered>(ui: &imgui::Ui,
-                                                draw_list: &imgui::DrawListMut<'_>,
-                                                labels: &[&str],
-                                                size: Option<Size>,
-                                                offsets: Option<Vec2>,
-                                                on_hovered: Option<OnHovered>) -> Option<usize>
-    where OnHovered: Fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize)
+#[inline]
+pub fn draw_centered_button_group_with_offsets(ui: &imgui::Ui,
+                                               draw_list: &imgui::DrawListMut<'_>,
+                                               labels: &[&str],
+                                               size: Option<Size>,
+                                               offsets: Option<Vec2>) -> Option<usize> {
+    draw_centered_button_group_ex::<fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize), fn(usize) -> bool>(
+        ui,
+        draw_list,
+        labels,
+        size,
+        offsets,
+        None,
+        None)
+}
+
+pub fn draw_centered_button_group_ex<OnHovered, IsEnabled>(ui: &imgui::Ui,
+                                                           draw_list: &imgui::DrawListMut<'_>,
+                                                           labels: &[&str],
+                                                           size: Option<Size>,
+                                                           offsets: Option<Vec2>,
+                                                           on_hovered: Option<OnHovered>,
+                                                           is_enabled: Option<IsEnabled>) -> Option<usize>
+    where
+        OnHovered: Fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize),
+        IsEnabled: Fn(usize) -> bool
 {
     if labels.is_empty() {
         return None;
@@ -232,6 +253,17 @@ pub fn draw_centered_button_group_ex<OnHovered>(ui: &imgui::Ui,
     for (index, label) in labels.iter().enumerate() {
         let cursor = ui.cursor_pos();
         ui.set_cursor_pos([start_x, cursor[1]]);
+
+        let enabled = if let Some(is_enabled) = &is_enabled {
+            is_enabled(index)
+        } else {
+            true
+        };
+
+        let _btn_text_color = ui.push_style_color(
+            imgui::StyleColor::Text,
+            if enabled { [0.0, 0.0, 0.0, 1.0] } else { [0.0, 0.0, 0.0, 0.5] }
+        );
 
         if ui.button_with_size(label, button_size) {
             pressed_index = Some(index);

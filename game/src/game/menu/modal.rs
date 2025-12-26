@@ -9,12 +9,12 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator, VariantArray};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    widgets::{self, UiWidgetContext},
+    widgets::{self, UiWidgetContext, UiStyleTextLabelInvisibleButtons},
     bar::MenuBar,
 };
 use crate::{
     render::TextureFilter,
-    utils::{Size, Rect, Vec2, mem},
+    utils::{self, Size, Rect, Vec2, mem},
     imgui_ui::{UiSystem, UiTextureHandle, UiStaticVar},
     tile::{sets::PresetTiles, camera::CameraGlobalSettings},
     game::{GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
@@ -1015,6 +1015,85 @@ impl ModalMenu for NewGameModalMenu {
         });
 
         // Close modal window if user clicked the new game or cancel button.
+        if should_close {
+            self.close(context);
+        }
+    }
+}
+
+// ----------------------------------------------
+// AboutModalMenu
+// ----------------------------------------------
+
+pub struct AboutModalMenu {
+    menu: BasicModalMenu,
+}
+
+impl AboutModalMenu {
+    pub fn new(context: &mut UiWidgetContext, title: String) -> Self {
+        Self {
+            menu: BasicModalMenu::new(
+                context,
+                ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
+            ),
+        }
+    }
+}
+
+impl ModalMenu for AboutModalMenu {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn is_open(&self) -> bool {
+        self.menu.is_open()
+    }
+
+    fn open(&mut self, context: &mut UiWidgetContext) {
+        self.menu.open(context);
+    }
+
+    fn close(&mut self, context: &mut UiWidgetContext) {
+        self.menu.close(context);
+    }
+
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        let mut should_close = false;
+
+        self.menu.draw(context, |context| {
+            let ui = context.ui_sys.ui();
+
+            {
+                // We'll use buttons for text labels, for straightforward text centering and layout.
+                let _btn_style_overrides =
+                    UiStyleTextLabelInvisibleButtons::apply_overrides(context.ui_sys);
+
+                widgets::draw_centered_button_group_with_offsets(
+                    ui,
+                    &ui.get_window_draw_list(),
+                    &[
+                        "HERITAGE BUILDER",
+                        "A CITY BUILDER BY CORE SYSTEM GAMES",
+                        "COPYRIGHT (C) 2025. ALL RIGHTS RESERVED",
+                        &format!("VERSION {}", utils::version()),
+                    ],
+                    None,
+                    Some(Vec2::new(0.0, -50.0)),
+                );
+            }
+
+            if widgets::draw_centered_button_group_with_offsets(
+                ui,
+                &ui.get_window_draw_list(),
+                &["Resume"],
+                Some(MODAL_BUTTON_DEFAULT_SIZE),
+                Some(Vec2::new(0.0, 150.0)),
+            ).is_some()
+            {
+                should_close = true;
+            }
+        });
+
         if should_close {
             self.close(context);
         }

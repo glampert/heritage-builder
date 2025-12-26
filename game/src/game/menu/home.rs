@@ -202,10 +202,22 @@ impl HomeMainMenu {
             HomeMainMenuButton::LoadGame   => Box::new(SaveGameModalMenu::new(context, SaveGameActions::Load)),
             HomeMainMenuButton::CustomGame => return None, // TODO
             HomeMainMenuButton::Settings   => Box::new(SettingsModalMenu::new(context, "Settings".into())),
-            HomeMainMenuButton::About      => return None, // TODO
+            HomeMainMenuButton::About      => Box::new(AboutModalMenu::new(context, "About".into())),
             HomeMainMenuButton::Exit       => return None, // Exit - no menu.
         };
         Some(menu)
+    }
+
+    fn is_button_enabled(button: HomeMainMenuButton) -> bool {
+        match button {
+            HomeMainMenuButton::NewGame    => true,
+            HomeMainMenuButton::Continue   => false,
+            HomeMainMenuButton::LoadGame   => true,
+            HomeMainMenuButton::CustomGame => false,
+            HomeMainMenuButton::Settings   => true,
+            HomeMainMenuButton::About      => true,
+            HomeMainMenuButton::Exit       => true,
+        }
     }
 
     fn handle_button_click(&mut self, context: &mut UiWidgetContext, button: HomeMainMenuButton) {
@@ -254,10 +266,6 @@ impl HomeMainMenu {
         if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::About) {
             menu.open(context);
         }
-
-        // TODO
-        //ui.text("HERITAGE BUILDER, A CITY BUILDER BY CORE SYSTEM GAMES");
-        //ui.text("COPYRIGHT (C) 2025. ALL RIGHTS RESERVED");
     }
 
     fn on_exit_button(&mut self, _context: &mut UiWidgetContext) {
@@ -300,13 +308,12 @@ impl ModalMenu for HomeMainMenu {
             // Bigger font for the heading.
             ui.set_window_font_scale(1.8);
             // Draw heading as buttons, so everything is properly centered.
-            widgets::draw_centered_button_group_ex::<fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize)>(
+            widgets::draw_centered_button_group_with_offsets(
                 ui,
                 &window_draw_list,
                 &["Heritage Builder", "The Dragon Legacy"],
                 None,
-                Some(Vec2::new(0.0, -200.0)),
-                None,
+                Some(Vec2::new(0.0, -200.0))
             );
 
             // Draw separator:
@@ -329,14 +336,18 @@ impl ModalMenu for HomeMainMenu {
                 &HomeMainMenuButton::labels(),
                 Some(Size::new(180, 40)),
                 Some(Vec2::new(0.0, 150.0)),
-                Some(|ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, _button_index: usize| {
+                Some(|ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, button_index: usize| {
                     // Draw underline effect when hovered / active:
                     let button_rect = Rect::from_extents(
                         Vec2::from_array(ui.item_rect_min()),
                         Vec2::from_array(ui.item_rect_max())
                     ).translated(Vec2::new(0.0, 20.0));
 
-                    let underline_tint_color = if ui.is_item_active() {
+                    let enabled = Self::is_button_enabled(
+                        HomeMainMenuButton::try_from_primitive(button_index).unwrap()
+                    );
+
+                    let underline_tint_color = if ui.is_item_active() || !enabled {
                         imgui::ImColor32::from_rgba_f32s(1.0, 1.0, 1.0, 0.5)
                     } else {
                         imgui::ImColor32::WHITE
@@ -347,6 +358,9 @@ impl ModalMenu for HomeMainMenu {
                                         button_rect.max.to_array())
                                         .col(underline_tint_color)
                                         .build();
+                }),
+                Some(|button_index: usize| -> bool {
+                    Self::is_button_enabled(HomeMainMenuButton::try_from_primitive(button_index).unwrap())
                 })
             );
 
