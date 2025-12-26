@@ -101,10 +101,10 @@ pub struct ButtonDef {
 }
 
 // ----------------------------------------------
-// Button
+// SpriteButton
 // ----------------------------------------------
 
-pub struct Button {
+pub struct SpriteButton {
     pub def: ButtonDef,
     pub rect: Rect, // NOTE: Cached from ImGui on every draw().
 
@@ -115,7 +115,7 @@ pub struct Button {
     visual_state_transition_timer: CountdownTimer,
 }
 
-impl Button {
+impl SpriteButton {
     pub fn new(context: &mut UiWidgetContext, def: ButtonDef, initial_state: ButtonState) -> Self {
         let name = def.name;
         let hidden = def.hidden;

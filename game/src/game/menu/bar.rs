@@ -5,7 +5,7 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
     modal::*,
-    button::{Button, ButtonState, ButtonDef},
+    button::{SpriteButton, ButtonState, ButtonDef},
     widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons, UiWidgetContext},
     GameMenusInputArgs,
 };
@@ -292,7 +292,7 @@ impl LeftBarButtonKind {
 
     fn new_button(self, context: &mut UiWidgetContext) -> LeftBarButton {
         LeftBarButton {
-            btn: Button::new(
+            btn: SpriteButton::new(
                 context,
                 ButtonDef {
                     name: self.sprite_path(),
@@ -318,7 +318,7 @@ impl LeftBarButtonKind {
 }
 
 struct LeftBarButton {
-    btn: Button,
+    btn: SpriteButton,
     kind: LeftBarButtonKind,
 }
 
@@ -339,28 +339,42 @@ impl LeftBar {
                 LeftBarButtonKind::MainMenu =>{
                     left_bar.modal_menus.push(
                         Box::new(
-                            MainModalMenu::new(context, LeftBarButtonKind::MainMenu.tooltip(), left_bar.as_ref())
+                            MainModalMenu::new(context, ModalMenuParams {
+                                title: Some(LeftBarButtonKind::MainMenu.tooltip()),
+                                ..Default::default()
+                            },
+                            left_bar.as_ref())
                         )
                     )
                 }
                 LeftBarButtonKind::SaveGame => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            SaveGameModalMenu::new(context, SaveGameActions::Save | SaveGameActions::Load)
+                            SaveGameModalMenu::new(context, ModalMenuParams {
+                                title: Some(LeftBarButtonKind::SaveGame.tooltip()),
+                                ..Default::default()
+                            },
+                            SaveGameActions::Save | SaveGameActions::Load)
                         )
                     )
                 }
                 LeftBarButtonKind::Settings => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            SettingsModalMenu::new(context, LeftBarButtonKind::Settings.tooltip())
+                            SettingsModalMenu::new(context, ModalMenuParams {
+                                title: Some(LeftBarButtonKind::Settings.tooltip()),
+                                ..Default::default()
+                            })
                         )
                     )
                 }
                 LeftBarButtonKind::NewGame => {
                     left_bar.modal_menus.push(
                         Box::new(
-                            NewGameModalMenu::new(context, LeftBarButtonKind::NewGame.tooltip())
+                            NewGameModalMenu::new(context, ModalMenuParams {
+                                title: Some(LeftBarButtonKind::NewGame.tooltip()),
+                                ..Default::default()
+                            })
                         )
                     )
                 }
@@ -511,7 +525,7 @@ impl GameSpeedControlButtonKind {
 
     fn new_button(self, context: &mut UiWidgetContext) -> GameSpeedControlButton {
         GameSpeedControlButton {
-            btn: Button::new(
+            btn: SpriteButton::new(
                 context,
                 ButtonDef {
                     name: self.sprite_path(),
@@ -537,7 +551,7 @@ impl GameSpeedControlButtonKind {
 }
 
 struct GameSpeedControlButton {
-    btn: Button,
+    btn: SpriteButton,
     kind: GameSpeedControlButtonKind,
 }
 

@@ -4,7 +4,7 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
     TilePaletteSelection,
-    button::{Button, ButtonState, ButtonDef},
+    button::{SpriteButton, ButtonState, ButtonDef},
     widgets::{self, UiStyleOverrides, UiWidgetContext},
 };
 use crate::{
@@ -117,7 +117,7 @@ impl TilePaletteMainButtonKind {
     fn new_button(self, context: &mut UiWidgetContext) -> TilePaletteMainButton {
         let children = self.build_child_button_list();
         TilePaletteMainButton {
-            btn: Button::new(
+            btn: SpriteButton::new(
                 context,
                 ButtonDef {
                     name: self.sprite_path(),
@@ -148,7 +148,7 @@ impl TilePaletteMainButtonKind {
 // ----------------------------------------------
 
 struct TilePaletteMainButton {
-    btn: Button,
+    btn: SpriteButton,
     kind: TilePaletteMainButtonKind,
     children: Vec<TilePaletteChildButton>,
 }

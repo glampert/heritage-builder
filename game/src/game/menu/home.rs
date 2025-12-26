@@ -13,13 +13,14 @@ use super::{
     TilePlacement,
     TileInspector,
     modal::*,
-    widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons, UiWidgetContext},
+    widgets::{self, UiStyleOverrides, UiWidgetContext},
 };
 use crate::{
     game::GameLoop,
+    engine::time::Seconds,
     save::{Save, Load},
     tile::rendering::TileMapRenderFlags,
-    utils::{Size, Rect, Vec2, coords::CellRange},
+    utils::{Size, Vec2, coords::CellRange},
     imgui_ui::{UiInputEvent, UiTextureHandle},
 };
 
@@ -27,16 +28,18 @@ use crate::{
 // HomeMenus
 // ----------------------------------------------
 
+type Background = StaticFullScreenBackground;
+
 pub struct HomeMenus {
     main_menu: HomeMainMenu,
-    background: FullScreenBackground,
+    background: Background,
 }
 
 impl HomeMenus {
     pub fn new(context: &mut UiWidgetContext) -> Self {
         Self {
             main_menu: HomeMainMenu::new(context),
-            background: FullScreenBackground::new(context),
+            background: Background::new(context),
         }
     }
 }
@@ -78,7 +81,10 @@ impl GameMenusSystem for HomeMenus {
         let mut widget_context =
             UiWidgetContext::new(context.sim, context.world, context.engine);
 
-        self.main_menu.draw(&mut widget_context);
+        if self.background.anim_scene_completed() {
+            self.main_menu.draw(&mut widget_context);
+        }
+
         self.background.draw(&mut widget_context);
     }
 
@@ -146,9 +152,21 @@ struct HomeMainMenu {
 }
 
 impl HomeMainMenu {
+    const FONT_SCALE_CHILD_MENU: f32 = 1.2; // Child menu default
+    const FONT_SCALE_HOME_BTN: f32 = 1.5;   // Home buttons
+    const FONT_SCALE_HEADING: f32 = 1.8;    // Headings
+
+    const BG_SPRITE: &str = "misc/scroll_bg.png";
+    const SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
+
+    const POSITION: Vec2 = Vec2::new(50.0, 50.0);
+    fn calc_size(context: &UiWidgetContext) -> Size {
+        Size::new(550, context.viewport_size.height - 100)
+    }
+
     fn new(context: &mut UiWidgetContext) -> Self {
         let separator_tex_handle = context.tex_cache.load_texture_with_settings(
-            super::ui_assets_path().join("misc/brush_stroke_divider.png").to_str().unwrap(),
+            super::ui_assets_path().join(Self::SEPARATOR_SPRITE).to_str().unwrap(),
             Some(super::ui_texture_settings())
         );
         Self {
@@ -156,9 +174,13 @@ impl HomeMainMenu {
                 context,
                 ModalMenuParams {
                     start_open: true,
-                    position: Some(Vec2::new(50.0, 50.0)),
-                    size: Some(Size::new(550, context.viewport_size.height - 100)),
-                    background_sprite: Some("misc/scroll_bg.png"),
+                    position: Some(Self::POSITION),
+                    size: Some(Self::calc_size(context)),
+                    background_sprite: Some(Self::BG_SPRITE),
+                    btn_hover_sprite: Some(Self::SEPARATOR_SPRITE),
+                    font_scale: Self::FONT_SCALE_CHILD_MENU,
+                    btn_font_scale: Self::FONT_SCALE_HOME_BTN,
+                    heading_font_scale: Self::FONT_SCALE_HEADING,
                     ..Default::default()
                 }
             ),
@@ -179,10 +201,15 @@ impl HomeMainMenu {
         }
     }
 
-    fn draw_child_menus(&mut self, context: &mut UiWidgetContext) {
+    fn draw_child_menus(&mut self, context: &mut UiWidgetContext) -> bool {
+        let mut any_child_menu_open = false;
         for menu in (&mut self.child_menus).into_iter().flatten() {
-            menu.draw(context);
+            if menu.is_open() {
+                menu.draw(context);
+                any_child_menu_open = true;
+            }
         }
+        any_child_menu_open
     }
 
     fn create_child_menus(context: &mut UiWidgetContext) -> ArrayVec<Option<Box<dyn ModalMenu>>, MAIN_MENU_BUTTON_COUNT> {
@@ -193,27 +220,59 @@ impl HomeMainMenu {
         menus
     }
 
-    fn create_child_menu_for_button(context: &mut UiWidgetContext,
-                                    button: HomeMainMenuButton)
-                                    -> Option<Box<dyn ModalMenu>> {
-        let menu: Box<dyn ModalMenu> = match button {
-            HomeMainMenuButton::NewGame    => Box::new(NewGameModalMenu::new(context, "New Game".into())),
-            HomeMainMenuButton::Continue   => return None, // TODO
-            HomeMainMenuButton::LoadGame   => Box::new(SaveGameModalMenu::new(context, SaveGameActions::Load)),
-            HomeMainMenuButton::CustomGame => return None, // TODO
-            HomeMainMenuButton::Settings   => Box::new(SettingsModalMenu::new(context, "Settings".into())),
-            HomeMainMenuButton::About      => Box::new(AboutModalMenu::new(context, "About".into())),
-            HomeMainMenuButton::Exit       => return None, // Exit - no menu.
+    fn create_child_menu_for_button(context: &mut UiWidgetContext, button: HomeMainMenuButton) -> Option<Box<dyn ModalMenu>> {
+        let shared_params = ModalMenuParams {
+            position: Some(Self::POSITION),
+            size: Some(Self::calc_size(context)),
+            background_sprite: Some(Self::BG_SPRITE),
+            btn_hover_sprite: Some(Self::SEPARATOR_SPRITE),
+            font_scale: Self::FONT_SCALE_CHILD_MENU,
+            btn_font_scale: Self::FONT_SCALE_HOME_BTN,
+            heading_font_scale: Self::FONT_SCALE_HEADING,
+            ..Default::default()
         };
+
+        let menu: Box<dyn ModalMenu> = match button {
+            HomeMainMenuButton::NewGame => {
+                let mut params = shared_params;
+                params.title = Some("New Game".into());
+                Box::new(NewGameModalMenu::new(context, params))
+            }
+            HomeMainMenuButton::Continue => {
+                return None; // TODO
+            }
+            HomeMainMenuButton::LoadGame => {
+                let mut params = shared_params;
+                params.title = Some("Load Game".into());
+                Box::new(SaveGameModalMenu::new(context, params, SaveGameActions::Load))
+            }
+            HomeMainMenuButton::CustomGame => {
+                return None; // TODO
+            }
+            HomeMainMenuButton::Settings => {
+                let mut params = shared_params;
+                params.title = Some("Settings".into());
+                Box::new(SettingsModalMenu::new(context, params))
+            }
+            HomeMainMenuButton::About => {
+                let mut params = shared_params;
+                params.title = Some("About".into());
+                Box::new(AboutModalMenu::new(context, params))
+            }
+            HomeMainMenuButton::Exit => {
+                return None; // Exit - no menu.
+            }
+        };
+
         Some(menu)
     }
 
     fn is_button_enabled(button: HomeMainMenuButton) -> bool {
         match button {
             HomeMainMenuButton::NewGame    => true,
-            HomeMainMenuButton::Continue   => false,
+            HomeMainMenuButton::Continue   => false, // TODO
             HomeMainMenuButton::LoadGame   => true,
-            HomeMainMenuButton::CustomGame => false,
+            HomeMainMenuButton::CustomGame => false, // TODO
             HomeMainMenuButton::Settings   => true,
             HomeMainMenuButton::About      => true,
             HomeMainMenuButton::Exit       => true,
@@ -247,6 +306,10 @@ impl HomeMainMenu {
     fn on_load_game_button(&mut self, context: &mut UiWidgetContext) {
         if let Some(menu) = self.child_menu_for_button(HomeMainMenuButton::LoadGame) {
             menu.open(context);
+            menu.as_any_mut()
+                .downcast_mut::<SaveGameModalMenu>()
+                .unwrap()
+                .set_actions(SaveGameActions::Load);
         }
     }
 
@@ -291,81 +354,37 @@ impl ModalMenu for HomeMainMenu {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        let any_child_menu_open = self.draw_child_menus(context);
+        if any_child_menu_open {
+            return;
+        }
+
         let mut pressed_button: Option<HomeMainMenuButton> = None;
 
-        self.menu.draw(context, |context| {
+        self.menu.draw(context, |context, this| {
             let ui = context.ui_sys.ui();
-            let window_draw_list = ui.get_window_draw_list();
-
-            // Make button background transparent and borderless.
-            let _button_style_overrides =
-                UiStyleTextLabelInvisibleButtons::apply_overrides(context.ui_sys);
 
             const BUTTON_SPACING: Vec2 = Vec2::new(6.0, 6.0);
             let _item_spacing =
                 UiStyleOverrides::set_item_spacing(context.ui_sys, BUTTON_SPACING.x, BUTTON_SPACING.y);
 
-            // Bigger font for the heading.
-            ui.set_window_font_scale(1.8);
-            // Draw heading as buttons, so everything is properly centered.
-            widgets::draw_centered_button_group_with_offsets(
-                ui,
-                &window_draw_list,
-                &["Heritage Builder", "The Dragon Legacy"],
-                None,
-                Some(Vec2::new(0.0, -200.0))
-            );
+            // Draw heading and separator:
+            this.draw_menu_heading(context, &["Heritage Builder", "The Dragon Legacy"]);
 
-            // Draw separator:
-            let heading_separator_width = ui.calc_text_size("The Dragon Legacy")[0];
-            let heading_separator_rect = Rect::from_extents(
-                Vec2::from_array([ui.item_rect_min()[0] - 40.0, ui.item_rect_min()[1] - 10.0]),
-                Vec2::from_array([ui.item_rect_min()[0] + heading_separator_width + 40.0, ui.item_rect_max()[1] + 30.0])
-            ).translated(Vec2::new(0.0, 40.0));
-            window_draw_list.add_image(self.separator_ui_texture,
-                                       heading_separator_rect.min.to_array(),
-                                       heading_separator_rect.max.to_array())
-                                       .build();
-
-            // Bigger font for the buttons.
-            ui.set_window_font_scale(1.5);
+            // Set font for the buttons:
+            ui.set_window_font_scale(Self::FONT_SCALE_HOME_BTN);
             // Draw actual menu buttons:
-            let pressed_button_index = widgets::draw_centered_button_group_ex(
-                ui,
-                &window_draw_list,
+            let pressed_button_index = widgets::draw_centered_button_group_custom_hover(
+                context.ui_sys,
+                &ui.get_window_draw_list(),
                 &HomeMainMenuButton::labels(),
-                Some(Size::new(180, 40)),
+                Some(MODAL_BUTTON_LARGE_SIZE),
                 Some(Vec2::new(0.0, 150.0)),
-                Some(|ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, button_index: usize| {
-                    // Draw underline effect when hovered / active:
-                    let button_rect = Rect::from_extents(
-                        Vec2::from_array(ui.item_rect_min()),
-                        Vec2::from_array(ui.item_rect_max())
-                    ).translated(Vec2::new(0.0, 20.0));
-
-                    let enabled = Self::is_button_enabled(
-                        HomeMainMenuButton::try_from_primitive(button_index).unwrap()
-                    );
-
-                    let underline_tint_color = if ui.is_item_active() || !enabled {
-                        imgui::ImColor32::from_rgba_f32s(1.0, 1.0, 1.0, 0.5)
-                    } else {
-                        imgui::ImColor32::WHITE
-                    };
-
-                    draw_list.add_image(self.separator_ui_texture,
-                                        button_rect.min.to_array(),
-                                        button_rect.max.to_array())
-                                        .col(underline_tint_color)
-                                        .build();
-                }),
+                self.separator_ui_texture,
                 Some(|button_index: usize| -> bool {
                     Self::is_button_enabled(HomeMainMenuButton::try_from_primitive(button_index).unwrap())
                 })
             );
-
-            // Restore default.
-            ui.set_window_font_scale(1.0);
 
             if let Some(pressed_index) = pressed_button_index {
                 pressed_button = HomeMainMenuButton::try_from_primitive(pressed_index).ok();
@@ -376,23 +395,22 @@ impl ModalMenu for HomeMainMenu {
             self.close_child_menus(context);
             self.handle_button_click(context, button);
         }
-
-        self.draw_child_menus(context);
     }
 }
 
 // ----------------------------------------------
-// FullScreenBackground
+// StaticFullScreenBackground
 // ----------------------------------------------
 
-struct FullScreenBackground {
+// Static, single image/frame background.
+struct StaticFullScreenBackground {
     ui_texture: UiTextureHandle,
 }
 
-impl FullScreenBackground {
+impl StaticFullScreenBackground {
     fn new(context: &mut UiWidgetContext) -> Self {
         let bg_tex_handle = context.tex_cache.load_texture_with_settings(
-            super::ui_assets_path().join("misc/home_menu_bg.png").to_str().unwrap(),
+            super::ui_assets_path().join("misc/home_menu_static_bg.png").to_str().unwrap(),
             Some(super::ui_texture_settings())
         );
         Self {
@@ -406,5 +424,83 @@ impl FullScreenBackground {
 
         // Draw full-screen rectangle with the background image:
         draw_list.add_image(self.ui_texture, [0.0, 0.0], ui.io().display_size).build();
+    }
+
+    #[inline]
+    fn anim_scene_completed(&self) -> bool {
+        true
+    }
+}
+
+// ----------------------------------------------
+// AnimatedFullScreenBackground
+// ----------------------------------------------
+
+const BACKGROUND_ANIM_FRAME_COUNT: usize = 30;
+const BACKGROUND_ANIM_FRAME_DURATION: Seconds = 0.3;
+const BACKGROUND_ANIM_LOOPING: bool = true;
+
+struct AnimatedFullScreenBackground {
+    frames: ArrayVec<UiTextureHandle, BACKGROUND_ANIM_FRAME_COUNT>,
+    frame_index: usize,
+    frame_play_time_secs: Seconds,
+    played_once: bool,
+}
+
+impl AnimatedFullScreenBackground {
+    fn new(context: &mut UiWidgetContext) -> Self {
+        let mut frames = ArrayVec::new();
+
+        for i in 0..BACKGROUND_ANIM_FRAME_COUNT {
+            let tex_handle = context.tex_cache.load_texture_with_settings(
+                super::ui_assets_path().join(format!("misc/home_menu_anim/frame{i}.jpg")).to_str().unwrap(),
+                Some(super::ui_texture_settings())
+            );
+            frames.push(context.ui_sys.to_ui_texture(context.tex_cache, tex_handle));
+        }
+
+        // TODO: Temporary, should get the sound system from UiWidgetContext instead.
+        let sound_sys = GameLoop::get_mut().engine_mut().sound_system();
+        let sound_key = sound_sys.load_music("dynastys_legacy_1.mp3");
+        sound_sys.play_music(sound_key, true);
+
+        Self {
+            frames,
+            frame_index: 0,
+            frame_play_time_secs: 0.0,
+            played_once: false,
+        }
+    }
+
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        // Advance animation:
+        self.frame_play_time_secs += context.delta_time_secs;
+
+        if self.frame_play_time_secs >= BACKGROUND_ANIM_FRAME_DURATION {
+            if self.frame_index < self.frames.len() - 1 {
+                // Move to next frame.
+                self.frame_index += 1;
+            } else {
+                // Played the whole anim.
+                self.played_once = true;
+                if BACKGROUND_ANIM_LOOPING {
+                    self.frame_index = BACKGROUND_ANIM_FRAME_COUNT - 2; // Loop the last 2 frames.
+                }
+            }
+            // Reset the clock.
+            self.frame_play_time_secs = 0.0;
+        }
+
+        let frame_ui_texture = self.frames[self.frame_index];
+
+        // Draw full-screen rectangle with the background image:
+        let ui = context.ui_sys.ui();
+        let draw_list = ui.get_background_draw_list();
+        draw_list.add_image(frame_ui_texture, [0.0, 0.0], ui.io().display_size).build();
+    }
+
+    #[inline]
+    fn anim_scene_completed(&self) -> bool {
+        self.played_once
     }
 }

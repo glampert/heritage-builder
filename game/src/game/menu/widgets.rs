@@ -118,17 +118,17 @@ impl<'ui> UiStyleOverrides<'ui> {
             popup_border_size: ui.push_style_var(imgui::StyleVar::PopupBorderSize(1.0)), // No border
 
             // Child Windows:
-            child_bg_color: ui.push_style_color(imgui::StyleColor::ChildBg, btn_active),
+            child_bg_color: ui.push_style_color(imgui::StyleColor::ChildBg, [0.88, 0.83, 0.68, 0.25]),
 
             // InputText:
-            frame_bg_color: ui.push_style_color(imgui::StyleColor::FrameBg, btn_active),
-            frame_bg_color_hovered: ui.push_style_color(imgui::StyleColor::FrameBgHovered, btn_hovered),
-            frame_bg_color_active: ui.push_style_color(imgui::StyleColor::FrameBgActive, btn_active),
+            frame_bg_color: ui.push_style_color(imgui::StyleColor::FrameBg, [0.88, 0.83, 0.68, 0.25]),
+            frame_bg_color_hovered: ui.push_style_color(imgui::StyleColor::FrameBgHovered, [0.98, 0.95, 0.83, 0.5]),
+            frame_bg_color_active: ui.push_style_color(imgui::StyleColor::FrameBgActive, [0.88, 0.83, 0.68, 0.5]),
 
             // Selectable / TreeNode / Collapsing Header:
-            header_color: ui.push_style_color(imgui::StyleColor::Header, btn_active),
-            header_color_hovered: ui.push_style_color(imgui::StyleColor::HeaderHovered, [0.83, 0.78, 0.62, 1.0]),
-            header_color_active: ui.push_style_color(imgui::StyleColor::HeaderActive, btn_active),
+            header_color: ui.push_style_color(imgui::StyleColor::Header, [0.88, 0.83, 0.68, 0.5]),
+            header_color_hovered: ui.push_style_color(imgui::StyleColor::HeaderHovered, [0.83, 0.78, 0.62, 0.5]),
+            header_color_active: ui.push_style_color(imgui::StyleColor::HeaderActive, [0.88, 0.83, 0.68, 0.5]),
 
             // Scrollbar:
             scrollbar_bg_color: ui.push_style_color(imgui::StyleColor::ScrollbarBg, [0.78, 0.73, 0.60, 1.0]),
@@ -168,6 +168,9 @@ impl<'ui> UiStyleTextLabelInvisibleButtons<'ui> {
     }
 }
 
+pub const DEFAULT_ON_HOVER: Option<fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize)> = None;
+pub const ALWAYS_ENABLED: Option<fn(usize) -> bool> = None;
+
 #[inline]
 pub fn draw_centered_button_group(ui: &imgui::Ui,
                                   draw_list: &imgui::DrawListMut<'_>,
@@ -179,8 +182,8 @@ pub fn draw_centered_button_group(ui: &imgui::Ui,
         labels,
         size,
         None,
-        None,
-        None)
+        DEFAULT_ON_HOVER,
+        ALWAYS_ENABLED)
 }
 
 #[inline]
@@ -195,8 +198,8 @@ pub fn draw_centered_button_group_with_offsets(ui: &imgui::Ui,
         labels,
         size,
         offsets,
-        None,
-        None)
+        DEFAULT_ON_HOVER,
+        ALWAYS_ENABLED)
 }
 
 pub fn draw_centered_button_group_ex<OnHovered, IsEnabled>(ui: &imgui::Ui,
@@ -265,7 +268,13 @@ pub fn draw_centered_button_group_ex<OnHovered, IsEnabled>(ui: &imgui::Ui,
             if enabled { [0.0, 0.0, 0.0, 1.0] } else { [0.0, 0.0, 0.0, 0.5] }
         );
 
-        if ui.button_with_size(label, button_size) {
+        let button_label: &str = if !label.is_empty() {
+            label
+        } else {
+            &format!("##Btn_{index}")
+        };
+
+        if ui.button_with_size(button_label, button_size) {
             pressed_index = Some(index);
         }
 
@@ -277,6 +286,135 @@ pub fn draw_centered_button_group_ex<OnHovered, IsEnabled>(ui: &imgui::Ui,
     }
 
     pressed_index
+}
+
+pub fn draw_centered_button_group_custom_hover<IsEnabled>(ui_sys: &UiSystem,
+                                                          draw_list: &imgui::DrawListMut<'_>,
+                                                          labels: &[&str],
+                                                          size: Option<Size>,
+                                                          offsets: Option<Vec2>,
+                                                          hover_ui_texture: UiTextureHandle,
+                                                          is_enabled: Option<IsEnabled>) -> Option<usize>
+    where IsEnabled: Clone + Fn(usize) -> bool
+{
+    // Make button background transparent and borderless.
+    let _button_style_overrides =
+        UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+
+    let is_enabled_copy = is_enabled.clone();
+    draw_centered_button_group_ex(
+        ui_sys.ui(),
+        draw_list,
+        labels,
+        size,
+        offsets,
+        Some(|ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, button_index: usize| {
+            // Draw underline effect when hovered / active:
+            let button_rect = Rect::from_extents(
+                Vec2::from_array(ui.item_rect_min()),
+                Vec2::from_array(ui.item_rect_max())
+            ).translated(Vec2::new(0.0, 20.0));
+
+            let enabled = if let Some(is_enabled) = &is_enabled {
+                is_enabled(button_index)
+            } else {
+                true
+            };
+
+            let underline_tint_color = if ui.is_item_active() || !enabled {
+                imgui::ImColor32::from_rgba_f32s(1.0, 1.0, 1.0, 0.5)
+            } else {
+                imgui::ImColor32::WHITE
+            };
+
+            draw_list.add_image(hover_ui_texture,
+                                button_rect.min.to_array(),
+                                button_rect.max.to_array())
+                                .col(underline_tint_color)
+                                .build();
+        }),
+        is_enabled_copy
+    )
+}
+
+pub fn draw_button_custom_hover(ui_sys: &UiSystem,
+                                draw_list: &imgui::DrawListMut<'_>,
+                                label: &str,
+                                enabled: bool,
+                                hover_ui_texture: UiTextureHandle) -> bool {
+    debug_assert!(!label.is_empty());
+
+    let _btn_style_overrides =
+        UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+
+    let ui = ui_sys.ui();
+    let _btn_text_color = ui.push_style_color(
+        imgui::StyleColor::Text,
+        if enabled { [0.0, 0.0, 0.0, 1.0] } else { [0.0, 0.0, 0.0, 0.5] }
+    );
+
+    let pressed = ui.button(label);
+    draw_last_item_debug_rect(ui, draw_list, Color::blue());
+
+    if ui.is_item_hovered() {
+        // Draw underline effect when hovered / active:
+        let button_rect = Rect::from_extents(
+            Vec2::from_array(ui.item_rect_min()),
+            Vec2::from_array(ui.item_rect_max())
+        ).translated(Vec2::new(0.0, 20.0));
+
+        let underline_tint_color = if ui.is_item_active() || !enabled {
+            imgui::ImColor32::from_rgba_f32s(1.0, 1.0, 1.0, 0.5)
+        } else {
+            imgui::ImColor32::WHITE
+        };
+
+        draw_list.add_image(hover_ui_texture,
+                            button_rect.min.to_array(),
+                            button_rect.max.to_array())
+                            .col(underline_tint_color)
+                            .build();
+    }
+
+    pressed
+}
+
+pub fn draw_menu_heading(ui_sys: &UiSystem,
+                         draw_list: &imgui::DrawListMut<'_>,
+                         labels: &[&str],
+                         offsets: Option<Vec2>,
+                         separator_rect_offsets: Option<Rect>,
+                         separator_ui_texture: UiTextureHandle) {
+    // Draw heading as buttons, so everything is properly centered.
+    draw_centered_text_label_group(
+        ui_sys,
+        draw_list,
+        labels,
+        offsets
+    );
+
+    let ui = ui_sys.ui();
+
+    let mut heading_separator_width = 0.0;
+    for label in labels {
+        let width = ui.calc_text_size(label)[0];
+        if width > heading_separator_width {
+            heading_separator_width = width;
+        }
+    }
+
+    // Draw separator:
+    let rect_offsets = separator_rect_offsets.unwrap_or_default();
+
+    let heading_separator_rect = Rect::from_extents(
+        Vec2::from_array([ui.item_rect_min()[0] - rect_offsets.min.x, ui.item_rect_min()[1] - rect_offsets.min.y]),
+        Vec2::from_array([ui.item_rect_min()[0] + heading_separator_width + rect_offsets.max.x, ui.item_rect_max()[1] + rect_offsets.max.y])
+    ).translated(Vec2::new(0.0, 40.0));
+
+    draw_list.add_image(separator_ui_texture,
+                        heading_separator_rect.min.to_array(),
+                        heading_separator_rect.max.to_array())
+                        .build();
 }
 
 // Draws a vertical separator immediately after the last submitted item.
@@ -351,6 +489,23 @@ pub fn draw_sprite(ui: &imgui::Ui,
     if ui.is_item_hovered() && let Some(tooltip) = tooltip {
         ui.tooltip_text(tooltip);
     }
+}
+
+pub fn draw_centered_text_label_group(ui_sys: &UiSystem,
+                                      draw_list: &imgui::DrawListMut<'_>,
+                                      labels: &[&str],
+                                      offsets: Option<Vec2>) {
+    // Make button background transparent and borderless.
+    let _button_style_overrides =
+        UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
+
+    draw_centered_button_group_with_offsets(
+        ui_sys.ui(),
+        draw_list,
+        labels,
+        None,
+        offsets,
+    );
 }
 
 // NOTE: This assumes UiStyleTextLabelInvisibleButtons overrides are already set.

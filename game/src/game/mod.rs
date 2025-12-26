@@ -833,6 +833,12 @@ impl GameLoop {
             return;
         }
 
+        if let Some(session) = &self.session
+            && session.current_menu_mode() == Some(GameMenuMode::Home)
+        {
+            return; // Don't autosave while in the home/main menu.
+        }
+
         let delta_time_secs = self.engine.frame_clock().delta_time();
 
         if self.autosave_timer.tick(delta_time_secs).should_update() {

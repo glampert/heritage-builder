@@ -9,11 +9,11 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator, VariantArray};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    widgets::{self, UiWidgetContext, UiStyleTextLabelInvisibleButtons},
+    widgets::{self, UiWidgetContext},
     bar::MenuBar,
 };
 use crate::{
-    render::TextureFilter,
+    render::{TextureFilter, TextureHandle},
     utils::{self, Size, Rect, Vec2, mem},
     imgui_ui::{UiSystem, UiTextureHandle, UiStaticVar},
     tile::{sets::PresetTiles, camera::CameraGlobalSettings},
@@ -24,8 +24,9 @@ use crate::{
 // Constants
 // ----------------------------------------------
 
-const MODAL_BUTTON_DEFAULT_SIZE: Size = Size::new(150, 30);
-const MODAL_WINDOW_DEFAULT_SIZE: Size = Size::new(400, 400);
+pub const MODAL_BUTTON_DEFAULT_SIZE: Size = Size::new(150, 30);
+pub const MODAL_BUTTON_LARGE_SIZE:   Size = Size::new(180, 40);
+pub const MODAL_WINDOW_DEFAULT_SIZE: Size = Size::new(400, 400);
 
 // ----------------------------------------------
 // ModalMenu / BasicModalMenu
@@ -51,13 +52,32 @@ pub trait ModalMenu: Any {
     fn draw(&mut self, context: &mut UiWidgetContext);
 }
 
-#[derive(Default)]
 pub struct ModalMenuParams {
     pub title: Option<String>,
     pub size: Option<Size>,
     pub position: Option<Vec2>,
     pub background_sprite: Option<&'static str>,
+    pub btn_hover_sprite: Option<&'static str>,
     pub start_open: bool,
+    pub font_scale: f32,
+    pub btn_font_scale: f32,
+    pub heading_font_scale: f32,
+}
+
+impl Default for ModalMenuParams {
+    fn default() -> Self {
+        Self {
+            title: None,
+            size: Some(MODAL_WINDOW_DEFAULT_SIZE),
+            position: None,
+            background_sprite: None,
+            btn_hover_sprite: None,
+            start_open: false,
+            font_scale: 1.0,
+            btn_font_scale: 1.0,
+            heading_font_scale: 1.0,
+        }
+    }
 }
 
 pub struct BasicModalMenu {
@@ -65,13 +85,19 @@ pub struct BasicModalMenu {
     size: Option<Size>,
     position: Option<Vec2>,
     background_sprite: Option<UiTextureHandle>,
+    btn_hover_sprite: Option<UiTextureHandle>,
     is_open: bool,
     with_title_bar: bool,
+    font_scale: f32,
+    btn_font_scale: f32,
+    heading_font_scale: f32,
     dialog: Option<Box<ModalPopupDialog>>,
 }
 
 impl BasicModalMenu {
     pub fn new(context: &mut UiWidgetContext, params: ModalMenuParams) -> Self {
+        debug_assert!(params.font_scale > 0.0);
+
         let background_sprite = params.background_sprite.map(|sprite_path| {
             let file_path = super::ui_assets_path().join(sprite_path);
             let tex_handle = context.tex_cache.load_texture_with_settings(
@@ -81,7 +107,16 @@ impl BasicModalMenu {
             context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
         });
 
-        let with_title_bar = params.title.is_some();
+        let btn_hover_sprite = params.btn_hover_sprite.map(|sprite_path| {
+            let file_path = super::ui_assets_path().join(sprite_path);
+            let tex_handle = context.tex_cache.load_texture_with_settings(
+                file_path.to_str().unwrap(),
+                Some(super::ui_texture_settings())
+            );
+            context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
+        });
+
+        let with_title_bar = params.title.is_some() && background_sprite.is_none();
         let title = params.title.unwrap_or("##ModalMenu".to_string());
 
         Self {
@@ -89,10 +124,40 @@ impl BasicModalMenu {
             size: params.size,
             position: params.position,
             background_sprite,
+            btn_hover_sprite,
             is_open: params.start_open,
             with_title_bar,
+            font_scale: params.font_scale,
+            btn_font_scale: params.btn_font_scale,
+            heading_font_scale: params.heading_font_scale,
             dialog: None,
         }
+    }
+
+    pub fn button_hover_sprite(&self, context: &mut UiWidgetContext) -> UiTextureHandle {
+        if let Some(ui_texture) = self.btn_hover_sprite {
+            return ui_texture;
+        }
+
+        // Fallback
+        context.ui_sys.to_ui_texture(context.tex_cache, TextureHandle::Invalid)
+    }
+
+    pub fn draw_menu_heading(&self, context: &mut UiWidgetContext, labels: &[&str]) {
+        let ui = context.ui_sys.ui();
+        ui.set_window_font_scale(self.heading_font_scale);
+
+        widgets::draw_menu_heading(
+            context.ui_sys,
+            &ui.get_window_draw_list(), 
+            labels,
+            Some(Vec2::new(0.0, -200.0)),
+            Some(Rect { min: Vec2::new(40.0, 10.0), max: Vec2::new(40.0, 30.0) }),
+            self.button_hover_sprite(context)
+        );
+
+        // Restore default.
+        ui.set_window_font_scale(self.font_scale);
     }
 
     pub fn is_open(&self) -> bool {
@@ -112,11 +177,11 @@ impl BasicModalMenu {
     }
 
     pub fn size(&self) -> Vec2 {
-        self.size.unwrap_or_default().to_vec2()
+        self.size.unwrap_or(MODAL_WINDOW_DEFAULT_SIZE).to_vec2()
     }
 
     pub fn draw<F>(&mut self, context: &mut UiWidgetContext, draw_menu_fn: F)
-        where F: FnOnce(&mut UiWidgetContext)
+        where F: FnOnce(&mut UiWidgetContext, &BasicModalMenu)
     {
         if !self.is_open {
             return;
@@ -148,6 +213,8 @@ impl BasicModalMenu {
             ui.window(&self.title)
                 .flags(widgets::window_flags())
                 .build(|| {
+                    ui.set_window_font_scale(self.font_scale);
+
                     ui.child_window("DialogTextContainer")
                         .size(dialog.size)
                         .no_inputs()
@@ -178,6 +245,8 @@ impl BasicModalMenu {
                     }
 
                     widgets::draw_current_window_debug_rect(ui);
+
+                    ui.set_window_font_scale(1.0); // Restore default.
                 });
         } else {
             let size_cond = if self.size.is_some() {
@@ -201,6 +270,8 @@ impl BasicModalMenu {
                 .size(window_size.to_array(), size_cond)
                 .flags(window_flags)
                 .build(|| {
+                    ui.set_window_font_scale(self.font_scale);
+
                     if let Some(background_texture) = self.background_sprite {
                         let window_rect = Rect::new(
                             Vec2::from_array(ui.window_pos()),
@@ -210,8 +281,11 @@ impl BasicModalMenu {
                             .add_image(background_texture, window_rect.min.to_array(), window_rect.max.to_array())
                             .build();
                     }
-                    draw_menu_fn(context);
+
+                    draw_menu_fn(context, self);
                     widgets::draw_current_window_debug_rect(ui);
+
+                    ui.set_window_font_scale(1.0); // Restore default.
                 });
         }
 
@@ -314,8 +388,8 @@ enum MainModalMenuButton {
     #[strum(props(Label = "Quit"))]
     Quit,
 
-    #[strum(props(Label = "Resume"))]
-    Resume,
+    #[strum(props(Label = "Close"))]
+    Close,
 }
 
 impl MainModalMenuButton {
@@ -330,12 +404,9 @@ pub struct MainModalMenu {
 }
 
 impl MainModalMenu {
-    pub fn new(context: &mut UiWidgetContext, title: String, parent: &dyn MenuBar) -> Self {
+    pub fn new(context: &mut UiWidgetContext, params: ModalMenuParams, parent: &dyn MenuBar) -> Self {
         Self {
-            menu: BasicModalMenu::new(
-                context,
-                ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
-            ),
+            menu: BasicModalMenu::new(context, params),
             parent: mem::RawPtr::from_ref(parent),
         }
     }
@@ -347,7 +418,7 @@ impl MainModalMenu {
             MainModalMenuButton::SaveGame => self.on_save_game_button(context),
             MainModalMenuButton::Settings => self.on_settings_button(context),
             MainModalMenuButton::Quit     => self.on_quit_button(context),
-            MainModalMenuButton::Resume   => self.on_resume_button(context),
+            MainModalMenuButton::Close    => self.on_close_button(context),
         }
     }
 
@@ -395,7 +466,7 @@ impl MainModalMenu {
         );
     }
 
-    fn on_resume_button(&mut self, context: &mut UiWidgetContext) {
+    fn on_close_button(&mut self, context: &mut UiWidgetContext) {
         self.parent.close_all_modal_menus(context);
     }
 }
@@ -420,7 +491,7 @@ impl ModalMenu for MainModalMenu {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         let mut pressed_button: Option<MainModalMenuButton> = None;
 
-        self.menu.draw(context, |context| {
+        self.menu.draw(context, |context, _| {
             let ui = context.ui_sys.ui();
 
             let mut labels = ArrayVec::<&str, MAIN_MODAL_MENU_BUTTON_COUNT>::new();
@@ -465,12 +536,9 @@ pub struct SaveGameModalMenu {
 }
 
 impl SaveGameModalMenu {
-    pub fn new(context: &mut UiWidgetContext, actions: SaveGameActions) -> Self {
+    pub fn new(context: &mut UiWidgetContext, params: ModalMenuParams, actions: SaveGameActions) -> Self {
         let mut menu = Self {
-            menu: BasicModalMenu::new(
-                context,
-                ModalMenuParams { title: Some("".to_string()), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
-            ),
+            menu: BasicModalMenu::new(context, params),
             actions: SaveGameActions::empty(),
             save_file_name: String::new(),
         };
@@ -544,18 +612,27 @@ impl ModalMenu for SaveGameModalMenu {
         let mut create_new_save_game = false;
         let mut should_close = false;
 
-        self.menu.draw(context, |context| {
+        self.menu.draw(context, |context, this| {
             let save_files_list = GameLoop::get().save_files_list();
             let ui = context.ui_sys.ui();
 
+            this.draw_menu_heading(context, &[&this.title]);
+
+            // Restore default.
+            ui.set_window_font_scale(this.font_scale);
+
+            let left_margin = 90.0;
+            let top_margin = 60.0;
             let container_size = [
-                ui.content_region_avail()[0],
-                MODAL_WINDOW_DEFAULT_SIZE.height as f32 - 100.0
+                360.0,
+                MODAL_WINDOW_DEFAULT_SIZE.height as f32 - 110.0
             ];
 
+            ui.set_cursor_pos([left_margin, ui.cursor_pos()[1] + top_margin]);
             ui.set_next_item_width(container_size[0]);
             ui.input_text("##SaveFileName", &mut self.save_file_name).build();
 
+            ui.set_cursor_pos([left_margin, ui.cursor_pos()[1]]);
             ui.child_window("SaveFileList")
                 .size(container_size)
                 .border(true)
@@ -575,8 +652,16 @@ impl ModalMenu for SaveGameModalMenu {
                     }
                 });
 
+            ui.set_cursor_pos([left_margin, ui.cursor_pos()[1]]);
+
             if self.actions.intersects(SaveGameActions::Load) {
-                if ui.button("Load Game") && !self.save_file_name.is_empty() {
+                if widgets::draw_button_custom_hover(context.ui_sys,
+                                                     &ui.get_window_draw_list(),
+                                                     "Load Game",
+                                                     !self.save_file_name.is_empty(),
+                                                     this.button_hover_sprite(context))
+                                                     && !self.save_file_name.is_empty()
+                {
                     load_game = true;
                 }
 
@@ -587,7 +672,13 @@ impl ModalMenu for SaveGameModalMenu {
             }
 
             if self.actions.intersects(SaveGameActions::Save) {
-                if ui.button("Save Game") && !self.save_file_name.is_empty() {
+                if widgets::draw_button_custom_hover(context.ui_sys,
+                                                     &ui.get_window_draw_list(),
+                                                     "Save Game",
+                                                     !self.save_file_name.is_empty(),
+                                                     this.button_hover_sprite(context))
+                                                     && !self.save_file_name.is_empty()
+                {
                     if save_files_list.iter().any(
                         |file| file.file_stem().unwrap().eq_ignore_ascii_case(&self.save_file_name))
                     {
@@ -603,7 +694,12 @@ impl ModalMenu for SaveGameModalMenu {
                 ui.same_line();
             }
 
-            if ui.button("Cancel") {
+            if widgets::draw_button_custom_hover(context.ui_sys,
+                                                 &ui.get_window_draw_list(),
+                                                 "Cancel",
+                                                 true,
+                                                 this.button_hover_sprite(context))
+            {
                 should_close = true;
             }
         });
@@ -651,17 +747,17 @@ const SETTINGS_MENU_BUTTON_COUNT: usize = SettingsMenuButton::COUNT;
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, TryFromPrimitive, EnumCount, EnumProperty, EnumIter)]
 enum SettingsMenuButton {
-    #[strum(props(Label = "Game"))]
+    #[strum(props(Label = "GAME"))]
     Game,
 
-    #[strum(props(Label = "Sound"))]
+    #[strum(props(Label = "SOUND"))]
     Sound,
 
-    #[strum(props(Label = "Graphics"))]
+    #[strum(props(Label = "GRAPHICS"))]
     Graphics,
 
-    #[strum(props(Label = "Resume"))]
-    Resume,
+    #[strum(props(Label = "BACK ->"))]
+    Back,
 }
 
 impl SettingsMenuButton {
@@ -676,12 +772,9 @@ pub struct SettingsModalMenu {
 }
 
 impl SettingsModalMenu {
-    pub fn new(context: &mut UiWidgetContext, title: String) -> Self {
+    pub fn new(context: &mut UiWidgetContext, params: ModalMenuParams) -> Self {
         Self {
-            menu: BasicModalMenu::new(
-                context,
-                ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
-            ),
+            menu: BasicModalMenu::new(context, params),
             current_selection: None,
         }
     }
@@ -766,6 +859,9 @@ impl SettingsModalMenu {
     fn draw_graphics_settings_menu(ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
+        let _combo_btn_color = ui.push_style_color(imgui::StyleColor::Button, [0.98, 0.82, 0.55, 0.5]);
+        let _combo_color = ui.push_style_color(imgui::StyleColor::PopupBg, [0.98, 0.82, 0.55, 1.0]);
+
         let game_loop = GameLoop::get_mut();
         let tex_cache = game_loop.engine_mut().texture_cache();
 
@@ -819,7 +915,7 @@ impl ModalMenu for SettingsModalMenu {
         let mut cancel_pressed = false;
         let mut should_close = false;
 
-        self.menu.draw(context, |context| {
+        self.menu.draw(context, |context, this| {
             let ui = context.ui_sys.ui();
 
             // A settings button is selected, draw its sub-menu:
@@ -830,34 +926,53 @@ impl ModalMenu for SettingsModalMenu {
                     SettingsMenuButton::Game => ("Game Settings", Self::draw_game_settings_menu),
                     SettingsMenuButton::Sound => ("Sound Settings", Self::draw_sound_settings_menu),
                     SettingsMenuButton::Graphics => ("Graphics Settings", Self::draw_graphics_settings_menu),
-                    SettingsMenuButton::Resume => {
+                    SettingsMenuButton::Back => {
                         should_close = true;
                         return;
                     }
                 };
 
-                // Frame the settings inside a child container window.
+                let left_margin = 90.0;
+                let top_margin = 110.0;
                 let container_size = [
-                    ui.content_region_avail()[0],
-                    MODAL_WINDOW_DEFAULT_SIZE.height as f32 - 100.0
+                    360.0,
+                    MODAL_WINDOW_DEFAULT_SIZE.height as f32 - 50.0
                 ];
 
+                ui.set_cursor_pos([left_margin, ui.cursor_pos()[1] + top_margin]);
                 ui.text(label);
+
+                // Frame the settings inside a child container window:
+                ui.set_cursor_pos([left_margin, ui.cursor_pos()[1]]);
                 ui.child_window("SettingsList")
                     .size(container_size)
                     .border(true)
                     .build(|| {
+                        ui.set_window_font_scale(0.8);
                         draw_fn(context.ui_sys);
                     });
 
-                ok_pressed |= ui.button("Ok");
+                ui.set_cursor_pos([left_margin, ui.cursor_pos()[1]]);
+                ok_pressed |= widgets::draw_button_custom_hover(
+                    context.ui_sys,
+                    &ui.get_window_draw_list(),
+                    "Ok",
+                    true,
+                    this.button_hover_sprite(context)
+                );
 
                 ui.same_line();
                 // Extra spacing between buttons.
                 widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
                 ui.same_line();
 
-                cancel_pressed |= ui.button("Cancel");
+                cancel_pressed |= widgets::draw_button_custom_hover(
+                    context.ui_sys,
+                    &ui.get_window_draw_list(),
+                    "Cancel",
+                    true,
+                    this.button_hover_sprite(context)
+                );
             } else {
                 // Draw main settings menu:
                 let mut labels = ArrayVec::<&str, SETTINGS_MENU_BUTTON_COUNT>::new();
@@ -865,11 +980,17 @@ impl ModalMenu for SettingsModalMenu {
                     labels.push(button.label());
                 }
 
-                let pressed_button_index = widgets::draw_centered_button_group(
-                    ui,
+                this.draw_menu_heading(context, &[&this.title]);
+
+                ui.set_window_font_scale(this.btn_font_scale);
+                let pressed_button_index = widgets::draw_centered_button_group_custom_hover(
+                    context.ui_sys,
                     &ui.get_window_draw_list(),
                     &labels,
-                    Some(MODAL_BUTTON_DEFAULT_SIZE)
+                    Some(MODAL_BUTTON_LARGE_SIZE),
+                    Some(Vec2::new(0.0, 50.0)),
+                    this.button_hover_sprite(context),
+                    widgets::ALWAYS_ENABLED,
                 );
 
                 if let Some(pressed_index) = pressed_button_index {
@@ -898,12 +1019,9 @@ pub struct NewGameModalMenu {
 }
 
 impl NewGameModalMenu {
-    pub fn new(context: &mut UiWidgetContext, title: String) -> Self {
+    pub fn new(context: &mut UiWidgetContext, params: ModalMenuParams) -> Self {
         Self {
-            menu: BasicModalMenu::new(
-                context,
-                ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
-            ),
+            menu: BasicModalMenu::new(context, params),
             new_map_size: Size::new(64, 64),
         }
     }
@@ -948,14 +1066,24 @@ impl ModalMenu for NewGameModalMenu {
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
         let mut should_close = false;
+        let mut start_new_game = false;
 
-        self.menu.draw(context, |context| {
+        const TILE_KIND_NAMES: [&str; 3] = ["Grass", "Dirt", "Water"];
+        const TILE_KIND_HASHES: [PresetTiles; 3] = [PresetTiles::Grass, PresetTiles::Dirt, PresetTiles::Water];
+        static CURRENT_TILE_KIND: UiStaticVar<usize> = UiStaticVar::new(0);
+
+        self.menu.draw(context, |context, this| {
             let ui = context.ui_sys.ui();
 
-            const GROUP_WIDTH: f32 = 210.0;
+            this.draw_menu_heading(context, &[&this.title]);
+
+            const GROUP_WIDTH: f32 = 250.0;
             let group_start = Self::calc_centered_group_start(ui, GROUP_WIDTH);
 
-            ui.set_cursor_pos([group_start.x, group_start.y]);
+            let _combo_btn_color = ui.push_style_color(imgui::StyleColor::Button, [0.98, 0.82, 0.55, 0.5]);
+            let _combo_color = ui.push_style_color(imgui::StyleColor::PopupBg, [0.98, 0.82, 0.55, 1.0]);
+
+            ui.set_cursor_pos([group_start.x, group_start.y + 80.0]);
             ui.text("Map Size:");
 
             // NOTE: Use "Height" here to keep both sizes even (it's the longest label).
@@ -977,7 +1105,7 @@ impl ModalMenu for NewGameModalMenu {
             let h_edited = ui.input_int("##Height", &mut self.new_map_size.height).step(32).build();
 
             if w_edited || h_edited {
-                self.new_map_size.width = self.new_map_size.width.clamp(32, 256);
+                self.new_map_size.width  = self.new_map_size.width.clamp(32, 256);
                 self.new_map_size.height = self.new_map_size.height.clamp(32, 256);
             }
 
@@ -986,10 +1114,6 @@ impl ModalMenu for NewGameModalMenu {
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
             ui.text("Terrain Kind:");
 
-            const TILE_KIND_NAMES: [&str; 3] = ["Grass", "Dirt", "Water"];
-            const TILE_KIND_HASHES: [PresetTiles; 3] = [PresetTiles::Grass, PresetTiles::Dirt, PresetTiles::Water];
-            static CURRENT_TILE_KIND: UiStaticVar<usize> = UiStaticVar::new(0);
-
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
             ui.set_next_item_width(GROUP_WIDTH);
             ui.combo_simple_string("##TileKind", CURRENT_TILE_KIND.as_mut(), &TILE_KIND_NAMES);
@@ -997,11 +1121,14 @@ impl ModalMenu for NewGameModalMenu {
             widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(0.0, 8.0));
 
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
-            if ui.button("Start New Game") {
-                let selected_tile_kind = TILE_KIND_HASHES[*CURRENT_TILE_KIND];
-                let opt_tile_def = selected_tile_kind.find_tile_def();
-                GameLoop::get_mut().reset_session(opt_tile_def, Some(self.new_map_size));
+            if widgets::draw_button_custom_hover(context.ui_sys,
+                                                 &ui.get_window_draw_list(),
+                                                 "Start New Game",
+                                                 true,
+                                                 this.button_hover_sprite(context))
+            {
                 should_close = true;
+                start_new_game = true;
             }
 
             ui.same_line();
@@ -1009,10 +1136,21 @@ impl ModalMenu for NewGameModalMenu {
             widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
             ui.same_line();
 
-            if ui.button("Cancel") {
+            if widgets::draw_button_custom_hover(context.ui_sys,
+                                                 &ui.get_window_draw_list(),
+                                                 "Cancel",
+                                                 true,
+                                                 this.button_hover_sprite(context))
+            {
                 should_close = true;
             }
         });
+
+        if start_new_game {
+            let selected_tile_kind = TILE_KIND_HASHES[*CURRENT_TILE_KIND];
+            let opt_tile_def = selected_tile_kind.find_tile_def();
+            GameLoop::get_mut().reset_session(opt_tile_def, Some(self.new_map_size));
+        }
 
         // Close modal window if user clicked the new game or cancel button.
         if should_close {
@@ -1030,13 +1168,8 @@ pub struct AboutModalMenu {
 }
 
 impl AboutModalMenu {
-    pub fn new(context: &mut UiWidgetContext, title: String) -> Self {
-        Self {
-            menu: BasicModalMenu::new(
-                context,
-                ModalMenuParams { title: Some(title), size: Some(MODAL_WINDOW_DEFAULT_SIZE), ..Default::default() }
-            ),
-        }
+    pub fn new(context: &mut UiWidgetContext, params: ModalMenuParams) -> Self {
+        Self { menu: BasicModalMenu::new(context, params) }
     }
 }
 
@@ -1060,34 +1193,35 @@ impl ModalMenu for AboutModalMenu {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         let mut should_close = false;
 
-        self.menu.draw(context, |context| {
+        self.menu.draw(context, |context, this| {
             let ui = context.ui_sys.ui();
 
-            {
-                // We'll use buttons for text labels, for straightforward text centering and layout.
-                let _btn_style_overrides =
-                    UiStyleTextLabelInvisibleButtons::apply_overrides(context.ui_sys);
+            this.draw_menu_heading(context, &[&this.title]);
 
-                widgets::draw_centered_button_group_with_offsets(
-                    ui,
-                    &ui.get_window_draw_list(),
-                    &[
-                        "HERITAGE BUILDER",
-                        "A CITY BUILDER BY CORE SYSTEM GAMES",
-                        "COPYRIGHT (C) 2025. ALL RIGHTS RESERVED",
-                        &format!("VERSION {}", utils::version()),
-                    ],
-                    None,
-                    Some(Vec2::new(0.0, -50.0)),
-                );
-            }
-
-            if widgets::draw_centered_button_group_with_offsets(
-                ui,
+            ui.set_window_font_scale(this.font_scale);
+            widgets::draw_centered_text_label_group(
+                context.ui_sys,
                 &ui.get_window_draw_list(),
-                &["Resume"],
-                Some(MODAL_BUTTON_DEFAULT_SIZE),
-                Some(Vec2::new(0.0, 150.0)),
+                &[
+                    "Heritage Builder",
+                    "The Dragon Legacy",
+                    "",
+                    "A City Builder by Core System Games",
+                    "Copyright (C) 2025. All Rights Reserved",
+                    &format!("Version {}", utils::version()),
+                ],
+                Some(Vec2::new(4.0, 50.0))
+            );
+
+            ui.set_window_font_scale(this.btn_font_scale);
+            if widgets::draw_centered_button_group_custom_hover(
+                context.ui_sys,
+                &ui.get_window_draw_list(),
+                &["BACK ->"],
+                Some(MODAL_BUTTON_LARGE_SIZE),
+                Some(Vec2::new(0.0, ui.cursor_pos()[1] - 100.0)),
+                this.button_hover_sprite(context),
+                widgets::ALWAYS_ENABLED,
             ).is_some()
             {
                 should_close = true;
