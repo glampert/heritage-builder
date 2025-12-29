@@ -48,17 +48,17 @@ impl TileWeakRef {
 }
 
 // ----------------------------------------------
-// TileInspectorMenu
+// TileInspectorDevMenu
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct TileInspectorMenu {
+pub struct TileInspectorDevMenu {
     is_open: bool,
     selected: Option<TileWeakRef>,
     last_tile_cell: Cell,
 }
 
-impl TileInspector for TileInspectorMenu {
+impl TileInspector for TileInspectorDevMenu {
     fn on_mouse_button(&mut self,
                        button: MouseButton,
                        action: InputAction,
@@ -79,7 +79,7 @@ impl TileInspector for TileInspectorMenu {
     }
 }
 
-impl TileInspectorMenu {
+impl TileInspectorDevMenu {
     pub fn on_tile_placed(&mut self, tile: &Tile, did_reallocate: bool) {
         if did_reallocate {
             // Tidy any local Tile references if the tile map has

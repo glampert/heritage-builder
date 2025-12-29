@@ -25,11 +25,11 @@ use crate::{
 };
 
 // ----------------------------------------------
-// TilePaletteMenu
+// TilePaletteDevMenu
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct TilePaletteMenu {
+pub struct TilePaletteDevMenu {
     start_open: bool,
     left_mouse_button_held: bool,
     selection: TilePaletteSelection,
@@ -37,7 +37,7 @@ pub struct TilePaletteMenu {
     clear_button_image: TextureHandle,
 }
 
-impl TilePalette for TilePaletteMenu {
+impl TilePalette for TilePaletteDevMenu {
     fn on_mouse_button(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
@@ -66,10 +66,13 @@ impl TilePalette for TilePaletteMenu {
     }
 }
 
-impl TilePaletteMenu {
+impl TilePaletteDevMenu {
     pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
         let clear_button_path = menu::ui_assets_path().join("icons/red_x_icon.png");
-        let clear_button_image = tex_cache.load_texture_with_settings(clear_button_path.to_str().unwrap(), Some(menu::ui_texture_settings()));
+        let clear_button_image = tex_cache.load_texture_with_settings(
+            clear_button_path.to_str().unwrap(),
+            Some(menu::ui_texture_settings())
+        );
         Self {
             start_open,
             clear_button_image,

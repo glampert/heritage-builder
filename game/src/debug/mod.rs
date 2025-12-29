@@ -1,9 +1,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::any::Any;
 
-use inspector::TileInspectorMenu;
-use palette::TilePaletteMenu;
-use settings::DebugSettingsMenu;
+use inspector::TileInspectorDevMenu;
+use palette::TilePaletteDevMenu;
+use settings::DebugSettingsDevMenu;
 
 use crate::{
     singleton_late_init,
@@ -115,9 +115,9 @@ impl Load for DevEditorMenus {
 
 struct DevEditorMenusSingleton {
     tile_placement: TilePlacement,
-    debug_settings_menu: DebugSettingsMenu,
-    tile_palette_menu: TilePaletteMenu,
-    tile_inspector_menu: TileInspectorMenu,
+    debug_settings_menu: DebugSettingsDevMenu,
+    tile_palette_menu: TilePaletteDevMenu,
+    tile_inspector_menu: TileInspectorDevMenu,
     enable_tile_inspector: bool,
 }
 
@@ -125,9 +125,9 @@ impl DevEditorMenusSingleton {
     fn new(tex_cache: &mut dyn TextureCache, tile_palette_open: bool, enable_tile_inspector: bool) -> Self {
         Self {
             tile_placement: TilePlacement::new(),
-            debug_settings_menu: DebugSettingsMenu::new(),
-            tile_palette_menu: TilePaletteMenu::new(tile_palette_open, tex_cache),
-            tile_inspector_menu: TileInspectorMenu::default(),
+            debug_settings_menu: DebugSettingsDevMenu::new(),
+            tile_palette_menu: TilePaletteDevMenu::new(tile_palette_open, tex_cache),
+            tile_inspector_menu: TileInspectorDevMenu::default(),
             enable_tile_inspector,
         }
     }

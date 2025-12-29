@@ -24,11 +24,11 @@ use crate::{
 };
 
 // ----------------------------------------------
-// DebugSettingsMenu
+// DebugSettingsDevMenu
 // ----------------------------------------------
 
 #[derive(Default, DrawDebugUi)]
-pub struct DebugSettingsMenu {
+pub struct DebugSettingsDevMenu {
     #[debug_ui(skip)]
     draw_grid: bool,
     #[debug_ui(skip)]
@@ -94,7 +94,7 @@ pub struct DebugSettingsMenu {
     show_log_viewer_window: bool,
 }
 
-impl DebugSettingsMenu {
+impl DebugSettingsDevMenu {
     pub fn new() -> Self {
         Self { draw_terrain: true,
                draw_buildings: true,
