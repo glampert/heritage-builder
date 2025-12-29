@@ -710,14 +710,14 @@ pub fn input_color(ui: &imgui::Ui, label: &str, value: &mut Color) -> bool {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub enum DPadDirection {
+pub enum UiDPadDirection {
     NE,
     NW,
     SE,
     SW,
 }
 
-pub fn dpad_buttons(ui: &imgui::Ui) -> Option<DPadDirection> {
+pub fn dpad_buttons(ui: &imgui::Ui) -> Option<UiDPadDirection> {
     let mut direction_pressed = None;
 
     ui.dummy([35.0, 0.0]);
@@ -727,20 +727,20 @@ pub fn dpad_buttons(ui: &imgui::Ui) -> Option<DPadDirection> {
     ui.dummy([35.0, 0.0]);
     ui.same_line();
     if ui.arrow_button("NE", imgui::Direction::Up) {
-        direction_pressed = Some(DPadDirection::NE);
+        direction_pressed = Some(UiDPadDirection::NE);
     }
 
     ui.text("NW");
     ui.same_line();
     if ui.arrow_button("NW", imgui::Direction::Left) {
-        direction_pressed = Some(DPadDirection::NW);
+        direction_pressed = Some(UiDPadDirection::NW);
     }
 
     ui.same_line();
     ui.dummy([13.0, 0.0]);
     ui.same_line();
     if ui.arrow_button("SE", imgui::Direction::Right) {
-        direction_pressed = Some(DPadDirection::SE);
+        direction_pressed = Some(UiDPadDirection::SE);
     }
     ui.same_line();
     ui.text("SE");
@@ -748,7 +748,7 @@ pub fn dpad_buttons(ui: &imgui::Ui) -> Option<DPadDirection> {
     ui.dummy([35.0, 0.0]);
     ui.same_line();
     if ui.arrow_button("SW", imgui::Direction::Down) {
-        direction_pressed = Some(DPadDirection::SW);
+        direction_pressed = Some(UiDPadDirection::SW);
     }
     ui.dummy([35.0, 0.0]);
     ui.same_line();
@@ -864,7 +864,7 @@ pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
 }
 
 // ----------------------------------------------
-// ImGui UiStaticVar
+// UiStaticVar
 // ----------------------------------------------
 
 pub struct UiStaticVar<T> {

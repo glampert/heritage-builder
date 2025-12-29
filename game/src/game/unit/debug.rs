@@ -23,7 +23,7 @@ use crate::{
         },
     },
     engine::time::CountdownTimer,
-    imgui_ui::{self, DPadDirection, UiSystem, UiStaticVar},
+    imgui_ui::{self, UiDPadDirection, UiSystem, UiStaticVar},
     pathfind::{self, NodeKind as PathNodeKind, Path},
     tile::{
         self, Tile, TileMapLayerKind, TilePoolIndex,
@@ -129,16 +129,16 @@ impl Unit {
         if let Some(dir) = imgui_ui::dpad_buttons(ui) {
             let tile_map = query.tile_map();
             match dir {
-                DPadDirection::NE => {
+                UiDPadDirection::NE => {
                     self.teleport(tile_map, Cell::new(self.cell().x + 1, self.cell().y));
                 }
-                DPadDirection::NW => {
+                UiDPadDirection::NW => {
                     self.teleport(tile_map, Cell::new(self.cell().x, self.cell().y + 1));
                 }
-                DPadDirection::SE => {
+                UiDPadDirection::SE => {
                     self.teleport(tile_map, Cell::new(self.cell().x, self.cell().y - 1));
                 }
-                DPadDirection::SW => {
+                UiDPadDirection::SW => {
                     self.teleport(tile_map, Cell::new(self.cell().x - 1, self.cell().y));
                 }
             }
