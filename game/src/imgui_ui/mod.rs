@@ -66,8 +66,10 @@ impl UiSystem {
     pub fn new<UiRendererBackendImpl>(app: &impl Application) -> Self
         where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
     {
-        Self { context: UiContext::new::<UiRendererBackendImpl>(app),
-               ui_ptr: null::<imgui::Ui>() }
+        Self {
+            context: UiContext::new::<UiRendererBackendImpl>(app),
+            ui_ptr: null::<imgui::Ui>()
+        }
     }
 
     #[inline]
@@ -156,11 +158,6 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn context(&self) -> &UiContext {
-        &self.context
-    }
-
-    #[inline]
     pub fn ui(&self) -> &imgui::Ui {
         debug_assert!(!self.ui_ptr.is_null());
         unsafe { &*self.ui_ptr }
@@ -242,7 +239,7 @@ fn new_ui_context() -> Box<imgui::Context> {
 // UiContext
 // ----------------------------------------------
 
-pub struct UiContext {
+struct UiContext {
     ctx: Box<imgui::Context>,
     renderer: Box<dyn UiRenderer>,
     fonts: UiFonts,
@@ -250,7 +247,7 @@ pub struct UiContext {
 }
 
 impl UiContext {
-    pub fn new<UiRendererBackendImpl>(app: &impl Application) -> Self
+    fn new<UiRendererBackendImpl>(app: &impl Application) -> Self
         where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
     {
         let mut ctx = new_ui_context();
@@ -272,11 +269,11 @@ impl UiContext {
         }
     }
 
-    pub fn begin_frame(&mut self,
-                       app: &impl Application,
-                       input_sys: &impl InputSystem,
-                       delta_time_secs: Seconds)
-                       -> &imgui::Ui {
+    fn begin_frame(&mut self,
+                   app: &impl Application,
+                   input_sys: &impl InputSystem,
+                   delta_time_secs: Seconds)
+                   -> &imgui::Ui {
         debug_assert!(!self.frame_started);
 
         let io = self.ctx.io_mut();
@@ -299,11 +296,11 @@ impl UiContext {
         ui
     }
 
-    pub fn fonts(&self) -> &UiFonts {
+    fn fonts(&self) -> &UiFonts {
         &self.fonts
     }
 
-    pub fn end_frame(&mut self) {
+    fn end_frame(&mut self) {
         debug_assert!(self.frame_started);
 
         let draw_data = self.ctx.render();
@@ -315,7 +312,7 @@ impl UiContext {
         self.frame_started = false;
     }
 
-    pub fn on_key_input(&mut self, key: InputKey, action: InputAction) {
+    fn on_key_input(&mut self, key: InputKey, action: InputAction) {
         let io = self.ctx.io_mut();
         let pressed = action != InputAction::Release;
         if let Some(imgui_key) = Self::app_input_key_to_imgui_key(key) {
@@ -323,12 +320,12 @@ impl UiContext {
         }
     }
 
-    pub fn on_char_input(&mut self, c: char) {
+    fn on_char_input(&mut self, c: char) {
         let io = self.ctx.io_mut();
         io.add_input_character(c);
     }
 
-    pub fn on_scroll(&mut self, amount: Vec2) {
+    fn on_scroll(&mut self, amount: Vec2) {
         let io = self.ctx.io_mut();
         io.mouse_wheel_h += amount.x;
         io.mouse_wheel += amount.y;
