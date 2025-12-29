@@ -1,12 +1,11 @@
-use std::{any::Any, path::PathBuf};
+use std::any::Any;
 
 use crate::{
     log,
     save::{Save, Load},
     imgui_ui::UiInputEvent,
     engine::{Engine, time::Seconds},
-    render::{TextureSettings, TextureFilter},
-    utils::{Vec2, coords::{Cell, CellRange}, hash::SmallSet, platform::paths},
+    utils::{Vec2, coords::{Cell, CellRange}, hash::SmallSet},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     game::{
         world::{object::{Spawner, SpawnerResult}, World},
@@ -118,23 +117,6 @@ impl GameMenusContext<'_> {
 
     fn clear_selection(&mut self) {
         self.tile_map.clear_selection(self.tile_selection);
-    }
-}
-
-// ----------------------------------------------
-// Helper functions
-// ----------------------------------------------
-
-pub fn ui_assets_path() -> PathBuf {
-    paths::asset_path("ui")
-}
-
-pub fn ui_texture_settings() -> TextureSettings {
-    // Use linear filter without mipmaps for all UI textures.
-    TextureSettings {
-        filter: TextureFilter::Linear,
-        gen_mipmaps: false,
-        ..Default::default()
     }
 }
 

@@ -15,7 +15,7 @@ use super::{
 use crate::{
     render::{TextureFilter, TextureHandle},
     utils::{self, Size, Rect, Vec2, mem},
-    imgui_ui::{UiSystem, UiTextureHandle, UiStaticVar},
+    imgui_ui::{self, UiSystem, UiTextureHandle, UiStaticVar},
     tile::{sets::PresetTiles, camera::CameraGlobalSettings},
     game::{GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
 };
@@ -99,19 +99,19 @@ impl BasicModalMenu {
         debug_assert!(params.font_scale > 0.0);
 
         let background_sprite = params.background_sprite.map(|sprite_path| {
-            let file_path = super::ui_assets_path().join(sprite_path);
+            let file_path = imgui_ui::ui_assets_path().join(sprite_path);
             let tex_handle = context.tex_cache.load_texture_with_settings(
                 file_path.to_str().unwrap(),
-                Some(super::ui_texture_settings())
+                Some(imgui_ui::ui_texture_settings())
             );
             context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
         });
 
         let btn_hover_sprite = params.btn_hover_sprite.map(|sprite_path| {
-            let file_path = super::ui_assets_path().join(sprite_path);
+            let file_path = imgui_ui::ui_assets_path().join(sprite_path);
             let tex_handle = context.tex_cache.load_texture_with_settings(
                 file_path.to_str().unwrap(),
-                Some(super::ui_texture_settings())
+                Some(imgui_ui::ui_texture_settings())
             );
             context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
         });

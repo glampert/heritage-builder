@@ -1,4 +1,10 @@
-use std::{any::Any, ptr::null, cell::UnsafeCell, ops::{Deref, DerefMut}};
+use std::{
+    any::Any,
+    ptr::null,
+    path::PathBuf,
+    cell::UnsafeCell,
+    ops::{Deref, DerefMut},
+};
 
 pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
 pub mod icons;
@@ -9,8 +15,8 @@ use crate::{
         Application,
     },
     engine::time::Seconds,
-    render::{TextureCache, TextureHandle},
-    utils::{Color, FieldAccessorXY, Vec2},
+    render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
+    utils::{Color, FieldAccessorXY, Vec2, platform::paths},
 };
 
 // Internal implementation.
@@ -539,6 +545,21 @@ impl UiContext {
 // ----------------------------------------------
 // Helper functions
 // ----------------------------------------------
+
+#[inline]
+pub fn ui_assets_path() -> PathBuf {
+    paths::asset_path("ui")
+}
+
+#[inline]
+pub fn ui_texture_settings() -> TextureSettings {
+    // Use linear filter without mipmaps for all UI textures.
+    TextureSettings {
+        filter: TextureFilter::Linear,
+        gen_mipmaps: false,
+        ..Default::default()
+    }
+}
 
 pub fn input_i32(ui: &imgui::Ui,
                  label: &str,

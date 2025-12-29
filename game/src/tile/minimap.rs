@@ -11,7 +11,6 @@ use super::{
 
 use crate::{
     singleton,
-    game::menu,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
     imgui_ui::{self, UiSystem, UiTextureHandle},
@@ -370,7 +369,7 @@ impl MinimapIconTexCache {
 
             *texture = tex_cache.load_texture_with_settings(
                 icon.asset_path().to_str().unwrap(),
-                Some(menu::ui_texture_settings())
+                Some(imgui_ui::ui_texture_settings())
             );
         }
     }

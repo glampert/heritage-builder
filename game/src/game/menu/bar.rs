@@ -12,7 +12,7 @@ use super::{
 use crate::{
     utils::{self, Size, Rect, Vec2},
     app::input::{InputAction, InputKey},
-    imgui_ui::{UiTextureHandle, UiInputEvent},
+    imgui_ui::{self, UiTextureHandle, UiInputEvent},
 };
 
 // ----------------------------------------------
@@ -137,7 +137,7 @@ impl TopBarIcon {
 
     fn asset_path(self) -> PathBuf {
         let sprite_name = self.get_str("Sprite").unwrap();
-        super::ui_assets_path()
+        imgui_ui::ui_assets_path()
             .join("icons")
             .join(sprite_name)
             .with_extension("png")
@@ -147,7 +147,7 @@ impl TopBarIcon {
         let sprite_path = self.asset_path();
         let tex_handle = context.tex_cache.load_texture_with_settings(
             sprite_path.to_str().unwrap(),
-            Some(super::ui_texture_settings())
+            Some(imgui_ui::ui_texture_settings())
         );
         context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
     }

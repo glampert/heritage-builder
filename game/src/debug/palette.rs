@@ -4,7 +4,6 @@ use smallvec::SmallVec;
 use std::collections::HashMap;
 
 use crate::{
-    game::menu,
     engine::DebugDraw,
     app::input::{InputAction, MouseButton},
     imgui_ui::{self, UiInputEvent, UiSystem},
@@ -68,10 +67,10 @@ impl TilePalette for TilePaletteDevMenu {
 
 impl TilePaletteDevMenu {
     pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
-        let clear_button_path = menu::ui_assets_path().join("icons/red_x_icon.png");
+        let clear_button_path = imgui_ui::ui_assets_path().join("icons/red_x_icon.png");
         let clear_button_image = tex_cache.load_texture_with_settings(
             clear_button_path.to_str().unwrap(),
-            Some(menu::ui_texture_settings())
+            Some(imgui_ui::ui_texture_settings())
         );
         Self {
             start_open,
