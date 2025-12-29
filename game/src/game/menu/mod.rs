@@ -35,7 +35,7 @@ mod bar;
 // ----------------------------------------------
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum GameMenuMode {
+pub enum GameMenusMode {
     DevEditor,
     InGameHud,
     Home,
@@ -144,7 +144,7 @@ pub fn ui_texture_settings() -> TextureSettings {
 
 pub trait GameMenusSystem: Any + Save + Load {
     fn as_any(&self) -> &dyn Any;
-    fn mode(&self) -> GameMenuMode;
+    fn mode(&self) -> GameMenusMode;
 
     fn tile_placement(&mut self) -> Option<&mut TilePlacement>;
     fn tile_palette(&mut self) -> Option<&mut dyn TilePalette>;

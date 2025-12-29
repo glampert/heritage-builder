@@ -12,7 +12,7 @@ use prop::config::PropConfigs;
 use sim::Simulation;
 use world::World;
 use menu::{
-    GameMenuMode,
+    GameMenusMode,
     GameMenusSystem,
     GameMenusContext,
     GameMenusInputArgs,
@@ -125,18 +125,18 @@ impl GameSession {
         session
     }
 
-    fn new_game_menus(&mut self, engine: &dyn Engine, menu_mode: GameMenuMode) -> Box<dyn GameMenusSystem> {
+    fn new_game_menus(&mut self, engine: &dyn Engine, menu_mode: GameMenusMode) -> Box<dyn GameMenusSystem> {
         match menu_mode {
-            GameMenuMode::DevEditor => {
+            GameMenusMode::DevEditor => {
                 log::info!(log::channel!("session"), "Loading DevEditorMenus ...");
                 Box::new(DevEditorMenus::new(&mut self.tile_map))
             }
-            GameMenuMode::InGameHud => {
+            GameMenusMode::InGameHud => {
                 log::info!(log::channel!("session"), "Loading InGameHudMenus ...");
                 let mut context = UiWidgetContext::new(&mut self.sim, &self.world, engine);
                 Box::new(InGameHudMenus::new(&mut context))
             }
-            GameMenuMode::Home => {
+            GameMenusMode::Home => {
                 log::info!(log::channel!("session"), "Loading HomeMenus ...");
                 let mut context = UiWidgetContext::new(&mut self.sim, &self.world, engine);
                 Box::new(HomeMenus::new(&mut context))
@@ -149,12 +149,12 @@ impl GameSession {
         let menu_mode = {
             if configs.debug.skip_home_menu || !home_menu {
                 if configs.debug.start_in_dev_editor_mode {
-                    GameMenuMode::DevEditor
+                    GameMenusMode::DevEditor
                 } else {
-                    GameMenuMode::InGameHud
+                    GameMenusMode::InGameHud
                 }
             } else {
-                GameMenuMode::Home
+                GameMenusMode::Home
             }
         };
         self.new_game_menus(engine, menu_mode)
@@ -163,18 +163,18 @@ impl GameSession {
     fn toggle_menu_mode(&mut self, engine: &dyn Engine) {
         if let Some(mode) = self.current_menu_mode() {
             match mode {
-                GameMenuMode::DevEditor => {
-                    self.menus = Some(self.new_game_menus(engine, GameMenuMode::InGameHud));
+                GameMenusMode::DevEditor => {
+                    self.menus = Some(self.new_game_menus(engine, GameMenusMode::InGameHud));
                 }
-                GameMenuMode::InGameHud => {
-                    self.menus = Some(self.new_game_menus(engine, GameMenuMode::DevEditor));
+                GameMenusMode::InGameHud => {
+                    self.menus = Some(self.new_game_menus(engine, GameMenusMode::DevEditor));
                 }
-                GameMenuMode::Home => {} // Cannot toggle out of home menu.
+                GameMenusMode::Home => {} // Cannot toggle out of home menu.
             }
         }
     }
 
-    fn current_menu_mode(&self) -> Option<GameMenuMode> {
+    fn current_menu_mode(&self) -> Option<GameMenusMode> {
         self.menus.as_ref().map(|menus| menus.mode())
     }
 
@@ -593,6 +593,21 @@ impl GameLoop {
     }
 
     #[inline]
+    pub fn is_on_home_menus(&self) -> bool {
+        if let Some(session) = &self.session
+            && session.current_menu_mode() == Some(GameMenusMode::Home)
+        {
+            return true;
+        }
+        false
+    }
+
+    #[inline]
+    pub fn is_in_game(&self) -> bool {
+        self.session.is_some() && !self.is_on_home_menus()
+    }
+
+    #[inline]
     pub fn engine(&self) -> &dyn Engine {
         self.engine.as_ref()
     }
@@ -799,7 +814,7 @@ impl GameLoop {
         let ui_sys = self.engine.ui_system();
 
         let session = self.session.as_mut().unwrap();
-        let dev_editor_menus = session.current_menu_mode().is_some_and(|mode| mode == GameMenuMode::DevEditor);
+        let dev_editor_menus = session.current_menu_mode().is_some_and(|mode| mode == GameMenusMode::DevEditor);
 
         session.tile_map.minimap_mut().update(&mut session.camera,
                                               tex_cache,
@@ -829,13 +844,7 @@ impl GameLoop {
     }
 
     fn update_autosave(&mut self) {
-        if !self.enable_autosave {
-            return;
-        }
-
-        if let Some(session) = &self.session
-            && session.current_menu_mode() == Some(GameMenuMode::Home)
-        {
+        if !self.enable_autosave || !self.is_in_game() {
             return; // Don't autosave while in the home/main menu.
         }
 

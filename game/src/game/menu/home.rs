@@ -5,7 +5,7 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    GameMenuMode,
+    GameMenusMode,
     GameMenusSystem,
     GameMenusContext,
     GameMenusInputArgs,
@@ -49,8 +49,8 @@ impl GameMenusSystem for HomeMenus {
         self
     }
 
-    fn mode(&self) -> GameMenuMode {
-        GameMenuMode::Home
+    fn mode(&self) -> GameMenusMode {
+        GameMenusMode::Home
     }
 
     fn tile_placement(&mut self) -> Option<&mut TilePlacement> {

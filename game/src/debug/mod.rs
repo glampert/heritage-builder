@@ -41,8 +41,8 @@ impl GameMenusSystem for DevEditorMenus {
         self
     }
 
-    fn mode(&self) -> GameMenuMode {
-        GameMenuMode::DevEditor
+    fn mode(&self) -> GameMenusMode {
+        GameMenusMode::DevEditor
     }
 
     fn tile_placement(&mut self) -> Option<&mut TilePlacement> {
