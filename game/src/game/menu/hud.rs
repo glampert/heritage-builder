@@ -16,8 +16,8 @@ use crate::{
     tile::Tile,
     save::{Save, Load},
     render::RenderSystem,
-    ui::{UiInputEvent, UiWidgetContext},
     app::input::{InputAction, MouseButton},
+    ui::{UiInputEvent, UiWidgetContext, UiTheme},
     utils::{Vec2, coords::{CellRange, WorldToScreenTransform}},
 };
 
@@ -34,6 +34,7 @@ pub struct InGameHudMenus {
 
 impl InGameHudMenus {
     pub fn new(context: &mut UiWidgetContext) -> Self {
+        context.ui_sys.set_ui_theme(UiTheme::InGame);
         Self {
             tile_placement: TilePlacement::new(),
             tile_palette: TilePaletteMenu::new(context),

@@ -37,14 +37,14 @@ impl ButtonState {
         debug_assert!(!name.is_empty());
         let sprite_suffix = self.get_str("Suffix").unwrap();
         let sprite_name = format!("{name}_{sprite_suffix}.png");
-        ui::ui_assets_path().join("buttons").join(sprite_name)
+        ui::assets_path().join("buttons").join(sprite_name)
     }
 
     fn load_texture(self, name: &str, context: &mut UiWidgetContext) -> UiTextureHandle {
         let sprite_path = self.asset_path(name);
         let tex_handle = context.tex_cache.load_texture_with_settings(
             sprite_path.to_str().unwrap(),
-            Some(ui::ui_texture_settings())
+            Some(ui::texture_settings())
         );
         context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
     }
@@ -157,8 +157,12 @@ impl SpriteButton {
 
         let show_tooltip = hovered && (!self.is_pressed() || self.def.show_tooltip_when_pressed);
 
-        if show_tooltip && let Some(tooltip) = &self.def.tooltip {
-            ui.tooltip_text(tooltip);
+        if show_tooltip && let Some(tooltip_text) = &self.def.tooltip {
+            let tooltip = ui.begin_tooltip();
+            ui.set_window_font_scale(0.8);
+            ui.text(tooltip_text);
+            ui.set_window_font_scale(1.0);
+            tooltip.end();
         }
 
         if widgets::is_debug_draw_enabled() {

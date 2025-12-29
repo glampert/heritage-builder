@@ -18,7 +18,6 @@ use menu::{
     GameMenusInputArgs,
     home::HomeMenus,
     hud::InGameHudMenus,
-    widgets::UiStyleOverrides,
 };
 
 use crate::{
@@ -129,7 +128,7 @@ impl GameSession {
         match menu_mode {
             GameMenusMode::DevEditor => {
                 log::info!(log::channel!("session"), "Loading DevEditorMenus ...");
-                Box::new(DevEditorMenus::new(&mut self.tile_map))
+                Box::new(DevEditorMenus::new(&mut self.tile_map, engine.ui_system()))
             }
             GameMenusMode::InGameHud => {
                 log::info!(log::channel!("session"), "Loading InGameHudMenus ...");
@@ -160,8 +159,8 @@ impl GameSession {
         self.new_game_menus(engine, menu_mode)
     }
 
-    fn toggle_menu_mode(&mut self, engine: &dyn Engine) {
-        if let Some(mode) = self.current_menu_mode() {
+    fn toggle_menus_mode(&mut self, engine: &dyn Engine) {
+        if let Some(mode) = self.current_menus_mode() {
             match mode {
                 GameMenusMode::DevEditor => {
                     self.menus = Some(self.new_game_menus(engine, GameMenusMode::InGameHud));
@@ -174,7 +173,7 @@ impl GameSession {
         }
     }
 
-    fn current_menu_mode(&self) -> Option<GameMenusMode> {
+    fn current_menus_mode(&self) -> Option<GameMenusMode> {
         self.menus.as_ref().map(|menus| menus.mode())
     }
 
@@ -595,7 +594,7 @@ impl GameLoop {
     #[inline]
     pub fn is_on_home_menus(&self) -> bool {
         if let Some(session) = &self.session
-            && session.current_menu_mode() == Some(GameMenusMode::Home)
+            && session.current_menus_mode() == Some(GameMenusMode::Home)
         {
             return true;
         }
@@ -729,7 +728,7 @@ impl GameLoop {
                     && key == InputKey::Slash
                     && modifiers.intersects(InputModifiers::Control)
                 {
-                    self.session.as_mut().unwrap().toggle_menu_mode(self.engine.as_ref());
+                    self.session.as_mut().unwrap().toggle_menus_mode(self.engine.as_ref());
                 }
 
                 if propagate {
@@ -812,9 +811,13 @@ impl GameLoop {
         let tex_cache = self.engine.texture_cache();
         let input_sys = self.engine.input_system();
         let ui_sys = self.engine.ui_system();
-
         let session = self.session.as_mut().unwrap();
-        let dev_editor_menus = session.current_menu_mode().is_some_and(|mode| mode == GameMenusMode::DevEditor);
+
+        let dev_editor_menus_mode =
+            session.current_menus_mode() == Some(GameMenusMode::DevEditor);
+
+        let enable_minimap_debug_controls =
+            GameConfigs::get().debug.enable_minimap_debug_controls && dev_editor_menus_mode;
 
         session.tile_map.minimap_mut().update(&mut session.camera,
                                               tex_cache,
@@ -822,21 +825,11 @@ impl GameLoop {
                                               ui_sys,
                                               delta_time_secs);
 
-        // Match minimap style with the in-game UI.
-        let _ui_style_overrides = if dev_editor_menus {
-            UiStyleOverrides::dev_editor_menus(ui_sys)
-        } else {
-            UiStyleOverrides::in_game_hud_menus(ui_sys)
-        };
-
         self.engine.draw_tile_map(&mut session.tile_map,
                                   &session.tile_selection,
                                   &session.camera,
                                   visible_range,
                                   flags);
-
-        let enable_minimap_debug_controls =
-            GameConfigs::get().debug.enable_minimap_debug_controls && dev_editor_menus;
 
         session.tile_map.minimap_mut().draw_debug_ui(&mut session.camera,
                                                      self.engine.ui_system(),

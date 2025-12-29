@@ -13,7 +13,7 @@ use super::{
     TilePlacement,
     TileInspector,
     modal::*,
-    widgets::{self, UiStyleOverrides},
+    widgets,
 };
 use crate::{
     game::GameLoop,
@@ -21,7 +21,7 @@ use crate::{
     save::{Save, Load},
     tile::rendering::TileMapRenderFlags,
     utils::{Size, Vec2, coords::CellRange},
-    ui::{self, UiInputEvent, UiTextureHandle, UiWidgetContext},
+    ui::{self, UiInputEvent, UiTextureHandle, UiWidgetContext, UiTheme},
 };
 
 // ----------------------------------------------
@@ -37,6 +37,7 @@ pub struct HomeMenus {
 
 impl HomeMenus {
     pub fn new(context: &mut UiWidgetContext) -> Self {
+        context.ui_sys.set_ui_theme(UiTheme::InGame);
         Self {
             main_menu: HomeMainMenu::new(context),
             background: Background::new(context),
@@ -73,11 +74,6 @@ impl GameMenusSystem for HomeMenus {
     }
 
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
-        let ui_sys = context.engine.ui_system();
-
-        let _style_overrides =
-            UiStyleOverrides::in_game_hud_menus(ui_sys);
-
         let mut widget_context =
             UiWidgetContext::new(context.sim, context.world, context.engine);
 
@@ -166,8 +162,8 @@ impl HomeMainMenu {
 
     fn new(context: &mut UiWidgetContext) -> Self {
         let separator_tex_handle = context.tex_cache.load_texture_with_settings(
-            ui::ui_assets_path().join(Self::SEPARATOR_SPRITE).to_str().unwrap(),
-            Some(ui::ui_texture_settings())
+            ui::assets_path().join(Self::SEPARATOR_SPRITE).to_str().unwrap(),
+            Some(ui::texture_settings())
         );
         Self {
             menu: BasicModalMenu::new(
@@ -365,8 +361,7 @@ impl ModalMenu for HomeMainMenu {
             let ui = context.ui_sys.ui();
 
             const BUTTON_SPACING: Vec2 = Vec2::new(6.0, 6.0);
-            let _item_spacing =
-                UiStyleOverrides::set_item_spacing(context.ui_sys, BUTTON_SPACING.x, BUTTON_SPACING.y);
+            let _item_spacing = widgets::push_item_spacing(ui, BUTTON_SPACING.x, BUTTON_SPACING.y);
 
             // Draw heading and separator:
             this.draw_menu_heading(context, &["Heritage Builder", "The Dragon Legacy"]);
@@ -410,8 +405,8 @@ struct StaticFullScreenBackground {
 impl StaticFullScreenBackground {
     fn new(context: &mut UiWidgetContext) -> Self {
         let bg_tex_handle = context.tex_cache.load_texture_with_settings(
-            ui::ui_assets_path().join("misc/home_menu_static_bg.png").to_str().unwrap(),
-            Some(ui::ui_texture_settings())
+            ui::assets_path().join("misc/home_menu_static_bg.png").to_str().unwrap(),
+            Some(ui::texture_settings())
         );
         Self {
             ui_texture: context.ui_sys.to_ui_texture(context.tex_cache, bg_tex_handle),
@@ -453,8 +448,8 @@ impl AnimatedFullScreenBackground {
 
         for i in 0..BACKGROUND_ANIM_FRAME_COUNT {
             let tex_handle = context.tex_cache.load_texture_with_settings(
-                ui::ui_assets_path().join(format!("misc/home_menu_anim/frame{i}.jpg")).to_str().unwrap(),
-                Some(ui::ui_texture_settings())
+                ui::assets_path().join(format!("misc/home_menu_anim/frame{i}.jpg")).to_str().unwrap(),
+                Some(ui::texture_settings())
             );
             frames.push(context.ui_sys.to_ui_texture(context.tex_cache, tex_handle));
         }

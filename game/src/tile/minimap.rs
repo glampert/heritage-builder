@@ -369,7 +369,7 @@ impl MinimapIconTexCache {
 
             *texture = tex_cache.load_texture_with_settings(
                 icon.asset_path().to_str().unwrap(),
-                Some(ui::ui_texture_settings())
+                Some(ui::texture_settings())
             );
         }
     }
@@ -790,7 +790,16 @@ impl MinimapWidgetImGui {
             .always_auto_resize(true)
             .bg_alpha(0.0)
             .build(|| {
-                if ui::icon_button(ui_sys, ui::icons::ICON_MAP, Some("Open Minimap")) {
+                let clicked = ui::icon_button_custom_tooltip(
+                    ui_sys,
+                    ui::icons::ICON_MAP,
+                    || {
+                        ui.set_window_font_scale(0.8);
+                        ui.text("Open Minimap");
+                        ui.set_window_font_scale(1.0);
+                    });
+
+                if clicked {
                     self.is_open = true;
                 }
             });

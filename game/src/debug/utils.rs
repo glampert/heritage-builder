@@ -291,20 +291,23 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
     // The returned tokens take care of popping back to the previous color/font.
     let _bg_col = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
     let _text_col = ui.push_style_color(imgui::StyleColor::Text, text_color);
-    let _font = ui.push_font(ui_sys.fonts().dev_small);
 
     ui.window(label)
-      .position(position, imgui::Condition::Always)
-      .flags(window_flags)
-      .always_auto_resize(true)
-      .bg_alpha(0.4) // Semi-transparent
-      .build(|| {
-          let tile_iso_pos = tile.iso_coords_f32();
-          ui.text(format!("C:{},{}", cell.x, cell.y)); // Cell position
-          ui.text(format!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
-          ui.text(format!("I:{:.1},{:.1}", tile_iso_pos.0.x, tile_iso_pos.0.y)); // 2D isometric position
-          ui.text(format!("Z:{}", tile.z_sort_key())); // Z-sort
-      });
+        .position(position, imgui::Condition::Always)
+        .flags(window_flags)
+        .always_auto_resize(true)
+        .bg_alpha(0.4) // Semi-transparent
+        .build(|| {
+            ui.set_window_font_scale(0.8);
+
+            let tile_iso_pos = tile.iso_coords_f32();
+            ui.text(format!("C:{},{}", cell.x, cell.y)); // Cell position
+            ui.text(format!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
+            ui.text(format!("I:{:.1},{:.1}", tile_iso_pos.0.x, tile_iso_pos.0.y)); // 2D isometric position
+            ui.text(format!("Z:{}", tile.z_sort_key())); // Z-sort
+
+            ui.set_window_font_scale(1.0);
+        });
 }
 
 fn draw_tile_info(render_sys: &mut impl RenderSystem,

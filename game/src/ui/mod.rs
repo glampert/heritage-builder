@@ -16,7 +16,7 @@ use crate::{
     },
     engine::{Engine, time::Seconds},
     game::{world::World, sim::Simulation},
-    utils::{Color, Size, FieldAccessorXY, Vec2, platform::paths},
+    utils::{Color, Size, FieldAccessorXY, Vec2, platform::paths, mem},
     render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
 };
 
@@ -54,12 +54,24 @@ impl UiInputEvent {
 }
 
 // ----------------------------------------------
+// UiTheme
+// ----------------------------------------------
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub enum UiTheme {
+    #[default]
+    Dev,
+    InGame,
+}
+
+// ----------------------------------------------
 // UiSystem
 // ----------------------------------------------
 
 pub struct UiSystem {
     context: UiContext,
     ui_ptr: *const imgui::Ui,
+    theme: UiTheme,
 }
 
 impl UiSystem {
@@ -68,7 +80,8 @@ impl UiSystem {
     {
         Self {
             context: UiContext::new::<UiRendererBackendImpl>(app),
-            ui_ptr: null::<imgui::Ui>()
+            ui_ptr: null::<imgui::Ui>(),
+            theme: UiTheme::Dev,
         }
     }
 
@@ -78,13 +91,16 @@ impl UiSystem {
                        input_sys: &impl InputSystem,
                        delta_time_secs: Seconds) {
         debug_assert!(self.ui_ptr.is_null());
+        let theme_font_id = self.fonts().front_for_theme(self.theme);
         let ui = self.context.begin_frame(app, input_sys, delta_time_secs);
+        UiFonts::push_theme_font(ui, theme_font_id);
         self.ui_ptr = ui as *const imgui::Ui;
     }
 
     #[inline]
     pub fn end_frame(&mut self) {
         debug_assert!(!self.ui_ptr.is_null());
+        UiFonts::pop_theme_font();
         self.ui_ptr = null::<imgui::Ui>();
         self.context.end_frame();
     }
@@ -133,8 +149,7 @@ impl UiSystem {
                            _: InputModifiers)
                            -> UiInputEvent {
         // Mouse events are polled from the InputSystem instead;
-        // Just perform a quick check to see if mouse clicks are being consumed by
-        // ImGui.
+        // Just perform a quick check to see if mouse clicks are being consumed by ImGui.
         if self.is_handling_mouse_input() {
             UiInputEvent::Handled
         } else {
@@ -178,6 +193,23 @@ impl UiSystem {
         debug_assert!(std::mem::size_of_val(&native_handle) <= std::mem::size_of::<usize>());
         UiTextureHandle::new(native_handle.bits)
     }
+
+    #[inline]
+    pub fn set_ui_theme(&self, theme: UiTheme) {
+        let mut_self = mem::mut_ref_cast(self);
+        if theme != mut_self.theme {
+            mut_self.theme = theme;
+            match theme {
+                UiTheme::Dev => mut_self.context.set_dev_ui_theme(),
+                UiTheme::InGame => mut_self.context.set_in_game_ui_theme(),
+            }
+        }
+    }
+
+    #[inline]
+    pub fn current_ui_theme(&self) -> UiTheme {
+        self.theme
+    }
 }
 
 // ----------------------------------------------
@@ -186,26 +218,40 @@ impl UiSystem {
 
 pub struct UiFonts {
     // Debug / Dev fonts:
-    pub dev_normal: UiFontHandle,
-    pub dev_small: UiFontHandle,
-    pub dev_large: UiFontHandle,
+    pub dev_monospace: UiFontHandle,
     pub dev_icons: UiFontHandle,
 
     // In-game UI / HUD fonts:
-    pub game_hud_normal: UiFontHandle,
-    pub game_hud_large: UiFontHandle,
+    pub in_game: UiFontHandle,
 }
 
 impl UiFonts {
-    // Debug / Dev fonts:
-    const DEV_NORMAL_FONT_SIZE: f32 = 14.0;
-    const DEV_SMALL_FONT_SIZE:  f32 = 10.0;
-    const DEV_LARGE_FONT_SIZE:  f32 = 16.0;
-    const DEV_ICONS_FONT_SIZE:  f32 = 16.0;
+    // Debug / Dev font sizes:
+    const DEV_MONOSPACE_FONT_SIZE: f32 = 14.0;
+    const DEV_ICONS_FONT_SIZE: f32 = 16.0;
 
-    // In-game UI / HUD fonts:
-    const GAME_HUD_NORMAL_FONT_SIZE: f32 = 15.0;
-    const GAME_HUD_LARGE_FONT_SIZE:  f32 = 20.0;
+    // In-game UI / HUD font sizes:
+    const IN_GAME_FONT_SIZE: f32 = 20.0;
+
+    #[inline]
+    fn front_for_theme(&self, theme: UiTheme) -> UiFontHandle {
+        match theme {
+            UiTheme::Dev => self.dev_monospace,
+            UiTheme::InGame => self.in_game,
+        }
+    }
+
+    #[inline]
+    fn push_theme_font(ui: &imgui::Ui, theme_font_id: UiFontHandle) {
+        use imgui::internal::RawCast;
+        let font = ui.fonts().get_font(theme_font_id).expect("Font atlas did not contain the given font!");
+        unsafe { imgui::sys::igPushFont(font.raw() as *const _ as *mut _) };
+    }
+
+    #[inline]
+    fn pop_theme_font() {
+        unsafe { imgui::sys::igPopFont(); }
+    }
 }
 
 // ----------------------------------------------
@@ -251,22 +297,19 @@ impl UiContext {
         where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
     {
         let mut ctx = new_ui_context();
-
-        // 'None' disables automatic "imgui.ini" saving.
-        ctx.set_ini_filename(None);
-
-        Self::apply_custom_theme(ctx.style_mut());
+        ctx.set_ini_filename(None); // 'None' disables automatic "imgui.ini" saving.
 
         let fonts = Self::load_custom_fonts(&mut ctx);
-
         let renderer = new_ui_renderer::<UiRendererBackendImpl>(&mut ctx, app);
 
-        Self {
+        let mut context = Self {
             ctx,
             renderer,
             fonts,
             frame_started: false
-        }
+        };
+        context.set_dev_ui_theme();
+        context
     }
 
     fn begin_frame(&mut self,
@@ -390,10 +433,13 @@ impl UiContext {
         })
     }
 
-    fn apply_custom_theme(style: &mut imgui::Style) {
+    fn set_dev_ui_theme(&mut self) {
         use imgui::StyleColor;
 
+        let style = self.ctx.style_mut();
         let colors = &mut style.colors;
+
+        let theme_color = [0.58, 0.45, 0.35, 1.0]; // Soft light brown
 
         colors[StyleColor::Text as usize] = [0.92, 0.93, 0.94, 1.0];
         colors[StyleColor::TextDisabled as usize] = [0.50, 0.52, 0.54, 1.0];
@@ -410,8 +456,6 @@ impl UiContext {
         colors[StyleColor::TitleBgCollapsed as usize] = [0.14, 0.14, 0.16, 0.9];
         colors[StyleColor::MenuBarBg as usize] = [0.20, 0.20, 0.22, 1.0];
         colors[StyleColor::ScrollbarBg as usize] = [0.16, 0.16, 0.18, 1.0];
-
-        let theme_color = [0.58, 0.45, 0.35, 1.0]; // Soft light brown
 
         colors[StyleColor::ScrollbarGrab as usize] = theme_color;
         colors[StyleColor::ScrollbarGrabHovered as usize] = [0.63, 0.50, 0.38, 1.0];
@@ -485,6 +529,103 @@ impl UiContext {
         style.tab_rounding = 4.0;
     }
 
+    fn set_in_game_ui_theme(&mut self) {
+        use imgui::StyleColor;
+
+        let style = self.ctx.style_mut();
+        let colors = &mut style.colors;
+
+        let theme_color1 = [0.93, 0.91, 0.77, 1.0];
+        let theme_color2 = [0.58, 0.45, 0.35, 1.0];
+
+        colors[StyleColor::Text as usize] = [0.0, 0.0, 0.0, 1.0];
+        colors[StyleColor::TextDisabled as usize] = [0.5, 0.5, 0.5, 1.0];
+        colors[StyleColor::WindowBg as usize] = theme_color1;
+        colors[StyleColor::ChildBg as usize] = [0.88, 0.83, 0.68, 0.25];
+        colors[StyleColor::PopupBg as usize] = theme_color1;
+        colors[StyleColor::Border as usize] = [0.28, 0.29, 0.30, 0.60];
+        colors[StyleColor::BorderShadow as usize] = [0.00, 0.00, 0.00, 0.00];
+        colors[StyleColor::FrameBg as usize] = [0.88, 0.83, 0.68, 0.25];
+        colors[StyleColor::FrameBgHovered as usize] = [0.98, 0.95, 0.83, 0.5];
+        colors[StyleColor::FrameBgActive as usize] = [0.88, 0.83, 0.68, 0.5];
+        colors[StyleColor::TitleBg as usize] = theme_color1;
+        colors[StyleColor::TitleBgActive as usize] = theme_color1;
+        colors[StyleColor::TitleBgCollapsed as usize] = theme_color1;
+        colors[StyleColor::MenuBarBg as usize] = [0.20, 0.20, 0.22, 1.0];
+        colors[StyleColor::ScrollbarBg as usize] = [0.78, 0.73, 0.60, 1.0];
+
+        colors[StyleColor::ScrollbarGrab as usize] = [0.55, 0.50, 0.38, 1.0];
+        colors[StyleColor::ScrollbarGrabHovered as usize] = [0.62, 0.56, 0.42, 1.0];
+        colors[StyleColor::ScrollbarGrabActive as usize] = [0.68, 0.61, 0.45, 1.0];
+
+        colors[StyleColor::CheckMark as usize] = theme_color2;
+        colors[StyleColor::SliderGrab as usize] = theme_color2;
+        colors[StyleColor::SliderGrabActive as usize] = [0.65, 0.50, 0.40, 1.0];
+
+        colors[StyleColor::Button as usize] = theme_color1;
+        colors[StyleColor::ButtonHovered as usize] = [0.98, 0.95, 0.83, 1.0];
+        colors[StyleColor::ButtonActive as usize] = [0.88, 0.83, 0.68, 1.0];
+
+        colors[StyleColor::Header as usize] = [0.88, 0.83, 0.68, 0.5];
+        colors[StyleColor::HeaderHovered as usize] = [0.83, 0.78, 0.62, 0.5];
+        colors[StyleColor::HeaderActive as usize] = [0.88, 0.83, 0.68, 0.5];
+
+        colors[StyleColor::Separator as usize] = [0.28, 0.29, 0.30, 1.0];
+        colors[StyleColor::SeparatorHovered as usize] = theme_color2;
+        colors[StyleColor::SeparatorActive as usize] = theme_color2;
+
+        colors[StyleColor::ResizeGrip as usize] = theme_color2;
+        colors[StyleColor::ResizeGripHovered as usize] = [0.65, 0.50, 0.40, 1.0];
+        colors[StyleColor::ResizeGripActive as usize] = [0.70, 0.55, 0.45, 1.0];
+
+        colors[StyleColor::Tab as usize] = [0.20, 0.22, 0.24, 1.0];
+        colors[StyleColor::TabHovered as usize] = [0.65, 0.50, 0.40, 1.0];
+        colors[StyleColor::TabActive as usize] = theme_color2;
+        colors[StyleColor::TabUnfocused as usize] = [0.20, 0.22, 0.24, 1.0];
+        colors[StyleColor::TabUnfocusedActive as usize] = theme_color2;
+
+        colors[StyleColor::PlotLines as usize] = theme_color2;
+        colors[StyleColor::PlotLinesHovered as usize] = theme_color2;
+        colors[StyleColor::PlotHistogram as usize] = theme_color2;
+        colors[StyleColor::PlotHistogramHovered as usize] = [0.65, 0.50, 0.40, 1.0];
+
+        colors[StyleColor::TableHeaderBg as usize] = [0.20, 0.22, 0.24, 1.0];
+        colors[StyleColor::TableBorderStrong as usize] = [0.28, 0.29, 0.30, 1.0];
+        colors[StyleColor::TableBorderLight as usize] = [0.24, 0.25, 0.26, 1.0];
+        colors[StyleColor::TableRowBg as usize] = [0.20, 0.22, 0.24, 1.0];
+        colors[StyleColor::TableRowBgAlt as usize] = [0.22, 0.24, 0.26, 1.0];
+
+        colors[StyleColor::TextSelectedBg as usize] = [0.58, 0.45, 0.35, 0.35];
+        colors[StyleColor::DragDropTarget as usize] = [0.58, 0.45, 0.35, 0.90];
+        colors[StyleColor::NavHighlight as usize] = theme_color2;
+        colors[StyleColor::NavWindowingHighlight as usize] = [1.0, 1.0, 1.0, 0.70];
+        colors[StyleColor::NavWindowingDimBg as usize] = [0.80, 0.80, 0.80, 0.20];
+        colors[StyleColor::ModalWindowDimBg as usize] = [0.80, 0.80, 0.80, 0.35];
+
+        style.window_padding = [8.0, 8.0];
+        style.frame_padding = [5.0, 2.0];
+        style.cell_padding = [6.0, 6.0];
+        style.item_spacing = [6.0, 6.0];
+        style.item_inner_spacing = [6.0, 6.0];
+        style.touch_extra_padding = [0.0, 0.0];
+        style.indent_spacing = 25.0;
+        style.scrollbar_size = 11.0;
+        style.grab_min_size = 10.0;
+        style.window_border_size = 1.0;
+        style.child_border_size = 1.0;
+        style.popup_border_size = 1.0;
+        style.frame_border_size = 1.0;
+        style.tab_border_size = 1.0;
+        style.window_rounding = 7.0;
+        style.child_rounding = 4.0;
+        style.frame_rounding = 3.0;
+        style.popup_rounding = 4.0;
+        style.scrollbar_rounding = 9.0;
+        style.grab_rounding = 3.0;
+        style.log_slider_deadzone = 4.0;
+        style.tab_rounding = 4.0;
+    }
+
     fn load_custom_fonts(ctx: &mut imgui::Context) -> UiFonts {
         const DEV_FONT_DATA: &[u8] = include_bytes!(
             "../../../assets/fonts/source_code_pro_semi_bold.ttf"
@@ -494,28 +635,40 @@ impl UiContext {
             "../../../assets/fonts/fa-solid-900.ttf"
         );
 
-        const GAME_HUD_FONT_DATA: &[u8] = include_bytes!(
+        const IN_GAME_FONT_DATA: &[u8] = include_bytes!(
             "../../../assets/fonts/protest_revolution_regular.ttf"
         );
 
-        let icon_glyph_ranges = imgui::FontGlyphRanges::from_slice(&[
-            icons::ICON_MIN as u32,
-            icons::ICON_MAX as u32,
-            0
-        ]);
-
-        // NOTE: First font loaded will be set as the imgui default.
+        // NOTE: First font loaded will be set as the imgui default (dev_monospace).
         let fonts = ctx.fonts();
         UiFonts {
             // Debug / Dev fonts:
-            dev_normal: Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::DEV_NORMAL_FONT_SIZE, None, None),
-            dev_small:  Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::DEV_SMALL_FONT_SIZE,  None, None),
-            dev_large:  Self::load_font(fonts, DEV_FONT_DATA,  UiFonts::DEV_LARGE_FONT_SIZE,  None, None),
-            dev_icons:  Self::load_font(fonts, ICON_FONT_DATA, UiFonts::DEV_ICONS_FONT_SIZE,  Some(icon_glyph_ranges), None),
-
+            dev_monospace: Self::load_font(
+                fonts,
+                DEV_FONT_DATA,
+                UiFonts::DEV_MONOSPACE_FONT_SIZE,
+                None,
+                None
+            ),
+            dev_icons: Self::load_font(
+                fonts,
+                ICON_FONT_DATA,
+                UiFonts::DEV_ICONS_FONT_SIZE,
+                Some(imgui::FontGlyphRanges::from_slice(&[
+                    icons::ICON_MIN as u32,
+                    icons::ICON_MAX as u32,
+                    0
+                ])),
+                None
+            ),
             // In-game UI / HUD fonts:
-            game_hud_normal: Self::load_font(fonts, GAME_HUD_FONT_DATA, UiFonts::GAME_HUD_NORMAL_FONT_SIZE, None, Some([1.0, 0.0])),
-            game_hud_large:  Self::load_font(fonts, GAME_HUD_FONT_DATA, UiFonts::GAME_HUD_LARGE_FONT_SIZE,  None, Some([1.0, 0.0])),
+            in_game: Self::load_font(
+                fonts,
+                IN_GAME_FONT_DATA,
+                UiFonts::IN_GAME_FONT_SIZE,
+                None,
+                Some([1.0, 0.0])
+            ),
         }
     }
 
@@ -574,12 +727,12 @@ impl<'game> UiWidgetContext<'game> {
 // ----------------------------------------------
 
 #[inline]
-pub fn ui_assets_path() -> PathBuf {
+pub fn assets_path() -> PathBuf {
     paths::asset_path("ui")
 }
 
 #[inline]
-pub fn ui_texture_settings() -> TextureSettings {
+pub fn texture_settings() -> TextureSettings {
     // Use linear filter without mipmaps for all UI textures.
     TextureSettings {
         filter: TextureFilter::Linear,
@@ -764,10 +917,24 @@ pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool
     let clicked = ui.button(icon.to_string());
     icon_font.pop();
 
-    if let Some(tooltip_text) = tooltip {
-        if ui.is_item_hovered() {
-            ui.tooltip_text(tooltip_text)
-        }
+    if ui.is_item_hovered() && let Some(tooltip_text) = tooltip {
+        ui.tooltip_text(tooltip_text)
+    }
+
+    clicked
+}
+
+pub fn icon_button_custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem, icon: char, tooltip_fn: TooltipFn) -> bool {
+    let ui = ui_sys.ui();
+
+    let icon_font = ui.push_font(ui_sys.fonts().dev_icons);
+    let clicked = ui.button(icon.to_string());
+    icon_font.pop();
+
+    if ui.is_item_hovered() {
+        let tooltip = ui.begin_tooltip();
+        tooltip_fn();
+        tooltip.end();
     }
 
     clicked

@@ -9,109 +9,6 @@ use crate::{
 // ImGui helpers
 // ----------------------------------------------
 
-pub struct UiStyleOverrides<'ui> {
-    // Main Windows:
-    window_bg_color: imgui::ColorStackToken<'ui>,
-    window_title_bg_color_active: imgui::ColorStackToken<'ui>,
-    window_title_bg_color_inactive: imgui::ColorStackToken<'ui>,
-    window_title_bg_color_collapsed: imgui::ColorStackToken<'ui>,
-
-    // Text:
-    text_color: imgui::ColorStackToken<'ui>,
-    text_font: imgui::FontStackToken<'ui>,
-
-    // Buttons:
-    button_color: imgui::ColorStackToken<'ui>,
-    button_color_hovered: imgui::ColorStackToken<'ui>,
-    button_color_active: imgui::ColorStackToken<'ui>,
-
-    // Tooltips:
-    popup_bg_color: imgui::ColorStackToken<'ui>,
-    popup_border_size: imgui::StyleStackToken<'ui>,
-
-    // Child Windows:
-    child_bg_color: imgui::ColorStackToken<'ui>,
-
-    // InputText:
-    frame_bg_color: imgui::ColorStackToken<'ui>,
-    frame_bg_color_hovered: imgui::ColorStackToken<'ui>,
-    frame_bg_color_active: imgui::ColorStackToken<'ui>,
-
-    // Selectable / TreeNode / Collapsing Header:
-    header_color: imgui::ColorStackToken<'ui>,
-    header_color_hovered: imgui::ColorStackToken<'ui>,
-    header_color_active: imgui::ColorStackToken<'ui>,
-
-    // Scrollbar:
-    scrollbar_bg_color: imgui::ColorStackToken<'ui>,
-    scrollbar_grab_color: imgui::ColorStackToken<'ui>,
-    scrollbar_grab_color_hovered: imgui::ColorStackToken<'ui>,
-    scrollbar_grab_color_active: imgui::ColorStackToken<'ui>,
-}
-
-impl<'ui> UiStyleOverrides<'ui> {
-    #[inline]
-    #[must_use]
-    pub fn dev_editor_menus(_ui_sys: &UiSystem) -> Option<Self> {
-        None // Default style is already the dev/editor menus style.
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn in_game_hud_menus(ui_sys: &UiSystem) -> Option<Self> {
-        let ui = unsafe { &*ui_sys.raw_ui_ptr() };
-
-        let bg_color    = [0.93, 0.91, 0.77, 1.0];
-        let btn_hovered = [0.98, 0.95, 0.83, 1.0];
-        let btn_active  = [0.88, 0.83, 0.68, 1.0];
-
-        Some(Self {
-            // Main Windows:
-            window_bg_color: ui.push_style_color(imgui::StyleColor::WindowBg, bg_color),
-            window_title_bg_color_active: ui.push_style_color(imgui::StyleColor::TitleBgActive, bg_color),
-            window_title_bg_color_inactive: ui.push_style_color(imgui::StyleColor::TitleBg, bg_color),
-            window_title_bg_color_collapsed: ui.push_style_color(imgui::StyleColor::TitleBgCollapsed, bg_color),
-
-            // Text:
-            text_color: ui.push_style_color(imgui::StyleColor::Text, Color::black().to_array()),
-            text_font: ui.push_font(ui_sys.fonts().game_hud_normal),
-
-            // Buttons:
-            button_color: ui.push_style_color(imgui::StyleColor::Button, bg_color),
-            button_color_hovered: ui.push_style_color(imgui::StyleColor::ButtonHovered, btn_hovered),
-            button_color_active: ui.push_style_color(imgui::StyleColor::ButtonActive, btn_active),
-
-            // Tooltips:
-            popup_bg_color: ui.push_style_color(imgui::StyleColor::PopupBg, bg_color),
-            popup_border_size: ui.push_style_var(imgui::StyleVar::PopupBorderSize(1.0)), // No border
-
-            // Child Windows:
-            child_bg_color: ui.push_style_color(imgui::StyleColor::ChildBg, [0.88, 0.83, 0.68, 0.25]),
-
-            // InputText:
-            frame_bg_color: ui.push_style_color(imgui::StyleColor::FrameBg, [0.88, 0.83, 0.68, 0.25]),
-            frame_bg_color_hovered: ui.push_style_color(imgui::StyleColor::FrameBgHovered, [0.98, 0.95, 0.83, 0.5]),
-            frame_bg_color_active: ui.push_style_color(imgui::StyleColor::FrameBgActive, [0.88, 0.83, 0.68, 0.5]),
-
-            // Selectable / TreeNode / Collapsing Header:
-            header_color: ui.push_style_color(imgui::StyleColor::Header, [0.88, 0.83, 0.68, 0.5]),
-            header_color_hovered: ui.push_style_color(imgui::StyleColor::HeaderHovered, [0.83, 0.78, 0.62, 0.5]),
-            header_color_active: ui.push_style_color(imgui::StyleColor::HeaderActive, [0.88, 0.83, 0.68, 0.5]),
-
-            // Scrollbar:
-            scrollbar_bg_color: ui.push_style_color(imgui::StyleColor::ScrollbarBg, [0.78, 0.73, 0.60, 1.0]),
-            scrollbar_grab_color: ui.push_style_color(imgui::StyleColor::ScrollbarGrab, [0.55, 0.50, 0.38, 1.0]),
-            scrollbar_grab_color_hovered: ui.push_style_color(imgui::StyleColor::ScrollbarGrabHovered, [0.62, 0.56, 0.42, 1.0]),
-            scrollbar_grab_color_active: ui.push_style_color(imgui::StyleColor::ScrollbarGrabActive, [0.68, 0.61, 0.45, 1.0]),
-        })
-    }
-
-    #[inline]
-    pub fn set_item_spacing(ui_sys: &'ui UiSystem, horizontal: f32, vertical: f32) -> imgui::StyleStackToken<'ui> {
-        ui_sys.ui().push_style_var(imgui::StyleVar::ItemSpacing([horizontal, vertical]))
-    }
-}
-
 pub struct UiStyleTextLabelInvisibleButtons<'ui> {
     border_size: imgui::StyleStackToken<'ui>,
     button_color: imgui::ColorStackToken<'ui>,
@@ -454,8 +351,12 @@ pub fn draw_sprite(ui: &imgui::Ui,
     draw_list.add_image(texture, ui.item_rect_min(), ui.item_rect_max()).build();
     draw_last_item_debug_rect(ui, draw_list, Color::blue());
 
-    if ui.is_item_hovered() && let Some(tooltip) = tooltip {
-        ui.tooltip_text(tooltip);
+    if ui.is_item_hovered() && let Some(tooltip_text) = tooltip {
+        let tooltip = ui.begin_tooltip();
+        ui.set_window_font_scale(0.8);
+        ui.text(tooltip_text);
+        ui.set_window_font_scale(1.0);
+        tooltip.end();
     }
 }
 
@@ -488,6 +389,10 @@ pub fn draw_centered_text_label(ui: &imgui::Ui,
 pub fn spacing(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, size: Vec2) {
     ui.dummy(size.to_array());
     draw_last_item_debug_rect(ui, draw_list, Color::yellow());
+}
+
+pub fn push_item_spacing(ui: &imgui::Ui, horizontal: f32, vertical: f32) -> imgui::StyleStackToken<'_> {
+    ui.push_style_var(imgui::StyleVar::ItemSpacing([horizontal, vertical]))
 }
 
 pub fn set_next_window_pos(pos: Vec2, pivot: Vec2, cond: imgui::Condition) {

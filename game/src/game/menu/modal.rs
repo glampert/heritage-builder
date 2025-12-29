@@ -99,19 +99,19 @@ impl BasicModalMenu {
         debug_assert!(params.font_scale > 0.0);
 
         let background_sprite = params.background_sprite.map(|sprite_path| {
-            let file_path = ui::ui_assets_path().join(sprite_path);
+            let file_path = ui::assets_path().join(sprite_path);
             let tex_handle = context.tex_cache.load_texture_with_settings(
                 file_path.to_str().unwrap(),
-                Some(ui::ui_texture_settings())
+                Some(ui::texture_settings())
             );
             context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
         });
 
         let btn_hover_sprite = params.btn_hover_sprite.map(|sprite_path| {
-            let file_path = ui::ui_assets_path().join(sprite_path);
+            let file_path = ui::assets_path().join(sprite_path);
             let tex_handle = context.tex_cache.load_texture_with_settings(
                 file_path.to_str().unwrap(),
-                Some(ui::ui_texture_settings())
+                Some(ui::texture_settings())
             );
             context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
         });
@@ -189,7 +189,6 @@ impl BasicModalMenu {
 
         let ui = context.ui_sys.ui();
         let display_size = ui.io().display_size;
-        let _font = ui.push_font(context.ui_sys.fonts().game_hud_large);
 
         let window_size = self.size();
         let mut is_open = self.is_open;

@@ -44,9 +44,9 @@ impl Unit {
     pub fn draw_debug_ui_overview(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
-        let font = ui.push_font(ui_sys.fonts().dev_large);
+        ui.set_window_font_scale(1.2);
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
-        font.pop();
+        ui.set_window_font_scale(1.0);
 
         ui.bullet_text(format!("Anim: {} (dir: {})",
                                self.anim_sets.current_anim_name(),

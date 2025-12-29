@@ -5,7 +5,7 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 use super::{
     TilePaletteSelection,
     button::{SpriteButton, ButtonState, ButtonDef},
-    widgets::{self, UiStyleOverrides},
+    widgets,
 };
 use crate::{
     ui::{self, UiWidgetContext},
@@ -196,13 +196,14 @@ impl TilePaletteMainButton {
             main_button_pos.y,
         ];
 
-        let _item_spacing =
-            UiStyleOverrides::set_item_spacing(context.ui_sys, 0.0, VERTICAL_SPACING);
+        let _item_spacing = widgets::push_item_spacing(ui, 0.0, VERTICAL_SPACING);
 
         ui.window(format!("Child Window {:?}", self.kind))
             .position(window_position, imgui::Condition::Always)
             .flags(widgets::window_flags())
             .build(|| {
+                ui.set_window_font_scale(0.8);
+
                 let button_size = Vec2::new(longest_label + LABEL_PADDING, BUTTON_HEIGHT);
                 let mut pressed_button_index: Option<usize> = None;
 
@@ -212,11 +213,17 @@ impl TilePaletteMainButton {
                     }
 
                     if ui.is_item_hovered() && !child.tooltip.is_empty() {
-                        ui.tooltip_text(&child.tooltip);
+                        let tooltip = ui.begin_tooltip();
+                        ui.set_window_font_scale(0.8);
+                        ui.text(&child.tooltip);
+                        ui.set_window_font_scale(1.0);
+                        tooltip.end();
                     }
                 }
 
                 widgets::draw_current_window_debug_rect(ui);
+                ui.set_window_font_scale(1.0);
+
                 pressed_button_index
             }).unwrap()
     }
@@ -266,10 +273,10 @@ pub struct TilePaletteWidget {
 
 impl TilePaletteWidget {
     pub fn new(context: &mut UiWidgetContext) -> Self {
-        let clear_icon_path = ui::ui_assets_path().join("icons/red_x_icon.png");
+        let clear_icon_path = ui::assets_path().join("icons/red_x_icon.png");
         let clear_icon_sprite = context.tex_cache.load_texture_with_settings(
             clear_icon_path.to_str().unwrap(),
-            Some(ui::ui_texture_settings())
+            Some(ui::texture_settings())
         );
 
         Self {
@@ -306,16 +313,14 @@ impl TilePaletteWidget {
             WINDOW_TOP_MARGIN
         ];
 
-        let _style_overrides =
-            UiStyleOverrides::in_game_hud_menus(ui_sys);
-
-        let _item_spacing =
-            UiStyleOverrides::set_item_spacing(ui_sys, BUTTON_SPACING.x, BUTTON_SPACING.y);
+        let _item_spacing = widgets::push_item_spacing(ui, BUTTON_SPACING.x, BUTTON_SPACING.y);
 
         ui.window("Tile Palette Widget")
             .position(window_position, imgui::Condition::Always)
             .flags(widgets::window_flags())
             .build(|| {
+                ui.set_window_font_scale(0.8);
+
                 let previously_pressed_button = self.pressed_main_button;
 
                 for (index, button) in self.main_buttons.iter_mut().enumerate() {
@@ -371,6 +376,7 @@ impl TilePaletteWidget {
                 }
 
                 widgets::draw_current_window_debug_rect(ui);
+                ui.set_window_font_scale(1.0);
             });
     }
 

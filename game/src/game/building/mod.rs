@@ -842,9 +842,9 @@ impl Building {
             ui.text_colored(Color::red().to_array(), value);
         };
 
-        let font = ui.push_font(ui_sys.fonts().dev_large);
+        ui.set_window_font_scale(1.2);
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
-        font.pop();
+        ui.set_window_font_scale(1.0);
 
         color_bullet_bool("Linked to road", self.is_linked_to_road(context.query));
 

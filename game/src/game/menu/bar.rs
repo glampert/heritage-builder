@@ -6,7 +6,7 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 use super::{
     modal::*,
     button::{SpriteButton, ButtonState, ButtonDef},
-    widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons},
+    widgets::{self, UiStyleTextLabelInvisibleButtons},
     GameMenusInputArgs,
 };
 use crate::{
@@ -46,11 +46,7 @@ impl MenuBarsWidget {
         const HORIZONTAL_SPACING: f32 = 2.0;
         const VERTICAL_SPACING: f32 = 4.0;
 
-        let _style_overrides =
-            UiStyleOverrides::in_game_hud_menus(context.ui_sys);
-
-        let _item_spacing =
-            UiStyleOverrides::set_item_spacing(context.ui_sys, HORIZONTAL_SPACING, VERTICAL_SPACING);
+        let _item_spacing = widgets::push_item_spacing(ui, HORIZONTAL_SPACING, VERTICAL_SPACING);
 
         // Center top bar to the middle of the display:
         widgets::set_next_window_pos(
@@ -83,12 +79,15 @@ impl MenuBarsWidget {
         where DrawFn: FnOnce(&mut UiWidgetContext)
     {
         let pos_cond = if position.is_some() { imgui::Condition::Always } else { imgui::Condition::Never };
-        context.ui_sys.ui().window(name)
+        let ui = context.ui_sys.ui();
+        ui.window(name)
             .position(position.unwrap_or([0.0, 0.0]), pos_cond)
             .flags(widgets::window_flags())
             .build(|| {
+                ui.set_window_font_scale(0.8);
                 draw_fn(context);
                 widgets::draw_current_window_debug_rect(context.ui_sys.ui());
+                ui.set_window_font_scale(1.0);
             });
     }
 }
@@ -137,7 +136,7 @@ impl TopBarIcon {
 
     fn asset_path(self) -> PathBuf {
         let sprite_name = self.get_str("Sprite").unwrap();
-        ui::ui_assets_path()
+        ui::assets_path()
             .join("icons")
             .join(sprite_name)
             .with_extension("png")
@@ -147,7 +146,7 @@ impl TopBarIcon {
         let sprite_path = self.asset_path();
         let tex_handle = context.tex_cache.load_texture_with_settings(
             sprite_path.to_str().unwrap(),
-            Some(ui::ui_texture_settings())
+            Some(ui::texture_settings())
         );
         context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
     }
@@ -177,8 +176,7 @@ impl MenuBar for TopBar {
         let draw_list = ui.get_window_draw_list();
 
         // Spacing is handled manually with dummy items.
-        let _item_spacing =
-            UiStyleOverrides::set_item_spacing(context.ui_sys, 0.0, 0.0);
+        let _item_spacing = widgets::push_item_spacing(ui, 0.0, 0.0);
 
         // We'll use buttons for text labels, for straightforward text centering and layout.
         let _btn_style_overrides =
