@@ -7,6 +7,7 @@ use super::{
     modal::*,
     button::{SpriteButton, ButtonState, ButtonDef},
     widgets::{self, UiStyleTextLabelInvisibleButtons},
+    home::HomeMainMenu,
     GameMenusInputArgs,
 };
 use crate::{
@@ -332,47 +333,52 @@ impl LeftBar {
             modal_menus: ArrayVec::new(),
         });
 
+        // Same settings as the home menus.
+        let modal_params = ModalMenuParams {
+            size: Some(HomeMainMenu::calc_size(context)),
+            background_sprite: Some(HomeMainMenu::BG_SPRITE),
+            btn_hover_sprite: Some(HomeMainMenu::SEPARATOR_SPRITE),
+            font_scale: HomeMainMenu::FONT_SCALE_CHILD_MENU,
+            btn_font_scale: HomeMainMenu::FONT_SCALE_HOME_BTN,
+            heading_font_scale: HomeMainMenu::FONT_SCALE_HEADING,
+            ..Default::default()
+        };
+
         for button_kind in LeftBarButtonKind::iter() {
             match button_kind {
                 LeftBarButtonKind::MainMenu =>{
+                    let mut params = modal_params.clone();
+                    params.title = Some(LeftBarButtonKind::MainMenu.tooltip());
                     left_bar.modal_menus.push(
                         Box::new(
-                            MainModalMenu::new(context, ModalMenuParams {
-                                title: Some(LeftBarButtonKind::MainMenu.tooltip()),
-                                ..Default::default()
-                            },
-                            left_bar.as_ref())
+                            MainModalMenu::new(context, params, left_bar.as_ref())
                         )
                     )
                 }
                 LeftBarButtonKind::SaveGame => {
+                    let mut params = modal_params.clone();
+                    params.title = Some(LeftBarButtonKind::SaveGame.tooltip());
                     left_bar.modal_menus.push(
                         Box::new(
-                            SaveGameModalMenu::new(context, ModalMenuParams {
-                                title: Some(LeftBarButtonKind::SaveGame.tooltip()),
-                                ..Default::default()
-                            },
-                            SaveGameActions::Save | SaveGameActions::Load)
+                            SaveGameModalMenu::new(context, params, SaveGameActions::Save | SaveGameActions::Load)
                         )
                     )
                 }
                 LeftBarButtonKind::Settings => {
+                    let mut params = modal_params.clone();
+                    params.title = Some(LeftBarButtonKind::Settings.tooltip());
                     left_bar.modal_menus.push(
                         Box::new(
-                            SettingsModalMenu::new(context, ModalMenuParams {
-                                title: Some(LeftBarButtonKind::Settings.tooltip()),
-                                ..Default::default()
-                            })
+                            SettingsModalMenu::new(context, params)
                         )
                     )
                 }
                 LeftBarButtonKind::NewGame => {
+                    let mut params = modal_params.clone();
+                    params.title = Some(LeftBarButtonKind::NewGame.tooltip());
                     left_bar.modal_menus.push(
                         Box::new(
-                            NewGameModalMenu::new(context, ModalMenuParams {
-                                title: Some(LeftBarButtonKind::NewGame.tooltip()),
-                                ..Default::default()
-                            })
+                            NewGameModalMenu::new(context, params)
                         )
                     )
                 }

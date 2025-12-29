@@ -105,25 +105,25 @@ const MAIN_MENU_BUTTON_COUNT: usize = HomeMainMenuButton::COUNT;
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, TryFromPrimitive, EnumCount, EnumProperty, EnumIter)]
 enum HomeMainMenuButton {
-    #[strum(props(Label = "NEW GAME"))]
+    #[strum(props(Label = "New Game"))]
     NewGame,
 
-    #[strum(props(Label = "CONTINUE"))]
+    #[strum(props(Label = "Continue"))]
     Continue,
 
-    #[strum(props(Label = "LOAD GAME"))]
+    #[strum(props(Label = "Load Game"))]
     LoadGame,
 
-    #[strum(props(Label = "CUSTOM GAME"))]
+    #[strum(props(Label = "Custom Game"))]
     CustomGame,
 
-    #[strum(props(Label = "SETTINGS"))]
+    #[strum(props(Label = "Settings"))]
     Settings,
 
-    #[strum(props(Label = "ABOUT"))]
+    #[strum(props(Label = "About"))]
     About,
 
-    #[strum(props(Label = "EXIT GAME"))]
+    #[strum(props(Label = "Exit Game"))]
     Exit,
 }
 
@@ -141,22 +141,22 @@ impl HomeMainMenuButton {
     }
 }
 
-struct HomeMainMenu {
+pub struct HomeMainMenu {
     menu: BasicModalMenu,
     separator_ui_texture: UiTextureHandle,
     child_menus: ArrayVec<Option<Box<dyn ModalMenu>>, MAIN_MENU_BUTTON_COUNT>,
 }
 
 impl HomeMainMenu {
-    const FONT_SCALE_CHILD_MENU: f32 = 1.2; // Child menu default
-    const FONT_SCALE_HOME_BTN: f32 = 1.5;   // Home buttons
-    const FONT_SCALE_HEADING: f32 = 1.8;    // Headings
+    pub const FONT_SCALE_CHILD_MENU: f32 = 1.2; // Child menu default
+    pub const FONT_SCALE_HOME_BTN: f32 = 1.5;   // Home buttons
+    pub const FONT_SCALE_HEADING: f32 = 1.8;    // Headings
 
-    const BG_SPRITE: &str = "misc/scroll_bg.png";
-    const SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
+    pub const BG_SPRITE: &str = "misc/scroll_bg.png";
+    pub const SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
 
-    const POSITION: Vec2 = Vec2::new(50.0, 50.0);
-    fn calc_size(context: &UiWidgetContext) -> Size {
+    pub const POSITION: Vec2 = Vec2::new(50.0, 50.0);
+    pub fn calc_size(context: &UiWidgetContext) -> Size {
         Size::new(550, context.viewport_size.height - 100)
     }
 

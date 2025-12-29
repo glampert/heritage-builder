@@ -204,10 +204,11 @@ pub fn draw_centered_button_group_custom_hover<IsEnabled>(ui_sys: &UiSystem,
 
 pub fn draw_button_custom_hover(ui_sys: &UiSystem,
                                 draw_list: &imgui::DrawListMut<'_>,
-                                label: &str,
+                                id: &str,
+                                text: &str,
                                 enabled: bool,
                                 hover_ui_texture: UiTextureHandle) -> bool {
-    debug_assert!(!label.is_empty());
+    debug_assert!(!id.is_empty() && !text.is_empty());
 
     let _btn_style_overrides =
         UiStyleTextLabelInvisibleButtons::apply_overrides(ui_sys);
@@ -218,7 +219,7 @@ pub fn draw_button_custom_hover(ui_sys: &UiSystem,
         if enabled { [0.0, 0.0, 0.0, 1.0] } else { [0.0, 0.0, 0.0, 0.5] }
     );
 
-    let pressed = ui.button(label);
+    let pressed = ui.button(format!("{text}##{id}"));
     draw_last_item_debug_rect(ui, draw_list, Color::blue());
 
     if ui.is_item_hovered() {

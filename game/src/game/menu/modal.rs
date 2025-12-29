@@ -52,6 +52,7 @@ pub trait ModalMenu: Any {
     fn draw(&mut self, context: &mut UiWidgetContext);
 }
 
+#[derive(Clone)]
 pub struct ModalMenuParams {
     pub title: Option<String>,
     pub size: Option<Size>,
@@ -387,8 +388,8 @@ enum MainModalMenuButton {
     #[strum(props(Label = "Quit"))]
     Quit,
 
-    #[strum(props(Label = "Close"))]
-    Close,
+    #[strum(props(Label = "Back ->"))]
+    Back,
 }
 
 impl MainModalMenuButton {
@@ -417,7 +418,7 @@ impl MainModalMenu {
             MainModalMenuButton::SaveGame => self.on_save_game_button(context),
             MainModalMenuButton::Settings => self.on_settings_button(context),
             MainModalMenuButton::Quit     => self.on_quit_button(context),
-            MainModalMenuButton::Close    => self.on_close_button(context),
+            MainModalMenuButton::Back     => self.on_close_button(context),
         }
     }
 
@@ -452,7 +453,7 @@ impl MainModalMenu {
     fn on_quit_button(&mut self, context: &mut UiWidgetContext) {
         self.menu.show_popup_dialog(
             self,
-            [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 3.0], // Space for roughly 3 lines of text.
+            [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 4.0], // Space for roughly 4 lines of text.
             |ui| {
                 ui.text("Quit Game?");
                 ui.text("Any unsaved progress will be lost...");
@@ -490,7 +491,7 @@ impl ModalMenu for MainModalMenu {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         let mut pressed_button: Option<MainModalMenuButton> = None;
 
-        self.menu.draw(context, |context, _| {
+        self.menu.draw(context, |context, this| {
             let ui = context.ui_sys.ui();
 
             let mut labels = ArrayVec::<&str, MAIN_MODAL_MENU_BUTTON_COUNT>::new();
@@ -498,11 +499,17 @@ impl ModalMenu for MainModalMenu {
                 labels.push(button.label());
             }
 
-            let pressed_button_index = widgets::draw_centered_button_group(
-                ui,
+            this.draw_menu_heading(context, &[&this.title]);
+
+            ui.set_window_font_scale(this.btn_font_scale);
+            let pressed_button_index = widgets::draw_centered_button_group_custom_hover(
+                context.ui_sys,
                 &ui.get_window_draw_list(),
                 &labels,
-                Some(MODAL_BUTTON_DEFAULT_SIZE)
+                Some(MODAL_BUTTON_LARGE_SIZE),
+                Some(Vec2::new(0.0, 100.0)),
+                this.button_hover_sprite(context),
+                widgets::ALWAYS_ENABLED,
             );
 
             if let Some(pressed_index) = pressed_button_index {
@@ -656,6 +663,7 @@ impl ModalMenu for SaveGameModalMenu {
             if self.actions.intersects(SaveGameActions::Load) {
                 if widgets::draw_button_custom_hover(context.ui_sys,
                                                      &ui.get_window_draw_list(),
+                                                     "LoadGame_SaveGame_Modal",
                                                      "Load Game",
                                                      !self.save_file_name.is_empty(),
                                                      this.button_hover_sprite(context))
@@ -673,6 +681,7 @@ impl ModalMenu for SaveGameModalMenu {
             if self.actions.intersects(SaveGameActions::Save) {
                 if widgets::draw_button_custom_hover(context.ui_sys,
                                                      &ui.get_window_draw_list(),
+                                                     "SaveGame_SaveGame_Modal",
                                                      "Save Game",
                                                      !self.save_file_name.is_empty(),
                                                      this.button_hover_sprite(context))
@@ -695,6 +704,7 @@ impl ModalMenu for SaveGameModalMenu {
 
             if widgets::draw_button_custom_hover(context.ui_sys,
                                                  &ui.get_window_draw_list(),
+                                                 "Cancel_SaveGame_Modal",
                                                  "Cancel",
                                                  true,
                                                  this.button_hover_sprite(context))
@@ -719,7 +729,7 @@ impl ModalMenu for SaveGameModalMenu {
             let save_file_name = self.save_file_name.clone();
             self.menu.show_popup_dialog(
                 self,
-                [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 2.0], // Space for roughly 2 lines of text.
+                [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 3.0], // Space for roughly 3 lines of text.
                 |ui| {
                     ui.text("Overwrite existing save game?");
                 },
@@ -746,16 +756,16 @@ const SETTINGS_MENU_BUTTON_COUNT: usize = SettingsMenuButton::COUNT;
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, TryFromPrimitive, EnumCount, EnumProperty, EnumIter)]
 enum SettingsMenuButton {
-    #[strum(props(Label = "GAME"))]
+    #[strum(props(Label = "Game"))]
     Game,
 
-    #[strum(props(Label = "SOUND"))]
+    #[strum(props(Label = "Sound"))]
     Sound,
 
-    #[strum(props(Label = "GRAPHICS"))]
+    #[strum(props(Label = "Graphics"))]
     Graphics,
 
-    #[strum(props(Label = "BACK ->"))]
+    #[strum(props(Label = "Back ->"))]
     Back,
 }
 
@@ -955,6 +965,7 @@ impl ModalMenu for SettingsModalMenu {
                 ok_pressed |= widgets::draw_button_custom_hover(
                     context.ui_sys,
                     &ui.get_window_draw_list(),
+                    "Ok_Settings_Modal",
                     "Ok",
                     true,
                     this.button_hover_sprite(context)
@@ -968,6 +979,7 @@ impl ModalMenu for SettingsModalMenu {
                 cancel_pressed |= widgets::draw_button_custom_hover(
                     context.ui_sys,
                     &ui.get_window_draw_list(),
+                    "Cancel_Settings_Modal",
                     "Cancel",
                     true,
                     this.button_hover_sprite(context)
@@ -1122,6 +1134,7 @@ impl ModalMenu for NewGameModalMenu {
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
             if widgets::draw_button_custom_hover(context.ui_sys,
                                                  &ui.get_window_draw_list(),
+                                                 "StartNewGame_NewGame_Modal",
                                                  "Start New Game",
                                                  true,
                                                  this.button_hover_sprite(context))
@@ -1137,6 +1150,7 @@ impl ModalMenu for NewGameModalMenu {
 
             if widgets::draw_button_custom_hover(context.ui_sys,
                                                  &ui.get_window_draw_list(),
+                                                 "Cancel_NewGame_Modal",
                                                  "Cancel",
                                                  true,
                                                  this.button_hover_sprite(context))
@@ -1216,7 +1230,7 @@ impl ModalMenu for AboutModalMenu {
             if widgets::draw_centered_button_group_custom_hover(
                 context.ui_sys,
                 &ui.get_window_draw_list(),
-                &["BACK ->"],
+                &["Back ->"],
                 Some(MODAL_BUTTON_LARGE_SIZE),
                 Some(Vec2::new(0.0, ui.cursor_pos()[1] - 100.0)),
                 this.button_hover_sprite(context),
