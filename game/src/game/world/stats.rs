@@ -3,7 +3,7 @@ use crate::{
         building::HouseLevel,
         sim::resources::{GlobalTreasury, ResourceKind, ResourceStock},
     },
-    imgui_ui::{UiSystem, UiStaticVar},
+    ui::{UiSystem, UiStaticVar},
     utils::Color,
 };
 

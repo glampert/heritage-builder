@@ -1,7 +1,7 @@
 use crate::{
     log,
     engine::DebugDraw,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     render::{RenderStats, RenderSystem},
     game::{
         cheats::{self, Cheats},

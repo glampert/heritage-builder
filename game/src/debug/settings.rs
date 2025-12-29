@@ -3,7 +3,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     log,
     debug,
-    imgui_ui::{self, UiStaticVar},
+    ui::{self, UiStaticVar},
     engine::config::Configs,
     utils::{Color, Size, coords::Cell},
     game::{
@@ -306,7 +306,7 @@ impl DebugSettingsDevMenu {
         ui.separator();
 
         static NEW_MAP_SIZE: UiStaticVar<Size> = UiStaticVar::new(Size::new(64, 64));
-        imgui_ui::input_i32_xy(ui,
+        ui::input_i32_xy(ui,
             "New Map Size:",
             NEW_MAP_SIZE.as_mut(),
             false,
@@ -322,19 +322,19 @@ impl DebugSettingsDevMenu {
         ui.separator();
         ui.text("Game Speed:");
 
-        if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_PAUSE, Some("Pause")) {
+        if ui::icon_button(context.ui_sys, ui::icons::ICON_PAUSE, Some("Pause")) {
             sim.pause();
         }
         ui.same_line();
-        if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_PLAY, Some("Resume")) {
+        if ui::icon_button(context.ui_sys, ui::icons::ICON_PLAY, Some("Resume")) {
             sim.resume();
         }
         ui.same_line();
-        if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_FAST_FORWARD, Some("Speedup")) {
+        if ui::icon_button(context.ui_sys, ui::icons::ICON_FAST_FORWARD, Some("Speedup")) {
             sim.speedup();
         }
         ui.same_line();
-        if imgui_ui::icon_button(context.ui_sys, imgui_ui::icons::ICON_FAST_BACKWARD, Some("Slowdown")) {
+        if ui::icon_button(context.ui_sys, ui::icons::ICON_FAST_BACKWARD, Some("Slowdown")) {
             sim.slowdown();
         }
 
@@ -407,7 +407,7 @@ impl DebugSettingsDevMenu {
         ui.separator();
 
         static TELEPORT_CELL: UiStaticVar<Cell> = UiStaticVar::new(Cell::invalid());
-        imgui_ui::input_i32_xy(ui, "Teleport To Cell:", TELEPORT_CELL.as_mut(), false, None, None);
+        ui::input_i32_xy(ui, "Teleport To Cell:", TELEPORT_CELL.as_mut(), false, None, None);
 
         if ui.button("Teleport") {
             camera.teleport(*TELEPORT_CELL);

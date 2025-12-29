@@ -13,7 +13,7 @@ use crate::{
     singleton,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
-    imgui_ui::{self, UiSystem, UiTextureHandle},
+    ui::{self, UiSystem, UiTextureHandle},
     app::input::{InputSystem, InputAction, MouseButton},
     utils::{Color, Rect, RectCorners, Size, Vec2, coords::{self, Cell, CellF32, IsoPointF32}, platform::paths},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
@@ -369,7 +369,7 @@ impl MinimapIconTexCache {
 
             *texture = tex_cache.load_texture_with_settings(
                 icon.asset_path().to_str().unwrap(),
-                Some(imgui_ui::ui_texture_settings())
+                Some(ui::ui_texture_settings())
             );
         }
     }
@@ -790,7 +790,7 @@ impl MinimapWidgetImGui {
             .always_auto_resize(true)
             .bg_alpha(0.0)
             .build(|| {
-                if imgui_ui::icon_button(ui_sys, imgui_ui::icons::ICON_MAP, Some("Open Minimap")) {
+                if ui::icon_button(ui_sys, ui::icons::ICON_MAP, Some("Open Minimap")) {
                     self.is_open = true;
                 }
             });

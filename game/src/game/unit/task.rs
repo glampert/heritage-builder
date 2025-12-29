@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{
     log,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     debug::{self},
     game::{
         constants::*,

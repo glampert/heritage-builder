@@ -32,7 +32,7 @@ use crate::{
         undo_redo::GameObjectSavedState,
     },
     log,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     save::PostLoadContext,
     tile::Tile,
     utils::{

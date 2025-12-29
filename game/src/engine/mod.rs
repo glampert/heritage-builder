@@ -8,7 +8,7 @@ use crate::{
     log,
     sound::SoundSystem,
     debug::log_viewer::LogViewerWindow,
-    imgui_ui::{self, UiRenderer, UiRendererFactory, UiSystem},
+    ui::{self, UiRenderer, UiRendererFactory, UiSystem},
     app::{
         self, input::*, Application, ApplicationBuilder, ApplicationEvent, ApplicationEventList,
         ApplicationFactory,
@@ -40,7 +40,7 @@ pub mod backend {
     pub type GlfwOpenGlEngine = EngineBackend<app::backend::GlfwApplication,
                                               app::backend::GlfwInputSystem,
                                               render::backend::RenderSystemOpenGl,
-                                              imgui_ui::backend::UiRendererOpenGl>;
+                                              ui::backend::UiRendererOpenGl>;
 }
 
 // ----------------------------------------------

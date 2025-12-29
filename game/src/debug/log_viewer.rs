@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::{imgui_ui::UiSystem, log, singleton_late_init};
+use crate::{ui::UiSystem, log, singleton_late_init};
 
 // ----------------------------------------------
 // LogViewerSingleton

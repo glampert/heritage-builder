@@ -24,7 +24,7 @@ use menu::{
 use crate::{
     log,
     singleton_late_init,
-    imgui_ui::{UiInputEvent, UiWidgetContext},
+    ui::{UiInputEvent, UiWidgetContext},
     render::TextureCache,
     save::{self, *},
     app::{

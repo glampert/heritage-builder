@@ -8,7 +8,7 @@ use super::{
 use crate::{
     utils::{Size, Vec2, Rect, Color},
     engine::time::{Seconds, CountdownTimer},
-    imgui_ui::{self, UiWidgetContext, UiTextureHandle, INVALID_UI_TEXTURE_HANDLE},
+    ui::{self, UiWidgetContext, UiTextureHandle, INVALID_UI_TEXTURE_HANDLE},
 };
 
 // ----------------------------------------------
@@ -37,14 +37,14 @@ impl ButtonState {
         debug_assert!(!name.is_empty());
         let sprite_suffix = self.get_str("Suffix").unwrap();
         let sprite_name = format!("{name}_{sprite_suffix}.png");
-        imgui_ui::ui_assets_path().join("buttons").join(sprite_name)
+        ui::ui_assets_path().join("buttons").join(sprite_name)
     }
 
     fn load_texture(self, name: &str, context: &mut UiWidgetContext) -> UiTextureHandle {
         let sprite_path = self.asset_path(name);
         let tex_handle = context.tex_cache.load_texture_with_settings(
             sprite_path.to_str().unwrap(),
-            Some(imgui_ui::ui_texture_settings())
+            Some(ui::ui_texture_settings())
         );
         context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
     }

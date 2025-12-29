@@ -8,7 +8,7 @@ use super::{
     widgets::{self, UiStyleOverrides},
 };
 use crate::{
-    imgui_ui::{self, UiWidgetContext},
+    ui::{self, UiWidgetContext},
     render::{RenderSystem, TextureHandle},
     utils::{self, Size, Vec2, Color, Rect, RectTexCoords, coords::WorldToScreenTransform},
     tile::{
@@ -266,10 +266,10 @@ pub struct TilePaletteWidget {
 
 impl TilePaletteWidget {
     pub fn new(context: &mut UiWidgetContext) -> Self {
-        let clear_icon_path = imgui_ui::ui_assets_path().join("icons/red_x_icon.png");
+        let clear_icon_path = ui::ui_assets_path().join("icons/red_x_icon.png");
         let clear_icon_sprite = context.tex_cache.load_texture_with_settings(
             clear_icon_path.to_str().unwrap(),
-            Some(imgui_ui::ui_texture_settings())
+            Some(ui::ui_texture_settings())
         );
 
         Self {

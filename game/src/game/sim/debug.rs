@@ -4,7 +4,7 @@ use super::{resources::GlobalTreasury, Query, RandomGenerator};
 use crate::{
     engine::time::Seconds,
     game::{system::GameSystems, unit::task::UnitTaskManager, world::World, GameConfigs},
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     pathfind::{Graph, Search},
     tile::TileMap,
     utils::{coords::WorldToScreenTransform, Size},

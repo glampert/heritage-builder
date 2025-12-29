@@ -22,7 +22,7 @@ use super::{
 use crate::{
     log,
     game_object_debug_options,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     save::PostLoadContext,
     pathfind::{NodeKind as PathNodeKind, Path},
     tile::{self, Tile, TileKind, TileMap, TileMapLayerKind, TilePoolIndex},

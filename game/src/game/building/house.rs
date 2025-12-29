@@ -15,7 +15,7 @@ use crate::{
     game_object_debug_options,
     game_object_undo_redo_state,
     log,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     save::PostLoadContext,
     tile::{sets::TileDef, Tile},
     engine::time::{Seconds, UpdateTimer},

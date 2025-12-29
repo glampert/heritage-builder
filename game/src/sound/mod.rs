@@ -22,7 +22,7 @@ use kira::{
 use crate::{
     log,
     engine::time::Seconds,
-    imgui_ui::{self, UiSystem, UiStaticVar},
+    ui::{self, UiSystem, UiStaticVar},
     utils::{
         hash::{self, StringHash, PreHashedKeyMap},
         Vec2, platform::paths, mem::RawPtr,
@@ -531,7 +531,7 @@ impl SoundSystem {
             }
 
             static SPATIAL_ORIGIN: UiStaticVar<Vec2> = UiStaticVar::new(Vec2::zero());
-            imgui_ui::input_f32_xy(ui, "Spatial:", SPATIAL_ORIGIN.as_mut(), false, None, None);
+            ui::input_f32_xy(ui, "Spatial:", SPATIAL_ORIGIN.as_mut(), false, None, None);
 
             if ui.button("Play Spatial") {
                 let sound_key = self.load_ambience("birds_chirping_ambiance.mp3");

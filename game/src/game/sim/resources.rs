@@ -20,7 +20,7 @@ use crate::{
         cheats,
         world::{object::GameObject, stats::WorldStats, World},
     },
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     log,
     utils::Color,
 };

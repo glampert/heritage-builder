@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     game::sim::resources::{ResourceKind, StockItem},
-    imgui_ui::UiSystem,
+    ui::UiSystem,
 };
 
 // ----------------------------------------------

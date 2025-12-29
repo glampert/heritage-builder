@@ -2,7 +2,7 @@ use std::time;
 
 use serde::{Deserialize, Serialize};
 
-use crate::imgui_ui::UiSystem;
+use crate::ui::UiSystem;
 
 // ----------------------------------------------
 // FrameClock

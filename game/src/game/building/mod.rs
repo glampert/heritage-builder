@@ -36,7 +36,7 @@ use crate::{
     bitflags_with_display,
     engine::time::UpdateTimer,
     game::config::GameConfigs,
-    imgui_ui::{UiSystem, UiStaticVar},
+    ui::{UiSystem, UiStaticVar},
     log,
     pathfind::{self, NodeKind as PathNodeKind},
     save::PostLoadContext,

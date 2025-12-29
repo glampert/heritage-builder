@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     log,
     configurations,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     pathfind::NodeKind as PathNodeKind,
     utils::hash::{self, PreHashedKeyMap, StringHash},
 };

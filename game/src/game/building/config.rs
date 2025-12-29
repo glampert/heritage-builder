@@ -11,7 +11,7 @@ use super::{
 use crate::{
     configurations,
     log,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     tile::sets::TileDef,
     game::sim::resources::ServiceKind,
     utils::hash::{self, PreHashedKeyMap, StringHash},
@@ -69,7 +69,7 @@ macro_rules! building_config {
 
             // This requires that the config struct derives from DrawDebugUi
             // or that it provides a draw_debug_ui_with_header() function.
-            fn draw_debug_ui(&self, ui_sys: &$crate::imgui_ui::UiSystem) {
+            fn draw_debug_ui(&self, ui_sys: &$crate::ui::UiSystem) {
                 self.draw_debug_ui_with_header("Config", ui_sys);
             }
         }

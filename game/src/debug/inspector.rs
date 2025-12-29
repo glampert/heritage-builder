@@ -2,7 +2,7 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     engine::time::Seconds,
-    imgui_ui::{self, UiInputEvent},
+    ui::{self, UiInputEvent},
     pathfind::NodeKind as PathNodeKind,
     app::input::{InputAction, MouseButton},
     utils::{coords::Cell, mem, Color, Size, Vec2},
@@ -257,7 +257,7 @@ impl TileInspectorDevMenu {
 
         // Editable properties:
         let mut start_cell = tile.cell_range().start;
-        if imgui_ui::input_i32_xy(ui, "Start Cell:", &mut start_cell, read_only_cell, None, None) {
+        if ui::input_i32_xy(ui, "Start Cell:", &mut start_cell, read_only_cell, None, None) {
             // If we've moved the tile, update the game-side state:
             if tile.is(TileKind::Building) {
                 if let Some(building) = context.world.find_building_for_tile_mut(tile) {
@@ -274,18 +274,18 @@ impl TileInspectorDevMenu {
         }
 
         let mut end_cell = tile.cell_range().end;
-        imgui_ui::input_i32_xy(ui, "End Cell:", &mut end_cell, true, None, None);
+        ui::input_i32_xy(ui, "End Cell:", &mut end_cell, true, None, None);
 
         let mut iso_coords = tile.iso_coords();
-        if imgui_ui::input_i32_xy(ui, "Iso Coords:", &mut iso_coords, false, None, None) {
+        if ui::input_i32_xy(ui, "Iso Coords:", &mut iso_coords, false, None, None) {
             tile.set_iso_coords(iso_coords);
         }
 
         let mut screen_coords = tile.screen_rect(context.transform, true).position();
-        imgui_ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
+        ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
 
         let mut z_sort_key = tile.z_sort_key();
-        if imgui_ui::input_i32(ui, "Z Sort Key:", &mut z_sort_key, false, None) {
+        if ui::input_i32(ui, "Z Sort Key:", &mut z_sort_key, false, None) {
             tile.set_z_sort_key(z_sort_key);
         }
 
@@ -469,7 +469,7 @@ impl TileInspectorDevMenu {
             ui.separator();
 
             let mut variation_offset = tile.variation_offset();
-            if imgui_ui::input_f32_xy(ui, "Var Offset:", &mut variation_offset, false, None, None) {
+            if ui::input_f32_xy(ui, "Var Offset:", &mut variation_offset, false, None, None) {
                 if let Some(editable_def) = tile.try_get_editable_tile_def() {
                     editable_def.variations[tile.variation_index()].iso_offset = variation_offset;
                     tile.on_tile_def_edited();
@@ -480,7 +480,7 @@ impl TileInspectorDevMenu {
         ui.separator();
 
         let mut color = tile.tint_color();
-        if imgui_ui::input_color(ui, "Color:", &mut color) {
+        if ui::input_color(ui, "Color:", &mut color) {
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 // Prevent invalid values.
                 editable_def.color = color.clamp();
@@ -490,7 +490,7 @@ impl TileInspectorDevMenu {
         ui.separator();
 
         let mut draw_size = tile.draw_size();
-        if imgui_ui::input_i32_xy(ui, "Draw Size:", &mut draw_size, false, None, Some(["W", "H"])) {
+        if ui::input_i32_xy(ui, "Draw Size:", &mut draw_size, false, None, Some(["W", "H"])) {
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 if draw_size.is_valid() {
                     editable_def.draw_size = draw_size;
@@ -507,7 +507,7 @@ impl TileInspectorDevMenu {
         ui.separator();
 
         let mut logical_size = tile.logical_size();
-        if imgui_ui::input_i32_xy(ui,
+        if ui::input_i32_xy(ui,
                                   "Logical Size:",
                                   &mut logical_size,
                                   false,

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::{
     engine::DebugDraw,
     app::input::{InputAction, MouseButton},
-    imgui_ui::{self, UiInputEvent, UiSystem},
+    ui::{self, UiInputEvent, UiSystem},
     render::{TextureCache, TextureHandle},
     utils::{
         self, coords::WorldToScreenTransform,
@@ -67,10 +67,10 @@ impl TilePalette for TilePaletteDevMenu {
 
 impl TilePaletteDevMenu {
     pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
-        let clear_button_path = imgui_ui::ui_assets_path().join("icons/red_x_icon.png");
+        let clear_button_path = ui::ui_assets_path().join("icons/red_x_icon.png");
         let clear_button_image = tex_cache.load_texture_with_settings(
             clear_button_path.to_str().unwrap(),
-            Some(imgui_ui::ui_texture_settings())
+            Some(ui::ui_texture_settings())
         );
         Self {
             start_open,
@@ -112,15 +112,15 @@ impl TilePaletteDevMenu {
 
                 ui.text("Tools");
                 {
-                    if imgui_ui::icon_button(ui_sys, imgui_ui::icons::ICON_UNDO, Some("Undo")) {
+                    if ui::icon_button(ui_sys, ui::icons::ICON_UNDO, Some("Undo")) {
                         undo_redo::undo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
                     ui.same_line();
-                    if imgui_ui::icon_button(ui_sys, imgui_ui::icons::ICON_REDO, Some("Redo")) {
+                    if ui::icon_button(ui_sys, ui::icons::ICON_REDO, Some("Redo")) {
                         undo_redo::redo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
 
-                    let btn_params = imgui_ui::UiImageButtonParams {
+                    let btn_params = ui::UiImageButtonParams {
                         id: "Clear",
                         size: BASE_TILE_SIZE.to_vec2(),
                         ui_texture: ui_sys.to_ui_texture(tex_cache, self.clear_button_image),
@@ -132,7 +132,7 @@ impl TilePaletteDevMenu {
                         ..Default::default()
                     };
 
-                    if imgui_ui::image_button(ui_sys, &btn_params) {
+                    if ui::image_button(ui_sys, &btn_params) {
                         self.clear_selection();
                         self.selection = TilePaletteSelection::Clear;
                     }
@@ -254,7 +254,7 @@ impl TilePaletteDevMenu {
                 btn_id.as_str()
             };
 
-            let btn_params = imgui_ui::UiImageButtonParams {
+            let btn_params = ui::UiImageButtonParams {
                 id: &btn_id,
                 size: BASE_TILE_SIZE.to_vec2(),
                 ui_texture,
@@ -268,7 +268,7 @@ impl TilePaletteDevMenu {
                 selected,
             };
 
-            if imgui_ui::image_button(ui_sys, &btn_params) {
+            if ui::image_button(ui_sys, &btn_params) {
                 self.clear_selection();
                 self.selection = TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def));
                 self.selected_index.insert(tile_kind, tile_index);

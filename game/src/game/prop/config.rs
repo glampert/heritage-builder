@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     log,
     configurations,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     engine::time::Seconds,
     game::sim::resources::ResourceKind,
     utils::hash::{self, PreHashedKeyMap, StringHash},

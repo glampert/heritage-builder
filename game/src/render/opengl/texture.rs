@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     log,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     utils::{Size, hash::{self, PreHashedKeyMap, StringHash}},
     render::{self, NativeTextureHandle, TextureHandle},
 };

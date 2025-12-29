@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 
 use crate::{
     engine::time::Seconds,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     utils::{self, Color, Vec2},
 };
 

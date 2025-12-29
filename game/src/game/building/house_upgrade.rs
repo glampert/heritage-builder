@@ -9,7 +9,7 @@ use super::{
 use crate::{
     log,
     game::world::object::{GameObject, Spawner},
-    imgui_ui::{UiSystem, UiStaticVar},
+    ui::{UiSystem, UiStaticVar},
     pathfind::{Node, NodeKind as PathNodeKind},
     tile::{sets::TileDef, TileFlags, TileKind, TileMapLayerKind},
     utils::{

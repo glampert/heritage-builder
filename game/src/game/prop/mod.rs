@@ -17,7 +17,7 @@ use super::{
 use crate::{
     game_object_debug_options,
     game_object_undo_redo_state,
-    imgui_ui::{UiSystem, UiStaticVar},
+    ui::{UiSystem, UiStaticVar},
     save::PostLoadContext,
     engine::time::{CountdownTimer, Seconds},
     tile::{Tile, TileKind, TileMapLayerKind},

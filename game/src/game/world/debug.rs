@@ -5,7 +5,7 @@ use crate::{
     debug::{self, popups::PopupMessages},
     engine::time::Seconds,
     game::sim::resources::ResourceKind,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     tile::Tile,
     utils::{
         self,

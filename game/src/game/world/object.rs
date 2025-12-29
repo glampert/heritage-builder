@@ -20,7 +20,7 @@ use crate::{
         prop::Prop,
     },
     log,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     save::PostLoadContext,
     tile::{sets::{TileDef, PresetTiles}, Tile, TileKind, TileFlags, TileMapLayerKind},
     utils::{coords::{Cell, CellRange, WorldToScreenTransform}},

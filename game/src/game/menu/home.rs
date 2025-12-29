@@ -21,7 +21,7 @@ use crate::{
     save::{Save, Load},
     tile::rendering::TileMapRenderFlags,
     utils::{Size, Vec2, coords::CellRange},
-    imgui_ui::{self, UiInputEvent, UiTextureHandle, UiWidgetContext},
+    ui::{self, UiInputEvent, UiTextureHandle, UiWidgetContext},
 };
 
 // ----------------------------------------------
@@ -166,8 +166,8 @@ impl HomeMainMenu {
 
     fn new(context: &mut UiWidgetContext) -> Self {
         let separator_tex_handle = context.tex_cache.load_texture_with_settings(
-            imgui_ui::ui_assets_path().join(Self::SEPARATOR_SPRITE).to_str().unwrap(),
-            Some(imgui_ui::ui_texture_settings())
+            ui::ui_assets_path().join(Self::SEPARATOR_SPRITE).to_str().unwrap(),
+            Some(ui::ui_texture_settings())
         );
         Self {
             menu: BasicModalMenu::new(
@@ -410,8 +410,8 @@ struct StaticFullScreenBackground {
 impl StaticFullScreenBackground {
     fn new(context: &mut UiWidgetContext) -> Self {
         let bg_tex_handle = context.tex_cache.load_texture_with_settings(
-            imgui_ui::ui_assets_path().join("misc/home_menu_static_bg.png").to_str().unwrap(),
-            Some(imgui_ui::ui_texture_settings())
+            ui::ui_assets_path().join("misc/home_menu_static_bg.png").to_str().unwrap(),
+            Some(ui::ui_texture_settings())
         );
         Self {
             ui_texture: context.ui_sys.to_ui_texture(context.tex_cache, bg_tex_handle),
@@ -453,8 +453,8 @@ impl AnimatedFullScreenBackground {
 
         for i in 0..BACKGROUND_ANIM_FRAME_COUNT {
             let tex_handle = context.tex_cache.load_texture_with_settings(
-                imgui_ui::ui_assets_path().join(format!("misc/home_menu_anim/frame{i}.jpg")).to_str().unwrap(),
-                Some(imgui_ui::ui_texture_settings())
+                ui::ui_assets_path().join(format!("misc/home_menu_anim/frame{i}.jpg")).to_str().unwrap(),
+                Some(ui::ui_texture_settings())
             );
             frames.push(context.ui_sys.to_ui_texture(context.tex_cache, tex_handle));
         }

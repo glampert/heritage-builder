@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
     log,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     render::TextureSettings,
     save::{self, *},
     tile::rendering,
@@ -89,7 +89,7 @@ macro_rules! configurations {
     ($configs_singleton:ident, $configs_type:ty, $configs_path:literal) => {
         $crate::singleton_late_init! { $configs_singleton, $configs_type }
         impl $crate::engine::config::Configs for $configs_type {
-            fn draw_debug_ui(&'static self, ui_sys: &$crate::imgui_ui::UiSystem) {
+            fn draw_debug_ui(&'static self, ui_sys: &$crate::ui::UiSystem) {
                 self.draw_debug_ui_with_header(stringify!($configs_type), ui_sys);
             }
         }

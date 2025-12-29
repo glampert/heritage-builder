@@ -7,7 +7,7 @@ mod app;
 mod debug;
 mod engine;
 mod game;
-mod imgui_ui;
+mod ui;
 mod pathfind;
 mod render;
 mod save;

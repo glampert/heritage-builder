@@ -8,7 +8,7 @@ use stats::*;
 use crate::{
     log,
     save::*,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     game::{
         constants::*,
         prop::{Prop, PropId, config::PropConfigs},

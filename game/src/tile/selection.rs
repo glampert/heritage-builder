@@ -6,7 +6,7 @@ use super::{
     Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerMutRefs, BASE_TILE_SIZE,
 };
 use crate::{
-    imgui_ui::UiInputEvent,
+    ui::UiInputEvent,
     render::RenderSystem,
     save::{Load, PostLoadContext, Save},
     pathfind::{NodeKind as PathNodeKind},

@@ -16,7 +16,7 @@ use crate::{
     tile::Tile,
     save::{Save, Load},
     render::RenderSystem,
-    imgui_ui::{UiInputEvent, UiWidgetContext},
+    ui::{UiInputEvent, UiWidgetContext},
     app::input::{InputAction, MouseButton},
     utils::{Vec2, coords::{CellRange, WorldToScreenTransform}},
 };

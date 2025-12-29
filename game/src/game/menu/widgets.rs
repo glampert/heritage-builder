@@ -1,7 +1,7 @@
 use std::{sync::atomic::{AtomicBool, Ordering}};
 
 use crate::{
-    imgui_ui::{UiSystem, UiTextureHandle},
+    ui::{UiSystem, UiTextureHandle},
     utils::{Size, Vec2, Rect, Color},
 };
 

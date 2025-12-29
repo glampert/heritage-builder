@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     bitflags_with_display,
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     utils::{coords::{Cell, CellRange}, Size},
     tile::{TileFlags, TileKind, TileMap, TileMapLayerKind},
 };

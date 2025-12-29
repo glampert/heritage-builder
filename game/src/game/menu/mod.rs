@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::{
     log,
     save::{Save, Load},
-    imgui_ui::UiInputEvent,
+    ui::UiInputEvent,
     engine::{Engine, time::Seconds},
     utils::{Vec2, coords::{Cell, CellRange}, hash::SmallSet},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},

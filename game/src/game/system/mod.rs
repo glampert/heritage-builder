@@ -6,7 +6,7 @@ use strum::EnumCount;
 use strum_macros::EnumCount;
 
 use super::{constants::*, sim::Query, world::object::GenerationalIndex};
-use crate::{imgui_ui::UiSystem, save::*, utils::mem};
+use crate::{ui::UiSystem, save::*, utils::mem};
 
 pub mod settlers;
 use settlers::SettlersSpawnSystem;

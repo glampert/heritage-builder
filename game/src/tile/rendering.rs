@@ -4,7 +4,7 @@ use smallvec::SmallVec;
 use super::{road, Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, BASE_TILE_SIZE};
 use crate::{
     debug::{self},
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     render::RenderSystem,
     utils::{
         coords::{self, CellRange, WorldToScreenTransform, IsoPointF32},

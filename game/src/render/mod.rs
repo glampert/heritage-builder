@@ -5,7 +5,7 @@ use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    imgui_ui::UiSystem,
+    ui::UiSystem,
     utils::{Color, Rect, RectTexCoords, Size, Vec2}
 };
 

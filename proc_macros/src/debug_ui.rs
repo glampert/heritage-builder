@@ -397,11 +397,11 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
 
     let output = quote! {
         impl #impl_generics #struct_name #ty_generics #where_clause {
-            pub fn draw_debug_ui(#self_argument, ui_sys: &crate::imgui_ui::UiSystem) {
+            pub fn draw_debug_ui(#self_argument, ui_sys: &crate::ui::UiSystem) {
                 let ui = ui_sys.ui();
                 #(#field_lines)*
             }
-            pub fn draw_debug_ui_with_header(#self_argument, header: &str, ui_sys: &crate::imgui_ui::UiSystem) {
+            pub fn draw_debug_ui_with_header(#self_argument, header: &str, ui_sys: &crate::ui::UiSystem) {
                 let ui = ui_sys.ui();
                 if ui.collapsing_header(header, imgui::TreeNodeFlags::empty()) {
                     self.draw_debug_ui(ui_sys);
