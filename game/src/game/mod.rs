@@ -18,13 +18,13 @@ use menu::{
     GameMenusInputArgs,
     home::HomeMenus,
     hud::InGameHudMenus,
-    widgets::{UiStyleOverrides, UiWidgetContext}
+    widgets::UiStyleOverrides,
 };
 
 use crate::{
     log,
     singleton_late_init,
-    imgui_ui::UiInputEvent,
+    imgui_ui::{UiInputEvent, UiWidgetContext},
     render::TextureCache,
     save::{self, *},
     app::{

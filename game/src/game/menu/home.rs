@@ -13,7 +13,7 @@ use super::{
     TilePlacement,
     TileInspector,
     modal::*,
-    widgets::{self, UiStyleOverrides, UiWidgetContext},
+    widgets::{self, UiStyleOverrides},
 };
 use crate::{
     game::GameLoop,
@@ -21,7 +21,7 @@ use crate::{
     save::{Save, Load},
     tile::rendering::TileMapRenderFlags,
     utils::{Size, Vec2, coords::CellRange},
-    imgui_ui::{self, UiInputEvent, UiTextureHandle},
+    imgui_ui::{self, UiInputEvent, UiTextureHandle, UiWidgetContext},
 };
 
 // ----------------------------------------------

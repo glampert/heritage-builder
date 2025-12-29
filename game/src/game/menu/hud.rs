@@ -11,13 +11,12 @@ use super::{
     TilePaletteSelection,
     palette::TilePaletteWidget,
     bar::MenuBarsWidget,
-    widgets::UiWidgetContext,
 };
 use crate::{
     tile::Tile,
     save::{Save, Load},
     render::RenderSystem,
-    imgui_ui::UiInputEvent,
+    imgui_ui::{UiInputEvent, UiWidgetContext},
     app::input::{InputAction, MouseButton},
     utils::{Vec2, coords::{CellRange, WorldToScreenTransform}},
 };

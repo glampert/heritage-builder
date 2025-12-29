@@ -11,12 +11,13 @@ pub mod icons;
 
 use crate::{
     app::{
-        input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
         Application,
+        input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
     },
-    engine::time::Seconds,
+    engine::{Engine, time::Seconds},
+    game::{world::World, sim::Simulation},
+    utils::{Color, Size, FieldAccessorXY, Vec2, platform::paths},
     render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
-    utils::{Color, FieldAccessorXY, Vec2, platform::paths},
 };
 
 // Internal implementation.
@@ -539,6 +540,35 @@ impl UiContext {
                 ..Default::default()
             }),
         }])
+    }
+}
+
+// ----------------------------------------------
+// UiWidgetContext
+// ----------------------------------------------
+
+pub struct UiWidgetContext<'game> {
+    pub sim: &'game mut Simulation,
+    pub world: &'game World,
+
+    pub ui_sys: &'game UiSystem,
+    pub tex_cache: &'game mut dyn TextureCache,
+
+    pub viewport_size: Size,
+    pub delta_time_secs: Seconds,
+}
+
+impl<'game> UiWidgetContext<'game> {
+    #[inline]
+    pub fn new(sim: &'game mut Simulation, world: &'game World, engine: &'game dyn Engine) -> Self {
+        Self {
+            sim,
+            world,
+            ui_sys: engine.ui_system(),
+            tex_cache: engine.texture_cache(),
+            viewport_size: engine.viewport().size(),
+            delta_time_secs: engine.frame_clock().delta_time(),
+        }
     }
 }
 

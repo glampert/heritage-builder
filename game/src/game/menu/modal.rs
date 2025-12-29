@@ -9,13 +9,13 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator, VariantArray};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    widgets::{self, UiWidgetContext},
+    widgets,
     bar::MenuBar,
 };
 use crate::{
     render::{TextureFilter, TextureHandle},
     utils::{self, Size, Rect, Vec2, mem},
-    imgui_ui::{self, UiSystem, UiTextureHandle, UiStaticVar},
+    imgui_ui::{self, UiSystem, UiTextureHandle, UiStaticVar, UiWidgetContext},
     tile::{sets::PresetTiles, camera::CameraGlobalSettings},
     game::{GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
 };

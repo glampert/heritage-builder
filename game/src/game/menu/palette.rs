@@ -5,10 +5,10 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 use super::{
     TilePaletteSelection,
     button::{SpriteButton, ButtonState, ButtonDef},
-    widgets::{self, UiStyleOverrides, UiWidgetContext},
+    widgets::{self, UiStyleOverrides},
 };
 use crate::{
-    imgui_ui,
+    imgui_ui::{self, UiWidgetContext},
     render::{RenderSystem, TextureHandle},
     utils::{self, Size, Vec2, Color, Rect, RectTexCoords, coords::WorldToScreenTransform},
     tile::{

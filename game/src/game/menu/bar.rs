@@ -6,13 +6,13 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 use super::{
     modal::*,
     button::{SpriteButton, ButtonState, ButtonDef},
-    widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons, UiWidgetContext},
+    widgets::{self, UiStyleOverrides, UiStyleTextLabelInvisibleButtons},
     GameMenusInputArgs,
 };
 use crate::{
     utils::{self, Size, Rect, Vec2},
     app::input::{InputAction, InputKey},
-    imgui_ui::{self, UiTextureHandle, UiInputEvent},
+    imgui_ui::{self, UiTextureHandle, UiInputEvent, UiWidgetContext},
 };
 
 // ----------------------------------------------
