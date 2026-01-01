@@ -1,14 +1,15 @@
 use arrayvec::ArrayVec;
+use smallvec::SmallVec;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
     TilePaletteSelection,
     button::{SpriteButton, ButtonState, ButtonDef},
-    widgets,
+    widgets::{self, UiStyleTextLabelInvisibleButtons},
 };
 use crate::{
-    ui::{self, UiWidgetContext},
+    ui::{self, UiTextureHandle, UiWidgetContext},
     render::{RenderSystem, TextureHandle},
     utils::{self, Size, Vec2, Color, Rect, RectTexCoords, coords::WorldToScreenTransform},
     tile::{
@@ -167,11 +168,14 @@ impl TilePaletteMainButton {
         self.btn.is_pressed()
     }
 
-    fn draw_main_button(&mut self, context: &mut UiWidgetContext) -> bool {
-        self.btn.draw(context)
+    fn draw_main_button(&mut self, context: &mut UiWidgetContext, background_sprite: UiTextureHandle) -> bool {
+        self.btn.draw(context, Some(background_sprite))
     }
 
-    fn draw_child_buttons(&mut self, context: &mut UiWidgetContext) -> Option<usize> {
+    fn draw_child_buttons(&mut self,
+                          context: &mut UiWidgetContext,
+                          background_sprite: UiTextureHandle,
+                          button_hover_sprite: UiTextureHandle) -> Option<usize> {
         if self.children.is_empty() {
             return None;
         }
@@ -180,12 +184,12 @@ impl TilePaletteMainButton {
 
         const BUTTON_HEIGHT: f32 = 20.0;
         const LABEL_PADDING: f32 = 25.0;
-        const VERTICAL_SPACING: f32 = 2.0;
+        const VERTICAL_SPACING: f32 = 4.0;
 
         let mut longest_label: f32 = 0.0;
         for child in &self.children {
-            let text_width = ui.calc_text_size(&child.label)[0];
-            longest_label = longest_label.max(text_width);
+            let label_size = ui.calc_text_size(&child.label);
+            longest_label = longest_label.max(label_size[0]);
         }
 
         let child_window_width = longest_label + (LABEL_PADDING * 2.0);
@@ -196,30 +200,71 @@ impl TilePaletteMainButton {
             main_button_pos.y,
         ];
 
+        let window_size = [
+            child_window_width,
+            self.children.len() as f32 * (BUTTON_HEIGHT + VERTICAL_SPACING)
+        ];
+
         let _item_spacing = widgets::push_item_spacing(ui, 0.0, VERTICAL_SPACING);
 
         ui.window(format!("Child Window {:?}", self.kind))
             .position(window_position, imgui::Condition::Always)
-            .flags(widgets::window_flags())
-            .build(|| {
+            .size(window_size, imgui::Condition::Always)
+            .flags(widgets::window_flags() | imgui::WindowFlags::NO_BACKGROUND)
+            .build(|| {                
+                // Draw background:
+                {
+                    let window_rect = Rect::new(
+                        Vec2::from_array(ui.window_pos()),
+                        Vec2::from_array(ui.window_size())
+                    );
+                    ui.get_window_draw_list()
+                        .add_image(background_sprite, window_rect.min.to_array(), window_rect.max.to_array())
+                        .build();
+                }
+
                 ui.set_window_font_scale(0.8);
 
-                let button_size = Vec2::new(longest_label + LABEL_PADDING, BUTTON_HEIGHT);
-                let mut pressed_button_index: Option<usize> = None;
-
-                for (index, child) in self.children.iter().enumerate() {
-                    if ui.button_with_size(&child.label, button_size.to_array()) {
-                        pressed_button_index = Some(index);
-                    }
-
-                    if ui.is_item_hovered() && !child.tooltip.is_empty() {
-                        let tooltip = ui.begin_tooltip();
-                        ui.set_window_font_scale(0.8);
-                        ui.text(&child.tooltip);
-                        ui.set_window_font_scale(1.0);
-                        tooltip.end();
-                    }
+                let mut labels = SmallVec::<[&str; 16]>::new();
+                for button in &self.children {
+                    labels.push(&button.label);
                 }
+
+                // Make button background transparent and borderless.
+                let _button_style_overrides =
+                    UiStyleTextLabelInvisibleButtons::apply_overrides(context.ui_sys);
+
+                let pressed_button_index = widgets::draw_centered_button_group_ex(
+                    ui,
+                    &labels,
+                    None,
+                    Some(Vec2::new(8.0, 5.0)),
+                    Some(|ui: &imgui::Ui, button_index: usize| {
+                        // Draw underline effect when hovered / active:
+                        let button_rect = Rect::from_extents(
+                            Vec2::from_array(ui.item_rect_min()),
+                            Vec2::from_array(ui.item_rect_max())
+                        ).translated(Vec2::new(0.0, ui.text_line_height() - 5.0));
+
+                        let underline_tint_color = if ui.is_item_active() {
+                            imgui::ImColor32::from_rgba_f32s(1.0, 1.0, 1.0, 0.5)
+                        } else {
+                            imgui::ImColor32::WHITE
+                        };
+
+                        ui.get_window_draw_list()
+                            .add_image(button_hover_sprite,
+                                       button_rect.min.to_array(),
+                                       button_rect.max.to_array())
+                                       .col(underline_tint_color)
+                                       .build();
+
+                        if !self.children[button_index].tooltip.is_empty() {
+                            ui::custom_tooltip(ui, Some(0.8), Some(background_sprite), || ui.text(&self.children[button_index].tooltip));
+                        }
+                    }),
+                    widgets::ALWAYS_ENABLED
+                );
 
                 widgets::draw_current_window_debug_rect(ui);
                 ui.set_window_font_scale(1.0);
@@ -269,6 +314,8 @@ pub struct TilePaletteWidget {
     pressed_main_button: Option<usize>,
 
     clear_icon_sprite: TextureHandle,
+    background_sprite: UiTextureHandle,
+    button_hover_sprite: UiTextureHandle,
 }
 
 impl TilePaletteWidget {
@@ -279,11 +326,25 @@ impl TilePaletteWidget {
             Some(ui::texture_settings())
         );
 
+        let background_sprite_path = ui::assets_path().join("misc/tall_page_bg.png");
+        let background_sprite = context.tex_cache.load_texture_with_settings(
+            background_sprite_path.to_str().unwrap(),
+            Some(ui::texture_settings())
+        );
+
+        let button_hover_sprite_path = ui::assets_path().join("misc/brush_stroke_divider.png");
+        let button_hover_sprite = context.tex_cache.load_texture_with_settings(
+            button_hover_sprite_path.to_str().unwrap(),
+            Some(ui::texture_settings())
+        );
+
         Self {
             current_selection: TilePaletteSelection::None,
             main_buttons: TilePaletteMainButtonKind::create_all(context),
             pressed_main_button: None,
             clear_icon_sprite,
+            background_sprite: context.ui_sys.to_ui_texture(context.tex_cache, background_sprite),
+            button_hover_sprite: context.ui_sys.to_ui_texture(context.tex_cache, button_hover_sprite),
         }
     }
 
@@ -317,14 +378,25 @@ impl TilePaletteWidget {
 
         ui.window("Tile Palette Widget")
             .position(window_position, imgui::Condition::Always)
-            .flags(widgets::window_flags())
+            .flags(widgets::window_flags() | imgui::WindowFlags::NO_BACKGROUND)
             .build(|| {
+                // Draw background:
+                {
+                    let window_rect = Rect::new(
+                        Vec2::from_array(ui.window_pos()),
+                        Vec2::from_array(ui.window_size())
+                    );
+                    ui.get_window_draw_list()
+                        .add_image(self.background_sprite, window_rect.min.to_array(), window_rect.max.to_array())
+                        .build();
+                }
+
                 ui.set_window_font_scale(0.8);
 
                 let previously_pressed_button = self.pressed_main_button;
 
                 for (index, button) in self.main_buttons.iter_mut().enumerate() {
-                    let was_pressed_this_frame = button.draw_main_button(context);
+                    let was_pressed_this_frame = button.draw_main_button(context, self.background_sprite);
 
                     if button.kind.separator_follows() {
                         ui.separator();
@@ -362,7 +434,7 @@ impl TilePaletteWidget {
                         if pressed_button.has_children() {
                             // Keep the parent button pressed but close the child panel when we have a selection.
                             if self.current_selection.is_none() {
-                                let pressed_child_index = pressed_button.draw_child_buttons(context);
+                                let pressed_child_index = pressed_button.draw_child_buttons(context, self.background_sprite, self.button_hover_sprite);
                                 self.current_selection = pressed_button.current_selection(pressed_child_index);
                             }
                             // Else hold current selection.

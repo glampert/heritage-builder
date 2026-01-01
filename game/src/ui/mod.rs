@@ -16,7 +16,7 @@ use crate::{
     },
     engine::{Engine, time::Seconds},
     game::{world::World, sim::Simulation},
-    utils::{Color, Size, FieldAccessorXY, Vec2, platform::paths, mem},
+    utils::{Color, Size, FieldAccessorXY, Vec2, Rect, platform::paths, mem},
     render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
 };
 
@@ -57,11 +57,24 @@ impl UiInputEvent {
 // UiTheme
 // ----------------------------------------------
 
+#[repr(u32)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub enum UiTheme {
     #[default]
     Dev,
     InGame,
+}
+
+impl UiTheme {
+    #[inline]
+    pub fn is_dev(self) -> bool {
+        self == Self::Dev
+    }
+
+    #[inline]
+    pub fn is_in_game(self) -> bool {
+        self == Self::InGame
+    }
 }
 
 // ----------------------------------------------
@@ -535,14 +548,14 @@ impl UiContext {
         let style = self.ctx.style_mut();
         let colors = &mut style.colors;
 
-        let theme_color1 = [0.93, 0.91, 0.77, 1.0];
+        let theme_color1 = [0.965, 0.859, 0.647, 1.0];
         let theme_color2 = [0.58, 0.45, 0.35, 1.0];
 
         colors[StyleColor::Text as usize] = [0.0, 0.0, 0.0, 1.0];
         colors[StyleColor::TextDisabled as usize] = [0.5, 0.5, 0.5, 1.0];
         colors[StyleColor::WindowBg as usize] = theme_color1;
         colors[StyleColor::ChildBg as usize] = [0.88, 0.83, 0.68, 0.25];
-        colors[StyleColor::PopupBg as usize] = theme_color1;
+        colors[StyleColor::PopupBg as usize] = [0.0; 4];
         colors[StyleColor::Border as usize] = [0.28, 0.29, 0.30, 0.60];
         colors[StyleColor::BorderShadow as usize] = [0.00, 0.00, 0.00, 0.00];
         colors[StyleColor::FrameBg as usize] = [0.88, 0.83, 0.68, 0.25];
@@ -613,7 +626,7 @@ impl UiContext {
         style.grab_min_size = 10.0;
         style.window_border_size = 1.0;
         style.child_border_size = 1.0;
-        style.popup_border_size = 1.0;
+        style.popup_border_size = 0.0;
         style.frame_border_size = 1.0;
         style.tab_border_size = 1.0;
         style.window_rounding = 7.0;
@@ -938,6 +951,41 @@ pub fn icon_button_custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem, icon: 
     }
 
     clicked
+}
+
+pub fn custom_tooltip<TooltipFn: FnOnce()>(ui: &imgui::Ui, 
+                                           font_scale: Option<f32>,
+                                           background: Option<UiTextureHandle>,
+                                           tooltip_fn: TooltipFn) {
+    let tooltip = ui.begin_tooltip();
+
+    let font_scale_changed = if let Some(scale) = font_scale {
+        ui.set_window_font_scale(scale);
+        true
+    } else {
+        false
+    };
+
+    if let Some(bg_texture) = background {
+        let window_rect = Rect::new(
+            Vec2::from_array(ui.window_pos()),
+            Vec2::from_array(ui.window_size())
+        );
+
+        ui.get_window_draw_list()
+            .add_image(bg_texture,
+                       window_rect.min.to_array(),
+                       window_rect.max.to_array())
+                       .build();
+    }
+
+    tooltip_fn();
+
+    if font_scale_changed {
+        ui.set_window_font_scale(1.0); // Restore default.
+    }
+
+    tooltip.end();
 }
 
 pub struct UiImageButtonParams<'a> {

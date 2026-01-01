@@ -93,6 +93,7 @@ pub struct BasicModalMenu {
     btn_font_scale: f32,
     heading_font_scale: f32,
     dialog: Option<Box<ModalPopupDialog>>,
+    dialog_background_sprite: UiTextureHandle,
 }
 
 impl BasicModalMenu {
@@ -117,6 +118,15 @@ impl BasicModalMenu {
             context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
         });
 
+        let dialog_background_sprite = {
+            let file_path = ui::assets_path().join("misc/wide_page_bg.png");
+            let tex_handle = context.tex_cache.load_texture_with_settings(
+                file_path.to_str().unwrap(),
+                Some(ui::texture_settings())
+            );
+            context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
+        };
+
         let with_title_bar = params.title.is_some() && background_sprite.is_none();
         let title = params.title.unwrap_or("##ModalMenu".to_string());
 
@@ -132,6 +142,7 @@ impl BasicModalMenu {
             btn_font_scale: params.btn_font_scale,
             heading_font_scale: params.heading_font_scale,
             dialog: None,
+            dialog_background_sprite,
         }
     }
 
@@ -150,7 +161,6 @@ impl BasicModalMenu {
 
         widgets::draw_menu_heading(
             context.ui_sys,
-            &ui.get_window_draw_list(), 
             labels,
             Some(Vec2::new(0.0, -200.0)),
             Some(Rect { min: Vec2::new(40.0, 10.0), max: Vec2::new(40.0, 30.0) }),
@@ -209,11 +219,26 @@ impl BasicModalMenu {
             );
         }
 
+        let draw_window_background = |background_sprite: UiTextureHandle| {
+            let window_rect = Rect::new(
+                Vec2::from_array(ui.window_pos()),
+                Vec2::from_array(ui.window_size())
+            );
+            ui.get_window_draw_list()
+                .add_image(background_sprite, window_rect.min.to_array(), window_rect.max.to_array())
+                .build();
+        };
+
         if let Some(dialog) = &self.dialog {
+            let window_flags = widgets::window_flags() | imgui::WindowFlags::NO_BACKGROUND;
+
             ui.window(&self.title)
-                .flags(widgets::window_flags())
+                .size([dialog.size[0] + 15.0, dialog.size[1] + 60.0], imgui::Condition::Always)
+                .flags(window_flags)
                 .build(|| {
                     ui.set_window_font_scale(self.font_scale);
+
+                    draw_window_background(self.dialog_background_sprite);
 
                     ui.child_window("DialogTextContainer")
                         .size(dialog.size)
@@ -228,14 +253,22 @@ impl BasicModalMenu {
                     let mut pressed_button_index: Option<usize> = None;
 
                     for (index, button) in dialog.buttons.iter().enumerate() {
-                        if ui.button(button.label) && pressed_button_index.is_none() {
+                        let pressed = widgets::draw_button_custom_hover(
+                            context.ui_sys,
+                            &format!("{}_PopupBtn_{}", button.label, index),
+                            button.label,
+                            true,
+                            self.btn_hover_sprite.unwrap()
+                        );
+
+                        if pressed && pressed_button_index.is_none() {
                             pressed_button_index = Some(index);
                         }
 
                         // Horizontal layout (side-by-side buttons).
                         ui.same_line();
                         // Extra spacing between buttons.
-                        widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
+                        widgets::spacing(ui, Vec2::new(5.0, 0.0));
                         ui.same_line();
                     }
 
@@ -272,14 +305,8 @@ impl BasicModalMenu {
                 .build(|| {
                     ui.set_window_font_scale(self.font_scale);
 
-                    if let Some(background_texture) = self.background_sprite {
-                        let window_rect = Rect::new(
-                            Vec2::from_array(ui.window_pos()),
-                            Vec2::from_array(ui.window_size())
-                        );
-                        ui.get_window_draw_list()
-                            .add_image(background_texture, window_rect.min.to_array(), window_rect.max.to_array())
-                            .build();
+                    if let Some(background_sprite) = self.background_sprite {
+                        draw_window_background(background_sprite);
                     }
 
                     draw_menu_fn(context, self);
@@ -453,7 +480,8 @@ impl MainModalMenu {
     fn on_quit_button(&mut self, context: &mut UiWidgetContext) {
         self.menu.show_popup_dialog(
             self,
-            [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 4.0], // Space for roughly 4 lines of text.
+            // Space for roughly 2 lines of text + a row of buttons + margin.
+            [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 3.0 + 10.0],
             |ui| {
                 ui.text("Quit Game?");
                 ui.text("Any unsaved progress will be lost...");
@@ -504,7 +532,6 @@ impl ModalMenu for MainModalMenu {
             ui.set_window_font_scale(this.btn_font_scale);
             let pressed_button_index = widgets::draw_centered_button_group_custom_hover(
                 context.ui_sys,
-                &ui.get_window_draw_list(),
                 &labels,
                 Some(MODAL_BUTTON_LARGE_SIZE),
                 Some(Vec2::new(0.0, 100.0)),
@@ -662,7 +689,6 @@ impl ModalMenu for SaveGameModalMenu {
 
             if self.actions.intersects(SaveGameActions::Load) {
                 if widgets::draw_button_custom_hover(context.ui_sys,
-                                                     &ui.get_window_draw_list(),
                                                      "LoadGame_SaveGame_Modal",
                                                      "Load Game",
                                                      !self.save_file_name.is_empty(),
@@ -674,13 +700,12 @@ impl ModalMenu for SaveGameModalMenu {
 
                 ui.same_line();
                 // Extra spacing between buttons.
-                widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
+                widgets::spacing(ui, Vec2::new(5.0, 0.0));
                 ui.same_line();
             }
 
             if self.actions.intersects(SaveGameActions::Save) {
                 if widgets::draw_button_custom_hover(context.ui_sys,
-                                                     &ui.get_window_draw_list(),
                                                      "SaveGame_SaveGame_Modal",
                                                      "Save Game",
                                                      !self.save_file_name.is_empty(),
@@ -698,12 +723,11 @@ impl ModalMenu for SaveGameModalMenu {
 
                 ui.same_line();
                 // Extra spacing between buttons.
-                widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
+                widgets::spacing(ui, Vec2::new(5.0, 0.0));
                 ui.same_line();
             }
 
             if widgets::draw_button_custom_hover(context.ui_sys,
-                                                 &ui.get_window_draw_list(),
                                                  "Cancel_SaveGame_Modal",
                                                  "Cancel",
                                                  true,
@@ -729,7 +753,8 @@ impl ModalMenu for SaveGameModalMenu {
             let save_file_name = self.save_file_name.clone();
             self.menu.show_popup_dialog(
                 self,
-                [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 3.0], // Space for roughly 3 lines of text.
+                // Space for roughly 1 line of text + a row of buttons + margin.
+                [self.menu.size().x, context.ui_sys.ui().text_line_height_with_spacing() * 2.0 + 10.0],
                 |ui| {
                     ui.text("Overwrite existing save game?");
                 },
@@ -964,7 +989,6 @@ impl ModalMenu for SettingsModalMenu {
                 ui.set_cursor_pos([left_margin, ui.cursor_pos()[1]]);
                 ok_pressed |= widgets::draw_button_custom_hover(
                     context.ui_sys,
-                    &ui.get_window_draw_list(),
                     "Ok_Settings_Modal",
                     "Ok",
                     true,
@@ -973,12 +997,11 @@ impl ModalMenu for SettingsModalMenu {
 
                 ui.same_line();
                 // Extra spacing between buttons.
-                widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
+                widgets::spacing(ui, Vec2::new(5.0, 0.0));
                 ui.same_line();
 
                 cancel_pressed |= widgets::draw_button_custom_hover(
                     context.ui_sys,
-                    &ui.get_window_draw_list(),
                     "Cancel_Settings_Modal",
                     "Cancel",
                     true,
@@ -996,7 +1019,6 @@ impl ModalMenu for SettingsModalMenu {
                 ui.set_window_font_scale(this.btn_font_scale);
                 let pressed_button_index = widgets::draw_centered_button_group_custom_hover(
                     context.ui_sys,
-                    &ui.get_window_draw_list(),
                     &labels,
                     Some(MODAL_BUTTON_LARGE_SIZE),
                     Some(Vec2::new(0.0, 50.0)),
@@ -1120,7 +1142,7 @@ impl ModalMenu for NewGameModalMenu {
                 self.new_map_size.height = self.new_map_size.height.clamp(32, 256);
             }
 
-            widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(0.0, 8.0));
+            widgets::spacing(ui, Vec2::new(0.0, 8.0));
 
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
             ui.text("Terrain Kind:");
@@ -1129,11 +1151,10 @@ impl ModalMenu for NewGameModalMenu {
             ui.set_next_item_width(GROUP_WIDTH);
             ui.combo_simple_string("##TileKind", CURRENT_TILE_KIND.as_mut(), &TILE_KIND_NAMES);
 
-            widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(0.0, 8.0));
+            widgets::spacing(ui, Vec2::new(0.0, 8.0));
 
             ui.set_cursor_pos([group_start.x, ui.cursor_pos()[1]]);
             if widgets::draw_button_custom_hover(context.ui_sys,
-                                                 &ui.get_window_draw_list(),
                                                  "StartNewGame_NewGame_Modal",
                                                  "Start New Game",
                                                  true,
@@ -1145,11 +1166,10 @@ impl ModalMenu for NewGameModalMenu {
 
             ui.same_line();
             // Extra spacing between buttons.
-            widgets::spacing(ui, &ui.get_window_draw_list(), Vec2::new(5.0, 0.0));
+            widgets::spacing(ui, Vec2::new(5.0, 0.0));
             ui.same_line();
 
             if widgets::draw_button_custom_hover(context.ui_sys,
-                                                 &ui.get_window_draw_list(),
                                                  "Cancel_NewGame_Modal",
                                                  "Cancel",
                                                  true,
@@ -1214,7 +1234,6 @@ impl ModalMenu for AboutModalMenu {
             ui.set_window_font_scale(this.font_scale);
             widgets::draw_centered_text_label_group(
                 context.ui_sys,
-                &ui.get_window_draw_list(),
                 &[
                     "Heritage Builder",
                     "The Dragon Legacy",
@@ -1229,7 +1248,6 @@ impl ModalMenu for AboutModalMenu {
             ui.set_window_font_scale(this.btn_font_scale);
             if widgets::draw_centered_button_group_custom_hover(
                 context.ui_sys,
-                &ui.get_window_draw_list(),
                 &["Back ->"],
                 Some(MODAL_BUTTON_LARGE_SIZE),
                 Some(Vec2::new(0.0, ui.cursor_pos()[1] - 100.0)),

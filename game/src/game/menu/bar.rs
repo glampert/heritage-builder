@@ -83,7 +83,7 @@ impl MenuBarsWidget {
         let ui = context.ui_sys.ui();
         ui.window(name)
             .position(position.unwrap_or([0.0, 0.0]), pos_cond)
-            .flags(widgets::window_flags())
+            .flags(widgets::window_flags() | imgui::WindowFlags::NO_BACKGROUND)
             .build(|| {
                 ui.set_window_font_scale(0.8);
                 draw_fn(context);
@@ -155,15 +155,26 @@ impl TopBarIcon {
 
 struct TopBar {
     icon_textures: ArrayVec<UiTextureHandle, TOP_BAR_ICON_COUNT>,
+    background_sprite: UiTextureHandle,
 }
 
 impl TopBar {
     fn new(context: &mut UiWidgetContext) -> Box<Self> {
+        let background_sprite_path = ui::assets_path().join("misc/wide_page_bg.png");
+        let background_sprite = context.tex_cache.load_texture_with_settings(
+            background_sprite_path.to_str().unwrap(),
+            Some(ui::texture_settings())
+        );
+
         let mut icon_textures = ArrayVec::new();
         for icon in TopBarIcon::iter() {
             icon_textures.push(icon.load_texture(context));
         }
-        Box::new(Self { icon_textures })
+
+        Box::new(Self {
+            icon_textures,
+            background_sprite: context.ui_sys.to_ui_texture(context.tex_cache, background_sprite),
+        })
     }
 }
 
@@ -174,7 +185,17 @@ impl MenuBar for TopBar {
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
         let ui = context.ui_sys.ui();
-        let draw_list = ui.get_window_draw_list();
+
+        // Draw background:
+        {
+            let window_rect = Rect::new(
+                Vec2::from_array(ui.window_pos()),
+                Vec2::from_array(ui.window_size())
+            );
+            ui.get_window_draw_list()
+                .add_image(self.background_sprite, window_rect.min.to_array(), window_rect.max.to_array())
+                .build();
+        }
 
         // Spacing is handled manually with dummy items.
         let _item_spacing = widgets::push_item_spacing(ui, 0.0, 0.0);
@@ -188,14 +209,14 @@ impl MenuBar for TopBar {
             let icon_size = TopBarIcon::Population.size();
             let icon_texture = self.icon_textures[TopBarIcon::Population as usize];
 
-            widgets::draw_sprite(ui, &draw_list, "Population", icon_size, icon_texture, Some("Population"));
+            widgets::draw_sprite(ui, "Population", icon_size, icon_texture, self.background_sprite, Some("Population"));
             ui.same_line(); // Horizontal layout.
 
             let population = context.world.stats().population.total;
-            widgets::draw_centered_text_label(ui, &draw_list, &population.to_string(), Vec2::new(50.0, icon_size.y));
+            widgets::draw_centered_text_label(ui, &population.to_string(), Vec2::new(50.0, icon_size.y));
             ui.same_line();
 
-            widgets::spacing(ui, &draw_list, Vec2::new(30.0, 0.0));
+            widgets::spacing(ui, Vec2::new(30.0, 0.0));
             ui.same_line();
         }
 
@@ -204,7 +225,7 @@ impl MenuBar for TopBar {
             let icon_size = TopBarIcon::Player.size();
             let icon_texture = self.icon_textures[TopBarIcon::Player as usize];
 
-            widgets::spacing(ui, &draw_list, Vec2::new(icon_size.x, 0.0));
+            widgets::spacing(ui, Vec2::new(icon_size.x, 0.0));
             ui.same_line();
 
             let icon_rect = Rect::from_extents(
@@ -212,6 +233,7 @@ impl MenuBar for TopBar {
                 Vec2::new(ui.item_rect_max()[0], icon_size.y)
             );
 
+            let draw_list = ui.get_window_draw_list();
             // NOTE: Draw with fullscreen clip rect so that the player icon is allowed to overflow the window bounds.
             draw_list.with_clip_rect([0.0, 0.0], ui.io().display_size, || {
                 widgets::draw_window_style_rect(
@@ -225,7 +247,7 @@ impl MenuBar for TopBar {
                     .build();
             });
 
-            widgets::spacing(ui, &draw_list, Vec2::new(30.0, 0.0));
+            widgets::spacing(ui, Vec2::new(30.0, 0.0));
             ui.same_line();
         }
 
@@ -234,11 +256,11 @@ impl MenuBar for TopBar {
             let icon_size = TopBarIcon::Gold.size();
             let icon_texture = self.icon_textures[TopBarIcon::Gold as usize];
 
-            widgets::draw_sprite(ui, &draw_list, "Gold", icon_size, icon_texture, Some("Gold"));
+            widgets::draw_sprite(ui, "Gold", icon_size, icon_texture, self.background_sprite, Some("Gold"));
             ui.same_line(); // Horizontal layout.
 
             let gold_units_total = context.world.stats().treasury.gold_units_total;
-            widgets::draw_centered_text_label(ui, &draw_list, &gold_units_total.to_string(), Vec2::new(50.0, icon_size.y));
+            widgets::draw_centered_text_label(ui, &gold_units_total.to_string(), Vec2::new(50.0, icon_size.y));
             ui.same_line();
         }
     }
@@ -324,13 +346,21 @@ struct LeftBarButton {
 struct LeftBar {
     buttons: ArrayVec<LeftBarButton, LEFT_BAR_BUTTON_COUNT>,
     modal_menus: ArrayVec<Box<dyn ModalMenu>, LEFT_BAR_BUTTON_COUNT>,
+    background_sprite: UiTextureHandle,
 }
 
 impl LeftBar {
     fn new(context: &mut UiWidgetContext) -> Box<Self> {
+        let background_sprite_path = ui::assets_path().join("misc/tall_page_bg.png");
+        let background_sprite = context.tex_cache.load_texture_with_settings(
+            background_sprite_path.to_str().unwrap(),
+            Some(ui::texture_settings())
+        );
+
         let mut left_bar = Box::new(Self {
             buttons: LeftBarButtonKind::create_all(context),
             modal_menus: ArrayVec::new(),
+            background_sprite: context.ui_sys.to_ui_texture(context.tex_cache, background_sprite),
         });
 
         // Same settings as the home menus.
@@ -398,6 +428,19 @@ impl MenuBar for LeftBar {
         // Each button is associated with a modal menu.
         debug_assert!(self.buttons.len() == self.modal_menus.len());
 
+        // Draw background:
+        {
+            let ui = context.ui_sys.ui();
+
+            let window_rect = Rect::new(
+                Vec2::from_array(ui.window_pos()),
+                Vec2::from_array(ui.window_size())
+            );
+            ui.get_window_draw_list()
+                .add_image(self.background_sprite, window_rect.min.to_array(), window_rect.max.to_array())
+                .build();
+        }
+
         let mut pressed_button_index: Option<usize> = None;
 
         for (index, button) in self.buttons.iter_mut().enumerate() {
@@ -405,7 +448,7 @@ impl MenuBar for LeftBar {
                 continue;
             }
 
-            let pressed = button.btn.draw(context);
+            let pressed = button.btn.draw(context, Some(self.background_sprite));
 
             if pressed && pressed_button_index.is_none() {
                 pressed_button_index = Some(index);
@@ -561,11 +604,21 @@ struct GameSpeedControlButton {
 
 struct GameSpeedControlsBar {
     buttons: ArrayVec<GameSpeedControlButton, GAME_SPEED_CONTROLS_BUTTON_COUNT>,
+    background_sprite: UiTextureHandle,
 }
 
 impl GameSpeedControlsBar {
     fn new(context: &mut UiWidgetContext) -> Box<Self> {
-        Box::new(Self { buttons: GameSpeedControlButtonKind::create_all(context) })
+        let background_sprite_path = ui::assets_path().join("misc/wide_page_bg.png");
+        let background_sprite = context.tex_cache.load_texture_with_settings(
+            background_sprite_path.to_str().unwrap(),
+            Some(ui::texture_settings())
+        );
+        
+        Box::new(Self {
+            buttons: GameSpeedControlButtonKind::create_all(context),
+            background_sprite: context.ui_sys.to_ui_texture(context.tex_cache, background_sprite),
+        })
     }
 }
 
@@ -580,10 +633,22 @@ impl MenuBar for GameSpeedControlsBar {
             UiStyleTextLabelInvisibleButtons::apply_overrides(context.ui_sys);
 
         let ui = context.ui_sys.ui();
+
+        // Draw background:
+        {
+            let window_rect = Rect::new(
+                Vec2::from_array(ui.window_pos()),
+                Vec2::from_array(ui.window_size())
+            );
+            ui.get_window_draw_list()
+                .add_image(self.background_sprite, window_rect.min.to_array(), window_rect.max.to_array())
+                .build();
+        }
+
         let mut pressed_button_index: Option<usize> = None;
 
         for (index, button) in self.buttons.iter_mut().enumerate() {
-            let pressed = button.btn.draw(context);
+            let pressed = button.btn.draw(context, Some(self.background_sprite));
             ui.same_line(); // Horizontal layout.
 
             if pressed && pressed_button_index.is_none() {
@@ -613,7 +678,7 @@ impl MenuBar for GameSpeedControlsBar {
             }
         }
 
-        widgets::draw_vertical_separator(ui, &ui.get_window_draw_list(), 1.0, 6.0, 0.0);
+        widgets::draw_vertical_separator(ui, 1.0, 6.0, 0.0);
         ui.same_line();
 
         let label = if context.sim.is_paused() {

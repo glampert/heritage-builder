@@ -130,7 +130,7 @@ impl SpriteButton {
         }
     }
 
-    pub fn draw(&mut self, context: &mut UiWidgetContext) -> bool {
+    pub fn draw(&mut self, context: &mut UiWidgetContext, tooltip_background: Option<UiTextureHandle>) -> bool {
         debug_assert!(self.sprites.are_textures_loaded());
 
         let ui = context.ui_sys.ui();
@@ -146,11 +146,11 @@ impl SpriteButton {
         let rect_min = ui.item_rect_min();
         let rect_max = ui.item_rect_max();
 
-        let draw_list = ui.get_window_draw_list();
-        draw_list.add_image(ui_texture,
-                            rect_min,
-                            rect_max)
-                            .build();
+        ui.get_window_draw_list()
+            .add_image(ui_texture,
+                       rect_min,
+                       rect_max)
+                       .build();
 
         self.rect = Rect::from_extents(Vec2::from_array(rect_min), Vec2::from_array(rect_max));
         self.update_state(hovered, left_click, right_click, context.delta_time_secs);
@@ -158,15 +158,11 @@ impl SpriteButton {
         let show_tooltip = hovered && (!self.is_pressed() || self.def.show_tooltip_when_pressed);
 
         if show_tooltip && let Some(tooltip_text) = &self.def.tooltip {
-            let tooltip = ui.begin_tooltip();
-            ui.set_window_font_scale(0.8);
-            ui.text(tooltip_text);
-            ui.set_window_font_scale(1.0);
-            tooltip.end();
+            ui::custom_tooltip(ui, Some(0.8), tooltip_background, || ui.text(tooltip_text));
         }
 
         if widgets::is_debug_draw_enabled() {
-            widgets::draw_debug_rect(&draw_list, &self.rect, Color::magenta());
+            widgets::draw_debug_rect(ui, &self.rect, Color::magenta());
         }
 
         left_click // Only left click counts as "pressed".

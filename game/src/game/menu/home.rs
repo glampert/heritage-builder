@@ -371,7 +371,6 @@ impl ModalMenu for HomeMainMenu {
             // Draw actual menu buttons:
             let pressed_button_index = widgets::draw_centered_button_group_custom_hover(
                 context.ui_sys,
-                &ui.get_window_draw_list(),
                 &HomeMainMenuButton::labels(),
                 Some(MODAL_BUTTON_LARGE_SIZE),
                 Some(Vec2::new(0.0, 150.0)),

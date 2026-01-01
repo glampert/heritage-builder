@@ -1,7 +1,7 @@
 use std::{sync::atomic::{AtomicBool, Ordering}};
 
 use crate::{
-    ui::{UiSystem, UiTextureHandle},
+    ui::{self, UiSystem, UiTextureHandle},
     utils::{Size, Vec2, Rect, Color},
 };
 
@@ -33,17 +33,15 @@ impl<'ui> UiStyleTextLabelInvisibleButtons<'ui> {
     }
 }
 
-pub const DEFAULT_ON_HOVER: Option<fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize)> = None;
+pub const DEFAULT_ON_HOVER: Option<fn(&imgui::Ui, usize)> = None;
 pub const ALWAYS_ENABLED: Option<fn(usize) -> bool> = None;
 
 #[inline]
 pub fn draw_centered_button_group(ui: &imgui::Ui,
-                                  draw_list: &imgui::DrawListMut<'_>,
                                   labels: &[&str],
                                   size: Option<Size>) -> Option<usize> {
-    draw_centered_button_group_ex::<fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize), fn(usize) -> bool>(
+    draw_centered_button_group_ex::<fn(&imgui::Ui, usize), fn(usize) -> bool>(
         ui,
-        draw_list,
         labels,
         size,
         None,
@@ -53,13 +51,11 @@ pub fn draw_centered_button_group(ui: &imgui::Ui,
 
 #[inline]
 pub fn draw_centered_button_group_with_offsets(ui: &imgui::Ui,
-                                               draw_list: &imgui::DrawListMut<'_>,
                                                labels: &[&str],
                                                size: Option<Size>,
                                                offsets: Option<Vec2>) -> Option<usize> {
-    draw_centered_button_group_ex::<fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize), fn(usize) -> bool>(
+    draw_centered_button_group_ex::<fn(&imgui::Ui, usize), fn(usize) -> bool>(
         ui,
-        draw_list,
         labels,
         size,
         offsets,
@@ -68,14 +64,13 @@ pub fn draw_centered_button_group_with_offsets(ui: &imgui::Ui,
 }
 
 pub fn draw_centered_button_group_ex<OnHovered, IsEnabled>(ui: &imgui::Ui,
-                                                           draw_list: &imgui::DrawListMut<'_>,
                                                            labels: &[&str],
                                                            size: Option<Size>,
                                                            offsets: Option<Vec2>,
                                                            on_hovered: Option<OnHovered>,
                                                            is_enabled: Option<IsEnabled>) -> Option<usize>
     where
-        OnHovered: Fn(&imgui::Ui, &imgui::DrawListMut<'_>, usize),
+        OnHovered: Fn(&imgui::Ui, usize),
         IsEnabled: Fn(usize) -> bool
 {
     if labels.is_empty() {
@@ -143,10 +138,10 @@ pub fn draw_centered_button_group_ex<OnHovered, IsEnabled>(ui: &imgui::Ui,
             pressed_index = Some(index);
         }
 
-        draw_last_item_debug_rect(ui, draw_list, Color::blue());
+        draw_last_item_debug_rect(ui, Color::blue());
 
         if ui.is_item_hovered() && let Some(on_hovered) = &on_hovered {
-            on_hovered(ui, draw_list, index);
+            on_hovered(ui, index);
         }
     }
 
@@ -154,7 +149,6 @@ pub fn draw_centered_button_group_ex<OnHovered, IsEnabled>(ui: &imgui::Ui,
 }
 
 pub fn draw_centered_button_group_custom_hover<IsEnabled>(ui_sys: &UiSystem,
-                                                          draw_list: &imgui::DrawListMut<'_>,
                                                           labels: &[&str],
                                                           size: Option<Size>,
                                                           offsets: Option<Vec2>,
@@ -169,16 +163,15 @@ pub fn draw_centered_button_group_custom_hover<IsEnabled>(ui_sys: &UiSystem,
     let is_enabled_copy = is_enabled.clone();
     draw_centered_button_group_ex(
         ui_sys.ui(),
-        draw_list,
         labels,
         size,
         offsets,
-        Some(|ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, button_index: usize| {
+        Some(|ui: &imgui::Ui, button_index: usize| {
             // Draw underline effect when hovered / active:
             let button_rect = Rect::from_extents(
                 Vec2::from_array(ui.item_rect_min()),
                 Vec2::from_array(ui.item_rect_max())
-            ).translated(Vec2::new(0.0, 20.0));
+            ).translated(Vec2::new(0.0, ui.text_line_height() - 5.0));
 
             let enabled = if let Some(is_enabled) = &is_enabled {
                 is_enabled(button_index)
@@ -192,18 +185,18 @@ pub fn draw_centered_button_group_custom_hover<IsEnabled>(ui_sys: &UiSystem,
                 imgui::ImColor32::WHITE
             };
 
-            draw_list.add_image(hover_ui_texture,
-                                button_rect.min.to_array(),
-                                button_rect.max.to_array())
-                                .col(underline_tint_color)
-                                .build();
+            ui.get_window_draw_list()
+                .add_image(hover_ui_texture,
+                           button_rect.min.to_array(),
+                           button_rect.max.to_array())
+                           .col(underline_tint_color)
+                           .build();
         }),
         is_enabled_copy
     )
 }
 
 pub fn draw_button_custom_hover(ui_sys: &UiSystem,
-                                draw_list: &imgui::DrawListMut<'_>,
                                 id: &str,
                                 text: &str,
                                 enabled: bool,
@@ -220,7 +213,7 @@ pub fn draw_button_custom_hover(ui_sys: &UiSystem,
     );
 
     let pressed = ui.button(format!("{text}##{id}"));
-    draw_last_item_debug_rect(ui, draw_list, Color::blue());
+    draw_last_item_debug_rect(ui, Color::blue());
 
     if ui.is_item_hovered() {
         // Draw underline effect when hovered / active:
@@ -235,18 +228,18 @@ pub fn draw_button_custom_hover(ui_sys: &UiSystem,
             imgui::ImColor32::WHITE
         };
 
-        draw_list.add_image(hover_ui_texture,
-                            button_rect.min.to_array(),
-                            button_rect.max.to_array())
-                            .col(underline_tint_color)
-                            .build();
+        ui.get_window_draw_list()
+            .add_image(hover_ui_texture,
+                       button_rect.min.to_array(),
+                       button_rect.max.to_array())
+                       .col(underline_tint_color)
+                       .build();
     }
 
     pressed
 }
 
 pub fn draw_menu_heading(ui_sys: &UiSystem,
-                         draw_list: &imgui::DrawListMut<'_>,
                          labels: &[&str],
                          offsets: Option<Vec2>,
                          separator_rect_offsets: Option<Rect>,
@@ -254,7 +247,6 @@ pub fn draw_menu_heading(ui_sys: &UiSystem,
     // Draw heading as buttons, so everything is properly centered.
     draw_centered_text_label_group(
         ui_sys,
-        draw_list,
         labels,
         offsets
     );
@@ -277,17 +269,17 @@ pub fn draw_menu_heading(ui_sys: &UiSystem,
         Vec2::from_array([ui.item_rect_min()[0] + heading_separator_width + rect_offsets.max.x, ui.item_rect_max()[1] + rect_offsets.max.y])
     ).translated(Vec2::new(0.0, 40.0));
 
-    draw_list.add_image(separator_ui_texture,
-                        heading_separator_rect.min.to_array(),
-                        heading_separator_rect.max.to_array())
-                        .build();
+    ui.get_window_draw_list()
+        .add_image(separator_ui_texture,
+                   heading_separator_rect.min.to_array(),
+                   heading_separator_rect.max.to_array())
+                   .build();
 }
 
 // Draws a vertical separator immediately after the last submitted item.
 // Call this *after* an item (Button, Text, Image, etc.) and typically before
 // calling `same_line()` again.
 pub fn draw_vertical_separator(ui: &imgui::Ui,
-                               draw_list: &imgui::DrawListMut<'_>,
                                thickness: f32,
                                spacing_left: f32,
                                spacing_right: f32) {
@@ -303,7 +295,7 @@ pub fn draw_vertical_separator(ui: &imgui::Ui,
 
     let color = ui.style_color(imgui::StyleColor::Separator);
 
-    draw_list
+    ui.get_window_draw_list()
         .add_line([x, y1], [x, y2], color)
         .thickness(thickness)
         .build();
@@ -343,26 +335,21 @@ pub fn draw_window_style_rect(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>
 }
 
 pub fn draw_sprite(ui: &imgui::Ui,
-                   draw_list: &imgui::DrawListMut<'_>,
                    id: &str,
                    size: Vec2,
-                   texture: UiTextureHandle,
+                   sprite_texture: UiTextureHandle,
+                   tooltip_bg_texture: UiTextureHandle,
                    tooltip: Option<&str>) {
     ui.invisible_button_flags(id, size.to_array(), imgui::ButtonFlags::empty());
-    draw_list.add_image(texture, ui.item_rect_min(), ui.item_rect_max()).build();
-    draw_last_item_debug_rect(ui, draw_list, Color::blue());
+    ui.get_window_draw_list().add_image(sprite_texture, ui.item_rect_min(), ui.item_rect_max()).build();
+    draw_last_item_debug_rect(ui, Color::blue());
 
     if ui.is_item_hovered() && let Some(tooltip_text) = tooltip {
-        let tooltip = ui.begin_tooltip();
-        ui.set_window_font_scale(0.8);
-        ui.text(tooltip_text);
-        ui.set_window_font_scale(1.0);
-        tooltip.end();
+        ui::custom_tooltip(ui, Some(0.8), Some(tooltip_bg_texture), || ui.text(tooltip_text));
     }
 }
 
 pub fn draw_centered_text_label_group(ui_sys: &UiSystem,
-                                      draw_list: &imgui::DrawListMut<'_>,
                                       labels: &[&str],
                                       offsets: Option<Vec2>) {
     // Make button background transparent and borderless.
@@ -371,7 +358,6 @@ pub fn draw_centered_text_label_group(ui_sys: &UiSystem,
 
     draw_centered_button_group_with_offsets(
         ui_sys.ui(),
-        draw_list,
         labels,
         None,
         offsets,
@@ -380,16 +366,15 @@ pub fn draw_centered_text_label_group(ui_sys: &UiSystem,
 
 // NOTE: This assumes UiStyleTextLabelInvisibleButtons overrides are already set.
 pub fn draw_centered_text_label(ui: &imgui::Ui,
-                                draw_list: &imgui::DrawListMut<'_>,
                                 label: &str,
                                 size: Vec2) {
     ui.button_with_size(label, size.to_array());
-    draw_last_item_debug_rect(ui, draw_list, Color::green());
+    draw_last_item_debug_rect(ui, Color::green());
 }
 
-pub fn spacing(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, size: Vec2) {
+pub fn spacing(ui: &imgui::Ui, size: Vec2) {
     ui.dummy(size.to_array());
-    draw_last_item_debug_rect(ui, draw_list, Color::yellow());
+    draw_last_item_debug_rect(ui, Color::yellow());
 }
 
 pub fn push_item_spacing(ui: &imgui::Ui, horizontal: f32, vertical: f32) -> imgui::StyleStackToken<'_> {
@@ -432,14 +417,15 @@ pub fn is_debug_draw_enabled() -> bool {
     ENABLE_WIDGETS_DEBUG_DRAW.load(Ordering::Relaxed)
 }
 
-pub fn draw_debug_rect(draw_list: &imgui::DrawListMut<'_>, rect: &Rect, color: Color) {
-    draw_list.add_rect(rect.min.to_array(),
-                       rect.max.to_array(),
-                       imgui::ImColor32::from_rgba_f32s(color.r, color.g, color.b, color.a))
-                       .build();
+pub fn draw_debug_rect(ui: &imgui::Ui, rect: &Rect, color: Color) {
+    ui.get_window_draw_list()
+        .add_rect(rect.min.to_array(),
+                  rect.max.to_array(),
+                  imgui::ImColor32::from_rgba_f32s(color.r, color.g, color.b, color.a))
+                  .build();
 }
 
-pub fn draw_last_item_debug_rect(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>, color: Color) {
+pub fn draw_last_item_debug_rect(ui: &imgui::Ui, color: Color) {
     if !is_debug_draw_enabled() {
         return;
     }
@@ -449,7 +435,7 @@ pub fn draw_last_item_debug_rect(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<
         Vec2::from_array(ui.item_rect_max())
     );
 
-    draw_debug_rect(draw_list, &rect, color);
+    draw_debug_rect(ui, &rect, color);
 }
 
 pub fn draw_current_window_debug_rect(ui: &imgui::Ui) {
@@ -464,5 +450,5 @@ pub fn draw_current_window_debug_rect(ui: &imgui::Ui) {
         Vec2::from_array(ui.window_size())
     ).shrunk(Vec2::new(4.0, 4.0));
 
-    draw_debug_rect(&ui.get_window_draw_list(), &window_rect, Color::cyan());
+    draw_debug_rect(ui, &window_rect, Color::cyan());
 }

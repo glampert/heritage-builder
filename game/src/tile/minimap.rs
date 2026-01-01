@@ -13,7 +13,7 @@ use crate::{
     singleton,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
-    ui::{self, UiSystem, UiTextureHandle},
+    ui::{self, UiSystem, UiTheme, UiTextureHandle},
     app::input::{InputSystem, InputAction, MouseButton},
     utils::{Color, Rect, RectCorners, Size, Vec2, coords::{self, Cell, CellF32, IsoPointF32}, platform::paths},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
@@ -410,7 +410,7 @@ impl Minimap {
 
         self.texture.update(tex_cache);
         self.update_icons(delta_time_secs);
-        self.widget.update(camera, input_sys, ui_sys, self.size_in_cells(), delta_time_secs);
+        self.widget.update(camera, tex_cache, input_sys, ui_sys, self.size_in_cells(), delta_time_secs);
     }
 
     #[inline]
@@ -549,6 +549,7 @@ trait MinimapWidget {
 
     fn update(&mut self,
               camera: &mut Camera,
+              tex_cache: &mut dyn TextureCache,
               input_sys: &dyn InputSystem,
               ui_sys: &UiSystem,
               size_in_cells: Size,
@@ -565,6 +566,14 @@ trait MinimapWidget {
                      camera: &mut Camera,
                      ui_sys: &UiSystem,
                      enable_debug_controls: bool);
+}
+
+#[inline]
+fn minimap_font_scale(ui_sys: &UiSystem) -> f32 {
+    match ui_sys.current_ui_theme() {
+        UiTheme::Dev => 1.0,
+        UiTheme::InGame => 0.8,
+    }
 }
 
 // Rotate the minimap -45 degrees to match our isometric world projection.
@@ -626,6 +635,8 @@ struct MinimapWidgetImGui {
     camera_screen_rect: Rect,            // Camera rect in absolute screen space, ready for overlay rendering.
     camera_corners_near_minimap_edge: RectCorners,
 
+    background_sprite: Option<UiTextureHandle>,
+
     // Debug switches:
     enable_debug_draw: bool,
     enable_debug_controls: bool,
@@ -652,6 +663,7 @@ impl Default for MinimapWidgetImGui {
             desired_visible_cells: Size::new(85, 85),
             camera_screen_rect: Rect::default(),
             camera_corners_near_minimap_edge: RectCorners::default(),
+            background_sprite: None,
             enable_debug_draw: false,
             enable_debug_controls: false,
             show_debug_controls: false,
@@ -667,6 +679,7 @@ impl MinimapWidget for MinimapWidgetImGui {
 
     fn update(&mut self,
               camera: &mut Camera,
+              tex_cache: &mut dyn TextureCache,
               input_sys: &dyn InputSystem,
               ui_sys: &UiSystem,
               size_in_cells: Size,
@@ -697,6 +710,16 @@ impl MinimapWidget for MinimapWidgetImGui {
             if let Some(teleport_destination_iso) = self.pick_cursor_pos() {
                 camera.teleport_iso(teleport_destination_iso);
             }
+        }
+
+        // Load background sprite on-demand:
+        if self.background_sprite.is_none() {
+            let background_sprite_path = ui::assets_path().join("misc/square_page_bg.png");
+            let background_sprite = tex_cache.load_texture_with_settings(
+                background_sprite_path.to_str().unwrap(),
+                Some(ui::texture_settings())
+            );
+            self.background_sprite = Some(ui_sys.to_ui_texture(tex_cache, background_sprite));
         }
     }
 
@@ -739,36 +762,44 @@ impl MinimapWidgetImGui {
         let window_size = self.window_rect.size_as_vec2().to_array();
         let window_pos  = self.window_rect.position().to_array();
 
-        let window_flags =
-            imgui::WindowFlags::NO_RESIZE
+        let mut window_flags =
+            imgui::WindowFlags::ALWAYS_AUTO_RESIZE
+            | imgui::WindowFlags::NO_RESIZE
+            | imgui::WindowFlags::NO_DECORATION
             | imgui::WindowFlags::NO_SCROLLBAR
             | imgui::WindowFlags::NO_MOVE
             | imgui::WindowFlags::NO_COLLAPSE;
 
+        if !ui_sys.current_ui_theme().is_dev() && self.background_sprite.is_some() {
+            window_flags |= imgui::WindowFlags::NO_BACKGROUND;
+        }
+
         let ui = ui_sys.ui();
-        let mut is_open = self.is_open;
 
         ui.window("Minimap")
-            .opened(&mut is_open)
             .flags(window_flags)
             .position(window_pos, imgui::Condition::Always)
             .size(window_size, imgui::Condition::Always)
             .build(|| {
+                ui.set_window_font_scale(minimap_font_scale(ui_sys));
+
                 let tex_cache = render_sys.texture_cache();
                 let ui_texture = ui_sys.to_ui_texture(tex_cache, tex_handle);
 
                 self.draw_minimap(camera, ui_sys, ui_texture);
                 self.draw_icons(render_sys, ui_sys, icons);
 
+                // Header / close button:
+                self.draw_header(ui_sys);
+
                 if self.enable_debug_controls {
                     // Debug controls checkbox at the minimap widget's bottom:
-                    ui.dummy([0.0, window_size[1] - 65.0]);
-                    ui.dummy([2.0, 0.0]); ui.same_line();
+                    ui.set_cursor_pos([15.0, window_size[1] - 30.0]);
                     ui.checkbox("Debug", &mut self.show_debug_controls);
                 }
-            });
 
-        self.is_open = is_open;
+                ui.set_window_font_scale(1.0);
+            });
     }
 
     fn draw_open_button(&mut self, ui_sys: &UiSystem) {
@@ -777,12 +808,13 @@ impl MinimapWidgetImGui {
         let window_pos = [5.0, ui.io().display_size[1] - 35.0];
 
         let window_flags =
-            imgui::WindowFlags::NO_DECORATION
-            | imgui::WindowFlags::NO_BACKGROUND
+            imgui::WindowFlags::ALWAYS_AUTO_RESIZE
             | imgui::WindowFlags::NO_RESIZE
+            | imgui::WindowFlags::NO_DECORATION
             | imgui::WindowFlags::NO_SCROLLBAR
             | imgui::WindowFlags::NO_MOVE
-            | imgui::WindowFlags::NO_COLLAPSE;
+            | imgui::WindowFlags::NO_COLLAPSE
+            | imgui::WindowFlags::NO_BACKGROUND;
 
         ui.window("Minimap Button")
             .flags(window_flags)
@@ -794,15 +826,51 @@ impl MinimapWidgetImGui {
                     ui_sys,
                     ui::icons::ICON_MAP,
                     || {
-                        ui.set_window_font_scale(0.8);
-                        ui.text("Open Minimap");
-                        ui.set_window_font_scale(1.0);
+                        ui::custom_tooltip(
+                            ui,
+                            Some(minimap_font_scale(ui_sys)),
+                            if !ui_sys.current_ui_theme().is_dev() { self.background_sprite } else { None },
+                            || ui.text("Open Minimap"));
                     });
 
                 if clicked {
                     self.is_open = true;
                 }
             });
+    }
+
+    fn draw_header(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+
+        // No border, no background.
+        let _btn_border_size = ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0));
+        let _btn_bg_color = ui.push_style_color(imgui::StyleColor::Button, [0.0; 4]);
+
+        // Make hover / active effects semi-transparent.
+        let mut btn_hovered = ui.style_color(imgui::StyleColor::ButtonHovered);
+        btn_hovered[3] = 0.5;
+
+        let mut btn_active = ui.style_color(imgui::StyleColor::ButtonActive);
+        btn_active[3] = 0.5;
+
+        let _btn_hovered = ui.push_style_color(imgui::StyleColor::ButtonHovered, btn_hovered);
+        let _btn_active = ui.push_style_color(imgui::StyleColor::ButtonActive, btn_active);
+
+        ui.set_cursor_pos([10.0, 5.0]);
+        ui.text("Minimap");
+
+        ui.set_cursor_pos([self.window_rect.size_as_vec2().x - 30.0, 5.0]);
+        if ui.button("X") { // Close button.
+            self.is_open = false;
+        }
+
+        if ui.is_item_hovered() {
+            ui::custom_tooltip(
+                ui,
+                Some(minimap_font_scale(ui_sys)),
+                if !ui_sys.current_ui_theme().is_dev() { self.background_sprite } else { None },
+                || ui.text("Close"));
+        }
     }
 
     fn draw_debug_controls(&mut self, camera: &mut Camera, ui_sys: &UiSystem) {
@@ -905,7 +973,10 @@ impl MinimapWidgetImGui {
         debug_assert!(self.minimap_draw_info.rect.is_valid());
         debug_assert!(self.minimap_draw_info.aabb.is_valid());
 
-        let draw_list = ui_sys.ui().get_window_draw_list();
+        let ui = ui_sys.ui();
+        let draw_list = ui.get_window_draw_list();
+
+        self.draw_window_background(ui_sys, &draw_list);
         self.draw_texture_rect(&draw_list, ui_texture);
         self.draw_outline_rect(&draw_list);
         self.draw_camera_rect(&draw_list, camera);
@@ -967,6 +1038,24 @@ impl MinimapWidgetImGui {
                 .add_image(icon_ui_texture, icon_rect.min.to_array(), icon_rect.max.to_array())
                 .col(imgui::ImColor32::from_rgba_f32s(icon_tint.r, icon_tint.g, icon_tint.b, icon_tint_alpha))
                 .build();
+        }
+    }
+
+    fn draw_window_background(&self, ui_sys: &UiSystem, draw_list: &imgui::DrawListMut<'_>) {
+        if !ui_sys.current_ui_theme().is_dev()
+            && let Some(background_sprite) = self.background_sprite
+        {
+            let ui = ui_sys.ui();
+
+            let window_rect = Rect::new(
+                Vec2::from_array(ui.window_pos()),
+                Vec2::from_array(ui.window_size())
+            );
+
+            draw_list.add_image(background_sprite,
+                                window_rect.min.to_array(),
+                                window_rect.max.to_array())
+                                .build();
         }
     }
 
