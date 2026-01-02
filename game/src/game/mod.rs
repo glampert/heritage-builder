@@ -125,19 +125,20 @@ impl GameSession {
     }
 
     fn new_game_menus(&mut self, engine: &dyn Engine, menu_mode: GameMenusMode) -> Box<dyn GameMenusSystem> {
+        let mut context =
+            UiWidgetContext::new(&mut self.sim, &self.world, &mut self.tile_map, engine);
+
         match menu_mode {
             GameMenusMode::DevEditor => {
                 log::info!(log::channel!("session"), "Loading DevEditorMenus ...");
-                Box::new(DevEditorMenus::new(&mut self.tile_map, engine.ui_system()))
+                Box::new(DevEditorMenus::new(&mut context))
             }
             GameMenusMode::InGameHud => {
                 log::info!(log::channel!("session"), "Loading InGameHudMenus ...");
-                let mut context = UiWidgetContext::new(&mut self.sim, &self.world, engine);
                 Box::new(InGameHudMenus::new(&mut context))
             }
             GameMenusMode::Home => {
                 log::info!(log::channel!("session"), "Loading HomeMenus ...");
-                let mut context = UiWidgetContext::new(&mut self.sim, &self.world, engine);
                 Box::new(HomeMenus::new(&mut context))
             }
         }

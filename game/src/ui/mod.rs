@@ -14,6 +14,7 @@ use crate::{
         Application,
         input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
     },
+    tile::TileMap,
     engine::{Engine, time::Seconds},
     game::{world::World, sim::Simulation},
     utils::{Color, Size, FieldAccessorXY, Vec2, Rect, platform::paths, mem},
@@ -713,6 +714,7 @@ impl UiContext {
 pub struct UiWidgetContext<'game> {
     pub sim: &'game mut Simulation,
     pub world: &'game World,
+    pub tile_map: &'game mut TileMap,
 
     pub ui_sys: &'game UiSystem,
     pub tex_cache: &'game mut dyn TextureCache,
@@ -723,10 +725,14 @@ pub struct UiWidgetContext<'game> {
 
 impl<'game> UiWidgetContext<'game> {
     #[inline]
-    pub fn new(sim: &'game mut Simulation, world: &'game World, engine: &'game dyn Engine) -> Self {
+    pub fn new(sim: &'game mut Simulation,
+               world: &'game World,
+               tile_map: &'game mut TileMap,
+               engine: &'game dyn Engine) -> Self {
         Self {
             sim,
             world,
+            tile_map,
             ui_sys: engine.ui_system(),
             tex_cache: engine.texture_cache(),
             viewport_size: engine.viewport().size(),

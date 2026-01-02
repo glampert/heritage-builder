@@ -7,8 +7,8 @@ use settings::DebugSettingsDevMenu;
 
 use crate::{
     singleton_late_init,
-    ui::{UiSystem, UiTheme},
     render::TextureCache,
+    ui::{UiWidgetContext, UiTheme},
     save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{sim, config::GameConfigs, GameLoop, menu::*},
     tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind},
@@ -30,10 +30,10 @@ mod settings;
 pub struct DevEditorMenus;
 
 impl DevEditorMenus {
-    pub fn new(tile_map: &mut TileMap, ui_sys: &UiSystem) -> Self {
-        ui_sys.set_ui_theme(UiTheme::Dev);
+    pub fn new(context: &mut UiWidgetContext) -> Self {
+        context.ui_sys.set_ui_theme(UiTheme::Dev);
         // Register TileMap global callbacks & debug ref:
-        register_tile_map_debug_callbacks(tile_map);
+        register_tile_map_debug_callbacks(context.tile_map);
         Self
     }
 }
