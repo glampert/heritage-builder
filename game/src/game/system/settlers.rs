@@ -1,10 +1,13 @@
 use std::any::Any;
-
 use serde::{Deserialize, Serialize};
 
 use super::GameSystem;
 use crate::{
+    log,
+    ui::UiSystem,
+    save::PostLoadContext,
     engine::time::UpdateTimer,
+    pathfind::{Node, NodeKind as PathNodeKind},
     game::{
         building::BuildingKind,
         config::GameConfigs,
@@ -19,13 +22,9 @@ use crate::{
             UnitId, UnitTaskHelper,
         },
     },
-    ui::UiSystem,
-    log,
-    pathfind::{Node, NodeKind as PathNodeKind},
-    save::PostLoadContext,
     tile::{
         sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY},
-        TileMapLayerKind,
+        TileMapLayerKind, TileKind, TileFlags,
     },
     utils::{
         callback::{self, Callback},
@@ -56,7 +55,7 @@ impl GameSystem for SettlersSpawnSystem {
     fn update(&mut self, query: &Query) {
         if self.spawn_timer.tick(query.delta_time_secs()).should_update() {
             // Only attempt to spawn if we have any empty housing lots available.
-            if Self::find_vacant_lot(query).is_some() {
+            if Self::has_vacant_lots(query) {
                 self.try_spawn(query);
             }
         }
@@ -71,7 +70,7 @@ impl GameSystem for SettlersSpawnSystem {
         let ui = ui_sys.ui();
         self.spawn_timer.draw_debug_ui("Settler Spawn", 0, ui_sys);
 
-        let color_text = |text, cond: bool| {
+        let color_text = |text: &str, cond: bool| {
             ui.text(text);
             ui.same_line();
             if cond {
@@ -81,8 +80,10 @@ impl GameSystem for SettlersSpawnSystem {
             }
         };
 
-        color_text("Has vacant lots:", Self::find_vacant_lot(query).is_some());
-        color_text("Has spawn point:", Self::find_spawn_point(query).is_some());
+        color_text("Has vacant lots:", Self::has_vacant_lots(query));
+
+        let spawn_point = Self::find_spawn_point(query);
+        ui.text(format!("Spawn Point: {}", spawn_point.cell));
 
         if ui.input_scalar("Population Per Settler Unit", &mut self.population_per_settler_unit)
              .step(1)
@@ -94,33 +95,43 @@ impl GameSystem for SettlersSpawnSystem {
         if ui.button("Force Spawn Now") {
             self.try_spawn(query);
         }
+
+        if ui.button("Highlight Spawn Point") {
+            if let Some(tile) = query.find_tile_mut(spawn_point.cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
+                tile.set_flags(TileFlags::Highlighted | TileFlags::DrawDebugBounds, true);
+            }
+        }
     }
 }
 
 impl SettlersSpawnSystem {
     pub fn new() -> Self {
         let configs = GameConfigs::get();
-        Self { spawn_timer: UpdateTimer::new(configs.sim.settlers_spawn_frequency_secs),
-               population_per_settler_unit: configs.sim.population_per_settler_unit }
+        Self {
+            spawn_timer: UpdateTimer::new(configs.sim.settlers_spawn_frequency_secs),
+            population_per_settler_unit: configs.sim.population_per_settler_unit
+        }
     }
 
     pub fn register_callbacks() {
         Settler::register_callbacks();
     }
 
-    fn find_vacant_lot(query: &Query) -> Option<Node> {
-        query.graph().find_node_with_kinds(PathNodeKind::VacantLot)
+    #[inline]
+    fn has_vacant_lots(query: &Query) -> bool {
+        query.graph().has_node_with_kinds(PathNodeKind::VacantLot)
     }
 
-    fn find_spawn_point(query: &Query) -> Option<Node> {
-        query.graph().find_node_with_kinds(PathNodeKind::SettlersSpawnPoint)
+    #[inline]
+    fn find_spawn_point(query: &Query) -> Node {
+        // Fallback to map origin (cell 0,0) if no spawn point it set.
+        query.graph().settlers_spawn_point().unwrap_or(Node::new(Cell::zero()))
     }
 
     fn try_spawn(&self, query: &Query) {
-        if let Some(spawn_point) = Self::find_spawn_point(query) {
-            let mut settler = Settler::default();
-            settler.try_spawn(query, spawn_point.cell, self.population_per_settler_unit);
-        }
+        let mut settler = Settler::default();
+        let spawn_point = Self::find_spawn_point(query);
+        settler.try_spawn(query, spawn_point.cell, self.population_per_settler_unit);
     }
 }
 

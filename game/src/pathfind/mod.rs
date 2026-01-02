@@ -277,26 +277,50 @@ impl<T> IndexMut<Node> for Grid<T> {
 #[derive(Default, Serialize, Deserialize)]
 pub struct Graph {
     grid: Grid<NodeKind>, // WxH nodes.
+
+    #[serde(default)]
+    node_kinds: NodeKind, // Combined flags of all node kinds available.
+
+    #[serde(default)]
+    settlers_spawn_point: Option<Node>, // Cached SettlersSpawnPoint for fast query.
 }
 
 impl Graph {
     pub fn with_empty_grid(grid_size: Size) -> Self {
         debug_assert!(grid_size.is_valid());
         let node_count = (grid_size.width * grid_size.height) as usize;
-        Self { grid: Grid::new(grid_size, vec![NodeKind::empty(); node_count]) }
+        Self {
+            grid: Grid::new(grid_size, vec![NodeKind::empty(); node_count]),
+            node_kinds: NodeKind::empty(),
+            settlers_spawn_point: None,
+        }
     }
 
     pub fn with_node_kind(grid_size: Size, node_kind: NodeKind) -> Self {
         debug_assert!(grid_size.is_valid());
         debug_assert!(node_kind.is_single_kind(), "Expected single node kind flag!");
         let node_count = (grid_size.width * grid_size.height) as usize;
-        Self { grid: Grid::new(grid_size, vec![node_kind; node_count]) }
+        Self {
+            grid: Grid::new(grid_size, vec![node_kind; node_count]),
+            node_kinds: node_kind,
+            settlers_spawn_point: None,
+        }
     }
 
     pub fn with_node_grid(grid_size: Size, nodes: Vec<NodeKind>) -> Self {
         debug_assert!(grid_size.is_valid());
         debug_assert!(nodes.len() == (grid_size.width * grid_size.height) as usize);
-        Self { grid: Grid::new(grid_size, nodes) }
+
+        let mut node_kinds = NodeKind::empty();
+        for &node_kind in &nodes {
+            node_kinds |= node_kind;
+        }
+
+        Self {
+            grid: Grid::new(grid_size, nodes),
+            node_kinds,
+            settlers_spawn_point: None,
+        }
     }
 
     pub fn from_tile_map(tile_map: &TileMap) -> Self {
@@ -317,6 +341,9 @@ impl Graph {
             self.grid.fill(NodeKind::empty());
         }
 
+        self.node_kinds = NodeKind::empty();
+        self.settlers_spawn_point = None;
+
         // Construct our search graph from the terrain tiles.
         // Any building or prop is considered non-traversable.
         // Building tiles are handled specially since we need
@@ -334,22 +361,23 @@ impl Graph {
                 if blocker_tile.is(TileKind::Building | TileKind::Blocker) {
                     // Buildings have a node kind for building searches, but they are not
                     // traversable.
-                    self.grid[node] = NodeKind::Building;
+                    self.set_node_kind_internal(node, NodeKind::Building);
 
                     for_each_surrounding_cell(blocker_tile.cell_range(), |cell| {
                         if !tile_map.has_tile(cell, TileMapLayerKind::Objects, blocker_kinds)
                             && tile_map.is_cell_within_bounds(cell)
                         {
+                            self.node_kinds |= NodeKind::BuildingAccess;
                             self.grid[Node::new(cell)] |= NodeKind::BuildingAccess;
                         }
                         true
                     });
                 } else if blocker_tile.is(TileKind::Rocks) {
-                    self.grid[node] = NodeKind::Rocks;
+                    self.set_node_kind_internal(node, NodeKind::Rocks);
                 } else if blocker_tile.is(TileKind::Vegetation) {
-                    self.grid[node] = NodeKind::Vegetation;
+                    self.set_node_kind_internal(node, NodeKind::Vegetation);
                     if blocker_tile.path_kind().intersects(NodeKind::HarvestableTree) {
-                        self.grid[node] |= NodeKind::HarvestableTree;
+                        self.set_node_kind_internal(node, NodeKind::HarvestableTree);
                     }
                 }
                 // Else leave it empty.
@@ -362,15 +390,24 @@ impl Graph {
                 if tile.has_flags(TileFlags::SettlersSpawnPoint) {
                     path_kind |= NodeKind::SettlersSpawnPoint;
                 }
-                self.grid[node] = path_kind;
+                self.set_node_kind_internal(node, path_kind);
             }
         });
+    }
+
+    #[inline(always)]
+    fn set_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
+        self.node_kinds |= kind;
+        self.grid[node] = kind;
+        if kind.intersects(NodeKind::SettlersSpawnPoint) {
+            self.settlers_spawn_point = Some(node);
+        }
     }
 
     #[inline]
     pub fn set_node_kind(&mut self, node: Node, kind: NodeKind) {
         if self.grid.is_node_within_bounds(node) {
-            self.grid[node] = kind;
+            self.set_node_kind_internal(node, kind);
         }
     }
 
@@ -400,9 +437,13 @@ impl Graph {
         nodes
     }
 
-    #[inline]
+    #[inline] // Linear search on the whole grid. May be expensive!
     pub fn find_node_with_kinds(&self, kinds: NodeKind) -> Option<Node> {
-        let width = self.grid.size.width;
+        if !self.has_node_with_kinds(kinds) {
+            return None;
+        }
+
+        let width  = self.grid.size.width;
         let height = self.grid.size.height;
 
         for y in 0..height {
@@ -415,6 +456,16 @@ impl Graph {
         }
 
         None
+    }
+
+    #[inline]
+    pub fn has_node_with_kinds(&self, kinds: NodeKind) -> bool {
+        self.node_kinds.intersects(kinds)
+    }
+
+    #[inline]
+    pub fn settlers_spawn_point(&self) -> Option<Node> {
+        self.settlers_spawn_point
     }
 }
 
