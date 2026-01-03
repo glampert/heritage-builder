@@ -16,7 +16,7 @@ use crate::{
 // ----------------------------------------------
 
 #[repr(u64)]
-#[derive(Copy, Clone, Default, PartialEq, Eq, Display, TryFromPrimitive, Serialize, Deserialize)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Display, TryFromPrimitive, Serialize, Deserialize)]
 pub enum UnitConfigKey {
     #[default]
     Peasant      = hash::fnv1a_from_str("peasant"),

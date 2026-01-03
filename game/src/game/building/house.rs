@@ -22,17 +22,17 @@ use crate::{
     utils::{hash::{self, StringHash}, Color},
     game::{
         sim::RandomGenerator,
+        system::settlers::Settler,
+        world::stats::WorldStats,
+        undo_redo::GameObjectSavedState,
         sim::resources::{
             Population, ResourceKind, ResourceKinds,
             ServiceKind, ServiceKinds, Workers,
         },
         unit::{
-            Unit, UnitTaskHelper, patrol::{Patrol, TimedAmbientPatrol},
-            config::UnitConfigKey,
+            Unit, UnitTaskHelper, config::UnitConfigKey,
+            patrol::{Patrol, AmbientPatrolConfig, TimedAmbientPatrol},
         },
-        system::settlers::Settler,
-        world::stats::WorldStats,
-        undo_redo::GameObjectSavedState,
     },
 };
 
@@ -82,12 +82,8 @@ pub struct HouseConfig {
     pub upgrade_update_frequency_secs: Seconds,
     pub generate_tax_frequency_secs: Seconds,
 
-    // Ambient patrol min/max spawn frequency (randomized in this range).
-    #[debug_ui(format = "Ambient Patrol Spawn Frequency Secs : {:?}")]
-    pub ambient_patrol_spawn_frequency_secs: [Seconds; 2],
-    // [0,100] % chance of spawning an ambient patrol unit every ambient_patrol_spawn_frequency_secs.
-    pub ambient_patrol_spawn_chance: u32,
-    pub ambient_patrol_max_distance: i32,
+    #[debug_ui(nested)]
+    pub ambient_patrol: AmbientPatrolConfig,
 }
 
 impl Default for HouseConfig {
@@ -101,9 +97,11 @@ impl Default for HouseConfig {
                stock_update_frequency_secs: 60.0,
                upgrade_update_frequency_secs: 10.0,
                generate_tax_frequency_secs: 60.0,
-               ambient_patrol_spawn_frequency_secs: [80.0, 120.0],
-               ambient_patrol_spawn_chance: 10,
-               ambient_patrol_max_distance: 40 }
+               ambient_patrol: AmbientPatrolConfig {
+                   unit: Some(UnitConfigKey::Dog),
+                   spawn_frequency_secs: [80.0, 120.0],
+                   spawn_chance: 10,
+                   max_distance: 40 }}
     }
 }
 
@@ -309,7 +307,7 @@ impl BuildingBehavior for HouseBuilding {
         self.upgrade_update_timer.post_load(config.upgrade_update_frequency_secs);
         self.upgrade_state.post_load();
         self.generate_tax_timer.post_load(config.generate_tax_frequency_secs);
-        self.ambient_patrol.post_load(context, config.ambient_patrol_spawn_frequency_secs);
+        self.ambient_patrol.post_load(context, config.ambient_patrol.spawn_frequency_secs);
     }
 
     // ----------------------
@@ -470,7 +468,7 @@ impl HouseBuilding {
             upgrade_state,
             generate_tax_timer: UpdateTimer::new(house_config.generate_tax_frequency_secs),
             tax_available: 0,
-            ambient_patrol: TimedAmbientPatrol::new(rng, house_config.ambient_patrol_spawn_frequency_secs),
+            ambient_patrol: TimedAmbientPatrol::new(rng, house_config.ambient_patrol.spawn_frequency_secs),
             debug: HouseDebug::default()
         }
     }
@@ -879,18 +877,19 @@ impl HouseBuilding {
     fn spawn_ambient_patrol(&mut self, context: &BuildingContext, force_spawn: bool) {
         let config = BuildingConfigs::get().house_config();
 
-        let unit_config = UnitConfigKey::Dog; // TODO: This should be in the house config.
-        let spawn_chance = config.ambient_patrol_spawn_chance;
-        let max_patrol_distance = config.ambient_patrol_max_distance;
-        let idle_countdown_secs: f32 = context.query.random_range(15.0..30.0);
+        if let Some(unit_config) = config.ambient_patrol.unit {
+            let spawn_chance = config.ambient_patrol.spawn_chance;
+            let max_patrol_distance = config.ambient_patrol.max_distance;
+            let idle_countdown_secs = context.query.random_range(15.0..30.0);
 
-        self.ambient_patrol.try_spawn_unit(
-            context,
-            unit_config,
-            spawn_chance,
-            max_patrol_distance,
-            idle_countdown_secs,
-            force_spawn);
+            self.ambient_patrol.try_spawn_unit(
+                context,
+                unit_config,
+                spawn_chance,
+                max_patrol_distance,
+                idle_countdown_secs,
+                force_spawn);
+        }
     }
 }
 

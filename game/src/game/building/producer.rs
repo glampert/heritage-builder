@@ -25,7 +25,7 @@ use crate::{
         unit::{
             runner::Runner,
             harvester::Harvester,
-            patrol::{Patrol, TimedAmbientPatrol},
+            patrol::{Patrol, AmbientPatrolConfig, TimedAmbientPatrol},
             Unit, UnitTaskHelper,
             config::UnitConfigKey,
             task::{
@@ -87,16 +87,9 @@ pub struct ProducerConfig {
     #[serde(default)]
     pub fetch_from_storage_kinds: BuildingKind,
 
-    // Ambient patrol min/max spawn frequency (randomized in this range).
     #[serde(default)]
-    #[debug_ui(format = "Ambient Patrol Spawn Frequency Secs : {:?}")]
-    pub ambient_patrol_spawn_frequency_secs: [Seconds; 2],
-
-    // [0,100] % chance of spawning an ambient patrol unit every ambient_patrol_spawn_frequency_secs.
-    #[serde(default)]
-    pub ambient_patrol_spawn_chance: u32,
-    #[serde(default)]
-    pub ambient_patrol_max_distance: i32,
+    #[debug_ui(nested)]
+    pub ambient_patrol: AmbientPatrolConfig,
 }
 
 impl Default for ProducerConfig {
@@ -117,9 +110,11 @@ impl Default for ProducerConfig {
                harvested_resource: ResourceKind::empty(),
                deliver_to_storage_kinds: BuildingKind::Granary,
                fetch_from_storage_kinds: BuildingKind::empty(),
-               ambient_patrol_spawn_frequency_secs: [80.0, 120.0],
-               ambient_patrol_spawn_chance: 10,
-               ambient_patrol_max_distance: 40 }
+               ambient_patrol: AmbientPatrolConfig {
+                   unit: Some(UnitConfigKey::Buffalo),
+                   spawn_frequency_secs: [80.0, 120.0],
+                   spawn_chance: 10,
+                   max_distance: 40 }}
     }
 }
 
@@ -277,7 +272,7 @@ impl BuildingBehavior for ProducerBuilding {
         let config = configs.find_producer_config(kind, tile_def.hash, &tile_def.name);
 
         self.production_update_timer.post_load(config.production_output_frequency_secs);
-        self.ambient_patrol.post_load(context, config.ambient_patrol_spawn_frequency_secs);
+        self.ambient_patrol.post_load(context, config.ambient_patrol.spawn_frequency_secs);
 
         self.config = Some(config);
     }
@@ -430,7 +425,7 @@ impl ProducerBuilding {
                                                                    config.production_capacity),
             runner: Runner::default(),
             harvester: Harvester::default(),
-            ambient_patrol: TimedAmbientPatrol::new(rng, config.ambient_patrol_spawn_frequency_secs),
+            ambient_patrol: TimedAmbientPatrol::new(rng, config.ambient_patrol.spawn_frequency_secs),
             debug: ProducerDebug::default()
         }
     }
@@ -692,18 +687,19 @@ impl ProducerBuilding {
         let configs = BuildingConfigs::get();
         let config = configs.find_producer_config(context.kind, tile_def.hash, &tile_def.name);
 
-        let unit_config = UnitConfigKey::Buffalo; // TODO: This should be in the building config.
-        let spawn_chance = config.ambient_patrol_spawn_chance;
-        let max_patrol_distance = config.ambient_patrol_max_distance;
-        let idle_countdown_secs: f32 = context.query.random_range(15.0..30.0);
+        if let Some(unit_config) = config.ambient_patrol.unit {
+            let spawn_chance = config.ambient_patrol.spawn_chance;
+            let max_patrol_distance = config.ambient_patrol.max_distance;
+            let idle_countdown_secs = context.query.random_range(15.0..30.0);
 
-        self.ambient_patrol.try_spawn_unit(
-            context,
-            unit_config,
-            spawn_chance,
-            max_patrol_distance,
-            idle_countdown_secs,
-            force_spawn);
+            self.ambient_patrol.try_spawn_unit(
+                context,
+                unit_config,
+                spawn_chance,
+                max_patrol_distance,
+                idle_countdown_secs,
+                force_spawn);
+        }
     }
 }
 

@@ -232,6 +232,27 @@ impl Patrol {
 }
 
 // ----------------------------------------------
+// AmbientPatrolConfig
+// ----------------------------------------------
+
+#[derive(Default, DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)] // Default all fields.
+pub struct AmbientPatrolConfig {
+    #[debug_ui(format = "Patrol Unit : {:?}")]
+    pub unit: Option<UnitConfigKey>,
+
+    // Ambient patrol min/max spawn frequency (randomized in this range).
+    #[debug_ui(format = "Spawn Frequency Secs : {:?}")]
+    pub spawn_frequency_secs: [Seconds; 2],
+
+    // [0,100] % chance of spawning an ambient patrol unit every `spawn_frequency_secs`.
+    pub spawn_chance: u32,
+
+    // How far the parol unit will walk before returning home.
+    pub max_distance: i32,
+}
+
+// ----------------------------------------------
 // TimedAmbientPatrol
 // ----------------------------------------------
 
