@@ -95,7 +95,7 @@ impl BuildingConfigEntry {
                 let producer_config = &configs.producer_configs[self.index];
                 debug_assert!(producer_config.kind.intersects(BuildingKind::producers()));
                 (producer_config.kind,
-                 BuildingArchetype::from(ProducerBuilding::new(producer_config)))
+                 BuildingArchetype::from(ProducerBuilding::new(producer_config, rng)))
             }
             BuildingArchetypeKind::StorageBuilding => {
                 let storage_config = &configs.storage_configs[self.index];
@@ -160,7 +160,7 @@ pub struct BuildingConfigs {
 
 impl BuildingConfigs {
     #[inline]
-    pub fn find_house_config(&'static self) -> &'static HouseConfig {
+    pub fn house_config(&'static self) -> &'static HouseConfig {
         &self.house_config
     }
 

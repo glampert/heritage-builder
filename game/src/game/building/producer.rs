@@ -11,17 +11,23 @@ use crate::{
     building_config,
     game_object_debug_options,
     game_object_undo_redo_state,
+    log,
+    tile::Tile,
+    ui::UiSystem,
+    save::PostLoadContext,
     engine::time::{Seconds, UpdateTimer},
     game::{
         cheats,
         sim::{
             resources::{ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
-            Query,
+            Query, RandomGenerator,
         },
         unit::{
             runner::Runner,
             harvester::Harvester,
+            patrol::{Patrol, TimedAmbientPatrol},
             Unit, UnitTaskHelper,
+            config::UnitConfigKey,
             task::{
                 UnitTaskDeliverToStorage, UnitTaskDeliveryCompletionCallback,
                 UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage,
@@ -31,10 +37,6 @@ use crate::{
         world::{object::GameObject, stats::WorldStats},
         undo_redo::GameObjectSavedState,
     },
-    log,
-    ui::UiSystem,
-    save::PostLoadContext,
-    tile::Tile,
     utils::{
         callback::{self, Callback},
         hash::{self, StringHash},
@@ -84,6 +86,17 @@ pub struct ProducerConfig {
     // Where to find our production input raw materials.
     #[serde(default)]
     pub fetch_from_storage_kinds: BuildingKind,
+
+    // Ambient patrol min/max spawn frequency (randomized in this range).
+    #[serde(default)]
+    #[debug_ui(format = "Ambient Patrol Spawn Frequency Secs : {:?}")]
+    pub ambient_patrol_spawn_frequency_secs: [Seconds; 2],
+
+    // [0,100] % chance of spawning an ambient patrol unit every ambient_patrol_spawn_frequency_secs.
+    #[serde(default)]
+    pub ambient_patrol_spawn_chance: u32,
+    #[serde(default)]
+    pub ambient_patrol_max_distance: i32,
 }
 
 impl Default for ProducerConfig {
@@ -103,7 +116,10 @@ impl Default for ProducerConfig {
                resources_capacity: 0,
                harvested_resource: ResourceKind::empty(),
                deliver_to_storage_kinds: BuildingKind::Granary,
-               fetch_from_storage_kinds: BuildingKind::empty() }
+               fetch_from_storage_kinds: BuildingKind::empty(),
+               ambient_patrol_spawn_frequency_secs: [80.0, 120.0],
+               ambient_patrol_spawn_chance: 10,
+               ambient_patrol_max_distance: 40 }
     }
 }
 
@@ -164,6 +180,9 @@ pub struct ProducerBuilding {
     // Harvester for buildings that spawn one (e.g. lumberyards).
     harvester: Harvester,
 
+    // Optional ambient patrol unit to wander around the vicinity.
+    ambient_patrol: TimedAmbientPatrol,
+
     #[serde(skip)]
     debug: ProducerDebug,
 }
@@ -216,6 +235,12 @@ impl BuildingBehavior for ProducerBuilding {
                 self.fetch_from_storage(context);
             }
         }
+
+        if self.ambient_patrol.spawn_timer.tick(delta_time_secs).should_update()
+            && self.has_min_required_workers()
+        {
+            self.spawn_ambient_patrol(context, false);
+        }
     }
 
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
@@ -244,7 +269,7 @@ impl BuildingBehavior for ProducerBuilding {
         }
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, tile: &Tile) {
+    fn post_load(&mut self, context: &PostLoadContext, kind: BuildingKind, tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::producers()));
 
         let tile_def = tile.tile_def();
@@ -252,6 +277,8 @@ impl BuildingBehavior for ProducerBuilding {
         let config = configs.find_producer_config(kind, tile_def.hash, &tile_def.name);
 
         self.production_update_timer.post_load(config.production_output_frequency_secs);
+        self.ambient_patrol.post_load(context, config.ambient_patrol_spawn_frequency_secs);
+
         self.config = Some(config);
     }
 
@@ -318,6 +345,14 @@ impl BuildingBehavior for ProducerBuilding {
     }
 
     // ----------------------
+    // Patrol Unit:
+    // ----------------------
+
+    fn active_patrol(&mut self) -> Option<&mut Patrol> {
+        Some(&mut self.ambient_patrol.patrol)
+    }
+
+    // ----------------------
     // Runner Unit / Workers:
     // ----------------------
 
@@ -375,6 +410,7 @@ impl BuildingBehavior for ProducerBuilding {
     fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_input_stock(ui_sys);
         self.draw_debug_ui_production_output(context, ui_sys);
+        self.draw_debug_ui_ambient_patrol(context, ui_sys);
     }
 }
 
@@ -383,17 +419,20 @@ impl BuildingBehavior for ProducerBuilding {
 // ----------------------------------------------
 
 impl ProducerBuilding {
-    pub fn new(config: &'static ProducerConfig) -> Self {
-        Self { config: Some(config),
-               workers: Workers::employer(config.min_workers, config.max_workers),
-               production_update_timer: UpdateTimer::new(config.production_output_frequency_secs),
-               production_input_stock: ProducerInputsLocalStock::new(&config.resources_required,
-                                                                     config.resources_capacity),
-               production_output_stock: ProducerOutputLocalStock::new(config.production_output,
-                                                                      config.production_capacity),
-               runner: Runner::default(),
-               harvester: Harvester::default(),
-               debug: ProducerDebug::default() }
+    pub fn new(config: &'static ProducerConfig, rng: &mut RandomGenerator) -> Self {
+        Self {
+            config: Some(config),
+            workers: Workers::employer(config.min_workers, config.max_workers),
+            production_update_timer: UpdateTimer::new(config.production_output_frequency_secs),
+            production_input_stock: ProducerInputsLocalStock::new(&config.resources_required,
+                                                                  config.resources_capacity),
+            production_output_stock: ProducerOutputLocalStock::new(config.production_output,
+                                                                   config.production_capacity),
+            runner: Runner::default(),
+            harvester: Harvester::default(),
+            ambient_patrol: TimedAmbientPatrol::new(rng, config.ambient_patrol_spawn_frequency_secs),
+            debug: ProducerDebug::default()
+        }
     }
 
     pub fn register_callbacks() {
@@ -641,6 +680,30 @@ impl ProducerBuilding {
             return true;
         }
         false
+    }
+
+    // ----------------------
+    // Ambient Patrol Unit:
+    // ----------------------
+
+    fn spawn_ambient_patrol(&mut self, context: &BuildingContext, force_spawn: bool) {
+        let tile_def = context.find_tile().tile_def();
+
+        let configs = BuildingConfigs::get();
+        let config = configs.find_producer_config(context.kind, tile_def.hash, &tile_def.name);
+
+        let unit_config = UnitConfigKey::Buffalo; // TODO: This should be in the building config.
+        let spawn_chance = config.ambient_patrol_spawn_chance;
+        let max_patrol_distance = config.ambient_patrol_max_distance;
+        let idle_countdown_secs: f32 = context.query.random_range(15.0..30.0);
+
+        self.ambient_patrol.try_spawn_unit(
+            context,
+            unit_config,
+            spawn_chance,
+            max_patrol_distance,
+            idle_countdown_secs,
+            force_spawn);
     }
 }
 
@@ -966,6 +1029,23 @@ impl ProducerBuilding {
         }
         if ui.button("Clear Stock##_clear_output_stock") {
             self.production_output_stock.clear();
+        }
+    }
+
+    fn draw_debug_ui_ambient_patrol(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+        if !ui.collapsing_header("Ambient Patrol", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        self.ambient_patrol.spawn_timer.draw_debug_ui("Spawn Patrol", 0, ui_sys);
+
+        if ui.button("Force Spawn Ambient Patrol") {
+            self.spawn_ambient_patrol(context, true);
+        }
+
+        if self.ambient_patrol.patrol.is_spawned() {
+            ui.text_colored(Color::yellow().to_array(), "Ambient Patrol Spawned...");
         }
     }
 }

@@ -1,22 +1,27 @@
 #![allow(clippy::too_many_arguments)]
 
+use rand::Rng;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 
 use super::{
     config::UnitConfigKey,
+    Unit, UnitId, UnitTaskHelper,
     task::{
         UnitPatrolPathRecord, UnitTaskDespawn,
         UnitTaskPatrolCompletionCallback,
         UnitTaskRandomizedPatrol,
-    },
-    Unit, UnitId, UnitTaskHelper,
+    }
 };
 use crate::{
     ui::UiSystem,
-    engine::time::{Seconds, CountdownTimer},
+    save::PostLoadContext,
+    engine::time::{
+        Seconds, CountdownTimer, UpdateTimer
+    },
     game::{
-        sim::Query,
+        world::object::GameObject,
+        sim::{Query, RandomGenerator},
         building::{Building, BuildingContext, BuildingKind},
     },
     utils::{
@@ -148,6 +153,9 @@ impl Patrol {
     pub fn register_callbacks() {
         let _: Callback<UnitTaskPatrolCompletionCallback> =
             callback::register!(Patrol::on_randomized_patrol_completed);
+
+        let _: Callback<UnitTaskPatrolCompletionCallback> =
+            callback::register!(TimedAmbientPatrol::on_timed_patrol_completed);
     }
 
     pub fn post_load(&mut self) {
@@ -170,8 +178,7 @@ impl Patrol {
 
     fn on_randomized_patrol_completed(origin_building: &mut Building,
                                       patrol_unit: &mut Unit,
-                                      query: &Query)
-                                      -> bool {
+                                      query: &Query) -> bool {
         let patrol_task =
             patrol_unit.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager())
                        .expect("Expected Patrol Unit to be running a UnitTaskRandomizedPatrol!");
@@ -221,5 +228,95 @@ impl Patrol {
             Some(state) => Some(state.as_mut()),
             None => None,
         }
+    }
+}
+
+// ----------------------------------------------
+// TimedAmbientPatrol
+// ----------------------------------------------
+
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct TimedAmbientPatrol {
+    pub patrol: Patrol,
+    pub spawn_timer: UpdateTimer, // Min time before we can spawn a new patrol unit.
+}
+
+impl TimedAmbientPatrol {
+    pub fn new(rng: &mut RandomGenerator, spawn_frequency_secs: [Seconds; 2]) -> Self {
+        let frequency_secs = Self::randomized_spawn_frequency(rng, spawn_frequency_secs);
+        Self {
+            patrol: Patrol::default(),
+            spawn_timer: UpdateTimer::new(frequency_secs),
+        }
+    }
+
+    pub fn post_load(&mut self, context: &PostLoadContext, spawn_frequency_secs: [Seconds; 2]) {
+        self.patrol.post_load();
+
+        let frequency_secs = Self::randomized_spawn_frequency(context.rng(), spawn_frequency_secs);
+        self.spawn_timer.post_load(frequency_secs);
+    }
+
+    pub fn try_spawn_unit(&mut self,
+                          context: &BuildingContext,
+                          unit_config: UnitConfigKey,
+                          spawn_chance: u32,
+                          max_patrol_distance: i32,
+                          idle_countdown_secs: f32,
+                          force_spawn: bool) -> bool {
+        if self.patrol.is_spawned() || max_patrol_distance <= 0 {
+            return false; // A unit is already spawned. Try again later.
+        }
+
+        if !force_spawn {
+            let chance = spawn_chance.min(100); // 0-100%
+            if chance == 0 {
+                return false;
+            }
+
+            let should_spawn = context.query.rng().random_bool(chance as f64 / 100.0);
+            if !should_spawn {
+                return false;
+            }
+        }
+
+        // Unit spawns at the nearest road link.
+        let unit_origin = match context.road_link {
+            Some(road_link) => road_link,
+            None => return false, // We are not connected to a road!
+        };
+
+        self.patrol.start_randomized_patrol(context,
+            unit_origin,
+            unit_config,
+            max_patrol_distance,
+            None,
+            callback::create!(TimedAmbientPatrol::on_timed_patrol_completed),
+            Some(idle_countdown_secs.round()))
+    }
+
+    fn on_timed_patrol_completed(this_building: &mut Building,
+                                 patrol_unit: &mut Unit,
+                                 query: &Query) -> bool {
+        let patrol = this_building.active_patrol()
+            .expect("Expected building to have an active TimedAmbientPatrol!");
+
+        debug_assert!(patrol.unit_id() == patrol_unit.id());
+        debug_assert!(patrol.is_running_task::<UnitTaskRandomizedPatrol>(query),
+                      "No timed ambient unit patrol was sent out by this building!");
+
+        patrol.reset();
+        true
+    }
+
+    fn randomized_spawn_frequency(rng: &mut RandomGenerator, spawn_frequency_secs: [Seconds; 2]) -> Seconds {
+        let frequency_min = spawn_frequency_secs[0];
+        let frequency_max = spawn_frequency_secs[1];
+
+        if frequency_min == frequency_max {
+            return frequency_min;
+        }
+
+        rng.random_range(frequency_min..frequency_max).round()
     }
 }

@@ -1262,11 +1262,11 @@ impl BuildingTileInfo {
 // ----------------------------------------------
 
 pub struct BuildingContext<'world> {
-    id: BuildingId,
-    map_cells: mem::Mutable<CellRange>,
-    road_link: Option<Cell>,
-    kind: BuildingKind,
-    archetype_kind: BuildingArchetypeKind,
+    pub id: BuildingId,
+    pub map_cells: mem::Mutable<CellRange>,
+    pub road_link: Option<Cell>,
+    pub kind: BuildingKind,
+    pub archetype_kind: BuildingArchetypeKind,
     pub query: &'world Query,
 }
 
@@ -1298,10 +1298,10 @@ impl<'world> BuildingContext<'world> {
 
     #[inline]
     pub fn tile_info(&self) -> BuildingTileInfo {
-        BuildingTileInfo { road_link: self.road_link.unwrap_or_default(), /* We may or may not
-                                                                           * be connected to a
-                                                                           * road. */
-                           base_cell: self.base_cell() }
+        BuildingTileInfo {
+            road_link: self.road_link.unwrap_or_default(), // We may or may not be connected to a road.
+            base_cell: self.base_cell(),
+        }
     }
 
     #[inline]
@@ -1320,28 +1320,28 @@ impl<'world> BuildingContext<'world> {
     }
 
     #[inline]
-    fn find_tile_def(&self, tile_def_name_hash: StringHash) -> Option<&'static TileDef> {
+    pub fn find_tile_def(&self, tile_def_name_hash: StringHash) -> Option<&'static TileDef> {
         self.query.find_tile_def(TileMapLayerKind::Objects,
                                  OBJECTS_BUILDINGS_CATEGORY.hash,
                                  tile_def_name_hash)
     }
 
     #[inline]
-    fn find_tile(&self) -> &Tile {
+    pub fn find_tile(&self) -> &Tile {
         self.query
             .find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
     #[inline]
-    fn find_tile_mut(&self) -> &mut Tile {
+    pub fn find_tile_mut(&self) -> &mut Tile {
         self.query
             .find_tile_mut(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
     #[inline]
-    fn has_access_to_service(&self, service_kind: ServiceKind) -> bool {
+    pub fn has_access_to_service(&self, service_kind: ServiceKind) -> bool {
         debug_assert!(service_kind.is_single_building());
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
 
@@ -1357,13 +1357,13 @@ impl<'world> BuildingContext<'world> {
     }
 
     #[inline]
-    fn set_random_building_variation(&self) {
+    pub fn set_random_building_variation(&self) {
         let tile = self.find_tile_mut();
         tile.set_random_variation_index(self.query.rng());
     }
 
     // Road link if valid, any unobstructed surrounding cell otherwise.
-    fn road_link_or_building_access_tile(&self) -> Cell {
+    pub fn road_link_or_building_access_tile(&self) -> Cell {
         if let Some(road_link) = self.road_link {
             if road_link.is_valid() {
                 return road_link;

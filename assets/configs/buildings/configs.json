@@ -312,7 +312,10 @@
       "production_output_amount": 2,
       "production_output": "Meat",
       "production_capacity": 8,
-      "deliver_to_storage_kinds": "Granary"
+      "deliver_to_storage_kinds": "Granary",
+      "ambient_patrol_spawn_frequency_secs": [80.0, 120.0],
+      "ambient_patrol_spawn_chance": 10,
+      "ambient_patrol_max_distance": 40
     },
     {
       "kind": "FishingWharf",
