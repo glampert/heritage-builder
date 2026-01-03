@@ -13,7 +13,7 @@ use crate::{
     log,
     ui::UiSystem,
     tile::sets::TileDef,
-    game::sim::resources::ServiceKind,
+    game::sim::{RandomGenerator, resources::ServiceKind},
     utils::hash::{self, PreHashedKeyMap, StringHash},
 };
 
@@ -87,7 +87,8 @@ struct BuildingConfigEntry {
 
 impl BuildingConfigEntry {
     fn instantiate_archetype(&'static self,
-                             configs: &'static BuildingConfigs)
+                             configs: &'static BuildingConfigs,
+                             rng: &mut RandomGenerator)
                              -> (BuildingKind, BuildingArchetype) {
         match self.archetype_kind {
             BuildingArchetypeKind::ProducerBuilding => {
@@ -112,7 +113,8 @@ impl BuildingConfigEntry {
                 (BuildingKind::House,
                  BuildingArchetype::from(HouseBuilding::new(house_level_config.level,
                                                             house_config,
-                                                            configs)))
+                                                            configs,
+                                                            rng)))
             }
         }
     }
@@ -240,12 +242,13 @@ impl BuildingConfigs {
 
     pub fn new_building_archetype_for_tile_def(
         &'static self,
-        tile_def: &TileDef)
+        tile_def: &TileDef,
+        rng: &mut RandomGenerator)
         -> Result<(BuildingKind, BuildingArchetype), String> {
         debug_assert!(tile_def.hash != hash::NULL_HASH);
 
         match self.tile_def_mapping.get(&tile_def.hash) {
-            Some(entry) => Ok(entry.instantiate_archetype(self)),
+            Some(entry) => Ok(entry.instantiate_archetype(self, rng)),
             None => Err(format!("Can't find Building config for TileDef '{}'", tile_def.name)),
         }
     }

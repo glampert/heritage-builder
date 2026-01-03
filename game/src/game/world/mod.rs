@@ -202,7 +202,7 @@ impl World {
         match query.tile_map().try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
                 // Instantiate new Building:
-                match BuildingConfigs::get().new_building_archetype_for_tile_def(tile_def) {
+                match BuildingConfigs::get().new_building_archetype_for_tile_def(tile_def, query.rng()) {
                     Ok((building_kind, building_archetype)) => {
                         let archetype_kind = building_archetype.discriminant();
                         let buildings = self.buildings_pool_mut(archetype_kind);

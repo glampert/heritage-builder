@@ -21,7 +21,7 @@ use crate::{
     engine::time::{Seconds, UpdateTimer},
     utils::{hash::{self, StringHash}, callback::{self, Callback}, Color},
     game::{
-        sim::Query,
+        sim::{Query, RandomGenerator},
         sim::resources::{
             Population, ResourceKind, ResourceKinds,
             ServiceKind, ServiceKinds, Workers,
@@ -302,7 +302,7 @@ impl BuildingBehavior for HouseBuilding {
         }
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, context: &PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind == BuildingKind::House);
 
         let config = BuildingConfigs::get().find_house_config();
@@ -311,7 +311,7 @@ impl BuildingBehavior for HouseBuilding {
         self.stock_update_timer.post_load(config.stock_update_frequency_secs);
         self.upgrade_update_timer.post_load(config.upgrade_update_frequency_secs);
         self.generate_tax_timer.post_load(config.generate_tax_frequency_secs);
-        self.ambient_ped_spawn_timer.post_load(Self::ambient_ped_spawn_frequency());
+        self.ambient_ped_spawn_timer.post_load(Self::ambient_ped_spawn_frequency(context.rng()));
 
         self.upgrade_state.post_load();
         self.ambient_ped.post_load();
@@ -452,7 +452,8 @@ impl BuildingBehavior for HouseBuilding {
 impl HouseBuilding {
     pub fn new(level: HouseLevel,
                house_config: &'static HouseConfig,
-               configs: &'static BuildingConfigs)
+               configs: &'static BuildingConfigs,
+               rng: &mut RandomGenerator)
                -> Self {
         let upgrade_state = HouseUpgradeState::new(level, configs);
 
@@ -474,7 +475,7 @@ impl HouseBuilding {
             generate_tax_timer: UpdateTimer::new(house_config.generate_tax_frequency_secs),
             tax_available: 0,
             ambient_ped: Patrol::default(),
-            ambient_ped_spawn_timer: UpdateTimer::new(Self::ambient_ped_spawn_frequency()),
+            ambient_ped_spawn_timer: UpdateTimer::new(Self::ambient_ped_spawn_frequency(rng)),
             debug: HouseDebug::default()
         }
     }
@@ -936,11 +937,8 @@ impl HouseBuilding {
         true
     }
 
-    fn ambient_ped_spawn_frequency() -> Seconds {
+    fn ambient_ped_spawn_frequency(rng: &mut RandomGenerator) -> Seconds {
         let config = BuildingConfigs::get().find_house_config();
-
-        // FIXME: Should use our own sim RNG here.
-        let rng = &mut rand::rng();
 
         let frequency_min = config.ambient_ped_spawn_frequency_secs[0];
         let frequency_max = config.ambient_ped_spawn_frequency_secs[1];

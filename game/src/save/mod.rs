@@ -1,7 +1,7 @@
 use std::{fs, io, path::Path};
 use enum_dispatch::enum_dispatch;
 use serde::{de::DeserializeOwned, Serialize};
-use crate::{engine::Engine, tile::TileMap, utils::mem};
+use crate::{engine::Engine, game::sim::RandomGenerator, tile::TileMap, utils::mem};
 
 // ----------------------------------------------
 // Save / Load Traits
@@ -73,14 +73,16 @@ impl PreLoadContext {
 pub struct PostLoadContext {
     engine: mem::RawPtr<dyn Engine>,
     tile_map: mem::RawPtr<TileMap>,
+    rng: mem::RawPtr<RandomGenerator>,
 }
 
 impl PostLoadContext {
     #[inline]
-    pub fn new(engine: &dyn Engine, tile_map: &TileMap) -> Self {
+    pub fn new(engine: &dyn Engine, tile_map: &TileMap, rng: &RandomGenerator) -> Self {
         Self {
             engine: mem::RawPtr::from_ref(engine),
             tile_map: mem::RawPtr::from_ref(tile_map),
+            rng: mem::RawPtr::from_ref(rng),
         }
     }
 
@@ -102,6 +104,11 @@ impl PostLoadContext {
     #[inline]
     pub fn tile_map_mut(&self) -> &mut TileMap {
         self.tile_map.mut_ref_cast()
+    }
+
+    #[inline]
+    pub fn rng(&self) -> &mut RandomGenerator {
+        self.rng.mut_ref_cast()
     }
 }
 

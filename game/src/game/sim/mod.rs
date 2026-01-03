@@ -17,13 +17,13 @@ use super::{
     world::World,
 };
 use crate::{
-    engine::time::{Seconds, UpdateTimer},
     log,
-    pathfind::{
-        self, AStarUniformCostHeuristic, Bias, Graph, Node, NodeKind as PathNodeKind, Path,
-        PathFilter, Search, SearchResult, Unbiased, DefaultPathFilter,
-    },
     save::*,
+    engine::time::{Seconds, UpdateTimer},
+    pathfind::{
+        self, AStarUniformCostHeuristic, Bias, Graph, Node, NodeKind as PathNodeKind,
+        Path, PathFilter, Search, SearchResult, Unbiased, DefaultPathFilter,
+    },
     tile::{
         sets::{TileDef, TileSets},
         Tile, TileKind, TileMap, TileMapLayerKind,
@@ -109,7 +109,12 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn rng(&mut self) -> &mut RandomGenerator {
+    pub fn rng(&self) -> &RandomGenerator {
+        &self.rng
+    }
+
+    #[inline]
+    pub fn rng_mut(&mut self) -> &mut RandomGenerator {
         &mut self.rng
     }
 
