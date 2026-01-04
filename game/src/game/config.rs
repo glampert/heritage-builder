@@ -110,6 +110,7 @@ pub struct SimConfigs {
     pub workers_update_frequency_secs: Seconds,
 
     // Game Systems:
+    pub birds_spawn_frequency: Seconds,
     pub settlers_spawn_frequency_secs: Seconds,
     pub population_per_settler_unit: u32,
 }
@@ -125,6 +126,7 @@ impl Default for SimConfigs {
                workers_search_radius: 20,
                workers_update_frequency_secs: 20.0,
                // Game Systems:
+               birds_spawn_frequency: 20.0,
                settlers_spawn_frequency_secs: 20.0,
                population_per_settler_unit: 1 }
     }

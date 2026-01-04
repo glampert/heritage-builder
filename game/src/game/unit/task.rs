@@ -15,23 +15,20 @@ use crate::{
     log,
     ui::UiSystem,
     debug::{self},
-    game::{
-        constants::*,
-        sim::{
-            Query,
-            resources::{ResourceKind, ShoppingList},
-        },
-        prop::PropId,
-        world::object::{GameObject, GenerationalIndex, Spawner},
-        building::{Building, BuildingId, BuildingKind, BuildingKindAndId, BuildingTileInfo},
-    },
+    engine::time::{Seconds, CountdownTimer},
+    tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
+    utils::{callback::Callback, coords::Cell, mem, Color},
     pathfind::{
         self, Node, NodeKind as PathNodeKind, Path, PathFilter, PathHistory,
         RandomDirectionalBias, SearchResult,
     },
-    engine::time::{Seconds, CountdownTimer},
-    tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
-    utils::{callback::Callback, coords::Cell, mem, Color},
+    game::{
+        constants::*,
+        prop::PropId,
+        sim::{Query, resources::{ResourceKind, ShoppingList}},
+        world::object::{GameObject, GenerationalIndex, Spawner},
+        building::{Building, BuildingId, BuildingKind, BuildingKindAndId, BuildingTileInfo},
+    }
 };
 
 // ----------------------------------------------
@@ -182,6 +179,7 @@ pub enum UnitTaskArchetype {
     UnitTaskFetchFromStorage,
     UnitTaskSettler,
     UnitTaskHarvestWood,
+    UnitTaskFollowPath,
 }
 
 // ----------------------------------------------
@@ -1533,6 +1531,80 @@ impl UnitTask for UnitTaskHarvestWood {
         ui.text(format!("Harvest Target          : {}", self.harvest_target));
         ui.text(format!("Harvest Countdown Timer : {:.2}", self.harvest_timer.remaining_secs()));
         ui.separator();
+        ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
+        ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
+    }
+}
+
+// ----------------------------------------------
+// UnitTaskFollowPath
+// ----------------------------------------------
+
+pub type UnitTaskFollowPathCompletionCallback = fn(&mut Unit, &Query);
+
+#[derive(Serialize, Deserialize)]
+pub struct UnitTaskFollowPath {
+    // Follow this path from start to finish, once.
+    pub path: Path,
+
+    // Optional task completion callback.
+    pub completion_callback: Callback<UnitTaskFollowPathCompletionCallback>,
+
+    // Optional completion task to run after this task.
+    pub completion_task: Option<UnitTaskId>,
+}
+
+impl UnitTask for UnitTaskFollowPath {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn post_load(&mut self) {
+        self.completion_callback.post_load();
+    }
+
+    fn initialize(&mut self, unit: &mut Unit, _query: &Query) {
+        // Sanity check:
+        debug_assert!(unit.goal().is_none());
+        debug_assert!(!self.path.is_empty());
+
+        unit.move_to_goal(&self.path, UnitNavGoal::tile(unit.cell(), &self.path));
+    }
+
+    fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
+        if let Some(task_id) = self.completion_task {
+            task_pool.free(task_id);
+        }
+    }
+
+    fn update(&mut self, unit: &mut Unit, _query: &Query) -> UnitTaskState {
+        if unit.has_reached_goal() {
+            UnitTaskState::Completed
+        } else {
+            UnitTaskState::Running
+        }
+    }
+
+    fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskResult {
+        unit.goal().expect("Expected unit to have an active goal!");
+        debug_assert!(unit.cell() == self.path.last().unwrap().cell, "Unit has not reached its goal yet!");
+
+        if let Some(completion_callback) = self.completion_callback.try_get() {
+            completion_callback(unit, query);
+        }
+
+        unit.follow_path(None);
+
+        UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) }
+    }
+
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &Query, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+
+        let start = self.path.first().unwrap().cell;
+        let end   = self.path.last().unwrap().cell;
+
+        ui.text(format!("Path Start/End          : {start},{end}"));
         ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
         ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
     }

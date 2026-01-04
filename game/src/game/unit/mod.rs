@@ -32,14 +32,14 @@ use crate::{
     },
 };
 
+pub mod anim;
+pub mod task;
 pub mod config;
 pub mod navigation;
 pub mod patrol;
 pub mod runner;
 pub mod harvester;
-pub mod task;
 
-mod anim;
 mod debug;
 mod inventory;
 
@@ -250,6 +250,11 @@ impl Unit {
         }
 
         false
+    }
+
+    pub fn set_animation(&mut self, query: &Query, new_anim_set_key: UnitAnimSetKey) {
+        let tile = self.find_tile_mut(query);
+        self.anim_sets.set_anim(tile, new_anim_set_key);
     }
 
     #[inline]

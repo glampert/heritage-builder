@@ -102,21 +102,23 @@ impl GameSystem for SettlersSpawnSystem {
             }
         }
     }
+
+    fn register_callbacks(&self) {
+        Settler::register_callbacks();
+    }
 }
 
-impl SettlersSpawnSystem {
-    pub fn new() -> Self {
+impl Default for SettlersSpawnSystem {
+    fn default() -> Self {
         let configs = GameConfigs::get();
         Self {
             spawn_timer: UpdateTimer::new(configs.sim.settlers_spawn_frequency_secs),
-            population_per_settler_unit: configs.sim.population_per_settler_unit
+            population_per_settler_unit: configs.sim.population_per_settler_unit,
         }
     }
+}
 
-    pub fn register_callbacks() {
-        Settler::register_callbacks();
-    }
-
+impl SettlersSpawnSystem {
     #[inline]
     fn has_vacant_lots(query: &Query) -> bool {
         query.graph().has_node_with_kinds(PathNodeKind::VacantLot)

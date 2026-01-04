@@ -5,7 +5,7 @@ use std::{
 };
 
 use config::{GameConfigs, LoadMapSetting};
-use system::{settlers, GameSystems};
+use system::{GameSystems, GameSystem, GameSystemImpl, settlers, ambient_effects};
 use building::config::BuildingConfigs;
 use unit::config::UnitConfigs;
 use prop::config::PropConfigs;
@@ -91,7 +91,8 @@ impl GameSession {
         let sim = Simulation::new(&tile_map);
 
         let mut systems = GameSystems::new();
-        systems.register(settlers::SettlersSpawnSystem::new());
+        systems.register(settlers::SettlersSpawnSystem::default());
+        systems.register(ambient_effects::AmbientEffectsSystem::default());
 
         let configs = GameConfigs::get();
         let camera = Camera::new(viewport_size,
@@ -695,6 +696,18 @@ impl GameLoop {
 
         TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets);
         log::info!(log::channel!("game"), "TileSets loaded.");
+    }
+
+    // Create system if it doesn't already exist in the session.
+    fn create_system<System>(&mut self, system: System)
+        where System: GameSystem + 'static,
+              GameSystemImpl: From<System>
+    {
+        if let Some(session) = &mut self.session {
+            if !session.systems.has::<System>() {
+                session.systems.register(system);
+            }
+        }
     }
 
     fn handle_event(&mut self, event: ApplicationEvent, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {

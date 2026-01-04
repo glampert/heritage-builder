@@ -1,15 +1,17 @@
 use std::any::Any;
-
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
-use strum::EnumCount;
-use strum_macros::EnumCount;
+use strum_macros::{EnumCount, VariantNames, EnumIter};
+use strum::{EnumCount, VariantNames, IntoEnumIterator};
 
-use super::{constants::*, sim::Query, world::object::GenerationalIndex};
-use crate::{ui::UiSystem, save::*, utils::mem};
+use super::{constants::*, sim::Query, world::object::GenerationalIndex, GameLoop};
+use crate::{ui::{UiSystem, UiStaticVar}, save::*, utils::mem};
 
 pub mod settlers;
 use settlers::SettlersSpawnSystem;
+
+pub mod ambient_effects;
+use ambient_effects::AmbientEffectsSystem;
 
 // ----------------------------------------------
 // GameSystem
@@ -26,12 +28,14 @@ pub trait GameSystem: Any {
     fn reset(&mut self) {}
     fn post_load(&mut self, _context: &PostLoadContext) {}
     fn draw_debug_ui(&mut self, _query: &Query, _ui_sys: &UiSystem) {}
+    fn register_callbacks(&self) {}
 }
 
 #[enum_dispatch]
-#[derive(EnumCount, Serialize, Deserialize)]
+#[derive(EnumCount, EnumIter, VariantNames, Serialize, Deserialize)]
 pub enum GameSystemImpl {
     SettlersSpawnSystem,
+    AmbientEffectsSystem,
 }
 
 // ----------------------------------------------
@@ -96,6 +100,17 @@ impl GameSystems {
         None
     }
 
+    pub fn has<System>(&self) -> bool
+        where System: GameSystem + 'static
+    {
+        for entry in &self.systems {
+            if entry.system.as_any().is::<System>() {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn update(&mut self, query: &Query) {
         for entry in &mut self.systems {
             entry.system.update(query);
@@ -116,6 +131,17 @@ impl GameSystems {
                     entry.system.draw_debug_ui(query, ui_sys);
                 }
             }
+
+            if let Some(_tab) = ui.tab_item("Create Systems") {
+                static SYSTEM_INDEX: UiStaticVar<usize> = UiStaticVar::new(0);
+                ui.combo_simple_string("Systems", SYSTEM_INDEX.as_mut(), GameSystemImpl::VARIANTS);
+
+                if ui.button("Create") {
+                    if let Some(system) = GameSystemImpl::iter().nth(*SYSTEM_INDEX) {
+                        GameLoop::get_mut().create_system(system);
+                    }
+                }
+            }
         }
     }
 
@@ -124,7 +150,9 @@ impl GameSystems {
     // ----------------------
 
     pub fn register_callbacks() {
-        SettlersSpawnSystem::register_callbacks();
+        for system in GameSystemImpl::iter() {
+            system.register_callbacks();
+        }
     }
 }
 
