@@ -268,8 +268,9 @@ impl BuildingBehavior for ProducerBuilding {
         debug_assert!(kind.intersects(BuildingKind::producers()));
 
         let tile_def = tile.tile_def();
-        let configs = BuildingConfigs::get();
-        let config = configs.find_producer_config(kind, tile_def.hash, &tile_def.name);
+
+        let config =
+            BuildingConfigs::get().find_producer_config(kind, tile_def.hash, &tile_def.name);
 
         self.production_update_timer.post_load(config.production_output_frequency_secs);
         self.ambient_patrol.post_load(context, config.ambient_patrol.spawn_frequency_secs);
@@ -684,8 +685,8 @@ impl ProducerBuilding {
     fn spawn_ambient_patrol(&mut self, context: &BuildingContext, force_spawn: bool) {
         let tile_def = context.find_tile().tile_def();
 
-        let configs = BuildingConfigs::get();
-        let config = configs.find_producer_config(context.kind, tile_def.hash, &tile_def.name);
+        let config =
+            BuildingConfigs::get().find_producer_config(context.kind, tile_def.hash, &tile_def.name);
 
         if let Some(unit_config) = config.ambient_patrol.unit {
             let spawn_chance = config.ambient_patrol.spawn_chance;

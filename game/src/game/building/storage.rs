@@ -183,8 +183,7 @@ impl BuildingBehavior for StorageBuilding {
 
     fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::storage()));
-        let configs = BuildingConfigs::get();
-        let config = configs.find_storage_config(kind);
+        let config = BuildingConfigs::get().find_storage_config(kind);
         self.config = Some(config);
     }
 

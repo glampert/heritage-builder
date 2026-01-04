@@ -207,8 +207,7 @@ impl BuildingBehavior for ServiceBuilding {
         debug_assert!(kind.intersects(BuildingKind::services()));
         self.patrol.post_load();
 
-        let configs = BuildingConfigs::get();
-        let config = configs.find_service_config(kind);
+        let config = BuildingConfigs::get().find_service_config(kind);
 
         if let StockOrTreasury::Stock { update_timer, .. } = &mut self.stock_or_treasury {
             update_timer.post_load(config.stock_update_frequency_secs);
