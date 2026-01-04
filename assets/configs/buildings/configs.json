@@ -3,7 +3,13 @@
     "population_update_frequency_secs": 60.0,
     "stock_update_frequency_secs": 160.0,
     "upgrade_update_frequency_secs": 10.0,
-    "generate_tax_frequency_secs": 60.0
+    "generate_tax_frequency_secs": 60.0,
+    "ambient_patrol": {
+      "unit": "Dog",
+      "spawn_frequency_secs": [80.0, 120.0],
+      "spawn_chance": 10,
+      "max_distance": 40
+    }
   },
   "house_levels": [
     {
