@@ -10,6 +10,7 @@ use crate::{
     save::PostLoadContext,
     pathfind::{Path, Node},
     engine::time::UpdateTimer,
+    tile::{TILE_Z_SORT_TOPMOST},
     utils::{callback::Callback, coords::Cell, Size},
     game::{
         config::GameConfigs,
@@ -119,7 +120,7 @@ fn spawn_bird(query: &Query, flight_path: BirdFlightPath) {
 
     if let Ok(unit) = result {
         unit.set_animation(query, anim_set_key);
-        // TODO: Set sort order to highest, so birds always render over everything else.
+        unit.set_z_sort_key(query, TILE_Z_SORT_TOPMOST);
     }
 }
 

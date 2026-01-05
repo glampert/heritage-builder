@@ -1,7 +1,16 @@
 use bitflags::bitflags;
 use smallvec::SmallVec;
 
-use super::{road, Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, BASE_TILE_SIZE};
+use super::{
+    road,
+    Tile,
+    TileFlags,
+    TileKind,
+    TileMap,
+    TileMapLayerKind,
+    TileZSortKey,
+    BASE_TILE_SIZE
+};
 use crate::{
     debug::{self},
     ui::UiSystem,
@@ -486,7 +495,7 @@ struct TileDrawListEntry {
     // Y value of the bottom left corner of the tile sprite for sorting.
     // Simulates a pseudo depth value so we can render units and buildings
     // correctly.
-    z_sort: i32,
+    z_sort: TileZSortKey,
 }
 
 impl TileDrawListEntry {

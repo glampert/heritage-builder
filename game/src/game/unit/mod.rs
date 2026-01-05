@@ -25,7 +25,10 @@ use crate::{
     ui::UiSystem,
     save::PostLoadContext,
     pathfind::{NodeKind as PathNodeKind, Path},
-    tile::{self, Tile, TileKind, TileMap, TileMapLayerKind, TilePoolIndex},
+    tile::{
+        self, Tile, TileKind, TileFlags, TileMap,
+        TileMapLayerKind, TilePoolIndex, TileZSortKey
+    },
     utils::{
         self, hash, Color,
         coords::{Cell, CellRange, WorldToScreenTransform, IsoPointF32},
@@ -255,6 +258,12 @@ impl Unit {
     pub fn set_animation(&mut self, query: &Query, new_anim_set_key: UnitAnimSetKey) {
         let tile = self.find_tile_mut(query);
         self.anim_sets.set_anim(tile, new_anim_set_key);
+    }
+
+    pub fn set_z_sort_key(&mut self, query: &Query, new_z_sort_key: TileZSortKey) {
+        let tile = self.find_tile_mut(query);
+        tile.set_flags(TileFlags::UserDefinedZSort, true);
+        tile.set_z_sort_key(new_z_sort_key);
     }
 
     #[inline]
