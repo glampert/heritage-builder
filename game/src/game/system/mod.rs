@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::any::{Any, TypeId};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use strum_macros::{EnumCount, VariantNames, EnumIter};
@@ -100,11 +100,9 @@ impl GameSystems {
         None
     }
 
-    pub fn has<System>(&self) -> bool
-        where System: GameSystem + 'static
-    {
+    pub fn has(&self, system_type: TypeId) -> bool {
         for entry in &self.systems {
-            if entry.system.as_any().is::<System>() {
+            if entry.system.type_id() == system_type {
                 return true;
             }
         }
@@ -133,6 +131,8 @@ impl GameSystems {
             }
 
             if let Some(_tab) = ui.tab_item("Create Systems") {
+                ui.text("Create and register system with the GameLoop if not already created.");
+
                 static SYSTEM_INDEX: UiStaticVar<usize> = UiStaticVar::new(0);
                 ui.combo_simple_string("Systems", SYSTEM_INDEX.as_mut(), GameSystemImpl::VARIANTS);
 

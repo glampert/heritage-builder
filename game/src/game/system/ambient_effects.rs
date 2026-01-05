@@ -1,7 +1,8 @@
 use std::any::Any;
-use rand::Rng;
-use num_enum::TryFromPrimitive;
+use rand::{Rng, seq::IteratorRandom};
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 use super::GameSystem;
 use crate::{
@@ -86,7 +87,7 @@ impl Default for AmbientEffectsSystem {
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, TryFromPrimitive)]
+#[derive(Copy, Clone, EnumIter)]
 enum BirdFlightPath {
     LeftToRight,
     RightToLeft,
@@ -118,14 +119,13 @@ fn spawn_bird(query: &Query, flight_path: BirdFlightPath) {
 
     if let Ok(unit) = result {
         unit.set_animation(query, anim_set_key);
+        // TODO: Set sort order to highest, so birds always render over everything else.
     }
 }
 
 fn spawn_bird_with_random_flight_path(query: &Query) {
-    let min = BirdFlightPath::LeftToRight as u32;
-    let max = BirdFlightPath::RightToLeft as u32;
-    let dir = query.random_range(min..=max);
-    spawn_bird(query, BirdFlightPath::try_from_primitive(dir).unwrap());
+    let flight_path = BirdFlightPath::iter().choose(query.rng()).unwrap();
+    spawn_bird(query, flight_path);
 }
 
 fn make_left_to_right_randomized_path(rng: &mut RandomGenerator, map_size: Size) -> Path {

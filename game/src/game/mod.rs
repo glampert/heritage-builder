@@ -704,7 +704,7 @@ impl GameLoop {
               GameSystemImpl: From<System>
     {
         if let Some(session) = &mut self.session {
-            if !session.systems.has::<System>() {
+            if !session.systems.has(system.type_id()) {
                 session.systems.register(system);
             }
         }
