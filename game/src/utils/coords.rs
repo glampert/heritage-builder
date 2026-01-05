@@ -580,9 +580,9 @@ pub fn cell_to_screen_diamond_points(cell: Cell,
     let tile_height = (tile_size.height as f32) * transform.scaling;
     let base_height = (base_tile_size.height as f32) * transform.scaling;
 
-    let half_tile_w = tile_width  / 2.0;
-    let half_tile_h = tile_height / 2.0;
-    let half_base_h = base_height / 2.0;
+    let half_tile_w = tile_width  * 0.5;
+    let half_tile_h = tile_height * 0.5;
+    let half_base_h = base_height * 0.5;
 
     // Build 4 corners of the tile:
     let top    = Vec2::new(screen_center.x, screen_center.y - tile_height + half_base_h);
@@ -591,4 +591,26 @@ pub fn cell_to_screen_diamond_points(cell: Cell,
     let left   = Vec2::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
 
     [top, right, bottom, left]
+}
+
+// Simplified version of cell_to_screen_diamond_points()
+// that only computes the left corner Y coord, used as tile sorting key.
+pub fn cell_to_screen_diamond_left_corner_y(cell: Cell,
+                                            tile_size: Size,
+                                            base_tile_size: Size,
+                                            transform: WorldToScreenTransform)
+                                            -> f32 {
+    debug_assert!(transform.is_valid());
+
+    let iso_center = cell_to_iso(cell, base_tile_size);
+    let screen_center = iso_to_screen_point(iso_center, transform, base_tile_size);
+
+    let tile_height = (tile_size.height as f32) * transform.scaling;
+    let base_height = (base_tile_size.height as f32) * transform.scaling;
+
+    let half_tile_h = tile_height * 0.5;
+    let half_base_h = base_height * 0.5;
+
+    // Left diamond corner (same as cell_to_screen_diamond_points[3]).
+    screen_center.y - half_tile_h + half_base_h
 }

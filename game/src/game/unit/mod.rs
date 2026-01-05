@@ -26,7 +26,7 @@ use crate::{
     save::PostLoadContext,
     pathfind::{NodeKind as PathNodeKind, Path},
     tile::{
-        self, Tile, TileKind, TileFlags, TileMap,
+        self, Tile, TileKind, TileMap,
         TileMapLayerKind, TilePoolIndex, TileZSortKey
     },
     utils::{
@@ -260,10 +260,9 @@ impl Unit {
         self.anim_sets.set_anim(tile, new_anim_set_key);
     }
 
-    pub fn set_z_sort_key(&mut self, query: &Query, new_z_sort_key: TileZSortKey) {
+    pub fn set_user_z_sort_key(&mut self, query: &Query, new_z_sort_key: TileZSortKey) {
         let tile = self.find_tile_mut(query);
-        tile.set_flags(TileFlags::UserDefinedZSort, true);
-        tile.set_z_sort_key(new_z_sort_key);
+        tile.set_user_z_sort_key(new_z_sort_key);
     }
 
     #[inline]

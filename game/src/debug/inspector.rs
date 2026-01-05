@@ -284,9 +284,11 @@ impl TileInspectorDevMenu {
         let mut screen_coords = tile.screen_rect(context.transform, true).position();
         ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
 
-        let mut z_sort_key = tile.z_sort_key();
-        if ui::input_i32(ui, "Z Sort Key:", &mut z_sort_key, false, None) {
-            tile.set_z_sort_key(z_sort_key);
+        if tile.has_flags(TileFlags::UserDefinedZSort) {
+            let mut user_z_sort_key = tile.user_z_sort_key();
+            if ui::input_f32(ui, "Z Sort Key Override:", &mut user_z_sort_key, false, None) {
+                tile.set_user_z_sort_key(user_z_sort_key);
+            }
         }
 
         if tile.is_stacked() {

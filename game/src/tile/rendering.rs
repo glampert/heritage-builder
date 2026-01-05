@@ -109,11 +109,12 @@ pub struct TileMapRenderer {
 
 impl TileMapRenderer {
     pub fn new(grid_color: Color, grid_line_thickness: f32) -> Self {
-        Self { grid_color,
-               grid_line_thickness: grid_line_thickness.clamp(MIN_GRID_LINE_THICKNESS,
-                                                              MAX_GRID_LINE_THICKNESS),
-               stats: TileMapRenderStats::default(),
-               temp_tile_sort_list: Vec::with_capacity(512) }
+        Self {
+            grid_color,
+            grid_line_thickness: grid_line_thickness.clamp(MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS),
+            stats: TileMapRenderStats::default(),
+            temp_tile_sort_list: Vec::with_capacity(512)
+        }
     }
 
     pub fn set_grid_color(&mut self, color: Color) {
@@ -239,7 +240,7 @@ impl TileMapRenderer {
             };
 
             if should_draw {
-                self.temp_tile_sort_list.push(TileDrawListEntry::new(tile));
+                self.temp_tile_sort_list.push(TileDrawListEntry::new(tile, transform));
             }
         };
 
@@ -274,10 +275,24 @@ impl TileMapRenderer {
             }
         }
 
-        self.temp_tile_sort_list.sort_by(|a, b| a.z_sort.cmp(&b.z_sort));
+        self.temp_tile_sort_list.sort_by(|a, b| {
+            let a_tile = a.tile();
+            let b_tile = b.tile();
+
+            a.z_sort_key
+                .partial_cmp(&b.z_sort_key)
+                .unwrap()
+                .then_with(|| {
+                    // In case of tie, draw units/props above buildings.
+                    let a_prio = a_tile.is(TileKind::Unit | TileKind::Vegetation | TileKind::Rocks);
+                    let b_prio = b_tile.is(TileKind::Unit | TileKind::Vegetation | TileKind::Rocks);
+                    a_prio.cmp(&b_prio)
+                })
+                .then_with(|| a_tile.index().cmp(&b_tile.index())) // Fallback to tile pool index if all else equal.
+        });
 
         for entry in &self.temp_tile_sort_list {
-            let tile = entry.tile_ref();
+            let tile = entry.tile();
             debug_assert!(tile.is(TileKind::Object));
 
             Self::draw_tile(render_sys,
@@ -492,20 +507,37 @@ struct TileDrawListEntry {
     // local Vec each time draw_map() is called.
     tile: mem::RawPtr<Tile>,
 
-    // Y value of the bottom left corner of the tile sprite for sorting.
+    // Y value of the left corner of the tile iso diamond for sorting.
     // Simulates a pseudo depth value so we can render units and buildings
     // correctly.
-    z_sort: TileZSortKey,
+    z_sort_key: TileZSortKey,
 }
 
 impl TileDrawListEntry {
     #[inline]
-    fn new(tile: &Tile) -> Self {
-        Self { tile: mem::RawPtr::from_ref(tile), z_sort: tile.z_sort_key() }
+    fn new(tile: &Tile, transform: WorldToScreenTransform) -> Self {
+        let z_sort_key = {
+            // User defined override?
+            if tile.has_flags(TileFlags::UserDefinedZSort) {
+                tile.user_z_sort_key()
+            } else {
+                // Compute from tile screen space diamond.
+                coords::cell_to_screen_diamond_left_corner_y(
+                    tile.base_cell(),
+                    tile.logical_size(),
+                    BASE_TILE_SIZE,
+                    transform)
+            }
+        };
+
+        Self {
+            tile: mem::RawPtr::from_ref(tile),
+            z_sort_key,
+        }
     }
 
-    #[inline]
-    fn tile_ref(&self) -> &Tile {
+    #[inline(always)]
+    fn tile(&self) -> &Tile {
         // SAFETY: This reference only lives for the scope of draw_map().
         // The only reason we store it in a member Vec is to avoid the
         // memory allocation cost of a temp local Vec. `temp_tile_sort_list`

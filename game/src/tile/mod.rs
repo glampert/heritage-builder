@@ -47,10 +47,10 @@ mod placement;
 pub const BASE_TILE_SIZE: Size = Size { width: 64, height: 32 };
 
 pub type TileVariationIndex = u8;
-pub type TileZSortKey = i32;
+pub type TileZSortKey = f32;
 
-pub const TILE_Z_SORT_TOPMOST: TileZSortKey = 0; // Tile draws on top of everything else.
-pub const TILE_Z_SORT_BOTTOMMOST: TileZSortKey = i32::MIN; // Tile draws below everything else.
+pub const TILE_Z_SORT_TOPMOST: TileZSortKey = f32::MAX; // Tile draws on top of everything else.
+pub const TILE_Z_SORT_BOTTOMMOST: TileZSortKey = f32::MIN; // Tile draws below everything else.
 
 // ----------------------------------------------
 // TileKind
@@ -312,7 +312,7 @@ pub struct Tile {
     kind: TileKind,
     flags: TileFlags,
     variation_index: TileVariationIndex,
-    z_sort_key: TileZSortKey,
+    user_z_sort_key: TileZSortKey,
     self_index: TilePoolIndex,
     next_index: TilePoolIndex,
     archetype: TileArchetype,
@@ -343,9 +343,7 @@ trait TileBehavior {
     fn game_object_handle(&self) -> TileGameObjectHandle;
     fn set_game_object_handle(&mut self, handle: TileGameObjectHandle);
 
-    fn z_sort_key(&self) -> TileZSortKey;
     fn iso_coords_f32(&self) -> IsoPointF32;
-
     fn actual_base_cell(&self) -> Cell;
     fn cell_range(&self) -> CellRange;
 
@@ -420,11 +418,6 @@ impl TileBehavior for TerrainTile {
 
     #[inline]
     fn set_game_object_handle(&mut self, _handle: TileGameObjectHandle) {}
-
-    #[inline]
-    fn z_sort_key(&self) -> TileZSortKey {
-        self.iso_coords_f32.0.y as TileZSortKey
-    }
 
     #[inline]
     fn iso_coords_f32(&self) -> IsoPointF32 {
@@ -557,11 +550,6 @@ impl TileBehavior for ObjectTile {
     }
 
     #[inline]
-    fn z_sort_key(&self) -> TileZSortKey {
-        calc_object_z_sort_key(self.cell_range.start, self.def.as_ref().logical_size.height)
-    }
-
-    #[inline]
     fn iso_coords_f32(&self) -> IsoPointF32 {
         self.iso_coords_f32
     }
@@ -596,11 +584,6 @@ impl TileBehavior for ObjectTile {
     fn anim_state_mut(&mut self) -> &mut TileAnimState {
         &mut self.anim_state
     }
-}
-
-#[inline]
-fn calc_object_z_sort_key(base_cell: Cell, logical_height: i32) -> TileZSortKey {
-    coords::cell_to_iso(base_cell, BASE_TILE_SIZE).y - logical_height
 }
 
 #[inline]
@@ -726,11 +709,6 @@ impl TileBehavior for BlockerTile {
     }
 
     #[inline]
-    fn z_sort_key(&self) -> TileZSortKey {
-        self.owner().z_sort_key()
-    }
-
-    #[inline]
     fn iso_coords_f32(&self) -> IsoPointF32 {
         self.owner().iso_coords_f32()
     }
@@ -777,23 +755,23 @@ impl Tile {
            tile_def: &'static TileDef,
            layer: &TileMapLayer)
            -> Self {
-        let (z_sort_key, archetype) = match layer.kind() {
+        let archetype = match layer.kind() {
             TileMapLayerKind::Terrain => {
                 debug_assert!(tile_def.kind() == TileKind::Terrain); // Only Terrain.
                 let terrain = TerrainTile::new(cell, tile_def);
-                (terrain.z_sort_key(), TileArchetype::from(terrain))
+                TileArchetype::from(terrain)
             }
             TileMapLayerKind::Objects => {
                 debug_assert!(tile_def.kind().intersects(TileKind::Object)); // Object | Building, Prop, etc...
                 let object = ObjectTile::new(cell, tile_def, layer);
-                (object.z_sort_key(), TileArchetype::from(object))
+                TileArchetype::from(object)
             }
         };
 
         Self { kind: tile_def.kind(),
                flags: tile_def.flags(),
                variation_index: 0,
-               z_sort_key,
+               user_z_sort_key: 0.0,
                self_index: index,
                next_index: TilePoolIndex::invalid(),
                archetype }
@@ -809,8 +787,8 @@ impl Tile {
         debug_assert!(owner_kind == TileKind::Object | TileKind::Building);
         Self { kind: TileKind::Object | TileKind::Blocker,
                flags: owner_flags,
-               variation_index: 0, // unused
-               z_sort_key: 0,      // unused
+               variation_index: 0,   // unused
+               user_z_sort_key: 0.0, // unused
                self_index: index,
                next_index: TilePoolIndex::invalid(),
                archetype: TileArchetype::from(BlockerTile::new(blocker_cell, owner_cell, layer)) }
@@ -908,13 +886,15 @@ impl Tile {
     }
 
     #[inline]
-    pub fn z_sort_key(&self) -> TileZSortKey {
-        self.z_sort_key
+    pub fn user_z_sort_key(&self) -> TileZSortKey {
+        debug_assert!(self.has_flags(TileFlags::UserDefinedZSort));
+        self.user_z_sort_key
     }
 
     #[inline]
-    pub fn set_z_sort_key(&mut self, z_sort_key: TileZSortKey) {
-        self.z_sort_key = z_sort_key;
+    pub fn set_user_z_sort_key(&mut self, z_sort_key: TileZSortKey) {
+        self.set_flags(TileFlags::UserDefinedZSort, true);
+        self.user_z_sort_key = z_sort_key;
     }
 
     #[inline]
@@ -938,13 +918,6 @@ impl Tile {
     pub fn set_iso_coords_f32(&mut self, iso_coords: IsoPointF32) {
         // Native internal format is f32.
         self.archetype.set_iso_coords_f32(iso_coords);
-
-        // Terrain z-sort is derived from iso coords. For Objects it
-        // is derived from the cell, so no need to update it here.
-        if self.is(TileKind::Terrain) && !self.has_flags(TileFlags::UserDefinedZSort) {
-            let new_z_sort_key = self.archetype.z_sort_key();
-            self.set_z_sort_key(new_z_sort_key);
-        }
     }
 
     #[inline]
@@ -1196,12 +1169,6 @@ impl Tile {
         // Re-setting the base cell takes care of updating cached iso coords.
         let base_cell = self.base_cell();
         self.archetype.set_base_cell(base_cell);
-
-        // Update cached z-sort too if we don't have an explicit user-defined override.
-        if !self.has_flags(TileFlags::UserDefinedZSort) {
-            let new_z_sort_key = self.archetype.z_sort_key();
-            self.set_z_sort_key(new_z_sort_key);
-        }
     }
 
     #[inline]
@@ -1227,13 +1194,6 @@ impl Tile {
 
         // This will also update the cached iso coords in the archetype.
         self.archetype.set_base_cell(cell);
-
-        // Z-sort key is derived from cell and iso coords so it has
-        // to be recomputed if we don't have an explicit user override.
-        if !self.has_flags(TileFlags::UserDefinedZSort) {
-            let new_z_sort_key = self.archetype.z_sort_key();
-            self.set_z_sort_key(new_z_sort_key);
-        }
     }
 
     #[inline]
@@ -1336,7 +1296,7 @@ impl TileMapLayerMutRefs {
 // TilePoolIndex
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)] // Serialized as a newtype/tuple.
 pub struct TilePoolIndex {
     value: u32,

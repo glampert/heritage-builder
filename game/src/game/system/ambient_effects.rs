@@ -6,6 +6,7 @@ use strum_macros::EnumIter;
 
 use super::GameSystem;
 use crate::{
+    log,
     ui::UiSystem,
     save::PostLoadContext,
     pathfind::{Path, Node},
@@ -118,9 +119,14 @@ fn spawn_bird(query: &Query, flight_path: BirdFlightPath) {
             completion_task: query.task_manager().new_task(UnitTaskDespawn),
         });
 
-    if let Ok(unit) = result {
-        unit.set_animation(query, anim_set_key);
-        unit.set_z_sort_key(query, TILE_Z_SORT_TOPMOST);
+    match result {
+        Ok(unit) => {
+            unit.set_animation(query, anim_set_key);
+            unit.set_user_z_sort_key(query, TILE_Z_SORT_TOPMOST);
+        }
+        Err(err) => {
+            log::warn!(log::channel!("ambient_effects"), "Failed to spawn bird: {err}");
+        }
     }
 }
 
