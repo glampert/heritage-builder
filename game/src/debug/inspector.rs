@@ -2,12 +2,12 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     engine::time::Seconds,
-    ui::{self, UiInputEvent},
+    ui::{self, UiInputEvent, UiStaticVar},
     pathfind::NodeKind as PathNodeKind,
     app::input::{InputAction, MouseButton},
     utils::{coords::Cell, mem, Color, Size, Vec2},
-    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE},
     game::{sim::{self, debug::DebugUiMode, Simulation}, menu::TileInspector},
+    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE, TILE_Z_SORT_TOPMOST, TILE_Z_SORT_BOTTOMMOST},
 };
 
 // ----------------------------------------------
@@ -284,10 +284,24 @@ impl TileInspectorDevMenu {
         let mut screen_coords = tile.screen_rect(context.transform, true).position();
         ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
 
+        ui.text("Z Sort Override:");
         if tile.has_flags(TileFlags::UserDefinedZSort) {
-            let mut user_z_sort_key = tile.user_z_sort_key();
-            if ui::input_f32(ui, "Z Sort Key Override:", &mut user_z_sort_key, false, None) {
-                tile.set_user_z_sort_key(user_z_sort_key);
+            static SELECTED_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
+            ui.combo_simple_string("##ZSortOverride",
+                                   SELECTED_IDX.as_mut(),
+                                   &["Topmost", "Bottommost", "Disabled"]);
+
+            match *SELECTED_IDX {
+                0 => tile.set_user_z_sort_key(TILE_Z_SORT_TOPMOST), // Topmost
+                1 => tile.set_user_z_sort_key(TILE_Z_SORT_BOTTOMMOST), // Bottommost
+                2 => { tile.set_flags(TileFlags::UserDefinedZSort, false); SELECTED_IDX.set(0) }, // Disabled
+                _ => {}
+            }
+        } else {
+            let mut enable_z_sort_override = false;
+            ui.checkbox("Enable Z Sort Override", &mut enable_z_sort_override);
+            if enable_z_sort_override {
+                tile.set_user_z_sort_key(TILE_Z_SORT_TOPMOST);
             }
         }
 

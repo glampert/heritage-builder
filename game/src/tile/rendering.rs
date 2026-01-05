@@ -507,9 +507,8 @@ struct TileDrawListEntry {
     // local Vec each time draw_map() is called.
     tile: mem::RawPtr<Tile>,
 
-    // Y value of the left corner of the tile iso diamond for sorting.
-    // Simulates a pseudo depth value so we can render units and buildings
-    // correctly.
+    // Y value of the left or right corner of the tile iso diamond for sorting.
+    // Simulates a pseudo depth value so we can render units and buildings correctly.
     z_sort_key: TileZSortKey,
 }
 
@@ -522,7 +521,7 @@ impl TileDrawListEntry {
                 tile.user_z_sort_key()
             } else {
                 // Compute from tile screen space diamond.
-                coords::cell_to_screen_diamond_left_corner_y(
+                coords::cell_to_screen_diamond_center_y(
                     tile.base_cell(),
                     tile.logical_size(),
                     BASE_TILE_SIZE,

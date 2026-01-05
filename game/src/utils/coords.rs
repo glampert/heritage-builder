@@ -593,13 +593,13 @@ pub fn cell_to_screen_diamond_points(cell: Cell,
     [top, right, bottom, left]
 }
 
-// Simplified version of cell_to_screen_diamond_points()
-// that only computes the left corner Y coord, used as tile sorting key.
-pub fn cell_to_screen_diamond_left_corner_y(cell: Cell,
-                                            tile_size: Size,
-                                            base_tile_size: Size,
-                                            transform: WorldToScreenTransform)
-                                            -> f32 {
+// Simplified version of cell_to_screen_diamond_points() that only
+// computes the left/right corner Y coord, used as tile sorting key.
+pub fn cell_to_screen_diamond_center_y(cell: Cell,
+                                       tile_size: Size,
+                                       base_tile_size: Size,
+                                       transform: WorldToScreenTransform)
+                                       -> f32 {
     debug_assert!(transform.is_valid());
 
     let iso_center = cell_to_iso(cell, base_tile_size);
@@ -611,6 +611,6 @@ pub fn cell_to_screen_diamond_left_corner_y(cell: Cell,
     let half_tile_h = tile_height * 0.5;
     let half_base_h = base_height * 0.5;
 
-    // Left diamond corner (same as cell_to_screen_diamond_points[3]).
+    // Left or right diamond corner Y (same as cell_to_screen_diamond_points()[1 or 3].y).
     screen_center.y - half_tile_h + half_base_h
 }
