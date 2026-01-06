@@ -1780,6 +1780,7 @@
         {
           "name": "bird",
           "occludes_terrain": false,
+          "flying_object": true,
           "draw_size": {
             "width": 42,
             "height": 35

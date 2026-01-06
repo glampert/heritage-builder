@@ -118,6 +118,19 @@ impl NodeKind {
     }
 
     #[inline]
+    pub fn is_flying_object_placeable(self) -> bool {
+        self.intersects(Self::Water |
+                        Self::EmptyLand |
+                        Self::Road |
+                        Self::VacantLot |
+                        Self::SettlersSpawnPoint |
+                        Self::Building |
+                        Self::Vegetation |
+                        Self::HarvestableTree |
+                        Self::Rocks)
+    }
+
+    #[inline]
     pub fn is_object_placeable(self) -> bool {
         self.intersects(Self::EmptyLand)
     }

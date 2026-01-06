@@ -51,7 +51,7 @@
     {
       "name": "Bird",
       "tile_def_name": "bird",
-      "traversable_node_kinds": "Water | EmptyLand | Road | VacantLot | Building | Vegetation | HarvestableTree | Rocks",
+      "traversable_node_kinds": "Water | EmptyLand | Road | VacantLot | SettlersSpawnPoint | Building | Vegetation | HarvestableTree | Rocks",
       "movement_speed": 1.66
     },
     {

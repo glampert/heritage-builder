@@ -491,6 +491,10 @@ pub struct TileDef {
     #[serde(default)]
     pub randomize_placement: bool,
 
+    // True if this is an aerial/flying object (e.g. bird).
+    #[serde(default)]
+    pub flying_object: bool,
+
     #[serde(default = "default_path_kind")]
     pub path_kind: PathNodeKind,
 

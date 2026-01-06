@@ -57,7 +57,15 @@ pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
                 if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                     let path_kind = tile.path_kind();
 
-                    if tile_def_to_place.is(TileKind::Unit) && !path_kind.is_unit_placeable() {
+                    if tile_def_to_place.is(TileKind::Object) && tile_def_to_place.flying_object
+                        && !path_kind.is_flying_object_placeable()
+                    {
+                        return Err(format!("Cannot place flying object '{}' over terrain tile '{}'.",
+                                        tile_def_to_place.name,
+                                        tile.name()));
+                    } else if tile_def_to_place.is(TileKind::Unit) && !tile_def_to_place.flying_object
+                        && !path_kind.is_unit_placeable()
+                    {
                         return Err(format!("Cannot place unit '{}' over terrain tile '{}'.",
                                         tile_def_to_place.name,
                                         tile.name()));
