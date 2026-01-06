@@ -241,6 +241,11 @@ impl TileMapRenderer {
 
             if should_draw {
                 self.temp_tile_sort_list.push(TileDrawListEntry::new(tile, transform));
+
+                // Push stacked chained tiles into the list so they will sort.
+                tile_map.visit_next_tiles(tile, |next_tile| {
+                     self.temp_tile_sort_list.push(TileDrawListEntry::new(next_tile, transform));
+                });
             }
         };
 
@@ -275,21 +280,7 @@ impl TileMapRenderer {
             }
         }
 
-        self.temp_tile_sort_list.sort_by(|a, b| {
-            let a_tile = a.tile();
-            let b_tile = b.tile();
-
-            a.depth_sort_key
-                .partial_cmp(&b.depth_sort_key)
-                .unwrap()
-                .then_with(|| {
-                    // In case of tie, draw units/props above buildings.
-                    let a_prio = a_tile.is(TileKind::Unit | TileKind::Vegetation | TileKind::Rocks);
-                    let b_prio = b_tile.is(TileKind::Unit | TileKind::Vegetation | TileKind::Rocks);
-                    a_prio.cmp(&b_prio)
-                })
-                .then_with(|| a_tile.index().cmp(&b_tile.index())) // Fallback to tile pool index if all else equal.
-        });
+        self.temp_tile_sort_list.sort_by(TileDrawListEntry::compare);
 
         for entry in &self.temp_tile_sort_list {
             let tile = entry.tile();
@@ -302,17 +293,6 @@ impl TileMapRenderer {
                             tile,
                             tile_map,
                             flags);
-
-            // Draw stacked chained tiles.
-            tile_map.visit_next_tiles(tile, |next_tile| {
-                Self::draw_tile(render_sys,
-                                &mut self.stats,
-                                ui_sys,
-                                transform,
-                                next_tile,
-                                tile_map,
-                                flags);
-            });
         }
 
         self.stats.tile_sort_list_len += self.temp_tile_sort_list.len() as u32;
@@ -343,8 +323,8 @@ impl TileMapRenderer {
         let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
         let line_thickness = self.grid_line_thickness * transform.scaling;
 
-        let mut highlighted_cells = SmallVec::<[[Vec2; 4]; 128]>::new();
-        let mut invalidated_cells = SmallVec::<[[Vec2; 4]; 128]>::new();
+        let mut highlighted_cells = SmallVec::<[[Vec2; 4]; 64]>::new();
+        let mut invalidated_cells = SmallVec::<[[Vec2; 4]; 64]>::new();
 
         for cell in &visible_range {
             let points = coords::cell_to_screen_diamond_points(cell,
@@ -539,6 +519,23 @@ impl TileDrawListEntry {
             tile: mem::RawPtr::from_ref(tile),
             depth_sort_key,
         }
+    }
+
+    #[inline]
+    fn compare(a: &TileDrawListEntry, b: &TileDrawListEntry) -> std::cmp::Ordering {
+        let a_tile = a.tile();
+        let b_tile = b.tile();
+
+        a.depth_sort_key
+            .partial_cmp(&b.depth_sort_key)
+            .unwrap()
+            .then_with(|| {
+                // In case of tie, draw units/props in front of buildings.
+                let a_prio = a_tile.is(TileKind::Unit | TileKind::Vegetation | TileKind::Rocks);
+                let b_prio = b_tile.is(TileKind::Unit | TileKind::Vegetation | TileKind::Rocks);
+                a_prio.cmp(&b_prio)
+            })
+            .then_with(|| a_tile.index().cmp(&b_tile.index())) // Fallback to tile pool index if all else equal.
     }
 
     #[inline(always)]
