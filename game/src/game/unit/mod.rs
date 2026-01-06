@@ -27,7 +27,7 @@ use crate::{
     pathfind::{NodeKind as PathNodeKind, Path},
     tile::{
         self, Tile, TileKind, TileMap,
-        TileMapLayerKind, TilePoolIndex, TileZSortKey
+        TileMapLayerKind, TilePoolIndex, TileDepthSortOverride
     },
     utils::{
         self, hash, Color,
@@ -260,9 +260,9 @@ impl Unit {
         self.anim_sets.set_anim(tile, new_anim_set_key);
     }
 
-    pub fn set_user_z_sort_key(&mut self, query: &Query, new_z_sort_key: TileZSortKey) {
+    pub fn set_depth_sort_override(&mut self, query: &Query, depth_sort_override: TileDepthSortOverride) {
         let tile = self.find_tile_mut(query);
-        tile.set_user_z_sort_key(new_z_sort_key);
+        tile.set_depth_sort_override(depth_sort_override);
     }
 
     #[inline]

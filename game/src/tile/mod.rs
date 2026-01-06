@@ -8,7 +8,7 @@ use enum_dispatch::enum_dispatch;
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
-use strum_macros::{Display, EnumCount, EnumIter, EnumProperty};
+use strum_macros::{Display, EnumCount, EnumIter, EnumProperty, VariantNames, VariantArray};
 use std::{ops::{Index, IndexMut}, path::PathBuf};
 
 pub use placement::PlacementOp;
@@ -41,16 +41,21 @@ mod atlas;
 mod placement;
 
 // ----------------------------------------------
-// Constants
+// Constants / Enums
 // ----------------------------------------------
 
 pub const BASE_TILE_SIZE: Size = Size { width: 64, height: 32 };
 
-pub type TileVariationIndex = u8;
-pub type TileZSortKey = f32;
+#[repr(u8)]
+#[derive(Copy, Clone, Default, VariantArray, VariantNames, Serialize, Deserialize)]
+pub enum TileDepthSortOverride {
+    #[default]
+    None,
+    Topmost,
+    Bottommost,
+}
 
-pub const TILE_Z_SORT_TOPMOST: TileZSortKey = f32::MAX; // Tile draws on top of everything else.
-pub const TILE_Z_SORT_BOTTOMMOST: TileZSortKey = f32::MIN; // Tile draws below everything else.
+pub type TileVariationIndex = u8;
 
 // ----------------------------------------------
 // TileKind
@@ -108,12 +113,11 @@ bitflags_with_display! {
         const DirtRoadPlacement  = 1 << 6;
         const PavedRoadPlacement = 1 << 7;
         const RandomizePlacement = 1 << 8;
-        const UserDefinedZSort   = 1 << 9;
 
         // Debug flags:
-        const DrawDebugInfo      = 1 << 10;
-        const DrawDebugBounds    = 1 << 11;
-        const DrawBlockerInfo    = 1 << 12;
+        const DrawDebugInfo      = 1 << 9;
+        const DrawDebugBounds    = 1 << 10;
+        const DrawBlockerInfo    = 1 << 11;
     }
 }
 
@@ -312,7 +316,7 @@ pub struct Tile {
     kind: TileKind,
     flags: TileFlags,
     variation_index: TileVariationIndex,
-    user_z_sort_key: TileZSortKey,
+    depth_sort_override: TileDepthSortOverride,
     self_index: TilePoolIndex,
     next_index: TilePoolIndex,
     archetype: TileArchetype,
@@ -771,7 +775,7 @@ impl Tile {
         Self { kind: tile_def.kind(),
                flags: tile_def.flags(),
                variation_index: 0,
-               user_z_sort_key: 0.0,
+               depth_sort_override: TileDepthSortOverride::default(),
                self_index: index,
                next_index: TilePoolIndex::invalid(),
                archetype }
@@ -787,8 +791,8 @@ impl Tile {
         debug_assert!(owner_kind == TileKind::Object | TileKind::Building);
         Self { kind: TileKind::Object | TileKind::Blocker,
                flags: owner_flags,
-               variation_index: 0,   // unused
-               user_z_sort_key: 0.0, // unused
+               variation_index: 0, // unused
+               depth_sort_override: TileDepthSortOverride::default(), // unused
                self_index: index,
                next_index: TilePoolIndex::invalid(),
                archetype: TileArchetype::from(BlockerTile::new(blocker_cell, owner_cell, layer)) }
@@ -886,15 +890,13 @@ impl Tile {
     }
 
     #[inline]
-    pub fn user_z_sort_key(&self) -> TileZSortKey {
-        debug_assert!(self.has_flags(TileFlags::UserDefinedZSort));
-        self.user_z_sort_key
+    pub fn depth_sort_override(&self) -> TileDepthSortOverride {
+        self.depth_sort_override
     }
 
     #[inline]
-    pub fn set_user_z_sort_key(&mut self, z_sort_key: TileZSortKey) {
-        self.set_flags(TileFlags::UserDefinedZSort, true);
-        self.user_z_sort_key = z_sort_key;
+    pub fn set_depth_sort_override(&mut self, depth_sort_override: TileDepthSortOverride) {
+        self.depth_sort_override = depth_sort_override;
     }
 
     #[inline]

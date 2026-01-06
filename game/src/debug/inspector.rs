@@ -1,13 +1,14 @@
 use proc_macros::DrawDebugUi;
+use strum::{VariantArray, VariantNames};
 
 use crate::{
     engine::time::Seconds,
-    ui::{self, UiInputEvent, UiStaticVar},
+    ui::{self, UiInputEvent},
     pathfind::NodeKind as PathNodeKind,
     app::input::{InputAction, MouseButton},
     utils::{coords::Cell, mem, Color, Size, Vec2},
     game::{sim::{self, debug::DebugUiMode, Simulation}, menu::TileInspector},
-    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE, TILE_Z_SORT_TOPMOST, TILE_Z_SORT_BOTTOMMOST},
+    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, TileDepthSortOverride, BASE_TILE_SIZE},
 };
 
 // ----------------------------------------------
@@ -284,24 +285,15 @@ impl TileInspectorDevMenu {
         let mut screen_coords = tile.screen_rect(context.transform, true).position();
         ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
 
-        ui.text("Z Sort Override:");
-        if tile.has_flags(TileFlags::UserDefinedZSort) {
-            static SELECTED_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
-            ui.combo_simple_string("##ZSortOverride",
-                                   SELECTED_IDX.as_mut(),
-                                   &["Topmost", "Bottommost", "Disabled"]);
-
-            match *SELECTED_IDX {
-                0 => tile.set_user_z_sort_key(TILE_Z_SORT_TOPMOST), // Topmost
-                1 => tile.set_user_z_sort_key(TILE_Z_SORT_BOTTOMMOST), // Bottommost
-                2 => { tile.set_flags(TileFlags::UserDefinedZSort, false); SELECTED_IDX.set(0) }, // Disabled
-                _ => {}
-            }
-        } else {
-            let mut enable_z_sort_override = false;
-            ui.checkbox("Enable Z Sort Override", &mut enable_z_sort_override);
-            if enable_z_sort_override {
-                tile.set_user_z_sort_key(TILE_Z_SORT_TOPMOST);
+        ui.text("Depth Sort Override:");
+        {
+            let mut selected_index = tile.depth_sort_override() as usize;
+            if ui.combo_simple_string("##DepthSortOverride",
+                                      &mut selected_index,
+                                      <TileDepthSortOverride as VariantNames>::VARIANTS)
+            {
+                let selected_override = <TileDepthSortOverride as VariantArray>::VARIANTS[selected_index];
+                tile.set_depth_sort_override(selected_override);
             }
         }
 
@@ -345,7 +337,6 @@ impl TileInspectorDevMenu {
         tile_flag_ui_checkbox!(ui, tile, DirtRoadPlacement);
         tile_flag_ui_checkbox!(ui, tile, PavedRoadPlacement);
         tile_flag_ui_checkbox!(ui, tile, RandomizePlacement);
-        tile_flag_ui_checkbox!(ui, tile, UserDefinedZSort);
         tile_flag_ui_checkbox!(ui, tile, DrawDebugInfo);
         tile_flag_ui_checkbox!(ui, tile, DrawDebugBounds);
         tile_flag_ui_checkbox!(ui, tile, DrawBlockerInfo);

@@ -13,7 +13,7 @@ use crate::{
         road, water,
         sets::{TileDef, TileSets},
         rendering::{TileMapRenderFlags, TileMapRenderStats},
-        Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, BASE_TILE_SIZE,
+        Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileDepthSortOverride, BASE_TILE_SIZE,
     },
     utils::{
         coords::{self, Cell, CellRange, WorldToScreenTransform},
@@ -305,8 +305,11 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
             ui.text(format!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
             ui.text(format!("I:{:.1},{:.1}", tile_iso_pos.0.x, tile_iso_pos.0.y)); // 2D isometric position
 
-            if tile.has_flags(TileFlags::UserDefinedZSort) {
-                ui.text(format!("Z:{:.1}", tile.user_z_sort_key())); // Z-sort
+            // Z/Depth sorting:
+            match tile.depth_sort_override() {
+                TileDepthSortOverride::None => {},
+                TileDepthSortOverride::Topmost => ui.text("Z: Top"),
+                TileDepthSortOverride::Bottommost => ui.text("Z: Bottom"),
             }
 
             ui.set_window_font_scale(1.0);

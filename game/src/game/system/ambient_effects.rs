@@ -11,7 +11,7 @@ use crate::{
     save::PostLoadContext,
     pathfind::{Path, Node},
     engine::time::UpdateTimer,
-    tile::{TILE_Z_SORT_TOPMOST},
+    tile::{TileDepthSortOverride},
     utils::{callback::Callback, coords::Cell, Size},
     game::{
         config::GameConfigs,
@@ -122,7 +122,7 @@ fn spawn_bird(query: &Query, flight_path: BirdFlightPath) {
     match result {
         Ok(unit) => {
             unit.set_animation(query, anim_set_key);
-            unit.set_user_z_sort_key(query, TILE_Z_SORT_TOPMOST);
+            unit.set_depth_sort_override(query, TileDepthSortOverride::Topmost);
         }
         Err(err) => {
             log::warn!(log::channel!("ambient_effects"), "Failed to spawn bird: {err}");

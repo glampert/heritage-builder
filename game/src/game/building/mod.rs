@@ -987,9 +987,7 @@ impl Building {
                             ui.combo_simple_string("Kind", BUILDING_KIND_IDX.as_mut(), &["House"]);
                             BuildingKind::House
                         } else {
-                            let mut building_kind_names: SmallVec<[&'static str;
-                                                                   BuildingKind::count()]> =
-                                SmallVec::new();
+                            let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
                             for kind in BuildingKind::FLAGS {
                                 if *kind.value() != BuildingKind::House {
                                     building_kind_names.push(kind.name());

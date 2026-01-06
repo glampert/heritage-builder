@@ -8,7 +8,7 @@ use super::{
     TileKind,
     TileMap,
     TileMapLayerKind,
-    TileZSortKey,
+    TileDepthSortOverride,
     BASE_TILE_SIZE
 };
 use crate::{
@@ -279,8 +279,8 @@ impl TileMapRenderer {
             let a_tile = a.tile();
             let b_tile = b.tile();
 
-            a.z_sort_key
-                .partial_cmp(&b.z_sort_key)
+            a.depth_sort_key
+                .partial_cmp(&b.depth_sort_key)
                 .unwrap()
                 .then_with(|| {
                     // In case of tie, draw units/props above buildings.
@@ -497,6 +497,9 @@ impl TileMapRenderer {
 // TileDrawListEntry
 // ----------------------------------------------
 
+const TILE_DEPTH_SORT_KEY_TOPMOST:    f32 = f32::MAX; // Tile draws on top of everything else.
+const TILE_DEPTH_SORT_KEY_BOTTOMMOST: f32 = f32::MIN; // Tile draws below everything else.
+
 struct TileDrawListEntry {
     // NOTE: Raw pointer, no lifetime.
     // This is only a temporary reference that lives
@@ -509,29 +512,32 @@ struct TileDrawListEntry {
 
     // Y value of the left or right corner of the tile iso diamond for sorting.
     // Simulates a pseudo depth value so we can render units and buildings correctly.
-    z_sort_key: TileZSortKey,
+    // May be overridden by TileDepthSortOverride.
+    depth_sort_key: f32,
 }
 
 impl TileDrawListEntry {
     #[inline]
     fn new(tile: &Tile, transform: WorldToScreenTransform) -> Self {
-        let z_sort_key = {
+        let depth_sort_key = {
             // User defined override?
-            if tile.has_flags(TileFlags::UserDefinedZSort) {
-                tile.user_z_sort_key()
-            } else {
-                // Compute from tile screen space diamond.
-                coords::cell_to_screen_diamond_center_y(
-                    tile.base_cell(),
-                    tile.logical_size(),
-                    BASE_TILE_SIZE,
-                    transform)
+            match tile.depth_sort_override() {
+                TileDepthSortOverride::None => {
+                    // Compute from tile screen space diamond.
+                    coords::cell_to_screen_diamond_center_y(
+                        tile.base_cell(),
+                        tile.logical_size(),
+                        BASE_TILE_SIZE,
+                        transform)
+                }
+                TileDepthSortOverride::Topmost => TILE_DEPTH_SORT_KEY_TOPMOST,
+                TileDepthSortOverride::Bottommost => TILE_DEPTH_SORT_KEY_BOTTOMMOST,
             }
         };
 
         Self {
             tile: mem::RawPtr::from_ref(tile),
-            z_sort_key,
+            depth_sort_key,
         }
     }
 
