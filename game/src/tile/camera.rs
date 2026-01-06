@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{selection, BASE_TILE_SIZE};
+use super::{selection};
 use crate::{
     singleton,
     engine::time::Seconds,
@@ -8,6 +8,7 @@ use crate::{
     save::*,
     utils::{
         self,
+        constants::*,
         Rect, Size, Vec2,
         coords::{self, Cell, CellF32, CellRange, WorldToScreenTransform, IsoPointF32},
     },
@@ -202,8 +203,8 @@ impl Camera {
         let (iso_top_left, iso_bottom_right) = self.iso_bounds();
 
         // Convert iso rect corners to fractional cell coordinates (continuous).
-        let cell_min = coords::iso_to_cell_f32(iso_top_left, BASE_TILE_SIZE);
-        let cell_max = coords::iso_to_cell_f32(iso_bottom_right, BASE_TILE_SIZE);
+        let cell_min = coords::iso_to_cell_f32(iso_top_left);
+        let cell_max = coords::iso_to_cell_f32(iso_bottom_right);
 
         // Ensure correct ordering (min <= max).
         let cell_x_min = cell_min.0.x.min(cell_max.0.x);
@@ -222,10 +223,10 @@ impl Camera {
     pub fn cell_corners(&self) -> [CellF32; 4] {
         let iso_corners = self.iso_corners();
         [
-            coords::iso_to_cell_f32(iso_corners[0], BASE_TILE_SIZE),
-            coords::iso_to_cell_f32(iso_corners[1], BASE_TILE_SIZE),
-            coords::iso_to_cell_f32(iso_corners[2], BASE_TILE_SIZE),
-            coords::iso_to_cell_f32(iso_corners[3], BASE_TILE_SIZE),
+            coords::iso_to_cell_f32(iso_corners[0]),
+            coords::iso_to_cell_f32(iso_corners[1]),
+            coords::iso_to_cell_f32(iso_corners[2]),
+            coords::iso_to_cell_f32(iso_corners[3]),
         ]
     }
 
@@ -359,13 +360,12 @@ impl Camera {
 
         let viewport_center = self.viewport_size.to_vec2() * 0.5;
 
-        let iso_point = coords::cell_to_iso(destination_cell, BASE_TILE_SIZE);
+        let iso_point = coords::cell_to_iso(destination_cell);
 
         let transform_no_offset =
             WorldToScreenTransform::new(self.transform.scaling, Vec2::zero());
 
-        let screen_point =
-            coords::iso_to_screen_point(iso_point, transform_no_offset, BASE_TILE_SIZE);
+        let screen_point = coords::iso_to_screen_point(iso_point, transform_no_offset);
 
         self.set_scroll(viewport_center - screen_point);
         true
@@ -379,7 +379,7 @@ impl Camera {
             WorldToScreenTransform::new(self.transform.scaling, Vec2::zero());
 
         let screen_point =
-            coords::iso_to_screen_rect_f32(destination_iso, BASE_TILE_SIZE, transform_no_offset);
+            coords::iso_to_screen_rect_f32(destination_iso, BASE_TILE_SIZE_I32, transform_no_offset);
 
         self.set_scroll(viewport_center - screen_point.position());
         true
@@ -422,14 +422,14 @@ fn calc_visible_cells_range(map_size_in_cells: Size,
     }
 
     // Add one extra row of tiles on each end to avoid any visual popping while scrolling.
-    let tile_width  = (BASE_TILE_SIZE.width  as f32) * transform.scaling;
-    let tile_height = (BASE_TILE_SIZE.height as f32) * transform.scaling;
+    let tile_width  = BASE_TILE_WIDTH_F32  * transform.scaling;
+    let tile_height = BASE_TILE_HEIGHT_F32 * transform.scaling;
 
     let pos  = Vec2::new(-tile_width, -tile_height);
     let size = Vec2::new((viewport_size.width as f32) + tile_width, (viewport_size.height as f32) + tile_height);
     let screen_rect = Rect::new(pos, size);
 
-    selection::bounds(&screen_rect, BASE_TILE_SIZE, map_size_in_cells, transform)
+    selection::bounds(&screen_rect, map_size_in_cells, transform)
 }
 
 fn calc_scroll_delta(ui_hovered: bool, cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
@@ -499,14 +499,14 @@ fn calc_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -
         return Rect::from_pos_and_size(Vec2::zero(), viewport_size);
     }
 
-    let tile_width_pixels  = (BASE_TILE_SIZE.width  as f32) * scaling;
-    let tile_height_pixels = (BASE_TILE_SIZE.height as f32) * scaling;
+    let tile_width_pixels  = BASE_TILE_WIDTH_F32  * scaling;
+    let tile_height_pixels = BASE_TILE_HEIGHT_F32 * scaling;
 
     let map_width_pixels  = (map_size_in_cells.width  as f32) * tile_width_pixels;
     let map_height_pixels = (map_size_in_cells.height as f32) * tile_height_pixels;
 
-    let half_tile_width_pixels = tile_width_pixels / 2.0;
-    let half_map_width_pixels  = map_width_pixels  / 2.0;
+    let half_tile_width_pixels = tile_width_pixels * 0.5;
+    let half_map_width_pixels  = map_width_pixels  * 0.5;
 
     let min_pt = Vec2::new(
         -(half_map_width_pixels + half_tile_width_pixels - (viewport_size.width as f32)),

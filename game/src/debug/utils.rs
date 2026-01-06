@@ -13,7 +13,7 @@ use crate::{
         road, water,
         sets::{TileDef, TileSets},
         rendering::{TileMapRenderFlags, TileMapRenderStats},
-        Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileDepthSortOverride, BASE_TILE_SIZE,
+        Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileDepthSortOverride,
     },
     utils::{
         coords::{self, Cell, CellRange, WorldToScreenTransform},
@@ -84,9 +84,9 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem,
               ui.text(text);
           } else {
               let cursor_iso_pos =
-                  coords::screen_to_iso_point(cursor_screen_pos, transform, BASE_TILE_SIZE);
+                  coords::screen_to_iso_point(cursor_screen_pos, transform);
 
-              let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos, BASE_TILE_SIZE);
+              let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos);
 
               ui.text(format!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
               ui.text(format!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
@@ -370,7 +370,6 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
     if diamond_iso {
         let diamond_points = coords::cell_to_screen_diamond_points(tile.base_cell(),
                                                                    tile.logical_size(),
-                                                                   BASE_TILE_SIZE,
                                                                    transform);
 
         render_sys.draw_line_fast(diamond_points[0], diamond_points[1], color, color);

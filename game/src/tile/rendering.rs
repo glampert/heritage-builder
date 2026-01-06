@@ -9,13 +9,13 @@ use super::{
     TileMap,
     TileMapLayerKind,
     TileDepthSortOverride,
-    BASE_TILE_SIZE
 };
 use crate::{
     debug::{self},
     ui::UiSystem,
     render::RenderSystem,
     utils::{
+        constants::*,
         coords::{self, CellRange, WorldToScreenTransform, IsoPointF32},
         mem, Color, Vec2,
     },
@@ -188,7 +188,7 @@ impl TileMapRenderer {
         for cell in visible_range.iter_rev() {
             if let Some(tile) = terrain.try_tile(cell) {
                 // Terrain tiles size is constrained. Sanity check it:
-                debug_assert!(tile.is(TileKind::Terrain) && tile.logical_size() == BASE_TILE_SIZE);
+                debug_assert!(tile.is(TileKind::Terrain) && tile.logical_size() == BASE_TILE_SIZE_I32);
 
                 // As an optimization, skip drawing terrain tile
                 // if fully occluded by any object.
@@ -258,8 +258,8 @@ impl TileMapRenderer {
 
             if should_draw {
                 // Debug display for blocker tiles:
-                let tile_iso_pos = coords::cell_to_iso(cell, BASE_TILE_SIZE);
-                let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_pos, BASE_TILE_SIZE, transform);
+                let tile_iso_pos = coords::cell_to_iso(cell);
+                let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_pos, BASE_TILE_SIZE_I32, transform);
                 debug::utils::draw_tile_debug(render_sys,
                                               ui_sys,
                                               tile_screen_rect,
@@ -327,10 +327,7 @@ impl TileMapRenderer {
         let mut invalidated_cells = SmallVec::<[[Vec2; 4]; 64]>::new();
 
         for cell in &visible_range {
-            let points = coords::cell_to_screen_diamond_points(cell,
-                                                               BASE_TILE_SIZE,
-                                                               BASE_TILE_SIZE,
-                                                               transform);
+            let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
             if is_fully_offscreen(&points) {
                 continue; // Cull if fully offscreen.
             }
@@ -442,7 +439,7 @@ impl TileMapRenderer {
             let tex_coords = &tile_sprite.coords;
             let texture = tile_sprite.texture;
 
-            let iso_position = IsoPointF32::from_integer_iso(coords::cell_to_iso(cell, tile_def.logical_size));
+            let iso_position = IsoPointF32::from_integer_iso(coords::cell_to_iso(cell));
             let tile_screen_rect = coords::iso_to_screen_rect_f32(iso_position, tile_def.draw_size, transform);
 
             let mut color = tile_def.color;
@@ -507,7 +504,6 @@ impl TileDrawListEntry {
                     coords::cell_to_screen_diamond_center_y(
                         tile.base_cell(),
                         tile.logical_size(),
-                        BASE_TILE_SIZE,
                         transform)
                 }
                 TileDepthSortOverride::Topmost => TILE_DEPTH_SORT_KEY_TOPMOST,

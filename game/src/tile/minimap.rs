@@ -6,7 +6,7 @@ use strum_macros::{EnumCount, EnumIter, EnumProperty};
 
 use super::{
     TileKind, TileMap, TileMapLayerKind, sets::TileDef,
-    camera::Camera, water, road, BASE_TILE_SIZE,
+    camera::Camera, water, road,
 };
 
 use crate::{
@@ -944,7 +944,7 @@ impl MinimapWidgetImGui {
                 let (uv_min, uv_max) = self.current_minimap_uv_window();
 
                 let camera_center_iso = camera.iso_world_position();
-                let camera_center_cell = coords::iso_to_cell_f32(camera_center_iso, BASE_TILE_SIZE);
+                let camera_center_cell = coords::iso_to_cell_f32(camera_center_iso);
 
                 let minimap_visible_cells = Self::calc_minimap_visible_cells(self.minimap_size_in_cells,
                                                                              self.minimap_transform.zoom());
@@ -1125,7 +1125,7 @@ impl MinimapWidgetImGui {
                 if self.is_minimap_rotated() {
                     // We want to visualize the derived camera center cell:
                     let camera_center_iso = camera.iso_world_position();
-                    let camera_center_cell = coords::iso_to_cell_f32(camera_center_iso, BASE_TILE_SIZE);
+                    let camera_center_cell = coords::iso_to_cell_f32(camera_center_iso);
                     let camera_center_screen = self.cell_to_scaled_minimap_widget_px(camera_center_cell);
                     let minimap_center_screen = self.minimap_draw_info.rect.center();
                     camera_center_screen.rotate_around_point(minimap_center_screen, MINIMAP_ROTATION_ANGLE)
@@ -1196,7 +1196,7 @@ impl MinimapWidgetImGui {
 
         // Tile map iso coords: Bottom-left origin (BLUE circle).
         let iso_origin = self.cell_to_scaled_minimap_widget_px(
-            coords::iso_to_cell_f32(IsoPointF32(Vec2::new(0.0, 0.0)), BASE_TILE_SIZE)
+            coords::iso_to_cell_f32(IsoPointF32(Vec2::new(0.0, 0.0)))
         );
         draw_list.add_circle(iso_origin.to_array(),
                              2.0,
@@ -1231,7 +1231,7 @@ impl MinimapWidgetImGui {
             return None;
         }
 
-        Some(coords::cell_to_iso_f32(cell, BASE_TILE_SIZE))
+        Some(coords::cell_to_iso_f32(cell))
     }
 
     fn update_minimap_zoom(&mut self) {
@@ -1350,10 +1350,10 @@ impl MinimapWidgetImGui {
         let w = size_in_cells.x;
         let h = size_in_cells.y;
         let points = [
-            coords::cell_to_iso_f32(CellF32(Vec2::new(0.0, 0.0)), BASE_TILE_SIZE).0,
-            coords::cell_to_iso_f32(CellF32(Vec2::new(0.0, h  )), BASE_TILE_SIZE).0,
-            coords::cell_to_iso_f32(CellF32(Vec2::new(w,   0.0)), BASE_TILE_SIZE).0,
-            coords::cell_to_iso_f32(CellF32(Vec2::new(w,   h  )), BASE_TILE_SIZE).0,
+            coords::cell_to_iso_f32(CellF32(Vec2::new(0.0, 0.0))).0,
+            coords::cell_to_iso_f32(CellF32(Vec2::new(0.0, h  ))).0,
+            coords::cell_to_iso_f32(CellF32(Vec2::new(w,   0.0))).0,
+            coords::cell_to_iso_f32(CellF32(Vec2::new(w,   h  ))).0,
         ];
         Rect::aabb(&points)
     }

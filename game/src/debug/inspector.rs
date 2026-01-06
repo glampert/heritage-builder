@@ -6,9 +6,9 @@ use crate::{
     ui::{self, UiInputEvent},
     pathfind::NodeKind as PathNodeKind,
     app::input::{InputAction, MouseButton},
-    utils::{coords::Cell, mem, Color, Size, Vec2},
+    utils::{constants::*, coords::Cell, mem, Color, Size, Vec2},
     game::{sim::{self, debug::DebugUiMode, Simulation}, menu::TileInspector},
-    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, TileDepthSortOverride, BASE_TILE_SIZE},
+    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, TileDepthSortOverride},
 };
 
 // ----------------------------------------------
@@ -519,13 +519,13 @@ impl TileInspectorDevMenu {
                                   "Logical Size:",
                                   &mut logical_size,
                                   false,
-                                  Some([BASE_TILE_SIZE.width, BASE_TILE_SIZE.height]),
+                                  Some([BASE_TILE_WIDTH_I32, BASE_TILE_HEIGHT_I32]),
                                   Some(["W", "H"]))
         {
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 if logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
-                    && (logical_size.width  % BASE_TILE_SIZE.width)  == 0
-                    && (logical_size.height % BASE_TILE_SIZE.height) == 0
+                    && (logical_size.width  % BASE_TILE_WIDTH_I32)  == 0
+                    && (logical_size.height % BASE_TILE_HEIGHT_I32) == 0
                 {
                     editable_def.logical_size = logical_size;
                     tile.on_tile_def_edited();

@@ -3,7 +3,7 @@
 use std::{iter::FusedIterator, ops::RangeInclusive};
 use serde::{Deserialize, Serialize};
 
-use super::{FieldAccessorXY, Rect, Size, Vec2};
+use super::{FieldAccessorXY, Rect, Size, Vec2, constants::*};
 use crate::field_accessor_xy;
 
 // ----------------------------------------------
@@ -408,96 +408,68 @@ impl Default for WorldToScreenTransform {
 // +-----------------------------------------------+
 
 #[inline]
-pub fn iso_to_cell(iso_point: IsoPoint, tile_size: Size) -> Cell {
-    let half_tile_width  = tile_size.width  / 2;
-    let half_tile_height = tile_size.height / 2;
-
-    // Invert Y axis to match top-left origin
-    let cell_x = (( iso_point.x / half_tile_width)  + (-iso_point.y / half_tile_height)) / 2;
-    let cell_y = ((-iso_point.y / half_tile_height) - ( iso_point.x / half_tile_width))  / 2;
-
+pub fn iso_to_cell(iso_point: IsoPoint) -> Cell {
+    // Invert Y axis to match top-left origin.
+    let cell_x = (( iso_point.x / HALF_BASE_TILE_WIDTH_I32)  + (-iso_point.y / HALF_BASE_TILE_HEIGHT_I32)) / 2;
+    let cell_y = ((-iso_point.y / HALF_BASE_TILE_HEIGHT_I32) - ( iso_point.x / HALF_BASE_TILE_WIDTH_I32))  / 2;
     Cell::new(cell_x, cell_y)
 }
 
 #[inline]
-pub fn cell_to_iso(cell: Cell, tile_size: Size) -> IsoPoint {
-    let half_tile_width  = tile_size.width  / 2;
-    let half_tile_height = tile_size.height / 2;
-
-    let iso_x = (cell.x - cell.y) *  half_tile_width;
-    let iso_y = (cell.x + cell.y) * -half_tile_height; // flip Y (top-left origin)
-
+pub fn cell_to_iso(cell: Cell) -> IsoPoint {
+    let iso_x = (cell.x - cell.y) *  HALF_BASE_TILE_WIDTH_I32;
+    let iso_y = (cell.x + cell.y) * -HALF_BASE_TILE_HEIGHT_I32; // flip Y (top-left origin)
     IsoPoint::new(iso_x, iso_y)
 }
 
 // Returns fractional (float) cell coords for a given iso point.
 // NOTE: This is the same as coords::iso_to_cell() but using f32.
 #[inline]
-pub fn iso_to_cell_f32(iso_point: IsoPointF32, tile_size: Size) -> CellF32 {
-    let half_tile_width  = (tile_size.width  / 2) as f32;
-    let half_tile_height = (tile_size.height / 2) as f32;
-
+pub fn iso_to_cell_f32(iso_point: IsoPointF32) -> CellF32 {
     // Invert Y axis to match top-left origin.
-    let cell_x = (( iso_point.0.x / half_tile_width)  + (-iso_point.0.y / half_tile_height)) / 2.0;
-    let cell_y = ((-iso_point.0.y / half_tile_height) - ( iso_point.0.x / half_tile_width))  / 2.0;
-
+    let cell_x = (( iso_point.0.x / HALF_BASE_TILE_WIDTH_F32)  + (-iso_point.0.y / HALF_BASE_TILE_HEIGHT_F32)) * 0.5;
+    let cell_y = ((-iso_point.0.y / HALF_BASE_TILE_HEIGHT_F32) - ( iso_point.0.x / HALF_BASE_TILE_WIDTH_F32))  * 0.5;
     CellF32(Vec2::new(cell_x, cell_y))
 }
 
 // Returns fractional (float) iso coords for a given tile map cell.
 // NOTE: This is the same as coords::cell_to_iso() but using f32.
 #[inline]
-pub fn cell_to_iso_f32(cell: CellF32, tile_size: Size) -> IsoPointF32 {
-    let half_tile_width  = (tile_size.width  / 2) as f32;
-    let half_tile_height = (tile_size.height / 2) as f32;
-
-    let iso_x = (cell.0.x - cell.0.y) *  half_tile_width;
-    let iso_y = (cell.0.x + cell.0.y) * -half_tile_height; // flip Y (top-left origin)
-
+pub fn cell_to_iso_f32(cell: CellF32) -> IsoPointF32 {
+    let iso_x = (cell.0.x - cell.0.y) *  HALF_BASE_TILE_WIDTH_F32;
+    let iso_y = (cell.0.x + cell.0.y) * -HALF_BASE_TILE_HEIGHT_F32; // flip Y (top-left origin)
     IsoPointF32(Vec2::new(iso_x, iso_y))
 }
 
 #[inline]
-pub fn iso_to_screen_point(iso_point: IsoPoint,
-                           transform: WorldToScreenTransform,
-                           tile_size: Size)
-                           -> Vec2 {
+pub fn iso_to_screen_point(iso_point: IsoPoint, transform: WorldToScreenTransform) -> Vec2 {
     // Undo offsetting.
     let mut iso = iso_point;
-    iso.x += tile_size.width  / 2;
-    iso.y += tile_size.height / 2;
+    iso.x += HALF_BASE_TILE_WIDTH_I32;
+    iso.y += HALF_BASE_TILE_HEIGHT_I32;
 
     transform.apply_to_iso_point(iso)
 }
 
 #[inline]
-pub fn screen_to_iso_point(screen_point: Vec2,
-                           transform: WorldToScreenTransform,
-                           tile_size: Size)
-                           -> IsoPoint {
+pub fn screen_to_iso_point(screen_point: Vec2, transform: WorldToScreenTransform) -> IsoPoint {
     let mut iso_pos = transform.apply_to_screen_point(screen_point);
 
-    // Offset the iso point downward by half a tile (visually centers the hit test
-    // to the tile center).
-    iso_pos.x -= tile_size.width  / 2;
-    iso_pos.y -= tile_size.height / 2;
+    // Offset the iso point downward by half a tile
+    // (visually centers the hit test to the tile center).
+    iso_pos.x -= HALF_BASE_TILE_WIDTH_I32;
+    iso_pos.y -= HALF_BASE_TILE_HEIGHT_I32;
     iso_pos
 }
 
 #[inline]
-pub fn iso_to_screen_rect(iso_position: IsoPoint,
-                          size: Size,
-                          transform: WorldToScreenTransform)
-                          -> Rect {
+pub fn iso_to_screen_rect(iso_position: IsoPoint, size: Size, transform: WorldToScreenTransform) -> Rect {
     transform.apply_to_rect(iso_position, size)
 }
 
 // Same as iso_to_screen_rect() but the position is already in floating point.
 #[inline]
-pub fn iso_to_screen_rect_f32(iso_position: IsoPointF32,
-                              size: Size,
-                              transform: WorldToScreenTransform)
-                              -> Rect {
+pub fn iso_to_screen_rect_f32(iso_position: IsoPointF32, size: Size, transform: WorldToScreenTransform) -> Rect {
     // Apply offset and scaling:
     let screen_x = (iso_position.0.x * transform.scaling) + transform.offset.x;
     let screen_y = (iso_position.0.y * transform.scaling) + transform.offset.y;
@@ -526,11 +498,9 @@ pub fn is_screen_point_inside_diamond(p: Vec2, points: &[Vec2; 4]) -> bool {
 pub fn is_screen_point_inside_cell(screen_point: Vec2,
                                    cell: Cell,
                                    tile_size: Size,
-                                   base_tile_size: Size,
                                    transform: WorldToScreenTransform)
                                    -> bool {
-    debug_assert!(transform.is_valid());
-    let screen_points = cell_to_screen_diamond_points(cell, tile_size, base_tile_size, transform);
+    let screen_points = cell_to_screen_diamond_points(cell, tile_size, transform);
     is_screen_point_inside_diamond(screen_point, &screen_points)
 }
 
@@ -568,17 +538,16 @@ pub fn is_screen_point_inside_triangle(point: Vec2, a: Vec2, b: Vec2, c: Vec2) -
 // cell location.
 pub fn cell_to_screen_diamond_points(cell: Cell,
                                      tile_size: Size,
-                                     base_tile_size: Size,
                                      transform: WorldToScreenTransform)
                                      -> [Vec2; 4] {
     debug_assert!(transform.is_valid());
 
-    let iso_center = cell_to_iso(cell, base_tile_size);
-    let screen_center = iso_to_screen_point(iso_center, transform, base_tile_size);
+    let iso_center = cell_to_iso(cell);
+    let screen_center = iso_to_screen_point(iso_center, transform);
 
-    let tile_width  = (tile_size.width as f32) * transform.scaling;
+    let tile_width  = (tile_size.width  as f32) * transform.scaling;
     let tile_height = (tile_size.height as f32) * transform.scaling;
-    let base_height = (base_tile_size.height as f32) * transform.scaling;
+    let base_height = BASE_TILE_HEIGHT_F32 * transform.scaling;
 
     let half_tile_w = tile_width  * 0.5;
     let half_tile_h = tile_height * 0.5;
@@ -597,16 +566,15 @@ pub fn cell_to_screen_diamond_points(cell: Cell,
 // computes the left/right corner Y coord, used as tile sorting key.
 pub fn cell_to_screen_diamond_center_y(cell: Cell,
                                        tile_size: Size,
-                                       base_tile_size: Size,
                                        transform: WorldToScreenTransform)
                                        -> f32 {
     debug_assert!(transform.is_valid());
 
-    let iso_center = cell_to_iso(cell, base_tile_size);
-    let screen_center = iso_to_screen_point(iso_center, transform, base_tile_size);
+    let iso_center = cell_to_iso(cell);
+    let screen_center = iso_to_screen_point(iso_center, transform);
 
     let tile_height = (tile_size.height as f32) * transform.scaling;
-    let base_height = (base_tile_size.height as f32) * transform.scaling;
+    let base_height = BASE_TILE_HEIGHT_F32 * transform.scaling;
 
     let half_tile_h = tile_height * 0.5;
     let half_base_h = base_height * 0.5;

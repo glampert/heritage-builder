@@ -6,7 +6,7 @@ use strum_macros::Display;
 
 use super::{
     atlas::*,
-    TileFlags, TileKind, TileMapLayerKind, BASE_TILE_SIZE, TILE_MAP_LAYER_COUNT,
+    TileFlags, TileKind, TileMapLayerKind, TILE_MAP_LAYER_COUNT,
 };
 use crate::{
     log,
@@ -15,6 +15,7 @@ use crate::{
     save::{self, SaveState},
     singleton_late_init,
     utils::{
+        constants::*,
         coords::{Cell, CellRange},
         hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
         mem, Color, RectTexCoords, Size, Vec2,
@@ -562,8 +563,8 @@ impl TileDef {
     #[inline]
     pub fn size_in_cells(&self) -> Size {
         // `logical_size` is assumed to be a multiple of the base tile size.
-        Size::new(self.logical_size.width / BASE_TILE_SIZE.width,
-                  self.logical_size.height / BASE_TILE_SIZE.height)
+        Size::new(self.logical_size.width / BASE_TILE_WIDTH_I32,
+                  self.logical_size.height / BASE_TILE_HEIGHT_I32)
     }
 
     #[inline]
@@ -704,8 +705,8 @@ impl TileDef {
             return false;
         }
 
-        if (self.logical_size.width  % BASE_TILE_SIZE.width)  != 0 ||
-           (self.logical_size.height % BASE_TILE_SIZE.height) != 0 {
+        if (self.logical_size.width  % BASE_TILE_WIDTH_I32)  != 0 ||
+           (self.logical_size.height % BASE_TILE_HEIGHT_I32) != 0 {
             log::error!(log::channel!("tileset"),
                         "Invalid TileDef logical size ({})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
                         self.logical_size,
@@ -716,7 +717,7 @@ impl TileDef {
 
         if self.is(TileKind::Terrain) {
             // For terrain logical_size must be BASE_TILE_SIZE.
-            if self.logical_size != BASE_TILE_SIZE {
+            if self.logical_size != BASE_TILE_SIZE_I32 {
                 log::error!(log::channel!("tileset"),
                             "Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
                             self.kind,
@@ -791,7 +792,7 @@ const fn default_tile_kind() -> TileKind {
 
 #[inline]
 const fn default_tile_size() -> Size {
-    BASE_TILE_SIZE
+    BASE_TILE_SIZE_I32
 }
 
 #[inline]

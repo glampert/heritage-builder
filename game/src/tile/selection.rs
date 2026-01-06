@@ -3,7 +3,7 @@ use smallvec::SmallVec;
 use super::{
     placement::{self, PlacementOp},
     rendering::SELECTION_RECT_COLOR,
-    Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerMutRefs, BASE_TILE_SIZE,
+    Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerMutRefs,
 };
 use crate::{
     ui::UiInputEvent,
@@ -125,7 +125,7 @@ impl TileSelection {
             // Clear previous highlighted tiles:
             self.clear(layers);
 
-            let range = bounds(&self.rect, BASE_TILE_SIZE, map_size_in_cells, transform);
+            let range = bounds(&self.rect, map_size_in_cells, transform);
 
             for cell in &range {
                 if let Some(base_tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
@@ -320,7 +320,6 @@ impl Load for TileSelection {
 // and will select more tiles than actually intersect the rect, so a refinement
 // pass must be done after to intersect each tile's rect with the selection rect.
 pub fn bounds(screen_rect: &Rect,
-              tile_size: Size,
               map_size_in_cells: Size,
               transform: WorldToScreenTransform)
               -> CellRange {
@@ -329,29 +328,25 @@ pub fn bounds(screen_rect: &Rect,
     // Convert screen-space corners to isometric space:
     let top_left = coords::screen_to_iso_point(
         screen_rect.min,
-        transform,
-        BASE_TILE_SIZE);
+        transform);
 
     let bottom_right = coords::screen_to_iso_point(
         screen_rect.max,
-        transform,
-        BASE_TILE_SIZE);
+        transform);
 
     let top_right = coords::screen_to_iso_point(
         Vec2::new(screen_rect.max.x, screen_rect.min.y),
-        transform,
-        BASE_TILE_SIZE);
+        transform);
 
     let bottom_left = coords::screen_to_iso_point(
         Vec2::new(screen_rect.min.x, screen_rect.max.y),
-        transform,
-        BASE_TILE_SIZE);
+        transform);
 
     // Convert isometric points to cell coordinates:
-    let cell_tl = coords::iso_to_cell(top_left, tile_size);
-    let cell_tr = coords::iso_to_cell(top_right, tile_size);
-    let cell_bl = coords::iso_to_cell(bottom_left, tile_size);
-    let cell_br = coords::iso_to_cell(bottom_right, tile_size);
+    let cell_tl = coords::iso_to_cell(top_left);
+    let cell_tr = coords::iso_to_cell(top_right);
+    let cell_bl = coords::iso_to_cell(bottom_left);
+    let cell_br = coords::iso_to_cell(bottom_right);
 
     // Compute bounding min/max cell coordinates:
     let mut min_x = cell_tl.x.min(cell_tr.x).min(cell_bl.x).min(cell_br.x);
@@ -360,8 +355,8 @@ pub fn bounds(screen_rect: &Rect,
     let mut max_y = cell_tl.y.max(cell_tr.y).max(cell_bl.y).max(cell_br.y);
 
     // Clamp to map bounds:
-    min_x = min_x.clamp(0, map_size_in_cells.width - 1);
-    max_x = max_x.clamp(0, map_size_in_cells.width - 1);
+    min_x = min_x.clamp(0, map_size_in_cells.width  - 1);
+    max_x = max_x.clamp(0, map_size_in_cells.width  - 1);
     min_y = min_y.clamp(0, map_size_in_cells.height - 1);
     max_y = max_y.clamp(0, map_size_in_cells.height - 1);
 

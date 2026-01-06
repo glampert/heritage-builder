@@ -9,15 +9,17 @@ use crate::{
     ui::{self, UiInputEvent, UiSystem},
     render::{TextureCache, TextureHandle},
     utils::{
-        self, coords::WorldToScreenTransform,
-        Color, Rect, RectTexCoords, Size, Vec2,
+        self,
+        constants::*,
+        Color, Rect, RectTexCoords, Vec2,
+        coords::WorldToScreenTransform,
     },
     game::{
         sim, building::{config::BuildingConfigs, BuildingArchetypeKind},
         menu::{TilePalette, TilePaletteSelection}, undo_redo,
     },
     tile::{
-        TileKind, BASE_TILE_SIZE,
+        TileKind,
         rendering::INVALID_TILE_COLOR,
         sets::{TileCategory, TileDef, TileDefHandle, TileSet, TileSets},
     },
@@ -92,7 +94,7 @@ impl TilePaletteDevMenu {
         let tiles_per_row = 2;
         let spacing_between_tiles = 4.0;
 
-        let window_width = (BASE_TILE_SIZE.width as f32 + spacing_between_tiles) * tiles_per_row as f32;
+        let window_width = (BASE_TILE_WIDTH_F32 + spacing_between_tiles) * tiles_per_row as f32;
         let window_margin = 26.0; // pixels from the right edge
 
         // X position = screen width - estimated window width - margin
@@ -122,7 +124,7 @@ impl TilePaletteDevMenu {
 
                     let btn_params = ui::UiImageButtonParams {
                         id: "Clear",
-                        size: BASE_TILE_SIZE.to_vec2(),
+                        size: BASE_TILE_SIZE_F32,
                         ui_texture: ui_sys.to_ui_texture(tex_cache, self.clear_button_image),
                         tooltip: Some("Clear Tiles"),
                         normal_color: Some(Color::gray()),
@@ -174,12 +176,12 @@ impl TilePaletteDevMenu {
 
         // Draw clear tile icon under the cursor:
         if self.current_selection().is_clear() {
-            const CLEAR_ICON_SIZE: Size = BASE_TILE_SIZE;
+            const CLEAR_ICON_SIZE: Vec2 = BASE_TILE_SIZE_F32;
 
-            let rect = Rect::from_pos_and_size(
+            let rect = Rect::new(
                 Vec2::new(
-                    cursor_screen_pos.x - (CLEAR_ICON_SIZE.width  / 2) as f32,
-                    cursor_screen_pos.y - (CLEAR_ICON_SIZE.height / 2) as f32),
+                    cursor_screen_pos.x - (CLEAR_ICON_SIZE.x * 0.5),
+                    cursor_screen_pos.y - (CLEAR_ICON_SIZE.y * 0.5)),
                 CLEAR_ICON_SIZE
             );
 
@@ -256,7 +258,7 @@ impl TilePaletteDevMenu {
 
             let btn_params = ui::UiImageButtonParams {
                 id: &btn_id,
-                size: BASE_TILE_SIZE.to_vec2(),
+                size: BASE_TILE_SIZE_F32,
                 ui_texture,
                 tooltip: Some(btn_tooltip),
                 normal_color: Some(Color::gray()),

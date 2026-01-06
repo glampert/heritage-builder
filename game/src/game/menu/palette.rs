@@ -11,9 +11,14 @@ use super::{
 use crate::{
     ui::{self, UiTextureHandle, UiWidgetContext},
     render::{RenderSystem, TextureHandle},
-    utils::{self, Size, Vec2, Color, Rect, RectTexCoords, coords::WorldToScreenTransform},
+    utils::{
+        self,
+        constants::*,
+        Size, Vec2, Color, Rect, RectTexCoords,
+        coords::WorldToScreenTransform
+    },
     tile::{
-        TileKind, BASE_TILE_SIZE, rendering::INVALID_TILE_COLOR,
+        TileKind, rendering::INVALID_TILE_COLOR,
         sets::{TileSets, TileDefHandle, PresetTiles, OBJECTS_BUILDINGS_CATEGORY, TERRAIN_LAND_CATEGORY}
     },
 };
@@ -463,12 +468,12 @@ impl TilePaletteWidget {
 
         // Draw clear icon under the cursor:
         if self.current_selection.is_clear() {
-            const CLEAR_ICON_SIZE: Size = BASE_TILE_SIZE;
+            const CLEAR_ICON_SIZE: Vec2 = BASE_TILE_SIZE_F32;
 
-            let rect = Rect::from_pos_and_size(
+            let rect = Rect::new(
                 Vec2::new(
-                    cursor_screen_pos.x - (CLEAR_ICON_SIZE.width  / 2) as f32,
-                    cursor_screen_pos.y - (CLEAR_ICON_SIZE.height / 2) as f32),
+                    cursor_screen_pos.x - (CLEAR_ICON_SIZE.x * 0.5),
+                    cursor_screen_pos.y - (CLEAR_ICON_SIZE.y * 0.5)),
                 CLEAR_ICON_SIZE
             );
 

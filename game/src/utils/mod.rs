@@ -4,6 +4,7 @@ use arrayvec::ArrayString;
 use bitflags::bitflags;
 
 pub mod callback;
+pub mod constants;
 pub mod coords;
 pub mod crash_report;
 pub mod file_sys;

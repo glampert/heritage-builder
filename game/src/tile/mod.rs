@@ -22,10 +22,10 @@ use crate::{
     pathfind::NodeKind as PathNodeKind,
     save::*,
     utils::{
-        coords::{self, Cell, CellRange, IsoPoint, WorldToScreenTransform, IsoPointF32},
-        platform::paths,
-        hash::StringHash,
-        mem, Color, Rect, Size, Vec2,
+        constants::*,
+        Color, Rect, Size, Vec2,
+        hash::StringHash, mem, platform::paths,
+        coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
     },
 };
 
@@ -43,8 +43,6 @@ mod placement;
 // ----------------------------------------------
 // Constants / Enums
 // ----------------------------------------------
-
-pub const BASE_TILE_SIZE: Size = Size { width: 64, height: 32 };
 
 #[repr(u8)]
 #[derive(Copy, Clone, Default, VariantArray, VariantNames, Serialize, Deserialize)]
@@ -385,7 +383,7 @@ impl TerrainTile {
     fn new(cell: Cell, tile_def: &'static TileDef) -> Self {
         Self { def: TileDefRef::new(tile_def),
                cell,
-               iso_coords_f32: IsoPointF32::from_integer_iso(coords::cell_to_iso(cell, BASE_TILE_SIZE)) }
+               iso_coords_f32: IsoPointF32::from_integer_iso(coords::cell_to_iso(cell)) }
     }
 }
 
@@ -404,7 +402,7 @@ impl TileBehavior for TerrainTile {
     #[inline]
     fn set_base_cell(&mut self, cell: Cell) {
         self.cell = cell;
-        self.iso_coords_f32 = IsoPointF32::from_integer_iso(coords::cell_to_iso(cell, BASE_TILE_SIZE));
+        self.iso_coords_f32 = IsoPointF32::from_integer_iso(coords::cell_to_iso(cell));
     }
 
     #[inline]
@@ -592,7 +590,7 @@ impl TileBehavior for ObjectTile {
 
 #[inline]
 pub fn calc_unit_iso_coords(base_cell: Cell, draw_size: Size) -> IsoPointF32 {
-    calc_object_iso_coords(TileKind::Unit, base_cell, BASE_TILE_SIZE, draw_size)
+    calc_object_iso_coords(TileKind::Unit, base_cell, BASE_TILE_SIZE_I32, draw_size)
 }
 
 #[inline]
@@ -602,24 +600,24 @@ pub fn calc_object_iso_coords(kind: TileKind,
                               draw_size: Size)
                               -> IsoPointF32 {
     // Convert the anchor (bottom tile for buildings) to isometric coordinates:
-    let mut tile_iso_coords = coords::cell_to_iso(base_cell, BASE_TILE_SIZE);
+    let mut tile_iso_coords = coords::cell_to_iso(base_cell);
 
     if kind.intersects(TileKind::Building) {
         // Center the sprite horizontally:
-        tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (logical_size.width / 2);
+        tile_iso_coords.x += HALF_BASE_TILE_WIDTH_I32 - (logical_size.width / 2);
 
         // Vertical offset: move up the full sprite height *minus* 1 tile's height.
         // Since the anchor is the bottom tile, and cell_to_iso gives us the *bottom*,
         // we must offset up by (image_height - one_tile_height).
-        tile_iso_coords.y -= draw_size.height - BASE_TILE_SIZE.height;
+        tile_iso_coords.y -= draw_size.height - BASE_TILE_HEIGHT_I32;
     } else if kind.intersects(TileKind::Unit) {
         // Adjust to center the unit sprite to the tile:
-        tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
-        tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2);
+        tile_iso_coords.x += HALF_BASE_TILE_WIDTH_I32 - (draw_size.width / 2);
+        tile_iso_coords.y -= draw_size.height - HALF_BASE_TILE_HEIGHT_I32;
     } else if kind.intersects(TileKind::Rocks | TileKind::Vegetation) {
         // Adjust to center the prop sprite to the tile:
-        tile_iso_coords.x += (BASE_TILE_SIZE.width / 2) - (draw_size.width / 2);
-        tile_iso_coords.y -= draw_size.height - (BASE_TILE_SIZE.height / 2) - (BASE_TILE_SIZE.height / 4);
+        tile_iso_coords.x += HALF_BASE_TILE_WIDTH_I32 - (draw_size.width / 2);
+        tile_iso_coords.y -= draw_size.height - HALF_BASE_TILE_HEIGHT_I32 - (BASE_TILE_HEIGHT_I32 / 4);
     }
 
     IsoPointF32::from_integer_iso(tile_iso_coords)
@@ -978,7 +976,6 @@ impl Tile {
         coords::is_screen_point_inside_cell(screen_point,
                                             cell,
                                             tile_size,
-                                            BASE_TILE_SIZE,
                                             transform)
     }
 
@@ -1755,8 +1752,8 @@ impl TileMapLayer {
                                      screen_point: Vec2,
                                      transform: WorldToScreenTransform)
                                      -> Cell {
-        let iso_point = coords::screen_to_iso_point(screen_point, transform, BASE_TILE_SIZE);
-        let approx_cell = coords::iso_to_cell(iso_point, BASE_TILE_SIZE);
+        let iso_point = coords::screen_to_iso_point(screen_point, transform);
+        let approx_cell = coords::iso_to_cell(iso_point);
 
         if !self.is_cell_within_bounds(approx_cell) {
             return Cell::invalid();
@@ -1783,8 +1780,7 @@ impl TileMapLayer {
         for cell in neighbor_cells {
             if coords::is_screen_point_inside_cell(screen_point,
                                                    cell,
-                                                   BASE_TILE_SIZE,
-                                                   BASE_TILE_SIZE,
+                                                   BASE_TILE_SIZE_I32,
                                                    transform)
             {
                 return cell;
