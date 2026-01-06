@@ -8,8 +8,8 @@ use crate::{
     save::*,
     utils::{
         self,
-        coords::{self, Cell, CellRange, WorldToScreenTransform, IsoPointF32},
-        Rect, Size, Vec2
+        Rect, Size, Vec2,
+        coords::{self, Cell, CellF32, CellRange, WorldToScreenTransform, IsoPointF32},
     },
 };
 
@@ -173,6 +173,62 @@ impl Camera {
         IsoPointF32(viewport_center / self.transform.scaling)
     }
 
+    #[inline]
+    pub fn iso_bounds(&self) -> (IsoPointF32, IsoPointF32) {
+        let center_iso = self.iso_world_position();
+        let half_iso   = self.iso_viewport_center();
+
+        let top_left     = IsoPointF32(center_iso.0 - half_iso.0);
+        let bottom_right = IsoPointF32(center_iso.0 + half_iso.0);
+
+        (top_left, bottom_right)
+    }
+
+    #[inline]
+    pub fn iso_corners(&self) -> [IsoPointF32; 4] {
+        let center_iso = self.iso_world_position();
+        let half_iso   = self.iso_viewport_center();
+
+        let top_left     = IsoPointF32(center_iso.0 - half_iso.0);
+        let bottom_right = IsoPointF32(center_iso.0 + half_iso.0);
+        let top_right    = IsoPointF32(Vec2::new(center_iso.0.x + half_iso.0.x, center_iso.0.y - half_iso.0.y));
+        let bottom_left  = IsoPointF32(Vec2::new(center_iso.0.x - half_iso.0.x, center_iso.0.y + half_iso.0.y));
+
+        [top_left, top_right, bottom_right, bottom_left]
+    }
+
+    #[inline]
+    pub fn cell_bounds(&self) -> (CellF32, CellF32) {
+        let (iso_top_left, iso_bottom_right) = self.iso_bounds();
+
+        // Convert iso rect corners to fractional cell coordinates (continuous).
+        let cell_min = coords::iso_to_cell_f32(iso_top_left, BASE_TILE_SIZE);
+        let cell_max = coords::iso_to_cell_f32(iso_bottom_right, BASE_TILE_SIZE);
+
+        // Ensure correct ordering (min <= max).
+        let cell_x_min = cell_min.0.x.min(cell_max.0.x);
+        let cell_x_max = cell_min.0.x.max(cell_max.0.x);
+        let cell_y_min = cell_min.0.y.min(cell_max.0.y);
+        let cell_y_max = cell_min.0.y.max(cell_max.0.y);
+
+        // Build cell rect corners in fractional cell coords (CellF32).
+        let cell_top_left     = CellF32(Vec2::new(cell_x_min, cell_y_min));
+        let cell_bottom_right = CellF32(Vec2::new(cell_x_max, cell_y_max));
+
+        (cell_top_left, cell_bottom_right)
+    }
+
+    #[inline]
+    pub fn cell_corners(&self) -> [CellF32; 4] {
+        let iso_corners = self.iso_corners();
+        [
+            coords::iso_to_cell_f32(iso_corners[0], BASE_TILE_SIZE),
+            coords::iso_to_cell_f32(iso_corners[1], BASE_TILE_SIZE),
+            coords::iso_to_cell_f32(iso_corners[2], BASE_TILE_SIZE),
+            coords::iso_to_cell_f32(iso_corners[3], BASE_TILE_SIZE),
+        ]
+    }
+
     // ----------------------
     // Zoom/scaling:
     // ----------------------
@@ -279,12 +335,15 @@ impl Camera {
         let scroll_speed  = calc_scroll_speed(ui_hovered, cursor_screen_pos, self.viewport_size);
 
         let offset_change = scroll_delta * scroll_speed * delta_time_secs;
-        let current = self.current_scroll();
+        let previous_scroll = self.current_scroll();
 
-        self.set_scroll(current + offset_change);
-
-        self.is_scrolling = (offset_change.x > 0.0 || offset_change.y > 0.0) && current != self.current_scroll();
+        self.set_scroll(previous_scroll + offset_change);
+        self.is_scrolling = (offset_change.x > 0.0 || offset_change.y > 0.0) && previous_scroll != self.current_scroll();
     }
+
+    // ----------------------
+    // Camera Teleporting:
+    // ----------------------
 
     // Center camera to the map.
     pub fn center(&mut self) {

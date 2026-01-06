@@ -1362,26 +1362,8 @@ impl MinimapWidgetImGui {
     fn calc_camera_screen_rect(&self, camera: &Camera) -> Rect {
         debug_assert!(self.minimap_size_in_cells != Vec2::zero());
 
-        let center_iso = camera.iso_world_position();
-        let half_iso   = camera.iso_viewport_center();
-
-        let iso_min = IsoPointF32(center_iso.0 - half_iso.0);
-        let iso_max = IsoPointF32(center_iso.0 + half_iso.0);
-
         let mut camera_rect = if self.is_minimap_rotated() {
-            // Convert iso rect corners to fractional cell coordinates (continuous):
-            let cell_min = coords::iso_to_cell_f32(iso_min, BASE_TILE_SIZE);
-            let cell_max = coords::iso_to_cell_f32(iso_max, BASE_TILE_SIZE);
-
-            // Ensure correct ordering (min <= max).
-            let cell_x_min = cell_min.0.x.min(cell_max.0.x);
-            let cell_x_max = cell_min.0.x.max(cell_max.0.x);
-            let cell_y_min = cell_min.0.y.min(cell_max.0.y);
-            let cell_y_max = cell_min.0.y.max(cell_max.0.y);
-
-            // Build cell rect corners in fractional cell coords (CellF32):
-            let top_left     = CellF32(Vec2::new(cell_x_min, cell_y_min));
-            let bottom_right = CellF32(Vec2::new(cell_x_max, cell_y_max));
+            let (top_left, bottom_right) = camera.cell_bounds();
 
             // Map these cell coords into widget pixels using the zoom-aware mapper:
             let px_min = self.cell_to_scaled_minimap_widget_px(top_left);
@@ -1396,8 +1378,10 @@ impl MinimapWidgetImGui {
             }
 
             let bounds = Self::calc_map_iso_bounds(self.minimap_size_in_cells);
-            let uv_min_full = point_to_uv(&bounds, iso_min);
-            let uv_max_full = point_to_uv(&bounds, iso_max);
+            let (top_left, bottom_right) = camera.iso_bounds();
+
+            let uv_min_full = point_to_uv(&bounds, top_left);
+            let uv_max_full = point_to_uv(&bounds, bottom_right);
 
             // Convert full-map UV -> zoomed-window UV:
             let uv_min_win = self.fullmap_uv_to_window_uv(uv_min_full);
