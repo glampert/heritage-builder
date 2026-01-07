@@ -292,7 +292,8 @@
       "effect_radius": 40,
       "requires_road_access": true,
       "has_patrol_unit": true,
-      "patrol_frequency_secs": 40.0
+      "patrol_frequency_secs": 40.0,
+      "patrol_unit": "Medic"
     }
   ],
   "producer_configs": [

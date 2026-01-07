@@ -77,6 +77,12 @@
       "tile_def_name": "actor",
       "traversable_node_kinds": "Road",
       "movement_speed": 1.66
+    },
+    {
+      "name": "Medic",
+      "tile_def_name": "medic",
+      "traversable_node_kinds": "Road",
+      "movement_speed": 1.66
     }
   ]
 }

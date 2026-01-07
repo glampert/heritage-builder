@@ -29,6 +29,7 @@ pub enum UnitConfigKey {
     Teacher      = hash::fnv1a_from_str("teacher"),
     Actor        = hash::fnv1a_from_str("actor"),
     Monk         = hash::fnv1a_from_str("monk"),
+    Medic        = hash::fnv1a_from_str("medic"),
     Dog          = hash::fnv1a_from_str("dog"),
     Bird         = hash::fnv1a_from_str("bird"),
     Buffalo      = hash::fnv1a_from_str("buffalo"),
