@@ -347,11 +347,16 @@ impl Camera {
         let scroll_delta = calc_scroll_delta(cursor_screen_pos, self.viewport_size, settings.scroll_margin);
         let scroll_speed = calc_scroll_speed(cursor_screen_pos, self.viewport_size, settings.scroll_margin, settings.scroll_speed);
 
-        let desired_offset  = scroll_delta * scroll_speed * delta_time_secs;
+        let desired_offset = scroll_delta * scroll_speed * delta_time_secs;
+        if desired_offset == Vec2::zero() {
+            self.is_scrolling = false;
+            return;
+        }
+
         let previous_scroll = self.current_scroll();
+        let mut final_offset = Vec2::zero();
 
         let invalid_corners = self.test_scroll_bounds(previous_scroll + desired_offset);
-        let mut final_offset = Vec2::zero();
 
         // Full movement if no corners are touching the edges of the playable area.
         if invalid_corners.is_empty() || !settings.constrain_to_playable_map_area {
@@ -428,7 +433,7 @@ impl Camera {
         }
 
         self.set_scroll(previous_scroll + final_offset);
-        self.is_scrolling = final_offset.length_squared() > 0.0;
+        self.is_scrolling = final_offset != Vec2::zero();
     }
 
     fn corners_outside_playable_map_area(&self) -> RectCorners {
