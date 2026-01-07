@@ -795,13 +795,15 @@ impl GameLoop {
                          cursor_screen_pos: Vec2,
                          delta_time_secs: Seconds)
                          -> CellRange {
-        let ui_hovered = self.engine.ui_system().ui().is_any_item_hovered();
+        let is_any_ui_item_hovered = self.engine.ui_system().ui().is_any_item_hovered();
         let session = self.session_mut();
 
         session.camera.update_zooming(delta_time_secs);
 
-        // Map scrolling:
-        session.camera.update_scrolling(ui_hovered, cursor_screen_pos, delta_time_secs);
+        // Map scrolling, if cursor not hovering a menu item:
+        if !is_any_ui_item_hovered {
+            session.camera.update_scrolling(cursor_screen_pos, delta_time_secs);
+        }
 
         session.sim.update(&mut session.world,
                            &mut session.systems,

@@ -367,6 +367,11 @@ impl DebugSettingsDevMenu {
             CameraGlobalSettings::get_mut().disable_smooth_mouse_scroll_zoom = !smooth_mouse_scroll_zoom;
         }
 
+        let mut constrain_to_playable_map_area = CameraGlobalSettings::get().constrain_to_playable_map_area;
+        if ui.checkbox("Constrain To Playable Map Area", &mut constrain_to_playable_map_area) {
+            CameraGlobalSettings::get_mut().constrain_to_playable_map_area = constrain_to_playable_map_area;
+        }
+
         let camera = game_loop.camera_mut();
 
         let (zoom_min, zoom_max) = camera.zoom_limits();
@@ -383,6 +388,15 @@ impl DebugSettingsDevMenu {
             .build()
         {
             CameraGlobalSettings::get_mut().fixed_step_zoom_amount = step_zoom.clamp(zoom_min, zoom_max);
+        }
+
+        let mut slide_speed = CameraGlobalSettings::get().slide_speed;
+        if ui.input_float("Slide Speed", &mut slide_speed)
+            .display_format("%.1f")
+            .step(1.0)
+            .build()
+        {
+            CameraGlobalSettings::get_mut().slide_speed = slide_speed.max(0.0);
         }
 
         ui.separator();

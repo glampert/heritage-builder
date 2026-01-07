@@ -9,7 +9,7 @@ use crate::{
     utils::{
         self,
         constants::*,
-        Rect, Size, Vec2,
+        Rect, RectCorners, Size, Vec2,
         coords::{self, Cell, CellF32, CellRange, WorldToScreenTransform, IsoPointF32},
     },
 };
@@ -60,6 +60,16 @@ pub struct CameraGlobalSettings {
 
     // Disables zooming with keyboard shortcuts.
     pub disable_key_shortcut_zoom: bool,
+
+    // Constrain camera movement to inner map diamond playable area? (debug option).
+    pub constrain_to_playable_map_area: bool,
+
+    // These are in pixels per second.
+    pub slide_speed: f32,
+    pub scroll_speed: f32,
+
+    // In pixels from screen edge.
+    pub scroll_margin: f32,
 }
 
 singleton! { GLOBAL_SETTINGS_SINGLETON, CameraGlobalSettings }
@@ -71,6 +81,10 @@ impl CameraGlobalSettings {
             disable_smooth_mouse_scroll_zoom: false,
             disable_mouse_scroll_zoom: false,
             disable_key_shortcut_zoom: false,
+            constrain_to_playable_map_area: true,
+            slide_speed: 50.0,
+            scroll_speed: 500.0,
+            scroll_margin: 20.0,
         }
     }
 
@@ -79,6 +93,10 @@ impl CameraGlobalSettings {
         self.disable_smooth_mouse_scroll_zoom = configs.camera.disable_smooth_mouse_scroll_zoom;
         self.disable_mouse_scroll_zoom        = configs.camera.disable_mouse_scroll_zoom;
         self.disable_key_shortcut_zoom        = configs.camera.disable_key_shortcut_zoom;
+        self.constrain_to_playable_map_area   = configs.camera.constrain_to_playable_map_area;
+        self.slide_speed                      = configs.camera.slide_speed;
+        self.scroll_speed                     = configs.camera.scroll_speed;
+        self.scroll_margin                    = configs.camera.scroll_margin;
     }
 }
 
@@ -86,7 +104,7 @@ impl CameraGlobalSettings {
 // Camera
 // ----------------------------------------------
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Camera {
     viewport_size: Size,
     map_size_in_cells: Size,
@@ -100,10 +118,6 @@ pub struct Camera {
 }
 
 impl Camera {
-    // Cursor map scrolling defaults:
-    const SCROLL_MARGIN: f32 = 20.0; // pixels from edge
-    const SCROLL_SPEED: f32 = 500.0; // pixels per second
-
     pub fn new(viewport_size: Size,
                map_size_in_cells: Size,
                zoom: f32,
@@ -327,19 +341,133 @@ impl Camera {
                                                     scroll);
     }
 
-    #[inline]
-    pub fn update_scrolling(&mut self,
-                            ui_hovered: bool,
-                            cursor_screen_pos: Vec2,
-                            delta_time_secs: Seconds) {
-        let scroll_delta = calc_scroll_delta(ui_hovered, cursor_screen_pos, self.viewport_size);
-        let scroll_speed  = calc_scroll_speed(ui_hovered, cursor_screen_pos, self.viewport_size);
+    pub fn update_scrolling(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
+        let settings = CameraGlobalSettings::get();
 
-        let offset_change = scroll_delta * scroll_speed * delta_time_secs;
+        let scroll_delta = calc_scroll_delta(cursor_screen_pos, self.viewport_size, settings.scroll_margin);
+        let scroll_speed = calc_scroll_speed(cursor_screen_pos, self.viewport_size, settings.scroll_margin, settings.scroll_speed);
+
+        let desired_offset  = scroll_delta * scroll_speed * delta_time_secs;
         let previous_scroll = self.current_scroll();
 
-        self.set_scroll(previous_scroll + offset_change);
-        self.is_scrolling = (offset_change.x > 0.0 || offset_change.y > 0.0) && previous_scroll != self.current_scroll();
+        let invalid_corners = self.test_scroll_bounds(previous_scroll + desired_offset);
+        let mut final_offset = Vec2::zero();
+
+        // Full movement if no corners are touching the edges of the playable area.
+        if invalid_corners.is_empty() || !settings.constrain_to_playable_map_area {
+            final_offset = desired_offset;
+        } else {
+            // Slide corners that are touching the playable area bounds.
+            let slide_amount = settings.slide_speed * delta_time_secs;
+
+            if invalid_corners.intersects(RectCorners::TopLeft) {
+                if desired_offset.y > 0.0 {
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
+                        final_offset.x -= slide_amount;
+                    }
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, slide_amount)) {
+                        final_offset.y += slide_amount;
+                    }
+                } else if desired_offset.x > 0.0 {
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
+                        final_offset.x -= slide_amount;
+                    }
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, -slide_amount)) {
+                        final_offset.y -= slide_amount;
+                    }
+                }
+            } else if invalid_corners.intersects(RectCorners::TopRight) {
+                if desired_offset.y > 0.0 {
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(slide_amount, 0.0)) {
+                        final_offset.x += slide_amount;
+                    }
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, slide_amount)) {
+                        final_offset.y += slide_amount;
+                    }
+                } else if desired_offset.x < 0.0 {
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
+                        final_offset.x -= slide_amount;
+                    }
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, -slide_amount)) {
+                        final_offset.y -= slide_amount;
+                    }
+                }
+            } else if invalid_corners.intersects(RectCorners::BottomLeft) {
+                if desired_offset.y < 0.0 {
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
+                        final_offset.x -= slide_amount;
+                    }
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, -slide_amount)) {
+                        final_offset.y -= slide_amount;
+                    }
+                } else if desired_offset.x > 0.0 {
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
+                        final_offset.x -= slide_amount;
+                    }
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, slide_amount)) {
+                        final_offset.y += slide_amount;
+                    }
+                }
+            } else if invalid_corners.intersects(RectCorners::BottomRight) {
+                if desired_offset.y < 0.0 {
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(slide_amount, 0.0)) {
+                        final_offset.x += slide_amount;
+                    }
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, -slide_amount)) {
+                        final_offset.y -= slide_amount;
+                    }
+                } else if desired_offset.x < 0.0 {
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(slide_amount, 0.0)) {
+                        final_offset.x += slide_amount;
+                    }
+                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, slide_amount)) {
+                        final_offset.y += slide_amount;
+                    }
+                }
+            }
+        }
+
+        self.set_scroll(previous_scroll + final_offset);
+        self.is_scrolling = final_offset.length_squared() > 0.0;
+    }
+
+    fn corners_outside_playable_map_area(&self) -> RectCorners {
+        let cell_corners = self.cell_corners();
+        let max_cell = self.map_size_in_cells.to_vec2() - Vec2::new(1.0, 1.0); // cell range is [0, map_size-1]
+
+        let is_outside = |cell: &CellF32| {
+            if cell.0.x <= 0.0 || cell.0.y <= 0.0 ||
+               cell.0.x >= max_cell.x || cell.0.y >= max_cell.y
+            {
+                return true;
+            }
+            false
+        };
+
+        const RECT_CORNERS: [RectCorners; 4] = [
+            RectCorners::TopLeft,
+            RectCorners::TopRight,
+            RectCorners::BottomRight,
+            RectCorners::BottomLeft,
+        ];
+
+        for (index, cell) in cell_corners.iter().enumerate() {
+            if is_outside(cell) {
+                return RECT_CORNERS[index];
+            }
+        }
+
+        RectCorners::empty()
+    }
+
+    fn test_scroll_bounds(&self, candidate_scroll: Vec2) -> RectCorners {
+        let mut cam = self.clone();
+        cam.transform.offset = candidate_scroll;
+        cam.corners_outside_playable_map_area()
+    }
+
+    fn is_scroll_valid(&self, candidate_scroll: Vec2) -> bool {
+        self.test_scroll_bounds(candidate_scroll).is_empty()
     }
 
     // ----------------------
@@ -432,52 +560,45 @@ fn calc_visible_cells_range(map_size_in_cells: Size,
     selection::bounds(&screen_rect, map_size_in_cells, transform)
 }
 
-fn calc_scroll_delta(ui_hovered: bool, cursor_screen_pos: Vec2, viewport_size: Size) -> Vec2 {
+fn calc_scroll_delta(cursor_screen_pos: Vec2, viewport_size: Size, scroll_margin: f32) -> Vec2 {
     let mut scroll_delta = Vec2::zero();
 
-    if cursor_screen_pos.x < Camera::SCROLL_MARGIN {
+    if cursor_screen_pos.x < scroll_margin {
         scroll_delta.x += 1.0;
-    } else if cursor_screen_pos.x > (viewport_size.width as f32) - Camera::SCROLL_MARGIN {
+    } else if cursor_screen_pos.x > (viewport_size.width as f32) - scroll_margin {
         scroll_delta.x -= 1.0;
     }
 
-    // Only block scrolling if hovering an ImGui item (like menu buttons).
-    if !ui_hovered {
-        if cursor_screen_pos.y < Camera::SCROLL_MARGIN {
-            scroll_delta.y += 1.0;
-        } else if cursor_screen_pos.y > (viewport_size.height as f32) - Camera::SCROLL_MARGIN {
-            scroll_delta.y -= 1.0;
-        }
+    if cursor_screen_pos.y < scroll_margin {
+        scroll_delta.y += 1.0;
+    } else if cursor_screen_pos.y > (viewport_size.height as f32) - scroll_margin {
+        scroll_delta.y -= 1.0;
     }
 
     scroll_delta
 }
 
-fn calc_scroll_speed(ui_hovered: bool, cursor_screen_pos: Vec2, viewport_size: Size) -> f32 {
-    if ui_hovered {
-        return 0.0; // Stop scrolling entirely while over menu items.
-    }
-
-    let edge_dist_x = if cursor_screen_pos.x < Camera::SCROLL_MARGIN {
-        Camera::SCROLL_MARGIN - cursor_screen_pos.x
-    } else if cursor_screen_pos.x > (viewport_size.width as f32) - Camera::SCROLL_MARGIN {
-        cursor_screen_pos.x - ((viewport_size.width as f32) - Camera::SCROLL_MARGIN)
+fn calc_scroll_speed(cursor_screen_pos: Vec2, viewport_size: Size, scroll_margin: f32, scroll_speed: f32) -> f32 {
+    let edge_dist_x = if cursor_screen_pos.x < scroll_margin {
+        scroll_margin - cursor_screen_pos.x
+    } else if cursor_screen_pos.x > (viewport_size.width as f32) - scroll_margin {
+        cursor_screen_pos.x - ((viewport_size.width as f32) - scroll_margin)
     } else {
         0.0
     };
 
-    let edge_dist_y = if cursor_screen_pos.y < Camera::SCROLL_MARGIN {
-        Camera::SCROLL_MARGIN - cursor_screen_pos.y
-    } else if cursor_screen_pos.y > (viewport_size.height as f32) - Camera::SCROLL_MARGIN {
-        cursor_screen_pos.y - ((viewport_size.height as f32) - Camera::SCROLL_MARGIN)
+    let edge_dist_y = if cursor_screen_pos.y < scroll_margin {
+        scroll_margin - cursor_screen_pos.y
+    } else if cursor_screen_pos.y > (viewport_size.height as f32) - scroll_margin {
+        cursor_screen_pos.y - ((viewport_size.height as f32) - scroll_margin)
     } else {
         0.0
     };
 
     let max_edge_dist = edge_dist_x.max(edge_dist_y);
-    let scroll_strength = (max_edge_dist / Camera::SCROLL_MARGIN).clamp(0.0, 1.0);
+    let scroll_strength = (max_edge_dist / scroll_margin).clamp(0.0, 1.0);
 
-    Camera::SCROLL_SPEED * scroll_strength
+    scroll_speed * scroll_strength
 }
 
 fn calc_map_center(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -> Vec2 {
