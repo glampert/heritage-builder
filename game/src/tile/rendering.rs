@@ -29,11 +29,11 @@ pub const HIGHLIGHT_TILE_COLOR: Color = Color::new(0.76, 0.96, 0.39, 1.0); // li
 pub const INVALID_TILE_COLOR: Color   = Color::new(0.95, 0.60, 0.60, 1.0); // light red
 
 pub const SELECTION_RECT_COLOR: Color = Color::new(0.7, 0.2, 0.2, 1.0); // red-ish
-pub const MAP_BACKGROUND_COLOR: Color = Color::gray();
+pub const MAP_BACKGROUND_COLOR: Color = Color::black();
 
-pub const DEFAULT_GRID_COLOR: Color = Color::white();
+pub const DEFAULT_GRID_COLOR: Color   = Color::white();
 pub const HIGHLIGHT_GRID_COLOR: Color = Color::green();
-pub const INVALID_GRID_COLOR: Color = Color::red();
+pub const INVALID_GRID_COLOR: Color   = Color::red();
 
 pub const MIN_GRID_LINE_THICKNESS: f32 = 0.5;
 pub const MAX_GRID_LINE_THICKNESS: f32 = 20.0;
