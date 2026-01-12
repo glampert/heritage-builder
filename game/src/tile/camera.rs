@@ -501,9 +501,21 @@ impl Camera {
         let transform_no_offset =
             WorldToScreenTransform::new(self.current_zoom(), Vec2::zero());
 
-        let screen_point = coords::iso_to_screen_point(iso_point, transform_no_offset);
+        let desired_camera_center = coords::iso_to_screen_point(iso_point, transform_no_offset);
 
-        self.set_scroll(viewport_center - screen_point);
+        // If unconstrained, teleport freely.
+        if !CameraGlobalSettings::get().constrain_to_playable_map_area {
+            self.set_scroll(viewport_center - desired_camera_center);
+            return true;
+        }
+
+        let constraints = CameraConstraints::new(
+            &self.map_diamond_corners(false), // IMPORTANT: no camera offset here.
+            viewport_center);
+
+        let clamped_camera_center = constraints.clamp_point(desired_camera_center);
+        self.set_scroll(viewport_center - clamped_camera_center);
+
         true
     }
 
@@ -517,7 +529,21 @@ impl Camera {
         let screen_point =
             coords::iso_to_screen_rect_f32(destination_iso, BASE_TILE_SIZE_I32, transform_no_offset);
 
-        self.set_scroll(viewport_center - screen_point.position());
+        let desired_camera_center = screen_point.position();
+
+        // If unconstrained, teleport freely.
+        if !CameraGlobalSettings::get().constrain_to_playable_map_area {
+            self.set_scroll(viewport_center - desired_camera_center);
+            return true;
+        }
+
+        let constraints = CameraConstraints::new(
+            &self.map_diamond_corners(false), // IMPORTANT: no camera offset here.
+            viewport_center);
+
+        let clamped_camera_center = constraints.clamp_point(desired_camera_center);
+        self.set_scroll(viewport_center - clamped_camera_center);
+
         true
     }
 
@@ -680,8 +706,8 @@ fn inward_normal(edge: Vec2) -> Vec2 {
 //
 // Constraint enforcement is done using inward-facing half-space planes.
 // Camera motion is clamped by projecting away outward velocity components,
-// which naturally produces smooth sliding along edges and stable behavior at
-// corners.
+// which naturally produces smooth sliding along edges and stable behavior
+// at corners.
 struct CameraConstraints {
     // CCW convex polygon with inward-facing normals.
     diamond: [Vec2; 4],
@@ -755,6 +781,10 @@ impl CameraConstraints {
         }
     }
 
+    // Perform multiple steps to ensure we converge to the inside of all constraints.
+    // This is necessary to make sure we cannot escape at the corners of the diamond.
+    const MAX_STEPS: usize = 8;
+
     // Clamps a desired camera movement so the camera center remains within
     // the constraint polygon.
     //
@@ -767,38 +797,52 @@ impl CameraConstraints {
     // motion is fully blocked to avoid jitter.
     fn clamp_delta(&self, center: Vec2, mut delta: Vec2) -> Vec2 {
         let mut t_max: f32 = 1.0;
-        let mut active_constraints: i32 = 0;
+        let mut active_constraints = 0;
 
-        for i in 0..self.diamond.len() {
-            let point  = self.diamond[i];
-            let normal = self.normals[i];
+        // Perform more iterations here to ensure there are no edge cases
+        // where we might escape through a corner. Without the extra iterations
+        // it may be possible to exit the constraints through the left/right
+        // corners.
+        for _ in 0..Self::MAX_STEPS {
+            let mut any_outside = false;
 
-            // signed_distance > 0 -> strictly inside
-            // signed_distance = 0 -> exactly on boundary
-            // signed_distance < 0 -> already outside
-            let signed_distance = (center - point).dot(normal);
+            for i in 0..self.diamond.len() {
+                let point  = self.diamond[i];
+                let normal = self.normals[i];
 
-            // normal_velocity > 0 -> motion is outward (toward violation)
-            // normal_velocity < 0 -> motion is inward (safe)
-            // normal_velocity = 0 -> motion parallel to edge
-            let normal_velocity = delta.dot(normal);
+                // signed_distance > 0 -> strictly inside
+                // signed_distance = 0 -> exactly on boundary
+                // signed_distance < 0 -> already outside
+                let signed_distance = (center - point).dot(normal);
 
-            const ZERO_EPSILON:   f32 = 1e-6;
-            const DIST_TOLERANCE: f32 = 1e-4;
+                // normal_velocity > 0 -> motion is outward (toward violation)
+                // normal_velocity < 0 -> motion is inward (safe)
+                // normal_velocity = 0 -> motion parallel to edge
+                let normal_velocity = delta.dot(normal);
 
-            // Moving outward?
-            if normal_velocity > ZERO_EPSILON {
-                if signed_distance < DIST_TOLERANCE {
-                    // Already outside -> project velocity (sliding).
-                    delta -= normal * normal_velocity;
-                    active_constraints += 1;
-                } else {
-                    // Inside -> clamp time of impact.
-                    let t = signed_distance / normal_velocity;
-                    if t >= 0.0 {
-                        t_max = t_max.min(t);
+                const ZERO_EPSILON:   f32 = 1e-6;
+                const DIST_TOLERANCE: f32 = 1e-4;
+
+                // Moving outward?
+                if normal_velocity > ZERO_EPSILON {
+                    if signed_distance < DIST_TOLERANCE {
+                        // Already outside -> project velocity (sliding).
+                        delta -= normal * normal_velocity;
+                        active_constraints += 1;
+                        any_outside = true;
+                    } else {
+                        // Inside -> clamp time of impact.
+                        let t = signed_distance / normal_velocity;
+                        if t >= 0.0 {
+                            t_max = t_max.min(t);
+                        }
                     }
                 }
+            }
+
+            if !any_outside {
+                // Once we are inside all constraints we can stop iterating.
+                break;
             }
         }
 
@@ -815,6 +859,30 @@ impl CameraConstraints {
         } else {
             delta * t_max.clamp(0.0, 1.0)
         }
+    }
+
+    fn clamp_point(&self, mut p: Vec2) -> Vec2 {
+        for _ in 0..Self::MAX_STEPS {
+            let mut any_outside = false;
+
+            for i in 0..self.diamond.len() {
+                let point  = self.diamond[i];
+                let normal = self.normals[i];
+
+                let signed_distance = (p - point).dot(normal);
+                if signed_distance < 0.0 {
+                    p -= normal * signed_distance;
+                    any_outside = true;
+                }
+            }
+
+            if !any_outside {
+                // Once we are inside all constraints we can stop iterating.
+                break;
+            }
+        }
+
+        p
     }
 }
 
