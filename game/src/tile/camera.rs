@@ -716,14 +716,14 @@ impl CameraConstraints {
         // direction until the point lies on B's plane.
         fn compute_constraint_vertex(plane_a: &ConstraintPlane, plane_b: &ConstraintPlane) -> Vec2 {
             // Tangent direction of plane A (perpendicular to its inward normal).
-            let line_a_tangent = Vec2::new(plane_a.n.y, -plane_a.n.x);
+            let plane_a_tangent = Vec2::new(plane_a.n.y, -plane_a.n.x);
 
             const NORMAL_EPS: f32 = 1e-6;
-            let tangent_dot_normal = line_a_tangent.dot(plane_b.n);
+            let tangent_dot_normal = plane_a_tangent.dot(plane_b.n);
             debug_assert!(tangent_dot_normal.abs() > NORMAL_EPS, "Degenerate constraint planes: edges nearly parallel!");
 
             let distance_along_tangent = (plane_b.p - plane_a.p).dot(plane_b.n) / tangent_dot_normal;
-            plane_a.p + (line_a_tangent * distance_along_tangent)
+            plane_a.p + (plane_a_tangent * distance_along_tangent)
         }
 
         let mut planes  = [ConstraintPlane::default(); 4];
