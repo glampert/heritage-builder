@@ -3,7 +3,7 @@
 use std::{iter::FusedIterator, ops::RangeInclusive};
 use serde::{Deserialize, Serialize};
 
-use super::{FieldAccessorXY, Rect, Size, Vec2, constants::*};
+use super::{FieldAccessorXY, Rect, Size, Vec2, Color, constants::*};
 use crate::field_accessor_xy;
 
 // ----------------------------------------------
@@ -534,8 +534,20 @@ pub fn is_screen_point_inside_triangle(point: Vec2, a: Vec2, b: Vec2, c: Vec2) -
     u >= 0.0 && v >= 0.0 && (u + v) <= 1.0
 }
 
-// Creates an isometric-aligned diamond rectangle for the given tile size and
-// cell location.
+pub const DIAMOND_TOP:    usize = 0;
+pub const DIAMOND_RIGHT:  usize = 1;
+pub const DIAMOND_BOTTOM: usize = 2;
+pub const DIAMOND_LEFT:   usize = 3;
+
+pub const DIAMOND_DEBUG_COLORS: [Color; 4] = [
+    Color::white(),  // DIAMOND_TOP
+    Color::cyan(),   // DIAMOND_RIGHT
+    Color::yellow(), // DIAMOND_BOTTOM
+    Color::green(),  // DIAMOND_LEFT
+];
+
+// Creates an isometric-aligned diamond rectangle for the given tile size and cell location.
+// Winding order of edges is Counter-Clockwise (CCW) in *screen space* (+Y points down, positive signed area).
 pub fn cell_to_screen_diamond_points(cell: Cell,
                                      tile_size: Size,
                                      transform: WorldToScreenTransform)
