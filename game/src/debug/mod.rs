@@ -180,6 +180,8 @@ impl DevEditorMenusSingleton {
             self.tile_inspector_menu.draw(&mut sim_context, menu_context.sim);
         }
 
+        game_loop.camera().draw_debug(GameLoop::get_mut().engine_mut().debug_draw(), sim_context.ui_sys);
+
         if show_popup_messages() {
             menu_context.sim.draw_game_object_debug_popups(&mut sim_context, visible_range);
         }

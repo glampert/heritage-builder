@@ -3,16 +3,60 @@ use serde::{Deserialize, Serialize};
 use super::{selection};
 use crate::{
     singleton,
-    engine::time::Seconds,
-    game::config::GameConfigs,
     save::*,
+    game::config::GameConfigs,
+    ui::{self, UiSystem, UiStaticVar},
+    engine::{DebugDraw, time::Seconds},
     utils::{
         self,
         constants::*,
-        Rect, RectCorners, Size, Vec2,
+        Rect, Size, Vec2, Color,
         coords::{self, Cell, CellF32, CellRange, WorldToScreenTransform, IsoPointF32},
     },
 };
+
+// ----------------------------------------------
+// Camera Coordinates and Conventions
+// ----------------------------------------------
+
+/*
+Screen origin (0,0): Top-left corner.
+ +X : points towards right-hand-side
+ -X : points towards left-hand-side
+ +Y : points towards bottom
+ -Y : points towards top
+
+Camera Scroll Directions:
+ +X offset : scrolls left
+ -X offset : scrolls right
+ +Y offset : scrolls up
+ -Y offset : scrolls down
+
+Camera Scroll Offsets:
+ Offset = (0,0) : Only tile (0,0) is half visible at the screen origin (top-left corner).
+ Y < 0 : Map fully offscreen at the top of the screen.
+ Y > map_height_pixels : Map fully offscreen at the bottom of the screen.
+ X < 0 : Scrolling right, past the middle of the map.
+ X > 0 : Scrolling left, past the middle of the map.
+
+Camera Iso Position:
+ Scroll up    : -iso Y
+ Scroll down  : +iso Y
+ Scroll right : +iso X
+ Scroll left  : -iso X
+
+Map Bounds Clamping:
+ Axis-aligned bounding box of the rotated isometric world map.
+ Always clamp camera offsets to these limits. Void corners can
+ be seen when near the bounding box limits. All tiles are accessible.
+
+Map Playable Area Clamping:
+ Inner isometric diamond playable area. Clamp the camera so that
+ it always stays inside the map diamond, preventing void corners
+ from being visible. The top/bottom, left/right edge tiles of the
+ map are not accessible/visible when this is enabled.
+ See `CameraConstraint` for details.
+*/
 
 // ----------------------------------------------
 // Camera Helpers
@@ -64,8 +108,13 @@ pub struct CameraGlobalSettings {
     // Constrain camera movement to inner map diamond playable area? (debug option).
     pub constrain_to_playable_map_area: bool,
 
-    // These are in pixels per second.
-    pub slide_speed: f32,
+    // Constrain camera movement to map AABB? This is a superset of the playable area. (debug option).
+    pub clamp_to_map_bounds: bool,
+
+    // Display map debug bounds and camera debug overlays.
+    pub enable_debug_draw: bool,
+
+    // Camera scroll/movement speed in pixels per second.
     pub scroll_speed: f32,
 
     // In pixels from screen edge.
@@ -82,7 +131,8 @@ impl CameraGlobalSettings {
             disable_mouse_scroll_zoom: false,
             disable_key_shortcut_zoom: false,
             constrain_to_playable_map_area: true,
-            slide_speed: 50.0,
+            clamp_to_map_bounds: true,
+            enable_debug_draw: false,
             scroll_speed: 500.0,
             scroll_margin: 20.0,
         }
@@ -94,7 +144,6 @@ impl CameraGlobalSettings {
         self.disable_mouse_scroll_zoom        = configs.camera.disable_mouse_scroll_zoom;
         self.disable_key_shortcut_zoom        = configs.camera.disable_key_shortcut_zoom;
         self.constrain_to_playable_map_area   = configs.camera.constrain_to_playable_map_area;
-        self.slide_speed                      = configs.camera.slide_speed;
         self.scroll_speed                     = configs.camera.scroll_speed;
         self.scroll_margin                    = configs.camera.scroll_margin;
     }
@@ -104,7 +153,7 @@ impl CameraGlobalSettings {
 // Camera
 // ----------------------------------------------
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Camera {
     viewport_size: Size,
     map_size_in_cells: Size,
@@ -141,7 +190,7 @@ impl Camera {
             current_zoom: clamped_scaling,
             target_zoom: clamped_scaling,
             is_zooming: false,
-            is_scrolling: false
+            is_scrolling: false,
         }
     }
 
@@ -166,6 +215,11 @@ impl Camera {
     }
 
     #[inline]
+    pub fn viewport_center(&self) -> Vec2 {
+        self.viewport_size.to_vec2() * 0.5
+    }
+
+    #[inline]
     pub fn set_map_size_in_cells(&mut self, new_size: Size) {
         self.map_size_in_cells = new_size;
     }
@@ -175,17 +229,23 @@ impl Camera {
         self.map_size_in_cells
     }
 
+    // Camera center position in screen space.
+    #[inline]
+    pub fn screen_space_position(&self) -> Vec2 {
+        let iso_point = self.iso_world_position();
+        coords::iso_to_screen_rect_f32(iso_point, BASE_TILE_SIZE_I32, self.transform).position()
+    }
+
+    // Camera center position in isometric world space.
     #[inline]
     pub fn iso_world_position(&self) -> IsoPointF32 {
-        let viewport_center = self.viewport_size.to_vec2() * 0.5;
         // Convert screen -> iso/world
-        IsoPointF32((viewport_center - self.transform.offset) / self.transform.scaling)
+        IsoPointF32((self.viewport_center() - self.current_scroll()) / self.current_zoom())
     }
 
     #[inline]
     pub fn iso_viewport_center(&self) -> IsoPointF32 {
-        let viewport_center = self.viewport_size.to_vec2() * 0.5;
-        IsoPointF32(viewport_center / self.transform.scaling)
+        IsoPointF32(self.viewport_center() / self.current_zoom())
     }
 
     #[inline]
@@ -244,6 +304,40 @@ impl Camera {
         ]
     }
 
+    pub fn map_diamond_corners(&self, camera_relative: bool) -> [Vec2; 4] {
+        let map_origin_cell = Cell::zero();
+        let map_size_in_pixels = Size::new(
+            self.map_size_in_cells.width   * BASE_TILE_SIZE_I32.width,
+            self.map_size_in_cells.height * BASE_TILE_SIZE_I32.height,
+        );
+
+        let transform = if camera_relative {
+            self.transform
+        } else {
+            // Exclude camera offset/scroll from bounds. Keep scaling.
+            WorldToScreenTransform::new(self.current_zoom(), Vec2::zero())
+        };
+
+        let corners = coords::cell_to_screen_diamond_points(
+            map_origin_cell,
+            map_size_in_pixels,
+            transform);
+
+        fn signed_area(poly: &[Vec2; 4]) -> f32 {
+            let mut area = 0.0;
+            for i in 0..poly.len() {
+                let a = poly[i];
+                let b = poly[(i + 1) % poly.len()];
+                area += (a.x * b.y) - (b.x * a.y);
+            }
+            area * 0.5
+        }
+
+        // Expected CCW winding, area must be positive.
+        debug_assert!(signed_area(&corners) > 0.0);
+        corners
+    }
+
     // ----------------------
     // Zoom/scaling:
     // ----------------------
@@ -260,7 +354,7 @@ impl Camera {
 
     #[inline]
     pub fn set_zoom(&mut self, zoom: f32) {
-        let current_zoom = self.transform.scaling;
+        let current_zoom = self.current_zoom();
         let new_zoom = zoom.clamp(CameraZoom::MIN, CameraZoom::MAX);
 
         let current_bounds = calc_map_bounds(self.map_size_in_cells, current_zoom, self.viewport_size);
@@ -314,7 +408,7 @@ impl Camera {
     }
 
     // ----------------------
-    // Map X/Y scrolling:
+    // Camera X/Y scrolling:
     // ----------------------
 
     #[inline]
@@ -324,7 +418,7 @@ impl Camera {
 
     #[inline]
     pub fn scroll_limits(&self) -> (Vec2, Vec2) {
-        let bounds = calc_map_bounds(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
+        let bounds = calc_map_bounds(self.map_size_in_cells, self.current_zoom(), self.viewport_size);
         (bounds.min, bounds.max)
     }
 
@@ -335,144 +429,59 @@ impl Camera {
 
     #[inline]
     pub fn set_scroll(&mut self, scroll: Vec2) {
-        self.transform.offset = clamp_to_map_bounds(self.map_size_in_cells,
-                                                    self.transform.scaling,
-                                                    self.viewport_size,
-                                                    scroll);
+        self.transform.offset = if CameraGlobalSettings::get().clamp_to_map_bounds {
+            clamp_to_map_bounds(self.map_size_in_cells,
+                                self.current_zoom(),
+                                self.viewport_size,
+                                scroll)
+        } else {
+            scroll
+        };
     }
 
     pub fn update_scrolling(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
         let settings = CameraGlobalSettings::get();
 
-        let scroll_delta = calc_scroll_delta(cursor_screen_pos, self.viewport_size, settings.scroll_margin);
-        let scroll_speed = calc_scroll_speed(cursor_screen_pos, self.viewport_size, settings.scroll_margin, settings.scroll_speed);
+        let scroll_dir = calc_scroll_delta(
+            cursor_screen_pos,
+            self.viewport_size,
+            settings.scroll_margin);
 
-        let desired_offset = scroll_delta * scroll_speed * delta_time_secs;
-        if desired_offset == Vec2::zero() {
+        let scroll_speed = calc_scroll_speed(
+            cursor_screen_pos,
+            self.viewport_size,
+            settings.scroll_margin,
+            settings.scroll_speed);
+
+        let desired_delta = scroll_dir * scroll_speed * delta_time_secs;
+        if desired_delta == Vec2::zero() {
             self.is_scrolling = false;
             return;
         }
 
-        let previous_scroll = self.current_scroll();
-        let mut final_offset = Vec2::zero();
+        // If unconstrained, move freely.
+        if !settings.constrain_to_playable_map_area {
+            self.set_scroll(self.current_scroll() + desired_delta);
+            self.is_scrolling = true;
+            return;
+        }
 
-        let invalid_corners = self.test_scroll_bounds(previous_scroll + desired_offset);
+        // NOTE: Compute constraint in *unscrolled* screen space (without camera offset).
+        let camera_relative = false;
+        let constraints = CameraConstraints::new(
+            &self.map_diamond_corners(camera_relative),
+            self.viewport_center());
 
-        // Full movement if no corners are touching the edges of the playable area.
-        if invalid_corners.is_empty() || !settings.constrain_to_playable_map_area {
-            final_offset = desired_offset;
+        // Match unscrolled diamond points (camera_relative=false).
+        let camera_center = self.viewport_center() - self.current_scroll();
+        let final_delta = constraints.clamp_delta(camera_center, desired_delta);
+
+        if final_delta != Vec2::zero() {
+            self.set_scroll(self.current_scroll() + final_delta);
+            self.is_scrolling = true;
         } else {
-            // Slide corners that are touching the playable area bounds.
-            let slide_amount = settings.slide_speed * delta_time_secs;
-
-            if invalid_corners.intersects(RectCorners::TopLeft) {
-                if desired_offset.y > 0.0 {
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
-                        final_offset.x -= slide_amount;
-                    }
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, slide_amount)) {
-                        final_offset.y += slide_amount;
-                    }
-                } else if desired_offset.x > 0.0 {
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
-                        final_offset.x -= slide_amount;
-                    }
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, -slide_amount)) {
-                        final_offset.y -= slide_amount;
-                    }
-                }
-            } else if invalid_corners.intersects(RectCorners::TopRight) {
-                if desired_offset.y > 0.0 {
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(slide_amount, 0.0)) {
-                        final_offset.x += slide_amount;
-                    }
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, slide_amount)) {
-                        final_offset.y += slide_amount;
-                    }
-                } else if desired_offset.x < 0.0 {
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
-                        final_offset.x -= slide_amount;
-                    }
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, -slide_amount)) {
-                        final_offset.y -= slide_amount;
-                    }
-                }
-            } else if invalid_corners.intersects(RectCorners::BottomLeft) {
-                if desired_offset.y < 0.0 {
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
-                        final_offset.x -= slide_amount;
-                    }
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, -slide_amount)) {
-                        final_offset.y -= slide_amount;
-                    }
-                } else if desired_offset.x > 0.0 {
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(-slide_amount, 0.0)) {
-                        final_offset.x -= slide_amount;
-                    }
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, slide_amount)) {
-                        final_offset.y += slide_amount;
-                    }
-                }
-            } else if invalid_corners.intersects(RectCorners::BottomRight) {
-                if desired_offset.y < 0.0 {
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(slide_amount, 0.0)) {
-                        final_offset.x += slide_amount;
-                    }
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, -slide_amount)) {
-                        final_offset.y -= slide_amount;
-                    }
-                } else if desired_offset.x < 0.0 {
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(slide_amount, 0.0)) {
-                        final_offset.x += slide_amount;
-                    }
-                    if self.is_scroll_valid(previous_scroll + Vec2::new(0.0, slide_amount)) {
-                        final_offset.y += slide_amount;
-                    }
-                }
-            }
+            self.is_scrolling = false;
         }
-
-        self.set_scroll(previous_scroll + final_offset);
-        self.is_scrolling = final_offset != Vec2::zero();
-    }
-
-    fn corners_outside_playable_map_area(&self) -> RectCorners {
-        let cell_corners = self.cell_corners();
-        let max_cell = self.map_size_in_cells.to_vec2() - Vec2::new(1.0, 1.0); // cell range is [0, map_size-1]
-
-        let is_outside = |cell: &CellF32| {
-            if cell.0.x <= 0.0 || cell.0.y <= 0.0 ||
-               cell.0.x >= max_cell.x || cell.0.y >= max_cell.y
-            {
-                return true;
-            }
-            false
-        };
-
-        const RECT_CORNERS: [RectCorners; 4] = [
-            RectCorners::TopLeft,
-            RectCorners::TopRight,
-            RectCorners::BottomRight,
-            RectCorners::BottomLeft,
-        ];
-
-        for (index, cell) in cell_corners.iter().enumerate() {
-            if is_outside(cell) {
-                return RECT_CORNERS[index];
-            }
-        }
-
-        RectCorners::empty()
-    }
-
-    fn test_scroll_bounds(&self, candidate_scroll: Vec2) -> RectCorners {
-        let mut cam = self.clone();
-        cam.transform.offset = candidate_scroll;
-        cam.corners_outside_playable_map_area()
-    }
-
-    fn is_scroll_valid(&self, candidate_scroll: Vec2) -> bool {
-        self.test_scroll_bounds(candidate_scroll).is_empty()
     }
 
     // ----------------------
@@ -481,7 +490,7 @@ impl Camera {
 
     // Center camera to the map.
     pub fn center(&mut self) {
-        let map_center = calc_map_center(self.map_size_in_cells, self.transform.scaling, self.viewport_size);
+        let map_center = calc_map_center(self.map_size_in_cells, self.current_zoom(), self.viewport_size);
         self.set_scroll(map_center);
     }
 
@@ -491,12 +500,12 @@ impl Camera {
             return false;
         }
 
-        let viewport_center = self.viewport_size.to_vec2() * 0.5;
+        let viewport_center = self.viewport_center();
 
         let iso_point = coords::cell_to_iso(destination_cell);
 
         let transform_no_offset =
-            WorldToScreenTransform::new(self.transform.scaling, Vec2::zero());
+            WorldToScreenTransform::new(self.current_zoom(), Vec2::zero());
 
         let screen_point = coords::iso_to_screen_point(iso_point, transform_no_offset);
 
@@ -506,16 +515,131 @@ impl Camera {
 
     // Snaps the camera to `destination_iso` isometric point.
     pub fn teleport_iso(&mut self, destination_iso: IsoPointF32) -> bool {
-        let viewport_center = self.viewport_size.to_vec2() * 0.5;
+        let viewport_center = self.viewport_center();
 
         let transform_no_offset =
-            WorldToScreenTransform::new(self.transform.scaling, Vec2::zero());
+            WorldToScreenTransform::new(self.current_zoom(), Vec2::zero());
 
         let screen_point =
             coords::iso_to_screen_rect_f32(destination_iso, BASE_TILE_SIZE_I32, transform_no_offset);
 
         self.set_scroll(viewport_center - screen_point.position());
         true
+    }
+
+    // ----------------------
+    // Camera Debug:
+    // ----------------------
+
+    pub fn draw_debug(&self, debug_draw: &mut dyn DebugDraw, ui_sys: &UiSystem) {
+        if !CameraGlobalSettings::get().enable_debug_draw {
+            return;
+        }
+
+        let camera_relative = true;
+
+        // Map diamond bounds and inward-facing normals:
+        draw_diamond(debug_draw,
+                     &self.map_diamond_corners(camera_relative),
+                     Color::red(),
+                     Color::green());
+
+        // Half map diamond bounds and normals, where we constrain
+        // the camera center to, in camera-relative screen/render space:
+        let constraints = CameraConstraints::new(
+            &self.map_diamond_corners(camera_relative),
+            self.viewport_center());
+        draw_diamond(debug_draw,
+                     &constraints.diamond,
+                     Color::blue(),
+                     Color::yellow());
+
+        // Camera center point, in screen/render space:
+        let camera_center = self.screen_space_position();
+        debug_draw.point(camera_center, Color::magenta(), 15.0);
+
+        let ui = ui_sys.ui();
+        ui::overlay(ui, "Camera Center", camera_center, 0.6, || {
+            ui.text(format!("C:{:.1},{:.1}", camera_center.x, camera_center.y));
+            ui.text(format!("O:{:.1},{:.1}", self.current_scroll().x, self.current_scroll().y));
+            ui.text(format!("I:{:.1},{:.1}", self.iso_world_position().0.x, self.iso_world_position().0.y));
+        });
+    }
+
+    pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+        let settings = CameraGlobalSettings::get_mut();
+
+        let mut key_shortcut_zoom = !settings.disable_key_shortcut_zoom;
+        if ui.checkbox("Keyboard Zoom", &mut key_shortcut_zoom) {
+            settings.disable_key_shortcut_zoom = !key_shortcut_zoom;
+        }
+
+        let mut mouse_scroll_zoom = !settings.disable_mouse_scroll_zoom;
+        if ui.checkbox("Mouse Scroll Zoom", &mut mouse_scroll_zoom) {
+            settings.disable_mouse_scroll_zoom = !mouse_scroll_zoom;
+        }
+
+        let mut smooth_mouse_scroll_zoom = !settings.disable_smooth_mouse_scroll_zoom;
+        if ui.checkbox("Smooth Mouse Scroll Zoom", &mut smooth_mouse_scroll_zoom) {
+            settings.disable_smooth_mouse_scroll_zoom = !smooth_mouse_scroll_zoom;
+        }
+
+        ui.checkbox("Constrain To Playable Map Area", &mut settings.constrain_to_playable_map_area);
+        ui.checkbox("Clamp To Map AABB Bounds", &mut settings.clamp_to_map_bounds);
+        ui.checkbox("Enable Debug Draw", &mut settings.enable_debug_draw);
+
+        ui.separator();
+
+        let (zoom_min, zoom_max) = self.zoom_limits();
+        let mut zoom = self.current_zoom();
+
+        if ui.slider("Zoom", zoom_min, zoom_max, &mut zoom) {
+            self.set_zoom(zoom);
+        }
+
+        let mut step_zoom = settings.fixed_step_zoom_amount;
+        if ui.input_float("Step Zoom", &mut step_zoom)
+            .display_format("%.1f")
+            .step(0.5)
+            .build()
+        {
+            settings.fixed_step_zoom_amount = step_zoom.clamp(zoom_min, zoom_max);
+        }
+
+        ui.separator();
+
+        let scroll_limits = self.scroll_limits();
+        let mut scroll = self.current_scroll();
+
+        if ui.slider_config("Scroll X", scroll_limits.0.x, scroll_limits.1.x)
+             .display_format("%.1f")
+             .build(&mut scroll.x)
+        {
+            self.set_scroll(scroll);
+        }
+
+        if ui.slider_config("Scroll Y", scroll_limits.0.y, scroll_limits.1.y)
+             .display_format("%.1f")
+             .build(&mut scroll.y)
+        {
+            self.set_scroll(scroll);
+        }
+
+        ui.separator();
+
+        static TELEPORT_CELL: UiStaticVar<Cell> = UiStaticVar::new(Cell::invalid());
+        ui::input_i32_xy(ui, "Teleport To Cell:", TELEPORT_CELL.as_mut(), false, None, None);
+
+        if ui.button("Teleport") {
+            self.teleport(*TELEPORT_CELL);
+        }
+
+        ui.same_line();
+
+        if ui.button("Re-center") {
+            self.center();
+        }
     }
 }
 
@@ -543,8 +667,182 @@ impl Load for Camera {
 }
 
 // ----------------------------------------------
-// Helper functions
+// Helper functions / structs
 // ----------------------------------------------
+
+#[inline]
+fn inward_normal(edge: Vec2) -> Vec2 {
+    // CCW winding -> inward normal.
+    // For a CCW polygon, rotating the edge by +90° produces an inward-facing normal.
+    Vec2::new(-edge.y, edge.x).normalize()
+}
+
+// Convex camera constraints derived from the isometric map diamond.
+//
+// The constraint polygon is constructed by shrinking the map diamond by half
+// the viewport size in screen space. By constraining the camera *center* to
+// this shrunken diamond, we guarantee that the viewport never exposes void
+// space outside the map.
+//
+// Constraint enforcement is done using inward-facing half-space planes.
+// Camera motion is clamped by projecting away outward velocity components,
+// which naturally produces smooth sliding along edges and stable behavior at
+// corners.
+struct CameraConstraints {
+    // CCW convex polygon with inward-facing normals.
+    diamond: [Vec2; 4],
+
+    // Precomputed edge normals for each diamond[i] and diamond[i+1] pair.
+    normals: [Vec2; 4],
+}
+
+impl CameraConstraints {
+    // Constructs camera constraints from the map diamond.
+    // `diamond` must be a CCW-ordered convex polygon in screen space.
+    // `viewport_half_extents` is half the viewport size in the same coordinate space.
+    // The resulting polygon represents the valid region for the camera center.
+    fn new(diamond: &[Vec2; 4], viewport_half_extents: Vec2) -> Self {
+        debug_assert!(viewport_half_extents.x > 0.0 && viewport_half_extents.y > 0.0);
+
+        #[derive(Copy, Clone, Default)]
+        struct ConstraintPlane {
+            p: Vec2, // Point on the plane (boundary).
+            n: Vec2, // Inward-facing unit normal.
+        }
+
+        // Computes the intersection point between two half-space boundary planes.
+        // Each plane is represented by a point on the plane and an inward-facing
+        // unit normal. The intersection is found by advancing along A's tangent
+        // direction until the point lies on B's plane.
+        fn compute_constraint_vertex(plane_a: &ConstraintPlane, plane_b: &ConstraintPlane) -> Vec2 {
+            // Tangent direction of plane A (perpendicular to its inward normal).
+            let line_a_tangent = Vec2::new(plane_a.n.y, -plane_a.n.x);
+
+            const NORMAL_EPS: f32 = 1e-6;
+            let tangent_dot_normal = line_a_tangent.dot(plane_b.n);
+            debug_assert!(tangent_dot_normal.abs() > NORMAL_EPS, "Degenerate constraint planes: edges nearly parallel!");
+
+            let distance_along_tangent = (plane_b.p - plane_a.p).dot(plane_b.n) / tangent_dot_normal;
+            plane_a.p + (line_a_tangent * distance_along_tangent)
+        }
+
+        let mut planes  = [ConstraintPlane::default(); 4];
+        let mut normals = [Vec2::zero(); 4];
+
+        // Shrink diamond polygon in half:
+        for i in 0..diamond.len() {
+            let a = diamond[i];
+            let b = diamond[(i + 1) % diamond.len()];
+
+            // CCW diamond, inward normal.
+            let edge = b - a;
+            let normal = inward_normal(edge);
+
+            let offset = (viewport_half_extents.x * normal.x.abs()) + 
+                              (viewport_half_extents.y * normal.y.abs());
+
+            planes[i] = ConstraintPlane {
+                p: a + (normal * offset),
+                n: normal,
+            };
+
+            normals[i] = normal;
+        }
+
+        // Reconstruct shrunken diamond vertices from constraint planes:
+        Self {
+            diamond: [
+                compute_constraint_vertex(&planes[0], &planes[1]),
+                compute_constraint_vertex(&planes[1], &planes[2]),
+                compute_constraint_vertex(&planes[2], &planes[3]),
+                compute_constraint_vertex(&planes[3], &planes[0]),
+            ],
+            normals,
+        }
+    }
+
+    // Clamps a desired camera movement so the camera center remains within
+    // the constraint polygon.
+    //
+    // The algorithm treats each edge as a half-space constraint:
+    //  - Motion that moves further outside the constraint is removed.
+    //  - Motion parallel to an edge is preserved (sliding).
+    //  - Motion inward is always allowed.
+    //
+    // When two constraints are active simultaneously (corner case),
+    // motion is fully blocked to avoid jitter.
+    fn clamp_delta(&self, center: Vec2, mut delta: Vec2) -> Vec2 {
+        let mut t_max: f32 = 1.0;
+        let mut active_constraints: i32 = 0;
+
+        for i in 0..self.diamond.len() {
+            let point  = self.diamond[i];
+            let normal = self.normals[i];
+
+            // signed_distance > 0 -> strictly inside
+            // signed_distance = 0 -> exactly on boundary
+            // signed_distance < 0 -> already outside
+            let signed_distance = (center - point).dot(normal);
+
+            // normal_velocity > 0 -> motion is outward (toward violation)
+            // normal_velocity < 0 -> motion is inward (safe)
+            // normal_velocity = 0 -> motion parallel to edge
+            let normal_velocity = delta.dot(normal);
+
+            const ZERO_EPSILON:   f32 = 1e-6;
+            const DIST_TOLERANCE: f32 = 1e-4;
+
+            // Moving outward?
+            if normal_velocity > ZERO_EPSILON {
+                if signed_distance < DIST_TOLERANCE {
+                    // Already outside -> project velocity (sliding).
+                    delta -= normal * normal_velocity;
+                    active_constraints += 1;
+                } else {
+                    // Inside -> clamp time of impact.
+                    let t = signed_distance / normal_velocity;
+                    if t >= 0.0 {
+                        t_max = t_max.min(t);
+                    }
+                }
+            }
+        }
+
+        // If we have more than one active constraint edge
+        // it means we are at the intersection of two edges.
+        // Clamp to zero now and prevent any further outwards
+        // movement to avoid jittering.
+        if active_constraints > 1 {
+            t_max = 0.0;
+        }
+
+        if t_max <= 0.0 {
+            Vec2::zero()
+        } else {
+            delta * t_max.clamp(0.0, 1.0)
+        }
+    }
+}
+
+fn draw_diamond(debug_draw: &mut dyn DebugDraw, diamond: &[Vec2; 4], edge_color: Color, normal_color: Color) {
+    for i in 0..diamond.len() {
+        let a = diamond[i];
+        let b = diamond[(i + 1) % diamond.len()];
+
+        let edge = b - a;
+        let mid  = (a + b) * 0.5;
+        let normal = inward_normal(edge);
+
+        // Edge:
+        debug_draw.line(a, b, edge_color, edge_color);
+
+        // Normal (inward-facing):
+        debug_draw.line(mid, mid + (normal * 40.0), normal_color, normal_color);
+
+        // Point at each vertex:
+        debug_draw.point(a, coords::DIAMOND_DEBUG_COLORS[i], 12.0);
+    }
+}
 
 fn calc_visible_cells_range(map_size_in_cells: Size,
                             viewport_size: Size,

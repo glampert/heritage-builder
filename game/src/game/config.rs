@@ -84,7 +84,6 @@ pub struct CameraConfigs {
     pub disable_mouse_scroll_zoom: bool,
     pub disable_key_shortcut_zoom: bool,
     pub constrain_to_playable_map_area: bool,
-    pub slide_speed: f32,
     pub scroll_speed: f32,
     pub scroll_margin: f32,
 }
@@ -98,7 +97,6 @@ impl Default for CameraConfigs {
                disable_mouse_scroll_zoom: false,
                disable_key_shortcut_zoom: false,
                constrain_to_playable_map_area: true,
-               slide_speed: 50.0,
                scroll_speed: 500.0,
                scroll_margin: 20.0 }
     }

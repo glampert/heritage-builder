@@ -5,7 +5,7 @@ use crate::{
     debug,
     ui::{self, UiStaticVar},
     engine::config::Configs,
-    utils::{Color, Size, coords::Cell},
+    utils::{Color, Size},
     game::{
         self,
         cheats,
@@ -18,7 +18,6 @@ use crate::{
     },
     tile::{
         sets::PresetTiles,
-        camera::CameraGlobalSettings,
         rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
     },
 };
@@ -350,86 +349,8 @@ impl DebugSettingsDevMenu {
     }
 
     fn camera_menu(&self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
-        let ui = context.ui_sys.ui();
-
-        let mut key_shortcut_zoom = !CameraGlobalSettings::get().disable_key_shortcut_zoom;
-        if ui.checkbox("Keyboard Zoom", &mut key_shortcut_zoom) {
-            CameraGlobalSettings::get_mut().disable_key_shortcut_zoom = !key_shortcut_zoom;
-        }
-
-        let mut mouse_scroll_zoom = !CameraGlobalSettings::get().disable_mouse_scroll_zoom;
-        if ui.checkbox("Mouse Scroll Zoom", &mut mouse_scroll_zoom) {
-            CameraGlobalSettings::get_mut().disable_mouse_scroll_zoom = !mouse_scroll_zoom;
-        }
-
-        let mut smooth_mouse_scroll_zoom = !CameraGlobalSettings::get().disable_smooth_mouse_scroll_zoom;
-        if ui.checkbox("Smooth Mouse Scroll Zoom", &mut smooth_mouse_scroll_zoom) {
-            CameraGlobalSettings::get_mut().disable_smooth_mouse_scroll_zoom = !smooth_mouse_scroll_zoom;
-        }
-
-        let mut constrain_to_playable_map_area = CameraGlobalSettings::get().constrain_to_playable_map_area;
-        if ui.checkbox("Constrain To Playable Map Area", &mut constrain_to_playable_map_area) {
-            CameraGlobalSettings::get_mut().constrain_to_playable_map_area = constrain_to_playable_map_area;
-        }
-
         let camera = game_loop.camera_mut();
-
-        let (zoom_min, zoom_max) = camera.zoom_limits();
-        let mut zoom = camera.current_zoom();
-
-        if ui.slider("Zoom", zoom_min, zoom_max, &mut zoom) {
-            camera.set_zoom(zoom);
-        }
-
-        let mut step_zoom = CameraGlobalSettings::get().fixed_step_zoom_amount;
-        if ui.input_float("Step Zoom", &mut step_zoom)
-            .display_format("%.1f")
-            .step(0.5)
-            .build()
-        {
-            CameraGlobalSettings::get_mut().fixed_step_zoom_amount = step_zoom.clamp(zoom_min, zoom_max);
-        }
-
-        let mut slide_speed = CameraGlobalSettings::get().slide_speed;
-        if ui.input_float("Slide Speed", &mut slide_speed)
-            .display_format("%.1f")
-            .step(1.0)
-            .build()
-        {
-            CameraGlobalSettings::get_mut().slide_speed = slide_speed.max(0.0);
-        }
-
-        ui.separator();
-
-        let scroll_limits = camera.scroll_limits();
-        let mut scroll = camera.current_scroll();
-
-        if ui.slider_config("Scroll X", scroll_limits.0.x, scroll_limits.1.x)
-             .display_format("%.1f")
-             .build(&mut scroll.x)
-        {
-            camera.set_scroll(scroll);
-        }
-
-        if ui.slider_config("Scroll Y", scroll_limits.0.y, scroll_limits.1.y)
-             .display_format("%.1f")
-             .build(&mut scroll.y)
-        {
-            camera.set_scroll(scroll);
-        }
-
-        ui.separator();
-
-        static TELEPORT_CELL: UiStaticVar<Cell> = UiStaticVar::new(Cell::invalid());
-        ui::input_i32_xy(ui, "Teleport To Cell:", TELEPORT_CELL.as_mut(), false, None, None);
-
-        if ui.button("Teleport") {
-            camera.teleport(*TELEPORT_CELL);
-        }
-
-        if ui.button("Re-center") {
-            camera.center();
-        }
+        camera.draw_debug_ui(context.ui_sys);
     }
 
     fn debug_options_menu(&mut self,
@@ -468,6 +389,8 @@ impl DebugSettingsDevMenu {
         if ui.button("Panic Now!") {
             panic!("Testing a runtime panic!");
         }
+
+        ui.same_line();
 
         if ui.button("Crash Now!") {
             unsafe {
