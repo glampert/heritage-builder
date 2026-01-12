@@ -1,7 +1,7 @@
 use crate::{
     log,
     engine::DebugDraw,
-    ui::UiSystem,
+    ui::{self, UiSystem},
     render::{RenderStats, RenderSystem},
     game::{
         cheats::{self, Cheats},
@@ -57,42 +57,25 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
     }
 }
 
-// Show a small debug overlay under the cursor with its current position or
-// provided text.
+// Show a small debug overlay under the cursor with its current position or provided text.
 pub fn draw_cursor_overlay(ui_sys: &UiSystem,
                            transform: WorldToScreenTransform,
                            cursor_screen_pos: Vec2,
                            opt_text: Option<&str>) {
     let ui = ui_sys.ui();
 
-    // Make the window background transparent and remove decorations.
-    let window_flags = imgui::WindowFlags::NO_DECORATION
-                       | imgui::WindowFlags::NO_MOVE
-                       | imgui::WindowFlags::NO_SAVED_SETTINGS
-                       | imgui::WindowFlags::NO_FOCUS_ON_APPEARING
-                       | imgui::WindowFlags::NO_NAV
-                       | imgui::WindowFlags::NO_MOUSE_INPUTS;
+    ui::overlay(ui, "Cursor Debug", cursor_screen_pos + Vec2::new(10.0, 10.0), 0.6, || {
+        if let Some(text) = opt_text {
+            ui.text(text);
+        } else {
+            let cursor_iso_pos = coords::screen_to_iso_point(cursor_screen_pos, transform);
+            let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos);
 
-    // Draw a tiny window near the cursor
-    ui.window("Cursor Debug")
-      .position([cursor_screen_pos.x + 10.0, cursor_screen_pos.y + 10.0], imgui::Condition::Always)
-      .flags(window_flags)
-      .always_auto_resize(true)
-      .bg_alpha(0.6) // Semi-transparent
-      .build(|| {
-          if let Some(text) = opt_text {
-              ui.text(text);
-          } else {
-              let cursor_iso_pos =
-                  coords::screen_to_iso_point(cursor_screen_pos, transform);
-
-              let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos);
-
-              ui.text(format!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
-              ui.text(format!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
-              ui.text(format!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
-          }
-      });
+            ui.text(format!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
+            ui.text(format!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
+            ui.text(format!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
+        }
+    });
 }
 
 pub fn draw_screen_origin_marker(debug_draw: &mut dyn DebugDraw) {
@@ -125,118 +108,97 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem,
                               tile_render_stats: &TileMapRenderStats) {
     let ui = ui_sys.ui();
 
-    let window_flags = imgui::WindowFlags::NO_DECORATION
-                       | imgui::WindowFlags::NO_MOVE
-                       | imgui::WindowFlags::NO_SAVED_SETTINGS
-                       | imgui::WindowFlags::NO_FOCUS_ON_APPEARING
-                       | imgui::WindowFlags::NO_NAV
-                       | imgui::WindowFlags::NO_MOUSE_INPUTS;
+    // Place the overlay window at the bottom-left corner of the screen.
+    let position = Vec2::new(5.0, ui.io().display_size[1] - 220.0);
 
-    // Place the window at the bottom-left corner of the screen.
-    let window_position = [5.0, ui.io().display_size[1] - 220.0];
+    ui::overlay(ui, "Render Stats", position, 0.6, || {
+        ui.text_colored(Color::yellow().to_array(),
+            format!("Tiles drawn       : {} | Peak: {}",
+                          tile_render_stats.tiles_drawn,
+                          tile_render_stats.peak_tiles_drawn));
 
-    ui.window("Render Stats")
-      .position(window_position, imgui::Condition::Always)
-      .flags(window_flags)
-      .always_auto_resize(true)
-      .bg_alpha(0.6) // Semi-transparent
-      .build(|| {
-          ui.text_colored(Color::yellow().to_array(),
-                          format!("Tiles drawn       : {} | Peak: {}",
-                                  tile_render_stats.tiles_drawn,
-                                  tile_render_stats.peak_tiles_drawn));
+        ui.text_colored(Color::yellow().to_array(),
+            format!("Triangles drawn   : {} | Peak: {}",
+                          render_sys_stats.triangles_drawn,
+                          render_sys_stats.peak_triangles_drawn));
 
-          ui.text_colored(Color::yellow().to_array(),
-                          format!("Triangles drawn   : {} | Peak: {}",
-                                  render_sys_stats.triangles_drawn,
-                                  render_sys_stats.peak_triangles_drawn));
+        ui.text_colored(Color::yellow().to_array(),
+            format!("Texture changes   : {} | Peak: {}",
+                          render_sys_stats.texture_changes,
+                          render_sys_stats.peak_texture_changes));
 
-          ui.text_colored(Color::yellow().to_array(),
-                          format!("Texture changes   : {} | Peak: {}",
-                                  render_sys_stats.texture_changes,
-                                  render_sys_stats.peak_texture_changes));
+        ui.text_colored(Color::yellow().to_array(),
+            format!("Draw calls        : {} | Peak: {}",
+                          render_sys_stats.draw_calls,
+                          render_sys_stats.peak_draw_calls));
 
-          ui.text_colored(Color::yellow().to_array(),
-                          format!("Draw calls        : {} | Peak: {}",
-                                  render_sys_stats.draw_calls, render_sys_stats.peak_draw_calls));
+        ui.text(format!("Tile sort list    : {} | Peak: {}",
+                        tile_render_stats.tile_sort_list_len,
+                        tile_render_stats.peak_tile_sort_list_len));
 
-          ui.text(format!("Tile sort list    : {} | Peak: {}",
-                          tile_render_stats.tile_sort_list_len,
-                          tile_render_stats.peak_tile_sort_list_len));
+        ui.text(format!("Tiles highlighted : {} | Peak: {}",
+                        tile_render_stats.tiles_drawn_highlighted,
+                        tile_render_stats.peak_tiles_drawn_highlighted));
 
-          ui.text(format!("Tiles highlighted : {} | Peak: {}",
-                          tile_render_stats.tiles_drawn_highlighted,
-                          tile_render_stats.peak_tiles_drawn_highlighted));
+        ui.text(format!("Tiles invalidated : {} | Peak: {}",
+                        tile_render_stats.tiles_drawn_invalidated,
+                        tile_render_stats.peak_tiles_drawn_invalidated));
 
-          ui.text(format!("Tiles invalidated : {} | Peak: {}",
-                          tile_render_stats.tiles_drawn_invalidated,
-                          tile_render_stats.peak_tiles_drawn_invalidated));
+        ui.text(format!("Lines drawn       : {} | Peak: {}",
+                        render_sys_stats.lines_drawn,
+                        render_sys_stats.peak_lines_drawn));
 
-          ui.text(format!("Lines drawn       : {} | Peak: {}",
-                          render_sys_stats.lines_drawn, render_sys_stats.peak_lines_drawn));
-
-          ui.text(format!("Points drawn      : {} | Peak: {}",
-                          render_sys_stats.points_drawn, render_sys_stats.peak_points_drawn));
-      });
+        ui.text(format!("Points drawn      : {} | Peak: {}",
+                        render_sys_stats.points_drawn,
+                        render_sys_stats.peak_points_drawn));
+    });
 }
 
 pub fn draw_world_perf_stats(ui_sys: &UiSystem, world: &World, tile_map: &TileMap, visible_range: CellRange) {
     let ui = ui_sys.ui();
 
-    let window_flags = imgui::WindowFlags::NO_DECORATION
-                       | imgui::WindowFlags::NO_MOVE
-                       | imgui::WindowFlags::NO_SAVED_SETTINGS
-                       | imgui::WindowFlags::NO_FOCUS_ON_APPEARING
-                       | imgui::WindowFlags::NO_NAV
-                       | imgui::WindowFlags::NO_MOUSE_INPUTS;
+    // Place the overlay window at the bottom-left corner of the screen.
+    let position = Vec2::new(5.0, ui.io().display_size[1] - 300.0);
 
-    // Place the window at the bottom-left corner of the screen.
-    let window_position = [5.0, ui.io().display_size[1] - 300.0];
+    ui::overlay(ui, "Game Stats", position, 0.6, || {
+        let (buildings_spawned, peak_buildings_spawned) = world.buildings_stats();
+        let (units_spawned, peak_units_spawned) = world.units_stats();
+        let (props_spawned, peak_props_spawned) = world.prop_stats();
 
-    ui.window("Game Stats")
-      .position(window_position, imgui::Condition::Always)
-      .flags(window_flags)
-      .always_auto_resize(true)
-      .bg_alpha(0.6) // Semi-transparent
-      .build(|| {
-          let (buildings_spawned, peak_buildings_spawned) = world.buildings_stats();
-          let (units_spawned, peak_units_spawned) = world.units_stats();
-          let (props_spawned, peak_props_spawned) = world.prop_stats();
+        let mut building_tiles = 0;
+        let mut blocker_tiles = 0;
+        let mut unit_tiles = 0;
+        let mut vegetation_tiles = 0;
+        let mut rock_tiles = 0;
 
-          let mut building_tiles = 0;
-          let mut blocker_tiles = 0;
-          let mut unit_tiles = 0;
-          let mut vegetation_tiles = 0;
-          let mut rock_tiles = 0;
+        tile_map.for_each_tile(TileMapLayerKind::Objects, TileKind::Object, |tile| {
+            if tile.is(TileKind::Building) {
+                building_tiles += 1;
+            } else if tile.is(TileKind::Blocker) {
+                blocker_tiles += 1;
+            } else if tile.is(TileKind::Unit) {
+                unit_tiles += 1;
+            } else if tile.is(TileKind::Vegetation) {
+                vegetation_tiles += 1;
+            } else if tile.is(TileKind::Rocks) {
+                rock_tiles += 1;
+            }
+        });
 
-          tile_map.for_each_tile(TileMapLayerKind::Objects, TileKind::Object, |tile| {
-              if tile.is(TileKind::Building) {
-                  building_tiles += 1;
-              } else if tile.is(TileKind::Blocker) {
-                  blocker_tiles += 1;
-              } else if tile.is(TileKind::Unit) {
-                  unit_tiles += 1;
-              } else if tile.is(TileKind::Vegetation) {
-                  vegetation_tiles += 1;
-              } else if tile.is(TileKind::Rocks) {
-                  rock_tiles += 1;
-              }
-          });
-
-          ui.text("Game Objects:");
-          ui.text(format!("- Buildings  : {buildings_spawned} | Peak: {peak_buildings_spawned}"));
-          ui.text(format!("- Units      : {units_spawned} | Peak: {peak_units_spawned}"));
-          ui.text(format!("- Props      : {props_spawned} | Peak: {peak_props_spawned}"));
-          ui.text("Tiles:");
-          ui.text(format!("- Buildings  : {building_tiles}"));
-          ui.text(format!("- Blockers   : {blocker_tiles}"));
-          ui.text(format!("- Units      : {unit_tiles}"));
-          ui.text(format!("- Vegetation : {vegetation_tiles}"));
-          ui.text(format!("- Rocks      : {rock_tiles}"));
-          ui.text("Visible Cells:");
-          ui.text(format!("- Start      : [{},{}]", visible_range.x(), visible_range.y()));
-          ui.text(format!("- Count      : {}x{}", visible_range.width(), visible_range.height()));
-      });
+        ui.text("Game Objects:");
+        ui.text(format!("- Buildings  : {buildings_spawned} | Peak: {peak_buildings_spawned}"));
+        ui.text(format!("- Units      : {units_spawned} | Peak: {peak_units_spawned}"));
+        ui.text(format!("- Props      : {props_spawned} | Peak: {peak_props_spawned}"));
+        ui.text("Tiles:");
+        ui.text(format!("- Buildings  : {building_tiles}"));
+        ui.text(format!("- Blockers   : {blocker_tiles}"));
+        ui.text(format!("- Units      : {unit_tiles}"));
+        ui.text(format!("- Vegetation : {vegetation_tiles}"));
+        ui.text(format!("- Rocks      : {rock_tiles}"));
+        ui.text("Visible Cells:");
+        ui.text(format!("- Start      : [{},{}]", visible_range.x(), visible_range.y()));
+        ui.text(format!("- Count      : {}x{}", visible_range.width(), visible_range.height()));
+    });
 }
 
 // ----------------------------------------------
@@ -247,19 +209,10 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
                           debug_overlay_pos: Vec2,
                           tile_screen_pos: Vec2,
                           tile: &Tile) {
-    // Make the window background transparent and remove decorations:
-    let window_flags = imgui::WindowFlags::NO_DECORATION
-                       | imgui::WindowFlags::NO_MOVE
-                       | imgui::WindowFlags::NO_SAVED_SETTINGS
-                       | imgui::WindowFlags::NO_FOCUS_ON_APPEARING
-                       | imgui::WindowFlags::NO_NAV
-                       | imgui::WindowFlags::NO_MOUSE_INPUTS;
-
     // NOTE: Label has to be unique for each tile because it will be used as the
     // ImGui ID for this widget.
     let cell = tile.actual_base_cell();
     let label = format!("{}_{}_{}", tile.name(), cell.x, cell.y);
-    let position = [debug_overlay_pos.x, debug_overlay_pos.y];
 
     let bg_color = {
         if tile.is(TileKind::Blocker) {
@@ -288,32 +241,27 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
     let ui = ui_sys.ui();
 
     // Adjust window background color based on tile kind.
-    // The returned tokens take care of popping back to the previous color/font.
+    // The returned tokens take care of popping back to the previous colors.
     let _bg_col = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
     let _text_col = ui.push_style_color(imgui::StyleColor::Text, text_color);
 
-    ui.window(label)
-        .position(position, imgui::Condition::Always)
-        .flags(window_flags)
-        .always_auto_resize(true)
-        .bg_alpha(0.4) // Semi-transparent
-        .build(|| {
-            ui.set_window_font_scale(0.8);
+    ui::overlay(ui, &label, debug_overlay_pos, 0.4, || {
+        ui.set_window_font_scale(0.8);
 
-            let tile_iso_pos = tile.iso_coords_f32();
-            ui.text(format!("C:{},{}", cell.x, cell.y)); // Cell position
-            ui.text(format!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
-            ui.text(format!("I:{:.1},{:.1}", tile_iso_pos.0.x, tile_iso_pos.0.y)); // 2D isometric position
+        let tile_iso_pos = tile.iso_coords_f32();
+        ui.text(format!("C:{},{}", cell.x, cell.y)); // Cell position
+        ui.text(format!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
+        ui.text(format!("I:{:.1},{:.1}", tile_iso_pos.0.x, tile_iso_pos.0.y));   // 2D isometric position
 
-            // Z/Depth sorting:
-            match tile.depth_sort_override() {
-                TileDepthSortOverride::None => {},
-                TileDepthSortOverride::Topmost => ui.text("Z: Top"),
-                TileDepthSortOverride::Bottommost => ui.text("Z: Bottom"),
-            }
+        // Z/Depth sorting:
+        match tile.depth_sort_override() {
+            TileDepthSortOverride::None => {},
+            TileDepthSortOverride::Topmost => ui.text("Z: Top"),
+            TileDepthSortOverride::Bottommost => ui.text("Z: Bottom"),
+        }
 
-            ui.set_window_font_scale(1.0);
-        });
+        ui.set_window_font_scale(1.0);
+    });
 }
 
 fn draw_tile_info(render_sys: &mut impl RenderSystem,

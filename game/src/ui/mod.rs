@@ -1084,6 +1084,27 @@ pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
     clicked
 }
 
+pub fn overlay<DrawFn: FnOnce()>(ui: &imgui::Ui, name: &str, position: Vec2, bg_alpha: f32, draw_fn: DrawFn) {
+    // Make the window background transparent and remove decorations.
+    let window_flags =
+        imgui::WindowFlags::NO_DECORATION
+        | imgui::WindowFlags::NO_NAV
+        | imgui::WindowFlags::NO_MOVE
+        | imgui::WindowFlags::NO_MOUSE_INPUTS
+        | imgui::WindowFlags::NO_RESIZE
+        | imgui::WindowFlags::NO_SCROLLBAR
+        | imgui::WindowFlags::NO_COLLAPSE
+        | imgui::WindowFlags::NO_SAVED_SETTINGS
+        | imgui::WindowFlags::NO_FOCUS_ON_APPEARING
+        | imgui::WindowFlags::ALWAYS_AUTO_RESIZE;
+
+    ui.window(name)
+      .position(position.to_array(), imgui::Condition::Always)
+      .flags(window_flags)
+      .bg_alpha(bg_alpha) // Semi-transparent
+      .build(draw_fn);
+}
+
 // ----------------------------------------------
 // UiStaticVar
 // ----------------------------------------------
