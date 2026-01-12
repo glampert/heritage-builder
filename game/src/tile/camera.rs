@@ -214,6 +214,7 @@ impl Camera {
         self.viewport_size
     }
 
+    // Camera center position in screen space.
     #[inline]
     pub fn viewport_center(&self) -> Vec2 {
         self.viewport_size.to_vec2() * 0.5
@@ -227,13 +228,6 @@ impl Camera {
     #[inline]
     pub fn map_size_in_cells(&self) -> Size {
         self.map_size_in_cells
-    }
-
-    // Camera center position in screen space.
-    #[inline]
-    pub fn screen_space_position(&self) -> Vec2 {
-        let iso_point = self.iso_world_position();
-        coords::iso_to_screen_rect_f32(iso_point, BASE_TILE_SIZE_I32, self.transform).position()
     }
 
     // Camera center position in isometric world space.
@@ -555,7 +549,7 @@ impl Camera {
                      Color::yellow());
 
         // Camera center point, in screen/render space:
-        let camera_center = self.screen_space_position();
+        let camera_center = self.viewport_center();
         debug_draw.point(camera_center, Color::magenta(), 15.0);
 
         let ui = ui_sys.ui();
