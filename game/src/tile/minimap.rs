@@ -1347,8 +1347,8 @@ impl MinimapWidgetImGui {
     }
 
     fn calc_map_iso_bounds(size_in_cells: Vec2) -> Rect {
-        let w = size_in_cells.x;
-        let h = size_in_cells.y;
+        let w = size_in_cells.x - 1.0;
+        let h = size_in_cells.y - 1.0;
         let points = [
             coords::cell_to_iso_f32(CellF32(Vec2::new(0.0, 0.0))).0,
             coords::cell_to_iso_f32(CellF32(Vec2::new(0.0, h  ))).0,
