@@ -87,7 +87,7 @@ impl GameSession {
         }
 
         let mut world = World::new();
-        let tile_map = Self::new_tile_map(&mut world, load_map_setting);
+        let tile_map = Self::new_tile_map(&mut world, engine.viewport().size_as_vec2(), load_map_setting);
         let sim = Simulation::new(&tile_map);
 
         let mut systems = GameSystems::new();
@@ -179,7 +179,7 @@ impl GameSession {
         self.menus.as_ref().map(|menus| menus.mode())
     }
 
-    fn new_tile_map(world: &mut World, load_map_setting: &LoadMapSetting) -> Box<TileMap> {
+    fn new_tile_map(world: &mut World, viewport_size: Vec2, load_map_setting: &LoadMapSetting) -> Box<TileMap> {
         let tile_map = {
             match load_map_setting {
                 LoadMapSetting::None => {
@@ -187,7 +187,7 @@ impl GameSession {
                 }
                 LoadMapSetting::EmptyMap { size_in_cells,
                                            terrain_tile_category,
-                                           terrain_tile_name, } => {
+                                           terrain_tile_name } => {
                     log::info!(log::channel!("session"),
                                "Creating empty Tile Map. Size: {size_in_cells}, Fill: {terrain_tile_name}");
 
@@ -197,6 +197,7 @@ impl GameSession {
 
                     let mut tile_map =
                         TileMap::with_terrain_tile(*size_in_cells,
+                                                   viewport_size,
                                                    hash::fnv1a_from_str(terrain_tile_category),
                                                    hash::fnv1a_from_str(terrain_tile_name));
 
@@ -209,7 +210,7 @@ impl GameSession {
                     tile_map
                 }
                 LoadMapSetting::Preset { preset_number } => {
-                    debug::utils::create_preset_tile_map(world, *preset_number)
+                    debug::utils::create_preset_tile_map(world, viewport_size, *preset_number)
                 }
                 LoadMapSetting::SaveGame { save_file_path } => {
                     if save_file_path.is_empty() {
@@ -230,14 +231,23 @@ impl GameSession {
         Self::new(&load_map_setting, viewport_size, engine, false)
     }
 
-    fn reset(&mut self, engine: &dyn Engine, reset_map: bool, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>, home_menu: bool) {
+    fn reset(&mut self,
+             engine: &dyn Engine,
+             reset_map: bool,
+             reset_map_with_tile_def: Option<&'static TileDef>,
+             new_map_size: Option<Size>,
+             home_menu: bool) {
         undo_redo::clear();
         self.tile_selection = TileSelection::default();
         self.menus = Some(self.new_game_menus_from_config(engine, home_menu));
         self.sim.reset_world(&mut self.world, &mut self.systems, &mut self.tile_map);
 
         if reset_map && (self.tile_map.size_in_cells().is_valid() || new_map_size.is_some()) {
-            self.tile_map.reset(reset_map_with_tile_def, new_map_size);
+            let new_map_and_viewport_sizes = new_map_size.map(|map_size| {
+                (map_size, engine.viewport().size_as_vec2())
+            });
+
+            self.tile_map.reset(reset_map_with_tile_def, new_map_and_viewport_sizes);
 
             if reset_map_with_tile_def.is_some() {
                 // Randomize terrain tiles.

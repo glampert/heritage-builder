@@ -579,14 +579,14 @@ mod preset_maps {
         TileSets::get().find_tile_def_by_name(layer_kind, category_name, tile_name)
     }
 
-    fn build_tile_map(preset: &'static PresetTiles, world: &mut World) -> TileMap {
+    fn build_tile_map(preset: &'static PresetTiles, world: &mut World, viewport_size: Vec2) -> TileMap {
         let map_size_in_cells = preset.map_size_in_cells;
 
         let tile_count = (map_size_in_cells.width * map_size_in_cells.height) as usize;
         debug_assert!(preset.terrain_tiles.len() == tile_count);
         debug_assert!(preset.building_tiles.len() == tile_count);
 
-        let mut tile_map = TileMap::new(map_size_in_cells, None);
+        let mut tile_map = TileMap::new(map_size_in_cells, viewport_size, None);
         let mut query_builder = DebugQueryBuilder::new(world, &mut tile_map, map_size_in_cells);
         let query = query_builder.new_query();
 
@@ -626,7 +626,7 @@ mod preset_maps {
         PRESET_TILES.iter().map(|preset| preset.preset_name).collect()
     }
 
-    pub fn create_preset_tile_map_internal(world: &mut World, mut preset_number: usize) -> TileMap {
+    pub fn create_preset_tile_map_internal(world: &mut World, viewport_size: Vec2, mut preset_number: usize) -> TileMap {
         preset_number = preset_number.min(PRESET_TILES.len());
 
         log::info!(log::channel!("debug"),
@@ -638,7 +638,7 @@ mod preset_maps {
             enable_cheats_fn(cheats::get_mut());
         }
 
-        build_tile_map(preset, world)
+        build_tile_map(preset, world, viewport_size)
     }
 }
 
@@ -646,6 +646,6 @@ pub fn preset_tile_maps_list() -> Vec<&'static str> {
     preset_maps::preset_tile_maps_list_internal()
 }
 
-pub fn create_preset_tile_map(world: &mut World, preset_number: usize) -> TileMap {
-    preset_maps::create_preset_tile_map_internal(world, preset_number)
+pub fn create_preset_tile_map(world: &mut World, viewport_size: Vec2, preset_number: usize) -> TileMap {
+    preset_maps::create_preset_tile_map_internal(world, viewport_size, preset_number)
 }

@@ -17,6 +17,7 @@ use selection::TileSelection;
 use sets::{TileAnimSet, TileDef, SerializableTileDefHandle, TileSets, TileTexInfo};
 
 use crate::{
+    log,
     bitflags_with_display,
     engine::time::Seconds,
     pathfind::NodeKind as PathNodeKind,
@@ -1382,8 +1383,8 @@ impl TilePool {
 
     #[inline(always)]
     fn is_cell_within_bounds(&self, cell: Cell) -> bool {
-        if (cell.x < 0 || cell.x >= self.layer_size_in_cells.width)
-           || (cell.y < 0 || cell.y >= self.layer_size_in_cells.height)
+        if (cell.x < 0 || cell.x >= self.layer_size_in_cells.width) ||
+           (cell.y < 0 || cell.y >= self.layer_size_in_cells.height)
         {
             return false;
         }
@@ -1571,6 +1572,7 @@ pub struct TileMapLayer {
 impl TileMapLayer {
     fn new(layer_kind: TileMapLayerKind,
            size_in_cells: Size,
+           playable_area: &TileMapPlayableArea,
            fill_with_def: Option<&'static TileDef>,
            allow_stacking: bool)
            -> Box<TileMapLayer> {
@@ -1581,16 +1583,27 @@ impl TileMapLayer {
             // Make sure TileDef is compatible with this layer.
             debug_assert!(fill_tile_def.layer_kind() == layer_kind);
 
-            let tile_count = (size_in_cells.width * size_in_cells.height) as usize;
+            let tile_count = playable_area.playable_tile_count(size_in_cells);
+            debug_assert!(tile_count > 0 && tile_count <= (size_in_cells.width * size_in_cells.height) as usize);
+
+            log::info!(log::channel!("tile"),
+                       "Trimming margin of {} tiles for layer {}, map size: {}, instantiated tiles: {} out of: {}.",
+                       playable_area.margin(), layer_kind, size_in_cells, tile_count, size_in_cells.width * size_in_cells.height);
+
             layer.pool.slab.reserve_exact(tile_count);
 
             for y in 0..size_in_cells.height {
                 for x in 0..size_in_cells.width {
-                    let did_insert_tile =
-                        layer.insert_tile(Cell::new(x, y), fill_tile_def, allow_stacking);
+                    if !playable_area.contains(x, y) {
+                        continue;
+                    }
+
+                    let did_insert_tile = layer.insert_tile(Cell::new(x, y), fill_tile_def, allow_stacking);
                     assert!(did_insert_tile);
                 }
             }
+
+            debug_assert!(layer.tile_count() == tile_count);
         } else {
             // Else layer is left empty. Pre-reserve some memory for future tile placements.
             layer.pool.slab.reserve(512);
@@ -1971,6 +1984,99 @@ impl IndexMut<TilePoolIndex> for TileMapLayer {
 }
 
 // ----------------------------------------------
+// TileMapPlayableArea
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Default)]
+enum TileMapPlayableArea {
+    #[default]
+    WholeMap, // Whole map is playable.
+
+    TrimmedMargins {
+        min_sum:  i32,
+        max_sum:  i32,
+        min_diff: i32,
+        max_diff: i32,
+    }
+}
+
+impl TileMapPlayableArea {
+    fn with_margin(map_size: Size, margin: i32) -> Self {
+        Self::TrimmedMargins {
+            min_sum: margin,
+            max_sum: (map_size.width - 1 + map_size.height - 1) - margin,
+            min_diff: -(map_size.height - 1) + margin,
+            max_diff:  (map_size.width  - 1) - margin,
+        }
+    }
+
+    fn with_viewport(map_size: Size, viewport_size: Vec2) -> Self {
+        let margin = Self::margin_from_viewport(viewport_size);
+        Self::with_margin(map_size, margin)
+    }
+
+    fn margin_from_viewport(viewport_size: Vec2) -> i32 {
+        let delta_s = viewport_size.y / BASE_TILE_HEIGHT_F32;
+        let delta_d = viewport_size.x / BASE_TILE_WIDTH_F32;
+
+        let margin_s = (delta_s * 0.5).ceil();
+        let margin_d = (delta_d * 0.5).ceil();
+
+        let conservative_margin = margin_s.max(margin_d);
+
+        // Estimated margin is conservative, we can expand
+        // it by 1.5x and still be within a safe margin.
+        (conservative_margin * 1.5).ceil() as i32
+    }
+
+    fn playable_tile_count(&self, map_size: Size) -> usize {
+        match self {
+            Self::WholeMap => {
+                (map_size.width * map_size.height) as usize
+            },
+            Self::TrimmedMargins { min_sum, max_sum, min_diff, max_diff } => {
+                let mut total: usize = 0;
+                for x in 0..map_size.width {
+                    let y_min = 0
+                        .max(*min_sum - x)
+                        .max(x - *max_diff);
+
+                    let y_max = (map_size.height - 1)
+                        .min(*max_sum - x)
+                        .min(x - *min_diff);
+
+                    if y_max >= y_min {
+                        total += (y_max - y_min + 1) as usize;
+                    }
+                }
+                total
+            }
+        }
+    }
+
+    fn margin(&self) -> i32 {
+        match self {
+            Self::WholeMap => 0,
+            Self::TrimmedMargins { min_sum, .. } => *min_sum,
+        }
+    }
+
+    fn contains(&self, x: i32, y: i32) -> bool {
+        match self {
+            Self::WholeMap => true,
+            Self::TrimmedMargins { min_sum, max_sum, min_diff, max_diff } => {
+                let sum  = x + y;
+                let diff = x - y;
+                sum  >= *min_sum  &&
+                sum  <= *max_sum  &&
+                diff >= *min_diff &&
+                diff <= *max_diff
+            }
+        }
+    }
+}
+
+// ----------------------------------------------
 // Optional callbacks used for editing and dev
 // ----------------------------------------------
 
@@ -1987,7 +2093,11 @@ pub struct TileMap {
     size_in_cells: Size,
     layers: ArrayVec<Box<TileMapLayer>, TILE_MAP_LAYER_COUNT>,
 
-    // Minimap is reconstructed on post_load().
+    // Not serialized. PlayableArea is reconstructed on post_load().
+    #[serde(skip)]
+    playable_area: TileMapPlayableArea,
+
+    // Not serialized. Minimap is reconstructed on post_load().
     #[serde(skip)]
     minimap: Minimap,
 
@@ -2009,12 +2119,14 @@ pub struct TileMap {
 }
 
 impl TileMap {
-    pub fn new(size_in_cells: Size, fill_with_def: Option<&'static TileDef>) -> Self {
+    pub fn new(size_in_cells: Size, viewport_size: Vec2, fill_with_def: Option<&'static TileDef>) -> Self {
         debug_assert!(size_in_cells.is_valid());
+        debug_assert!(viewport_size != Vec2::zero());
 
         let mut tile_map = Self {
             size_in_cells,
             layers: ArrayVec::new(),
+            playable_area: TileMapPlayableArea::with_viewport(size_in_cells, viewport_size),
             minimap: Minimap::new(size_in_cells),
             on_tile_placed_callback: None,
             on_removing_tile_callback: None,
@@ -2026,6 +2138,7 @@ impl TileMap {
     }
 
     pub fn with_terrain_tile(size_in_cells: Size,
+                             viewport_size: Vec2,
                              category_name_hash: StringHash,
                              tile_name_hash: StringHash)
                              -> Self {
@@ -2033,19 +2146,20 @@ impl TileMap {
                                                                   category_name_hash,
                                                                   tile_name_hash);
 
-        Self::new(size_in_cells, fill_with_def)
+        Self::new(size_in_cells, viewport_size, fill_with_def)
     }
 
-    pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
+    pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_and_viewport_sizes: Option<(Size, Vec2)>) {
         self.layers.clear();
-        self.minimap.reset(fill_with_def, new_map_size);
+        self.minimap.reset(fill_with_def, new_map_and_viewport_sizes.map(|(map_size, _)| map_size));
 
         if let Some(callback) = self.on_map_reset_callback {
             callback(self);
         }
 
-        if let Some(size_in_cells) = new_map_size {
-            self.size_in_cells = size_in_cells;
+        if let Some((map_size, viewport_size)) = new_map_and_viewport_sizes {
+            self.playable_area = TileMapPlayableArea::with_viewport(map_size, viewport_size);
+            self.size_in_cells = map_size;
         }
 
         for layer_kind in TileMapLayerKind::iter() {
@@ -2063,7 +2177,13 @@ impl TileMap {
             };
 
             const ALLOW_STACKING: bool = false;
-            self.layers.push(TileMapLayer::new(layer_kind, self.size_in_cells, fill_opt, ALLOW_STACKING));
+            self.layers.push(TileMapLayer::new(
+                layer_kind,
+                self.size_in_cells,
+                &self.playable_area,
+                fill_opt,
+                ALLOW_STACKING
+            ));
         }
     }
 
@@ -2099,12 +2219,17 @@ impl TileMap {
 
     #[inline]
     pub fn is_cell_within_bounds(&self, cell: Cell) -> bool {
-        if (cell.x < 0 || cell.x >= self.size_in_cells.width)
-           || (cell.y < 0 || cell.y >= self.size_in_cells.height)
+        if (cell.x < 0 || cell.x >= self.size_in_cells.width) ||
+           (cell.y < 0 || cell.y >= self.size_in_cells.height)
         {
             return false;
         }
         true
+    }
+
+    #[inline]
+    pub fn is_cell_within_playable_area(&self, cell: Cell) -> bool {
+        self.is_cell_within_bounds(cell) && self.playable_area.contains(cell.x, cell.y)
     }
 
     #[inline]
@@ -2683,6 +2808,13 @@ impl Load for TileMap {
         debug_assert!(self.on_tile_placed_callback.is_none());
         debug_assert!(self.on_removing_tile_callback.is_none());
         debug_assert!(self.on_map_reset_callback.is_none());
+
+        if self.size_in_cells.is_valid() { // If not loading into an empty map.
+            self.playable_area = TileMapPlayableArea::with_viewport(
+                self.size_in_cells,
+                context.engine().viewport().size_as_vec2()
+            );
+        }
 
         for layer in &mut self.layers {
             layer.post_load();
