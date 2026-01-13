@@ -12,10 +12,10 @@ use crate::{
     pathfind::{Path, Node},
     engine::time::UpdateTimer,
     tile::{TileDepthSortOverride},
-    utils::{callback::Callback, coords::Cell, Size},
+    utils::{callback::Callback, coords::Cell},
     game::{
         config::GameConfigs,
-        sim::{Query, RandomGenerator},
+        sim::Query,
         unit::{
             Unit,
             anim::UnitAnimSets,
@@ -96,15 +96,13 @@ enum BirdFlightPath {
 }
 
 fn spawn_bird(query: &Query, flight_path: BirdFlightPath) {
-    let map_size = query.tile_map().size_in_cells();
-
     let (path, anim_set_key) = {
         match flight_path {
             BirdFlightPath::LeftToRight => {
-                (make_left_to_right_randomized_path(query.rng(), map_size), UnitAnimSets::WALK_SE)
+                (make_left_to_right_randomized_path(query), UnitAnimSets::WALK_SE)
             }
             BirdFlightPath::RightToLeft => {
-                (make_right_to_left_randomized_path(query.rng(), map_size), UnitAnimSets::WALK_SW)
+                (make_right_to_left_randomized_path(query), UnitAnimSets::WALK_SW)
             }
         }
     };
@@ -135,49 +133,83 @@ fn spawn_bird_with_random_flight_path(query: &Query) {
     spawn_bird(query, flight_path);
 }
 
-fn make_left_to_right_randomized_path(rng: &mut RandomGenerator, map_size: Size) -> Path {
-    let mut path = Path::new();
+fn make_left_to_right_randomized_path(query: &Query) -> Path {
+    let map_size = query.tile_map().size_in_cells();
 
-    // Randomize either the X or Y axis.
-    let (mut x, mut y) = {
-        if rng.random_bool(0.5) {
-            (rng.random_range(0..map_size.width), map_size.height - 1) // X
-        } else {
-            (0, rng.random_range(0..map_size.height)) // Y
+    let randomized_spawn_point = || {
+        let rng = query.rng();
+        let mut start = 0;
+
+        loop {
+            // Randomize either the X or Y axis.
+            let cell = {
+                if rng.random_bool(0.5) {
+                    Cell::new(rng.random_range(start..map_size.width), map_size.height - 1) // X
+                } else {
+                    Cell::new(0, rng.random_range(start..map_size.height)) // Y
+                }
+            };
+
+            if query.tile_map().is_cell_within_playable_area(cell) {
+                return cell;
+            }
+
+            // Retry if the randomized spawn point falls outside the playable area.
+            start += 1;
         }
     };
 
+    let mut cell = randomized_spawn_point();
+    let mut path = Path::new();
+
     for _ in 0..map_size.width {
-        path.push(Node::new(Cell::new(x, y)));
-        if x == (map_size.width - 1) || y == 0 {
+        path.push(Node::new(cell));
+        if cell.x == (map_size.width - 1) || cell.y == 0 {
             break;
         }
-        x += 1;
-        y -= 1;
+        cell.x += 1;
+        cell.y -= 1;
     }
 
     path
 }
 
-fn make_right_to_left_randomized_path(rng: &mut RandomGenerator, map_size: Size) -> Path {
-    let mut path = Path::new();
+fn make_right_to_left_randomized_path(query: &Query) -> Path {
+    let map_size = query.tile_map().size_in_cells();
 
-    // Randomize either the X or Y axis.
-    let (mut x, mut y) = {
-        if rng.random_bool(0.5) {
-            (rng.random_range(0..map_size.width), 0) // X
-        } else {
-            (map_size.width - 1, rng.random_range(0..map_size.height)) // Y
+    let randomized_spawn_point = || {
+        let rng = query.rng();
+        let mut start = 0;
+
+        loop {
+            // Randomize either the X or Y axis.
+            let cell = {
+                if rng.random_bool(0.5) {
+                    Cell::new(rng.random_range(start..map_size.width), 0) // X
+                } else {
+                    Cell::new(map_size.width - 1, rng.random_range(start..map_size.height)) // Y
+                }
+            };
+
+            if query.tile_map().is_cell_within_playable_area(cell) {
+                return cell;
+            }
+
+            // Retry if the randomized spawn point falls outside the playable area.
+            start += 1;
         }
     };
 
+    let mut cell = randomized_spawn_point();
+    let mut path = Path::new();
+
     for _ in 0..map_size.width {
-        path.push(Node::new(Cell::new(x, y)));
-        if x == 0 || y == (map_size.height - 1) {
+        path.push(Node::new(cell));
+        if cell.x == 0 || cell.y == (map_size.height - 1) {
             break;
         }
-        x -= 1;
-        y += 1;
+        cell.x -= 1;
+        cell.y += 1;
     }
 
     path
