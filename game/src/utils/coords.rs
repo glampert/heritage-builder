@@ -534,18 +534,6 @@ pub fn is_screen_point_inside_triangle(point: Vec2, a: Vec2, b: Vec2, c: Vec2) -
     u >= 0.0 && v >= 0.0 && (u + v) <= 1.0
 }
 
-pub const DIAMOND_TOP:    usize = 0;
-pub const DIAMOND_RIGHT:  usize = 1;
-pub const DIAMOND_BOTTOM: usize = 2;
-pub const DIAMOND_LEFT:   usize = 3;
-
-pub const DIAMOND_DEBUG_COLORS: [Color; 4] = [
-    Color::white(),  // DIAMOND_TOP
-    Color::cyan(),   // DIAMOND_RIGHT
-    Color::yellow(), // DIAMOND_BOTTOM
-    Color::green(),  // DIAMOND_LEFT
-];
-
 // Creates an isometric-aligned diamond rectangle for the given tile size and cell location.
 // Winding order of edges is Counter-Clockwise (CCW) in *screen space* (+Y points down, positive signed area).
 pub fn cell_to_screen_diamond_points(cell: Cell,
@@ -608,4 +596,79 @@ pub fn inner_rect_from_diamond_points(points: &[Vec2; 4]) -> Rect {
                   "Invalid inner diamond rect!");
 
     inner_rect
+}
+
+// ----------------------------------------------
+// IsoDiamond
+// ----------------------------------------------
+
+pub struct IsoDiamond {
+    // Screen-space diamond points/vertices, CCW winding: [top, right, bottom, left]
+    points: [Vec2; 4],
+}
+
+impl IsoDiamond {
+    pub const TOP:    usize = 0;
+    pub const RIGHT:  usize = 1;
+    pub const BOTTOM: usize = 2;
+    pub const LEFT:   usize = 3;
+
+    pub const DEBUG_COLORS: [Color; 4] = [
+        Color::white(),  // TOP
+        Color::cyan(),   // RIGHT
+        Color::yellow(), // BOTTOM
+        Color::green(),  // LEFT
+    ];
+
+    pub fn from_screen_points(points: [Vec2; 4]) -> Self {
+        Self { points }
+    }
+
+    pub fn from_cell(cell: Cell,
+                     tile_size: Size,
+                     transform: WorldToScreenTransform) -> Self {
+        let points = cell_to_screen_diamond_points(cell, tile_size, transform);
+        Self { points }
+    }
+
+    pub fn from_tile_map(map_size_in_cells: Size,
+                         transform: WorldToScreenTransform) -> Self {
+        let map_origin_cell = Cell::zero();
+        let map_size_in_pixels = Size::new(
+            map_size_in_cells.width  * BASE_TILE_SIZE_I32.width,
+            map_size_in_cells.height * BASE_TILE_SIZE_I32.height,
+        );
+
+        let points = cell_to_screen_diamond_points(
+            map_origin_cell,
+            map_size_in_pixels,
+            transform);
+
+        Self { points }
+    }
+
+    #[inline]
+    pub fn screen_points(&self) -> &[Vec2; 4] {
+        &self.points
+    }
+
+    #[inline]
+    pub fn screen_point(&self, index: usize) -> Vec2 {
+        self.points[index]
+    }
+
+    #[inline]
+    pub fn inner_rect(&self) -> Rect {
+        inner_rect_from_diamond_points(&self.points)
+    }
+
+    pub fn area(&self) -> f32 {
+        let mut area = 0.0;
+        for i in 0..self.points.len() {
+            let a = self.points[i];
+            let b = self.points[(i + 1) % self.points.len()];
+            area += (a.x * b.y) - (b.x * a.y);
+        }
+        area * 0.5
+    }
 }

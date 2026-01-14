@@ -11,7 +11,7 @@ use crate::{
         self,
         constants::*,
         Rect, Size, Vec2, Color,
-        coords::{self, Cell, CellF32, CellRange, WorldToScreenTransform, IsoPointF32},
+        coords::{self, Cell, CellF32, CellRange, WorldToScreenTransform, IsoDiamond, IsoPointF32},
     },
 };
 
@@ -266,6 +266,7 @@ impl Camera {
         [top_left, top_right, bottom_right, bottom_left]
     }
 
+    // NOTE: Returned cells are *not* clamped to integer min/max map bounds (maybe be < 0 | > map_size-1).
     #[inline]
     pub fn cell_bounds(&self) -> (CellF32, CellF32) {
         let (iso_top_left, iso_bottom_right) = self.iso_bounds();
@@ -287,6 +288,7 @@ impl Camera {
         (cell_top_left, cell_bottom_right)
     }
 
+    // NOTE: Returned cells are *not* clamped to integer min/max map bounds (maybe be < 0 | > map_size-1).
     #[inline]
     pub fn cell_corners(&self) -> [CellF32; 4] {
         let iso_corners = self.iso_corners();
@@ -298,13 +300,7 @@ impl Camera {
         ]
     }
 
-    pub fn map_diamond_points(&self, camera_relative: bool) -> [Vec2; 4] {
-        let map_origin_cell = Cell::zero();
-        let map_size_in_pixels = Size::new(
-            self.map_size_in_cells.width   * BASE_TILE_SIZE_I32.width,
-            self.map_size_in_cells.height * BASE_TILE_SIZE_I32.height,
-        );
-
+    pub fn map_diamond(&self, camera_relative: bool) -> IsoDiamond {
         let transform = if camera_relative {
             self.transform
         } else {
@@ -312,24 +308,11 @@ impl Camera {
             WorldToScreenTransform::new(self.current_zoom(), Vec2::zero())
         };
 
-        let points = coords::cell_to_screen_diamond_points(
-            map_origin_cell,
-            map_size_in_pixels,
-            transform);
-
-        fn signed_area(points: &[Vec2; 4]) -> f32 {
-            let mut area = 0.0;
-            for i in 0..points.len() {
-                let a = points[i];
-                let b = points[(i + 1) % points.len()];
-                area += (a.x * b.y) - (b.x * a.y);
-            }
-            area * 0.5
-        }
+        let diamond = IsoDiamond::from_tile_map(self.map_size_in_cells, transform);
 
         // Expected CCW winding, area must be positive.
-        debug_assert!(signed_area(&points) > 0.0);
-        points
+        debug_assert!(diamond.area() > 0.0);
+        diamond
     }
 
     // Axis-aligned inner map diamond rectangle constraints. These clip the camera to
@@ -338,8 +321,8 @@ impl Camera {
     // tile map as a perfect rectangle. CameraConstraintsInnerRect checks are also
     // cheaper and trivial compared to those of CameraConstraintsIsoDiamond.
     fn build_constraints(&self, _: bool) -> CameraConstraintsInnerRect {
-        let points = self.map_diamond_points(false);
-        let playable_area = coords::inner_rect_from_diamond_points(&points);
+        let diamond = self.map_diamond(false);
+        let playable_area = diamond.inner_rect();
         let camera_half_extents = self.viewport_center();
         CameraConstraintsInnerRect::new(playable_area, camera_half_extents)
     }
@@ -350,9 +333,9 @@ impl Camera {
     // diagonal of the map's diamond.
     /*
     fn build_constraints(&self, camera_relative: bool) -> CameraConstraintsIsoDiamond {
-        let points = self.map_diamond_points(camera_relative);
+        let diamond = self.map_diamond(camera_relative);
         let viewport_half_extents = self.viewport_center();
-        CameraConstraintsIsoDiamond::new(&points, viewport_half_extents)
+        CameraConstraintsIsoDiamond::new(&diamond, viewport_half_extents)
     }
     */
 
@@ -795,15 +778,15 @@ impl CameraConstraints for CameraConstraintsInnerRect {
         // Whole map diamond bounds and inward-facing normals:
         {
             const CAMERA_RELATIVE: bool = true;
-            let points = camera.map_diamond_points(CAMERA_RELATIVE);
-            draw_diamond_edges_and_normals(debug_draw, &points, Color::red(), Color::green());
+            let diamond = camera.map_diamond(CAMERA_RELATIVE);
+            draw_diamond_edges_and_normals(debug_draw, &diamond, Color::red(), Color::green());
         }
 
         // Inner diamond rect:
         {
             const CAMERA_RELATIVE: bool = false;
-            let points = camera.map_diamond_points(CAMERA_RELATIVE);
-            let inner_rect = coords::inner_rect_from_diamond_points(&points);
+            let diamond = camera.map_diamond(CAMERA_RELATIVE);
+            let inner_rect = diamond.inner_rect();
             debug_draw.wireframe_rect(inner_rect.translated(camera.current_scroll()), Color::blue());
         }
     }
@@ -826,9 +809,9 @@ impl CameraConstraints for CameraConstraintsInnerRect {
 // at corners.
 struct CameraConstraintsIsoDiamond {
     // CCW convex polygon with inward-facing normals.
-    points: [Vec2; 4],
+    diamond: IsoDiamond,
 
-    // Precomputed edge normals for each points[i] and points[i+1] pair.
+    // Precomputed edge normals for each diamond[i] and diamond[i+1] pair.
     normals: [Vec2; 4],
 }
 
@@ -838,10 +821,10 @@ impl CameraConstraintsIsoDiamond {
     const MAX_STEPS: usize = 8;
 
     // Constructs camera constraints from the map diamond.
-    // `points` must be a CCW-ordered convex polygon in screen space.
+    // `diamond` must hold a CCW-ordered convex polygon in screen space.
     // `viewport_half_extents` is half the viewport size in the same coordinate space.
     // The resulting polygon represents the valid region for the camera center.
-    fn new(points: &[Vec2; 4], viewport_half_extents: Vec2) -> Self {
+    fn new(diamond: &IsoDiamond, viewport_half_extents: Vec2) -> Self {
         debug_assert!(viewport_half_extents.x > 0.0 && viewport_half_extents.y > 0.0);
 
         #[derive(Copy, Clone, Default)]
@@ -870,6 +853,7 @@ impl CameraConstraintsIsoDiamond {
         let mut normals = [Vec2::zero(); 4];
 
         // Shrink diamond polygon in half:
+        let points = diamond.screen_points();
         for i in 0..points.len() {
             let a = points[i];
             let b = points[(i + 1) % points.len()];
@@ -891,12 +875,12 @@ impl CameraConstraintsIsoDiamond {
 
         // Reconstruct shrunken diamond points from constraint planes:
         Self {
-            points: [
+            diamond: IsoDiamond::from_screen_points([
                 compute_constraint_point(&planes[0], &planes[1]),
                 compute_constraint_point(&planes[1], &planes[2]),
                 compute_constraint_point(&planes[2], &planes[3]),
                 compute_constraint_point(&planes[3], &planes[0]),
-            ],
+            ]),
             normals,
         }
     }
@@ -914,6 +898,8 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
     // When two constraints are active simultaneously (corner case),
     // motion is fully blocked to avoid jitter.
     fn clamp_delta(&self, center: Vec2, mut delta: Vec2) -> Vec2 {
+        let points = self.diamond.screen_points();
+
         let mut t_max: f32 = 1.0;
         let mut active_constraints = 0;
 
@@ -924,14 +910,11 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
         for _ in 0..Self::MAX_STEPS {
             let mut any_outside = false;
 
-            for i in 0..self.points.len() {
-                let point  = self.points[i];
-                let normal = self.normals[i];
-
+            for (point, normal) in points.iter().zip(self.normals) {
                 // signed_distance > 0 -> strictly inside
                 // signed_distance = 0 -> exactly on boundary
                 // signed_distance < 0 -> already outside
-                let signed_distance = (center - point).dot(normal);
+                let signed_distance = (center - *point).dot(normal);
 
                 // normal_velocity > 0 -> motion is outward (toward violation)
                 // normal_velocity < 0 -> motion is inward (safe)
@@ -980,14 +963,13 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
     }
 
     fn clamp_point(&self, mut p: Vec2) -> Vec2 {
+        let points = self.diamond.screen_points();
+
         for _ in 0..Self::MAX_STEPS {
             let mut any_outside = false;
 
-            for i in 0..self.points.len() {
-                let point  = self.points[i];
-                let normal = self.normals[i];
-
-                let signed_distance = (p - point).dot(normal);
+            for (point, normal) in points.iter().zip(self.normals) {
+                let signed_distance = (p - *point).dot(normal);
                 if signed_distance < 0.0 {
                     p -= normal * signed_distance;
                     any_outside = true;
@@ -1009,7 +991,7 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
         // Map diamond bounds and inward-facing normals:
         draw_diamond_edges_and_normals(
             debug_draw,
-            &camera.map_diamond_points(CAMERA_RELATIVE),
+            &camera.map_diamond(CAMERA_RELATIVE),
             Color::red(),
             Color::green());
 
@@ -1017,7 +999,7 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
         // the camera center to, in camera-relative screen/render space.
         draw_diamond_edges_and_normals(
             debug_draw,
-            &self.points,
+            &self.diamond,
             Color::blue(),
             Color::yellow());
     }
@@ -1035,9 +1017,11 @@ fn inward_normal(edge: Vec2) -> Vec2 {
 }
 
 fn draw_diamond_edges_and_normals(debug_draw: &mut dyn DebugDraw,
-                                  points: &[Vec2; 4],
+                                  diamond: &IsoDiamond,
                                   edge_color: Color,
                                   normal_color: Color) {
+    let points = diamond.screen_points();
+
     for i in 0..points.len() {
         let a = points[i];
         let b = points[(i + 1) % points.len()];
@@ -1053,7 +1037,7 @@ fn draw_diamond_edges_and_normals(debug_draw: &mut dyn DebugDraw,
         debug_draw.line(mid, mid + (normal * 40.0), normal_color, normal_color);
 
         // Point at each vertex:
-        debug_draw.point(a, coords::DIAMOND_DEBUG_COLORS[i], 12.0);
+        debug_draw.point(a, IsoDiamond::DEBUG_COLORS[i], 12.0);
     }
 }
 
