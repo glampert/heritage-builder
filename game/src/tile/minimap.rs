@@ -576,6 +576,11 @@ fn minimap_font_scale(ui_sys: &UiSystem) -> f32 {
     }
 }
 
+const VEC2_ONE: Vec2 = Vec2::new(1.0, 1.0);
+
+// Margin in pixels.
+const MINIMAP_AABB_MARGIN: Vec2 = Vec2::new(4.0, 4.0);
+
 // Rotate the minimap -45 degrees to match our isometric world projection.
 const MINIMAP_ROTATION_ANGLE: f32 = -45.0 * (std::f32::consts::PI / 180.0);
 
@@ -642,6 +647,7 @@ struct MinimapWidgetImGui {
     enable_debug_controls: bool,
     show_debug_controls: bool,
     show_origin_markers: bool,
+    clip_to_playable_map_area: bool,
 }
 
 impl Default for MinimapWidgetImGui {
@@ -668,6 +674,7 @@ impl Default for MinimapWidgetImGui {
             enable_debug_controls: false,
             show_debug_controls: false,
             show_origin_markers: false,
+            clip_to_playable_map_area: false,
         }
     }
 }
@@ -907,6 +914,8 @@ impl MinimapWidgetImGui {
                 ui.checkbox("Debug Origin", &mut self.show_origin_markers);
                 ui.same_line();
                 ui.checkbox("Debug Draw", &mut self.enable_debug_draw);
+                ui.same_line();
+                ui.checkbox("Clipped", &mut self.clip_to_playable_map_area);
 
                 // newline
                 ui.checkbox("Rotated", &mut self.minimap_transform.rotated);
@@ -1003,7 +1012,7 @@ impl MinimapWidgetImGui {
         let tex_cache = render_sys.texture_cache();
 
         let minimap_center = self.minimap_draw_info.rect.center(); // Minimap center.
-        let minimap_aabb = self.minimap_draw_info.aabb.shrunk(Self::MINIMAP_AABB_MARGIN);
+        let minimap_aabb = self.minimap_draw_info.aabb.shrunk(MINIMAP_AABB_MARGIN);
 
         for icon in icons {
             if icon.lifetime <= 0.0 || icon.time_left <= 0.0 {
@@ -1060,24 +1069,46 @@ impl MinimapWidgetImGui {
     }
 
     fn draw_texture_rect(&self, draw_list: &imgui::DrawListMut<'_>, ui_texture: UiTextureHandle) {
-        let minimap_corners  = &self.minimap_draw_info.corners;
-        let (uv_min, uv_max) = self.current_minimap_uv_window();
+        let draw_minimap_texture = || {
+            let minimap_corners  = &self.minimap_draw_info.corners;
+            let (uv_min, uv_max) = self.current_minimap_uv_window();
 
-        // NOTE: Flip V for ImGui.
-        let uv1 = [uv_min.x, 1.0 - uv_min.y];
-        let uv2 = [uv_max.x, 1.0 - uv_min.y];
-        let uv3 = [uv_max.x, 1.0 - uv_max.y];
-        let uv4 = [uv_min.x, 1.0 - uv_max.y];
+            // NOTE: Flip V for ImGui.
+            let uv1 = [uv_min.x, 1.0 - uv_min.y];
+            let uv2 = [uv_max.x, 1.0 - uv_min.y];
+            let uv3 = [uv_max.x, 1.0 - uv_max.y];
+            let uv4 = [uv_min.x, 1.0 - uv_max.y];
 
-        draw_list
-            .add_image_quad(
-                ui_texture,
-                minimap_corners[0].to_array(),
-                minimap_corners[1].to_array(),
-                minimap_corners[2].to_array(),
-                minimap_corners[3].to_array())
-            .uv(uv1, uv2, uv3, uv4)
-            .build();
+            draw_list
+                .add_image_quad(
+                    ui_texture,
+                    minimap_corners[0].to_array(),
+                    minimap_corners[1].to_array(),
+                    minimap_corners[2].to_array(),
+                    minimap_corners[3].to_array())
+                .uv(uv1, uv2, uv3, uv4)
+                .build();
+        };
+
+        if self.clip_to_playable_map_area {
+            // Draw inner playable rectangle of the minimap diamond only.
+            let clip_rect = self.calc_playable_map_area_rect();
+            draw_list.with_clip_rect(clip_rect.min.to_array(),
+                                     clip_rect.max.to_array(),
+                                     draw_minimap_texture);
+        } else {
+            // Draw whole minimap.
+            draw_minimap_texture();
+
+            // Show clip rect overlay on the whole minimap.
+            if self.enable_debug_draw {
+                let clip_rect = self.calc_playable_map_area_rect();
+                draw_list.add_rect(clip_rect.min.to_array(),
+                                   clip_rect.max.to_array(),
+                                   imgui::ImColor32::from_rgb(255, 255, 0))
+                                   .build();
+            }
+        }
     }
 
     fn draw_outline_rect(&self, draw_list: &imgui::DrawListMut<'_>) {
@@ -1164,6 +1195,17 @@ impl MinimapWidgetImGui {
     }
 
     fn draw_origin_debug_markers(&self, draw_list: &imgui::DrawListMut<'_>) {
+        // Minimap diamond corners:
+        let corner_colors = [
+            imgui::ImColor32::from_rgb(255, 0, 0),     // 0, red
+            imgui::ImColor32::from_rgb(0, 255, 0),     // 1, green
+            imgui::ImColor32::from_rgb(0, 0, 255),     // 2, blue
+            imgui::ImColor32::from_rgb(255, 255, 255), // 3, white
+        ];
+        for (corner, color) in self.minimap_draw_info.corners.iter().zip(corner_colors) {
+            draw_list.add_circle(corner.to_array(), 2.0, color).build();
+        }
+
         // Widget screen space: Top-left origin (CYAN circle).
         let widget_origin = self.minimap_draw_info.rect.position();
         draw_list.add_circle(widget_origin.to_array(),
@@ -1304,11 +1346,9 @@ impl MinimapWidgetImGui {
         }
     }
 
-    const MINIMAP_AABB_MARGIN: Vec2 = Vec2::new(4.0, 4.0); // Margin in pixels.
-
     fn rect_corners_near_minimap_edge(&self, screen_rect: &Rect) -> RectCorners {
         let mut corners_outside = RectCorners::empty();
-        let rect = screen_rect.expanded(Self::MINIMAP_AABB_MARGIN);
+        let rect = screen_rect.expanded(MINIMAP_AABB_MARGIN);
 
         if self.is_minimap_rotated() {
             let minimap_corners = &self.minimap_draw_info.corners;
@@ -1403,20 +1443,77 @@ impl MinimapWidgetImGui {
         }
 
         // Clamp camera rect to minimap aabb minus margin:
-        *camera_rect.clamp(&self.minimap_draw_info.aabb.shrunk(Self::MINIMAP_AABB_MARGIN))
+        *camera_rect.clamp(&self.minimap_draw_info.aabb.shrunk(MINIMAP_AABB_MARGIN))
+    }
+
+    // Compute extrema of diamond half-plane constraints.
+    fn inner_rect_from_diamond(corners: &[Vec2; 4]) -> Rect {
+        let mut s_min = f32::MAX;
+        let mut s_max = f32::MIN;
+        let mut d_min = f32::MAX;
+        let mut d_max = f32::MIN;
+
+        for p in corners {
+            let s = p.x + p.y;
+            let d = p.x - p.y;
+
+            s_min = s_min.min(s);
+            s_max = s_max.max(s);
+            d_min = d_min.min(d);
+            d_max = d_max.max(d);
+        }
+
+        debug_assert!(s_max > s_min);
+        debug_assert!(d_max > d_min);
+
+        // Solve for maximal inner AABB:
+        let min = Vec2::new(
+            (s_min + d_min) * 0.5,
+            (s_min - d_min) * 0.5
+        );
+
+        let max = Vec2::new(
+            (s_max + d_max) * 0.5,
+            (s_max - d_max) * 0.5
+        );
+
+        Rect::from_extents(min, max)
+    }
+
+    fn calc_playable_map_area_rect(&self) -> Rect {
+        let rect = self.minimap_draw_info.rect;
+        let center = rect.center();
+
+        let unrotated_corners = [
+            Vec2::new(center.x, rect.min.y), // top
+            Vec2::new(rect.max.x, center.y), // right
+            Vec2::new(center.x, rect.max.y), // bottom
+            Vec2::new(rect.min.x, center.y), // left
+        ];
+
+        // Must be computed from unrotated diamond corners.
+        let inner_rect = Self::inner_rect_from_diamond(&unrotated_corners);
+
+        // Rotate back into iso diamond.
+        let inner_corners = inner_rect.corners_ccw().map(|corner| {
+            corner.rotate_around_point(center, MINIMAP_ROTATION_ANGLE)
+        });
+
+        Rect::aabb(&inner_corners)
     }
 
     #[inline]
     fn calc_minimap_visible_cells(size_in_cells: Vec2, zoom: f32) -> Vec2 {
-        size_in_cells / zoom
+        (size_in_cells - VEC2_ONE) / zoom
     }
 
     // `offsets` are in minimap cells/pixels (same units as minimap_size_in_cells).
     #[inline]
     fn calc_minimap_rect_uvs(size_in_cells: Vec2, offsets: Vec2, zoom: f32) -> (Vec2, Vec2) {
         let visible_cells = Self::calc_minimap_visible_cells(size_in_cells, zoom);
-        let uv_min = offsets / size_in_cells;
-        let uv_max = (offsets + visible_cells) / size_in_cells;
+        let max_cells = size_in_cells - VEC2_ONE;
+        let uv_min = offsets / max_cells;
+        let uv_max = (offsets + visible_cells) / max_cells;
         (uv_min, uv_max)
     }
 
@@ -1428,13 +1525,14 @@ impl MinimapWidgetImGui {
         }
 
         let visible_cells = Self::calc_minimap_visible_cells(size_in_cells, zoom);
+        let max_offsets = size_in_cells - VEC2_ONE - visible_cells;
 
         // Offset so center cell stays fixed regardless of zoom.
         let mut offsets = center_cell.0 - (visible_cells * 0.5);
 
         // Clamp to texture bounds.
-        offsets.x = offsets.x.clamp(0.0, size_in_cells.x - visible_cells.x);
-        offsets.y = offsets.y.clamp(0.0, size_in_cells.y - visible_cells.y);
+        offsets.x = offsets.x.clamp(0.0, max_offsets.x);
+        offsets.y = offsets.y.clamp(0.0, max_offsets.y);
 
         offsets
     }
@@ -1476,7 +1574,7 @@ impl MinimapWidgetImGui {
     // Convenience to return the current UV window used by drawing code.
     #[inline]
     fn current_minimap_uv_window(&self) -> (Vec2, Vec2) {
-        let map_center_cell = CellF32(self.minimap_size_in_cells * 0.5);
+        let map_center_cell = CellF32((self.minimap_size_in_cells - VEC2_ONE) * 0.5);
         let zoom = self.minimap_transform.zoom();
         let zoom_offsets = Self::calc_zoom_offsets_from_center(self.minimap_size_in_cells, map_center_cell, zoom);
         let combined_offsets = zoom_offsets + self.minimap_transform.offsets;
@@ -1490,19 +1588,21 @@ impl MinimapWidgetImGui {
     // Maps fractional cell coords to full minimap UVs [0,1] and vice-versa.
     #[inline]
     fn cell_to_minimap_uv(&self, cell: CellF32) -> Vec2 {
+        let max_cells = self.minimap_size_in_cells - VEC2_ONE;
         Vec2::new(
-            cell.0.x / self.minimap_size_in_cells.x,
+            cell.0.x / max_cells.x,
             // NOTE: Flip V for ImGui (because OpenGL textures have V=0 at bottom).
-            1.0 - (cell.0.y / self.minimap_size_in_cells.y)
+            1.0 - (cell.0.y / max_cells.y)
         )
     }
 
     #[inline]
     fn minimap_uv_to_cell(&self, uv: Vec2) -> CellF32 {
+        let max_cells = self.minimap_size_in_cells - VEC2_ONE;
         CellF32(Vec2::new(
-            uv.x * self.minimap_size_in_cells.x,
+            uv.x * max_cells.x,
             // NOTE: Flip V for ImGui (because OpenGL textures have V=0 at bottom).
-            (1.0 - uv.y) * self.minimap_size_in_cells.y
+            (1.0 - uv.y) * max_cells.y
         ))
     }
 

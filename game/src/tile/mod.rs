@@ -1583,7 +1583,7 @@ impl TileMapLayer {
             // Make sure TileDef is compatible with this layer.
             debug_assert!(fill_tile_def.layer_kind() == layer_kind);
 
-            let tile_count = playable_area.playable_tile_count(size_in_cells);
+            let tile_count = playable_area.tile_count(size_in_cells);
             debug_assert!(tile_count > 0 && tile_count <= (size_in_cells.width * size_in_cells.height) as usize);
 
             log::info!(log::channel!("tile"),
@@ -2002,9 +2002,12 @@ enum TileMapPlayableArea {
 
 impl TileMapPlayableArea {
     fn with_margin(map_size: Size, margin: i32) -> Self {
+        debug_assert!(map_size.is_valid());
+        debug_assert!(margin > 0);
+
         Self::TrimmedMargins {
             min_sum: margin,
-            max_sum: (map_size.width - 1 + map_size.height - 1) - margin,
+            max_sum: ((map_size.width - 1) + (map_size.height - 1)) - margin,
             min_diff: -(map_size.height - 1) + margin,
             max_diff:  (map_size.width  - 1) - margin,
         }
@@ -2029,11 +2032,11 @@ impl TileMapPlayableArea {
         (conservative_margin * 1.5).ceil() as i32
     }
 
-    fn playable_tile_count(&self, map_size: Size) -> usize {
+    fn tile_count(&self, map_size: Size) -> usize {
         match self {
             Self::WholeMap => {
                 (map_size.width * map_size.height) as usize
-            },
+            }
             Self::TrimmedMargins { min_sum, max_sum, min_diff, max_diff } => {
                 let mut total: usize = 0;
                 for x in 0..map_size.width {
@@ -2050,6 +2053,23 @@ impl TileMapPlayableArea {
                     }
                 }
                 total
+            }
+        }
+    }
+
+    fn cell_range(&self, map_size: Size) -> CellRange {
+        let max_cell_x = map_size.width  - 1;
+        let max_cell_y = map_size.height - 1;
+        match self {
+            Self::WholeMap => {
+                CellRange::new(Cell::new(0, 0), Cell::new(max_cell_x, max_cell_y))
+            }
+            Self::TrimmedMargins { min_sum, .. } => {
+                let margin = *min_sum;
+                let inset  = margin / 2;
+                let min = Cell::new(inset, inset);
+                let max = Cell::new(max_cell_x - inset, max_cell_y - inset);
+                CellRange::new(min, max)
             }
         }
     }
@@ -2230,6 +2250,11 @@ impl TileMap {
     #[inline]
     pub fn is_cell_within_playable_area(&self, cell: Cell) -> bool {
         self.is_cell_within_bounds(cell) && self.playable_area.contains(cell.x, cell.y)
+    }
+
+    #[inline]
+    pub fn playable_area_cell_range(&self) -> CellRange {
+        self.playable_area.cell_range(self.size_in_cells)
     }
 
     #[inline]
