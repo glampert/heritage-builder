@@ -332,6 +332,13 @@ impl Camera {
         corners
     }
 
+    #[inline]
+    fn build_constraints(&self, camera_relative: bool) -> CameraConstraints {
+        CameraConstraints::new(
+            &self.map_diamond_corners(camera_relative),
+            self.viewport_center())
+    }
+
     // ----------------------
     // Zoom/scaling:
     // ----------------------
@@ -461,12 +468,10 @@ impl Camera {
         }
 
         // NOTE: Compute constraint in *unscrolled* screen space (without camera offset).
-        let camera_relative = false;
-        let constraints = CameraConstraints::new(
-            &self.map_diamond_corners(camera_relative),
-            self.viewport_center());
+        const CAMERA_RELATIVE: bool = false;
+        let constraints = self.build_constraints(CAMERA_RELATIVE);
 
-        // Match unscrolled diamond points (camera_relative=false).
+        // Match unscrolled diamond points (CAMERA_RELATIVE=false).
         let camera_center = self.viewport_center() - self.current_scroll();
         let final_delta = constraints.clamp_delta(camera_center, desired_delta);
 
@@ -509,9 +514,8 @@ impl Camera {
             return true;
         }
 
-        let constraints = CameraConstraints::new(
-            &self.map_diamond_corners(false), // IMPORTANT: no camera offset here.
-            viewport_center);
+        const CAMERA_RELATIVE: bool = false; // IMPORTANT: no camera offset here.
+        let constraints = self.build_constraints(CAMERA_RELATIVE);
 
         let clamped_camera_center = constraints.clamp_point(desired_camera_center);
         self.set_scroll(viewport_center - clamped_camera_center);
@@ -537,9 +541,8 @@ impl Camera {
             return true;
         }
 
-        let constraints = CameraConstraints::new(
-            &self.map_diamond_corners(false), // IMPORTANT: no camera offset here.
-            viewport_center);
+        const CAMERA_RELATIVE: bool = false; // IMPORTANT: no camera offset here.
+        let constraints = self.build_constraints(CAMERA_RELATIVE);
 
         let clamped_camera_center = constraints.clamp_point(desired_camera_center);
         self.set_scroll(viewport_center - clamped_camera_center);
@@ -556,19 +559,17 @@ impl Camera {
             return;
         }
 
-        let camera_relative = true;
+        const CAMERA_RELATIVE: bool = true;
 
         // Map diamond bounds and inward-facing normals:
         draw_diamond(debug_draw,
-                     &self.map_diamond_corners(camera_relative),
+                     &self.map_diamond_corners(CAMERA_RELATIVE),
                      Color::red(),
                      Color::green());
 
         // Half map diamond bounds and normals, where we constrain
-        // the camera center to, in camera-relative screen/render space:
-        let constraints = CameraConstraints::new(
-            &self.map_diamond_corners(camera_relative),
-            self.viewport_center());
+        // the camera center to, in camera-relative screen/render space.
+        let constraints = self.build_constraints(CAMERA_RELATIVE);
         draw_diamond(debug_draw,
                      &constraints.diamond,
                      Color::blue(),
