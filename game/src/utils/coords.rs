@@ -594,3 +594,18 @@ pub fn cell_to_screen_diamond_center_y(cell: Cell,
     // Left or right diamond corner Y (same as cell_to_screen_diamond_points()[1 or 3].y).
     screen_center.y - half_tile_h + half_base_h
 }
+
+pub fn inner_rect_from_diamond_points(points: &[Vec2; 4]) -> Rect {
+    let rect = Rect::aabb(points);
+
+    let half_width  = rect.width()  * 0.5;
+    let half_height = rect.height() * 0.5;
+
+    let inner_rect = rect.shrunk(Vec2::new(half_width * 0.5, half_height * 0.5));
+
+    debug_assert!(inner_rect.min.x < inner_rect.max.x &&
+                  inner_rect.min.y < inner_rect.max.y,
+                  "Invalid inner diamond rect!");
+
+    inner_rect
+}
