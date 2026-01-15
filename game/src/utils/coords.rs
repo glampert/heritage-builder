@@ -353,23 +353,23 @@ impl WorldToScreenTransform {
     }
 
     #[inline]
-    pub fn apply_to_iso_point(&self, iso_point: IsoPoint) -> Vec2 {
+    pub fn apply_to_iso_point(&self, iso_point: IsoPointF32) -> Vec2 {
         // Apply offset and scaling:
-        let screen_x = ((iso_point.x as f32) * self.scaling) + self.offset.x;
-        let screen_y = ((iso_point.y as f32) * self.scaling) + self.offset.y;
+        let screen_x = (iso_point.0.x * self.scaling) + self.offset.x;
+        let screen_y = (iso_point.0.y * self.scaling) + self.offset.y;
         Vec2::new(screen_x, screen_y)
     }
 
     #[inline]
-    pub fn apply_to_screen_point(&self, screen_point: Vec2) -> IsoPoint {
+    pub fn apply_to_screen_point(&self, screen_point: Vec2) -> IsoPointF32 {
         // Remove offset and scaling:
         let iso_x = (screen_point.x - self.offset.x) / self.scaling;
         let iso_y = (screen_point.y - self.offset.y) / self.scaling;
-        IsoPoint::new(iso_x as i32, iso_y as i32)
+        IsoPointF32(Vec2::new(iso_x, iso_y))
     }
 
     #[inline]
-    pub fn apply_to_rect(&self, iso_position: IsoPoint, size: Size) -> Rect {
+    pub fn apply_to_rect(&self, iso_position: IsoPointF32, size: Size) -> Rect {
         let screen_position = self.apply_to_iso_point(iso_position);
         // Apply scaling:
         let screen_width  = (size.width  as f32) * self.scaling;
@@ -442,42 +442,59 @@ pub fn cell_to_iso_f32(cell: CellF32) -> IsoPointF32 {
 }
 
 #[inline]
-pub fn iso_to_screen_point(iso_point: IsoPoint, transform: WorldToScreenTransform) -> Vec2 {
+pub fn iso_to_screen_point(mut iso_point: IsoPoint, transform: WorldToScreenTransform) -> Vec2 {
     // Undo offsetting.
-    let mut iso = iso_point;
-    iso.x += HALF_BASE_TILE_WIDTH_I32;
-    iso.y += HALF_BASE_TILE_HEIGHT_I32;
+    iso_point.x += HALF_BASE_TILE_WIDTH_I32;
+    iso_point.y += HALF_BASE_TILE_HEIGHT_I32;
 
-    transform.apply_to_iso_point(iso)
+    transform.apply_to_iso_point(IsoPointF32::from_integer_iso(iso_point))
 }
 
 #[inline]
 pub fn screen_to_iso_point(screen_point: Vec2, transform: WorldToScreenTransform) -> IsoPoint {
-    let mut iso_pos = transform.apply_to_screen_point(screen_point);
+    let mut iso_point = transform.apply_to_screen_point(screen_point).to_integer_iso();
 
-    // Offset the iso point downward by half a tile
-    // (visually centers the hit test to the tile center).
-    iso_pos.x -= HALF_BASE_TILE_WIDTH_I32;
-    iso_pos.y -= HALF_BASE_TILE_HEIGHT_I32;
-    iso_pos
+    // Offset the iso point downward by half a tile (align to the tile center).
+    iso_point.x -= HALF_BASE_TILE_WIDTH_I32;
+    iso_point.y -= HALF_BASE_TILE_HEIGHT_I32;
+
+    iso_point
+}
+
+#[inline]
+pub fn iso_to_screen_point_f32(mut iso_point: IsoPointF32, transform: WorldToScreenTransform) -> Vec2 {
+    // Undo offsetting.
+    iso_point.0.x += HALF_BASE_TILE_WIDTH_F32;
+    iso_point.0.y += HALF_BASE_TILE_HEIGHT_F32;
+
+    transform.apply_to_iso_point(iso_point)
+}
+
+#[inline]
+pub fn screen_to_iso_point_f32(screen_point: Vec2, transform: WorldToScreenTransform) -> IsoPointF32 {
+    let mut iso_point = transform.apply_to_screen_point(screen_point);
+
+    // Offset the iso point downward by half a tile (align to the tile center).
+    iso_point.0.x -= HALF_BASE_TILE_WIDTH_F32;
+    iso_point.0.y -= HALF_BASE_TILE_HEIGHT_F32;
+
+    iso_point
 }
 
 #[inline]
 pub fn iso_to_screen_rect(iso_position: IsoPoint, size: Size, transform: WorldToScreenTransform) -> Rect {
-    transform.apply_to_rect(iso_position, size)
+    transform.apply_to_rect(IsoPointF32::from_integer_iso(iso_position), size)
 }
 
 // Same as iso_to_screen_rect() but the position is already in floating point.
 #[inline]
 pub fn iso_to_screen_rect_f32(iso_position: IsoPointF32, size: Size, transform: WorldToScreenTransform) -> Rect {
-    // Apply offset and scaling:
-    let screen_x = (iso_position.0.x * transform.scaling) + transform.offset.x;
-    let screen_y = (iso_position.0.y * transform.scaling) + transform.offset.y;
+    transform.apply_to_rect(iso_position, size)
+}
 
-    // Apply scaling:
-    let screen_width  = (size.width  as f32) * transform.scaling;
-    let screen_height = (size.height as f32) * transform.scaling;
-    Rect::from_pos_and_size(Vec2::new(screen_x, screen_y), Vec2::new(screen_width, screen_height))
+#[inline]
+pub fn screen_point_to_cell_f32(screen_point: Vec2, transform: WorldToScreenTransform) -> CellF32 {
+    iso_to_cell_f32(screen_to_iso_point_f32(screen_point, transform))
 }
 
 #[inline]

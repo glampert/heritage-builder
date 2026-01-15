@@ -221,6 +221,17 @@ impl Camera {
     }
 
     #[inline]
+    pub fn camera_screen_rect(&self) -> Rect {
+        let camera_screen_center = self.viewport_center();
+        let camera_half_extents  = camera_screen_center;
+
+        Rect::from_extents(
+            camera_screen_center - camera_half_extents,
+            camera_screen_center + camera_half_extents
+        )
+    }
+
+    #[inline]
     pub fn set_map_size_in_cells(&mut self, new_size: Size) {
         self.map_size_in_cells = new_size;
     }
@@ -334,8 +345,8 @@ impl Camera {
     /*
     fn build_constraints(&self, camera_relative: bool) -> CameraConstraintsIsoDiamond {
         let diamond = self.map_diamond(camera_relative);
-        let viewport_half_extents = self.viewport_center();
-        CameraConstraintsIsoDiamond::new(&diamond, viewport_half_extents)
+        let camera_half_extents = self.viewport_center();
+        CameraConstraintsIsoDiamond::new(&diamond, camera_half_extents)
     }
     */
 
@@ -531,9 +542,9 @@ impl Camera {
             WorldToScreenTransform::new(self.current_zoom(), Vec2::zero());
 
         let screen_point =
-            coords::iso_to_screen_rect_f32(destination_iso, BASE_TILE_SIZE_I32, transform_no_offset);
+            coords::iso_to_screen_point_f32(destination_iso, transform_no_offset);
 
-        let desired_camera_center = screen_point.position();
+        let desired_camera_center = screen_point;
 
         // If unconstrained, teleport freely.
         if !CameraGlobalSettings::get().constrain_to_playable_map_area {
@@ -822,10 +833,10 @@ impl CameraConstraintsIsoDiamond {
 
     // Constructs camera constraints from the map diamond.
     // `diamond` must hold a CCW-ordered convex polygon in screen space.
-    // `viewport_half_extents` is half the viewport size in the same coordinate space.
+    // `camera_half_extents` is half the viewport size in the same coordinate space.
     // The resulting polygon represents the valid region for the camera center.
-    fn new(diamond: &IsoDiamond, viewport_half_extents: Vec2) -> Self {
-        debug_assert!(viewport_half_extents.x > 0.0 && viewport_half_extents.y > 0.0);
+    fn new(diamond: &IsoDiamond, camera_half_extents: Vec2) -> Self {
+        debug_assert!(camera_half_extents.x > 0.0 && camera_half_extents.y > 0.0);
 
         #[derive(Copy, Clone, Default)]
         struct ConstraintPlane {
@@ -862,8 +873,8 @@ impl CameraConstraintsIsoDiamond {
             let edge = b - a;
             let normal = inward_normal(edge);
 
-            let offset = (viewport_half_extents.x * normal.x.abs()) + 
-                              (viewport_half_extents.y * normal.y.abs());
+            let offset = (camera_half_extents.x * normal.x.abs()) + 
+                         (camera_half_extents.y * normal.y.abs());
 
             planes[i] = ConstraintPlane {
                 p: a + (normal * offset),

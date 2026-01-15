@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign, Neg};
 use serde::{Deserialize, Serialize};
 use arrayvec::ArrayString;
 use bitflags::bitflags;
@@ -170,6 +170,13 @@ impl Vec2 {
             x: point.x + (dx * c) - (dy * s),
             y: point.y + (dx * s) + (dy * c)
         }
+    }
+}
+
+impl Neg for Vec2 {
+    type Output = Vec2;
+    fn neg(self) -> Vec2 {
+        Vec2 { x: -self.x, y: -self.y }
     }
 }
 
@@ -663,6 +670,25 @@ impl Rect {
         && self.max.y >= other.max.y
     }
 
+    // Returns which edges of `inner` rect are outside or touching the bounds of this.
+    #[inline]
+    pub fn edges_outside(&self, inner: &Rect) -> RectEdges {
+        let mut outside = RectEdges::empty();
+        if inner.max.x >= self.max.x {
+            outside |= RectEdges::Right;
+        }
+        if inner.max.y >= self.max.y {
+            outside |= RectEdges::Bottom;
+        }
+        if inner.min.x <= self.min.x {
+            outside |= RectEdges::Left;
+        }
+        if inner.min.y <= self.min.y {
+            outside |= RectEdges::Top;
+        }
+        outside
+    }
+
     //
     // NOTE: Top-left is the origin.
     //
@@ -723,6 +749,16 @@ bitflags_with_display! {
         const TopRight    = 1 << 1;
         const BottomLeft  = 1 << 2;
         const BottomRight = 1 << 3;
+    }
+}
+
+bitflags_with_display! {
+    #[derive(Copy, Clone, Default)]
+    pub struct RectEdges: u32 {
+        const Top    = 1 << 0;
+        const Right  = 1 << 1;
+        const Bottom = 1 << 2;
+        const Left   = 1 << 3;
     }
 }
 
