@@ -592,8 +592,8 @@ pub fn inner_rect_from_diamond_points(points: &[Vec2; 4]) -> Rect {
     let inner_rect = rect.shrunk(Vec2::new(half_width * 0.5, half_height * 0.5));
 
     debug_assert!(inner_rect.min.x < inner_rect.max.x &&
-                  inner_rect.min.y < inner_rect.max.y,
-                  "Invalid inner diamond rect!");
+                  inner_rect.min.y < inner_rect.max.y &&
+                  inner_rect.is_valid(), "Invalid inner diamond rect!");
 
     inner_rect
 }
@@ -662,6 +662,11 @@ impl IsoDiamond {
         inner_rect_from_diamond_points(&self.points)
     }
 
+    #[inline]
+    pub fn bounding_rect(&self) -> Rect {
+        Rect::from_points(&self.points) // Bounding rect of the whole diamond.
+    }
+
     pub fn area(&self) -> f32 {
         let mut area = 0.0;
         for i in 0..self.points.len() {
@@ -670,5 +675,23 @@ impl IsoDiamond {
             area += (a.x * b.y) - (b.x * a.y);
         }
         area * 0.5
+    }
+
+    pub fn map_points<F>(&self, mut f: F) -> [Vec2; 4]
+        where F: FnMut(Vec2) -> Vec2
+    {
+        [
+            f(self.points[Self::TOP]),
+            f(self.points[Self::RIGHT]),
+            f(self.points[Self::BOTTOM]),
+            f(self.points[Self::LEFT]),
+        ]
+    }
+
+    pub fn map_inner_rect<F>(&self, f: F) -> Rect
+        where F: Fn(Vec2) -> Vec2
+    {
+        let corners = self.inner_rect().corners_ccw().map(f);
+        Rect::from_points(&corners)
     }
 }

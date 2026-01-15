@@ -15,8 +15,12 @@ use crate::{
     save::{PreLoadContext, PostLoadContext},
     ui::{self, UiSystem, UiTheme, UiTextureHandle},
     app::input::{InputSystem, InputAction, MouseButton},
-    utils::{Color, Rect, RectCorners, Size, Vec2, coords::{self, Cell, CellF32, IsoPointF32}, platform::paths},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
+    utils::{
+        platform::paths,
+        Color, Rect, RectCorners, Size, Vec2,
+        coords::{self, Cell, CellF32, IsoPointF32, IsoDiamond, WorldToScreenTransform},
+    },
 };
 
 // ----------------------------------------------
@@ -573,6 +577,18 @@ fn minimap_font_scale(ui_sys: &UiSystem) -> f32 {
     match ui_sys.current_ui_theme() {
         UiTheme::Dev => 1.0,
         UiTheme::InGame => 0.8,
+    }
+}
+
+struct ScreenToMinimap {
+    screen_rect: Rect,  // Visible world area in screen space.
+    minimap_rect: Rect, // Widget rect (aabb).
+}
+
+impl ScreenToMinimap {
+    fn map_point(&self, p: Vec2) -> Vec2 {
+        let t = (p - self.screen_rect.min) / self.screen_rect.size();
+        self.minimap_rect.min + (t * self.minimap_rect.size())
     }
 }
 
@@ -1249,8 +1265,9 @@ impl MinimapWidgetImGui {
 
     // Returns floating-point isometric coords without rounding to integer cell space.
     fn pick_cursor_pos(&self) -> Option<IsoPointF32> {
-        if !coords::is_screen_point_inside_diamond(self.cursor_pos, &self.minimap_draw_info.corners) {
-            return None; // Cursor outside minimap.
+        let playable_map_area_rect = self.calc_playable_map_area_rect();
+        if !playable_map_area_rect.contains_point(self.cursor_pos) {
+            return None; // Cursor outside minimap playable area.
         }
 
         // Undo minimap rotation first if needed:
@@ -1446,60 +1463,18 @@ impl MinimapWidgetImGui {
         *camera_rect.clamp(&self.minimap_draw_info.aabb.shrunk(MINIMAP_AABB_MARGIN))
     }
 
-    // Compute extrema of diamond half-plane constraints.
-    fn inner_rect_from_diamond(corners: &[Vec2; 4]) -> Rect {
-        let mut s_min = f32::MAX;
-        let mut s_max = f32::MIN;
-        let mut d_min = f32::MAX;
-        let mut d_max = f32::MIN;
-
-        for p in corners {
-            let s = p.x + p.y;
-            let d = p.x - p.y;
-
-            s_min = s_min.min(s);
-            s_max = s_max.max(s);
-            d_min = d_min.min(d);
-            d_max = d_max.max(d);
-        }
-
-        debug_assert!(s_max > s_min);
-        debug_assert!(d_max > d_min);
-
-        // Solve for maximal inner AABB:
-        let min = Vec2::new(
-            (s_min + d_min) * 0.5,
-            (s_min - d_min) * 0.5
-        );
-
-        let max = Vec2::new(
-            (s_max + d_max) * 0.5,
-            (s_max - d_max) * 0.5
-        );
-
-        Rect::from_extents(min, max)
-    }
-
     fn calc_playable_map_area_rect(&self) -> Rect {
-        let rect = self.minimap_draw_info.rect;
-        let center = rect.center();
+        let map_diamond = IsoDiamond::from_tile_map(
+            Size::from_vec2(self.minimap_size_in_cells),
+            WorldToScreenTransform::default()
+        );
 
-        let unrotated_corners = [
-            Vec2::new(center.x, rect.min.y), // top
-            Vec2::new(rect.max.x, center.y), // right
-            Vec2::new(center.x, rect.max.y), // bottom
-            Vec2::new(rect.min.x, center.y), // left
-        ];
+        let screen_to_minimap = ScreenToMinimap {
+            screen_rect: map_diamond.bounding_rect(),
+            minimap_rect: self.minimap_draw_info.aabb,
+        };
 
-        // Must be computed from unrotated diamond corners.
-        let inner_rect = Self::inner_rect_from_diamond(&unrotated_corners);
-
-        // Rotate back into iso diamond.
-        let inner_corners = inner_rect.corners_ccw().map(|corner| {
-            corner.rotate_around_point(center, MINIMAP_ROTATION_ANGLE)
-        });
-
-        Rect::from_points(&inner_corners)
+        map_diamond.map_inner_rect(|p| screen_to_minimap.map_point(p))
     }
 
     #[inline]

@@ -423,6 +423,11 @@ impl Size {
     }
 
     #[inline]
+    pub const fn from_vec2(s: Vec2) -> Self {
+        Self { width: s.x as i32, height: s.y as i32 }
+    }
+
+    #[inline]
     pub const fn from_array(s: [i32; 2]) -> Self {
         Self { width: s[0], height: s[1] }
     }
