@@ -90,7 +90,7 @@ pub fn draw_screen_origin_marker(debug_draw: &mut dyn DebugDraw) {
                                    Color::red(),
                                    15.0);
 
-    debug_draw.colored_rect(Rect::new(Vec2::new(100.0, y_offset - 2.0), Vec2::new(10.0, 10.0)),
+    debug_draw.colored_rect(Rect::from_pos_and_size(Vec2::new(100.0, y_offset - 2.0), Vec2::new(10.0, 10.0)),
                             Color::green());
 
     // Blue line for the Y axis, green square at the end.
@@ -99,7 +99,7 @@ pub fn draw_screen_origin_marker(debug_draw: &mut dyn DebugDraw) {
                                    Color::blue(),
                                    15.0);
 
-    debug_draw.colored_rect(Rect::new(Vec2::new(0.0, 100.0 + y_offset), Vec2::new(10.0, 10.0)),
+    debug_draw.colored_rect(Rect::from_pos_and_size(Vec2::new(0.0, 100.0 + y_offset), Vec2::new(10.0, 10.0)),
                             Color::green());
 }
 

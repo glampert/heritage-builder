@@ -220,7 +220,7 @@ impl BasicModalMenu {
         }
 
         let draw_window_background = |background_sprite: UiTextureHandle| {
-            let window_rect = Rect::new(
+            let window_rect = Rect::from_pos_and_size(
                 Vec2::from_array(ui.window_pos()),
                 Vec2::from_array(ui.window_size())
             );

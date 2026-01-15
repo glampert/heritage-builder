@@ -735,7 +735,7 @@ impl<'game> UiWidgetContext<'game> {
             tile_map,
             ui_sys: engine.ui_system(),
             tex_cache: engine.texture_cache(),
-            viewport_size: engine.viewport().size(),
+            viewport_size: engine.viewport().integer_size(),
             delta_time_secs: engine.frame_clock().delta_time(),
         }
     }
@@ -973,7 +973,7 @@ pub fn custom_tooltip<TooltipFn: FnOnce()>(ui: &imgui::Ui,
     };
 
     if let Some(bg_texture) = background {
-        let window_rect = Rect::new(
+        let window_rect = Rect::from_pos_and_size(
             Vec2::from_array(ui.window_pos()),
             Vec2::from_array(ui.window_size())
         );

@@ -178,7 +178,7 @@ impl TilePaletteDevMenu {
         if self.current_selection().is_clear() {
             const CLEAR_ICON_SIZE: Vec2 = BASE_TILE_SIZE_F32;
 
-            let rect = Rect::new(
+            let rect = Rect::from_pos_and_size(
                 Vec2::new(
                     cursor_screen_pos.x - (CLEAR_ICON_SIZE.x * 0.5),
                     cursor_screen_pos.y - (CLEAR_ICON_SIZE.y * 0.5)),
@@ -191,7 +191,7 @@ impl TilePaletteDevMenu {
                                              Color::white());
         } else {
             let selected_tile = self.current_selection().as_tile_def().unwrap();
-            let rect = Rect::from_pos_and_size(cursor_screen_pos, selected_tile.draw_size);
+            let rect = Rect::from_pos_and_size(cursor_screen_pos, selected_tile.draw_size.to_vec2());
 
             let offset =
                 if selected_tile.is(TileKind::Building | TileKind::Rocks | TileKind::Vegetation) {

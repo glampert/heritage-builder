@@ -188,7 +188,7 @@ impl MenuBar for TopBar {
 
         // Draw background:
         {
-            let window_rect = Rect::new(
+            let window_rect = Rect::from_pos_and_size(
                 Vec2::from_array(ui.window_pos()),
                 Vec2::from_array(ui.window_size())
             );
@@ -432,7 +432,7 @@ impl MenuBar for LeftBar {
         {
             let ui = context.ui_sys.ui();
 
-            let window_rect = Rect::new(
+            let window_rect = Rect::from_pos_and_size(
                 Vec2::from_array(ui.window_pos()),
                 Vec2::from_array(ui.window_size())
             );
@@ -636,7 +636,7 @@ impl MenuBar for GameSpeedControlsBar {
 
         // Draw background:
         {
-            let window_rect = Rect::new(
+            let window_rect = Rect::from_pos_and_size(
                 Vec2::from_array(ui.window_pos()),
                 Vec2::from_array(ui.window_size())
             );

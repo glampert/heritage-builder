@@ -445,7 +445,7 @@ pub fn draw_current_window_debug_rect(ui: &imgui::Ui) {
 
     // NOTE: Shrink the rect so it falls within the window bounds,
     // otherwise ImGui would cull it.
-    let window_rect = Rect::new(
+    let window_rect = Rect::from_pos_and_size(
         Vec2::from_array(ui.window_pos()),
         Vec2::from_array(ui.window_size())
     ).shrunk(Vec2::new(4.0, 4.0));

@@ -374,7 +374,7 @@ impl WorldToScreenTransform {
         // Apply scaling:
         let screen_width  = (size.width  as f32) * self.scaling;
         let screen_height = (size.height as f32) * self.scaling;
-        Rect::new(screen_position, Vec2::new(screen_width, screen_height))
+        Rect::from_pos_and_size(screen_position, Vec2::new(screen_width, screen_height))
     }
 
     #[inline]
@@ -385,7 +385,7 @@ impl WorldToScreenTransform {
         let width  = rect.width()  * self.scaling;
         let height = rect.height() * self.scaling;
 
-        Rect::new(Vec2::new(x, y), Vec2::new(width, height))
+        Rect::from_pos_and_size(Vec2::new(x, y), Vec2::new(width, height))
     }
 }
 
@@ -477,7 +477,7 @@ pub fn iso_to_screen_rect_f32(iso_position: IsoPointF32, size: Size, transform: 
     // Apply scaling:
     let screen_width  = (size.width  as f32) * transform.scaling;
     let screen_height = (size.height as f32) * transform.scaling;
-    Rect::new(Vec2::new(screen_x, screen_y), Vec2::new(screen_width, screen_height))
+    Rect::from_pos_and_size(Vec2::new(screen_x, screen_y), Vec2::new(screen_width, screen_height))
 }
 
 #[inline]
@@ -584,7 +584,7 @@ pub fn cell_to_screen_diamond_center_y(cell: Cell,
 }
 
 pub fn inner_rect_from_diamond_points(points: &[Vec2; 4]) -> Rect {
-    let rect = Rect::aabb(points);
+    let rect = Rect::from_points(points);
 
     let half_width  = rect.width()  * 0.5;
     let half_height = rect.height() * 0.5;

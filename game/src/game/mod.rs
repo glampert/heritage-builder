@@ -87,7 +87,7 @@ impl GameSession {
         }
 
         let mut world = World::new();
-        let tile_map = Self::new_tile_map(&mut world, engine.viewport().size_as_vec2(), load_map_setting);
+        let tile_map = Self::new_tile_map(&mut world, engine.viewport().size(), load_map_setting);
         let sim = Simulation::new(&tile_map);
 
         let mut systems = GameSystems::new();
@@ -244,7 +244,7 @@ impl GameSession {
 
         if reset_map && (self.tile_map.size_in_cells().is_valid() || new_map_size.is_some()) {
             let new_map_and_viewport_sizes = new_map_size.map(|map_size| {
-                (map_size, engine.viewport().size_as_vec2())
+                (map_size, engine.viewport().size())
             });
 
             self.tile_map.reset(reset_map_with_tile_def, new_map_and_viewport_sizes);
@@ -531,7 +531,7 @@ impl GameLoop {
         let config = GameConfigs::get();
         let home_menu = !config.debug.skip_home_menu;
 
-        let viewport_size = self.engine.viewport().size();
+        let viewport_size = self.engine.viewport().integer_size();
         let new_session = GameSession::new(&config.save.load_map_setting, viewport_size, self.engine(), home_menu);
 
         self.session = Some(Box::new(new_session));
@@ -908,7 +908,7 @@ impl GameLoop {
     fn session_cmd_load_preset(&mut self, preset_number: usize) {
         self.terminate_session();
 
-        let viewport_size = self.engine.viewport().size();
+        let viewport_size = self.engine.viewport().integer_size();
         let new_session = GameSession::load_preset_map(preset_number, viewport_size, self.engine());
 
         self.session = Some(Box::new(new_session));

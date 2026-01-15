@@ -2837,7 +2837,7 @@ impl Load for TileMap {
         if self.size_in_cells.is_valid() { // If not loading into an empty map.
             self.playable_area = TileMapPlayableArea::with_viewport(
                 self.size_in_cells,
-                context.engine().viewport().size_as_vec2()
+                context.engine().viewport().size()
             );
         }
 

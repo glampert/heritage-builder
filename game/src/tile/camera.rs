@@ -1055,7 +1055,7 @@ fn calc_visible_cells_range(map_size_in_cells: Size,
 
     let pos  = Vec2::new(-tile_width, -tile_height);
     let size = Vec2::new((viewport_size.width as f32) + tile_width, (viewport_size.height as f32) + tile_height);
-    let screen_rect = Rect::new(pos, size);
+    let screen_rect = Rect::from_pos_and_size(pos, size);
 
     selection::bounds(&screen_rect, map_size_in_cells, transform)
 }
@@ -1117,7 +1117,7 @@ fn calc_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -
     debug_assert!(viewport_size.is_valid());
 
     if !map_size_in_cells.is_valid() {
-        return Rect::from_pos_and_size(Vec2::zero(), viewport_size);
+        return Rect::from_pos_and_size(Vec2::zero(), viewport_size.to_vec2());
     }
 
     let tile_width_pixels  = BASE_TILE_WIDTH_F32  * scaling;

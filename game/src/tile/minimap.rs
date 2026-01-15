@@ -655,7 +655,7 @@ impl Default for MinimapWidgetImGui {
         Self {
             is_open: true,
             cursor_pos: Vec2::default(),
-            widget_rect: Rect::new(
+            widget_rect: Rect::from_pos_and_size(
                 Vec2::new(35.0, 55.0),
                 Vec2::new(128.0, 128.0)
             ),
@@ -766,7 +766,7 @@ impl MinimapWidgetImGui {
                           icons: &[MinimapIconInstance]) {
         debug_assert!(self.window_rect.is_valid());
 
-        let window_size = self.window_rect.size_as_vec2().to_array();
+        let window_size = self.window_rect.size().to_array();
         let window_pos  = self.window_rect.position().to_array();
 
         let mut window_flags =
@@ -866,7 +866,7 @@ impl MinimapWidgetImGui {
         ui.set_cursor_pos([10.0, 5.0]);
         ui.text("Minimap");
 
-        ui.set_cursor_pos([self.window_rect.size_as_vec2().x - 30.0, 5.0]);
+        ui.set_cursor_pos([self.window_rect.size().x - 30.0, 5.0]);
         if ui.button("X") { // Close button.
             self.is_open = false;
         }
@@ -883,7 +883,7 @@ impl MinimapWidgetImGui {
     fn draw_debug_controls(&mut self, camera: &mut Camera, ui_sys: &UiSystem) {
         debug_assert!(self.window_rect.is_valid());
 
-        let parent_window_size = self.window_rect.size_as_vec2().to_array();
+        let parent_window_size = self.window_rect.size().to_array();
         let parent_window_pos  = self.window_rect.position().to_array();
 
         let window_pos = [
@@ -1056,7 +1056,7 @@ impl MinimapWidgetImGui {
         {
             let ui = ui_sys.ui();
 
-            let window_rect = Rect::new(
+            let window_rect = Rect::from_pos_and_size(
                 Vec2::from_array(ui.window_pos()),
                 Vec2::from_array(ui.window_size())
             );
@@ -1395,7 +1395,7 @@ impl MinimapWidgetImGui {
             coords::cell_to_iso_f32(CellF32(Vec2::new(w,   0.0))).0,
             coords::cell_to_iso_f32(CellF32(Vec2::new(w,   h  ))).0,
         ];
-        Rect::aabb(&points)
+        Rect::from_points(&points)
     }
 
     // Rect in screen space, ready to be drawn with ImGui.
@@ -1499,7 +1499,7 @@ impl MinimapWidgetImGui {
             corner.rotate_around_point(center, MINIMAP_ROTATION_ANGLE)
         });
 
-        Rect::aabb(&inner_corners)
+        Rect::from_points(&inner_corners)
     }
 
     #[inline]
@@ -1552,9 +1552,9 @@ impl MinimapWidgetImGui {
     #[inline]
     fn calc_minimap_draw_info(&self) -> MinimapDrawInfo {
         debug_assert!(self.widget_rect.is_valid() && self.window_rect.is_valid());
-        let rect = Rect::new(self.widget_rect.position() + self.window_rect.position(), self.widget_rect.size_as_vec2());
+        let rect = Rect::from_pos_and_size(self.widget_rect.position() + self.window_rect.position(), self.widget_rect.size());
         let corners = self.calc_minimap_draw_rect_corners(&rect);
-        let aabb = Rect::aabb(&corners);
+        let aabb = Rect::from_points(&corners);
         MinimapDrawInfo { rect, aabb, corners }
     }
 
@@ -1563,7 +1563,7 @@ impl MinimapWidgetImGui {
         debug_assert!(self.widget_rect.is_valid());
         let size = Vec2::new(self.widget_rect.width() + 70.0, self.widget_rect.height() + 90.0);
         let pos  = Vec2::new(0.0, ui_sys.ui().io().display_size[1] - size.y);
-        Rect::new(pos, size)
+        Rect::from_pos_and_size(pos, size)
     }
 
     #[inline]
@@ -1609,12 +1609,12 @@ impl MinimapWidgetImGui {
     // Maps minimap UVs in [0,1] range into minimap screen pixels and vice-versa.
     #[inline]
     fn minimap_uv_to_minimap_px(&self, uv: Vec2) -> Vec2 {
-        self.minimap_draw_info.rect.position() + (uv * self.minimap_draw_info.rect.size_as_vec2())
+        self.minimap_draw_info.rect.position() + (uv * self.minimap_draw_info.rect.size())
     }
 
     #[inline]
     fn minimap_px_to_minimap_uv(&self, minimap_px: Vec2) -> Vec2 {
-        (minimap_px - self.minimap_draw_info.rect.position()) / self.minimap_draw_info.rect.size_as_vec2()
+        (minimap_px - self.minimap_draw_info.rect.position()) / self.minimap_draw_info.rect.size()
     }
 
     // Map fractional cell coords (CellF32) -> widget (screen) pixels in the axis-aligned

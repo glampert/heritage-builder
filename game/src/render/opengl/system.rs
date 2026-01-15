@@ -35,12 +35,12 @@ pub struct RenderSystem {
 impl RenderSystem {
     fn update_viewport(&mut self, new_size: Size) {
         debug_assert!(new_size.is_valid());
-        self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size);
+        self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size.to_vec2());
 
         self.render_context.set_viewport(self.viewport);
-        self.sprites_shader.set_viewport_size(self.viewport.size_as_vec2());
-        self.lines_shader.set_viewport_size(self.viewport.size_as_vec2());
-        self.points_shader.set_viewport_size(self.viewport.size_as_vec2());
+        self.sprites_shader.set_viewport_size(self.viewport.size());
+        self.lines_shader.set_viewport_size(self.viewport.size());
+        self.points_shader.set_viewport_size(self.viewport.size());
     }
 
     fn flush_sprites(&mut self) {
@@ -92,7 +92,7 @@ impl render::RenderSystemFactory for RenderSystem {
                    points_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Points),
                    points_shader: points::Shader::load(),
                    stats: RenderStats::default(),
-                   viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size),
+                   viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size.to_vec2()),
                    tex_cache: TextureCache::new(128) };
 
         render_sys.render_context

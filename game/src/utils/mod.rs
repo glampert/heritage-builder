@@ -486,18 +486,13 @@ pub struct Rect {
 
 impl Rect {
     #[inline]
-    pub const fn new(pos: Vec2, size: Vec2) -> Self {
-        Self { min: pos, max: Vec2::new(pos.x + size.x, pos.y + size.y) }
-    }
-
-    #[inline]
     pub const fn zero() -> Self {
         Self { min: Vec2::zero(), max: Vec2::zero() }
     }
 
     #[inline]
-    pub fn from_pos_and_size(pos: Vec2, size: Size) -> Self {
-        Self { min: pos, max: Vec2::new(pos.x + (size.width as f32), pos.y + (size.height as f32)) }
+    pub fn from_pos_and_size(pos: Vec2, size: Vec2) -> Self {
+        Self { min: pos, max: pos + size }
     }
 
     #[inline]
@@ -510,20 +505,20 @@ impl Rect {
     }
 
     #[inline]
-    pub fn aabb(points: &[Vec2]) -> Self {
-        let mut aabb = Self {
+    pub fn from_points(points: &[Vec2]) -> Self {
+        let mut rect = Self {
             min: Vec2::new(f32::MAX, f32::MAX),
-            max: Vec2::new(f32::MIN, f32::MIN)
+            max: Vec2::new(f32::MIN, f32::MIN),
         };
 
         for point in points {
-            aabb.min.x = aabb.min.x.min(point.x);
-            aabb.min.y = aabb.min.y.min(point.y);
-            aabb.max.x = aabb.max.x.max(point.x);
-            aabb.max.y = aabb.max.y.max(point.y);
+            rect.min.x = rect.min.x.min(point.x);
+            rect.min.y = rect.min.y.min(point.y);
+            rect.max.x = rect.max.x.max(point.x);
+            rect.max.y = rect.max.y.max(point.y);
         }
 
-        aabb
+        rect
     }
 
     #[inline]
@@ -570,7 +565,7 @@ impl Rect {
 
     #[inline]
     pub fn position(&self) -> Vec2 {
-        Vec2::new(self.x(), self.y())
+        self.min
     }
 
     #[inline]
@@ -590,17 +585,17 @@ impl Rect {
 
     #[inline]
     pub fn center(&self) -> Vec2 {
-        Vec2::new(self.x() + self.width() / 2.0, self.y() + self.height() / 2.0)
+        Vec2::new(self.x() + (self.width() * 0.5), self.y() + (self.height() * 0.5))
     }
 
     #[inline]
-    pub fn size(&self) -> Size {
-        Size::new(self.width() as i32, self.height() as i32)
-    }
-
-    #[inline]
-    pub fn size_as_vec2(&self) -> Vec2 {
+    pub fn size(&self) -> Vec2 {
         Vec2::new(self.width(), self.height())
+    }
+
+    #[inline]
+    pub fn integer_size(&self) -> Size {
+        Size::new(self.width() as i32, self.height() as i32)
     }
 
     #[inline]
@@ -645,8 +640,7 @@ impl Rect {
         && self.max.y > other.min.y
     }
 
-    // Returns `true` if the point is inside this rect (inclusive of mins, exclusive
-    // of maxs).
+    // Returns `true` if the point is inside this rect (inclusive of min, exclusive of max).
     #[inline]
     pub fn contains_point(&self, point: Vec2) -> bool {
         point.x >= self.min.x
@@ -713,7 +707,7 @@ impl Rect {
 
 impl std::fmt::Display for Rect {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "(P:{}, S:{})", self.position(), self.size_as_vec2())
+        write!(f, "(P:{}, S:{})", self.position(), self.size())
     }
 }
 
