@@ -1992,6 +1992,7 @@ enum TileMapPlayableArea {
     #[default]
     WholeMap, // Whole map is playable.
 
+    // Map diamond margins are trimmed, only inner rect is playable.
     TrimmedMargins {
         min_sum:  i32,
         max_sum:  i32,
@@ -2013,23 +2014,13 @@ impl TileMapPlayableArea {
         }
     }
 
-    fn with_viewport(map_size: Size, viewport_size: Vec2) -> Self {
-        let margin = Self::margin_from_viewport(viewport_size);
+    fn with_inner_rect_margin(map_size: Size) -> Self {
+        // Trim all tiles that fall outside the inner axis-aligned
+        // rect that perfectly fits inside the map diamond.
+        let margin_x = (map_size.width  / 2) - 1;
+        let margin_y = (map_size.height / 2) - 1;
+        let margin   = margin_x.min(margin_y);
         Self::with_margin(map_size, margin)
-    }
-
-    fn margin_from_viewport(viewport_size: Vec2) -> i32 {
-        let delta_s = viewport_size.y / BASE_TILE_HEIGHT_F32;
-        let delta_d = viewport_size.x / BASE_TILE_WIDTH_F32;
-
-        let margin_s = (delta_s * 0.5).ceil();
-        let margin_d = (delta_d * 0.5).ceil();
-
-        let conservative_margin = margin_s.max(margin_d);
-
-        // Estimated margin is conservative, we can expand
-        // it by 1.5x and still be within a safe margin.
-        (conservative_margin * 1.5).ceil() as i32
     }
 
     fn tile_count(&self, map_size: Size) -> usize {
@@ -2139,14 +2130,13 @@ pub struct TileMap {
 }
 
 impl TileMap {
-    pub fn new(size_in_cells: Size, viewport_size: Vec2, fill_with_def: Option<&'static TileDef>) -> Self {
+    pub fn new(size_in_cells: Size, fill_with_def: Option<&'static TileDef>) -> Self {
         debug_assert!(size_in_cells.is_valid());
-        debug_assert!(viewport_size != Vec2::zero());
 
         let mut tile_map = Self {
             size_in_cells,
             layers: ArrayVec::new(),
-            playable_area: TileMapPlayableArea::with_viewport(size_in_cells, viewport_size),
+            playable_area: TileMapPlayableArea::with_inner_rect_margin(size_in_cells),
             minimap: Minimap::new(size_in_cells),
             on_tile_placed_callback: None,
             on_removing_tile_callback: None,
@@ -2158,7 +2148,6 @@ impl TileMap {
     }
 
     pub fn with_terrain_tile(size_in_cells: Size,
-                             viewport_size: Vec2,
                              category_name_hash: StringHash,
                              tile_name_hash: StringHash)
                              -> Self {
@@ -2166,19 +2155,19 @@ impl TileMap {
                                                                   category_name_hash,
                                                                   tile_name_hash);
 
-        Self::new(size_in_cells, viewport_size, fill_with_def)
+        Self::new(size_in_cells, fill_with_def)
     }
 
-    pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_and_viewport_sizes: Option<(Size, Vec2)>) {
+    pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
         self.layers.clear();
-        self.minimap.reset(fill_with_def, new_map_and_viewport_sizes.map(|(map_size, _)| map_size));
+        self.minimap.reset(fill_with_def, new_map_size);
 
         if let Some(callback) = self.on_map_reset_callback {
             callback(self);
         }
 
-        if let Some((map_size, viewport_size)) = new_map_and_viewport_sizes {
-            self.playable_area = TileMapPlayableArea::with_viewport(map_size, viewport_size);
+        if let Some(map_size) = new_map_size {
+            self.playable_area = TileMapPlayableArea::with_inner_rect_margin(map_size);
             self.size_in_cells = map_size;
         }
 
@@ -2835,10 +2824,7 @@ impl Load for TileMap {
         debug_assert!(self.on_map_reset_callback.is_none());
 
         if self.size_in_cells.is_valid() { // If not loading into an empty map.
-            self.playable_area = TileMapPlayableArea::with_viewport(
-                self.size_in_cells,
-                context.engine().viewport().size()
-            );
+            self.playable_area = TileMapPlayableArea::with_inner_rect_margin(self.size_in_cells);
         }
 
         for layer in &mut self.layers {

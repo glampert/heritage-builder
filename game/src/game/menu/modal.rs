@@ -1138,8 +1138,8 @@ impl ModalMenu for NewGameModalMenu {
             let h_edited = ui.input_int("##Height", &mut self.new_map_size.height).step(32).build();
 
             if w_edited || h_edited {
-                self.new_map_size.width  = self.new_map_size.width.clamp(32, 256);
-                self.new_map_size.height = self.new_map_size.height.clamp(32, 256);
+                self.new_map_size.width  = self.new_map_size.width.clamp(64, 256);
+                self.new_map_size.height = self.new_map_size.height.clamp(64, 256);
             }
 
             widgets::spacing(ui, Vec2::new(0.0, 8.0));
