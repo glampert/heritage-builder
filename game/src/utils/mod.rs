@@ -162,13 +162,31 @@ impl Vec2 {
 
     #[inline]
     #[must_use]
-    pub fn rotate_around_point(&self, point: Vec2, angle_radians: f32) -> Vec2 {
+    pub fn rotate_around_point(&self, point: Self, angle_radians: f32) -> Self {
         let (s, c) = angle_radians.sin_cos();
         let dx = self.x - point.x;
         let dy = self.y - point.y;
         Self {
             x: point.x + (dx * c) - (dy * s),
             y: point.y + (dx * s) + (dy * c)
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn min(&self, other: Self) -> Self {
+        Self {
+            x: self.x.min(other.x),
+            y: self.y.min(other.y),
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn max(&self, other: Self) -> Self {
+        Self {
+            x: self.x.max(other.x),
+            y: self.y.max(other.y),
         }
     }
 }

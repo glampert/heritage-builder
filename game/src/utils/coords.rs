@@ -694,8 +694,8 @@ impl IsoDiamond {
         area * 0.5
     }
 
-    pub fn map_points<F>(&self, mut f: F) -> [Vec2; 4]
-        where F: FnMut(Vec2) -> Vec2
+    pub fn map_points<F>(&self, f: F) -> [Vec2; 4]
+        where F: Fn(Vec2) -> Vec2
     {
         [
             f(self.points[Self::TOP]),
