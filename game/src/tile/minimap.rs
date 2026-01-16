@@ -658,7 +658,7 @@ struct MinimapWidgetImGui {
     minimap_auto_scroll: bool,           // Scroll minimap when camera rect touches the minimap edges?
     scroll_speed_px_per_sec: f32,        // Scroll speed in pixels per second when `minimap_auto_scroll=true`.
     desired_visible_cells: Size,         // Desired number of visible cells we want to display for when `minimap_auto_zoom=true`.
-
+    playable_map_area_rect: Rect,
     camera: MinimapCamera,
 
     background_sprite: Option<UiTextureHandle>,
@@ -688,6 +688,7 @@ impl Default for MinimapWidgetImGui {
             minimap_auto_scroll: true,
             scroll_speed_px_per_sec: 30.0,
             desired_visible_cells: Size::new(85, 85),
+            playable_map_area_rect: Rect::default(),
             camera: MinimapCamera::default(),
             background_sprite: None,
             enable_debug_draw: false,
@@ -723,6 +724,7 @@ impl MinimapWidget for MinimapWidgetImGui {
         self.minimap_size_in_cells = size_in_cells.to_vec2();
         self.window_rect = self.calc_window_rect(ui_sys);
         self.minimap_draw_info = self.calc_minimap_draw_info();
+        self.playable_map_area_rect = self.calc_playable_map_area_rect();
         self.camera.rect = self.calc_camera_minimap_rect(camera);
         self.camera.edges_near_playable_area_edge = self.rect_edges_near_playable_map_area_edge(&self.camera.rect);
 
@@ -1089,6 +1091,8 @@ impl MinimapWidgetImGui {
     }
 
     fn draw_texture_rect(&self, draw_list: &imgui::DrawListMut<'_>, ui_texture: UiTextureHandle) {
+        debug_assert!(self.playable_map_area_rect.is_valid());
+
         let draw_minimap_texture = || {
             let minimap_corners  = &self.minimap_draw_info.diamond_corners;
             let (uv_min, uv_max) = self.current_minimap_uv_window();
@@ -1112,7 +1116,7 @@ impl MinimapWidgetImGui {
 
         if self.clip_to_playable_map_area {
             // Draw inner playable rectangle of the minimap diamond only.
-            let clip_rect = self.calc_playable_map_area_rect();
+            let clip_rect = self.playable_map_area_rect;
             draw_list.with_clip_rect(clip_rect.min.to_array(),
                                      clip_rect.max.to_array(),
                                      draw_minimap_texture);
@@ -1122,7 +1126,7 @@ impl MinimapWidgetImGui {
 
             // Show clip rect overlay on the whole minimap.
             if self.enable_debug_draw {
-                let clip_rect = self.calc_playable_map_area_rect();
+                let clip_rect = self.playable_map_area_rect;
                 draw_list.add_rect(clip_rect.min.to_array(),
                                    clip_rect.max.to_array(),
                                    imgui::ImColor32::from_rgb(255, 255, 0))
@@ -1274,8 +1278,9 @@ impl MinimapWidgetImGui {
 
     // Returns floating-point isometric coords without rounding to integer cell space.
     fn pick_cursor_pos(&self) -> Option<IsoPointF32> {
-        let playable_map_area_rect = self.calc_playable_map_area_rect();
-        if !playable_map_area_rect.contains_point(self.cursor_pos) {
+        debug_assert!(self.playable_map_area_rect.is_valid());
+
+        if !self.playable_map_area_rect.contains_point(self.cursor_pos) {
             return None; // Cursor outside minimap playable area.
         }
 
@@ -1379,14 +1384,17 @@ impl MinimapWidgetImGui {
     }
 
     fn rect_edges_near_playable_map_area_edge(&self, screen_rect: &Rect) -> RectEdges {
+        debug_assert!(self.playable_map_area_rect.is_valid());
+
         // Perform overlap test with margin.
         let test_rect = screen_rect.expanded(MINIMAP_RECT_MARGINS);
-        let playable_map_area_rect = self.calc_playable_map_area_rect();
-        playable_map_area_rect.edges_outside(&test_rect)
+        self.playable_map_area_rect.edges_outside(&test_rect)
     }
 
     // Rect in minimap widget screen space, ready to be rendered.
     fn calc_camera_minimap_rect(&self, camera: &Camera) -> Rect {
+        debug_assert!(self.playable_map_area_rect.is_valid());
+
         // Camera viewport extents in screen space:
         let camera_screen_rect   = camera.camera_screen_rect();
         let camera_screen_center = camera_screen_rect.center();
@@ -1423,12 +1431,12 @@ impl MinimapWidgetImGui {
         });
 
         // Finally, make sure we stay within the playable area, always.
-        *Rect::from_points(&rotated_camera_rect_corners)
-            .clamp(&self.calc_playable_map_area_rect())
+        *Rect::from_points(&rotated_camera_rect_corners).clamp(&self.playable_map_area_rect)
     }
 
     fn calc_playable_map_area_rect(&self) -> Rect {
         debug_assert!(self.minimap_size_in_cells != Vec2::zero());
+        debug_assert!(self.minimap_draw_info.diamond_aabb.is_valid());
 
         let map_diamond = IsoDiamond::from_tile_map(
             Size::from_vec2(self.minimap_size_in_cells),
