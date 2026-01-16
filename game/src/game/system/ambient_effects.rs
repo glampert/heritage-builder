@@ -45,7 +45,8 @@ impl GameSystem for AmbientEffectsSystem {
 
     fn update(&mut self, query: &Query) {
         if self.bird_spawn_timer.tick(query.delta_time_secs()).should_update() {
-            spawn_bird_with_random_flight_path(query);
+            // FIXME: Need to handle new inner-rect playable area. Spawn on the inner-rect edge instead.
+            //spawn_bird_with_random_flight_path(query);
         }
     }
 
