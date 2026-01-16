@@ -1028,44 +1028,53 @@ impl MinimapWidgetImGui {
         }
 
         let draw_list = ui_sys.ui().get_window_draw_list();
-        let tex_cache = render_sys.texture_cache();
 
-        let minimap_center = self.minimap_draw_info.rect.center(); // Minimap center.
-        let minimap_aabb = self.minimap_draw_info.diamond_aabb.shrunk(MINIMAP_EDGE_MARGINS);
+        let draw_all_icons = || {
+            let tex_cache = render_sys.texture_cache();
+            let minimap_center = self.minimap_draw_info.rect.center(); // Minimap center.
+            let minimap_aabb = self.minimap_draw_info.diamond_aabb.shrunk(MINIMAP_EDGE_MARGINS);
 
-        for icon in icons {
-            if icon.lifetime <= 0.0 || icon.time_left <= 0.0 {
-                continue;
+            for icon in icons {
+                if icon.lifetime <= 0.0 || icon.time_left <= 0.0 {
+                    continue;
+                }
+
+                let mut icon_center =
+                    self.cell_to_scaled_minimap_widget_px(CellF32::from_integer_cell(icon.target_cell));
+
+                if self.is_minimap_rotated() {
+                    icon_center = icon_center.rotate_around_point(minimap_center, MINIMAP_ROTATION_ANGLE);
+                }
+
+                const ICON_HALF_SIZE: f32 = MINIMAP_ICON_SIZE / 2.0;
+                let icon_rect = Rect::from_extents(
+                    Vec2::new(icon_center.x - ICON_HALF_SIZE, icon_center.y - ICON_HALF_SIZE),
+                    Vec2::new(icon_center.x + ICON_HALF_SIZE, icon_center.y + ICON_HALF_SIZE)
+                );
+
+                // Clip icon if outside of the minimap aabb.
+                if !minimap_aabb.contains_rect(&icon_rect) {
+                    continue;
+                }
+
+                // Fade-out based on remaining lifetime seconds.
+                let icon_tint_alpha = (icon.time_left / icon.lifetime).clamp(0.0, 1.0);
+                let icon_tint = Color::new(icon.tint.r, icon.tint.g, icon.tint.b, icon_tint_alpha);
+
+                let icon_ui_texture = ui_sys.to_ui_texture(tex_cache, icon.texture);
+        
+                draw_list
+                    .add_image(icon_ui_texture, icon_rect.min.to_array(), icon_rect.max.to_array())
+                    .col(imgui::ImColor32::from_rgba_f32s(icon_tint.r, icon_tint.g, icon_tint.b, icon_tint_alpha))
+                    .build();
             }
+        };
 
-            let mut icon_center =
-                self.cell_to_scaled_minimap_widget_px(CellF32::from_integer_cell(icon.target_cell));
-
-            if self.is_minimap_rotated() {
-                icon_center = icon_center.rotate_around_point(minimap_center, MINIMAP_ROTATION_ANGLE);
-            }
-
-            const ICON_HALF_SIZE: f32 = MINIMAP_ICON_SIZE / 2.0;
-            let icon_rect = Rect::from_extents(
-                Vec2::new(icon_center.x - ICON_HALF_SIZE, icon_center.y - ICON_HALF_SIZE),
-                Vec2::new(icon_center.x + ICON_HALF_SIZE, icon_center.y + ICON_HALF_SIZE)
-            );
-
-            // Clip icon if outside of the minimap aabb.
-            if !minimap_aabb.contains_rect(&icon_rect) {
-                continue;
-            }
-
-            // Fade-out based on remaining lifetime seconds.
-            let icon_tint_alpha = (icon.time_left / icon.lifetime).clamp(0.0, 1.0);
-            let icon_tint = Color::new(icon.tint.r, icon.tint.g, icon.tint.b, icon_tint_alpha);
-
-            let icon_ui_texture = ui_sys.to_ui_texture(tex_cache, icon.texture);
-
-            draw_list
-                .add_image(icon_ui_texture, icon_rect.min.to_array(), icon_rect.max.to_array())
-                .col(imgui::ImColor32::from_rgba_f32s(icon_tint.r, icon_tint.g, icon_tint.b, icon_tint_alpha))
-                .build();
+        if self.clip_to_playable_map_area {
+            let clip_rect = self.playable_map_area_rect;
+            draw_list.with_clip_rect(clip_rect.min.to_array(), clip_rect.max.to_array(), draw_all_icons);
+        } else {
+            draw_all_icons();
         }
     }
 
