@@ -592,10 +592,8 @@ impl ScreenToMinimap {
     }
 }
 
-const VEC2_ONE: Vec2 = Vec2::new(1.0, 1.0);
-
-// Margin in pixels.
-const MINIMAP_RECT_MARGINS: Vec2 = Vec2::new(4.0, 4.0);
+// Margins in pixels.
+const MINIMAP_EDGE_MARGINS: Vec2 = Vec2::new(4.0, 4.0);
 
 // Rotate the minimap -45 degrees to match our isometric world projection.
 const MINIMAP_ROTATION_ANGLE: f32 = -45.0 * (std::f32::consts::PI / 180.0);
@@ -634,8 +632,7 @@ impl Default for MinimapTransform {
 
 #[derive(Default)]
 struct MinimapCamera {
-    rect: Rect,                               // Camera rect in absolute widget screen space, ready for overlay rendering.
-    edges_near_playable_area_edge: RectEdges, // Edges of rect near the playable area limits, with MINIMAP_RECT_MARGINS.
+    rect: Rect, // Camera rect in absolute widget screen space, ready for overlay rendering.
 }
 
 #[derive(Default)]
@@ -726,7 +723,6 @@ impl MinimapWidget for MinimapWidgetImGui {
         self.minimap_draw_info = self.calc_minimap_draw_info();
         self.playable_map_area_rect = self.calc_playable_map_area_rect();
         self.camera.rect = self.calc_camera_minimap_rect(camera);
-        self.camera.edges_near_playable_area_edge = self.rect_edges_near_playable_map_area_edge(&self.camera.rect);
 
         // Auto zoom for large maps:
         self.update_minimap_zoom();
@@ -987,12 +983,13 @@ impl MinimapWidgetImGui {
                 ui.text(format!("Camera Center Cell : {}", camera_center_cell.0));
                 ui.text(format!("Camera Screen Rect : {}", self.camera.rect));
 
-                if self.camera.edges_near_playable_area_edge.is_empty() {
-                    ui.text("Camera Corners Near Edge : None");
+                let edges_near_playable_area_limits = self.camera_rect_edges_near_playable_map_area_limits();
+                if edges_near_playable_area_limits.is_empty() {
+                    ui.text("Camera Edges Near Limit : None");
                 } else {
-                    ui.text("Camera Corners Near Edge :");
+                    ui.text("Camera Edges Near Limit :");
                     ui.same_line();
-                    ui.text_colored(Color::red().to_array(), self.camera.edges_near_playable_area_edge.to_string());
+                    ui.text_colored(Color::red().to_array(), edges_near_playable_area_limits.to_string());
                 }
             });
 
@@ -1034,7 +1031,7 @@ impl MinimapWidgetImGui {
         let tex_cache = render_sys.texture_cache();
 
         let minimap_center = self.minimap_draw_info.rect.center(); // Minimap center.
-        let minimap_aabb = self.minimap_draw_info.diamond_aabb.shrunk(MINIMAP_RECT_MARGINS);
+        let minimap_aabb = self.minimap_draw_info.diamond_aabb.shrunk(MINIMAP_EDGE_MARGINS);
 
         for icon in icons {
             if icon.lifetime <= 0.0 || icon.time_left <= 0.0 {
@@ -1161,7 +1158,7 @@ impl MinimapWidgetImGui {
 
     fn draw_camera_rect(&self, draw_list: &imgui::DrawListMut<'_>, camera: &Camera) {
         let outline_color = {
-            if self.enable_debug_draw && !self.camera.edges_near_playable_area_edge.is_empty() {
+            if self.enable_debug_draw && !self.camera_rect_edges_near_playable_map_area_limits().is_empty() {
                 // Color it red if any corner of the camera rect is falling outside the minimap.
                 imgui::ImColor32::from_rgb(255, 0, 0)
             } else {
@@ -1327,67 +1324,60 @@ impl MinimapWidgetImGui {
     }
 
     fn update_minimap_scrolling(&mut self, delta_time_secs: Seconds) {
-        if !self.minimap_auto_scroll ||
-            self.minimap_transform.zoom() <= 1.0 ||
-            self.camera.edges_near_playable_area_edge.is_empty()
-        {
+        // Converts distance from edge into a [0, 1] push factor.
+        // Negative distance means we're still inside the playable area.
+        fn edge_push(distance: f32, margin: f32) -> f32 {
+            if distance > -margin {
+                ((margin + distance) / margin).clamp(0.0, 1.0)
+            } else {
+                0.0
+            }
+        }
+
+        if !self.minimap_auto_scroll || self.minimap_transform.zoom() <= 1.0 {
             return;
         }
 
-        let (uv_min, uv_max) = self.current_minimap_uv_window();
-        let mut scrollable_edges = RectEdges::all();
+        let camera_rect   = self.camera.rect;
+        let playable_area = self.playable_map_area_rect;
 
-        // Corners already at their limits will not scroll further.
-        if uv_min.y <= 0.0 {
-            scrollable_edges.remove(RectEdges::Top);
-        }
-        if uv_max.x >= 1.0 {
-            scrollable_edges.remove(RectEdges::Right);
-        }
-        if uv_max.y >= 1.0 {
-            scrollable_edges.remove(RectEdges::Bottom);
-        }
-        if uv_min.x <= 0.0 {
-            scrollable_edges.remove(RectEdges::Left);
-        }
-        if scrollable_edges.is_empty() {
+        // Signed distances: negative = inside, positive = violating / pushing.
+        let dx_left   = playable_area.min.x - camera_rect.min.x;
+        let dx_right  = camera_rect.max.x   - playable_area.max.x;
+        let dy_top    = playable_area.min.y - camera_rect.min.y;
+        let dy_bottom = camera_rect.max.y   - playable_area.max.y;
+
+        let push_left   = edge_push(dx_left,   MINIMAP_EDGE_MARGINS.x);
+        let push_right  = edge_push(dx_right,  MINIMAP_EDGE_MARGINS.x);
+        let push_top    = edge_push(dy_top,    MINIMAP_EDGE_MARGINS.y);
+        let push_bottom = edge_push(dy_bottom, MINIMAP_EDGE_MARGINS.y);
+
+        let mut scroll_dir = Vec2::zero();
+
+        // Diamond-space directions:
+        scroll_dir += Vec2::new( 1.0, -1.0) * push_top;
+        scroll_dir += Vec2::new( 1.0,  1.0) * push_right;
+        scroll_dir += Vec2::new(-1.0,  1.0) * push_bottom;
+        scroll_dir += Vec2::new(-1.0, -1.0) * push_left;
+
+        if scroll_dir == Vec2::zero() {
             return;
         }
 
-        // Minimap scrolling:
-        let scroll_delta = self.scroll_speed_px_per_sec * delta_time_secs;
+        let scroll = scroll_dir * self.scroll_speed_px_per_sec * delta_time_secs;
+        self.minimap_transform.offsets += scroll;
 
-        if self.camera.edges_near_playable_area_edge.intersects(RectEdges::Top)
-            && scrollable_edges.intersects(RectEdges::Top)
-        {
-            self.minimap_transform.offsets.x += scroll_delta;
-            self.minimap_transform.offsets.y -= scroll_delta;
-        }
-        if self.camera.edges_near_playable_area_edge.intersects(RectEdges::Right)
-            && scrollable_edges.intersects(RectEdges::Right)
-        {
-            self.minimap_transform.offsets.x += scroll_delta;
-            self.minimap_transform.offsets.y += scroll_delta;
-        }
-        if self.camera.edges_near_playable_area_edge.intersects(RectEdges::Bottom)
-            && scrollable_edges.intersects(RectEdges::Bottom)
-        {
-            self.minimap_transform.offsets.x -= scroll_delta;
-            self.minimap_transform.offsets.y += scroll_delta;
-        }
-        if self.camera.edges_near_playable_area_edge.intersects(RectEdges::Left)
-            && scrollable_edges.intersects(RectEdges::Left)
-        {
-            self.minimap_transform.offsets.x -= scroll_delta;
-            self.minimap_transform.offsets.y -= scroll_delta;
-        }
+        // Ensure we never go out of bounds on our min/max minimap texture UVs.
+        self.clamp_minimap_uv_window();
     }
 
-    fn rect_edges_near_playable_map_area_edge(&self, screen_rect: &Rect) -> RectEdges {
+    // Edges of camera rect near the playable area limits, with MINIMAP_EDGE_MARGINS.
+    fn camera_rect_edges_near_playable_map_area_limits(&self) -> RectEdges {
         debug_assert!(self.playable_map_area_rect.is_valid());
+        debug_assert!(self.camera.rect.is_valid());
 
         // Perform overlap test with margin.
-        let test_rect = screen_rect.expanded(MINIMAP_RECT_MARGINS);
+        let test_rect = self.camera.rect.expanded(MINIMAP_EDGE_MARGINS);
         self.playable_map_area_rect.edges_outside(&test_rect)
     }
 
@@ -1410,8 +1400,8 @@ impl MinimapWidgetImGui {
         // Convert screen -> fractional cell space:
         let mut cell_min = Vec2::new(f32::MAX, f32::MAX);
         let mut cell_max = Vec2::new(f32::MIN, f32::MIN);
-        for screen_point in camera_screen_corners {
-            let cell = coords::screen_point_to_cell_f32(screen_point, camera.transform()).0;
+        for corner in camera_screen_corners {
+            let cell = coords::screen_point_to_cell_f32(corner, camera.transform()).0;
             cell_min = cell_min.min(cell);
             cell_max = cell_max.max(cell);
         }
@@ -1453,14 +1443,14 @@ impl MinimapWidgetImGui {
 
     #[inline]
     fn calc_minimap_visible_cells(size_in_cells: Vec2, zoom: f32) -> Vec2 {
-        (size_in_cells - VEC2_ONE) / zoom
+        (size_in_cells - Vec2::one()) / zoom
     }
 
     // `offsets` are in minimap cells/pixels (same units as minimap_size_in_cells).
     #[inline]
     fn calc_minimap_rect_uvs(size_in_cells: Vec2, offsets: Vec2, zoom: f32) -> (Vec2, Vec2) {
         let visible_cells = Self::calc_minimap_visible_cells(size_in_cells, zoom);
-        let max_cells = size_in_cells - VEC2_ONE;
+        let max_cells = size_in_cells - Vec2::one();
         let uv_min = offsets / max_cells;
         let uv_max = (offsets + visible_cells) / max_cells;
         (uv_min, uv_max)
@@ -1474,7 +1464,7 @@ impl MinimapWidgetImGui {
         }
 
         let visible_cells = Self::calc_minimap_visible_cells(size_in_cells, zoom);
-        let max_offsets = size_in_cells - VEC2_ONE - visible_cells;
+        let max_offsets = size_in_cells - Vec2::one() - visible_cells;
 
         // Offset so center cell stays fixed regardless of zoom.
         let mut offsets = center_cell.0 - (visible_cells * 0.5);
@@ -1523,11 +1513,30 @@ impl MinimapWidgetImGui {
     // Convenience to return the current UV window used by drawing code.
     #[inline]
     fn current_minimap_uv_window(&self) -> (Vec2, Vec2) {
-        let map_center_cell = CellF32((self.minimap_size_in_cells - VEC2_ONE) * 0.5);
+        let map_center_cell = CellF32((self.minimap_size_in_cells - Vec2::one()) * 0.5);
         let zoom = self.minimap_transform.zoom();
         let zoom_offsets = Self::calc_zoom_offsets_from_center(self.minimap_size_in_cells, map_center_cell, zoom);
         let combined_offsets = zoom_offsets + self.minimap_transform.offsets;
         Self::calc_minimap_rect_uvs(self.minimap_size_in_cells, combined_offsets, zoom)
+    }
+
+    fn clamp_minimap_uv_window(&mut self) {
+        let (uv_min, uv_max) = self.current_minimap_uv_window();
+
+        let clamped_min = uv_min.clamp(Vec2::zero(), Vec2::one());
+        let clamped_max = uv_max.clamp(Vec2::zero(), Vec2::one());
+
+        let delta_min = clamped_min - uv_min;
+        let delta_max = clamped_max - uv_max;
+
+        // If either side was clamped, shift offsets accordingly.
+        let uv_correction = delta_min + delta_max;
+        if uv_correction != Vec2::zero() {
+            // Convert UV delta back into offset space.
+            let minimap_size_px = self.minimap_draw_info.rect.size();
+            let offset_delta = uv_correction * minimap_size_px;
+            self.minimap_transform.offsets += offset_delta;
+        }
     }
 
     // ----------------------------------------------
@@ -1537,7 +1546,7 @@ impl MinimapWidgetImGui {
     // Maps fractional cell coords to full minimap UVs [0,1] and vice-versa.
     #[inline]
     fn cell_to_minimap_uv(&self, cell: CellF32) -> Vec2 {
-        let max_cells = self.minimap_size_in_cells - VEC2_ONE;
+        let max_cells = self.minimap_size_in_cells - Vec2::one();
         Vec2::new(
             cell.0.x / max_cells.x,
             // NOTE: Flip V for ImGui (because OpenGL textures have V=0 at bottom).
@@ -1547,7 +1556,7 @@ impl MinimapWidgetImGui {
 
     #[inline]
     fn minimap_uv_to_cell(&self, uv: Vec2) -> CellF32 {
-        let max_cells = self.minimap_size_in_cells - VEC2_ONE;
+        let max_cells = self.minimap_size_in_cells - Vec2::one();
         CellF32(Vec2::new(
             uv.x * max_cells.x,
             // NOTE: Flip V for ImGui (because OpenGL textures have V=0 at bottom).

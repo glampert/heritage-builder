@@ -126,6 +126,11 @@ impl Vec2 {
     }
 
     #[inline]
+    pub const fn one() -> Self {
+        Self { x: 1.0, y: 1.0 }
+    }
+
+    #[inline]
     pub const fn from_array(xy: [f32; 2]) -> Self {
         Self { x: xy[0], y: xy[1] }
     }
@@ -187,6 +192,15 @@ impl Vec2 {
         Self {
             x: self.x.max(other.x),
             y: self.y.max(other.y),
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn clamp(&self, min: Self, max: Self) -> Self {
+        Self {
+            x: self.x.clamp(min.x, max.x),
+            y: self.y.clamp(min.y, max.y),
         }
     }
 }
