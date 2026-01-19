@@ -619,6 +619,7 @@ pub fn inner_rect_from_diamond_points(points: &[Vec2; 4]) -> Rect {
 // IsoDiamond
 // ----------------------------------------------
 
+#[derive(Default)]
 pub struct IsoDiamond {
     // Screen-space diamond points/vertices, CCW winding: [top, right, bottom, left]
     points: [Vec2; 4],
