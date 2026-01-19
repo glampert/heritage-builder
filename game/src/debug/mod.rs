@@ -11,8 +11,8 @@ use crate::{
     ui::{UiWidgetContext, UiTheme},
     save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{sim, config::GameConfigs, GameLoop, menu::*},
-    tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind},
-    utils::{coords::{Cell, CellRange}, mem::{self, SingleThreadStatic}}
+    utils::{coords::{Cell, CellRange}, mem::{self, SingleThreadStatic}},
+    tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::DevUiMinimapRenderer},
 };
 
 pub mod log_viewer;
@@ -121,6 +121,7 @@ struct DevEditorMenusSingleton {
     tile_palette_menu: TilePaletteDevMenu,
     tile_inspector_menu: TileInspectorDevMenu,
     enable_tile_inspector: bool,
+    minimap_renderer: DevUiMinimapRenderer,
 }
 
 impl DevEditorMenusSingleton {
@@ -131,6 +132,7 @@ impl DevEditorMenusSingleton {
             tile_palette_menu: TilePaletteDevMenu::new(tile_palette_open, tex_cache),
             tile_inspector_menu: TileInspectorDevMenu::default(),
             enable_tile_inspector,
+            minimap_renderer: DevUiMinimapRenderer::new(),
         }
     }
 
@@ -180,11 +182,16 @@ impl DevEditorMenusSingleton {
             self.tile_inspector_menu.draw(&mut sim_context, menu_context.sim);
         }
 
-        game_loop.camera().draw_debug(GameLoop::get_mut().engine_mut().debug_draw(), sim_context.ui_sys);
-
         if show_popup_messages() {
             menu_context.sim.draw_game_object_debug_popups(&mut sim_context, visible_range);
         }
+
+        sim_context.tile_map.minimap_mut().draw(&mut self.minimap_renderer,
+                                                menu_context.engine.render_system(),
+                                                menu_context.camera,
+                                                sim_context.ui_sys);
+
+        game_loop.camera().draw_debug(GameLoop::get_mut().engine_mut().debug_draw(), sim_context.ui_sys);
 
         if show_cursor_pos {
             utils::draw_cursor_overlay(menu_context.engine.ui_system(),

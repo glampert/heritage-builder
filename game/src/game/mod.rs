@@ -834,12 +834,6 @@ impl GameLoop {
         let ui_sys = self.engine.ui_system();
         let session = self.session.as_mut().unwrap();
 
-        let dev_editor_menus_mode =
-            session.current_menus_mode() == Some(GameMenusMode::DevEditor);
-
-        let enable_minimap_debug_controls =
-            GameConfigs::get().debug.enable_minimap_debug_controls && dev_editor_menus_mode;
-
         session.tile_map.minimap_mut().update(&mut session.camera,
                                               tex_cache,
                                               input_sys,
@@ -851,10 +845,6 @@ impl GameLoop {
                                   &session.camera,
                                   visible_range,
                                   flags);
-
-        session.tile_map.minimap_mut().draw_debug_ui(&mut session.camera,
-                                                     self.engine.ui_system(),
-                                                     enable_minimap_debug_controls);
     }
 
     fn update_autosave(&mut self) {

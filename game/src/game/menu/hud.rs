@@ -13,11 +13,11 @@ use super::{
     bar::MenuBarsWidget,
 };
 use crate::{
-    tile::Tile,
     save::{Save, Load},
     render::RenderSystem,
     app::input::{InputAction, MouseButton},
     ui::{UiInputEvent, UiWidgetContext, UiTheme},
+    tile::{Tile, minimap::InGameUiMinimapRenderer},
     utils::{Vec2, coords::{CellRange, WorldToScreenTransform}},
 };
 
@@ -30,6 +30,7 @@ pub struct InGameHudMenus {
     tile_palette: TilePaletteMenu,
     tile_inspector: TileInspectorMenu,
     menu_bars: MenuBarsWidget,
+    minimap_renderer: InGameUiMinimapRenderer,
 }
 
 impl InGameHudMenus {
@@ -40,6 +41,7 @@ impl InGameHudMenus {
             tile_palette: TilePaletteMenu::new(context),
             tile_inspector: TileInspectorMenu::new(),
             menu_bars: MenuBarsWidget::new(context),
+            minimap_renderer: InGameUiMinimapRenderer::new(context.tex_cache),
         }
     }
 }
@@ -83,6 +85,11 @@ impl GameMenusSystem for InGameHudMenus {
                                context.tile_selection.has_valid_placement());
     
         self.menu_bars.draw(&mut widget_context);
+
+        widget_context.tile_map.minimap_mut().draw(&mut self.minimap_renderer,
+                                                   context.engine.render_system(),
+                                                   context.camera,
+                                                   widget_context.ui_sys);
     }
 }
 
