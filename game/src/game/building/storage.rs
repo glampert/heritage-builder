@@ -641,6 +641,8 @@ impl StorageSlots {
             }
         }
 
+        ui.same_line();
+
         if ui.button("Clear all slots") {
             for slot in &mut self.slots {
                 slot.clear();

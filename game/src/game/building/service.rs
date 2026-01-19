@@ -718,6 +718,7 @@ impl ServiceBuilding {
                 // Set all to capacity.
                 stock.fill();
             }
+            ui.same_line();
             if ui.button("Clear Stock") {
                 stock.clear();
             }

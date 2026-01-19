@@ -959,6 +959,7 @@ impl ProducerBuilding {
                 if ui.button("Fill Stock##_fill_input_stock") {
                     self.production_input_stock.fill();
                 }
+                ui.same_line();
                 if ui.button("Clear Stock##_clear_input_stock") {
                     self.production_input_stock.clear();
                 }
@@ -1024,6 +1025,7 @@ impl ProducerBuilding {
         if ui.button("Fill Stock##_fill_output_stock") {
             self.production_output_stock.fill();
         }
+        ui.same_line();
         if ui.button("Clear Stock##_clear_output_stock") {
             self.production_output_stock.clear();
         }
