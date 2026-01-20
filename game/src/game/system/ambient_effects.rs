@@ -116,6 +116,7 @@ fn spawn_bird(query: &Query, flight_path: BirdFlightPath) {
             path,
             completion_callback: Callback::default(),
             completion_task: query.task_manager().new_task(UnitTaskDespawn),
+            terminate_if_stuck: true,
         });
 
     match result {

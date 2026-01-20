@@ -267,8 +267,7 @@ pub struct UnitNavigation {
     segment_duration: f32,
 
     #[debug_ui(skip)]
-    goal: Option<UnitNavGoal>, /* (origin_cell, destination_cell) may be different from path
-                                * start/end. */
+    goal: Option<UnitNavGoal>, // (origin_cell, destination_cell) may be different from path start/end.
 
     // Debug:
     #[serde(skip)]

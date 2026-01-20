@@ -1553,6 +1553,9 @@ pub struct UnitTaskFollowPath {
 
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
+
+    // If the unit gets stuck, terminate the task and run the completion callback/task.
+    pub terminate_if_stuck: bool,
 }
 
 impl UnitTask for UnitTaskFollowPath {
@@ -1579,7 +1582,7 @@ impl UnitTask for UnitTaskFollowPath {
     }
 
     fn update(&mut self, unit: &mut Unit, _query: &Query) -> UnitTaskState {
-        if unit.has_reached_goal() {
+        if unit.has_reached_goal() || (unit.path_is_blocked() && self.terminate_if_stuck) {
             UnitTaskState::Completed
         } else {
             UnitTaskState::Running
@@ -1587,8 +1590,10 @@ impl UnitTask for UnitTaskFollowPath {
     }
 
     fn completed(&mut self, unit: &mut Unit, query: &Query) -> UnitTaskResult {
-        unit.goal().expect("Expected unit to have an active goal!");
-        debug_assert!(unit.cell() == self.path.last().unwrap().cell, "Unit has not reached its goal yet!");
+        if !unit.path_is_blocked() {
+            unit.goal().expect("Expected unit to have an active goal!");
+            debug_assert!(unit.cell() == self.path.last().unwrap().cell, "Unit has not reached its goal yet!");
+        }
 
         if let Some(completion_callback) = self.completion_callback.try_get() {
             completion_callback(unit, query);

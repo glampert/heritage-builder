@@ -157,14 +157,18 @@ impl Unit {
 
         ui.separator();
 
-        let color = match self.navigation.status() {
-            UnitNavStatus::Idle => Color::yellow(),
-            UnitNavStatus::Paused => Color::red(),
-            UnitNavStatus::Moving => Color::green(),
-        };
+        if self.path_is_blocked {
+            ui.text_colored(Color::red().to_array(), "PATH BLOCKED!");
+        } else {
+            let color = match self.navigation.status() {
+                UnitNavStatus::Idle => Color::yellow(),
+                UnitNavStatus::Paused => Color::red(),
+                UnitNavStatus::Moving => Color::green(),
+            };
 
-        ui.text_colored(color.to_array(),
-                        format!("Path Navigation Status: {:?}", self.navigation.status()));
+            ui.text_colored(color.to_array(),
+                            format!("Path Navigation Status: {:?}", self.navigation.status()));
+        }
 
         if let Some(goal) = self.navigation.goal() {
             ui.text(format!("Start Tile : {}, {}", goal.origin_cell(), goal.origin_debug_name()));

@@ -81,6 +81,9 @@ pub struct Unit {
     navigation: UnitNavigation,
     current_task_id: UnitTaskId, // invalid if no task.
 
+    #[serde(default)]
+    path_is_blocked: bool,
+
     #[serde(skip)]
     config: Option<&'static UnitConfig>, // patched on post_load.
 
@@ -181,10 +184,12 @@ impl Unit {
         self.config = Some(config);
         self.config_key = config.key();
         self.direction = UnitDirection::Idle;
+        self.path_is_blocked = false;
 
         self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
         self.navigation.set_traversable_node_kinds(config.traversable_node_kinds);
         self.navigation.set_movement_speed(config.movement_speed);
+        self.debug.set_show_popups(crate::debug::show_popup_messages());
     }
 
     pub fn despawned(&mut self, query: &Query) {
@@ -337,6 +342,7 @@ impl Unit {
     pub fn follow_path(&mut self, path: Option<&Path>) {
         debug_assert!(self.is_spawned());
         self.navigation.reset_path_and_goal(path, None);
+        self.path_is_blocked = false;
         if path.is_some() {
             self.debug.popup_msg("New Path");
         }
@@ -349,9 +355,15 @@ impl Unit {
     }
 
     #[inline]
+    pub fn path_is_blocked(&self) -> bool {
+        self.path_is_blocked
+    }
+
+    #[inline]
     pub fn move_to_goal(&mut self, path: &Path, goal: UnitNavGoal) {
         debug_assert!(self.is_spawned());
         self.navigation.reset_path_and_goal(Some(path), Some(goal));
+        self.path_is_blocked = false;
         self.log_going_to(&goal);
     }
 
@@ -402,13 +414,13 @@ impl Unit {
 
                 if cell == self.cell() {
                     // Goal reached, clear current path.
-                    // NOTE: Not using follow_path(None) here to preserve the nav goal for unit
-                    // tasks.
+                    // NOTE: Not using follow_path(None) here to preserve the nav goal for unit tasks.
                     self.navigation.reset_path_only();
                     self.debug.popup_msg_color(Color::green(), "Reached Goal!");
                 } else {
                     // Path was blocked, retry task.
                     self.follow_path(None);
+                    self.path_is_blocked = true;
                     self.debug.popup_msg_color(Color::red(), "Goal Blocked!");
                 }
 
@@ -420,7 +432,7 @@ impl Unit {
                 // If a task is running it should now re-route the path and retry.
                 self.follow_path(None);
                 self.idle(query);
-
+                self.path_is_blocked = true;
                 self.debug.popup_msg_color(Color::red(), "Path Blocked!");
             }
         }
