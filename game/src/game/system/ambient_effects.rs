@@ -1,5 +1,6 @@
 use std::any::Any;
-use rand::{Rng, seq::IteratorRandom};
+use smallvec::SmallVec;
+use rand::seq::{IndexedRandom, IteratorRandom};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -45,8 +46,7 @@ impl GameSystem for AmbientEffectsSystem {
 
     fn update(&mut self, query: &Query) {
         if self.bird_spawn_timer.tick(query.delta_time_secs()).should_update() {
-            // FIXME: Need to handle new inner-rect playable area. Spawn on the inner-rect edge instead.
-            //spawn_bird_with_random_flight_path(query);
+            spawn_bird_with_random_flight_path(query);
         }
     }
 
@@ -138,36 +138,30 @@ fn make_left_to_right_randomized_path(query: &Query) -> Path {
     let map_size = query.tile_map().size_in_cells();
 
     let randomized_spawn_point = || {
-        let rng = query.rng();
-        let mut start = 0;
+        let min_cell = Cell::new(0, (map_size.height / 2) - 1);
+        let max_cell = Cell::new((map_size.width / 2) - 1, map_size.height - 1);
+
+        let mut cell = min_cell;
+        let mut cells = SmallVec::<[Cell; 256]>::new();
 
         loop {
-            // Randomize either the X or Y axis.
-            let cell = {
-                if rng.random_bool(0.5) {
-                    Cell::new(rng.random_range(start..map_size.width), map_size.height - 1) // X
-                } else {
-                    Cell::new(0, rng.random_range(start..map_size.height)) // Y
-                }
-            };
-
-            if query.tile_map().is_cell_within_playable_area(cell) {
-                return cell;
+            cells.push(cell);
+            if cell.x == max_cell.x || cell.y == max_cell.y {
+                break;
             }
-
-            // Retry if the randomized spawn point falls outside the playable area.
-            start += 1;
+            cell.x += 1;
+            cell.y += 1;
         }
+
+        *cells.choose(query.rng()).unwrap()
     };
 
     let mut cell = randomized_spawn_point();
     let mut path = Path::new();
 
-    for _ in 0..map_size.width {
+    let half_width = map_size.width / 2;
+    for _ in 0..half_width {
         path.push(Node::new(cell));
-        if cell.x == (map_size.width - 1) || cell.y == 0 {
-            break;
-        }
         cell.x += 1;
         cell.y -= 1;
     }
@@ -179,36 +173,30 @@ fn make_right_to_left_randomized_path(query: &Query) -> Path {
     let map_size = query.tile_map().size_in_cells();
 
     let randomized_spawn_point = || {
-        let rng = query.rng();
-        let mut start = 0;
+        let min_cell = Cell::new((map_size.width / 2) - 1, 0);
+        let max_cell = Cell::new(map_size.width - 1, map_size.height / 2);
+
+        let mut cell = min_cell;
+        let mut cells = SmallVec::<[Cell; 256]>::new();
 
         loop {
-            // Randomize either the X or Y axis.
-            let cell = {
-                if rng.random_bool(0.5) {
-                    Cell::new(rng.random_range(start..map_size.width), 0) // X
-                } else {
-                    Cell::new(map_size.width - 1, rng.random_range(start..map_size.height)) // Y
-                }
-            };
-
-            if query.tile_map().is_cell_within_playable_area(cell) {
-                return cell;
+            cells.push(cell);
+            if cell.x == max_cell.x || cell.y == max_cell.y {
+                break;
             }
-
-            // Retry if the randomized spawn point falls outside the playable area.
-            start += 1;
+            cell.x += 1;
+            cell.y += 1;
         }
+
+        *cells.choose(query.rng()).unwrap()
     };
 
     let mut cell = randomized_spawn_point();
     let mut path = Path::new();
 
-    for _ in 0..map_size.width {
+    let half_width = map_size.width / 2;
+    for _ in 0..half_width {
         path.push(Node::new(cell));
-        if cell.x == 0 || cell.y == (map_size.height - 1) {
-            break;
-        }
         cell.x -= 1;
         cell.y += 1;
     }
