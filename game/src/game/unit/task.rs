@@ -1149,6 +1149,7 @@ impl UnitTask for UnitTaskSettler {
     fn initialize(&mut self, unit: &mut Unit, query: &Query) {
         debug_assert!(self.population_to_add != 0);
 
+        // Settlers can go off-road.
         let current_node_kinds = unit.traversable_node_kinds();
         unit.set_traversable_node_kinds(current_node_kinds
                                         | PathNodeKind::EmptyLand

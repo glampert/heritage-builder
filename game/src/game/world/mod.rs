@@ -534,10 +534,10 @@ impl World {
 
         if tile.is_stacked() {
             tile_map.visit_next_tiles(tile, |next_tile| {
-                        tiles.push((next_tile.game_object_handle(),
-                                    next_tile.index(),
-                                    next_tile.base_cell()));
-                    });
+                tiles.push((next_tile.game_object_handle(),
+                            next_tile.index(),
+                            next_tile.base_cell()));
+            });
         }
 
         for (game_object_handle, tile_index, cell) in &tiles {
@@ -610,10 +610,11 @@ impl World {
 
         if tile.is_stacked() {
             query.tile_map().visit_next_tiles_mut(tile, |next_tile| {
-                                let next_unit = query.world().find_unit_for_tile_mut(next_tile)
+                let next_unit = query.world().find_unit_for_tile_mut(next_tile)
                     .expect("Next Unit tile does not have a valid TileGameObjectHandle!");
-                                units.push(next_unit);
-                            });
+
+                units.push(next_unit);
+            });
         }
 
         // This will take care of removing all tiles stacked at `tile_base_cell`.
