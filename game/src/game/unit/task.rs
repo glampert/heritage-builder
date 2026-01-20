@@ -1555,6 +1555,7 @@ pub struct UnitTaskFollowPath {
     pub completion_task: Option<UnitTaskId>,
 
     // If the unit gets stuck, terminate the task and run the completion callback/task.
+    #[serde(default)]
     pub terminate_if_stuck: bool,
 }
 
