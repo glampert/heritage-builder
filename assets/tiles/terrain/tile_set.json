@@ -113,7 +113,7 @@
         {
           "name": "dirt_road",
           "cost": 1,
-          "palette_button": "roads",
+          "sector": "Roads",
           "path_kind": "Road",
           "draw_size": {
             "width": 65,
@@ -352,7 +352,7 @@
         {
           "name": "paved_road",
           "cost": 3,
-          "palette_button": "roads",
+          "sector": "Roads",
           "path_kind": "Road",
           "draw_size": {
             "width": 65,

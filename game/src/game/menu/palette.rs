@@ -104,7 +104,7 @@ impl TilePaletteMainButtonKind {
                category.hash == TERRAIN_LAND_CATEGORY.hash
             {
                 category.for_each_tile_def(|tile_def| {
-                    if tile_def.palette_button == button_name {
+                    if tile_def.sector.name() == button_name {
                         let label = utils::snake_case_to_title::<64>(&tile_def.name).to_string();
                         children.push(TilePaletteChildButton {
                             label,

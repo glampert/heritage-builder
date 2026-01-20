@@ -5,7 +5,8 @@ use strum::{EnumCount, IntoEnumIterator, EnumProperty};
 use strum_macros::{EnumCount, EnumIter, EnumProperty};
 
 use super::{
-    TileKind, TileMap, TileMapLayerKind, sets::TileDef,
+    TileKind, TileMap, TileMapLayerKind,
+    sets::{TileDef, TileSector},
     camera::Camera, water, road,
 };
 
@@ -50,45 +51,48 @@ struct MinimapTileColor {
 }
 
 impl MinimapTileColor {
-    const BLACK:         Self = Self { r: 0,   g: 0,   b: 0,   a: 255 };
-    const WHITE:         Self = Self { r: 255, g: 255, b: 255, a: 255 };
-    const CYAN:          Self = Self { r: 0,   g: 255, b: 255, a: 255 };
-    const MAGENTA:       Self = Self { r: 255, g: 0,   b: 255, a: 255 };
-    const LIGHT_RED:     Self = Self { r: 250, g: 35,  b: 35,  a: 255 };
-    const DARK_RED:      Self = Self { r: 195, g: 15,  b: 15,  a: 255 };
-    const LIGHT_PINK:    Self = Self { r: 220, g: 20,  b: 195, a: 255 };
-    const DARK_PINK:     Self = Self { r: 140, g: 5,   b: 120, a: 255 };
-    const LIGHT_PURPLE:  Self = Self { r: 165, g: 70,  b: 185, a: 255 };
-    const DARK_PURPLE:   Self = Self { r: 80,  g: 25,  b: 90,  a: 255 };
-    const LIGHT_GREEN_1: Self = Self { r: 112, g: 125, b: 55,  a: 255 };
-    const LIGHT_GREEN_2: Self = Self { r: 100, g: 120, b: 50,  a: 255 };
-    const DARK_GREEN_1:  Self = Self { r: 10,  g: 115, b: 25,  a: 255 };
-    const DARK_GREEN_2:  Self = Self { r: 25,  g: 125, b: 40,  a: 255 };
-    const LIGHT_YELLOW:  Self = Self { r: 210, g: 225, b: 20,  a: 255 };
-    const DARK_YELLOW:   Self = Self { r: 225, g: 200, b: 20,  a: 255 };
-    const LIGHT_BLUE:    Self = Self { r: 15,  g: 100, b: 230, a: 255 };
-    const DARK_BLUE:     Self = Self { r: 30,  g: 100, b: 115, a: 255 };
-    const LIGHT_BROWN:   Self = Self { r: 165, g: 122, b: 81,  a: 255 };
-    const DARK_BROWN:    Self = Self { r: 138, g: 92,  b: 68,  a: 255 };
-    const LIGHT_GRAY:    Self = Self { r: 100, g: 100, b: 100, a: 255 };
-    const DARK_GRAY_1:   Self = Self { r: 90,  g: 85,  b: 75,  a: 255 };
-    const DARK_GRAY_2:   Self = Self { r: 80,  g: 75,  b: 65,  a: 255 };
+    // Default:
+    const BLACK:                  Self = Self { r: 0,   g: 0,   b: 0,   a: 255 };
+
+    // Terrain:
+    const WATER:                  Self = Self { r: 30,  g: 100, b: 115, a: 255 }; // dark blue
+    const EMPTY_LAND_1:           Self = Self { r: 112, g: 125, b: 55,  a: 255 }; // light green
+    const EMPTY_LAND_2:           Self = Self { r: 100, g: 120, b: 50,  a: 255 }; // light green
+    const VEGETATION_1:           Self = Self { r: 10,  g: 115, b: 25,  a: 255 }; // dark green
+    const VEGETATION_2:           Self = Self { r: 25,  g: 125, b: 40,  a: 255 }; // dark green
+    const ROCKS_1:                Self = Self { r: 90,  g: 85,  b: 75,  a: 255 }; // dark gray
+    const ROCKS_2:                Self = Self { r: 80,  g: 75,  b: 65,  a: 255 }; // dark gray
+
+    // Roads:
+    const DIRT_ROAD:              Self = Self { r: 165, g: 122, b: 81,  a: 255 }; // light brown
+    const PAVED_ROAD:             Self = Self { r: 138, g: 92,  b: 68,  a: 255 }; // dark brown
+
+    // Building Sectors:
+    const VACANT_LOT:             Self = Self { r: 210, g: 225, b: 20,  a: 255 }; // bright yellow
+    const HOUSING:                Self = Self { r: 225, g: 195, b: 120, a: 255 }; // light yellow
+    const FOOD_AND_FARMING:       Self = Self { r: 155, g: 170, b: 40,  a: 255 }; // olive
+    const INDUSTRY_AND_RESOURCES: Self = Self { r: 170, g: 35,  b: 35,  a: 255 }; // dark red
+    const SERVICES:               Self = Self { r: 80,  g: 140, b: 255, a: 255 }; // light blue
+    const INFRASTRUCTURE:         Self = Self { r: 100, g: 100, b: 100, a: 255 }; // gray
+    const CULTURE_AND_RELIGION:   Self = Self { r: 170, g: 60,  b: 190, a: 255 }; // purple
+    const TRADE_AND_ECONOMY:      Self = Self { r: 230, g: 185, b: 40,  a: 255 }; // gold
+    const BEAUTIFICATION:         Self = Self { r: 60,  g: 200, b: 110, a: 255 }; // light green
 
     #[inline]
     fn vacant_lot() -> Self {
-        Self::LIGHT_YELLOW
+        Self::VACANT_LOT
     }
 
     #[inline]
     fn water() -> Self {
-        Self::DARK_BLUE
+        Self::WATER
     }
 
     #[inline]
     fn road(tile_def: &'static TileDef) -> Self {
         match road::kind(tile_def) {
-            road::RoadKind::Dirt  => Self::LIGHT_BROWN,
-            road::RoadKind::Paved => Self::DARK_BROWN,
+            road::RoadKind::Dirt  => Self::DIRT_ROAD,
+            road::RoadKind::Paved => Self::PAVED_ROAD,
         }
     }
 
@@ -97,49 +101,42 @@ impl MinimapTileColor {
         // Alternate randomly between two similar colors
         // to give the minimap a more pleasant texture.
         if rand::rng().random_bool(0.5) {
-            Self::LIGHT_GREEN_1
+            Self::EMPTY_LAND_1
         } else {
-            Self::LIGHT_GREEN_2
+            Self::EMPTY_LAND_2
         }
     }
 
     #[inline]
     fn vegetation() -> Self {
         if rand::rng().random_bool(0.5) {
-            Self::DARK_GREEN_1
+            Self::VEGETATION_1
         } else {
-            Self::DARK_GREEN_2
+            Self::VEGETATION_2
         }
     }
 
     #[inline]
     fn rocks() -> Self {
         if rand::rng().random_bool(0.5) {
-            Self::DARK_GRAY_1
+            Self::ROCKS_1
         } else {
-            Self::DARK_GRAY_2
+            Self::ROCKS_2
         }
     }
 
     fn building(tile_def: &'static TileDef) -> Self {
-        if tile_def.is_house() {
-            return Self::DARK_YELLOW;
-        }
-        // TEMP: Give different building sizes a unique color for now.
-        // TODO: Color should come from building category (e.g.: government, services, industry, etc).
-        let size = tile_def.size_in_cells();
-        if size.width == 1 {
-            Self::WHITE
-        } else if size.width == 2 {
-            Self::CYAN
-        } else if size.width == 3 {
-            Self::MAGENTA
-        } else if size.width == 4 {
-            Self::LIGHT_PURPLE
-        } else if size.width == 5 {
-            Self::LIGHT_RED
-        } else {
-            Self::DARK_PINK
+        match tile_def.sector {
+            TileSector::None                 => Self::BLACK,
+            TileSector::Housing              => Self::HOUSING,
+            TileSector::Roads                => Self::DIRT_ROAD, // NOTE: Handled elsewhere, listed here to cover all enum cases.
+            TileSector::FoodAndFarming       => Self::FOOD_AND_FARMING,
+            TileSector::IndustryAndResources => Self::INDUSTRY_AND_RESOURCES,
+            TileSector::Services             => Self::SERVICES,
+            TileSector::Infrastructure       => Self::INFRASTRUCTURE,
+            TileSector::CultureAndReligion   => Self::CULTURE_AND_RELIGION,
+            TileSector::TradeAndEconomy      => Self::TRADE_AND_ECONOMY,
+            TileSector::Beautification       => Self::BEAUTIFICATION,
         }
     }
 
@@ -1355,7 +1352,7 @@ impl BaseMinimapRenderer {
                            imgui::ImColor32::WHITE)
                            .build();
 
-        // Whole map outline rect, after camera overlay rect to it draws on top.
+        // Whole map outline rect, after camera overlay rect so it draws on top.
         draw_list.add_rect(clip_rect.min.to_array(),
                            clip_rect.max.to_array(),
                            imgui::ImColor32::BLACK)

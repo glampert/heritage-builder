@@ -1,8 +1,8 @@
 use std::path::{Path, MAIN_SEPARATOR_STR};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use strum::IntoEnumIterator;
-use strum_macros::Display;
+use strum::{EnumProperty, IntoEnumIterator};
+use strum_macros::{Display, EnumProperty};
 
 use super::{
     atlas::*,
@@ -64,6 +64,47 @@ impl PresetTiles {
         TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
                                               category_name_hash,
                                               self.hash())
+    }
+}
+
+#[repr(u8)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Display, EnumProperty, Deserialize)]
+pub enum TileSector {
+    #[default]
+    None,
+
+    #[strum(props(Name = "housing"))]
+    Housing,
+
+    #[strum(props(Name = "roads"))]
+    Roads,
+
+    #[strum(props(Name = "food_and_farming"))]
+    FoodAndFarming,
+
+    #[strum(props(Name = "industry_and_resources"))]
+    IndustryAndResources,
+
+    #[strum(props(Name = "services"))]
+    Services,
+
+    #[strum(props(Name = "infrastructure"))]
+    Infrastructure,
+
+    #[strum(props(Name = "culture_and_religion"))]
+    CultureAndReligion,
+
+    #[strum(props(Name = "trade_and_economy"))]
+    TradeAndEconomy,
+
+    #[strum(props(Name = "beautification"))]
+    Beautification,
+}
+
+impl TileSector {
+    #[inline]
+    pub fn name(&self) -> &'static str {
+        self.get_str("Name").unwrap_or("<none>")
     }
 }
 
@@ -506,9 +547,9 @@ pub struct TileDef {
     #[serde(default)]
     pub cost: u32,
 
-    // Name of UI tile palette button this tile displays under.
+    // Building sector; Also name of UI tile palette button this tile displays under.
     #[serde(default)]
-    pub palette_button: String,
+    pub sector: TileSector,
 
     // Tile kind & archetype combined, also defines which layer the tile can be placed on.
     // Resolved post-load based on layer and category.
@@ -542,8 +583,7 @@ impl TileDef {
 
     #[inline]
     pub fn is_house(&self) -> bool {
-        // FIXME: Could do with a better of way of telling if a tile is a house.
-        self.name.starts_with("house")
+        self.sector == TileSector::Housing
     }
 
     #[inline]
