@@ -126,8 +126,13 @@ impl SettlersSpawnSystem {
 
     #[inline]
     fn find_spawn_point(query: &Query) -> Node {
-        // Fallback to map origin (cell 0,0) if no spawn point it set.
-        query.graph().settlers_spawn_point().unwrap_or(Node::new(Cell::zero()))
+        query.graph().settlers_spawn_point().unwrap_or_else(|| {
+            // Fallback to map playable area top-left corner cell if no spawn point it set.
+            let map_size = query.tile_map().size_in_cells();
+            let x = (map_size.width / 2) - 1;
+            let y = map_size.height - 1;
+            Node::new(Cell::new(x, y))
+        })
     }
 
     fn try_spawn(&self, query: &Query) {
