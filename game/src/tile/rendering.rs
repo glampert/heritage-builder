@@ -231,20 +231,22 @@ impl TileMapRenderer {
         debug_assert!(self.temp_tile_sort_list.is_empty());
 
         let mut try_add_to_sort_list = |tile: &Tile| {
-            let should_draw = {
+            fn should_draw(tile: &Tile, flags: TileMapRenderFlags) -> bool {
                 !tile.is(TileKind::Blocker)    &&
                 (tile.is(TileKind::Building)   && flags.contains(TileMapRenderFlags::DrawBuildings)) ||
                 (tile.is(TileKind::Unit)       && flags.contains(TileMapRenderFlags::DrawUnits))     ||
                 (tile.is(TileKind::Rocks)      && flags.contains(TileMapRenderFlags::DrawProps))     ||
                 (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetation))
-            };
+            }
 
-            if should_draw {
+            if should_draw(tile, flags) {
                 self.temp_tile_sort_list.push(TileDrawListEntry::new(tile, transform));
 
                 // Push stacked chained tiles into the list so they will sort.
                 tile_map.visit_next_tiles(tile, |next_tile| {
-                     self.temp_tile_sort_list.push(TileDrawListEntry::new(next_tile, transform));
+                    if should_draw(next_tile, flags) {
+                        self.temp_tile_sort_list.push(TileDrawListEntry::new(next_tile, transform));
+                    }
                 });
             }
         };
