@@ -15,7 +15,7 @@ use super::{
 use crate::{
     render::{TextureFilter, TextureHandle},
     utils::{self, Size, Rect, Vec2, mem},
-    ui::{self, UiSystem, UiTextureHandle, UiStaticVar, UiWidgetContext},
+    ui::{self, UiSystem, UiTextureHandle, UiStaticVar, widgets::UiWidgetContext},
     tile::{sets::PresetTiles, camera::CameraGlobalSettings},
     game::{GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
 };

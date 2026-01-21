@@ -16,7 +16,7 @@ use crate::{
     save::{Save, Load},
     render::RenderSystem,
     app::input::{InputAction, MouseButton},
-    ui::{UiInputEvent, UiWidgetContext, UiTheme},
+    ui::{UiInputEvent, UiTheme, widgets::UiWidgetContext},
     tile::{Tile, minimap::InGameUiMinimapRenderer},
     utils::{Vec2, coords::{CellRange, WorldToScreenTransform}},
 };

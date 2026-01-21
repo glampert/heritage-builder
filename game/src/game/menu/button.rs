@@ -8,7 +8,7 @@ use super::{
 use crate::{
     utils::{Size, Vec2, Rect, Color},
     engine::time::{Seconds, CountdownTimer},
-    ui::{self, UiWidgetContext, UiTextureHandle, INVALID_UI_TEXTURE_HANDLE},
+    ui::{self, widgets::UiWidgetContext, UiTextureHandle, INVALID_UI_TEXTURE_HANDLE},
 };
 
 // ----------------------------------------------

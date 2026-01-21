@@ -8,11 +8,14 @@ use settings::DebugSettingsDevMenu;
 use crate::{
     singleton_late_init,
     render::TextureCache,
-    ui::{UiWidgetContext, UiTheme},
+    ui::{UiTheme, widgets::UiWidgetContext},
     save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{sim, config::GameConfigs, GameLoop, menu::*},
     utils::{coords::{Cell, CellRange}, mem::{self, SingleThreadStatic}},
     tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::DevUiMinimapRenderer},
+
+    // TEMP
+    ui::widgets::*
 };
 
 pub mod log_viewer;
@@ -27,14 +30,82 @@ mod settings;
 // DevEditorMenus
 // ----------------------------------------------
 
-pub struct DevEditorMenus;
+pub struct DevEditorMenus {
+    // TEMP
+    test_menu: UiMenu,
+}
 
 impl DevEditorMenus {
     pub fn new(context: &mut UiWidgetContext) -> Self {
-        context.ui_sys.set_ui_theme(UiTheme::Dev);
+        //context.ui_sys.set_ui_theme(UiTheme::Dev);
         // Register TileMap global callbacks & debug ref:
         register_tile_map_debug_callbacks(context.tile_map);
-        Self
+
+        // TEMP
+        context.ui_sys.set_ui_theme(UiTheme::InGame);
+        use crate::utils::Vec2;
+        use crate::log;
+
+        let mut test_menu = UiMenu::new(
+            context,
+            String::new(),
+            UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter,
+            Some(Vec2::new(512.0, 512.0)),
+            None,
+            Some("misc/wide_page_bg.png"),
+            None
+        );
+
+        test_menu.add_widget(UiMenuHeading::new(
+            context,
+            1.8,
+            vec!["Test Heading Line".into(), "Second Line".into()],
+            Some("misc/brush_stroke_divider_2.png"),
+            50.0,
+            0.0
+        ));
+
+        let mut btn_group = UiTextButtonGroup::new(15.0, false, true);
+
+        btn_group.add_button(UiTextButton::new(
+            context,
+            "Small Button".into(),
+            UiTextButtonSize::Large,
+            Some("misc/brush_stroke_divider_2.png"),
+            true,
+            |button, _contex| log::info!("Pressed: {}", button.label())
+        ));
+
+        btn_group.add_button(UiTextButton::new(
+            context,
+            "Normal Button".into(),
+            UiTextButtonSize::Large,
+            Some("misc/brush_stroke_divider_2.png"),
+            true,
+            |button, _contex| log::info!("Pressed: {}", button.label())
+        ));
+
+        btn_group.add_button(UiTextButton::new(
+            context,
+            "Large Button".into(),
+            UiTextButtonSize::Large,
+            Some("misc/brush_stroke_divider_2.png"),
+            true,
+            |button, _contex| log::info!("Pressed: {}", button.label())
+        ));
+
+        btn_group.add_button(UiTextButton::new(
+            context,
+            "Disabled Button".into(),
+            UiTextButtonSize::Large,
+            Some("misc/brush_stroke_divider_2.png"),
+            false,
+            |button, _contex| log::info!("Pressed: {}", button.label())
+        ));
+
+        test_menu.add_widget(btn_group);
+
+        Self { test_menu }
     }
 }
 
@@ -70,6 +141,10 @@ impl GameMenusSystem for DevEditorMenus {
 
     fn end_frame(&mut self, context: &mut GameMenusContext, visible_range: CellRange) {
         DevEditorMenusSingleton::get_mut().draw_debug_menus(context, visible_range);
+
+        // TEMP
+        let mut widgets_context = UiWidgetContext::new(context.sim, context.world, context.tile_map, context.engine);
+        self.test_menu.draw(&mut widgets_context);
     }
 }
 

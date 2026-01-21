@@ -6,20 +6,19 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
-pub mod icons;
-
 use crate::{
+    engine::time::Seconds,
+    utils::{Color, FieldAccessorXY, Vec2, Rect, platform::paths, mem},
+    render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
     app::{
         Application,
         input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
     },
-    tile::TileMap,
-    engine::{Engine, time::Seconds},
-    game::{world::World, sim::Simulation},
-    utils::{Color, Size, FieldAccessorXY, Vec2, Rect, platform::paths, mem},
-    render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
 };
+
+pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
+pub mod icons;
+pub mod widgets;
 
 // Internal implementation.
 mod opengl;
@@ -704,40 +703,6 @@ impl UiContext {
                 ..Default::default()
             }),
         }])
-    }
-}
-
-// ----------------------------------------------
-// UiWidgetContext
-// ----------------------------------------------
-
-pub struct UiWidgetContext<'game> {
-    pub sim: &'game mut Simulation,
-    pub world: &'game World,
-    pub tile_map: &'game mut TileMap,
-
-    pub ui_sys: &'game UiSystem,
-    pub tex_cache: &'game mut dyn TextureCache,
-
-    pub viewport_size: Size,
-    pub delta_time_secs: Seconds,
-}
-
-impl<'game> UiWidgetContext<'game> {
-    #[inline]
-    pub fn new(sim: &'game mut Simulation,
-               world: &'game World,
-               tile_map: &'game mut TileMap,
-               engine: &'game dyn Engine) -> Self {
-        Self {
-            sim,
-            world,
-            tile_map,
-            ui_sys: engine.ui_system(),
-            tex_cache: engine.texture_cache(),
-            viewport_size: engine.viewport().integer_size(),
-            delta_time_secs: engine.frame_clock().delta_time(),
-        }
     }
 }
 

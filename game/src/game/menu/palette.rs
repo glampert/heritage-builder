@@ -9,7 +9,7 @@ use super::{
     widgets::{self, UiStyleTextLabelInvisibleButtons},
 };
 use crate::{
-    ui::{self, UiTextureHandle, UiWidgetContext},
+    ui::{self, UiTextureHandle, widgets::UiWidgetContext},
     render::{RenderSystem, TextureHandle},
     utils::{
         self,

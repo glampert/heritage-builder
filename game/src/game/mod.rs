@@ -23,9 +23,10 @@ use menu::{
 use crate::{
     log,
     singleton_late_init,
-    ui::{UiInputEvent, UiWidgetContext},
-    render::TextureCache,
     save::{self, *},
+    render::TextureCache,
+    ui::{UiInputEvent, widgets::UiWidgetContext},
+    debug::{self, log_viewer::LogViewerWindow, DevEditorMenus},
     app::{
         input::{InputAction, InputKey, InputModifiers, MouseButton},
         ApplicationEvent,
@@ -43,8 +44,10 @@ use crate::{
         sets::{TileDef, TileSets},
         TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
-    debug::{self, log_viewer::LogViewerWindow, DevEditorMenus},
-    utils::{crash_report, platform::{self, paths}, coords::CellRange, file_sys, hash, Size, Vec2},
+    utils::{
+        crash_report, platform::{self, paths},
+        coords::CellRange, file_sys, hash, Size, Vec2
+    },
 };
 
 pub mod undo_redo;

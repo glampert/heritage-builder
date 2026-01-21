@@ -13,7 +13,7 @@ use super::{
 use crate::{
     utils::{self, Size, Rect, Vec2},
     app::input::{InputAction, InputKey},
-    ui::{self, UiTextureHandle, UiInputEvent, UiWidgetContext},
+    ui::{self, UiTextureHandle, UiInputEvent, widgets::UiWidgetContext},
 };
 
 // ----------------------------------------------

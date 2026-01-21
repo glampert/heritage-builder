@@ -21,7 +21,7 @@ use crate::{
     save::{Save, Load},
     tile::rendering::TileMapRenderFlags,
     utils::{Size, Vec2, coords::CellRange},
-    ui::{self, UiInputEvent, UiTextureHandle, UiWidgetContext, UiTheme},
+    ui::{self, UiInputEvent, UiTextureHandle, UiTheme, widgets::UiWidgetContext},
 };
 
 // ----------------------------------------------
