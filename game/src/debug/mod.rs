@@ -44,7 +44,6 @@ impl DevEditorMenus {
         // TEMP
         context.ui_sys.set_ui_theme(UiTheme::InGame);
         use crate::utils::Vec2;
-        use crate::log;
 
         let mut test_menu = UiMenu::new(
             context,
@@ -65,9 +64,43 @@ impl DevEditorMenus {
             0.0
         ));
 
-        let mut btn_group = UiTextButtonGroup::new(15.0, false, true);
+        let mut btn_group = UiWidgetGroup::new(15.0, false, true);
 
-        btn_group.add_button(UiTextButton::new(
+        let tooltip = UiTooltipText::new(context, "This is a button".into(), 0.8, Some("misc/wide_page_bg.png"));
+        btn_group.add_widget(UiSpriteButton::new(
+            context,
+            "palette/housing".into(),
+            Some(tooltip.clone()),
+            true,
+            Vec2::new(50.0, 50.0),
+            UiSpriteButtonState::Idle,
+            0.0,
+        ));
+
+        btn_group.add_widget(UiSpriteButton::new(
+            context,
+            "palette/roads".into(),
+            Some(tooltip.clone()),
+            true,
+            Vec2::new(50.0, 50.0),
+            UiSpriteButtonState::Idle,
+            0.0,
+        ));
+
+        btn_group.add_widget(UiSpriteButton::new(
+            context,
+            "palette/food_and_farming".into(),
+            Some(tooltip.clone()),
+            true,
+            Vec2::new(50.0, 50.0),
+            UiSpriteButtonState::Disabled,
+            0.0,
+        ));
+
+        /*
+        use crate::log;
+
+        btn_group.add_widget(UiTextButton::new(
             context,
             "Small Button".into(),
             UiTextButtonSize::Large,
@@ -76,7 +109,7 @@ impl DevEditorMenus {
             |button, _contex| log::info!("Pressed: {}", button.label())
         ));
 
-        btn_group.add_button(UiTextButton::new(
+        btn_group.add_widget(UiTextButton::new(
             context,
             "Normal Button".into(),
             UiTextButtonSize::Large,
@@ -85,7 +118,7 @@ impl DevEditorMenus {
             |button, _contex| log::info!("Pressed: {}", button.label())
         ));
 
-        btn_group.add_button(UiTextButton::new(
+        btn_group.add_widget(UiTextButton::new(
             context,
             "Large Button".into(),
             UiTextButtonSize::Large,
@@ -94,7 +127,7 @@ impl DevEditorMenus {
             |button, _contex| log::info!("Pressed: {}", button.label())
         ));
 
-        btn_group.add_button(UiTextButton::new(
+        btn_group.add_widget(UiTextButton::new(
             context,
             "Disabled Button".into(),
             UiTextButtonSize::Large,
@@ -102,6 +135,7 @@ impl DevEditorMenus {
             false,
             |button, _contex| log::info!("Pressed: {}", button.label())
         ));
+        */
 
         test_menu.add_widget(btn_group);
 

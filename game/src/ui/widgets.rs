@@ -1,22 +1,26 @@
-use std::any::Any;
+use std::{any::Any, path::PathBuf};
 use smallvec::SmallVec;
 use bitflags::bitflags;
 use enum_dispatch::enum_dispatch;
+use strum::{EnumCount, EnumProperty, IntoEnumIterator};
+use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
     UiSystem,
     UiTextureHandle,
     assets_path,
     texture_settings,
+    custom_tooltip,
+    INVALID_UI_TEXTURE_HANDLE,
 };
 
 use crate::{
     bitflags_with_display,
     tile::TileMap,
     render::TextureCache,
-    engine::{Engine, time::Seconds},
     game::{world::World, sim::Simulation},
     utils::{Size, Vec2, Rect, mem::{self, RawPtr}},
+    engine::{Engine, time::{Seconds, CountdownTimer}},
 };
 
 // ----------------------------------------------
@@ -68,14 +72,23 @@ pub trait UiWidget: Any {
     fn on_child_menu_closed(&mut self, _child_menu: &mut UiMenu) {}
 
     fn draw(&mut self, context: &mut UiWidgetContext);
+    fn size(&self, context: &mut UiWidgetContext) -> Vec2;
 }
 
 #[enum_dispatch]
 pub enum UiWidgetImpl {
     UiMenu,
     UiMenuHeading,
+    UiWidgetGroup,
     UiTextButton,
-    UiTextButtonGroup,
+    UiSpriteButton,
+    UiSlider,
+    UiCheckbox,
+    UiTextInput,
+    UiDropdown,
+    UiItemList,
+    UiMessageBox,
+    UiSlideshow,
 }
 
 // ----------------------------------------------
@@ -110,7 +123,7 @@ impl UiWidget for UiMenu {
 
         let window_name = {
             if self.title.is_empty() {
-                // Use widget memory address as unique id if no title.
+                // NOTE: Use widget memory address as unique id if no title.
                 &format!("##UiMenu @ {:p}", self)
             } else {
                 &self.title
@@ -136,6 +149,18 @@ impl UiWidget for UiMenu {
             });
 
         self.flags.set(UiMenuFlags::IsOpen, is_open);
+    }
+
+    fn size(&self, context: &mut UiWidgetContext) -> Vec2 {
+        let mut size = Vec2::zero();
+
+        for widget in &self.widgets {
+            let widget_size = widget.size(context);
+            size.x = size.x.max(widget_size.x); // Max width.
+            size.y += widget_size.y; // Total height.
+        }
+
+        size
     }
 }
 
@@ -335,6 +360,21 @@ impl UiWidget for UiMenuHeading {
             ui.dummy([0.0, self.margin_bottom]);
         }
     }
+
+    fn size(&self, context: &mut UiWidgetContext) -> Vec2 {
+        let ui = context.ui_sys.ui();
+        ui.set_window_font_scale(self.font_scale);
+
+        let mut size = Vec2::zero();
+
+        for line in &self.lines {
+            let line_size = ui.calc_text_size(line);
+            size.x = size.x.max(line_size[0]); // Max width.
+            size.y += line_size[1]; // Total height.
+        }
+
+        size
+    }
 }
 
 impl UiMenuHeading {
@@ -352,6 +392,71 @@ impl UiMenuHeading {
             margin_top,
             margin_bottom,
         }
+    }
+}
+
+// ----------------------------------------------
+// UiWidgetGroup
+// ----------------------------------------------
+
+// Groups UiWidgets to draw them centered/aligned.
+// Supports vertical and horizontal alignment and custom item spacing.
+pub struct UiWidgetGroup {
+    widgets: Vec<UiWidgetImpl>,
+    item_spacing: f32,
+    center_vertically: bool,
+    center_horizontally: bool,
+}
+
+impl UiWidget for UiWidgetGroup {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        let ui = context.ui_sys.ui();
+
+        let _spacing =
+            ui.push_style_var(imgui::StyleVar::ItemSpacing([self.item_spacing, self.item_spacing]));
+
+        helpers::draw_centered_widget_group(
+            ui,
+            context,
+            &mut self.widgets,
+            self.center_vertically,
+            self.center_horizontally);
+    }
+
+    fn size(&self, context: &mut UiWidgetContext) -> Vec2 {
+        let mut size = Vec2::zero();
+
+        for widget in &self.widgets {
+            let widget_size = widget.size(context);
+            size.x = size.x.max(widget_size.x); // Max width.
+            size.y += widget_size.y; // Total height.
+        }
+
+        size
+    }
+}
+
+impl UiWidgetGroup {
+    pub fn new(item_spacing: f32, center_vertically: bool, center_horizontally: bool) -> Self {
+        debug_assert!(item_spacing >= 0.0);
+        Self {
+            widgets: Vec::new(),
+            item_spacing,
+            center_vertically,
+            center_horizontally,
+        }
+    }
+
+    pub fn add_widget<Widget>(&mut self, widget: Widget) -> &mut Self
+        where Widget: UiWidget + 'static,
+              UiWidgetImpl: From<Widget>
+    {
+        self.widgets.push(UiWidgetImpl::from(widget));
+        self
     }
 }
 
@@ -437,6 +542,21 @@ impl UiWidget for UiTextButton {
             (self.on_pressed)(self, context);
         }
     }
+
+    fn size(&self, context: &mut UiWidgetContext) -> Vec2 {
+        let ui = context.ui_sys.ui();
+        ui.set_window_font_scale(self.font_scale());
+
+        let style = unsafe { ui.style() };
+
+        let font_size = ui.current_font_size();
+        let text_size = ui.calc_text_size(&self.label);
+
+        let width  = text_size[0] + (style.frame_padding[0] * 2.0);
+        let height = text_size[1].max(font_size) + (style.frame_padding[1] * 2.0);
+
+        Vec2::new(width, height)
+    }
 }
 
 impl UiTextButton {
@@ -492,61 +612,279 @@ pub enum UiTextButtonSize {
 }
 
 // ----------------------------------------------
-// UiTextButtonGroup
+// UiSpriteButton
 // ----------------------------------------------
 
-// Groups UiTextButtons to draw them centered/aligned.
-// Supports vertical and horizontal alignment.
-pub struct UiTextButtonGroup {
-    buttons: Vec<UiTextButton>,
-    button_spacing: f32,
-    center_vertically: bool,
-    center_horizontally: bool,
+// Multi-state sprite button. Works via state polling; state persists until changed.
+pub struct UiSpriteButton {
+    name: String,
+
+    tooltip: Option<UiTooltipText>,
+    show_tooltip_when_pressed: bool,
+
+    size: Vec2,
+    position: Vec2, // NOTE: Cached from ImGui on every draw().
+    textures: UiSpriteButtonTextures,
+
+    logical_state: UiSpriteButtonState,
+    visual_state: UiSpriteButtonState,
+    visual_state_transition_timer: CountdownTimer,
+    state_transition_secs: Seconds,
 }
 
-impl UiWidget for UiTextButtonGroup {
+impl UiWidget for UiSpriteButton {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(self.textures.are_textures_loaded());
+
         let ui = context.ui_sys.ui();
+        let texture = self.textures.texture_for_state(self.visual_state);
 
-        let _spacing =
-            ui.push_style_var(imgui::StyleVar::ItemSpacing([self.button_spacing, self.button_spacing]));
+        let flags = imgui::ButtonFlags::MOUSE_BUTTON_LEFT | imgui::ButtonFlags::MOUSE_BUTTON_RIGHT;
+        ui.invisible_button_flags(&self.name, self.size.to_array(), flags);
 
-        helpers::draw_centered_text_button_group(
-            ui,
-            context,
-            &mut self.buttons,
-            self.center_vertically,
-            self.center_horizontally
-        );
-    }
-}
+        let hovered = ui.is_item_hovered();
+        let left_click = ui.is_item_clicked_with_button(imgui::MouseButton::Left);
+        let right_click = ui.is_item_clicked_with_button(imgui::MouseButton::Right);
 
-impl UiTextButtonGroup {
-    pub fn new(button_spacing: f32, center_vertically: bool, center_horizontally: bool) -> Self {
-        Self {
-            buttons: Vec::new(),
-            button_spacing,
-            center_vertically,
-            center_horizontally,
+        let rect_min = ui.item_rect_min();
+        let rect_max = ui.item_rect_max();
+
+        ui.get_window_draw_list()
+            .add_image(texture,
+                       rect_min,
+                       rect_max)
+                       .build();
+
+        // NOTE: Only left click counts as "pressed".
+        self.update_state(hovered, left_click, right_click, context.delta_time_secs);
+        self.position = Vec2::from_array(rect_min);
+
+        if let Some(tooltip) = &self.tooltip {
+            let show_tooltip = hovered && (!self.is_pressed() || self.show_tooltip_when_pressed);
+            if show_tooltip {
+                tooltip.draw(context);
+            }
         }
     }
 
-    pub fn add_button(&mut self, button: UiTextButton) -> &mut Self {
-        self.buttons.push(button);
-        self
+    fn size(&self, _context: &mut UiWidgetContext) -> Vec2 {
+        self.size
+    }
+}
+
+impl UiSpriteButton {
+    pub fn new(context: &mut UiWidgetContext,
+               name: String,
+               tooltip: Option<UiTooltipText>,
+               show_tooltip_when_pressed: bool,
+               size: Vec2,
+               initial_state: UiSpriteButtonState,
+               state_transition_secs: Seconds) -> Self {
+        debug_assert!(!name.is_empty());
+        debug_assert!(size.x > 0.0 && size.y > 0.0);
+        debug_assert!(state_transition_secs >= 0.0);
+
+        let textures = UiSpriteButtonTextures::load(&name, context);
+        let visual_state_transition_timer = CountdownTimer::new(state_transition_secs);
+
+        Self {
+            name, 
+            tooltip,
+            show_tooltip_when_pressed,
+            size,
+            position: Vec2::zero(), // NOTE: Only valid after first draw().
+            textures,
+            logical_state: initial_state,
+            visual_state: initial_state,
+            visual_state_transition_timer,
+            state_transition_secs,
+        }
+    }
+
+    #[inline]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[inline]
+    pub fn position(&self) -> Vec2 {
+        self.position
+    }
+
+    #[inline]
+    pub fn is_enabled(&self) -> bool {
+        self.logical_state != UiSpriteButtonState::Disabled
+    }
+
+    #[inline]
+    pub fn enable(&mut self, enable: bool) {
+        if enable {
+            self.logical_state = UiSpriteButtonState::Idle;
+        } else {
+            self.logical_state = UiSpriteButtonState::Disabled;
+        }
+    }
+
+    #[inline]
+    pub fn is_pressed(&self) -> bool {
+        self.logical_state == UiSpriteButtonState::Pressed
+    }
+
+    #[inline]
+    pub fn press(&mut self, press: bool) {
+        if press {
+            self.logical_state = UiSpriteButtonState::Pressed;
+        } else {
+            if self.logical_state == UiSpriteButtonState::Pressed {
+                self.logical_state = UiSpriteButtonState::Idle;
+            }
+        }
+    }
+
+    // ----------------------
+    // Internal:
+    // ----------------------
+
+    fn update_state(&mut self, hovered: bool, left_click: bool, right_click: bool, delta_time_secs: Seconds) {
+        match self.logical_state {
+            UiSpriteButtonState::Idle | UiSpriteButtonState::Hovered => {
+                // Left click selects/presses button.
+                if left_click {
+                    self.logical_state = UiSpriteButtonState::Pressed;
+                } else if hovered {
+                    self.logical_state = UiSpriteButtonState::Hovered;
+                } else {
+                    self.logical_state = UiSpriteButtonState::Idle;
+                }
+            }
+            UiSpriteButtonState::Pressed => {
+                // Right click deselects/unpresses.
+                if right_click {
+                    self.logical_state = UiSpriteButtonState::Idle;
+                }
+            }
+            UiSpriteButtonState::Disabled => {}
+        }
+
+        if left_click {
+            // Reset transition if pressed.
+            self.visual_state_transition_timer.reset(self.state_transition_secs);
+        }
+
+        if self.visual_state == UiSpriteButtonState::Pressed {
+            // Run a timed transition between idle/hovered and pressed.
+            if self.visual_state_transition_timer.tick(delta_time_secs) {
+                self.visual_state_transition_timer.reset(self.state_transition_secs);
+                self.visual_state = self.logical_state;
+            }
+        } else {
+            self.visual_state = self.logical_state;
+        }
     }
 }
 
 // ----------------------------------------------
-// UiSpriteButton
+// UiSpriteButtonTextures
 // ----------------------------------------------
 
-pub struct UiSpriteButton {
-    // TODO
+struct UiSpriteButtonTextures {
+    textures: [UiTextureHandle; BUTTON_STATE_COUNT],
+}
+
+impl UiSpriteButtonTextures {
+    fn unloaded() -> Self {
+        Self { textures: [INVALID_UI_TEXTURE_HANDLE; BUTTON_STATE_COUNT] }
+    }
+
+    fn load(name: &str, context: &mut UiWidgetContext) -> Self {
+        let mut sprites = Self::unloaded();
+        sprites.load_textures(name, context);
+        sprites
+    }
+
+    fn load_textures(&mut self, name: &str, context: &mut UiWidgetContext) {
+        for state in UiSpriteButtonState::iter() {
+            self.textures[state as usize] = state.load_texture(name, context);
+        }
+    }
+
+    #[inline]
+    fn are_textures_loaded(&self) -> bool {
+        self.textures[0] != INVALID_UI_TEXTURE_HANDLE
+    }
+
+    #[inline]
+    fn texture_for_state(&self, state: UiSpriteButtonState) -> UiTextureHandle {
+        debug_assert!(self.textures[state as usize] != INVALID_UI_TEXTURE_HANDLE);
+        self.textures[state as usize]
+    }
+}
+
+// ----------------------------------------------
+// UiSpriteButtonState
+// ----------------------------------------------
+
+const BUTTON_STATE_COUNT: usize = UiSpriteButtonState::COUNT;
+
+#[derive(Copy, Clone, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
+pub enum UiSpriteButtonState {
+    #[strum(props(Suffix = "idle"))]
+    Idle,
+
+    #[strum(props(Suffix = "disabled"))]
+    Disabled,
+
+    #[strum(props(Suffix = "hovered"))]
+    Hovered,
+
+    #[strum(props(Suffix = "pressed"))]
+    Pressed,
+}
+
+impl UiSpriteButtonState {
+    fn asset_path(self, name: &str) -> PathBuf {
+        debug_assert!(!name.is_empty());
+        let sprite_suffix = self.get_str("Suffix").unwrap();
+        let sprite_name = format!("{name}_{sprite_suffix}.png");
+        assets_path().join("buttons").join(sprite_name)
+    }
+
+    fn load_texture(self, name: &str, context: &mut UiWidgetContext) -> UiTextureHandle {
+        helpers::load_ui_texture(context, self.asset_path(name).to_str().unwrap())
+    }
+}
+
+// ----------------------------------------------
+// UiTooltipText
+// ----------------------------------------------
+
+#[derive(Clone)]
+pub struct UiTooltipText {
+    text: String,
+    font_scale: Option<f32>,
+    background: Option<UiTextureHandle>,
+}
+
+impl UiTooltipText {
+    pub fn new(context: &mut UiWidgetContext,
+               text: String,
+               font_scale: f32,
+               background: Option<&str>) -> Self {
+        Self {
+            text,
+            font_scale: if font_scale != 1.0 { Some(font_scale) } else { None },
+            background: background.map(|path| helpers::load_ui_texture(context, path))
+        }
+    }
+
+    fn draw(&self, context: &mut UiWidgetContext) {
+        let ui = context.ui_sys.ui();
+        custom_tooltip(ui, self.font_scale, self.background, || ui.text(&self.text));
+    }
 }
 
 // ----------------------------------------------
@@ -557,12 +895,46 @@ pub struct UiSlider {
     // TODO
 }
 
+impl UiWidget for UiSlider {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, _context: &mut UiWidgetContext) {
+        // TODO
+    }
+
+    fn size(&self, _context: &mut UiWidgetContext) -> Vec2 {
+        Vec2::zero() // TODO
+    }
+}
+
+impl UiSlider {
+}
+
 // ----------------------------------------------
 // UiCheckbox
 // ----------------------------------------------
 
 pub struct UiCheckbox {
     // TODO
+}
+
+impl UiWidget for UiCheckbox {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, _context: &mut UiWidgetContext) {
+        // TODO
+    }
+
+    fn size(&self, _context: &mut UiWidgetContext) -> Vec2 {
+        Vec2::zero() // TODO
+    }
+}
+
+impl UiCheckbox {
 }
 
 // ----------------------------------------------
@@ -573,12 +945,46 @@ pub struct UiTextInput {
     // TODO
 }
 
+impl UiWidget for UiTextInput {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, _context: &mut UiWidgetContext) {
+        // TODO
+    }
+
+    fn size(&self, _context: &mut UiWidgetContext) -> Vec2 {
+        Vec2::zero() // TODO
+    }
+}
+
+impl UiTextInput {
+}
+
 // ----------------------------------------------
 // UiDropdown
 // ----------------------------------------------
 
 pub struct UiDropdown {
     // TODO
+}
+
+impl UiWidget for UiDropdown {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, _context: &mut UiWidgetContext) {
+        // TODO
+    }
+
+    fn size(&self, _context: &mut UiWidgetContext) -> Vec2 {
+        Vec2::zero() // TODO
+    }
+}
+
+impl UiDropdown {
 }
 
 // ----------------------------------------------
@@ -589,12 +995,46 @@ pub struct UiItemList {
     // TODO
 }
 
+impl UiWidget for UiItemList {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, _context: &mut UiWidgetContext) {
+        // TODO
+    }
+
+    fn size(&self, _context: &mut UiWidgetContext) -> Vec2 {
+        Vec2::zero() // TODO
+    }
+}
+
+impl UiItemList {
+}
+
 // ----------------------------------------------
 // UiMessageBox
 // ----------------------------------------------
 
 pub struct UiMessageBox {
     // TODO
+}
+
+impl UiWidget for UiMessageBox {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, _context: &mut UiWidgetContext) {
+        // TODO
+    }
+
+    fn size(&self, _context: &mut UiWidgetContext) -> Vec2 {
+        Vec2::zero() // TODO
+    }
+}
+
+impl UiMessageBox {
 }
 
 // ----------------------------------------------
@@ -605,6 +1045,23 @@ pub struct UiSlideshow {
     // TODO
     // To replace AnimatedFullScreenBackground
     // make it so that it can be either the background of a window or fullscreen background.
+}
+
+impl UiWidget for UiSlideshow {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, _context: &mut UiWidgetContext) {
+        // TODO
+    }
+
+    fn size(&self, _context: &mut UiWidgetContext) -> Vec2 {
+        Vec2::zero() // TODO
+    }
+}
+
+impl UiSlideshow {
 }
 
 // ----------------------------------------------
@@ -677,12 +1134,12 @@ mod helpers {
         let line_height  = ui.text_line_height_with_spacing();
         let total_height = line_height * lines.len() as f32;
 
-        let avail = ui.content_region_avail();
+        let region_avail = ui.content_region_avail();
         let cursor_start = ui.cursor_pos();
 
         // Compute group origin (top-left):
-        let start_x = if horizontal { cursor_start[0] + ((avail[0] - max_width)    * 0.5) } else { cursor_start[0] };
-        let start_y = if vertical   { cursor_start[1] + ((avail[1] - total_height) * 0.5) } else { cursor_start[1] };
+        let start_x = if horizontal { cursor_start[0] + ((region_avail[0] - max_width)    * 0.5) } else { cursor_start[0] };
+        let start_y = if vertical   { cursor_start[1] + ((region_avail[1] - total_height) * 0.5) } else { cursor_start[1] };
 
         // Draw each line:
         for (i, (line, size)) in lines.iter().zip(text_sizes.iter()).enumerate() {
@@ -700,51 +1157,48 @@ mod helpers {
         Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(max_width, total_height))
     }
 
-    pub fn draw_centered_text_button_group(ui: &imgui::Ui,
-                                           context: &mut UiWidgetContext,
-                                           buttons: &mut [UiTextButton],
-                                           vertical: bool,
-                                           horizontal: bool) -> Rect {
-        if buttons.is_empty() {
+    pub fn draw_centered_widget_group(ui: &imgui::Ui,
+                                      context: &mut UiWidgetContext,
+                                      widgets: &mut [UiWidgetImpl],
+                                      vertical: bool,
+                                      horizontal: bool) -> Rect {
+        if widgets.is_empty() {
             return Rect::zero();
         }
 
-        // Measure button sizes:
-        let button_sizes: SmallVec<[[f32; 2]; 16]> = buttons
+        // Measure widget sizes:
+        let widget_sizes: SmallVec<[Vec2; 16]> = widgets
             .iter()
-            .map(|btn| button_size_for_label(ui, btn.label(), btn.font_scale()))
+            .map(|widget| widget.size(context))
             .collect();
 
-        let spacing = unsafe { ui.style().item_spacing };
+        let vertical_spacing = unsafe { ui.style().item_spacing[1] };
 
-        let max_width = button_sizes
-            .iter()
-            .map(|btn| btn[0])
-            .fold(0.0, f32::max);
+        let mut max_width: f32 = 0.0;
+        let mut total_height = vertical_spacing * (widgets.len() - 1) as f32;
 
-        let total_height = button_sizes
-            .iter()
-            .map(|btn| btn[1])
-            .fold(0.0, |total, height| total + height)
-            + (spacing[1] * (buttons.len() - 1) as f32);
+        for widget_size in &widget_sizes {
+            max_width = max_width.max(widget_size.x);
+            total_height += widget_size.y;
+        }
 
-        let avail = ui.content_region_avail();
+        let region_avail = ui.content_region_avail();
         let cursor_start = ui.cursor_pos();
 
         // Compute group origin (top-left):
-        let start_x = if horizontal { cursor_start[0] + ((avail[0] - max_width)    * 0.5) } else { cursor_start[0] };
-        let start_y = if vertical   { cursor_start[1] + ((avail[1] - total_height) * 0.5) } else { cursor_start[1] };
+        let start_x = if horizontal { cursor_start[0] + ((region_avail[0] - max_width)    * 0.5) } else { cursor_start[0] };
+        let start_y = if vertical   { cursor_start[1] + ((region_avail[1] - total_height) * 0.5) } else { cursor_start[1] };
 
         // Draw each button:
         let mut offset_y = 0.0;
-        for (btn, size) in buttons.iter_mut().zip(button_sizes.iter()) {
-            let x = start_x + (max_width - size[0]) * 0.5;
+        for (widget, widget_size) in widgets.iter_mut().zip(widget_sizes.iter()) {
+            let x = start_x + (max_width - widget_size.x) * 0.5;
             let y = start_y + offset_y;
 
-            offset_y += size[1] + spacing[1];
+            offset_y += widget_size.y + vertical_spacing;
             ui.set_cursor_pos([x, y]);
 
-            btn.draw(context);
+            widget.draw(context);
         }
 
         // Restore cursor so layout continues correctly.
@@ -752,19 +1206,5 @@ mod helpers {
 
         // Return window relative position of group start + group size.
         Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(max_width, total_height))
-    }
-
-    pub fn button_size_for_label(ui: &imgui::Ui, label: &str, font_scale: f32) -> [f32; 2] {
-        ui.set_window_font_scale(font_scale);
-
-        let style = unsafe { ui.style() };
-
-        let font_size = ui.current_font_size();
-        let text_size = ui.calc_text_size(label);
-
-        let width  = text_size[0] + (style.frame_padding[0] * 2.0);
-        let height = text_size[1].max(font_size) + (style.frame_padding[1] * 2.0);
-
-        [width, height]
     }
 }
