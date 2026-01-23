@@ -265,7 +265,7 @@ impl TilePaletteMainButton {
                                        .build();
 
                         if !self.children[button_index].tooltip.is_empty() {
-                            ui::custom_tooltip(ui, Some(0.8), Some(background_sprite), || ui.text(&self.children[button_index].tooltip));
+                            ui::custom_tooltip(context.ui_sys, Some(0.8), Some(background_sprite), || ui.text(&self.children[button_index].tooltip));
                         }
                     }),
                     widgets::ALWAYS_ENABLED

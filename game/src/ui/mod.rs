@@ -22,6 +22,7 @@ pub mod widgets;
 
 // Internal implementation.
 mod opengl;
+mod helpers;
 pub mod backend {
     use super::*;
     pub type UiRendererOpenGl = opengl::UiRendererOpenGl;
@@ -85,6 +86,7 @@ pub struct UiSystem {
     context: UiContext,
     ui_ptr: *const imgui::Ui,
     theme: UiTheme,
+    current_font_scale: Option<f32>,
 }
 
 impl UiSystem {
@@ -95,6 +97,7 @@ impl UiSystem {
             context: UiContext::new::<UiRendererBackendImpl>(app),
             ui_ptr: null::<imgui::Ui>(),
             theme: UiTheme::Dev,
+            current_font_scale: None,
         }
     }
 
@@ -104,16 +107,23 @@ impl UiSystem {
                        input_sys: &impl InputSystem,
                        delta_time_secs: Seconds) {
         debug_assert!(self.ui_ptr.is_null());
+
         let theme_font_id = self.fonts().front_for_theme(self.theme);
+        self.current_font_scale = None;
+
         let ui = self.context.begin_frame(app, input_sys, delta_time_secs);
         UiFonts::push_theme_font(ui, theme_font_id);
+
         self.ui_ptr = ui as *const imgui::Ui;
     }
 
     #[inline]
     pub fn end_frame(&mut self) {
         debug_assert!(!self.ui_ptr.is_null());
+
         UiFonts::pop_theme_font();
+        self.current_font_scale = None;
+
         self.ui_ptr = null::<imgui::Ui>();
         self.context.end_frame();
     }
@@ -222,6 +232,16 @@ impl UiSystem {
     #[inline]
     pub fn current_ui_theme(&self) -> UiTheme {
         self.theme
+    }
+
+    #[inline]
+    pub fn set_font_scale(&self, font_scale: f32) {
+        debug_assert!(font_scale > 0.0);
+        let mut_self = mem::mut_ref_cast(self);
+        if Some(font_scale) != mut_self.current_font_scale {
+            mut_self.current_font_scale = Some(font_scale);
+            mut_self.ui().set_window_font_scale(font_scale);
+        }
     }
 }
 
@@ -460,7 +480,7 @@ impl UiContext {
         colors[StyleColor::ChildBg as usize] = [0.16, 0.16, 0.18, 0.9];
         colors[StyleColor::PopupBg as usize] = [0.18, 0.18, 0.20, 0.9];
         colors[StyleColor::Border as usize] = [0.28, 0.29, 0.30, 0.60];
-        colors[StyleColor::BorderShadow as usize] = [0.00, 0.00, 0.00, 0.00];
+        colors[StyleColor::BorderShadow as usize] = [0.0, 0.0, 0.0, 0.0];
         colors[StyleColor::FrameBg as usize] = [0.20, 0.22, 0.24, 1.0];
         colors[StyleColor::FrameBgHovered as usize] = [0.22, 0.24, 0.26, 1.0];
         colors[StyleColor::FrameBgActive as usize] = [0.24, 0.26, 0.28, 1.0];
@@ -557,7 +577,7 @@ impl UiContext {
         colors[StyleColor::ChildBg as usize] = [0.88, 0.83, 0.68, 0.25];
         colors[StyleColor::PopupBg as usize] = [0.0; 4];
         colors[StyleColor::Border as usize] = [0.28, 0.29, 0.30, 0.60];
-        colors[StyleColor::BorderShadow as usize] = [0.00, 0.00, 0.00, 0.00];
+        colors[StyleColor::BorderShadow as usize] = [0.0, 0.0, 0.0, 0.0];
         colors[StyleColor::FrameBg as usize] = [0.88, 0.83, 0.68, 0.25];
         colors[StyleColor::FrameBgHovered as usize] = [0.98, 0.95, 0.83, 0.5];
         colors[StyleColor::FrameBgActive as usize] = [0.88, 0.83, 0.68, 0.5];
@@ -924,14 +944,15 @@ pub fn icon_button_custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem, icon: 
     clicked
 }
 
-pub fn custom_tooltip<TooltipFn: FnOnce()>(ui: &imgui::Ui, 
+pub fn custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem,
                                            font_scale: Option<f32>,
                                            background: Option<UiTextureHandle>,
                                            tooltip_fn: TooltipFn) {
+    let ui = ui_sys.ui();
     let tooltip = ui.begin_tooltip();
 
     let font_scale_changed = if let Some(scale) = font_scale {
-        ui.set_window_font_scale(scale);
+        ui_sys.set_font_scale(scale);
         true
     } else {
         false
@@ -953,7 +974,7 @@ pub fn custom_tooltip<TooltipFn: FnOnce()>(ui: &imgui::Ui,
     tooltip_fn();
 
     if font_scale_changed {
-        ui.set_window_font_scale(1.0); // Restore default.
+        ui_sys.set_font_scale(1.0); // Restore default.
     }
 
     tooltip.end();

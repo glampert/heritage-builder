@@ -1212,7 +1212,7 @@ impl BaseMinimapRenderer {
                     ui::icons::ICON_MAP,
                     || {
                         ui::custom_tooltip(
-                            ui,
+                            context.ui_sys,
                             Some(self.widget_font_scale),
                             self.custom_background(context),
                             || ui.text("Open Map"));
@@ -1248,7 +1248,7 @@ impl BaseMinimapRenderer {
 
         if ui.is_item_hovered() {
             ui::custom_tooltip(
-                ui,
+                context.ui_sys,
                 Some(self.widget_font_scale),
                 self.custom_background(context),
                 || ui.text("Close"));
@@ -1526,7 +1526,7 @@ impl DevUiMinimapRenderer {
 
         if ui.is_item_hovered() {
             ui::custom_tooltip(
-                ui,
+                context.ui_sys,
                 Some(Self::WIDGET_FONT_SCALE),
                 None,
                 || ui.text("Debug"));

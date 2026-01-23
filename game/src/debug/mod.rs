@@ -43,18 +43,87 @@ impl DevEditorMenus {
 
         // TEMP
         context.ui_sys.set_ui_theme(UiTheme::InGame);
+
         use crate::utils::Vec2;
+        use crate::log;
 
         let mut test_menu = UiMenu::new(
             context,
-            String::new(),
+            None,
             UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter,
-            Some(Vec2::new(512.0, 512.0)),
+            Some(Vec2::new(512.0, 700.0)),
             None,
             Some("misc/wide_page_bg.png"),
             None
         );
 
+        let mut group = UiLabeledWidgetGroup::new(5.0, 5.0, false, true);
+
+        test_menu.add_widget(UiMenuHeading::new(
+            context,
+            1.8,
+            vec!["Settings".into()],
+            Some("misc/brush_stroke_divider_2.png"),
+            50.0,
+            0.0
+        ));
+        let slider1 = UiSlider::from_u32(
+            None,
+            1.0,
+            0,
+            100,
+            |_slider, _context| -> u32 { 42 },
+            |_slider, _context, new_value: u32| { log::info!("Updated slider value: {new_value}") },
+        );
+        group.add_widget("Master Volume:".into(), slider1);
+
+        let slider2 = UiSlider::from_u32(
+            None,
+            1.0,
+            0,
+            100,
+            |_slider, _context| -> u32 { 42 },
+            |_slider, _context, new_value: u32| { log::info!("Updated slider value: {new_value}") },
+        );
+        group.add_widget("Sfx Volume:".into(), slider2);
+
+        let slider3 = UiSlider::from_u32(
+            None,
+            1.0,
+            0,
+            100,
+            |_slider, _context| -> u32 { 42 },
+            |_slider, _context, new_value: u32| { log::info!("Updated slider value: {new_value}") },
+        );
+        group.add_widget("Music Volume:".into(), slider3);
+
+        let checkbox = UiCheckbox::new(
+            None,
+            1.0,
+            |_checkbox, _context| -> bool { true },
+            |_checkbox, _context, new_value: bool| { log::info!("Updated checkbox value: {new_value}") },
+        );
+        group.add_widget("Enable Volume:".into(), checkbox);
+
+        let text_input = UiTextInput::new(
+            None,
+            1.0,
+            |_input, _context| -> String { "Hello".into() },
+            |_input, _context, new_value: String| { log::info!("Updated text input value: {new_value}") },
+        );
+        group.add_widget("Name:".into(), text_input);
+
+        use strum::VariantArray;
+        let dropdown = UiDropdown::from_values(
+            None,
+            1.0,
+            0,
+            crate::render::TextureFilter::VARIANTS,
+            |_dropdown, _context, selection_index, selection_string| { log::info!("Updated dropdown: {selection_index}, {selection_string}") }
+        );
+        group.add_widget("Texture Filter:".into(), dropdown);
+
+        /*
         test_menu.add_widget(UiMenuHeading::new(
             context,
             1.8,
@@ -64,10 +133,49 @@ impl DevEditorMenus {
             0.0
         ));
 
-        let mut btn_group = UiWidgetGroup::new(15.0, false, true);
+        let slider = UiSlider::from_u32(
+            Some("Master Volume".into()),
+            1.0,
+            0,
+            100,
+            |_slider, _context| -> u32 { 42 },
+            |_slider, _context, new_value: u32| { log::info!("Updated slider value: {new_value}") },
+        );
 
+        let checkbox = UiCheckbox::new(
+            Some("Enable Volume".into()),
+            1.0,
+            |_checkbox, _context| -> bool { true },
+            |_checkbox, _context, new_value: bool| { log::info!("Updated checkbox value: {new_value}") },
+        );
+
+        let text_input = UiTextInput::new(
+            Some("Name".into()),
+            1.0,
+            |_input, _context| -> String { "Hello".into() },
+            |_input, _context, new_value: String| { log::info!("Updated text input value: {new_value}") },
+        );
+
+        use strum::VariantArray;
+        let dropdown = UiDropdown::from_values(
+            Some("Texture Filter".into()),
+            1.0,
+            0,
+            crate::render::TextureFilter::VARIANTS,
+            |_dropdown, _context, selection_index, selection_string| { log::info!("Updated dropdown: {selection_index}, {selection_string}") }
+        );
+
+        let mut group = UiWidgetGroup::new(15.0, false, true);
+
+        group.add_widget(slider);
+        group.add_widget(checkbox);
+        group.add_widget(text_input);
+        group.add_widget(dropdown);
+        */
+
+        /*
         let tooltip = UiTooltipText::new(context, "This is a button".into(), 0.8, Some("misc/wide_page_bg.png"));
-        btn_group.add_widget(UiSpriteButton::new(
+        group.add_widget(UiSpriteButton::new(
             context,
             "palette/housing".into(),
             Some(tooltip.clone()),
@@ -77,7 +185,7 @@ impl DevEditorMenus {
             0.0,
         ));
 
-        btn_group.add_widget(UiSpriteButton::new(
+        group.add_widget(UiSpriteButton::new(
             context,
             "palette/roads".into(),
             Some(tooltip.clone()),
@@ -87,7 +195,7 @@ impl DevEditorMenus {
             0.0,
         ));
 
-        btn_group.add_widget(UiSpriteButton::new(
+        group.add_widget(UiSpriteButton::new(
             context,
             "palette/food_and_farming".into(),
             Some(tooltip.clone()),
@@ -96,48 +204,47 @@ impl DevEditorMenus {
             UiSpriteButtonState::Disabled,
             0.0,
         ));
+        */
 
         /*
-        use crate::log;
-
-        btn_group.add_widget(UiTextButton::new(
+        group.add_widget(UiTextButton::new(
             context,
             "Small Button".into(),
-            UiTextButtonSize::Large,
+            UiTextButtonSize::Small,
             Some("misc/brush_stroke_divider_2.png"),
             true,
-            |button, _contex| log::info!("Pressed: {}", button.label())
+            |button, _context| log::info!("Pressed: {}", button.label())
         ));
 
-        btn_group.add_widget(UiTextButton::new(
+        group.add_widget(UiTextButton::new(
             context,
             "Normal Button".into(),
-            UiTextButtonSize::Large,
+            UiTextButtonSize::Small,
             Some("misc/brush_stroke_divider_2.png"),
             true,
-            |button, _contex| log::info!("Pressed: {}", button.label())
+            |button, _context| log::info!("Pressed: {}", button.label())
         ));
 
-        btn_group.add_widget(UiTextButton::new(
+        group.add_widget(UiTextButton::new(
             context,
             "Large Button".into(),
-            UiTextButtonSize::Large,
+            UiTextButtonSize::Small,
             Some("misc/brush_stroke_divider_2.png"),
             true,
-            |button, _contex| log::info!("Pressed: {}", button.label())
+            |button, _context| log::info!("Pressed: {}", button.label())
         ));
 
-        btn_group.add_widget(UiTextButton::new(
+        group.add_widget(UiTextButton::new(
             context,
             "Disabled Button".into(),
-            UiTextButtonSize::Large,
+            UiTextButtonSize::Small,
             Some("misc/brush_stroke_divider_2.png"),
             false,
-            |button, _contex| log::info!("Pressed: {}", button.label())
+            |button, _context| log::info!("Pressed: {}", button.label())
         ));
         */
 
-        test_menu.add_widget(btn_group);
+        test_menu.add_widget(group);
 
         Self { test_menu }
     }

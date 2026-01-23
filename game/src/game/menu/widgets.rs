@@ -334,18 +334,19 @@ pub fn draw_window_style_rect(ui: &imgui::Ui, draw_list: &imgui::DrawListMut<'_>
     }
 }
 
-pub fn draw_sprite(ui: &imgui::Ui,
+pub fn draw_sprite(ui_sys: &UiSystem,
                    id: &str,
                    size: Vec2,
                    sprite_texture: UiTextureHandle,
                    tooltip_bg_texture: UiTextureHandle,
                    tooltip: Option<&str>) {
+    let ui = ui_sys.ui();
     ui.invisible_button_flags(id, size.to_array(), imgui::ButtonFlags::empty());
     ui.get_window_draw_list().add_image(sprite_texture, ui.item_rect_min(), ui.item_rect_max()).build();
     draw_last_item_debug_rect(ui, Color::blue());
 
     if ui.is_item_hovered() && let Some(tooltip_text) = tooltip {
-        ui::custom_tooltip(ui, Some(0.8), Some(tooltip_bg_texture), || ui.text(tooltip_text));
+        ui::custom_tooltip(ui_sys, Some(0.8), Some(tooltip_bg_texture), || ui.text(tooltip_text));
     }
 }
 

@@ -209,7 +209,7 @@ impl MenuBar for TopBar {
             let icon_size = TopBarIcon::Population.size();
             let icon_texture = self.icon_textures[TopBarIcon::Population as usize];
 
-            widgets::draw_sprite(ui, "Population", icon_size, icon_texture, self.background_sprite, Some("Population"));
+            widgets::draw_sprite(context.ui_sys, "Population", icon_size, icon_texture, self.background_sprite, Some("Population"));
             ui.same_line(); // Horizontal layout.
 
             let population = context.world.stats().population.total;
@@ -256,7 +256,7 @@ impl MenuBar for TopBar {
             let icon_size = TopBarIcon::Gold.size();
             let icon_texture = self.icon_textures[TopBarIcon::Gold as usize];
 
-            widgets::draw_sprite(ui, "Gold", icon_size, icon_texture, self.background_sprite, Some("Gold"));
+            widgets::draw_sprite(context.ui_sys, "Gold", icon_size, icon_texture, self.background_sprite, Some("Gold"));
             ui.same_line(); // Horizontal layout.
 
             let gold_units_total = context.world.stats().treasury.gold_units_total;
