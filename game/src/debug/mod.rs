@@ -111,7 +111,7 @@ impl DevEditorMenus {
             |_input, _context| -> String { "Hello".into() },
             |_input, _context, new_value: String| { log::info!("Updated text input value: {new_value}") },
         );
-        group.add_widget("Name:".into(), text_input);
+        group.add_widget("Player Name:".into(), text_input);
 
         use strum::VariantArray;
         let dropdown = UiDropdown::from_values(

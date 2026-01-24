@@ -1,4 +1,5 @@
 #![allow(clippy::enum_variant_names)]
+#![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 
 use std::{any::Any, fmt::Display, path::PathBuf};
@@ -1563,8 +1564,16 @@ impl UiWidget for UiItemList {
         }
 
         let ui = context.ui_sys.ui();
+        let style = unsafe { ui.style() };
         let parent_region_avail = ui.content_region_avail();
-        let requested_size = self.size.unwrap_or(Vec2::zero());
+
+        let mut requested_size = self.size.unwrap_or(Vec2::zero());
+        if self.margin_right > 0.0 {
+            requested_size.x -= self.margin_right - style.window_padding[0];
+        }
+        if self.margin_left > 0.0 {
+            requested_size.x -= self.margin_left - style.window_padding[0];
+        }
 
         let width  = resolve(requested_size.x, parent_region_avail[0]);
         let height = resolve(requested_size.y, parent_region_avail[1]);
