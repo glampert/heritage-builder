@@ -1478,8 +1478,14 @@ impl UiDropdown {
 // ----------------------------------------------
 
 pub struct UiItemList {
+    label: String,
+    imgui_id: Option<String>,
     font_scale: f32,
-    current_item: usize,
+    size: Option<Vec2>,
+    margin_left: f32,
+    margin_right: f32,
+    flags: UiItemListFlags,
+    current_item: Option<usize>,
     items: Vec<String>,
     on_selection_changed: Box<dyn Fn(&UiItemList, &mut UiWidgetContext, usize, &String) + 'static>,
 }
@@ -1489,16 +1495,85 @@ impl UiWidget for UiItemList {
         self
     }
 
-    fn draw(&mut self, _context: &mut UiWidgetContext) {
-        // TODO
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        context.ui_sys.set_font_scale(self.font_scale);
+        let ui = context.ui_sys.ui();
+
+        let window_name = make_imgui_id!(self, UiItemList, self.label);
+
+        // child_window size:
+        //  > 0.0 -> fixed size
+        //  = 0.0 -> use remaining host window size
+        //  < 0.0 -> use remaining host window size minus abs(size)
+        let mut window_size = self.size.unwrap_or(Vec2::zero());
+        if self.margin_right > 0.0 {
+            // NOTE: Decrement window padding from margin, so it is accurate.
+            let style = unsafe { ui.style() };
+            window_size.x -= self.margin_right - style.window_padding[0];
+        }
+
+        if !self.label.is_empty() {
+            if self.margin_left > 0.0 {
+                ui.set_cursor_pos([self.margin_left, ui.cursor_pos()[1]]);
+            }
+            ui.text(&self.label);
+        }
+
+        if self.margin_left > 0.0 {
+            ui.set_cursor_pos([self.margin_left, ui.cursor_pos()[1]]);
+        }
+
+        ui.child_window(window_name)
+            .size(window_size.to_array())
+            .border(self.flags.intersects(UiItemListFlags::Border))
+            .scrollable(self.flags.intersects(UiItemListFlags::Scrollable))
+            .scroll_bar(self.flags.intersects(UiItemListFlags::Scrollbars))
+            .build(|| {
+                let mut selection_changed = false;
+
+                for (index, item) in self.items.iter().enumerate() {
+                    let is_selected = self.current_item == Some(index);
+
+                    if ui.selectable_config(item)
+                        .selected(is_selected)
+                        .build()
+                    {
+                        if self.current_item != Some(index) {
+                            self.current_item = Some(index);
+                            selection_changed = true;
+                        }
+                    }
+                }
+
+                if selection_changed && let Some(selected_index) = self.current_item {
+                    (self.on_selection_changed)(self, context, selected_index, &self.items[selected_index]);
+                }
+            });
     }
 
-    fn measure(&self, _context: &UiWidgetContext) -> Vec2 {
-        Vec2::zero() // TODO
+    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+        fn resolve(requested: f32, region_avail: f32) -> f32 {
+            if requested > 0.0 {
+                requested
+            } else if requested == 0.0 {
+                region_avail
+            } else { // requested < 0.0
+                (region_avail + requested).max(0.0)
+            }
+        }
+
+        let ui = context.ui_sys.ui();
+        let parent_region_avail = ui.content_region_avail();
+        let requested_size = self.size.unwrap_or(Vec2::zero());
+
+        let width  = resolve(requested_size.x, parent_region_avail[0]);
+        let height = resolve(requested_size.y, parent_region_avail[1]);
+
+        Vec2::new(width, height)
     }
 
     fn label(&self) -> &str {
-        ""
+        &self.label
     }
 
     fn font_scale(&self) -> f32 {
@@ -1507,22 +1582,49 @@ impl UiWidget for UiItemList {
 }
 
 impl UiItemList {
-    pub fn new<OnSelectionChanged>(font_scale: f32,
+    pub fn new<OnSelectionChanged>(label: Option<String>,
+                                   font_scale: f32,
+                                   size: Option<Vec2>,
+                                   margin_left: f32,
+                                   margin_right: f32,
+                                   flags: UiItemListFlags,
                                    on_selection_changed: OnSelectionChanged) -> Self
         where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, usize, &String) + 'static
     {
-        Self::from_strings(font_scale, 0, Vec::new(), on_selection_changed)
+        Self::from_strings(
+            label,
+            font_scale,
+            size,
+            margin_left,
+            margin_right,
+            flags,
+            None,
+            Vec::new(),
+            on_selection_changed)
     }
 
-    pub fn from_strings<OnSelectionChanged>(font_scale: f32,
-                                            current_item: usize,
+    pub fn from_strings<OnSelectionChanged>(label: Option<String>,
+                                            font_scale: f32,
+                                            size: Option<Vec2>,
+                                            margin_left: f32,
+                                            margin_right: f32,
+                                            flags: UiItemListFlags,
+                                            current_item: Option<usize>,
                                             items: Vec<String>,
                                             on_selection_changed: OnSelectionChanged) -> Self
         where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, usize, &String) + 'static
     {
         debug_assert!(font_scale > 0.0);
+        debug_assert!(margin_left > 0.0);
+        debug_assert!(margin_right > 0.0);
         Self {
+            label: label.unwrap_or_default(),
+            imgui_id: None,
             font_scale,
+            size,
+            margin_left,
+            margin_right,
+            flags,
             current_item,
             items,
             on_selection_changed: Box::new(on_selection_changed),
@@ -1530,8 +1632,13 @@ impl UiItemList {
     }
 
     // From array of values implementing Display.
-    pub fn from_values<OnSelectionChanged, V>(font_scale: f32,
-                                              current_item: usize,
+    pub fn from_values<OnSelectionChanged, V>(label: Option<String>,
+                                              font_scale: f32,
+                                              size: Option<Vec2>,
+                                              margin_left: f32,
+                                              margin_right: f32,
+                                              flags: UiItemListFlags,
+                                              current_item: Option<usize>,
                                               values: &[V],
                                               on_selection_changed: OnSelectionChanged) -> Self
         where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, usize, &String) + 'static,
@@ -1542,15 +1649,28 @@ impl UiItemList {
             .map(|value| value.to_string())
             .collect();
 
-        Self::from_strings(font_scale, current_item, items, on_selection_changed)
+        Self::from_strings(
+            label,
+            font_scale,
+            size,
+            margin_left,
+            margin_right,
+            flags,
+            current_item,
+            items,
+            on_selection_changed)
     }
 
-    pub fn current_selection_index(&self) -> usize {
+    pub fn current_selection_index(&self) -> Option<usize> {
         self.current_item
     }
 
-    pub fn current_selection(&self) -> &str {
-        &self.items[self.current_item]
+    pub fn current_selection(&self) -> Option<&str> {
+        self.current_item.map(|index| self.items[index].as_str())
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.current_item = None;
     }
 
     pub fn add_item(&mut self, item: String) -> &mut Self {
@@ -1558,12 +1678,12 @@ impl UiItemList {
         self
     }
 
-    pub fn reset_items(&mut self, current_item: usize, items: Vec<String>) {
+    pub fn reset_items(&mut self, current_item: Option<usize>, items: Vec<String>) {
         self.current_item = current_item;
         self.items = items;
     }
 
-    pub fn reset_items_with<V, ToString>(&mut self, values: &[V], current_item: usize, to_str: ToString)
+    pub fn reset_items_with<V, ToString>(&mut self, values: &[V], current_item: Option<usize>, to_str: ToString)
         where ToString: Fn(&V) -> String
     {
         let items: Vec<String> = values
@@ -1572,6 +1692,19 @@ impl UiItemList {
             .collect();
 
         self.reset_items(current_item, items);
+    }
+}
+
+// ----------------------------------------------
+// UiItemListFlags
+// ----------------------------------------------
+
+bitflags_with_display! {
+    #[derive(Copy, Clone, Default)]
+    pub struct UiItemListFlags: u8 {
+        const Border     = 1 << 0;
+        const Scrollable = 1 << 1;
+        const Scrollbars = 1 << 2;
     }
 }
 
