@@ -1,8 +1,9 @@
 #![allow(clippy::enum_variant_names)]
-#![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 
 use std::{any::Any, fmt::Display, path::PathBuf};
+use std::rc::{Rc, Weak};
+
 use arrayvec::ArrayString;
 use bitflags::bitflags;
 use enum_dispatch::enum_dispatch;
@@ -22,9 +23,9 @@ use crate::{
     bitflags_with_display,
     tile::TileMap,
     render::TextureCache,
-    game::{world::World, sim::Simulation},
-    utils::{Size, Vec2, Rect, mem::{self, RawPtr}},
-    engine::{Engine, time::{Seconds, CountdownTimer}},
+    game::{sim::Simulation, world::World},
+    utils::{Rect, Size, Vec2, mem::{self, Mutable}},
+    engine::{Engine, time::{CountdownTimer, Seconds}},
 };
 
 // ----------------------------------------------
@@ -140,6 +141,12 @@ pub enum UiWidgetImpl {
     UiSlideshow,
 }
 
+pub type UiWidgetStrongRef = Rc<Mutable<dyn UiWidget>>;
+pub type UiWidgetWeakRef   = Weak<Mutable<dyn UiWidget>>;
+
+pub type UiMenuStrongRef   = Rc<Mutable<UiMenu>>;
+pub type UiMenuWeakRef     = Weak<Mutable<UiMenu>>;
+
 // ----------------------------------------------
 // UiMenu
 // ----------------------------------------------
@@ -151,8 +158,10 @@ pub struct UiMenu {
     size: Option<Vec2>,
     position: Option<Vec2>,
     background: Option<UiTextureHandle>,
-    parent: Option<RawPtr<dyn UiWidget>>,
+    parent_weak: Option<UiWidgetWeakRef>,
+    self_weak: UiMenuWeakRef,
     widgets: Vec<UiWidgetImpl>,
+    message_box: UiMessageBox,
 }
 
 impl UiWidget for UiMenu {
@@ -189,9 +198,17 @@ impl UiWidget for UiMenu {
                 for widget in &mut self.widgets {
                     widget.draw(context);
                 }
+
+                // Restore default.
+                context.ui_sys.set_font_scale(1.0);
             });
 
         self.flags.set(UiMenuFlags::IsOpen, is_open);
+
+        // Each menu can have one message box.
+        if self.message_box.is_open() {
+            self.message_box.draw(context);
+        }
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
@@ -228,29 +245,37 @@ impl UiMenu {
                size: Option<Vec2>,
                position: Option<Vec2>,
                background: Option<&str>,
-               parent: Option<&dyn UiWidget>) -> Self {
-        Self {
-            label: label.unwrap_or_default(),
-            imgui_id: None,
-            flags,
-            size,
-            position,
-            background: background.map(|path| helpers::load_ui_texture(context, path)),
-            parent: parent.map(RawPtr::from_ref),
-            widgets: Vec::new(),
-        }
+               parent: Option<UiWidgetWeakRef>) -> UiMenuStrongRef {
+        Rc::new_cyclic(|self_weak| {
+            Mutable::new(
+                Self {
+                    label: label.unwrap_or_default(),
+                    imgui_id: None,
+                    flags,
+                    size,
+                    position,
+                    background: background.map(|path| helpers::load_ui_texture(context, path)),
+                    parent_weak: parent,
+                    // NOTE: Keep a weak reference to self so we can easily construct
+                    // child widgets that required a weak reference to their parent
+                    // (e.g., message boxes).
+                    self_weak: self_weak.clone(),
+                    widgets: Vec::new(),
+                    message_box: UiMessageBox::default(),
+                }
+            )
+        })
     }
 
     pub fn has_flags(&self, flags: UiMenuFlags) -> bool {
         self.flags.intersects(flags)
     }
 
-    pub fn parent(&self) -> Option<&dyn UiWidget> {
-        self.parent.as_ref().map(|p| p.as_ref())
-    }
-
-    pub fn parent_mut(&mut self) -> Option<&mut dyn UiWidget> {
-        self.parent.as_mut().map(|p| p.as_mut())
+    pub fn parent(&self) -> Option<UiWidgetStrongRef> {
+        if let Some(parent) = &self.parent_weak {
+            return parent.upgrade();
+        }
+        None
     }
 
     pub fn is_open(&self) -> bool {
@@ -264,8 +289,8 @@ impl UiMenu {
             context.sim.pause();
         }
 
-        if self.parent.is_some() {
-            self.parent.unwrap().on_child_menu_opened(self, context);
+        if let Some(parent) = self.parent() {
+            parent.as_mut().on_child_menu_opened(self, context);
         }
     }
 
@@ -276,8 +301,8 @@ impl UiMenu {
             context.sim.resume();
         }
 
-        if self.parent.is_some() {
-            self.parent.unwrap().on_child_menu_closed(self, context);
+        if let Some(parent) = self.parent() {
+            parent.as_mut().on_child_menu_closed(self, context);
         }
     }
 
@@ -287,6 +312,23 @@ impl UiMenu {
     {
         self.widgets.push(UiWidgetImpl::from(widget));
         self
+    }
+
+    // ----------------------
+    // Modal Message Box:
+    // ----------------------
+
+    pub fn is_message_box_open(&self) -> bool {
+        self.message_box.is_open()
+    }
+
+    pub fn open_message_box(&mut self, context: &mut UiWidgetContext, params: UiMessageBoxParams) {
+        let parent = self.self_weak.clone();
+        self.message_box.open(context, parent, params);
+    }
+
+    pub fn close_message_box(&mut self, context: &mut UiWidgetContext) {
+        self.message_box.close(context);
     }
 
     // ----------------------
@@ -490,6 +532,7 @@ pub struct UiWidgetGroup {
     widget_spacing: f32,
     center_vertically: bool,
     center_horizontally: bool,
+    stack_vertically: bool,
 }
 
 impl UiWidget for UiWidgetGroup {
@@ -508,7 +551,8 @@ impl UiWidget for UiWidgetGroup {
             context,
             &mut self.widgets,
             self.center_vertically,
-            self.center_horizontally);
+            self.center_horizontally,
+            self.stack_vertically);
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
@@ -516,14 +560,25 @@ impl UiWidget for UiWidgetGroup {
 
         for widget in &self.widgets {
             let widget_size = widget.measure(context);
-            size.x = size.x.max(widget_size.x); // Max width.
-            size.y += widget_size.y; // Total height.
+
+            if self.stack_vertically {
+                size.x = size.x.max(widget_size.x); // Max width.
+                size.y += widget_size.y; // Total height.
+            } else {
+                size.x += widget_size.x; // Total width.
+                size.y = size.y.max(widget_size.y); // Max height.
+            }
         }
 
         if !self.widgets.is_empty() { // Add inter-widget spacing
             let ui = context.ui_sys.ui();
             let style = unsafe { ui.style() };
-            size.y += style.item_spacing[1] * (self.widgets.len() - 1) as f32;
+
+            if self.stack_vertically {
+                size.y += style.item_spacing[1] * (self.widgets.len() - 1) as f32; // v-spacing
+            } else {
+                size.x += style.item_spacing[0] * (self.widgets.len() - 1) as f32; // h-spacing
+            }
         }
 
         size
@@ -539,13 +594,14 @@ impl UiWidget for UiWidgetGroup {
 }
 
 impl UiWidgetGroup {
-    pub fn new(widget_spacing: f32, center_vertically: bool, center_horizontally: bool) -> Self {
+    pub fn new(widget_spacing: f32, center_vertically: bool, center_horizontally: bool, stack_vertically: bool) -> Self {
         debug_assert!(widget_spacing >= 0.0);
         Self {
             widgets: Vec::new(),
             widget_spacing,
             center_vertically,
             center_horizontally,
+            stack_vertically,
         }
     }
 
@@ -1670,7 +1726,7 @@ impl UiWidget for UiItemList {
 
                     if let Some(text_input_field_buffer) = &mut self.text_input_field_buffer {
                         text_input_field_buffer.clear();
-                        text_input_field_buffer.extend(selected_item.chars());
+                        text_input_field_buffer.push_str(selected_item);
                     }
                 }
             });
@@ -1819,7 +1875,7 @@ impl UiItemList {
     }
 
     pub fn current_text_input_field(&self) -> Option<&str> {
-        self.text_input_field_buffer.as_ref().map(|value| value.as_str())
+        self.text_input_field_buffer.as_deref()
     }
 
     pub fn current_selection_index(&self) -> Option<usize> {
@@ -1886,8 +1942,9 @@ pub struct UiItemListParams {
 // UiMessageBox
 // ----------------------------------------------
 
+#[derive(Default)]
 pub struct UiMessageBox {
-    // TODO
+    menu: Option<UiMenuStrongRef>,
 }
 
 impl UiWidget for UiMessageBox {
@@ -1895,32 +1952,86 @@ impl UiWidget for UiMessageBox {
         self
     }
 
-    fn draw(&mut self, _context: &mut UiWidgetContext) {
-        // TODO
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        if let Some(menu) = &self.menu {
+            // NOTE: Increment the ref count here.
+            // draw() may trigger a UiMessageBox::close, which would drop `self.menu`.
+            let strong_ref = menu.clone();
+            strong_ref.as_mut().draw(context);
+        }
     }
 
-    fn measure(&self, _context: &UiWidgetContext) -> Vec2 {
-        Vec2::zero() // TODO
+    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+        self.menu.as_ref().map_or(Vec2::zero(), |menu| menu.measure(context))
     }
 
     fn label(&self) -> &str {
-        "" // TODO
+        self.menu.as_ref().map_or("", |menu| menu.label())
     }
 
     fn font_scale(&self) -> f32 {
-        1.0 // TODO
+        self.menu.as_ref().map_or(1.0, |menu| menu.font_scale())
     }
 }
 
 impl UiMessageBox {
+    #[inline]
+    fn is_open(&self) -> bool {
+        self.menu.is_some()
+    }
+
+    fn open(&mut self, context: &mut UiWidgetContext, parent: UiMenuWeakRef, params: UiMessageBoxParams) {
+        let menu = UiMenu::new(
+            context,
+            params.label,
+            UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter,
+            params.size,
+            None,
+            params.background,
+            Some(parent));
+
+        for widget in params.contents {
+            menu.as_mut().add_widget(widget);
+        }
+
+        if !params.buttons.is_empty() {
+            const BUTTON_SPACING: f32 = 10.0;
+            const CENTER_VERTICALLY: bool = true;
+            const CENTER_HORIZONTALLY: bool = true;
+            const STACK_VERTICALLY: bool = false;
+
+            let mut button_group = UiWidgetGroup::new(
+                BUTTON_SPACING,
+                CENTER_VERTICALLY,
+                CENTER_HORIZONTALLY,
+                STACK_VERTICALLY); // Render buttons side-by-side.
+
+            for button in params.buttons {
+                button_group.add_widget(button);
+            }
+
+            menu.as_mut().add_widget(button_group);
+        }
+
+        self.menu = Some(menu);
+    }
+
+    fn close(&mut self, _context: &mut UiWidgetContext) {
+        self.menu = None;
+    }
 }
 
 // ----------------------------------------------
 // UiMessageBoxParams
 // ----------------------------------------------
 
-pub struct UiMessageBoxParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+#[derive(Default)]
+pub struct UiMessageBoxParams<'a> {
+    pub label: Option<String>,
+    pub size: Option<Vec2>,
+    pub background: Option<&'a str>,
+    pub contents: Vec<UiWidgetImpl>,
+    pub buttons: Vec<UiWidgetImpl>,
 }
 
 // ----------------------------------------------
@@ -1931,6 +2042,7 @@ pub struct UiSlideshow {
     // TODO
     // To replace AnimatedFullScreenBackground
     // make it so that it can be either the background of a window or fullscreen background.
+    // support single frame (static) or animated.
 }
 
 impl UiWidget for UiSlideshow {

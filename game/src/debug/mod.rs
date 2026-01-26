@@ -32,7 +32,7 @@ mod settings;
 
 pub struct DevEditorMenus {
     // TEMP
-    test_menu: UiMenu,
+    test_menu: UiMenuStrongRef,
 }
 
 impl DevEditorMenus {
@@ -47,15 +47,19 @@ impl DevEditorMenus {
         use crate::utils::Vec2;
         use crate::log;
 
-        let mut test_menu = UiMenu::new(
+        let test_menu_rc = UiMenu::new(
             context,
-            None,
+            Some("Test Window".into()),
             UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter,
             Some(Vec2::new(512.0, 700.0)),
             None,
             Some("misc/wide_page_bg.png"),
             None
         );
+
+        {
+
+        let test_menu = test_menu_rc.as_mut();
 
         let mut group = UiLabeledWidgetGroup::new(5.0, 5.0, false, true);
 
@@ -260,7 +264,74 @@ impl DevEditorMenus {
 
         test_menu.add_widget(item_list);
 
-        Self { test_menu }
+        use std::rc::Rc;
+        let weak_menu = Rc::downgrade(&test_menu_rc);
+
+        test_menu.add_widget(UiTextButton::new(
+            context,
+            "Open Message Box".into(),
+            UiTextButtonSize::Normal,
+            Some("misc/brush_stroke_divider_2.png"),
+            true,
+            move |button, context| {
+                log::info!("Pressed: {}", button.label());
+
+                if let Some(menu_rc) = weak_menu.upgrade() {
+                    let menu_ref_ok_btn = weak_menu.clone();
+                    let menu_ref_cancel_btn = weak_menu.clone();
+
+                    let params = UiMessageBoxParams {
+                        label: Some("Test Popup".into()),
+                        background: Some("misc/wide_page_bg.png"),
+                        contents: vec![
+                            UiWidgetImpl::from(UiMenuHeading::new(
+                                context,
+                                1.2,
+                                vec!["Quit to main menu?".into(), "Unsaved progress will be lost".into()],
+                                Some("misc/brush_stroke_divider_2.png"),
+                                20.0,
+                                0.0
+                            ))
+                        ],
+                        buttons: vec![
+                            UiWidgetImpl::from(UiTextButton::new(
+                                context,
+                                "Ok".into(),
+                                UiTextButtonSize::Small,
+                                Some("misc/brush_stroke_divider_2.png"),
+                                true,
+                                move |button, context| {
+                                    log::info!("Pressed: {}", button.label());
+                                    if let Some(menu) = menu_ref_ok_btn.upgrade() {
+                                        menu.as_mut().close_message_box(context);
+                                    }
+                                }
+                            )),
+                            UiWidgetImpl::from(UiTextButton::new(
+                                context,
+                                "Cancel".into(),
+                                UiTextButtonSize::Small,
+                                Some("misc/brush_stroke_divider_2.png"),
+                                true,
+                                move |button, context| {
+                                    log::info!("Pressed: {}", button.label());
+                                    if let Some(menu) = menu_ref_cancel_btn.upgrade() {
+                                        menu.as_mut().close_message_box(context);
+                                    }
+                                }
+                            ))
+                        ],
+                        ..Default::default()
+                    };
+
+                    menu_rc.as_mut().open_message_box(context, params);
+                }
+            }
+        ));
+
+        }
+
+        Self { test_menu: test_menu_rc }
     }
 }
 
@@ -299,7 +370,8 @@ impl GameMenusSystem for DevEditorMenus {
 
         // TEMP
         let mut widgets_context = UiWidgetContext::new(context.sim, context.world, context.tile_map, context.engine);
-        self.test_menu.draw(&mut widgets_context);
+        let menu = self.test_menu.as_mut();
+        menu.draw(&mut widgets_context);
     }
 }
 
