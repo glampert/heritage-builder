@@ -252,10 +252,10 @@ impl DevEditorMenus {
             Some(Vec2::new(0.0, 128.0)), // use whole parent window width - margin, fixed height
             30.0,
             30.0,
-            UiItemListFlags::Border,
-            None,
+            UiItemListFlags::Border | UiItemListFlags::TextInputField,
+            Some(2),
             vec!["One".into(), "Two".into(), "Three".into()],
-            |_list, _context, selection_index, selection_string| { log::info!("Updated list: {selection_index}, {selection_string}") }
+            |_list, _context, selection_index, selection_string| { log::info!("Updated list: {selection_index:?}, {selection_string}") }
         );
 
         test_menu.add_widget(item_list);

@@ -3,6 +3,7 @@
 #![allow(clippy::type_complexity)]
 
 use std::{any::Any, fmt::Display, path::PathBuf};
+use arrayvec::ArrayString;
 use bitflags::bitflags;
 use enum_dispatch::enum_dispatch;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
@@ -27,7 +28,7 @@ use crate::{
 };
 
 // ----------------------------------------------
-// Macro: make_imgui_id / make_imgui_labeled_id
+// Macros: make_imgui_id / make_imgui_labeled_id
 // ----------------------------------------------
 
 macro_rules! make_imgui_id {
@@ -358,6 +359,14 @@ bitflags_with_display! {
 }
 
 // ----------------------------------------------
+// UiMenuParams
+// ----------------------------------------------
+
+pub struct UiMenuParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
+}
+
+// ----------------------------------------------
 // UiMenuHeading
 // ----------------------------------------------
 
@@ -463,6 +472,14 @@ impl UiMenuHeading {
 }
 
 // ----------------------------------------------
+// UiMenuHeadingParams
+// ----------------------------------------------
+
+pub struct UiMenuHeadingParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
+}
+
+// ----------------------------------------------
 // UiWidgetGroup
 // ----------------------------------------------
 
@@ -539,6 +556,14 @@ impl UiWidgetGroup {
         self.widgets.push(UiWidgetImpl::from(widget));
         self
     }
+}
+
+// ----------------------------------------------
+// UiWidgetGroupParams
+// ----------------------------------------------
+
+pub struct UiWidgetGroupParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
 }
 
 // ----------------------------------------------
@@ -629,6 +654,14 @@ impl UiLabeledWidgetGroup {
         self.labels_and_widgets.push((label, UiWidgetImpl::from(widget)));
         self
     }
+}
+
+// ----------------------------------------------
+// UiLabeledWidgetGroupParams
+// ----------------------------------------------
+
+pub struct UiLabeledWidgetGroupParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
 }
 
 // ----------------------------------------------
@@ -790,6 +823,14 @@ impl UiTextButtonSize {
             UiTextButtonSize::Large  => 1.5,
         }
     }
+}
+
+// ----------------------------------------------
+// UiTextButtonParams
+// ----------------------------------------------
+
+pub struct UiTextButtonParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
 }
 
 // ----------------------------------------------
@@ -1036,6 +1077,14 @@ impl UiSpriteButtonState {
 }
 
 // ----------------------------------------------
+// UiSpriteButtonParams
+// ----------------------------------------------
+
+pub struct UiSpriteButtonParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
+}
+
+// ----------------------------------------------
 // UiTooltipText
 // ----------------------------------------------
 
@@ -1065,6 +1114,14 @@ impl UiTooltipText {
             context.ui_sys.ui().text(&self.text);
         });
     }
+}
+
+// ----------------------------------------------
+// UiTooltipTextParams
+// ----------------------------------------------
+
+pub struct UiTooltipTextParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
 }
 
 // ----------------------------------------------
@@ -1212,6 +1269,14 @@ impl UiSlider {
 }
 
 // ----------------------------------------------
+// UiSliderParams
+// ----------------------------------------------
+
+pub struct UiSliderParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
+}
+
+// ----------------------------------------------
 // UiCheckbox
 // ----------------------------------------------
 
@@ -1289,6 +1354,14 @@ impl UiCheckbox {
 }
 
 // ----------------------------------------------
+// UiCheckboxParams
+// ----------------------------------------------
+
+pub struct UiCheckboxParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
+}
+
+// ----------------------------------------------
 // UiTextInput
 // ----------------------------------------------
 
@@ -1353,6 +1426,14 @@ impl UiTextInput {
             on_update_value: Box::new(on_update_value),
         }
     }
+}
+
+// ----------------------------------------------
+// UiTextInputParams
+// ----------------------------------------------
+
+pub struct UiTextInputParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
 }
 
 // ----------------------------------------------
@@ -1475,6 +1556,14 @@ impl UiDropdown {
 }
 
 // ----------------------------------------------
+// UiDropdownParams
+// ----------------------------------------------
+
+pub struct UiDropdownParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
+}
+
+// ----------------------------------------------
 // UiItemList
 // ----------------------------------------------
 
@@ -1488,7 +1577,8 @@ pub struct UiItemList {
     flags: UiItemListFlags,
     current_item: Option<usize>,
     items: Vec<String>,
-    on_selection_changed: Box<dyn Fn(&UiItemList, &mut UiWidgetContext, usize, &String) + 'static>,
+    text_input_field_buffer: Option<String>,
+    on_selection_changed: Box<dyn Fn(&UiItemList, &mut UiWidgetContext, Option<usize>, &String) + 'static>,
 }
 
 impl UiWidget for UiItemList {
@@ -1513,17 +1603,45 @@ impl UiWidget for UiItemList {
             window_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        if !self.label.is_empty() {
+        let set_left_margin = || {
             if self.margin_left > 0.0 {
                 ui.set_cursor_pos([self.margin_left, ui.cursor_pos()[1]]);
             }
+        };
+
+        // Optional label:
+        if !self.label.is_empty() {
+            set_left_margin();
             ui.text(&self.label);
         }
 
-        if self.margin_left > 0.0 {
-            ui.set_cursor_pos([self.margin_left, ui.cursor_pos()[1]]);
+        // Optional text input field:
+        let text_input_field_changed = {
+            if let Some(text_input_field_buffer) = &mut self.text_input_field_buffer {
+                let mut input_field_id = ArrayString::<128>::new();
+                input_field_id.push_str("## ");
+                input_field_id.push_str(window_name);
+                input_field_id.push_str(" InputField");
+
+                // set_next_item_width:
+                //  > 0.0 -> width is item_width pixels
+                //  = 0.0 -> default to ~2/3 of window width
+                //  < 0.0 -> item_width pixels relative to the right of window (-1.0 always aligns width to the right side)
+                ui.set_next_item_width(window_size.x);
+
+                set_left_margin();
+                ui.input_text(input_field_id, text_input_field_buffer).build()
+            } else {
+                false
+            }
+        };
+
+        if text_input_field_changed && let Some(text_input_field_buffer) = &self.text_input_field_buffer {
+            // Invoke callback with `None` item index.
+            (self.on_selection_changed)(self, context, None, text_input_field_buffer);
         }
 
+        set_left_margin();
         ui.child_window(window_name)
             .size(window_size.to_array())
             .border(self.flags.intersects(UiItemListFlags::Border))
@@ -1547,12 +1665,20 @@ impl UiWidget for UiItemList {
                 }
 
                 if selection_changed && let Some(selected_index) = self.current_item {
-                    (self.on_selection_changed)(self, context, selected_index, &self.items[selected_index]);
+                    let selected_item = &self.items[selected_index];
+                    (self.on_selection_changed)(self, context, Some(selected_index), selected_item);
+
+                    if let Some(text_input_field_buffer) = &mut self.text_input_field_buffer {
+                        text_input_field_buffer.clear();
+                        text_input_field_buffer.extend(selected_item.chars());
+                    }
                 }
             });
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+        context.ui_sys.set_font_scale(self.font_scale);
+
         fn resolve(requested: f32, region_avail: f32) -> f32 {
             if requested > 0.0 {
                 requested
@@ -1578,7 +1704,15 @@ impl UiWidget for UiItemList {
         let width  = resolve(requested_size.x, parent_region_avail[0]);
         let height = resolve(requested_size.y, parent_region_avail[1]);
 
-        Vec2::new(width, height)
+        let input_field_height = {
+            if self.text_input_field_buffer.is_some() {
+                ui.text_line_height() + (style.frame_padding[1] * 2.0)
+            } else {
+                0.0
+            }
+        };
+
+        Vec2::new(width, height + input_field_height)
     }
 
     fn label(&self) -> &str {
@@ -1598,7 +1732,7 @@ impl UiItemList {
                                    margin_right: f32,
                                    flags: UiItemListFlags,
                                    on_selection_changed: OnSelectionChanged) -> Self
-        where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, usize, &String) + 'static
+        where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, Option<usize>, &String) + 'static
     {
         Self::from_strings(
             label,
@@ -1621,11 +1755,24 @@ impl UiItemList {
                                             current_item: Option<usize>,
                                             items: Vec<String>,
                                             on_selection_changed: OnSelectionChanged) -> Self
-        where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, usize, &String) + 'static
+        where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, Option<usize>, &String) + 'static
     {
         debug_assert!(font_scale > 0.0);
         debug_assert!(margin_left > 0.0);
         debug_assert!(margin_right > 0.0);
+
+        let text_input_field_buffer = {
+            if flags.intersects(UiItemListFlags::TextInputField) {
+                if let Some(initial_item) = current_item {
+                    Some(items[initial_item].clone())
+                } else {
+                    Some(String::new())
+                }
+            } else {
+                None
+            }
+        };
+
         Self {
             label: label.unwrap_or_default(),
             imgui_id: None,
@@ -1636,6 +1783,7 @@ impl UiItemList {
             flags,
             current_item,
             items,
+            text_input_field_buffer,
             on_selection_changed: Box::new(on_selection_changed),
         }
     }
@@ -1650,7 +1798,7 @@ impl UiItemList {
                                               current_item: Option<usize>,
                                               values: &[V],
                                               on_selection_changed: OnSelectionChanged) -> Self
-        where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, usize, &String) + 'static,
+        where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, Option<usize>, &String) + 'static,
               V: Display
     {
         let items: Vec<String> = values
@@ -1670,6 +1818,10 @@ impl UiItemList {
             on_selection_changed)
     }
 
+    pub fn current_text_input_field(&self) -> Option<&str> {
+        self.text_input_field_buffer.as_ref().map(|value| value.as_str())
+    }
+
     pub fn current_selection_index(&self) -> Option<usize> {
         self.current_item
     }
@@ -1680,6 +1832,10 @@ impl UiItemList {
 
     pub fn clear_selection(&mut self) {
         self.current_item = None;
+
+        if let Some(text_input_field_buffer) = &mut self.text_input_field_buffer {
+            text_input_field_buffer.clear();
+        }
     }
 
     pub fn add_item(&mut self, item: String) -> &mut Self {
@@ -1711,10 +1867,19 @@ impl UiItemList {
 bitflags_with_display! {
     #[derive(Copy, Clone, Default)]
     pub struct UiItemListFlags: u8 {
-        const Border     = 1 << 0;
-        const Scrollable = 1 << 1;
-        const Scrollbars = 1 << 2;
+        const Border         = 1 << 0;
+        const Scrollable     = 1 << 1;
+        const Scrollbars     = 1 << 2;
+        const TextInputField = 1 << 3;
     }
+}
+
+// ----------------------------------------------
+// UiItemListParams
+// ----------------------------------------------
+
+pub struct UiItemListParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
 }
 
 // ----------------------------------------------
@@ -1751,6 +1916,14 @@ impl UiMessageBox {
 }
 
 // ----------------------------------------------
+// UiMessageBoxParams
+// ----------------------------------------------
+
+pub struct UiMessageBoxParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
+}
+
+// ----------------------------------------------
 // UiSlideshow
 // ----------------------------------------------
 
@@ -1783,4 +1956,12 @@ impl UiWidget for UiSlideshow {
 }
 
 impl UiSlideshow {
+}
+
+// ----------------------------------------------
+// UiSlideshowParams
+// ----------------------------------------------
+
+pub struct UiSlideshowParams {
+    // TODO: Replace new() args with this struct. Provide defaults.
 }
