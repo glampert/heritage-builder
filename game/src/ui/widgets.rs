@@ -119,9 +119,6 @@ pub trait UiWidget: Any {
 
     fn label(&self) -> &str;
     fn font_scale(&self) -> f32;
-
-    fn on_child_menu_opened(&mut self, _child_menu: &mut UiMenu, _context: &mut UiWidgetContext) {}
-    fn on_child_menu_closed(&mut self, _child_menu: &mut UiMenu, _context: &mut UiWidgetContext) {}
 }
 
 #[enum_dispatch]
@@ -158,10 +155,9 @@ pub struct UiMenu {
     size: Option<Vec2>,
     position: Option<Vec2>,
     background: Option<UiTextureHandle>,
-    parent_weak: Option<UiWidgetWeakRef>,
-    self_weak: UiMenuWeakRef,
     widgets: Vec<UiWidgetImpl>,
     message_box: UiMessageBox,
+    on_open_close: Option<Box<dyn Fn(&UiMenu, &mut UiWidgetContext, bool) + 'static>>,
 }
 
 impl UiWidget for UiMenu {
@@ -239,14 +235,18 @@ impl UiWidget for UiMenu {
 }
 
 impl UiMenu {
-    pub fn new(context: &mut UiWidgetContext,
-               label: Option<String>,
-               flags: UiMenuFlags,
-               size: Option<Vec2>,
-               position: Option<Vec2>,
-               background: Option<&str>,
-               parent: Option<UiWidgetWeakRef>) -> UiMenuStrongRef {
-        Rc::new_cyclic(|self_weak| {
+    pub const NO_OPEN_CLOSE_CALLBACK: Option<fn(&UiMenu, &mut UiWidgetContext, bool)> = None;
+
+    pub fn new<OnOpenClose>(context: &mut UiWidgetContext,
+                            label: Option<String>,
+                            flags: UiMenuFlags,
+                            size: Option<Vec2>,
+                            position: Option<Vec2>,
+                            background: Option<&str>,
+                            on_open_close: Option<OnOpenClose>) -> UiMenuStrongRef
+        where OnOpenClose: Fn(&UiMenu, &mut UiWidgetContext, bool) + 'static
+    {
+        Rc::new(
             Mutable::new(
                 Self {
                     label: label.unwrap_or_default(),
@@ -255,27 +255,16 @@ impl UiMenu {
                     size,
                     position,
                     background: background.map(|path| helpers::load_ui_texture(context, path)),
-                    parent_weak: parent,
-                    // NOTE: Keep a weak reference to self so we can easily construct
-                    // child widgets that required a weak reference to their parent
-                    // (e.g., message boxes).
-                    self_weak: self_weak.clone(),
                     widgets: Vec::new(),
                     message_box: UiMessageBox::default(),
+                    on_open_close: on_open_close.map_or(None, |f| Some(Box::new(f))),
                 }
             )
-        })
+        )
     }
 
     pub fn has_flags(&self, flags: UiMenuFlags) -> bool {
         self.flags.intersects(flags)
-    }
-
-    pub fn parent(&self) -> Option<UiWidgetStrongRef> {
-        if let Some(parent) = &self.parent_weak {
-            return parent.upgrade();
-        }
-        None
     }
 
     pub fn is_open(&self) -> bool {
@@ -289,8 +278,9 @@ impl UiMenu {
             context.sim.pause();
         }
 
-        if let Some(parent) = self.parent() {
-            parent.as_mut().on_child_menu_opened(self, context);
+        if let Some(on_open_close) = &self.on_open_close {
+            const IS_OPEN: bool = true;
+            on_open_close(self, context, IS_OPEN);
         }
     }
 
@@ -301,8 +291,9 @@ impl UiMenu {
             context.sim.resume();
         }
 
-        if let Some(parent) = self.parent() {
-            parent.as_mut().on_child_menu_closed(self, context);
+        if let Some(on_open_close) = &self.on_open_close {
+            const IS_OPEN: bool = false;
+            on_open_close(self, context, IS_OPEN);
         }
     }
 
@@ -323,8 +314,7 @@ impl UiMenu {
     }
 
     pub fn open_message_box(&mut self, context: &mut UiWidgetContext, params: UiMessageBoxParams) {
-        let parent = self.self_weak.clone();
-        self.message_box.open(context, parent, params);
+        self.message_box.open(context, params);
     }
 
     pub fn close_message_box(&mut self, context: &mut UiWidgetContext) {
@@ -1980,7 +1970,7 @@ impl UiMessageBox {
         self.menu.is_some()
     }
 
-    fn open(&mut self, context: &mut UiWidgetContext, parent: UiMenuWeakRef, params: UiMessageBoxParams) {
+    fn open(&mut self, context: &mut UiWidgetContext, params: UiMessageBoxParams) {
         let menu = UiMenu::new(
             context,
             params.label,
@@ -1988,7 +1978,7 @@ impl UiMessageBox {
             params.size,
             None,
             params.background,
-            Some(parent));
+            UiMenu::NO_OPEN_CLOSE_CALLBACK);
 
         for widget in params.contents {
             menu.as_mut().add_widget(widget);

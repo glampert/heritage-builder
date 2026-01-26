@@ -54,7 +54,7 @@ impl DevEditorMenus {
             Some(Vec2::new(512.0, 700.0)),
             None,
             Some("misc/wide_page_bg.png"),
-            None
+            UiMenu::NO_OPEN_CLOSE_CALLBACK
         );
 
         {
