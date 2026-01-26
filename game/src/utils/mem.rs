@@ -88,7 +88,7 @@ impl<T: ?Sized> Clone for RawPtr<T> {
 
 // Hold an UnsafeCell<T> which allows unchecked interior mutability (casting
 // away const).
-pub struct Mutable<T> {
+pub struct Mutable<T: ?Sized> {
     cell: UnsafeCell<T>,
 }
 
@@ -97,7 +97,9 @@ impl<T> Mutable<T> {
     pub fn new(instance: T) -> Self {
         Self { cell: UnsafeCell::new(instance) }
     }
+}
 
+impl<T: ?Sized> Mutable<T> {
     // Safe to share immutable ref, no interior mutability.
     #[inline(always)]
     pub fn as_ref(&self) -> &T {
@@ -112,7 +114,7 @@ impl<T> Mutable<T> {
 }
 
 // Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
-impl<T> Deref for Mutable<T> {
+impl<T: ?Sized> Deref for Mutable<T> {
     type Target = T;
 
     #[inline(always)]
@@ -121,7 +123,7 @@ impl<T> Deref for Mutable<T> {
     }
 }
 
-impl<T> DerefMut for Mutable<T> {
+impl<T: ?Sized> DerefMut for Mutable<T> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: Caller must ensure exclusive access (no aliasing).
@@ -130,7 +132,7 @@ impl<T> DerefMut for Mutable<T> {
 }
 
 // Serde serialization support.
-impl<T> Serialize for Mutable<T> where T: Serialize
+impl<T: ?Sized> Serialize for Mutable<T> where T: Serialize
 {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
