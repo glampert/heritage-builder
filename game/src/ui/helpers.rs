@@ -1,5 +1,3 @@
-#![allow(clippy::chars_next_cmp)]
-
 use smallvec::SmallVec;
 use super::{*, widgets::*};
 
@@ -235,7 +233,7 @@ pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
 
-    if label.chars().next() == Some('#') {
+    if label.starts_with('#') {
         // No label given, just generated widget id. Render standalone slider.
         (ui.slider_config(label.into(), min, max), group)
     } else {
@@ -262,7 +260,7 @@ pub fn input_text_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
 
-    if label.chars().next() == Some('#') {
+    if label.starts_with('#') {
         // No label given, just generated widget id. Render standalone input.
         (ui.input_text(label.into(), buf), group)
     } else {
@@ -289,7 +287,7 @@ pub fn checkbox_with_left_label<'ui>(ui: &'ui imgui::Ui,
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
 
-    if label.chars().next() == Some('#') {
+    if label.starts_with('#') {
         // No label given, just generated widget id. Render standalone checkbox.
         (ui.checkbox(label, value), group)
     } else {
@@ -317,7 +315,7 @@ pub fn combo_with_left_label<'ui>(ui: &'ui imgui::Ui,
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
 
-    if label.chars().next() == Some('#') {
+    if label.starts_with('#') {
         // No label given, just generated widget id. Render standalone combo list.
         (ui.combo_simple_string(label, current_item, items), group)
     } else {
