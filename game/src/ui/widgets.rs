@@ -77,6 +77,8 @@ pub struct UiWidgetContext<'game> {
 
     pub viewport_size: Size,
     pub delta_time_secs: Seconds,
+
+    in_window_count: u32,
 }
 
 impl<'game> UiWidgetContext<'game> {
@@ -93,7 +95,27 @@ impl<'game> UiWidgetContext<'game> {
             tex_cache: engine.texture_cache(),
             viewport_size: engine.viewport().integer_size(),
             delta_time_secs: engine.frame_clock().delta_time(),
+            in_window_count: 0,
         }
+    }
+
+    #[inline]
+    fn begin_widget_window(&mut self) {
+        self.in_window_count += 1;
+    }
+
+    #[inline]
+    fn end_widget_window(&mut self) {
+        debug_assert!(self.is_inside_widget_window());
+        self.in_window_count -= 1;
+
+        // Restore default font scale when ending a window.
+        self.ui_sys.set_font_scale(1.0);
+    }
+
+    #[inline]
+    fn is_inside_widget_window(&self) -> bool {
+        self.in_window_count != 0
     }
 }
 
@@ -111,8 +133,13 @@ pub trait UiWidget: Any {
     fn draw(&mut self, context: &mut UiWidgetContext);
     fn measure(&self, context: &UiWidgetContext) -> Vec2;
 
-    fn label(&self) -> &str;
-    fn font_scale(&self) -> f32;
+    fn label(&self) -> &str {
+        ""
+    }
+
+    fn font_scale(&self) -> f32 {
+        1.0
+    }
 }
 
 #[enum_dispatch]
@@ -178,6 +205,8 @@ impl UiWidget for UiMenu {
             .size(window_size.to_array(), window_size_cond)
             .flags(window_flags)
             .build(|| {
+                context.begin_widget_window();
+
                 if let Some(background) = self.background {
                     helpers::draw_widget_window_background(ui, background);
                 }
@@ -186,8 +215,7 @@ impl UiWidget for UiMenu {
                     widget.draw(context);
                 }
 
-                // Restore default.
-                context.ui_sys.set_font_scale(1.0);
+                context.end_widget_window();
             });
 
         self.flags.set(UiMenuFlags::IsOpen, is_open);
@@ -218,10 +246,6 @@ impl UiWidget for UiMenu {
 
     fn label(&self) -> &str {
         &self.label
-    }
-
-    fn font_scale(&self) -> f32 {
-        1.0
     }
 }
 
@@ -409,6 +433,8 @@ impl UiWidget for UiMenuHeading {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         context.ui_sys.set_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
@@ -466,10 +492,6 @@ impl UiWidget for UiMenuHeading {
         size
     }
 
-    fn label(&self) -> &str {
-        ""
-    }
-
     fn font_scale(&self) -> f32 {
         self.font_scale
     }
@@ -522,6 +544,8 @@ impl UiWidget for UiWidgetGroup {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         let ui = context.ui_sys.ui();
 
         let _spacing =
@@ -563,14 +587,6 @@ impl UiWidget for UiWidgetGroup {
         }
 
         size
-    }
-
-    fn label(&self) -> &str {
-        ""
-    }
-
-    fn font_scale(&self) -> f32 {
-        1.0
     }
 }
 
@@ -623,6 +639,8 @@ impl UiWidget for UiLabeledWidgetGroup {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         let ui = context.ui_sys.ui();
 
         let _spacing =
@@ -654,14 +672,6 @@ impl UiWidget for UiLabeledWidgetGroup {
         }
 
         size
-    }
-
-    fn label(&self) -> &str {
-        ""
-    }
-
-    fn font_scale(&self) -> f32 {
-        1.0
     }
 }
 
@@ -724,6 +734,8 @@ impl UiWidget for UiTextButton {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         context.ui_sys.set_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
@@ -897,6 +909,7 @@ impl UiWidget for UiSpriteButton {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
         debug_assert!(self.textures.are_textures_loaded());
 
         let ui = context.ui_sys.ui();
@@ -936,10 +949,6 @@ impl UiWidget for UiSpriteButton {
 
     fn label(&self) -> &str {
         &self.label
-    }
-
-    fn font_scale(&self) -> f32 {
-        1.0
     }
 }
 
@@ -1104,7 +1113,14 @@ impl UiSpriteButtonState {
     fn asset_path(self, name: &str) -> PathBuf {
         debug_assert!(!name.is_empty());
         let sprite_suffix = self.get_str("Suffix").unwrap();
-        let sprite_name = format!("{name}_{sprite_suffix}.png");
+
+        // {name}_{sprite_suffix}.png
+        let mut sprite_name = ArrayString::<128>::new();
+        sprite_name.push_str(name);
+        sprite_name.push_str("_");
+        sprite_name.push_str(sprite_suffix);
+        sprite_name.push_str(".png");
+
         assets_path().join("buttons").join(sprite_name)
     }
 
@@ -1147,6 +1163,8 @@ impl UiTooltipText {
     }
 
     fn draw(&self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         custom_tooltip(context.ui_sys, self.font_scale, self.background, || {
             context.ui_sys.ui().text(&self.text);
         });
@@ -1234,6 +1252,8 @@ impl UiWidget for UiSlider {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         context.ui_sys.set_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
@@ -1331,6 +1351,8 @@ impl UiWidget for UiCheckbox {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         context.ui_sys.set_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
@@ -1416,6 +1438,8 @@ impl UiWidget for UiTextInput {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         context.ui_sys.set_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
@@ -1492,6 +1516,8 @@ impl UiWidget for UiDropdown {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         context.ui_sys.set_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
@@ -1624,6 +1650,8 @@ impl UiWidget for UiItemList {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
         context.ui_sys.set_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
@@ -1716,16 +1744,6 @@ impl UiWidget for UiItemList {
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
         context.ui_sys.set_font_scale(self.font_scale);
 
-        fn resolve(requested: f32, region_avail: f32) -> f32 {
-            if requested > 0.0 {
-                requested
-            } else if requested == 0.0 {
-                region_avail
-            } else { // requested < 0.0
-                (region_avail + requested).max(0.0)
-            }
-        }
-
         let ui = context.ui_sys.ui();
         let style = unsafe { ui.style() };
         let parent_region_avail = ui.content_region_avail();
@@ -1738,8 +1756,7 @@ impl UiWidget for UiItemList {
             requested_size.x -= self.margin_left - style.window_padding[0];
         }
 
-        let width  = resolve(requested_size.x, parent_region_avail[0]);
-        let height = resolve(requested_size.y, parent_region_avail[1]);
+        let size = helpers::calc_child_window_size(requested_size.to_array(), parent_region_avail);
 
         let input_field_height = {
             if self.text_input_field_buffer.is_some() {
@@ -1749,7 +1766,7 @@ impl UiWidget for UiItemList {
             }
         };
 
-        Vec2::new(width, height + input_field_height)
+        Vec2::new(size[0], size[1] + input_field_height)
     }
 
     fn label(&self) -> &str {
@@ -2020,10 +2037,18 @@ pub struct UiMessageBoxParams<'a> {
 // ----------------------------------------------
 
 pub struct UiSlideshow {
-    // TODO
-    // To replace AnimatedFullScreenBackground
-    // make it so that it can be either the background of a window or fullscreen background.
-    // support single frame (static) or animated.
+    imgui_id: String,
+    flags: UiSlideshowFlags,
+    loop_mode: UiSlideshowLoopMode,
+
+    size: Option<Vec2>,
+    margin_left: f32,
+    margin_right: f32,
+
+    frames: Vec<UiTextureHandle>,
+    frame_index: usize,
+    frame_duration_secs: Seconds,
+    frame_play_time_secs: Seconds,
 }
 
 impl UiWidget for UiSlideshow {
@@ -2031,30 +2056,200 @@ impl UiWidget for UiSlideshow {
         self
     }
 
-    fn draw(&mut self, _context: &mut UiWidgetContext) {
-        // TODO
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        self.update_anim(context.delta_time_secs);
+        self.draw_current_frame(context);
     }
 
-    fn measure(&self, _context: &UiWidgetContext) -> Vec2 {
-        Vec2::zero() // TODO
-    }
+    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+        let ui = context.ui_sys.ui();
+        let style = unsafe { ui.style() };
+        let parent_region_avail = ui.content_region_avail();
 
-    fn label(&self) -> &str {
-        "" // TODO
-    }
+        let mut requested_size = self.size.unwrap_or(Vec2::zero());
+        if self.margin_right > 0.0 {
+            requested_size.x -= self.margin_right - style.window_padding[0];
+        }
+        if self.margin_left > 0.0 {
+            requested_size.x -= self.margin_left - style.window_padding[0];
+        }
 
-    fn font_scale(&self) -> f32 {
-        1.0 // TODO
+        let size = helpers::calc_child_window_size(requested_size.to_array(), parent_region_avail);
+        Vec2::from_array(size)
     }
 }
 
 impl UiSlideshow {
+    pub fn new(context: &mut UiWidgetContext, params: UiSlideshowParams) -> Self {
+        debug_assert!(!params.frames.is_empty());
+        debug_assert!(params.frame_duration_secs > 0.0);
+
+        let mut frames = Vec::with_capacity(params.frames.len());
+
+        for path in params.frames {
+            frames.push(helpers::load_ui_texture(context, path));
+        }
+
+        Self {
+            imgui_id: String::new(),
+            flags: params.flags,
+            loop_mode: params.loop_mode,
+            size: params.size,
+            margin_left: params.margin_left,
+            margin_right: params.margin_right,
+            frames,
+            frame_index: 0,
+            frame_duration_secs: params.frame_duration_secs,
+            frame_play_time_secs: 0.0,
+        }
+    }
+
+    pub fn has_flags(&self, flags: UiSlideshowFlags) -> bool {
+        self.flags.intersects(flags)
+    }
+
+    // ----------------------
+    // Internal:
+    // ----------------------
+
+    fn update_anim(&mut self, delta_time_secs: Seconds) {
+        if self.frames.len() <= 1 {
+            // Static background (single-frame).
+            return;
+        }
+
+        if self.has_flags(UiSlideshowFlags::PlayedOnce) &&
+          !self.has_flags(UiSlideshowFlags::Looping)
+        {
+            // Already played once and not looping. Early out.
+            return;
+        }
+
+        // Advance animation:
+        self.frame_play_time_secs += delta_time_secs;
+
+        if self.frame_play_time_secs >= self.frame_duration_secs {
+            if self.frame_index < self.frames.len() - 1 {
+                // Move to next frame.
+                self.frame_index += 1;
+            } else {
+                // Played the whole anim.
+                self.flags.insert(UiSlideshowFlags::PlayedOnce);
+
+                match self.loop_mode {
+                    UiSlideshowLoopMode::WholeAnim => {
+                        self.frame_index = 0; // Restart from beginning.
+                        self.flags.insert(UiSlideshowFlags::Looping);
+                    }
+                    UiSlideshowLoopMode::FramesFromEnd(count) => {
+                        self.frame_index = self.frames.len() - (count as usize); // Loop the last `count` frames.
+                        self.flags.insert(UiSlideshowFlags::Looping);
+                    }
+                    UiSlideshowLoopMode::None => {} // Doesn't loop.
+                }
+            }
+
+            // Reset the clock.
+            self.frame_play_time_secs = 0.0;
+        }
+    }
+
+    fn draw_current_frame(&mut self, context: &mut UiWidgetContext) {
+        let current_frame = self.frames[self.frame_index];
+
+        if context.is_inside_widget_window() && !self.has_flags(UiSlideshowFlags::Fullscreen) {
+            // We are drawing inside a parent window, so nest the
+            // rendered anim frame inside a child window instead.
+            self.draw_inside_child_window(context, current_frame);
+        } else {
+            // Draw full-screen rectangle with the anim frame texture.
+            // Background draw list ensures it renders behind any other UI elements.
+            let ui = context.ui_sys.ui();
+            let draw_list = ui.get_background_draw_list();
+            draw_list.add_image(current_frame,
+                                [0.0, 0.0],
+                                ui.io().display_size)
+                                .build();
+        }
+    }
+
+    fn draw_inside_child_window(&mut self, context: &mut UiWidgetContext, current_frame: UiTextureHandle) {
+        let ui = context.ui_sys.ui();
+        let window_name = make_imgui_id!(self, UiSlideshow, String::new());
+
+        // child_window size:
+        //  > 0.0 -> fixed size
+        //  = 0.0 -> use remaining host window size
+        //  < 0.0 -> use remaining host window size minus abs(size)
+        let mut window_size = self.size.unwrap_or(Vec2::zero());
+        if self.margin_right > 0.0 {
+            // NOTE: Decrement window padding from margin, so it is accurate.
+            let style = unsafe { ui.style() };
+            window_size.x -= self.margin_right - style.window_padding[0];
+        }
+
+        let mut cursor = ui.cursor_pos();
+        if self.margin_left > 0.0 {
+            ui.set_cursor_pos([self.margin_left, cursor[1]]);
+        }
+
+        ui.child_window(window_name)
+            .size(window_size.to_array())
+            .flags(helpers::base_widget_window_flags())
+            .build(|| {
+                let draw_list = ui.get_window_draw_list();
+
+                let child_window_rect = Rect::from_pos_and_size(
+                    Vec2::from_array(ui.window_pos()),
+                    Vec2::from_array(ui.window_size())
+                );
+
+                draw_list.add_image(current_frame,
+                                    child_window_rect.min.to_array(),
+                                    child_window_rect.max.to_array())
+                                    .build();
+
+                // Advance cursor to after the slide frame.
+                cursor[1] += child_window_rect.height();
+                ui.set_cursor_pos(cursor);
+            });
+    }
+}
+
+// ----------------------------------------------
+// UiSlideshowFlags / UiSlideshowLoopMode
+// ----------------------------------------------
+
+bitflags_with_display! {
+    #[derive(Copy, Clone, Default)]
+    pub struct UiSlideshowFlags: u8 {
+        const Fullscreen = 1 << 0;
+        const PlayedOnce = 1 << 1; // Finished playing at least once.
+        const Looping    = 1 << 2; // Started playing again with one of UiSlideshowLoopMode.
+    }
+}
+
+#[derive(Copy, Clone, Default)]
+pub enum UiSlideshowLoopMode {
+    #[default]
+    None,               // Doesn't loop.
+    WholeAnim,          // Loop whole anim from start to finish.
+    FramesFromEnd(u32), // Loop between these many frames from the end (frame count - N).
 }
 
 // ----------------------------------------------
 // UiSlideshowParams
 // ----------------------------------------------
 
-pub struct UiSlideshowParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+#[derive(Default)]
+pub struct UiSlideshowParams<'a> {
+    pub flags: UiSlideshowFlags,
+    pub loop_mode: UiSlideshowLoopMode,
+    pub frame_duration_secs: Seconds,
+    pub frames: &'a [&'a str],
+
+    // Ignored if UiSlideshowFlags::Fullscreen is set.
+    pub size: Option<Vec2>,
+    pub margin_left: f32,
+    pub margin_right: f32,
 }

@@ -33,6 +33,7 @@ mod settings;
 pub struct DevEditorMenus {
     // TEMP
     test_menu: UiMenuStrongRef,
+    //test_slideshow: UiSlideshow,
 }
 
 impl DevEditorMenus {
@@ -47,6 +48,18 @@ impl DevEditorMenus {
         use crate::utils::Vec2;
         use crate::log;
 
+        let slideshow = UiSlideshow::new(context,
+            UiSlideshowParams {
+                flags: UiSlideshowFlags::default(),
+                loop_mode: UiSlideshowLoopMode::WholeAnim,
+                frame_duration_secs: 0.5,
+                frames: &["misc/home_menu_anim/frame0.jpg", "misc/home_menu_anim/frame1.jpg", "misc/home_menu_anim/frame2.jpg"],
+                size: Some(Vec2::new(0.0, 256.0)),
+                margin_left: 50.0,
+                margin_right: 50.0,
+            }
+        );
+
         let test_menu_rc = UiMenu::new(
             context,
             Some("Test Window".into()),
@@ -57,7 +70,11 @@ impl DevEditorMenus {
             UiMenu::NO_OPEN_CLOSE_CALLBACK
         );
 
-        {
+        let mut slideshow_group = UiWidgetGroup::new(0.0, true, true, true);
+        slideshow_group.add_widget(slideshow);
+        test_menu_rc.as_mut().add_widget(slideshow_group);
+
+        if false {
 
         let test_menu = test_menu_rc.as_mut();
 
@@ -331,6 +348,7 @@ impl DevEditorMenus {
 
         }
 
+        //Self { test_menu: test_menu_rc, test_slideshow: slideshow }
         Self { test_menu: test_menu_rc }
     }
 }
@@ -372,6 +390,8 @@ impl GameMenusSystem for DevEditorMenus {
         let mut widgets_context = UiWidgetContext::new(context.sim, context.world, context.tile_map, context.engine);
         let menu = self.test_menu.as_mut();
         menu.draw(&mut widgets_context);
+    
+        //self.test_slideshow.draw(&mut widgets_context);
     }
 }
 

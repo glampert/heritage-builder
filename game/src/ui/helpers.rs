@@ -1,4 +1,5 @@
 use smallvec::SmallVec;
+use arrayvec::ArrayString;
 use super::{*, widgets::*};
 
 // ----------------------------------------------
@@ -235,11 +236,30 @@ pub fn calc_labeled_widget_size(context: &UiWidgetContext, font_scale: f32, labe
     Vec2::new(width, height)
 }
 
+// Resolve child window container size.
+// requested:
+//   > 0.0 -> fixed size
+//   = 0.0 -> use remaining host window size
+//   < 0.0 -> use remaining host window size minus abs(size)
+pub fn calc_child_window_size(requested: [f32; 2], region_avail: [f32; 2]) -> [f32; 2] {
+    let mut size = [0.0, 0.0];
+    for i in 0..size.len() {
+        if requested[i] > 0.0 {
+            size[i] = requested[i];
+        } else if requested[i] == 0.0 {
+            size[i] = region_avail[i];
+        } else { // requested < 0.0
+            size[i] = (region_avail[i] + requested[i]).max(0.0);
+        }
+    }
+    size
+}
+
 pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,
                                       label: &str,
                                       min: T,
                                       max: T)
-                                      -> (imgui::Slider<'ui, String, T>, imgui::GroupToken<'ui>)
+                                      -> (imgui::Slider<'ui, ArrayString<128>, T>, imgui::GroupToken<'ui>)
     where T: imgui::internal::DataTypeKind
 {
     // Start a group so the layout behaves as a single item.
@@ -247,7 +267,7 @@ pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,
 
     if label.starts_with('#') {
         // No label given, just generated widget id. Render standalone slider.
-        (ui.slider_config(label.into(), min, max), group)
+        (ui.slider_config(ArrayString::from(label).unwrap(), min, max), group)
     } else {
         // Vertically align text to match framed widgets.
         ui.align_text_to_frame_padding();
@@ -259,22 +279,26 @@ pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,
         let style = unsafe { ui.style() };
         ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
 
+        let mut hidden_label = ArrayString::<128>::new();
+        hidden_label.push_str("##");
+        hidden_label.push_str(label);
+
         // Draw slider (with hidden label).
-        (ui.slider_config(format!("##{label}"), min, max), group)
+        (ui.slider_config(hidden_label, min, max), group)
     }
 }
 
 pub fn input_text_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
                                            label: &str,
                                            buf: &'p mut String)
-                                           -> (imgui::InputText<'ui, 'p, String>, imgui::GroupToken<'ui>)
+                                           -> (imgui::InputText<'ui, 'p, ArrayString<128>>, imgui::GroupToken<'ui>)
 {
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
 
     if label.starts_with('#') {
         // No label given, just generated widget id. Render standalone input.
-        (ui.input_text(label.into(), buf), group)
+        (ui.input_text(ArrayString::from(label).unwrap(), buf), group)
     } else {
         // Vertically align text to match framed widgets.
         ui.align_text_to_frame_padding();
@@ -286,8 +310,12 @@ pub fn input_text_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
         let style = unsafe { ui.style() };
         ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
 
+        let mut hidden_label = ArrayString::<128>::new();
+        hidden_label.push_str("##");
+        hidden_label.push_str(label);
+
         // Draw input (with hidden label).
-        (ui.input_text(format!("##{label}"), buf), group)
+        (ui.input_text(hidden_label, buf), group)
     }
 }
 
@@ -313,8 +341,12 @@ pub fn checkbox_with_left_label<'ui>(ui: &'ui imgui::Ui,
         let style = unsafe { ui.style() };
         ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
 
+        let mut hidden_label = ArrayString::<128>::new();
+        hidden_label.push_str("##");
+        hidden_label.push_str(label);
+
         // Draw checkbox (with hidden label).
-        (ui.checkbox(format!("##{label}"), value), group)
+        (ui.checkbox(hidden_label, value), group)
     }
 }
 
@@ -341,8 +373,12 @@ pub fn combo_with_left_label<'ui>(ui: &'ui imgui::Ui,
         let style = unsafe { ui.style() };
         ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
 
+        let mut hidden_label = ArrayString::<128>::new();
+        hidden_label.push_str("##");
+        hidden_label.push_str(label);
+
         // Draw combo list (with hidden label).
-        (ui.combo_simple_string(format!("##{label}"), current_item, items), group)
+        (ui.combo_simple_string(hidden_label, current_item, items), group)
     }
 }
 
