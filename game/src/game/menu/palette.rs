@@ -9,7 +9,7 @@ use super::{
     widgets::{self, UiStyleTextLabelInvisibleButtons},
 };
 use crate::{
-    ui::{self, UiTextureHandle, widgets::UiWidgetContext},
+    ui::{self, UiTextureHandle, widgets::UiWidgetContext, UiFontScale},
     render::{RenderSystem, TextureHandle},
     utils::{
         self,
@@ -265,7 +265,7 @@ impl TilePaletteMainButton {
                                        .build();
 
                         if !self.children[button_index].tooltip.is_empty() {
-                            ui::custom_tooltip(context.ui_sys, Some(0.8), Some(background_sprite), || ui.text(&self.children[button_index].tooltip));
+                            ui::custom_tooltip(context.ui_sys, Some(UiFontScale(0.8)), Some(background_sprite), || ui.text(&self.children[button_index].tooltip));
                         }
                     }),
                     widgets::ALWAYS_ENABLED

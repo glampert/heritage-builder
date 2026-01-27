@@ -4,8 +4,8 @@
 use std::{any::Any, fmt::Display, path::PathBuf};
 use std::rc::{Rc, Weak};
 
-use arrayvec::ArrayString;
 use bitflags::bitflags;
+use arrayvec::ArrayString;
 use enum_dispatch::enum_dispatch;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
@@ -13,6 +13,7 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 use super::{
     helpers,
     UiSystem,
+    UiFontScale,
     UiTextureHandle,
     assets_path,
     custom_tooltip,
@@ -110,12 +111,88 @@ impl<'game> UiWidgetContext<'game> {
         self.in_window_count -= 1;
 
         // Restore default font scale when ending a window.
-        self.ui_sys.set_font_scale(1.0);
+        self.ui_sys.set_font_scale(UiFontScale::default());
     }
 
     #[inline]
     fn is_inside_widget_window(&self) -> bool {
         self.in_window_count != 0
+    }
+}
+
+// ----------------------------------------------
+// UiWidgetCallback
+// ----------------------------------------------
+
+#[derive(Default)]
+pub enum UiWidgetCallback<Widget, Arg = (), Output = ()>
+    where Widget: UiWidget
+{
+    #[default]
+    None,
+
+    // With plain function pointer, no capture, no memory allocation.
+    Fn(fn(&Widget, &mut UiWidgetContext) -> Output),
+    FnArg(fn(&Widget, &mut UiWidgetContext, Arg) -> Output),
+
+    // With closure/capture. Allocates memory, most flexible.
+    Closure(Box<dyn Fn(&Widget, &mut UiWidgetContext) -> Output + 'static>),
+    ClosureArg(Box<dyn Fn(&Widget, &mut UiWidgetContext, Arg) -> Output + 'static>),
+}
+
+impl<Widget, Arg, Output> UiWidgetCallback<Widget, Arg, Output>
+    where Widget: UiWidget
+{
+    pub fn with_fn(f: fn(&Widget, &mut UiWidgetContext) -> Output) -> Self {
+        Self::Fn(f)
+    }
+
+    pub fn with_fn_arg(f: fn(&Widget, &mut UiWidgetContext, Arg) -> Output) -> Self {
+        Self::FnArg(f)
+    }
+
+    pub fn with_closure<C>(c: C) -> Self
+        where C: Fn(&Widget, &mut UiWidgetContext) -> Output + 'static
+    {
+        Self::Closure(Box::new(c))
+    }
+
+    pub fn with_closure_arg<C>(c: C) -> Self
+        where C: Fn(&Widget, &mut UiWidgetContext, Arg) -> Output + 'static
+    {
+        Self::ClosureArg(Box::new(c))
+    }
+
+    #[inline]
+    fn invoke(&self, widget: &Widget, context: &mut UiWidgetContext) -> Option<Output> {
+        match self {
+            Self::Fn(f) => {
+                Some(f(widget, context))
+            }
+            Self::Closure(c) => {
+                Some(c(widget, context))
+            }
+            Self::None => {
+                None
+            }
+            _ => panic!("Expected UiWidgetCallback without extra arguments!"),
+        }
+    }
+
+    #[inline]
+    fn invoke_with_arg(&self, widget: &Widget, context: &mut UiWidgetContext, arg: Arg) -> Option<Output> {
+        match self {
+            Self::FnArg(f) => {
+                Some(f(widget, context, arg))
+            }
+            Self::ClosureArg(c) => {
+                Some(c(widget, context, arg))
+            }
+            Self::None => {
+                None
+            }
+            _ => panic!("Expected UiWidgetCallback with one extra argument!"),
+        }
     }
 }
 
@@ -137,8 +214,8 @@ pub trait UiWidget: Any {
         ""
     }
 
-    fn font_scale(&self) -> f32 {
-        1.0
+    fn font_scale(&self) -> UiFontScale {
+        UiFontScale::default()
     }
 }
 
@@ -172,11 +249,12 @@ pub struct UiMenu {
     background: Option<UiTextureHandle>,
     widgets: Vec<UiWidgetImpl>,
     message_box: UiMessageBox,
-    on_open_close: Option<Box<dyn Fn(&UiMenu, &mut UiWidgetContext, bool) + 'static>>,
+    on_open_close: UiMenuOpenClose,
 }
 
 pub type UiMenuStrongRef = Rc<Mutable<UiMenu>>;
 pub type UiMenuWeakRef   = Weak<Mutable<UiMenu>>;
+pub type UiMenuOpenClose = UiWidgetCallback<UiMenu, bool>;
 
 impl UiWidget for UiMenu {
     fn as_any(&self) -> &dyn Any {
@@ -250,29 +328,19 @@ impl UiWidget for UiMenu {
 }
 
 impl UiMenu {
-    pub const NO_OPEN_CLOSE_CALLBACK: Option<fn(&UiMenu, &mut UiWidgetContext, bool)> = None;
-
-    pub fn new<OnOpenClose>(context: &mut UiWidgetContext,
-                            label: Option<String>,
-                            flags: UiMenuFlags,
-                            size: Option<Vec2>,
-                            position: Option<Vec2>,
-                            background: Option<&str>,
-                            on_open_close: Option<OnOpenClose>) -> UiMenuStrongRef
-        where OnOpenClose: Fn(&UiMenu, &mut UiWidgetContext, bool) + 'static
-    {
+    pub fn new(context: &mut UiWidgetContext, params: UiMenuParams) -> UiMenuStrongRef {
         Rc::new(
             Mutable::new(
                 Self {
-                    label: label.unwrap_or_default(),
+                    label: params.label.unwrap_or_default(),
                     imgui_id: String::new(),
-                    flags,
-                    size,
-                    position,
-                    background: background.map(|path| helpers::load_ui_texture(context, path)),
+                    flags: params.flags,
+                    size: params.size,
+                    position: params.position,
+                    background: params.background.map(|path| helpers::load_ui_texture(context, path)),
                     widgets: Vec::new(),
                     message_box: UiMessageBox::default(),
-                    on_open_close: on_open_close.map_or(None, |f| Some(Box::new(f))),
+                    on_open_close: params.on_open_close,
                 }
             )
         )
@@ -293,10 +361,8 @@ impl UiMenu {
             context.sim.pause();
         }
 
-        if let Some(on_open_close) = &self.on_open_close {
-            const IS_OPEN: bool = true;
-            on_open_close(self, context, IS_OPEN);
-        }
+        const IS_OPEN: bool = true;
+        self.on_open_close.invoke_with_arg(self, context, IS_OPEN);
     }
 
     pub fn close(&mut self, context: &mut UiWidgetContext) {
@@ -306,10 +372,8 @@ impl UiMenu {
             context.sim.resume();
         }
 
-        if let Some(on_open_close) = &self.on_open_close {
-            const IS_OPEN: bool = false;
-            on_open_close(self, context, IS_OPEN);
-        }
+        const IS_OPEN: bool = false;
+        self.on_open_close.invoke_with_arg(self, context, IS_OPEN);
     }
 
     pub fn add_widget<Widget>(&mut self, widget: Widget) -> &mut Self
@@ -409,8 +473,14 @@ bitflags_with_display! {
 // UiMenuParams
 // ----------------------------------------------
 
-pub struct UiMenuParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+#[derive(Default)]
+pub struct UiMenuParams<'a> {
+    pub label: Option<String>,
+    pub flags: UiMenuFlags,
+    pub size: Option<Vec2>,
+    pub position: Option<Vec2>,
+    pub background: Option<&'a str>,
+    pub on_open_close: UiMenuOpenClose,
 }
 
 // ----------------------------------------------
@@ -420,7 +490,7 @@ pub struct UiMenuParams {
 // Centered window heading.
 // Can consist of multiple lines and an optional separator sprite at the end.
 pub struct UiMenuHeading {
-    font_scale: f32,
+    font_scale: UiFontScale,
     lines: Vec<String>,
     separator: Option<UiTextureHandle>,
     margin_top: f32,
@@ -492,26 +562,24 @@ impl UiWidget for UiMenuHeading {
         size
     }
 
-    fn font_scale(&self) -> f32 {
+    fn font_scale(&self) -> UiFontScale {
         self.font_scale
     }
 }
 
 impl UiMenuHeading {
-    pub fn new(context: &mut UiWidgetContext,
-               font_scale: f32,
-               lines: Vec<String>,
-               separator: Option<&str>,
-               margin_top: f32,
-               margin_bottom: f32) -> Self {                
-        debug_assert!(font_scale > 0.0);
-        debug_assert!(!lines.is_empty());
+    pub fn new(context: &mut UiWidgetContext, params: UiMenuHeadingParams) -> Self {                
+        debug_assert!(params.font_scale.is_valid());
+        debug_assert!(!params.lines.is_empty());
+        debug_assert!(params.margin_top >= 0.0);
+        debug_assert!(params.margin_bottom >= 0.0);
+
         Self {
-            font_scale,
-            lines,
-            separator: separator.map(|path| helpers::load_ui_texture(context, path)),
-            margin_top,
-            margin_bottom,
+            font_scale: params.font_scale,
+            lines: params.lines,
+            separator: params.separator.map(|path| helpers::load_ui_texture(context, path)),
+            margin_top: params.margin_top,
+            margin_bottom: params.margin_bottom,
         }
     }
 }
@@ -520,8 +588,13 @@ impl UiMenuHeading {
 // UiMenuHeadingParams
 // ----------------------------------------------
 
-pub struct UiMenuHeadingParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+#[derive(Default)]
+pub struct UiMenuHeadingParams<'a> {
+    pub font_scale: UiFontScale,
+    pub lines: Vec<String>,
+    pub separator: Option<&'a str>,
+    pub margin_top: f32,
+    pub margin_bottom: f32,
 }
 
 // ----------------------------------------------
@@ -591,14 +664,15 @@ impl UiWidget for UiWidgetGroup {
 }
 
 impl UiWidgetGroup {
-    pub fn new(widget_spacing: f32, center_vertically: bool, center_horizontally: bool, stack_vertically: bool) -> Self {
-        debug_assert!(widget_spacing >= 0.0);
+    pub fn new(params: UiWidgetGroupParams) -> Self {
+        debug_assert!(params.widget_spacing >= 0.0);
+
         Self {
             widgets: Vec::new(),
-            widget_spacing,
-            center_vertically,
-            center_horizontally,
-            stack_vertically,
+            widget_spacing: params.widget_spacing,
+            center_vertically: params.center_vertically,
+            center_horizontally: params.center_horizontally,
+            stack_vertically: params.stack_vertically,
         }
     }
 
@@ -616,7 +690,21 @@ impl UiWidgetGroup {
 // ----------------------------------------------
 
 pub struct UiWidgetGroupParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+    pub widget_spacing: f32,
+    pub center_vertically: bool,
+    pub center_horizontally: bool,
+    pub stack_vertically: bool,
+}
+
+impl Default for UiWidgetGroupParams {
+    fn default() -> Self {
+        Self {
+            widget_spacing: 0.0,
+            center_vertically: true,
+            center_horizontally: true,
+            stack_vertically: true,
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -676,18 +764,16 @@ impl UiWidget for UiLabeledWidgetGroup {
 }
 
 impl UiLabeledWidgetGroup {
-    pub fn new(label_spacing: f32,
-               widget_spacing: f32,
-               center_vertically: bool,
-               center_horizontally: bool) -> Self {
-        debug_assert!(label_spacing  >= 0.0);
-        debug_assert!(widget_spacing >= 0.0);
+    pub fn new(params: UiLabeledWidgetGroupParams) -> Self {
+        debug_assert!(params.label_spacing  >= 0.0);
+        debug_assert!(params.widget_spacing >= 0.0);
+
         Self {
             labels_and_widgets: Vec::new(),
-            label_spacing,
-            widget_spacing,
-            center_vertically,
-            center_horizontally,
+            label_spacing: params.label_spacing,
+            widget_spacing: params.widget_spacing,
+            center_vertically: params.center_vertically,
+            center_horizontally: params.center_horizontally,
         }
     }
 
@@ -708,7 +794,21 @@ impl UiLabeledWidgetGroup {
 // ----------------------------------------------
 
 pub struct UiLabeledWidgetGroupParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+    pub label_spacing: f32,
+    pub widget_spacing: f32,
+    pub center_vertically: bool,
+    pub center_horizontally: bool,
+}
+
+impl Default for UiLabeledWidgetGroupParams {
+    fn default() -> Self {
+        Self {
+            label_spacing: 0.0,
+            widget_spacing: 0.0,
+            center_vertically: true,
+            center_horizontally: true,
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -721,12 +821,14 @@ pub struct UiLabeledWidgetGroupParams {
 pub struct UiTextButton {
     label: String,
     imgui_id: String,
-    font_scale: f32,
+    font_scale: UiFontScale,
     size: UiTextButtonSize,
     hover: Option<UiTextureHandle>,
     enabled: bool,
-    on_pressed: Box<dyn Fn(&UiTextButton, &mut UiWidgetContext) + 'static>,
+    on_pressed: UiTextButtonPressed,
 }
+
+pub type UiTextButtonPressed = UiWidgetCallback<UiTextButton>;
 
 impl UiWidget for UiTextButton {
     fn as_any(&self) -> &dyn Any {
@@ -793,7 +895,7 @@ impl UiWidget for UiTextButton {
 
         // Invoke on pressed callback.
         if pressed && self.is_enabled() {
-            (self.on_pressed)(self, context);
+            self.on_pressed.invoke(self, context);
         }
     }
 
@@ -816,29 +918,22 @@ impl UiWidget for UiTextButton {
         &self.label
     }
 
-    fn font_scale(&self) -> f32 {
+    fn font_scale(&self) -> UiFontScale {
         self.font_scale
     }
 }
 
 impl UiTextButton {
-    pub fn new<OnPressed>(context: &mut UiWidgetContext,
-                          label: String,
-                          size: UiTextButtonSize,
-                          hover: Option<&str>,
-                          enabled: bool,
-                          on_pressed: OnPressed) -> Self
-        where OnPressed: Fn(&UiTextButton, &mut UiWidgetContext) + 'static
-    {
-        debug_assert!(!label.is_empty());
+    pub fn new(context: &mut UiWidgetContext, params: UiTextButtonParams) -> Self {
+        debug_assert!(!params.label.is_empty());
         Self {
-            label,
+            label: params.label,
             imgui_id: String::new(),
-            font_scale: size.font_scale(),
-            size,
-            hover: hover.map(|path| helpers::load_ui_texture(context, path)),
-            enabled,
-            on_pressed: Box::new(on_pressed),
+            font_scale: params.size.font_scale(),
+            size: params.size,
+            hover: params.hover.map(|path| helpers::load_ui_texture(context, path)),
+            enabled: params.enabled,
+            on_pressed: params.on_pressed,
         }
     }
 
@@ -865,11 +960,11 @@ pub enum UiTextButtonSize {
 }
 
 impl UiTextButtonSize {
-    pub const fn font_scale(self) -> f32 {
+    pub const fn font_scale(self) -> UiFontScale {
         match self {
-            UiTextButtonSize::Normal => 1.2,
-            UiTextButtonSize::Small  => 1.0,
-            UiTextButtonSize::Large  => 1.5,
+            UiTextButtonSize::Normal => UiFontScale(1.2),
+            UiTextButtonSize::Small  => UiFontScale(1.0),
+            UiTextButtonSize::Large  => UiFontScale(1.5),
         }
     }
 }
@@ -878,8 +973,13 @@ impl UiTextButtonSize {
 // UiTextButtonParams
 // ----------------------------------------------
 
-pub struct UiTextButtonParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+#[derive(Default)]
+pub struct UiTextButtonParams<'a> {
+    pub label: String,
+    pub size: UiTextButtonSize,
+    pub hover: Option<&'a str>,
+    pub enabled: bool,
+    pub on_pressed: UiTextButtonPressed,
 }
 
 // ----------------------------------------------
@@ -953,31 +1053,25 @@ impl UiWidget for UiSpriteButton {
 }
 
 impl UiSpriteButton {
-    pub fn new(context: &mut UiWidgetContext,
-               label: String,
-               tooltip: Option<UiTooltipText>,
-               show_tooltip_when_pressed: bool,
-               size: Vec2,
-               initial_state: UiSpriteButtonState,
-               state_transition_secs: Seconds) -> Self {
-        debug_assert!(!label.is_empty());
-        debug_assert!(size.x > 0.0 && size.y > 0.0);
-        debug_assert!(state_transition_secs >= 0.0);
+    pub fn new(context: &mut UiWidgetContext, params: UiSpriteButtonParams) -> Self {
+        debug_assert!(!params.label.is_empty());
+        debug_assert!(params.size.x > 0.0 && params.size.y > 0.0);
+        debug_assert!(params.state_transition_secs >= 0.0);
 
-        let textures = UiSpriteButtonTextures::load(&label, context);
-        let visual_state_transition_timer = CountdownTimer::new(state_transition_secs);
+        let textures = UiSpriteButtonTextures::load(&params.label, context);
+        let visual_state_transition_timer = CountdownTimer::new(params.state_transition_secs);
 
         Self {
-            label, 
-            tooltip,
-            show_tooltip_when_pressed,
-            size,
+            label: params.label,
+            tooltip: params.tooltip,
+            show_tooltip_when_pressed: params.show_tooltip_when_pressed,
+            size: params.size,
             position: Vec2::zero(), // NOTE: Only valid after first draw().
             textures,
-            logical_state: initial_state,
-            visual_state: initial_state,
+            logical_state: params.initial_state,
+            visual_state: params.initial_state,
             visual_state_transition_timer,
-            state_transition_secs,
+            state_transition_secs: params.state_transition_secs,
         }
     }
 
@@ -1094,8 +1188,9 @@ impl UiSpriteButtonTextures {
 
 const BUTTON_STATE_COUNT: usize = UiSpriteButtonState::COUNT;
 
-#[derive(Copy, Clone, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 pub enum UiSpriteButtonState {
+    #[default]
     #[strum(props(Suffix = "idle"))]
     Idle,
 
@@ -1133,8 +1228,14 @@ impl UiSpriteButtonState {
 // UiSpriteButtonParams
 // ----------------------------------------------
 
+#[derive(Default)]
 pub struct UiSpriteButtonParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+    pub label: String,
+    pub tooltip: Option<UiTooltipText>,
+    pub show_tooltip_when_pressed: bool,
+    pub size: Vec2,
+    pub initial_state: UiSpriteButtonState,
+    pub state_transition_secs: Seconds,
 }
 
 // ----------------------------------------------
@@ -1144,28 +1245,26 @@ pub struct UiSpriteButtonParams {
 #[derive(Clone)]
 pub struct UiTooltipText {
     text: String,
-    font_scale: Option<f32>,
+    font_scale: UiFontScale,
     background: Option<UiTextureHandle>,
 }
 
 impl UiTooltipText {
-    pub fn new(context: &mut UiWidgetContext,
-               text: String,
-               font_scale: f32,
-               background: Option<&str>) -> Self {
-        debug_assert!(!text.is_empty());
-        debug_assert!(font_scale > 0.0);
+    pub fn new(context: &mut UiWidgetContext, params: UiTooltipTextParams) -> Self {
+        debug_assert!(!params.text.is_empty());
+        debug_assert!(params.font_scale.is_valid());
+
         Self {
-            text,
-            font_scale: if font_scale != 1.0 { Some(font_scale) } else { None },
-            background: background.map(|path| helpers::load_ui_texture(context, path))
+            text: params.text,
+            font_scale: params.font_scale,
+            background: params.background.map(|path| helpers::load_ui_texture(context, path))
         }
     }
 
     fn draw(&self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        custom_tooltip(context.ui_sys, self.font_scale, self.background, || {
+        custom_tooltip(context.ui_sys, Some(self.font_scale), self.background, || {
             context.ui_sys.ui().text(&self.text);
         });
     }
@@ -1175,32 +1274,38 @@ impl UiTooltipText {
 // UiTooltipTextParams
 // ----------------------------------------------
 
-pub struct UiTooltipTextParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+#[derive(Default)]
+pub struct UiTooltipTextParams<'a> {
+    pub text: String,
+    pub font_scale: UiFontScale,
+    pub background: Option<&'a str>,
 }
 
 // ----------------------------------------------
 // UiSliderValue
 // ----------------------------------------------
 
+pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, (), T>;
+pub type UiSliderUpdateValue<T> = UiWidgetCallback<UiSlider, T>;
+
 enum UiSliderValue {
     I32 {
         min: i32,
         max: i32,
-        on_read_value: Box<dyn Fn(&UiSlider, &mut UiWidgetContext) -> i32 + 'static>,
-        on_update_value: Box<dyn Fn(&UiSlider, &mut UiWidgetContext, i32) + 'static>,
+        on_read_value: UiSliderReadValue<i32>,
+        on_update_value: UiSliderUpdateValue<i32>,
     },
     U32 {
         min: u32,
         max: u32,
-        on_read_value: Box<dyn Fn(&UiSlider, &mut UiWidgetContext) -> u32 + 'static>,
-        on_update_value: Box<dyn Fn(&UiSlider, &mut UiWidgetContext, u32) + 'static>,
+        on_read_value: UiSliderReadValue<u32>,
+        on_update_value: UiSliderUpdateValue<u32>,
     },
     F32 {
         min: f32,
         max: f32,
-        on_read_value: Box<dyn Fn(&UiSlider, &mut UiWidgetContext) -> f32 + 'static>,
-        on_update_value: Box<dyn Fn(&UiSlider, &mut UiWidgetContext, f32) + 'static>,
+        on_read_value: UiSliderReadValue<f32>,
+        on_update_value: UiSliderUpdateValue<f32>,
     },
 }
 
@@ -1210,25 +1315,18 @@ enum UiSliderValue {
 
 macro_rules! impl_slider_constructor {
     ($value_type:ty, $enum_variant:ident, $func_name:ident) => {
-        pub fn $func_name<OnReadVal, OnUpdateVal>(label: Option<String>,
-                                                  font_scale: f32,
-                                                  min: $value_type,
-                                                  max: $value_type,
-                                                  on_read_value: OnReadVal,
-                                                  on_update_value: OnUpdateVal) -> Self
-            where OnReadVal: Fn(&UiSlider, &mut UiWidgetContext) -> $value_type + 'static,
-                  OnUpdateVal: Fn(&UiSlider, &mut UiWidgetContext, $value_type) + 'static
-        {
-            debug_assert!(font_scale > 0.0);
+        pub fn $func_name(params: UiSliderParams<$value_type>) -> Self {
+            debug_assert!(params.font_scale.is_valid());
+
             Self {
-                label: label.unwrap_or_default(),
+                label: params.label.unwrap_or_default(),
                 imgui_id: String::new(),
-                font_scale,
+                font_scale: params.font_scale,
                 value: UiSliderValue::$enum_variant {
-                    min,
-                    max,
-                    on_read_value: Box::new(on_read_value),
-                    on_update_value: Box::new(on_update_value),
+                    min: params.min,
+                    max: params.max,
+                    on_read_value: params.on_read_value,
+                    on_update_value: params.on_update_value,
                 }
             }
         }
@@ -1242,7 +1340,7 @@ macro_rules! impl_slider_constructor {
 pub struct UiSlider {
     label: String,
     imgui_id: String,
-    font_scale: f32,
+    font_scale: UiFontScale,
     value: UiSliderValue,
 }
 
@@ -1261,7 +1359,7 @@ impl UiWidget for UiSlider {
 
         match &self.value {
             UiSliderValue::I32 { min, max, on_read_value, on_update_value } => {
-                let mut value = on_read_value(self, context);
+                let mut value = on_read_value.invoke(self, context).unwrap_or_default();
 
                 let (slider, _group) =
                     helpers::slider_with_left_label(ui, label, *min, *max);
@@ -1271,11 +1369,11 @@ impl UiWidget for UiSlider {
                     .build(&mut value);
 
                 if value_changed {
-                    on_update_value(self, context, value.clamp(*min, *max));
+                    on_update_value.invoke_with_arg(self, context, value.clamp(*min, *max));
                 }
             }
             UiSliderValue::U32 { min, max, on_read_value, on_update_value } => {
-                let mut value = on_read_value(self, context);
+                let mut value = on_read_value.invoke(self, context).unwrap_or_default();
 
                 let (slider, _group) =
                     helpers::slider_with_left_label(ui, label, *min, *max);
@@ -1285,11 +1383,11 @@ impl UiWidget for UiSlider {
                     .build(&mut value);
 
                 if value_changed {
-                    on_update_value(self, context, value.clamp(*min, *max));
+                    on_update_value.invoke_with_arg(self, context, value.clamp(*min, *max));
                 }
             }
             UiSliderValue::F32 { min, max, on_read_value, on_update_value } => {
-                let mut value = on_read_value(self, context);
+                let mut value = on_read_value.invoke(self, context).unwrap_or_default();
 
                 let (slider, _group) =
                     helpers::slider_with_left_label(ui, label, *min, *max);
@@ -1300,7 +1398,7 @@ impl UiWidget for UiSlider {
                     .build(&mut value);
 
                 if value_changed {
-                    on_update_value(self, context, value.clamp(*min, *max));
+                    on_update_value.invoke_with_arg(self, context, value.clamp(*min, *max));
                 }
             }
         }
@@ -1314,7 +1412,7 @@ impl UiWidget for UiSlider {
         &self.label
     }
 
-    fn font_scale(&self) -> f32 {
+    fn font_scale(&self) -> UiFontScale {
         self.font_scale
     }
 }
@@ -1329,8 +1427,14 @@ impl UiSlider {
 // UiSliderParams
 // ----------------------------------------------
 
-pub struct UiSliderParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+#[derive(Default)]
+pub struct UiSliderParams<T> {
+    pub label: Option<String>,
+    pub font_scale: UiFontScale,
+    pub min: T,
+    pub max: T,
+    pub on_read_value: UiSliderReadValue<T>,
+    pub on_update_value: UiSliderUpdateValue<T>,
 }
 
 // ----------------------------------------------
@@ -1340,10 +1444,13 @@ pub struct UiSliderParams {
 pub struct UiCheckbox {
     label: String,
     imgui_id: String,
-    font_scale: f32,
-    on_read_value: Box<dyn Fn(&UiCheckbox, &mut UiWidgetContext) -> bool + 'static>,
-    on_update_value: Box<dyn Fn(&UiCheckbox, &mut UiWidgetContext, bool) + 'static>,
+    font_scale: UiFontScale,
+    on_read_value: UiCheckboxReadValue,
+    on_update_value:UiCheckboxUpdateValue,
 }
+
+pub type UiCheckboxReadValue   = UiWidgetCallback<UiCheckbox, (), bool>;
+pub type UiCheckboxUpdateValue = UiWidgetCallback<UiCheckbox, bool>;
 
 impl UiWidget for UiCheckbox {
     fn as_any(&self) -> &dyn Any {
@@ -1358,13 +1465,13 @@ impl UiWidget for UiCheckbox {
 
         let label = make_imgui_id!(self, UiCheckbox, self.label);
 
-        let mut value = (self.on_read_value)(self, context);
+        let mut value = self.on_read_value.invoke(self, context).unwrap_or_default();
 
         let (value_changed, _group) =
             helpers::checkbox_with_left_label(ui, label, &mut value);
 
         if value_changed {
-            (self.on_update_value)(self, context, value);
+            self.on_update_value.invoke_with_arg(self, context, value);
         }
     }
 
@@ -1388,26 +1495,21 @@ impl UiWidget for UiCheckbox {
         &self.label
     }
 
-    fn font_scale(&self) -> f32 {
+    fn font_scale(&self) -> UiFontScale {
         self.font_scale
     }
 }
 
 impl UiCheckbox {
-    pub fn new<OnReadVal, OnUpdateVal>(label: Option<String>,
-                                       font_scale: f32,
-                                       on_read_value: OnReadVal,
-                                       on_update_value: OnUpdateVal) -> Self
-        where OnReadVal: Fn(&UiCheckbox, &mut UiWidgetContext) -> bool + 'static,
-              OnUpdateVal: Fn(&UiCheckbox, &mut UiWidgetContext, bool) + 'static
-    {
-        debug_assert!(font_scale > 0.0);
+    pub fn new(params: UiCheckboxParams) -> Self {
+        debug_assert!(params.font_scale.is_valid());
+
         Self {
-            label: label.unwrap_or_default(),
+            label: params.label.unwrap_or_default(),
             imgui_id: String::new(),
-            font_scale,
-            on_read_value: Box::new(on_read_value),
-            on_update_value: Box::new(on_update_value),
+            font_scale: params.font_scale,
+            on_read_value: params.on_read_value,
+            on_update_value: params.on_update_value,
         }
     }
 }
@@ -1416,8 +1518,12 @@ impl UiCheckbox {
 // UiCheckboxParams
 // ----------------------------------------------
 
+#[derive(Default)]
 pub struct UiCheckboxParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+    pub label: Option<String>,
+    pub font_scale: UiFontScale,
+    pub on_read_value: UiCheckboxReadValue,
+    pub on_update_value: UiCheckboxUpdateValue,
 }
 
 // ----------------------------------------------
@@ -1427,10 +1533,13 @@ pub struct UiCheckboxParams {
 pub struct UiTextInput {
     label: String,
     imgui_id: String,
-    font_scale: f32,
-    on_read_value: Box<dyn Fn(&UiTextInput, &mut UiWidgetContext) -> String + 'static>,
-    on_update_value: Box<dyn Fn(&UiTextInput, &mut UiWidgetContext, String) + 'static>,
+    font_scale: UiFontScale,
+    on_read_value: UiTextInputReadValue,
+    on_update_value: UiTextInputUpdateValue,
 }
+
+pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, (), String>;
+pub type UiTextInputUpdateValue = UiWidgetCallback<UiTextInput, String>;
 
 impl UiWidget for UiTextInput {
     fn as_any(&self) -> &dyn Any {
@@ -1445,7 +1554,7 @@ impl UiWidget for UiTextInput {
 
         let label = make_imgui_id!(self, UiTextInput, self.label);
 
-        let mut value = (self.on_read_value)(self, context);
+        let mut value = self.on_read_value.invoke(self, context).unwrap_or_default();
 
         let (input, _group) =
             helpers::input_text_with_left_label(ui, label, &mut value);
@@ -1453,7 +1562,7 @@ impl UiWidget for UiTextInput {
         let value_changed = input.build();
 
         if value_changed {
-            (self.on_update_value)(self, context, value);
+            self.on_update_value.invoke_with_arg(self, context, value);
         }
     }
 
@@ -1465,26 +1574,21 @@ impl UiWidget for UiTextInput {
         &self.label
     }
 
-    fn font_scale(&self) -> f32 {
+    fn font_scale(&self) -> UiFontScale {
         self.font_scale
     }
 }
 
 impl UiTextInput {
-    pub fn new<OnReadVal, OnUpdateVal>(label: Option<String>,
-                                       font_scale: f32,
-                                       on_read_value: OnReadVal,
-                                       on_update_value: OnUpdateVal) -> Self
-        where OnReadVal: Fn(&UiTextInput, &mut UiWidgetContext) -> String + 'static,
-              OnUpdateVal: Fn(&UiTextInput, &mut UiWidgetContext, String) + 'static
-    {
-        debug_assert!(font_scale > 0.0);
+    pub fn new(params: UiTextInputParams) -> Self {
+        debug_assert!(params.font_scale.is_valid());
+
         Self {
-            label: label.unwrap_or_default(),
+            label: params.label.unwrap_or_default(),
             imgui_id: String::new(),
-            font_scale,
-            on_read_value: Box::new(on_read_value),
-            on_update_value: Box::new(on_update_value),
+            font_scale: params.font_scale,
+            on_read_value: params.on_read_value,
+            on_update_value: params.on_update_value,
         }
     }
 }
@@ -1493,8 +1597,12 @@ impl UiTextInput {
 // UiTextInputParams
 // ----------------------------------------------
 
+#[derive(Default)]
 pub struct UiTextInputParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+    pub label: Option<String>,
+    pub font_scale: UiFontScale,
+    pub on_read_value: UiTextInputReadValue,
+    pub on_update_value: UiTextInputUpdateValue,
 }
 
 // ----------------------------------------------
@@ -1504,11 +1612,13 @@ pub struct UiTextInputParams {
 pub struct UiDropdown {
     label: String,
     imgui_id: String,
-    font_scale: f32,
+    font_scale: UiFontScale,
     current_item: usize,
     items: Vec<String>,
-    on_selection_changed: Box<dyn Fn(&UiDropdown, &mut UiWidgetContext, usize, &String) + 'static>,
+    on_selection_changed: UiDropdownSelectionChanged,
 }
+
+pub type UiDropdownSelectionChanged = UiWidgetCallback<UiDropdown>;
 
 impl UiWidget for UiDropdown {
     fn as_any(&self) -> &dyn Any {
@@ -1527,7 +1637,7 @@ impl UiWidget for UiDropdown {
             helpers::combo_with_left_label(ui, label, &mut self.current_item, &self.items);
 
         if selection_changed {
-            (self.on_selection_changed)(self, context, self.current_item, &self.items[self.current_item]);
+            self.on_selection_changed.invoke(self, context);
         }
     }
 
@@ -1539,53 +1649,47 @@ impl UiWidget for UiDropdown {
         &self.label
     }
 
-    fn font_scale(&self) -> f32 {
+    fn font_scale(&self) -> UiFontScale {
         self.font_scale
     }
 }
 
 impl UiDropdown {
-    pub fn new<OnSelectionChanged>(label: Option<String>,
-                                   font_scale: f32,
-                                   on_selection_changed: OnSelectionChanged) -> Self
-        where OnSelectionChanged: Fn(&UiDropdown, &mut UiWidgetContext, usize, &String) + 'static
-    {
-        Self::from_strings(label, font_scale, 0, Vec::new(), on_selection_changed)
+    pub fn new(params: UiDropdownParams<String>) -> Self {
+        Self::from_strings(params)
     }
 
-    pub fn from_strings<OnSelectionChanged>(label: Option<String>,
-                                            font_scale: f32,
-                                            current_item: usize,
-                                            items: Vec<String>,
-                                            on_selection_changed: OnSelectionChanged) -> Self
-        where OnSelectionChanged: Fn(&UiDropdown, &mut UiWidgetContext, usize, &String) + 'static
-    {
-        debug_assert!(font_scale > 0.0);
+    pub fn from_strings(params: UiDropdownParams<String>) -> Self {
+        debug_assert!(params.font_scale.is_valid());
+        debug_assert!(!params.items.is_empty());
+        debug_assert!(params.current_item < params.items.len());
+
         Self {
-            label: label.unwrap_or_default(),
+            label: params.label.unwrap_or_default(),
             imgui_id: String::new(),
-            font_scale,
-            current_item,
-            items,
-            on_selection_changed: Box::new(on_selection_changed),
+            font_scale: params.font_scale,
+            current_item: params.current_item,
+            items: params.items,
+            on_selection_changed: params.on_selection_changed,
         }
     }
 
     // From array of values implementing Display.
-    pub fn from_values<OnSelectionChanged, V>(label: Option<String>,
-                                              font_scale: f32,
-                                              current_item: usize,
-                                              values: &[V],
-                                              on_selection_changed: OnSelectionChanged) -> Self
-        where OnSelectionChanged: Fn(&UiDropdown, &mut UiWidgetContext, usize, &String) + 'static,
-              V: Display
+    pub fn from_values<T>(params: UiDropdownParams<T>) -> Self
+        where T: Display
     {
-        let items: Vec<String> = values
+        let item_strings: Vec<String> = params.items
             .iter()
-            .map(|value| value.to_string())
+            .map(|item| item.to_string())
             .collect();
 
-        Self::from_strings(label, font_scale, current_item, items, on_selection_changed)
+        Self::from_strings(UiDropdownParams {
+            label: params.label,
+            font_scale: params.font_scale,
+            current_item: params.current_item,
+            items: item_strings,
+            on_selection_changed: params.on_selection_changed,
+        })
     }
 
     pub fn current_selection_index(&self) -> usize {
@@ -1622,8 +1726,13 @@ impl UiDropdown {
 // UiDropdownParams
 // ----------------------------------------------
 
-pub struct UiDropdownParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+#[derive(Default)]
+pub struct UiDropdownParams<T> {
+    pub label: Option<String>,
+    pub font_scale: UiFontScale,
+    pub current_item: usize,
+    pub items: Vec<T>, // Must not be empty.
+    pub on_selection_changed: UiDropdownSelectionChanged,
 }
 
 // ----------------------------------------------
@@ -1633,7 +1742,7 @@ pub struct UiDropdownParams {
 pub struct UiItemList {
     label: String,
     imgui_id: String,
-    font_scale: f32,
+    font_scale: UiFontScale,
     size: Option<Vec2>,
     margin_left: f32,
     margin_right: f32,
@@ -1641,8 +1750,10 @@ pub struct UiItemList {
     current_item: Option<usize>,
     items: Vec<String>,
     text_input_field_buffer: Option<String>,
-    on_selection_changed: Box<dyn Fn(&UiItemList, &mut UiWidgetContext, Option<usize>, &String) + 'static>,
+    on_selection_changed: UiItemListSelectionChanged,
 }
+
+pub type UiItemListSelectionChanged = UiWidgetCallback<UiItemList>;
 
 impl UiWidget for UiItemList {
     fn as_any(&self) -> &dyn Any {
@@ -1701,9 +1812,9 @@ impl UiWidget for UiItemList {
             }
         };
 
-        if text_input_field_changed && let Some(text_input_field_buffer) = &self.text_input_field_buffer {
-            // Invoke callback with `None` item index.
-            (self.on_selection_changed)(self, context, None, text_input_field_buffer);
+        if text_input_field_changed && self.text_input_field_buffer.is_some() {
+            self.current_item = None;
+            self.on_selection_changed.invoke(self, context);
         }
 
         set_left_margin();
@@ -1730,13 +1841,12 @@ impl UiWidget for UiItemList {
                 }
 
                 if selection_changed && let Some(selected_index) = self.current_item {
-                    let selected_item = &self.items[selected_index];
-                    (self.on_selection_changed)(self, context, Some(selected_index), selected_item);
-
                     if let Some(text_input_field_buffer) = &mut self.text_input_field_buffer {
                         text_input_field_buffer.clear();
-                        text_input_field_buffer.push_str(selected_item);
+                        text_input_field_buffer.push_str(&self.items[selected_index]);
                     }
+
+                    self.on_selection_changed.invoke(self, context);
                 }
             });
     }
@@ -1773,52 +1883,25 @@ impl UiWidget for UiItemList {
         &self.label
     }
 
-    fn font_scale(&self) -> f32 {
+    fn font_scale(&self) -> UiFontScale {
         self.font_scale
     }
 }
 
 impl UiItemList {
-    pub fn new<OnSelectionChanged>(label: Option<String>,
-                                   font_scale: f32,
-                                   size: Option<Vec2>,
-                                   margin_left: f32,
-                                   margin_right: f32,
-                                   flags: UiItemListFlags,
-                                   on_selection_changed: OnSelectionChanged) -> Self
-        where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, Option<usize>, &String) + 'static
-    {
-        Self::from_strings(
-            label,
-            font_scale,
-            size,
-            margin_left,
-            margin_right,
-            flags,
-            None,
-            Vec::new(),
-            on_selection_changed)
+    pub fn new(params: UiItemListParams<String>) -> Self {
+        Self::from_strings(params)
     }
 
-    pub fn from_strings<OnSelectionChanged>(label: Option<String>,
-                                            font_scale: f32,
-                                            size: Option<Vec2>,
-                                            margin_left: f32,
-                                            margin_right: f32,
-                                            flags: UiItemListFlags,
-                                            current_item: Option<usize>,
-                                            items: Vec<String>,
-                                            on_selection_changed: OnSelectionChanged) -> Self
-        where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, Option<usize>, &String) + 'static
-    {
-        debug_assert!(font_scale > 0.0);
-        debug_assert!(margin_left > 0.0);
-        debug_assert!(margin_right > 0.0);
+    pub fn from_strings(params: UiItemListParams<String>) -> Self {
+        debug_assert!(params.font_scale.is_valid());
+        debug_assert!(params.margin_left >= 0.0);
+        debug_assert!(params.margin_right >= 0.0);
 
         let text_input_field_buffer = {
-            if flags.intersects(UiItemListFlags::TextInputField) {
-                if let Some(initial_item) = current_item {
-                    Some(items[initial_item].clone())
+            if params.flags.intersects(UiItemListFlags::TextInputField) {
+                if let Some(initial_item) = params.current_item {
+                    Some(params.items[initial_item].clone())
                 } else {
                     Some(String::new())
                 }
@@ -1828,48 +1911,40 @@ impl UiItemList {
         };
 
         Self {
-            label: label.unwrap_or_default(),
+            label: params.label.unwrap_or_default(),
             imgui_id: String::new(),
-            font_scale,
-            size,
-            margin_left,
-            margin_right,
-            flags,
-            current_item,
-            items,
+            font_scale: params.font_scale,
+            size: params.size,
+            margin_left: params.margin_left,
+            margin_right: params.margin_right,
+            flags: params.flags,
+            current_item: params.current_item,
+            items: params.items,
             text_input_field_buffer,
-            on_selection_changed: Box::new(on_selection_changed),
+            on_selection_changed: params.on_selection_changed,
         }
     }
 
     // From array of values implementing Display.
-    pub fn from_values<OnSelectionChanged, V>(label: Option<String>,
-                                              font_scale: f32,
-                                              size: Option<Vec2>,
-                                              margin_left: f32,
-                                              margin_right: f32,
-                                              flags: UiItemListFlags,
-                                              current_item: Option<usize>,
-                                              values: &[V],
-                                              on_selection_changed: OnSelectionChanged) -> Self
-        where OnSelectionChanged: Fn(&UiItemList, &mut UiWidgetContext, Option<usize>, &String) + 'static,
-              V: Display
+    pub fn from_values<T>(params: UiItemListParams<T>) -> Self
+        where T: Display
     {
-        let items: Vec<String> = values
+        let item_strings: Vec<String> = params.items
             .iter()
-            .map(|value| value.to_string())
+            .map(|item| item.to_string())
             .collect();
 
-        Self::from_strings(
-            label,
-            font_scale,
-            size,
-            margin_left,
-            margin_right,
-            flags,
-            current_item,
-            items,
-            on_selection_changed)
+        Self::from_strings(UiItemListParams {
+            label: params.label,
+            font_scale: params.font_scale,
+            size: params.size,
+            margin_left: params.margin_left,
+            margin_right: params.margin_right,
+            flags: params.flags,
+            current_item: params.current_item,
+            items: item_strings,
+            on_selection_changed: params.on_selection_changed,
+        })
     }
 
     pub fn current_text_input_field(&self) -> Option<&str> {
@@ -1932,8 +2007,17 @@ bitflags_with_display! {
 // UiItemListParams
 // ----------------------------------------------
 
-pub struct UiItemListParams {
-    // TODO: Replace new() args with this struct. Provide defaults.
+#[derive(Default)]
+pub struct UiItemListParams<T> {
+    pub label: Option<String>,
+    pub font_scale: UiFontScale,
+    pub size: Option<Vec2>,
+    pub margin_left: f32,
+    pub margin_right: f32,
+    pub flags: UiItemListFlags,
+    pub current_item: Option<usize>,
+    pub items: Vec<T>, // Can be empty.
+    pub on_selection_changed: UiItemListSelectionChanged,
 }
 
 // ----------------------------------------------
@@ -1967,42 +2051,47 @@ impl UiWidget for UiMessageBox {
         self.menu.as_ref().map_or("", |menu| menu.label())
     }
 
-    fn font_scale(&self) -> f32 {
-        self.menu.as_ref().map_or(1.0, |menu| menu.font_scale())
+    fn font_scale(&self) -> UiFontScale {
+        self.menu.as_ref().map_or(UiFontScale::default(), |menu| menu.font_scale())
     }
 }
 
 impl UiMessageBox {
     #[inline]
-    fn is_open(&self) -> bool {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[inline]
+    pub fn is_open(&self) -> bool {
         self.menu.is_some()
     }
 
-    fn open(&mut self, context: &mut UiWidgetContext, params: UiMessageBoxParams) {
+    pub fn open(&mut self, context: &mut UiWidgetContext, params: UiMessageBoxParams) {
         let menu = UiMenu::new(
             context,
-            params.label,
-            UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter,
-            params.size,
-            None,
-            params.background,
-            UiMenu::NO_OPEN_CLOSE_CALLBACK);
+            UiMenuParams {
+                label: params.label,
+                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter,
+                size: params.size,
+                background: params.background,
+                ..Default::default()
+            }
+        );
 
         for widget in params.contents {
             menu.as_mut().add_widget(widget);
         }
 
         if !params.buttons.is_empty() {
-            const BUTTON_SPACING: f32 = 10.0;
-            const CENTER_VERTICALLY: bool = true;
-            const CENTER_HORIZONTALLY: bool = true;
-            const STACK_VERTICALLY: bool = false;
-
             let mut button_group = UiWidgetGroup::new(
-                BUTTON_SPACING,
-                CENTER_VERTICALLY,
-                CENTER_HORIZONTALLY,
-                STACK_VERTICALLY); // Render buttons side-by-side.
+                UiWidgetGroupParams {
+                    widget_spacing: 10.0,
+                    center_vertically: true,
+                    center_horizontally: true,
+                    stack_vertically: false, // Render buttons side-by-side.
+                }
+            );
 
             for button in params.buttons {
                 button_group.add_widget(button);
@@ -2014,7 +2103,7 @@ impl UiMessageBox {
         self.menu = Some(menu);
     }
 
-    fn close(&mut self, _context: &mut UiWidgetContext) {
+    pub fn close(&mut self, _context: &mut UiWidgetContext) {
         self.menu = None;
     }
 }
@@ -2083,6 +2172,8 @@ impl UiSlideshow {
     pub fn new(context: &mut UiWidgetContext, params: UiSlideshowParams) -> Self {
         debug_assert!(!params.frames.is_empty());
         debug_assert!(params.frame_duration_secs > 0.0);
+        debug_assert!(params.margin_left >= 0.0);
+        debug_assert!(params.margin_right >= 0.0);
 
         let mut frames = Vec::with_capacity(params.frames.len());
 

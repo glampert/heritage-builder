@@ -1,7 +1,7 @@
 use std::{sync::atomic::{AtomicBool, Ordering}};
 
 use crate::{
-    ui::{self, UiSystem, UiTextureHandle},
+    ui::{self, UiSystem, UiTextureHandle, UiFontScale},
     utils::{Size, Vec2, Rect, Color},
 };
 
@@ -346,7 +346,7 @@ pub fn draw_sprite(ui_sys: &UiSystem,
     draw_last_item_debug_rect(ui, Color::blue());
 
     if ui.is_item_hovered() && let Some(tooltip_text) = tooltip {
-        ui::custom_tooltip(ui_sys, Some(0.8), Some(tooltip_bg_texture), || ui.text(tooltip_text));
+        ui::custom_tooltip(ui_sys, Some(UiFontScale(0.8)), Some(tooltip_bg_texture), || ui.text(tooltip_text));
     }
 }
 

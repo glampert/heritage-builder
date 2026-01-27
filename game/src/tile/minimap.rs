@@ -14,7 +14,7 @@ use crate::{
     singleton,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
-    ui::{self, UiSystem, UiTextureHandle},
+    ui::{self, UiSystem, UiTextureHandle, UiFontScale},
     app::input::{InputSystem, InputAction, MouseButton},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
     utils::{
@@ -1154,7 +1154,7 @@ impl MinimapRenderContext<'_> {
 // ----------------------------------------------
 
 struct BaseMinimapRenderer {
-    widget_font_scale: f32,
+    widget_font_scale: UiFontScale,
     widget_custom_background: Option<TextureHandle>,
     apply_widget_clip_rect: bool,
 }
@@ -1163,7 +1163,7 @@ impl MinimapRenderer for BaseMinimapRenderer {
     fn draw(&mut self, context: &mut MinimapRenderContext) {
         debug_assert!(context.widget().window_rect.is_valid());
         debug_assert!(context.widget().draw_data.is_valid());
-        debug_assert!(self.widget_font_scale > 0.0);
+        debug_assert!(self.widget_font_scale.is_valid());
 
         if context.widget().is_open {
             self.draw_widget_window(context);
@@ -1175,18 +1175,17 @@ impl MinimapRenderer for BaseMinimapRenderer {
 
 impl BaseMinimapRenderer {
     fn draw_widget_window(&mut self, context: &mut MinimapRenderContext) {
-        let ui = context.ui_sys.ui();
         let widget = context.widget();
 
         let window_pos  = widget.window_rect.position().to_array();
         let window_size = widget.window_rect.size().to_array();
 
-        ui.window("Minimap")
+        context.ui_sys.ui().window("Minimap")
             .flags(self.window_flags())
             .position(window_pos, imgui::Condition::Always)
             .size(window_size, imgui::Condition::Always)
             .build(|| {
-                ui.set_window_font_scale(self.widget_font_scale);
+                context.ui_sys.set_font_scale(self.widget_font_scale);
 
                 // Minimap texture and overlay icons:
                 self.draw_minimap(context);
@@ -1195,7 +1194,7 @@ impl BaseMinimapRenderer {
                 // Header / close button:
                 self.draw_header_buttons(context);
 
-                ui.set_window_font_scale(1.0);
+                context.ui_sys.set_font_scale(UiFontScale::default());
             });
     }
 
@@ -1432,7 +1431,7 @@ impl MinimapRenderer for InGameUiMinimapRenderer {
 }
 
 impl InGameUiMinimapRenderer {
-    const WIDGET_FONT_SCALE: f32 = 0.8;
+    const WIDGET_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 
     pub fn new(tex_cache: &mut dyn TextureCache) -> Self {
         let background_texture_path = ui::assets_path().join("misc/square_page_bg.png");
@@ -1485,7 +1484,7 @@ impl MinimapRenderer for DevUiMinimapRenderer {
 }
 
 impl DevUiMinimapRenderer {
-    const WIDGET_FONT_SCALE: f32 = 1.0;
+    const WIDGET_FONT_SCALE: UiFontScale = UiFontScale::identity();
 
     pub fn new() -> Self {
         Self {

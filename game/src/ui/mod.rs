@@ -21,8 +21,9 @@ pub mod icons;
 pub mod widgets;
 
 // Internal implementation.
-mod opengl;
+mod tests;
 mod helpers;
+mod opengl;
 pub mod backend {
     use super::*;
     pub type UiRendererOpenGl = opengl::UiRendererOpenGl;
@@ -86,7 +87,7 @@ pub struct UiSystem {
     context: UiContext,
     ui_ptr: *const imgui::Ui,
     theme: UiTheme,
-    current_font_scale: Option<f32>,
+    current_font_scale: Option<UiFontScale>,
 }
 
 impl UiSystem {
@@ -235,12 +236,12 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn set_font_scale(&self, font_scale: f32) {
-        debug_assert!(font_scale > 0.0);
+    pub fn set_font_scale(&self, font_scale: UiFontScale) {
+        debug_assert!(font_scale.is_valid());
         let mut_self = mem::mut_ref_cast(self);
-        if Some(font_scale) != mut_self.current_font_scale {
+        if mut_self.current_font_scale != Some(font_scale) {
             mut_self.current_font_scale = Some(font_scale);
-            mut_self.ui().set_window_font_scale(font_scale);
+            mut_self.ui().set_window_font_scale(font_scale.0);
         }
     }
 }
@@ -284,6 +285,37 @@ impl UiFonts {
     #[inline]
     fn pop_theme_font() {
         unsafe { imgui::sys::igPopFont(); }
+    }
+}
+
+// ----------------------------------------------
+// UiFontScale
+// ----------------------------------------------
+
+#[derive(Copy, Clone, PartialEq, PartialOrd)]
+pub struct UiFontScale(pub f32);
+
+impl UiFontScale {
+    #[inline]
+    pub const fn identity() -> Self {
+        Self(1.0)
+    }
+
+    #[inline]
+    pub fn is_identity(&self) -> bool {
+        self.0 == 1.0
+    }
+
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.0 > 0.0
+    }
+}
+
+impl Default for UiFontScale {
+    #[inline]
+    fn default() -> Self {
+        Self::identity()
     }
 }
 
@@ -945,7 +977,7 @@ pub fn icon_button_custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem, icon: 
 }
 
 pub fn custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem,
-                                           font_scale: Option<f32>,
+                                           font_scale: Option<UiFontScale>,
                                            background: Option<UiTextureHandle>,
                                            tooltip_fn: TooltipFn) {
     let ui = ui_sys.ui();
@@ -974,7 +1006,7 @@ pub fn custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem,
     tooltip_fn();
 
     if font_scale_changed {
-        ui_sys.set_font_scale(1.0); // Restore default.
+        ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
     }
 
     tooltip.end();

@@ -220,7 +220,7 @@ pub fn draw_centered_labeled_widget_group(ui: &imgui::Ui,
 }
 
 // Works for most labeled widgets (input text, combo, slider).
-pub fn calc_labeled_widget_size(context: &UiWidgetContext, font_scale: f32, label: &str) -> Vec2 {
+pub fn calc_labeled_widget_size(context: &UiWidgetContext, font_scale: UiFontScale, label: &str) -> Vec2 {
     context.ui_sys.set_font_scale(font_scale);
     let ui = context.ui_sys.ui();
 
