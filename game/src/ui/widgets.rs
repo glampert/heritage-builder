@@ -33,40 +33,34 @@ use crate::{
 // ----------------------------------------------
 
 macro_rules! make_imgui_id {
-    ($self:expr, $widget_type:ty, $widget_label:expr) => {
-        // Use cached id.
-        if let Some(imgui_id) = &$self.imgui_id {
-            imgui_id
-        } else {
+    ($self:expr, $widget_type:ty, $widget_label:expr) => {{
+        if $self.imgui_id.is_empty() {
             // Compute id once and cache it.
-            $self.imgui_id = Some(
+            $self.imgui_id = {
                 if $widget_label.is_empty() {
                     // NOTE: Use widget memory address as unique id if no label.
                     format!("##{} @ {:p}", stringify!($widget_type), $self)
                 } else {
                     $widget_label.clone()
                 }
-            );
-            $self.imgui_id.as_ref().unwrap()
+            };
         }
-    };
+        // Use cached id.
+        &$self.imgui_id
+    }}
 }
 
 macro_rules! make_imgui_labeled_id {
-    ($self:expr, $widget_type:ty, $widget_label:expr) => {
-        // Use cached id.
-        if let Some(imgui_id) = &$self.imgui_id {
-            imgui_id
-        } else {
+    ($self:expr, $widget_type:ty, $widget_label:expr) => {{
+        if $self.imgui_id.is_empty() {
             // Compute id once and cache it, prefixed by the widget label.
+            // (Use widget memory address as unique id).
             debug_assert!(!$widget_label.is_empty());
-            $self.imgui_id = Some(
-                // NOTE: Use widget memory address as unique id if no label.
-                format!("{}##{} @ {:p}", $widget_label, stringify!($widget_type), $self)
-            );
-            $self.imgui_id.as_ref().unwrap()
+            $self.imgui_id = format!("{}##{} @ {:p}", $widget_label, stringify!($widget_type), $self);
         }
-    };
+        // Use cached id.
+        &$self.imgui_id
+    }}
 }
 
 // ----------------------------------------------
@@ -138,19 +132,13 @@ pub enum UiWidgetImpl {
     UiSlideshow,
 }
 
-pub type UiWidgetStrongRef = Rc<Mutable<dyn UiWidget>>;
-pub type UiWidgetWeakRef   = Weak<Mutable<dyn UiWidget>>;
-
-pub type UiMenuStrongRef   = Rc<Mutable<UiMenu>>;
-pub type UiMenuWeakRef     = Weak<Mutable<UiMenu>>;
-
 // ----------------------------------------------
 // UiMenu
 // ----------------------------------------------
 
 pub struct UiMenu {
     label: String,
-    imgui_id: Option<String>,
+    imgui_id: String,
     flags: UiMenuFlags,
     size: Option<Vec2>,
     position: Option<Vec2>,
@@ -159,6 +147,9 @@ pub struct UiMenu {
     message_box: UiMessageBox,
     on_open_close: Option<Box<dyn Fn(&UiMenu, &mut UiWidgetContext, bool) + 'static>>,
 }
+
+pub type UiMenuStrongRef = Rc<Mutable<UiMenu>>;
+pub type UiMenuWeakRef   = Weak<Mutable<UiMenu>>;
 
 impl UiWidget for UiMenu {
     fn as_any(&self) -> &dyn Any {
@@ -250,7 +241,7 @@ impl UiMenu {
             Mutable::new(
                 Self {
                     label: label.unwrap_or_default(),
-                    imgui_id: None,
+                    imgui_id: String::new(),
                     flags,
                     size,
                     position,
@@ -719,7 +710,7 @@ pub struct UiLabeledWidgetGroupParams {
 // immediately back to unpressed state.
 pub struct UiTextButton {
     label: String,
-    imgui_id: Option<String>,
+    imgui_id: String,
     font_scale: f32,
     size: UiTextButtonSize,
     hover: Option<UiTextureHandle>,
@@ -830,7 +821,7 @@ impl UiTextButton {
         debug_assert!(!label.is_empty());
         Self {
             label,
-            imgui_id: None,
+            imgui_id: String::new(),
             font_scale: size.font_scale(),
             size,
             hover: hover.map(|path| helpers::load_ui_texture(context, path)),
@@ -1213,7 +1204,7 @@ macro_rules! impl_slider_constructor {
             debug_assert!(font_scale > 0.0);
             Self {
                 label: label.unwrap_or_default(),
-                imgui_id: None,
+                imgui_id: String::new(),
                 font_scale,
                 value: UiSliderValue::$enum_variant {
                     min,
@@ -1232,7 +1223,7 @@ macro_rules! impl_slider_constructor {
 
 pub struct UiSlider {
     label: String,
-    imgui_id: Option<String>,
+    imgui_id: String,
     font_scale: f32,
     value: UiSliderValue,
 }
@@ -1328,7 +1319,7 @@ pub struct UiSliderParams {
 
 pub struct UiCheckbox {
     label: String,
-    imgui_id: Option<String>,
+    imgui_id: String,
     font_scale: f32,
     on_read_value: Box<dyn Fn(&UiCheckbox, &mut UiWidgetContext) -> bool + 'static>,
     on_update_value: Box<dyn Fn(&UiCheckbox, &mut UiWidgetContext, bool) + 'static>,
@@ -1391,7 +1382,7 @@ impl UiCheckbox {
         debug_assert!(font_scale > 0.0);
         Self {
             label: label.unwrap_or_default(),
-            imgui_id: None,
+            imgui_id: String::new(),
             font_scale,
             on_read_value: Box::new(on_read_value),
             on_update_value: Box::new(on_update_value),
@@ -1413,7 +1404,7 @@ pub struct UiCheckboxParams {
 
 pub struct UiTextInput {
     label: String,
-    imgui_id: Option<String>,
+    imgui_id: String,
     font_scale: f32,
     on_read_value: Box<dyn Fn(&UiTextInput, &mut UiWidgetContext) -> String + 'static>,
     on_update_value: Box<dyn Fn(&UiTextInput, &mut UiWidgetContext, String) + 'static>,
@@ -1466,7 +1457,7 @@ impl UiTextInput {
         debug_assert!(font_scale > 0.0);
         Self {
             label: label.unwrap_or_default(),
-            imgui_id: None,
+            imgui_id: String::new(),
             font_scale,
             on_read_value: Box::new(on_read_value),
             on_update_value: Box::new(on_update_value),
@@ -1488,7 +1479,7 @@ pub struct UiTextInputParams {
 
 pub struct UiDropdown {
     label: String,
-    imgui_id: Option<String>,
+    imgui_id: String,
     font_scale: f32,
     current_item: usize,
     items: Vec<String>,
@@ -1546,7 +1537,7 @@ impl UiDropdown {
         debug_assert!(font_scale > 0.0);
         Self {
             label: label.unwrap_or_default(),
-            imgui_id: None,
+            imgui_id: String::new(),
             font_scale,
             current_item,
             items,
@@ -1615,7 +1606,7 @@ pub struct UiDropdownParams {
 
 pub struct UiItemList {
     label: String,
-    imgui_id: Option<String>,
+    imgui_id: String,
     font_scale: f32,
     size: Option<Vec2>,
     margin_left: f32,
@@ -1821,7 +1812,7 @@ impl UiItemList {
 
         Self {
             label: label.unwrap_or_default(),
-            imgui_id: None,
+            imgui_id: String::new(),
             font_scale,
             size,
             margin_left,
