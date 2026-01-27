@@ -125,7 +125,7 @@ impl<'game> UiWidgetContext<'game> {
 // ----------------------------------------------
 
 #[derive(Default)]
-pub enum UiWidgetCallback<Widget, Arg = (), Output = ()>
+pub enum UiWidgetCallback<Widget, Output = ()>
     where Widget: UiWidget
 {
     #[default]
@@ -133,34 +133,22 @@ pub enum UiWidgetCallback<Widget, Arg = (), Output = ()>
 
     // With plain function pointer, no capture, no memory allocation.
     Fn(fn(&Widget, &mut UiWidgetContext) -> Output),
-    FnArg(fn(&Widget, &mut UiWidgetContext, Arg) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
     Closure(Box<dyn Fn(&Widget, &mut UiWidgetContext) -> Output + 'static>),
-    ClosureArg(Box<dyn Fn(&Widget, &mut UiWidgetContext, Arg) -> Output + 'static>),
 }
 
-impl<Widget, Arg, Output> UiWidgetCallback<Widget, Arg, Output>
+impl<Widget, Output> UiWidgetCallback<Widget, Output>
     where Widget: UiWidget
 {
     pub fn with_fn(f: fn(&Widget, &mut UiWidgetContext) -> Output) -> Self {
         Self::Fn(f)
     }
 
-    pub fn with_fn_arg(f: fn(&Widget, &mut UiWidgetContext, Arg) -> Output) -> Self {
-        Self::FnArg(f)
-    }
-
     pub fn with_closure<C>(c: C) -> Self
         where C: Fn(&Widget, &mut UiWidgetContext) -> Output + 'static
     {
         Self::Closure(Box::new(c))
-    }
-
-    pub fn with_closure_arg<C>(c: C) -> Self
-        where C: Fn(&Widget, &mut UiWidgetContext, Arg) -> Output + 'static
-    {
-        Self::ClosureArg(Box::new(c))
     }
 
     #[inline]
@@ -172,26 +160,52 @@ impl<Widget, Arg, Output> UiWidgetCallback<Widget, Arg, Output>
             Self::Closure(c) => {
                 Some(c(widget, context))
             }
-            Self::None => {
-                None
-            }
-            _ => panic!("Expected UiWidgetCallback without extra arguments!"),
+            Self::None => None,
         }
+    }
+}
+
+// ----------------------------------------------
+// UiWidgetCallbackWithArg
+// ----------------------------------------------
+
+#[derive(Default)]
+pub enum UiWidgetCallbackWithArg<Widget, Arg, Output = ()>
+    where Widget: UiWidget
+{
+    #[default]
+    None,
+
+    // With plain function pointer, no capture, no memory allocation.
+    Fn(fn(&Widget, &mut UiWidgetContext, Arg) -> Output),
+
+    // With closure/capture. Allocates memory, most flexible.
+    Closure(Box<dyn Fn(&Widget, &mut UiWidgetContext, Arg) -> Output + 'static>),
+}
+
+impl<Widget, Arg, Output> UiWidgetCallbackWithArg<Widget, Arg, Output>
+    where Widget: UiWidget
+{
+    pub fn with_fn(f: fn(&Widget, &mut UiWidgetContext, Arg) -> Output) -> Self {
+        Self::Fn(f)
+    }
+
+    pub fn with_closure<C>(c: C) -> Self
+        where C: Fn(&Widget, &mut UiWidgetContext, Arg) -> Output + 'static
+    {
+        Self::Closure(Box::new(c))
     }
 
     #[inline]
-    fn invoke_with_arg(&self, widget: &Widget, context: &mut UiWidgetContext, arg: Arg) -> Option<Output> {
+    fn invoke(&self, widget: &Widget, context: &mut UiWidgetContext, arg: Arg) -> Option<Output> {
         match self {
-            Self::FnArg(f) => {
+            Self::Fn(f) => {
                 Some(f(widget, context, arg))
             }
-            Self::ClosureArg(c) => {
+            Self::Closure(c) => {
                 Some(c(widget, context, arg))
             }
-            Self::None => {
-                None
-            }
-            _ => panic!("Expected UiWidgetCallback with one extra argument!"),
+            Self::None => None,
         }
     }
 }
@@ -254,7 +268,7 @@ pub struct UiMenu {
 
 pub type UiMenuStrongRef = Rc<Mutable<UiMenu>>;
 pub type UiMenuWeakRef   = Weak<Mutable<UiMenu>>;
-pub type UiMenuOpenClose = UiWidgetCallback<UiMenu, bool>;
+pub type UiMenuOpenClose = UiWidgetCallbackWithArg<UiMenu, bool>;
 
 impl UiWidget for UiMenu {
     fn as_any(&self) -> &dyn Any {
@@ -362,7 +376,7 @@ impl UiMenu {
         }
 
         const IS_OPEN: bool = true;
-        self.on_open_close.invoke_with_arg(self, context, IS_OPEN);
+        self.on_open_close.invoke(self, context, IS_OPEN);
     }
 
     pub fn close(&mut self, context: &mut UiWidgetContext) {
@@ -373,7 +387,7 @@ impl UiMenu {
         }
 
         const IS_OPEN: bool = false;
-        self.on_open_close.invoke_with_arg(self, context, IS_OPEN);
+        self.on_open_close.invoke(self, context, IS_OPEN);
     }
 
     pub fn add_widget<Widget>(&mut self, widget: Widget) -> &mut Self
@@ -1285,8 +1299,8 @@ pub struct UiTooltipTextParams<'a> {
 // UiSliderValue
 // ----------------------------------------------
 
-pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, (), T>;
-pub type UiSliderUpdateValue<T> = UiWidgetCallback<UiSlider, T>;
+pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, T>;
+pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, T>;
 
 enum UiSliderValue {
     I32 {
@@ -1369,7 +1383,7 @@ impl UiWidget for UiSlider {
                     .build(&mut value);
 
                 if value_changed {
-                    on_update_value.invoke_with_arg(self, context, value.clamp(*min, *max));
+                    on_update_value.invoke(self, context, value.clamp(*min, *max));
                 }
             }
             UiSliderValue::U32 { min, max, on_read_value, on_update_value } => {
@@ -1383,7 +1397,7 @@ impl UiWidget for UiSlider {
                     .build(&mut value);
 
                 if value_changed {
-                    on_update_value.invoke_with_arg(self, context, value.clamp(*min, *max));
+                    on_update_value.invoke(self, context, value.clamp(*min, *max));
                 }
             }
             UiSliderValue::F32 { min, max, on_read_value, on_update_value } => {
@@ -1398,7 +1412,7 @@ impl UiWidget for UiSlider {
                     .build(&mut value);
 
                 if value_changed {
-                    on_update_value.invoke_with_arg(self, context, value.clamp(*min, *max));
+                    on_update_value.invoke(self, context, value.clamp(*min, *max));
                 }
             }
         }
@@ -1449,8 +1463,8 @@ pub struct UiCheckbox {
     on_update_value:UiCheckboxUpdateValue,
 }
 
-pub type UiCheckboxReadValue   = UiWidgetCallback<UiCheckbox, (), bool>;
-pub type UiCheckboxUpdateValue = UiWidgetCallback<UiCheckbox, bool>;
+pub type UiCheckboxReadValue   = UiWidgetCallback<UiCheckbox, bool>;
+pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, bool>;
 
 impl UiWidget for UiCheckbox {
     fn as_any(&self) -> &dyn Any {
@@ -1471,7 +1485,7 @@ impl UiWidget for UiCheckbox {
             helpers::checkbox_with_left_label(ui, label, &mut value);
 
         if value_changed {
-            self.on_update_value.invoke_with_arg(self, context, value);
+            self.on_update_value.invoke(self, context, value);
         }
     }
 
@@ -1538,8 +1552,8 @@ pub struct UiTextInput {
     on_update_value: UiTextInputUpdateValue,
 }
 
-pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, (), String>;
-pub type UiTextInputUpdateValue = UiWidgetCallback<UiTextInput, String>;
+pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, String>;
+pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, String>;
 
 impl UiWidget for UiTextInput {
     fn as_any(&self) -> &dyn Any {
@@ -1562,7 +1576,7 @@ impl UiWidget for UiTextInput {
         let value_changed = input.build();
 
         if value_changed {
-            self.on_update_value.invoke_with_arg(self, context, value);
+            self.on_update_value.invoke(self, context, value);
         }
     }
 
