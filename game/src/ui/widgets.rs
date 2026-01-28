@@ -25,7 +25,7 @@ use crate::{
     tile::TileMap,
     render::TextureCache,
     game::{sim::Simulation, world::World},
-    utils::{Rect, Size, Vec2, mem::{self, Mutable}},
+    utils::{Rect, Size, Vec2, mem::{self, Mutable, RawPtr}},
     engine::{Engine, time::{CountdownTimer, Seconds}},
 };
 
@@ -283,14 +283,14 @@ impl UiWidget for UiMenu {
         let ui = context.ui_sys.ui();
 
         let (window_size, window_size_cond) = self.calc_window_size(ui);
-        let (window_pos, window_pivot, window_pos_cond) = self.calc_window_pos(ui);
+        let (window_pos, window_pivot) = self.calc_window_pos(ui);
 
         let window_flags = self.calc_window_flags();
         let window_name = make_imgui_id!(self, UiMenu, self.label);
 
         let mut is_open = self.is_open();
 
-        helpers::set_next_widget_window_pos(window_pos, window_pivot, window_pos_cond);
+        helpers::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
 
         ui.window(window_name)
             .opened(&mut is_open)
@@ -428,28 +428,39 @@ impl UiMenu {
         }
     }
 
-    fn calc_window_pos(&self, ui: &imgui::Ui) -> (Vec2, Vec2, imgui::Condition) {
-        if let Some(position) = self.position {
-            // AlignLeft/Right can be combined with AlignCenter.
-            let pivot_y = if self.has_flags(UiMenuFlags::AlignCenter) { 0.5 } else { 0.0 };
-            if self.has_flags(UiMenuFlags::AlignRight) {
-                (position, Vec2::new(1.0, pivot_y), imgui::Condition::Always)
-            } else {
-                // AlignLeft/default.
-                (position, Vec2::new(0.0, pivot_y), imgui::Condition::Always)
-            }
-        } else if self.has_flags(UiMenuFlags::AlignCenter) {
-            // Center to screen.
-            let position = Vec2::new(ui.io().display_size[0] * 0.5, ui.io().display_size[1] * 0.5);
-            (position, Vec2::new(0.5, 0.5), imgui::Condition::Always)
-        } else if self.has_flags(UiMenuFlags::AlignRight) {
-            // Alight to top-left right corner.
-            let position = Vec2::new(ui.io().display_size[0], 0.0);
-            (position, Vec2::new(1.0, 0.0), imgui::Condition::Always)
-        } else {
-            // AlignLeft/default.
-            (Vec2::zero(), Vec2::zero(), imgui::Condition::Always)
+    fn calc_window_pos(&self, ui: &imgui::Ui) -> (Vec2, Vec2) {
+        let display_size = Vec2::from_array(ui.io().display_size);
+
+        let mut position = Vec2::zero();
+        let mut pivot = Vec2::zero();
+
+        if let Some(requested_position) = self.position {
+            position = requested_position;
         }
+
+        if self.has_flags(UiMenuFlags::AlignCenter) && self.has_flags(UiMenuFlags::AlignLeft) {
+            // Center-left
+            position = Vec2::new(0.0, display_size.y * 0.5);
+            pivot = Vec2::new(0.0, 0.5);
+        } else if self.has_flags(UiMenuFlags::AlignCenter) && self.has_flags(UiMenuFlags::AlignRight) {
+            // Center-right
+            position = Vec2::new(display_size.x, display_size.y * 0.5);
+            pivot = Vec2::new(1.0, 0.5);
+        } else if self.has_flags(UiMenuFlags::AlignCenter) {
+            // Screen center
+            position = Vec2::new(display_size.x * 0.5, display_size.y * 0.5);
+            pivot = Vec2::new(0.5, 0.5);
+        } else if self.has_flags(UiMenuFlags::AlignLeft) {
+            // Top-left
+            position.x = 0.0;
+            pivot = Vec2::new(0.0, 0.0);
+        } else if self.has_flags(UiMenuFlags::AlignRight) {
+            // Top-right
+            position.x = display_size.x;
+            pivot = Vec2::new(1.0, 0.0);
+        }
+
+        (position, pivot)
     }
 
     fn calc_window_flags(&self) -> imgui::WindowFlags {
@@ -858,7 +869,13 @@ impl UiWidget for UiTextButton {
         let label = make_imgui_labeled_id!(self, UiTextButton, self.label);
 
         // Faded text if disabled.
-        let text_color = if self.is_enabled() { [0.0, 0.0, 0.0, 1.0] } else { [0.0, 0.0, 0.0, 0.5] };
+        let mut text_color = ui.style_color(imgui::StyleColor::Text);
+        if self.is_enabled() {
+            text_color[3] = 1.0;
+        } else {
+            text_color[3] = 0.5;
+        }
+
         let _btn_text_color = ui.push_style_color(imgui::StyleColor::Text, text_color);
 
         let pressed = if let Some(hover) = self.hover {
@@ -1547,13 +1564,14 @@ pub struct UiCheckboxParams {
 pub struct UiTextInput {
     label: String,
     imgui_id: String,
+    buffer: String,
     font_scale: UiFontScale,
     on_read_value: UiTextInputReadValue,
     on_update_value: UiTextInputUpdateValue,
 }
 
-pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, String>;
-pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, String>;
+pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, RawPtr<str>>;
+pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, RawPtr<str>>;
 
 impl UiWidget for UiTextInput {
     fn as_any(&self) -> &dyn Any {
@@ -1568,15 +1586,19 @@ impl UiWidget for UiTextInput {
 
         let label = make_imgui_id!(self, UiTextInput, self.label);
 
-        let mut value = self.on_read_value.invoke(self, context).unwrap_or_default();
+        let value = self.on_read_value.invoke(self, context)
+            .unwrap_or(RawPtr::from_ref(""));
+
+        self.buffer.clear();
+        self.buffer.push_str(value.as_ref());
 
         let (input, _group) =
-            helpers::input_text_with_left_label(ui, label, &mut value);
+            helpers::input_text_with_left_label(ui, label, &mut self.buffer);
 
         let value_changed = input.build();
 
         if value_changed {
-            self.on_update_value.invoke(self, context, value);
+            self.on_update_value.invoke(self, context, RawPtr::from_ref(&self.buffer));
         }
     }
 
@@ -1600,6 +1622,7 @@ impl UiTextInput {
         Self {
             label: params.label.unwrap_or_default(),
             imgui_id: String::new(),
+            buffer: String::new(),
             font_scale: params.font_scale,
             on_read_value: params.on_read_value,
             on_update_value: params.on_update_value,
@@ -1644,6 +1667,14 @@ impl UiWidget for UiDropdown {
 
         context.ui_sys.set_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
+
+        let bg_color = if context.ui_sys.current_ui_theme().is_in_game() {
+            [0.90, 0.80, 0.60, 1.0]
+        } else {
+            [0.18, 0.18, 0.20, 0.9]
+        };
+
+        let _combo_bg_color = ui.push_style_color(imgui::StyleColor::PopupBg, bg_color);
 
         let label = make_imgui_id!(self, UiDropdown, self.label);
 
@@ -1875,9 +1906,6 @@ impl UiWidget for UiItemList {
         let mut requested_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             requested_size.x -= self.margin_right - style.window_padding[0];
-        }
-        if self.margin_left > 0.0 {
-            requested_size.x -= self.margin_left - style.window_padding[0];
         }
 
         let size = helpers::calc_child_window_size(requested_size.to_array(), parent_region_avail);
@@ -2173,9 +2201,6 @@ impl UiWidget for UiSlideshow {
         if self.margin_right > 0.0 {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
-        if self.margin_left > 0.0 {
-            requested_size.x -= self.margin_left - style.window_padding[0];
-        }
 
         let size = helpers::calc_child_window_size(requested_size.to_array(), parent_region_avail);
         Vec2::from_array(size)
@@ -2351,7 +2376,7 @@ pub struct UiSlideshowParams<'a> {
     pub flags: UiSlideshowFlags,
     pub loop_mode: UiSlideshowLoopMode,
     pub frame_duration_secs: Seconds,
-    pub frames: &'a [&'a str],
+    pub frames: &'a [String],
 
     // Ignored if UiSlideshowFlags::Fullscreen is set.
     pub size: Option<Vec2>,

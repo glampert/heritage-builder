@@ -19,9 +19,9 @@ use crate::{
 pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
 pub mod icons;
 pub mod widgets;
+pub mod tests;
 
 // Internal implementation.
-mod tests;
 mod helpers;
 mod opengl;
 pub mod backend {
@@ -221,7 +221,7 @@ impl UiSystem {
     #[inline]
     pub fn set_ui_theme(&self, theme: UiTheme) {
         let mut_self = mem::mut_ref_cast(self);
-        if theme != mut_self.theme {
+        if mut_self.theme != theme {
             mut_self.theme = theme;
             match theme {
                 UiTheme::Dev => mut_self.context.set_dev_ui_theme(),
@@ -243,6 +243,11 @@ impl UiSystem {
             mut_self.current_font_scale = Some(font_scale);
             mut_self.ui().set_window_font_scale(font_scale.0);
         }
+    }
+
+    #[inline]
+    pub fn current_front_scale(&self) -> UiFontScale {
+        self.current_font_scale.unwrap_or_default()
     }
 }
 

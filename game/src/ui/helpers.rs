@@ -104,20 +104,24 @@ pub fn draw_centered_widget_group(ui: &imgui::Ui,
         .collect();
 
     let mut max_width: f32 = 0.0;
+    let mut max_height: f32 = 0.0;
     let mut total_size = item_spacing * (widgets.len() - 1) as f32;
 
     for widget_size in &widget_sizes {
-        max_width = max_width.max(widget_size.x);
+        max_width  = max_width.max(widget_size.x);
+        max_height = max_height.max(widget_size.y);
         total_size += *widget_size;
     }
 
     let region_avail = ui.content_region_avail();
     let cursor_start = ui.cursor_pos();
 
+    let total_width  = if stack_vertically  { max_width  } else { total_size.x };
+    let total_height = if !stack_vertically { max_height } else { total_size.y };
+
     // Compute group origin (top-left):
-    let total_width = if stack_vertically { max_width } else { total_size.x };
     let start_x = if horizontal { cursor_start[0] + ((region_avail[0] - total_width)  * 0.5) } else { cursor_start[0] };
-    let start_y = if vertical   { cursor_start[1] + ((region_avail[1] - total_size.y) * 0.5) } else { cursor_start[1] };
+    let start_y = if vertical   { cursor_start[1] + ((region_avail[1] - total_height) * 0.5) } else { cursor_start[1] };
 
     // Draw each widget:
     let mut offset = 0.0;
@@ -142,10 +146,10 @@ pub fn draw_centered_widget_group(ui: &imgui::Ui,
     }
 
     // Restore cursor so layout continues correctly.
-    ui.set_cursor_pos([cursor_start[0], start_y + total_size.y]);
+    ui.set_cursor_pos([cursor_start[0], start_y + total_height]);
 
     // Return window relative position of group start + group size.
-    Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(total_width, total_size.y))
+    Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(total_width, total_height))
 }
 
 pub fn draw_centered_labeled_widget_group(ui: &imgui::Ui,

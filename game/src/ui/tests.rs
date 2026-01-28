@@ -1,51 +1,161 @@
-//use super::*;
-use crate::ui::widgets::*;
+use super::*;
+use crate::{log, utils::mem::RawPtr, ui::{widgets::*, UiStaticVar}};
 
-// TODO: WIP: build sample menus
-fn build_sample_menu(_context: &mut UiWidgetContext) {
-    /*
-    context.ui_sys.set_ui_theme(UiTheme::InGame);
+// ----------------------------------------------
+// Sample Menu 1:
+// ----------------------------------------------
 
-    use crate::utils::Vec2;
-    use crate::log;
+struct SampleMenu1State {
+    slider: u32,
+    checkbox: bool,
+    text_input: String,
+    dropdown: String,
+    item_list: String,
+}
 
-    let slideshow = UiSlideshow::new(context,
-        UiSlideshowParams {
-            flags: UiSlideshowFlags::default(),
-            loop_mode: UiSlideshowLoopMode::WholeAnim,
-            frame_duration_secs: 0.5,
-            frames: &["misc/home_menu_anim/frame0.jpg", "misc/home_menu_anim/frame1.jpg", "misc/home_menu_anim/frame2.jpg"],
-            size: Some(Vec2::new(0.0, 256.0)),
-            margin_left: 50.0,
-            margin_right: 50.0,
-        }
-    );
+static SAMPLE_MENU_1_STATE: UiStaticVar<SampleMenu1State> = UiStaticVar::new(SampleMenu1State {
+    slider: 0,
+    checkbox: false,
+    text_input: String::new(),
+    dropdown: String::new(),
+    item_list: String::new(),
+});
 
-    let test_menu_rc = UiMenu::new(
+static SAMPLE_MENU_1_INSTANCE: UiStaticVar<Option<UiMenuStrongRef>> = UiStaticVar::new(None);
+
+fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
+    if SAMPLE_MENU_1_INSTANCE.is_some() {
+        return; // Already created.
+    }
+
+    let menu = UiMenu::new(
         context,
         UiMenuParams {
-            label: Some("Test Window".into()),
-            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter,
+            label: Some("Sample Menu 1".into()),
+            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft,
             size: Some(Vec2::new(512.0, 700.0)),
-            background: Some("misc/wide_page_bg.png"),
+            background: Some("misc/square_page_bg.png"),
             ..Default::default()
         }
     );
 
-    let mut slideshow_group = UiWidgetGroup::new(UiWidgetGroupParams {
-        widget_spacing: 0.0,
-        center_vertically: true,
-        center_horizontally: true,
-        stack_vertically: true,
-    });
-    slideshow_group.add_widget(slideshow);
-    test_menu_rc.as_mut().add_widget(slideshow_group);
+    SAMPLE_MENU_1_INSTANCE.set(Some(menu.clone()));
 
-    if false {
+    let heading_font_scale = UiFontScale(1.8);
+    let widgets_font_scale = UiFontScale(1.2);
 
-    let test_menu = test_menu_rc.as_mut();
+    let menu_heading = UiMenuHeading::new(
+        context,
+        UiMenuHeadingParams {
+            font_scale: heading_font_scale,
+            lines: vec!["Sample Menu 1".into()],
+            separator: Some("misc/brush_stroke_divider.png"),
+            margin_top: 50.0,
+            margin_bottom: 10.0,
+        }
+    );
 
-    let mut group = UiLabeledWidgetGroup::new(
+    let slider = UiSlider::from_u32(
+        UiSliderParams {
+            font_scale: widgets_font_scale,
+            min: 0,
+            max: 100,
+            on_read_value: UiSliderReadValue::with_fn(
+                |_slider, _context| -> u32 {
+                    SAMPLE_MENU_1_STATE.slider
+                }
+            ),
+            on_update_value: UiSliderUpdateValue::with_fn(
+                |_slider, _context, new_value: u32| {
+                    log::info!("Updated Slider value: {new_value}");
+                    SAMPLE_MENU_1_STATE.as_mut().slider = new_value;
+                }
+            ),
+            ..Default::default()
+        }
+    );
+
+    let checkbox = UiCheckbox::new(
+        UiCheckboxParams {
+            font_scale: widgets_font_scale,
+            on_read_value: UiCheckboxReadValue::with_fn(
+                |_checkbox, _context| -> bool {
+                    SAMPLE_MENU_1_STATE.checkbox
+                }
+            ),
+            on_update_value: UiCheckboxUpdateValue::with_fn(
+                |_checkbox, _context, new_value: bool| {
+                    log::info!("Updated Checkbox value: {new_value}");
+                    SAMPLE_MENU_1_STATE.as_mut().checkbox = new_value;
+                }
+            ),
+            ..Default::default()
+        }
+    );
+
+    let text_input = UiTextInput::new(
+        UiTextInputParams {
+            font_scale: widgets_font_scale,
+            on_read_value: UiTextInputReadValue::with_fn(
+                |_input, _context| -> RawPtr<str> {
+                    RawPtr::from_ref(&SAMPLE_MENU_1_STATE.text_input)
+                }
+            ),
+            on_update_value: UiTextInputUpdateValue::with_fn(
+                |_input, _context, new_value: RawPtr<str>| {
+                    log::info!("Updated TextInput value: {}", new_value.as_ref());
+                    SAMPLE_MENU_1_STATE.as_mut().text_input = new_value.as_ref().into();
+                }
+            ),
+            ..Default::default()
+        }
+    );
+
+    let dropdown = UiDropdown::from_strings(
+        UiDropdownParams {
+            font_scale: widgets_font_scale,
+            current_item: 0,
+            items: vec!["Zero".into(), "One".into(), "Two".into()],
+            on_selection_changed: UiDropdownSelectionChanged::with_fn(
+                |dropdown, _context| {
+                    log::info!("Updated Dropdown: '{}' [{}]",
+                        dropdown.current_selection(),
+                        dropdown.current_selection_index());
+
+                    SAMPLE_MENU_1_STATE.as_mut().dropdown = dropdown.current_selection().into();
+                }
+            ),
+            ..Default::default()
+        }
+    );
+
+    let item_list = UiItemList::from_strings(
+        UiItemListParams {
+            font_scale: widgets_font_scale,
+            label: Some("Item List".into()),
+            size: Some(Vec2::new(0.0, 100.0)), // Use whole parent window width minus margin, fixed height.
+            margin_left: 30.0,
+            margin_right: 30.0,
+            flags: UiItemListFlags::Border | UiItemListFlags::TextInputField,
+            current_item: Some(0),
+            items: vec!["Zero".into(), "One".into(), "Two".into()],
+            on_selection_changed: UiItemListSelectionChanged::with_fn(
+                |item_list, _context| {
+                    let selection_string = item_list.current_selection().unwrap_or_else(|| {
+                        item_list.current_text_input_field().unwrap_or_default()
+                    });
+
+                    log::info!("Updated ItemList: '{}' [{:?}]",
+                        selection_string,
+                        item_list.current_selection_index());
+
+                    SAMPLE_MENU_1_STATE.as_mut().item_list = selection_string.into();
+                }
+            ),
+        }
+    );
+
+    let mut labeled_group = UiLabeledWidgetGroup::new(
         UiLabeledWidgetGroupParams {
             label_spacing: 5.0,
             widget_spacing: 5.0,
@@ -54,269 +164,371 @@ fn build_sample_menu(_context: &mut UiWidgetContext) {
         }
     );
 
-    test_menu.add_widget(UiMenuHeading::new(
-        context,
-        UiMenuHeadingParams {
-            font_scale: 1.8,
-            lines: vec!["Settings".into()],
-            separator: Some("misc/brush_stroke_divider_2.png"),
-            margin_top: 50.0,
-            margin_bottom: 0.0,
+    labeled_group.add_widget("Slider".into(), slider);
+    labeled_group.add_widget("Checkbox".into(), checkbox);
+    labeled_group.add_widget("Text Input".into(), text_input);
+    labeled_group.add_widget("Dropdown".into(), dropdown);
+
+    let mut stacked_button_group = UiWidgetGroup::new(
+        UiWidgetGroupParams {
+            widget_spacing: 5.0,
+            center_vertically: false,
+            center_horizontally: true,
+            stack_vertically: true,
         }
-    ));
-    let slider1 = UiSlider::from_u32(
-        None,
-        1.0,
-        0,
-        100,
-        |_slider, _context| -> u32 { 42 },
-        |_slider, _context, new_value: u32| { log::info!("Updated slider value: {new_value}") },
     );
-    group.add_widget("Master Volume:".into(), slider1);
 
-    let slider2 = UiSlider::from_u32(
-        None,
-        1.0,
-        0,
-        100,
-        |_slider, _context| -> u32 { 42 },
-        |_slider, _context, new_value: u32| { log::info!("Updated slider value: {new_value}") },
-    );
-    group.add_widget("Sfx Volume:".into(), slider2);
-
-    let slider3 = UiSlider::from_u32(
-        None,
-        1.0,
-        0,
-        100,
-        |_slider, _context| -> u32 { 42 },
-        |_slider, _context, new_value: u32| { log::info!("Updated slider value: {new_value}") },
-    );
-    group.add_widget("Music Volume:".into(), slider3);
-
-    let checkbox = UiCheckbox::new(
-        None,
-        1.0,
-        |_checkbox, _context| -> bool { true },
-        |_checkbox, _context, new_value: bool| { log::info!("Updated checkbox value: {new_value}") },
-    );
-    group.add_widget("Enable Volume:".into(), checkbox);
-
-    let text_input = UiTextInput::new(
-        None,
-        1.0,
-        |_input, _context| -> String { "Hello".into() },
-        |_input, _context, new_value: String| { log::info!("Updated text input value: {new_value}") },
-    );
-    group.add_widget("Player Name:".into(), text_input);
-
-    use strum::VariantArray;
-    let dropdown = UiDropdown::from_values(
-        None,
-        1.0,
-        0,
-        crate::render::TextureFilter::VARIANTS,
-        |_dropdown, _context, selection_index, selection_string| { log::info!("Updated dropdown: {selection_index}, {selection_string}") }
-    );
-    group.add_widget("Texture Filter:".into(), dropdown);
-
-    test_menu.add_widget(UiMenuHeading::new(
+    stacked_button_group.add_widget(UiTextButton::new(
         context,
-        1.8,
-        vec!["Test Heading Line".into(), "Second Line".into()],
-        Some("misc/brush_stroke_divider_2.png"),
-        50.0,
-        0.0
-    ));
-
-    let slider = UiSlider::from_u32(
-        Some("Master Volume".into()),
-        1.0,
-        0,
-        100,
-        |_slider, _context| -> u32 { 42 },
-        |_slider, _context, new_value: u32| { log::info!("Updated slider value: {new_value}") },
-    );
-
-    let checkbox = UiCheckbox::new(
-        Some("Enable Volume".into()),
-        1.0,
-        |_checkbox, _context| -> bool { true },
-        |_checkbox, _context, new_value: bool| { log::info!("Updated checkbox value: {new_value}") },
-    );
-
-    let text_input = UiTextInput::new(
-        Some("Name".into()),
-        1.0,
-        |_input, _context| -> String { "Hello".into() },
-        |_input, _context, new_value: String| { log::info!("Updated text input value: {new_value}") },
-    );
-
-    use strum::VariantArray;
-    let dropdown = UiDropdown::from_values(
-        Some("Texture Filter".into()),
-        1.0,
-        0,
-        crate::render::TextureFilter::VARIANTS,
-        |_dropdown, _context, selection_index, selection_string| { log::info!("Updated dropdown: {selection_index}, {selection_string}") }
-    );
-
-    let mut group = UiWidgetGroup::new(15.0, false, true);
-
-    group.add_widget(slider);
-    group.add_widget(checkbox);
-    group.add_widget(text_input);
-    group.add_widget(dropdown);
-
-    let tooltip = UiTooltipText::new(context, "This is a button".into(), 0.8, Some("misc/wide_page_bg.png"));
-    group.add_widget(UiSpriteButton::new(
-        context,
-        "palette/housing".into(),
-        Some(tooltip.clone()),
-        true,
-        Vec2::new(50.0, 50.0),
-        UiSpriteButtonState::Idle,
-        0.0,
-    ));
-
-    group.add_widget(UiSpriteButton::new(
-        context,
-        "palette/roads".into(),
-        Some(tooltip.clone()),
-        true,
-        Vec2::new(50.0, 50.0),
-        UiSpriteButtonState::Idle,
-        0.0,
-    ));
-
-    group.add_widget(UiSpriteButton::new(
-        context,
-        "palette/food_and_farming".into(),
-        Some(tooltip.clone()),
-        true,
-        Vec2::new(50.0, 50.0),
-        UiSpriteButtonState::Disabled,
-        0.0,
-    ));
-
-    group.add_widget(UiTextButton::new(
-        context,
-        "Small Button".into(),
-        UiTextButtonSize::Small,
-        Some("misc/brush_stroke_divider_2.png"),
-        true,
-        |button, _context| log::info!("Pressed: {}", button.label())
-    ));
-
-    group.add_widget(UiTextButton::new(
-        context,
-        "Normal Button".into(),
-        UiTextButtonSize::Small,
-        Some("misc/brush_stroke_divider_2.png"),
-        true,
-        |button, _context| log::info!("Pressed: {}", button.label())
-    ));
-
-    group.add_widget(UiTextButton::new(
-        context,
-        "Large Button".into(),
-        UiTextButtonSize::Small,
-        Some("misc/brush_stroke_divider_2.png"),
-        true,
-        |button, _context| log::info!("Pressed: {}", button.label())
-    ));
-
-    group.add_widget(UiTextButton::new(
-        context,
-        "Disabled Button".into(),
-        UiTextButtonSize::Small,
-        Some("misc/brush_stroke_divider_2.png"),
-        false,
-        |button, _context| log::info!("Pressed: {}", button.label())
-    ));
-
-    test_menu.add_widget(group);
-
-    let item_list = UiItemList::from_strings(
-        Some("Item List".into()),
-        1.0,
-        Some(Vec2::new(0.0, 128.0)), // use whole parent window width - margin, fixed height
-        30.0,
-        30.0,
-        UiItemListFlags::Border | UiItemListFlags::TextInputField,
-        Some(2),
-        vec!["One".into(), "Two".into(), "Three".into()],
-        |_list, _context, selection_index, selection_string| { log::info!("Updated list: {selection_index:?}, {selection_string}") }
-    );
-
-    test_menu.add_widget(item_list);
-
-    let weak_menu = Rc::downgrade(&test_menu_rc);
-
-    test_menu.add_widget(UiTextButton::new(
-        context,
-        "Open Message Box".into(),
-        UiTextButtonSize::Normal,
-        Some("misc/brush_stroke_divider_2.png"),
-        true,
-        move |button, context| {
-            log::info!("Pressed: {}", button.label());
-
-            if let Some(menu_rc) = weak_menu.upgrade() {
-                let menu_ref_ok_btn = weak_menu.clone();
-                let menu_ref_cancel_btn = weak_menu.clone();
-
-                let params = UiMessageBoxParams {
-                    label: Some("Test Popup".into()),
-                    background: Some("misc/wide_page_bg.png"),
-                    contents: vec![
-                        UiWidgetImpl::from(UiMenuHeading::new(
-                            context,
-                            UiMenuHeadingParams {
-                                font_scale: 1.2,
-                                lines: vec!["Quit to main menu?".into(), "Unsaved progress will be lost".into()],
-                                separator: Some("misc/brush_stroke_divider_2.png"),
-                                margin_top: 20.0,
-                                margin_bottom: 0.0,
-                            }
-                        ))
-                    ],
-                    buttons: vec![
-                        UiWidgetImpl::from(UiTextButton::new(
-                            context,
-                            "Ok".into(),
-                            UiTextButtonSize::Small,
-                            Some("misc/brush_stroke_divider_2.png"),
-                            true,
-                            move |button, context| {
-                                log::info!("Pressed: {}", button.label());
-                                if let Some(menu) = menu_ref_ok_btn.upgrade() {
-                                    menu.as_mut().close_message_box(context);
-                                }
-                            }
-                        )),
-                        UiWidgetImpl::from(UiTextButton::new(
-                            context,
-                            "Cancel".into(),
-                            UiTextButtonSize::Small,
-                            Some("misc/brush_stroke_divider_2.png"),
-                            true,
-                            move |button, context| {
-                                log::info!("Pressed: {}", button.label());
-                                if let Some(menu) = menu_ref_cancel_btn.upgrade() {
-                                    menu.as_mut().close_message_box(context);
-                                }
-                            }
-                        ))
-                    ],
-                    ..Default::default()
-                };
-
-                menu_rc.as_mut().open_message_box(context, params);
-            }
+        UiTextButtonParams {
+            label: "Small Size Button".into(),
+            size: UiTextButtonSize::Small,
+            hover: Some("misc/brush_stroke_divider.png"),
+            enabled: true,
+            on_pressed: UiTextButtonPressed::with_fn(
+                |button, _context| {
+                    log::info!("Pressed Button: {}", button.label());
+                }
+            ),
         }
     ));
 
+    stacked_button_group.add_widget(UiTextButton::new(
+        context,
+        UiTextButtonParams {
+            label: "Normal Size Button".into(),
+            size: UiTextButtonSize::Normal,
+            hover: Some("misc/brush_stroke_divider.png"),
+            enabled: true,
+            on_pressed: UiTextButtonPressed::with_fn(
+                |button, _context| {
+                    log::info!("Pressed Button: {}", button.label());
+                }
+            ),
+        }
+    ));
+
+    stacked_button_group.add_widget(UiTextButton::new(
+        context,
+        UiTextButtonParams {
+            label: "Large Size Button".into(),
+            size: UiTextButtonSize::Large,
+            hover: Some("misc/brush_stroke_divider.png"),
+            enabled: true,
+            on_pressed: UiTextButtonPressed::with_fn(
+                |button, _context| {
+                    log::info!("Pressed Button: {}", button.label());
+                }
+            ),
+        }
+    ));
+
+    stacked_button_group.add_widget(UiTextButton::new(
+        context,
+        UiTextButtonParams {
+            label: "Disabled Button".into(),
+            size: UiTextButtonSize::Normal,
+            hover: Some("misc/brush_stroke_divider.png"),
+            enabled: false,
+            on_pressed: UiTextButtonPressed::with_fn(
+                |button, _context| {
+                    log::info!("Pressed Button: {}", button.label());
+                }
+            ),
+        }
+    ));
+
+    let mut side_by_side_button_group = UiWidgetGroup::new(
+        UiWidgetGroupParams {
+            widget_spacing: 5.0,
+            center_vertically: false,
+            center_horizontally: true,
+            stack_vertically: false,
+        }
+    );
+
+    let menu_weak_ref_open_popup_btn = UiMenuStrongRef::downgrade(&menu);
+    side_by_side_button_group.add_widget(UiTextButton::new(
+        context,
+        UiTextButtonParams {
+            label: "Open Message Box".into(),
+            size: UiTextButtonSize::Normal,
+            hover: Some("misc/brush_stroke_divider.png"),
+            enabled: true,
+            on_pressed: UiTextButtonPressed::with_closure(
+                move |button, context| {
+                    log::info!("Pressed Button: {}", button.label());
+
+                    if let Some(menu_strong_ref) = menu_weak_ref_open_popup_btn.upgrade() {
+                        let menu_weak_ref_ok_btn = menu_weak_ref_open_popup_btn.clone();
+                        let menu_weak_ref_cancel_btn = menu_weak_ref_open_popup_btn.clone();
+
+                        let message_box_params = UiMessageBoxParams {
+                            label: Some("Message Box Popup".into()),
+                            background: Some("misc/square_page_bg.png"),
+                            contents: vec![
+                                UiWidgetImpl::from(UiMenuHeading::new(
+                                    context,
+                                    UiMenuHeadingParams {
+                                        font_scale: widgets_font_scale,
+                                        lines: vec!["Quit to main menu?".into(), "Unsaved progress will be lost".into()],
+                                        separator: Some("misc/brush_stroke_divider.png"),
+                                        margin_top: 5.0,
+                                        ..Default::default()
+                                    }
+                                ))
+                            ],
+                            buttons: vec![
+                                UiWidgetImpl::from(UiTextButton::new(
+                                    context,
+                                    UiTextButtonParams {
+                                        label: "Ok".into(),
+                                        size: UiTextButtonSize::Small,
+                                        hover: Some("misc/brush_stroke_divider.png"),
+                                        enabled: true,
+                                        on_pressed: UiTextButtonPressed::with_closure(
+                                            move |button, context| {
+                                                log::info!("Pressed Button: {}", button.label());
+                                                if let Some(menu_strong_ref) = menu_weak_ref_ok_btn.upgrade() {
+                                                    menu_strong_ref.as_mut().close_message_box(context);
+                                                }
+                                            }
+                                        ),
+                                    }
+                                )),
+                                UiWidgetImpl::from(UiTextButton::new(
+                                    context,
+                                    UiTextButtonParams {
+                                        label: "Cancel".into(),
+                                        size: UiTextButtonSize::Small,
+                                        hover: Some("misc/brush_stroke_divider.png"),
+                                        enabled: true,
+                                        on_pressed: UiTextButtonPressed::with_closure(
+                                            move |button, context| {
+                                                log::info!("Pressed Button: {}", button.label());
+                                                if let Some(menu_strong_ref) = menu_weak_ref_cancel_btn.upgrade() {
+                                                    menu_strong_ref.as_mut().close_message_box(context);
+                                                }
+                                            }
+                                        ),
+                                    }
+                                )),
+                            ],
+                            ..Default::default()
+                        };
+
+                        menu_strong_ref.as_mut().open_message_box(context, message_box_params);
+                    }
+                }
+            )
+        }
+    ));
+
+    let menu_weak_ref_close_popup_btn = UiMenuStrongRef::downgrade(&menu);
+    side_by_side_button_group.add_widget(UiTextButton::new(
+        context,
+        UiTextButtonParams {
+            label: "Close Message Box".into(),
+            size: UiTextButtonSize::Normal,
+            hover: Some("misc/brush_stroke_divider.png"),
+            enabled: true,
+            on_pressed: UiTextButtonPressed::with_closure(
+                move |button, context| {
+                    log::info!("Pressed Button: {}", button.label());
+
+                    if let Some(menu_strong_ref) = menu_weak_ref_close_popup_btn.upgrade() {
+                        menu_strong_ref.as_mut().close_message_box(context);
+                    }
+                }
+            )
+        }
+    ));
+
+    menu.as_mut().add_widget(menu_heading);
+    menu.as_mut().add_widget(labeled_group);
+    menu.as_mut().add_widget(item_list);
+    menu.as_mut().add_widget(stacked_button_group);
+    menu.as_mut().add_widget(side_by_side_button_group);
+
+    log::info!("Sample Menu 1 created.");
+}
+
+fn draw_sample_menu_1(context: &mut UiWidgetContext) {
+    if let Some(menu) = SAMPLE_MENU_1_INSTANCE.as_mut() {
+        menu.as_mut().draw(context);
     }
-    */
+}
+
+// ----------------------------------------------
+// Sample Menu 2:
+// ----------------------------------------------
+
+static SAMPLE_MENU_2_INSTANCE: UiStaticVar<Option<UiMenuStrongRef>> = UiStaticVar::new(None);
+
+fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
+    if SAMPLE_MENU_2_INSTANCE.is_some() {
+        return; // Already created.
+    }
+
+    let menu = UiMenu::new(
+        context,
+        UiMenuParams {
+            label: Some("Sample Menu 2".into()),
+            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::AlignRight,
+            size: Some(Vec2::new(512.0, 700.0)),
+            background: Some("misc/square_page_bg.png"),
+            ..Default::default()
+        }
+    );
+
+    SAMPLE_MENU_2_INSTANCE.set(Some(menu.clone()));
+
+    let button_tooltip = UiTooltipText::new(
+        context,
+        UiTooltipTextParams {
+            text: "This is a Sprite Button".into(),
+            font_scale: UiFontScale(0.8),
+            background: Some("misc/square_page_bg.png"),
+        }
+    );
+
+    let button_size = Vec2::new(50.0, 50.0);
+
+    let mut stacked_button_group = UiWidgetGroup::new(
+        UiWidgetGroupParams {
+            widget_spacing: 5.0,
+            center_vertically: false,
+            center_horizontally: true,
+            stack_vertically: true,
+        }
+    );
+
+    stacked_button_group.add_widget(UiSpriteButton::new(
+        context,
+        UiSpriteButtonParams {
+            label: "palette/housing".into(),
+            tooltip: Some(button_tooltip.clone()),
+            show_tooltip_when_pressed: true,
+            size: button_size,
+            initial_state: UiSpriteButtonState::Idle,
+            ..Default::default()
+        }
+    ));
+
+    stacked_button_group.add_widget(UiSpriteButton::new(
+        context,
+        UiSpriteButtonParams {
+            label: "palette/roads".into(),
+            tooltip: Some(button_tooltip.clone()),
+            show_tooltip_when_pressed: true,
+            size: button_size,
+            initial_state: UiSpriteButtonState::Idle,
+            ..Default::default()
+        }
+    ));
+
+    stacked_button_group.add_widget(UiSpriteButton::new(
+        context,
+        UiSpriteButtonParams {
+            label: "palette/food_and_farming".into(),
+            tooltip: Some(button_tooltip.clone()),
+            show_tooltip_when_pressed: true,
+            size: button_size,
+            initial_state: UiSpriteButtonState::Disabled,
+            ..Default::default()
+        }
+    ));
+
+    let mut side_by_side_button_group = UiWidgetGroup::new(
+        UiWidgetGroupParams {
+            widget_spacing: 5.0,
+            center_vertically: false,
+            center_horizontally: true,
+            stack_vertically: false,
+        }
+    );
+
+    side_by_side_button_group.add_widget(UiSpriteButton::new(
+        context,
+        UiSpriteButtonParams {
+            label: "palette/housing".into(),
+            tooltip: Some(button_tooltip.clone()),
+            show_tooltip_when_pressed: true,
+            size: button_size,
+            initial_state: UiSpriteButtonState::Idle,
+            ..Default::default()
+        }
+    ));
+
+    side_by_side_button_group.add_widget(UiSpriteButton::new(
+        context,
+        UiSpriteButtonParams {
+            label: "palette/roads".into(),
+            tooltip: Some(button_tooltip.clone()),
+            show_tooltip_when_pressed: true,
+            size: button_size,
+            initial_state: UiSpriteButtonState::Idle,
+            ..Default::default()
+        }
+    ));
+
+    side_by_side_button_group.add_widget(UiSpriteButton::new(
+        context,
+        UiSpriteButtonParams {
+            label: "palette/food_and_farming".into(),
+            tooltip: Some(button_tooltip.clone()),
+            show_tooltip_when_pressed: true,
+            size: button_size,
+            initial_state: UiSpriteButtonState::Disabled,
+            ..Default::default()
+        }
+    ));
+
+    let slideshow_frame_count = 3;
+    let mut slideshow_frames = Vec::new();
+    for i in 0..slideshow_frame_count {
+        slideshow_frames.push(format!("misc/home_menu_anim/frame{i}.jpg"));
+    }
+
+    let slideshow = UiSlideshow::new(
+        context,
+        UiSlideshowParams {
+            loop_mode: UiSlideshowLoopMode::WholeAnim,
+            frame_duration_secs: 0.5,
+            frames: &slideshow_frames,
+            size: Some(Vec2::new(0.0, 250.0)),
+            margin_left: 30.0,
+            margin_right: 30.0,
+            ..Default::default()
+        }
+    );
+
+    menu.as_mut().add_widget(stacked_button_group);
+    menu.as_mut().add_widget(side_by_side_button_group);
+    menu.as_mut().add_widget(slideshow);
+
+    log::info!("Sample Menu 2 created.");
+}
+
+fn draw_sample_menu_2(context: &mut UiWidgetContext) {
+    if let Some(menu) = SAMPLE_MENU_2_INSTANCE.as_mut() {
+        menu.as_mut().draw(context);
+    }
+}
+
+// ----------------------------------------------
+// draw_sample_menus():
+// ----------------------------------------------
+
+pub fn draw_sample_menus(context: &mut UiWidgetContext) {
+    let prev_theme = context.ui_sys.current_ui_theme();
+    context.ui_sys.set_ui_theme(UiTheme::InGame);
+
+    create_sample_menu_1_once(context);
+    create_sample_menu_2_once(context);
+
+    draw_sample_menu_1(context);
+    draw_sample_menu_2(context);
+
+    context.ui_sys.set_ui_theme(prev_theme);
 }
