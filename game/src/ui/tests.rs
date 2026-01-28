@@ -55,7 +55,8 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         }
     );
 
-    let slider = UiSlider::from_u32(
+    let slider = UiSlider::new(
+        context,
         UiSliderParams {
             font_scale: widgets_font_scale,
             min: 0,
@@ -76,6 +77,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     );
 
     let checkbox = UiCheckbox::new(
+        context,
         UiCheckboxParams {
             font_scale: widgets_font_scale,
             on_read_value: UiCheckboxReadValue::with_fn(
@@ -94,6 +96,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     );
 
     let text_input = UiTextInput::new(
+        context,
         UiTextInputParams {
             font_scale: widgets_font_scale,
             on_read_value: UiTextInputReadValue::with_fn(
@@ -111,7 +114,8 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         }
     );
 
-    let dropdown = UiDropdown::from_strings(
+    let dropdown = UiDropdown::new(
+        context,
         UiDropdownParams {
             font_scale: widgets_font_scale,
             current_item: 0,
@@ -129,7 +133,8 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         }
     );
 
-    let item_list = UiItemList::from_strings(
+    let item_list = UiItemList::new(
+        context,
         UiItemListParams {
             font_scale: widgets_font_scale,
             label: Some("Item List".into()),
@@ -156,6 +161,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     );
 
     let mut labeled_group = UiLabeledWidgetGroup::new(
+        context,
         UiLabeledWidgetGroupParams {
             label_spacing: 5.0,
             widget_spacing: 5.0,
@@ -170,6 +176,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     labeled_group.add_widget("Dropdown".into(), dropdown);
 
     let mut stacked_button_group = UiWidgetGroup::new(
+        context,
         UiWidgetGroupParams {
             widget_spacing: 5.0,
             center_vertically: false,
@@ -239,6 +246,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     ));
 
     let mut side_by_side_button_group = UiWidgetGroup::new(
+        context,
         UiWidgetGroupParams {
             widget_spacing: 5.0,
             center_vertically: false,
@@ -344,10 +352,21 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         }
     ));
 
+    let separator = UiSeparator::new(
+        context,
+        UiSeparatorParams {
+            separator: Some("misc/brush_stroke_divider.png"),
+            thickness: Some(15.0),
+            ..Default::default()
+        }
+    );
+
     menu.as_mut().add_widget(menu_heading);
     menu.as_mut().add_widget(labeled_group);
     menu.as_mut().add_widget(item_list);
+    menu.as_mut().add_widget(separator.clone());
     menu.as_mut().add_widget(stacked_button_group);
+    menu.as_mut().add_widget(separator.clone());
     menu.as_mut().add_widget(side_by_side_button_group);
 
     log::info!("Sample Menu 1 created.");
@@ -395,6 +414,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
     let button_size = Vec2::new(50.0, 50.0);
 
     let mut stacked_button_group = UiWidgetGroup::new(
+        context,
         UiWidgetGroupParams {
             widget_spacing: 5.0,
             center_vertically: false,
@@ -440,6 +460,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
     ));
 
     let mut side_by_side_button_group = UiWidgetGroup::new(
+        context,
         UiWidgetGroupParams {
             widget_spacing: 5.0,
             center_vertically: false,
@@ -503,8 +524,18 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
         }
     );
 
+    let separator = UiSeparator::new(
+        context,
+        UiSeparatorParams {
+            separator: Some("misc/brush_stroke_divider.png"),
+            thickness: Some(15.0),
+            ..Default::default()
+        }
+    );
+
     menu.as_mut().add_widget(stacked_button_group);
     menu.as_mut().add_widget(side_by_side_button_group);
+    menu.as_mut().add_widget(separator);
     menu.as_mut().add_widget(slideshow);
 
     log::info!("Sample Menu 2 created.");

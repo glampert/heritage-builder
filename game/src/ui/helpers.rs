@@ -245,18 +245,46 @@ pub fn calc_labeled_widget_size(context: &UiWidgetContext, font_scale: UiFontSca
 //   > 0.0 -> fixed size
 //   = 0.0 -> use remaining host window size
 //   < 0.0 -> use remaining host window size minus abs(size)
-pub fn calc_child_window_size(requested: [f32; 2], region_avail: [f32; 2]) -> [f32; 2] {
-    let mut size = [0.0, 0.0];
-    for i in 0..size.len() {
-        if requested[i] > 0.0 {
-            size[i] = requested[i];
-        } else if requested[i] == 0.0 {
-            size[i] = region_avail[i];
-        } else { // requested < 0.0
-            size[i] = (region_avail[i] + requested[i]).max(0.0);
-        }
+pub fn calc_child_window_size(ui: &imgui::Ui, requested: Vec2) -> Vec2 {
+    let region_avail = Vec2::from_array(ui.content_region_avail());
+    let mut size = Vec2::zero();
+
+    if requested.x > 0.0 {
+        size.x = requested.x;
+    } else if requested.x == 0.0 {
+        size.x = region_avail.x;
+    } else { // requested < 0.0
+        size.x = (region_avail.x + requested.x).max(0.0);
     }
+
+    if requested.y > 0.0 {
+        size.y = requested.y;
+    } else if requested.y == 0.0 {
+        size.y = region_avail.y;
+    } else { // requested < 0.0
+        size.y = (region_avail.y + requested.y).max(0.0);
+    }
+
     size
+}
+
+// Computes the pre-render size of an ImGui separator.
+//  - `horizontal = true`  -> horizontal separator (`ui.separator()`)
+//  - `horizontal = false` -> vertical separator (tables / columns)
+//  - `thickness` -> ImGui default is 1.0
+pub fn calc_separator_size(ui: &imgui::Ui, horizontal: bool, thickness: f32) -> Vec2 {
+    let style = unsafe { ui.style() };
+    let region_avail = Vec2::from_array(ui.content_region_avail());
+
+    if horizontal {
+        let width  = region_avail.x;
+        let height = thickness + (style.item_spacing[1] * 2.0);
+        Vec2::new(width, height)
+    } else {
+        let width  = thickness + (style.item_spacing[0] * 2.0);
+        let height = region_avail.y;
+        Vec2::new(width, height)
+    }
 }
 
 pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,

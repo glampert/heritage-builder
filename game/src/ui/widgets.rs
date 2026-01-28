@@ -241,6 +241,7 @@ pub enum UiWidgetImpl {
     UiLabeledWidgetGroup,
     UiTextButton,
     UiSpriteButton,
+    UiSeparator,
     UiSlider,
     UiCheckbox,
     UiTextInput,
@@ -689,7 +690,7 @@ impl UiWidget for UiWidgetGroup {
 }
 
 impl UiWidgetGroup {
-    pub fn new(params: UiWidgetGroupParams) -> Self {
+    pub fn new(_context: &mut UiWidgetContext, params: UiWidgetGroupParams) -> Self {
         debug_assert!(params.widget_spacing >= 0.0);
 
         Self {
@@ -789,7 +790,7 @@ impl UiWidget for UiLabeledWidgetGroup {
 }
 
 impl UiLabeledWidgetGroup {
-    pub fn new(params: UiLabeledWidgetGroupParams) -> Self {
+    pub fn new(_context: &mut UiWidgetContext, params: UiLabeledWidgetGroupParams) -> Self {
         debug_assert!(params.label_spacing  >= 0.0);
         debug_assert!(params.widget_spacing >= 0.0);
 
@@ -1313,55 +1314,74 @@ pub struct UiTooltipTextParams<'a> {
 }
 
 // ----------------------------------------------
-// UiSliderValue
+// UiSeparator
 // ----------------------------------------------
 
-pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, T>;
-pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, T>;
+#[derive(Clone)]
+pub struct UiSeparator {
+    separator: Option<UiTextureHandle>,
+    size: Option<Vec2>,
+    thickness: f32,
+    vertical: bool,
+}
 
-enum UiSliderValue {
-    I32 {
-        min: i32,
-        max: i32,
-        on_read_value: UiSliderReadValue<i32>,
-        on_update_value: UiSliderUpdateValue<i32>,
-    },
-    U32 {
-        min: u32,
-        max: u32,
-        on_read_value: UiSliderReadValue<u32>,
-        on_update_value: UiSliderUpdateValue<u32>,
-    },
-    F32 {
-        min: f32,
-        max: f32,
-        on_read_value: UiSliderReadValue<f32>,
-        on_update_value: UiSliderUpdateValue<f32>,
-    },
+impl UiWidget for UiSeparator {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
+        let ui = context.ui_sys.ui();
+        let size = self.size.unwrap_or_else(
+            || helpers::calc_separator_size(ui, !self.vertical, self.thickness));
+
+        // Invisible dummy item.
+        ui.dummy(size.to_array());
+
+        // Optionally draw a texture over it.
+        if let Some(separator) = self.separator {
+            let separator_rect = Rect::from_extents(
+                Vec2::from_array(ui.item_rect_min()),
+                Vec2::from_array(ui.item_rect_max())
+            );
+
+            ui.get_window_draw_list()
+                .add_image(separator,
+                           separator_rect.min.to_array(),
+                           separator_rect.max.to_array())
+                           .build();
+        }
+    }
+
+    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+        self.size.unwrap_or_else(
+                || helpers::calc_separator_size(context.ui_sys.ui(), !self.vertical, self.thickness))
+    }
+}
+
+impl UiSeparator {
+    pub fn new(context: &mut UiWidgetContext, params: UiSeparatorParams) -> Self {                
+        Self {
+            separator: params.separator.map(|path| helpers::load_ui_texture(context, path)),
+            size: params.size,
+            thickness: params.thickness.unwrap_or(1.0),
+            vertical: params.vertical,
+        }
+    }
 }
 
 // ----------------------------------------------
-// Macro: impl_slider_constructor
+// UiSeparatorParams
 // ----------------------------------------------
 
-macro_rules! impl_slider_constructor {
-    ($value_type:ty, $enum_variant:ident, $func_name:ident) => {
-        pub fn $func_name(params: UiSliderParams<$value_type>) -> Self {
-            debug_assert!(params.font_scale.is_valid());
-
-            Self {
-                label: params.label.unwrap_or_default(),
-                imgui_id: String::new(),
-                font_scale: params.font_scale,
-                value: UiSliderValue::$enum_variant {
-                    min: params.min,
-                    max: params.max,
-                    on_read_value: params.on_read_value,
-                    on_update_value: params.on_update_value,
-                }
-            }
-        }
-    };
+#[derive(Default)]
+pub struct UiSeparatorParams<'a> {
+    pub separator: Option<&'a str>,
+    pub size: Option<Vec2>,
+    pub thickness: Option<f32>, // Optional thickness used if `size = None`.
+    pub vertical: bool,         // Horizontal separator by default.
 }
 
 // ----------------------------------------------
@@ -1374,6 +1394,9 @@ pub struct UiSlider {
     font_scale: UiFontScale,
     value: UiSliderValue,
 }
+
+pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, T>;
+pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, T>;
 
 impl UiWidget for UiSlider {
     fn as_any(&self) -> &dyn Any {
@@ -1449,9 +1472,80 @@ impl UiWidget for UiSlider {
 }
 
 impl UiSlider {
-    impl_slider_constructor! { i32, I32, from_i32 }
-    impl_slider_constructor! { u32, U32, from_u32 }
-    impl_slider_constructor! { f32, F32, from_f32 }
+    pub fn new<T>(_context: &mut UiWidgetContext, params: UiSliderParams<T>) -> Self
+        where UiSliderParams<T>: IntoUiSliderValue
+    {
+        debug_assert!(params.font_scale.is_valid());
+
+        Self {
+            label: params.label.clone().unwrap_or_default(),
+            imgui_id: String::new(),
+            font_scale: params.font_scale,
+            value: params.into_slider_value(),
+        }
+    }
+}
+
+// ----------------------------------------------
+// UiSliderValue
+// ----------------------------------------------
+
+pub enum UiSliderValue {
+    I32 {
+        min: i32,
+        max: i32,
+        on_read_value: UiSliderReadValue<i32>,
+        on_update_value: UiSliderUpdateValue<i32>,
+    },
+    U32 {
+        min: u32,
+        max: u32,
+        on_read_value: UiSliderReadValue<u32>,
+        on_update_value: UiSliderUpdateValue<u32>,
+    },
+    F32 {
+        min: f32,
+        max: f32,
+        on_read_value: UiSliderReadValue<f32>,
+        on_update_value: UiSliderUpdateValue<f32>,
+    },
+}
+
+pub trait IntoUiSliderValue {
+    fn into_slider_value(self) -> UiSliderValue;
+}
+
+impl IntoUiSliderValue for UiSliderParams<i32> {
+    fn into_slider_value(self) -> UiSliderValue {
+        UiSliderValue::I32 {
+            min: self.min,
+            max: self.max,
+            on_read_value: self.on_read_value,
+            on_update_value: self.on_update_value,
+        }
+    }
+}
+
+impl IntoUiSliderValue for UiSliderParams<u32> {
+    fn into_slider_value(self) -> UiSliderValue {
+        UiSliderValue::U32 {
+            min: self.min,
+            max: self.max,
+            on_read_value: self.on_read_value,
+            on_update_value: self.on_update_value,
+        }
+    }
+}
+
+impl IntoUiSliderValue for UiSliderParams<f32> {
+    fn into_slider_value(self) -> UiSliderValue {
+        UiSliderValue::F32 {
+            min: self.min,
+            max: self.max,
+            on_read_value: self.on_read_value,
+            on_update_value: self.on_update_value,
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -1532,7 +1626,7 @@ impl UiWidget for UiCheckbox {
 }
 
 impl UiCheckbox {
-    pub fn new(params: UiCheckboxParams) -> Self {
+    pub fn new(_context: &mut UiWidgetContext, params: UiCheckboxParams) -> Self {
         debug_assert!(params.font_scale.is_valid());
 
         Self {
@@ -1616,7 +1710,7 @@ impl UiWidget for UiTextInput {
 }
 
 impl UiTextInput {
-    pub fn new(params: UiTextInputParams) -> Self {
+    pub fn new(_context: &mut UiWidgetContext, params: UiTextInputParams) -> Self {
         debug_assert!(params.font_scale.is_valid());
 
         Self {
@@ -1700,11 +1794,11 @@ impl UiWidget for UiDropdown {
 }
 
 impl UiDropdown {
-    pub fn new(params: UiDropdownParams<String>) -> Self {
-        Self::from_strings(params)
+    pub fn new(context: &mut UiWidgetContext, params: UiDropdownParams<String>) -> Self {
+        Self::with_strings(context, params)
     }
 
-    pub fn from_strings(params: UiDropdownParams<String>) -> Self {
+    pub fn with_strings(_context: &mut UiWidgetContext, params: UiDropdownParams<String>) -> Self {
         debug_assert!(params.font_scale.is_valid());
         debug_assert!(!params.items.is_empty());
         debug_assert!(params.current_item < params.items.len());
@@ -1720,7 +1814,7 @@ impl UiDropdown {
     }
 
     // From array of values implementing Display.
-    pub fn from_values<T>(params: UiDropdownParams<T>) -> Self
+    pub fn with_values<T>(context: &mut UiWidgetContext, params: UiDropdownParams<T>) -> Self
         where T: Display
     {
         let item_strings: Vec<String> = params.items
@@ -1728,7 +1822,7 @@ impl UiDropdown {
             .map(|item| item.to_string())
             .collect();
 
-        Self::from_strings(UiDropdownParams {
+        Self::with_strings(context, UiDropdownParams {
             label: params.label,
             font_scale: params.font_scale,
             current_item: params.current_item,
@@ -1901,14 +1995,13 @@ impl UiWidget for UiItemList {
 
         let ui = context.ui_sys.ui();
         let style = unsafe { ui.style() };
-        let parent_region_avail = ui.content_region_avail();
 
         let mut requested_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        let size = helpers::calc_child_window_size(requested_size.to_array(), parent_region_avail);
+        let size = helpers::calc_child_window_size(ui, requested_size);
 
         let input_field_height = {
             if self.text_input_field_buffer.is_some() {
@@ -1918,7 +2011,7 @@ impl UiWidget for UiItemList {
             }
         };
 
-        Vec2::new(size[0], size[1] + input_field_height)
+        Vec2::new(size.x, size.y + input_field_height)
     }
 
     fn label(&self) -> &str {
@@ -1931,11 +2024,11 @@ impl UiWidget for UiItemList {
 }
 
 impl UiItemList {
-    pub fn new(params: UiItemListParams<String>) -> Self {
-        Self::from_strings(params)
+    pub fn new(context: &mut UiWidgetContext, params: UiItemListParams<String>) -> Self {
+        Self::with_strings(context, params)
     }
 
-    pub fn from_strings(params: UiItemListParams<String>) -> Self {
+    pub fn with_strings(_context: &mut UiWidgetContext, params: UiItemListParams<String>) -> Self {
         debug_assert!(params.font_scale.is_valid());
         debug_assert!(params.margin_left >= 0.0);
         debug_assert!(params.margin_right >= 0.0);
@@ -1968,7 +2061,7 @@ impl UiItemList {
     }
 
     // From array of values implementing Display.
-    pub fn from_values<T>(params: UiItemListParams<T>) -> Self
+    pub fn with_values<T>(context: &mut UiWidgetContext, params: UiItemListParams<T>) -> Self
         where T: Display
     {
         let item_strings: Vec<String> = params.items
@@ -1976,7 +2069,7 @@ impl UiItemList {
             .map(|item| item.to_string())
             .collect();
 
-        Self::from_strings(UiItemListParams {
+        Self::with_strings(context, UiItemListParams {
             label: params.label,
             font_scale: params.font_scale,
             size: params.size,
@@ -2127,6 +2220,7 @@ impl UiMessageBox {
 
         if !params.buttons.is_empty() {
             let mut button_group = UiWidgetGroup::new(
+                context,
                 UiWidgetGroupParams {
                     widget_spacing: 10.0,
                     center_vertically: true,
@@ -2195,15 +2289,13 @@ impl UiWidget for UiSlideshow {
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
         let ui = context.ui_sys.ui();
         let style = unsafe { ui.style() };
-        let parent_region_avail = ui.content_region_avail();
 
         let mut requested_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        let size = helpers::calc_child_window_size(requested_size.to_array(), parent_region_avail);
-        Vec2::from_array(size)
+        helpers::calc_child_window_size(ui, requested_size)
     }
 }
 
