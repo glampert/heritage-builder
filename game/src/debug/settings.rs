@@ -75,6 +75,8 @@ pub struct DebugSettingsDevMenu {
     #[debug_ui(edit)]
     show_screen_origin: bool,
     #[debug_ui(edit)]
+    show_sample_menus: bool,
+    #[debug_ui(edit)]
     show_world_perf_stats: bool,
     #[debug_ui(edit)]
     show_render_perf_stats: bool,
@@ -113,6 +115,10 @@ impl DebugSettingsDevMenu {
 
     pub fn show_screen_origin(&self) -> bool {
         self.show_screen_origin
+    }
+
+    pub fn show_sample_menus(&self) -> bool {
+        self.show_sample_menus
     }
 
     pub fn show_world_perf_stats(&self) -> bool {
@@ -179,8 +185,8 @@ impl DebugSettingsDevMenu {
 
     pub fn draw(&mut self,
                 context: &mut sim::debug::DebugContext,
-                game_loop: &mut GameLoop,
                 sim: &mut Simulation,
+                game_loop: &mut GameLoop,
                 enable_tile_inspector: &mut bool) {
         let ui = context.ui_sys.ui();
 
