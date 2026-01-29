@@ -158,7 +158,7 @@ impl SpriteButton {
         let show_tooltip = hovered && (!self.is_pressed() || self.def.show_tooltip_when_pressed);
 
         if show_tooltip && let Some(tooltip_text) = &self.def.tooltip {
-            ui::custom_tooltip(context.ui_sys, Some(UiFontScale(0.8)), tooltip_background, || ui.text(tooltip_text));
+            ui::custom_tooltip(context.ui_sys, UiFontScale(0.8), tooltip_background, || ui.text(tooltip_text));
         }
 
         if widgets::is_debug_draw_enabled() {

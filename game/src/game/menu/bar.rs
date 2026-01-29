@@ -13,7 +13,7 @@ use super::{
 use crate::{
     utils::{self, Size, Rect, Vec2},
     app::input::{InputAction, InputKey},
-    ui::{self, UiTextureHandle, UiInputEvent, widgets::UiWidgetContext},
+    ui::{self, UiTextureHandle, UiInputEvent, UiFontScale, widgets::UiWidgetContext},
 };
 
 // ----------------------------------------------
@@ -85,10 +85,10 @@ impl MenuBarsWidget {
             .position(position.unwrap_or([0.0, 0.0]), pos_cond)
             .flags(widgets::window_flags() | imgui::WindowFlags::NO_BACKGROUND)
             .build(|| {
-                ui.set_window_font_scale(0.8);
+                context.ui_sys.set_font_scale(UiFontScale(0.8));
                 draw_fn(context);
                 widgets::draw_current_window_debug_rect(context.ui_sys.ui());
-                ui.set_window_font_scale(1.0);
+                context.ui_sys.set_font_scale(UiFontScale::default());
             });
     }
 }

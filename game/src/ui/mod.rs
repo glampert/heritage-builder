@@ -249,6 +249,18 @@ impl UiSystem {
     pub fn current_front_scale(&self) -> UiFontScale {
         self.current_font_scale.unwrap_or_default()
     }
+
+    #[inline]
+    fn force_set_font_scale(&self, font_scale: Option<UiFontScale>) {
+        let mut_self = mem::mut_ref_cast(self);
+
+        if let Some(scale) = font_scale {
+            debug_assert!(scale.is_valid());
+            mut_self.ui().set_window_font_scale(scale.0);
+        }
+
+        mut_self.current_font_scale = font_scale;
+    }
 }
 
 // ----------------------------------------------
@@ -982,18 +994,16 @@ pub fn icon_button_custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem, icon: 
 }
 
 pub fn custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem,
-                                           font_scale: Option<UiFontScale>,
+                                           font_scale: UiFontScale,
                                            background: Option<UiTextureHandle>,
                                            tooltip_fn: TooltipFn) {
     let ui = ui_sys.ui();
     let tooltip = ui.begin_tooltip();
 
-    let font_scale_changed = if let Some(scale) = font_scale {
-        ui_sys.set_font_scale(scale);
-        true
-    } else {
-        false
-    };
+    // NOTE:
+    // Always set font scale for tooltips because a tooltip is itself a window,
+    // so it will not inherit the current ui window font scale.
+    ui_sys.force_set_font_scale(Some(font_scale));
 
     if let Some(bg_texture) = background {
         let window_rect = Rect::from_pos_and_size(
@@ -1009,12 +1019,9 @@ pub fn custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem,
     }
 
     tooltip_fn();
-
-    if font_scale_changed {
-        ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
-    }
-
     tooltip.end();
+
+    ui_sys.force_set_font_scale(None);
 }
 
 pub struct UiImageButtonParams<'a> {

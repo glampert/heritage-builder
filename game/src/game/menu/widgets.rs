@@ -346,7 +346,7 @@ pub fn draw_sprite(ui_sys: &UiSystem,
     draw_last_item_debug_rect(ui, Color::blue());
 
     if ui.is_item_hovered() && let Some(tooltip_text) = tooltip {
-        ui::custom_tooltip(ui_sys, Some(UiFontScale(0.8)), Some(tooltip_bg_texture), || ui.text(tooltip_text));
+        ui::custom_tooltip(ui_sys, UiFontScale(0.8), Some(tooltip_bg_texture), || ui.text(tooltip_text));
     }
 }
 

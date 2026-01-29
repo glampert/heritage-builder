@@ -4,20 +4,26 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use config::{GameConfigs, LoadMapSetting};
-use system::{GameSystems, GameSystem, GameSystemImpl, settlers, ambient_effects};
-use building::config::BuildingConfigs;
-use unit::config::UnitConfigs;
-use prop::config::PropConfigs;
-use sim::Simulation;
 use world::World;
+use sim::Simulation;
+use prop::config::PropConfigs;
+use unit::config::UnitConfigs;
+use building::config::BuildingConfigs;
+use config::{GameConfigs, LoadMapSetting};
+use system::{
+    GameSystems,
+    GameSystem,
+    GameSystemImpl,
+    settlers,
+    ambient_effects
+};
 use menu::{
     GameMenusMode,
     GameMenusSystem,
     GameMenusContext,
     GameMenusInputArgs,
     home::HomeMenus,
-    hud::InGameHudMenus,
+    in_game_v2::InGameMenus,
 };
 
 use crate::{
@@ -129,17 +135,20 @@ impl GameSession {
     }
 
     fn new_game_menus(&mut self, engine: &dyn Engine, menu_mode: GameMenusMode) -> Box<dyn GameMenusSystem> {
-        let mut context =
-            UiWidgetContext::new(&mut self.sim, &self.world, &mut self.tile_map, engine);
+        let mut context = UiWidgetContext::new(
+            &mut self.sim,
+            &self.world,
+            engine
+        );
 
         match menu_mode {
             GameMenusMode::DevEditor => {
                 log::info!(log::channel!("session"), "Loading DevEditorMenus ...");
-                Box::new(DevEditorMenus::new(&mut context))
+                Box::new(DevEditorMenus::new(&mut context, &mut self.tile_map))
             }
-            GameMenusMode::InGameHud => {
-                log::info!(log::channel!("session"), "Loading InGameHudMenus ...");
-                Box::new(InGameHudMenus::new(&mut context))
+            GameMenusMode::InGame => {
+                log::info!(log::channel!("session"), "Loading InGameMenus ...");
+                Box::new(InGameMenus::new(&mut context))
             }
             GameMenusMode::Home => {
                 log::info!(log::channel!("session"), "Loading HomeMenus ...");
@@ -155,7 +164,7 @@ impl GameSession {
                 if configs.debug.start_in_dev_editor_mode {
                     GameMenusMode::DevEditor
                 } else {
-                    GameMenusMode::InGameHud
+                    GameMenusMode::InGame
                 }
             } else {
                 GameMenusMode::Home
@@ -168,9 +177,9 @@ impl GameSession {
         if let Some(mode) = self.current_menus_mode() {
             match mode {
                 GameMenusMode::DevEditor => {
-                    self.menus = Some(self.new_game_menus(engine, GameMenusMode::InGameHud));
+                    self.menus = Some(self.new_game_menus(engine, GameMenusMode::InGame));
                 }
-                GameMenusMode::InGameHud => {
+                GameMenusMode::InGame => {
                     self.menus = Some(self.new_game_menus(engine, GameMenusMode::DevEditor));
                 }
                 GameMenusMode::Home => {} // Cannot toggle out of home menu.

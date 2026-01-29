@@ -228,7 +228,7 @@ impl TilePaletteMainButton {
                         .build();
                 }
 
-                ui.set_window_font_scale(0.8);
+                context.ui_sys.set_font_scale(UiFontScale(0.8));
 
                 let mut labels = SmallVec::<[&str; 16]>::new();
                 for button in &self.children {
@@ -265,14 +265,15 @@ impl TilePaletteMainButton {
                                        .build();
 
                         if !self.children[button_index].tooltip.is_empty() {
-                            ui::custom_tooltip(context.ui_sys, Some(UiFontScale(0.8)), Some(background_sprite), || ui.text(&self.children[button_index].tooltip));
+                            ui::custom_tooltip(context.ui_sys, UiFontScale(0.8), Some(background_sprite), || ui.text(&self.children[button_index].tooltip));
                         }
                     }),
                     widgets::ALWAYS_ENABLED
                 );
 
                 widgets::draw_current_window_debug_rect(ui);
-                ui.set_window_font_scale(1.0);
+
+                context.ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
 
                 pressed_button_index
             }).unwrap()
@@ -396,7 +397,7 @@ impl TilePaletteWidget {
                         .build();
                 }
 
-                ui.set_window_font_scale(0.8);
+                context.ui_sys.set_font_scale(UiFontScale(0.8));
 
                 let previously_pressed_button = self.pressed_main_button;
 
@@ -453,7 +454,7 @@ impl TilePaletteWidget {
                 }
 
                 widgets::draw_current_window_debug_rect(ui);
-                ui.set_window_font_scale(1.0);
+                context.ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
             });
     }
 
@@ -471,9 +472,7 @@ impl TilePaletteWidget {
             const CLEAR_ICON_SIZE: Vec2 = BASE_TILE_SIZE_F32;
 
             let rect = Rect::from_pos_and_size(
-                Vec2::new(
-                    cursor_screen_pos.x - (CLEAR_ICON_SIZE.x * 0.5),
-                    cursor_screen_pos.y - (CLEAR_ICON_SIZE.y * 0.5)),
+                cursor_screen_pos - (CLEAR_ICON_SIZE * 0.5),
                 CLEAR_ICON_SIZE
             );
 

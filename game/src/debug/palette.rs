@@ -179,9 +179,7 @@ impl TilePaletteDevMenu {
             const CLEAR_ICON_SIZE: Vec2 = BASE_TILE_SIZE_F32;
 
             let rect = Rect::from_pos_and_size(
-                Vec2::new(
-                    cursor_screen_pos.x - (CLEAR_ICON_SIZE.x * 0.5),
-                    cursor_screen_pos.y - (CLEAR_ICON_SIZE.y * 0.5)),
+                cursor_screen_pos - (CLEAR_ICON_SIZE * 0.5),
                 CLEAR_ICON_SIZE
             );
 

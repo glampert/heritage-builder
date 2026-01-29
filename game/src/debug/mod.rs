@@ -30,10 +30,10 @@ mod settings;
 pub struct DevEditorMenus;
 
 impl DevEditorMenus {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut UiWidgetContext, tile_map: &mut TileMap) -> Self {
         context.ui_sys.set_ui_theme(UiTheme::Dev);
         // Register TileMap global callbacks & debug ref:
-        register_tile_map_debug_callbacks(context.tile_map);
+        register_tile_map_debug_callbacks(tile_map);
         Self
     }
 }
@@ -150,83 +150,89 @@ impl DevEditorMenusSingleton {
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
         let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
 
-        let game_loop = GameLoop::get_mut();
-        let engine = GameLoop::get_mut().engine_mut();
+        let ui_sys = GameLoop::get().engine().ui_system();
+        let debug_draw = GameLoop::get_mut().engine_mut().debug_draw();
 
         if *show_log_viewer_window {
-            let log_viewer = engine.log_viewer();
+            let log_viewer = GameLoop::get_mut().engine_mut().log_viewer();
             log_viewer.show(true);
-            *show_log_viewer_window = log_viewer.draw(menu_context.engine.ui_system());
+            *show_log_viewer_window = log_viewer.draw(ui_sys);
         }
 
-        let mut sim_context = sim::debug::DebugContext {
-            ui_sys: engine.ui_system(),
-            world: menu_context.world,
-            systems: menu_context.systems,
-            tile_map: menu_context.tile_map,
-            transform: menu_context.camera.transform(),
-            delta_time_secs: menu_context.delta_time_secs
-        };
+        {
+            let mut sim_context = sim::debug::DebugContext {
+                ui_sys,
+                world: menu_context.world,
+                systems: menu_context.systems,
+                tile_map: menu_context.tile_map,
+                transform: menu_context.camera.transform(),
+                delta_time_secs: menu_context.delta_time_secs
+            };
 
-        self.tile_palette_menu.draw(&mut sim_context,
-                                    menu_context.sim,
-                                    menu_context.engine.debug_draw(),
-                                    menu_context.cursor_screen_pos,
-                                    has_valid_placement,
-                                    show_selection_bounds);
+            self.tile_palette_menu.draw(&mut sim_context,
+                                        menu_context.sim,
+                                        debug_draw,
+                                        menu_context.cursor_screen_pos,
+                                        has_valid_placement,
+                                        show_selection_bounds);
 
-        self.debug_settings_menu.draw(&mut sim_context,
-                                      menu_context.sim,
-                                      game_loop,
-                                      &mut self.enable_tile_inspector);
+            self.debug_settings_menu.draw(&mut sim_context,
+                                          menu_context.sim,
+                                          GameLoop::get_mut(),
+                                          &mut self.enable_tile_inspector);
 
-        if self.enable_tile_inspector {
-            self.tile_inspector_menu.draw(&mut sim_context, menu_context.sim);
+            if self.enable_tile_inspector {
+                self.tile_inspector_menu.draw(&mut sim_context, menu_context.sim);
+            }
+
+            if show_popup_messages() {
+                menu_context.sim.draw_game_object_debug_popups(&mut sim_context, visible_range);
+            }
         }
 
         if show_sample_menus {
             let mut ui_context = UiWidgetContext::new(
                 menu_context.sim,
-                sim_context.world,
-                sim_context.tile_map,
-                engine
+                menu_context.world,
+                menu_context.engine
             );
             ui::tests::draw_sample_menus(&mut ui_context);
         }
 
-        if show_popup_messages() {
-            menu_context.sim.draw_game_object_debug_popups(&mut sim_context, visible_range);
+        {
+            let mut ui_context = UiWidgetContext::new(
+                menu_context.sim,
+                menu_context.world,
+                menu_context.engine
+            );
+            let minimap = menu_context.tile_map.minimap_mut();
+            minimap.draw(&mut self.minimap_renderer, &mut ui_context, menu_context.camera);
         }
 
-        sim_context.tile_map.minimap_mut().draw(&mut self.minimap_renderer,
-                                                engine.render_system(),
-                                                menu_context.camera,
-                                                sim_context.ui_sys);
-
-        game_loop.camera().draw_debug(menu_context.engine.debug_draw(), sim_context.ui_sys);
+        menu_context.camera.draw_debug(debug_draw, ui_sys);
 
         if show_cursor_pos {
-            utils::draw_cursor_overlay(engine.ui_system(),
+            utils::draw_cursor_overlay(ui_sys,
                                        menu_context.camera.transform(),
                                        menu_context.cursor_screen_pos,
                                        None);
         }
 
         if show_render_perf_stats {
-            utils::draw_render_perf_stats(engine.ui_system(),
-                                          engine.render_stats(),
-                                          engine.tile_map_render_stats());
+            utils::draw_render_perf_stats(ui_sys,
+                                          menu_context.engine.render_stats(),
+                                          menu_context.engine.tile_map_render_stats());
         }
 
         if show_world_perf_stats {
-            utils::draw_world_perf_stats(engine.ui_system(),
+            utils::draw_world_perf_stats(ui_sys,
                                          menu_context.world,
                                          menu_context.tile_map,
                                          visible_range);
         }
 
         if show_screen_origin {
-            utils::draw_screen_origin_marker(engine.debug_draw());
+            utils::draw_screen_origin_marker(debug_draw);
         }
     }
 }

@@ -14,8 +14,8 @@ use crate::{
     singleton,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
-    ui::{self, UiSystem, UiTextureHandle, UiFontScale},
     app::input::{InputSystem, InputAction, MouseButton},
+    ui::{self, UiSystem, UiTextureHandle, UiFontScale, widgets::UiWidgetContext},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
     utils::{
         platform::paths,
@@ -533,16 +533,15 @@ impl Minimap {
     // Draw the minimap using ImGui, nestled inside its own window.
     pub fn draw(&mut self,
                 renderer: &mut impl MinimapRenderer,
-                render_sys: &mut dyn RenderSystem,
-                camera: &mut Camera,
-                ui_sys: &UiSystem) {
-        let mut context = MinimapRenderContext {
-            ui_sys,
-            render_sys,
+                context: &mut UiWidgetContext,
+                camera: &mut Camera) {
+        let mut render_ctx = MinimapRenderContext {
             camera,
+            ui_sys: context.ui_sys,
+            render_sys: context.render_sys,
             minimap: self,
         };
-        renderer.draw(&mut context);
+        renderer.draw(&mut render_ctx);
     }
 }
 
@@ -1119,9 +1118,9 @@ pub trait MinimapRenderer {
 
 pub struct MinimapRenderContext<'game> {
     // Game systems:
+    pub camera: &'game mut Camera,
     pub ui_sys: &'game UiSystem,
     pub render_sys: &'game mut dyn RenderSystem,
-    pub camera: &'game mut Camera,
 
     // Minimap:
     pub minimap: &'game mut Minimap,
@@ -1212,7 +1211,7 @@ impl BaseMinimapRenderer {
                     || {
                         ui::custom_tooltip(
                             context.ui_sys,
-                            Some(self.widget_font_scale),
+                            self.widget_font_scale,
                             self.custom_background(context),
                             || ui.text("Open Map"));
                     });
@@ -1248,7 +1247,7 @@ impl BaseMinimapRenderer {
         if ui.is_item_hovered() {
             ui::custom_tooltip(
                 context.ui_sys,
-                Some(self.widget_font_scale),
+                self.widget_font_scale,
                 self.custom_background(context),
                 || ui.text("Close"));
         }
@@ -1433,13 +1432,8 @@ impl MinimapRenderer for InGameUiMinimapRenderer {
 impl InGameUiMinimapRenderer {
     const WIDGET_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 
-    pub fn new(tex_cache: &mut dyn TextureCache) -> Self {
-        let background_texture_path = ui::assets_path().join("misc/square_page_bg.png");
-
-        let background_texture = tex_cache.load_texture_with_settings(
-            background_texture_path.to_str().unwrap(),
-            Some(ui::texture_settings())
-        );
+    pub fn new(context: &mut UiWidgetContext) -> Self {
+        let background_texture = context.load_texture("misc/square_page_bg.png");
 
         Self {
             base_renderer: BaseMinimapRenderer {
@@ -1526,7 +1520,7 @@ impl DevUiMinimapRenderer {
         if ui.is_item_hovered() {
             ui::custom_tooltip(
                 context.ui_sys,
-                Some(Self::WIDGET_FONT_SCALE),
+                self.base_renderer.widget_font_scale,
                 None,
                 || ui.text("Debug"));
         }

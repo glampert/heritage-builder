@@ -1,12 +1,28 @@
 use std::any::Any;
+use strum::EnumProperty;
 
 use crate::{
     log,
     save::{Save, Load},
-    ui::UiInputEvent,
     engine::{Engine, time::Seconds},
-    utils::{Vec2, coords::{Cell, CellRange}, hash::SmallSet},
+    utils::{self, Vec2, coords::{Cell, CellRange}, hash::SmallSet},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
+    ui::{
+        UiInputEvent,
+        UiFontScale,
+        widgets::{
+            UiWidgetContext,
+            UiTooltipText,
+            UiTooltipTextParams,
+            UiTextButton,
+            UiTextButtonSize,
+            UiTextButtonPressed,
+            UiTextButtonParams,
+            UiSpriteButton,
+            UiSpriteButtonState,
+            UiSpriteButtonParams,
+        },
+    },
     game::{
         world::{object::{Spawner, SpawnerResult}, World},
         sim::{Query, Simulation}, system::GameSystems,
@@ -19,6 +35,9 @@ use crate::{
         water, road::{self, RoadSegment, RoadKind},
     },
 };
+
+pub mod home_v2;
+pub mod in_game_v2;
 
 pub mod widgets;
 pub mod home;
@@ -36,7 +55,7 @@ mod bar;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum GameMenusMode {
     DevEditor,
-    InGameHud,
+    InGame,
     Home,
 }
 
@@ -630,4 +649,122 @@ pub trait TileInspector {
                        -> UiInputEvent;
 
     fn close(&mut self);
+}
+
+// ----------------------------------------------
+// Internal Constants
+// ----------------------------------------------
+
+const TOOLTIP_FONT_SCALE: UiFontScale = UiFontScale(0.8);
+const TOOLTIP_BACKGROUND_SPRITE: &str = "misc/wide_page_bg.png";
+const TILE_PALETTE_BACKGROUND_SPRITE: &str = "misc/tall_page_bg.png";
+const TEXT_BUTTON_HOVERED_SPRITE: &str = "misc/brush_stroke_divider.png";
+const SMALL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
+
+// ----------------------------------------------
+// ButtonDef
+// ----------------------------------------------
+
+trait ButtonDef: EnumProperty {
+    fn label(&self) -> String {
+        self.get_str("Label")
+            .map_or(String::new(), |prop| prop.to_string())
+    }
+
+    fn tooltip(&self) -> String {
+        if let Some(tooltip) = self.get_str("Tooltip") {
+            tooltip.to_string()
+        } else {
+            // Fallback to button display name.
+            self.display_name()
+        }
+    }
+
+    fn has_custom_tooltip(&self) -> bool {
+        self.get_str("Tooltip").is_some()
+    }
+
+    fn display_name(&self) -> String {
+        let label = self.label();
+        let name = {
+            if !label.is_empty() {
+                // If we have a sprite path, take the base sprite name following last separator.
+                if let Some(last_path_separator) = label.rfind('/') {
+                    label.split_at(last_path_separator + 1).1
+                } else {
+                    &label
+                }
+            } else {
+                ""
+            }
+        };
+        utils::snake_case_to_title::<128>(name).to_string()
+    }
+
+    fn new_text_button(&self,
+                       context: &mut UiWidgetContext,
+                       size: UiTextButtonSize,
+                       enabled: bool,
+                       on_pressed: UiTextButtonPressed)
+                       -> UiTextButton
+    {
+        let tooltip = {
+            // Only give it a tooltip if we have a Tooltip property.
+            if self.has_custom_tooltip() {
+                Some(UiTooltipText::new(
+                    context,
+                    UiTooltipTextParams {
+                        text: self.tooltip(),
+                        font_scale: TOOLTIP_FONT_SCALE,
+                        background: Some(TOOLTIP_BACKGROUND_SPRITE),
+                    }
+                ))
+            } else {
+                None
+            }
+        };
+
+        UiTextButton::new(
+            context,
+            UiTextButtonParams {
+                label: self.label(),
+                tooltip,
+                hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                size,
+                enabled,
+                on_pressed,
+            }
+        )
+    }
+
+    fn new_sprite_button(&self,
+                         context: &mut UiWidgetContext,
+                         show_tooltip_when_pressed: bool,
+                         size: Vec2,
+                         initial_state: UiSpriteButtonState,
+                         state_transition_secs: Seconds)
+                         -> UiSpriteButton
+    {
+        // Always give a tooltip for sprite buttons.
+        let tooltip = UiTooltipText::new(
+            context,
+            UiTooltipTextParams {
+                text: self.tooltip(),
+                font_scale: TOOLTIP_FONT_SCALE,
+                background: Some(TOOLTIP_BACKGROUND_SPRITE),
+            }
+        );
+
+        UiSpriteButton::new(
+            context,
+            UiSpriteButtonParams {
+                label: self.label(),
+                tooltip: Some(tooltip),
+                show_tooltip_when_pressed,
+                size,
+                initial_state,
+                state_transition_secs,
+            }
+        )
+    }
 }

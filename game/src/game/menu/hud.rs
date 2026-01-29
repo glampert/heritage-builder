@@ -41,7 +41,7 @@ impl InGameHudMenus {
             tile_palette: TilePaletteMenu::new(context),
             tile_inspector: TileInspectorMenu::new(),
             menu_bars: MenuBarsWidget::new(context),
-            minimap_renderer: InGameUiMinimapRenderer::new(context.tex_cache),
+            minimap_renderer: InGameUiMinimapRenderer::new(context),
         }
     }
 }
@@ -52,7 +52,7 @@ impl GameMenusSystem for InGameHudMenus {
     }
 
     fn mode(&self) -> GameMenusMode {
-        GameMenusMode::InGameHud
+        GameMenusMode::InGame
     }
 
     fn tile_placement(&mut self) -> Option<&mut TilePlacement> {
@@ -69,14 +69,14 @@ impl GameMenusSystem for InGameHudMenus {
 
     fn handle_custom_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
         let mut widget_context =
-            UiWidgetContext::new(context.sim, context.world, context.tile_map, context.engine);
+            UiWidgetContext::new(context.sim, context.world, context.engine);
 
         self.menu_bars.handle_input(&mut widget_context, args)
     }
 
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
         let mut widget_context =
-            UiWidgetContext::new(context.sim, context.world, context.tile_map, context.engine);
+            UiWidgetContext::new(context.sim, context.world, context.engine);
 
         self.tile_palette.draw(&mut widget_context,
                                context.engine.render_system(),
@@ -86,10 +86,8 @@ impl GameMenusSystem for InGameHudMenus {
     
         self.menu_bars.draw(&mut widget_context);
 
-        widget_context.tile_map.minimap_mut().draw(&mut self.minimap_renderer,
-                                                   context.engine.render_system(),
-                                                   context.camera,
-                                                   widget_context.ui_sys);
+        let minimap = context.tile_map.minimap_mut();
+        minimap.draw(&mut self.minimap_renderer, &mut widget_context, context.camera);
     }
 }
 

@@ -75,7 +75,7 @@ impl GameMenusSystem for HomeMenus {
 
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
         let mut widget_context =
-            UiWidgetContext::new(context.sim, context.world, context.tile_map, context.engine);
+            UiWidgetContext::new(context.sim, context.world, context.engine);
 
         if self.background.anim_scene_completed() {
             self.main_menu.draw(&mut widget_context);

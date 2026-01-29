@@ -413,12 +413,3 @@ pub fn combo_with_left_label<'ui>(ui: &'ui imgui::Ui,
         (ui.combo_simple_string(hidden_label, current_item, items), group)
     }
 }
-
-pub fn load_ui_texture(context: &mut UiWidgetContext, path: &str) -> UiTextureHandle {
-    let file_path = assets_path().join(path);
-    let tex_handle = context.tex_cache.load_texture_with_settings(
-        file_path.to_str().unwrap(),
-        Some(texture_settings())
-    );
-    context.ui_sys.to_ui_texture(context.tex_cache, tex_handle)
-}

@@ -197,6 +197,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                     log::info!("Pressed Button: {}", button.label());
                 }
             ),
+            ..Default::default()
         }
     ));
 
@@ -212,6 +213,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                     log::info!("Pressed Button: {}", button.label());
                 }
             ),
+            ..Default::default()
         }
     ));
 
@@ -227,6 +229,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                     log::info!("Pressed Button: {}", button.label());
                 }
             ),
+            ..Default::default()
         }
     ));
 
@@ -242,6 +245,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                     log::info!("Pressed Button: {}", button.label());
                 }
             ),
+            ..Default::default()
         }
     ));
 
@@ -302,6 +306,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                                 }
                                             }
                                         ),
+                                        ..Default::default()
                                     }
                                 )),
                                 UiWidgetImpl::from(UiTextButton::new(
@@ -319,6 +324,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                                 }
                                             }
                                         ),
+                                        ..Default::default()
                                     }
                                 )),
                             ],
@@ -328,7 +334,8 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                         menu_strong_ref.as_mut().open_message_box(context, message_box_params);
                     }
                 }
-            )
+            ),
+            ..Default::default()
         }
     ));
 
@@ -348,7 +355,8 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                         menu_strong_ref.as_mut().close_message_box(context);
                     }
                 }
-            )
+            ),
+            ..Default::default()
         }
     ));
 

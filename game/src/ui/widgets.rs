@@ -22,11 +22,10 @@ use super::{
 
 use crate::{
     bitflags_with_display,
-    tile::TileMap,
-    render::TextureCache,
     game::{sim::Simulation, world::World},
-    utils::{Rect, Size, Vec2, mem::{self, Mutable, RawPtr}},
     engine::{Engine, time::{CountdownTimer, Seconds}},
+    render::{RenderSystem, TextureHandle, TextureCache},
+    utils::{Rect, Size, Vec2, mem::{self, Mutable, RawPtr}},
 };
 
 // ----------------------------------------------
@@ -71,13 +70,14 @@ macro_rules! make_imgui_labeled_id {
 pub struct UiWidgetContext<'game> {
     pub sim: &'game mut Simulation,
     pub world: &'game World,
-    pub tile_map: &'game mut TileMap,
 
     pub ui_sys: &'game UiSystem,
+    pub render_sys: &'game mut dyn RenderSystem,
     pub tex_cache: &'game mut dyn TextureCache,
 
     pub viewport_size: Size,
     pub delta_time_secs: Seconds,
+    pub cursor_screen_pos: Vec2,
 
     in_window_count: u32,
 }
@@ -86,16 +86,16 @@ impl<'game> UiWidgetContext<'game> {
     #[inline]
     pub fn new(sim: &'game mut Simulation,
                world: &'game World,
-               tile_map: &'game mut TileMap,
                engine: &'game dyn Engine) -> Self {
         Self {
             sim,
             world,
-            tile_map,
             ui_sys: engine.ui_system(),
+            render_sys: engine.render_system(),
             tex_cache: engine.texture_cache(),
             viewport_size: engine.viewport().integer_size(),
             delta_time_secs: engine.frame_clock().delta_time(),
+            cursor_screen_pos: engine.input_system().cursor_pos(),
             in_window_count: 0,
         }
     }
@@ -117,6 +117,20 @@ impl<'game> UiWidgetContext<'game> {
     #[inline]
     fn is_inside_widget_window(&self) -> bool {
         self.in_window_count != 0
+    }
+
+    #[inline]
+    pub fn load_texture(&mut self, path: &str) -> TextureHandle {
+        let file_path = super::assets_path().join(path);
+        self.tex_cache.load_texture_with_settings(
+            file_path.to_str().unwrap(),
+            Some(super::texture_settings()))
+    }
+
+    #[inline]
+    pub fn load_ui_texture(&mut self, path: &str) -> UiTextureHandle {
+        let tex_handle = self.load_texture(path);
+        self.ui_sys.to_ui_texture(self.tex_cache, tex_handle)
     }
 }
 
@@ -263,6 +277,7 @@ pub struct UiMenu {
     position: Option<Vec2>,
     background: Option<UiTextureHandle>,
     widgets: Vec<UiWidgetImpl>,
+    widget_spacing: Vec2,
     message_box: UiMessageBox,
     on_open_close: UiMenuOpenClose,
 }
@@ -299,6 +314,10 @@ impl UiWidget for UiMenu {
             .flags(window_flags)
             .build(|| {
                 context.begin_widget_window();
+
+                // Set default widget spacing.
+                let _spacing =
+                    ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
 
                 if let Some(background) = self.background {
                     helpers::draw_widget_window_background(ui, background);
@@ -352,8 +371,9 @@ impl UiMenu {
                     flags: params.flags,
                     size: params.size,
                     position: params.position,
-                    background: params.background.map(|path| helpers::load_ui_texture(context, path)),
+                    background: params.background.map(|path| context.load_ui_texture(path)),
                     widgets: Vec::new(),
+                    widget_spacing: params.widget_spacing.unwrap_or(Vec2::new(6.0, 6.0)),
                     message_box: UiMessageBox::default(),
                     on_open_close: params.on_open_close,
                 }
@@ -505,6 +525,7 @@ pub struct UiMenuParams<'a> {
     pub flags: UiMenuFlags,
     pub size: Option<Vec2>,
     pub position: Option<Vec2>,
+    pub widget_spacing: Option<Vec2>,
     pub background: Option<&'a str>,
     pub on_open_close: UiMenuOpenClose,
 }
@@ -603,7 +624,7 @@ impl UiMenuHeading {
         Self {
             font_scale: params.font_scale,
             lines: params.lines,
-            separator: params.separator.map(|path| helpers::load_ui_texture(context, path)),
+            separator: params.separator.map(|path| context.load_ui_texture(path)),
             margin_top: params.margin_top,
             margin_bottom: params.margin_bottom,
         }
@@ -847,6 +868,7 @@ impl Default for UiLabeledWidgetGroupParams {
 pub struct UiTextButton {
     label: String,
     imgui_id: String,
+    tooltip: Option<UiTooltipText>,
     font_scale: UiFontScale,
     size: UiTextButtonSize,
     hover: Option<UiTextureHandle>,
@@ -925,6 +947,10 @@ impl UiWidget for UiTextButton {
             ui.button(label)
         };
 
+        if let Some(tooltip) = &self.tooltip && ui.is_item_hovered() {
+            tooltip.draw(context);
+        }
+
         // Invoke on pressed callback.
         if pressed && self.is_enabled() {
             self.on_pressed.invoke(self, context);
@@ -961,9 +987,10 @@ impl UiTextButton {
         Self {
             label: params.label,
             imgui_id: String::new(),
+            tooltip: params.tooltip,
             font_scale: params.size.font_scale(),
             size: params.size,
-            hover: params.hover.map(|path| helpers::load_ui_texture(context, path)),
+            hover: params.hover.map(|path| context.load_ui_texture(path)),
             enabled: params.enabled,
             on_pressed: params.on_pressed,
         }
@@ -1008,6 +1035,7 @@ impl UiTextButtonSize {
 #[derive(Default)]
 pub struct UiTextButtonParams<'a> {
     pub label: String,
+    pub tooltip: Option<UiTooltipText>,
     pub size: UiTextButtonSize,
     pub hover: Option<&'a str>,
     pub enabled: bool,
@@ -1190,15 +1218,15 @@ impl UiSpriteButtonTextures {
         Self { textures: [INVALID_UI_TEXTURE_HANDLE; BUTTON_STATE_COUNT] }
     }
 
-    fn load(name: &str, context: &mut UiWidgetContext) -> Self {
+    fn load(sprite_path: &str, context: &mut UiWidgetContext) -> Self {
         let mut sprites = Self::unloaded();
-        sprites.load_textures(name, context);
+        sprites.load_textures(sprite_path, context);
         sprites
     }
 
-    fn load_textures(&mut self, name: &str, context: &mut UiWidgetContext) {
+    fn load_textures(&mut self, sprite_path: &str, context: &mut UiWidgetContext) {
         for state in UiSpriteButtonState::iter() {
-            self.textures[state as usize] = state.load_texture(name, context);
+            self.textures[state as usize] = state.load_texture(sprite_path, context);
         }
     }
 
@@ -1237,13 +1265,13 @@ pub enum UiSpriteButtonState {
 }
 
 impl UiSpriteButtonState {
-    fn asset_path(self, name: &str) -> PathBuf {
-        debug_assert!(!name.is_empty());
+    fn asset_path(self, sprite_path: &str) -> PathBuf {
+        debug_assert!(!sprite_path.is_empty());
         let sprite_suffix = self.get_str("Suffix").unwrap();
 
-        // {name}_{sprite_suffix}.png
+        // {sprite_path}_{sprite_suffix}.png
         let mut sprite_name = ArrayString::<128>::new();
-        sprite_name.push_str(name);
+        sprite_name.push_str(sprite_path);
         sprite_name.push_str("_");
         sprite_name.push_str(sprite_suffix);
         sprite_name.push_str(".png");
@@ -1251,8 +1279,8 @@ impl UiSpriteButtonState {
         assets_path().join("buttons").join(sprite_name)
     }
 
-    fn load_texture(self, name: &str, context: &mut UiWidgetContext) -> UiTextureHandle {
-        helpers::load_ui_texture(context, self.asset_path(name).to_str().unwrap())
+    fn load_texture(self, sprite_path: &str, context: &mut UiWidgetContext) -> UiTextureHandle {
+        context.load_ui_texture(self.asset_path(sprite_path).to_str().unwrap())
     }
 }
 
@@ -1289,14 +1317,14 @@ impl UiTooltipText {
         Self {
             text: params.text,
             font_scale: params.font_scale,
-            background: params.background.map(|path| helpers::load_ui_texture(context, path))
+            background: params.background.map(|path| context.load_ui_texture(path))
         }
     }
 
     fn draw(&self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        custom_tooltip(context.ui_sys, Some(self.font_scale), self.background, || {
+        custom_tooltip(context.ui_sys, self.font_scale, self.background, || {
             context.ui_sys.ui().text(&self.text);
         });
     }
@@ -1364,7 +1392,7 @@ impl UiWidget for UiSeparator {
 impl UiSeparator {
     pub fn new(context: &mut UiWidgetContext, params: UiSeparatorParams) -> Self {                
         Self {
-            separator: params.separator.map(|path| helpers::load_ui_texture(context, path)),
+            separator: params.separator.map(|path| context.load_ui_texture(path)),
             size: params.size,
             thickness: params.thickness.unwrap_or(1.0),
             vertical: params.vertical,
@@ -2309,7 +2337,7 @@ impl UiSlideshow {
         let mut frames = Vec::with_capacity(params.frames.len());
 
         for path in params.frames {
-            frames.push(helpers::load_ui_texture(context, path));
+            frames.push(context.load_ui_texture(path));
         }
 
         Self {

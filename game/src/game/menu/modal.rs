@@ -15,7 +15,7 @@ use super::{
 use crate::{
     render::{TextureFilter, TextureHandle},
     utils::{self, Size, Rect, Vec2, mem},
-    ui::{self, UiSystem, UiTextureHandle, UiStaticVar, widgets::UiWidgetContext},
+    ui::{self, UiSystem, UiTextureHandle, UiStaticVar, UiFontScale, widgets::UiWidgetContext},
     tile::{sets::PresetTiles, camera::CameraGlobalSettings},
     game::{GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
 };
@@ -236,7 +236,7 @@ impl BasicModalMenu {
                 .size([dialog.size[0] + 15.0, dialog.size[1] + 60.0], imgui::Condition::Always)
                 .flags(window_flags)
                 .build(|| {
-                    ui.set_window_font_scale(self.font_scale);
+                    context.ui_sys.set_font_scale(UiFontScale(self.font_scale));
 
                     draw_window_background(self.dialog_background_sprite);
 
@@ -279,7 +279,7 @@ impl BasicModalMenu {
 
                     widgets::draw_current_window_debug_rect(ui);
 
-                    ui.set_window_font_scale(1.0); // Restore default.
+                    context.ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
                 });
         } else {
             let size_cond = if self.size.is_some() {
@@ -303,7 +303,7 @@ impl BasicModalMenu {
                 .size(window_size.to_array(), size_cond)
                 .flags(window_flags)
                 .build(|| {
-                    ui.set_window_font_scale(self.font_scale);
+                    context.ui_sys.set_font_scale(UiFontScale(self.font_scale));
 
                     if let Some(background_sprite) = self.background_sprite {
                         draw_window_background(background_sprite);
@@ -312,7 +312,7 @@ impl BasicModalMenu {
                     draw_menu_fn(context, self);
                     widgets::draw_current_window_debug_rect(ui);
 
-                    ui.set_window_font_scale(1.0); // Restore default.
+                    context.ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
                 });
         }
 
