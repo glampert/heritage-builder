@@ -21,6 +21,7 @@ use crate::{
             UiSpriteButton,
             UiSpriteButtonState,
             UiSpriteButtonParams,
+            UiSpriteButtonStateChanged,
         },
     },
     game::{
@@ -189,7 +190,7 @@ pub trait GameMenusSystem: Any + Save + Load {
 
             // Exit tile placement mode if we've placed a building|unit.
             if placed_building_or_unit {
-                self.tile_palette().unwrap().clear_selection();
+                self.tile_palette().unwrap().clear_selection(context);
                 context.clear_selection();
             }
         }
@@ -209,7 +210,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                 if action == InputAction::Press {
                     // [ESCAPE]: Clear current selection / close tile inspector.
                     if key == InputKey::Escape {
-                        self.tile_palette().unwrap().clear_selection();
+                        self.tile_palette().unwrap().clear_selection(context);
                         context.clear_selection();
                         if let Some(tile_inspector) = self.tile_inspector() {
                             tile_inspector.close();
@@ -241,7 +242,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                     let input_event = self.tile_palette().unwrap().on_mouse_button(button, action);
                     if input_event.not_handled() {
                         // Mouse button click other than [LEFT_BTN], clear selection state.
-                        self.tile_palette().unwrap().clear_selection();
+                        self.tile_palette().unwrap().clear_selection(context);
                         context.clear_selection();
                     }
                     return input_event;
@@ -301,7 +302,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                     }
                 } else {
                     // Mouse button click other than [LEFT_BTN], clear selection state.
-                    self.tile_palette().unwrap().clear_selection();
+                    self.tile_palette().unwrap().clear_selection(context);
                     context.clear_selection();
                 }
 
@@ -613,7 +614,7 @@ pub trait TilePalette {
     fn wants_to_place_or_clear_tile(&self) -> bool;
 
     fn current_selection(&self) -> TilePaletteSelection;
-    fn clear_selection(&mut self);
+    fn clear_selection(&mut self, context: &mut GameMenusContext);
 
     fn has_selection(&self) -> bool {
         !self.current_selection().is_none()
@@ -652,12 +653,12 @@ pub trait TileInspector {
 }
 
 // ----------------------------------------------
-// Internal Constants
+// Internal Shared Constants
 // ----------------------------------------------
 
 const TOOLTIP_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 const TOOLTIP_BACKGROUND_SPRITE: &str = "misc/wide_page_bg.png";
-const TILE_PALETTE_BACKGROUND_SPRITE: &str = "misc/tall_page_bg.png";
+
 const TEXT_BUTTON_HOVERED_SPRITE: &str = "misc/brush_stroke_divider.png";
 const SMALL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
 
@@ -684,21 +685,22 @@ trait ButtonDef: EnumProperty {
         self.get_str("Tooltip").is_some()
     }
 
-    fn display_name(&self) -> String {
+    fn name(&self) -> String {
         let label = self.label();
-        let name = {
-            if !label.is_empty() {
-                // If we have a sprite path, take the base sprite name following last separator.
-                if let Some(last_path_separator) = label.rfind('/') {
-                    label.split_at(last_path_separator + 1).1
-                } else {
-                    &label
-                }
+        if !label.is_empty() {
+            // If we have a sprite path, take the base sprite name following last separator.
+            if let Some(last_path_separator) = label.rfind('/') {
+                label.split_at(last_path_separator + 1).1.to_string()
             } else {
-                ""
+                label
             }
-        };
-        utils::snake_case_to_title::<128>(name).to_string()
+        } else {
+            String::new()
+        }
+    }
+
+    fn display_name(&self) -> String {
+        utils::snake_case_to_title::<128>(&self.name()).to_string()
     }
 
     fn new_text_button(&self,
@@ -741,8 +743,9 @@ trait ButtonDef: EnumProperty {
                          context: &mut UiWidgetContext,
                          show_tooltip_when_pressed: bool,
                          size: Vec2,
+                         state_transition_secs: Seconds,
                          initial_state: UiSpriteButtonState,
-                         state_transition_secs: Seconds)
+                         on_state_changed: UiSpriteButtonStateChanged)
                          -> UiSpriteButton
     {
         // Always give a tooltip for sprite buttons.
@@ -762,8 +765,9 @@ trait ButtonDef: EnumProperty {
                 tooltip: Some(tooltip),
                 show_tooltip_when_pressed,
                 size,
-                initial_state,
                 state_transition_secs,
+                initial_state,
+                on_state_changed,
             }
         )
     }

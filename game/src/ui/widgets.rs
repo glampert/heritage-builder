@@ -146,21 +146,21 @@ pub enum UiWidgetCallback<Widget, Output = ()>
     None,
 
     // With plain function pointer, no capture, no memory allocation.
-    Fn(fn(&Widget, &mut UiWidgetContext) -> Output),
+    Fn(fn(&mut Widget, &mut UiWidgetContext) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
-    Closure(Box<dyn Fn(&Widget, &mut UiWidgetContext) -> Output + 'static>),
+    Closure(Box<dyn Fn(&mut Widget, &mut UiWidgetContext) -> Output + 'static>),
 }
 
 impl<Widget, Output> UiWidgetCallback<Widget, Output>
     where Widget: UiWidget
 {
-    pub fn with_fn(f: fn(&Widget, &mut UiWidgetContext) -> Output) -> Self {
+    pub fn with_fn(f: fn(&mut Widget, &mut UiWidgetContext) -> Output) -> Self {
         Self::Fn(f)
     }
 
     pub fn with_closure<C>(c: C) -> Self
-        where C: Fn(&Widget, &mut UiWidgetContext) -> Output + 'static
+        where C: Fn(&mut Widget, &mut UiWidgetContext) -> Output + 'static
     {
         Self::Closure(Box::new(c))
     }
@@ -169,10 +169,10 @@ impl<Widget, Output> UiWidgetCallback<Widget, Output>
     fn invoke(&self, widget: &Widget, context: &mut UiWidgetContext) -> Option<Output> {
         match self {
             Self::Fn(f) => {
-                Some(f(widget, context))
+                Some(f(mem::mut_ref_cast(widget), context))
             }
             Self::Closure(c) => {
-                Some(c(widget, context))
+                Some(c(mem::mut_ref_cast(widget), context))
             }
             Self::None => None,
         }
@@ -191,21 +191,21 @@ pub enum UiWidgetCallbackWithArg<Widget, Arg, Output = ()>
     None,
 
     // With plain function pointer, no capture, no memory allocation.
-    Fn(fn(&Widget, &mut UiWidgetContext, Arg) -> Output),
+    Fn(fn(&mut Widget, &mut UiWidgetContext, Arg) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
-    Closure(Box<dyn Fn(&Widget, &mut UiWidgetContext, Arg) -> Output + 'static>),
+    Closure(Box<dyn Fn(&mut Widget, &mut UiWidgetContext, Arg) -> Output + 'static>),
 }
 
 impl<Widget, Arg, Output> UiWidgetCallbackWithArg<Widget, Arg, Output>
     where Widget: UiWidget
 {
-    pub fn with_fn(f: fn(&Widget, &mut UiWidgetContext, Arg) -> Output) -> Self {
+    pub fn with_fn(f: fn(&mut Widget, &mut UiWidgetContext, Arg) -> Output) -> Self {
         Self::Fn(f)
     }
 
     pub fn with_closure<C>(c: C) -> Self
-        where C: Fn(&Widget, &mut UiWidgetContext, Arg) -> Output + 'static
+        where C: Fn(&mut Widget, &mut UiWidgetContext, Arg) -> Output + 'static
     {
         Self::Closure(Box::new(c))
     }
@@ -214,10 +214,10 @@ impl<Widget, Arg, Output> UiWidgetCallbackWithArg<Widget, Arg, Output>
     fn invoke(&self, widget: &Widget, context: &mut UiWidgetContext, arg: Arg) -> Option<Output> {
         match self {
             Self::Fn(f) => {
-                Some(f(widget, context, arg))
+                Some(f(mem::mut_ref_cast(widget), context, arg))
             }
             Self::Closure(c) => {
-                Some(c(widget, context, arg))
+                Some(c(mem::mut_ref_cast(widget), context, arg))
             }
             Self::None => None,
         }
@@ -274,7 +274,7 @@ pub struct UiMenu {
     imgui_id: String,
     flags: UiMenuFlags,
     size: Option<Vec2>,
-    position: Option<Vec2>,
+    position: UiMenuPosition,
     background: Option<UiTextureHandle>,
     widgets: Vec<UiWidgetImpl>,
     widget_spacing: Vec2,
@@ -284,7 +284,9 @@ pub struct UiMenu {
 
 pub type UiMenuStrongRef = Rc<Mutable<UiMenu>>;
 pub type UiMenuWeakRef   = Weak<Mutable<UiMenu>>;
-pub type UiMenuOpenClose = UiWidgetCallbackWithArg<UiMenu, bool>;
+
+pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, bool>;
+pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, Vec2>;
 
 impl UiWidget for UiMenu {
     fn as_any(&self) -> &dyn Any {
@@ -292,19 +294,19 @@ impl UiWidget for UiMenu {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
-        if !self.is_open() {
+        let mut is_open = self.is_open();
+
+        if !is_open {
             return;
         }
 
         let ui = context.ui_sys.ui();
 
         let (window_size, window_size_cond) = self.calc_window_size(ui);
-        let (window_pos, window_pivot) = self.calc_window_pos(ui);
+        let (window_pos, window_pivot) = self.calc_window_pos(context, ui);
 
         let window_flags = self.calc_window_flags();
         let window_name = make_imgui_id!(self, UiMenu, self.label);
-
-        let mut is_open = self.is_open();
 
         helpers::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
 
@@ -330,7 +332,7 @@ impl UiWidget for UiMenu {
                 context.end_widget_window();
             });
 
-        self.flags.set(UiMenuFlags::IsOpen, is_open);
+        self.flags.set(UiMenuFlags::IsOpen, is_open && self.is_open());
 
         // Each menu can have one message box.
         if self.message_box.is_open() {
@@ -339,6 +341,9 @@ impl UiWidget for UiMenu {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+        let ui = context.ui_sys.ui();
+        let style = unsafe { ui.style() };
+
         let mut size = Vec2::zero();
 
         for widget in &self.widgets {
@@ -348,10 +353,11 @@ impl UiWidget for UiMenu {
         }
 
         if !self.widgets.is_empty() { // Add inter-widget spacing.
-            let ui = context.ui_sys.ui();
-            let style = unsafe { ui.style() };
             size.y += style.item_spacing[1] * (self.widgets.len() - 1) as f32;
         }
+
+        size += Vec2::from_array(style.window_padding) * 2.0;
+        size += Vec2::new(style.window_border_size, style.window_border_size) * 2.0;
 
         size
     }
@@ -381,15 +387,26 @@ impl UiMenu {
         )
     }
 
+    #[inline]
+    pub fn set_position(&mut self, position: UiMenuPosition) {
+        self.position = position;
+    }
+
+    #[inline]
     pub fn has_flags(&self, flags: UiMenuFlags) -> bool {
         self.flags.intersects(flags)
     }
 
+    #[inline]
     pub fn is_open(&self) -> bool {
         self.has_flags(UiMenuFlags::IsOpen)
     }
 
     pub fn open(&mut self, context: &mut UiWidgetContext) {
+        if self.is_open() {
+            return;
+        }
+
         self.flags.insert(UiMenuFlags::IsOpen);
 
         if self.has_flags(UiMenuFlags::PauseSimIfOpen) {
@@ -401,6 +418,10 @@ impl UiMenu {
     }
 
     pub fn close(&mut self, context: &mut UiWidgetContext) {
+        if !self.is_open() {
+            return;
+        }
+
         self.flags.remove(UiMenuFlags::IsOpen);
 
         if self.has_flags(UiMenuFlags::PauseSimIfOpen) {
@@ -417,6 +438,30 @@ impl UiMenu {
     {
         self.widgets.push(UiWidgetImpl::from(widget));
         self
+    }
+
+    #[inline]
+    pub fn widgets(&self) -> &[UiWidgetImpl] {
+        &self.widgets
+    }
+
+    #[inline]
+    pub fn widgets_mut(&mut self) -> &mut [UiWidgetImpl] {
+        &mut self.widgets
+    }
+
+    pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(usize, &Widget)> {
+        debug_assert!(!label.is_empty());
+
+        for (index, widget) in self.widgets.iter().enumerate() {
+            if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
+                if w.label() == label {
+                    return Some((index, w));
+                }
+            }
+        }
+
+        None
     }
 
     // ----------------------
@@ -445,18 +490,25 @@ impl UiMenu {
         } else if self.has_flags(UiMenuFlags::Fullscreen) {
             (Vec2::from_array(ui.io().display_size), imgui::Condition::Always)
         } else {
-            (Vec2::zero(), imgui::Condition::Never)
+            (Vec2::zero(), imgui::Condition::Never) // Sized to contents.
         }
     }
 
-    fn calc_window_pos(&self, ui: &imgui::Ui) -> (Vec2, Vec2) {
+    fn calc_window_pos(&self, context: &mut UiWidgetContext, ui: &imgui::Ui) -> (Vec2, Vec2) {
         let display_size = Vec2::from_array(ui.io().display_size);
 
         let mut position = Vec2::zero();
         let mut pivot = Vec2::zero();
 
-        if let Some(requested_position) = self.position {
-            position = requested_position;
+        match &self.position {
+            UiMenuPosition::Vec2(pos) => {
+                position = *pos;
+            }
+            UiMenuPosition::Callback(cb) => {
+                position = cb.invoke(self, context).unwrap();
+
+            }
+            UiMenuPosition::None => {}
         }
 
         if self.has_flags(UiMenuFlags::AlignCenter) && self.has_flags(UiMenuFlags::AlignLeft) {
@@ -516,6 +568,18 @@ bitflags_with_display! {
 }
 
 // ----------------------------------------------
+// UiMenuPosition
+// ----------------------------------------------
+
+#[derive(Default)]
+pub enum UiMenuPosition {
+    #[default]
+    None,
+    Vec2(Vec2),
+    Callback(UiMenuCalcPosition),
+}
+
+// ----------------------------------------------
 // UiMenuParams
 // ----------------------------------------------
 
@@ -524,7 +588,7 @@ pub struct UiMenuParams<'a> {
     pub label: Option<String>,
     pub flags: UiMenuFlags,
     pub size: Option<Vec2>,
-    pub position: Option<Vec2>,
+    pub position: UiMenuPosition,
     pub widget_spacing: Option<Vec2>,
     pub background: Option<&'a str>,
     pub on_open_close: UiMenuOpenClose,
@@ -1015,15 +1079,17 @@ pub enum UiTextButtonSize {
     #[default]
     Normal,
     Small,
+    ExtraSmall,
     Large,
 }
 
 impl UiTextButtonSize {
     pub const fn font_scale(self) -> UiFontScale {
         match self {
-            UiTextButtonSize::Normal => UiFontScale(1.2),
-            UiTextButtonSize::Small  => UiFontScale(1.0),
-            UiTextButtonSize::Large  => UiFontScale(1.5),
+            UiTextButtonSize::Normal     => UiFontScale(1.2),
+            UiTextButtonSize::Small      => UiFontScale(1.0),
+            UiTextButtonSize::ExtraSmall => UiFontScale(0.8),
+            UiTextButtonSize::Large      => UiFontScale(1.5),
         }
     }
 }
@@ -1046,7 +1112,7 @@ pub struct UiTextButtonParams<'a> {
 // UiSpriteButton
 // ----------------------------------------------
 
-// Multi-state sprite button. Works via state polling; state persists until changed.
+// Multi-state sprite button. Works via state polling or callback; state persists until changed.
 pub struct UiSpriteButton {
     label: String,
 
@@ -1054,14 +1120,18 @@ pub struct UiSpriteButton {
     show_tooltip_when_pressed: bool,
 
     size: Vec2,
-    position: Vec2, // NOTE: Cached from ImGui on every draw().
+    position: Option<Vec2>, // NOTE: Position is only known after the first call to draw().
     textures: UiSpriteButtonTextures,
 
     logical_state: UiSpriteButtonState,
     visual_state: UiSpriteButtonState,
     visual_state_transition_timer: CountdownTimer,
     state_transition_secs: Seconds,
+
+    on_state_changed: UiSpriteButtonStateChanged,
 }
+
+pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiSpriteButtonState>;
 
 impl UiWidget for UiSpriteButton {
     fn as_any(&self) -> &dyn Any {
@@ -1091,9 +1161,10 @@ impl UiWidget for UiSpriteButton {
                        rect_max)
                        .build();
 
+        self.position = Some(Vec2::from_array(rect_min));
+
         // NOTE: Only left click counts as "pressed".
-        self.update_state(hovered, left_click, right_click, context.delta_time_secs);
-        self.position = Vec2::from_array(rect_min);
+        self.update_state(context, hovered, left_click, right_click, context.delta_time_secs);
 
         if let Some(tooltip) = &self.tooltip {
             let show_tooltip = hovered && (!self.is_pressed() || self.show_tooltip_when_pressed);
@@ -1126,21 +1197,38 @@ impl UiSpriteButton {
             tooltip: params.tooltip,
             show_tooltip_when_pressed: params.show_tooltip_when_pressed,
             size: params.size,
-            position: Vec2::zero(), // NOTE: Only valid after first draw().
+            position: None, // Set after the first draw().
             textures,
             logical_state: params.initial_state,
             visual_state: params.initial_state,
             visual_state_transition_timer,
             state_transition_secs: params.state_transition_secs,
+            on_state_changed: params.on_state_changed,
         }
     }
 
     pub fn position(&self) -> Vec2 {
-        self.position
+        self.position.expect("Called UiSpriteButton::position() before first draw()!")
+    }
+
+    pub fn state(&self) -> UiSpriteButtonState {
+        self.logical_state
+    }
+
+    pub fn is_idle(&self) -> bool {
+        self.logical_state == UiSpriteButtonState::Idle
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        self.logical_state == UiSpriteButtonState::Disabled
     }
 
     pub fn is_enabled(&self) -> bool {
         self.logical_state != UiSpriteButtonState::Disabled
+    }
+
+    pub fn is_pressed(&self) -> bool {
+        self.logical_state == UiSpriteButtonState::Pressed
     }
 
     pub fn enable(&mut self, enable: bool) {
@@ -1149,10 +1237,6 @@ impl UiSpriteButton {
         } else {
             self.logical_state = UiSpriteButtonState::Disabled;
         }
-    }
-
-    pub fn is_pressed(&self) -> bool {
-        self.logical_state == UiSpriteButtonState::Pressed
     }
 
     pub fn press(&mut self, press: bool) {
@@ -1167,7 +1251,14 @@ impl UiSpriteButton {
     // Internal:
     // ----------------------
 
-    fn update_state(&mut self, hovered: bool, left_click: bool, right_click: bool, delta_time_secs: Seconds) {
+    fn update_state(&mut self,
+                    context: &mut UiWidgetContext,
+                    hovered: bool,
+                    left_click: bool,
+                    right_click: bool,
+                    delta_time_secs: Seconds) {
+        let prev_state = self.logical_state;
+
         match self.logical_state {
             UiSpriteButtonState::Idle | UiSpriteButtonState::Hovered => {
                 // Left click selects/presses button.
@@ -1201,6 +1292,11 @@ impl UiSpriteButton {
             }
         } else {
             self.visual_state = self.logical_state;
+        }
+
+        // Invoke on state change or re-click with left mouse button.
+        if self.logical_state != prev_state || left_click {
+            self.on_state_changed.invoke(self, context, prev_state);
         }
     }
 }
@@ -1296,6 +1392,7 @@ pub struct UiSpriteButtonParams {
     pub size: Vec2,
     pub initial_state: UiSpriteButtonState,
     pub state_transition_secs: Seconds,
+    pub on_state_changed: UiSpriteButtonStateChanged,
 }
 
 // ----------------------------------------------

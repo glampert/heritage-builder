@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use inspector::TileInspectorMenu;
-use palette::TilePaletteMenu;
+use palette::{TilePaletteMenu, TilePaletteMenuStrongRef};
 use bars::InGameMenuBars;
 
 use super::{
@@ -30,7 +30,7 @@ mod bars;
 
 pub struct InGameMenus {
     tile_placement: TilePlacement,
-    tile_palette: TilePaletteMenu,
+    tile_palette: TilePaletteMenuStrongRef,
     tile_inspector: TileInspectorMenu,
     menu_bars: InGameMenuBars,
     minimap_renderer: InGameUiMinimapRenderer,
@@ -63,7 +63,7 @@ impl GameMenusSystem for InGameMenus {
     }
 
     fn tile_palette(&mut self) -> Option<&mut dyn TilePalette> {
-        Some(&mut self.tile_palette)
+        Some(self.tile_palette.as_mut())
     }
 
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {
@@ -86,9 +86,9 @@ impl GameMenusSystem for InGameMenus {
             context.engine
         );
 
-        self.tile_palette.draw(&mut ui_context,
-                               context.camera.transform(),
-                               context.tile_selection.has_valid_placement());
+        self.tile_palette.as_mut().draw(&mut ui_context,
+                                        context.camera.transform(),
+                                        context.tile_selection.has_valid_placement());
 
         self.menu_bars.draw(&mut ui_context);
 

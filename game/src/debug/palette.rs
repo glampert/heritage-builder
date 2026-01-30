@@ -16,7 +16,7 @@ use crate::{
     },
     game::{
         sim, building::{config::BuildingConfigs, BuildingArchetypeKind},
-        menu::{TilePalette, TilePaletteSelection}, undo_redo,
+        menu::{GameMenusContext, TilePalette, TilePaletteSelection}, undo_redo,
     },
     tile::{
         TileKind,
@@ -60,10 +60,8 @@ impl TilePalette for TilePaletteDevMenu {
         self.selection
     }
 
-    fn clear_selection(&mut self) {
-        self.selection = TilePaletteSelection::None;
-        self.selected_index = HashMap::default();
-        self.left_mouse_button_held = false;
+    fn clear_selection(&mut self, _context: &mut GameMenusContext) {
+        self.reset_selection_internal();
     }
 }
 
@@ -135,7 +133,7 @@ impl TilePaletteDevMenu {
                     };
 
                     if ui::image_button(ui_sys, &btn_params) {
-                        self.clear_selection();
+                        self.reset_selection_internal();
                         self.selection = TilePaletteSelection::Clear;
                     }
                 }
@@ -269,7 +267,7 @@ impl TilePaletteDevMenu {
             };
 
             if ui::image_button(ui_sys, &btn_params) {
-                self.clear_selection();
+                self.reset_selection_internal();
                 self.selection = TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def));
                 self.selected_index.insert(tile_kind, tile_index);
             }
@@ -345,5 +343,11 @@ impl TilePaletteDevMenu {
             BuildingArchetypeKind::ServiceBuilding  => "Services",
             BuildingArchetypeKind::HouseBuilding    => "Houses",
         }
+    }
+
+    fn reset_selection_internal(&mut self) {
+        self.left_mouse_button_held = false;
+        self.selection = TilePaletteSelection::None;
+        self.selected_index.clear();
     }
 }

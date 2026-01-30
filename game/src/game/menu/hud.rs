@@ -149,7 +149,7 @@ impl TilePalette for TilePaletteMenu {
         self.widget.current_selection
     }
 
-    fn clear_selection(&mut self) {
+    fn clear_selection(&mut self, _context: &mut GameMenusContext) {
         self.widget.clear_selection();
         self.left_mouse_button_pressed = false;
     }
