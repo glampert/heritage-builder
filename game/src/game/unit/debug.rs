@@ -23,7 +23,7 @@ use crate::{
         },
     },
     engine::time::CountdownTimer,
-    ui::{self, UiDPadDirection, UiSystem, UiStaticVar},
+    ui::{self, UiDPadDirection, UiSystem, UiStaticVar, UiFontScale},
     pathfind::{self, NodeKind as PathNodeKind, Path},
     tile::{
         self, Tile, TileMapLayerKind, TilePoolIndex,
@@ -44,9 +44,9 @@ impl Unit {
     pub fn draw_debug_ui_overview(&mut self, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
-        ui.set_window_font_scale(1.2);
+        ui_sys.set_window_font_scale(UiFontScale(1.2));
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
-        ui.set_window_font_scale(1.0);
+        ui_sys.set_window_font_scale(UiFontScale::default());
 
         ui.bullet_text(format!("Anim: {} (dir: {})",
                                self.anim_sets.current_anim_name(),

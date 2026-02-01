@@ -111,12 +111,18 @@ impl<'game> UiWidgetContext<'game> {
         self.in_window_count -= 1;
 
         // Restore default font scale when ending a window.
-        self.ui_sys.set_font_scale(UiFontScale::default());
+        self.ui_sys.set_window_font_scale(UiFontScale::default());
     }
 
     #[inline]
     fn is_inside_widget_window(&self) -> bool {
         self.in_window_count != 0
+    }
+
+    #[inline]
+    pub fn set_window_font_scale(&self, font_scale: UiFontScale) {
+        debug_assert!(self.is_inside_widget_window());
+        self.ui_sys.set_window_font_scale(font_scale);
     }
 
     #[inline]
@@ -341,9 +347,7 @@ impl UiWidget for UiMenu {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        let ui = context.ui_sys.ui();
-        let style = unsafe { ui.style() };
-
+        let style = context.ui_sys.current_ui_style();
         let mut size = Vec2::zero();
 
         for widget in &self.widgets {
@@ -379,7 +383,10 @@ impl UiMenu {
                     position: params.position,
                     background: params.background.map(|path| context.load_ui_texture(path)),
                     widgets: Vec::new(),
-                    widget_spacing: params.widget_spacing.unwrap_or(Vec2::new(6.0, 6.0)),
+                    widget_spacing: params.widget_spacing.unwrap_or_else(|| {
+                        let style = context.ui_sys.current_ui_style();
+                        Vec2::from_array(style.item_spacing)
+                    }),
                     message_box: UiMessageBox::default(),
                     on_open_close: params.on_open_close,
                 }
@@ -616,7 +623,7 @@ impl UiWidget for UiMenuHeading {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        context.ui_sys.set_font_scale(self.font_scale);
+        context.set_window_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
         if self.margin_top > 0.0 {
@@ -654,19 +661,16 @@ impl UiWidget for UiMenuHeading {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        context.ui_sys.set_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
-
         let mut size = Vec2::zero();
 
         for line in &self.lines {
-            let line_size = ui.calc_text_size(line);
-            size.x = size.x.max(line_size[0]); // Max width.
-            size.y += line_size[1]; // Total height.
+            let (line_size, _) = helpers::calc_text_size(self.font_scale, line);
+            size.x = size.x.max(line_size.x); // Max width.
+            size.y += line_size.y; // Total height.
         }
 
         if !self.lines.is_empty() { // Add inter-line spacing.
-            let style = unsafe { ui.style() };
+            let style = context.ui_sys.current_ui_style();
             size.y += style.item_spacing[1] * (self.lines.len() - 1) as f32;
         }
 
@@ -760,8 +764,7 @@ impl UiWidget for UiWidgetGroup {
         }
 
         if !self.widgets.is_empty() { // Add inter-widget spacing
-            let ui = context.ui_sys.ui();
-            let style = unsafe { ui.style() };
+            let style = context.ui_sys.current_ui_style();
 
             if self.stack_vertically {
                 size.y += style.item_spacing[1] * (self.widgets.len() - 1) as f32; // v-spacing
@@ -854,16 +857,15 @@ impl UiWidget for UiLabeledWidgetGroup {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        let ui = context.ui_sys.ui();
-        let style = unsafe { ui.style() };
+        let style = context.ui_sys.current_ui_style();
         let mut size = Vec2::zero();
 
         for (label, widget) in &self.labels_and_widgets {
             let widget_size = widget.measure(context);
-            let label_size = ui.calc_text_size(label);
+            let (label_size, _) = helpers::calc_text_size(widget.font_scale(), label);
 
-            size.x = size.x.max(label_size[0] + style.item_spacing[0] + widget_size.x); // Max width (label + widget).
-            size.y += label_size[1].max(widget_size.y); // Total height (largest of the two).
+            size.x = size.x.max(label_size.x + style.item_spacing[0] + widget_size.x); // Max width (label + widget).
+            size.y += label_size.y.max(widget_size.y); // Total height (largest of the two).
         }
 
         if !self.labels_and_widgets.is_empty() { // Add inter-widget spacing
@@ -950,7 +952,7 @@ impl UiWidget for UiTextButton {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        context.ui_sys.set_font_scale(self.font_scale);
+        context.set_window_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
         let label = make_imgui_labeled_id!(self, UiTextButton, self.label);
@@ -1022,16 +1024,13 @@ impl UiWidget for UiTextButton {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        context.ui_sys.set_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let style = context.ui_sys.current_ui_style();
 
-        let style = unsafe { ui.style() };
+        // Compute scaled font size (window-independent).
+        let (text_size, font_size) = helpers::calc_text_size(self.font_scale, &self.label);
 
-        let font_size = ui.current_font_size();
-        let text_size = ui.calc_text_size(&self.label);
-
-        let width  = text_size[0] + (style.frame_padding[0] * 2.0);
-        let height = text_size[1].max(font_size) + (style.frame_padding[1] * 2.0);
+        let width  = text_size.x + (style.frame_padding[0] * 2.0);
+        let height = text_size.y.max(font_size) + (style.frame_padding[1] * 2.0);
 
         Vec2::new(width, height)
     }
@@ -1531,7 +1530,7 @@ impl UiWidget for UiSlider {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        context.ui_sys.set_font_scale(self.font_scale);
+        context.set_window_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
         let label = make_imgui_id!(self, UiSlider, self.label);
@@ -1710,7 +1709,7 @@ impl UiWidget for UiCheckbox {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        context.ui_sys.set_font_scale(self.font_scale);
+        context.set_window_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
         let label = make_imgui_id!(self, UiCheckbox, self.label);
@@ -1726,16 +1725,14 @@ impl UiWidget for UiCheckbox {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        context.ui_sys.set_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let style = context.ui_sys.current_ui_style();
 
-        let style = unsafe { ui.style() };
-        let checkbox_square = ui.text_line_height() + (style.frame_padding[1] * 2.0);
+        let checkbox_square = helpers::calc_text_line_height(self.font_scale) + (style.frame_padding[1] * 2.0);
         let mut width = checkbox_square;
 
         if !self.label.is_empty() {
-            let label_size = ui.calc_text_size(&self.label);
-            width += style.item_inner_spacing[0] + label_size[0];
+            let (label_size, _) = helpers::calc_text_size(self.font_scale, &self.label);
+            width += style.item_inner_spacing[0] + label_size.x;
         }
 
         Vec2::new(width, checkbox_square)
@@ -1800,7 +1797,7 @@ impl UiWidget for UiTextInput {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        context.ui_sys.set_font_scale(self.font_scale);
+        context.set_window_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
         let label = make_imgui_id!(self, UiTextInput, self.label);
@@ -1884,13 +1881,13 @@ impl UiWidget for UiDropdown {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        context.ui_sys.set_font_scale(self.font_scale);
+        context.set_window_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
         let bg_color = if context.ui_sys.current_ui_theme().is_in_game() {
             [0.90, 0.80, 0.60, 1.0]
         } else {
-            [0.18, 0.18, 0.20, 0.9]
+            context.ui_sys.current_ui_style().colors[imgui::StyleColor::PopupBg as usize]
         };
 
         let _combo_bg_color = ui.push_style_color(imgui::StyleColor::PopupBg, bg_color);
@@ -2027,7 +2024,7 @@ impl UiWidget for UiItemList {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        context.ui_sys.set_font_scale(self.font_scale);
+        context.set_window_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
         let window_name = make_imgui_id!(self, UiItemList, self.label);
@@ -2039,7 +2036,7 @@ impl UiWidget for UiItemList {
         let mut window_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             // NOTE: Decrement window padding from margin, so it is accurate.
-            let style = unsafe { ui.style() };
+            let style = context.ui_sys.current_ui_style();
             window_size.x -= self.margin_right - style.window_padding[0];
         }
 
@@ -2116,21 +2113,18 @@ impl UiWidget for UiItemList {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        context.ui_sys.set_font_scale(self.font_scale);
-
-        let ui = context.ui_sys.ui();
-        let style = unsafe { ui.style() };
+        let style = context.ui_sys.current_ui_style();
 
         let mut requested_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        let size = helpers::calc_child_window_size(ui, requested_size);
+        let size = helpers::calc_child_window_size(context.ui_sys.ui(), requested_size);
 
         let input_field_height = {
             if self.text_input_field_buffer.is_some() {
-                ui.text_line_height() + (style.frame_padding[1] * 2.0)
+                helpers::calc_text_line_height(self.font_scale) + (style.frame_padding[1] * 2.0)
             } else {
                 0.0
             }
@@ -2412,15 +2406,14 @@ impl UiWidget for UiSlideshow {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        let ui = context.ui_sys.ui();
-        let style = unsafe { ui.style() };
+        let style = context.ui_sys.current_ui_style();
 
         let mut requested_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        helpers::calc_child_window_size(ui, requested_size)
+        helpers::calc_child_window_size(context.ui_sys.ui(), requested_size)
     }
 }
 
@@ -2531,7 +2524,7 @@ impl UiSlideshow {
         let mut window_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             // NOTE: Decrement window padding from margin, so it is accurate.
-            let style = unsafe { ui.style() };
+            let style = context.ui_sys.current_ui_style();
             window_size.x -= self.margin_right - style.window_padding[0];
         }
 

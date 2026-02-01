@@ -335,7 +335,7 @@ impl TilePaletteMainButton {
     }
 
     fn draw_child_menu(&mut self, context: &mut UiWidgetContext) {
-        if let Some(child_menu) = &self.child_menu && child_menu.is_open(){
+        if let Some(child_menu) = &self.child_menu && child_menu.is_open() {
             child_menu.as_mut().draw(context);
         }
     }
@@ -368,7 +368,6 @@ impl TilePaletteMainButton {
 // ----------------------------------------------
 
 pub struct TilePaletteMenu {
-    child_menu_position_callbacks_are_set: bool,
     left_mouse_button_pressed: bool,
     current_selection: TilePaletteSelection,
     selection_renderer: TileSelectionRenderer,
@@ -443,14 +442,17 @@ impl TilePaletteMenu {
                 }
             }
 
-            Mutable::new(Self {
-                child_menu_position_callbacks_are_set: false,
+            let tile_palette = Self {
                 left_mouse_button_pressed: false,
                 current_selection: TilePaletteSelection::None,
                 selection_renderer: TileSelectionRenderer::new(context),
                 main_buttons: buttons.main,
                 menu: palette_menu,
-            })
+            };
+
+            tile_palette.set_child_menu_position_callbacks(context);
+
+            Mutable::new(tile_palette)
         })
     }
 
@@ -460,10 +462,6 @@ impl TilePaletteMenu {
                 has_valid_placement: bool) {
         // Draw menu & main buttons:
         self.menu.as_mut().draw(context);
-
-        if !self.child_menu_position_callbacks_are_set {
-            self.set_child_menu_position_callbacks(context);
-        }
 
         // Draw the open child menu, if any:
         for button in &mut self.main_buttons {
@@ -481,9 +479,7 @@ impl TilePaletteMenu {
     // Internal:
     // ----------------------
 
-    fn set_child_menu_position_callbacks(&mut self, context: &mut UiWidgetContext) {
-        debug_assert!(!self.child_menu_position_callbacks_are_set);
-
+    fn set_child_menu_position_callbacks(&self, context: &UiWidgetContext) {
         for main_button in &self.main_buttons {
             if let Some(child_menu) = &main_button.child_menu {
                 let palette_menu_weak_ref = UiMenuStrongRef::downgrade(&self.menu);
@@ -493,7 +489,7 @@ impl TilePaletteMenu {
                         .expect("Couldn't find UiSpriteButton widget in palette menu!").0;
 
                 child_menu.as_mut().set_position(UiMenuPosition::Callback(
-                    UiMenuCalcPosition::with_closure(move |_menu, _context| {
+                    UiMenuCalcPosition::with_closure(move |_, _| {
                         let palette_menu_strong_ref = palette_menu_weak_ref.upgrade().unwrap();
                         let main_button_widget = &palette_menu_strong_ref.widgets()[main_button_index];
                         let main_button = main_button_widget.as_any().downcast_ref::<UiSpriteButton>().unwrap();
@@ -503,8 +499,6 @@ impl TilePaletteMenu {
                 ));
             }
         }
-
-        self.child_menu_position_callbacks_are_set = true;
     }
 
     fn reset_selection_internal(&mut self, context: &mut UiWidgetContext) {

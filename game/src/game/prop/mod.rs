@@ -17,7 +17,7 @@ use super::{
 use crate::{
     game_object_debug_options,
     game_object_undo_redo_state,
-    ui::{UiSystem, UiStaticVar},
+    ui::{UiSystem, UiStaticVar, UiFontScale},
     save::PostLoadContext,
     engine::time::{CountdownTimer, Seconds},
     tile::{Tile, TileKind, TileMapLayerKind},
@@ -358,9 +358,9 @@ impl Prop {
     fn draw_debug_ui_overview(&mut self, _query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
-        ui.set_window_font_scale(1.2);
+        ui_sys.set_window_font_scale(UiFontScale(1.2));
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
-        ui.set_window_font_scale(1.0);
+        ui_sys.set_window_font_scale(UiFontScale::default());
 
         let color_bullet_text = |label: &str, value: u32| {
             ui.bullet_text(format!("{label}:"));

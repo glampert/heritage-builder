@@ -85,10 +85,10 @@ impl MenuBarsWidget {
             .position(position.unwrap_or([0.0, 0.0]), pos_cond)
             .flags(widgets::window_flags() | imgui::WindowFlags::NO_BACKGROUND)
             .build(|| {
-                context.ui_sys.set_font_scale(UiFontScale(0.8));
+                context.ui_sys.set_window_font_scale(UiFontScale(0.8));
                 draw_fn(context);
                 widgets::draw_current_window_debug_rect(context.ui_sys.ui());
-                context.ui_sys.set_font_scale(UiFontScale::default());
+                context.ui_sys.set_window_font_scale(UiFontScale::default());
             });
     }
 }

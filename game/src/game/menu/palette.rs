@@ -228,7 +228,7 @@ impl TilePaletteMainButton {
                         .build();
                 }
 
-                context.ui_sys.set_font_scale(UiFontScale(0.8));
+                context.ui_sys.set_window_font_scale(UiFontScale(0.8));
 
                 let mut labels = SmallVec::<[&str; 16]>::new();
                 for button in &self.children {
@@ -273,7 +273,7 @@ impl TilePaletteMainButton {
 
                 widgets::draw_current_window_debug_rect(ui);
 
-                context.ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
+                context.ui_sys.set_window_font_scale(UiFontScale::default()); // Restore default.
 
                 pressed_button_index
             }).unwrap()
@@ -397,7 +397,7 @@ impl TilePaletteWidget {
                         .build();
                 }
 
-                context.ui_sys.set_font_scale(UiFontScale(0.8));
+                context.ui_sys.set_window_font_scale(UiFontScale(0.8));
 
                 let previously_pressed_button = self.pressed_main_button;
 
@@ -454,7 +454,7 @@ impl TilePaletteWidget {
                 }
 
                 widgets::draw_current_window_debug_rect(ui);
-                context.ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
+                context.ui_sys.set_window_font_scale(UiFontScale::default()); // Restore default.
             });
     }
 

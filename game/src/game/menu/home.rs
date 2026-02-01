@@ -21,7 +21,7 @@ use crate::{
     save::{Save, Load},
     tile::rendering::TileMapRenderFlags,
     utils::{Size, Vec2, coords::CellRange},
-    ui::{self, UiInputEvent, UiTextureHandle, UiTheme, widgets::UiWidgetContext},
+    ui::{self, UiInputEvent, UiTextureHandle, UiTheme, UiFontScale, widgets::UiWidgetContext},
 };
 
 // ----------------------------------------------
@@ -367,7 +367,7 @@ impl ModalMenu for HomeMainMenu {
             this.draw_menu_heading(context, &["Heritage Builder", "The Dragon Legacy"]);
 
             // Set font for the buttons:
-            ui.set_window_font_scale(Self::FONT_SCALE_HOME_BTN);
+            context.ui_sys.set_window_font_scale(UiFontScale(Self::FONT_SCALE_HOME_BTN));
             // Draw actual menu buttons:
             let pressed_button_index = widgets::draw_centered_button_group_custom_hover(
                 context.ui_sys,

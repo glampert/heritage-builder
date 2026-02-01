@@ -36,7 +36,7 @@ use crate::{
     bitflags_with_display,
     engine::time::UpdateTimer,
     game::config::GameConfigs,
-    ui::{UiSystem, UiStaticVar},
+    ui::{UiSystem, UiStaticVar, UiFontScale},
     log,
     pathfind::{self, NodeKind as PathNodeKind},
     save::PostLoadContext,
@@ -842,9 +842,9 @@ impl Building {
             ui.text_colored(Color::red().to_array(), value);
         };
 
-        ui.set_window_font_scale(1.2);
+        ui_sys.set_window_font_scale(UiFontScale(1.2));
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
-        ui.set_window_font_scale(1.0);
+        ui_sys.set_window_font_scale(UiFontScale::default());
 
         color_bullet_bool("Linked to road", self.is_linked_to_road(context.query));
 

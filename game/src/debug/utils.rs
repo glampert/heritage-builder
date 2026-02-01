@@ -1,7 +1,7 @@
 use crate::{
     log,
     engine::DebugDraw,
-    ui::{self, UiSystem},
+    ui::{self, UiSystem, UiFontScale},
     render::{RenderStats, RenderSystem},
     game::{
         cheats::{self, Cheats},
@@ -246,7 +246,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
     let _text_col = ui.push_style_color(imgui::StyleColor::Text, text_color);
 
     ui::overlay(ui, &label, debug_overlay_pos, 0.4, || {
-        ui.set_window_font_scale(0.8);
+        ui_sys.set_window_font_scale(UiFontScale(0.8));
 
         let tile_iso_pos = tile.iso_coords_f32();
         ui.text(format!("C:{},{}", cell.x, cell.y)); // Cell position
@@ -260,7 +260,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
             TileDepthSortOverride::Bottommost => ui.text("Z: Bottom"),
         }
 
-        ui.set_window_font_scale(1.0);
+        ui_sys.set_window_font_scale(UiFontScale::default());
     });
 }
 

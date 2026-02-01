@@ -1,10 +1,75 @@
+use imgui::sys::{ImVec2, ImFont};
+use arrayvec::{ArrayVec, ArrayString};
 use smallvec::SmallVec;
-use arrayvec::ArrayString;
 use super::{*, widgets::*};
 
 // ----------------------------------------------
 // Internal ImGui helpers
 // ----------------------------------------------
+
+static UNCOMMITTED_FONTS: UiStaticVar<usize> = UiStaticVar::new(0);
+static FONT_STACK: UiStaticVar<ArrayVec<UiFontHandle, 6>> = UiStaticVar::new(ArrayVec::new_const());
+
+#[inline]
+fn get_font_atlas() -> &'static imgui::FontAtlas {
+    unsafe {
+        let io_ptr = &*imgui::sys::igGetIO();
+        &*(io_ptr.Fonts as *const imgui::FontAtlas)
+    }
+}
+
+pub fn push_font(font_handle: UiFontHandle, frame_started: bool) {
+    let font_stack = FONT_STACK.as_mut();
+    debug_assert!(!font_stack.is_full(), "Suspiciously deep UI font stack! Make sure push/pop are balanced.");
+    font_stack.push(font_handle);
+
+    if !frame_started {
+        UNCOMMITTED_FONTS.set(*UNCOMMITTED_FONTS + 1);
+        return;
+    }
+
+    let font_atlas = get_font_atlas();
+    let font = font_atlas.get_font(font_handle)
+        .expect("push_font(): UI font atlas did not contain the given font!");
+
+    unsafe { imgui::sys::igPushFont(font as *const _ as *mut _); }
+}
+
+pub fn pop_font(frame_started: bool) {
+    let font_stack = FONT_STACK.as_mut();
+
+    if !frame_started {
+        // If called outside UiSystem::begin_frame/end_frame we may have nothing to pop.
+        if font_stack.is_empty() {
+            debug_assert!(*UNCOMMITTED_FONTS == 0);
+        } else {
+            debug_assert!(!font_stack.is_empty(), "UI font stack already empty!");
+            font_stack.pop();
+
+            UNCOMMITTED_FONTS.set(*UNCOMMITTED_FONTS - 1);
+        }
+        return;
+    }
+
+    debug_assert!(!font_stack.is_empty(), "UI font stack already empty!");
+    font_stack.pop();
+
+    unsafe { imgui::sys::igPopFont(); }
+}
+
+#[inline]
+pub fn current_font() -> &'static imgui::Font {
+    let font_stack  = FONT_STACK.as_ref();
+    let font_handle = font_stack.last().expect("UI font stack is empty! No current font is set.");
+    let font_atlas  = get_font_atlas();
+    font_atlas.get_font(*font_handle)
+        .expect("current_font(): UI font atlas did not contain the given font!")
+}
+
+#[inline]
+pub fn current_style() -> &'static imgui::Style {
+    unsafe { &*(imgui::sys::igGetStyle() as *const imgui::Style) }
+}
 
 #[inline]
 pub fn base_widget_window_flags() -> imgui::WindowFlags {
@@ -21,9 +86,9 @@ pub fn base_widget_window_flags() -> imgui::WindowFlags {
 pub fn set_next_widget_window_pos(pos: Vec2, pivot: Vec2, cond: imgui::Condition) {
     unsafe {
         imgui::sys::igSetNextWindowPos(
-            imgui::sys::ImVec2 { x: pos.x, y: pos.y },
+            ImVec2 { x: pos.x, y: pos.y },
             cond as _,
-            imgui::sys::ImVec2 { x: pivot.x, y: pivot.y },
+            ImVec2 { x: pivot.x, y: pivot.y },
         );
     }
 }
@@ -95,7 +160,7 @@ pub fn draw_centered_widget_group(ui: &imgui::Ui,
         return Rect::zero();
     }
 
-    let item_spacing = unsafe { Vec2::from_array(ui.style().item_spacing) };
+    let item_spacing = Vec2::from_array(current_style().item_spacing);
 
     // Measure widget sizes:
     let widget_sizes: SmallVec<[Vec2; 16]> = widgets
@@ -161,7 +226,7 @@ pub fn draw_centered_labeled_widget_group(ui: &imgui::Ui,
         return Rect::zero();
     }
 
-    let item_spacing = unsafe { Vec2::from_array(ui.style().item_spacing) };
+    let item_spacing = Vec2::from_array(current_style().item_spacing);
     let mut longest_label: f32 = 0.0;
 
     // Measure widget sizes:
@@ -169,7 +234,7 @@ pub fn draw_centered_labeled_widget_group(ui: &imgui::Ui,
         .iter()
         .map(|(label, widget)| {
             let widget_size = widget.measure(context);
-            let label_size  = Vec2::from_array(ui.calc_text_size(label));
+            let (label_size, _) = calc_text_size(widget.font_scale(), label);
 
             longest_label = longest_label.max(label_size.x);
 
@@ -197,7 +262,7 @@ pub fn draw_centered_labeled_widget_group(ui: &imgui::Ui,
     // Draw each widget:
     let mut offset_y = 0.0;
     for ((label, widget), widget_size) in labels_and_widgets.iter_mut().zip(widget_sizes.iter()) {
-        context.ui_sys.set_font_scale(widget.font_scale());
+        context.set_window_font_scale(widget.font_scale());
 
         let mut x = start_x;
         let y = start_y + offset_y;
@@ -225,16 +290,14 @@ pub fn draw_centered_labeled_widget_group(ui: &imgui::Ui,
 
 // Works for most labeled widgets (input text, combo, slider).
 pub fn calc_labeled_widget_size(context: &UiWidgetContext, font_scale: UiFontScale, label: &str) -> Vec2 {
-    context.ui_sys.set_font_scale(font_scale);
-    let ui = context.ui_sys.ui();
+    let style = current_style();
 
-    let style = unsafe { ui.style() };
-    let height = ui.text_line_height() + (style.frame_padding[1] * 2.0);
-    let mut width = ui.calc_item_width();
+    let height = calc_text_line_height(font_scale) + (style.frame_padding[1] * 2.0);
+    let mut width = context.ui_sys.ui().calc_item_width();
 
     if !label.is_empty() {
-        let label_size = ui.calc_text_size(label);
-        width += style.item_inner_spacing[0] + label_size[0];
+        let (label_size, _) = calc_text_size(font_scale, label);
+        width += style.item_inner_spacing[0] + label_size.x;
     }
 
     Vec2::new(width, height)
@@ -273,8 +336,8 @@ pub fn calc_child_window_size(ui: &imgui::Ui, requested: Vec2) -> Vec2 {
 //  - `horizontal = false` -> vertical separator (tables / columns)
 //  - `thickness` -> ImGui default is 1.0
 pub fn calc_separator_size(ui: &imgui::Ui, horizontal: bool, thickness: f32) -> Vec2 {
-    let style = unsafe { ui.style() };
     let region_avail = Vec2::from_array(ui.content_region_avail());
+    let style = current_style();
 
     if horizontal {
         let width  = region_avail.x;
@@ -285,6 +348,42 @@ pub fn calc_separator_size(ui: &imgui::Ui, horizontal: bool, thickness: f32) -> 
         let height = region_avail.y;
         Vec2::new(width, height)
     }
+}
+
+pub fn calc_text_line_height(font_scale: UiFontScale) -> f32 {
+    let font = current_font();
+    font.font_size * font_scale.0
+}
+
+// Ui/window independent font size calculation, using current font.
+// Returns text size and scaled current font size.
+pub fn calc_text_size(font_scale: UiFontScale, text: &str) -> (Vec2, f32) {
+    let font = current_font();
+    let font_size = font.font_size * font_scale.0;
+
+    // No text wrapping.
+    let max_width  = f32::MAX;
+    let wrap_width = -1.0;
+
+    let mut out = ImVec2::zero();
+
+    unsafe {
+        let font_ptr = font as *const _ as *mut ImFont;
+        let text_start = text.as_ptr();
+        let text_end = text_start.add(text.len());
+        imgui::sys::ImFont_CalcTextSizeA(
+            &mut out,
+            font_ptr,
+            font_size,
+            max_width,
+            wrap_width,
+            text_start as *const _,
+            text_end as *const _,
+            std::ptr::null::<i8>() as *mut *const _
+        );
+    }
+
+    (Vec2::new(out.x, out.y), font_size)
 }
 
 pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,
@@ -308,7 +407,7 @@ pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,
         ui.text(label);
 
         // Same spacing ImGui uses between frame and label.
-        let style = unsafe { ui.style() };
+        let style = current_style();
         ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
 
         let mut hidden_label = ArrayString::<128>::new();
@@ -339,7 +438,7 @@ pub fn input_text_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
         ui.text(label);
 
         // Same spacing ImGui uses between frame and label.
-        let style = unsafe { ui.style() };
+        let style = current_style();
         ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
 
         let mut hidden_label = ArrayString::<128>::new();
@@ -370,7 +469,7 @@ pub fn checkbox_with_left_label<'ui>(ui: &'ui imgui::Ui,
         ui.text(label);
 
         // Same spacing ImGui uses between frame and label.
-        let style = unsafe { ui.style() };
+        let style = current_style();
         ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
 
         let mut hidden_label = ArrayString::<128>::new();
@@ -402,7 +501,7 @@ pub fn combo_with_left_label<'ui>(ui: &'ui imgui::Ui,
         ui.text(label);
 
         // Same spacing ImGui uses between frame and label.
-        let style = unsafe { ui.style() };
+        let style = current_style();
         ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
 
         let mut hidden_label = ArrayString::<128>::new();

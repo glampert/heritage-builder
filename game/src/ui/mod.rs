@@ -107,26 +107,30 @@ impl UiSystem {
                        app: &impl Application,
                        input_sys: &impl InputSystem,
                        delta_time_secs: Seconds) {
-        debug_assert!(self.ui_ptr.is_null());
+        debug_assert!(!self.frame_started());
 
-        let theme_font_id = self.fonts().front_for_theme(self.theme);
-        self.current_font_scale = None;
+        let theme_font_handle = self.context.fonts.front_for_theme(self.theme);
 
         let ui = self.context.begin_frame(app, input_sys, delta_time_secs);
-        UiFonts::push_theme_font(ui, theme_font_id);
-
         self.ui_ptr = ui as *const imgui::Ui;
+
+        UiFonts::push_theme_font(theme_font_handle, true);
     }
 
     #[inline]
     pub fn end_frame(&mut self) {
-        debug_assert!(!self.ui_ptr.is_null());
+        debug_assert!(self.frame_started());
 
-        UiFonts::pop_theme_font();
+        UiFonts::pop_theme_font(true);
         self.current_font_scale = None;
 
         self.ui_ptr = null::<imgui::Ui>();
         self.context.end_frame();
+    }
+
+    #[inline]
+    pub fn frame_started(&self) -> bool {
+        !self.ui_ptr.is_null()
     }
 
     #[inline]
@@ -198,13 +202,13 @@ impl UiSystem {
 
     #[inline]
     pub fn ui(&self) -> &imgui::Ui {
-        debug_assert!(!self.ui_ptr.is_null());
+        debug_assert!(self.frame_started());
         unsafe { &*self.ui_ptr }
     }
 
     #[inline]
     pub unsafe fn raw_ui_ptr(&self) -> *const imgui::Ui {
-        debug_assert!(!self.ui_ptr.is_null());
+        debug_assert!(self.frame_started());
         self.ui_ptr
     }
 
@@ -218,11 +222,26 @@ impl UiSystem {
         UiTextureHandle::new(native_handle.bits)
     }
 
-    #[inline]
+    // ----------------------
+    // Ui Theme:
+    // ----------------------
+
     pub fn set_ui_theme(&self, theme: UiTheme) {
         let mut_self = mem::mut_ref_cast(self);
         if mut_self.theme != theme {
             mut_self.theme = theme;
+
+            let frame_started = mut_self.frame_started();
+
+            // Reset cached font states:
+            UiFonts::pop_theme_font(frame_started);
+            mut_self.current_font_scale = None;
+
+            // Set new current global font.
+            let theme_font_handle = mut_self.context.fonts.front_for_theme(mut_self.theme);
+            UiFonts::push_theme_font(theme_font_handle, frame_started);
+
+            // Set style variables.
             match theme {
                 UiTheme::Dev => mut_self.context.set_dev_ui_theme(),
                 UiTheme::InGame => mut_self.context.set_in_game_ui_theme(),
@@ -236,7 +255,16 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn set_font_scale(&self, font_scale: UiFontScale) {
+    pub fn current_ui_style(&self) -> &imgui::Style {
+        helpers::current_style()
+    }
+
+    // ----------------------
+    // Font Scale:
+    // ----------------------
+
+    #[inline]
+    pub fn set_window_font_scale(&self, font_scale: UiFontScale) {
         debug_assert!(font_scale.is_valid());
         let mut_self = mem::mut_ref_cast(self);
         if mut_self.current_font_scale != Some(font_scale) {
@@ -246,12 +274,12 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn current_front_scale(&self) -> UiFontScale {
+    pub fn current_window_front_scale(&self) -> UiFontScale {
         self.current_font_scale.unwrap_or_default()
     }
 
     #[inline]
-    fn force_set_font_scale(&self, font_scale: Option<UiFontScale>) {
+    fn set_tooltip_font_scale(&self, font_scale: Option<UiFontScale>) {
         let mut_self = mem::mut_ref_cast(self);
 
         if let Some(scale) = font_scale {
@@ -293,15 +321,13 @@ impl UiFonts {
     }
 
     #[inline]
-    fn push_theme_font(ui: &imgui::Ui, theme_font_id: UiFontHandle) {
-        use imgui::internal::RawCast;
-        let font = ui.fonts().get_font(theme_font_id).expect("Font atlas did not contain the given font!");
-        unsafe { imgui::sys::igPushFont(font.raw() as *const _ as *mut _) };
+    fn push_theme_font(theme_font_handle: UiFontHandle, frame_started: bool) {
+        helpers::push_font(theme_font_handle, frame_started);
     }
 
     #[inline]
-    fn pop_theme_font() {
-        unsafe { imgui::sys::igPopFont(); }
+    fn pop_theme_font(frame_started: bool) {
+        helpers::pop_font(frame_started);
     }
 }
 
@@ -1003,7 +1029,7 @@ pub fn custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem,
     // NOTE:
     // Always set font scale for tooltips because a tooltip is itself a window,
     // so it will not inherit the current ui window font scale.
-    ui_sys.force_set_font_scale(Some(font_scale));
+    ui_sys.set_tooltip_font_scale(Some(font_scale));
 
     if let Some(bg_texture) = background {
         let window_rect = Rect::from_pos_and_size(
@@ -1021,7 +1047,7 @@ pub fn custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem,
     tooltip_fn();
     tooltip.end();
 
-    ui_sys.force_set_font_scale(None);
+    ui_sys.set_tooltip_font_scale(None);
 }
 
 pub struct UiImageButtonParams<'a> {

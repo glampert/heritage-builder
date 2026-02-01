@@ -156,8 +156,7 @@ impl BasicModalMenu {
     }
 
     pub fn draw_menu_heading(&self, context: &mut UiWidgetContext, labels: &[&str]) {
-        let ui = context.ui_sys.ui();
-        ui.set_window_font_scale(self.heading_font_scale);
+        context.ui_sys.set_window_font_scale(UiFontScale(self.heading_font_scale));
 
         widgets::draw_menu_heading(
             context.ui_sys,
@@ -168,7 +167,7 @@ impl BasicModalMenu {
         );
 
         // Restore default.
-        ui.set_window_font_scale(self.font_scale);
+        context.ui_sys.set_window_font_scale(UiFontScale(self.font_scale));
     }
 
     pub fn is_open(&self) -> bool {
@@ -236,7 +235,7 @@ impl BasicModalMenu {
                 .size([dialog.size[0] + 15.0, dialog.size[1] + 60.0], imgui::Condition::Always)
                 .flags(window_flags)
                 .build(|| {
-                    context.ui_sys.set_font_scale(UiFontScale(self.font_scale));
+                    context.ui_sys.set_window_font_scale(UiFontScale(self.font_scale));
 
                     draw_window_background(self.dialog_background_sprite);
 
@@ -279,7 +278,7 @@ impl BasicModalMenu {
 
                     widgets::draw_current_window_debug_rect(ui);
 
-                    context.ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
+                    context.ui_sys.set_window_font_scale(UiFontScale::default()); // Restore default.
                 });
         } else {
             let size_cond = if self.size.is_some() {
@@ -303,7 +302,7 @@ impl BasicModalMenu {
                 .size(window_size.to_array(), size_cond)
                 .flags(window_flags)
                 .build(|| {
-                    context.ui_sys.set_font_scale(UiFontScale(self.font_scale));
+                    context.ui_sys.set_window_font_scale(UiFontScale(self.font_scale));
 
                     if let Some(background_sprite) = self.background_sprite {
                         draw_window_background(background_sprite);
@@ -312,7 +311,7 @@ impl BasicModalMenu {
                     draw_menu_fn(context, self);
                     widgets::draw_current_window_debug_rect(ui);
 
-                    context.ui_sys.set_font_scale(UiFontScale::default()); // Restore default.
+                    context.ui_sys.set_window_font_scale(UiFontScale::default()); // Restore default.
                 });
         }
 
@@ -520,8 +519,6 @@ impl ModalMenu for MainModalMenu {
         let mut pressed_button: Option<MainModalMenuButton> = None;
 
         self.menu.draw(context, |context, this| {
-            let ui = context.ui_sys.ui();
-
             let mut labels = ArrayVec::<&str, MAIN_MODAL_MENU_BUTTON_COUNT>::new();
             for button in MainModalMenuButton::iter() {
                 labels.push(button.label());
@@ -529,7 +526,7 @@ impl ModalMenu for MainModalMenu {
 
             this.draw_menu_heading(context, &[&this.title]);
 
-            ui.set_window_font_scale(this.btn_font_scale);
+            context.ui_sys.set_window_font_scale(UiFontScale(this.btn_font_scale));
             let pressed_button_index = widgets::draw_centered_button_group_custom_hover(
                 context.ui_sys,
                 &labels,
@@ -652,7 +649,7 @@ impl ModalMenu for SaveGameModalMenu {
             this.draw_menu_heading(context, &[&this.title]);
 
             // Restore default.
-            ui.set_window_font_scale(this.font_scale);
+            context.ui_sys.set_window_font_scale(UiFontScale(this.font_scale));
 
             let left_margin = 90.0;
             let top_margin = 60.0;
@@ -982,7 +979,7 @@ impl ModalMenu for SettingsModalMenu {
                     .size(container_size)
                     .border(true)
                     .build(|| {
-                        ui.set_window_font_scale(0.8);
+                        context.ui_sys.set_window_font_scale(UiFontScale(0.8));
                         draw_fn(context.ui_sys);
                     });
 
@@ -1016,7 +1013,7 @@ impl ModalMenu for SettingsModalMenu {
 
                 this.draw_menu_heading(context, &[&this.title]);
 
-                ui.set_window_font_scale(this.btn_font_scale);
+                context.ui_sys.set_window_font_scale(UiFontScale(this.btn_font_scale));
                 let pressed_button_index = widgets::draw_centered_button_group_custom_hover(
                     context.ui_sys,
                     &labels,
@@ -1231,7 +1228,7 @@ impl ModalMenu for AboutModalMenu {
 
             this.draw_menu_heading(context, &[&this.title]);
 
-            ui.set_window_font_scale(this.font_scale);
+            context.ui_sys.set_window_font_scale(UiFontScale(this.font_scale));
             widgets::draw_centered_text_label_group(
                 context.ui_sys,
                 &[
@@ -1245,7 +1242,7 @@ impl ModalMenu for AboutModalMenu {
                 Some(Vec2::new(4.0, 50.0))
             );
 
-            ui.set_window_font_scale(this.btn_font_scale);
+            context.ui_sys.set_window_font_scale(UiFontScale(this.btn_font_scale));
             if widgets::draw_centered_button_group_custom_hover(
                 context.ui_sys,
                 &["Back ->"],

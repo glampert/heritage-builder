@@ -1184,7 +1184,7 @@ impl BaseMinimapRenderer {
             .position(window_pos, imgui::Condition::Always)
             .size(window_size, imgui::Condition::Always)
             .build(|| {
-                context.ui_sys.set_font_scale(self.widget_font_scale);
+                context.ui_sys.set_window_font_scale(self.widget_font_scale);
 
                 // Minimap texture and overlay icons:
                 self.draw_minimap(context);
@@ -1193,7 +1193,7 @@ impl BaseMinimapRenderer {
                 // Header / close button:
                 self.draw_header_buttons(context);
 
-                context.ui_sys.set_font_scale(UiFontScale::default());
+                context.ui_sys.set_window_font_scale(UiFontScale::default());
             });
     }
 

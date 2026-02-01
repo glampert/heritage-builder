@@ -42,7 +42,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     SAMPLE_MENU_1_INSTANCE.set(Some(menu.clone()));
 
     let heading_font_scale = UiFontScale(1.8);
-    let widgets_font_scale = UiFontScale(1.2);
+    let widgets_font_scale = UiFontScale(1.0);
 
     let menu_heading = UiMenuHeading::new(
         context,
