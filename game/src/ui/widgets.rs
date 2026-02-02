@@ -141,32 +141,64 @@ impl<'game> UiWidgetContext<'game> {
 }
 
 // ----------------------------------------------
+// UiWidgetCallbackRef
+// ----------------------------------------------
+
+pub trait UiWidgetCallbackRef<Widget: UiWidget> {
+    type Ref<'a>;
+    fn from_ref<'a>(widget: &'a Widget) -> Self::Ref<'a>;
+}
+
+pub struct UiReadOnly;
+pub struct UiMutable;
+
+impl<Widget: UiWidget> UiWidgetCallbackRef<Widget> for UiReadOnly {
+    type Ref<'a> = &'a Widget;
+
+    #[inline]
+    fn from_ref<'a>(widget: &'a Widget) -> Self::Ref<'a> {
+        widget
+    }
+}
+
+impl<Widget: UiWidget> UiWidgetCallbackRef<Widget> for UiMutable {
+    type Ref<'a> = &'a mut Widget;
+
+    #[inline]
+    fn from_ref<'a>(widget: &'a Widget) -> Self::Ref<'a> {
+        mem::mut_ref_cast(widget)
+    }
+}
+
+// ----------------------------------------------
 // UiWidgetCallback
 // ----------------------------------------------
 
 #[derive(Default)]
-pub enum UiWidgetCallback<Widget, Output = ()>
-    where Widget: UiWidget
+pub enum UiWidgetCallback<Widget, Access, Output = ()>
+    where Widget: UiWidget,
+          Access: UiWidgetCallbackRef<Widget>,
 {
     #[default]
     None,
 
     // With plain function pointer, no capture, no memory allocation.
-    Fn(fn(&mut Widget, &mut UiWidgetContext) -> Output),
+    Fn(for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
-    Closure(Box<dyn Fn(&mut Widget, &mut UiWidgetContext) -> Output + 'static>),
+    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext) -> Output + 'static>),
 }
 
-impl<Widget, Output> UiWidgetCallback<Widget, Output>
-    where Widget: UiWidget
+impl<Widget, Access, Output> UiWidgetCallback<Widget, Access, Output>
+    where Widget: UiWidget,
+          Access: UiWidgetCallbackRef<Widget>,
 {
-    pub fn with_fn(f: fn(&mut Widget, &mut UiWidgetContext) -> Output) -> Self {
+    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext) -> Output) -> Self {
         Self::Fn(f)
     }
 
     pub fn with_closure<C>(c: C) -> Self
-        where C: Fn(&mut Widget, &mut UiWidgetContext) -> Output + 'static
+        where C: for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext) -> Output + 'static
     {
         Self::Closure(Box::new(c))
     }
@@ -175,10 +207,10 @@ impl<Widget, Output> UiWidgetCallback<Widget, Output>
     fn invoke(&self, widget: &Widget, context: &mut UiWidgetContext) -> Option<Output> {
         match self {
             Self::Fn(f) => {
-                Some(f(mem::mut_ref_cast(widget), context))
+                Some(f(Access::from_ref(widget), context))
             }
             Self::Closure(c) => {
-                Some(c(mem::mut_ref_cast(widget), context))
+                Some(c(Access::from_ref(widget), context))
             }
             Self::None => None,
         }
@@ -190,28 +222,30 @@ impl<Widget, Output> UiWidgetCallback<Widget, Output>
 // ----------------------------------------------
 
 #[derive(Default)]
-pub enum UiWidgetCallbackWithArg<Widget, Arg, Output = ()>
-    where Widget: UiWidget
+pub enum UiWidgetCallbackWithArg<Widget, Access, Arg, Output = ()>
+    where Widget: UiWidget,
+          Access: UiWidgetCallbackRef<Widget>,
 {
     #[default]
     None,
 
     // With plain function pointer, no capture, no memory allocation.
-    Fn(fn(&mut Widget, &mut UiWidgetContext, Arg) -> Output),
+    Fn(for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext, Arg) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
-    Closure(Box<dyn Fn(&mut Widget, &mut UiWidgetContext, Arg) -> Output + 'static>),
+    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext, Arg) -> Output + 'static>),
 }
 
-impl<Widget, Arg, Output> UiWidgetCallbackWithArg<Widget, Arg, Output>
-    where Widget: UiWidget
+impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, Output>
+    where Widget: UiWidget,
+          Access: UiWidgetCallbackRef<Widget>,
 {
-    pub fn with_fn(f: fn(&mut Widget, &mut UiWidgetContext, Arg) -> Output) -> Self {
+    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext, Arg) -> Output) -> Self {
         Self::Fn(f)
     }
 
     pub fn with_closure<C>(c: C) -> Self
-        where C: Fn(&mut Widget, &mut UiWidgetContext, Arg) -> Output + 'static
+        where C: for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext, Arg) -> Output + 'static
     {
         Self::Closure(Box::new(c))
     }
@@ -220,10 +254,10 @@ impl<Widget, Arg, Output> UiWidgetCallbackWithArg<Widget, Arg, Output>
     fn invoke(&self, widget: &Widget, context: &mut UiWidgetContext, arg: Arg) -> Option<Output> {
         match self {
             Self::Fn(f) => {
-                Some(f(mem::mut_ref_cast(widget), context, arg))
+                Some(f(Access::from_ref(widget), context, arg))
             }
             Self::Closure(c) => {
-                Some(c(mem::mut_ref_cast(widget), context, arg))
+                Some(c(Access::from_ref(widget), context, arg))
             }
             Self::None => None,
         }
@@ -291,8 +325,8 @@ pub struct UiMenu {
 pub type UiMenuStrongRef = Rc<Mutable<UiMenu>>;
 pub type UiMenuWeakRef   = Weak<Mutable<UiMenu>>;
 
-pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, bool>;
-pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, Vec2>;
+pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiReadOnly, bool>;
+pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, UiReadOnly, Vec2>;
 
 impl UiWidget for UiMenu {
     fn as_any(&self) -> &dyn Any {
@@ -940,7 +974,7 @@ pub struct UiTextButton {
     on_pressed: UiTextButtonPressed,
 }
 
-pub type UiTextButtonPressed = UiWidgetCallback<UiTextButton>;
+pub type UiTextButtonPressed = UiWidgetCallback<UiTextButton, UiReadOnly>;
 
 impl UiWidget for UiTextButton {
     fn as_any(&self) -> &dyn Any {
@@ -1128,7 +1162,7 @@ pub struct UiSpriteButton {
     on_state_changed: UiSpriteButtonStateChanged,
 }
 
-pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiSpriteButtonState>;
+pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiMutable, UiSpriteButtonState>;
 
 impl UiWidget for UiSpriteButton {
     fn as_any(&self) -> &dyn Any {
@@ -1517,8 +1551,8 @@ pub struct UiSlider {
     value: UiSliderValue,
 }
 
-pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, T>;
-pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, T>;
+pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, UiReadOnly, T>;
+pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, UiReadOnly, T>;
 
 impl UiWidget for UiSlider {
     fn as_any(&self) -> &dyn Any {
@@ -1696,8 +1730,8 @@ pub struct UiCheckbox {
     on_update_value:UiCheckboxUpdateValue,
 }
 
-pub type UiCheckboxReadValue   = UiWidgetCallback<UiCheckbox, bool>;
-pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, bool>;
+pub type UiCheckboxReadValue   = UiWidgetCallback<UiCheckbox, UiReadOnly, bool>;
+pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, UiReadOnly, bool>;
 
 impl UiWidget for UiCheckbox {
     fn as_any(&self) -> &dyn Any {
@@ -1784,8 +1818,8 @@ pub struct UiTextInput {
     on_update_value: UiTextInputUpdateValue,
 }
 
-pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, RawPtr<str>>;
-pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, RawPtr<str>>;
+pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, UiReadOnly, RawPtr<str>>;
+pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, UiReadOnly, RawPtr<str>>;
 
 impl UiWidget for UiTextInput {
     fn as_any(&self) -> &dyn Any {
@@ -1869,7 +1903,7 @@ pub struct UiDropdown {
     on_selection_changed: UiDropdownSelectionChanged,
 }
 
-pub type UiDropdownSelectionChanged = UiWidgetCallback<UiDropdown>;
+pub type UiDropdownSelectionChanged = UiWidgetCallback<UiDropdown, UiReadOnly>;
 
 impl UiWidget for UiDropdown {
     fn as_any(&self) -> &dyn Any {
@@ -2012,7 +2046,7 @@ pub struct UiItemList {
     on_selection_changed: UiItemListSelectionChanged,
 }
 
-pub type UiItemListSelectionChanged = UiWidgetCallback<UiItemList>;
+pub type UiItemListSelectionChanged = UiWidgetCallback<UiItemList, UiReadOnly>;
 
 impl UiWidget for UiItemList {
     fn as_any(&self) -> &dyn Any {
