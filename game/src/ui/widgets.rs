@@ -664,7 +664,7 @@ impl UiWidget for UiMenuHeading {
         let mut size = Vec2::zero();
 
         for line in &self.lines {
-            let (line_size, _) = helpers::calc_text_size(self.font_scale, line);
+            let (line_size, _) = helpers::calc_text_size(context, self.font_scale, line);
             size.x = size.x.max(line_size.x); // Max width.
             size.y += line_size.y; // Total height.
         }
@@ -740,7 +740,6 @@ impl UiWidget for UiWidgetGroup {
             ui.push_style_var(imgui::StyleVar::ItemSpacing([self.widget_spacing, self.widget_spacing]));
 
         helpers::draw_centered_widget_group(
-            ui,
             context,
             &mut self.widgets,
             self.center_vertically,
@@ -849,7 +848,6 @@ impl UiWidget for UiLabeledWidgetGroup {
             ui.push_style_var(imgui::StyleVar::ItemSpacing([self.label_spacing, self.widget_spacing]));
 
         helpers::draw_centered_labeled_widget_group(
-            ui,
             context,
             &mut self.labels_and_widgets,
             self.center_vertically,
@@ -862,7 +860,7 @@ impl UiWidget for UiLabeledWidgetGroup {
 
         for (label, widget) in &self.labels_and_widgets {
             let widget_size = widget.measure(context);
-            let (label_size, _) = helpers::calc_text_size(widget.font_scale(), label);
+            let (label_size, _) = helpers::calc_text_size(context, widget.font_scale(), label);
 
             size.x = size.x.max(label_size.x + style.item_spacing[0] + widget_size.x); // Max width (label + widget).
             size.y += label_size.y.max(widget_size.y); // Total height (largest of the two).
@@ -1027,7 +1025,7 @@ impl UiWidget for UiTextButton {
         let style = context.ui_sys.current_ui_style();
 
         // Compute scaled font size (window-independent).
-        let (text_size, font_size) = helpers::calc_text_size(self.font_scale, &self.label);
+        let (text_size, font_size) = helpers::calc_text_size(context, self.font_scale, &self.label);
 
         let width  = text_size.x + (style.frame_padding[0] * 2.0);
         let height = text_size.y.max(font_size) + (style.frame_padding[1] * 2.0);
@@ -1459,7 +1457,7 @@ impl UiWidget for UiSeparator {
 
         let ui = context.ui_sys.ui();
         let size = self.size.unwrap_or_else(
-            || helpers::calc_separator_size(ui, !self.vertical, self.thickness));
+            || helpers::calc_separator_size(context, !self.vertical, self.thickness));
 
         // Invisible dummy item.
         ui.dummy(size.to_array());
@@ -1481,7 +1479,7 @@ impl UiWidget for UiSeparator {
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
         self.size.unwrap_or_else(
-                || helpers::calc_separator_size(context.ui_sys.ui(), !self.vertical, self.thickness))
+                || helpers::calc_separator_size(context, !self.vertical, self.thickness))
     }
 }
 
@@ -1727,11 +1725,11 @@ impl UiWidget for UiCheckbox {
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
         let style = context.ui_sys.current_ui_style();
 
-        let checkbox_square = helpers::calc_text_line_height(self.font_scale) + (style.frame_padding[1] * 2.0);
+        let checkbox_square = helpers::calc_text_line_height(context, self.font_scale) + (style.frame_padding[1] * 2.0);
         let mut width = checkbox_square;
 
         if !self.label.is_empty() {
-            let (label_size, _) = helpers::calc_text_size(self.font_scale, &self.label);
+            let (label_size, _) = helpers::calc_text_size(context, self.font_scale, &self.label);
             width += style.item_inner_spacing[0] + label_size.x;
         }
 
@@ -2120,11 +2118,11 @@ impl UiWidget for UiItemList {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        let size = helpers::calc_child_window_size(context.ui_sys.ui(), requested_size);
+        let size = helpers::calc_child_window_size(context, requested_size);
 
         let input_field_height = {
             if self.text_input_field_buffer.is_some() {
-                helpers::calc_text_line_height(self.font_scale) + (style.frame_padding[1] * 2.0)
+                helpers::calc_text_line_height(context, self.font_scale) + (style.frame_padding[1] * 2.0)
             } else {
                 0.0
             }
@@ -2413,7 +2411,7 @@ impl UiWidget for UiSlideshow {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        helpers::calc_child_window_size(context.ui_sys.ui(), requested_size)
+        helpers::calc_child_window_size(context, requested_size)
     }
 }
 

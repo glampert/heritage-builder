@@ -9,26 +9,26 @@ use crate::{
 // ImGui helpers
 // ----------------------------------------------
 
-pub struct UiStyleTextLabelInvisibleButtons<'ui> {
-    border_size: imgui::StyleStackToken<'ui>,
-    button_color: imgui::ColorStackToken<'ui>,
-    button_color_hovered: imgui::ColorStackToken<'ui>,
-    button_color_active: imgui::ColorStackToken<'ui>,
+pub struct UiStyleTextLabelInvisibleButtons {
+    //border_size: imgui::StyleStackToken<'ui>,
+    //button_color: imgui::ColorStackToken<'ui>,
+    //button_color_hovered: imgui::ColorStackToken<'ui>,
+    //button_color_active: imgui::ColorStackToken<'ui>,
 }
 
-impl<'ui> UiStyleTextLabelInvisibleButtons<'ui> {
+impl UiStyleTextLabelInvisibleButtons {
     #[inline]
     #[must_use]
-    pub fn apply_overrides(ui_sys: &UiSystem) -> Self {
-        let ui = unsafe { &*ui_sys.raw_ui_ptr() };
+    pub fn apply_overrides(_ui_sys: &UiSystem) -> Self {
+        //let ui = unsafe { &*ui_sys.raw_ui_ptr() };
 
         Self {
             // We use buttons for text items so that the text label is centered automatically.
             // Make all button backgrounds and frames transparent/invisible.
-            border_size: ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0)),
-            button_color: ui.push_style_color(imgui::StyleColor::Button, [0.0, 0.0, 0.0, 0.0]),
-            button_color_hovered: ui.push_style_color(imgui::StyleColor::ButtonHovered, [0.0, 0.0, 0.0, 0.0]),
-            button_color_active: ui.push_style_color(imgui::StyleColor::ButtonActive, [0.0, 0.0, 0.0, 0.0]),
+            //border_size: ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0)),
+            //button_color: ui.push_style_color(imgui::StyleColor::Button, [0.0, 0.0, 0.0, 0.0]),
+            //button_color_hovered: ui.push_style_color(imgui::StyleColor::ButtonHovered, [0.0, 0.0, 0.0, 0.0]),
+            //button_color_active: ui.push_style_color(imgui::StyleColor::ButtonActive, [0.0, 0.0, 0.0, 0.0]),
         }
     }
 }
