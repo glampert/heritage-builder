@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use inspector::TileInspectorMenu;
-use palette::{TilePaletteMenu, TilePaletteMenuStrongRef};
+use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
 use bars::InGameMenuBars;
 
 use super::{
@@ -30,7 +30,7 @@ mod bars;
 
 pub struct InGameMenus {
     tile_placement: TilePlacement,
-    tile_palette: TilePaletteMenuStrongRef,
+    tile_palette: TilePaletteMenuRcMut,
     tile_inspector: TileInspectorMenu,
     menu_bars: InGameMenuBars,
     minimap_renderer: InGameUiMinimapRenderer,

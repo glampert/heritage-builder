@@ -21,14 +21,14 @@ static SAMPLE_MENU_1_STATE: UiStaticVar<SampleMenu1State> = UiStaticVar::new(Sam
     item_list: String::new(),
 });
 
-static SAMPLE_MENU_1_INSTANCE: UiStaticVar<Option<UiMenuStrongRef>> = UiStaticVar::new(None);
+static SAMPLE_MENU_1_INSTANCE: UiStaticVar<Option<UiMenuRcMut>> = UiStaticVar::new(None);
 
 fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     if SAMPLE_MENU_1_INSTANCE.is_some() {
         return; // Already created.
     }
 
-    let menu = UiMenu::new(
+    let mut menu = UiMenu::new(
         context,
         UiMenuParams {
             label: Some("Sample Menu 1".into()),
@@ -259,7 +259,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         }
     );
 
-    let menu_weak_ref_open_popup_btn = UiMenuStrongRef::downgrade(&menu);
+    let menu_weak_ref_open_popup_btn = menu.downgrade();
     side_by_side_button_group.add_widget(UiTextButton::new(
         context,
         UiTextButtonParams {
@@ -271,7 +271,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                 move |button, context| {
                     log::info!("Pressed Button: {}", button.label());
 
-                    if let Some(menu_strong_ref) = menu_weak_ref_open_popup_btn.upgrade() {
+                    if let Some(mut menu_rc) = menu_weak_ref_open_popup_btn.upgrade() {
                         let menu_weak_ref_ok_btn = menu_weak_ref_open_popup_btn.clone();
                         let menu_weak_ref_cancel_btn = menu_weak_ref_open_popup_btn.clone();
 
@@ -301,8 +301,8 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                         on_pressed: UiTextButtonPressed::with_closure(
                                             move |button, context| {
                                                 log::info!("Pressed Button: {}", button.label());
-                                                if let Some(menu_strong_ref) = menu_weak_ref_ok_btn.upgrade() {
-                                                    menu_strong_ref.as_mut().close_message_box(context);
+                                                if let Some(mut menu_rc) = menu_weak_ref_ok_btn.upgrade() {
+                                                    menu_rc.close_message_box(context);
                                                 }
                                             }
                                         ),
@@ -319,8 +319,8 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                         on_pressed: UiTextButtonPressed::with_closure(
                                             move |button, context| {
                                                 log::info!("Pressed Button: {}", button.label());
-                                                if let Some(menu_strong_ref) = menu_weak_ref_cancel_btn.upgrade() {
-                                                    menu_strong_ref.as_mut().close_message_box(context);
+                                                if let Some(mut menu_rc) = menu_weak_ref_cancel_btn.upgrade() {
+                                                    menu_rc.close_message_box(context);
                                                 }
                                             }
                                         ),
@@ -331,7 +331,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                             ..Default::default()
                         };
 
-                        menu_strong_ref.as_mut().open_message_box(context, message_box_params);
+                        menu_rc.open_message_box(context, message_box_params);
                     }
                 }
             ),
@@ -339,7 +339,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         }
     ));
 
-    let menu_weak_ref_close_popup_btn = UiMenuStrongRef::downgrade(&menu);
+    let menu_weak_ref_close_popup_btn = menu.downgrade();
     side_by_side_button_group.add_widget(UiTextButton::new(
         context,
         UiTextButtonParams {
@@ -351,8 +351,8 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                 move |button, context| {
                     log::info!("Pressed Button: {}", button.label());
 
-                    if let Some(menu_strong_ref) = menu_weak_ref_close_popup_btn.upgrade() {
-                        menu_strong_ref.as_mut().close_message_box(context);
+                    if let Some(mut menu_rc) = menu_weak_ref_close_popup_btn.upgrade() {
+                        menu_rc.close_message_box(context);
                     }
                 }
             ),
@@ -369,20 +369,20 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         }
     );
 
-    menu.as_mut().add_widget(menu_heading);
-    menu.as_mut().add_widget(labeled_group);
-    menu.as_mut().add_widget(item_list);
-    menu.as_mut().add_widget(separator.clone());
-    menu.as_mut().add_widget(stacked_button_group);
-    menu.as_mut().add_widget(separator.clone());
-    menu.as_mut().add_widget(side_by_side_button_group);
+    menu.add_widget(menu_heading);
+    menu.add_widget(labeled_group);
+    menu.add_widget(item_list);
+    menu.add_widget(separator.clone());
+    menu.add_widget(stacked_button_group);
+    menu.add_widget(separator.clone());
+    menu.add_widget(side_by_side_button_group);
 
     log::info!("Sample Menu 1 created.");
 }
 
 fn draw_sample_menu_1(context: &mut UiWidgetContext) {
     if let Some(menu) = SAMPLE_MENU_1_INSTANCE.as_mut() {
-        menu.as_mut().draw(context);
+        menu.draw(context);
     }
 }
 
@@ -390,14 +390,14 @@ fn draw_sample_menu_1(context: &mut UiWidgetContext) {
 // Sample Menu 2:
 // ----------------------------------------------
 
-static SAMPLE_MENU_2_INSTANCE: UiStaticVar<Option<UiMenuStrongRef>> = UiStaticVar::new(None);
+static SAMPLE_MENU_2_INSTANCE: UiStaticVar<Option<UiMenuRcMut>> = UiStaticVar::new(None);
 
 fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
     if SAMPLE_MENU_2_INSTANCE.is_some() {
         return; // Already created.
     }
 
-    let menu = UiMenu::new(
+    let mut menu = UiMenu::new(
         context,
         UiMenuParams {
             label: Some("Sample Menu 2".into()),
@@ -541,17 +541,17 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
         }
     );
 
-    menu.as_mut().add_widget(stacked_button_group);
-    menu.as_mut().add_widget(side_by_side_button_group);
-    menu.as_mut().add_widget(separator);
-    menu.as_mut().add_widget(slideshow);
+    menu.add_widget(stacked_button_group);
+    menu.add_widget(side_by_side_button_group);
+    menu.add_widget(separator);
+    menu.add_widget(slideshow);
 
     log::info!("Sample Menu 2 created.");
 }
 
 fn draw_sample_menu_2(context: &mut UiWidgetContext) {
     if let Some(menu) = SAMPLE_MENU_2_INSTANCE.as_mut() {
-        menu.as_mut().draw(context);
+        menu.draw(context);
     }
 }
 

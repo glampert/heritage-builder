@@ -1,8 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::type_complexity)]
 
-use std::{any::Any, fmt::Display, path::PathBuf};
-use std::rc::{Rc, Weak};
+use std::{
+    any::Any, fmt::Display, path::PathBuf,
+    ops::{Deref, DerefMut}, rc::{Rc, Weak},
+};
 
 use bitflags::bitflags;
 use arrayvec::ArrayString;
@@ -23,9 +25,9 @@ use super::{
 use crate::{
     bitflags_with_display,
     game::{sim::Simulation, world::World},
+    utils::{Rect, Size, Vec2, mem::{self, RawPtr}},
     engine::{Engine, time::{CountdownTimer, Seconds}},
     render::{RenderSystem, TextureHandle, TextureCache},
-    utils::{Rect, Size, Vec2, mem::{self, Mutable, RawPtr}},
 };
 
 // ----------------------------------------------
@@ -265,6 +267,154 @@ impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, O
 }
 
 // ----------------------------------------------
+// UiWidgetRcMut / UiWidgetWeakMut
+// ----------------------------------------------
+
+pub struct UiWidgetRcMut<Widget>(Rc<Widget>);
+
+impl<Widget> UiWidgetRcMut<Widget> {
+    pub fn new(widget: Widget) -> Self {
+        Self(Rc::new(widget))
+    }
+
+    pub fn new_cyclic<F>(init_fn: F) -> Self
+        where F: FnOnce(UiWidgetWeakMut<Widget>) -> Widget
+    {
+        Self(Rc::new_cyclic(|weak| {
+            let widget_weak_mut = UiWidgetWeakMut(weak.clone());
+            init_fn(widget_weak_mut)
+        }))
+    }
+
+    #[inline]
+    pub fn downgrade(&self) -> UiWidgetWeakMut<Widget> {
+        UiWidgetWeakMut(Rc::downgrade(&self.0))
+    }
+
+    #[inline]
+    pub fn as_ref(&self) -> &Widget {
+        self.0.as_ref()
+    }
+
+    #[inline]
+    pub fn as_mut(&mut self) -> &mut Widget {
+        mem::mut_ref_cast(self.0.as_ref())
+    }
+
+    #[inline]
+    pub fn into_not_mut(self) -> UiWidgetRc<Widget> {
+        UiWidgetRc(self.0)
+    }
+}
+
+impl<Widget> Clone for UiWidgetRcMut<Widget> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<Widget> Deref for UiWidgetRcMut<Widget> {
+    type Target = Widget;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+impl<Widget> DerefMut for UiWidgetRcMut<Widget> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_mut()
+    }
+}
+
+pub struct UiWidgetWeakMut<Widget>(Weak<Widget>);
+
+impl<Widget> UiWidgetWeakMut<Widget> {
+    #[inline]
+    pub fn upgrade(&self) -> Option<UiWidgetRcMut<Widget>> {
+        self.0.upgrade().map(|rc| UiWidgetRcMut(rc))
+    }
+
+    #[inline]
+    pub fn into_not_mut(self) -> UiWidgetWeakRef<Widget> {
+        UiWidgetWeakRef(self.0)
+    }
+}
+
+impl<Widget> Clone for UiWidgetWeakMut<Widget> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+// ----------------------------------------------
+// UiWidgetRc / UiWidgetWeakRef
+// ----------------------------------------------
+
+pub struct UiWidgetRc<Widget>(Rc<Widget>);
+
+impl<Widget> UiWidgetRc<Widget> {
+    pub fn new(widget: Widget) -> Self {
+        Self(Rc::new(widget))
+    }
+
+    pub fn new_cyclic<F>(init_fn: F) -> Self
+        where F: FnOnce(UiWidgetWeakRef<Widget>) -> Widget
+    {
+        Self(Rc::new_cyclic(|weak| {
+            let widget_weak_ref = UiWidgetWeakRef(weak.clone());
+            init_fn(widget_weak_ref)
+        }))
+    }
+
+    #[inline]
+    pub fn downgrade(&self) -> UiWidgetWeakRef<Widget> {
+        UiWidgetWeakRef(Rc::downgrade(&self.0))
+    }
+
+    #[inline]
+    pub fn as_ref(&self) -> &Widget {
+        self.0.as_ref()
+    }
+}
+
+impl<Widget> Clone for UiWidgetRc<Widget> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<Widget> Deref for UiWidgetRc<Widget> {
+    type Target = Widget;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+pub struct UiWidgetWeakRef<Widget>(Weak<Widget>);
+
+impl<Widget> UiWidgetWeakRef<Widget> {
+    #[inline]
+    pub fn upgrade(&self) -> Option<UiWidgetRc<Widget>> {
+        self.0.upgrade().map(|rc| UiWidgetRc(rc))
+    }
+}
+
+impl<Widget> Clone for UiWidgetWeakRef<Widget> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+// ----------------------------------------------
 // UiWidget / UiWidgetImpl
 // ----------------------------------------------
 
@@ -322,8 +472,9 @@ pub struct UiMenu {
     on_open_close: UiMenuOpenClose,
 }
 
-pub type UiMenuStrongRef = Rc<Mutable<UiMenu>>;
-pub type UiMenuWeakRef   = Weak<Mutable<UiMenu>>;
+pub type UiMenuRcMut   = UiWidgetRcMut<UiMenu>;
+pub type UiMenuWeakMut = UiWidgetWeakMut<UiMenu>;
+pub type UiMenuWeakRef = UiWidgetWeakRef<UiMenu>;
 
 pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiReadOnly, bool>;
 pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, UiReadOnly, Vec2>;
@@ -406,25 +557,23 @@ impl UiWidget for UiMenu {
 }
 
 impl UiMenu {
-    pub fn new(context: &mut UiWidgetContext, params: UiMenuParams) -> UiMenuStrongRef {
-        Rc::new(
-            Mutable::new(
-                Self {
-                    label: params.label.unwrap_or_default(),
-                    imgui_id: String::new(),
-                    flags: params.flags,
-                    size: params.size,
-                    position: params.position,
-                    background: params.background.map(|path| context.load_ui_texture(path)),
-                    widgets: Vec::new(),
-                    widget_spacing: params.widget_spacing.unwrap_or_else(|| {
-                        let style = context.ui_sys.current_ui_style();
-                        Vec2::from_array(style.item_spacing)
-                    }),
-                    message_box: UiMessageBox::default(),
-                    on_open_close: params.on_open_close,
-                }
-            )
+    pub fn new(context: &mut UiWidgetContext, params: UiMenuParams) -> UiMenuRcMut {
+        UiMenuRcMut::new(
+            Self {
+                label: params.label.unwrap_or_default(),
+                imgui_id: String::new(),
+                flags: params.flags,
+                size: params.size,
+                position: params.position,
+                background: params.background.map(|path| context.load_ui_texture(path)),
+                widgets: Vec::new(),
+                widget_spacing: params.widget_spacing.unwrap_or_else(|| {
+                    let style = context.ui_sys.current_ui_style();
+                    Vec2::from_array(style.item_spacing)
+                }),
+                message_box: UiMessageBox::default(),
+                on_open_close: params.on_open_close,
+            }
         )
     }
 
@@ -2312,7 +2461,7 @@ pub struct UiItemListParams<T> {
 
 #[derive(Default)]
 pub struct UiMessageBox {
-    menu: Option<UiMenuStrongRef>,
+    menu: Option<UiMenuRcMut>,
 }
 
 impl UiWidget for UiMessageBox {
@@ -2324,8 +2473,8 @@ impl UiWidget for UiMessageBox {
         if let Some(menu) = &self.menu {
             // NOTE: Increment the ref count here.
             // draw() may trigger a UiMessageBox::close, which would drop `self.menu`.
-            let strong_ref = menu.clone();
-            strong_ref.as_mut().draw(context);
+            let mut strong_ref = menu.clone();
+            strong_ref.draw(context);
         }
     }
 
@@ -2354,7 +2503,7 @@ impl UiMessageBox {
     }
 
     pub fn open(&mut self, context: &mut UiWidgetContext, params: UiMessageBoxParams) {
-        let menu = UiMenu::new(
+        let mut menu = UiMenu::new(
             context,
             UiMenuParams {
                 label: params.label,
@@ -2366,7 +2515,7 @@ impl UiMessageBox {
         );
 
         for widget in params.contents {
-            menu.as_mut().add_widget(widget);
+            menu.add_widget(widget);
         }
 
         if !params.buttons.is_empty() {
@@ -2384,7 +2533,7 @@ impl UiMessageBox {
                 button_group.add_widget(button);
             }
 
-            menu.as_mut().add_widget(button_group);
+            menu.add_widget(button_group);
         }
 
         self.menu = Some(menu);
