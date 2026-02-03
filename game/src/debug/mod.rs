@@ -11,7 +11,7 @@ use crate::{
     ui::{self, UiTheme, widgets::UiWidgetContext},
     save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{sim, config::GameConfigs, GameLoop, menu::*},
-    utils::{coords::{Cell, CellRange}, mem::{self, SingleThreadStatic}},
+    utils::{coords::{Cell, CellRange}, mem::{SingleThreadStatic, RcMut, WeakMut}},
     tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::DevUiMinimapRenderer},
 };
 
@@ -30,10 +30,10 @@ mod settings;
 pub struct DevEditorMenus;
 
 impl DevEditorMenus {
-    pub fn new(context: &mut UiWidgetContext, tile_map: &mut TileMap) -> Self {
+    pub fn new(context: &mut UiWidgetContext, tile_map_rc: RcMut<TileMap>) -> Self {
         context.ui_sys.set_ui_theme(UiTheme::Dev);
         // Register TileMap global callbacks & debug ref:
-        register_tile_map_debug_callbacks(tile_map);
+        register_tile_map_debug_callbacks(tile_map_rc);
         Self
     }
 }
@@ -82,8 +82,8 @@ impl Drop for DevEditorMenus {
         // Make sure tile inspector is closed.
         DevEditorMenusSingleton::get_mut().close_tile_inspector();
 
-        // Clear the cached global tile map ptr.
-        TILE_MAP_DEBUG_PTR.set(None);
+        // Clear the cached global tile map weak ref.
+        TILE_MAP_DEBUG_REF.set(None);
     }
 }
 
@@ -107,7 +107,7 @@ impl Load for DevEditorMenus {
         DevEditorMenusSingleton::get_mut().close_tile_inspector();
 
         // Re-register debug editor callbacks and reset the global tile map ref.
-        register_tile_map_debug_callbacks(context.tile_map_mut());
+        register_tile_map_debug_callbacks(context.tile_map_rc());
     }
 }
 
@@ -271,52 +271,47 @@ pub fn show_popup_messages() -> bool {
 }
 
 // ----------------------------------------------
-// Global TileMap Debug Pointer
+// Global TileMap Debug Ref
 // ----------------------------------------------
 
-struct TileMapRawPtr(mem::RawPtr<TileMap>);
+static TILE_MAP_DEBUG_REF: SingleThreadStatic<Option<WeakMut<TileMap>>> = SingleThreadStatic::new(None);
 
-impl TileMapRawPtr {
-    fn new(tile_map: &TileMap) -> Self {
-        Self(mem::RawPtr::from_ref(tile_map))
-    }
-}
-
-// Using this to get tile names from cells directly for debugging & logging.
-// SAFETY: Must make sure the tile map pointer set on initialization stays
-// valid until app termination or until it is reset.
-static TILE_MAP_DEBUG_PTR: SingleThreadStatic<Option<TileMapRawPtr>> = SingleThreadStatic::new(None);
-
-fn register_tile_map_debug_callbacks(tile_map: &mut TileMap) {
-    TILE_MAP_DEBUG_PTR.set(Some(TileMapRawPtr::new(tile_map)));
-
-    tile_map.set_tile_placed_callback(Some(|tile, did_reallocate| {
+fn register_tile_map_debug_callbacks(mut tile_map_rc: RcMut<TileMap>) {
+    tile_map_rc.set_tile_placed_callback(Some(|tile, did_reallocate| {
         DevEditorMenusSingleton::get_mut().tile_inspector_menu.on_tile_placed(tile, did_reallocate);
     }));
 
-    tile_map.set_removing_tile_callback(Some(|tile| {
+    tile_map_rc.set_removing_tile_callback(Some(|tile| {
         DevEditorMenusSingleton::get_mut().tile_inspector_menu.on_removing_tile(tile);
     }));
 
-    tile_map.set_map_reset_callback(Some(|_| {
+    tile_map_rc.set_map_reset_callback(Some(|_| {
         DevEditorMenusSingleton::get_mut().tile_inspector_menu.close();
     }));
+
+    // Downgrade and store weak non-owning reference.
+    TILE_MAP_DEBUG_REF.set(Some(tile_map_rc.downgrade()));
 }
 
 fn remove_tile_map_debug_callbacks() {
-    if let Some(tile_map) = TILE_MAP_DEBUG_PTR.as_mut() {
-        tile_map.0.set_tile_placed_callback(None);
-        tile_map.0.set_removing_tile_callback(None);
-        tile_map.0.set_map_reset_callback(None);
+    if let Some(tile_map_weak_ref) = TILE_MAP_DEBUG_REF.as_mut() {
+        if let Some(mut tile_map_strong_ref) = tile_map_weak_ref.upgrade() {
+            tile_map_strong_ref.set_tile_placed_callback(None);
+            tile_map_strong_ref.set_removing_tile_callback(None);
+            tile_map_strong_ref.set_map_reset_callback(None);
+        }
     }
 
-    // Clear the cached global tile map ptr.
-    TILE_MAP_DEBUG_PTR.set(None);
+    // Clear the cached global tile map weak ref.
+    TILE_MAP_DEBUG_REF.set(None);
 }
 
 pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {
-    if let Some(tile_map) = TILE_MAP_DEBUG_PTR.as_ref() {
-        return tile_map.0.try_tile_from_layer(cell, layer).map_or("", |tile| tile.name());
+    if let Some(tile_map_weak_ref) = TILE_MAP_DEBUG_REF.as_ref() {
+        if let Some(tile_map_strong_ref) = tile_map_weak_ref.upgrade() {
+            return tile_map_strong_ref.try_tile_from_layer(cell, layer)
+                .map_or("", |tile| tile.name());
+        }
     }
     ""
 }

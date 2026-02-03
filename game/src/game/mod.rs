@@ -51,8 +51,9 @@ use crate::{
         TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
     utils::{
+        mem::RcMut,
         crash_report, platform::{self, paths},
-        coords::CellRange, file_sys, hash, Size, Vec2
+        coords::CellRange, file_sys, hash, Size, Vec2,
     },
 };
 
@@ -74,7 +75,7 @@ pub mod world;
 
 #[derive(Serialize, Deserialize)]
 struct GameSession {
-    tile_map: Box<TileMap>,
+    tile_map: RcMut<TileMap>,
     world: World,
     sim: Simulation,
     systems: GameSystems,
@@ -144,7 +145,7 @@ impl GameSession {
         match menu_mode {
             GameMenusMode::DevEditor => {
                 log::info!(log::channel!("session"), "Loading DevEditorMenus ...");
-                Box::new(DevEditorMenus::new(&mut context, &mut self.tile_map))
+                Box::new(DevEditorMenus::new(&mut context, self.tile_map.clone()))
             }
             GameMenusMode::InGame => {
                 log::info!(log::channel!("session"), "Loading InGameMenus ...");
@@ -191,7 +192,7 @@ impl GameSession {
         self.menus.as_ref().map(|menus| menus.mode())
     }
 
-    fn new_tile_map(world: &mut World, load_map_setting: &LoadMapSetting) -> Box<TileMap> {
+    fn new_tile_map(world: &mut World, load_map_setting: &LoadMapSetting) -> RcMut<TileMap> {
         let tile_map = {
             match load_map_setting {
                 LoadMapSetting::None => {
@@ -233,7 +234,7 @@ impl GameSession {
                 }
             }
         };
-        Box::new(tile_map)
+        RcMut::new(tile_map)
     }
 
     fn load_preset_map(preset_number: usize, viewport_size: Size, engine: &dyn Engine) -> Self {
@@ -437,7 +438,7 @@ impl GameSession {
 
         self.pre_load(&PreLoadContext::new(engine));
         *self = session;
-        self.post_load(&PostLoadContext::new(engine, &self.tile_map, self.sim.rng()));
+        self.post_load(&PostLoadContext::new(engine, self.sim.rng(), self.tile_map.clone()));
 
         if GameConfigs::get().sim.start_paused {
             self.sim.pause();
