@@ -1,8 +1,8 @@
 use std::any::Any;
 
-use inspector::TileInspectorMenu;
+use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
 use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
-use bars::InGameMenuBars;
+use bars::{InGameMenuBars, InGameMenuBarsRcMut};
 
 use super::{
     GameMenusMode,
@@ -31,8 +31,8 @@ mod bars;
 pub struct InGameMenus {
     tile_placement: TilePlacement,
     tile_palette: TilePaletteMenuRcMut,
-    tile_inspector: TileInspectorMenu,
-    menu_bars: InGameMenuBars,
+    tile_inspector: TileInspectorMenuRcMut,
+    menu_bars: InGameMenuBarsRcMut,
     minimap_renderer: InGameUiMinimapRenderer,
 }
 
@@ -67,7 +67,7 @@ impl GameMenusSystem for InGameMenus {
     }
 
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {
-        Some(&mut self.tile_inspector)
+        Some(self.tile_inspector.as_mut())
     }
 
     fn handle_custom_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
@@ -86,9 +86,11 @@ impl GameMenusSystem for InGameMenus {
             context.engine
         );
 
-        self.tile_palette.as_mut().draw(&mut ui_context,
-                                        context.camera.transform(),
-                                        context.tile_selection.has_valid_placement());
+        self.tile_inspector.draw(&mut ui_context);
+
+        self.tile_palette.draw(&mut ui_context,
+                               context.camera.transform(),
+                               context.tile_selection.has_valid_placement());
 
         self.menu_bars.draw(&mut ui_context);
 

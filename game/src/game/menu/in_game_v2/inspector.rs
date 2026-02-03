@@ -1,6 +1,7 @@
 use crate::{
     tile::Tile,
     game::menu::TileInspector,
+    utils::mem::{RcMut, WeakMut, WeakRef},
     app::input::{InputAction, MouseButton},
     ui::{UiInputEvent, widgets::UiWidgetContext},
 };
@@ -13,11 +14,9 @@ pub struct TileInspectorMenu {
     // TODO / WIP
 }
 
-impl TileInspectorMenu {
-    pub fn new(_context: &mut UiWidgetContext) -> Self {
-        Self {}
-    }
-}
+pub type TileInspectorMenuRcMut   = RcMut<TileInspectorMenu>;
+pub type TileInspectorMenuWeakMut = WeakMut<TileInspectorMenu>;
+pub type TileInspectorMenuWeakRef = WeakRef<TileInspectorMenu>;
 
 impl TileInspector for TileInspectorMenu {
     fn on_mouse_button(&mut self,
@@ -29,5 +28,14 @@ impl TileInspector for TileInspectorMenu {
     }
 
     fn close(&mut self) {
+    }
+}
+
+impl TileInspectorMenu {
+    pub fn new(_context: &mut UiWidgetContext) -> TileInspectorMenuRcMut {
+        TileInspectorMenuRcMut::new(Self {})
+    }
+
+    pub fn draw(&mut self, _context: &mut UiWidgetContext) {
     }
 }
