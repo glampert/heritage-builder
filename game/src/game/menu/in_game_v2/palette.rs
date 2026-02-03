@@ -12,6 +12,7 @@ use crate::{
         Vec2, Color, Rect, RectTexCoords,
         coords::WorldToScreenTransform,
         constants::BASE_TILE_SIZE_F32,
+        mem::{RcMut, WeakMut, WeakRef},
     },
     tile::{
         TileKind,
@@ -373,9 +374,9 @@ pub struct TilePaletteMenu {
     menu: UiMenuRcMut,
 }
 
-pub type TilePaletteMenuRcMut   = UiWidgetRcMut<TilePaletteMenu>;
-pub type TilePaletteMenuWeakMut = UiWidgetWeakMut<TilePaletteMenu>;
-pub type TilePaletteMenuWeakRef = UiWidgetWeakRef<TilePaletteMenu>;
+pub type TilePaletteMenuRcMut   = RcMut<TilePaletteMenu>;
+pub type TilePaletteMenuWeakMut = WeakMut<TilePaletteMenu>;
+pub type TilePaletteMenuWeakRef = WeakRef<TilePaletteMenu>;
 
 impl TilePalette for TilePaletteMenu {
     fn on_mouse_button(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent {

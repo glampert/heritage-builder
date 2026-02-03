@@ -3,10 +3,11 @@
 
 use core::ptr::NonNull;
 use std::{
-    cell::UnsafeCell,
-    ops::{Deref, DerefMut},
     sync::OnceLock,
     thread::ThreadId,
+    cell::UnsafeCell,
+    rc::{Rc, Weak},
+    ops::{Deref, DerefMut},
 };
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -385,4 +386,164 @@ macro_rules! singleton_late_init {
             }
         }
     };
+}
+
+// ----------------------------------------------
+// RcMut: Mutable sharable Rc. Not thread-safe.
+// ----------------------------------------------
+
+pub struct RcMut<T>(Rc<T>);
+
+impl<T> RcMut<T> {
+    #[inline]
+    pub fn new(instance: T) -> Self {
+        Self(Rc::new(instance))
+    }
+
+    #[inline]
+    pub fn new_cyclic<F>(init_fn: F) -> Self
+        where F: FnOnce(WeakMut<T>) -> T
+    {
+        Self(Rc::new_cyclic(|weak| {
+            let weak_mut = WeakMut(weak.clone());
+            init_fn(weak_mut)
+        }))
+    }
+
+    #[inline]
+    pub fn downgrade(&self) -> WeakMut<T> {
+        WeakMut(Rc::downgrade(&self.0))
+    }
+
+    #[inline]
+    pub fn as_ref(&self) -> &T {
+        self.0.as_ref()
+    }
+
+    #[inline]
+    pub fn as_mut(&mut self) -> &mut T {
+        mut_ref_cast(self.0.as_ref())
+    }
+
+    #[inline]
+    pub fn into_not_mut(self) -> RcRef<T> {
+        RcRef(self.0)
+    }
+}
+
+impl<T> Clone for RcMut<T> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T> Deref for RcMut<T> {
+    type Target = T;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+impl<T> DerefMut for RcMut<T> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_mut()
+    }
+}
+
+// ----------------------------------------------
+// WeakMut: Mutable weak reference to an Rc.
+// ----------------------------------------------
+
+pub struct WeakMut<T>(Weak<T>);
+
+impl<T> WeakMut<T> {
+    #[inline]
+    pub fn upgrade(&self) -> Option<RcMut<T>> {
+        self.0.upgrade().map(|rc| RcMut(rc))
+    }
+
+    #[inline]
+    pub fn into_not_mut(self) -> WeakRef<T> {
+        WeakRef(self.0)
+    }
+}
+
+impl<T> Clone for WeakMut<T> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+// ----------------------------------------------
+// RcRef: Immutable sharable Rc. Not thread-safe.
+// ----------------------------------------------
+
+pub struct RcRef<T>(Rc<T>);
+
+impl<T> RcRef<T> {
+    #[inline]
+    pub fn new(widget: T) -> Self {
+        Self(Rc::new(widget))
+    }
+
+    #[inline]
+    pub fn new_cyclic<F>(init_fn: F) -> Self
+        where F: FnOnce(WeakRef<T>) -> T
+    {
+        Self(Rc::new_cyclic(|weak| {
+            let widget_weak_ref = WeakRef(weak.clone());
+            init_fn(widget_weak_ref)
+        }))
+    }
+
+    #[inline]
+    pub fn downgrade(&self) -> WeakRef<T> {
+        WeakRef(Rc::downgrade(&self.0))
+    }
+
+    #[inline]
+    pub fn as_ref(&self) -> &T {
+        self.0.as_ref()
+    }
+}
+
+impl<T> Clone for RcRef<T> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T> Deref for RcRef<T> {
+    type Target = T;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+// ----------------------------------------------
+// WeakRef: Immutable weak reference to an Rc.
+// ----------------------------------------------
+
+pub struct WeakRef<T>(Weak<T>);
+
+impl<T> WeakRef<T> {
+    #[inline]
+    pub fn upgrade(&self) -> Option<RcRef<T>> {
+        self.0.upgrade().map(|rc| RcRef(rc))
+    }
+}
+
+impl<T> Clone for WeakRef<T> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
 }
