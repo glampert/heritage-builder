@@ -454,6 +454,26 @@ impl<T> DerefMut for RcMut<T> {
     }
 }
 
+// Serde serialization support:
+impl<T: Serialize> Serialize for RcMut<T> {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        self.0.as_ref().serialize(serializer)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for RcMut<T> {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        let instance = T::deserialize(deserializer)?;
+        Ok(Self(Rc::new(instance)))
+    }
+}
+
 // ----------------------------------------------
 // WeakMut: Mutable weak reference to an Rc.
 // ----------------------------------------------
@@ -525,6 +545,26 @@ impl<T> Deref for RcRef<T> {
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
         self.as_ref()
+    }
+}
+
+// Serde serialization support:
+impl<T: Serialize> Serialize for RcRef<T> {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        self.0.as_ref().serialize(serializer)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for RcRef<T> {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        let instance = T::deserialize(deserializer)?;
+        Ok(Self(Rc::new(instance)))
     }
 }
 
