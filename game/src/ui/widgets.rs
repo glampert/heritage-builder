@@ -489,6 +489,26 @@ impl UiMenu {
         &mut self.widgets
     }
 
+    pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(usize, &Widget)> {
+        for (index, widget) in self.widgets.iter().enumerate() {
+            if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
+                return Some((index, w));
+            }
+        }
+
+        None
+    }
+
+    pub fn find_widget_of_type_mut<Widget: UiWidget>(&mut self) -> Option<(usize, &mut Widget)> {
+        for (index, widget) in self.widgets.iter_mut().enumerate() {
+            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
+                return Some((index, w));
+            }
+        }
+
+        None
+    }
+
     pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(usize, &Widget)> {
         debug_assert!(!label.is_empty());
 
@@ -729,6 +749,16 @@ impl UiMenuHeading {
             margin_bottom: params.margin_bottom,
         }
     }
+
+    #[inline]
+    pub fn lines(&self) -> &[String] {
+        &self.lines
+    }
+
+    #[inline]
+    pub fn lines_mut(&mut self) -> &mut [String] {
+        &mut self.lines
+    }
 }
 
 // ----------------------------------------------
@@ -827,6 +857,50 @@ impl UiWidgetGroup {
     {
         self.widgets.push(UiWidgetImpl::from(widget));
         self
+    }
+
+    #[inline]
+    pub fn widgets(&self) -> &[UiWidgetImpl] {
+        &self.widgets
+    }
+
+    #[inline]
+    pub fn widgets_mut(&mut self) -> &mut [UiWidgetImpl] {
+        &mut self.widgets
+    }
+
+    pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(usize, &Widget)> {
+        for (index, widget) in self.widgets.iter().enumerate() {
+            if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
+                return Some((index, w));
+            }
+        }
+
+        None
+    }
+
+    pub fn find_widget_of_type_mut<Widget: UiWidget>(&mut self) -> Option<(usize, &mut Widget)> {
+        for (index, widget) in self.widgets.iter_mut().enumerate() {
+            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
+                return Some((index, w));
+            }
+        }
+
+        None
+    }
+
+    pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(usize, &Widget)> {
+        debug_assert!(!label.is_empty());
+
+        for (index, widget) in self.widgets.iter().enumerate() {
+            if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
+                if w.label() == label {
+                    return Some((index, w));
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -929,6 +1003,50 @@ impl UiLabeledWidgetGroup {
 
         self.labels_and_widgets.push((label, UiWidgetImpl::from(widget)));
         self
+    }
+
+    #[inline]
+    pub fn labels_and_widgets(&self) -> &[(String, UiWidgetImpl)] {
+        &self.labels_and_widgets
+    }
+
+    #[inline]
+    pub fn labels_and_widgets_mut(&mut self) -> &mut [(String, UiWidgetImpl)] {
+        &mut self.labels_and_widgets
+    }
+
+    pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(usize, &Widget)> {
+        for (index, (_, widget)) in self.labels_and_widgets.iter().enumerate() {
+            if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
+                return Some((index, w));
+            }
+        }
+
+        None
+    }
+
+    pub fn find_widget_of_type_mut<Widget: UiWidget>(&mut self) -> Option<(usize, &mut Widget)> {
+        for (index, (_, widget)) in self.labels_and_widgets.iter_mut().enumerate() {
+            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
+                return Some((index, w));
+            }
+        }
+
+        None
+    }
+
+    pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(usize, &Widget)> {
+        debug_assert!(!label.is_empty());
+
+        for (index, (widget_label, widget)) in self.labels_and_widgets.iter().enumerate() {
+            if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
+                if widget_label == label {
+                    return Some((index, w));
+                }
+            }
+        }
+
+        None
     }
 }
 

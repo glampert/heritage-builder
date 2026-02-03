@@ -659,8 +659,10 @@ pub trait TileInspector {
 const TOOLTIP_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 const TOOLTIP_BACKGROUND_SPRITE: &str = "misc/wide_page_bg.png";
 
+const SMALL_HORIZONTAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
+const SMALL_VERTICAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider_vertical.png";
+
 const TEXT_BUTTON_HOVERED_SPRITE: &str = "misc/brush_stroke_divider.png";
-const SMALL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
 
 // ----------------------------------------------
 // ButtonDef

@@ -174,7 +174,7 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn speed(&mut self) -> f32 {
+    pub fn speed(&self) -> f32 {
         self.speed
     }
 

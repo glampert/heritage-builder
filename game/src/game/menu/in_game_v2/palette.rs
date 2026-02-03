@@ -434,7 +434,7 @@ impl TilePaletteMenu {
                     palette_menu.add_widget(UiSeparator::new(
                         context,
                         UiSeparatorParams {
-                            separator: Some(SMALL_SEPARATOR_SPRITE),
+                            separator: Some(SMALL_HORIZONTAL_SEPARATOR_SPRITE),
                             thickness: Some(2.0),
                             ..Default::default()
                         }
