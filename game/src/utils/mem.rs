@@ -392,7 +392,7 @@ macro_rules! singleton_late_init {
 // RcMut: Mutable sharable Rc. Not thread-safe.
 // ----------------------------------------------
 
-pub struct RcMut<T>(Rc<T>);
+pub struct RcMut<T: ?Sized>(Rc<T>);
 
 impl<T> RcMut<T> {
     #[inline]
@@ -409,7 +409,9 @@ impl<T> RcMut<T> {
             init_fn(weak_mut)
         }))
     }
+}
 
+impl<T: ?Sized> RcMut<T> {
     #[inline]
     pub fn downgrade(&self) -> WeakMut<T> {
         WeakMut(Rc::downgrade(&self.0))
@@ -431,14 +433,21 @@ impl<T> RcMut<T> {
     }
 }
 
-impl<T> Clone for RcMut<T> {
+// Convert from std::Rc to RcMut.
+impl<T: ?Sized> From<Rc<T>> for RcMut<T> {
+    fn from(rc: Rc<T>) -> Self {
+        Self(rc)
+    }
+}
+
+impl<T: ?Sized> Clone for RcMut<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<T> Deref for RcMut<T> {
+impl<T: ?Sized> Deref for RcMut<T> {
     type Target = T;
 
     #[inline(always)]
@@ -447,7 +456,7 @@ impl<T> Deref for RcMut<T> {
     }
 }
 
-impl<T> DerefMut for RcMut<T> {
+impl<T: ?Sized> DerefMut for RcMut<T> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut()
@@ -478,9 +487,9 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for RcMut<T> {
 // WeakMut: Mutable weak reference to an Rc.
 // ----------------------------------------------
 
-pub struct WeakMut<T>(Weak<T>);
+pub struct WeakMut<T: ?Sized>(Weak<T>);
 
-impl<T> WeakMut<T> {
+impl<T: ?Sized> WeakMut<T> {
     #[inline]
     pub fn upgrade(&self) -> Option<RcMut<T>> {
         self.0.upgrade().map(|rc| RcMut(rc))
@@ -492,7 +501,7 @@ impl<T> WeakMut<T> {
     }
 }
 
-impl<T> Clone for WeakMut<T> {
+impl<T: ?Sized> Clone for WeakMut<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
         Self(self.0.clone())
@@ -503,7 +512,7 @@ impl<T> Clone for WeakMut<T> {
 // RcRef: Immutable sharable Rc. Not thread-safe.
 // ----------------------------------------------
 
-pub struct RcRef<T>(Rc<T>);
+pub struct RcRef<T: ?Sized>(Rc<T>);
 
 impl<T> RcRef<T> {
     #[inline]
@@ -520,7 +529,9 @@ impl<T> RcRef<T> {
             init_fn(widget_weak_ref)
         }))
     }
+}
 
+impl<T: ?Sized> RcRef<T> {
     #[inline]
     pub fn downgrade(&self) -> WeakRef<T> {
         WeakRef(Rc::downgrade(&self.0))
@@ -532,14 +543,21 @@ impl<T> RcRef<T> {
     }
 }
 
-impl<T> Clone for RcRef<T> {
+// Convert from std::Rc to RcRef.
+impl<T: ?Sized> From<Rc<T>> for RcRef<T> {
+    fn from(rc: Rc<T>) -> Self {
+        Self(rc)
+    }
+}
+
+impl<T: ?Sized> Clone for RcRef<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<T> Deref for RcRef<T> {
+impl<T: ?Sized> Deref for RcRef<T> {
     type Target = T;
 
     #[inline(always)]
@@ -572,16 +590,16 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for RcRef<T> {
 // WeakRef: Immutable weak reference to an Rc.
 // ----------------------------------------------
 
-pub struct WeakRef<T>(Weak<T>);
+pub struct WeakRef<T: ?Sized>(Weak<T>);
 
-impl<T> WeakRef<T> {
+impl<T: ?Sized> WeakRef<T> {
     #[inline]
     pub fn upgrade(&self) -> Option<RcRef<T>> {
         self.0.upgrade().map(|rc| RcRef(rc))
     }
 }
 
-impl<T> Clone for WeakRef<T> {
+impl<T: ?Sized> Clone for WeakRef<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
         Self(self.0.clone())
