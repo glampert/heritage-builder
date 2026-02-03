@@ -212,6 +212,7 @@ impl SpeedControlsBar {
             context,
             UiWidgetGroupParams {
                 widget_spacing: SPEED_CONTROLS_BUTTON_SPACING,
+                center_horizontally: false, // Let content float left.
                 stack_vertically: false, // Layout buttons side-by-side.
                 ..Default::default()
             }
@@ -256,11 +257,12 @@ impl SpeedControlsBar {
             group.add_widget(button);
         }
 
+        const SEPARATOR_THICKNESS: f32 = 8.0;
         let separator = UiSeparator::new(
             context,
             UiSeparatorParams {
                 separator: Some(SMALL_VERTICAL_SEPARATOR_SPRITE),
-                thickness: Some(8.0),
+                thickness: Some(SEPARATOR_THICKNESS),
                 vertical: true,
                 ..Default::default()
             }
@@ -275,17 +277,39 @@ impl SpeedControlsBar {
             UiMenuHeadingParams {
                 font_scale: TOOLTIP_FONT_SCALE,
                 lines: vec![sim_state.to_string()],
+                center_horizontally: false, // Let the text float left.
                 ..Default::default()
             }
         );
 
         group.add_widget(heading);
 
+        fn calc_menu_size(context: &UiWidgetContext) -> Vec2 {
+            const MARGINS: Vec2 = Vec2::new(25.0, 10.0);
+
+            // Length of longest label: "Paused"
+            let label_size = context.calc_text_size(TOOLTIP_FONT_SCALE, &SimState::Paused.to_string());
+
+            let menu_width =
+                (SPEED_CONTROLS_BUTTON_SIZE.x  * SPEED_CONTROLS_BUTTON_COUNT as f32) +
+                (SPEED_CONTROLS_BUTTON_SPACING * SPEED_CONTROLS_BUTTON_COUNT as f32) +
+                SEPARATOR_THICKNESS +
+                label_size.x +
+                MARGINS.x;
+
+            let menu_height =
+                label_size.y.max(SPEED_CONTROLS_BUTTON_SIZE.y) +
+                MARGINS.y;
+
+            Vec2::new(menu_width, menu_height)
+        }
+
         let mut menu = UiMenu::new(
             context,
             UiMenuParams {
                 label: Some("SpeedControlsBar".into()),
                 flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
+                size: Some(calc_menu_size(context)), // Fixed size menu.
                 widget_spacing: Some(Vec2::new(SPEED_CONTROLS_BUTTON_SPACING, SPEED_CONTROLS_BUTTON_SPACING)),
                 background: Some("misc/wide_page_bg.png"),
                 ..Default::default()

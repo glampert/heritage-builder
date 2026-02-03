@@ -125,6 +125,11 @@ impl<'game> UiWidgetContext<'game> {
     }
 
     #[inline]
+    pub fn calc_text_size(&self, font_scale: UiFontScale, text: &str) -> Vec2 {
+        helpers::calc_text_size(self, font_scale, text).0
+    }
+
+    #[inline]
     pub fn load_texture(&mut self, path: &str) -> TextureHandle {
         let file_path = super::assets_path().join(path);
         self.tex_cache.load_texture_with_settings(
@@ -665,6 +670,8 @@ pub struct UiMenuHeading {
     separator: Option<UiTextureHandle>,
     margin_top: f32,
     margin_bottom: f32,
+    center_vertically: bool,
+    center_horizontally: bool,
 }
 
 impl UiWidget for UiMenuHeading {
@@ -682,10 +689,11 @@ impl UiWidget for UiMenuHeading {
             ui.dummy([0.0, self.margin_top]);
         }
 
-        // Center horizontally only (along the x-axis).
-        const VERTICAL: bool = false;
-        const HORIZONTAL: bool = true;
-        let group = helpers::draw_centered_text_group(ui, &self.lines, VERTICAL, HORIZONTAL);
+        let group = helpers::draw_centered_text_group(
+            ui,
+            &self.lines,
+            self.center_vertically,
+            self.center_horizontally);
 
         if let Some(separator) = self.separator {
             let separator_height = ui.text_line_height();
@@ -747,6 +755,8 @@ impl UiMenuHeading {
             separator: params.separator.map(|path| context.load_ui_texture(path)),
             margin_top: params.margin_top,
             margin_bottom: params.margin_bottom,
+            center_vertically: params.center_vertically,
+            center_horizontally: params.center_horizontally,
         }
     }
 
@@ -765,13 +775,28 @@ impl UiMenuHeading {
 // UiMenuHeadingParams
 // ----------------------------------------------
 
-#[derive(Default)]
 pub struct UiMenuHeadingParams<'a> {
     pub font_scale: UiFontScale,
     pub lines: Vec<String>,
     pub separator: Option<&'a str>,
     pub margin_top: f32,
     pub margin_bottom: f32,
+    pub center_vertically: bool,
+    pub center_horizontally: bool,
+}
+
+impl<'a> Default for UiMenuHeadingParams<'a> {
+    fn default() -> Self {
+        Self {
+            font_scale: UiFontScale::default(),
+            lines: Vec::new(),
+            separator: None,
+            margin_top: 0.0,
+            margin_bottom: 0.0,
+            center_vertically: false,
+            center_horizontally: true, // Center horizontally only (along the x-axis).
+        }
+    }
 }
 
 // ----------------------------------------------

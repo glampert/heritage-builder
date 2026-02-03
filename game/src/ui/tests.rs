@@ -52,6 +52,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             separator: Some("misc/brush_stroke_divider.png"),
             margin_top: 50.0,
             margin_bottom: 10.0,
+            ..Default::default()
         }
     );
 
