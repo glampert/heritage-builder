@@ -1,15 +1,20 @@
-use std::{any::Any, rc::Rc};
+use std::{any::Any, rc::Rc, path::PathBuf};
+
 use arrayvec::ArrayVec;
-use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{EnumCount, EnumProperty, EnumIter};
+use num_enum::TryFromPrimitive;
+use strum::{EnumCount, EnumProperty, IntoEnumIterator};
+use strum_macros::{EnumCount, EnumProperty, EnumIter, Display};
 
 use crate::{
     engine::time::Seconds,
-    ui::{UiInputEvent, widgets::*},
+    ui::{self, UiInputEvent, widgets::*},
     utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}},
     game::menu::{
-        GameMenusInputArgs, ButtonDef,
-        TOOLTIP_FONT_SCALE, SMALL_VERTICAL_SEPARATOR_SPRITE,
+        ButtonDef,
+        GameMenusInputArgs,
+        TOOLTIP_FONT_SCALE,
+        TOOLTIP_BACKGROUND_SPRITE,
+        SMALL_VERTICAL_SEPARATOR_SPRITE,
     },
 };
 
@@ -85,10 +90,120 @@ impl MenuBarKind {
 
 trait MenuBar: Any {
     fn as_any(&self) -> &dyn Any;
-    fn kind(&self) -> MenuBarKind;
     fn draw(&mut self, context: &mut UiWidgetContext);
     fn handle_input(&mut self, _context: &mut UiWidgetContext, _args: GameMenusInputArgs) -> UiInputEvent {
         UiInputEvent::NotHandled
+    }
+}
+
+// ----------------------------------------------
+// TopBarIcon
+// ----------------------------------------------
+
+const TOP_BAR_ICON_SPACING: f32 = 0.0;
+const TOP_BAR_ICON_COUNT: usize = TopBarIcon::COUNT;
+
+#[repr(usize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter, Display, TryFromPrimitive)]
+enum TopBarIcon {
+    #[strum(props(
+        AssetPath = "icons/population_icon.png",
+        ClipToMenu = true,
+        WithTooltip = true,
+        Width = 35,
+        Height = 20
+    ))]
+    Population,
+
+    #[strum(props(
+        AssetPath = "icons/player_icon.png",
+        ClipToMenu = false,
+        WithTooltip = false,
+        Width = 45,
+        Height = 20,
+        HeightUnclipped = 45,
+        MarginTop = -6,
+    ))]
+    Player,
+
+    #[strum(props(
+        AssetPath = "icons/gold_icon.png",
+        ClipToMenu = true,
+        WithTooltip = true,
+        Width = 35,
+        Height = 20
+    ))]
+    Gold,
+}
+
+impl TopBarIcon {
+    fn asset_path(self) -> PathBuf {
+        // ui/icons/{sprite}.png
+        let path = self.get_str("AssetPath").unwrap();
+        ui::assets_path().join(path)
+    }
+
+    fn clip_to_menu(self) -> bool {
+        self.get_bool("ClipToMenu").unwrap()
+    }
+
+    fn with_tooltip(self) -> bool {
+        self.get_bool("WithTooltip").unwrap()
+    }
+
+    fn size(self) -> Vec2 {
+        let width  = self.get_int("Width").unwrap()  as f32;
+        let height = self.get_int("Height").unwrap() as f32;
+        Vec2::new(width, height)
+    }
+
+    fn size_unclipped(self) -> Vec2 {
+        let mut size = self.size();
+        if let Some(width) = self.get_int("WidthUnclipped") {
+            size.x = width as f32;
+        }
+        if let Some(height) = self.get_int("HeightUnclipped") {
+            size.y = height as f32;
+        }
+        size
+    }
+
+    fn margin_top(self) -> f32 {
+        self.get_int("MarginTop").unwrap_or_default() as f32
+    }
+
+    fn label_for_stats(self, stats: &TopBarStats) -> Option<String> {
+        match self {
+            Self::Population => Some(stats.population.to_string()),
+            Self::Gold       => Some(stats.gold.to_string()),
+            Self::Player     => None,
+        }
+    }
+
+    fn max_label_size(context: &UiWidgetContext) -> Vec2 {
+        const PLACEHOLDER_LABEL: &str = "0000000"; // Estimate max 7 digits label.
+        let mut size = context.calc_text_size(TOOLTIP_FONT_SCALE, PLACEHOLDER_LABEL);
+        size.y += 5.0; // explicit vertical padding.
+        size
+    }
+}
+
+// ----------------------------------------------
+// TopBarStats
+// ----------------------------------------------
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+struct TopBarStats {
+    population: u32,
+    gold: u32,
+}
+
+impl TopBarStats {
+    fn new(context: &UiWidgetContext) -> Self {
+        Self {
+            population: context.world.stats().population.total,
+            gold: context.world.stats().treasury.gold_units_total,
+        }
     }
 }
 
@@ -97,7 +212,9 @@ trait MenuBar: Any {
 // ----------------------------------------------
 
 struct TopBar {
-    // TODO / WIP
+    current_stats: TopBarStats,
+    icon_label_indices: [Option<usize>; TOP_BAR_ICON_COUNT],
+    menu: UiMenuRcMut,
 }
 
 impl MenuBar for TopBar {
@@ -105,27 +222,164 @@ impl MenuBar for TopBar {
         self
     }
 
-    fn kind(&self) -> MenuBarKind {
-        MenuBarKind::Top
-    }
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        let stats = TopBarStats::new(context);
 
-    fn draw(&mut self, _context: &mut UiWidgetContext) {
+        if self.current_stats != stats {
+            self.update_stats(stats);
+        }
+
+        self.menu.draw(context);
     }
 }
 
 impl TopBar {
-    fn new(_context: &mut UiWidgetContext) -> Rc<TopBar> {
-        Rc::new(Self {
-        })
+    fn new(context: &mut UiWidgetContext) -> Rc<TopBar> {
+        let stats = TopBarStats::new(context);
+
+        let mut group = UiWidgetGroup::new(
+            context,
+            UiWidgetGroupParams {
+                widget_spacing: TOP_BAR_ICON_SPACING,
+                center_horizontally: false, // Let content float left.
+                stack_vertically: false, // Layout icons side-by-side.
+                ..Default::default()
+            }
+        );
+
+        let mut icon_label_indices = [None; TOP_BAR_ICON_COUNT];
+
+        for (icon_index, icon) in TopBarIcon::iter().enumerate() {
+            let icon_tooltip = {
+                if icon.with_tooltip() {
+                    Some(UiTooltipText::new(
+                        context,
+                        UiTooltipTextParams {
+                            text: icon.to_string(),
+                            font_scale: TOOLTIP_FONT_SCALE,
+                            background: Some(TOOLTIP_BACKGROUND_SPRITE),
+                        }
+                    ))
+                } else {
+                    None
+                }
+            };
+
+            let icon_sprite = UiSpriteIcon::new(
+                context,
+                UiSpriteIconParams {
+                    sprite: icon.asset_path().to_str().unwrap(),
+                    size: icon.size(),
+                    margin_top: icon.margin_top(),
+                    tooltip: icon_tooltip,
+                    clip_to_parent_menu: icon.clip_to_menu(),
+                    unclipped_draw_size: Some(icon.size_unclipped()),
+                    ..Default::default()
+                }
+            );
+
+            group.add_widget(icon_sprite);
+
+            if let Some(label_text) = icon.label_for_stats(&stats) {
+                let icon_label = UiSizedTextLabel::new(
+                    context,
+                    UiSizedTextLabelParams {
+                        font_scale: TOOLTIP_FONT_SCALE,
+                        label: label_text,
+                        size: TopBarIcon::max_label_size(context),
+                    }
+                );
+
+                let label_index = group.add_widget(icon_label);
+                icon_label_indices[icon_index] = Some(label_index);
+            }
+
+            let is_last = icon_index == (TOP_BAR_ICON_COUNT - 1);
+            if !is_last {
+                const SEPARATOR_WIDTH: f32 = 20.0;
+
+                let spacing = UiSeparator::new(
+                    context,
+                    UiSeparatorParams {
+                        size: Some(Vec2::new(SEPARATOR_WIDTH, 0.0)),
+                        ..Default::default()
+                    }
+                );
+
+                group.add_widget(spacing);
+            }
+        }
+
+        let mut menu = UiMenu::new(
+            context,
+            UiMenuParams {
+                label: Some("TopBar".into()),
+                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenterTop,
+                widget_spacing: Some(Vec2::new(TOP_BAR_ICON_SPACING, TOP_BAR_ICON_SPACING)),
+                background: Some("misc/wide_page_bg.png"),
+                ..Default::default()
+            }
+        );
+
+        menu.add_widget(group);
+
+        Rc::new(Self { current_stats: stats, icon_label_indices, menu })
+    }
+
+    fn update_stats(&mut self, stats: TopBarStats) {
+        self.current_stats = stats;
+
+        let (_, group) = self.menu
+            .find_widget_of_type_mut::<UiWidgetGroup>()
+            .unwrap();
+
+        let widgets = group.widgets_mut();
+
+        for (icon_index, label_index) in self.icon_label_indices.iter().enumerate() {
+            if let Some(widget_index) = *label_index {
+                let icon = TopBarIcon::try_from_primitive(icon_index).unwrap();
+
+                let widget = &mut widgets[widget_index];
+                let label = widget.as_any_mut().downcast_mut::<UiSizedTextLabel>().unwrap();
+
+                label.set_label(icon.label_for_stats(&stats).unwrap());
+            }
+        }
     }
 }
+
+// ----------------------------------------------
+// LeftBarButtonKind
+// ----------------------------------------------
+
+const LEFT_BAR_BUTTON_SIZE: Vec2 = Vec2::new(24.0, 24.0);
+const LEFT_BAR_BUTTON_SPACING: f32 = 4.0;
+
+const LEFT_BAR_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED: bool = true;
+const LEFT_BAR_BUTTON_STATE_TRANSITION_SECS: Seconds = 0.5;
+
+const LEFT_BAR_BUTTON_COUNT: usize = LeftBarButtonKind::COUNT;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
+enum LeftBarButtonKind {
+    #[strum(props(Label = "menu_bar/main_menu", Tooltip = "Game"))]
+    MainMenu,
+
+    #[strum(props(Label = "menu_bar/save_game", Tooltip = "Load | Save"))]
+    SaveGame,
+
+    #[strum(props(Label = "menu_bar/settings"))]
+    Settings,
+}
+
+impl ButtonDef for LeftBarButtonKind {}
 
 // ----------------------------------------------
 // LeftBar
 // ----------------------------------------------
 
 struct LeftBar {
-    // TODO / WIP
+    menu: UiMenuRcMut,
 }
 
 impl MenuBar for LeftBar {
@@ -133,18 +387,50 @@ impl MenuBar for LeftBar {
         self
     }
 
-    fn kind(&self) -> MenuBarKind {
-        MenuBarKind::Left
-    }
-
-    fn draw(&mut self, _context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        self.menu.draw(context);
     }
 }
 
 impl LeftBar {
-    fn new(_context: &mut UiWidgetContext) -> Rc<LeftBar> {
-        Rc::new(Self {
-        })
+    fn new(context: &mut UiWidgetContext) -> Rc<LeftBar> {
+        let mut menu = UiMenu::new(
+            context,
+            UiMenuParams {
+                label: Some("LeftBar".into()),
+                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
+                position: UiMenuPosition::Vec2(0.0, 60.0),
+                widget_spacing: Some(Vec2::new(LEFT_BAR_BUTTON_SPACING, LEFT_BAR_BUTTON_SPACING)),
+                background: Some("misc/tall_page_bg.png"),
+                ..Default::default()
+            }
+        );
+
+        for button_kind in LeftBarButtonKind::iter() {
+            let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(
+                move |button, _context, _| {
+                    if button.is_pressed() {
+                        // TODO: open modal child menus here!
+
+                        // Pressed state doesn't persist.
+                        button.press(false);
+                    }
+                }
+            );
+
+            let button = button_kind.new_sprite_button(
+                context,
+                LEFT_BAR_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED,
+                LEFT_BAR_BUTTON_SIZE,
+                LEFT_BAR_BUTTON_STATE_TRANSITION_SECS,
+                UiSpriteButtonState::Idle,
+                on_button_state_changed
+            );
+
+            menu.add_widget(button);
+        }
+
+        Rc::new(Self { menu })
     }
 }
 
@@ -191,15 +477,11 @@ impl MenuBar for SpeedControlsBar {
         self
     }
 
-    fn kind(&self) -> MenuBarKind {
-        MenuBarKind::SpeedControls
-    }
-
     fn draw(&mut self, context: &mut UiWidgetContext) {
         let sim_state = SimState::new(context);
 
         if self.current_sim_state != sim_state {
-            self.update_sim_state(sim_state);
+            self.update_sim_state(context, sim_state);
         }
 
         self.menu.draw(context);
@@ -271,49 +553,24 @@ impl SpeedControlsBar {
         group.add_widget(separator);
 
         let sim_state = SimState::new(context);
+        let (label_text, label_size) = sim_state.label_and_size(context);
 
-        let heading = UiMenuHeading::new(
+        let sim_state_label = UiSizedTextLabel::new(
             context,
-            UiMenuHeadingParams {
+            UiSizedTextLabelParams {
                 font_scale: TOOLTIP_FONT_SCALE,
-                lines: vec![sim_state.to_string()],
-                center_horizontally: false, // Let the text float left.
-                ..Default::default()
+                label: label_text,
+                size: label_size,
             }
         );
 
-        group.add_widget(heading);
-
-        fn calc_menu_size(context: &UiWidgetContext) -> Vec2 {
-            let style = context.ui_sys.current_ui_style();
-
-            let mut padding = Vec2::new(5.0, 0.0); // Add 5px width padding for the label.
-            padding += Vec2::from_array(style.window_padding) * 2.0;
-            padding += Vec2::new(style.window_border_size, style.window_border_size) * 2.0;
-
-            // Length of longest label: "Paused"
-            let label_size = context.calc_text_size(TOOLTIP_FONT_SCALE, &SimState::Paused.to_string());
-
-            let menu_width =
-                (SPEED_CONTROLS_BUTTON_SIZE.x  * SPEED_CONTROLS_BUTTON_COUNT as f32) +
-                (SPEED_CONTROLS_BUTTON_SPACING * SPEED_CONTROLS_BUTTON_COUNT as f32) +
-                SEPARATOR_THICKNESS +
-                label_size.x +
-                padding.x;
-
-            let menu_height =
-                label_size.y.max(SPEED_CONTROLS_BUTTON_SIZE.y) +
-                padding.y;
-
-            Vec2::new(menu_width, menu_height)
-        }
+        group.add_widget(sim_state_label);
 
         let mut menu = UiMenu::new(
             context,
             UiMenuParams {
                 label: Some("SpeedControlsBar".into()),
                 flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
-                size: Some(calc_menu_size(context)), // Fixed size menu.
                 widget_spacing: Some(Vec2::new(SPEED_CONTROLS_BUTTON_SPACING, SPEED_CONTROLS_BUTTON_SPACING)),
                 background: Some("misc/wide_page_bg.png"),
                 ..Default::default()
@@ -325,19 +582,21 @@ impl SpeedControlsBar {
         Rc::new(Self { current_sim_state: sim_state, menu })
     }
 
-    fn update_sim_state(&mut self, sim_state: SimState) {
+    fn update_sim_state(&mut self, context: &UiWidgetContext, sim_state: SimState) {
         self.current_sim_state = sim_state;
 
         let (_, group) = self.menu
             .find_widget_of_type_mut::<UiWidgetGroup>()
             .unwrap();
 
-        let (_, heading) = group
-            .find_widget_of_type_mut::<UiMenuHeading>()
+        let (_, label) = group
+            .find_widget_of_type_mut::<UiSizedTextLabel>()
             .unwrap();
 
-        let lines = heading.lines_mut();
-        lines[0] = sim_state.to_string();
+        let (label_text, label_size) = sim_state.label_and_size(context);
+
+        label.set_label(label_text);
+        label.set_size(label_size);
     }
 }
 
@@ -358,6 +617,15 @@ impl SimState {
         } else {
             Self::Playing(context.sim.speed())
         }
+    }
+
+    fn label_and_size(&self, context: &UiWidgetContext) -> (String, Vec2) {
+        let label = self.to_string();
+
+        let mut size = context.calc_text_size(TOOLTIP_FONT_SCALE, &label);
+        size += Vec2::new(10.0, 5.0); // explicit padding.
+
+        (label, size)
     }
 }
 

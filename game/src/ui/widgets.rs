@@ -295,11 +295,13 @@ pub trait UiWidget: Any {
 pub enum UiWidgetImpl {
     UiMenu,
     UiMenuHeading,
+    UiSizedTextLabel,
     UiWidgetGroup,
     UiLabeledWidgetGroup,
     UiTextButton,
     UiSpriteButton,
     UiSeparator,
+    UiSpriteIcon,
     UiSlider,
     UiCheckbox,
     UiTextInput,
@@ -476,12 +478,13 @@ impl UiMenu {
         self.on_open_close.invoke(self, context, IS_OPEN);
     }
 
-    pub fn add_widget<Widget>(&mut self, widget: Widget) -> &mut Self
+    pub fn add_widget<Widget>(&mut self, widget: Widget) -> usize
         where Widget: UiWidget + 'static,
               UiWidgetImpl: From<Widget>
     {
+        let index = self.widgets.len();
         self.widgets.push(UiWidgetImpl::from(widget));
-        self
+        index
     }
 
     #[inline]
@@ -565,8 +568,8 @@ impl UiMenu {
         let mut pivot = Vec2::zero();
 
         match &self.position {
-            UiMenuPosition::Vec2(pos) => {
-                position = *pos;
+            UiMenuPosition::Vec2(x, y) => {
+                position = Vec2::new(*x, *y);
             }
             UiMenuPosition::Callback(cb) => {
                 position = cb.invoke(self, context).unwrap();
@@ -587,6 +590,10 @@ impl UiMenu {
             // Screen center
             position = Vec2::new(display_size.x * 0.5, display_size.y * 0.5);
             pivot = Vec2::new(0.5, 0.5);
+        } else if self.has_flags(UiMenuFlags::AlignCenterTop) {
+            // Screen center top
+            position = Vec2::new(display_size.x * 0.5, 0.0);
+            pivot = Vec2::new(0.5, 0.0);
         } else if self.has_flags(UiMenuFlags::AlignLeft) {
             // Top-left
             position.x = 0.0;
@@ -626,8 +633,9 @@ bitflags_with_display! {
         const PauseSimIfOpen = 1 << 1;
         const Fullscreen     = 1 << 2;
         const AlignCenter    = 1 << 3;
-        const AlignLeft      = 1 << 4;
-        const AlignRight     = 1 << 5;
+        const AlignCenterTop = 1 << 4;
+        const AlignLeft      = 1 << 5;
+        const AlignRight     = 1 << 6;
     }
 }
 
@@ -639,7 +647,7 @@ bitflags_with_display! {
 pub enum UiMenuPosition {
     #[default]
     None,
-    Vec2(Vec2),
+    Vec2(f32, f32),
     Callback(UiMenuCalcPosition),
 }
 
@@ -800,6 +808,97 @@ impl<'a> Default for UiMenuHeadingParams<'a> {
 }
 
 // ----------------------------------------------
+// UiSizedTextLabel
+// ----------------------------------------------
+
+pub struct UiSizedTextLabel {
+    font_scale: UiFontScale,
+    label: String,
+    size: Vec2,
+}
+
+impl UiWidget for UiSizedTextLabel {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
+        context.set_window_font_scale(self.font_scale);
+        let ui = context.ui_sys.ui();
+
+        // Make button backgrounds and frames transparent/invisible.
+        let transparent = [0.0, 0.0, 0.0, 0.0];
+        let _border_size = ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0));
+        let _button_color = ui.push_style_color(imgui::StyleColor::Button, transparent);
+        let _button_hovered = ui.push_style_color(imgui::StyleColor::ButtonHovered, transparent);
+        let _button_active = ui.push_style_color(imgui::StyleColor::ButtonActive, transparent);
+
+        // Render a button with only the text label visible.
+        // It will be centered to the button rectangle by default.
+        ui.button_with_size(&self.label, self.size.to_array());
+    }
+
+    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+        if self.size != Vec2::zero() {
+            return self.size;
+        }
+
+        // Setting size as [0.0, 0.0] will size the button to the label's width in the current style.
+        let (text_size, font_size) = helpers::calc_text_size(context, self.font_scale, &self.label);
+
+        let style = context.ui_sys.current_ui_style();
+        let width  = text_size.x + (style.frame_padding[0] * 2.0);
+        let height = text_size.y.max(font_size) + (style.frame_padding[1] * 2.0);
+
+        Vec2::new(width, height)
+    }
+
+    fn label(&self) -> &str {
+        &self.label
+    }
+
+    fn font_scale(&self) -> UiFontScale {
+        self.font_scale
+    }
+}
+
+impl UiSizedTextLabel {
+    pub fn new(_context: &mut UiWidgetContext, params: UiSizedTextLabelParams) -> Self {                
+        debug_assert!(params.font_scale.is_valid());
+        debug_assert!(!params.label.is_empty());
+
+        Self {
+            font_scale: params.font_scale,
+            label: params.label,
+            size: params.size,
+        }
+    }
+
+    #[inline]
+    pub fn set_label(&mut self, label: String) {
+        self.label = label;
+    }
+
+    #[inline]
+    pub fn set_size(&mut self, size: Vec2) {
+        self.size = size;
+    }
+}
+
+// ----------------------------------------------
+// UiSizedTextLabelParams
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct UiSizedTextLabelParams {
+    pub font_scale: UiFontScale,
+    pub label: String,
+    pub size: Vec2,
+}
+
+// ----------------------------------------------
 // UiWidgetGroup
 // ----------------------------------------------
 
@@ -876,12 +975,13 @@ impl UiWidgetGroup {
         }
     }
 
-    pub fn add_widget<Widget>(&mut self, widget: Widget) -> &mut Self
+    pub fn add_widget<Widget>(&mut self, widget: Widget) -> usize
         where Widget: UiWidget + 'static,
               UiWidgetImpl: From<Widget>
     {
+        let index = self.widgets.len();
         self.widgets.push(UiWidgetImpl::from(widget));
-        self
+        index
     }
 
     #[inline]
@@ -1019,15 +1119,16 @@ impl UiLabeledWidgetGroup {
         }
     }
 
-    pub fn add_widget<Widget>(&mut self, label: String, widget: Widget) -> &mut Self
+    pub fn add_widget<Widget>(&mut self, label: String, widget: Widget) -> usize
         where Widget: UiWidget + 'static,
               UiWidgetImpl: From<Widget>
     {
         debug_assert!(!label.is_empty(), "UiLabeledWidgetGroup requires a non-empty label!");
         debug_assert!(widget.label().is_empty(), "Widgets added to UiLabeledWidgetGroup should not have a label!");
 
+        let index = self.labels_and_widgets.len();
         self.labels_and_widgets.push((label, UiWidgetImpl::from(widget)));
-        self
+        index
     }
 
     #[inline]
@@ -1659,7 +1760,7 @@ impl UiWidget for UiSeparator {
 }
 
 impl UiSeparator {
-    pub fn new(context: &mut UiWidgetContext, params: UiSeparatorParams) -> Self {                
+    pub fn new(context: &mut UiWidgetContext, params: UiSeparatorParams) -> Self {
         Self {
             separator: params.separator.map(|path| context.load_ui_texture(path)),
             size: params.size,
@@ -1679,6 +1780,111 @@ pub struct UiSeparatorParams<'a> {
     pub size: Option<Vec2>,
     pub thickness: Option<f32>, // Optional thickness used if `size = None`.
     pub vertical: bool,         // Horizontal separator by default.
+}
+
+// ----------------------------------------------
+// UiSpriteIcon
+// ----------------------------------------------
+
+pub struct UiSpriteIcon {
+    imgui_id: String,
+    sprite: UiTextureHandle,
+    size: Vec2,
+    margin_top: f32,
+    margin_bottom: f32,
+    tooltip: Option<UiTooltipText>,
+    clip_to_parent_menu: bool,
+    unclipped_draw_size: Vec2,
+}
+
+impl UiWidget for UiSpriteIcon {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
+        let ui = context.ui_sys.ui();
+        let label = make_imgui_id!(self, UiSpriteIcon, String::new());
+
+        if self.margin_top != 0.0 { // NOTE: May be negative.
+            let pos = ui.cursor_pos();
+            ui.set_cursor_pos([pos[0], pos[1] + self.margin_top]);
+        }
+
+        // Render icon as an invisible button so we can have hover detection for the tooltip.
+        ui.invisible_button_flags(label, self.size.to_array(), imgui::ButtonFlags::empty());
+
+        // Render the actual sprite icon:
+        if self.sprite != INVALID_UI_TEXTURE_HANDLE {
+            let draw_list = ui.get_window_draw_list();
+
+            if self.clip_to_parent_menu {
+                draw_list
+                    .add_image(self.sprite, ui.item_rect_min(), ui.item_rect_max())
+                    .build();
+            } else {
+                // Draw with fullscreen clip rect so the icon is allowed to overflow the parent window bounds.
+                draw_list.with_clip_rect([0.0, 0.0], ui.io().display_size, || {
+                    let icon_rect = Rect::from_pos_and_size(
+                        Vec2::from_array(ui.item_rect_min()),
+                        self.unclipped_draw_size
+                    );
+
+                    draw_list
+                        .add_image(self.sprite, icon_rect.min.to_array(), icon_rect.max.to_array())
+                        .build();
+                });
+            }
+        }
+
+        if let Some(tooltip) = &self.tooltip && ui.is_item_hovered() {
+            tooltip.draw(context);
+        }
+
+        if self.margin_bottom > 0.0 {
+            ui.dummy([0.0, self.margin_bottom]);
+        }
+    }
+
+    fn measure(&self, _context: &UiWidgetContext) -> Vec2 {
+        self.size
+    }
+}
+
+impl UiSpriteIcon {
+    pub fn new(context: &mut UiWidgetContext, params: UiSpriteIconParams) -> Self {
+        debug_assert!(!params.sprite.is_empty());
+        debug_assert!(params.size.x > 0.0 && params.size.y > 0.0);
+        debug_assert!(params.margin_bottom >= 0.0);
+
+        Self {
+            imgui_id: String::new(),
+            sprite: context.load_ui_texture(params.sprite),
+            size: params.size,
+            margin_top: params.margin_top,
+            margin_bottom: params.margin_bottom,
+            tooltip: params.tooltip,
+            clip_to_parent_menu: params.clip_to_parent_menu,
+            unclipped_draw_size: params.unclipped_draw_size.unwrap_or(params.size),
+        }
+    }
+}
+
+// ----------------------------------------------
+// UiSpriteIconParams
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct UiSpriteIconParams<'a> {
+    pub sprite: &'a str,
+    pub size: Vec2,
+    pub margin_top: f32, // Margin top can be negative.
+    pub margin_bottom: f32,
+    pub tooltip: Option<UiTooltipText>,
+    pub clip_to_parent_menu: bool,
+    pub unclipped_draw_size: Option<Vec2>, // Size to use for drawing if clip_to_parent_menu = false. Defaults to same as size.
 }
 
 // ----------------------------------------------
