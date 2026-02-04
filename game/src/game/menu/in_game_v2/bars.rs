@@ -285,7 +285,11 @@ impl SpeedControlsBar {
         group.add_widget(heading);
 
         fn calc_menu_size(context: &UiWidgetContext) -> Vec2 {
-            const MARGINS: Vec2 = Vec2::new(25.0, 10.0);
+            let style = context.ui_sys.current_ui_style();
+
+            let mut padding = Vec2::new(5.0, 0.0); // Add 5px width padding for the label.
+            padding += Vec2::from_array(style.window_padding) * 2.0;
+            padding += Vec2::new(style.window_border_size, style.window_border_size) * 2.0;
 
             // Length of longest label: "Paused"
             let label_size = context.calc_text_size(TOOLTIP_FONT_SCALE, &SimState::Paused.to_string());
@@ -295,11 +299,11 @@ impl SpeedControlsBar {
                 (SPEED_CONTROLS_BUTTON_SPACING * SPEED_CONTROLS_BUTTON_COUNT as f32) +
                 SEPARATOR_THICKNESS +
                 label_size.x +
-                MARGINS.x;
+                padding.x;
 
             let menu_height =
                 label_size.y.max(SPEED_CONTROLS_BUTTON_SIZE.y) +
-                MARGINS.y;
+                padding.y;
 
             Vec2::new(menu_width, menu_height)
         }
