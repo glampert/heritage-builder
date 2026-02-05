@@ -269,7 +269,7 @@ impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, O
 }
 
 // ----------------------------------------------
-// UiWidget / UiWidgetImpl
+// UiWidget Trait
 // ----------------------------------------------
 
 #[enum_dispatch(UiWidgetImpl)]
@@ -290,6 +290,10 @@ pub trait UiWidget: Any {
         UiFontScale::default()
     }
 }
+
+// ----------------------------------------------
+// UiWidgetImpl
+// ----------------------------------------------
 
 #[enum_dispatch]
 pub enum UiWidgetImpl {
@@ -312,6 +316,61 @@ pub enum UiWidgetImpl {
 }
 
 // ----------------------------------------------
+// UiMenuFlags
+// ----------------------------------------------
+
+bitflags_with_display! {
+    #[derive(Copy, Clone, Default)]
+    pub struct UiMenuFlags: u8 {
+        const IsOpen         = 1 << 0;
+        const PauseSimIfOpen = 1 << 1;
+        const Fullscreen     = 1 << 2;
+        const AlignCenter    = 1 << 3;
+        const AlignCenterTop = 1 << 4;
+        const AlignLeft      = 1 << 5;
+        const AlignRight     = 1 << 6;
+    }
+}
+
+// ----------------------------------------------
+// UiMenuPosition
+// ----------------------------------------------
+
+#[derive(Default)]
+pub enum UiMenuPosition {
+    #[default]
+    None,
+    Vec2(f32, f32),
+    Callback(UiMenuCalcPosition),
+}
+
+// ----------------------------------------------
+// UiMenuParams
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct UiMenuParams<'a> {
+    pub label: Option<String>,
+    pub flags: UiMenuFlags,
+    pub size: Option<Vec2>,
+    pub position: UiMenuPosition,
+    pub widget_spacing: Option<Vec2>,
+    pub background: Option<&'a str>,
+    pub on_open_close: UiMenuOpenClose,
+}
+
+// ----------------------------------------------
+// UiMenu Types
+// ----------------------------------------------
+
+pub type UiMenuRcMut   = RcMut<UiMenu>;
+pub type UiMenuWeakMut = WeakMut<UiMenu>;
+pub type UiMenuWeakRef = WeakRef<UiMenu>;
+
+pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiReadOnly, bool>;
+pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, UiReadOnly, Vec2>;
+
+// ----------------------------------------------
 // UiMenu
 // ----------------------------------------------
 
@@ -327,13 +386,6 @@ pub struct UiMenu {
     message_box: UiMessageBox,
     on_open_close: UiMenuOpenClose,
 }
-
-pub type UiMenuRcMut   = RcMut<UiMenu>;
-pub type UiMenuWeakMut = WeakMut<UiMenu>;
-pub type UiMenuWeakRef = WeakRef<UiMenu>;
-
-pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiReadOnly, bool>;
-pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, UiReadOnly, Vec2>;
 
 impl UiWidget for UiMenu {
     fn as_any(&self) -> &dyn Any {
@@ -623,47 +675,31 @@ impl UiMenu {
 }
 
 // ----------------------------------------------
-// UiMenuFlags
+// UiMenuHeadingParams
 // ----------------------------------------------
 
-bitflags_with_display! {
-    #[derive(Copy, Clone, Default)]
-    pub struct UiMenuFlags: u8 {
-        const IsOpen         = 1 << 0;
-        const PauseSimIfOpen = 1 << 1;
-        const Fullscreen     = 1 << 2;
-        const AlignCenter    = 1 << 3;
-        const AlignCenterTop = 1 << 4;
-        const AlignLeft      = 1 << 5;
-        const AlignRight     = 1 << 6;
+pub struct UiMenuHeadingParams<'a> {
+    pub font_scale: UiFontScale,
+    pub lines: Vec<String>,
+    pub separator: Option<&'a str>,
+    pub margin_top: f32,
+    pub margin_bottom: f32,
+    pub center_vertically: bool,
+    pub center_horizontally: bool,
+}
+
+impl<'a> Default for UiMenuHeadingParams<'a> {
+    fn default() -> Self {
+        Self {
+            font_scale: UiFontScale::default(),
+            lines: Vec::new(),
+            separator: None,
+            margin_top: 0.0,
+            margin_bottom: 0.0,
+            center_vertically: false,
+            center_horizontally: true, // Center horizontally only (along the x-axis).
+        }
     }
-}
-
-// ----------------------------------------------
-// UiMenuPosition
-// ----------------------------------------------
-
-#[derive(Default)]
-pub enum UiMenuPosition {
-    #[default]
-    None,
-    Vec2(f32, f32),
-    Callback(UiMenuCalcPosition),
-}
-
-// ----------------------------------------------
-// UiMenuParams
-// ----------------------------------------------
-
-#[derive(Default)]
-pub struct UiMenuParams<'a> {
-    pub label: Option<String>,
-    pub flags: UiMenuFlags,
-    pub size: Option<Vec2>,
-    pub position: UiMenuPosition,
-    pub widget_spacing: Option<Vec2>,
-    pub background: Option<&'a str>,
-    pub on_open_close: UiMenuOpenClose,
 }
 
 // ----------------------------------------------
@@ -780,31 +816,14 @@ impl UiMenuHeading {
 }
 
 // ----------------------------------------------
-// UiMenuHeadingParams
+// UiSizedTextLabelParams
 // ----------------------------------------------
 
-pub struct UiMenuHeadingParams<'a> {
+#[derive(Default)]
+pub struct UiSizedTextLabelParams {
     pub font_scale: UiFontScale,
-    pub lines: Vec<String>,
-    pub separator: Option<&'a str>,
-    pub margin_top: f32,
-    pub margin_bottom: f32,
-    pub center_vertically: bool,
-    pub center_horizontally: bool,
-}
-
-impl<'a> Default for UiMenuHeadingParams<'a> {
-    fn default() -> Self {
-        Self {
-            font_scale: UiFontScale::default(),
-            lines: Vec::new(),
-            separator: None,
-            margin_top: 0.0,
-            margin_bottom: 0.0,
-            center_vertically: false,
-            center_horizontally: true, // Center horizontally only (along the x-axis).
-        }
-    }
+    pub label: String,
+    pub size: Vec2,
 }
 
 // ----------------------------------------------
@@ -888,14 +907,25 @@ impl UiSizedTextLabel {
 }
 
 // ----------------------------------------------
-// UiSizedTextLabelParams
+// UiWidgetGroupParams
 // ----------------------------------------------
 
-#[derive(Default)]
-pub struct UiSizedTextLabelParams {
-    pub font_scale: UiFontScale,
-    pub label: String,
-    pub size: Vec2,
+pub struct UiWidgetGroupParams {
+    pub widget_spacing: f32,
+    pub center_vertically: bool,
+    pub center_horizontally: bool,
+    pub stack_vertically: bool,
+}
+
+impl Default for UiWidgetGroupParams {
+    fn default() -> Self {
+        Self {
+            widget_spacing: 0.0,
+            center_vertically: true,
+            center_horizontally: true,
+            stack_vertically: true,
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -1030,23 +1060,23 @@ impl UiWidgetGroup {
 }
 
 // ----------------------------------------------
-// UiWidgetGroupParams
+// UiLabeledWidgetGroupParams
 // ----------------------------------------------
 
-pub struct UiWidgetGroupParams {
+pub struct UiLabeledWidgetGroupParams {
+    pub label_spacing: f32,
     pub widget_spacing: f32,
     pub center_vertically: bool,
     pub center_horizontally: bool,
-    pub stack_vertically: bool,
 }
 
-impl Default for UiWidgetGroupParams {
+impl Default for UiLabeledWidgetGroupParams {
     fn default() -> Self {
         Self {
+            label_spacing: 0.0,
             widget_spacing: 0.0,
             center_vertically: true,
             center_horizontally: true,
-            stack_vertically: true,
         }
     }
 }
@@ -1177,26 +1207,45 @@ impl UiLabeledWidgetGroup {
 }
 
 // ----------------------------------------------
-// UiLabeledWidgetGroupParams
+// UiTextButtonSize
 // ----------------------------------------------
 
-pub struct UiLabeledWidgetGroupParams {
-    pub label_spacing: f32,
-    pub widget_spacing: f32,
-    pub center_vertically: bool,
-    pub center_horizontally: bool,
+// Dictates text button font scale.
+#[derive(Copy, Clone, Default)]
+pub enum UiTextButtonSize {
+    #[default]
+    Normal,
+    Small,
+    ExtraSmall,
+    Large,
 }
 
-impl Default for UiLabeledWidgetGroupParams {
-    fn default() -> Self {
-        Self {
-            label_spacing: 0.0,
-            widget_spacing: 0.0,
-            center_vertically: true,
-            center_horizontally: true,
+impl UiTextButtonSize {
+    pub const fn font_scale(self) -> UiFontScale {
+        match self {
+            UiTextButtonSize::Normal     => UiFontScale(1.2),
+            UiTextButtonSize::Small      => UiFontScale(1.0),
+            UiTextButtonSize::ExtraSmall => UiFontScale(0.8),
+            UiTextButtonSize::Large      => UiFontScale(1.5),
         }
     }
 }
+
+// ----------------------------------------------
+// UiTextButtonParams
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct UiTextButtonParams<'a> {
+    pub label: String,
+    pub tooltip: Option<UiTooltipText>,
+    pub size: UiTextButtonSize,
+    pub hover: Option<&'a str>,
+    pub enabled: bool,
+    pub on_pressed: UiTextButtonPressed,
+}
+
+pub type UiTextButtonPressed = UiWidgetCallback<UiTextButton, UiReadOnly>;
 
 // ----------------------------------------------
 // UiTextButton
@@ -1215,8 +1264,6 @@ pub struct UiTextButton {
     enabled: bool,
     on_pressed: UiTextButtonPressed,
 }
-
-pub type UiTextButtonPressed = UiWidgetCallback<UiTextButton, UiReadOnly>;
 
 impl UiWidget for UiTextButton {
     fn as_any(&self) -> &dyn Any {
@@ -1343,43 +1390,21 @@ impl UiTextButton {
 }
 
 // ----------------------------------------------
-// UiTextButtonSize
-// ----------------------------------------------
-
-// Dictates text button font scale.
-#[derive(Copy, Clone, Default)]
-pub enum UiTextButtonSize {
-    #[default]
-    Normal,
-    Small,
-    ExtraSmall,
-    Large,
-}
-
-impl UiTextButtonSize {
-    pub const fn font_scale(self) -> UiFontScale {
-        match self {
-            UiTextButtonSize::Normal     => UiFontScale(1.2),
-            UiTextButtonSize::Small      => UiFontScale(1.0),
-            UiTextButtonSize::ExtraSmall => UiFontScale(0.8),
-            UiTextButtonSize::Large      => UiFontScale(1.5),
-        }
-    }
-}
-
-// ----------------------------------------------
-// UiTextButtonParams
+// UiSpriteButtonParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiTextButtonParams<'a> {
+pub struct UiSpriteButtonParams {
     pub label: String,
     pub tooltip: Option<UiTooltipText>,
-    pub size: UiTextButtonSize,
-    pub hover: Option<&'a str>,
-    pub enabled: bool,
-    pub on_pressed: UiTextButtonPressed,
+    pub show_tooltip_when_pressed: bool,
+    pub size: Vec2,
+    pub initial_state: UiSpriteButtonState,
+    pub state_transition_secs: Seconds,
+    pub on_state_changed: UiSpriteButtonStateChanged,
 }
+
+pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiMutable, UiSpriteButtonState>;
 
 // ----------------------------------------------
 // UiSpriteButton
@@ -1403,8 +1428,6 @@ pub struct UiSpriteButton {
 
     on_state_changed: UiSpriteButtonStateChanged,
 }
-
-pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiMutable, UiSpriteButtonState>;
 
 impl UiWidget for UiSpriteButton {
     fn as_any(&self) -> &dyn Any {
@@ -1654,18 +1677,14 @@ impl UiSpriteButtonState {
 }
 
 // ----------------------------------------------
-// UiSpriteButtonParams
+// UiTooltipTextParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiSpriteButtonParams {
-    pub label: String,
-    pub tooltip: Option<UiTooltipText>,
-    pub show_tooltip_when_pressed: bool,
-    pub size: Vec2,
-    pub initial_state: UiSpriteButtonState,
-    pub state_transition_secs: Seconds,
-    pub on_state_changed: UiSpriteButtonStateChanged,
+pub struct UiTooltipTextParams<'a> {
+    pub text: String,
+    pub font_scale: UiFontScale,
+    pub background: Option<&'a str>,
 }
 
 // ----------------------------------------------
@@ -1701,14 +1720,15 @@ impl UiTooltipText {
 }
 
 // ----------------------------------------------
-// UiTooltipTextParams
+// UiSeparatorParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiTooltipTextParams<'a> {
-    pub text: String,
-    pub font_scale: UiFontScale,
-    pub background: Option<&'a str>,
+pub struct UiSeparatorParams<'a> {
+    pub separator: Option<&'a str>,
+    pub size: Option<Vec2>,
+    pub thickness: Option<f32>, // Optional thickness used if `size = None`.
+    pub vertical: bool,         // Horizontal separator by default.
 }
 
 // ----------------------------------------------
@@ -1771,15 +1791,18 @@ impl UiSeparator {
 }
 
 // ----------------------------------------------
-// UiSeparatorParams
+// UiSpriteIconParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiSeparatorParams<'a> {
-    pub separator: Option<&'a str>,
-    pub size: Option<Vec2>,
-    pub thickness: Option<f32>, // Optional thickness used if `size = None`.
-    pub vertical: bool,         // Horizontal separator by default.
+pub struct UiSpriteIconParams<'a> {
+    pub sprite: &'a str,
+    pub size: Vec2,
+    pub margin_top: f32, // Margin top can be negative.
+    pub margin_bottom: f32,
+    pub tooltip: Option<UiTooltipText>,
+    pub clip_to_parent_menu: bool,
+    pub unclipped_draw_size: Option<Vec2>, // Size to use for drawing if clip_to_parent_menu = false. Defaults to same as size.
 }
 
 // ----------------------------------------------
@@ -1873,19 +1896,21 @@ impl UiSpriteIcon {
 }
 
 // ----------------------------------------------
-// UiSpriteIconParams
+// UiSliderParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiSpriteIconParams<'a> {
-    pub sprite: &'a str,
-    pub size: Vec2,
-    pub margin_top: f32, // Margin top can be negative.
-    pub margin_bottom: f32,
-    pub tooltip: Option<UiTooltipText>,
-    pub clip_to_parent_menu: bool,
-    pub unclipped_draw_size: Option<Vec2>, // Size to use for drawing if clip_to_parent_menu = false. Defaults to same as size.
+pub struct UiSliderParams<T> {
+    pub label: Option<String>,
+    pub font_scale: UiFontScale,
+    pub min: T,
+    pub max: T,
+    pub on_read_value: UiSliderReadValue<T>,
+    pub on_update_value: UiSliderUpdateValue<T>,
 }
+
+pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, UiReadOnly, T>;
+pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, UiReadOnly, T>;
 
 // ----------------------------------------------
 // UiSlider
@@ -1897,9 +1922,6 @@ pub struct UiSlider {
     font_scale: UiFontScale,
     value: UiSliderValue,
 }
-
-pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, UiReadOnly, T>;
-pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, UiReadOnly, T>;
 
 impl UiWidget for UiSlider {
     fn as_any(&self) -> &dyn Any {
@@ -2014,6 +2036,10 @@ pub enum UiSliderValue {
     },
 }
 
+// ----------------------------------------------
+// IntoUiSliderValue Trait
+// ----------------------------------------------
+
 pub trait IntoUiSliderValue {
     fn into_slider_value(self) -> UiSliderValue;
 }
@@ -2052,18 +2078,19 @@ impl IntoUiSliderValue for UiSliderParams<f32> {
 }
 
 // ----------------------------------------------
-// UiSliderParams
+// UiCheckboxParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiSliderParams<T> {
+pub struct UiCheckboxParams {
     pub label: Option<String>,
     pub font_scale: UiFontScale,
-    pub min: T,
-    pub max: T,
-    pub on_read_value: UiSliderReadValue<T>,
-    pub on_update_value: UiSliderUpdateValue<T>,
+    pub on_read_value: UiCheckboxReadValue,
+    pub on_update_value: UiCheckboxUpdateValue,
 }
+
+pub type UiCheckboxReadValue   = UiWidgetCallback<UiCheckbox, UiReadOnly, bool>;
+pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, UiReadOnly, bool>;
 
 // ----------------------------------------------
 // UiCheckbox
@@ -2076,9 +2103,6 @@ pub struct UiCheckbox {
     on_read_value: UiCheckboxReadValue,
     on_update_value:UiCheckboxUpdateValue,
 }
-
-pub type UiCheckboxReadValue   = UiWidgetCallback<UiCheckbox, UiReadOnly, bool>;
-pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, UiReadOnly, bool>;
 
 impl UiWidget for UiCheckbox {
     fn as_any(&self) -> &dyn Any {
@@ -2141,16 +2165,19 @@ impl UiCheckbox {
 }
 
 // ----------------------------------------------
-// UiCheckboxParams
+// UiTextInputParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiCheckboxParams {
+pub struct UiTextInputParams {
     pub label: Option<String>,
     pub font_scale: UiFontScale,
-    pub on_read_value: UiCheckboxReadValue,
-    pub on_update_value: UiCheckboxUpdateValue,
+    pub on_read_value: UiTextInputReadValue,
+    pub on_update_value: UiTextInputUpdateValue,
 }
+
+pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, UiReadOnly, RawPtr<str>>;
+pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, UiReadOnly, RawPtr<str>>;
 
 // ----------------------------------------------
 // UiTextInput
@@ -2164,9 +2191,6 @@ pub struct UiTextInput {
     on_read_value: UiTextInputReadValue,
     on_update_value: UiTextInputUpdateValue,
 }
-
-pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, UiReadOnly, RawPtr<str>>;
-pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, UiReadOnly, RawPtr<str>>;
 
 impl UiWidget for UiTextInput {
     fn as_any(&self) -> &dyn Any {
@@ -2226,16 +2250,19 @@ impl UiTextInput {
 }
 
 // ----------------------------------------------
-// UiTextInputParams
+// UiDropdownParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiTextInputParams {
+pub struct UiDropdownParams<T> {
     pub label: Option<String>,
     pub font_scale: UiFontScale,
-    pub on_read_value: UiTextInputReadValue,
-    pub on_update_value: UiTextInputUpdateValue,
+    pub current_item: usize,
+    pub items: Vec<T>, // Must not be empty.
+    pub on_selection_changed: UiDropdownSelectionChanged,
 }
+
+pub type UiDropdownSelectionChanged = UiWidgetCallback<UiDropdown, UiReadOnly>;
 
 // ----------------------------------------------
 // UiDropdown
@@ -2249,8 +2276,6 @@ pub struct UiDropdown {
     items: Vec<String>,
     on_selection_changed: UiDropdownSelectionChanged,
 }
-
-pub type UiDropdownSelectionChanged = UiWidgetCallback<UiDropdown, UiReadOnly>;
 
 impl UiWidget for UiDropdown {
     fn as_any(&self) -> &dyn Any {
@@ -2363,17 +2388,37 @@ impl UiDropdown {
 }
 
 // ----------------------------------------------
-// UiDropdownParams
+// UiItemListFlags
+// ----------------------------------------------
+
+bitflags_with_display! {
+    #[derive(Copy, Clone, Default)]
+    pub struct UiItemListFlags: u8 {
+        const Border         = 1 << 0;
+        const Scrollable     = 1 << 1;
+        const Scrollbars     = 1 << 2;
+        const TextInputField = 1 << 3;
+    }
+}
+
+// ----------------------------------------------
+// UiItemListParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiDropdownParams<T> {
+pub struct UiItemListParams<T> {
     pub label: Option<String>,
     pub font_scale: UiFontScale,
-    pub current_item: usize,
-    pub items: Vec<T>, // Must not be empty.
-    pub on_selection_changed: UiDropdownSelectionChanged,
+    pub size: Option<Vec2>,
+    pub margin_left: f32,
+    pub margin_right: f32,
+    pub flags: UiItemListFlags,
+    pub current_item: Option<usize>,
+    pub items: Vec<T>, // Can be empty.
+    pub on_selection_changed: UiItemListSelectionChanged,
 }
+
+pub type UiItemListSelectionChanged = UiWidgetCallback<UiItemList, UiReadOnly>;
 
 // ----------------------------------------------
 // UiItemList
@@ -2392,8 +2437,6 @@ pub struct UiItemList {
     text_input_field_buffer: Option<String>,
     on_selection_changed: UiItemListSelectionChanged,
 }
-
-pub type UiItemListSelectionChanged = UiWidgetCallback<UiItemList, UiReadOnly>;
 
 impl UiWidget for UiItemList {
     fn as_any(&self) -> &dyn Any {
@@ -2623,34 +2666,16 @@ impl UiItemList {
 }
 
 // ----------------------------------------------
-// UiItemListFlags
-// ----------------------------------------------
-
-bitflags_with_display! {
-    #[derive(Copy, Clone, Default)]
-    pub struct UiItemListFlags: u8 {
-        const Border         = 1 << 0;
-        const Scrollable     = 1 << 1;
-        const Scrollbars     = 1 << 2;
-        const TextInputField = 1 << 3;
-    }
-}
-
-// ----------------------------------------------
-// UiItemListParams
+// UiMessageBoxParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiItemListParams<T> {
+pub struct UiMessageBoxParams<'a> {
     pub label: Option<String>,
-    pub font_scale: UiFontScale,
     pub size: Option<Vec2>,
-    pub margin_left: f32,
-    pub margin_right: f32,
-    pub flags: UiItemListFlags,
-    pub current_item: Option<usize>,
-    pub items: Vec<T>, // Can be empty.
-    pub on_selection_changed: UiItemListSelectionChanged,
+    pub background: Option<&'a str>,
+    pub contents: Vec<UiWidgetImpl>,
+    pub buttons: Vec<UiWidgetImpl>,
 }
 
 // ----------------------------------------------
@@ -2743,16 +2768,45 @@ impl UiMessageBox {
 }
 
 // ----------------------------------------------
-// UiMessageBoxParams
+// UiSlideshowFlags
+// ----------------------------------------------
+
+bitflags_with_display! {
+    #[derive(Copy, Clone, Default)]
+    pub struct UiSlideshowFlags: u8 {
+        const Fullscreen = 1 << 0;
+        const PlayedOnce = 1 << 1; // Finished playing at least once.
+        const Looping    = 1 << 2; // Started playing again with one of UiSlideshowLoopMode.
+    }
+}
+
+// ----------------------------------------------
+// UiSlideshowLoopMode
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Default)]
+pub enum UiSlideshowLoopMode {
+    #[default]
+    None,               // Doesn't loop.
+    WholeAnim,          // Loop whole anim from start to finish.
+    FramesFromEnd(u32), // Loop between these many frames from the end (frame count - N).
+}
+
+// ----------------------------------------------
+// UiSlideshowParams
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiMessageBoxParams<'a> {
-    pub label: Option<String>,
+pub struct UiSlideshowParams<'a> {
+    pub flags: UiSlideshowFlags,
+    pub loop_mode: UiSlideshowLoopMode,
+    pub frame_duration_secs: Seconds,
+    pub frames: &'a [String],
+
+    // Ignored if UiSlideshowFlags::Fullscreen is set.
     pub size: Option<Vec2>,
-    pub background: Option<&'a str>,
-    pub contents: Vec<UiWidgetImpl>,
-    pub buttons: Vec<UiWidgetImpl>,
+    pub margin_left: f32,
+    pub margin_right: f32,
 }
 
 // ----------------------------------------------
@@ -2933,42 +2987,4 @@ impl UiSlideshow {
                 ui.set_cursor_pos(cursor);
             });
     }
-}
-
-// ----------------------------------------------
-// UiSlideshowFlags / UiSlideshowLoopMode
-// ----------------------------------------------
-
-bitflags_with_display! {
-    #[derive(Copy, Clone, Default)]
-    pub struct UiSlideshowFlags: u8 {
-        const Fullscreen = 1 << 0;
-        const PlayedOnce = 1 << 1; // Finished playing at least once.
-        const Looping    = 1 << 2; // Started playing again with one of UiSlideshowLoopMode.
-    }
-}
-
-#[derive(Copy, Clone, Default)]
-pub enum UiSlideshowLoopMode {
-    #[default]
-    None,               // Doesn't loop.
-    WholeAnim,          // Loop whole anim from start to finish.
-    FramesFromEnd(u32), // Loop between these many frames from the end (frame count - N).
-}
-
-// ----------------------------------------------
-// UiSlideshowParams
-// ----------------------------------------------
-
-#[derive(Default)]
-pub struct UiSlideshowParams<'a> {
-    pub flags: UiSlideshowFlags,
-    pub loop_mode: UiSlideshowLoopMode,
-    pub frame_duration_secs: Seconds,
-    pub frames: &'a [String],
-
-    // Ignored if UiSlideshowFlags::Fullscreen is set.
-    pub size: Option<Vec2>,
-    pub margin_left: f32,
-    pub margin_right: f32,
 }
