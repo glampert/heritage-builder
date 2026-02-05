@@ -1,11 +1,13 @@
 use arrayvec::ArrayVec;
 use enum_dispatch::enum_dispatch;
 use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{EnumCount, EnumIter, EnumDiscriminants};
+use strum_macros::{Display, EnumCount, EnumIter, EnumDiscriminants};
 
 use crate::{
     singleton_late_init,
-    ui::widgets::*,
+    utils::Vec2,
+    ui::{UiFontScale, widgets::*},
+    game::menu::LARGE_HORIZONTAL_SEPARATOR_SPRITE,
 };
 
 mod main_menu;
@@ -28,7 +30,7 @@ const DIALOG_MENU_COUNT: usize = DialogMenuKind::COUNT;
 
 #[enum_dispatch]
 #[derive(EnumDiscriminants)]
-#[strum_discriminants(repr(u32), name(DialogMenuKind), derive(EnumCount, EnumIter))]
+#[strum_discriminants(repr(u32), name(DialogMenuKind), derive(Display, EnumCount, EnumIter))]
 pub enum DialogMenuImpl {
     MainMenu,
     NewGame,
@@ -61,7 +63,11 @@ pub fn initialize(context: &mut UiWidgetContext) {
     DialogMenusSingleton::initialize(DialogMenusSingleton::new(context));
 }
 
-pub fn open(dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
+pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &mut UiWidgetContext) -> bool {
+    if close_all_others {
+        close_all(context);
+    }
+
     DialogMenusSingleton::get_mut().open(dialog_menu_kind, context)
 }
 
@@ -84,10 +90,24 @@ pub fn draw_all(context: &mut UiWidgetContext) {
 #[enum_dispatch(DialogMenuImpl)]
 trait DialogMenu {
     fn kind(&self) -> DialogMenuKind;
-    fn is_open(&self) -> bool;
-    fn open(&mut self, context: &mut UiWidgetContext);
-    fn close(&mut self, context: &mut UiWidgetContext);
-    fn draw(&mut self, context: &mut UiWidgetContext);
+    fn menu(&self) -> &UiMenuRcMut;
+    fn menu_mut(&mut self) -> &mut UiMenuRcMut;
+
+    fn is_open(&self) -> bool {
+        self.menu().is_open()
+    }
+
+    fn open(&mut self, context: &mut UiWidgetContext) {
+        self.menu_mut().open(context);
+    }
+
+    fn close(&mut self, context: &mut UiWidgetContext) {
+        self.menu_mut().close(context);
+    }
+
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        self.menu_mut().draw(context);
+    }
 }
 
 // ----------------------------------------------
@@ -159,3 +179,65 @@ impl DialogMenusSingleton {
 
 // Global instance:
 singleton_late_init! { DIALOG_MENUS_SINGLETON, DialogMenusSingleton }
+
+// ----------------------------------------------
+// Internal Shared Constants & Helper Functions
+// ----------------------------------------------
+
+const DEFAULT_DIALOG_MENU_HEADING_MARGINS: (f32, f32) = (100.0, 10.0); // (top, bottom)
+const DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE: UiFontScale = UiFontScale(1.8);
+const DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE: &str = "misc/scroll_bg.png";
+
+fn default_dialog_menu_size(context: &UiWidgetContext) -> Vec2 {
+    Vec2::new(550.0, context.viewport_size.height as f32 - 150.0)
+}
+
+fn make_default_dialog_menu_layout(context: &mut UiWidgetContext,
+                                   dialog_menu_kind: DialogMenuKind,
+                                   heading_title: &str,
+                                   widget_spacing: f32,
+                                   widgets: impl IntoIterator<Item = UiWidgetImpl>)
+                                   -> UiMenuRcMut
+{
+    let mut group = UiWidgetGroup::new(
+        context,
+        UiWidgetGroupParams {
+            widget_spacing,
+            center_vertically: false,
+            center_horizontally: true,
+            ..Default::default()
+        }
+    );
+
+    for widget in widgets {
+        group.add_widget(widget);
+    }
+
+    let heading = UiMenuHeading::new(
+        context,
+        UiMenuHeadingParams {
+            font_scale: DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE,
+            lines: vec![heading_title.into()],
+            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+            margin_top: DEFAULT_DIALOG_MENU_HEADING_MARGINS.0,
+            margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,
+            ..Default::default()
+        }
+    );
+
+    let mut menu = UiMenu::new(
+        context,
+        UiMenuParams {
+            label: Some(dialog_menu_kind.to_string()),
+            flags: UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter,
+            size: Some(default_dialog_menu_size(context)),
+            background: Some(DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE),
+            ..Default::default()
+        }
+    );
+
+    menu.add_widget(heading);
+    menu.add_widget(group);
+
+    menu
+}

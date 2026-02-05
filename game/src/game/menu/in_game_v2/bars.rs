@@ -349,7 +349,7 @@ enum LeftBarButtonKind {
     #[strum(props(Label = "menu_bar/main_menu", Tooltip = "Game"))]
     MainMenu,
 
-    #[strum(props(Label = "menu_bar/save_game", Tooltip = "Load | Save"))]
+    #[strum(props(Label = "menu_bar/save_game", Tooltip = "Load / Save"))]
     SaveGame,
 
     #[strum(props(Label = "menu_bar/settings"))]
@@ -358,10 +358,11 @@ enum LeftBarButtonKind {
 
 impl LeftBarButtonKind {
     fn open_dialog_menu(self, context: &mut UiWidgetContext) -> bool {
+        const CLOSE_ALL_OTHERS: bool = true;
         match self {
-            Self::MainMenu => dialog::open(DialogMenuKind::MainMenu, context),
-            Self::SaveGame => dialog::open(DialogMenuKind::SaveGame, context),
-            Self::Settings => dialog::open(DialogMenuKind::Settings, context),
+            Self::MainMenu => dialog::open(DialogMenuKind::MainMenu, CLOSE_ALL_OTHERS, context),
+            Self::SaveGame => dialog::open(DialogMenuKind::SaveGame, CLOSE_ALL_OTHERS, context),
+            Self::Settings => dialog::open(DialogMenuKind::Settings, CLOSE_ALL_OTHERS, context),
         }
     }
 }

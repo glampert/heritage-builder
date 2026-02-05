@@ -1,17 +1,14 @@
-use super::{
-    DialogMenu,
-    DialogMenuKind,
-};
-use crate::{
-    ui::widgets::*,
-};
+use super::*;
 
 // ----------------------------------------------
 // SaveGame
 // ----------------------------------------------
 
+const SAVE_GAME_MENU_HEADING_TITLE: &str = "Load / Save";
+const SAVE_GAME_MENU_WIDGET_SPACING: f32 = 5.0;
+
 pub struct SaveGame {
-    // TODO / WIP
+    menu: UiMenuRcMut,
 }
 
 impl DialogMenu for SaveGame {
@@ -19,25 +16,29 @@ impl DialogMenu for SaveGame {
         DialogMenuKind::SaveGame
     }
 
-    fn is_open(&self) -> bool {
-        false
+    fn menu(&self) -> &UiMenuRcMut {
+        &self.menu
     }
 
-    fn open(&mut self, _context: &mut UiWidgetContext) {
-
-    }
-
-    fn close(&mut self, _context: &mut UiWidgetContext) {
-
-    }
-
-    fn draw(&mut self, _context: &mut UiWidgetContext) {
-
+    fn menu_mut(&mut self) -> &mut UiMenuRcMut {
+        &mut self.menu
     }
 }
 
 impl SaveGame {
-    pub fn new(_context: &mut UiWidgetContext) -> Self {
-        Self {}
+    pub fn new(context: &mut UiWidgetContext) -> Self {
+        let widgets = ArrayVec::<UiWidgetImpl, 1>::new();
+
+        // TODO: Add widgets
+
+        Self {
+            menu: make_default_dialog_menu_layout(
+                context,
+                DialogMenuKind::SaveGame,
+                SAVE_GAME_MENU_HEADING_TITLE,
+                SAVE_GAME_MENU_WIDGET_SPACING,
+                widgets
+            )
+        }
     }
 }

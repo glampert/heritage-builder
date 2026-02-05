@@ -662,6 +662,9 @@ const TOOLTIP_BACKGROUND_SPRITE: &str = "misc/wide_page_bg.png";
 const SMALL_HORIZONTAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
 const SMALL_VERTICAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider_vertical.png";
 
+const LARGE_HORIZONTAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
+const LARGE_VERTICAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider_vertical.png";
+
 const TEXT_BUTTON_HOVERED_SPRITE: &str = "misc/brush_stroke_divider.png";
 
 // ----------------------------------------------
