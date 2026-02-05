@@ -8,6 +8,7 @@ use crate::{log, utils::mem::RawPtr, ui::{widgets::*, UiStaticVar}};
 struct SampleMenu1State {
     slider: u32,
     checkbox: bool,
+    int_input: i32,
     text_input: String,
     dropdown: String,
     item_list: String,
@@ -16,6 +17,7 @@ struct SampleMenu1State {
 static SAMPLE_MENU_1_STATE: UiStaticVar<SampleMenu1State> = UiStaticVar::new(SampleMenu1State {
     slider: 0,
     checkbox: false,
+    int_input: 0,
     text_input: String::new(),
     dropdown: String::new(),
     item_list: String::new(),
@@ -50,7 +52,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             font_scale: heading_font_scale,
             lines: vec!["Sample Menu 1".into()],
             separator: Some("misc/brush_stroke_divider.png"),
-            margin_top: 50.0,
+            margin_top: 10.0,
             margin_bottom: 10.0,
             ..Default::default()
         }
@@ -115,6 +117,28 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         }
     );
 
+    let int_input = UiIntInput::new(
+        context,
+        UiIntInputParams {
+            font_scale: widgets_font_scale,
+            min: Some(0),
+            max: Some(256),
+            step: Some(32),
+            on_read_value: UiIntInputReadValue::with_fn(
+                |_input, _context| -> i32 {
+                    SAMPLE_MENU_1_STATE.int_input
+                }
+            ),
+            on_update_value: UiIntInputUpdateValue::with_fn(
+                |_input, _context, new_value: i32| {
+                    log::info!("Updated IntInput value: {}", new_value);
+                    SAMPLE_MENU_1_STATE.as_mut().int_input = new_value;
+                }
+            ),
+            ..Default::default()
+        }
+    );
+
     let dropdown = UiDropdown::new(
         context,
         UiDropdownParams {
@@ -173,6 +197,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
 
     labeled_group.add_widget("Slider".into(), slider);
     labeled_group.add_widget("Checkbox".into(), checkbox);
+    labeled_group.add_widget("Int Input".into(), int_input);
     labeled_group.add_widget("Text Input".into(), text_input);
     labeled_group.add_widget("Dropdown".into(), dropdown);
 

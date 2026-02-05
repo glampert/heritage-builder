@@ -387,6 +387,37 @@ pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,
     }
 }
 
+pub fn input_int_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
+                                          label: &str,
+                                          value: &'p mut i32)
+                                          -> (imgui::InputScalar<'ui, 'p, i32, ArrayString<128>>, imgui::GroupToken<'ui>)
+{
+    // Start a group so the layout behaves as a single item.
+    let group = ui.begin_group();
+
+    if label.starts_with('#') {
+        // No label given, just generated widget id. Render standalone input.
+        (ui.input_int(ArrayString::from(label).unwrap(), value), group)
+    } else {
+        // Vertically align text to match framed widgets.
+        ui.align_text_to_frame_padding();
+
+        // Draw lef-hand-side label.
+        ui.text(label);
+
+        // Same spacing ImGui uses between frame and label.
+        let style = current_ui_style();
+        ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
+
+        let mut hidden_label = ArrayString::<128>::new();
+        hidden_label.push_str("##");
+        hidden_label.push_str(label);
+
+        // Draw input (with hidden label).
+        (ui.input_int(hidden_label, value), group)
+    }
+}
+
 pub fn input_text_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
                                            label: &str,
                                            buf: &'p mut String)

@@ -308,6 +308,7 @@ pub enum UiWidgetImpl {
     UiSpriteIcon,
     UiSlider,
     UiCheckbox,
+    UiIntInput,
     UiTextInput,
     UiDropdown,
     UiItemList,
@@ -2158,6 +2159,95 @@ impl UiCheckbox {
             label: params.label.unwrap_or_default(),
             imgui_id: String::new(),
             font_scale: params.font_scale,
+            on_read_value: params.on_read_value,
+            on_update_value: params.on_update_value,
+        }
+    }
+}
+
+// ----------------------------------------------
+// UiIntInputParams
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct UiIntInputParams {
+    pub label: Option<String>,
+    pub font_scale: UiFontScale,
+    pub min: Option<i32>,
+    pub max: Option<i32>,
+    pub step: Option<i32>,
+    pub on_read_value: UiIntInputReadValue,
+    pub on_update_value: UiIntInputUpdateValue,
+}
+
+pub type UiIntInputReadValue   = UiWidgetCallback<UiIntInput, UiReadOnly, i32>;
+pub type UiIntInputUpdateValue = UiWidgetCallbackWithArg<UiIntInput, UiReadOnly, i32>;
+
+// ----------------------------------------------
+// UiIntInput
+// ----------------------------------------------
+
+pub struct UiIntInput {
+    label: String,
+    imgui_id: String,
+    font_scale: UiFontScale,
+    min: i32,
+    max: i32,
+    step: i32,
+    on_read_value: UiIntInputReadValue,
+    on_update_value: UiIntInputUpdateValue,
+}
+
+impl UiWidget for UiIntInput {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
+        context.set_window_font_scale(self.font_scale);
+        let ui = context.ui_sys.ui();
+
+        let label = make_imgui_id!(self, UiIntInput, self.label);
+
+        let mut value = self.on_read_value.invoke(self, context).unwrap_or_default();
+
+        let (input, _group) =
+            internal::input_int_with_left_label(ui, label, &mut value);
+
+        let value_changed = input.step(self.step).build();
+
+        if value_changed {
+            value = value.clamp(self.min, self.max);
+            self.on_update_value.invoke(self, context, value);
+        }
+    }
+
+    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+        internal::calc_labeled_widget_size(context, self.font_scale, &self.label)
+    }
+
+    fn label(&self) -> &str {
+        &self.label
+    }
+
+    fn font_scale(&self) -> UiFontScale {
+        self.font_scale
+    }
+}
+
+impl UiIntInput {
+    pub fn new(_context: &mut UiWidgetContext, params: UiIntInputParams) -> Self {
+        debug_assert!(params.font_scale.is_valid());
+
+        Self {
+            label: params.label.unwrap_or_default(),
+            imgui_id: String::new(),
+            font_scale: params.font_scale,
+            min: params.min.unwrap_or(i32::MIN),
+            max: params.max.unwrap_or(i32::MAX),
+            step: params.step.unwrap_or(1),
             on_read_value: params.on_read_value,
             on_update_value: params.on_update_value,
         }
