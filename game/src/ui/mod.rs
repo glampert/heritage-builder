@@ -21,7 +21,7 @@ pub mod widgets;
 pub mod tests;
 
 // Internal implementation.
-mod helpers;
+mod internal;
 mod opengl;
 pub mod backend {
     use super::*;
@@ -112,7 +112,7 @@ impl UiSystem {
 
         let ui = self.context.begin_frame(app, input_sys, delta_time_secs);
 
-        helpers::push_font(ui, theme_font_handle);
+        internal::push_font(ui, theme_font_handle);
 
         self.ui_ptr = Some(RawPtr::from_ref(ui));
     }
@@ -121,7 +121,7 @@ impl UiSystem {
     pub fn end_frame(&mut self) {
         debug_assert!(self.frame_started());
 
-        helpers::pop_font(self.ui());
+        internal::pop_font(self.ui());
         self.current_font_scale = None;
         self.ui_ptr = None;
 
@@ -237,10 +237,10 @@ impl UiSystem {
 
                 // Pop previous global font.
                 let ui = mut_self.ui();
-                helpers::pop_font(ui);
+                internal::pop_font(ui);
 
                 // Set new current global font.
-                helpers::push_font(ui, theme_font_handle);
+                internal::push_font(ui, theme_font_handle);
             }
         }
     }
@@ -252,7 +252,7 @@ impl UiSystem {
 
     #[inline]
     pub fn current_ui_style(&self) -> &imgui::Style {
-        helpers::current_ui_style()
+        internal::current_ui_style()
     }
 
     #[inline]
@@ -261,7 +261,7 @@ impl UiSystem {
             self.ui().current_font()
         } else {
             let theme_font_handle = self.context.fonts.front_for_theme(self.current_theme);
-            helpers::font_atlas()
+            internal::font_atlas()
                 .get_font(theme_font_handle)
                 .expect("current_ui_font(): UI font atlas did not contain the given font!")
         }

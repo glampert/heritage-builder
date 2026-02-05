@@ -10,7 +10,7 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
-    helpers,
+    internal,
     UiSystem,
     UiFontScale,
     UiTextureHandle,
@@ -126,7 +126,7 @@ impl<'game> UiWidgetContext<'game> {
 
     #[inline]
     pub fn calc_text_size(&self, font_scale: UiFontScale, text: &str) -> Vec2 {
-        helpers::calc_text_size(self, font_scale, text).0
+        internal::calc_text_size(self, font_scale, text).0
     }
 
     #[inline]
@@ -355,7 +355,7 @@ impl UiWidget for UiMenu {
         let window_flags = self.calc_window_flags();
         let window_name = make_imgui_id!(self, UiMenu, self.label);
 
-        helpers::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
+        internal::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
 
         ui.window(window_name)
             .opened(&mut is_open)
@@ -369,7 +369,7 @@ impl UiWidget for UiMenu {
                     ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
 
                 if let Some(background) = self.background {
-                    helpers::draw_widget_window_background(ui, background);
+                    internal::draw_widget_window_background(ui, background);
                 }
 
                 for widget in &mut self.widgets {
@@ -608,7 +608,7 @@ impl UiMenu {
     }
 
     fn calc_window_flags(&self) -> imgui::WindowFlags {
-        let mut window_flags = helpers::base_widget_window_flags();
+        let mut window_flags = internal::base_widget_window_flags();
 
         if self.background.is_some() {
             window_flags |= imgui::WindowFlags::NO_BACKGROUND;
@@ -697,7 +697,7 @@ impl UiWidget for UiMenuHeading {
             ui.dummy([0.0, self.margin_top]);
         }
 
-        let group = helpers::draw_centered_text_group(
+        let group = internal::draw_centered_text_group(
             ui,
             &self.lines,
             self.center_vertically,
@@ -732,7 +732,7 @@ impl UiWidget for UiMenuHeading {
         let mut size = Vec2::zero();
 
         for line in &self.lines {
-            let (line_size, _) = helpers::calc_text_size(context, self.font_scale, line);
+            let (line_size, _) = internal::calc_text_size(context, self.font_scale, line);
             size.x = size.x.max(line_size.x); // Max width.
             size.y += line_size.y; // Total height.
         }
@@ -846,7 +846,7 @@ impl UiWidget for UiSizedTextLabel {
         }
 
         // Setting size as [0.0, 0.0] will size the button to the label's width in the current style.
-        let (text_size, font_size) = helpers::calc_text_size(context, self.font_scale, &self.label);
+        let (text_size, font_size) = internal::calc_text_size(context, self.font_scale, &self.label);
 
         let style = context.ui_sys.current_ui_style();
         let width  = text_size.x + (style.frame_padding[0] * 2.0);
@@ -925,7 +925,7 @@ impl UiWidget for UiWidgetGroup {
         let _spacing =
             ui.push_style_var(imgui::StyleVar::ItemSpacing([self.widget_spacing, self.widget_spacing]));
 
-        helpers::draw_centered_widget_group(
+        internal::draw_centered_widget_group(
             context,
             &mut self.widgets,
             self.center_vertically,
@@ -1078,7 +1078,7 @@ impl UiWidget for UiLabeledWidgetGroup {
         let _spacing =
             ui.push_style_var(imgui::StyleVar::ItemSpacing([self.label_spacing, self.widget_spacing]));
 
-        helpers::draw_centered_labeled_widget_group(
+        internal::draw_centered_labeled_widget_group(
             context,
             &mut self.labels_and_widgets,
             self.center_vertically,
@@ -1091,7 +1091,7 @@ impl UiWidget for UiLabeledWidgetGroup {
 
         for (label, widget) in &self.labels_and_widgets {
             let widget_size = widget.measure(context);
-            let (label_size, _) = helpers::calc_text_size(context, widget.font_scale(), label);
+            let (label_size, _) = internal::calc_text_size(context, widget.font_scale(), label);
 
             size.x = size.x.max(label_size.x + style.item_spacing[0] + widget_size.x); // Max width (label + widget).
             size.y += label_size.y.max(widget_size.y); // Total height (largest of the two).
@@ -1301,7 +1301,7 @@ impl UiWidget for UiTextButton {
         let style = context.ui_sys.current_ui_style();
 
         // Compute scaled font size (window-independent).
-        let (text_size, font_size) = helpers::calc_text_size(context, self.font_scale, &self.label);
+        let (text_size, font_size) = internal::calc_text_size(context, self.font_scale, &self.label);
 
         let width  = text_size.x + (style.frame_padding[0] * 2.0);
         let height = text_size.y.max(font_size) + (style.frame_padding[1] * 2.0);
@@ -1733,7 +1733,7 @@ impl UiWidget for UiSeparator {
 
         let ui = context.ui_sys.ui();
         let size = self.size.unwrap_or_else(
-            || helpers::calc_separator_size(context, !self.vertical, self.thickness));
+            || internal::calc_separator_size(context, !self.vertical, self.thickness));
 
         // Invisible dummy item.
         ui.dummy(size.to_array());
@@ -1755,7 +1755,7 @@ impl UiWidget for UiSeparator {
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
         self.size.unwrap_or_else(
-                || helpers::calc_separator_size(context, !self.vertical, self.thickness))
+                || internal::calc_separator_size(context, !self.vertical, self.thickness))
     }
 }
 
@@ -1919,7 +1919,7 @@ impl UiWidget for UiSlider {
                 let mut value = on_read_value.invoke(self, context).unwrap_or_default();
 
                 let (slider, _group) =
-                    helpers::slider_with_left_label(ui, label, *min, *max);
+                    internal::slider_with_left_label(ui, label, *min, *max);
 
                 let value_changed = slider
                     .flags(imgui::SliderFlags::ALWAYS_CLAMP | imgui::SliderFlags::NO_INPUT)
@@ -1933,7 +1933,7 @@ impl UiWidget for UiSlider {
                 let mut value = on_read_value.invoke(self, context).unwrap_or_default();
 
                 let (slider, _group) =
-                    helpers::slider_with_left_label(ui, label, *min, *max);
+                    internal::slider_with_left_label(ui, label, *min, *max);
 
                 let value_changed = slider
                     .flags(imgui::SliderFlags::ALWAYS_CLAMP | imgui::SliderFlags::NO_INPUT)
@@ -1947,7 +1947,7 @@ impl UiWidget for UiSlider {
                 let mut value = on_read_value.invoke(self, context).unwrap_or_default();
 
                 let (slider, _group) =
-                    helpers::slider_with_left_label(ui, label, *min, *max);
+                    internal::slider_with_left_label(ui, label, *min, *max);
 
                 let value_changed = slider
                     .flags(imgui::SliderFlags::ALWAYS_CLAMP | imgui::SliderFlags::NO_INPUT)
@@ -1962,7 +1962,7 @@ impl UiWidget for UiSlider {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        helpers::calc_labeled_widget_size(context, self.font_scale, &self.label)
+        internal::calc_labeled_widget_size(context, self.font_scale, &self.label)
     }
 
     fn label(&self) -> &str {
@@ -2096,7 +2096,7 @@ impl UiWidget for UiCheckbox {
         let mut value = self.on_read_value.invoke(self, context).unwrap_or_default();
 
         let (value_changed, _group) =
-            helpers::checkbox_with_left_label(ui, label, &mut value);
+            internal::checkbox_with_left_label(ui, label, &mut value);
 
         if value_changed {
             self.on_update_value.invoke(self, context, value);
@@ -2106,11 +2106,11 @@ impl UiWidget for UiCheckbox {
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
         let style = context.ui_sys.current_ui_style();
 
-        let checkbox_square = helpers::calc_text_line_height(context, self.font_scale) + (style.frame_padding[1] * 2.0);
+        let checkbox_square = internal::calc_text_line_height(context, self.font_scale) + (style.frame_padding[1] * 2.0);
         let mut width = checkbox_square;
 
         if !self.label.is_empty() {
-            let (label_size, _) = helpers::calc_text_size(context, self.font_scale, &self.label);
+            let (label_size, _) = internal::calc_text_size(context, self.font_scale, &self.label);
             width += style.item_inner_spacing[0] + label_size.x;
         }
 
@@ -2188,7 +2188,7 @@ impl UiWidget for UiTextInput {
         self.buffer.push_str(value.as_ref());
 
         let (input, _group) =
-            helpers::input_text_with_left_label(ui, label, &mut self.buffer);
+            internal::input_text_with_left_label(ui, label, &mut self.buffer);
 
         let value_changed = input.build();
 
@@ -2198,7 +2198,7 @@ impl UiWidget for UiTextInput {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        helpers::calc_labeled_widget_size(context, self.font_scale, &self.label)
+        internal::calc_labeled_widget_size(context, self.font_scale, &self.label)
     }
 
     fn label(&self) -> &str {
@@ -2274,7 +2274,7 @@ impl UiWidget for UiDropdown {
         let label = make_imgui_id!(self, UiDropdown, self.label);
 
         let (selection_changed, _group) =
-            helpers::combo_with_left_label(ui, label, &mut self.current_item, &self.items);
+            internal::combo_with_left_label(ui, label, &mut self.current_item, &self.items);
 
         if selection_changed {
             self.on_selection_changed.invoke(self, context);
@@ -2282,7 +2282,7 @@ impl UiWidget for UiDropdown {
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        helpers::calc_labeled_widget_size(context, self.font_scale, &self.label)
+        internal::calc_labeled_widget_size(context, self.font_scale, &self.label)
     }
 
     fn label(&self) -> &str {
@@ -2499,11 +2499,11 @@ impl UiWidget for UiItemList {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        let size = helpers::calc_child_window_size(context, requested_size);
+        let size = internal::calc_child_window_size(context, requested_size);
 
         let input_field_height = {
             if self.text_input_field_buffer.is_some() {
-                helpers::calc_text_line_height(context, self.font_scale) + (style.frame_padding[1] * 2.0)
+                internal::calc_text_line_height(context, self.font_scale) + (style.frame_padding[1] * 2.0)
             } else {
                 0.0
             }
@@ -2792,7 +2792,7 @@ impl UiWidget for UiSlideshow {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        helpers::calc_child_window_size(context, requested_size)
+        internal::calc_child_window_size(context, requested_size)
     }
 }
 
@@ -2914,7 +2914,7 @@ impl UiSlideshow {
 
         ui.child_window(window_name)
             .size(window_size.to_array())
-            .flags(helpers::base_widget_window_flags())
+            .flags(internal::base_widget_window_flags())
             .build(|| {
                 let draw_list = ui.get_window_draw_list();
 
