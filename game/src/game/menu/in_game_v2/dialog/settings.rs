@@ -40,6 +40,10 @@ pub struct Settings {
 }
 
 impl DialogMenu for Settings {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn kind(&self) -> DialogMenuKind {
         DialogMenuKind::Settings
     }

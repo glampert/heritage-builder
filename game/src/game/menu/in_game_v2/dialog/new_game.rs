@@ -12,6 +12,10 @@ pub struct NewGame {
 }
 
 impl DialogMenu for NewGame {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn kind(&self) -> DialogMenuKind {
         DialogMenuKind::NewGame
     }

@@ -357,11 +357,11 @@ enum LeftBarButtonKind {
 }
 
 impl LeftBarButtonKind {
-    fn open_dialog_menu(self, context: &mut UiWidgetContext) -> bool {
+    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = true;
         match self {
             Self::MainMenu => dialog::open(DialogMenuKind::MainMenu, CLOSE_ALL_OTHERS, context),
-            Self::SaveGame => dialog::open(DialogMenuKind::SaveGame, CLOSE_ALL_OTHERS, context),
+            Self::SaveGame => dialog::open(DialogMenuKind::LoadOrSaveGame, CLOSE_ALL_OTHERS, context),
             Self::Settings => dialog::open(DialogMenuKind::Settings, CLOSE_ALL_OTHERS, context),
         }
     }
@@ -401,7 +401,7 @@ impl LeftBar {
             let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(
                 move |button, context, _| {
                     if button.is_pressed() {
-                        button_kind.open_dialog_menu(context);
+                        button_kind.on_pressed(context);
 
                         // Pressed state doesn't persist.
                         button.press(false);

@@ -84,7 +84,7 @@ impl GameMenusSystem for InGameMenus {
                     context.engine
                 );
 
-                if dialog::close_all(&mut ui_context) {
+                if dialog::close_current(&mut ui_context) {
                     return UiInputEvent::Handled; // Key press is handled.
                 }
             }
@@ -111,7 +111,7 @@ impl GameMenusSystem for InGameMenus {
         let minimap = context.tile_map.minimap_mut();
         minimap.draw(&mut self.minimap_renderer, &mut ui_context, context.camera);
 
-        dialog::draw_all(&mut ui_context);
+        dialog::draw_current(&mut ui_context);
     }
 }
 

@@ -323,13 +323,14 @@ pub enum UiWidgetImpl {
 bitflags_with_display! {
     #[derive(Copy, Clone, Default)]
     pub struct UiMenuFlags: u8 {
-        const IsOpen         = 1 << 0;
-        const PauseSimIfOpen = 1 << 1;
-        const Fullscreen     = 1 << 2;
-        const AlignCenter    = 1 << 3;
-        const AlignCenterTop = 1 << 4;
-        const AlignLeft      = 1 << 5;
-        const AlignRight     = 1 << 6;
+        const IsOpen                 = 1 << 0;
+        const PauseSimIfOpen         = 1 << 1;
+        const Fullscreen             = 1 << 2;
+        const AlignCenter            = 1 << 3;
+        const AlignCenterTop         = 1 << 4;
+        const AlignLeft              = 1 << 5;
+        const AlignRight             = 1 << 6;
+        const HideWhenMessageBoxOpen = 1 << 7;
     }
 }
 
@@ -397,6 +398,11 @@ impl UiWidget for UiMenu {
         let mut is_open = self.is_open();
 
         if !is_open {
+            return;
+        }
+
+        if self.message_box.is_open() && self.has_flags(UiMenuFlags::HideWhenMessageBoxOpen) {
+            self.message_box.draw(context);
             return;
         }
 
@@ -489,6 +495,11 @@ impl UiMenu {
     #[inline]
     pub fn set_position(&mut self, position: UiMenuPosition) {
         self.position = position;
+    }
+
+    #[inline]
+    pub fn set_flags(&mut self, new_flags: UiMenuFlags, value: bool) {
+        self.flags.set(new_flags, value);
     }
 
     #[inline]

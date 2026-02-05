@@ -3,7 +3,12 @@ use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{EnumProperty, EnumCount, EnumIter};
 
 use super::*;
-use crate::game::menu::ButtonDef;
+use crate::{
+    game::{
+        GameLoop,
+        menu::{ButtonDef, LARGE_HORIZONTAL_SEPARATOR_SPRITE},
+    }
+};
 
 // ----------------------------------------------
 // MainMenuButtonKind
@@ -33,6 +38,28 @@ enum MainMenuButtonKind {
     Back,
 }
 
+impl MainMenuButtonKind {
+    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
+        const CLOSE_ALL_OTHERS: bool = false;
+        match self {
+            Self::NewGame  => super::open(DialogMenuKind::NewGame,  CLOSE_ALL_OTHERS, context),
+            Self::LoadGame => super::open(DialogMenuKind::LoadGame, CLOSE_ALL_OTHERS, context),
+            Self::SaveGame => super::open(DialogMenuKind::SaveGame, CLOSE_ALL_OTHERS, context),
+            Self::Settings => super::open(DialogMenuKind::Settings, CLOSE_ALL_OTHERS, context),
+            Self::Quit     => Self::on_quit(context),
+            Self::Back     => super::close_current(context),
+        }
+    }
+
+    fn on_quit(context: &mut UiWidgetContext) -> bool {
+        let main_menu = DialogMenusSingleton::get_mut()
+            .current_dialog_as::<MainMenu>()
+            .expect("Expected MainMenu dialog to be open!");
+
+        main_menu.open_quit_game_message_box(context)
+    }
+}
+
 impl ButtonDef for MainMenuButtonKind {}
 
 // ----------------------------------------------
@@ -46,6 +73,10 @@ pub struct MainMenu {
 }
 
 impl DialogMenu for MainMenu {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn kind(&self) -> DialogMenuKind {
         DialogMenuKind::MainMenu
     }
@@ -57,6 +88,16 @@ impl DialogMenu for MainMenu {
     fn menu_mut(&mut self) -> &mut UiMenuRcMut {
         &mut self.menu
     }
+
+    fn close(&mut self, context: &mut UiWidgetContext) -> bool {
+        if self.menu.is_message_box_open() {
+            self.menu.close_message_box(context);
+            false
+        } else {
+            self.menu.close(context);
+            true
+        }
+    }
 }
 
 impl MainMenu {
@@ -64,10 +105,8 @@ impl MainMenu {
         let mut buttons = ArrayVec::<UiWidgetImpl, MAIN_MENU_BUTTON_COUNT>::new();
 
         for button_kind in MainMenuButtonKind::iter() {
-            let on_pressed = UiTextButtonPressed::with_fn(
-                |_button, _context| {
-                    // TODO: button action
-                }
+            let on_pressed = UiTextButtonPressed::with_closure(
+                move |_, context| { button_kind.on_pressed(context); }
             );
 
             buttons.push(UiWidgetImpl::from(
@@ -80,14 +119,90 @@ impl MainMenu {
             ));
         }
 
-        Self {
-            menu: make_default_dialog_menu_layout(
-                context,
-                DialogMenuKind::MainMenu,
-                MAIN_MENU_HEADING_TITLE,
-                MAIN_MENU_BUTTON_SPACING,
-                buttons
-            )
+        let mut menu = make_default_dialog_menu_layout(
+            context,
+            DialogMenuKind::MainMenu,
+            MAIN_MENU_HEADING_TITLE,
+            MAIN_MENU_BUTTON_SPACING,
+            buttons
+        );
+
+        menu.set_flags(UiMenuFlags::HideWhenMessageBoxOpen, true);
+
+        Self { menu }
+    }
+
+    fn open_quit_game_message_box(&mut self, context: &mut UiWidgetContext) -> bool {
+        debug_assert!(self.menu.is_open());
+
+        if self.menu.is_message_box_open() {
+            return false;
         }
+
+        let menu_weak_ref = self.menu.downgrade();
+
+        let message_box_params = UiMessageBoxParams {
+            label: Some("Quit Game Popup".into()),
+            background: Some(DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE),
+            contents: vec![
+                UiWidgetImpl::from(UiMenuHeading::new(
+                    context,
+                    UiMenuHeadingParams {
+                        lines: vec![
+                            "Quit Game?".into(),
+                            "Any unsaved progress will be lost...".into(),
+                        ],
+                        font_scale: DEFAULT_DIALOG_POPUP_FONT_SCALE,
+                        separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                        margin_top: 5.0,
+                        ..Default::default()
+                    }
+                ))
+            ],
+            buttons: vec![
+                UiWidgetImpl::from(UiTextButton::new(
+                    context,
+                    UiTextButtonParams {
+                        label: "Quit to Main Menu".into(),
+                        size: UiTextButtonSize::Normal,
+                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                        enabled: true,
+                        on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_to_main_menu()),
+                        ..Default::default()
+                    }
+                )),
+                UiWidgetImpl::from(UiTextButton::new(
+                    context,
+                    UiTextButtonParams {
+                        label: "Exit Game".into(),
+                        size: UiTextButtonSize::Normal,
+                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                        enabled: true,
+                        on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().request_quit()),
+                        ..Default::default()
+                    }
+                )),
+                UiWidgetImpl::from(UiTextButton::new(
+                    context,
+                    UiTextButtonParams {
+                        label: "Cancel".into(),
+                        size: UiTextButtonSize::Normal,
+                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                        enabled: true,
+                        on_pressed: UiTextButtonPressed::with_closure(
+                            move |_button, context| {
+                                let mut main_menu = menu_weak_ref.upgrade().unwrap();
+                                main_menu.close_message_box(context);
+                            }
+                        ),
+                        ..Default::default()
+                    }
+                )),
+            ],
+            ..Default::default()
+        };
+
+        self.menu.open_message_box(context, message_box_params);
+        true
     }
 }
