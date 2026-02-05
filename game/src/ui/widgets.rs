@@ -603,12 +603,18 @@ impl UiMenu {
         self.message_box.is_open()
     }
 
-    pub fn open_message_box(&mut self, context: &mut UiWidgetContext, params: UiMessageBoxParams) {
-        self.message_box.open(context, params);
+    pub fn open_message_box<'a, F>(&mut self, context: &mut UiWidgetContext, params_fn: F)
+        where F: FnMut(&mut UiWidgetContext) -> UiMessageBoxParams<'a>
+    {
+        self.message_box.open(context, params_fn);
     }
 
     pub fn close_message_box(&mut self, context: &mut UiWidgetContext) {
         self.message_box.close(context);
+    }
+
+    pub fn reset_message_box(&mut self) {
+        self.message_box.reset();
     }
 
     // ----------------------
@@ -2794,9 +2800,9 @@ impl UiWidget for UiMessageBox {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
-        if let Some(menu) = &self.menu {
+        if let Some(menu) = &self.menu && menu.is_open() {
             // NOTE: Increment the ref count here.
-            // draw() may trigger a UiMessageBox::close, which would drop `self.menu`.
+            // draw() may trigger a UiMessageBox::reset, which could drop `self.menu`.
             let mut strong_ref = menu.clone();
             strong_ref.draw(context);
         }
@@ -2823,10 +2829,23 @@ impl UiMessageBox {
 
     #[inline]
     pub fn is_open(&self) -> bool {
-        self.menu.is_some()
+        self.menu.as_ref().is_some_and(|menu| menu.is_open())
     }
 
-    pub fn open(&mut self, context: &mut UiWidgetContext, params: UiMessageBoxParams) {
+    // Message box menu is lazily created on first call to open.
+    // Subsequent calls will reuse the same menu until reset.
+    pub fn open<'a, F>(&mut self, context: &mut UiWidgetContext, mut params_fn: F)
+        where F: FnMut(&mut UiWidgetContext) -> UiMessageBoxParams<'a>
+    {
+        if let Some(menu) = &mut self.menu {
+            // Reuse existing message box.
+            menu.open(context);
+            return;
+        }
+
+        // Create new message box:
+        let params = params_fn(context);
+
         let mut menu = UiMenu::new(
             context,
             UiMenuParams {
@@ -2863,7 +2882,13 @@ impl UiMessageBox {
         self.menu = Some(menu);
     }
 
-    pub fn close(&mut self, _context: &mut UiWidgetContext) {
+    pub fn close(&mut self, context: &mut UiWidgetContext) {
+        if let Some(menu) = &mut self.menu {
+            menu.close(context);
+        }
+    }
+
+    pub fn reset(&mut self) {
         self.menu = None;
     }
 }

@@ -139,70 +139,72 @@ impl MainMenu {
             return false;
         }
 
-        let menu_weak_ref = self.menu.downgrade();
+        let menu_rc = self.menu.clone();
 
-        let message_box_params = UiMessageBoxParams {
-            label: Some("Quit Game Popup".into()),
-            background: Some(DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE),
-            contents: vec![
-                UiWidgetImpl::from(UiMenuHeading::new(
-                    context,
-                    UiMenuHeadingParams {
-                        lines: vec![
-                            "Quit Game?".into(),
-                            "Any unsaved progress will be lost...".into(),
-                        ],
-                        font_scale: DEFAULT_DIALOG_POPUP_FONT_SCALE,
-                        separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                        margin_top: 5.0,
-                        ..Default::default()
-                    }
-                ))
-            ],
-            buttons: vec![
-                UiWidgetImpl::from(UiTextButton::new(
-                    context,
-                    UiTextButtonParams {
-                        label: "Quit to Main Menu".into(),
-                        size: UiTextButtonSize::Normal,
-                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                        enabled: true,
-                        on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_to_main_menu()),
-                        ..Default::default()
-                    }
-                )),
-                UiWidgetImpl::from(UiTextButton::new(
-                    context,
-                    UiTextButtonParams {
-                        label: "Exit Game".into(),
-                        size: UiTextButtonSize::Normal,
-                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                        enabled: true,
-                        on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().request_quit()),
-                        ..Default::default()
-                    }
-                )),
-                UiWidgetImpl::from(UiTextButton::new(
-                    context,
-                    UiTextButtonParams {
-                        label: "Cancel".into(),
-                        size: UiTextButtonSize::Normal,
-                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                        enabled: true,
-                        on_pressed: UiTextButtonPressed::with_closure(
-                            move |_button, context| {
-                                let mut main_menu = menu_weak_ref.upgrade().unwrap();
-                                main_menu.close_message_box(context);
-                            }
-                        ),
-                        ..Default::default()
-                    }
-                )),
-            ],
-            ..Default::default()
-        };
+        self.menu.open_message_box(context, |context: &mut UiWidgetContext| {
+            let menu_weak_ref = menu_rc.downgrade();
+            UiMessageBoxParams {
+                label: Some("Quit Game Popup".into()),
+                background: Some(DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE),
+                contents: vec![
+                    UiWidgetImpl::from(UiMenuHeading::new(
+                        context,
+                        UiMenuHeadingParams {
+                            lines: vec![
+                                "Quit Game?".into(),
+                                "Any unsaved progress will be lost...".into(),
+                            ],
+                            font_scale: DEFAULT_DIALOG_POPUP_FONT_SCALE,
+                            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                            margin_top: 5.0,
+                            ..Default::default()
+                        }
+                    ))
+                ],
+                buttons: vec![
+                    UiWidgetImpl::from(UiTextButton::new(
+                        context,
+                        UiTextButtonParams {
+                            label: "Quit to Main Menu".into(),
+                            size: UiTextButtonSize::Normal,
+                            hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                            enabled: true,
+                            on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_to_main_menu()),
+                            ..Default::default()
+                        }
+                    )),
+                    UiWidgetImpl::from(UiTextButton::new(
+                        context,
+                        UiTextButtonParams {
+                            label: "Exit Game".into(),
+                            size: UiTextButtonSize::Normal,
+                            hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                            enabled: true,
+                            on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().request_quit()),
+                            ..Default::default()
+                        }
+                    )),
+                    UiWidgetImpl::from(UiTextButton::new(
+                        context,
+                        UiTextButtonParams {
+                            label: "Cancel".into(),
+                            size: UiTextButtonSize::Normal,
+                            hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                            enabled: true,
+                            on_pressed: UiTextButtonPressed::with_closure(
+                                move |_, context| {
+                                    let mut main_menu = menu_weak_ref.upgrade().unwrap();
+                                    main_menu.close_message_box(context);
+                                }
+                            ),
+                            ..Default::default()
+                        }
+                    )),
+                ],
+                ..Default::default()
+            }
+        });
 
-        self.menu.open_message_box(context, message_box_params);
         true
     }
 }

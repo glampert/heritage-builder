@@ -298,66 +298,66 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                     log::info!("Pressed Button: {}", button.label());
 
                     if let Some(mut menu_rc) = menu_weak_ref_open_popup_btn.upgrade() {
-                        let menu_weak_ref_ok_btn = menu_weak_ref_open_popup_btn.clone();
-                        let menu_weak_ref_cancel_btn = menu_weak_ref_open_popup_btn.clone();
+                        menu_rc.open_message_box(context, |context: &mut UiWidgetContext| {
+                            let menu_weak_ref_ok_btn = menu_weak_ref_open_popup_btn.clone();
+                            let menu_weak_ref_cancel_btn = menu_weak_ref_open_popup_btn.clone();
 
-                        let message_box_params = UiMessageBoxParams {
-                            label: Some("Message Box Popup".into()),
-                            background: Some("misc/square_page_bg.png"),
-                            contents: vec![
-                                UiWidgetImpl::from(UiMenuHeading::new(
-                                    context,
-                                    UiMenuHeadingParams {
-                                        font_scale: widgets_font_scale,
-                                        lines: vec!["Quit to main menu?".into(), "Unsaved progress will be lost".into()],
-                                        separator: Some("misc/brush_stroke_divider.png"),
-                                        margin_top: 5.0,
-                                        ..Default::default()
-                                    }
-                                ))
-                            ],
-                            buttons: vec![
-                                UiWidgetImpl::from(UiTextButton::new(
-                                    context,
-                                    UiTextButtonParams {
-                                        label: "Ok".into(),
-                                        size: UiTextButtonSize::Small,
-                                        hover: Some("misc/brush_stroke_divider.png"),
-                                        enabled: true,
-                                        on_pressed: UiTextButtonPressed::with_closure(
-                                            move |button, context| {
-                                                log::info!("Pressed Button: {}", button.label());
-                                                if let Some(mut menu_rc) = menu_weak_ref_ok_btn.upgrade() {
-                                                    menu_rc.close_message_box(context);
+                            UiMessageBoxParams {
+                                label: Some("Message Box Popup".into()),
+                                background: Some("misc/square_page_bg.png"),
+                                contents: vec![
+                                    UiWidgetImpl::from(UiMenuHeading::new(
+                                        context,
+                                        UiMenuHeadingParams {
+                                            font_scale: widgets_font_scale,
+                                            lines: vec!["Quit to main menu?".into(), "Unsaved progress will be lost".into()],
+                                            separator: Some("misc/brush_stroke_divider.png"),
+                                            margin_top: 5.0,
+                                            ..Default::default()
+                                        }
+                                    ))
+                                ],
+                                buttons: vec![
+                                    UiWidgetImpl::from(UiTextButton::new(
+                                        context,
+                                        UiTextButtonParams {
+                                            label: "Ok".into(),
+                                            size: UiTextButtonSize::Small,
+                                            hover: Some("misc/brush_stroke_divider.png"),
+                                            enabled: true,
+                                            on_pressed: UiTextButtonPressed::with_closure(
+                                                move |button, context| {
+                                                    log::info!("Pressed Button: {}", button.label());
+                                                    if let Some(mut menu_rc) = menu_weak_ref_ok_btn.upgrade() {
+                                                        menu_rc.close_message_box(context);
+                                                    }
                                                 }
-                                            }
-                                        ),
-                                        ..Default::default()
-                                    }
-                                )),
-                                UiWidgetImpl::from(UiTextButton::new(
-                                    context,
-                                    UiTextButtonParams {
-                                        label: "Cancel".into(),
-                                        size: UiTextButtonSize::Small,
-                                        hover: Some("misc/brush_stroke_divider.png"),
-                                        enabled: true,
-                                        on_pressed: UiTextButtonPressed::with_closure(
-                                            move |button, context| {
-                                                log::info!("Pressed Button: {}", button.label());
-                                                if let Some(mut menu_rc) = menu_weak_ref_cancel_btn.upgrade() {
-                                                    menu_rc.close_message_box(context);
+                                            ),
+                                            ..Default::default()
+                                        }
+                                    )),
+                                    UiWidgetImpl::from(UiTextButton::new(
+                                        context,
+                                        UiTextButtonParams {
+                                            label: "Cancel".into(),
+                                            size: UiTextButtonSize::Small,
+                                            hover: Some("misc/brush_stroke_divider.png"),
+                                            enabled: true,
+                                            on_pressed: UiTextButtonPressed::with_closure(
+                                                move |button, context| {
+                                                    log::info!("Pressed Button: {}", button.label());
+                                                    if let Some(mut menu_rc) = menu_weak_ref_cancel_btn.upgrade() {
+                                                        menu_rc.close_message_box(context);
+                                                    }
                                                 }
-                                            }
-                                        ),
-                                        ..Default::default()
-                                    }
-                                )),
-                            ],
-                            ..Default::default()
-                        };
-
-                        menu_rc.open_message_box(context, message_box_params);
+                                            ),
+                                            ..Default::default()
+                                        }
+                                    )),
+                                ],
+                                ..Default::default()
+                            }
+                        });
                     }
                 }
             ),
