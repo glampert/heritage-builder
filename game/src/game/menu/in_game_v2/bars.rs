@@ -1,17 +1,19 @@
-use std::{any::Any, rc::Rc, path::PathBuf};
+use std::{rc::Rc, path::PathBuf};
 
 use arrayvec::ArrayVec;
 use num_enum::TryFromPrimitive;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter, Display};
 
+use super::{
+    dialog::{self, DialogKind}
+};
 use crate::{
     engine::time::Seconds,
-    ui::{self, UiInputEvent, widgets::*},
+    ui::{self, widgets::*},
     utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}},
     game::menu::{
         ButtonDef,
-        GameMenusInputArgs,
         TOOLTIP_FONT_SCALE,
         TOOLTIP_BACKGROUND_SPRITE,
         SMALL_VERTICAL_SEPARATOR_SPRITE,
@@ -39,16 +41,6 @@ impl InGameMenuBars {
         }
 
         InGameMenuBarsRcMut::new(Self { bars })
-    }
-
-    pub fn handle_input(&mut self, context: &mut UiWidgetContext, args: GameMenusInputArgs) -> UiInputEvent {
-        for bar in &mut self.bars {
-            let input_event = bar.handle_input(context, args);
-            if input_event.is_handled() {
-                return input_event;
-            }
-        }
-        UiInputEvent::NotHandled
     }
 
     pub fn draw(&mut self, context: &mut UiWidgetContext) {
@@ -88,12 +80,8 @@ impl MenuBarKind {
 // MenuBar
 // ----------------------------------------------
 
-trait MenuBar: Any {
-    fn as_any(&self) -> &dyn Any;
+trait MenuBar {
     fn draw(&mut self, context: &mut UiWidgetContext);
-    fn handle_input(&mut self, _context: &mut UiWidgetContext, _args: GameMenusInputArgs) -> UiInputEvent {
-        UiInputEvent::NotHandled
-    }
 }
 
 // ----------------------------------------------
@@ -117,7 +105,7 @@ enum TopBarIcon {
 
     #[strum(props(
         AssetPath = "icons/player_icon.png",
-        ClipToMenu = false,
+        ClipToMenu = false, // Player icon overflows the menu bar.
         WithTooltip = false,
         Width = 45,
         Height = 20,
@@ -218,10 +206,6 @@ struct TopBar {
 }
 
 impl MenuBar for TopBar {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn draw(&mut self, context: &mut UiWidgetContext) {
         let stats = TopBarStats::new(context);
 
@@ -234,7 +218,7 @@ impl MenuBar for TopBar {
 }
 
 impl TopBar {
-    fn new(context: &mut UiWidgetContext) -> Rc<TopBar> {
+    fn new(context: &mut UiWidgetContext) -> Rc<Self> {
         let stats = TopBarStats::new(context);
 
         let mut group = UiWidgetGroup::new(
@@ -372,6 +356,16 @@ enum LeftBarButtonKind {
     Settings,
 }
 
+impl LeftBarButtonKind {
+    fn open_dialog_menu(self, context: &mut UiWidgetContext) -> bool {
+        match self {
+            Self::MainMenu => dialog::open(DialogKind::MainMenu, context),
+            Self::SaveGame => dialog::open(DialogKind::SaveGame, context),
+            Self::Settings => dialog::open(DialogKind::Settings, context),
+        }
+    }
+}
+
 impl ButtonDef for LeftBarButtonKind {}
 
 // ----------------------------------------------
@@ -383,17 +377,13 @@ struct LeftBar {
 }
 
 impl MenuBar for LeftBar {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn draw(&mut self, context: &mut UiWidgetContext) {
         self.menu.draw(context);
     }
 }
 
 impl LeftBar {
-    fn new(context: &mut UiWidgetContext) -> Rc<LeftBar> {
+    fn new(context: &mut UiWidgetContext) -> Rc<Self> {
         let mut menu = UiMenu::new(
             context,
             UiMenuParams {
@@ -408,9 +398,9 @@ impl LeftBar {
 
         for button_kind in LeftBarButtonKind::iter() {
             let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(
-                move |button, _context, _| {
+                move |button, context, _| {
                     if button.is_pressed() {
-                        // TODO: open modal child menus here!
+                        button_kind.open_dialog_menu(context);
 
                         // Pressed state doesn't persist.
                         button.press(false);
@@ -473,10 +463,6 @@ struct SpeedControlsBar {
 }
 
 impl MenuBar for SpeedControlsBar {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn draw(&mut self, context: &mut UiWidgetContext) {
         let sim_state = SimState::new(context);
 
@@ -489,7 +475,7 @@ impl MenuBar for SpeedControlsBar {
 }
 
 impl SpeedControlsBar {
-    fn new(context: &mut UiWidgetContext) -> Rc<SpeedControlsBar> {
+    fn new(context: &mut UiWidgetContext) -> Rc<Self> {
         let mut group = UiWidgetGroup::new(
             context,
             UiWidgetGroupParams {

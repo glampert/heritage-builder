@@ -16,13 +16,15 @@ use super::{
 use crate::{
     save::{Save, Load},
     utils::coords::CellRange,
+    app::input::{InputAction, InputKey},
     tile::minimap::InGameUiMinimapRenderer,
     ui::{UiInputEvent, UiTheme, widgets::UiWidgetContext},
 };
 
+mod dialog;
+mod bars;
 mod inspector;
 mod palette;
-mod bars;
 
 // ----------------------------------------------
 // InGameMenus
@@ -39,6 +41,8 @@ pub struct InGameMenus {
 impl InGameMenus {
     pub fn new(context: &mut UiWidgetContext) -> Self {
         context.ui_sys.set_ui_theme(UiTheme::InGame);
+        dialog::initialize(context);
+
         Self {
             tile_placement: TilePlacement::new(),
             tile_palette: TilePaletteMenu::new(context),
@@ -71,12 +75,22 @@ impl GameMenusSystem for InGameMenus {
     }
 
     fn handle_custom_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
-        let mut ui_context = UiWidgetContext::new(
-            context.sim,
-            context.world,
-            context.engine
-        );
-        self.menu_bars.handle_input(&mut ui_context, args)
+        if let GameMenusInputArgs::Key { key, action, .. } = args {
+            // [ESCAPE]: Close all dialog menus and return to game.
+            if key == InputKey::Escape && action == InputAction::Press {
+                let mut ui_context = UiWidgetContext::new(
+                    context.sim,
+                    context.world,
+                    context.engine
+                );
+
+                if dialog::close_all(&mut ui_context) {
+                    return UiInputEvent::Handled; // Key press is handled.
+                }
+            }
+        }
+
+        UiInputEvent::NotHandled // Let the event propagate.
     }
 
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
@@ -96,6 +110,8 @@ impl GameMenusSystem for InGameMenus {
 
         let minimap = context.tile_map.minimap_mut();
         minimap.draw(&mut self.minimap_renderer, &mut ui_context, context.camera);
+
+        dialog::draw_all(&mut ui_context);
     }
 }
 
