@@ -1,16 +1,22 @@
-use super::*;
+use super::{
+    DialogMenu,
+    DialogMenuKind,
+};
+use crate::{
+    ui::widgets::*,
+};
 
 // ----------------------------------------------
-// SaveGameDialog
+// SaveGame
 // ----------------------------------------------
 
-pub struct SaveGameDialog {
+pub struct SaveGame {
     // TODO / WIP
 }
 
-impl DialogMenu for SaveGameDialog {
-    fn kind(&self) -> DialogKind {
-        DialogKind::SaveGame
+impl DialogMenu for SaveGame {
+    fn kind(&self) -> DialogMenuKind {
+        DialogMenuKind::SaveGame
     }
 
     fn is_open(&self) -> bool {
@@ -30,8 +36,8 @@ impl DialogMenu for SaveGameDialog {
     }
 }
 
-impl SaveGameDialog {
-    pub fn new(_context: &mut UiWidgetContext) -> Rc<Self> {
-        Rc::new(Self {})
+impl SaveGame {
+    pub fn new(_context: &mut UiWidgetContext) -> Self {
+        Self {}
     }
 }

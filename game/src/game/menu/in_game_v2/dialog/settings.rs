@@ -1,16 +1,22 @@
-use super::*;
+use super::{
+    DialogMenu,
+    DialogMenuKind,
+};
+use crate::{
+    ui::widgets::*,
+};
 
 // ----------------------------------------------
-// SettingsDialog
+// Settings
 // ----------------------------------------------
 
-pub struct SettingsDialog {
+pub struct Settings {
     // TODO / WIP
 }
 
-impl DialogMenu for SettingsDialog {
-    fn kind(&self) -> DialogKind {
-        DialogKind::Settings
+impl DialogMenu for Settings {
+    fn kind(&self) -> DialogMenuKind {
+        DialogMenuKind::Settings
     }
 
     fn is_open(&self) -> bool {
@@ -30,8 +36,8 @@ impl DialogMenu for SettingsDialog {
     }
 }
 
-impl SettingsDialog {
-    pub fn new(_context: &mut UiWidgetContext) -> Rc<Self> {
-        Rc::new(Self {})
+impl Settings {
+    pub fn new(_context: &mut UiWidgetContext) -> Self {
+        Self {}
     }
 }

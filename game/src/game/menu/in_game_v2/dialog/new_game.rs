@@ -1,16 +1,22 @@
-use super::*;
+use super::{
+    DialogMenu,
+    DialogMenuKind,
+};
+use crate::{
+    ui::widgets::*,
+};
 
 // ----------------------------------------------
-// NewGameDialog
+// NewGame
 // ----------------------------------------------
 
-pub struct NewGameDialog {
+pub struct NewGame {
     // TODO / WIP
 }
 
-impl DialogMenu for NewGameDialog {
-    fn kind(&self) -> DialogKind {
-        DialogKind::NewGame
+impl DialogMenu for NewGame {
+    fn kind(&self) -> DialogMenuKind {
+        DialogMenuKind::NewGame
     }
 
     fn is_open(&self) -> bool {
@@ -30,8 +36,8 @@ impl DialogMenu for NewGameDialog {
     }
 }
 
-impl NewGameDialog {
-    pub fn new(_context: &mut UiWidgetContext) -> Rc<Self> {
-        Rc::new(Self {})
+impl NewGame {
+    pub fn new(_context: &mut UiWidgetContext) -> Self {
+        Self {}
     }
 }

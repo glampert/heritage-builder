@@ -6,7 +6,7 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter, Display};
 
 use super::{
-    dialog::{self, DialogKind}
+    dialog::{self, DialogMenuKind}
 };
 use crate::{
     engine::time::Seconds,
@@ -359,9 +359,9 @@ enum LeftBarButtonKind {
 impl LeftBarButtonKind {
     fn open_dialog_menu(self, context: &mut UiWidgetContext) -> bool {
         match self {
-            Self::MainMenu => dialog::open(DialogKind::MainMenu, context),
-            Self::SaveGame => dialog::open(DialogKind::SaveGame, context),
-            Self::Settings => dialog::open(DialogKind::Settings, context),
+            Self::MainMenu => dialog::open(DialogMenuKind::MainMenu, context),
+            Self::SaveGame => dialog::open(DialogMenuKind::SaveGame, context),
+            Self::Settings => dialog::open(DialogMenuKind::Settings, context),
         }
     }
 }

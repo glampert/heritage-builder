@@ -1,16 +1,22 @@
-use super::*;
+use super::{
+    DialogMenu,
+    DialogMenuKind,
+};
+use crate::{
+    ui::widgets::*,
+};
 
 // ----------------------------------------------
-// MainMenuDialog
+// MainMenu
 // ----------------------------------------------
 
-pub struct MainMenuDialog {
+pub struct MainMenu {
     // TODO / WIP
 }
 
-impl DialogMenu for MainMenuDialog {
-    fn kind(&self) -> DialogKind {
-        DialogKind::MainMenu
+impl DialogMenu for MainMenu {
+    fn kind(&self) -> DialogMenuKind {
+        DialogMenuKind::MainMenu
     }
 
     fn is_open(&self) -> bool {
@@ -30,8 +36,8 @@ impl DialogMenu for MainMenuDialog {
     }
 }
 
-impl MainMenuDialog {
-    pub fn new(_context: &mut UiWidgetContext) -> Rc<Self> {
-        Rc::new(Self {})
+impl MainMenu {
+    pub fn new(_context: &mut UiWidgetContext) -> Self {
+        Self {}
     }
 }

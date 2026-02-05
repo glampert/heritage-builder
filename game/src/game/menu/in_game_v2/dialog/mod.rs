@@ -1,45 +1,51 @@
-use std::rc::Rc;
-
 use arrayvec::ArrayVec;
+use enum_dispatch::enum_dispatch;
 use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{EnumCount, EnumIter};
+use strum_macros::{EnumCount, EnumIter, EnumDiscriminants};
 
 use crate::{
     singleton_late_init,
-    utils::mem::RcMut,
     ui::widgets::*,
 };
 
 mod main_menu;
+use main_menu::MainMenu;
+
 mod new_game;
+use new_game::NewGame;
+
 mod save_game;
+use save_game::SaveGame;
+
 mod settings;
+use settings::Settings;
 
 // ----------------------------------------------
-// DialogKind
+// DialogMenuKind / DialogMenuImpl
 // ----------------------------------------------
 
-const DIALOG_MENU_COUNT: usize = DialogKind::COUNT;
+const DIALOG_MENU_COUNT: usize = DialogMenuKind::COUNT;
 
-#[derive(Copy, Clone, PartialEq, Eq, EnumCount, EnumIter)]
-pub enum DialogKind {
+#[enum_dispatch]
+#[derive(EnumDiscriminants)]
+#[strum_discriminants(repr(u32), name(DialogMenuKind), derive(EnumCount, EnumIter))]
+pub enum DialogMenuImpl {
     MainMenu,
     NewGame,
     SaveGame,
     Settings,
 }
 
-impl DialogKind {
-    fn build_menu(self, context: &mut UiWidgetContext) -> DialogMenuRcMut {
-        let rc: Rc<dyn DialogMenu> = {
-            match self {
-                Self::MainMenu => main_menu::MainMenuDialog::new(context),
-                Self::NewGame  => new_game::NewGameDialog::new(context),
-                Self::SaveGame => save_game::SaveGameDialog::new(context),
-                Self::Settings => settings::SettingsDialog::new(context),
-            }
+impl DialogMenuKind {
+    fn build_menu(self, context: &mut UiWidgetContext) -> DialogMenuImpl {
+        let dialog = match self {
+            Self::MainMenu => DialogMenuImpl::from(MainMenu::new(context)),
+            Self::NewGame  => DialogMenuImpl::from(NewGame::new(context)),
+            Self::SaveGame => DialogMenuImpl::from(SaveGame::new(context)),
+            Self::Settings => DialogMenuImpl::from(Settings::new(context)),
         };
-        RcMut::from(rc)
+        debug_assert!(dialog.kind() == self, "Wrong DialogMenuKind! Check DialogMenu::kind() impl!");
+        dialog
     }
 }
 
@@ -55,12 +61,12 @@ pub fn initialize(context: &mut UiWidgetContext) {
     DialogMenusSingleton::initialize(DialogMenusSingleton::new(context));
 }
 
-pub fn open(dialog_kind: DialogKind, context: &mut UiWidgetContext) -> bool {
-    DialogMenusSingleton::get_mut().open(dialog_kind, context)
+pub fn open(dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
+    DialogMenusSingleton::get_mut().open(dialog_menu_kind, context)
 }
 
-pub fn close(dialog_kind: DialogKind, context: &mut UiWidgetContext) -> bool {
-    DialogMenusSingleton::get_mut().close(dialog_kind, context)
+pub fn close(dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
+    DialogMenusSingleton::get_mut().close(dialog_menu_kind, context)
 }
 
 pub fn close_all(context: &mut UiWidgetContext) -> bool {
@@ -75,46 +81,42 @@ pub fn draw_all(context: &mut UiWidgetContext) {
 // DialogMenu
 // ----------------------------------------------
 
+#[enum_dispatch(DialogMenuImpl)]
 trait DialogMenu {
-    fn kind(&self) -> DialogKind;
+    fn kind(&self) -> DialogMenuKind;
     fn is_open(&self) -> bool;
     fn open(&mut self, context: &mut UiWidgetContext);
     fn close(&mut self, context: &mut UiWidgetContext);
     fn draw(&mut self, context: &mut UiWidgetContext);
 }
 
-type DialogMenuRcMut = RcMut<dyn DialogMenu>;
-
 // ----------------------------------------------
 // DialogMenusSingleton
 // ----------------------------------------------
 
 struct DialogMenusSingleton {
-    dialog_menus: ArrayVec<DialogMenuRcMut, DIALOG_MENU_COUNT>,
+    dialog_menus: ArrayVec<DialogMenuImpl, DIALOG_MENU_COUNT>,
 }
 
 impl DialogMenusSingleton {
     fn new(context: &mut UiWidgetContext) -> Self {
         let mut dialog_menus = ArrayVec::new();
 
-        for dialog_kind in DialogKind::iter() {
-            dialog_menus.push(dialog_kind.build_menu(context));
+        for dialog_menu_kind in DialogMenuKind::iter() {
+            dialog_menus.push(dialog_menu_kind.build_menu(context));
         }
 
         Self { dialog_menus }
     }
 
-    fn find_mut(&mut self, dialog_kind: DialogKind) -> Option<&mut DialogMenuRcMut> {
-        for dialog in &mut self.dialog_menus {
-            if dialog.kind() == dialog_kind {
-                return Some(dialog);
-            }
-        }
-        None
+    fn find_mut(&mut self, dialog_menu_kind: DialogMenuKind) -> Option<&mut DialogMenuImpl> {
+        self.dialog_menus
+            .iter_mut()
+            .find(|dialog| dialog.kind() == dialog_menu_kind)
     }
 
-    fn open(&mut self, dialog_kind: DialogKind, context: &mut UiWidgetContext) -> bool {
-        if let Some(dialog) = self.find_mut(dialog_kind) {
+    fn open(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
+        if let Some(dialog) = self.find_mut(dialog_menu_kind) {
             if !dialog.is_open() {
                 dialog.open(context);
                 return true;
@@ -123,8 +125,8 @@ impl DialogMenusSingleton {
         false
     }
 
-    fn close(&mut self, dialog_kind: DialogKind, context: &mut UiWidgetContext) -> bool {
-        if let Some(dialog) = self.find_mut(dialog_kind) {
+    fn close(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
+        if let Some(dialog) = self.find_mut(dialog_menu_kind) {
             if dialog.is_open() {
                 dialog.close(context);
                 return true;
