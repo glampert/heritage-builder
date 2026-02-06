@@ -13,16 +13,28 @@ use crate::{
 };
 
 mod main_menu;
-use main_menu::MainMenu;
+use main_menu::*;
 
 mod new_game;
-use new_game::NewGame;
+use new_game::*;
 
 mod load_save;
-use load_save::{LoadGame, SaveGame, LoadOrSaveGame};
+use load_save::*;
 
 mod settings;
-use settings::Settings;
+use settings::*;
+
+// ----------------------------------------------
+// Macro: dialog_factories
+// ----------------------------------------------
+
+macro_rules! dialog_menu_factories {
+    ($($t:ty),* $(,)?) => {
+        [$(<$t as DialogMenuFactory>::create),*]
+    };
+}
+
+type DialogMenuFactoryFn = fn(&mut UiWidgetContext) -> DialogMenuImpl;
 
 // ----------------------------------------------
 // DialogMenuKind / DialogMenuImpl
@@ -42,16 +54,18 @@ pub enum DialogMenuImpl {
     Settings,
 }
 
+const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
+    MainMenu,
+    NewGame,
+    LoadGame,
+    SaveGame,
+    LoadOrSaveGame,
+    Settings,
+];
+
 impl DialogMenuKind {
     fn build_menu(self, context: &mut UiWidgetContext) -> DialogMenuImpl {
-        let dialog = match self {
-            Self::MainMenu       => DialogMenuImpl::from(MainMenu::new(context)),
-            Self::NewGame        => DialogMenuImpl::from(NewGame::new(context)),
-            Self::LoadGame       => DialogMenuImpl::from(LoadGame::new(context)),
-            Self::SaveGame       => DialogMenuImpl::from(SaveGame::new(context)),
-            Self::LoadOrSaveGame => DialogMenuImpl::from(LoadOrSaveGame::new(context)),
-            Self::Settings       => DialogMenuImpl::from(Settings::new(context)),
-        };
+        let dialog = DIALOG_MENU_FACTORIES[self as usize](context);
         debug_assert!(dialog.kind() == self, "Wrong DialogMenuKind! Check DialogMenu::kind() impl!");
         dialog
     }
@@ -106,7 +120,9 @@ trait DialogMenu: Any {
 
     fn kind(&self) -> DialogMenuKind;
     fn menu(&self) -> &UiMenuRcMut;
-    fn menu_mut(&mut self) -> &mut UiMenuRcMut;
+    fn menu_mut(&mut self) -> &mut UiMenuRcMut {
+        mem::mut_ref_cast(self.menu())
+    }
 
     fn is_open(&self) -> bool {
         self.menu().is_open()
@@ -118,8 +134,13 @@ trait DialogMenu: Any {
     }
 
     fn close(&mut self, context: &mut UiWidgetContext) -> bool {
-        self.menu_mut().close(context);
-        true
+        if self.menu().is_message_box_open() {
+            self.menu_mut().close_message_box(context);
+            false
+        } else {
+            self.menu_mut().close(context);
+            true
+        }
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
@@ -128,14 +149,55 @@ trait DialogMenu: Any {
 }
 
 // ----------------------------------------------
+// DialogMenuFactory
+// ----------------------------------------------
+
+trait DialogMenuFactory: DialogMenu {
+    const KIND: DialogMenuKind;
+    const TITLE: &'static str;
+
+    fn create(context: &mut UiWidgetContext) -> DialogMenuImpl;
+}
+
+// ----------------------------------------------
+// Macro: declare_dialog_menu
+// ----------------------------------------------
+
+#[macro_export]
+macro_rules! declare_dialog_menu {
+    ($dialog_menu_struct:ident, $title:literal) => {
+        impl DialogMenuFactory for $dialog_menu_struct {
+            const KIND: DialogMenuKind = DialogMenuKind::$dialog_menu_struct;
+            const TITLE: &'static str  = $title;
+
+            fn create(context: &mut UiWidgetContext) -> DialogMenuImpl {
+                DialogMenuImpl::from($dialog_menu_struct::new(context))
+            }
+        }
+
+        impl DialogMenu for $dialog_menu_struct {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+            fn kind(&self) -> DialogMenuKind {
+                Self::KIND
+            }
+            fn menu(&self) -> &UiMenuRcMut {
+                &self.menu
+            }
+        }
+    };
+}
+
+// ----------------------------------------------
 // DialogMenusSingleton
 // ----------------------------------------------
 
-const MAX_MENU_STACK_MAX_DEPTH: usize = 8;
+const DIALOG_MENU_STACK_MAX_DEPTH: usize = 8;
 
 struct DialogMenusSingleton {
     dialog_menus: ArrayVec<DialogMenuImpl, DIALOG_MENU_COUNT>,
-    menu_stack: ArrayVec<DialogMenuKind, MAX_MENU_STACK_MAX_DEPTH>,
+    menu_stack: ArrayVec<DialogMenuKind, DIALOG_MENU_STACK_MAX_DEPTH>,
 }
 
 impl DialogMenusSingleton {
@@ -167,6 +229,12 @@ impl DialogMenusSingleton {
         let dialog = &mut self.dialog_menus[dialog_menu_kind as usize];
         debug_assert!(dialog.kind() == dialog_menu_kind);
         dialog
+    }
+
+    fn find_dialog_as<Dialog: DialogMenuFactory>(&mut self) -> &mut Dialog {
+        let dialog = self.find_dialog(Dialog::KIND);
+        dialog.as_any_mut().downcast_mut::<Dialog>()
+            .unwrap_or_else(|| panic!("Expected dialog menu kind to be {}!", Dialog::KIND))
     }
 
     fn open_dialog(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
@@ -218,8 +286,7 @@ impl DialogMenusSingleton {
 
     fn draw_current(&mut self, context: &mut UiWidgetContext) {
         // Draw current open menu only:
-        if let Some(&stack_top) = self.menu_stack.last() {
-            let dialog = self.find_dialog(stack_top);
+        if let Some(dialog) = self.current_dialog() {
             debug_assert!(dialog.is_open());
             dialog.draw(context);
         }
@@ -234,7 +301,11 @@ singleton_late_init! { DIALOG_MENUS_SINGLETON, DialogMenusSingleton }
 // ----------------------------------------------
 
 // For common dialog menus:
+const DEFAULT_DIALOG_MENU_BUTTON_SPACING: f32 = 8.0; // Large stacked buttons
+const DEFAULT_DIALOG_MENU_WIDGET_SPACING: f32 = 6.0; // Settings widgets / input fields
+const DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING: f32 = 5.0;
 const DEFAULT_DIALOG_MENU_HEADING_MARGINS: (f32, f32) = (100.0, 10.0); // (top, bottom)
+const DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 const DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE: UiFontScale = UiFontScale(1.8);
 const DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE: &str = "misc/scroll_bg.png";
 
@@ -250,22 +321,19 @@ fn make_default_dialog_menu_layout(context: &mut UiWidgetContext,
                                    dialog_menu_kind: DialogMenuKind,
                                    heading_title: &str,
                                    widget_spacing: f32,
-                                   widgets: impl IntoIterator<Item = UiWidgetImpl>)
+                                   widgets: Option<impl IntoIterator<Item = UiWidgetImpl>>)
                                    -> UiMenuRcMut
 {
-    let mut group = UiWidgetGroup::new(
+    let mut menu = UiMenu::new(
         context,
-        UiWidgetGroupParams {
-            widget_spacing,
-            center_vertically: false,
-            center_horizontally: true,
+        UiMenuParams {
+            label: Some(dialog_menu_kind.to_string()),
+            flags: UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter,
+            size: Some(default_dialog_menu_size(context)),
+            background: Some(DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE),
             ..Default::default()
         }
     );
-
-    for widget in widgets {
-        group.add_widget(widget);
-    }
 
     let heading = UiMenuHeading::new(
         context,
@@ -279,19 +347,25 @@ fn make_default_dialog_menu_layout(context: &mut UiWidgetContext,
         }
     );
 
-    let mut menu = UiMenu::new(
-        context,
-        UiMenuParams {
-            label: Some(dialog_menu_kind.to_string()),
-            flags: UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter,
-            size: Some(default_dialog_menu_size(context)),
-            background: Some(DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE),
-            ..Default::default()
-        }
-    );
-
     menu.add_widget(heading);
-    menu.add_widget(group);
+
+    if let Some(widgets) = widgets {
+        let mut group = UiWidgetGroup::new(
+            context,
+            UiWidgetGroupParams {
+                widget_spacing,
+                center_vertically: false,
+                center_horizontally: true,
+                ..Default::default()
+            }
+        );
+
+        for widget in widgets {
+            group.add_widget(widget);
+        }
+
+        menu.add_widget(group);
+    }
 
     menu
 }

@@ -3,13 +3,15 @@ use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{EnumProperty, EnumCount, EnumIter};
 
 use super::*;
-use crate::game::menu::ButtonDef;
+use crate::{
+    declare_dialog_menu,
+    game::menu::ButtonDef,
+};
 
 // ----------------------------------------------
 // SettingsMenuButtonKind
 // ----------------------------------------------
 
-const SETTINGS_MENU_BUTTON_SPACING: f32 = 8.0;
 const SETTINGS_MENU_BUTTON_COUNT: usize = SettingsMenuButtonKind::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
@@ -33,29 +35,11 @@ impl ButtonDef for SettingsMenuButtonKind {}
 // Settings
 // ----------------------------------------------
 
-const SETTINGS_MENU_HEADING_TITLE: &str = "Settings";
-
 pub struct Settings {
     menu: UiMenuRcMut,
 }
 
-impl DialogMenu for Settings {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn kind(&self) -> DialogMenuKind {
-        DialogMenuKind::Settings
-    }
-
-    fn menu(&self) -> &UiMenuRcMut {
-        &self.menu
-    }
-
-    fn menu_mut(&mut self) -> &mut UiMenuRcMut {
-        &mut self.menu
-    }
-}
+declare_dialog_menu! { Settings, "Settings" }
 
 impl Settings {
     pub fn new(context: &mut UiWidgetContext) -> Self {
@@ -82,9 +66,9 @@ impl Settings {
             menu: make_default_dialog_menu_layout(
                 context,
                 DialogMenuKind::Settings,
-                SETTINGS_MENU_HEADING_TITLE,
-                SETTINGS_MENU_BUTTON_SPACING,
-                buttons
+                Self::TITLE,
+                DEFAULT_DIALOG_MENU_BUTTON_SPACING,
+                Some(buttons)
             )
         }
     }

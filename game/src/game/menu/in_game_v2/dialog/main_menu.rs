@@ -4,6 +4,7 @@ use strum_macros::{EnumProperty, EnumCount, EnumIter};
 
 use super::*;
 use crate::{
+    declare_dialog_menu,
     game::{
         GameLoop,
         menu::{ButtonDef, LARGE_HORIZONTAL_SEPARATOR_SPRITE},
@@ -14,7 +15,6 @@ use crate::{
 // MainMenuButtonKind
 // ----------------------------------------------
 
-const MAIN_MENU_BUTTON_SPACING: f32 = 8.0;
 const MAIN_MENU_BUTTON_COUNT: usize = MainMenuButtonKind::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
@@ -66,39 +66,11 @@ impl ButtonDef for MainMenuButtonKind {}
 // MainMenu
 // ----------------------------------------------
 
-const MAIN_MENU_HEADING_TITLE: &str = "Game";
-
 pub struct MainMenu {
     menu: UiMenuRcMut,
 }
 
-impl DialogMenu for MainMenu {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn kind(&self) -> DialogMenuKind {
-        DialogMenuKind::MainMenu
-    }
-
-    fn menu(&self) -> &UiMenuRcMut {
-        &self.menu
-    }
-
-    fn menu_mut(&mut self) -> &mut UiMenuRcMut {
-        &mut self.menu
-    }
-
-    fn close(&mut self, context: &mut UiWidgetContext) -> bool {
-        if self.menu.is_message_box_open() {
-            self.menu.close_message_box(context);
-            false
-        } else {
-            self.menu.close(context);
-            true
-        }
-    }
-}
+declare_dialog_menu! { MainMenu, "Game" }
 
 impl MainMenu {
     pub fn new(context: &mut UiWidgetContext) -> Self {
@@ -122,9 +94,9 @@ impl MainMenu {
         let mut menu = make_default_dialog_menu_layout(
             context,
             DialogMenuKind::MainMenu,
-            MAIN_MENU_HEADING_TITLE,
-            MAIN_MENU_BUTTON_SPACING,
-            buttons
+            Self::TITLE,
+            DEFAULT_DIALOG_MENU_BUTTON_SPACING,
+            Some(buttons)
         );
 
         menu.set_flags(UiMenuFlags::HideWhenMessageBoxOpen, true);
@@ -156,7 +128,7 @@ impl MainMenu {
                             ],
                             font_scale: DEFAULT_DIALOG_POPUP_FONT_SCALE,
                             separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            margin_top: 5.0,
+                            margin_top: 2.0,
                             ..Default::default()
                         }
                     ))
