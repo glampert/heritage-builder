@@ -25,7 +25,7 @@ mod settings;
 use settings::*;
 
 // ----------------------------------------------
-// Macro: dialog_factories
+// Macro: dialog_menu_factories
 // ----------------------------------------------
 
 macro_rules! dialog_menu_factories {
@@ -160,11 +160,11 @@ trait DialogMenuFactory: DialogMenu {
 }
 
 // ----------------------------------------------
-// Macro: declare_dialog_menu
+// Macro: implement_dialog_menu
 // ----------------------------------------------
 
 #[macro_export]
-macro_rules! declare_dialog_menu {
+macro_rules! implement_dialog_menu {
     ($dialog_menu_struct:ident, $title:literal) => {
         impl DialogMenuFactory for $dialog_menu_struct {
             const KIND: DialogMenuKind = DialogMenuKind::$dialog_menu_struct;

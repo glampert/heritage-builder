@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    declare_dialog_menu,
+    implement_dialog_menu,
     utils::Size,
     tile::sets::PresetTiles,
     game::{GameLoop, menu::TEXT_BUTTON_HOVERED_SPRITE},
@@ -30,7 +30,7 @@ pub struct NewGame {
     menu: UiMenuRcMut,
 }
 
-declare_dialog_menu! { NewGame, "New Game" }
+implement_dialog_menu! { NewGame, "New Game" }
 
 impl NewGame {
     pub fn new(context: &mut UiWidgetContext) -> Self {

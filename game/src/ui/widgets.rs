@@ -369,7 +369,7 @@ pub type UiMenuRcMut   = RcMut<UiMenu>;
 pub type UiMenuWeakMut = WeakMut<UiMenu>;
 pub type UiMenuWeakRef = WeakRef<UiMenu>;
 
-pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiReadOnly, bool>;
+pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiMutable, bool>;
 pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, UiReadOnly, Vec2>;
 
 // ----------------------------------------------
@@ -490,6 +490,11 @@ impl UiMenu {
                 on_open_close: params.on_open_close,
             }
         )
+    }
+
+    #[inline]
+    pub fn set_open_close_callback(&mut self, on_open_close: UiMenuOpenClose) {
+        self.on_open_close = on_open_close;
     }
 
     #[inline]
@@ -2472,6 +2477,10 @@ impl UiDropdown {
         &self.items[self.current_item]
     }
 
+    pub fn items(&self) -> &[String] {
+        &self.items
+    }
+
     pub fn add_item(&mut self, item: String) -> &mut Self {
         self.items.push(item);
         self
@@ -2750,6 +2759,10 @@ impl UiItemList {
         }
     }
 
+    pub fn items(&self) -> &[String] {
+        &self.items
+    }
+
     pub fn add_item(&mut self, item: String) -> &mut Self {
         self.items.push(item);
         self
@@ -2758,6 +2771,12 @@ impl UiItemList {
     pub fn reset_items(&mut self, current_item: Option<usize>, items: Vec<String>) {
         self.current_item = current_item;
         self.items = items;
+    }
+
+    pub fn reset_text_input_field(&mut self, value: String) {
+        self.current_item = None;
+        let buffer = self.text_input_field_buffer.as_mut().unwrap();
+        *buffer = value;
     }
 
     pub fn reset_items_with<V, ToString>(&mut self, values: &[V], current_item: Option<usize>, to_str: ToString)

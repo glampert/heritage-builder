@@ -4,7 +4,7 @@ use strum_macros::{EnumProperty, EnumCount, EnumIter};
 
 use super::*;
 use crate::{
-    declare_dialog_menu,
+    implement_dialog_menu,
     game::menu::ButtonDef,
 };
 
@@ -39,7 +39,7 @@ pub struct Settings {
     menu: UiMenuRcMut,
 }
 
-declare_dialog_menu! { Settings, "Settings" }
+implement_dialog_menu! { Settings, "Settings" }
 
 impl Settings {
     pub fn new(context: &mut UiWidgetContext) -> Self {
