@@ -179,7 +179,7 @@ impl NewGame {
 
         let mut menu = make_default_dialog_menu_layout(
             context,
-            DialogMenuKind::NewGame,
+            Self::KIND,
             Self::TITLE,
             DEFAULT_DIALOG_MENU_WIDGET_SPACING,
             Option::<Vec<UiWidgetImpl>>::None

@@ -93,7 +93,7 @@ impl MainMenu {
 
         let mut menu = make_default_dialog_menu_layout(
             context,
-            DialogMenuKind::MainMenu,
+            Self::KIND,
             Self::TITLE,
             DEFAULT_DIALOG_MENU_BUTTON_SPACING,
             Some(buttons)
