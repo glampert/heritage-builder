@@ -5,11 +5,11 @@ use enum_dispatch::enum_dispatch;
 use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumIter, EnumDiscriminants};
 
+use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
     singleton_late_init,
     utils::{Vec2, mem},
     ui::{UiFontScale, widgets::*},
-    game::menu::LARGE_HORIZONTAL_SEPARATOR_SPRITE,
 };
 
 mod main_menu;

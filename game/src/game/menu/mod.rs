@@ -37,6 +37,7 @@ use crate::{
     },
 };
 
+mod dialog;
 pub mod home_v2;
 pub mod in_game_v2;
 

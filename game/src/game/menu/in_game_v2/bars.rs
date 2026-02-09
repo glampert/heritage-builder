@@ -5,15 +5,13 @@ use num_enum::TryFromPrimitive;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter, Display};
 
-use super::{
-    dialog::{self, DialogMenuKind}
-};
 use crate::{
     engine::time::Seconds,
     ui::{self, widgets::*},
     utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}},
     game::menu::{
         ButtonDef,
+        dialog::{self, DialogMenuKind},
         TOOLTIP_FONT_SCALE,
         TOOLTIP_BACKGROUND_SPRITE,
         SMALL_VERTICAL_SEPARATOR_SPRITE,

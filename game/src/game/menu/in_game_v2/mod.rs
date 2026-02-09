@@ -12,6 +12,7 @@ use super::{
     TilePlacement,
     TileInspector,
     TilePalette,
+    dialog,
 };
 use crate::{
     save::{Save, Load},
@@ -21,7 +22,6 @@ use crate::{
     ui::{UiInputEvent, UiTheme, widgets::UiWidgetContext},
 };
 
-mod dialog;
 mod bars;
 mod inspector;
 mod palette;
