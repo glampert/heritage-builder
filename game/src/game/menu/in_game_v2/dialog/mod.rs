@@ -48,19 +48,31 @@ const DIALOG_MENU_COUNT: usize = DialogMenuKind::COUNT;
 pub enum DialogMenuImpl {
     MainMenu,
     NewGame,
+
+    // Save Game menus:
     LoadGame,
     SaveGame,
     LoadOrSaveGame,
-    Settings,
+
+    // Settings menus:
+    SettingsMain,
+    SettingsGame,
+    SettingsSound,
+    SettingsGraphics,
 }
 
 const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
     MainMenu,
     NewGame,
+
     LoadGame,
     SaveGame,
     LoadOrSaveGame,
-    Settings,
+
+    SettingsMain,
+    SettingsGame,
+    SettingsSound,
+    SettingsGraphics,
 ];
 
 impl DialogMenuKind {

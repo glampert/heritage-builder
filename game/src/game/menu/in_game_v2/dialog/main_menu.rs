@@ -45,7 +45,7 @@ impl MainMenuButtonKind {
             Self::NewGame  => super::open(DialogMenuKind::NewGame,  CLOSE_ALL_OTHERS, context),
             Self::LoadGame => super::open(DialogMenuKind::LoadGame, CLOSE_ALL_OTHERS, context),
             Self::SaveGame => super::open(DialogMenuKind::SaveGame, CLOSE_ALL_OTHERS, context),
-            Self::Settings => super::open(DialogMenuKind::Settings, CLOSE_ALL_OTHERS, context),
+            Self::Settings => super::open(DialogMenuKind::SettingsMain, CLOSE_ALL_OTHERS, context),
             Self::Quit     => Self::on_quit(context),
             Self::Back     => super::close_current(context),
         }

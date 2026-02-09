@@ -329,12 +329,13 @@ impl SaveGameHelper {
                     let available_save_files = Self::save_files_list();
                     let current_selection_index = save_files_list.current_selection_index();
 
-                    if current_selection_index.is_none() {
+                    if let Some(index) = current_selection_index {
+                        let current_item = index.min(available_save_files.len() - 1);
+                        save_files_list.reset_items(Some(current_item), available_save_files);
+                    } else {
                         let default_save_file_name = Self::default_save_file_name(save_game_actions);
                         save_files_list.reset_items(None, available_save_files);
                         save_files_list.reset_text_input_field(default_save_file_name);
-                    } else {
-                        save_files_list.reset_items(current_selection_index, available_save_files);
                     }
                 }
             }
