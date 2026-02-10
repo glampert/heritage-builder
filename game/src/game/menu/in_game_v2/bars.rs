@@ -360,7 +360,7 @@ impl LeftBarButtonKind {
         match self {
             Self::MainMenu => dialog::open(DialogMenuKind::MainMenu, CLOSE_ALL_OTHERS, context),
             Self::SaveGame => dialog::open(DialogMenuKind::LoadOrSaveGame, CLOSE_ALL_OTHERS, context),
-            Self::Settings => dialog::open(DialogMenuKind::SettingsMain, CLOSE_ALL_OTHERS, context),
+            Self::Settings => dialog::open(DialogMenuKind::MainSettings, CLOSE_ALL_OTHERS, context),
         }
     }
 }

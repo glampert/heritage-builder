@@ -207,6 +207,10 @@ impl<Widget, Access, Output> UiWidgetCallback<Widget, Access, Output>
         Self::Closure(Box::new(c))
     }
 
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
     #[inline]
     fn invoke(&self, widget: &Widget, context: &mut UiWidgetContext) -> Option<Output> {
         match self {
@@ -252,6 +256,10 @@ impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, O
         where C: for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext, Arg) -> Output + 'static
     {
         Self::Closure(Box::new(c))
+    }
+
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
     }
 
     #[inline]
@@ -2372,9 +2380,11 @@ pub struct UiDropdownParams<T> {
     pub current_item: usize,
     pub items: Vec<T>, // Must not be empty.
     pub on_selection_changed: UiDropdownSelectionChanged,
+    pub on_get_current_selection: UiDropdownGetCurrentSelection, // Optional.
 }
 
-pub type UiDropdownSelectionChanged = UiWidgetCallback<UiDropdown, UiReadOnly>;
+pub type UiDropdownSelectionChanged    = UiWidgetCallback<UiDropdown, UiReadOnly>;
+pub type UiDropdownGetCurrentSelection = UiWidgetCallback<UiDropdown, UiReadOnly, usize>;
 
 // ----------------------------------------------
 // UiDropdown
@@ -2387,6 +2397,7 @@ pub struct UiDropdown {
     current_item: usize,
     items: Vec<String>,
     on_selection_changed: UiDropdownSelectionChanged,
+    on_get_current_selection: UiDropdownGetCurrentSelection,
 }
 
 impl UiWidget for UiDropdown {
@@ -2409,6 +2420,10 @@ impl UiWidget for UiDropdown {
         let _combo_bg_color = ui.push_style_color(imgui::StyleColor::PopupBg, bg_color);
 
         let label = make_imgui_id!(self, UiDropdown, self.label);
+
+        if !self.on_get_current_selection.is_none() {
+            self.current_item = self.on_get_current_selection.invoke(self, context).unwrap();
+        }
 
         let (selection_changed, _group) =
             internal::combo_with_left_label(ui, label, &mut self.current_item, &self.items);
@@ -2448,6 +2463,7 @@ impl UiDropdown {
             current_item: params.current_item,
             items: params.items,
             on_selection_changed: params.on_selection_changed,
+            on_get_current_selection: params.on_get_current_selection,
         }
     }
 
@@ -2466,6 +2482,7 @@ impl UiDropdown {
             current_item: params.current_item,
             items: item_strings,
             on_selection_changed: params.on_selection_changed,
+            on_get_current_selection: params.on_get_current_selection,
         })
     }
 

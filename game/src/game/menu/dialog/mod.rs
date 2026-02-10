@@ -55,10 +55,10 @@ pub enum DialogMenuImpl {
     LoadOrSaveGame,
 
     // Settings menus:
-    SettingsMain,
-    SettingsGame,
-    SettingsSound,
-    SettingsGraphics,
+    MainSettings,
+    GameSettings,
+    SoundSettings,
+    GraphicsSettings,
 }
 
 const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
@@ -69,10 +69,10 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     SaveGame,
     LoadOrSaveGame,
 
-    SettingsMain,
-    SettingsGame,
-    SettingsSound,
-    SettingsGraphics,
+    MainSettings,
+    GameSettings,
+    SoundSettings,
+    GraphicsSettings,
 ];
 
 impl DialogMenuKind {
