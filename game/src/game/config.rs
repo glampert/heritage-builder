@@ -79,12 +79,32 @@ impl Default for SaveGameConfigs {
 pub struct CameraConfigs {
     pub zoom: f32,
     pub offset: CameraOffset,
+
+    // For fixed step zoom with CTRL +/= key shortcuts.
     pub fixed_step_zoom_amount: f32,
+
+    // Use fixed step zoom with mouse scroll zoom instead of smooth interpolation.
     pub disable_smooth_mouse_scroll_zoom: bool,
+
+    // Disables mouse scroll zoom altogether.
     pub disable_mouse_scroll_zoom: bool,
+
+    // Disables zooming with keyboard shortcuts.
     pub disable_key_shortcut_zoom: bool,
+
+    // Constrain camera movement to inner map diamond playable area? (debug option).
     pub constrain_to_playable_map_area: bool,
+
+    // Constrain camera movement to map AABB? This is a superset of the playable area. (debug option).
+    pub clamp_to_map_bounds: bool,
+
+    // Display map debug bounds and camera debug overlays.
+    pub enable_debug_draw: bool,
+
+    // Camera scroll/movement speed in pixels per second.
     pub scroll_speed: f32,
+
+    // In pixels from screen edge.
     pub scroll_margin: f32,
 }
 
@@ -97,6 +117,8 @@ impl Default for CameraConfigs {
                disable_mouse_scroll_zoom: false,
                disable_key_shortcut_zoom: false,
                constrain_to_playable_map_area: true,
+               clamp_to_map_bounds: true,
+               enable_debug_draw: false,
                scroll_speed: 500.0,
                scroll_margin: 20.0 }
     }

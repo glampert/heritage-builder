@@ -16,8 +16,8 @@ use crate::{
     render::{TextureFilter, TextureHandle},
     utils::{self, Size, Rect, Vec2, mem},
     ui::{self, UiSystem, UiTextureHandle, UiStaticVar, UiFontScale, widgets::UiWidgetContext},
-    tile::{sets::PresetTiles, camera::CameraGlobalSettings},
-    game::{GameLoop, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
+    tile::{sets::PresetTiles},
+    game::{GameLoop, config::GameConfigs, DEFAULT_SAVE_FILE_NAME, AUTOSAVE_FILE_NAME},
 };
 
 // ----------------------------------------------
@@ -814,26 +814,26 @@ impl SettingsModalMenu {
         let ui = ui_sys.ui();
 
         let game_loop = GameLoop::get_mut();
-        let camera_settings = CameraGlobalSettings::get_mut();
+        let camera_configs = &mut GameConfigs::get_mut().camera;
 
         let mut autosave = game_loop.is_autosave_enabled();
         if ui.checkbox("Autosave", &mut autosave) {
             game_loop.enable_autosave(autosave);
         }
 
-        let mut camera_keyboard_zoom = !camera_settings.disable_key_shortcut_zoom;
+        let mut camera_keyboard_zoom = !camera_configs.disable_key_shortcut_zoom;
         if ui.checkbox("Keyboard Shortcut Camera Zoom", &mut camera_keyboard_zoom) {
-            camera_settings.disable_key_shortcut_zoom = !camera_keyboard_zoom;
+            camera_configs.disable_key_shortcut_zoom = !camera_keyboard_zoom;
         }
 
-        let mut camera_mouse_scroll_zoom = !camera_settings.disable_mouse_scroll_zoom;
+        let mut camera_mouse_scroll_zoom = !camera_configs.disable_mouse_scroll_zoom;
         if ui.checkbox("Mouse Scroll Camera Zoom", &mut camera_mouse_scroll_zoom) {
-            camera_settings.disable_mouse_scroll_zoom = !camera_mouse_scroll_zoom;
+            camera_configs.disable_mouse_scroll_zoom = !camera_mouse_scroll_zoom;
         }
 
-        let mut camera_smooth_mouse_scroll_zoom = !camera_settings.disable_smooth_mouse_scroll_zoom;
+        let mut camera_smooth_mouse_scroll_zoom = !camera_configs.disable_smooth_mouse_scroll_zoom;
         if ui.checkbox("Smooth Mouse Scroll Camera Zoom", &mut camera_smooth_mouse_scroll_zoom) {
-            camera_settings.disable_smooth_mouse_scroll_zoom = !camera_smooth_mouse_scroll_zoom;
+            camera_configs.disable_smooth_mouse_scroll_zoom = !camera_smooth_mouse_scroll_zoom;
         }
     }
 

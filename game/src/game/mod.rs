@@ -519,7 +519,6 @@ impl GameLoop {
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
         debug::init_dev_editor_menus(configs, engine.texture_cache());
-        CameraGlobalSettings::get_mut().set_from_game_configs(configs);
 
         let instance = Self {
             engine,
@@ -735,21 +734,21 @@ impl GameLoop {
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
                 let mut propagate = true;
-                let camera_settings = CameraGlobalSettings::get();
+                let camera_configs = &GameConfigs::get().camera;
 
                 // [CTRL]+[-] / [CTRL]+[=]: Zoom in/out by a fixed step.
-                if !camera_settings.disable_key_shortcut_zoom
+                if !camera_configs.disable_key_shortcut_zoom
                     && action == InputAction::Press
                     && modifiers.intersects(InputModifiers::Control)
                 {
                     let camera = self.camera_mut();
 
                     if key == InputKey::Minus {
-                        let step = camera_settings.fixed_step_zoom_amount;
+                        let step = camera_configs.fixed_step_zoom_amount;
                         camera.set_zoom(camera.current_zoom() - step);
                         propagate = false;
                     } else if key == InputKey::Equal {
-                        let step = camera_settings.fixed_step_zoom_amount;
+                        let step = camera_configs.fixed_step_zoom_amount;
                         camera.set_zoom(camera.current_zoom() + step);
                         propagate = false;
                     }
@@ -769,21 +768,21 @@ impl GameLoop {
             }
             ApplicationEvent::Scroll(amount) => {
                 let mut propagate = true;
-                let camera_settings = CameraGlobalSettings::get();
+                let camera_configs = &GameConfigs::get().camera;
 
                 // If we're not hovering over an ImGui menu...
-                if !camera_settings.disable_mouse_scroll_zoom
+                if !camera_configs.disable_mouse_scroll_zoom
                     && !self.engine().ui_system().is_handling_mouse_input()
                 {
                     let camera = self.camera_mut();
 
-                    if camera_settings.disable_smooth_mouse_scroll_zoom {
+                    if camera_configs.disable_smooth_mouse_scroll_zoom {
                         // Fixed step zoom.
                         if amount.y < 0.0 {
-                            camera.set_zoom(camera.current_zoom() + camera_settings.fixed_step_zoom_amount);
+                            camera.set_zoom(camera.current_zoom() + camera_configs.fixed_step_zoom_amount);
                             propagate = false;
                         } else if amount.y > 0.0 {
-                            camera.set_zoom(camera.current_zoom() - camera_settings.fixed_step_zoom_amount);
+                            camera.set_zoom(camera.current_zoom() - camera_configs.fixed_step_zoom_amount);
                             propagate = false;
                         }
                     } else {

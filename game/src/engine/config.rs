@@ -100,6 +100,10 @@ macro_rules! configurations {
                 <$configs_type>::get_mut().post_load();
                 <$configs_type>::get()
             }
+            pub fn save() -> bool {
+                use $crate::engine::config::Configs;
+                <$configs_type>::get().save_file($configs_path)
+            }
         }
     };
 }

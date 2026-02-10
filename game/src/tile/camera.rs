@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use super::{selection};
 use crate::{
-    singleton,
     save::*,
     game::config::GameConfigs,
     ui::{self, UiSystem, UiStaticVar},
@@ -90,63 +89,6 @@ impl CameraZoom {
     pub const MAX: f32 = 10.0;
     pub const DEFAULT: f32 = 1.0;
     pub const SPEED: f32 = 1.0; // pixels per second
-}
-
-pub struct CameraGlobalSettings {
-    // For fixed step zoom with CTRL +/= key shortcuts.
-    pub fixed_step_zoom_amount: f32,
-
-    // Use fixed step zoom with mouse scroll zoom instead of smooth interpolation.
-    pub disable_smooth_mouse_scroll_zoom: bool,
-
-    // Disables mouse scroll zoom altogether.
-    pub disable_mouse_scroll_zoom: bool,
-
-    // Disables zooming with keyboard shortcuts.
-    pub disable_key_shortcut_zoom: bool,
-
-    // Constrain camera movement to inner map diamond playable area? (debug option).
-    pub constrain_to_playable_map_area: bool,
-
-    // Constrain camera movement to map AABB? This is a superset of the playable area. (debug option).
-    pub clamp_to_map_bounds: bool,
-
-    // Display map debug bounds and camera debug overlays.
-    pub enable_debug_draw: bool,
-
-    // Camera scroll/movement speed in pixels per second.
-    pub scroll_speed: f32,
-
-    // In pixels from screen edge.
-    pub scroll_margin: f32,
-}
-
-singleton! { GLOBAL_SETTINGS_SINGLETON, CameraGlobalSettings }
-
-impl CameraGlobalSettings {
-    const fn new() -> Self {
-        Self {
-            fixed_step_zoom_amount: 0.5,
-            disable_smooth_mouse_scroll_zoom: false,
-            disable_mouse_scroll_zoom: false,
-            disable_key_shortcut_zoom: false,
-            constrain_to_playable_map_area: true,
-            clamp_to_map_bounds: true,
-            enable_debug_draw: false,
-            scroll_speed: 500.0,
-            scroll_margin: 20.0,
-        }
-    }
-
-    pub fn set_from_game_configs(&mut self, configs: &GameConfigs) {
-        self.fixed_step_zoom_amount           = configs.camera.fixed_step_zoom_amount;
-        self.disable_smooth_mouse_scroll_zoom = configs.camera.disable_smooth_mouse_scroll_zoom;
-        self.disable_mouse_scroll_zoom        = configs.camera.disable_mouse_scroll_zoom;
-        self.disable_key_shortcut_zoom        = configs.camera.disable_key_shortcut_zoom;
-        self.constrain_to_playable_map_area   = configs.camera.constrain_to_playable_map_area;
-        self.scroll_speed                     = configs.camera.scroll_speed;
-        self.scroll_margin                    = configs.camera.scroll_margin;
-    }
 }
 
 // ----------------------------------------------
@@ -441,7 +383,7 @@ impl Camera {
 
     #[inline]
     pub fn set_scroll(&mut self, scroll: Vec2) {
-        self.transform.offset = if CameraGlobalSettings::get().clamp_to_map_bounds {
+        self.transform.offset = if GameConfigs::get().camera.clamp_to_map_bounds {
             clamp_to_map_bounds(self.map_size_in_cells,
                                 self.current_zoom(),
                                 self.viewport_size,
@@ -452,18 +394,18 @@ impl Camera {
     }
 
     pub fn update_scrolling(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
-        let settings = CameraGlobalSettings::get();
+        let configs = &GameConfigs::get().camera;
 
         let scroll_dir = calc_scroll_delta(
             cursor_screen_pos,
             self.viewport_size,
-            settings.scroll_margin);
+            configs.scroll_margin);
 
         let scroll_speed = calc_scroll_speed(
             cursor_screen_pos,
             self.viewport_size,
-            settings.scroll_margin,
-            settings.scroll_speed);
+            configs.scroll_margin,
+            configs.scroll_speed);
 
         let desired_delta = scroll_dir * scroll_speed * delta_time_secs;
         if desired_delta == Vec2::zero() {
@@ -472,7 +414,7 @@ impl Camera {
         }
 
         // If unconstrained, move freely.
-        if !settings.constrain_to_playable_map_area {
+        if !configs.constrain_to_playable_map_area {
             self.set_scroll(self.current_scroll() + desired_delta);
             self.is_scrolling = true;
             return;
@@ -520,7 +462,7 @@ impl Camera {
         let desired_camera_center = coords::iso_to_screen_point(iso_point, transform_no_offset);
 
         // If unconstrained, teleport freely.
-        if !CameraGlobalSettings::get().constrain_to_playable_map_area {
+        if !GameConfigs::get().camera.constrain_to_playable_map_area {
             self.set_scroll(viewport_center - desired_camera_center);
             return true;
         }
@@ -547,7 +489,7 @@ impl Camera {
         let desired_camera_center = screen_point;
 
         // If unconstrained, teleport freely.
-        if !CameraGlobalSettings::get().constrain_to_playable_map_area {
+        if !GameConfigs::get().camera.constrain_to_playable_map_area {
             self.set_scroll(viewport_center - desired_camera_center);
             return true;
         }
@@ -566,7 +508,7 @@ impl Camera {
     // ----------------------
 
     pub fn draw_debug(&self, debug_draw: &mut dyn DebugDraw, ui_sys: &UiSystem) {
-        if !CameraGlobalSettings::get().enable_debug_draw {
+        if !GameConfigs::get().camera.enable_debug_draw {
             return;
         }        
 
@@ -588,26 +530,26 @@ impl Camera {
 
     pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
-        let settings = CameraGlobalSettings::get_mut();
+        let configs = &mut GameConfigs::get_mut().camera;
 
-        let mut key_shortcut_zoom = !settings.disable_key_shortcut_zoom;
+        let mut key_shortcut_zoom = !configs.disable_key_shortcut_zoom;
         if ui.checkbox("Keyboard Zoom", &mut key_shortcut_zoom) {
-            settings.disable_key_shortcut_zoom = !key_shortcut_zoom;
+            configs.disable_key_shortcut_zoom = !key_shortcut_zoom;
         }
 
-        let mut mouse_scroll_zoom = !settings.disable_mouse_scroll_zoom;
+        let mut mouse_scroll_zoom = !configs.disable_mouse_scroll_zoom;
         if ui.checkbox("Mouse Scroll Zoom", &mut mouse_scroll_zoom) {
-            settings.disable_mouse_scroll_zoom = !mouse_scroll_zoom;
+            configs.disable_mouse_scroll_zoom = !mouse_scroll_zoom;
         }
 
-        let mut smooth_mouse_scroll_zoom = !settings.disable_smooth_mouse_scroll_zoom;
+        let mut smooth_mouse_scroll_zoom = !configs.disable_smooth_mouse_scroll_zoom;
         if ui.checkbox("Smooth Mouse Scroll Zoom", &mut smooth_mouse_scroll_zoom) {
-            settings.disable_smooth_mouse_scroll_zoom = !smooth_mouse_scroll_zoom;
+            configs.disable_smooth_mouse_scroll_zoom = !smooth_mouse_scroll_zoom;
         }
 
-        ui.checkbox("Constrain To Playable Map Area", &mut settings.constrain_to_playable_map_area);
-        ui.checkbox("Clamp To Map AABB Bounds", &mut settings.clamp_to_map_bounds);
-        ui.checkbox("Enable Debug Draw", &mut settings.enable_debug_draw);
+        ui.checkbox("Constrain To Playable Map Area", &mut configs.constrain_to_playable_map_area);
+        ui.checkbox("Clamp To Map AABB Bounds", &mut configs.clamp_to_map_bounds);
+        ui.checkbox("Enable Debug Draw", &mut configs.enable_debug_draw);
 
         ui.separator();
 
@@ -618,13 +560,13 @@ impl Camera {
             self.set_zoom(zoom);
         }
 
-        let mut step_zoom = settings.fixed_step_zoom_amount;
+        let mut step_zoom = configs.fixed_step_zoom_amount;
         if ui.input_float("Step Zoom", &mut step_zoom)
             .display_format("%.1f")
             .step(0.5)
             .build()
         {
-            settings.fixed_step_zoom_amount = step_zoom.clamp(zoom_min, zoom_max);
+            configs.fixed_step_zoom_amount = step_zoom.clamp(zoom_min, zoom_max);
         }
 
         ui.separator();
