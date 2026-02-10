@@ -1,6 +1,7 @@
 use slab::Slab;
 use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
+use serde::{Serialize, Deserialize};
 
 use std::{
     time::Duration,
@@ -127,7 +128,7 @@ impl SoundHandle {
 // SoundGlobalSettings
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, DrawDebugUi)]
+#[derive(Copy, Clone, PartialEq, DrawDebugUi, Serialize, Deserialize)]
 pub struct SoundGlobalSettings {
     // Master volumes:
     #[debug_ui(edit, widget = "slider", min = "0", max = "1")]
@@ -218,11 +219,11 @@ pub struct SoundSystem {
 }
 
 impl SoundSystem {
-    pub fn new() -> Self {
+    pub fn new(settings: SoundGlobalSettings) -> Self {
         Self {
             backend: SoundSystemBackend::new(),
             registry: SoundAssetRegistry::new(),
-            settings: SoundGlobalSettings::default(),
+            settings,
         }
     }
 

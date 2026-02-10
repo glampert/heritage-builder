@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     implement_dialog_menu,
-    game::GameLoop,
+    game::{GameLoop, config::GameConfigs},
 };
 
 // ----------------------------------------------
@@ -21,6 +21,7 @@ macro_rules! write_mater_volume_u32 {
         let mut sound_settings = sound_sys.current_sound_settings();
         sound_settings.$volume_field = $volume as f32 / 100.0; // Back to [0,1] f32 range.
         sound_sys.change_sound_settings(sound_settings);
+        GameConfigs::get_mut().engine.sound_settings = sound_settings;
     }};
 }
 

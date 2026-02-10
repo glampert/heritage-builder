@@ -5,7 +5,7 @@ use super::*;
 use crate::{
     implement_dialog_menu,
     render::TextureFilter,
-    game::GameLoop,
+    game::{GameLoop, config::GameConfigs},
 };
 
 // ----------------------------------------------
@@ -41,6 +41,7 @@ impl GraphicsSettings {
                 let mut texture_settings = tex_cache.current_texture_settings();
                 texture_settings.gen_mipmaps = gen_mipmaps;
                 tex_cache.change_texture_settings(texture_settings);
+                GameConfigs::get_mut().engine.texture_settings = texture_settings;
             }
         ))
         .add_setting(SettingImpl::new(
@@ -55,6 +56,7 @@ impl GraphicsSettings {
                 let mut texture_settings = tex_cache.current_texture_settings();
                 texture_settings.filter = TextureFilter::try_from_primitive(selected_index as u32).unwrap();
                 tex_cache.change_texture_settings(texture_settings);
+                GameConfigs::get_mut().engine.texture_settings = texture_settings;
             }
         ));
 

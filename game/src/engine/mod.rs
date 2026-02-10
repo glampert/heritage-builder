@@ -155,7 +155,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
         log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
         log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());
 
-        let sound_system = SoundSystem::new();
+        let sound_system = SoundSystem::new(configs.sound_settings);
         log::info!(log::channel!("engine"), "SoundSystem initialized.");
 
         Self {

@@ -4,10 +4,11 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
     log,
-    ui::UiSystem,
-    render::TextureSettings,
     save::{self, *},
     tile::rendering,
+    ui::UiSystem,
+    render::TextureSettings,
+    sound::SoundGlobalSettings,
     utils::{platform::paths, Color, Size},
 };
 
@@ -128,6 +129,10 @@ pub struct EngineConfigs {
     #[debug_ui(nested)]
     pub texture_settings: TextureSettings,
 
+    // Sound System:
+    #[debug_ui(skip)]
+    pub sound_settings: SoundGlobalSettings,
+
     // Debug Grid:
     pub grid_color: Color,
     pub grid_line_thickness: f32,
@@ -149,6 +154,9 @@ impl Default for EngineConfigs {
                // Graphics:
                use_packed_texture_atlas: false,
                texture_settings: TextureSettings::default(),
+
+               // Sound System:
+               sound_settings: SoundGlobalSettings::default(),
 
                // Debug Grid:
                grid_color: rendering::DEFAULT_GRID_COLOR,

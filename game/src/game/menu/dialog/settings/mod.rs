@@ -2,8 +2,9 @@ use std::{rc::Rc, convert::TryFrom};
 
 use super::*;
 use crate::{
+    log,
     utils::mem::{RcMut, WeakMut},
-    game::menu::TEXT_BUTTON_HOVERED_SPRITE,
+    game::{config::GameConfigs, menu::TEXT_BUTTON_HOVERED_SPRITE},
 };
 
 mod main;
@@ -93,7 +94,7 @@ impl TryFrom<SettingsWidgetValue> for bool {
 
 trait Setting {
     fn read(&mut self);
-    fn commit(&self);
+    fn commit(&self) -> bool;
 
     fn to_widget_value(&self) -> SettingsWidgetValue;
     fn set_from_widget_value(&mut self, new_value: SettingsWidgetValue);
@@ -148,10 +149,11 @@ impl<T, OnReadFn, OnCommitFn> Setting for SettingImpl<T, OnReadFn, OnCommitFn>
         self.needs_commit = false;
     }
 
-    fn commit(&self) {
+    fn commit(&self) -> bool {
         if self.needs_commit {
             (self.on_commit_value)(self.value);
         }
+        self.needs_commit
     }
 
     fn to_widget_value(&self) -> SettingsWidgetValue {
@@ -260,8 +262,15 @@ impl SettingsCategory {
     }
 
     fn commit_settings(&self) {
+        let mut any_commited = false;
+
         for setting in &self.settings {
-            setting.commit();
+            any_commited |= setting.commit();
+        }
+
+        if any_commited {
+            GameConfigs::save();
+            log::info!(log::channel!("settings"), "GameConfigs saved successfully.");
         }
     }
 
