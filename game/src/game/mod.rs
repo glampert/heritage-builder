@@ -22,8 +22,8 @@ use menu::{
     GameMenusSystem,
     GameMenusContext,
     GameMenusInputArgs,
-    home_v2::HomeMenus,
-    in_game_v2::InGameMenus,
+    home::HomeMenus,
+    in_game::InGameMenus,
 };
 
 use crate::{
