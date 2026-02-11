@@ -1,5 +1,4 @@
-use arrayvec::ArrayVec;
-use strum::{EnumCount, IntoEnumIterator};
+use strum::EnumCount;
 use strum_macros::{EnumProperty, EnumCount, EnumIter};
 
 use super::*;
@@ -29,7 +28,7 @@ enum MainSettingsButtonKind {
     Back,
 }
 
-impl MainSettingsButtonKind {
+impl ButtonDef for MainSettingsButtonKind {
     fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
@@ -41,8 +40,6 @@ impl MainSettingsButtonKind {
     }
 }
 
-impl ButtonDef for MainSettingsButtonKind {}
-
 // ----------------------------------------------
 // MainSettings
 // ----------------------------------------------
@@ -52,31 +49,14 @@ pub struct MainSettings {
     menu: UiMenuRcMut,
 }
 
-implement_dialog_menu! { MainSettings, "Settings" }
+implement_dialog_menu! { MainSettings, ["Settings"] }
 
 impl MainSettings {
     pub fn new(context: &mut UiWidgetContext) -> Self {
-        let mut buttons = ArrayVec::<UiWidgetImpl, MAIN_SETTINGS_BUTTON_COUNT>::new();
-
-        for button_kind in MainSettingsButtonKind::iter() {
-            let on_pressed = UiTextButtonPressed::with_closure(
-                move |_button, context| {
-                    button_kind.on_pressed(context);
-                }
-            );
-
-            buttons.push(UiWidgetImpl::from(
-                button_kind.new_text_button(
-                    context,
-                    UiTextButtonSize::Large,
-                    true,
-                    on_pressed
-                )
-            ));
-        }
+        let buttons = make_dialog_button_widgets::<MainSettingsButtonKind, MAIN_SETTINGS_BUTTON_COUNT>(context);
 
         Self {
-            menu: make_default_dialog_menu_layout(
+            menu: make_default_layout_dialog_menu(
                 context,
                 Self::KIND,
                 Self::TITLE,

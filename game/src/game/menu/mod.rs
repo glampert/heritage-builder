@@ -672,13 +672,13 @@ const TEXT_BUTTON_HOVERED_SPRITE: &str = "misc/brush_stroke_divider.png";
 // ButtonDef
 // ----------------------------------------------
 
-trait ButtonDef: EnumProperty {
-    fn label(&self) -> String {
+trait ButtonDef: Sized + Copy + Clone + EnumProperty {
+    fn label(self) -> String {
         self.get_str("Label")
             .map_or(String::new(), |prop| prop.to_string())
     }
 
-    fn tooltip(&self) -> String {
+    fn tooltip(self) -> String {
         if let Some(tooltip) = self.get_str("Tooltip") {
             tooltip.to_string()
         } else {
@@ -687,11 +687,11 @@ trait ButtonDef: EnumProperty {
         }
     }
 
-    fn has_custom_tooltip(&self) -> bool {
+    fn has_custom_tooltip(self) -> bool {
         self.get_str("Tooltip").is_some()
     }
 
-    fn name(&self) -> String {
+    fn name(self) -> String {
         let label = self.label();
         if !label.is_empty() {
             // If we have a sprite path, take the base sprite name following last separator.
@@ -705,14 +705,17 @@ trait ButtonDef: EnumProperty {
         }
     }
 
-    fn display_name(&self) -> String {
+    fn display_name(self) -> String {
         utils::snake_case_to_title::<128>(&self.name()).to_string()
     }
 
-    fn new_text_button(&self,
+    fn is_enabled(self) -> bool {
+        self.get_bool("Enabled").unwrap_or(true)
+    }
+
+    fn new_text_button(self,
                        context: &mut UiWidgetContext,
                        size: UiTextButtonSize,
-                       enabled: bool,
                        on_pressed: UiTextButtonPressed)
                        -> UiTextButton
     {
@@ -739,13 +742,13 @@ trait ButtonDef: EnumProperty {
                 tooltip,
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
                 size,
-                enabled,
+                enabled: self.is_enabled(),
                 on_pressed,
             }
         )
     }
 
-    fn new_sprite_button(&self,
+    fn new_sprite_button(self,
                          context: &mut UiWidgetContext,
                          show_tooltip_when_pressed: bool,
                          size: Vec2,
@@ -776,5 +779,9 @@ trait ButtonDef: EnumProperty {
                 on_state_changed,
             }
         )
+    }
+
+    fn on_pressed(self, _context: &mut UiWidgetContext) -> bool {
+        false
     }
 }

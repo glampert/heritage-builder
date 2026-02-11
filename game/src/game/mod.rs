@@ -22,7 +22,7 @@ use menu::{
     GameMenusSystem,
     GameMenusContext,
     GameMenusInputArgs,
-    home::HomeMenus,
+    home_v2::HomeMenus,
     in_game_v2::InGameMenus,
 };
 
@@ -82,7 +82,7 @@ struct GameSession {
     camera: Camera,
 
     // NOTE: These are not actually serialized on save games.
-    // We only need to invoke post_load() on them.
+    // We only need to invoke pre_load/post_load on them.
     #[serde(skip)]
     tile_selection: TileSelection,
 

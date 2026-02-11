@@ -19,7 +19,7 @@ use crate::{
     save::{Save, Load, PreLoadContext},
     app::input::{InputAction, InputKey},
     tile::minimap::InGameUiMinimapRenderer,
-    ui::{UiInputEvent, UiTheme, widgets::UiWidgetContext},
+    ui::{UiInputEvent, UiTheme, widgets::{UiWidgetContext, UiMenuFlags}},
 };
 
 mod bars;
@@ -41,7 +41,9 @@ pub struct InGameMenus {
 impl InGameMenus {
     pub fn new(context: &mut UiWidgetContext) -> Self {
         context.ui_sys.set_ui_theme(UiTheme::InGame);
+
         dialog::initialize(context);
+        dialog::set_global_menu_flags(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter);
 
         Self {
             tile_placement: TilePlacement::new(),

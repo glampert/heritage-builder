@@ -8,15 +8,22 @@ use strum_macros::{Display, EnumCount, EnumIter, EnumDiscriminants};
 use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
     singleton_late_init,
+    game::menu::ButtonDef,
     utils::{Vec2, mem},
-    ui::{UiFontScale, widgets::*},
+    ui::{UiFontScale, UiStaticVar, widgets::*},
 };
 
-mod main_menu;
-use main_menu::*;
+mod home;
+use home::*;
+
+mod main_game;
+use main_game::*;
 
 mod new_game;
 use new_game::*;
+
+mod about;
+use about::*;
 
 mod load_save;
 use load_save::*;
@@ -46,8 +53,10 @@ const DIALOG_MENU_COUNT: usize = DialogMenuKind::COUNT;
 #[derive(EnumDiscriminants)]
 #[strum_discriminants(name(DialogMenuKind), derive(Display, EnumCount, EnumIter))]
 pub enum DialogMenuImpl {
-    MainMenu,
+    Home,
+    MainGame,
     NewGame,
+    About,
 
     // Save Game menus:
     LoadGame,
@@ -62,8 +71,10 @@ pub enum DialogMenuImpl {
 }
 
 const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
-    MainMenu,
+    Home,
+    MainGame,
     NewGame,
+    About,
 
     LoadGame,
     SaveGame,
@@ -115,12 +126,20 @@ pub fn close_all(context: &mut UiWidgetContext) -> bool {
     DialogMenusSingleton::get_mut().close_all(context)
 }
 
+pub fn current() -> Option<DialogMenuKind> {
+    DialogMenusSingleton::get_mut().current_dialog().map(|dialog| dialog.kind())
+}
+
 pub fn close_current(context: &mut UiWidgetContext) -> bool {
     DialogMenusSingleton::get_mut().close_current(context)
 }
 
 pub fn draw_current(context: &mut UiWidgetContext) {
     DialogMenusSingleton::get_mut().draw_current(context);
+}
+
+pub fn set_global_menu_flags(flags: UiMenuFlags) {
+    DialogMenusSingleton::get_mut().set_global_menu_flags(flags);
 }
 
 // ----------------------------------------------
@@ -177,7 +196,7 @@ trait DialogMenu: Any {
 
 trait DialogMenuFactory: DialogMenu {
     const KIND: DialogMenuKind;
-    const TITLE: &'static str;
+    const TITLE: &'static [&'static str];
 
     fn create(context: &mut UiWidgetContext) -> DialogMenuImpl;
 }
@@ -188,10 +207,10 @@ trait DialogMenuFactory: DialogMenu {
 
 #[macro_export]
 macro_rules! implement_dialog_menu {
-    ($dialog_menu_struct:ident, $title:literal) => {
+    ($dialog_menu_struct:ident, $title:expr) => {
         impl DialogMenuFactory for $dialog_menu_struct {
             const KIND: DialogMenuKind = DialogMenuKind::$dialog_menu_struct;
-            const TITLE: &'static str  = $title;
+            const TITLE: &'static [&'static str] = &$title;
 
             fn create(context: &mut UiWidgetContext) -> DialogMenuImpl {
                 DialogMenuImpl::from($dialog_menu_struct::new(context))
@@ -238,6 +257,14 @@ impl DialogMenusSingleton {
         self.menu_stack.clear();
         for dialog in &mut self.dialog_menus {
             dialog.reset();
+        }
+    }
+
+    fn set_global_menu_flags(&mut self, flags: UiMenuFlags) {
+        GLOBAL_DIALOG_MENU_FLAGS.set(flags);
+
+        for dialog in &mut self.dialog_menus {
+            dialog.menu_mut().reset_flags(flags);
         }
     }
 
@@ -343,13 +370,15 @@ const DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE: &str = "misc/scroll_bg.png";
 const DEFAULT_DIALOG_POPUP_FONT_SCALE: UiFontScale = UiFontScale(1.5);
 const DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE: &str = "misc/square_page_bg.png";
 
+static GLOBAL_DIALOG_MENU_FLAGS: UiStaticVar<UiMenuFlags> = UiStaticVar::new(UiMenuFlags::empty());
+
 fn default_dialog_menu_size(context: &UiWidgetContext) -> Vec2 {
     Vec2::new(550.0, context.viewport_size.height as f32 - 150.0)
 }
 
-fn make_default_dialog_menu_layout(context: &mut UiWidgetContext,
+fn make_default_layout_dialog_menu(context: &mut UiWidgetContext,
                                    dialog_menu_kind: DialogMenuKind,
-                                   heading_title: &str,
+                                   heading_title: &[&str], // Each item in the slice is a heading line.
                                    widget_spacing: f32,
                                    widgets: Option<impl IntoIterator<Item = UiWidgetImpl>>)
                                    -> UiMenuRcMut
@@ -358,7 +387,7 @@ fn make_default_dialog_menu_layout(context: &mut UiWidgetContext,
         context,
         UiMenuParams {
             label: Some(dialog_menu_kind.to_string()),
-            flags: UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter,
+            flags: *GLOBAL_DIALOG_MENU_FLAGS,
             size: Some(default_dialog_menu_size(context)),
             background: Some(DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE),
             ..Default::default()
@@ -369,7 +398,7 @@ fn make_default_dialog_menu_layout(context: &mut UiWidgetContext,
         context,
         UiMenuHeadingParams {
             font_scale: DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE,
-            lines: vec![heading_title.into()],
+            lines: heading_title.iter().map(|line| line.to_string()).collect(),
             separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
             margin_top: DEFAULT_DIALOG_MENU_HEADING_MARGINS.0,
             margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,
@@ -398,4 +427,26 @@ fn make_default_dialog_menu_layout(context: &mut UiWidgetContext,
     }
 
     menu
+}
+
+fn make_dialog_button_widgets<ButtonKind, const COUNT: usize>(context: &mut UiWidgetContext) -> ArrayVec::<UiWidgetImpl, COUNT>
+    where ButtonKind: ButtonDef + EnumCount + IntoEnumIterator + 'static
+{
+    let mut buttons = ArrayVec::<UiWidgetImpl, COUNT>::new();
+
+    for button_kind in ButtonKind::iter() {
+        let on_pressed = UiTextButtonPressed::with_closure(
+            move |_, context| { button_kind.on_pressed(context); }
+        );
+
+        buttons.push(UiWidgetImpl::from(
+            button_kind.new_text_button(
+                context,
+                UiTextButtonSize::Large,
+                on_pressed
+            )
+        ));
+    }
+
+    buttons
 }

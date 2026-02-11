@@ -30,7 +30,7 @@ pub struct NewGame {
     menu: UiMenuRcMut,
 }
 
-implement_dialog_menu! { NewGame, "New Game" }
+implement_dialog_menu! { NewGame, ["New Game"] }
 
 impl NewGame {
     pub fn new(context: &mut UiWidgetContext) -> Self {
@@ -180,7 +180,7 @@ impl NewGame {
         // Menu:
         // -------------
 
-        let mut menu = make_default_dialog_menu_layout(
+        let mut menu = make_default_layout_dialog_menu(
             context,
             Self::KIND,
             Self::TITLE,

@@ -516,6 +516,11 @@ impl UiMenu {
     }
 
     #[inline]
+    pub fn reset_flags(&mut self, new_flags: UiMenuFlags) {
+        self.flags = new_flags;
+    }
+
+    #[inline]
     pub fn has_flags(&self, flags: UiMenuFlags) -> bool {
         self.flags.intersects(flags)
     }

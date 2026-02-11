@@ -354,18 +354,16 @@ enum LeftBarButtonKind {
     Settings,
 }
 
-impl LeftBarButtonKind {
+impl ButtonDef for LeftBarButtonKind {
     fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = true;
         match self {
-            Self::MainMenu => dialog::open(DialogMenuKind::MainMenu, CLOSE_ALL_OTHERS, context),
+            Self::MainMenu => dialog::open(DialogMenuKind::MainGame, CLOSE_ALL_OTHERS, context),
             Self::SaveGame => dialog::open(DialogMenuKind::LoadOrSaveGame, CLOSE_ALL_OTHERS, context),
             Self::Settings => dialog::open(DialogMenuKind::MainSettings, CLOSE_ALL_OTHERS, context),
         }
     }
 }
-
-impl ButtonDef for LeftBarButtonKind {}
 
 // ----------------------------------------------
 // LeftBar
@@ -450,7 +448,27 @@ enum SpeedControlsButtonKind {
     Speedup,
 }
 
-impl ButtonDef for SpeedControlsButtonKind {}
+impl ButtonDef for SpeedControlsButtonKind {
+    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
+        match self {
+            SpeedControlsButtonKind::Play => {
+                context.sim.resume();
+            }
+            SpeedControlsButtonKind::Pause => {
+                context.sim.pause();
+            }
+            SpeedControlsButtonKind::Slowdown => {
+                context.sim.resume();
+                context.sim.slowdown();
+            }
+            SpeedControlsButtonKind::Speedup => {
+                context.sim.resume();
+                context.sim.speedup();
+            }
+        }
+        true
+    }
+}
 
 // ----------------------------------------------
 // SpeedControlsBar
@@ -489,22 +507,7 @@ impl SpeedControlsBar {
             let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(
                 move |button, context, _| {
                     if button.is_pressed() {
-                        match button_kind {
-                            SpeedControlsButtonKind::Play => {
-                                context.sim.resume();
-                            }
-                            SpeedControlsButtonKind::Pause => {
-                                context.sim.pause();
-                            }
-                            SpeedControlsButtonKind::Slowdown => {
-                                context.sim.resume();
-                                context.sim.slowdown();
-                            }
-                            SpeedControlsButtonKind::Speedup => {
-                                context.sim.resume();
-                                context.sim.speedup();
-                            }
-                        }
+                        button_kind.on_pressed(context);
 
                         // Pressed state doesn't persist.
                         button.press(false);

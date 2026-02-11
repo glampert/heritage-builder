@@ -17,7 +17,7 @@ pub struct GraphicsSettings {
     menu: UiMenuRcMut,
 }
 
-implement_dialog_menu! { GraphicsSettings, "Graphics Settings" }
+implement_dialog_menu! { GraphicsSettings, ["Graphics Settings"] }
 
 impl GraphicsSettings {
     pub fn new(context: &mut UiWidgetContext) -> Self {

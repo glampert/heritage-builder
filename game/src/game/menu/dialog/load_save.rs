@@ -21,7 +21,7 @@ pub struct LoadGame {
     menu: UiMenuRcMut,
 }
 
-implement_dialog_menu! { LoadGame, "Load Game" }
+implement_dialog_menu! { LoadGame, ["Load Game"] }
 
 impl LoadGame {
     pub fn new(context: &mut UiWidgetContext) -> Self {
@@ -40,7 +40,7 @@ pub struct SaveGame {
     menu: UiMenuRcMut,
 }
 
-implement_dialog_menu! { SaveGame, "Save Game" }
+implement_dialog_menu! { SaveGame, ["Save Game"] }
 
 impl SaveGame {
     pub fn new(context: &mut UiWidgetContext) -> Self {
@@ -59,7 +59,7 @@ pub struct LoadOrSaveGame {
     menu: UiMenuRcMut,
 }
 
-implement_dialog_menu! { LoadOrSaveGame, "Load / Save" }
+implement_dialog_menu! { LoadOrSaveGame, ["Load / Save"] }
 
 impl LoadOrSaveGame {
     pub fn new(context: &mut UiWidgetContext) -> Self {
@@ -188,14 +188,14 @@ impl SaveGameHelper {
     fn build_menu(&self,
                   context: &mut UiWidgetContext,
                   dialog_menu_kind: DialogMenuKind,
-                  heading_title: &str)
+                  heading_title: &[&str])
                   -> UiMenuRcMut
     {
         // -------------
         // Menu:
         // -------------
 
-        let mut menu = make_default_dialog_menu_layout(
+        let mut menu = make_default_layout_dialog_menu(
             context,
             dialog_menu_kind,
             heading_title,

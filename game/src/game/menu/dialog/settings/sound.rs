@@ -37,7 +37,7 @@ pub struct SoundSettings {
     menu: UiMenuRcMut,
 }
 
-implement_dialog_menu! { SoundSettings, "Sound Settings" }
+implement_dialog_menu! { SoundSettings, ["Sound Settings"] }
 
 impl SoundSettings {
     pub fn new(context: &mut UiWidgetContext) -> Self {

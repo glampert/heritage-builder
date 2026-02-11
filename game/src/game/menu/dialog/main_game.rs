@@ -1,5 +1,4 @@
-use arrayvec::ArrayVec;
-use strum::{EnumCount, IntoEnumIterator};
+use strum::EnumCount;
 use strum_macros::{EnumProperty, EnumCount, EnumIter};
 
 use super::*;
@@ -12,13 +11,13 @@ use crate::{
 };
 
 // ----------------------------------------------
-// MainMenuButtonKind
+// MainGameButtonKind
 // ----------------------------------------------
 
-const MAIN_MENU_BUTTON_COUNT: usize = MainMenuButtonKind::COUNT;
+const MAIN_GAME_BUTTON_COUNT: usize = MainGameButtonKind::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
-enum MainMenuButtonKind {
+enum MainGameButtonKind {
     #[strum(props(Label = "New Game"))]
     NewGame,
 
@@ -38,7 +37,7 @@ enum MainMenuButtonKind {
     Back,
 }
 
-impl MainMenuButtonKind {
+impl ButtonDef for MainGameButtonKind {
     fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
@@ -50,48 +49,33 @@ impl MainMenuButtonKind {
             Self::Back     => super::close_current(context),
         }
     }
+}
 
+impl MainGameButtonKind {
     fn on_quit(context: &mut UiWidgetContext) -> bool {
         let main_menu = DialogMenusSingleton::get_mut()
-            .current_dialog_as::<MainMenu>()
-            .expect("Expected MainMenu dialog to be open!");
+            .current_dialog_as::<MainGame>()
+            .expect("Expected MainGame dialog to be open!");
 
         main_menu.open_quit_game_message_box(context)
     }
 }
 
-impl ButtonDef for MainMenuButtonKind {}
-
 // ----------------------------------------------
-// MainMenu
+// MainGame
 // ----------------------------------------------
 
-pub struct MainMenu {
+pub struct MainGame {
     menu: UiMenuRcMut,
 }
 
-implement_dialog_menu! { MainMenu, "Game" }
+implement_dialog_menu! { MainGame, ["Game"] }
 
-impl MainMenu {
+impl MainGame {
     pub fn new(context: &mut UiWidgetContext) -> Self {
-        let mut buttons = ArrayVec::<UiWidgetImpl, MAIN_MENU_BUTTON_COUNT>::new();
+        let buttons = make_dialog_button_widgets::<MainGameButtonKind, MAIN_GAME_BUTTON_COUNT>(context);
 
-        for button_kind in MainMenuButtonKind::iter() {
-            let on_pressed = UiTextButtonPressed::with_closure(
-                move |_, context| { button_kind.on_pressed(context); }
-            );
-
-            buttons.push(UiWidgetImpl::from(
-                button_kind.new_text_button(
-                    context,
-                    UiTextButtonSize::Large,
-                    true,
-                    on_pressed
-                )
-            ));
-        }
-
-        let mut menu = make_default_dialog_menu_layout(
+        let mut menu = make_default_layout_dialog_menu(
             context,
             Self::KIND,
             Self::TITLE,

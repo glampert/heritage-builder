@@ -13,7 +13,7 @@ pub struct GameSettings {
     menu: UiMenuRcMut,
 }
 
-implement_dialog_menu! { GameSettings, "Game Settings" }
+implement_dialog_menu! { GameSettings, ["Game Settings"] }
 
 impl GameSettings {
     pub fn new(context: &mut UiWidgetContext) -> Self {

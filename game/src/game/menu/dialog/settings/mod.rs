@@ -284,7 +284,7 @@ impl SettingsCategory {
                   this: SettingsCategoryWeakMut,
                   context: &mut UiWidgetContext,
                   dialog_menu_kind: DialogMenuKind,
-                  heading_title: &str,
+                  heading_title: &[&str],
                   margin_left: f32,
                   margin_right: f32)
                   -> UiMenuRcMut
@@ -361,7 +361,7 @@ impl SettingsCategory {
         // Menu:
         // -------------
 
-        let mut menu = make_default_dialog_menu_layout(
+        let mut menu = make_default_layout_dialog_menu(
             context,
             dialog_menu_kind,
             heading_title,
