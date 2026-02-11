@@ -41,15 +41,6 @@ mod dialog;
 pub mod home_v2;
 pub mod in_game_v2;
 
-pub mod widgets;
-pub mod home;
-pub mod hud;
-
-mod button;
-mod palette;
-mod modal;
-mod bar;
-
 // ----------------------------------------------
 // Helper structs
 // ----------------------------------------------
