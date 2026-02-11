@@ -284,7 +284,9 @@ impl SettingsCategory {
                   this: SettingsCategoryWeakMut,
                   context: &mut UiWidgetContext,
                   dialog_menu_kind: DialogMenuKind,
-                  heading_title: &str)
+                  heading_title: &str,
+                  margin_left: f32,
+                  margin_right: f32)
                   -> UiMenuRcMut
     {
         // -------------
@@ -298,6 +300,8 @@ impl SettingsCategory {
                 widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING,
                 center_vertically: false,
                 center_horizontally: true,
+                margin_left,
+                margin_right,
             }
         );
 
@@ -346,6 +350,7 @@ impl SettingsCategory {
                 center_vertically: false,
                 center_horizontally: true,
                 stack_vertically: false,
+                ..Default::default()
             }
         );
 

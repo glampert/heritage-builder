@@ -192,6 +192,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             widget_spacing: 5.0,
             center_vertically: false,
             center_horizontally: true,
+            ..Default::default()
         }
     );
 
@@ -208,6 +209,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             center_vertically: false,
             center_horizontally: true,
             stack_vertically: true,
+            ..Default::default()
         }
     );
 
@@ -282,6 +284,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             center_vertically: false,
             center_horizontally: true,
             stack_vertically: false,
+            ..Default::default()
         }
     );
 
@@ -454,6 +457,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
             center_vertically: false,
             center_horizontally: true,
             stack_vertically: true,
+            ..Default::default()
         }
     );
 
@@ -500,6 +504,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
             center_vertically: false,
             center_horizontally: true,
             stack_vertically: false,
+            ..Default::default()
         }
     );
 

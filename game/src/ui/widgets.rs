@@ -946,6 +946,8 @@ pub struct UiWidgetGroupParams {
     pub center_vertically: bool,
     pub center_horizontally: bool,
     pub stack_vertically: bool,
+    pub margin_left: f32,
+    pub margin_right: f32,
 }
 
 impl Default for UiWidgetGroupParams {
@@ -955,6 +957,8 @@ impl Default for UiWidgetGroupParams {
             center_vertically: true,
             center_horizontally: true,
             stack_vertically: true,
+            margin_left: 0.0,
+            margin_right: 0.0,
         }
     }
 }
@@ -971,6 +975,8 @@ pub struct UiWidgetGroup {
     center_vertically: bool,
     center_horizontally: bool,
     stack_vertically: bool,
+    margin_left: f32,
+    margin_right: f32,
 }
 
 impl UiWidget for UiWidgetGroup {
@@ -991,7 +997,8 @@ impl UiWidget for UiWidgetGroup {
             &mut self.widgets,
             self.center_vertically,
             self.center_horizontally,
-            self.stack_vertically);
+            self.stack_vertically,
+            (self.margin_left, self.margin_right));
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
@@ -1019,6 +1026,10 @@ impl UiWidget for UiWidgetGroup {
             }
         }
 
+        // Subtract margins.
+        size.x -= self.margin_left;
+        size.x -= self.margin_right;
+
         size
     }
 }
@@ -1026,6 +1037,7 @@ impl UiWidget for UiWidgetGroup {
 impl UiWidgetGroup {
     pub fn new(_context: &mut UiWidgetContext, params: UiWidgetGroupParams) -> Self {
         debug_assert!(params.widget_spacing >= 0.0);
+        debug_assert!(params.margin_left >= 0.0 && params.margin_right >= 0.0);
 
         Self {
             widgets: Vec::new(),
@@ -1033,6 +1045,8 @@ impl UiWidgetGroup {
             center_vertically: params.center_vertically,
             center_horizontally: params.center_horizontally,
             stack_vertically: params.stack_vertically,
+            margin_left: params.margin_left,
+            margin_right: params.margin_right,
         }
     }
 
@@ -1099,6 +1113,8 @@ pub struct UiLabeledWidgetGroupParams {
     pub widget_spacing: f32,
     pub center_vertically: bool,
     pub center_horizontally: bool,
+    pub margin_left: f32,
+    pub margin_right: f32,
 }
 
 impl Default for UiLabeledWidgetGroupParams {
@@ -1108,6 +1124,8 @@ impl Default for UiLabeledWidgetGroupParams {
             widget_spacing: 0.0,
             center_vertically: true,
             center_horizontally: true,
+            margin_left: 0.0,
+            margin_right: 0.0,
         }
     }
 }
@@ -1124,6 +1142,8 @@ pub struct UiLabeledWidgetGroup {
     widget_spacing: f32,
     center_vertically: bool,
     center_horizontally: bool,
+    margin_left: f32,
+    margin_right: f32,
 }
 
 impl UiWidget for UiLabeledWidgetGroup {
@@ -1143,7 +1163,8 @@ impl UiWidget for UiLabeledWidgetGroup {
             context,
             &mut self.labels_and_widgets,
             self.center_vertically,
-            self.center_horizontally);
+            self.center_horizontally,
+            (self.margin_left, self.margin_right));
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
@@ -1162,6 +1183,10 @@ impl UiWidget for UiLabeledWidgetGroup {
             size.y += style.item_spacing[1] * (self.labels_and_widgets.len() - 1) as f32;
         }
 
+        // Subtract margins.
+        size.x -= self.margin_left;
+        size.x -= self.margin_right;
+
         size
     }
 }
@@ -1170,6 +1195,7 @@ impl UiLabeledWidgetGroup {
     pub fn new(_context: &mut UiWidgetContext, params: UiLabeledWidgetGroupParams) -> Self {
         debug_assert!(params.label_spacing  >= 0.0);
         debug_assert!(params.widget_spacing >= 0.0);
+        debug_assert!(params.margin_left >= 0.0 && params.margin_right >= 0.0);
 
         Self {
             labels_and_widgets: Vec::new(),
@@ -1177,6 +1203,8 @@ impl UiLabeledWidgetGroup {
             widget_spacing: params.widget_spacing,
             center_vertically: params.center_vertically,
             center_horizontally: params.center_horizontally,
+            margin_left: params.margin_left,
+            margin_right: params.margin_right,
         }
     }
 
@@ -2905,6 +2933,7 @@ impl UiMessageBox {
                     center_vertically: true,
                     center_horizontally: true,
                     stack_vertically: false, // Render buttons side-by-side.
+                    ..Default::default()
                 }
             );
 

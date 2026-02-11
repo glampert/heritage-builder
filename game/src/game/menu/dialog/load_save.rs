@@ -234,6 +234,7 @@ impl SaveGameHelper {
                 center_vertically: false,
                 center_horizontally: true,
                 stack_vertically: false,
+                ..Default::default()
             }
         );
 

@@ -60,7 +60,15 @@ impl GraphicsSettings {
             }
         ));
 
-        let menu = category.build_menu(category.downgrade(), context, Self::KIND, Self::TITLE);
+        let menu = category.build_menu(
+            category.downgrade(),
+            context, Self::KIND,
+            Self::TITLE,
+            // Margins:
+            50.0,
+            30.0
+        );
+
         Self { menu, category }
     }
 }

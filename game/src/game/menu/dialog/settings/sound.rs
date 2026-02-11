@@ -75,7 +75,15 @@ impl SoundSettings {
             |volume| write_mater_volume_u32!(spatial_master_volume, volume),
         ));
 
-        let menu = category.build_menu(category.downgrade(), context, Self::KIND, Self::TITLE);
+        let menu = category.build_menu(
+            category.downgrade(),
+            context, Self::KIND,
+            Self::TITLE,
+            // Margins:
+            50.0,
+            30.0
+        );
+
         Self { menu, category }
     }
 }
