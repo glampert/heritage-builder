@@ -95,6 +95,10 @@ pub fn initialize(context: &mut UiWidgetContext) {
     DialogMenusSingleton::initialize(DialogMenusSingleton::new(context));
 }
 
+pub fn reset() {
+    DialogMenusSingleton::get_mut().reset();
+}
+
 pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &mut UiWidgetContext) -> bool {
     if close_all_others {
         close_all(context);
@@ -136,6 +140,12 @@ trait DialogMenu: Any {
         mem::mut_ref_cast(self.menu())
     }
 
+    fn reset(&mut self) {
+        let menu = self.menu_mut();
+        menu.reset_message_box();
+        menu.set_flags(UiMenuFlags::IsOpen, false);
+    }
+
     fn is_open(&self) -> bool {
         self.menu().is_open()
     }
@@ -146,11 +156,12 @@ trait DialogMenu: Any {
     }
 
     fn close(&mut self, context: &mut UiWidgetContext) -> bool {
-        if self.menu().is_message_box_open() {
-            self.menu_mut().close_message_box(context);
+        let menu = self.menu_mut();
+        if menu.is_message_box_open() {
+            menu.close_message_box(context);
             false
         } else {
-            self.menu_mut().close(context);
+            menu.close(context);
             true
         }
     }
@@ -221,6 +232,13 @@ impl DialogMenusSingleton {
         }
 
         Self { dialog_menus, menu_stack: ArrayVec::new() }
+    }
+
+    fn reset(&mut self) {
+        self.menu_stack.clear();
+        for dialog in &mut self.dialog_menus {
+            dialog.reset();
+        }
     }
 
     fn current_dialog(&mut self) -> Option<&mut DialogMenuImpl> {

@@ -15,8 +15,8 @@ use super::{
     dialog,
 };
 use crate::{
-    save::{Save, Load},
     utils::coords::CellRange,
+    save::{Save, Load, PreLoadContext},
     app::input::{InputAction, InputKey},
     tile::minimap::InGameUiMinimapRenderer,
     ui::{UiInputEvent, UiTheme, widgets::UiWidgetContext},
@@ -116,8 +116,22 @@ impl GameMenusSystem for InGameMenus {
 }
 
 // ----------------------------------------------
+// Drop for InGameMenus
+// ----------------------------------------------
+
+impl Drop for InGameMenus {
+    fn drop(&mut self) {
+        dialog::reset();
+    }
+}
+
+// ----------------------------------------------
 // Save/Load for InGameMenus
 // ----------------------------------------------
 
 impl Save for InGameMenus {}
-impl Load for InGameMenus {}
+impl Load for InGameMenus {
+    fn pre_load(&mut self, _context: &PreLoadContext) {
+        dialog::reset();
+    }
+}
