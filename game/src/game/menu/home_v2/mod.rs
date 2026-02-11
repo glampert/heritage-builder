@@ -11,13 +11,15 @@ use super::{
     dialog::{self, DialogMenuKind},
 };
 use crate::{
+    engine::time::Seconds,
     utils::coords::CellRange,
+    tile::rendering::TileMapRenderFlags,
     save::{Save, Load, PreLoadContext},
     app::input::{InputAction, InputKey},
-    tile::rendering::TileMapRenderFlags,
     ui::{
         UiInputEvent, UiTheme,
         widgets::{
+            UiWidget,
             UiWidgetContext,
             UiMenuFlags,
             UiSlideshow,
@@ -28,11 +30,15 @@ use crate::{
     },
 };
 
+const ANIMATED_BACKGROUND: bool = false;
+
 // ----------------------------------------------
 // HomeMenus
 // ----------------------------------------------
 
-pub struct HomeMenus;
+pub struct HomeMenus {
+    slideshow: UiSlideshow,
+}
 
 impl HomeMenus {
     pub fn new(context: &mut UiWidgetContext) -> Self {
@@ -44,7 +50,42 @@ impl HomeMenus {
         // Main Home Menu always open.
         dialog::open(DialogMenuKind::Home, true, context);
 
-        Self
+        let slideshow = if ANIMATED_BACKGROUND {
+            // Animated menu background.
+            UiSlideshow::new(context, Self::animated_background_slideshow())
+        } else {
+            // Static, single-frame menu background.
+            UiSlideshow::new(context, Self::static_background_slideshow())
+        };
+
+        Self { slideshow }
+    }
+
+    fn animated_background_slideshow() -> UiSlideshowParams {
+        const SLIDESHOW_FRAME_COUNT: usize = 30;
+        const SLIDESHOW_FRAME_DURATION: Seconds = 0.3;
+
+        let mut frames = Vec::with_capacity(SLIDESHOW_FRAME_COUNT);
+        for i in 0..SLIDESHOW_FRAME_COUNT {
+            frames.push(format!("misc/home_menu_anim/frame{i}.jpg"));
+        }
+
+        UiSlideshowParams {
+            flags: UiSlideshowFlags::Fullscreen,
+            loop_mode: UiSlideshowLoopMode::FramesFromEnd(2), // Loop last two frames from end.
+            frame_duration_secs: SLIDESHOW_FRAME_DURATION,
+            frames,
+            ..Default::default()
+        }
+    }
+
+    fn static_background_slideshow() -> UiSlideshowParams {
+        UiSlideshowParams {
+            flags: UiSlideshowFlags::Fullscreen,
+            loop_mode: UiSlideshowLoopMode::None,
+            frames: vec!["misc/home_menu_static_bg.png".into()],
+            ..Default::default()
+        }
     }
 }
 
@@ -105,7 +146,11 @@ impl GameMenusSystem for HomeMenus {
             context.engine
         );
 
-        dialog::draw_current(&mut ui_context);
+        self.slideshow.draw(&mut ui_context);
+
+        if self.slideshow.has_flags(UiSlideshowFlags::PlayedOnce) {
+            dialog::draw_current(&mut ui_context);
+        }
     }
 }
 

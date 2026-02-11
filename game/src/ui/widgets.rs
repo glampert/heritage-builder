@@ -2993,11 +2993,11 @@ pub enum UiSlideshowLoopMode {
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct UiSlideshowParams<'a> {
+pub struct UiSlideshowParams {
     pub flags: UiSlideshowFlags,
     pub loop_mode: UiSlideshowLoopMode,
     pub frame_duration_secs: Seconds,
-    pub frames: &'a [String],
+    pub frames: Vec<String>,
 
     // Ignored if UiSlideshowFlags::Fullscreen is set.
     pub size: Option<Vec2>,
@@ -3049,19 +3049,25 @@ impl UiWidget for UiSlideshow {
 impl UiSlideshow {
     pub fn new(context: &mut UiWidgetContext, params: UiSlideshowParams) -> Self {
         debug_assert!(!params.frames.is_empty());
-        debug_assert!(params.frame_duration_secs > 0.0);
-        debug_assert!(params.margin_left >= 0.0);
+        debug_assert!(params.margin_left  >= 0.0);
         debug_assert!(params.margin_right >= 0.0);
 
         let mut frames = Vec::with_capacity(params.frames.len());
-
         for path in params.frames {
-            frames.push(context.load_ui_texture(path));
+            frames.push(context.load_ui_texture(&path));
+        }
+
+        let mut flags = params.flags;
+        if frames.len() <= 1 {
+            // Static background (single-frame). Mark as if already played once.
+            flags |= UiSlideshowFlags::PlayedOnce;
+        } else {
+            debug_assert!(params.frame_duration_secs > 0.0);
         }
 
         Self {
             imgui_id: String::new(),
-            flags: params.flags,
+            flags,
             loop_mode: params.loop_mode,
             size: params.size,
             margin_left: params.margin_left,

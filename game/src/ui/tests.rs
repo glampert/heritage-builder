@@ -545,7 +545,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
     ));
 
     let slideshow_frame_count = 3;
-    let mut slideshow_frames = Vec::new();
+    let mut slideshow_frames = Vec::with_capacity(slideshow_frame_count);
     for i in 0..slideshow_frame_count {
         slideshow_frames.push(format!("misc/home_menu_anim/frame{i}.jpg"));
     }
@@ -555,7 +555,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
         UiSlideshowParams {
             loop_mode: UiSlideshowLoopMode::WholeAnim,
             frame_duration_secs: 0.5,
-            frames: &slideshow_frames,
+            frames: slideshow_frames,
             size: Some(Vec2::new(0.0, 250.0)),
             margin_left: 30.0,
             margin_right: 30.0,
