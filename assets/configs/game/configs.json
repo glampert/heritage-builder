@@ -35,11 +35,15 @@
   "camera": {
     "fixed_step_zoom_amount": 0.5,
     "disable_smooth_mouse_scroll_zoom": true,
-    "disable_mouse_scroll_zoom": false,
+    "disable_mouse_scroll_zoom": true,
     "disable_key_shortcut_zoom": false
   },
   "debug": {
     "show_popups": false,
-    "enable_tile_inspector": true
+    "enable_tile_inspector": true,
+    "start_in_dev_editor_mode": false,
+    "skip_home_menu": false,
+    "skip_loading_tile_sets": false,
+    "enable_minimap_debug_controls": true
   }
 }
