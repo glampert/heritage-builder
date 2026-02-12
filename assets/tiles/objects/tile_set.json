@@ -554,6 +554,58 @@
           ]
         },
         {
+          "name": "pottery_kiln",
+          "cost": 10,
+          "sector": "IndustryAndResources",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 126,
+            "height": 100
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "pottery_kiln"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "brick_maker",
+          "cost": 10,
+          "sector": "IndustryAndResources",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 126,
+            "height": 100
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "brick_maker"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "shrine",
           "cost": 2,
           "sector": "CultureAndReligion",

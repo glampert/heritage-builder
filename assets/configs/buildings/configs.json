@@ -174,7 +174,8 @@
           "Rice",
           "Meat",
           "Fish",
-          "Wine"
+          "Wine",
+          "Pottery"
         ]
       }
     },
@@ -359,6 +360,44 @@
       "fetch_from_storage_kinds": "Granary"
     },
     {
+      "kind": "Factory",
+      "name": "Pottery Kiln",
+      "tile_def_name": "pottery_kiln",
+      "min_workers": 2,
+      "max_workers": 4,
+      "production_output_frequency_secs": 20.0,
+      "production_output_amount": 1,
+      "production_output": "Pottery",
+      "production_capacity": 5,
+      "resources_required": {
+        "kinds": [
+          "Clay"
+        ]
+      },
+      "resources_capacity": 8,
+      "deliver_to_storage_kinds": "StorageYard",
+      "fetch_from_storage_kinds": "StorageYard"
+    },
+    {
+      "kind": "Factory",
+      "name": "Brick Maker",
+      "tile_def_name": "brick_maker",
+      "min_workers": 2,
+      "max_workers": 4,
+      "production_output_frequency_secs": 20.0,
+      "production_output_amount": 1,
+      "production_output": "Bricks",
+      "production_capacity": 5,
+      "resources_required": {
+        "kinds": [
+          "Clay"
+        ]
+      },
+      "resources_capacity": 8,
+      "deliver_to_storage_kinds": "StorageYard",
+      "fetch_from_storage_kinds": "StorageYard"
+    },
+    {
       "kind": "Mine",
       "name": "Mine",
       "tile_def_name": "mine",
@@ -411,7 +450,9 @@
           "Wine",
           "Wood",
           "Metal",
-          "Clay"
+          "Clay",
+          "Pottery",
+          "Bricks"
         ]
       },
       "num_slots": 8,
