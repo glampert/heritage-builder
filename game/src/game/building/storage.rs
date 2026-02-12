@@ -303,12 +303,12 @@ impl BuildingBehavior for StorageBuilding {
 
 impl StorageBuilding {
     pub fn new(config: &'static StorageConfig) -> Self {
-        Self { config: Some(config),
-               workers: Workers::employer(config.min_workers, config.max_workers),
-               storage_slots: StorageSlots::new(&config.resources_accepted,
-                                                config.num_slots,
-                                                config.slot_capacity),
-               debug: StorageDebug::default() }
+        Self {
+            config: Some(config),
+            workers: Workers::employer(config.min_workers, config.max_workers),
+            storage_slots: StorageSlots::new(&config.resources_accepted, config.num_slots, config.slot_capacity),
+            debug: StorageDebug::default(),
+        }
     }
 
     pub fn register_callbacks() {}
@@ -430,8 +430,8 @@ impl StorageSlot {
         where F: FnMut(ResourceKind)
     {
         self.stock.for_each(|_, item| {
-                      visitor_fn(item.kind);
-                  });
+            visitor_fn(item.kind);
+        });
     }
 }
 
@@ -444,9 +444,10 @@ impl StorageSlots {
         let mut slots = ArrayVec::new();
 
         for _ in 0..num_slots {
-            slots.push(StorageSlot { stock:
-                                         ResourceStock::with_accepted_list(resources_accepted),
-                                     allocated_resource_kind: None });
+            slots.push(StorageSlot {
+                stock: ResourceStock::with_accepted_list(resources_accepted),
+                allocated_resource_kind: None,
+            });
         }
 
         Box::new(Self { slots, slot_capacity })
@@ -574,7 +575,6 @@ impl StorageSlots {
         };
 
         let prev_count = self.slot_resource_count(slot_index, kind);
-
         let new_count = self.increment_slot_resource_count(slot_index, kind, count);
 
         new_count - prev_count
@@ -587,7 +587,6 @@ impl StorageSlots {
         };
 
         let prev_count = self.slot_resource_count(slot_index, kind);
-
         let new_count = self.decrement_slot_resource_count(slot_index, kind, count);
 
         prev_count - new_count

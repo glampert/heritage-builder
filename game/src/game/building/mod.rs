@@ -4,7 +4,7 @@ use bitflags::{bitflags, Flags};
 use enum_dispatch::enum_dispatch;
 use paste::paste;
 use proc_macros::DrawDebugUi;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use smallvec::SmallVec;
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
@@ -1388,7 +1388,7 @@ impl<'world> BuildingContext<'world> {
 // BuildingStock
 // ----------------------------------------------
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize)]
 pub struct BuildingStock {
     resources: ResourceStock,
     capacities: [u8; RESOURCE_KIND_COUNT],
@@ -1557,5 +1557,36 @@ impl BuildingStock {
                               ui.text(format!("({} left)", capacity_left));
                           }
                       });
+    }
+}
+
+// NOTE:
+//  Custom deserialize allows us to change RESOURCE_KIND_COUNT
+//  and keep backwards compatibility with older save games.
+impl<'de> Deserialize<'de> for BuildingStock {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        #[derive(Deserialize)]
+        struct SerializedStock {
+            resources: ResourceStock,
+            capacities: SmallVec<[u8; RESOURCE_KIND_COUNT]>, // allow flexible length
+        }
+
+        let stock = SerializedStock::deserialize(deserializer)?;
+
+        if stock.capacities.len() > RESOURCE_KIND_COUNT {
+            return Err(de::Error::invalid_length(
+                stock.capacities.len(),
+                &format!("at most {RESOURCE_KIND_COUNT} entries for BuildingStock capacities").as_str(),
+            ));
+        }
+
+        let mut capacities = [0u8; RESOURCE_KIND_COUNT];
+        for (i, value) in stock.capacities.into_iter().enumerate() {
+            capacities[i] = value;
+        }
+
+        Ok(BuildingStock { resources: stock.resources, capacities })
     }
 }

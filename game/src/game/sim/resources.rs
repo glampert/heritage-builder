@@ -2,27 +2,28 @@
 
 use core::slice::Iter;
 use std::{
-    collections::{hash_map::Entry, HashMap},
     fmt::Display,
     ops::{Deref, DerefMut},
+    collections::{hash_map::Entry, HashMap},
 };
 
 use arrayvec::ArrayVec;
+use smallvec::SmallVec;
 use bitflags::{bitflags, Flags};
 use proc_macros::DrawDebugUi;
 use rand::{seq::IteratorRandom, Rng};
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 
 use crate::{
     bitflags_with_display,
-    game::{
-        building::{Building, BuildingId, BuildingKind, BuildingKindAndId},
-        cheats,
-        world::{object::GameObject, stats::WorldStats, World},
-    },
-    ui::UiSystem,
     log,
     utils::Color,
+    ui::UiSystem,
+    game::{
+        cheats,
+        world::{object::GameObject, stats::WorldStats, World},
+        building::{Building, BuildingId, BuildingKind, BuildingKindAndId},
+    },
 };
 
 // ----------------------------------------------
@@ -33,20 +34,22 @@ bitflags_with_display! {
     #[derive(Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
     pub struct ResourceKind: u32 {
         // Foods:
-        const Rice  = 1 << 0;
-        const Meat  = 1 << 1;
-        const Fish  = 1 << 2;
+        const Rice    = 1 << 0;
+        const Meat    = 1 << 1;
+        const Fish    = 1 << 2;
 
         // Consumer Goods:
-        const Wine  = 1 << 3;
+        const Wine    = 1 << 3;
+        const Pottery = 1 << 4;
 
         // Raw materials:
-        const Wood  = 1 << 4;
-        const Metal = 1 << 5;
-        const Clay  = 1 << 6;
+        const Wood    = 1 << 5;
+        const Metal   = 1 << 6;
+        const Clay    = 1 << 7;
+        const Bricks  = 1 << 8;
 
         // Gold (used as currency only):
-        const Gold  = 1 << 7;
+        const Gold    = 1 << 9;
     }
 }
 
@@ -68,12 +71,12 @@ impl ResourceKind {
 
     #[inline]
     pub const fn consumer_goods() -> Self {
-        Self::from_bits_retain(Self::Wine.bits())
+        Self::from_bits_retain(Self::Wine.bits() | Self::Pottery.bits())
     }
 
     #[inline]
     pub const fn raw_materials() -> Self {
-        Self::from_bits_retain(Self::Wood.bits() | Self::Metal.bits() | Self::Clay.bits())
+        Self::from_bits_retain(Self::Wood.bits() | Self::Metal.bits() | Self::Clay.bits() | Self::Bricks.bits())
     }
 
     #[inline]
@@ -117,9 +120,7 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // keyed by a string). This converts a map into a Vec of pairs when serializing
 // and builds back a map during deserialization.
 mod serialize_hash_map_as_pairs {
-
     use std::{collections::HashMap, hash::Hash};
-
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     pub fn serialize<K, V, S>(map: &HashMap<K, V>, ser: S) -> Result<S::Ok, S::Error>
@@ -786,15 +787,15 @@ impl GlobalTreasury {
         // building that has more gold we can take from.
         if amount != 0 {
             world.for_each_building_mut(BuildingKind::treasury(), |building| {
-                     let removed_amount = building.remove_resources(ResourceKind::Gold, amount);
-                     debug_assert!(removed_amount <= amount);
-                     gold_units_subtracted += removed_amount;
-                     amount -= removed_amount;
-                     if amount == 0 {
-                         return false; // stop
-                     }
-                     true // continue
-                 });
+                let removed_amount = building.remove_resources(ResourceKind::Gold, amount);
+                debug_assert!(removed_amount <= amount);
+                gold_units_subtracted += removed_amount;
+                amount -= removed_amount;
+                if amount == 0 {
+                    return false; // stop
+                }
+                true // continue
+            });
         }
 
         // Must be kept up to date because the world update frequency (and tally) might
@@ -816,7 +817,7 @@ pub struct StockItem {
     pub count: u32,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize)]
 pub struct ResourceStock {
     kinds: ResourceKind, // If the kind flag bit is set, the stock accepts that resource.
     counts: [u16; RESOURCE_KIND_COUNT],
@@ -832,12 +833,15 @@ impl ResourceStock {
     #[inline]
     #[must_use]
     pub fn with_accepted_list(accepted_resources: &ResourceKinds) -> Self {
-        let mut stock = Self { kinds: ResourceKind::empty(), counts: [0; RESOURCE_KIND_COUNT] };
+        let mut stock = Self {
+            kinds: ResourceKind::empty(),
+            counts: [0; RESOURCE_KIND_COUNT],
+        };
 
         accepted_resources.for_each(|kind| {
-                              stock.kinds.insert(kind);
-                              true
-                          });
+            stock.kinds.insert(kind);
+            true
+        });
 
         stock
     }
@@ -956,10 +960,11 @@ impl ResourceStock {
         where F: FnMut(usize, &StockItem)
     {
         for (index, kind) in self.kinds.iter().enumerate() {
-            debug_assert!(bit_index(kind) == index);
-            let count = self.counts[index];
-            let item = StockItem { kind, count: count.into() };
-            visitor_fn(index, &item);
+            if index < self.counts.len() {
+                let count = self.counts[index];
+                let item = StockItem { kind, count: count.into() };
+                visitor_fn(index, &item);
+            }
         }
     }
 
@@ -968,11 +973,12 @@ impl ResourceStock {
         where F: FnMut(usize, &mut StockItem)
     {
         for (index, kind) in self.kinds.iter().enumerate() {
-            debug_assert!(bit_index(kind) == index);
-            let count = self.counts[index];
-            let mut item = StockItem { kind, count: count.into() };
-            visitor_fn(index, &mut item);
-            self.counts[index] = item.count.try_into().expect("Value cannot fit into a u16!");
+            if index < self.counts.len() {
+                let count = self.counts[index];
+                let mut item = StockItem { kind, count: count.into() };
+                visitor_fn(index, &mut item);
+                self.counts[index] = item.count.try_into().expect("Value cannot fit into a u16!");
+            }
         }
     }
 
@@ -982,11 +988,11 @@ impl ResourceStock {
         if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
             ui.indent_by(5.0);
             self.for_each(|index, item| {
-                    ui.input_text(format!("{}##_stock_item_{}", item.kind, index),
-                                  &mut format!("{}", item.count))
-                      .read_only(true)
-                      .build();
-                });
+                ui.input_text(format!("{}##_stock_item_{}", item.kind, index),
+                                &mut format!("{}", item.count))
+                    .read_only(true)
+                    .build();
+            });
             ui.unindent_by(5.0);
         }
     }
@@ -995,6 +1001,37 @@ impl ResourceStock {
 impl Display for StockItem {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Item(kind: {}, count: {})", self.kind, self.count)
+    }
+}
+
+// NOTE:
+//  Custom deserialize allows us to change RESOURCE_KIND_COUNT
+//  and keep backwards compatibility with older save games.
+impl<'de> Deserialize<'de> for ResourceStock {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        #[derive(Deserialize)]
+        struct SerializedStock {
+            kinds: ResourceKind,
+            counts: SmallVec<[u16; RESOURCE_KIND_COUNT]>, // allow flexible length
+        }
+
+        let stock = SerializedStock::deserialize(deserializer)?;
+
+        if stock.counts.len() > RESOURCE_KIND_COUNT {
+            return Err(de::Error::invalid_length(
+                stock.counts.len(),
+                &format!("at most {RESOURCE_KIND_COUNT} entries for ResourceStock").as_str(),
+            ));
+        }
+
+        let mut counts = [0u16; RESOURCE_KIND_COUNT];
+        for (i, value) in stock.counts.into_iter().enumerate() {
+            counts[i] = value;
+        }
+
+        Ok(ResourceStock { kinds: stock.kinds, counts })
     }
 }
 
@@ -1007,7 +1044,8 @@ pub struct ResourceList<T, const CAPACITY: usize> {
     kinds: ArrayVec<T, CAPACITY>, // Each item can be a single bitflag or multiple ORed together.
 }
 
-impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY> where T: Copy + Display + bitflags::Flags
+impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
+    where T: Copy + Display + bitflags::Flags
 {
     #[inline]
     #[must_use]
