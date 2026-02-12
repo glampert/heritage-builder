@@ -401,12 +401,7 @@ impl TilePalette for TilePaletteMenu {
     }
 
     fn clear_selection(&mut self, context: &mut GameMenusContext) {
-        let mut ui_context = UiWidgetContext::new(
-            context.sim,
-            context.world,
-            context.engine
-        );
-        self.reset_selection_internal(&mut ui_context);
+        self.reset_selection_internal(&mut context.as_ui_widget_context());
     }
 }
 

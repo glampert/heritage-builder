@@ -2,12 +2,11 @@ use proc_macros::DrawDebugUi;
 use strum::{VariantArray, VariantNames};
 
 use crate::{
+    ui,
     engine::time::Seconds,
-    ui::{self, UiInputEvent},
     pathfind::NodeKind as PathNodeKind,
-    app::input::{InputAction, MouseButton},
     utils::{constants::*, coords::Cell, mem, Color, Size, Vec2},
-    game::{sim::{self, debug::DebugUiMode, Simulation}, menu::TileInspector},
+    game::{sim::{self, debug::DebugUiMode, Simulation}, menu::{TileInspector, GameMenusContext}},
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind, TileDepthSortOverride},
 };
 
@@ -60,27 +59,28 @@ pub struct TileInspectorDevMenu {
 }
 
 impl TileInspector for TileInspectorDevMenu {
-    fn on_mouse_button(&mut self,
-                       button: MouseButton,
-                       action: InputAction,
-                       selected_tile: &Tile)
-                       -> UiInputEvent {
-        if button == MouseButton::Left && action == InputAction::Press {
-            self.is_open  = true;
-            self.selected = Some(TileWeakRef::new(selected_tile));
-            UiInputEvent::Handled
-        } else {
-            UiInputEvent::NotHandled
+    fn open(&mut self, context: &mut GameMenusContext) {
+        if let Some(selected_tile) = context.topmost_selected_tile() {
+            self.open(selected_tile);
         }
     }
 
-    fn close(&mut self) {
-        self.is_open  = false;
-        self.selected = None;
+    fn close(&mut self, _context: &mut GameMenusContext) {
+        self.close();
     }
 }
 
 impl TileInspectorDevMenu {
+    pub fn open(&mut self, selected_tile: &Tile) {
+        self.is_open  = true;
+        self.selected = Some(TileWeakRef::new(selected_tile));
+    }
+
+    pub fn close(&mut self) {
+        self.is_open  = false;
+        self.selected = None;
+    }
+
     pub fn on_tile_placed(&mut self, tile: &Tile, did_reallocate: bool) {
         if did_reallocate {
             // Tidy any local Tile references if the tile map has

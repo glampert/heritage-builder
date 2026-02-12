@@ -89,16 +89,21 @@ pub struct GameMenusContext<'game> {
 }
 
 impl GameMenusContext<'_> {
+    #[inline]
+    pub fn as_ui_widget_context(&mut self) -> UiWidgetContext<'_> {
+        UiWidgetContext::new(self.sim, self.world, self.engine)
+    }
+
+    pub fn topmost_selected_tile(&self) -> Option<&Tile> {
+        self.tile_map.topmost_selected_tile(self.tile_selection)
+    }
+
     fn new_query(&mut self) -> Query {
         self.sim.new_query(self.world, self.tile_map, self.delta_time_secs)
     }
 
     fn can_afford_cost(&self, cost: u32) -> bool {
         self.sim.treasury().can_afford(self.world, cost)
-    }
-
-    fn topmost_selected_tile(&self) -> Option<&Tile> {
-        self.tile_map.topmost_selected_tile(self.tile_selection)
     }
 
     fn selection_handle_mouse_button(&mut self, button: MouseButton, action: InputAction) -> bool {
@@ -205,7 +210,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                         self.tile_palette().unwrap().clear_selection(context);
                         context.clear_selection();
                         if let Some(tile_inspector) = self.tile_inspector() {
-                            tile_inspector.close();
+                            tile_inspector.close(context);
                         }
                         return UiInputEvent::Handled;
                     }
@@ -298,11 +303,15 @@ pub trait GameMenusSystem: Any + Save + Load {
                     context.clear_selection();
                 }
 
-                // Open inspector only if we're not in road placement or clear mode.
-                if !is_road_tile_selected && !is_clear_selected {
-                    if let Some(tile_inspector) = self.tile_inspector() {
-                        if let Some(selected_tile) = context.topmost_selected_tile() {
-                            return tile_inspector.on_mouse_button(button, action, selected_tile);
+                // Left click on a tile can open the TileInspector:
+                if action == InputAction::Press && button == MouseButton::Left {
+                    // Open inspector only if we're not in road placement or clear mode.
+                    if !is_road_tile_selected && !is_clear_selected {
+                        if let Some(tile_inspector) = self.tile_inspector() {
+                            if context.topmost_selected_tile().is_some() {
+                                tile_inspector.open(context);
+                                return UiInputEvent::Handled;
+                            }
                         }
                     }
                 }
@@ -635,13 +644,8 @@ pub trait TilePalette {
 // ----------------------------------------------
 
 pub trait TileInspector {
-    fn on_mouse_button(&mut self,
-                       button: MouseButton,
-                       action: InputAction,
-                       selected_tile: &Tile)
-                       -> UiInputEvent;
-
-    fn close(&mut self);
+    fn open(&mut self, context: &mut GameMenusContext);
+    fn close(&mut self, context: &mut GameMenusContext);
 }
 
 // ----------------------------------------------

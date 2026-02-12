@@ -191,12 +191,7 @@ impl DevEditorMenusSingleton {
         }
 
         if show_sample_menus {
-            let mut ui_context = UiWidgetContext::new(
-                menu_context.sim,
-                menu_context.world,
-                menu_context.engine
-            );
-            ui::tests::draw_sample_menus(&mut ui_context);
+            ui::tests::draw_sample_menus(&mut menu_context.as_ui_widget_context());
         }
 
         {

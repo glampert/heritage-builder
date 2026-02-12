@@ -123,13 +123,7 @@ impl GameMenusSystem for HomeMenus {
             if key == InputKey::Escape && action == InputAction::Press {
                 // Close if we're not already at the Main Home Menu.
                 if dialog::current().is_some_and(|dialog| dialog != DialogMenuKind::Home) {
-                    let mut ui_context = UiWidgetContext::new(
-                        context.sim,
-                        context.world,
-                        context.engine
-                    );
-
-                    if dialog::close_current(&mut ui_context) {
+                    if dialog::close_current(&mut context.as_ui_widget_context()) {
                         return UiInputEvent::Handled; // Key press is handled.
                     }
                 }
@@ -140,11 +134,7 @@ impl GameMenusSystem for HomeMenus {
     }
 
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
-        let mut ui_context = UiWidgetContext::new(
-            context.sim,
-            context.world,
-            context.engine
-        );
+        let mut ui_context = context.as_ui_widget_context();
 
         self.slideshow.draw(&mut ui_context);
 

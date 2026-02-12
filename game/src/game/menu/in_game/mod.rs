@@ -80,13 +80,7 @@ impl GameMenusSystem for InGameMenus {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
             // [ESCAPE]: Close all dialog menus and return to game.
             if key == InputKey::Escape && action == InputAction::Press {
-                let mut ui_context = UiWidgetContext::new(
-                    context.sim,
-                    context.world,
-                    context.engine
-                );
-
-                if dialog::close_current(&mut ui_context) {
+                if dialog::close_current(&mut context.as_ui_widget_context()) {
                     return UiInputEvent::Handled; // Key press is handled.
                 }
             }
