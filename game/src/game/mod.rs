@@ -852,7 +852,7 @@ impl GameLoop {
                                               ui_sys,
                                               delta_time_secs);
 
-        self.engine.draw_tile_map(&mut session.tile_map,
+        self.engine.draw_tile_map(&session.tile_map,
                                   &session.tile_selection,
                                   &session.camera,
                                   visible_range,

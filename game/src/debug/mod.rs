@@ -4,6 +4,7 @@ use std::any::Any;
 use inspector::TileInspectorDevMenu;
 use palette::TilePaletteDevMenu;
 use settings::DebugSettingsDevMenu;
+use log_viewer::LogViewerWindow;
 
 use crate::{
     singleton_late_init,
@@ -122,6 +123,7 @@ struct DevEditorMenusSingleton {
     tile_inspector_menu: TileInspectorDevMenu,
     enable_tile_inspector: bool,
     minimap_renderer: DevUiMinimapRenderer,
+    log_viewer: LogViewerWindow,
 }
 
 impl DevEditorMenusSingleton {
@@ -133,6 +135,7 @@ impl DevEditorMenusSingleton {
             tile_inspector_menu: TileInspectorDevMenu::default(),
             enable_tile_inspector,
             minimap_renderer: DevUiMinimapRenderer::new(),
+            log_viewer: LogViewerWindow::new(),
         }
     }
 
@@ -154,9 +157,8 @@ impl DevEditorMenusSingleton {
         let debug_draw = GameLoop::get_mut().engine_mut().debug_draw();
 
         if *show_log_viewer_window {
-            let log_viewer = GameLoop::get_mut().engine_mut().log_viewer();
-            log_viewer.show(true);
-            *show_log_viewer_window = log_viewer.draw(ui_sys);
+            self.log_viewer.show(true);
+            *show_log_viewer_window = self.log_viewer.draw(ui_sys);
         }
 
         {
@@ -179,6 +181,7 @@ impl DevEditorMenusSingleton {
             self.debug_settings_menu.draw(&mut sim_context,
                                           menu_context.sim,
                                           GameLoop::get_mut(),
+                                          &self.log_viewer,
                                           &mut self.enable_tile_inspector);
 
             if self.enable_tile_inspector {

@@ -7,7 +7,6 @@ use time::{FrameClock, Seconds};
 use crate::{
     log,
     sound::SoundSystem,
-    debug::log_viewer::LogViewerWindow,
     ui::{self, UiRenderer, UiRendererFactory, UiSystem},
     app::{
         self, input::*, Application, ApplicationBuilder, ApplicationEvent, ApplicationEventList,
@@ -63,20 +62,19 @@ pub trait Engine: Any {
     fn debug_draw(&mut self) -> &mut dyn DebugDraw;
 
     fn frame_clock(&self) -> &FrameClock;
-    fn log_viewer(&mut self) -> &mut LogViewerWindow;
     fn viewport(&self) -> Rect;
 
     fn set_grid_line_thickness(&mut self, thickness: f32);
     fn grid_line_thickness(&self) -> f32;
 
     fn is_running(&self) -> bool;
-    fn app_events(&mut self) -> &ApplicationEventList;
+    fn app_events(&self) -> &ApplicationEventList;
 
     fn begin_frame(&mut self) -> (Seconds, Vec2);
     fn end_frame(&mut self);
 
     fn draw_tile_map(&mut self,
-                     tile_map: &mut TileMap,
+                     tile_map: &TileMap,
                      tile_selection: &TileSelection,
                      camera: &Camera,
                      visible_range: CellRange,
@@ -105,8 +103,6 @@ pub struct EngineBackend<AppBackendImpl,
     debug_draw: DebugDrawBackend<RenderSystemBackendImpl>,
 
     frame_clock: FrameClock,
-    log_viewer: LogViewerWindow,
-
     frame_events: ApplicationEventList,
 
     _ui_marker: PhantomData<UiRendererBackendImpl>,
@@ -125,8 +121,6 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
 {
     pub fn new(configs: &EngineConfigs) -> Self {
         log::set_level(configs.log_level);
-        let log_viewer = LogViewerWindow::new();
-
         log::info!(log::channel!("engine"), "--- Engine Initialization ---");
 
         let app: Box<AppBackendImpl> =
@@ -168,10 +162,9 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
             sound_system,
             debug_draw,
             frame_clock: FrameClock::new(),
-            log_viewer,
             frame_events: ApplicationEventList::new(),
             _ui_marker: PhantomData,
-            _input_marker: PhantomData
+            _input_marker: PhantomData,
         }
     }
 
@@ -284,11 +277,6 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 
     #[inline]
-    fn log_viewer(&mut self) -> &mut LogViewerWindow {
-        &mut self.log_viewer
-    }
-
-    #[inline]
     fn viewport(&self) -> Rect {
         self.render_system.viewport()
     }
@@ -309,7 +297,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 
     #[inline]
-    fn app_events(&mut self) -> &ApplicationEventList {
+    fn app_events(&self) -> &ApplicationEventList {
         &self.frame_events
     }
 
@@ -336,7 +324,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 
     fn draw_tile_map(&mut self,
-                     tile_map: &mut TileMap,
+                     tile_map: &TileMap,
                      tile_selection: &TileSelection,
                      camera: &Camera,
                      visible_range: CellRange,

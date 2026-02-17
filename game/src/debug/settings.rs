@@ -187,6 +187,7 @@ impl DebugSettingsDevMenu {
                 context: &mut sim::debug::DebugContext,
                 sim: &mut Simulation,
                 game_loop: &mut GameLoop,
+                log_viewer: &debug::log_viewer::LogViewerWindow,
                 enable_tile_inspector: &mut bool) {
         let ui = context.ui_sys.ui();
 
@@ -211,18 +212,19 @@ impl DebugSettingsDevMenu {
                 self.debug_options_menu(context, game_loop, enable_tile_inspector);
             }
 
-            self.menu_bar_text(context, game_loop);
+            self.menu_bar_text(context, log_viewer);
         }
 
         self.draw_child_windows(context, game_loop, sim);
     }
 
-    fn menu_bar_text(&self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
+    fn menu_bar_text(&self,
+                     context: &mut sim::debug::DebugContext,
+                     log_viewer: &debug::log_viewer::LogViewerWindow) {
         let ui = context.ui_sys.ui();
 
         // Log error/warning count:
         {
-            let log_viewer = game_loop.engine_mut().log_viewer();
             let (log_error_count, log_warning_count) = log_viewer.error_and_warning_count();
 
             if log_error_count != 0 || log_warning_count != 0 {
