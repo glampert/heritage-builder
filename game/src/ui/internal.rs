@@ -71,23 +71,25 @@ pub fn draw_widget_window_background(ui: &imgui::Ui, background: UiTextureHandle
         .build();
 }
 
-pub fn draw_centered_text_group(ui: &imgui::Ui,
-                                lines: &[String],
+pub fn draw_centered_text_group(context: &mut UiWidgetContext,
+                                lines: &[(String, UiFontScale)],
                                 vertical: bool,
                                 horizontal: bool) -> Rect {
     if lines.is_empty() {
         return Rect::zero();
     }
 
+    let ui = context.ui_sys.ui();
+
     // Measure text sizes:
-    let text_sizes: SmallVec<[[f32; 2]; 16]> = lines
+    let text_sizes: SmallVec<[Vec2; 16]> = lines
         .iter()
-        .map(|s| ui.calc_text_size(s))
+        .map(|(text, font_scale)| calc_text_size(context, *font_scale, text).0)
         .collect();
 
     let max_width = text_sizes
         .iter()
-        .map(|s| s[0])
+        .map(|size| size.x)
         .fold(0.0, f32::max);
 
     let line_height  = ui.text_line_height_with_spacing();
@@ -101,10 +103,11 @@ pub fn draw_centered_text_group(ui: &imgui::Ui,
     let start_y = if vertical   { cursor_start[1] + ((region_avail[1] - total_height) * 0.5) } else { cursor_start[1] };
 
     // Draw each line:
-    for (i, (line, size)) in lines.iter().zip(text_sizes.iter()).enumerate() {
-        let x = start_x + (max_width - size[0]) * 0.5;
+    for (i, ((line, font_scale), size)) in lines.iter().zip(text_sizes.iter()).enumerate() {
+        let x = start_x + (max_width - size.x) * 0.5;
         let y = start_y + (i as f32 * line_height);
 
+        context.set_window_font_scale(*font_scale);
         ui.set_cursor_pos([x, y]);
         ui.text(line);
     }

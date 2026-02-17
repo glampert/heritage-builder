@@ -49,8 +49,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     let menu_heading = UiMenuHeading::new(
         context,
         UiMenuHeadingParams {
-            font_scale: heading_font_scale,
-            lines: vec!["Sample Menu 1".into()],
+            lines: vec![("Sample Menu 1".into(), heading_font_scale)],
             separator: Some("misc/brush_stroke_divider.png"),
             margin_top: 10.0,
             margin_bottom: 10.0,
@@ -312,8 +311,10 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                     UiWidgetImpl::from(UiMenuHeading::new(
                                         context,
                                         UiMenuHeadingParams {
-                                            font_scale: widgets_font_scale,
-                                            lines: vec!["Quit to main menu?".into(), "Unsaved progress will be lost".into()],
+                                            lines: vec![
+                                                ("Quit to main menu?".into(), widgets_font_scale),
+                                                ("Unsaved progress will be lost".into(), widgets_font_scale),
+                                            ],
                                             separator: Some("misc/brush_stroke_divider.png"),
                                             margin_top: 5.0,
                                             ..Default::default()

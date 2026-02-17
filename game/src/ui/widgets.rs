@@ -715,8 +715,7 @@ impl UiMenu {
 // ----------------------------------------------
 
 pub struct UiMenuHeadingParams<'a> {
-    pub font_scale: UiFontScale,
-    pub lines: Vec<String>,
+    pub lines: Vec<(String, UiFontScale)>,
     pub separator: Option<&'a str>,
     pub margin_top: f32,
     pub margin_bottom: f32,
@@ -727,7 +726,6 @@ pub struct UiMenuHeadingParams<'a> {
 impl<'a> Default for UiMenuHeadingParams<'a> {
     fn default() -> Self {
         Self {
-            font_scale: UiFontScale::default(),
             lines: Vec::new(),
             separator: None,
             margin_top: 0.0,
@@ -745,8 +743,7 @@ impl<'a> Default for UiMenuHeadingParams<'a> {
 // Centered window heading.
 // Can consist of multiple lines and an optional separator sprite at the end.
 pub struct UiMenuHeading {
-    font_scale: UiFontScale,
-    lines: Vec<String>,
+    lines: Vec<(String, UiFontScale)>,
     separator: Option<UiTextureHandle>,
     margin_top: f32,
     margin_bottom: f32,
@@ -761,8 +758,6 @@ impl UiWidget for UiMenuHeading {
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
-
-        context.set_window_font_scale(self.font_scale);
         let ui = context.ui_sys.ui();
 
         if self.margin_top > 0.0 {
@@ -770,7 +765,7 @@ impl UiWidget for UiMenuHeading {
         }
 
         let group = internal::draw_centered_text_group(
-            ui,
+            context,
             &self.lines,
             self.center_vertically,
             self.center_horizontally);
@@ -803,8 +798,8 @@ impl UiWidget for UiMenuHeading {
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
         let mut size = Vec2::zero();
 
-        for line in &self.lines {
-            let (line_size, _) = internal::calc_text_size(context, self.font_scale, line);
+        for (line, font_scale) in &self.lines {
+            let (line_size, _) = internal::calc_text_size(context, *font_scale, line);
             size.x = size.x.max(line_size.x); // Max width.
             size.y += line_size.y; // Total height.
         }
@@ -818,19 +813,17 @@ impl UiWidget for UiMenuHeading {
     }
 
     fn font_scale(&self) -> UiFontScale {
-        self.font_scale
+        self.lines[0].1
     }
 }
 
 impl UiMenuHeading {
-    pub fn new(context: &mut UiWidgetContext, params: UiMenuHeadingParams) -> Self {                
-        debug_assert!(params.font_scale.is_valid());
+    pub fn new(context: &mut UiWidgetContext, params: UiMenuHeadingParams) -> Self {
         debug_assert!(!params.lines.is_empty());
         debug_assert!(params.margin_top >= 0.0);
         debug_assert!(params.margin_bottom >= 0.0);
 
         Self {
-            font_scale: params.font_scale,
             lines: params.lines,
             separator: params.separator.map(|path| context.load_ui_texture(path)),
             margin_top: params.margin_top,
@@ -841,12 +834,12 @@ impl UiMenuHeading {
     }
 
     #[inline]
-    pub fn lines(&self) -> &[String] {
+    pub fn lines(&self) -> &[(String, UiFontScale)] {
         &self.lines
     }
 
     #[inline]
-    pub fn lines_mut(&mut self) -> &mut [String] {
+    pub fn lines_mut(&mut self) -> &mut [(String, UiFontScale)] {
         &mut self.lines
     }
 }

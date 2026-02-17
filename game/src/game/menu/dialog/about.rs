@@ -48,17 +48,16 @@ impl About {
             Option::<Vec<UiWidgetImpl>>::None
         );
 
-        let about_text: Vec<String> = vec![
-            "A City Builder by Core System Games".into(),
-            "Copyright (C) 2026. All Rights Reserved".into(),
-            format!("Version {}", utils::version()),
+        let about_text = vec![
+            ("A City Builder by Core System Games".into(), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
+            ("Copyright (C) 2026. All Rights Reserved".into(), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
+            (format!("Version {}", utils::version()), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
         ];
 
         menu.add_widget(UiMenuHeading::new(
             context,
             UiMenuHeadingParams {
                 lines: about_text,
-                font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE,
                 margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,
                 ..Default::default()
             }

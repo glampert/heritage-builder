@@ -140,8 +140,7 @@ impl SaveGameHelper {
                     UiWidgetImpl::from(UiMenuHeading::new(
                         context,
                         UiMenuHeadingParams {
-                            lines: vec!["Overwrite existing save game?".into()],
-                            font_scale: DEFAULT_DIALOG_POPUP_FONT_SCALE,
+                            lines: vec![("Overwrite existing save game?".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE)],
                             separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
                             margin_top: 2.0,
                             ..Default::default()

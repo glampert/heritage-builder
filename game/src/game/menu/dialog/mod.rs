@@ -397,8 +397,7 @@ fn make_default_layout_dialog_menu(context: &mut UiWidgetContext,
     let heading = UiMenuHeading::new(
         context,
         UiMenuHeadingParams {
-            font_scale: DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE,
-            lines: heading_title.iter().map(|line| line.to_string()).collect(),
+            lines: heading_title.iter().map(|line| (line.to_string(), DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE)).collect(),
             separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
             margin_top: DEFAULT_DIALOG_MENU_HEADING_MARGINS.0,
             margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,
