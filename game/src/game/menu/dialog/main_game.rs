@@ -136,7 +136,7 @@ impl MainGame {
                             size: UiTextButtonSize::Normal,
                             hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
                             enabled: true,
-                            on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().request_quit()),
+                            on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_game()),
                             ..Default::default()
                         }
                     )),

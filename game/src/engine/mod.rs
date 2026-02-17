@@ -49,7 +49,7 @@ pub mod backend {
 pub trait Engine: Any {
     fn as_any(&self) -> &dyn Any;
 
-    fn app(&mut self) -> &mut dyn Application;
+    fn app(&self) -> &mut dyn Application;
     fn input_system(&self) -> &dyn InputSystem;
 
     fn render_system(&self) -> &mut dyn RenderSystem;
@@ -58,8 +58,8 @@ pub trait Engine: Any {
     fn tile_map_render_stats(&self) -> &TileMapRenderStats;
 
     fn ui_system(&self) -> &UiSystem;
-    fn sound_system(&mut self) -> &mut SoundSystem;
-    fn debug_draw(&mut self) -> &mut dyn DebugDraw;
+    fn sound_system(&self) -> &mut SoundSystem;
+    fn debug_draw(&self) -> &mut dyn DebugDraw;
 
     fn frame_clock(&self) -> &FrameClock;
     fn viewport(&self) -> Rect;
@@ -227,8 +227,8 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 
     #[inline]
-    fn app(&mut self) -> &mut dyn Application {
-        &mut *self.app
+    fn app(&self) -> &mut dyn Application {
+        mem::mut_ref_cast(self.app.as_ref())
     }
 
     #[inline]
@@ -262,13 +262,13 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 
     #[inline]
-    fn sound_system(&mut self) -> &mut SoundSystem {
-        &mut self.sound_system
+    fn sound_system(&self) -> &mut SoundSystem {
+        mem::mut_ref_cast(&self.sound_system)
     }
 
     #[inline]
-    fn debug_draw(&mut self) -> &mut dyn DebugDraw {
-        &mut self.debug_draw
+    fn debug_draw(&self) -> &mut dyn DebugDraw {
+        mem::mut_ref_cast(&self.debug_draw)
     }
 
     #[inline]

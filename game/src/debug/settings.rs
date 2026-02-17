@@ -264,7 +264,7 @@ impl DebugSettingsDevMenu {
 
         // Quit game:
         if ui.button("Quit") {
-            game_loop.request_quit();
+            game_loop.quit_game();
         }
 
         // Reset map options:

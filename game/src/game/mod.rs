@@ -655,7 +655,7 @@ impl GameLoop {
         self.session.as_mut().unwrap()
     }
 
-    pub fn request_quit(&mut self) {
+    pub fn quit_game(&mut self) {
         self.engine_mut().app().request_quit();
     }
 

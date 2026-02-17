@@ -10,7 +10,7 @@ use crate::{
 
 macro_rules! read_master_volume_u32 {
     ($volume_field:ident) => {{
-        let sound_settings = GameLoop::get_mut().engine_mut().sound_system().current_sound_settings();
+        let sound_settings = GameLoop::get().engine().sound_system().current_sound_settings();
         (sound_settings.$volume_field * 100.0) as u32 // Scale from [0,1] f32 to [0,100] u32
     }};
 }

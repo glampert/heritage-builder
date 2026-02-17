@@ -54,7 +54,7 @@ impl ButtonDef for HomeButtonKind {
 
 impl HomeButtonKind {
     fn on_quit() -> bool {
-        GameLoop::get_mut().request_quit();
+        GameLoop::get_mut().quit_game();
         true
     }
 }
