@@ -330,7 +330,7 @@ pub enum UiWidgetImpl {
 
 bitflags_with_display! {
     #[derive(Copy, Clone, Default)]
-    pub struct UiMenuFlags: u8 {
+    pub struct UiMenuFlags: u16 {
         const IsOpen                 = 1 << 0;
         const PauseSimIfOpen         = 1 << 1;
         const Fullscreen             = 1 << 2;
@@ -338,7 +338,8 @@ bitflags_with_display! {
         const AlignCenterTop         = 1 << 4;
         const AlignLeft              = 1 << 5;
         const AlignRight             = 1 << 6;
-        const HideWhenMessageBoxOpen = 1 << 7;
+        const Modal                  = 1 << 7;
+        const HideWhenMessageBoxOpen = 1 << 8;
     }
 }
 
@@ -422,29 +423,39 @@ impl UiWidget for UiMenu {
         let window_flags = self.calc_window_flags();
         let window_name = make_imgui_id!(self, UiMenu, self.label);
 
+        let draw_window_contents = || {
+            context.begin_widget_window();
+
+            // Set default widget spacing.
+            let _spacing =
+                ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
+
+            if let Some(background) = self.background {
+                internal::draw_widget_window_background(ui, background);
+            }
+
+            for widget in &mut self.widgets {
+                widget.draw(context);
+            }
+
+            context.end_widget_window();
+        };
+
         internal::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
+        internal::set_next_widget_window_size(window_size, window_size_cond);
 
-        ui.window(window_name)
-            .opened(&mut is_open)
-            .size(window_size.to_array(), window_size_cond)
-            .flags(window_flags)
-            .build(|| {
-                context.begin_widget_window();
-
-                // Set default widget spacing.
-                let _spacing =
-                    ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
-
-                if let Some(background) = self.background {
-                    internal::draw_widget_window_background(ui, background);
-                }
-
-                for widget in &mut self.widgets {
-                    widget.draw(context);
-                }
-
-                context.end_widget_window();
-            });
+        if self.flags.intersects(UiMenuFlags::Modal) {
+            ui.open_popup(window_name);
+            ui.modal_popup_config(window_name)
+                .opened(&mut is_open)
+                .flags(window_flags)
+                .build(draw_window_contents);
+        } else {
+            ui.window(window_name)
+                .opened(&mut is_open)
+                .flags(window_flags)
+                .build(draw_window_contents);
+        }
 
         self.flags.set(UiMenuFlags::IsOpen, is_open && self.is_open());
 
@@ -2912,7 +2923,7 @@ impl UiMessageBox {
             context,
             UiMenuParams {
                 label: params.label,
-                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter,
+                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::Modal,
                 size: params.size,
                 background: params.background,
                 ..Default::default()

@@ -47,7 +47,7 @@ impl TileInspectorMenu {
             context,
             UiMenuParams {
                 label: Some("TileInspector".into()),
-                flags: UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter,
+                flags: UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter | UiMenuFlags::Modal,
                 size: Some(menu_size),
                 background: Some("misc/square_page_bg.png"),
                 ..Default::default()
@@ -141,7 +141,7 @@ impl TileInspectorMenu {
         menu.add_widget(side_by_side_widget_group);
         menu.add_widget(separator.clone());
         menu.add_widget(dialog_text);
-        menu.add_widget(separator.clone()); 
+        menu.add_widget(separator.clone());
         menu.add_widget(side_by_side_button_group);
 
         Self { menu }

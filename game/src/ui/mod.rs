@@ -704,8 +704,8 @@ impl UiContext {
         colors[StyleColor::DragDropTarget as usize] = [0.58, 0.45, 0.35, 0.90];
         colors[StyleColor::NavHighlight as usize] = theme_color2;
         colors[StyleColor::NavWindowingHighlight as usize] = [1.0, 1.0, 1.0, 0.70];
-        colors[StyleColor::NavWindowingDimBg as usize] = [0.80, 0.80, 0.80, 0.20];
-        colors[StyleColor::ModalWindowDimBg as usize] = [0.80, 0.80, 0.80, 0.35];
+        colors[StyleColor::NavWindowingDimBg as usize] = [0.0, 0.0, 0.0, 0.15];
+        colors[StyleColor::ModalWindowDimBg as usize] = [0.0, 0.0, 0.0, 0.15];
 
         style.window_padding = [8.0, 8.0];
         style.frame_padding = [5.0, 2.0];

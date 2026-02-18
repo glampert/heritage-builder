@@ -50,11 +50,29 @@ pub fn base_widget_window_flags() -> imgui::WindowFlags {
 
 #[inline]
 pub fn set_next_widget_window_pos(pos: Vec2, pivot: Vec2, cond: imgui::Condition) {
+    if cond == imgui::Condition::Never {
+        return;
+    }
+
     unsafe {
         imgui::sys::igSetNextWindowPos(
             ImVec2 { x: pos.x, y: pos.y },
             cond as _,
-            ImVec2 { x: pivot.x, y: pivot.y },
+            ImVec2 { x: pivot.x, y: pivot.y }
+        );
+    }
+}
+
+#[inline]
+pub fn set_next_widget_window_size(size: Vec2, cond: imgui::Condition) {
+    if cond == imgui::Condition::Never {
+        return;
+    }
+
+    unsafe {
+        imgui::sys::igSetNextWindowSize(
+            ImVec2 { x: size.x, y: size.y },
+            cond as _
         );
     }
 }
