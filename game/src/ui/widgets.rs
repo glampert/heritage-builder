@@ -339,7 +339,8 @@ bitflags_with_display! {
         const AlignLeft              = 1 << 5;
         const AlignRight             = 1 << 6;
         const Modal                  = 1 << 7;
-        const HideWhenMessageBoxOpen = 1 << 8;
+        const CloseModalOnEscape     = 1 << 8;
+        const HideWhenMessageBoxOpen = 1 << 9;
     }
 }
 
@@ -423,7 +424,7 @@ impl UiWidget for UiMenu {
         let window_flags = self.calc_window_flags();
         let window_name = make_imgui_id!(self, UiMenu, self.label);
 
-        let draw_window_contents = || {
+        let mut draw_window_contents = || {
             context.begin_widget_window();
 
             // Set default widget spacing.
@@ -444,20 +445,44 @@ impl UiWidget for UiMenu {
         internal::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
         internal::set_next_widget_window_size(window_size, window_size_cond);
 
+        // Modal window has exclusive input focus (e.g.: popup message box).
         if self.flags.intersects(UiMenuFlags::Modal) {
+            let close_on_escape_pressed = self.flags.intersects(UiMenuFlags::CloseModalOnEscape);
+
             ui.open_popup(window_name);
-            ui.modal_popup_config(window_name)
+            let closed = ui.modal_popup_config(window_name)
                 .opened(&mut is_open)
                 .flags(window_flags)
-                .build(draw_window_contents);
+                .build(|| {
+                    draw_window_contents();
+
+                    let mut closed = false;
+                    if close_on_escape_pressed
+                        && ui.is_window_focused()
+                        && ui.is_key_pressed(imgui::Key::Escape)
+                    {
+                        ui.close_current_popup();
+                        closed = true;
+                    }
+
+                    closed
+                }).unwrap_or(false);
+
+                if closed {
+                    is_open = false;
+                }
         } else {
+            // Regular window.
             ui.window(window_name)
                 .opened(&mut is_open)
                 .flags(window_flags)
                 .build(draw_window_contents);
         }
 
-        self.flags.set(UiMenuFlags::IsOpen, is_open && self.is_open());
+        let closed = self.is_open() && !is_open;
+        if closed { // Window was closed. Raise event.
+            self.close(context);
+        }
 
         // Each menu can have one message box.
         if self.message_box.is_open() {
@@ -2923,7 +2948,10 @@ impl UiMessageBox {
             context,
             UiMenuParams {
                 label: params.label,
-                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::Modal,
+                flags: UiMenuFlags::IsOpen
+                     | UiMenuFlags::AlignCenter
+                     | UiMenuFlags::Modal
+                     | UiMenuFlags::CloseModalOnEscape,
                 size: params.size,
                 background: params.background,
                 ..Default::default()

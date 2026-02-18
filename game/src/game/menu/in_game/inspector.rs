@@ -47,7 +47,10 @@ impl TileInspectorMenu {
             context,
             UiMenuParams {
                 label: Some("TileInspector".into()),
-                flags: UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter | UiMenuFlags::Modal,
+                flags: UiMenuFlags::PauseSimIfOpen
+                     | UiMenuFlags::AlignCenter
+                     | UiMenuFlags::Modal
+                     | UiMenuFlags::CloseModalOnEscape,
                 size: Some(menu_size),
                 background: Some("misc/square_page_bg.png"),
                 ..Default::default()
