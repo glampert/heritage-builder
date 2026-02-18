@@ -33,6 +33,10 @@ pub struct TileSelection {
 }
 
 impl TileSelection {
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+
     pub fn has_valid_placement(&self) -> bool {
         self.valid_placement
     }
@@ -60,7 +64,6 @@ impl TileSelection {
                 TileMapLayerKind::Terrain,
                 cursor_screen_pos,
                 transform);
-
             Some((start, end))
         } else if self.left_mouse_button_held && self.cursor_drag_start != Vec2::zero() {
             let cell = tile_map.find_exact_cell_for_point(

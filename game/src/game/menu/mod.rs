@@ -310,6 +310,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                         if let Some(tile_inspector) = self.tile_inspector() {
                             if context.topmost_selected_tile().is_some() {
                                 tile_inspector.open(context);
+                                context.tile_selection.reset();
                                 return UiInputEvent::Handled;
                             }
                         }
