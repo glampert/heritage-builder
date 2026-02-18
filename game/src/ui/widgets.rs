@@ -24,7 +24,7 @@ use crate::{
     game::{sim::Simulation, world::World},
     engine::{Engine, time::{CountdownTimer, Seconds}},
     render::{RenderSystem, TextureHandle, TextureCache},
-    utils::{Rect, Size, Vec2, mem::{self, RawPtr, RcMut, WeakMut, WeakRef}},
+    utils::{Rect, RectTexCoords, Size, Vec2, mem::{self, RawPtr, RcMut, WeakMut, WeakRef}},
 };
 
 // ----------------------------------------------
@@ -615,6 +615,16 @@ impl UiMenu {
         &mut self.widgets
     }
 
+    #[inline]
+    pub fn widget_as<Widget: UiWidget>(&self, index: usize) -> Option<&Widget> {
+        self.widgets[index].as_any().downcast_ref::<Widget>()
+    }
+
+    #[inline]
+    pub fn widget_as_mut<Widget: UiWidget>(&mut self, index: usize) -> Option<&mut Widget> {
+        self.widgets[index].as_any_mut().downcast_mut::<Widget>()
+    }
+
     pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(usize, &Widget)> {
         for (index, widget) in self.widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
@@ -870,12 +880,12 @@ impl UiMenuHeading {
     }
 
     #[inline]
-    pub fn lines(&self) -> &[(String, UiFontScale)] {
+    pub fn lines(&self) -> &Vec<(String, UiFontScale)> {
         &self.lines
     }
 
     #[inline]
-    pub fn lines_mut(&mut self) -> &mut [(String, UiFontScale)] {
+    pub fn lines_mut(&mut self) -> &mut Vec<(String, UiFontScale)> {
         &mut self.lines
     }
 }
@@ -1103,6 +1113,16 @@ impl UiWidgetGroup {
         &mut self.widgets
     }
 
+    #[inline]
+    pub fn widget_as<Widget: UiWidget>(&self, index: usize) -> Option<&Widget> {
+        self.widgets[index].as_any().downcast_ref::<Widget>()
+    }
+
+    #[inline]
+    pub fn widget_as_mut<Widget: UiWidget>(&mut self, index: usize) -> Option<&mut Widget> {
+        self.widgets[index].as_any_mut().downcast_mut::<Widget>()
+    }
+
     pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(usize, &Widget)> {
         for (index, widget) in self.widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
@@ -1262,6 +1282,16 @@ impl UiLabeledWidgetGroup {
     #[inline]
     pub fn labels_and_widgets_mut(&mut self) -> &mut [(String, UiWidgetImpl)] {
         &mut self.labels_and_widgets
+    }
+
+    #[inline]
+    pub fn widget_as<Widget: UiWidget>(&self, index: usize) -> Option<&Widget> {
+        self.labels_and_widgets[index].1.as_any().downcast_ref::<Widget>()
+    }
+
+    #[inline]
+    pub fn widget_as_mut<Widget: UiWidget>(&mut self, index: usize) -> Option<&mut Widget> {
+        self.labels_and_widgets[index].1.as_any_mut().downcast_mut::<Widget>()
     }
 
     pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(usize, &Widget)> {
@@ -1889,13 +1919,15 @@ impl UiSeparator {
 
 #[derive(Default)]
 pub struct UiSpriteIconParams<'a> {
-    pub sprite: &'a str,
+    pub sprite: Option<&'a str>,
+    pub tex_coords: RectTexCoords,
     pub size: Vec2,
     pub margin_top: f32, // Margin top can be negative.
     pub margin_bottom: f32,
     pub tooltip: Option<UiTooltipText>,
     pub clip_to_parent_menu: bool,
     pub unclipped_draw_size: Option<Vec2>, // Size to use for drawing if clip_to_parent_menu = false. Defaults to same as size.
+    pub outline: bool,
 }
 
 // ----------------------------------------------
@@ -1904,13 +1936,15 @@ pub struct UiSpriteIconParams<'a> {
 
 pub struct UiSpriteIcon {
     imgui_id: String,
-    sprite: UiTextureHandle,
+    sprite: Option<UiTextureHandle>,
+    tex_coords: RectTexCoords,
     size: Vec2,
     margin_top: f32,
     margin_bottom: f32,
     tooltip: Option<UiTooltipText>,
     clip_to_parent_menu: bool,
     unclipped_draw_size: Vec2,
+    outline: bool,
 }
 
 impl UiWidget for UiSpriteIcon {
@@ -1933,13 +1967,39 @@ impl UiWidget for UiSpriteIcon {
         ui.invisible_button_flags(label, self.size.to_array(), imgui::ButtonFlags::empty());
 
         // Render the actual sprite icon:
-        if self.sprite != INVALID_UI_TEXTURE_HANDLE {
+        if let Some(sprite) = self.sprite {
             let draw_list = ui.get_window_draw_list();
+
+            fn to_imgui_uvs(uv: Vec2) -> Vec2 {
+                Vec2::new(uv.x, 1.0 - uv.y) // Invert Y
+            }
+
+            let top_left_uvs = to_imgui_uvs(self.tex_coords.top_left());
+            let bottom_right_uvs = to_imgui_uvs(self.tex_coords.bottom_right());
+
+            let draw_outline = || {
+                let outline_rect = Rect::from_extents(
+                    Vec2::from_array(ui.item_rect_min()),
+                    Vec2::from_array(ui.item_rect_max())
+                ).expanded(Vec2::new(2.0, 2.0));
+
+                draw_list
+                    .add_rect(outline_rect.min.to_array(), outline_rect.max.to_array(), imgui::ImColor32::BLACK)
+                    .thickness(1.0)
+                    .rounding(2.0)
+                    .build();
+            };
 
             if self.clip_to_parent_menu {
                 draw_list
-                    .add_image(self.sprite, ui.item_rect_min(), ui.item_rect_max())
+                    .add_image(sprite, ui.item_rect_min(), ui.item_rect_max())
+                    .uv_min([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
+                    .uv_max([bottom_right_uvs.x, top_left_uvs.y])
                     .build();
+
+                if self.outline {
+                    draw_outline();
+                }
             } else {
                 // Draw with fullscreen clip rect so the icon is allowed to overflow the parent window bounds.
                 draw_list.with_clip_rect([0.0, 0.0], ui.io().display_size, || {
@@ -1949,8 +2009,14 @@ impl UiWidget for UiSpriteIcon {
                     );
 
                     draw_list
-                        .add_image(self.sprite, icon_rect.min.to_array(), icon_rect.max.to_array())
+                        .add_image(sprite, icon_rect.min.to_array(), icon_rect.max.to_array())
+                        .uv_min([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
+                        .uv_max([bottom_right_uvs.x, top_left_uvs.y])
                         .build();
+
+                    if self.outline {
+                        draw_outline();
+                    }
                 });
             }
         }
@@ -1971,20 +2037,33 @@ impl UiWidget for UiSpriteIcon {
 
 impl UiSpriteIcon {
     pub fn new(context: &mut UiWidgetContext, params: UiSpriteIconParams) -> Self {
-        debug_assert!(!params.sprite.is_empty());
         debug_assert!(params.size.x > 0.0 && params.size.y > 0.0);
         debug_assert!(params.margin_bottom >= 0.0);
 
         Self {
             imgui_id: String::new(),
-            sprite: context.load_ui_texture(params.sprite),
+            sprite: params.sprite.map(|path| context.load_ui_texture(path)),
+            tex_coords: params.tex_coords,
             size: params.size,
             margin_top: params.margin_top,
             margin_bottom: params.margin_bottom,
             tooltip: params.tooltip,
             clip_to_parent_menu: params.clip_to_parent_menu,
             unclipped_draw_size: params.unclipped_draw_size.unwrap_or(params.size),
+            outline: params.outline,
         }
+    }
+
+    pub fn set_sprite(&mut self, sprite: UiTextureHandle) {
+        self.sprite = Some(sprite);
+    }
+
+    pub fn set_tex_coords(&mut self, tex_coords: RectTexCoords) {
+        self.tex_coords = tex_coords;
+    }
+
+    pub fn set_size(&mut self, size: Vec2) {
+        self.size = size;
     }
 }
 

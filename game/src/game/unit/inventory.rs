@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use rand::{self, Rng};
 
 use crate::{
     game::sim::resources::{ResourceKind, StockItem},
@@ -88,6 +89,20 @@ impl UnitInventory {
 
         if !ui.collapsing_header("Inventory", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
+        }
+
+        if ui.button("Give Random Item") {
+            let item = StockItem {
+                kind: ResourceKind::random(&mut rand::rng()),
+                count: rand::rng().random_range(1..10),
+            };
+            self.item = Some(item);
+        }
+
+        ui.same_line();
+
+        if ui.button("Clear") {
+            self.item = None;
         }
 
         if let Some(item) = self.item {

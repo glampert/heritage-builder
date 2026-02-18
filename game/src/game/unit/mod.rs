@@ -27,10 +27,11 @@ use crate::{
     pathfind::{NodeKind as PathNodeKind, Path},
     tile::{
         self, Tile, TileKind, TileMap,
+        sets::{TileSets, TileTexInfo, OBJECTS_UNITS_CATEGORY},
         TileMapLayerKind, TilePoolIndex, TileDepthSortOverride
     },
     utils::{
-        self, hash, Color,
+        self, hash, Color, Size,
         coords::{Cell, CellRange, WorldToScreenTransform, IsoPointF32},
     },
 };
@@ -232,6 +233,30 @@ impl Unit {
     pub fn tile_index(&self) -> TilePoolIndex {
         debug_assert!(self.is_spawned());
         self.tile_index
+    }
+
+    pub fn icon_sprite_info(&self) -> (TileTexInfo, Size) {
+        debug_assert!(self.is_spawned());
+
+        let tile_name_hash = self.config.unwrap().tile_def_name_hash;
+
+        if let Some(tile_def) = TileSets::get()
+            .find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_UNITS_CATEGORY.hash, tile_name_hash)
+        {
+            let tex_info = tile_def.texture_by_index(0, 0, 0);
+            let sprite_size = tile_def.draw_size;
+
+            return (tex_info, sprite_size);
+        }
+
+        (TileTexInfo::default(), utils::constants::BASE_TILE_SIZE_I32) // Invalid pink texture, dummy size.
+    }
+
+    pub fn dialog_text(&self) -> &str {
+        // TODO: Placeholder text. Each unit will have its own dialog in the future.
+        "Hello, I'm a unit in the game!\n\
+        I don't have a dialog message right now.\n\
+        Ask me again later."
     }
 
     // Teleports to new tile cell and updates direction and animation.

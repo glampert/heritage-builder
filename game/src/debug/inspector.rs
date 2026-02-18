@@ -59,13 +59,13 @@ pub struct TileInspectorDevMenu {
 }
 
 impl TileInspector for TileInspectorDevMenu {
-    fn open(&mut self, context: &mut GameMenusContext) {
+    fn open(&mut self, context: &GameMenusContext) {
         if let Some(selected_tile) = context.topmost_selected_tile() {
             self.open(selected_tile);
         }
     }
 
-    fn close(&mut self, _context: &mut GameMenusContext) {
+    fn close(&mut self, _context: &GameMenusContext) {
         self.close();
     }
 }

@@ -90,8 +90,8 @@ pub struct GameMenusContext<'game> {
 
 impl GameMenusContext<'_> {
     #[inline]
-    pub fn as_ui_widget_context(&mut self) -> UiWidgetContext<'_> {
-        UiWidgetContext::new(self.sim, self.world, self.engine)
+    pub fn as_ui_widget_context(&self) -> UiWidgetContext<'_> {
+        UiWidgetContext::new(utils::mem::mut_ref_cast(self.sim), self.world, self.engine)
     }
 
     pub fn topmost_selected_tile(&self) -> Option<&Tile> {
@@ -644,8 +644,8 @@ pub trait TilePalette {
 // ----------------------------------------------
 
 pub trait TileInspector {
-    fn open(&mut self, context: &mut GameMenusContext);
-    fn close(&mut self, context: &mut GameMenusContext);
+    fn open(&mut self, context: &GameMenusContext);
+    fn close(&mut self, context: &GameMenusContext);
 }
 
 // ----------------------------------------------

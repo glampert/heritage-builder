@@ -250,7 +250,7 @@ impl TopBar {
             let icon_sprite = UiSpriteIcon::new(
                 context,
                 UiSpriteIconParams {
-                    sprite: icon.asset_path().to_str().unwrap(),
+                    sprite: icon.asset_path().to_str(),
                     size: icon.size(),
                     margin_top: icon.margin_top(),
                     tooltip: icon_tooltip,
