@@ -733,71 +733,31 @@ impl GameLoop {
                 self.camera_mut().set_viewport_size(window_size);
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
-                let mut propagate = true;
-                let camera_configs = &GameConfigs::get().camera;
-
-                // [CTRL]+[-] / [CTRL]+[=]: Zoom in/out by a fixed step.
-                if !camera_configs.disable_key_shortcut_zoom
-                    && action == InputAction::Press
-                    && modifiers.intersects(InputModifiers::Control)
-                {
-                    let camera = self.camera_mut();
-
-                    if key == InputKey::Minus {
-                        let step = camera_configs.fixed_step_zoom_amount;
-                        camera.set_zoom(camera.current_zoom() - step);
-                        propagate = false;
-                    } else if key == InputKey::Equal {
-                        let step = camera_configs.fixed_step_zoom_amount;
-                        camera.set_zoom(camera.current_zoom() + step);
-                        propagate = false;
-                    }
-                }
+                let mut input_event = self.camera_mut().on_key_input(key, action, modifiers);
 
                 // [CTRL]+[/]: Toggle between DevEditor menu / HUD menu.
-                if action == InputAction::Press
+                if input_event.not_handled()
+                    && action == InputAction::Press
                     && key == InputKey::Slash
                     && modifiers.intersects(InputModifiers::Control)
                 {
                     self.session.as_mut().unwrap().toggle_menus_mode(self.engine.as_ref());
+                    input_event = UiInputEvent::Handled;
                 }
 
-                if propagate {
+                if input_event.not_handled() {
                     self.menus_on_key_input(key, action, modifiers, cursor_screen_pos, delta_time_secs);
                 }
             }
             ApplicationEvent::Scroll(amount) => {
-                let mut propagate = true;
-                let camera_configs = &GameConfigs::get().camera;
-
                 // If we're not hovering over an ImGui menu...
-                if !camera_configs.disable_mouse_scroll_zoom
-                    && !self.engine().ui_system().is_handling_mouse_input()
-                {
-                    let camera = self.camera_mut();
+                let input_event = if !self.engine().ui_system().is_handling_mouse_input() {
+                    self.camera_mut().on_mouse_scroll(amount)
+                } else {
+                    UiInputEvent::NotHandled
+                };
 
-                    if camera_configs.disable_smooth_mouse_scroll_zoom {
-                        // Fixed step zoom.
-                        if amount.y < 0.0 {
-                            camera.set_zoom(camera.current_zoom() + camera_configs.fixed_step_zoom_amount);
-                            propagate = false;
-                        } else if amount.y > 0.0 {
-                            camera.set_zoom(camera.current_zoom() - camera_configs.fixed_step_zoom_amount);
-                            propagate = false;
-                        }
-                    } else {
-                        // Smooth interpolated zoom.
-                        if amount.y < 0.0 {
-                            camera.request_zoom(CameraZoom::In);
-                            propagate = false;
-                        } else if amount.y > 0.0 {
-                            camera.request_zoom(CameraZoom::Out);
-                            propagate = false;
-                        }
-                    }
-                }
-
-                if propagate {
+                if input_event.not_handled() {
                     self.menus_on_scroll(amount, cursor_screen_pos, delta_time_secs);
                 }
             }

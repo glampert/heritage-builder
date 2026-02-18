@@ -4,8 +4,9 @@ use super::{selection};
 use crate::{
     save::*,
     game::config::GameConfigs,
-    ui::{self, UiSystem, UiStaticVar},
     engine::{DebugDraw, time::Seconds},
+    ui::{self, UiSystem, UiInputEvent, UiStaticVar},
+    app::input::{InputAction, InputKey, InputModifiers},
     utils::{
         self,
         constants::*,
@@ -501,6 +502,62 @@ impl Camera {
         self.set_scroll(viewport_center - clamped_camera_center);
 
         true
+    }
+
+    // ----------------------
+    // Input events:
+    // ----------------------
+
+    pub fn on_key_input(&mut self,
+                        key: InputKey,
+                        action: InputAction,
+                        modifiers: InputModifiers)
+                        -> UiInputEvent {
+        let configs = &GameConfigs::get().camera;
+
+        // [CTRL]+[-] / [CTRL]+[=]: Zoom in/out by a fixed step.
+        if !configs.disable_key_shortcut_zoom
+            && action == InputAction::Press
+            && modifiers.intersects(InputModifiers::Control)
+        {
+            if key == InputKey::Minus {
+                self.set_zoom(self.current_zoom() - configs.fixed_step_zoom_amount);
+                return UiInputEvent::Handled;
+            } else if key == InputKey::Equal {
+                self.set_zoom(self.current_zoom() + configs.fixed_step_zoom_amount);
+                return UiInputEvent::Handled;
+            }
+        }
+
+        UiInputEvent::NotHandled
+    }
+
+    pub fn on_mouse_scroll(&mut self, amount: Vec2) -> UiInputEvent {
+        let configs = &GameConfigs::get().camera;
+
+        if !configs.disable_mouse_scroll_zoom {
+            if configs.disable_smooth_mouse_scroll_zoom {
+                // Fixed step zoom.
+                if amount.y < 0.0 {
+                    self.set_zoom(self.current_zoom() + configs.fixed_step_zoom_amount);
+                    return UiInputEvent::Handled;
+                } else if amount.y > 0.0 {
+                    self.set_zoom(self.current_zoom() - configs.fixed_step_zoom_amount);
+                    return UiInputEvent::Handled;
+                }
+            } else {
+                // Smooth interpolated zoom.
+                if amount.y < 0.0 {
+                    self.request_zoom(CameraZoom::In);
+                    return UiInputEvent::Handled;
+                } else if amount.y > 0.0 {
+                    self.request_zoom(CameraZoom::Out);
+                    return UiInputEvent::Handled;
+                }
+            }
+        }
+
+        UiInputEvent::NotHandled
     }
 
     // ----------------------
