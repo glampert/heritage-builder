@@ -41,14 +41,14 @@ use crate::{
     pathfind::{self, NodeKind as PathNodeKind},
     save::PostLoadContext,
     tile::{
-        sets::{TileSets, TileDef, TileTexInfo, OBJECTS_BUILDINGS_CATEGORY},
+        sets::{TileSets, TileDef, TileIconSprite, OBJECTS_BUILDINGS_CATEGORY},
         Tile, TileFlags, TileGameObjectHandle, TileKind,
         TileMap, TileMapLayerKind,
     },
     utils::{
         coords::{Cell, CellRange, WorldToScreenTransform},
-        hash::StringHash, constants,
-        mem, Color, Size,
+        hash::StringHash,
+        mem, Color,
     },
 };
 
@@ -499,7 +499,7 @@ impl Building {
         context.set_random_building_variation();
     }
 
-    pub fn icon_sprite_info(&self) -> (TileTexInfo, Size) {
+    pub fn icon_sprite(&self) -> TileIconSprite {
         debug_assert!(self.is_spawned());
 
         let tile_name_hash = self.configs().tile_def_name_hash();
@@ -507,13 +507,10 @@ impl Building {
         if let Some(tile_def) = TileSets::get()
             .find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash, tile_name_hash)
         {
-            let tex_info = tile_def.texture_by_index(0, 0, 0);
-            let sprite_size = tile_def.draw_size;
-
-            return (tex_info, sprite_size);
+            return tile_def.icon_sprite();
         }
 
-        (TileTexInfo::default(), constants::BASE_TILE_SIZE_I32) // Invalid pink texture, dummy size.
+        TileIconSprite::default()
     }
 
     // ----------------------

@@ -1,10 +1,10 @@
 use crate::{
     format_fixed_string,
     ui::{UiFontScale, widgets::*},
-    tile::{Tile, TileKind, sets::TileTexInfo},
-    utils::{self, Vec2, Size, mem::{RcMut, WeakMut, WeakRef}},
+    tile::{Tile, TileKind, sets::TileIconSprite},
+    utils::{self, Vec2, mem::{RcMut, WeakMut, WeakRef}},
     game::{
-        sim::resources::StockItem,
+        sim::resources::{ResourceKind, StockItem, Population, Workers},
         menu::{TileInspector, GameMenusContext, TEXT_BUTTON_HOVERED_SPRITE},
     },
 };
@@ -70,9 +70,9 @@ impl TileInspectorMenu {
                 Some(GameObjectInspectorKind::Unit)
             } else if selected_tile.is(TileKind::Building) {
                 Some(GameObjectInspectorKind::Building)
-            } else if selected_tile.is(TileKind::Prop) {
+            } else if selected_tile.is(TileKind::Prop) && selected_tile.path_kind().is_harvestable_tree() {
                 Some(GameObjectInspectorKind::Prop)
-            } else if selected_tile.is(TileKind::Terrain | TileKind::Rocks) {
+            } else if selected_tile.is(TileKind::Terrain | TileKind::Rocks | TileKind::Vegetation) {
                 Some(GameObjectInspectorKind::Terrain)
             } else {
                 None
@@ -169,16 +169,16 @@ impl InspectorMenuHelper {
         self.menu.widget_as_mut::<Widget>(body_index).unwrap()
     }
 
-    fn set_icon(&mut self, context: &mut UiWidgetContext, icon_sprite_info: (TileTexInfo, Size), scale: f32) {
+    fn set_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite, scale: f32) {
         let icon = self.find_icon();
 
-        let sprite = context.ui_sys.to_ui_texture(context.tex_cache, icon_sprite_info.0.texture);
+        let sprite = context.ui_sys.to_ui_texture(context.tex_cache, icon_sprite.tex_info.texture);
         icon.set_sprite(sprite);
 
-        let tex_coords = icon_sprite_info.0.coords;
+        let tex_coords = icon_sprite.tex_info.coords;
         icon.set_tex_coords(tex_coords);
 
-        let size = icon_sprite_info.1.to_vec2();
+        let size = icon_sprite.size.to_vec2();
         icon.set_size(size * scale);
     }
 
@@ -189,11 +189,18 @@ impl InspectorMenuHelper {
         heading.set_line_text(0, text);
     }
 
-    fn set_subheading(&mut self, text: &str) {
+    fn set_subheading_1(&mut self, text: &str) {
         let heading = self.find_heading();
 
-        // heading[1]: subheading -> inventory | building population/workers
+        // heading[1]: subheading 1 -> unit inventory | building population/workers
         heading.set_line_text(1, text);
+    }
+
+    fn set_subheading_2(&mut self, text: &str) {
+        let heading = self.find_heading();
+
+        // heading[2]: subheading 2 -> building population/workers
+        heading.set_line_text(2, text);
     }
 
     fn new(context: &mut UiWidgetContext,
@@ -216,7 +223,8 @@ impl InspectorMenuHelper {
             UiMenuHeadingParams {
                 lines: vec![
                     (String::new(), INSPECTOR_HEADING_FONT_SCALE),    // placeholder: game object name
-                    (String::new(), INSPECTOR_SUBHEADING_FONT_SCALE), // placeholder: inventory | building population/workers
+                    (String::new(), INSPECTOR_SUBHEADING_FONT_SCALE), // placeholder: unit inventory | building population/workers
+                    (String::new(), INSPECTOR_SUBHEADING_FONT_SCALE), // placeholder: building population/workers
                 ],
                 center_vertically: false,
                 center_horizontally: false,
@@ -337,7 +345,7 @@ struct UnitInspector {
 impl GameObjectInspector for UnitInspector {
     fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
         if let Some(unit) = context.world.find_unit_for_tile(selected_tile) {
-            self.set_unit_icon(context, unit.icon_sprite_info());
+            self.set_unit_icon(context, unit.icon_sprite());
             self.set_unit_name(unit.name());
             self.set_unit_inventory(unit.peek_inventory());
             self.set_unit_dialog_text(unit.dialog_text());
@@ -357,9 +365,9 @@ impl GameObjectInspector for UnitInspector {
 }
 
 impl UnitInspector {
-    fn set_unit_icon(&mut self, context: &mut UiWidgetContext, icon_sprite_info: (TileTexInfo, Size)) {
+    fn set_unit_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
         const SCALE: f32 = 2.0;
-        self.helper.set_icon(context, icon_sprite_info, SCALE);
+        self.helper.set_icon(context, icon_sprite, SCALE);
     }
 
     fn set_unit_name(&mut self, name: &str) {
@@ -369,9 +377,9 @@ impl UnitInspector {
     fn set_unit_inventory(&mut self, inventory: Option<StockItem>) {
         if let Some(item) = inventory {
             let inventory = format_fixed_string!(128, "{}: {}", item.kind, item.count);
-            self.helper.set_subheading(&inventory);
+            self.helper.set_subheading_1(&inventory);
         } else {
-            self.helper.set_subheading("");
+            self.helper.set_subheading_1("");
         }
     }
 
@@ -419,9 +427,9 @@ struct BuildingInspector {
 impl GameObjectInspector for BuildingInspector {
     fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
         if let Some(building) = context.world.find_building_for_tile(selected_tile) {
-            self.set_building_icon(context, building.icon_sprite_info());
+            self.set_building_icon(context, building.icon_sprite());
             self.set_building_name(building.name());
-            // TODO: Set params
+            self.set_building_population_workers(building.population(), building.workers());
 
             self.helper.menu.open(context);
         }
@@ -438,13 +446,69 @@ impl GameObjectInspector for BuildingInspector {
 }
 
 impl BuildingInspector {
-    fn set_building_icon(&mut self, context: &mut UiWidgetContext, icon_sprite_info: (TileTexInfo, Size)) {
+    fn set_building_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
         const SCALE: f32 = 1.0;
-        self.helper.set_icon(context, icon_sprite_info, SCALE);
+        self.helper.set_icon(context, icon_sprite, SCALE);
     }
 
     fn set_building_name(&mut self, name: &str) {
         self.helper.set_heading(name);
+    }
+
+    fn set_building_population_workers(&mut self, population: Option<Population>, workers: Option<&Workers>) {
+        // Clear previous first:
+        self.helper.set_subheading_1("");
+        self.helper.set_subheading_2("");
+
+        // Population + Workers: Household.
+        if let Some(population) = population {
+            {
+                let plural = population.count() != 1;
+                let line1 = format_fixed_string!(
+                    128,
+                    "{} resident{}, house capacity {}",
+                    population.count(),
+                    if plural { "s" } else { "" },
+                    population.max());
+
+                self.helper.set_subheading_1(&line1);
+            }
+
+            if let Some(workers) = workers {
+                let household = workers.as_household_worker_pool().expect("Expected Household!");
+                if household.total_workers() != 0 {
+                    let plural = household.total_workers() != 1;
+                    let line2 = format_fixed_string!(
+                        128,
+                        "{} worker{}, {} employed",
+                        household.total_workers(),
+                        if plural { "s" } else { "" },
+                        household.employed_count());
+
+                    self.helper.set_subheading_2(&line2);
+                }
+            }
+        // Just Workers: Employer building.
+        } else if let Some(workers) = workers {
+            let employer = workers.as_employer().expect("Expected Employer!");
+            if employer.min_employees() != 0 {
+                let plural = employer.employee_count() != 1;
+                let line1 = format_fixed_string!(
+                    128,
+                    "{} worker{} out of {}",
+                    employer.employee_count(),
+                    if plural { "s" } else { "" },
+                    employer.max_employees());
+
+                let line2 = format_fixed_string!(
+                    128,
+                    "Minimum required {}",
+                    employer.min_employees());
+
+                self.helper.set_subheading_1(&line1);
+                self.helper.set_subheading_2(&line2);
+            }
+        }
     }
 
     fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
@@ -470,8 +534,9 @@ struct PropInspector {
 impl GameObjectInspector for PropInspector {
     fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
         if let Some(prop) = context.world.find_prop_for_tile(selected_tile) {
+            self.set_prop_icon(context, prop.icon_sprite());
             self.set_prop_name(prop.name());
-            // TODO: Set params
+            self.set_prop_harvestable_resource(prop.harvestable_resource(), prop.harvestable_amount());
 
             self.helper.menu.open(context);
         }
@@ -488,8 +553,22 @@ impl GameObjectInspector for PropInspector {
 }
 
 impl PropInspector {
+    fn set_prop_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
+        const SCALE: f32 = 1.0;
+        self.helper.set_icon(context, icon_sprite, SCALE);
+    }
+
     fn set_prop_name(&mut self, name: &str) {
         self.helper.set_heading(name);
+    }
+
+    fn set_prop_harvestable_resource(&mut self, resource: ResourceKind, amount: u32) {
+        if !resource.is_empty() {
+            let harvestable = format_fixed_string!(128, "{}: {}", resource, amount);
+            self.helper.set_subheading_1(&harvestable);
+        } else {
+            self.helper.set_subheading_1("");
+        }
     }
 
     fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
@@ -514,8 +593,8 @@ struct TerrainInspector {
 
 impl GameObjectInspector for TerrainInspector {
     fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
+        self.set_tile_icon(context, selected_tile.icon_sprite());
         self.set_tile_name(selected_tile.name());
-        // TODO: Set params
 
         self.helper.menu.open(context);
     }
@@ -531,6 +610,11 @@ impl GameObjectInspector for TerrainInspector {
 }
 
 impl TerrainInspector {
+    fn set_tile_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
+        const SCALE: f32 = 1.0;
+        self.helper.set_icon(context, icon_sprite, SCALE);
+    }
+
     fn set_tile_name(&mut self, name: &str) {
         self.helper.set_heading(&utils::fixed_string::snake_case_to_title::<128>(name));
     }

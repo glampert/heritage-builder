@@ -27,11 +27,11 @@ use crate::{
     pathfind::{NodeKind as PathNodeKind, Path},
     tile::{
         self, Tile, TileKind, TileMap,
-        sets::{TileSets, TileTexInfo, OBJECTS_UNITS_CATEGORY},
+        sets::{TileSets, TileIconSprite, OBJECTS_UNITS_CATEGORY},
         TileMapLayerKind, TilePoolIndex, TileDepthSortOverride
     },
     utils::{
-        self, hash, Color, Size,
+        self, hash, Color,
         coords::{Cell, CellRange, WorldToScreenTransform, IsoPointF32},
     },
 };
@@ -235,7 +235,7 @@ impl Unit {
         self.tile_index
     }
 
-    pub fn icon_sprite_info(&self) -> (TileTexInfo, Size) {
+    pub fn icon_sprite(&self) -> TileIconSprite {
         debug_assert!(self.is_spawned());
 
         let tile_name_hash = self.config.unwrap().tile_def_name_hash;
@@ -243,13 +243,10 @@ impl Unit {
         if let Some(tile_def) = TileSets::get()
             .find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_UNITS_CATEGORY.hash, tile_name_hash)
         {
-            let tex_info = tile_def.texture_by_index(0, 0, 0);
-            let sprite_size = tile_def.draw_size;
-
-            return (tex_info, sprite_size);
+            return tile_def.icon_sprite();
         }
 
-        (TileTexInfo::default(), utils::constants::BASE_TILE_SIZE_I32) // Invalid pink texture, dummy size.
+        TileIconSprite::default()
     }
 
     pub fn dialog_text(&self) -> &str {

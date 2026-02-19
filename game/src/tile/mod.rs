@@ -14,7 +14,7 @@ use std::{ops::{Index, IndexMut}, path::PathBuf};
 pub use placement::PlacementOp;
 use minimap::Minimap;
 use selection::TileSelection;
-use sets::{TileAnimSet, TileDef, SerializableTileDefHandle, TileSets, TileTexInfo};
+use sets::{TileAnimSet, TileDef, SerializableTileDefHandle, TileSets, TileTexInfo, TileIconSprite};
 
 use crate::{
     log,
@@ -987,6 +987,10 @@ impl Tile {
 
     pub fn try_get_editable_tile_def(&self) -> Option<&'static mut TileDef> {
         TileSets::get().try_get_editable_tile_def(self.tile_def())
+    }
+
+    pub fn icon_sprite(&self) -> TileIconSprite {
+        self.tile_def().icon_sprite()
     }
 
     // ----------------------

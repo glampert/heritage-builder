@@ -127,6 +127,26 @@ impl TileTexInfo {
 }
 
 // ----------------------------------------------
+// TileIconSprite
+// ----------------------------------------------
+
+#[derive(Copy, Clone)]
+pub struct TileIconSprite {
+    pub tex_info: TileTexInfo,
+    pub size: Size,
+}
+
+impl Default for TileIconSprite {
+    fn default() -> Self {
+        Self {
+            // Invalid pink texture, dummy size.
+            tex_info: TileTexInfo::default(),
+            size: BASE_TILE_SIZE_I32,
+        }
+    }
+}
+
+// ----------------------------------------------
 // TileSprite
 // ----------------------------------------------
 
@@ -623,6 +643,12 @@ impl TileDef {
         let size = self.size_in_cells();
         let end_cell = Cell::new(start_cell.x + size.width - 1, start_cell.y + size.height - 1);
         CellRange::new(start_cell, end_cell)
+    }
+
+    #[inline]
+    pub fn icon_sprite(&self) -> TileIconSprite {
+        let tex_info = self.texture_by_index(0, 0, 0);
+        TileIconSprite { tex_info, size: self.draw_size }
     }
 
     #[inline]
