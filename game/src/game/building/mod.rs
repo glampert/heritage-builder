@@ -41,7 +41,7 @@ use crate::{
     pathfind::{self, NodeKind as PathNodeKind},
     save::PostLoadContext,
     tile::{
-        sets::{TileSets, TileDef, TileIconSprite, OBJECTS_BUILDINGS_CATEGORY},
+        sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY},
         Tile, TileFlags, TileGameObjectHandle, TileKind,
         TileMap, TileMapLayerKind,
     },
@@ -497,20 +497,6 @@ impl Building {
     pub fn set_random_variation(&self, query: &Query) {
         let context = self.new_context(query);
         context.set_random_building_variation();
-    }
-
-    pub fn icon_sprite(&self) -> TileIconSprite {
-        debug_assert!(self.is_spawned());
-
-        let tile_name_hash = self.configs().tile_def_name_hash();
-
-        if let Some(tile_def) = TileSets::get()
-            .find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash, tile_name_hash)
-        {
-            return tile_def.icon_sprite();
-        }
-
-        TileIconSprite::default()
     }
 
     // ----------------------

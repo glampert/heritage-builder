@@ -27,8 +27,7 @@ use crate::{
     pathfind::{NodeKind as PathNodeKind, Path},
     tile::{
         self, Tile, TileKind, TileMap,
-        sets::{TileSets, TileIconSprite, OBJECTS_UNITS_CATEGORY},
-        TileMapLayerKind, TilePoolIndex, TileDepthSortOverride
+        TileMapLayerKind, TilePoolIndex, TileDepthSortOverride,
     },
     utils::{
         self, hash, Color,
@@ -233,20 +232,6 @@ impl Unit {
     pub fn tile_index(&self) -> TilePoolIndex {
         debug_assert!(self.is_spawned());
         self.tile_index
-    }
-
-    pub fn icon_sprite(&self) -> TileIconSprite {
-        debug_assert!(self.is_spawned());
-
-        let tile_name_hash = self.config.unwrap().tile_def_name_hash;
-
-        if let Some(tile_def) = TileSets::get()
-            .find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_UNITS_CATEGORY.hash, tile_name_hash)
-        {
-            return tile_def.icon_sprite();
-        }
-
-        TileIconSprite::default()
     }
 
     pub fn dialog_text(&self) -> &str {

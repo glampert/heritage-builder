@@ -990,7 +990,7 @@ impl Tile {
     }
 
     pub fn icon_sprite(&self) -> TileIconSprite {
-        self.tile_def().icon_sprite()
+        self.tile_def().icon_sprite(self.variation_index())
     }
 
     // ----------------------

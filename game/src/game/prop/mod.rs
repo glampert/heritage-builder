@@ -20,10 +20,7 @@ use crate::{
     ui::{UiSystem, UiStaticVar, UiFontScale},
     save::PostLoadContext,
     engine::time::{CountdownTimer, Seconds},
-    tile::{
-        Tile, TileKind, TileMapLayerKind,
-        sets::{TileSets, TileIconSprite, OBJECTS_VEGETATION_CATEGORY},
-    },
+    tile::{Tile, TileKind, TileMapLayerKind},
     utils::{
         coords::{Cell, CellRange, WorldToScreenTransform},
         hash::{self, StringHash, StrHashPair},
@@ -235,20 +232,6 @@ impl Prop {
     pub fn cell_range(&self) -> CellRange {
         debug_assert!(self.is_spawned());
         CellRange::new(self.map_cell, self.map_cell)
-    }
-
-    pub fn icon_sprite(&self) -> TileIconSprite {
-        debug_assert!(self.is_spawned());
-
-        let tile_name_hash = self.config.unwrap().tile_def_name_hash;
-
-        if let Some(tile_def) = TileSets::get()
-            .find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_VEGETATION_CATEGORY.hash, tile_name_hash)
-        {
-            return tile_def.icon_sprite();
-        }
-
-        TileIconSprite::default()
     }
 
     // ----------------------

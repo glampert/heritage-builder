@@ -383,8 +383,9 @@ struct UnitInspector {
 
 impl GameObjectInspector for UnitInspector {
     fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
+        self.helper.set_icon(context, selected_tile.icon_sprite());
+
         if let Some(unit) = context.world.find_unit_for_tile(selected_tile) {
-            self.set_unit_icon(context, unit.icon_sprite());
             self.set_unit_name(unit.name());
             self.set_unit_inventory(unit.peek_inventory());
             self.set_unit_dialog_text(unit.dialog_text());
@@ -404,8 +405,26 @@ impl GameObjectInspector for UnitInspector {
 }
 
 impl UnitInspector {
-    fn set_unit_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
-        self.helper.set_icon(context, icon_sprite);
+    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
+        let body_text = UiMenuHeading::new(
+            context,
+            UiMenuHeadingParams {
+                // placeholder
+                lines: vec![UiText { string: String::new(), font_scale: INSPECTOR_BODY_FONT_SCALE, color: None }],
+                center_vertically: false,
+                center_horizontally: true,
+                ..Default::default()
+            }
+        );
+
+        let helper = InspectorMenuHelper::new(
+            context,
+            tile_inspector_menu_weak_ref,
+            "UnitInspector",
+            Some(UiWidgetImpl::from(body_text))
+        );
+
+        Self { helper }
     }
 
     fn set_unit_name(&mut self, name: &str) {
@@ -431,28 +450,6 @@ impl UnitInspector {
             lines.push(UiText { string: line.into(), font_scale: INSPECTOR_BODY_FONT_SCALE, color: None });
         }
     }
-
-    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        let body_text = UiMenuHeading::new(
-            context,
-            UiMenuHeadingParams {
-                // placeholder
-                lines: vec![UiText { string: String::new(), font_scale: INSPECTOR_BODY_FONT_SCALE, color: None }],
-                center_vertically: false,
-                center_horizontally: true,
-                ..Default::default()
-            }
-        );
-
-        let helper = InspectorMenuHelper::new(
-            context,
-            tile_inspector_menu_weak_ref,
-            "UnitInspector",
-            Some(UiWidgetImpl::from(body_text))
-        );
-
-        Self { helper }
-    }
 }
 
 // ----------------------------------------------
@@ -465,8 +462,9 @@ struct BuildingInspector {
 
 impl GameObjectInspector for BuildingInspector {
     fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
+        self.helper.set_icon(context, selected_tile.icon_sprite());
+
         if let Some(building) = context.world.find_building_for_tile(selected_tile) {
-            self.set_building_icon(context, building.icon_sprite());
             self.set_building_name(building.name());
             self.set_building_population_workers(building.population(), building.workers());
 
@@ -485,8 +483,15 @@ impl GameObjectInspector for BuildingInspector {
 }
 
 impl BuildingInspector {
-    fn set_building_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
-        self.helper.set_icon(context, icon_sprite);
+    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
+        let helper = InspectorMenuHelper::new(
+            context,
+            tile_inspector_menu_weak_ref,
+            "BuildingInspector",
+            None
+        );
+
+        Self { helper }
     }
 
     fn set_building_name(&mut self, name: &str) {
@@ -548,17 +553,6 @@ impl BuildingInspector {
             }
         }
     }
-
-    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        let helper = InspectorMenuHelper::new(
-            context,
-            tile_inspector_menu_weak_ref,
-            "BuildingInspector",
-            None
-        );
-
-        Self { helper }
-    }
 }
 
 // ----------------------------------------------
@@ -571,8 +565,9 @@ struct PropInspector {
 
 impl GameObjectInspector for PropInspector {
     fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
+        self.helper.set_icon(context, selected_tile.icon_sprite());
+
         if let Some(prop) = context.world.find_prop_for_tile(selected_tile) {
-            self.set_prop_icon(context, prop.icon_sprite());
             self.set_prop_name(prop.name());
             self.set_prop_harvestable_resource(prop.harvestable_resource(), prop.harvestable_amount());
 
@@ -591,8 +586,15 @@ impl GameObjectInspector for PropInspector {
 }
 
 impl PropInspector {
-    fn set_prop_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
-        self.helper.set_icon(context, icon_sprite);
+    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
+        let helper = InspectorMenuHelper::new(
+            context,
+            tile_inspector_menu_weak_ref,
+            "PropInspector",
+            None
+        );
+
+        Self { helper }
     }
 
     fn set_prop_name(&mut self, name: &str) {
@@ -607,17 +609,6 @@ impl PropInspector {
             self.helper.set_subheading_1("");
         }
     }
-
-    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        let helper = InspectorMenuHelper::new(
-            context,
-            tile_inspector_menu_weak_ref,
-            "PropInspector",
-            None
-        );
-
-        Self { helper }
-    }
 }
 
 // ----------------------------------------------
@@ -630,7 +621,7 @@ struct TerrainInspector {
 
 impl GameObjectInspector for TerrainInspector {
     fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
-        self.set_tile_icon(context, selected_tile.icon_sprite());
+        self.helper.set_icon(context, selected_tile.icon_sprite());
         self.set_tile_name(selected_tile.name());
 
         self.helper.menu.open(context);
@@ -647,14 +638,6 @@ impl GameObjectInspector for TerrainInspector {
 }
 
 impl TerrainInspector {
-    fn set_tile_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
-        self.helper.set_icon(context, icon_sprite);
-    }
-
-    fn set_tile_name(&mut self, name: &str) {
-        self.helper.set_heading(&utils::fixed_string::snake_case_to_title::<FMT_STRING_SIZE>(name));
-    }
-
     fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
         let helper = InspectorMenuHelper::new(
             context,
@@ -664,5 +647,9 @@ impl TerrainInspector {
         );
 
         Self { helper }
+    }
+
+    fn set_tile_name(&mut self, name: &str) {
+        self.helper.set_heading(&utils::fixed_string::snake_case_to_title::<FMT_STRING_SIZE>(name));
     }
 }

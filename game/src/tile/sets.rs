@@ -646,8 +646,8 @@ impl TileDef {
     }
 
     #[inline]
-    pub fn icon_sprite(&self) -> TileIconSprite {
-        let tex_info = self.texture_by_index(0, 0, 0);
+    pub fn icon_sprite(&self, variation_index: usize) -> TileIconSprite {
+        let tex_info = self.texture_by_index(variation_index, 0, 0);
         TileIconSprite { tex_info, size: self.draw_size }
     }
 
