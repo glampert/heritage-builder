@@ -1,4 +1,5 @@
 use crate::{
+    format_fixed_string,
     ui::{UiFontScale, widgets::*},
     tile::{Tile, TileKind, sets::TileTexInfo},
     utils::{self, Vec2, Size, mem::{RcMut, WeakMut, WeakRef}},
@@ -131,10 +132,10 @@ fn calc_inspector_menu_size(context: &UiWidgetContext) -> Vec2 {
 }
 
 // ----------------------------------------------
-// MenuHelper
+// InspectorMenuHelper
 // ----------------------------------------------
 
-struct MenuHelper {
+struct InspectorMenuHelper {
     menu: UiMenuRcMut,
 
     // Indices within `icon_and_heading_group`.
@@ -146,7 +147,7 @@ struct MenuHelper {
     body_index: Option<usize>,
 }
 
-impl MenuHelper {
+impl InspectorMenuHelper {
     fn find_icon_and_heading_group(&mut self) -> &mut UiWidgetGroup {
         self.menu.widget_as_mut::<UiWidgetGroup>(self.icon_and_heading_group_index).unwrap()
     }
@@ -183,20 +184,16 @@ impl MenuHelper {
 
     fn set_heading(&mut self, text: &str) {
         let heading = self.find_heading();
-        let heading_lines = heading.lines_mut();
 
         // heading[0]: game object name
-        heading_lines[0].0.clear();
-        heading_lines[0].0.push_str(text);
+        heading.set_line_text(0, text);
     }
 
     fn set_subheading(&mut self, text: &str) {
-        let subheading = self.find_heading();
-        let subheading_lines = subheading.lines_mut();
+        let heading = self.find_heading();
 
         // heading[1]: subheading -> inventory | building population/workers
-        subheading_lines[1].0.clear();
-        subheading_lines[1].0.push_str(text);
+        heading.set_line_text(1, text);
     }
 
     fn new(context: &mut UiWidgetContext,
@@ -334,7 +331,7 @@ enum GameObjectInspectorKind {
 // ----------------------------------------------
 
 struct UnitInspector {
-    helper: MenuHelper,
+    helper: InspectorMenuHelper,
 }
 
 impl GameObjectInspector for UnitInspector {
@@ -361,7 +358,8 @@ impl GameObjectInspector for UnitInspector {
 
 impl UnitInspector {
     fn set_unit_icon(&mut self, context: &mut UiWidgetContext, icon_sprite_info: (TileTexInfo, Size)) {
-        self.helper.set_icon(context, icon_sprite_info, 2.0);
+        const SCALE: f32 = 2.0;
+        self.helper.set_icon(context, icon_sprite_info, SCALE);
     }
 
     fn set_unit_name(&mut self, name: &str) {
@@ -370,7 +368,8 @@ impl UnitInspector {
 
     fn set_unit_inventory(&mut self, inventory: Option<StockItem>) {
         if let Some(item) = inventory {
-            self.helper.set_subheading(&format!("{}: {}", item.kind, item.count));
+            let inventory = format_fixed_string!(128, "{}: {}", item.kind, item.count);
+            self.helper.set_subheading(&inventory);
         } else {
             self.helper.set_subheading("");
         }
@@ -398,7 +397,7 @@ impl UnitInspector {
             }
         );
 
-        let helper = MenuHelper::new(
+        let helper = InspectorMenuHelper::new(
             context,
             tile_inspector_menu_weak_ref,
             "UnitInspector",
@@ -414,12 +413,13 @@ impl UnitInspector {
 // ----------------------------------------------
 
 struct BuildingInspector {
-    helper: MenuHelper,
+    helper: InspectorMenuHelper,
 }
 
 impl GameObjectInspector for BuildingInspector {
     fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
         if let Some(building) = context.world.find_building_for_tile(selected_tile) {
+            self.set_building_icon(context, building.icon_sprite_info());
             self.set_building_name(building.name());
             // TODO: Set params
 
@@ -438,12 +438,17 @@ impl GameObjectInspector for BuildingInspector {
 }
 
 impl BuildingInspector {
+    fn set_building_icon(&mut self, context: &mut UiWidgetContext, icon_sprite_info: (TileTexInfo, Size)) {
+        const SCALE: f32 = 1.0;
+        self.helper.set_icon(context, icon_sprite_info, SCALE);
+    }
+
     fn set_building_name(&mut self, name: &str) {
         self.helper.set_heading(name);
     }
 
     fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        let helper = MenuHelper::new(
+        let helper = InspectorMenuHelper::new(
             context,
             tile_inspector_menu_weak_ref,
             "BuildingInspector",
@@ -459,7 +464,7 @@ impl BuildingInspector {
 // ----------------------------------------------
 
 struct PropInspector {
-    helper: MenuHelper,
+    helper: InspectorMenuHelper,
 }
 
 impl GameObjectInspector for PropInspector {
@@ -488,7 +493,7 @@ impl PropInspector {
     }
 
     fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        let helper = MenuHelper::new(
+        let helper = InspectorMenuHelper::new(
             context,
             tile_inspector_menu_weak_ref,
             "PropInspector",
@@ -504,7 +509,7 @@ impl PropInspector {
 // ----------------------------------------------
 
 struct TerrainInspector {
-    helper: MenuHelper,
+    helper: InspectorMenuHelper,
 }
 
 impl GameObjectInspector for TerrainInspector {
@@ -527,11 +532,11 @@ impl GameObjectInspector for TerrainInspector {
 
 impl TerrainInspector {
     fn set_tile_name(&mut self, name: &str) {
-        self.helper.set_heading(&utils::snake_case_to_title::<128>(name));
+        self.helper.set_heading(&utils::fixed_string::snake_case_to_title::<128>(name));
     }
 
     fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        let helper = MenuHelper::new(
+        let helper = InspectorMenuHelper::new(
             context,
             tile_inspector_menu_weak_ref,
             "TerrainInspector",

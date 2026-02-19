@@ -41,14 +41,14 @@ use crate::{
     pathfind::{self, NodeKind as PathNodeKind},
     save::PostLoadContext,
     tile::{
-        sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY},
+        sets::{TileSets, TileDef, TileTexInfo, OBJECTS_BUILDINGS_CATEGORY},
         Tile, TileFlags, TileGameObjectHandle, TileKind,
         TileMap, TileMapLayerKind,
     },
     utils::{
         coords::{Cell, CellRange, WorldToScreenTransform},
-        hash::StringHash,
-        mem, Color,
+        hash::StringHash, constants,
+        mem, Color, Size,
     },
 };
 
@@ -497,6 +497,23 @@ impl Building {
     pub fn set_random_variation(&self, query: &Query) {
         let context = self.new_context(query);
         context.set_random_building_variation();
+    }
+
+    pub fn icon_sprite_info(&self) -> (TileTexInfo, Size) {
+        debug_assert!(self.is_spawned());
+
+        let tile_name_hash = self.configs().tile_def_name_hash();
+
+        if let Some(tile_def) = TileSets::get()
+            .find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash, tile_name_hash)
+        {
+            let tex_info = tile_def.texture_by_index(0, 0, 0);
+            let sprite_size = tile_def.draw_size;
+
+            return (tex_info, sprite_size);
+        }
+
+        (TileTexInfo::default(), constants::BASE_TILE_SIZE_I32) // Invalid pink texture, dummy size.
     }
 
     // ----------------------
@@ -1540,23 +1557,23 @@ impl BuildingStock {
         }
 
         self.resources.for_each_mut(|index, item| {
-                          let item_label = format!("{}##_stock_item_{}", item.kind, index);
-                          let item_capacity = self.capacities[index] as u32;
+            let item_label = format!("{}##_stock_item_{}", item.kind, index);
+            let item_capacity = self.capacities[index] as u32;
 
-                          if ui.input_scalar(item_label, &mut item.count).step(1).build() {
-                              item.count = item.count.min(item_capacity);
-                          }
+            if ui.input_scalar(item_label, &mut item.count).step(1).build() {
+                item.count = item.count.min(item_capacity);
+            }
 
-                          let capacity_left = item_capacity - item.count;
-                          let is_full = item.count >= item_capacity;
+            let capacity_left = item_capacity - item.count;
+            let is_full = item.count >= item_capacity;
 
-                          ui.same_line();
-                          if is_full {
-                              ui.text_colored(Color::red().to_array(), "(full)");
-                          } else {
-                              ui.text(format!("({} left)", capacity_left));
-                          }
-                      });
+            ui.same_line();
+            if is_full {
+                ui.text_colored(Color::red().to_array(), "(full)");
+            } else {
+                ui.text(format!("({} left)", capacity_left));
+            }
+        });
     }
 }
 

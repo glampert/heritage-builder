@@ -24,6 +24,7 @@ use crate::{
 pub trait BuildingConfig {
     fn building_kind(&self) -> BuildingKind;
     fn archetype_kind(&self) -> BuildingArchetypeKind;
+    fn tile_def_name_hash(&self) -> StringHash;
     fn post_load(&mut self, index: usize) -> bool;
     fn draw_debug_ui(&self, ui_sys: &UiSystem);
 }
@@ -40,6 +41,12 @@ macro_rules! building_config {
             #[inline]
             fn archetype_kind(&self) -> $crate::game::building::BuildingArchetypeKind {
                 self.kind.archetype_kind()
+            }
+
+            #[inline]
+            fn tile_def_name_hash(&self) -> StringHash {
+                debug_assert!(self.tile_def_name_hash != $crate::utils::hash::NULL_HASH);
+                self.tile_def_name_hash
             }
 
             fn post_load(&mut self, index: usize) -> bool {
