@@ -20,6 +20,7 @@ use super::{
 };
 
 use crate::{
+    format_fixed_string,
     bitflags_with_display,
     game::{sim::Simulation, world::World},
     engine::{Engine, time::{CountdownTimer, Seconds}},
@@ -31,6 +32,9 @@ use crate::{
 // Macros: make_imgui_id / make_imgui_labeled_id
 // ----------------------------------------------
 
+const IMGUI_ID_STRING_MAX_LEN: usize = 128;
+type ImGuiIdString = ArrayString<IMGUI_ID_STRING_MAX_LEN>;
+
 macro_rules! make_imgui_id {
     ($self:expr, $widget_type:ty, $widget_label:expr) => {{
         if $self.imgui_id.is_empty() {
@@ -38,9 +42,9 @@ macro_rules! make_imgui_id {
             $self.imgui_id = {
                 if $widget_label.is_empty() {
                     // NOTE: Use widget memory address as unique id if no label.
-                    format!("##{} @ {:p}", stringify!($widget_type), $self)
+                    format_fixed_string!(IMGUI_ID_STRING_MAX_LEN, "##{} @ {:p}", stringify!($widget_type), $self)
                 } else {
-                    $widget_label.clone()
+                    format_fixed_string!(IMGUI_ID_STRING_MAX_LEN, "{}", $widget_label)
                 }
             };
         }
@@ -55,7 +59,7 @@ macro_rules! make_imgui_labeled_id {
             // Compute id once and cache it, prefixed by the widget label.
             // (Use widget memory address as unique id).
             debug_assert!(!$widget_label.is_empty());
-            $self.imgui_id = format!("{}##{} @ {:p}", $widget_label, stringify!($widget_type), $self);
+            $self.imgui_id = format_fixed_string!(IMGUI_ID_STRING_MAX_LEN, "{}##{} @ {:p}", $widget_label, stringify!($widget_type), $self);
         }
         // Use cached id.
         &$self.imgui_id
@@ -388,7 +392,7 @@ pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, UiReadOnly, Vec2>;
 
 pub struct UiMenu {
     label: String,
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     flags: UiMenuFlags,
     size: Option<Vec2>,
     position: UiMenuPosition,
@@ -520,7 +524,7 @@ impl UiMenu {
         UiMenuRcMut::new(
             Self {
                 label: params.label.unwrap_or_default(),
-                imgui_id: String::new(),
+                imgui_id: ImGuiIdString::new(),
                 flags: params.flags,
                 size: params.size,
                 position: params.position,
@@ -887,6 +891,12 @@ impl UiMenuHeading {
     #[inline]
     pub fn lines_mut(&mut self) -> &mut Vec<(String, UiFontScale)> {
         &mut self.lines
+    }
+
+    #[inline]
+    pub fn set_line_text(&mut self, index: usize, text: &str) {
+        self.lines[index].0.clear();
+        self.lines[index].0.push_str(text);
     }
 }
 
@@ -1379,7 +1389,7 @@ pub type UiTextButtonPressed = UiWidgetCallback<UiTextButton, UiReadOnly>;
 // immediately back to unpressed state.
 pub struct UiTextButton {
     label: String,
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     tooltip: Option<UiTooltipText>,
     font_scale: UiFontScale,
     size: UiTextButtonSize,
@@ -1493,7 +1503,7 @@ impl UiTextButton {
         debug_assert!(!params.label.is_empty());
         Self {
             label: params.label,
-            imgui_id: String::new(),
+            imgui_id: ImGuiIdString::new(),
             tooltip: params.tooltip,
             font_scale: params.size.font_scale(),
             size: params.size,
@@ -1935,7 +1945,7 @@ pub struct UiSpriteIconParams<'a> {
 // ----------------------------------------------
 
 pub struct UiSpriteIcon {
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     sprite: Option<UiTextureHandle>,
     tex_coords: RectTexCoords,
     size: Vec2,
@@ -2041,7 +2051,7 @@ impl UiSpriteIcon {
         debug_assert!(params.margin_bottom >= 0.0);
 
         Self {
-            imgui_id: String::new(),
+            imgui_id: ImGuiIdString::new(),
             sprite: params.sprite.map(|path| context.load_ui_texture(path)),
             tex_coords: params.tex_coords,
             size: params.size,
@@ -2090,7 +2100,7 @@ pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, UiReadOnly, 
 
 pub struct UiSlider {
     label: String,
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     value: UiSliderValue,
 }
@@ -2176,7 +2186,7 @@ impl UiSlider {
 
         Self {
             label: params.label.clone().unwrap_or_default(),
-            imgui_id: String::new(),
+            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             value: params.into_slider_value(),
         }
@@ -2270,7 +2280,7 @@ pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, UiReadOnly,
 
 pub struct UiCheckbox {
     label: String,
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     on_read_value: UiCheckboxReadValue,
     on_update_value:UiCheckboxUpdateValue,
@@ -2328,7 +2338,7 @@ impl UiCheckbox {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: String::new(),
+            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             on_read_value: params.on_read_value,
             on_update_value: params.on_update_value,
@@ -2360,7 +2370,7 @@ pub type UiIntInputUpdateValue = UiWidgetCallbackWithArg<UiIntInput, UiReadOnly,
 
 pub struct UiIntInput {
     label: String,
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     min: i32,
     max: i32,
@@ -2414,7 +2424,7 @@ impl UiIntInput {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: String::new(),
+            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             min: params.min.unwrap_or(i32::MIN),
             max: params.max.unwrap_or(i32::MAX),
@@ -2446,7 +2456,7 @@ pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, UiReadOnl
 
 pub struct UiTextInput {
     label: String,
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     buffer: String,
     font_scale: UiFontScale,
     on_read_value: UiTextInputReadValue,
@@ -2501,7 +2511,7 @@ impl UiTextInput {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: String::new(),
+            imgui_id: ImGuiIdString::new(),
             buffer: String::new(),
             font_scale: params.font_scale,
             on_read_value: params.on_read_value,
@@ -2533,7 +2543,7 @@ pub type UiDropdownGetCurrentSelection = UiWidgetCallback<UiDropdown, UiReadOnly
 
 pub struct UiDropdown {
     label: String,
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     current_item: usize,
     items: Vec<String>,
@@ -2599,7 +2609,7 @@ impl UiDropdown {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: String::new(),
+            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             current_item: params.current_item,
             items: params.items,
@@ -2700,7 +2710,7 @@ pub type UiItemListSelectionChanged = UiWidgetCallback<UiItemList, UiReadOnly>;
 
 pub struct UiItemList {
     label: String,
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     size: Option<Vec2>,
     margin_left: f32,
@@ -2862,7 +2872,7 @@ impl UiItemList {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: String::new(),
+            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             size: params.size,
             margin_left: params.margin_left,
@@ -3121,7 +3131,7 @@ pub struct UiSlideshowParams {
 // ----------------------------------------------
 
 pub struct UiSlideshow {
-    imgui_id: String,
+    imgui_id: ImGuiIdString,
     flags: UiSlideshowFlags,
     loop_mode: UiSlideshowLoopMode,
 
@@ -3177,7 +3187,7 @@ impl UiSlideshow {
         }
 
         Self {
-            imgui_id: String::new(),
+            imgui_id: ImGuiIdString::new(),
             flags,
             loop_mode: params.loop_mode,
             size: params.size,

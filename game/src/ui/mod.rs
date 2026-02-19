@@ -6,6 +6,7 @@ use std::{
 };
 
 use crate::{
+    format_fixed_string,
     engine::time::Seconds,
     render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
     utils::{Color, FieldAccessorXY, Vec2, Rect, platform::paths, mem::{self, RawPtr}},
@@ -826,7 +827,7 @@ pub fn input_i32(ui: &imgui::Ui,
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited = ui.input_int(format!("##_{}_value", label), value)
+    let edited = ui.input_int(format_fixed_string!(128, "##_{}_value", label), value)
                    .read_only(read_only)
                    .step(step.unwrap_or(1))
                    .build();
@@ -850,12 +851,12 @@ pub fn input_i32_xy<T>(ui: &imgui::Ui,
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_x = ui.input_int(format!("{}##_{}_x", l[0], label), value.x_mut())
+    let edited_x = ui.input_int(format_fixed_string!(128, "{}##_{}_x", l[0], label), value.x_mut())
                      .read_only(read_only)
                      .step(s[0])
                      .build();
 
-    let edited_y = ui.input_int(format!("{}##_{}_y", l[1], label), value.y_mut())
+    let edited_y = ui.input_int(format_fixed_string!(128, "{}##_{}_y", l[1], label), value.y_mut())
                      .read_only(read_only)
                      .step(s[1])
                      .build();
@@ -873,7 +874,7 @@ pub fn input_f32(ui: &imgui::Ui,
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited = ui.input_float(format!("##_{}_value", label), value)
+    let edited = ui.input_float(format_fixed_string!(128, "##_{}_value", label), value)
                    .read_only(read_only)
                    .display_format("%.2f")
                    .step(step.unwrap_or(1.0))
@@ -898,13 +899,13 @@ pub fn input_f32_xy<T>(ui: &imgui::Ui,
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_x = ui.input_float(format!("{}##_{}_x", l[0], label), value.x_mut())
+    let edited_x = ui.input_float(format_fixed_string!(128, "{}##_{}_x", l[0], label), value.x_mut())
                      .read_only(read_only)
                      .display_format("%.2f")
                      .step(s[0])
                      .build();
 
-    let edited_y = ui.input_float(format!("{}##_{}_y", l[1], label), value.y_mut())
+    let edited_y = ui.input_float(format_fixed_string!(128, "{}##_{}_y", l[1], label), value.y_mut())
                      .read_only(read_only)
                      .display_format("%.2f")
                      .step(s[1])
@@ -918,19 +919,19 @@ pub fn input_color(ui: &imgui::Ui, label: &str, value: &mut Color) -> bool {
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_r = ui.slider_config(format!("R##_{}_r", label), 0.0, 1.0)
+    let edited_r = ui.slider_config(format_fixed_string!(128, "R##_{}_r", label), 0.0, 1.0)
                      .display_format("%.2f")
                      .build(&mut value.r);
 
-    let edited_g = ui.slider_config(format!("G##_{}_g", label), 0.0, 1.0)
+    let edited_g = ui.slider_config(format_fixed_string!(128, "G##_{}_g", label), 0.0, 1.0)
                      .display_format("%.2f")
                      .build(&mut value.g);
 
-    let edited_b = ui.slider_config(format!("B##_{}_b", label), 0.0, 1.0)
+    let edited_b = ui.slider_config(format_fixed_string!(128, "B##_{}_b", label), 0.0, 1.0)
                      .display_format("%.2f")
                      .build(&mut value.b);
 
-    let edited_a = ui.slider_config(format!("A##_{}_a", label), 0.0, 1.0)
+    let edited_a = ui.slider_config(format_fixed_string!(128, "A##_{}_a", label), 0.0, 1.0)
                      .display_format("%.2f")
                      .build(&mut value.a);
 

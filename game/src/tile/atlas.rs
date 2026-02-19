@@ -6,6 +6,7 @@ use image::{RgbaImage, ImageReader};
 use super::{sets::TileTexInfo, TileMapLayerKind};
 use crate::{
     log,
+    format_fixed_string,
     utils::{RectTexCoords, Size},
     render::{TextureCache, TextureHandle, TextureSettings},
 };
@@ -19,8 +20,6 @@ pub trait TextureAtlas {
     fn commit_textures(&self, tex_cache: &mut dyn TextureCache);
     fn save_textures_to_file(&self, base_path: &str);
 }
-
-
 
 // ----------------------------------------------
 // PassthroughTextureAtlas
@@ -129,7 +128,7 @@ impl TextureAtlas for PackedTextureAtlas {
         self.packer.for_each_page(|index, image, _| {
             let file_path =
                 Path::new(&save_path)
-                    .join(format!("page_{index}.png"));
+                    .join(format_fixed_string!(64, "page_{index}.png"));
 
             save_image_file(&file_path, image);
         });
@@ -256,7 +255,7 @@ mod packer {
             let img_height = TEXTURE_PACKER_CONFIG.max_height;
             let image = RgbaImage::new(img_width, img_height);
 
-            let tex_name = format!("tex_atlas_{}_page_{}", self.layer.to_string().to_lowercase(), self.page_count());
+            let tex_name = format_fixed_string!(128, "tex_atlas_{}_page_{}", self.layer.to_string().to_lowercase(), self.page_count());
             let tex_size = Size::new(img_width as i32, img_height as i32);
 
             let texture = {

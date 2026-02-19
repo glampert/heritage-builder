@@ -1,6 +1,7 @@
 use std::path::{Path, MAIN_SEPARATOR_STR};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use arrayvec::ArrayString;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumProperty};
 
@@ -14,6 +15,7 @@ use crate::{
     render::{TextureCache, TextureHandle},
     save::{self, SaveState},
     singleton_late_init,
+    format_fixed_string,
     utils::{
         constants::*,
         coords::{Cell, CellRange},
@@ -131,7 +133,7 @@ impl TileTexInfo {
 #[derive(Clone, Default, Deserialize)]
 pub struct TileSprite {
     // Name of the tile texture. Resolved into a TextureHandle post load.
-    pub name: String,
+    pub name: ArrayString<16>,
 
     // Hash of `name`, computed post-load.
     #[serde(skip)]
@@ -269,7 +271,7 @@ impl TileAnimSet {
 
                 for frame_index in 0..*frame_count {
                     let mut frame = TileSprite {
-                        name: format!("frame{frame_index}"),
+                        name: format_fixed_string!(16, "frame{frame_index}"),
                         ..Default::default()
                     };
 
@@ -441,7 +443,9 @@ impl TileAnimSet {
         //
         let texture_path = {
             // <layer>/<category>/<tile_name>/
-            let mut path = format!("{}{}{}{}",
+            let mut path = format_fixed_string!(
+                                           1024, // capacity
+                                           "{}{}{}{}",
                                            tile_set_path_with_category,
                                            MAIN_SEPARATOR_STR,
                                            tile_def_name,
@@ -450,20 +454,20 @@ impl TileAnimSet {
             // Do we have a variation? If not the anim_set name follows directly.
             // + <variation>/
             if !variation_name.is_empty() {
-                path += variation_name;
-                path += MAIN_SEPARATOR_STR;
+                path.push_str(variation_name);
+                path.push_str(MAIN_SEPARATOR_STR);
             }
 
             // Do we have an anim_set? If not the sprite frame image follows directly.
             // + <anim_set>/
             if !anim_set_name.is_empty() {
-                path += anim_set_name;
-                path += MAIN_SEPARATOR_STR;
+                path.push_str(anim_set_name);
+                path.push_str(MAIN_SEPARATOR_STR);
             }
 
             // + <frame[N]>.png
-            path += &frame.name;
-            path += ".png";
+            path.push_str(&frame.name);
+            path.push_str(".png");
             path
         };
 
@@ -943,7 +947,7 @@ impl TileCategory {
         }
 
         let tile_set_path_with_category =
-            format!("{}{}{}", tile_set_path, MAIN_SEPARATOR_STR, self.name);
+            format_fixed_string!(1024, "{}{}{}", tile_set_path, MAIN_SEPARATOR_STR, self.name);
 
         for (index, editable_def) in self.tile_defs.iter_mut().enumerate() {
             let tile_def = editable_def.as_mut();

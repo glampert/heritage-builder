@@ -147,7 +147,7 @@ struct TilePaletteChildButtonDef {
 
 impl TilePaletteChildButtonDef {
     fn new(tile_def: &TileDef) -> Self {
-        let label = utils::snake_case_to_title::<128>(&tile_def.name).to_string();
+        let label = utils::fixed_string::snake_case_to_title::<128>(&tile_def.name).to_string();
 
         let tooltip = {
             if tile_def.cost != 0 {

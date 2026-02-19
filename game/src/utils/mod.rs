@@ -1,6 +1,5 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign, Neg};
 use serde::{Deserialize, Serialize};
-use arrayvec::ArrayString;
 use bitflags::bitflags;
 
 pub mod callback;
@@ -8,6 +7,7 @@ pub mod constants;
 pub mod coords;
 pub mod crash_report;
 pub mod file_sys;
+pub mod fixed_string;
 pub mod hash;
 pub mod mem;
 pub mod platform;
@@ -901,32 +901,4 @@ pub fn lerp<T>(a: T, b: T, t: f32) -> T
 #[inline]
 pub fn approx_equal(a: f32, b: f32, epsilon: f32) -> bool {
     (a - b).abs() < epsilon
-}
-
-// "snake_case" string to "Title Case" string. E.g.: "hello_world" => "Hello World".
-pub fn snake_case_to_title<const N: usize>(s: &str) -> ArrayString<N> {
-    let mut result = ArrayString::<N>::new();
-
-    for (i, word) in s.split('_').enumerate() {
-        if i > 0 && result.try_push(' ').is_err() {
-            break;
-        }
-
-        let mut chars = word.chars();
-        if let Some(first) = chars.next() {
-            for c in first.to_uppercase() {
-                if result.try_push(c).is_err() {
-                    return result;
-                }
-            }
-
-            for c in chars {
-                if result.try_push(c).is_err() {
-                    return result;
-                }
-            }
-        }
-    }
-
-    result
 }

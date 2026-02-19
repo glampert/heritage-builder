@@ -114,15 +114,15 @@ pub trait GameObjectDebugOptions {
                 for var in &mut vars {
                     match &mut var.value {
                         GameObjectDebugVarRef::Bool(value) => {
-                            ui.checkbox(utils::snake_case_to_title::<64>(var.name), value);
+                            ui.checkbox(utils::fixed_string::snake_case_to_title::<64>(var.name), value);
                         }
                         GameObjectDebugVarRef::I32(value) => {
-                            ui.input_int(utils::snake_case_to_title::<64>(var.name), value)
+                            ui.input_int(utils::fixed_string::snake_case_to_title::<64>(var.name), value)
                               .step(1)
                               .build();
                         }
                         GameObjectDebugVarRef::F32(value) => {
-                            ui.input_float(utils::snake_case_to_title::<64>(var.name), value)
+                            ui.input_float(utils::fixed_string::snake_case_to_title::<64>(var.name), value)
                               .display_format("%.2f")
                               .step(1.0)
                               .build();

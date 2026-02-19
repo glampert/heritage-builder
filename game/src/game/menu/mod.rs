@@ -702,7 +702,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
     }
 
     fn display_name(self) -> String {
-        utils::snake_case_to_title::<128>(&self.name()).to_string()
+        utils::fixed_string::snake_case_to_title::<128>(&self.name()).to_string()
     }
 
     fn is_enabled(self) -> bool {

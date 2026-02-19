@@ -245,7 +245,7 @@ impl TilePaletteDevMenu {
             let tile_sprite = tile_def.texture_by_index(0, 0, 0);
             let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_sprite.texture);
 
-            let btn_id = utils::snake_case_to_title::<64>(&tile_def.name);
+            let btn_id = utils::fixed_string::snake_case_to_title::<64>(&tile_def.name);
             let btn_tooltip = if tile_def.cost != 0 {
                 &format!("{}\nCost: {} gold", btn_id, tile_def.cost)
             } else {
