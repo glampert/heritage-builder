@@ -86,7 +86,7 @@ trait MenuBar {
 // TopBarIcon
 // ----------------------------------------------
 
-const TOP_BAR_ICON_SPACING: f32 = 0.0;
+const TOP_BAR_ICON_SPACING: Vec2 = Vec2::new(0.0, 0.0);
 const TOP_BAR_ICON_COUNT: usize = TopBarIcon::COUNT;
 
 #[repr(usize)]
@@ -297,7 +297,7 @@ impl TopBar {
             UiMenuParams {
                 label: Some("TopBar".into()),
                 flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenterTop,
-                widget_spacing: Some(Vec2::new(TOP_BAR_ICON_SPACING, TOP_BAR_ICON_SPACING)),
+                widget_spacing: Some(TOP_BAR_ICON_SPACING),
                 background: Some("misc/wide_page_bg.png"),
                 ..Default::default()
             }
@@ -426,7 +426,7 @@ impl LeftBar {
 // ----------------------------------------------
 
 const SPEED_CONTROLS_BUTTON_SIZE: Vec2 = Vec2::new(20.0, 20.0);
-const SPEED_CONTROLS_BUTTON_SPACING: f32 = 2.0;
+const SPEED_CONTROLS_BUTTON_SPACING: Vec2 = Vec2::new(2.0, 2.0);
 
 const SPEED_CONTROLS_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED: bool = true;
 const SPEED_CONTROLS_BUTTON_STATE_TRANSITION_SECS: Seconds = 0.5;
@@ -559,7 +559,7 @@ impl SpeedControlsBar {
             UiMenuParams {
                 label: Some("SpeedControlsBar".into()),
                 flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
-                widget_spacing: Some(Vec2::new(SPEED_CONTROLS_BUTTON_SPACING, SPEED_CONTROLS_BUTTON_SPACING)),
+                widget_spacing: Some(SPEED_CONTROLS_BUTTON_SPACING),
                 background: Some("misc/wide_page_bg.png"),
                 ..Default::default()
             }

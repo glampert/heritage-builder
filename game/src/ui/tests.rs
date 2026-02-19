@@ -1,5 +1,5 @@
 use super::*;
-use crate::{log, utils::mem::RawPtr, ui::{widgets::*, UiStaticVar}};
+use crate::{log, utils::{Color, mem::RawPtr}, ui::{widgets::*, UiStaticVar}};
 
 // ----------------------------------------------
 // Sample Menu 1:
@@ -49,7 +49,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     let menu_heading = UiMenuHeading::new(
         context,
         UiMenuHeadingParams {
-            lines: vec![("Sample Menu 1".into(), heading_font_scale)],
+            lines: vec![UiText { string: "Sample Menu 1".into(), font_scale: heading_font_scale, color: Some(Color::red()) }],
             separator: Some("misc/brush_stroke_divider.png"),
             margin_top: 10.0,
             margin_bottom: 10.0,
@@ -204,7 +204,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     let mut stacked_button_group = UiWidgetGroup::new(
         context,
         UiWidgetGroupParams {
-            widget_spacing: 5.0,
+            widget_spacing: Vec2::new(5.0, 5.0),
             center_vertically: false,
             center_horizontally: true,
             stack_vertically: true,
@@ -279,7 +279,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     let mut side_by_side_button_group = UiWidgetGroup::new(
         context,
         UiWidgetGroupParams {
-            widget_spacing: 5.0,
+            widget_spacing: Vec2::new(5.0, 5.0),
             center_vertically: false,
             center_horizontally: true,
             stack_vertically: false,
@@ -312,8 +312,8 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                         context,
                                         UiMenuHeadingParams {
                                             lines: vec![
-                                                ("Quit to main menu?".into(), widgets_font_scale),
-                                                ("Unsaved progress will be lost".into(), widgets_font_scale),
+                                                UiText { string: "Quit to main menu?".into(), font_scale: widgets_font_scale, color: None },
+                                                UiText { string: "Unsaved progress will be lost".into(), font_scale: widgets_font_scale, color: None },
                                             ],
                                             separator: Some("misc/brush_stroke_divider.png"),
                                             margin_top: 5.0,
@@ -454,7 +454,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
     let mut stacked_button_group = UiWidgetGroup::new(
         context,
         UiWidgetGroupParams {
-            widget_spacing: 5.0,
+            widget_spacing: Vec2::new(5.0, 5.0),
             center_vertically: false,
             center_horizontally: true,
             stack_vertically: true,
@@ -501,7 +501,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
     let mut side_by_side_button_group = UiWidgetGroup::new(
         context,
         UiWidgetGroupParams {
-            widget_spacing: 5.0,
+            widget_spacing: Vec2::new(5.0, 5.0),
             center_vertically: false,
             center_horizontally: true,
             stack_vertically: false,

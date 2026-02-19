@@ -25,7 +25,7 @@ use crate::{
     game::{sim::Simulation, world::World},
     engine::{Engine, time::{CountdownTimer, Seconds}},
     render::{RenderSystem, TextureHandle, TextureCache},
-    utils::{Rect, RectTexCoords, Size, Vec2, mem::{self, RawPtr, RcMut, WeakMut, WeakRef}},
+    utils::{Rect, RectTexCoords, Size, Vec2, Color, mem::{self, RawPtr, RcMut, WeakMut, WeakRef}},
 };
 
 // ----------------------------------------------
@@ -761,11 +761,22 @@ impl UiMenu {
 }
 
 // ----------------------------------------------
+// UiText
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct UiText {
+    pub string: String,
+    pub font_scale: UiFontScale,
+    pub color: Option<Color>,
+}
+
+// ----------------------------------------------
 // UiMenuHeadingParams
 // ----------------------------------------------
 
 pub struct UiMenuHeadingParams<'a> {
-    pub lines: Vec<(String, UiFontScale)>,
+    pub lines: Vec<UiText>,
     pub separator: Option<&'a str>,
     pub margin_top: f32,
     pub margin_bottom: f32,
@@ -793,7 +804,7 @@ impl<'a> Default for UiMenuHeadingParams<'a> {
 // Centered window heading.
 // Can consist of multiple lines and an optional separator sprite at the end.
 pub struct UiMenuHeading {
-    lines: Vec<(String, UiFontScale)>,
+    lines: Vec<UiText>,
     separator: Option<UiTextureHandle>,
     margin_top: f32,
     margin_bottom: f32,
@@ -848,8 +859,8 @@ impl UiWidget for UiMenuHeading {
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
         let mut size = Vec2::zero();
 
-        for (line, font_scale) in &self.lines {
-            let (line_size, _) = internal::calc_text_size(context, *font_scale, line);
+        for line in &self.lines {
+            let (line_size, _) = internal::calc_text_size(context, line.font_scale, &line.string);
             size.x = size.x.max(line_size.x); // Max width.
             size.y += line_size.y; // Total height.
         }
@@ -863,7 +874,7 @@ impl UiWidget for UiMenuHeading {
     }
 
     fn font_scale(&self) -> UiFontScale {
-        self.lines[0].1
+        self.lines[0].font_scale
     }
 }
 
@@ -884,19 +895,34 @@ impl UiMenuHeading {
     }
 
     #[inline]
-    pub fn lines(&self) -> &Vec<(String, UiFontScale)> {
+    pub fn lines(&self) -> &Vec<UiText> {
         &self.lines
     }
 
     #[inline]
-    pub fn lines_mut(&mut self) -> &mut Vec<(String, UiFontScale)> {
+    pub fn lines_mut(&mut self) -> &mut Vec<UiText> {
         &mut self.lines
     }
 
     #[inline]
-    pub fn set_line_text(&mut self, index: usize, text: &str) {
-        self.lines[index].0.clear();
-        self.lines[index].0.push_str(text);
+    pub fn set_line(&mut self, index: usize, text: UiText) {
+        self.lines[index] = text;
+    }
+
+    #[inline]
+    pub fn set_line_string(&mut self, index: usize, string: &str) {
+        self.lines[index].string.clear();
+        self.lines[index].string.push_str(string);
+    }
+
+    #[inline]
+    pub fn set_line_font_scale(&mut self, index: usize, font_scale: UiFontScale) {
+        self.lines[index].font_scale = font_scale;
+    }
+
+    #[inline]
+    pub fn set_line_color(&mut self, index: usize, color: Option<Color>) {
+        self.lines[index].color = color;
     }
 }
 
@@ -996,7 +1022,7 @@ impl UiSizedTextLabel {
 // ----------------------------------------------
 
 pub struct UiWidgetGroupParams {
-    pub widget_spacing: f32,
+    pub widget_spacing: Vec2,
     pub center_vertically: bool,
     pub center_horizontally: bool,
     pub stack_vertically: bool,
@@ -1007,7 +1033,7 @@ pub struct UiWidgetGroupParams {
 impl Default for UiWidgetGroupParams {
     fn default() -> Self {
         Self {
-            widget_spacing: 0.0,
+            widget_spacing: Vec2::zero(),
             center_vertically: true,
             center_horizontally: true,
             stack_vertically: true,
@@ -1025,7 +1051,7 @@ impl Default for UiWidgetGroupParams {
 // Supports vertical and horizontal alignment and custom item spacing.
 pub struct UiWidgetGroup {
     widgets: Vec<UiWidgetImpl>,
-    widget_spacing: f32,
+    widget_spacing: Vec2,
     center_vertically: bool,
     center_horizontally: bool,
     stack_vertically: bool,
@@ -1044,7 +1070,7 @@ impl UiWidget for UiWidgetGroup {
         let ui = context.ui_sys.ui();
 
         let _spacing =
-            ui.push_style_var(imgui::StyleVar::ItemSpacing([self.widget_spacing, self.widget_spacing]));
+            ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
 
         internal::draw_centered_widget_group(
             context,
@@ -1090,7 +1116,7 @@ impl UiWidget for UiWidgetGroup {
 
 impl UiWidgetGroup {
     pub fn new(_context: &mut UiWidgetContext, params: UiWidgetGroupParams) -> Self {
-        debug_assert!(params.widget_spacing >= 0.0);
+        debug_assert!(params.widget_spacing.x >= 0.0 && params.widget_spacing.y >= 0.0);
         debug_assert!(params.margin_left >= 0.0 && params.margin_right >= 0.0);
 
         Self {
@@ -3055,7 +3081,7 @@ impl UiMessageBox {
             let mut button_group = UiWidgetGroup::new(
                 context,
                 UiWidgetGroupParams {
-                    widget_spacing: 10.0,
+                    widget_spacing: Vec2::new(10.0, 10.0),
                     center_vertically: true,
                     center_horizontally: true,
                     stack_vertically: false, // Render buttons side-by-side.

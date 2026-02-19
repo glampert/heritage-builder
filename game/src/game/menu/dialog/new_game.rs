@@ -109,7 +109,7 @@ impl NewGame {
             context,
             UiLabeledWidgetGroupParams {
                 label_spacing: DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING,
-                widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING,
+                widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING.y,
                 center_vertically: false,
                 center_horizontally: true,
                 margin_left: 50.0,
@@ -191,7 +191,7 @@ impl NewGame {
         let spacing = UiSeparator::new(
             context,
             UiSeparatorParams {
-                thickness: Some(DEFAULT_DIALOG_MENU_WIDGET_SPACING),
+                thickness: Some(DEFAULT_DIALOG_MENU_WIDGET_SPACING.x),
                 ..Default::default()
             }
         );

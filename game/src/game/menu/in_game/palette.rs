@@ -277,7 +277,7 @@ impl TilePaletteMainButton {
         let mut child_button_group = UiWidgetGroup::new(
             context,
             UiWidgetGroupParams {
-                widget_spacing: TILE_PALETTE_BUTTON_SPACING.y,
+                widget_spacing: TILE_PALETTE_BUTTON_SPACING,
                 ..Default::default()
             }
         );

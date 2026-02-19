@@ -358,8 +358,8 @@ singleton_late_init! { DIALOG_MENUS_SINGLETON, DialogMenusSingleton }
 // ----------------------------------------------
 
 // For common dialog menus:
-const DEFAULT_DIALOG_MENU_BUTTON_SPACING: f32 = 8.0; // Large stacked buttons
-const DEFAULT_DIALOG_MENU_WIDGET_SPACING: f32 = 6.0; // Settings widgets / input fields
+const DEFAULT_DIALOG_MENU_BUTTON_SPACING: Vec2 = Vec2::new(8.0, 8.0); // Large stacked buttons
+const DEFAULT_DIALOG_MENU_WIDGET_SPACING: Vec2 = Vec2::new(6.0, 6.0); // Settings widgets / input fields
 const DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING: f32 = 5.0;
 const DEFAULT_DIALOG_MENU_HEADING_MARGINS: (f32, f32) = (100.0, 10.0); // (top, bottom)
 const DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
@@ -379,7 +379,7 @@ fn default_dialog_menu_size(context: &UiWidgetContext) -> Vec2 {
 fn make_default_layout_dialog_menu(context: &mut UiWidgetContext,
                                    dialog_menu_kind: DialogMenuKind,
                                    heading_title: &[&str], // Each item in the slice is a heading line.
-                                   widget_spacing: f32,
+                                   widget_spacing: Vec2,
                                    widgets: Option<impl IntoIterator<Item = UiWidgetImpl>>)
                                    -> UiMenuRcMut
 {
@@ -397,7 +397,10 @@ fn make_default_layout_dialog_menu(context: &mut UiWidgetContext,
     let heading = UiMenuHeading::new(
         context,
         UiMenuHeadingParams {
-            lines: heading_title.iter().map(|line| (line.to_string(), DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE)).collect(),
+            lines: heading_title
+                .iter()
+                .map(|line| UiText { string: line.to_string(), font_scale: DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE, color: None })
+                .collect(),
             separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
             margin_top: DEFAULT_DIALOG_MENU_HEADING_MARGINS.0,
             margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,

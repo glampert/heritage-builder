@@ -10,6 +10,23 @@ use crate::{
 };
 
 // ----------------------------------------------
+// TODO:
+// ----------------------------------------------
+
+// Fix UI layout issues:
+// - Close button should be always at the bottom of the window.
+// - Red/yellow colored text to highlight missing workers/resources.
+//
+// Building Inspector:
+// - Display overview of building function:
+//   - Houses: Reason for not upgrading: missing resources / services.
+//   - Other buildings: If operational / not operational due to missing workers or resources.
+// - Display building stock. Read only mode for now.
+//
+// Prop/Tile Inspector:
+// - Display a simple overview / tagline about the prop/tile.
+
+// ----------------------------------------------
 // TileInspectorMenu
 // ----------------------------------------------
 
@@ -131,6 +148,8 @@ fn calc_inspector_menu_size(context: &UiWidgetContext) -> Vec2 {
     )
 }
 
+const FMT_STRING_SIZE: usize = 128;
+
 // ----------------------------------------------
 // InspectorMenuHelper
 // ----------------------------------------------
@@ -169,7 +188,7 @@ impl InspectorMenuHelper {
         self.menu.widget_as_mut::<Widget>(body_index).unwrap()
     }
 
-    fn set_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite, scale: f32) {
+    fn set_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
         let icon = self.find_icon();
 
         let sprite = context.ui_sys.to_ui_texture(context.tex_cache, icon_sprite.tex_info.texture);
@@ -178,29 +197,46 @@ impl InspectorMenuHelper {
         let tex_coords = icon_sprite.tex_info.coords;
         icon.set_tex_coords(tex_coords);
 
+        // Scale proportionally to desired min/max icon size:
+        const MIN_SIZE: f32 = 64.0;
+        const MAX_SIZE: f32 = 140.0;
+
         let size = icon_sprite.size.to_vec2();
-        icon.set_size(size * scale);
+
+        let min_scale_x = MIN_SIZE / size.x;
+        let max_scale_x = MAX_SIZE / size.x;
+
+        let min_scale_y = MIN_SIZE / size.y;
+        let max_scale_y = MAX_SIZE / size.y;
+
+        let min_scale = min_scale_x.max(min_scale_y);
+        let max_scale = max_scale_x.min(max_scale_y);
+
+        let scale = 1.0_f32.clamp(min_scale, max_scale);
+        let scaled_size = size * scale;
+
+        icon.set_size(scaled_size);
     }
 
     fn set_heading(&mut self, text: &str) {
         let heading = self.find_heading();
 
         // heading[0]: game object name
-        heading.set_line_text(0, text);
+        heading.set_line_string(0, text);
     }
 
     fn set_subheading_1(&mut self, text: &str) {
         let heading = self.find_heading();
 
         // heading[1]: subheading 1 -> unit inventory | building population/workers
-        heading.set_line_text(1, text);
+        heading.set_line_string(1, text);
     }
 
     fn set_subheading_2(&mut self, text: &str) {
         let heading = self.find_heading();
 
         // heading[2]: subheading 2 -> building population/workers
-        heading.set_line_text(2, text);
+        heading.set_line_string(2, text);
     }
 
     fn new(context: &mut UiWidgetContext,
@@ -222,9 +258,12 @@ impl InspectorMenuHelper {
             context,
             UiMenuHeadingParams {
                 lines: vec![
-                    (String::new(), INSPECTOR_HEADING_FONT_SCALE),    // placeholder: game object name
-                    (String::new(), INSPECTOR_SUBHEADING_FONT_SCALE), // placeholder: unit inventory | building population/workers
-                    (String::new(), INSPECTOR_SUBHEADING_FONT_SCALE), // placeholder: building population/workers
+                    // placeholder: game object name
+                    UiText { string: String::new(), font_scale: INSPECTOR_HEADING_FONT_SCALE, color: None },
+                    // placeholder: unit inventory | building population/workers
+                    UiText { string: String::new(), font_scale: INSPECTOR_SUBHEADING_FONT_SCALE, color: None },
+                    // placeholder: building population/workers
+                    UiText { string: String::new(), font_scale: INSPECTOR_SUBHEADING_FONT_SCALE, color: None },
                 ],
                 center_vertically: false,
                 center_horizontally: false,
@@ -235,7 +274,7 @@ impl InspectorMenuHelper {
         let mut icon_and_heading_group = UiWidgetGroup::new(
             context,
             UiWidgetGroupParams {
-                widget_spacing: 20.0,
+                widget_spacing: Vec2::new(20.0, 8.0),
                 center_vertically: false,
                 center_horizontally: true,
                 stack_vertically: false,
@@ -366,8 +405,7 @@ impl GameObjectInspector for UnitInspector {
 
 impl UnitInspector {
     fn set_unit_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
-        const SCALE: f32 = 2.0;
-        self.helper.set_icon(context, icon_sprite, SCALE);
+        self.helper.set_icon(context, icon_sprite);
     }
 
     fn set_unit_name(&mut self, name: &str) {
@@ -376,7 +414,7 @@ impl UnitInspector {
 
     fn set_unit_inventory(&mut self, inventory: Option<StockItem>) {
         if let Some(item) = inventory {
-            let inventory = format_fixed_string!(128, "{}: {}", item.kind, item.count);
+            let inventory = format_fixed_string!(FMT_STRING_SIZE, "{}: {}", item.kind, item.count);
             self.helper.set_subheading_1(&inventory);
         } else {
             self.helper.set_subheading_1("");
@@ -390,7 +428,7 @@ impl UnitInspector {
         lines.clear();
 
         for line in text.split('\n') {
-            lines.push((line.into(), INSPECTOR_BODY_FONT_SCALE));
+            lines.push(UiText { string: line.into(), font_scale: INSPECTOR_BODY_FONT_SCALE, color: None });
         }
     }
 
@@ -398,7 +436,8 @@ impl UnitInspector {
         let body_text = UiMenuHeading::new(
             context,
             UiMenuHeadingParams {
-                lines: vec![(String::new(), INSPECTOR_BODY_FONT_SCALE)], // placeholder
+                // placeholder
+                lines: vec![UiText { string: String::new(), font_scale: INSPECTOR_BODY_FONT_SCALE, color: None }],
                 center_vertically: false,
                 center_horizontally: true,
                 ..Default::default()
@@ -447,8 +486,7 @@ impl GameObjectInspector for BuildingInspector {
 
 impl BuildingInspector {
     fn set_building_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
-        const SCALE: f32 = 1.0;
-        self.helper.set_icon(context, icon_sprite, SCALE);
+        self.helper.set_icon(context, icon_sprite);
     }
 
     fn set_building_name(&mut self, name: &str) {
@@ -465,7 +503,7 @@ impl BuildingInspector {
             {
                 let plural = population.count() != 1;
                 let line1 = format_fixed_string!(
-                    128,
+                    FMT_STRING_SIZE,
                     "{} resident{}, house capacity {}",
                     population.count(),
                     if plural { "s" } else { "" },
@@ -479,7 +517,7 @@ impl BuildingInspector {
                 if household.total_workers() != 0 {
                     let plural = household.total_workers() != 1;
                     let line2 = format_fixed_string!(
-                        128,
+                        FMT_STRING_SIZE,
                         "{} worker{}, {} employed",
                         household.total_workers(),
                         if plural { "s" } else { "" },
@@ -494,14 +532,14 @@ impl BuildingInspector {
             if employer.min_employees() != 0 {
                 let plural = employer.employee_count() != 1;
                 let line1 = format_fixed_string!(
-                    128,
+                    FMT_STRING_SIZE,
                     "{} worker{} out of {}",
                     employer.employee_count(),
                     if plural { "s" } else { "" },
                     employer.max_employees());
 
                 let line2 = format_fixed_string!(
-                    128,
+                    FMT_STRING_SIZE,
                     "Minimum required {}",
                     employer.min_employees());
 
@@ -554,8 +592,7 @@ impl GameObjectInspector for PropInspector {
 
 impl PropInspector {
     fn set_prop_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
-        const SCALE: f32 = 1.0;
-        self.helper.set_icon(context, icon_sprite, SCALE);
+        self.helper.set_icon(context, icon_sprite);
     }
 
     fn set_prop_name(&mut self, name: &str) {
@@ -564,7 +601,7 @@ impl PropInspector {
 
     fn set_prop_harvestable_resource(&mut self, resource: ResourceKind, amount: u32) {
         if !resource.is_empty() {
-            let harvestable = format_fixed_string!(128, "{}: {}", resource, amount);
+            let harvestable = format_fixed_string!(FMT_STRING_SIZE, "{}: {}", resource, amount);
             self.helper.set_subheading_1(&harvestable);
         } else {
             self.helper.set_subheading_1("");
@@ -611,12 +648,11 @@ impl GameObjectInspector for TerrainInspector {
 
 impl TerrainInspector {
     fn set_tile_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite) {
-        const SCALE: f32 = 1.0;
-        self.helper.set_icon(context, icon_sprite, SCALE);
+        self.helper.set_icon(context, icon_sprite);
     }
 
     fn set_tile_name(&mut self, name: &str) {
-        self.helper.set_heading(&utils::fixed_string::snake_case_to_title::<128>(name));
+        self.helper.set_heading(&utils::fixed_string::snake_case_to_title::<FMT_STRING_SIZE>(name));
     }
 
     fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {

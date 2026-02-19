@@ -90,19 +90,17 @@ pub fn draw_widget_window_background(ui: &imgui::Ui, background: UiTextureHandle
 }
 
 pub fn draw_centered_text_group(context: &mut UiWidgetContext,
-                                lines: &[(String, UiFontScale)],
+                                lines: &[UiText],
                                 vertical: bool,
                                 horizontal: bool) -> Rect {
     if lines.is_empty() {
         return Rect::zero();
     }
 
-    let ui = context.ui_sys.ui();
-
     // Measure text sizes:
     let text_sizes: SmallVec<[Vec2; 16]> = lines
         .iter()
-        .map(|(text, font_scale)| calc_text_size(context, *font_scale, text).0)
+        .map(|text| calc_text_size(context, text.font_scale, &text.string).0)
         .collect();
 
     let max_width = text_sizes
@@ -110,8 +108,12 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
         .map(|size| size.x)
         .fold(0.0, f32::max);
 
-    let line_height  = ui.text_line_height_with_spacing();
-    let total_height = line_height * lines.len() as f32;
+    let mut total_height = 0.0;
+    for line in lines {
+        total_height += calc_text_line_height_with_spacing(context, line.font_scale);
+    }
+
+    let ui = context.ui_sys.ui();
 
     let region_avail = ui.content_region_avail();
     let cursor_start = ui.cursor_pos();
@@ -121,13 +123,21 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
     let start_y = if vertical   { cursor_start[1] + ((region_avail[1] - total_height) * 0.5) } else { cursor_start[1] };
 
     // Draw each line:
-    for (i, ((line, font_scale), size)) in lines.iter().zip(text_sizes.iter()).enumerate() {
-        let x = start_x + (max_width - size.x) * 0.5;
-        let y = start_y + (i as f32 * line_height);
+    let mut offset_y = 0.0;
+    for (line, size) in lines.iter().zip(text_sizes) {
+        let x = start_x + (max_width - size.x) * 0.5;        
+        let y = start_y + offset_y;
 
-        context.set_window_font_scale(*font_scale);
+        context.set_window_font_scale(line.font_scale);
         ui.set_cursor_pos([x, y]);
-        ui.text(line);
+
+        if let Some(custom_color) = line.color {
+            ui.text_colored(custom_color.to_array(), &line.string);
+        } else {
+            ui.text(&line.string);
+        }
+
+        offset_y += calc_text_line_height_with_spacing(context, line.font_scale);
     }
 
     // Restore cursor so layout continues correctly.
@@ -376,6 +386,12 @@ pub fn calc_separator_size(context: &UiWidgetContext, horizontal: bool, thicknes
 pub fn calc_text_line_height(context: &UiWidgetContext, font_scale: UiFontScale) -> f32 {
     let font = context.ui_sys.current_ui_font();
     font.font_size * font_scale.0
+}
+
+pub fn calc_text_line_height_with_spacing(context: &UiWidgetContext, font_scale: UiFontScale) -> f32 {
+    let font = context.ui_sys.current_ui_font();
+    let style = current_ui_style();
+    (font.font_size * font_scale.0) + style.item_spacing[1]
 }
 
 // Ui/window independent font size calculation, using current font.
