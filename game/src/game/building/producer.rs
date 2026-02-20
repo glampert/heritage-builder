@@ -1,5 +1,6 @@
 use std::cmp::Reverse;
 use smallvec::SmallVec;
+use arrayvec::ArrayVec;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +20,10 @@ use crate::{
     game::{
         cheats,
         sim::{
-            resources::{ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
+            resources::{
+                ResourceKind, ResourceKinds, ShoppingList, Workers,
+                StockItem, RESOURCE_KIND_COUNT
+            },
             Query, RandomGenerator,
         },
         unit::{
@@ -290,11 +294,35 @@ impl BuildingBehavior for ProducerBuilding {
         self.production_output_stock.is_full()
     }
 
+    fn stock(&self) -> ArrayVec<StockItem, RESOURCE_KIND_COUNT> {
+        let mut items = ArrayVec::new();
+        for item in &self.production_input_stock.slots {
+            items.push(*item);
+        }
+        items.push(self.production_output_stock.item);
+        items
+    }
+
     fn has_min_required_resources(&self) -> bool {
         if self.production_input_stock.requires_any_resource() {
             return self.production_input_stock.has_required_resources();
         }
         true
+    }
+
+    fn is_production_halted(&self) -> bool {
+        if self.debug.freeze_production() || self.debug.freeze_harvesting() {
+            return true;
+        }
+        if self.production_output_stock.is_full() {
+            return true;
+        }
+        if self.production_input_stock.requires_any_resource()
+           && !self.production_input_stock.has_required_resources()
+        {
+            return true;
+        }
+        false
     }
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
@@ -660,22 +688,6 @@ impl ProducerBuilding {
     #[inline]
     fn is_harvester_fetching_resources(&self, query: &Query) -> bool {
         self.harvester.is_running_task::<UnitTaskHarvestWood>(query)
-    }
-
-    #[inline]
-    fn is_production_halted(&self) -> bool {
-        if self.debug.freeze_production() || self.debug.freeze_harvesting() {
-            return true;
-        }
-        if self.production_output_stock.is_full() {
-            return true;
-        }
-        if self.production_input_stock.requires_any_resource()
-           && !self.production_input_stock.has_required_resources()
-        {
-            return true;
-        }
-        false
     }
 
     // ----------------------

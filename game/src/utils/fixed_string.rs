@@ -110,6 +110,30 @@ macro_rules! write_fixed_string_trunc {
     }};
 }
 
+// Append formatted data to an existing `ArrayString`.
+// Panics if capacity is exceeded.
+#[macro_export]
+macro_rules! append_fixed_string {
+    ($buf:expr, $($arg:tt)*) => {{
+        use core::fmt::Write as _;
+        match write!($buf, $($arg)*) {
+            Ok(()) => {},
+            Err(_) => panic!("append_fixed_string! capacity {} exceeded", $buf.capacity()),
+        }
+    }};
+}
+
+// Append formatted data to an existing `ArrayString`.
+// Silently truncates on overflow.
+#[macro_export]
+macro_rules! append_fixed_string_trunc {
+    ($buf:expr, $($arg:tt)*) => {{
+        use core::fmt::Write as _;
+        let mut writer = $crate::utils::fixed_string::FixedWriter::new($buf);
+        let _ = write!(&mut writer, $($arg)*);
+    }};
+}
+
 // ----------------------------------------------
 // Unit Tests
 // ----------------------------------------------

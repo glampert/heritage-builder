@@ -1,6 +1,7 @@
 use std::cmp::Reverse;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
+use arrayvec::ArrayVec;
 
 use super::{
     config::{BuildingConfig, BuildingConfigs},
@@ -14,8 +15,11 @@ use crate::{
     game::{
         cheats,
         sim::{
-            resources::{ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
             Query,
+            resources::{
+                ResourceKind, ResourceKinds, ShoppingList, Workers,
+                StockItem, RESOURCE_KIND_COUNT,
+            },
         },
         unit::{
             patrol::*,
@@ -231,6 +235,24 @@ impl BuildingBehavior for ServiceBuilding {
             StockOrTreasury::Treasury { .. } => false,
             StockOrTreasury::None => false,
         }
+    }
+
+    fn stock(&self) -> ArrayVec<StockItem, RESOURCE_KIND_COUNT> {
+        let mut items = ArrayVec::new();
+
+        match &self.stock_or_treasury {
+            StockOrTreasury::Stock { stock, .. } => {
+                stock.for_each(|_, item| {
+                    items.push(*item);
+                });
+            },
+            StockOrTreasury::Treasury { gold_units } => {
+                items.push(StockItem { kind: ResourceKind::Gold, count: *gold_units });
+            },
+            StockOrTreasury::None => {},
+        }
+
+        items
     }
 
     fn has_min_required_resources(&self) -> bool {

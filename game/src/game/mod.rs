@@ -139,6 +139,8 @@ impl GameSession {
         let mut context = UiWidgetContext::new(
             &mut self.sim,
             &self.world,
+            &self.tile_map,
+            &mut self.camera,
             engine
         );
 

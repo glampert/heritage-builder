@@ -998,6 +998,12 @@ impl Tile {
         self.tile_def().icon_sprite(self.variation_index())
     }
 
+    pub fn description(&self) -> &str {
+        // TODO: Add description text for tile inspector. Should come from the tile def.
+        "Sample Text.\n\
+        Briefly describes this tile."
+    }
+
     // ----------------------
     // Variations:
     // ----------------------

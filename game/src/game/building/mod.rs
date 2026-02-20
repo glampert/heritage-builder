@@ -6,6 +6,7 @@ use paste::paste;
 use proc_macros::DrawDebugUi;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use smallvec::SmallVec;
+use arrayvec::ArrayVec;
 use strum::{EnumCount, IntoDiscriminant};
 use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
 
@@ -394,7 +395,7 @@ impl Building {
     }
 
     #[inline]
-    fn new_context<'world>(&self, query: &'world Query) -> BuildingContext<'world> {
+    pub fn new_context<'world>(&self, query: &'world Query) -> BuildingContext<'world> {
         BuildingContext::new(self.id,
                              self.map_cells,
                              self.road_link(query),
@@ -449,8 +450,10 @@ impl Building {
 
     #[inline]
     pub fn tile_info(&self, query: &Query) -> BuildingTileInfo {
-        BuildingTileInfo { road_link: self.road_link(query).unwrap_or_default(), /* We may or may not be connected to a road. */
-                           base_cell: self.base_cell() }
+        BuildingTileInfo {
+            road_link: self.road_link(query).unwrap_or_default(), // We may or may not be connected to a road.
+            base_cell: self.base_cell(),
+        }
     }
 
     #[inline]
@@ -466,6 +469,26 @@ impl Building {
     #[inline]
     pub fn archetype_kind(&self) -> BuildingArchetypeKind {
         self.archetype().discriminant()
+    }
+
+    #[inline]
+    pub fn is_operational(&self) -> bool {
+        self.archetype().is_operational()
+    }
+
+    #[inline]
+    pub fn is_production_halted(&self) -> bool {
+        self.archetype().is_production_halted()
+    }
+
+    #[inline]
+    pub fn has_min_required_resources(&self) -> bool {
+        self.archetype().has_min_required_resources()
+    }
+
+    #[inline]
+    pub fn has_min_required_workers(&self) -> bool {
+        self.archetype().has_min_required_workers()
     }
 
     pub fn visited_by(&mut self, unit: &mut Unit, query: &Query) {
@@ -529,6 +552,11 @@ impl Building {
         debug_assert!(kind.is_single_resource());
         debug_assert!(self.is_spawned());
         self.archetype_mut().remove_resources(kind, count)
+    }
+
+    #[inline]
+    pub fn stock(&self) -> ArrayVec<StockItem, RESOURCE_KIND_COUNT> {
+        self.archetype().stock()
     }
 
     // ----------------------
@@ -857,7 +885,7 @@ impl Building {
             if !house.level().is_max() {
                 let upgrade_requirements = house.upgrade_requirements(context);
                 let has_required_resources = upgrade_requirements.has_required_resources();
-                let has_required_services = upgrade_requirements.has_required_services();
+                let has_required_services  = upgrade_requirements.has_required_services();
 
                 color_bullet_bool("Has resources to upgrade", has_required_resources);
                 if !has_required_resources {
@@ -1136,8 +1164,14 @@ trait BuildingBehavior {
 
     fn has_stock(&self) -> bool;
     fn is_stock_full(&self) -> bool;
+    fn stock(&self) -> ArrayVec<StockItem, RESOURCE_KIND_COUNT>;
+
     fn has_min_required_resources(&self) -> bool {
         true
+    }
+
+    fn is_production_halted(&self) -> bool {
+        false
     }
 
     // How many resources of this kind do we currently hold?
@@ -1454,8 +1488,8 @@ impl BuildingStock {
 
         // Clamp any existing resources to the new capacity.
         self.resources.for_each_mut(|index, item| {
-                          item.count = item.count.min(self.capacities[index] as u32);
-                      });
+            item.count = item.count.min(self.capacities[index] as u32);
+        });
     }
 
     fn merge(&mut self, other: &BuildingStock) -> bool {
@@ -1506,11 +1540,11 @@ impl BuildingStock {
     fn is_full(&self) -> bool {
         let mut full_count = 0;
         self.resources.for_each(|index, item| {
-                          let item_capacity = self.capacities[index] as u32;
-                          if item.count >= item_capacity {
-                              full_count += 1;
-                          }
-                      });
+            let item_capacity = self.capacities[index] as u32;
+            if item.count >= item_capacity {
+                full_count += 1;
+            }
+        });
         full_count == self.resources.accepted_count()
     }
 
@@ -1522,8 +1556,8 @@ impl BuildingStock {
     #[inline]
     fn fill(&mut self) {
         self.resources.for_each_mut(|index, item| {
-                          item.count = self.capacities[index] as u32;
-                      });
+            item.count = self.capacities[index] as u32;
+        });
     }
 
     #[inline]

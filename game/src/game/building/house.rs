@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use strum_macros::{Display, EnumCount, EnumIter};
 use strum::EnumCount;
+use arrayvec::ArrayVec;
 
 use super::{
     config::{BuildingConfig, BuildingConfigs},
@@ -28,6 +29,7 @@ use crate::{
         sim::resources::{
             Population, ResourceKind, ResourceKinds,
             ServiceKind, ServiceKinds, Workers,
+            StockItem, RESOURCE_KIND_COUNT,
         },
         unit::{
             Unit, UnitTaskHelper, config::UnitConfigKey,
@@ -322,6 +324,14 @@ impl BuildingBehavior for HouseBuilding {
         self.stock.is_full()
     }
 
+    fn stock(&self) -> ArrayVec<StockItem, RESOURCE_KIND_COUNT> {
+        let mut items = ArrayVec::new();
+        self.stock.for_each(|_, item| {
+            items.push(*item);
+        });
+        items
+    }
+
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         self.stock.available_resources(kind)
     }
@@ -575,6 +585,11 @@ impl HouseBuilding {
             self.receive_resources(resource, removed_count);
             true
         });
+    }
+
+    #[inline]
+    pub fn stock(&self) -> &BuildingStock {
+        &self.stock
     }
 
     // ----------------------
@@ -1255,8 +1270,7 @@ impl HouseUpgradeState {
         }
     }
 
-    // Check if we can increment the level and if there's enough space to expand the
-    // house.
+    // Check if we can increment the level and if there's enough space to expand the house.
     fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
         if self.level.is_max() {
             return false;

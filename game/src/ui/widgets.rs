@@ -22,7 +22,8 @@ use super::{
 use crate::{
     format_fixed_string,
     bitflags_with_display,
-    game::{sim::Simulation, world::World},
+    tile::{TileMap, camera::Camera},
+    game::{sim::{Simulation, Query}, world::World},
     engine::{Engine, time::{CountdownTimer, Seconds}},
     render::{RenderSystem, TextureHandle, TextureCache},
     utils::{Rect, RectTexCoords, Size, Vec2, Color, mem::{self, RawPtr, RcMut, WeakMut, WeakRef}},
@@ -73,6 +74,8 @@ macro_rules! make_imgui_labeled_id {
 pub struct UiWidgetContext<'game> {
     pub sim: &'game mut Simulation,
     pub world: &'game World,
+    pub tile_map: &'game TileMap,
+    pub camera: &'game mut Camera,
 
     pub ui_sys: &'game UiSystem,
     pub render_sys: &'game mut dyn RenderSystem,
@@ -89,10 +92,14 @@ impl<'game> UiWidgetContext<'game> {
     #[inline]
     pub fn new(sim: &'game mut Simulation,
                world: &'game World,
+               tile_map: &'game TileMap,
+               camera: &'game mut Camera,
                engine: &'game dyn Engine) -> Self {
         Self {
             sim,
             world,
+            tile_map,
+            camera,
             ui_sys: engine.ui_system(),
             render_sys: engine.render_system(),
             tex_cache: engine.texture_cache(),
@@ -145,6 +152,13 @@ impl<'game> UiWidgetContext<'game> {
     pub fn load_ui_texture(&mut self, path: &str) -> UiTextureHandle {
         let tex_handle = self.load_texture(path);
         self.ui_sys.to_ui_texture(self.tex_cache, tex_handle)
+    }
+
+    pub fn new_sim_query(&mut self) -> Query {
+        self.sim.new_query(
+            mem::mut_ref_cast(self.world),
+            mem::mut_ref_cast(self.tile_map),
+            self.delta_time_secs)
     }
 }
 
@@ -764,7 +778,7 @@ impl UiMenu {
 // UiText
 // ----------------------------------------------
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct UiText {
     pub string: String,
     pub font_scale: UiFontScale,
@@ -831,7 +845,7 @@ impl UiWidget for UiMenuHeading {
             self.center_vertically,
             self.center_horizontally);
 
-        if let Some(separator) = self.separator {
+        if let Some(separator) = self.separator && group.is_valid() {
             let separator_height = ui.text_line_height();
 
             let separator_rect = Rect::from_pos_and_size(
@@ -858,16 +872,23 @@ impl UiWidget for UiMenuHeading {
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
         let mut size = Vec2::zero();
+        let mut non_empty_lines_count = 0;
 
         for line in &self.lines {
+            if line.string.is_empty() {
+                continue;
+            }
+
             let (line_size, _) = internal::calc_text_size(context, line.font_scale, &line.string);
             size.x = size.x.max(line_size.x); // Max width.
             size.y += line_size.y; // Total height.
+
+            non_empty_lines_count += 1;
         }
 
-        if !self.lines.is_empty() { // Add inter-line spacing.
+        if non_empty_lines_count > 0 { // Add inter-line spacing.
             let style = context.ui_sys.current_ui_style();
-            size.y += style.item_spacing[1] * (self.lines.len() - 1) as f32;
+            size.y += style.item_spacing[1] * (non_empty_lines_count - 1) as f32;
         }
 
         size
@@ -923,6 +944,13 @@ impl UiMenuHeading {
     #[inline]
     pub fn set_line_color(&mut self, index: usize, color: Option<Color>) {
         self.lines[index].color = color;
+    }
+
+    #[inline]
+    pub fn clear_all_lines(&mut self) {
+        for line in &mut self.lines {
+            line.string.clear();
+        }
     }
 }
 

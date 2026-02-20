@@ -5,7 +5,7 @@ use crate::{
     log,
     save::{Save, Load},
     engine::{Engine, time::Seconds},
-    utils::{self, Vec2, coords::{Cell, CellRange}, hash::SmallSet},
+    utils::{self, Vec2, coords::{Cell, CellRange}, hash::SmallSet, mem},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     ui::{
         UiInputEvent,
@@ -91,7 +91,13 @@ pub struct GameMenusContext<'game> {
 impl GameMenusContext<'_> {
     #[inline]
     pub fn as_ui_widget_context(&self) -> UiWidgetContext<'_> {
-        UiWidgetContext::new(utils::mem::mut_ref_cast(self.sim), self.world, self.engine)
+        UiWidgetContext::new(
+            mem::mut_ref_cast(self.sim),
+            self.world,
+            self.tile_map,
+            mem::mut_ref_cast(self.camera),
+            self.engine
+        )
     }
 
     pub fn topmost_selected_tile(&self) -> Option<&Tile> {

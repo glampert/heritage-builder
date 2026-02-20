@@ -18,7 +18,7 @@ use crate::{
     ui::{self, UiSystem, UiTextureHandle, UiFontScale, widgets::UiWidgetContext},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
     utils::{
-        platform::paths,
+        platform::paths, mem,
         Color, Rect, RectEdges, Size, Vec2,
         coords::{self, Cell, CellF32, IsoPointF32, IsoDiamond, WorldToScreenTransform},
     },
@@ -525,24 +525,25 @@ impl Minimap {
             self.icons.swap_remove(*expired_index);
         }
     }
+}
 
-    // ----------------------
-    // Minimap rendering:
-    // ----------------------
+// ----------------------------------------------
+// Minimap rendering
+// ----------------------------------------------
 
-    // Draw the minimap using ImGui, nestled inside its own window.
-    pub fn draw(&mut self,
-                renderer: &mut impl MinimapRenderer,
-                context: &mut UiWidgetContext,
-                camera: &mut Camera) {
-        let mut render_ctx = MinimapRenderContext {
-            camera,
-            ui_sys: context.ui_sys,
-            render_sys: context.render_sys,
-            minimap: self,
-        };
-        renderer.draw(&mut render_ctx);
-    }
+// Draw the minimap using ImGui, nestled inside its own window.
+pub fn draw(renderer: &mut impl MinimapRenderer, context: &mut UiWidgetContext) {
+    let tile_map = mem::mut_ref_cast(context.tile_map);
+    let minimap = tile_map.minimap_mut();
+
+    let mut render_ctx = MinimapRenderContext {
+        camera: context.camera,
+        ui_sys: context.ui_sys,
+        render_sys: context.render_sys,
+        minimap,
+    };
+
+    renderer.draw(&mut render_ctx);
 }
 
 // ----------------------------------------------

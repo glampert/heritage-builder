@@ -14,7 +14,10 @@ use crate::{
     game_object_undo_redo_state,
     game::{
         cheats,
-        sim::resources::{ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers},
+        sim::resources::{
+            ResourceKind, ResourceKinds, ResourceStock, Workers,
+            StockItem, RESOURCE_KIND_COUNT,
+        },
         unit::{
             task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage},
             Unit,
@@ -197,6 +200,14 @@ impl BuildingBehavior for StorageBuilding {
 
     fn is_stock_full(&self) -> bool {
         self.storage_slots.are_all_slots_full()
+    }
+
+    fn stock(&self) -> ArrayVec<StockItem, RESOURCE_KIND_COUNT> {
+        let mut items = ArrayVec::new();
+        self.storage_slots.for_each_resource(|item| {
+            items.push(*item);
+        });
+        items
     }
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {

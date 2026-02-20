@@ -13,7 +13,7 @@ use crate::{
     save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{sim, config::GameConfigs, GameLoop, menu::*},
     utils::{coords::{Cell, CellRange}, mem::{SingleThreadStatic, RcMut, WeakMut}},
-    tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::DevUiMinimapRenderer},
+    tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::{self, DevUiMinimapRenderer}},
 };
 
 pub mod log_viewer;
@@ -197,16 +197,7 @@ impl DevEditorMenusSingleton {
             ui::tests::draw_sample_menus(&mut menu_context.as_ui_widget_context());
         }
 
-        {
-            let mut ui_context = UiWidgetContext::new(
-                menu_context.sim,
-                menu_context.world,
-                menu_context.engine
-            );
-            let minimap = menu_context.tile_map.minimap_mut();
-            minimap.draw(&mut self.minimap_renderer, &mut ui_context, menu_context.camera);
-        }
-
+        minimap::draw(&mut self.minimap_renderer, &mut menu_context.as_ui_widget_context());
         menu_context.camera.draw_debug(debug_draw, ui_sys);
 
         if show_cursor_pos {

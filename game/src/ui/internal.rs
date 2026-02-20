@@ -97,6 +97,18 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
         return Rect::zero();
     }
 
+    let mut total_height = 0.0;
+    for line in lines {
+        if !line.string.is_empty() {
+            total_height += calc_text_line_height_with_spacing(context, line.font_scale);
+        }
+    }
+
+    if total_height == 0.0 {
+        // All lines were blank. Early out.
+        return Rect::zero();
+    }
+
     // Measure text sizes:
     let text_sizes: SmallVec<[Vec2; 16]> = lines
         .iter()
@@ -107,11 +119,6 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
         .iter()
         .map(|size| size.x)
         .fold(0.0, f32::max);
-
-    let mut total_height = 0.0;
-    for line in lines {
-        total_height += calc_text_line_height_with_spacing(context, line.font_scale);
-    }
 
     let ui = context.ui_sys.ui();
 
@@ -125,6 +132,10 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
     // Draw each line:
     let mut offset_y = 0.0;
     for (line, size) in lines.iter().zip(text_sizes) {
+        if line.string.is_empty() {
+            continue;
+        }
+
         let x = start_x + (max_width - size.x) * 0.5;        
         let y = start_y + offset_y;
 
@@ -399,6 +410,10 @@ pub fn calc_text_line_height_with_spacing(context: &UiWidgetContext, font_scale:
 pub fn calc_text_size(context: &UiWidgetContext, font_scale: UiFontScale, text: &str) -> (Vec2, f32) {
     let font = context.ui_sys.current_ui_font();
     let font_size = font.font_size * font_scale.0;
+
+    if text.is_empty() {
+        return (Vec2::zero(), font_size);
+    }
 
     // No text wrapping.
     let max_width  = f32::MAX;
