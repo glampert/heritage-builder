@@ -113,6 +113,11 @@ impl NodeKind {
     }
 
     #[inline]
+    pub fn is_harvestable_prop(self) -> bool {
+        self.is_harvestable_tree()
+    }
+
+    #[inline]
     pub fn is_unit_placeable(self) -> bool {
         self.intersects(Self::EmptyLand | Self::Road | Self::VacantLot | Self::SettlersSpawnPoint)
     }

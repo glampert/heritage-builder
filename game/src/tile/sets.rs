@@ -611,6 +611,11 @@ impl TileDef {
     }
 
     #[inline]
+    pub fn is_harvestable_prop(&self) -> bool {
+        self.path_kind.is_harvestable_prop()
+    }
+
+    #[inline]
     pub fn is_valid(&self) -> bool {
         !self.kind.is_empty() && self.logical_size.is_valid() && self.draw_size.is_valid()
     }

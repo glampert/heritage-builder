@@ -87,9 +87,11 @@ impl TileInspectorMenu {
                 Some(GameObjectInspectorKind::Unit)
             } else if selected_tile.is(TileKind::Building) {
                 Some(GameObjectInspectorKind::Building)
-            } else if selected_tile.is(TileKind::Prop) && selected_tile.path_kind().is_harvestable_tree() {
+            } else if selected_tile.is_harvestable_prop() {
+                // NOTE: Only harvestable props have an associated Prop object. Anything else uses the terrain inspector.
                 Some(GameObjectInspectorKind::Prop)
             } else if selected_tile.is(TileKind::Terrain | TileKind::Rocks | TileKind::Vegetation) {
+                // NOTE: Rocks and non-harvestable vegetation are considered part of terrain (no associated Prop object).
                 Some(GameObjectInspectorKind::Terrain)
             } else {
                 None

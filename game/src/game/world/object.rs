@@ -554,7 +554,7 @@ impl<'world> Spawner<'world> {
                 Ok(unit) => SpawnerResult::Unit(unit),
                 Err(err) => SpawnerResult::Err(err),
             }
-        } else if tile_def.is(TileKind::Prop) && tile_def.path_kind.is_harvestable_tree() {
+        } else if tile_def.is(TileKind::Prop) && tile_def.is_harvestable_prop() {
             // Spawn Prop:
             match self.try_spawn_prop_with_tile_def(target_cell, tile_def) {
                 Ok(prop) => SpawnerResult::Prop(prop),

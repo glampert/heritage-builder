@@ -859,6 +859,11 @@ impl Tile {
     }
 
     #[inline]
+    pub fn is_harvestable_prop(&self) -> bool {
+        self.is(TileKind::Prop) && self.archetype.tile_def().is_harvestable_prop()
+    }
+
+    #[inline]
     pub fn name(&self) -> &'static str {
         &self.tile_def().name
     }
