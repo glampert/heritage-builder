@@ -1,3 +1,4 @@
+use arrayvec::{ArrayVec, ArrayString};
 use strum::EnumCount;
 use strum_macros::EnumCount;
 
@@ -29,7 +30,8 @@ const INSPECTOR_SUBHEADING_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 const INSPECTOR_BODY_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 
 const INSPECTOR_BODY_TEXT_MAX_LINES: usize = 10;
-const INSPECTOR_FMT_STR_SIZE: usize = 128;
+const INSPECTOR_BODY_TEXT_MAX_LEN: usize = 1024;
+const INSPECTOR_FMT_STR_MAX_LEN: usize = 128;
 
 #[repr(usize)]
 #[derive(Copy, Clone, EnumCount)]
@@ -40,6 +42,85 @@ enum InspectorHeadingIdx {
     Subheading2,
     Subheading3,
 }
+
+const INSPECTOR_SUBHEADING_COUNT: usize = InspectorHeadingIdx::COUNT - 1; // Skip Title.
+
+// ----------------------------------------------
+// InspectorMenuHeadings
+// ----------------------------------------------
+
+pub struct InspectorMenuHeadings<'a> {
+    key_vals: ArrayVec<(&'a str, ArrayString<INSPECTOR_FMT_STR_MAX_LEN>), INSPECTOR_SUBHEADING_COUNT>,
+}
+
+impl<'a> InspectorMenuHeadings<'a> {
+    pub const FMT_STR_MAX_LEN: usize = INSPECTOR_FMT_STR_MAX_LEN;
+
+    pub fn new() -> Self {
+        Self { key_vals: ArrayVec::new() }
+    }
+
+    pub fn add(&mut self, key: &'a str, val: ArrayString<INSPECTOR_FMT_STR_MAX_LEN>) {
+        self.key_vals.push((key, val));
+    }
+}
+
+macro_rules! add_heading {
+    (&mut $headings:ident, $key:expr, $($arg:tt)*) => {
+        $headings.add($key, crate::format_fixed_string!({ InspectorMenuHeadings::FMT_STR_MAX_LEN }, $($arg)*))
+    };
+}
+
+pub(super) use add_heading;
+
+// ----------------------------------------------
+// InspectorMenuBody
+// ----------------------------------------------
+
+pub struct InspectorMenuBody {
+    lines: ArrayString<INSPECTOR_BODY_TEXT_MAX_LEN>,
+}
+
+impl InspectorMenuBody {
+    pub const FMT_STR_MAX_LEN: usize = INSPECTOR_FMT_STR_MAX_LEN;
+
+    pub fn new() -> Self {
+        Self { lines: ArrayString::new() }
+    }
+
+    pub fn add_line(&mut self, text: &str) {
+        self.lines.push_str(text);
+        self.lines.push('\n');
+    }
+
+    pub fn add_str(&mut self, text: &str) {
+        self.lines.push_str(text);
+    }
+
+    pub fn append(&mut self, other: &Self) {
+        self.lines.push_str(&other.lines);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty()
+    }
+}
+
+macro_rules! add_body_line {
+    (&mut $body:ident, $($arg:tt)*) => {
+        $body.add_line(&crate::format_fixed_string!({ InspectorMenuBody::FMT_STR_MAX_LEN }, $($arg)*))
+    };
+}
+
+pub(super) use add_body_line;
+
+macro_rules! add_body_str {
+    (&mut $body:ident, $($arg:tt)*) => {
+        $body.add_str(&crate::format_fixed_string!({ InspectorMenuBody::FMT_STR_MAX_LEN }, $($arg)*))
+    };
+}
+
+pub(super) use add_body_str;
 
 // ----------------------------------------------
 // InspectorMenuRenderer
@@ -70,16 +151,11 @@ impl InspectorMenuRenderer {
         heading.set_line_string(InspectorHeadingIdx::Title as usize, text);
     }
 
-    pub fn set_body_text(&mut self, text: &str) {
-        let body_text = self.find_body_text();
-        body_text.clear_all_lines();
-
-        for (i, line) in text.split('\n').enumerate() {
-            body_text.set_line_string(i, line);
-        }
+    pub fn set_headings(&mut self, headings: &InspectorMenuHeadings) {
+        self.set_heading_pairs(&headings.key_vals);
     }
 
-    pub fn set_headings<K, V>(&mut self, key_vals: &[(K, V)])
+    pub fn set_heading_pairs<K, V>(&mut self, key_vals: &[(K, V)])
         where K: std::fmt::Display,
               V: std::fmt::Display
     {
@@ -89,7 +165,7 @@ impl InspectorMenuRenderer {
         for (i, (key, val)) in key_vals.iter().enumerate() {
             let index = i + 1; // Skip over InspectorHeadingIdx::Title.
             debug_assert!(index < InspectorHeadingIdx::COUNT, "Invalid subheading index: {index}");
-            let text = format_fixed_string!(INSPECTOR_FMT_STR_SIZE, "{}: {}", key, val);
+            let text = format_fixed_string!(INSPECTOR_FMT_STR_MAX_LEN, "{}: {}", key, val);
             heading.set_line_string(index, &text);
         }
     }
@@ -101,6 +177,19 @@ impl InspectorMenuRenderer {
         // Clear all subheading lines except for InspectorHeadingIdx::Title.
         for line in lines.iter_mut().take(InspectorHeadingIdx::COUNT).skip(1) {
             line.string.clear();
+        }
+    }
+
+    pub fn set_body(&mut self, body: &InspectorMenuBody) {
+        self.set_body_text(&body.lines);
+    }
+
+    pub fn set_body_text(&mut self, text: &str) {
+        let body_text = self.find_body_text();
+        body_text.clear_all_lines();
+
+        for (i, line) in text.split('\n').enumerate() {
+            body_text.set_line_string(i, line);
         }
     }
 

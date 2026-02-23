@@ -1,8 +1,4 @@
-use arrayvec::{ArrayVec, ArrayString};
-
 use crate::{
-    format_fixed_string,
-    append_fixed_string,
     tile::{Tile, TileKind},
     ui::widgets::{UiWidgetContext, UiWidget, UiMenu},
     utils::{mem::{RcMut, WeakMut, WeakRef}, fixed_string::snake_case_to_title},
@@ -14,7 +10,7 @@ use crate::{
 };
 
 mod renderer;
-use renderer::InspectorMenuRenderer;
+use renderer::*;
 
 // TODO: Fix UI layout issues:
 // - Close button should be always at the bottom of the window.
@@ -189,7 +185,7 @@ impl UnitInspector {
 
     fn set_inventory(&mut self, inventory: Option<StockItem>) {
         if let Some(item) = inventory {
-            self.renderer.set_headings(&[(item.kind, item.count)]);
+            self.renderer.set_heading_pairs(&[(item.kind, item.count)]);
         } else {
             self.renderer.clear_headings();
         }
@@ -231,101 +227,101 @@ impl BuildingInspector {
     }
 
     fn set_population_and_workers(&mut self, building: &Building) {
-        const CAP: usize = 128;
-        let mut key_vals = ArrayVec::<(&str, ArrayString<CAP>), 4>::new();
+        let mut headings = InspectorMenuHeadings::new();
 
         // Population + Workers: Household.
         if let Some(population) = building.population() {
-            key_vals.push(("Residents", format_fixed_string!(CAP, "{}/{}", population.count(), population.max())));
+            add_heading!(&mut headings, "Residents", "{}/{}", population.count(), population.max());
 
             if let Some(workers) = building.workers() {
                 let household = workers.as_household_worker_pool().expect("Expected Household!");
                 let total_workers = household.total_workers();
 
-                key_vals.push(("Workers", format_fixed_string!(CAP, "{}", total_workers)));
+                add_heading!(&mut headings, "Workers Available", "{}", total_workers);
                 if total_workers != 0 {
-                    key_vals.push(("Employed", format_fixed_string!(CAP, "{}", household.employed_count())));
+                    add_heading!(&mut headings, "Workers Employed", "{}", household.employed_count());
                 }
+            }
+
+            let house = building.as_house();
+            let tax_generated = house.tax_generated();
+
+            if tax_generated != 0 {
+                add_heading!(&mut headings, "Tax", "Generated {} / Available {}", tax_generated, house.tax_available());
+            } else {
+                add_heading!(&mut headings, "Tax", "No Income Generated");
             }
         // Just Workers: Employer Building.
         } else if let Some(workers) = building.workers() {
             let employer = workers.as_employer().expect("Expected Employer Building!");
             if employer.min_employees() != 0 {
-                key_vals.push(("Workers", format_fixed_string!(CAP, "{}/{}", employer.employee_count(), employer.max_employees())));
-                key_vals.push(("Minimum Required", format_fixed_string!(CAP, "{}", employer.min_employees())));
+                add_heading!(&mut headings, "Workers", "{}/{}", employer.employee_count(), employer.max_employees());
+                add_heading!(&mut headings, "Min Workers Required", "{}", employer.min_employees());
             }
         }
 
-        self.renderer.set_headings(&key_vals);
+        self.renderer.set_headings(&headings);
     }
 
     fn set_stats_info(&mut self, context: &mut UiWidgetContext, building: &Building) {
-        let text = {
+        let body = {
             if building.is(BuildingKind::House) {
                 Self::gather_house_stats(context, building)
             } else {
                 Self::gather_building_stats(context, building)
             }
         };
-        self.renderer.set_body_text(&text);
+        self.renderer.set_body(&body);
     }
 
-    fn gather_house_stats(context: &mut UiWidgetContext, building: &Building) -> ArrayString<1024> {
-        let mut text = ArrayString::new();
+    fn gather_house_stats(context: &mut UiWidgetContext, building: &Building) -> InspectorMenuBody {
+        let mut body = InspectorMenuBody::new();
 
         let house = building.as_house();
-        let tax_generated = house.tax_generated();
-
-        if tax_generated != 0 {
-            append_fixed_string!(&mut text, "Tax income generated: {} / available: {}\n",
-                tax_generated, house.tax_available());
-        } else {
-            append_fixed_string!(&mut text, "No tax income generated.\n");
-        }
 
         if !house.level().is_max() {
             let query = context.new_sim_query();
             let building_context = building.new_context(&query);
 
             if !building.is_linked_to_road(&query) {
-                append_fixed_string!(&mut text, "House lacks road access!\n");
+                add_body_line!(&mut body, "House lacks road access!");
             } else if !house.is_upgrade_available(&building_context) {
-                append_fixed_string!(&mut text, "House has no room to expand!\n");
+                add_body_line!(&mut body, "House has no room to expand!");
             } else {
                 let upgrade_requirements = house.upgrade_requirements(&building_context);
                 let has_required_resources = upgrade_requirements.has_required_resources();
                 let has_required_services  = upgrade_requirements.has_required_services();
 
                 if !has_required_resources {
-                    append_fixed_string!(&mut text, "Resources required before it can upgrade:\n");
-                    append_fixed_string!(&mut text, "{}\n", upgrade_requirements.resources_missing());
+                    add_body_line!(&mut body, "Resources required before it can upgrade:");
+                    add_body_line!(&mut body, "{}", upgrade_requirements.resources_missing());
                 }
 
                 if !has_required_services {
-                    append_fixed_string!(&mut text, "Services required before it can upgrade:\n");
-                    append_fixed_string!(&mut text, "{}\n", upgrade_requirements.services_missing());
+                    add_body_line!(&mut body, "Services required before it can upgrade:");
+                    add_body_line!(&mut body, "{}", upgrade_requirements.services_missing());
                 }
             }
         } else {                
-            append_fixed_string!(&mut text, "This house is upgraded to its highest level!\n");
+            add_body_line!(&mut body, "This house is upgraded to its highest level!");
         }
 
         let skip_empty = true;
         let stock = building.stock();
 
         if !stock.is_empty() {
-            let list = Self::gather_stock_items(&stock, skip_empty);
-            if !list.is_empty() {
-                append_fixed_string!(&mut text, "Resources stocked:\n");
-                text.push_str(&list);
+            let stock_items = Self::gather_stock_items(&stock, skip_empty);
+            if !stock_items.is_empty() {
+                add_body_line!(&mut body, "Resources stocked:");
+                body.append(&stock_items);
             }
         }
 
-        text
+        body
     }
 
-    fn gather_building_stats(context: &mut UiWidgetContext, building: &Building) -> ArrayString<1024> {
-        let mut text = ArrayString::new();
+    fn gather_building_stats(context: &mut UiWidgetContext, building: &Building) -> InspectorMenuBody {
+        let mut body = InspectorMenuBody::new();
 
         let is_operational = building.is_operational();
         if !is_operational {
@@ -337,23 +333,23 @@ impl BuildingInspector {
             let is_production_halted = building.is_production_halted();
 
             if !is_linked_to_road {
-                append_fixed_string!(&mut text, "Building not running because it lacks road access!\n");
+                add_body_line!(&mut body, "Building not running because it lacks road access!");
             } else if !has_min_required_workers {
-                append_fixed_string!(&mut text, "Building not running because it doesn't have enough workers!\n");
+                add_body_line!(&mut body, "Building not running because it doesn't have enough workers!");
             } else if !has_min_required_resources {
-                append_fixed_string!(&mut text, "Building not running because it doesn't have the required resources!\n");
+                add_body_line!(&mut body, "Building not running because it doesn't have the required resources!");
             }
 
             if is_production_halted && has_min_required_workers && has_min_required_resources {
                 // If we have workers and resources but halted production, our local output stock mut be full.
-                append_fixed_string!(&mut text, "Production halted! Waiting for production stock to be shipped out.\n");
+                add_body_line!(&mut body, "Production halted! Waiting for production stock to be shipped out.");
             }
         } else {
             let has_all_workers = building.workers_is_maxed();
             if has_all_workers {
-                append_fixed_string!(&mut text, "Building is operational and running at full capacity!\n");
+                add_body_line!(&mut body, "Building is operational and running at full capacity!");
             } else {
-                append_fixed_string!(&mut text, "Building is operational but doesn't have all required workers.\n");
+                add_body_line!(&mut body, "Building is operational but doesn't have all required workers.");
             }
         }
 
@@ -364,18 +360,18 @@ impl BuildingInspector {
         let stock = building.stock();
 
         if !stock.is_empty() || !skip_empty {
-            let list = Self::gather_stock_items(&stock, skip_empty);
-            if !list.is_empty() || !skip_empty {
-                append_fixed_string!(&mut text, "Stock:\n");
-                text.push_str(&list);
+            let stock_items = Self::gather_stock_items(&stock, skip_empty);
+            if !stock_items.is_empty() || !skip_empty {
+                add_body_line!(&mut body, "Stock:");
+                body.append(&stock_items);
             }
         }
 
-        text
+        body
     }
 
-    fn gather_stock_items(stock: &[StockItem], skip_empty: bool) -> ArrayString<1024> {
-        let mut text = ArrayString::new();
+    fn gather_stock_items(stock: &[StockItem], skip_empty: bool) -> InspectorMenuBody {
+        let mut body = InspectorMenuBody::new();
 
         if !stock.is_empty() || !skip_empty {
             let mut items_in_line = 0;
@@ -384,19 +380,19 @@ impl BuildingInspector {
                 if item.count != 0 || !skip_empty {
                     // Up to 3 items per line.
                     if items_in_line == 3 {
-                        append_fixed_string!(&mut text, "\n");
+                        body.add_line(""); // newline.
                         items_in_line = 0;
                     } else if items_in_line != 0 {
-                        append_fixed_string!(&mut text, " | ");
+                        body.add_str(" | ");
                     }
 
-                    append_fixed_string!(&mut text, "{}: {}", item.kind, item.count);
+                    add_body_str!(&mut body, "{}: {}", item.kind, item.count);
                     items_in_line += 1;
                 }
             }
         }
 
-        text
+        body
     }
 }
 
@@ -436,7 +432,7 @@ impl PropInspector {
 
     fn set_harvestable_resource(&mut self, resource: ResourceKind, amount: u32) {
         if !resource.is_empty() {
-            self.renderer.set_headings(&[(resource, amount)]);
+            self.renderer.set_heading_pairs(&[(resource, amount)]);
         } else {
             self.renderer.clear_headings();
         }
