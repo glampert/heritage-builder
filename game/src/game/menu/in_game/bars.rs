@@ -199,7 +199,7 @@ impl TopBarStats {
 
 struct TopBar {
     current_stats: TopBarStats,
-    icon_label_indices: [Option<usize>; TOP_BAR_ICON_COUNT],
+    icon_label_indices: [Option<UiWidgetGroupWidgetIndex>; TOP_BAR_ICON_COUNT],
     menu: UiMenuRcMut,
 }
 
@@ -315,15 +315,10 @@ impl TopBar {
             .find_widget_of_type_mut::<UiWidgetGroup>()
             .unwrap();
 
-        let widgets = group.widgets_mut();
-
         for (icon_index, label_index) in self.icon_label_indices.iter().enumerate() {
             if let Some(widget_index) = *label_index {
                 let icon = TopBarIcon::try_from_primitive(icon_index).unwrap();
-
-                let widget = &mut widgets[widget_index];
-                let label = widget.as_any_mut().downcast_mut::<UiSizedTextLabel>().unwrap();
-
+                let label = group.widget_as_mut::<UiSizedTextLabel>(widget_index).unwrap();
                 label.set_label(icon.label_for_stats(&stats).unwrap());
             }
         }

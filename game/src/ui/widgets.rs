@@ -400,6 +400,9 @@ pub type UiMenuWeakRef = WeakRef<UiMenu>;
 pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiMutable, bool>;
 pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, UiReadOnly, Vec2>;
 
+#[derive(Copy, Clone)]
+pub struct UiMenuWidgetIndex(usize);
+
 // ----------------------------------------------
 // UiMenu
 // ----------------------------------------------
@@ -614,13 +617,13 @@ impl UiMenu {
         self.on_open_close.invoke(self, context, IS_OPEN);
     }
 
-    pub fn add_widget<Widget>(&mut self, widget: Widget) -> usize
+    pub fn add_widget<Widget>(&mut self, widget: Widget) -> UiMenuWidgetIndex
         where Widget: UiWidget + 'static,
               UiWidgetImpl: From<Widget>
     {
         let index = self.widgets.len();
         self.widgets.push(UiWidgetImpl::from(widget));
-        index
+        UiMenuWidgetIndex(index)
     }
 
     #[inline]
@@ -634,42 +637,42 @@ impl UiMenu {
     }
 
     #[inline]
-    pub fn widget_as<Widget: UiWidget>(&self, index: usize) -> Option<&Widget> {
-        self.widgets[index].as_any().downcast_ref::<Widget>()
+    pub fn widget_as<Widget: UiWidget>(&self, index: UiMenuWidgetIndex) -> Option<&Widget> {
+        self.widgets[index.0].as_any().downcast_ref::<Widget>()
     }
 
     #[inline]
-    pub fn widget_as_mut<Widget: UiWidget>(&mut self, index: usize) -> Option<&mut Widget> {
-        self.widgets[index].as_any_mut().downcast_mut::<Widget>()
+    pub fn widget_as_mut<Widget: UiWidget>(&mut self, index: UiMenuWidgetIndex) -> Option<&mut Widget> {
+        self.widgets[index.0].as_any_mut().downcast_mut::<Widget>()
     }
 
-    pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(usize, &Widget)> {
+    pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(UiMenuWidgetIndex, &Widget)> {
         for (index, widget) in self.widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
-                return Some((index, w));
+                return Some((UiMenuWidgetIndex(index), w));
             }
         }
 
         None
     }
 
-    pub fn find_widget_of_type_mut<Widget: UiWidget>(&mut self) -> Option<(usize, &mut Widget)> {
+    pub fn find_widget_of_type_mut<Widget: UiWidget>(&mut self) -> Option<(UiMenuWidgetIndex, &mut Widget)> {
         for (index, widget) in self.widgets.iter_mut().enumerate() {
             if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
-                return Some((index, w));
+                return Some((UiMenuWidgetIndex(index), w));
             }
         }
 
         None
     }
 
-    pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(usize, &Widget)> {
+    pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(UiMenuWidgetIndex, &Widget)> {
         debug_assert!(!label.is_empty());
 
         for (index, widget) in self.widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
                 if w.label() == label {
-                    return Some((index, w));
+                    return Some((UiMenuWidgetIndex(index), w));
                 }
             }
         }
@@ -1071,6 +1074,9 @@ impl Default for UiWidgetGroupParams {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct UiWidgetGroupWidgetIndex(usize);
+
 // ----------------------------------------------
 // UiWidgetGroup
 // ----------------------------------------------
@@ -1158,13 +1164,13 @@ impl UiWidgetGroup {
         }
     }
 
-    pub fn add_widget<Widget>(&mut self, widget: Widget) -> usize
+    pub fn add_widget<Widget>(&mut self, widget: Widget) -> UiWidgetGroupWidgetIndex
         where Widget: UiWidget + 'static,
               UiWidgetImpl: From<Widget>
     {
         let index = self.widgets.len();
         self.widgets.push(UiWidgetImpl::from(widget));
-        index
+        UiWidgetGroupWidgetIndex(index)
     }
 
     #[inline]
@@ -1178,42 +1184,42 @@ impl UiWidgetGroup {
     }
 
     #[inline]
-    pub fn widget_as<Widget: UiWidget>(&self, index: usize) -> Option<&Widget> {
-        self.widgets[index].as_any().downcast_ref::<Widget>()
+    pub fn widget_as<Widget: UiWidget>(&self, index: UiWidgetGroupWidgetIndex) -> Option<&Widget> {
+        self.widgets[index.0].as_any().downcast_ref::<Widget>()
     }
 
     #[inline]
-    pub fn widget_as_mut<Widget: UiWidget>(&mut self, index: usize) -> Option<&mut Widget> {
-        self.widgets[index].as_any_mut().downcast_mut::<Widget>()
+    pub fn widget_as_mut<Widget: UiWidget>(&mut self, index: UiWidgetGroupWidgetIndex) -> Option<&mut Widget> {
+        self.widgets[index.0].as_any_mut().downcast_mut::<Widget>()
     }
 
-    pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(usize, &Widget)> {
+    pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(UiWidgetGroupWidgetIndex, &Widget)> {
         for (index, widget) in self.widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
-                return Some((index, w));
+                return Some((UiWidgetGroupWidgetIndex(index), w));
             }
         }
 
         None
     }
 
-    pub fn find_widget_of_type_mut<Widget: UiWidget>(&mut self) -> Option<(usize, &mut Widget)> {
+    pub fn find_widget_of_type_mut<Widget: UiWidget>(&mut self) -> Option<(UiWidgetGroupWidgetIndex, &mut Widget)> {
         for (index, widget) in self.widgets.iter_mut().enumerate() {
             if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
-                return Some((index, w));
+                return Some((UiWidgetGroupWidgetIndex(index), w));
             }
         }
 
         None
     }
 
-    pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(usize, &Widget)> {
+    pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(UiWidgetGroupWidgetIndex, &Widget)> {
         debug_assert!(!label.is_empty());
 
         for (index, widget) in self.widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
                 if w.label() == label {
-                    return Some((index, w));
+                    return Some((UiWidgetGroupWidgetIndex(index), w));
                 }
             }
         }
@@ -1247,6 +1253,9 @@ impl Default for UiLabeledWidgetGroupParams {
         }
     }
 }
+
+#[derive(Copy, Clone)]
+pub struct UiLabeledWidgetGroupWidgetIndex(usize);
 
 // ----------------------------------------------
 // UiLabeledWidgetGroup
@@ -1326,7 +1335,7 @@ impl UiLabeledWidgetGroup {
         }
     }
 
-    pub fn add_widget<Widget>(&mut self, label: String, widget: Widget) -> usize
+    pub fn add_widget<Widget>(&mut self, label: String, widget: Widget) -> UiLabeledWidgetGroupWidgetIndex
         where Widget: UiWidget + 'static,
               UiWidgetImpl: From<Widget>
     {
@@ -1335,7 +1344,7 @@ impl UiLabeledWidgetGroup {
 
         let index = self.labels_and_widgets.len();
         self.labels_and_widgets.push((label, UiWidgetImpl::from(widget)));
-        index
+        UiLabeledWidgetGroupWidgetIndex(index)
     }
 
     #[inline]
@@ -1349,42 +1358,42 @@ impl UiLabeledWidgetGroup {
     }
 
     #[inline]
-    pub fn widget_as<Widget: UiWidget>(&self, index: usize) -> Option<&Widget> {
-        self.labels_and_widgets[index].1.as_any().downcast_ref::<Widget>()
+    pub fn widget_as<Widget: UiWidget>(&self, index: UiLabeledWidgetGroupWidgetIndex) -> Option<&Widget> {
+        self.labels_and_widgets[index.0].1.as_any().downcast_ref::<Widget>()
     }
 
     #[inline]
-    pub fn widget_as_mut<Widget: UiWidget>(&mut self, index: usize) -> Option<&mut Widget> {
-        self.labels_and_widgets[index].1.as_any_mut().downcast_mut::<Widget>()
+    pub fn widget_as_mut<Widget: UiWidget>(&mut self, index: UiLabeledWidgetGroupWidgetIndex) -> Option<&mut Widget> {
+        self.labels_and_widgets[index.0].1.as_any_mut().downcast_mut::<Widget>()
     }
 
-    pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(usize, &Widget)> {
+    pub fn find_widget_of_type<Widget: UiWidget>(&self) -> Option<(UiLabeledWidgetGroupWidgetIndex, &Widget)> {
         for (index, (_, widget)) in self.labels_and_widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
-                return Some((index, w));
+                return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
             }
         }
 
         None
     }
 
-    pub fn find_widget_of_type_mut<Widget: UiWidget>(&mut self) -> Option<(usize, &mut Widget)> {
+    pub fn find_widget_of_type_mut<Widget: UiWidget>(&mut self) -> Option<(UiLabeledWidgetGroupWidgetIndex, &mut Widget)> {
         for (index, (_, widget)) in self.labels_and_widgets.iter_mut().enumerate() {
             if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
-                return Some((index, w));
+                return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
             }
         }
 
         None
     }
 
-    pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(usize, &Widget)> {
+    pub fn find_widget_with_label<Widget: UiWidget>(&self, label: &str) -> Option<(UiLabeledWidgetGroupWidgetIndex, &Widget)> {
         debug_assert!(!label.is_empty());
 
         for (index, (widget_label, widget)) in self.labels_and_widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
                 if widget_label == label {
-                    return Some((index, w));
+                    return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
                 }
             }
         }

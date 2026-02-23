@@ -477,16 +477,15 @@ impl TilePaletteMenu {
         for main_button in &mut self.main_buttons {
             if let Some(child_menu) = &mut main_button.child_menu {
                 let child_menu_width = child_menu.measure(context).x;
-                let palette_menu_weak_ref = self.menu.downgrade();
+                let palette_menu_weak_ref = self.menu.downgrade().into_not_mut();
                 let main_button_index =
                     self.menu.find_widget_with_label::<UiSpriteButton>(&main_button.def.label())
                         .expect("Couldn't find UiSpriteButton widget in palette menu!").0;
 
                 child_menu.set_position(UiMenuPosition::Callback(
                     UiMenuCalcPosition::with_closure(move |_, _| {
-                        let palette_menu_rc = palette_menu_weak_ref.upgrade().unwrap();
-                        let main_button_widget = &palette_menu_rc.widgets()[main_button_index];
-                        let main_button = main_button_widget.as_any().downcast_ref::<UiSpriteButton>().unwrap();
+                        let palette_menu = palette_menu_weak_ref.upgrade().unwrap();
+                        let main_button  = palette_menu.widget_as::<UiSpriteButton>(main_button_index).unwrap();
                         let main_button_pos = main_button.position();
                         Vec2::new(main_button_pos.x - child_menu_width, main_button_pos.y)
                     })

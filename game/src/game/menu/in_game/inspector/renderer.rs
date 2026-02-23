@@ -50,13 +50,13 @@ pub struct InspectorMenuRenderer {
     menu: UiMenuRcMut,
 
     // Indices within `icon_and_heading_group`.
-    icon_index: usize,
-    heading_index: usize,
+    icon_index: UiWidgetGroupWidgetIndex,
+    heading_index: UiWidgetGroupWidgetIndex,
 
     // Indices withing `self.menu`.
-    icon_and_heading_group_index: usize,
-    body_text_index: usize,
-    button_group_index: usize,
+    icon_and_heading_group_index: UiMenuWidgetIndex,
+    body_text_index: UiMenuWidgetIndex,
+    button_group_index: UiMenuWidgetIndex,
 }
 
 impl InspectorMenuRenderer {
