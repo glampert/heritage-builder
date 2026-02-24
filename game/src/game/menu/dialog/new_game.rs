@@ -1,6 +1,5 @@
 use super::*;
 use crate::{
-    implement_dialog_menu,
     utils::Size,
     tile::sets::PresetTiles,
     game::{GameLoop, menu::TEXT_BUTTON_HOVERED_SPRITE},

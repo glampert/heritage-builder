@@ -14,13 +14,12 @@ use crate::{
     pathfind::NodeKind as PathNodeKind,
     render::{TextureCache, TextureHandle},
     save::{self, SaveState},
-    singleton_late_init,
-    format_fixed_string,
     utils::{
         constants::*,
+        fixed_string::format_fixed_string,
         coords::{Cell, CellRange},
         hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
-        mem, Color, RectTexCoords, Size, Vec2,
+        mem::{self, singleton_late_init}, Color, RectTexCoords, Size, Vec2,
     },
 };
 
@@ -270,9 +269,9 @@ impl TileAnimSet {
                 }
 
                 if self.frames.is_empty() {
-                    log::warn!(log::channel!("tileset"),
-                               "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
-                               self.name);
+                    log::warning!(log::channel!("tileset"),
+                                  "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                                  self.name);
                 }
             }
             AnimSetFramesSource::Files(frame_count) => {
@@ -436,9 +435,9 @@ impl TileAnimSet {
                 }
 
                 if self.frames.is_empty() {
-                    log::warn!(log::channel!("tileset"),
-                               "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
-                               self.name);
+                    log::warning!(log::channel!("tileset"),
+                                  "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                                  self.name);
                 }
             }
             _ => {}

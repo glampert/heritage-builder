@@ -1,8 +1,7 @@
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    singleton,
-    utils::hash::{self, PreHashedKeyMap, StringHash},
+    utils::{hash::{self, PreHashedKeyMap, StringHash}, mem::singleton},
 };
 
 // ----------------------------------------------

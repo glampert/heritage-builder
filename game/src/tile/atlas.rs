@@ -6,9 +6,8 @@ use image::{RgbaImage, ImageReader};
 use super::{sets::TileTexInfo, TileMapLayerKind};
 use crate::{
     log,
-    format_fixed_string,
-    utils::{RectTexCoords, Size},
     render::{TextureCache, TextureHandle, TextureSettings},
+    utils::{RectTexCoords, Size, fixed_string::format_fixed_string},
 };
 
 // ----------------------------------------------

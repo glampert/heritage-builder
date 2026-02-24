@@ -1,6 +1,5 @@
 use super::*;
 use crate::{
-    implement_dialog_menu,
     game::{GameLoop, config::GameConfigs},
 };
 

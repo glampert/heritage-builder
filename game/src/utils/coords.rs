@@ -3,8 +3,7 @@
 use std::{iter::FusedIterator, ops::RangeInclusive};
 use serde::{Deserialize, Serialize};
 
-use super::{FieldAccessorXY, Rect, Size, Vec2, Color, constants::*};
-use crate::field_accessor_xy;
+use super::{FieldAccessorXY, field_accessor_xy, Rect, Size, Vec2, Color, constants::*};
 
 // ----------------------------------------------
 // IsoPoint

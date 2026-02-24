@@ -713,7 +713,7 @@ impl SoundAsset for StaticSoundAsset {
         {
             Ok(handle) => handle,
             Err(err) => {
-                log::warn!(log::channel!("sound"), "Failed to play StaticSound: {err}");
+                log::warning!(log::channel!("sound"), "Failed to play StaticSound: {err}");
                 return None;
             }
         };
@@ -754,7 +754,7 @@ impl SoundAsset for StreamedSoundAsset {
         {
             Ok(handle) => handle,
             Err(err) => {
-                log::warn!(log::channel!("sound"), "Failed to play StreamedSound '{}': {err}", self.path);
+                log::warning!(log::channel!("sound"), "Failed to play StreamedSound '{}': {err}", self.path);
                 return None;
             }
         };

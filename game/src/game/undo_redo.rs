@@ -4,9 +4,8 @@ use bitflags::bitflags;
 
 use crate::{
     log,
-    singleton_late_init,
-    utils::coords::Cell,
     pathfind::NodeKind as PathNodeKind,
+    utils::{coords::Cell, mem::singleton_late_init},
     game::{world::World, sim::Query, menu::TilePlacement},
     tile::{Tile, TileKind, TileFlags, TileMap, TileMapLayerKind, sets::TileDef},
 };
@@ -36,7 +35,6 @@ const SUPPORTED_OBJECT_KINDS: TileKind =
 // Macros
 // ----------------------------------------------
 
-#[macro_export]
 macro_rules! game_object_undo_redo_state {
     ($struct_name:ident) => {
         impl $crate::game::undo_redo::GameObjectSavedState for $struct_name {
@@ -57,6 +55,8 @@ macro_rules! game_object_undo_redo_state {
         }
     };
 }
+
+pub(crate) use game_object_undo_redo_state;
 
 // ----------------------------------------------
 // Helper types

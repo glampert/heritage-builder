@@ -4,11 +4,10 @@ use strum_macros::EnumCount;
 
 use super::TileInspectorMenuWeakMut;
 use crate::{
-    format_fixed_string,
-    utils::Vec2,
     ui::{UiFontScale, widgets::*},
     tile::{TileKind, sets::TileIconSprite},
     game::menu::TEXT_BUTTON_HOVERED_SPRITE,
+    utils::{Vec2, fixed_string::format_fixed_string},
 };
 
 // ----------------------------------------------
@@ -67,7 +66,7 @@ impl<'a> InspectorMenuHeadings<'a> {
 
 macro_rules! add_heading {
     (&mut $headings:ident, $key:expr, $($arg:tt)*) => {
-        $headings.add($key, crate::format_fixed_string!({ InspectorMenuHeadings::FMT_STR_MAX_LEN }, $($arg)*))
+        $headings.add($key, $crate::utils::fixed_string::format_fixed_string!({ InspectorMenuHeadings::FMT_STR_MAX_LEN }, $($arg)*))
     };
 }
 
@@ -108,19 +107,20 @@ impl InspectorMenuBody {
 
 macro_rules! add_body_line {
     (&mut $body:ident, $($arg:tt)*) => {
-        $body.add_line(&crate::format_fixed_string!({ InspectorMenuBody::FMT_STR_MAX_LEN }, $($arg)*))
+        $body.add_line(&$crate::utils::fixed_string::format_fixed_string!({ InspectorMenuBody::FMT_STR_MAX_LEN }, $($arg)*))
     };
 }
-
-pub(super) use add_body_line;
 
 macro_rules! add_body_str {
     (&mut $body:ident, $($arg:tt)*) => {
-        $body.add_str(&crate::format_fixed_string!({ InspectorMenuBody::FMT_STR_MAX_LEN }, $($arg)*))
+        $body.add_str(&$crate::utils::fixed_string::format_fixed_string!({ InspectorMenuBody::FMT_STR_MAX_LEN }, $($arg)*))
     };
 }
 
-pub(super) use add_body_str;
+pub(super) use {
+    add_body_line,
+    add_body_str,
+};
 
 // ----------------------------------------------
 // InspectorMenuRenderer

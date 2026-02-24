@@ -3,10 +3,9 @@ use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
 use crate::{
-    configurations,
-    engine::{config::EngineConfigs, time::Seconds},
-    tile::camera::*,
     utils::Size,
+    tile::camera::*,
+    engine::{config::{EngineConfigs, configurations}, time::Seconds},
 };
 
 // ----------------------------------------------

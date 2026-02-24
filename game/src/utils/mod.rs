@@ -16,7 +16,6 @@ pub mod platform;
 // Macros
 // ----------------------------------------------
 
-#[macro_export]
 macro_rules! name_of {
     ($t:ty, $field:ident) => {{
         // Access the field to force a compile-time check for the field existence.
@@ -25,8 +24,9 @@ macro_rules! name_of {
     }};
 }
 
+pub(crate) use name_of;
+
 // Swaps two values in-place.
-#[macro_export]
 macro_rules! swap2 {
     ($a:expr, $b:expr) => {{
         let tmp = $a;
@@ -35,8 +35,9 @@ macro_rules! swap2 {
     }};
 }
 
+pub(crate) use swap2;
+
 // Defines a bitflags struct with a Display implementation.
-#[macro_export]
 macro_rules! bitflags_with_display {
     (
         $(#[$meta:meta])*
@@ -76,6 +77,8 @@ macro_rules! bitflags_with_display {
     };
 }
 
+pub(crate) use bitflags_with_display;
+
 // Returns refs to the x,y fields of structs like Vec2, Cell, IsoPoint, etc.
 // Used with imgui debug widgets.
 pub trait FieldAccessorXY<T> {
@@ -85,7 +88,6 @@ pub trait FieldAccessorXY<T> {
     fn y_mut(&mut self) -> &mut T;
 }
 
-#[macro_export]
 macro_rules! field_accessor_xy {
     ($struct_name:ty, $field_type:ty, $x_field:ident, $y_field:ident) => {
         impl FieldAccessorXY<$field_type> for $struct_name {
@@ -96,6 +98,8 @@ macro_rules! field_accessor_xy {
         }
     };
 }
+
+pub(crate) use field_accessor_xy;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

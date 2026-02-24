@@ -7,9 +7,8 @@ use strum_macros::{Display, EnumCount, EnumIter, EnumDiscriminants};
 
 use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
-    singleton_late_init,
     game::menu::ButtonDef,
-    utils::{Vec2, mem},
+    utils::{Vec2, mem::{self, singleton_late_init}},
     ui::{UiFontScale, UiStaticVar, widgets::*},
 };
 
@@ -205,7 +204,6 @@ trait DialogMenuFactory: DialogMenu {
 // Macro: implement_dialog_menu
 // ----------------------------------------------
 
-#[macro_export]
 macro_rules! implement_dialog_menu {
     ($dialog_menu_struct:ident, $title:expr) => {
         impl DialogMenuFactory for $dialog_menu_struct {
@@ -230,6 +228,8 @@ macro_rules! implement_dialog_menu {
         }
     };
 }
+
+pub(crate) use implement_dialog_menu;
 
 // ----------------------------------------------
 // DialogMenusSingleton

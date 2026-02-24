@@ -15,10 +15,9 @@ use rand::{seq::IteratorRandom, Rng};
 use serde::{de, Deserialize, Deserializer, Serialize};
 
 use crate::{
-    bitflags_with_display,
     log,
-    utils::Color,
     ui::UiSystem,
+    utils::{Color, bitflags_with_display},
     game::{
         cheats,
         world::{object::GameObject, stats::WorldStats, World},

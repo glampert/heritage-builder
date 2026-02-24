@@ -9,10 +9,10 @@ use super::{
     BuildingArchetype, BuildingArchetypeKind, BuildingKind,
 };
 use crate::{
-    configurations,
     log,
     ui::UiSystem,
     tile::sets::TileDef,
+    engine::config::configurations,
     game::sim::{RandomGenerator, resources::ServiceKind},
     utils::hash::{self, PreHashedKeyMap, StringHash},
 };
@@ -29,7 +29,6 @@ pub trait BuildingConfig {
     fn draw_debug_ui(&self, ui_sys: &UiSystem);
 }
 
-#[macro_export]
 macro_rules! building_config {
     ($config_struct:ident) => {
         impl $crate::game::building::config::BuildingConfig for $config_struct {
@@ -82,6 +81,8 @@ macro_rules! building_config {
         }
     };
 }
+
+pub(crate) use building_config;
 
 // ----------------------------------------------
 // BuildingConfigEntry

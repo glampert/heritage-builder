@@ -3,7 +3,6 @@ use bitflags::bitflags;
 
 use super::*;
 use crate::{
-    implement_dialog_menu,
     game::{
         GameLoop,
         AUTOSAVE_FILE_NAME,

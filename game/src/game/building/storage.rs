@@ -5,13 +5,10 @@ use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
 
 use super::{
-    config::{BuildingConfig, BuildingConfigs},
+    config::{BuildingConfig, BuildingConfigs, building_config},
     BuildingBehavior, BuildingContext, BuildingKind,
 };
 use crate::{
-    building_config,
-    game_object_debug_options,
-    game_object_undo_redo_state,
     game::{
         cheats,
         sim::resources::{
@@ -22,8 +19,8 @@ use crate::{
             task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage},
             Unit,
         },
-        world::stats::WorldStats,
-        undo_redo::GameObjectSavedState,
+        world::{stats::WorldStats, debug::game_object_debug_options},
+        undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     },
     tile::Tile,
     ui::UiSystem,

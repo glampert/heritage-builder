@@ -7,14 +7,11 @@ use strum::EnumCount;
 use arrayvec::ArrayVec;
 
 use super::{
-    config::{BuildingConfig, BuildingConfigs},
+    config::{BuildingConfig, BuildingConfigs, building_config},
     house_upgrade, Building, BuildingBehavior, BuildingContext,
     BuildingKind, BuildingKindAndId, BuildingStock,
 };
 use crate::{
-    building_config,
-    game_object_debug_options,
-    game_object_undo_redo_state,
     log,
     ui::UiSystem,
     save::PostLoadContext,
@@ -24,8 +21,8 @@ use crate::{
     game::{
         sim::RandomGenerator,
         system::settlers::Settler,
-        world::stats::WorldStats,
-        undo_redo::GameObjectSavedState,
+        world::{stats::WorldStats, debug::game_object_debug_options},
+        undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
         sim::resources::{
             Population, ResourceKind, ResourceKinds,
             ServiceKind, ServiceKinds, Workers,

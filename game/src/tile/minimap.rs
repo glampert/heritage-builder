@@ -11,15 +11,14 @@ use super::{
 };
 
 use crate::{
-    singleton,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
     app::input::{InputSystem, InputAction, MouseButton},
     ui::{self, UiSystem, UiTextureHandle, UiFontScale, widgets::UiWidgetContext},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
     utils::{
-        platform::paths, mem,
         Color, Rect, RectEdges, Size, Vec2,
+        platform::paths, mem::{self, singleton},
         coords::{self, Cell, CellF32, IsoPointF32, IsoDiamond, WorldToScreenTransform},
     },
 };

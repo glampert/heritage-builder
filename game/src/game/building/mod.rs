@@ -34,7 +34,6 @@ use super::{
     },
 };
 use crate::{
-    bitflags_with_display,
     engine::time::UpdateTimer,
     game::config::GameConfigs,
     ui::{UiSystem, UiStaticVar, UiFontScale},
@@ -47,6 +46,7 @@ use crate::{
         TileMap, TileMapLayerKind,
     },
     utils::{
+        bitflags_with_display,
         coords::{Cell, CellRange, WorldToScreenTransform},
         hash::StringHash,
         mem, Color,

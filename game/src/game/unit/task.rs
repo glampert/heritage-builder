@@ -1362,7 +1362,7 @@ impl UnitTaskHarvestWood {
 
     fn try_return_to_origin(&mut self, unit: &mut Unit, query: &Query) -> bool {
         if query.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
-            log::warn!(log::channel!("task"), "Origin building is no longer valid! TaskHarvestWood will abort.");
+            log::warning!(log::channel!("task"), "Origin building is no longer valid! TaskHarvestWood will abort.");
             return false;
         }
 
@@ -1381,7 +1381,7 @@ impl UnitTaskHarvestWood {
                 true
             }
             SearchResult::PathNotFound => {
-                log::warn!(log::channel!("task"), "Origin building is no longer reachable! TaskHarvestWood will abort.");
+                log::warning!(log::channel!("task"), "Origin building is no longer reachable! TaskHarvestWood will abort.");
                 false
             }
         }
@@ -1425,7 +1425,7 @@ impl UnitTask for UnitTaskHarvestWood {
             if self.is_returning_to_origin {
                 if !self.try_return_to_origin(unit, query) {
                     // Not possible to recover if the origin building is gone.
-                    log::warn!(log::channel!("task"), "Aborting TaskHarvestWood. Unable to return to origin building...");
+                    log::warning!(log::channel!("task"), "Aborting TaskHarvestWood. Unable to return to origin building...");
                     unit.clear_inventory();
                     return UnitTaskState::Completed;
                 }
@@ -1465,7 +1465,7 @@ impl UnitTask for UnitTaskHarvestWood {
             }
 
             if !unit.inventory_is_empty() {
-                log::warn!(log::channel!("task"), "TaskHarvestWood: Failed to unload all resources.");
+                log::warning!(log::channel!("task"), "TaskHarvestWood: Failed to unload all resources.");
                 unit.clear_inventory();
             }
 
@@ -1499,7 +1499,7 @@ impl UnitTask for UnitTaskHarvestWood {
                         // resources harvested will be lost.
                         if !self.try_return_to_origin(unit, query) {
                             // Not possible to recover if the origin building is gone.
-                            log::warn!(log::channel!("task"), "Aborting TaskHarvestWood. Unable to return to origin building...");
+                            log::warning!(log::channel!("task"), "Aborting TaskHarvestWood. Unable to return to origin building...");
                             unit.clear_inventory();
                             task_completed = true;
                         }

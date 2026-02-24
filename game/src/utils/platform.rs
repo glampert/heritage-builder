@@ -14,7 +14,7 @@ pub mod paths {
     pub fn set_default_working_dir() {
         let path = base_dir();
         if let Err(err) = env::set_current_dir(path) {
-            log::warn!("Failed to set default working directory: {err}");
+            log::warning!("Failed to set default working directory: {err}");
         }
     }
 

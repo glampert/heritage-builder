@@ -15,13 +15,13 @@ use super::{
         Query,
     },
     world::{
+        debug::game_object_debug_options,
         object::{GameObject, GenerationalIndex, Spawner},
         stats::WorldStats,
     },
 };
 use crate::{
     log,
-    game_object_debug_options,
     ui::UiSystem,
     save::PostLoadContext,
     pathfind::{NodeKind as PathNodeKind, Path},

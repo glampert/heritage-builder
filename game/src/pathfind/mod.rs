@@ -14,9 +14,8 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    bitflags_with_display,
     ui::UiSystem,
-    utils::{coords::{Cell, CellRange}, Size},
+    utils::{bitflags_with_display, coords::{Cell, CellRange}, Size},
     tile::{TileFlags, TileKind, TileMap, TileMapLayerKind},
 };
 

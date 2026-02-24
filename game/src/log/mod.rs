@@ -1,7 +1,7 @@
+#![allow(unused_macros)]
+
 use std::{
-    fs,
-    io,
-    fmt,
+    fs, io, fmt,
     path::{Path, PathBuf},
     hash::{Hash, Hasher},
     sync::{
@@ -84,7 +84,6 @@ impl Hash for Channel {
     }
 }
 
-#[macro_export]
 macro_rules! channel {
     ($name:literal) => {
         $crate::log::Channel::new(concat!(" [", $name, "]"))
@@ -252,8 +251,7 @@ pub fn print_internal(level: Level,
 }
 
 // Shared helper used by all logging macros.
-#[macro_export]
-macro_rules! log_message {
+macro_rules! print_message {
     ($level:expr, $chan:expr, $fmt:literal $(, $($arg:tt)+)?) => {
         if $level.is_enabled() {
             $crate::log::print_internal(
@@ -271,49 +269,45 @@ macro_rules! log_message {
 // ----------------------------------------------
 
 // Verbose
-#[macro_export]
 macro_rules! verbose {
     ($fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log_message!($crate::log::Level::Verbose, None, $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Verbose, None, $fmt $(, $($arg)+)?)
     };
     ($chan:expr, $fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log_message!($crate::log::Level::Verbose, Some($chan), $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Verbose, Some($chan), $fmt $(, $($arg)+)?)
     };
 }
 
 // Info
-#[macro_export]
 macro_rules! info {
     ($fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log_message!($crate::log::Level::Info, None, $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Info, None, $fmt $(, $($arg)+)?)
     };
     ($chan:expr, $fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log_message!($crate::log::Level::Info, Some($chan), $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Info, Some($chan), $fmt $(, $($arg)+)?)
     };
 }
 
-// Warn
-#[macro_export]
-macro_rules! warn {
+// Warning
+macro_rules! warning {
     ($fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log_message!($crate::log::Level::Warn, None, $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Warn, None, $fmt $(, $($arg)+)?)
     };
     ($chan:expr, $fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log_message!($crate::log::Level::Warn, Some($chan), $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Warn, Some($chan), $fmt $(, $($arg)+)?)
     };
 }
 
 // Error
-#[macro_export]
 macro_rules! error {
     ($fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log_message!($crate::log::Level::Error, None, $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Error, None, $fmt $(, $($arg)+)?)
     };
     ($chan:expr, $fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log_message!($crate::log::Level::Error, Some($chan), $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Error, Some($chan), $fmt $(, $($arg)+)?)
     };
 }
 
-// Re-export these here so usage is scoped, e.g., log::info!(), log::warn!(), etc.
+// Re-export these here so usage is scoped, e.g., log::info!(), log::warning!(), etc.
 #[allow(unused_imports)]
-pub use crate::{channel, verbose, info, warn, error};
+pub(crate) use {channel, verbose, info, warning, error, print_message};

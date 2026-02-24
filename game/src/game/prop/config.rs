@@ -3,10 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     log,
-    configurations,
     ui::UiSystem,
-    engine::time::Seconds,
     game::sim::resources::ResourceKind,
+    engine::{time::Seconds, config::configurations},
     utils::hash::{self, PreHashedKeyMap, StringHash},
 };
 

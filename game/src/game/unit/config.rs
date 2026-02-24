@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     log,
-    configurations,
     ui::UiSystem,
+    engine::config::configurations,
     pathfind::NodeKind as PathNodeKind,
     utils::hash::{self, PreHashedKeyMap, StringHash},
 };

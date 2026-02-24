@@ -7,12 +7,11 @@ use settings::DebugSettingsDevMenu;
 use log_viewer::LogViewerWindow;
 
 use crate::{
-    singleton_late_init,
     render::TextureCache,
     ui::{self, UiTheme, widgets::UiWidgetContext},
     save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{sim, config::GameConfigs, GameLoop, menu::*},
-    utils::{coords::{Cell, CellRange}, mem::{SingleThreadStatic, RcMut, WeakMut}},
+    utils::{coords::{Cell, CellRange}, mem::{SingleThreadStatic, RcMut, WeakMut, singleton_late_init}},
     tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::{self, DevUiMinimapRenderer}},
 };
 

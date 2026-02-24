@@ -28,7 +28,6 @@ use menu::{
 
 use crate::{
     log,
-    singleton_late_init,
     save::{self, *},
     render::TextureCache,
     ui::{UiInputEvent, widgets::UiWidgetContext},
@@ -51,7 +50,7 @@ use crate::{
         TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
     utils::{
-        mem::RcMut,
+        mem::{RcMut, singleton_late_init},
         crash_report, platform::{self, paths},
         coords::CellRange, file_sys, hash, Size, Vec2,
     },

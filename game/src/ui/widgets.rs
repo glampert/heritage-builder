@@ -20,13 +20,16 @@ use super::{
 };
 
 use crate::{
-    format_fixed_string,
-    bitflags_with_display,
     tile::{TileMap, camera::Camera},
     game::{sim::{Simulation, Query}, world::World},
     engine::{Engine, time::{CountdownTimer, Seconds}},
     render::{RenderSystem, TextureHandle, TextureCache},
-    utils::{Rect, RectTexCoords, Size, Vec2, Color, mem::{self, RawPtr, RcMut, WeakMut, WeakRef}},
+    utils::{
+        bitflags_with_display,
+        fixed_string::format_fixed_string,
+        Rect, RectTexCoords, Size, Vec2, Color,
+        mem::{self, RawPtr, RcMut, WeakMut, WeakRef},
+    },
 };
 
 // ----------------------------------------------

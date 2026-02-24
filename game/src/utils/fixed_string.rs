@@ -1,3 +1,5 @@
+#![allow(unused_macros)]
+
 // Fixed-capacity formatting helpers built on `arrayvec::ArrayString`.
 // Avoids heap allocations.
 use arrayvec::ArrayString;
@@ -57,7 +59,6 @@ impl<'a, const CAP: usize> core::fmt::Write for FixedWriter<'a, CAP> {
 
 // Creates a new `ArrayString<CAP>` and formats into it.
 // Panics if capacity is exceeded.
-#[macro_export]
 macro_rules! format_fixed_string {
     ($capacity:expr, $($arg:tt)*) => {{
         use core::fmt::Write as _;
@@ -71,7 +72,6 @@ macro_rules! format_fixed_string {
 
 // Creates a new `ArrayString<CAP>` and formats into it.
 // Silently truncates if capacity is exceeded.
-#[macro_export]
 macro_rules! format_fixed_string_trunc {
     ($capacity:expr, $($arg:tt)*) => {{
         use core::fmt::Write as _;
@@ -85,7 +85,6 @@ macro_rules! format_fixed_string_trunc {
 // Clears an existing `ArrayString` and writes formatted data into it.
 // Panics if capacity is exceeded.
 // Intended for per-frame buffer reuse.
-#[macro_export]
 macro_rules! write_fixed_string {
     ($buf:expr, $($arg:tt)*) => {{
         use core::fmt::Write as _;
@@ -100,7 +99,6 @@ macro_rules! write_fixed_string {
 // Clears an existing `ArrayString` and writes formatted data into it.
 // Silently truncates on overflow.
 // Intended for per-frame buffer reuse.
-#[macro_export]
 macro_rules! write_fixed_string_trunc {
     ($buf:expr, $($arg:tt)*) => {{
         use core::fmt::Write as _;
@@ -112,7 +110,6 @@ macro_rules! write_fixed_string_trunc {
 
 // Append formatted data to an existing `ArrayString`.
 // Panics if capacity is exceeded.
-#[macro_export]
 macro_rules! append_fixed_string {
     ($buf:expr, $($arg:tt)*) => {{
         use core::fmt::Write as _;
@@ -125,7 +122,6 @@ macro_rules! append_fixed_string {
 
 // Append formatted data to an existing `ArrayString`.
 // Silently truncates on overflow.
-#[macro_export]
 macro_rules! append_fixed_string_trunc {
     ($buf:expr, $($arg:tt)*) => {{
         use core::fmt::Write as _;
@@ -133,6 +129,17 @@ macro_rules! append_fixed_string_trunc {
         let _ = write!(&mut writer, $($arg)*);
     }};
 }
+
+// Public re-exports.
+#[allow(unused_imports)]
+pub(crate) use {
+    format_fixed_string,
+    format_fixed_string_trunc,
+    write_fixed_string,
+    write_fixed_string_trunc,
+    append_fixed_string,
+    append_fixed_string_trunc,
+};
 
 // ----------------------------------------------
 // Unit Tests

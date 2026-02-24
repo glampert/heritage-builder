@@ -8,6 +8,7 @@ use super::{
         Query,
     },
     world::{
+        debug::game_object_debug_options,
         object::{GameObject, GenerationalIndex},
         stats::WorldStats,
     },
@@ -15,10 +16,9 @@ use super::{
     unit::UnitId,
 };
 use crate::{
-    game_object_debug_options,
-    game_object_undo_redo_state,
-    ui::{UiSystem, UiStaticVar, UiFontScale},
     save::PostLoadContext,
+    ui::{UiSystem, UiStaticVar, UiFontScale},
+    game::undo_redo::game_object_undo_redo_state,
     engine::time::{CountdownTimer, Seconds},
     tile::{Tile, TileKind, TileMapLayerKind},
     utils::{

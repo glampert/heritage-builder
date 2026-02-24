@@ -2,7 +2,7 @@ use std::{any::Any, collections::hash_map::Entry};
 use serde::{Deserialize, Serialize};
 
 use super::hash::{self, FNV1aHash, PreHashedKeyMap};
-use crate::singleton;
+use crate::utils::mem::singleton;
 
 // ----------------------------------------------
 // Callback
@@ -223,8 +223,7 @@ pub fn find<F>(key: CallbackKey) -> Option<&'static F>
 // Public Macros
 // ----------------------------------------------
 
-#[macro_export]
-macro_rules! register_callback {
+macro_rules! register {
     ($func:expr) => {{
         const KEY: $crate::utils::callback::CallbackKey =
             $crate::utils::callback::CallbackKey::new(stringify!($func));
@@ -232,8 +231,7 @@ macro_rules! register_callback {
     }};
 }
 
-#[macro_export]
-macro_rules! create_callback {
+macro_rules! create {
     ($func:expr) => {{
         const KEY: $crate::utils::callback::CallbackKey =
             $crate::utils::callback::CallbackKey::new(stringify!($func));
@@ -242,8 +240,7 @@ macro_rules! create_callback {
 }
 
 // Re-export here so usage is scoped, e.g.: callback::register!(...)
-#[allow(unused_imports)]
-pub use crate::{create_callback as create, register_callback as register};
+pub(crate) use {create, register};
 
 // ----------------------------------------------
 // Unit Tests

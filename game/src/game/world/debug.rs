@@ -196,7 +196,6 @@ pub trait GameObjectDebugOptionsExt {
 // Macro: game_object_debug_options
 // ----------------------------------------------
 
-#[macro_export]
 macro_rules! game_object_debug_options {
     (
         $struct_name:ident,
@@ -266,3 +265,5 @@ macro_rules! game_object_debug_options {
         }
     };
 }
+
+pub(crate) use game_object_debug_options;

@@ -6,10 +6,13 @@ use std::{
 };
 
 use crate::{
-    format_fixed_string,
     engine::time::Seconds,
     render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
-    utils::{Color, FieldAccessorXY, Vec2, Rect, platform::paths, mem::{self, RawPtr}},
+    utils::{
+        fixed_string::format_fixed_string,
+        Color, FieldAccessorXY, Vec2, Rect,
+        platform::paths, mem::{self, RawPtr},
+    },
     app::{
         Application,
         input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},

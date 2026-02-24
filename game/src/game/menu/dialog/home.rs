@@ -3,7 +3,6 @@ use strum_macros::{EnumProperty, EnumCount, EnumIter};
 
 use super::*;
 use crate::{
-    implement_dialog_menu,
     game::{GameLoop, menu::ButtonDef},
 };
 

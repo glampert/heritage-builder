@@ -3,7 +3,6 @@ use num_enum::TryFromPrimitive;
 
 use super::*;
 use crate::{
-    implement_dialog_menu,
     render::TextureFilter,
     game::{GameLoop, config::GameConfigs},
 };

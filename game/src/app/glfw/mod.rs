@@ -148,7 +148,7 @@ impl Application for GlfwApplication {
                     translated_events.push(ApplicationEvent::MouseButton(button, action, modifiers));
                 }
                 unhandled_event => {
-                    log::warn!(log::channel!("app"), "Unhandled GLFW window event: {unhandled_event:?}");
+                    log::warning!(log::channel!("app"), "Unhandled GLFW window event: {unhandled_event:?}");
                 }
             }
         }

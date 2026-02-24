@@ -313,7 +313,6 @@ pub fn set_variable_by_name<T: ShaderVarTrait>(shader_program: &ShaderProgram,
     shader_program.set_variable(&shader_var, value);
 }
 
-#[macro_export]
 macro_rules! shader {
     (
         $mod_name:ident,
@@ -346,7 +345,7 @@ macro_rules! shader {
                     Self {
                         variables: Vars {
                             $(
-                                $field: program.find_variable($crate::name_of!(Vars, $field)),
+                                $field: program.find_variable($crate::utils::name_of!(Vars, $field)),
                             )*
                         },
                         program,
@@ -366,6 +365,8 @@ macro_rules! shader {
     };
 }
 
+pub(crate) use shader;
+
 // ----------------------------------------------
 // Built-in shaders
 // ----------------------------------------------
@@ -373,19 +374,19 @@ macro_rules! shader {
 shader!(
     sprites,
     // Uniform variables:
-    viewport_size : Vec2,
-    sprite_tint : Color,
-    sprite_texture : &Texture2D,
+    viewport_size: Vec2,
+    sprite_tint: Color,
+    sprite_texture: &Texture2D,
 );
 
 shader!(
     lines,
     // Uniform variables:
-    viewport_size : Vec2,
+    viewport_size: Vec2,
 );
 
 shader!(
     points,
     // Uniform variables:
-    viewport_size : Vec2,
+    viewport_size: Vec2,
 );

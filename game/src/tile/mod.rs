@@ -18,12 +18,12 @@ use sets::{TileAnimSet, TileDef, SerializableTileDefHandle, TileSets, TileTexInf
 
 use crate::{
     log,
-    bitflags_with_display,
     engine::time::Seconds,
     pathfind::NodeKind as PathNodeKind,
     save::*,
     utils::{
         constants::*,
+        bitflags_with_display,
         Color, Rect, Size, Vec2,
         hash::StringHash, mem, platform::paths,
         coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
