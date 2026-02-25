@@ -12,11 +12,6 @@ use crate::{
 mod renderer;
 use renderer::*;
 
-// TODO: Fix UI layout issues:
-// - Close button should be always at the bottom of the window.
-// - Adjust menu window size to fit the content, if larger than initial size.
-// - Red/yellow colored text to highlight missing workers/resources.
-
 // ----------------------------------------------
 // TileInspectorMenu
 // ----------------------------------------------

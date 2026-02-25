@@ -362,6 +362,7 @@ bitflags_with_display! {
         const Modal                  = 1 << 7;
         const CloseModalOnEscape     = 1 << 8;
         const HideWhenMessageBoxOpen = 1 << 9;
+        const AdjustSizeToContents   = 1 << 10; // Even if explicit size given, adjust to contents on menu opening.
     }
 }
 
@@ -711,7 +712,12 @@ impl UiMenu {
 
     fn calc_window_size(&self, ui: &imgui::Ui) -> (Vec2, imgui::Condition) {
         if let Some(size) = self.size {
-            (size, imgui::Condition::Always)
+            let condition = if self.has_flags(UiMenuFlags::AdjustSizeToContents) {
+                imgui::Condition::Appearing
+            } else {
+                imgui::Condition::Always
+            };
+            (size, condition)
         } else if self.has_flags(UiMenuFlags::Fullscreen) {
             (Vec2::from_array(ui.io().display_size), imgui::Condition::Always)
         } else {

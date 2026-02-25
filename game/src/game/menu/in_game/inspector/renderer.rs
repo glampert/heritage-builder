@@ -14,23 +14,13 @@ use crate::{
 // Constants
 // ----------------------------------------------
 
-const INSPECTOR_MENU_BACKGROUND_SPRITE: &str = "misc/square_page_bg.png";
-
-const INSPECTOR_MENU_FLAGS: UiMenuFlags =
-    UiMenuFlags::from_bits_retain(
-        UiMenuFlags::PauseSimIfOpen.bits()
-        | UiMenuFlags::AlignCenter.bits()
-        | UiMenuFlags::Modal.bits()
-        | UiMenuFlags::CloseModalOnEscape.bits()
-    );
-
-const INSPECTOR_HEADING_FONT_SCALE: UiFontScale = UiFontScale(1.5);
+const INSPECTOR_TITLE_FONT_SCALE:      UiFontScale = UiFontScale(1.5);
 const INSPECTOR_SUBHEADING_FONT_SCALE: UiFontScale = UiFontScale(1.0);
-const INSPECTOR_BODY_FONT_SCALE: UiFontScale = UiFontScale(1.0);
+const INSPECTOR_BODY_TEXT_FONT_SCALE:  UiFontScale = UiFontScale(1.0);
 
 const INSPECTOR_BODY_TEXT_MAX_LINES: usize = 10;
-const INSPECTOR_BODY_TEXT_MAX_LEN: usize = 1024;
-const INSPECTOR_FMT_STR_MAX_LEN: usize = 128;
+const INSPECTOR_BODY_TEXT_MAX_LEN:   usize = 1024;
+const INSPECTOR_FMT_STR_MAX_LEN:     usize = 128;
 
 #[repr(usize)]
 #[derive(Copy, Clone, EnumCount)]
@@ -246,14 +236,14 @@ impl InspectorMenuRenderer {
             }
         );
 
-        const HEADING:    UiText = UiText { string: String::new(), font_scale: INSPECTOR_HEADING_FONT_SCALE,    color: None };
+        const TITLE:      UiText = UiText { string: String::new(), font_scale: INSPECTOR_TITLE_FONT_SCALE,      color: None };
         const SUBHEADING: UiText = UiText { string: String::new(), font_scale: INSPECTOR_SUBHEADING_FONT_SCALE, color: None };
 
         let heading = UiMenuHeading::new(
             context,
             UiMenuHeadingParams {
                 lines: vec![
-                    HEADING,    // heading/title placeholder
+                    TITLE,      // title placeholder
                     SUBHEADING, // subheading 0 placeholder
                     SUBHEADING, // subheading 1 placeholder
                     SUBHEADING, // subheading 2 placeholder
@@ -312,7 +302,7 @@ impl InspectorMenuRenderer {
             UiMenuHeadingParams {
                 // placeholder text
                 lines: vec![
-                    UiText { string: String::new(), font_scale: INSPECTOR_BODY_FONT_SCALE, color: None };
+                    UiText { string: String::new(), font_scale: INSPECTOR_BODY_TEXT_FONT_SCALE, color: None };
                     INSPECTOR_BODY_TEXT_MAX_LINES
                 ],
                 center_vertically: false,
@@ -324,7 +314,7 @@ impl InspectorMenuRenderer {
         let separator = UiSeparator::new(
             context,
             UiSeparatorParams {
-                thickness: Some(10.0),
+                thickness: Some(1.0), // Includes widget_spacing/item_spacing.
                 ..Default::default()
             }
         );
@@ -333,9 +323,13 @@ impl InspectorMenuRenderer {
             context,
             UiMenuParams {
                 label: Some(menu_name.into()),
-                flags: INSPECTOR_MENU_FLAGS,
+                flags: UiMenuFlags::PauseSimIfOpen
+                     | UiMenuFlags::AlignCenter
+                     | UiMenuFlags::Modal
+                     | UiMenuFlags::CloseModalOnEscape
+                     | UiMenuFlags::AdjustSizeToContents,
                 size: Some(Self::calc_menu_size(context)),
-                background: Some(INSPECTOR_MENU_BACKGROUND_SPRITE),
+                background: Some("misc/square_page_bg.png"),
                 widget_spacing: Some(Vec2::new(0.0, 10.0)),
                 ..Default::default()
             }
@@ -349,6 +343,8 @@ impl InspectorMenuRenderer {
 
         menu.add_widget(separator.clone());
         let button_group_index = menu.add_widget(button_group);
+
+        menu.add_widget(separator);
 
         Self {
             menu,
