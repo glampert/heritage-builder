@@ -1,4 +1,5 @@
 use std::{any::Any, ffi::c_void};
+use smallvec::SmallVec;
 
 use glfw::Context;
 
@@ -26,7 +27,6 @@ pub type MouseButton = glfw::MouseButton;
 // ----------------------------------------------
 
 pub struct GlfwApplication {
-    window_size: Size,
     fullscreen: bool,
     confine_cursor: bool,
     should_quit: bool,
@@ -48,26 +48,64 @@ impl ApplicationFactory for GlfwApplication {
     fn new(title: &str, window_size: Size, mut fullscreen: bool, confine_cursor: bool, resizable_window: bool) -> Self {
         debug_assert!(window_size.is_valid());
 
-        let mut glfw_instance =
-            glfw::init(glfw::fail_on_errors).expect("Failed to initialize GLFW!");
+        let mut glfw_instance = glfw::init(glfw::fail_on_errors)
+            .expect("Failed to initialize GLFW!");
 
         glfw_instance.window_hint(glfw::WindowHint::ContextVersion(3, 3));
         glfw_instance.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
         glfw_instance.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
         glfw_instance.window_hint(glfw::WindowHint::Resizable(resizable_window));
 
-        // TODO: Handle fullscreen window (need to select a monitor).
-        let window_mode = glfw::WindowMode::Windowed;
-        if fullscreen {
-            log::error!(log::channel!("app"), "GLFW fullscreen window support not implemented!");
-            fullscreen = false;
-        }
+        // MacOS specific. Ignored otherwise.
+        glfw_instance.window_hint(glfw::WindowHint::CocoaRetinaFramebuffer(true));  // We want High-DPI retina display always.
+        glfw_instance.window_hint(glfw::WindowHint::CocoaGraphicsSwitching(false)); // Prefer the discrete GPU and avoid low-power integrated graphics.
+
+        let result = if fullscreen {
+            glfw_instance.with_primary_monitor(|glfw_instance, monitor_opt| {
+                let monitor = monitor_opt.ok_or("No primary monitor found")?;
+                let video_modes = monitor.get_video_modes();
+
+                log::verbose!(log::channel!("app"), "Fullscreen Video Modes available:");
+                for mode in &video_modes {
+                    log::verbose!("{}x{} @ {}hz", mode.width, mode.height, mode.refresh_rate);
+                }
+
+                let best_video_mode = select_best_video_mode(&video_modes)
+                    .ok_or("No video mode available")?;
+
+                log::info!(log::channel!("app"),
+                           "Attempting to create fullscreen window with video mode: {}x{} @ {}hz",
+                           best_video_mode.width,
+                           best_video_mode.height,
+                           best_video_mode.refresh_rate);
+
+                glfw_instance.create_window(best_video_mode.width,
+                                            best_video_mode.height,
+                                            title,
+                                            glfw::WindowMode::FullScreen(monitor))
+                                            .ok_or("Failed to create GLFW window")
+            }).inspect(|(window, _)| {
+                let (ww, wh)   = window.get_size();
+                let (fbw, fbh) = window.get_framebuffer_size();
+                let (sx, sy)   = window.get_content_scale();
+                log::info!(log::channel!("app"), "Fullscreen window OK - Size:({ww}x{wh}), Fb:({fbw}x{fbh}), Scale:({sx},{sy})");
+            }).inspect_err(|err| {
+                log::error!(log::channel!("app"), "Failed to create fullscreen window: {err}");
+            }).ok()
+        } else {
+            None
+        };
 
         let (mut window, event_receiver) =
-            glfw_instance.create_window(window_size.width as u32,
-                                        window_size.height as u32,
-                                        title,
-                                        window_mode).expect("Failed to create GLFW window!");
+            result.unwrap_or_else(|| {
+                // Windowed fallback.
+                fullscreen = false;
+                glfw_instance.create_window(window_size.width  as u32,
+                                            window_size.height as u32,
+                                            title,
+                                            glfw::WindowMode::Windowed)
+                                            .expect("Failed to create GLFW window in windowed mode!")
+            });
 
         window.make_current();
 
@@ -93,14 +131,15 @@ impl ApplicationFactory for GlfwApplication {
         // NOTE: PWindow is a Box<Window>, so the address is stable.
         let window_ptr = mem::RawPtr::from_ref(&*window);
 
-        Self { window_size,
-               fullscreen,
-               confine_cursor,
-               should_quit: false,
-               glfw_instance,
-               window,
-               event_receiver,
-               input_system: GlfwInputSystem { window_ptr } }
+        Self {
+            fullscreen,
+            confine_cursor,
+            should_quit: false,
+            glfw_instance,
+            window,
+            event_receiver,
+            input_system: GlfwInputSystem { window_ptr },
+        }
     }
 }
 
@@ -128,8 +167,6 @@ impl Application for GlfwApplication {
             // See set_size_polling/set_close_polling calls above.
             match event {
                 glfw::WindowEvent::Size(width, height) => {
-                    self.window_size.width = width;
-                    self.window_size.height = height;
                     translated_events.push(ApplicationEvent::WindowResize(Size::new(width, height)));
                 }
                 glfw::WindowEvent::Close => {
@@ -164,15 +201,19 @@ impl Application for GlfwApplication {
         self.window.swap_buffers();
     }
 
+    #[inline]
     fn window_size(&self) -> Size {
-        self.window_size
+        let (width, height) = self.window.get_size();
+        Size::new(width, height)
     }
 
+    #[inline]
     fn framebuffer_size(&self) -> Size {
         let (width, height) = self.window.get_framebuffer_size();
         Size::new(width, height)
     }
 
+    #[inline]
     fn content_scale(&self) -> Vec2 {
         let (x_scale, y_scale) = self.window.get_content_scale();
         Vec2::new(x_scale, y_scale)
@@ -217,6 +258,45 @@ fn confine_cursor_to_window(window: &mut glfw::Window) {
     }
 }
 
+// Selects the best fullscreen video mode for a monitor.
+//  - Prefer highest pixel area (width * height)
+//  - Prefer 60Hz if available at that resolution
+//  - Otherwise prefer highest refresh rate
+fn select_best_video_mode(modes: &[glfw::VidMode]) -> Option<glfw::VidMode> {
+    if modes.is_empty() {
+        return None;
+    }
+
+    // First, find the maximum resolution (by pixel area):
+    let max_area = modes
+        .iter()
+        .map(|mode| mode.width * mode.height)
+        .max()?;
+
+    // Filter only modes with that resolution:
+    let mut best_modes: SmallVec<[&glfw::VidMode; 16]> = modes
+        .iter()
+        .filter(|mode| (mode.width * mode.height) == max_area)
+        .collect();
+
+    // Prefer 60Hz exactly if available.
+    if let Some(mode_60hz) = best_modes
+        .iter()
+        .find(|mode| mode.refresh_rate == 60)
+    {
+        return Some(**mode_60hz);
+    }
+
+    // Otherwise pick highest refresh rate.
+    best_modes.sort_by(|a, b| {
+        a.refresh_rate
+            .cmp(&b.refresh_rate)
+            .then(a.width.cmp(&b.width))
+            .then(a.height.cmp(&b.height))
+    });
+    best_modes.last().map(|mode| **mode)
+}
+
 // ----------------------------------------------
 // GlfwInputSystem
 // ----------------------------------------------
@@ -252,5 +332,49 @@ impl InputSystem for GlfwInputSystem {
     #[inline]
     fn key_state(&self, key: InputKey) -> InputAction {
         self.get_window().get_key(key)
+    }
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn vm(w: u32, h: u32, r: u32) -> glfw::VidMode {
+        glfw::VidMode {
+            width: w,
+            height: h,
+            red_bits: 8,
+            green_bits: 8,
+            blue_bits: 8,
+            refresh_rate: r,
+        }
+    }
+
+    #[test]
+    fn prefers_highest_resolution() {
+        let modes = [
+            vm(1920, 1080, 60),
+            vm(2560, 1440, 60),
+            vm(1920, 1080, 144),
+        ];
+
+        let best = select_best_video_mode(&modes).unwrap();
+        assert_eq!(best.width, 2560);
+        assert_eq!(best.height, 1440);
+    }
+
+    #[test]
+    fn prefers_60hz_when_same_resolution() {
+        let modes = [
+            vm(2560, 1440, 144),
+            vm(2560, 1440, 60),
+        ];
+
+        let best = select_best_video_mode(&modes).unwrap();
+        assert_eq!(best.refresh_rate, 60);
     }
 }
