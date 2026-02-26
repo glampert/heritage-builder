@@ -1,10 +1,8 @@
 use std::any::Any;
-
-use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
 use smallvec::SmallVec;
-
 use crate::utils::{Size, Vec2};
 
+use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
 pub mod input;
 
 // Internal implementation.

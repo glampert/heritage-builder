@@ -1,6 +1,5 @@
 use std::{any::Any, ffi::c_void};
 use smallvec::SmallVec;
-
 use glfw::Context;
 
 use super::{
@@ -18,9 +17,9 @@ use crate::{
 // ----------------------------------------------
 
 pub type InputModifiers = glfw::Modifiers;
-pub type InputAction = glfw::Action;
-pub type InputKey = glfw::Key;
-pub type MouseButton = glfw::MouseButton;
+pub type InputAction    = glfw::Action;
+pub type InputKey       = glfw::Key;
+pub type MouseButton    = glfw::MouseButton;
 
 // ----------------------------------------------
 // GlfwApplication
