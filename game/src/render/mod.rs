@@ -262,7 +262,7 @@ pub trait RenderSystem: Any {
 // ----------------------------------------------
 
 pub trait RenderSystemFactory: Sized {
-    fn new(viewport_size: Size, clear_color: Color) -> Self;
+    fn new(viewport_size: Size, clear_color: Color, texture_settings: TextureSettings) -> Self;
 }
 
 // ----------------------------------------------
@@ -272,11 +272,16 @@ pub trait RenderSystemFactory: Sized {
 pub struct RenderSystemBuilder {
     viewport_size: Size,
     clear_color: Color,
+    texture_settings: TextureSettings,
 }
 
 impl RenderSystemBuilder {
     pub fn new() -> Self {
-        Self { viewport_size: Size::new(1024, 768), clear_color: Color::black() }
+        Self {
+            viewport_size: Size::new(1024, 768),
+            clear_color: Color::black(),
+            texture_settings: TextureSettings::default(),
+        }
     }
 
     pub fn viewport_size(&mut self, size: Size) -> &mut Self {
@@ -289,10 +294,15 @@ impl RenderSystemBuilder {
         self
     }
 
+    pub fn texture_settings(&mut self, settings: TextureSettings) -> &mut Self {
+        self.texture_settings = settings;
+        self
+    }
+
     pub fn build<RenderSystemBackendImpl>(&self) -> Box<RenderSystemBackendImpl>
         where RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
     {
-        Box::new(RenderSystemBackendImpl::new(self.viewport_size, self.clear_color))
+        Box::new(RenderSystemBackendImpl::new(self.viewport_size, self.clear_color, self.texture_settings))
     }
 }
 

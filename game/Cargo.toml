@@ -33,6 +33,15 @@ backtrace = "0.3.76"
 kira = "0.11.0"
 
 # ----------------------------
+#   MacOS-specific crates
+# ----------------------------
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+objc2-foundation = { version = "0.2", features = ["NSThread"] }
+objc2-app-kit = { version = "0.2", features = ["NSApplication", "NSResponder", "NSWindow"] }
+
+# ----------------------------
 #    Bundle/Package Builds
 # ----------------------------
 # Invoke these **from the game/ directory** after cargo build:
@@ -52,6 +61,6 @@ icon = ["../assets/ui/icons/app_icon.png"]
 version = "0.1.0"
 category = "Game"
 resources = ["assets"]
-copyright = "Copyright (c) Core System 2025. All rights reserved."
+copyright = "Copyright (c) Core System 2026. All rights reserved."
 short_description = "A Classic City Builder Game"
 long_description = "Build the world heritage!"

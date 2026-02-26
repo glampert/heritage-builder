@@ -1,8 +1,10 @@
 use std::any::Any;
 use crate::utils::Vec2;
 
-// Expose them here so we don't have to duplicate these enums.
-pub use super::glfw::{InputAction, InputKey, InputModifiers, MouseButton};
+pub use super::{
+    // Expose them here so we don't have to duplicate these enums.
+    glfw::input::{InputAction, InputKey, InputModifiers, MouseButton}
+};
 
 // ----------------------------------------------
 // InputSystem

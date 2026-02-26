@@ -5,6 +5,7 @@
       "width": 1440,
       "height": 800
     },
+    "window_mode": "FullScreen",
     "resizable_window": false,
     "confine_cursor_to_window": true,
     "use_packed_texture_atlas": true,

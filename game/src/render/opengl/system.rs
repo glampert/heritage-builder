@@ -79,7 +79,7 @@ impl RenderSystem {
 }
 
 impl render::RenderSystemFactory for RenderSystem {
-    fn new(viewport_size: Size, clear_color: Color) -> Self {
+    fn new(viewport_size: Size, clear_color: Color, texture_settings: render::TextureSettings) -> Self {
         debug_assert!(viewport_size.is_valid());
 
         let mut render_sys =
@@ -93,7 +93,7 @@ impl render::RenderSystemFactory for RenderSystem {
                    points_shader: points::Shader::load(),
                    stats: RenderStats::default(),
                    viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size.to_vec2()),
-                   tex_cache: TextureCache::new(128) };
+                   tex_cache: TextureCache::new(128, texture_settings) };
 
         render_sys.render_context
                   .set_clear_color(clear_color)

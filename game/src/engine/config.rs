@@ -7,6 +7,7 @@ use crate::{
     save::{self, *},
     tile::rendering,
     ui::UiSystem,
+    app::ApplicationWindowMode,
     render::TextureSettings,
     sound::SoundGlobalSettings,
     utils::{platform::paths, Color, Size},
@@ -121,7 +122,7 @@ pub struct EngineConfigs {
     pub window_title: String,
     pub window_size: Size,
     pub window_background_color: Color,
-    pub fullscreen: bool,
+    pub window_mode: ApplicationWindowMode,
     pub resizable_window: bool,
     pub confine_cursor_to_window: bool,
 
@@ -144,26 +145,28 @@ pub struct EngineConfigs {
 
 impl Default for EngineConfigs {
     fn default() -> Self {
-        Self { // Window/Rendering:
-               window_title: "Heritage Builder".into(),
-               window_size: Size::new(1024, 768),
-               window_background_color: rendering::MAP_BACKGROUND_COLOR,
-               fullscreen: false,
-               resizable_window: false,
-               confine_cursor_to_window: true,
+        Self {
+            // Window:
+            window_title: "Heritage Builder".into(),
+            window_size: Size::new(1024, 768),
+            window_background_color: rendering::MAP_BACKGROUND_COLOR,
+            window_mode: ApplicationWindowMode::Windowed,
+            resizable_window: false,
+            confine_cursor_to_window: true,
 
-               // Graphics:
-               use_packed_texture_atlas: false,
-               texture_settings: TextureSettings::default(),
+            // Graphics:
+            use_packed_texture_atlas: false,
+            texture_settings: TextureSettings::default(),
 
-               // Sound System:
-               sound_settings: SoundGlobalSettings::default(),
+            // Sound System:
+            sound_settings: SoundGlobalSettings::default(),
 
-               // Debug Grid:
-               grid_color: rendering::DEFAULT_GRID_COLOR,
-               grid_line_thickness: 1.0,
+            // Debug Grid:
+            grid_color: rendering::DEFAULT_GRID_COLOR,
+            grid_line_thickness: 1.0,
 
-               // Debug Log:
-               log_level: log::Level::Verbose }
+            // Debug Log:
+            log_level: log::Level::Verbose,
+        }
     }
 }

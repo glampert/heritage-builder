@@ -22,10 +22,10 @@ impl UiRendererFactory for UiRendererOpenGl {
                           .downcast_ref::<app::backend::GlfwApplication>()
                           .expect("ImGui OpenGL backend assumes GLFW App!");
 
-        // On MacOS this generates a lot of TTY spam about missing
-        // OpenGL functions that we don't need or care about. This
-        // is a hack to stop the TTY spamming but still keep a record
-        // of the errors if ever required for inspection.
+        // On MacOS the following generates a lot of TTY spam about missing
+        // OpenGL functions that we don't need or care about. This is a workaround
+        // to stop the TTY spam but still keep a record of the errors if ever
+        // required for inspection.
         let backend = utils::platform::macos_redirect_stderr(|| {
             // Set up the OpenGL renderer:
             ImGuiOpenGlRenderer::new(ctx, |func_name| glfw_app.load_gl_func(func_name))

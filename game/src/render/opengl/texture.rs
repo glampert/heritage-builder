@@ -391,11 +391,17 @@ pub struct TextureCache {
 }
 
 impl TextureCache {
-    pub fn new(initial_capacity: usize) -> Self {
+    pub fn new(initial_capacity: usize, settings: render::TextureSettings) -> Self {
+        log::info!(log::channel!("render"),
+                   "Texture settings: filter:{}, wrap:{}, mipmaps:{}",
+                   settings.filter,
+                   settings.wrap_mode,
+                   settings.gen_mipmaps);
+
         let mut tex_cache = Self {
             lookup: PreHashedKeyMap::default(),
             textures: Slab::with_capacity(initial_capacity),
-            settings: render::TextureSettings::default(),
+            settings,
             dummy_texture_handle: TextureHandle::invalid(),
             white_texture_handle: TextureHandle::invalid(),
         };

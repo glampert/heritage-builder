@@ -9,12 +9,14 @@ use crate::{
     sound::SoundSystem,
     ui::{self, UiRenderer, UiRendererFactory, UiSystem},
     app::{
-        self, input::*, Application, ApplicationBuilder, ApplicationEvent, ApplicationEventList,
-        ApplicationFactory,
+        self, input::*,
+        Application, ApplicationBuilder, ApplicationFactory,
+        ApplicationEvent, ApplicationEventList,
     },
     render::{
-        self, RenderStats, RenderSystem, RenderSystemBuilder, RenderSystemFactory, TextureCache,
-        TextureHandle,
+        self,
+        TextureCache, TextureHandle,
+        RenderStats, RenderSystem, RenderSystemBuilder, RenderSystemFactory,
     },
     tile::{
         rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
@@ -126,19 +128,19 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
         let app: Box<AppBackendImpl> =
             ApplicationBuilder::new().window_title(&configs.window_title)
                                      .window_size(configs.window_size)
-                                     .fullscreen(configs.fullscreen)
+                                     .window_mode(configs.window_mode)
                                      .resizable_window(configs.resizable_window)
                                      .confine_cursor_to_window(configs.confine_cursor_to_window)
                                      .build();
 
         log::info!(log::channel!("engine"), "App instance initialized.");
 
-        let mut render_system: Box<RenderSystemBackendImpl> =
+        let render_system: Box<RenderSystemBackendImpl> =
             RenderSystemBuilder::new().viewport_size(configs.window_size)
                                       .clear_color(configs.window_background_color)
+                                      .texture_settings(configs.texture_settings)
                                       .build();
 
-        render_system.texture_cache_mut().change_texture_settings(configs.texture_settings);
         log::info!(log::channel!("engine"), "RenderSystem initialized.");
 
         let ui_system = UiSystem::new::<UiRendererBackendImpl>(&*app);
