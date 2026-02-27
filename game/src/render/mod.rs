@@ -48,7 +48,7 @@ pub trait RenderSystem: Any {
     // Render frame markers:
     // ----------------------
 
-    fn begin_frame(&mut self, window_size: Size, framebuffer_size: Size);
+    fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size);
     fn end_frame(&mut self) -> RenderStats;
 
     // ----------------------
@@ -262,7 +262,10 @@ pub trait RenderSystem: Any {
 // ----------------------------------------------
 
 pub trait RenderSystemFactory: Sized {
-    fn new(viewport_size: Size, clear_color: Color, texture_settings: TextureSettings) -> Self;
+    fn new(viewport_size: Size,
+           framebuffer_size: Size,
+           clear_color: Color,
+           texture_settings: TextureSettings) -> Self;
 }
 
 // ----------------------------------------------
@@ -271,6 +274,7 @@ pub trait RenderSystemFactory: Sized {
 
 pub struct RenderSystemBuilder {
     viewport_size: Size,
+    framebuffer_size: Size,
     clear_color: Color,
     texture_settings: TextureSettings,
 }
@@ -279,6 +283,7 @@ impl RenderSystemBuilder {
     pub fn new() -> Self {
         Self {
             viewport_size: Size::new(1024, 768),
+            framebuffer_size: Size::new(1024, 768),
             clear_color: Color::black(),
             texture_settings: TextureSettings::default(),
         }
@@ -286,6 +291,11 @@ impl RenderSystemBuilder {
 
     pub fn viewport_size(&mut self, size: Size) -> &mut Self {
         self.viewport_size = size;
+        self
+    }
+
+    pub fn framebuffer_size(&mut self, size: Size) -> &mut Self {
+        self.framebuffer_size = size;
         self
     }
 
@@ -302,7 +312,12 @@ impl RenderSystemBuilder {
     pub fn build<RenderSystemBackendImpl>(&self) -> Box<RenderSystemBackendImpl>
         where RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
     {
-        Box::new(RenderSystemBackendImpl::new(self.viewport_size, self.clear_color, self.texture_settings))
+        Box::new(RenderSystemBackendImpl::new(
+            self.viewport_size,
+            self.framebuffer_size,
+            self.clear_color,
+            self.texture_settings
+        ))
     }
 }
 

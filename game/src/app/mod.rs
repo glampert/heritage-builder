@@ -41,7 +41,8 @@ pub trait ApplicationFactory: Sized {
            window_size: Size,
            window_mode: ApplicationWindowMode,
            resizable_window: bool,
-           confine_cursor: bool) -> Self;
+           confine_cursor: bool,
+           content_scale: ApplicationContentScale) -> Self;
 }
 
 // ----------------------------------------------
@@ -51,7 +52,7 @@ pub trait ApplicationFactory: Sized {
 #[derive(Copy, Clone, Debug)]
 pub enum ApplicationEvent {
     Quit,
-    WindowResize(Size),
+    WindowResize { window_size: Size, framebuffer_size: Size },
     KeyInput(InputKey, InputAction, InputModifiers),
     CharInput(char),
     Scroll(Vec2),
@@ -89,10 +90,29 @@ pub enum ApplicationWindowMode {
 }
 
 impl ApplicationWindowMode {
+    pub fn is_windowed(self) -> bool {
+        self == Self::Windowed
+    }
+
     pub fn is_fullscreen(self) -> bool {
         self == Self::FullScreen ||
         self == Self::ExclusiveFullScreen
     }
+
+    pub fn is_exclusive_fullscreen(self) -> bool {
+        self == Self::ExclusiveFullScreen
+    }
+}
+
+// ----------------------------------------------
+// ApplicationContentScale
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Default, Display, Serialize, Deserialize)]
+pub enum ApplicationContentScale {
+    #[default]
+    System,
+    Custom(f32),
 }
 
 // ----------------------------------------------
@@ -103,6 +123,7 @@ pub struct ApplicationBuilder<'a> {
     window_title: &'a str,
     window_size: Size,
     window_mode: ApplicationWindowMode,
+    content_scale: ApplicationContentScale,
     resizable_window: bool,
     confine_cursor: bool,
 }
@@ -113,6 +134,7 @@ impl<'a> ApplicationBuilder<'a> {
             window_title: "",
             window_size: Size::new(1024, 768),
             window_mode: ApplicationWindowMode::Windowed,
+            content_scale: ApplicationContentScale::default(),
             resizable_window: false,
             confine_cursor: false,
         }
@@ -133,6 +155,11 @@ impl<'a> ApplicationBuilder<'a> {
         self
     }
 
+    pub fn content_scale(&mut self, scale: ApplicationContentScale) -> &mut Self {
+        self.content_scale = scale;
+        self
+    }
+
     pub fn resizable_window(&mut self, resizable: bool) -> &mut Self {
         self.resizable_window = resizable;
         self
@@ -150,6 +177,7 @@ impl<'a> ApplicationBuilder<'a> {
                                      self.window_size,
                                      self.window_mode,
                                      self.resizable_window,
-                                     self.confine_cursor))
+                                     self.confine_cursor,
+                                     self.content_scale))
     }
 }

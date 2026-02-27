@@ -730,8 +730,10 @@ impl GameLoop {
 
     fn handle_event(&mut self, event: ApplicationEvent, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
         match event {
-            ApplicationEvent::WindowResize(window_size) => {
+            ApplicationEvent::WindowResize { window_size, framebuffer_size } => {
                 self.camera_mut().set_viewport_size(window_size);
+                log::info!(log::channel!("game"), "Window Resized: {window_size}");
+                log::info!(log::channel!("game"), "Framebuffer Resized: {framebuffer_size}");
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
                 let mut input_event = self.camera_mut().on_key_input(key, action, modifiers);

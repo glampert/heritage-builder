@@ -7,10 +7,10 @@ use crate::{
     save::{self, *},
     tile::rendering,
     ui::UiSystem,
-    app::ApplicationWindowMode,
     render::TextureSettings,
     sound::SoundGlobalSettings,
     utils::{platform::paths, Color, Size},
+    app::{ApplicationWindowMode, ApplicationContentScale},
 };
 
 // ----------------------------------------------
@@ -125,6 +125,7 @@ pub struct EngineConfigs {
     pub window_mode: ApplicationWindowMode,
     pub resizable_window: bool,
     pub confine_cursor_to_window: bool,
+    pub content_scale: ApplicationContentScale, // Optional override. Defaults to System.
 
     // Graphics:
     pub use_packed_texture_atlas: bool,
@@ -153,6 +154,7 @@ impl Default for EngineConfigs {
             window_mode: ApplicationWindowMode::Windowed,
             resizable_window: false,
             confine_cursor_to_window: true,
+            content_scale: ApplicationContentScale::default(),
 
             // Graphics:
             use_packed_texture_atlas: false,

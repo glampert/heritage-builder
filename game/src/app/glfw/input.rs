@@ -31,11 +31,6 @@ impl GlfwInputSystem {
     pub fn new(window_manager: GlfwWindowManagerRcRef) -> Self {
         Self { window_manager }
     }
-
-    #[inline(always)]
-    fn get_window(&self) -> &glfw::Window {
-        self.window_manager.window()
-    }
 }
 
 impl InputSystem for GlfwInputSystem {
@@ -45,17 +40,24 @@ impl InputSystem for GlfwInputSystem {
 
     #[inline]
     fn cursor_pos(&self) -> Vec2 {
-        let (x, y) = self.get_window().get_cursor_pos();
-        Vec2::new(x as f32, y as f32)
+        let (x, y) = self.window_manager.window().get_cursor_pos();
+        let mut pos = Vec2::new(x as f32, y as f32);
+
+        if self.window_manager.has_custom_content_scale() {
+            let scale = self.window_manager.content_scale();
+            pos /= scale;
+        }
+
+        pos
     }
 
     #[inline]
     fn mouse_button_state(&self, button: MouseButton) -> InputAction {
-        self.get_window().get_mouse_button(button)
+        self.window_manager.window().get_mouse_button(button)
     }
 
     #[inline]
     fn key_state(&self, key: InputKey) -> InputAction {
-        self.get_window().get_key(key)
+        self.window_manager.window().get_key(key)
     }
 }

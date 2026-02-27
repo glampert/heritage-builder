@@ -131,12 +131,14 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                                      .window_mode(configs.window_mode)
                                      .resizable_window(configs.resizable_window)
                                      .confine_cursor_to_window(configs.confine_cursor_to_window)
+                                     .content_scale(configs.content_scale)
                                      .build();
 
         log::info!(log::channel!("engine"), "App instance initialized.");
 
         let render_system: Box<RenderSystemBackendImpl> =
-            RenderSystemBuilder::new().viewport_size(configs.window_size)
+            RenderSystemBuilder::new().viewport_size(app.window_size())
+                                      .framebuffer_size(app.framebuffer_size())
                                       .clear_color(configs.window_background_color)
                                       .texture_settings(configs.texture_settings)
                                       .build();
@@ -181,9 +183,9 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
                     self.app.request_quit();
                     events_forwarded.push(event);
                 }
-                ApplicationEvent::WindowResize(window_size) => {
+                ApplicationEvent::WindowResize { window_size, framebuffer_size } => {
                     self.render_system.set_viewport_size(window_size);
-                    self.render_system.set_framebuffer_size(self.app.framebuffer_size());
+                    self.render_system.set_framebuffer_size(framebuffer_size);
                     events_forwarded.push(event);
                 }
                 ApplicationEvent::KeyInput(key, action, modifiers) => {

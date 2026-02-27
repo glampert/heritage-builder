@@ -5,8 +5,8 @@
       "width": 1440,
       "height": 800
     },
-    "window_mode": "FullScreen",
-    "resizable_window": false,
+    "window_mode": "Windowed",
+    "resizable_window": true,
     "confine_cursor_to_window": true,
     "use_packed_texture_atlas": true,
     "texture_settings": {

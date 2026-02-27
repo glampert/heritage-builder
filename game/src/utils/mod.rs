@@ -494,6 +494,33 @@ impl Size {
     pub const fn to_array(self) -> [i32; 2] {
         [self.width, self.height]
     }
+
+    #[inline]
+    #[must_use]
+    pub fn min(&self, other: Self) -> Self {
+        Self {
+            width: self.width.min(other.width),
+            height: self.height.min(other.height),
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn max(&self, other: Self) -> Self {
+        Self {
+            width: self.width.max(other.width),
+            height: self.height.max(other.height),
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn clamp(&self, min: Self, max: Self) -> Self {
+        Self {
+            width: self.width.clamp(min.width, max.width),
+            height: self.height.clamp(min.height, max.height),
+        }
+    }
 }
 
 // Size + i32

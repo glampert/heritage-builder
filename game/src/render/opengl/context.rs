@@ -1,17 +1,20 @@
 use super::{
     log_gl_info, panic_if_gl_error,
-    buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE},
+    target::RenderTarget,
     shader::{ShaderProgram, NULL_SHADER_HANDLE},
     texture::{Texture2D, TextureUnit, MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE},
+    buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE, NULL_BUFFER_HANDLE},
 };
-use crate::utils::{Color, Rect, Size};
+use crate::{
+    utils::{Color, Rect},
+};
 
 // ----------------------------------------------
 // Constants
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum PrimitiveTopology {
     Points = gl::POINTS,
     Lines = gl::LINES,
@@ -19,28 +22,28 @@ pub enum PrimitiveTopology {
 }
 
 #[repr(u32)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum AlphaBlend {
     Enabled,
     Disabled,
 }
 
 #[repr(u32)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum DepthTest {
     Enabled,
     Disabled,
 }
 
 #[repr(u32)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum BackFaceCulling {
     Enabled,
     Disabled,
 }
 
 #[repr(u32)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum FrontFacing {
     Cw,
     Ccw,
@@ -52,11 +55,14 @@ pub enum FrontFacing {
 
 pub struct RenderContext {
     clear_color: Color,
+    depth_test: DepthTest,
     primitive_topology: PrimitiveTopology,
     current_shader_program: gl::types::GLuint,
     current_vertex_array: gl::types::GLuint,
     current_index_type: Option<IndexType>,
     current_texture2d: [gl::types::GLuint; MAX_TEXTURE_UNITS],
+    current_framebuffer: gl::types::GLuint,
+
     // Stats:
     texture_changes_count: u32,
     draw_call_count: u32,
@@ -67,14 +73,18 @@ impl RenderContext {
         log_gl_info();
         Self::enable_program_point_size();
 
-        Self { clear_color: Color::black(),
-               primitive_topology: PrimitiveTopology::Triangles,
-               current_shader_program: NULL_SHADER_HANDLE,
-               current_vertex_array: NULL_VERTEX_ARRAY_HANDLE,
-               current_index_type: None,
-               current_texture2d: [0; MAX_TEXTURE_UNITS],
-               texture_changes_count: 0,
-               draw_call_count: 0 }
+        Self {
+            clear_color: Color::black(),
+            depth_test: DepthTest::Disabled,
+            primitive_topology: PrimitiveTopology::Triangles,
+            current_shader_program: NULL_SHADER_HANDLE,
+            current_vertex_array: NULL_VERTEX_ARRAY_HANDLE,
+            current_index_type: None,
+            current_texture2d: [0; MAX_TEXTURE_UNITS],
+            current_framebuffer: NULL_BUFFER_HANDLE,
+            texture_changes_count: 0,
+            draw_call_count: 0,
+        }
     }
 
     fn enable_program_point_size() {
@@ -107,6 +117,7 @@ impl RenderContext {
     }
 
     pub fn set_depth_test(&mut self, depth_test: DepthTest) -> &mut Self {
+        self.depth_test = depth_test;
         match depth_test {
             DepthTest::Enabled => unsafe {
                 gl::Enable(gl::DEPTH_TEST);
@@ -154,13 +165,6 @@ impl RenderContext {
         self
     }
 
-    pub fn set_framebuffer_size(&mut self, size: Size) -> &mut Self {
-        unsafe {
-            gl::Viewport(0, 0, size.width, size.height);
-        }
-        self
-    }
-
     pub fn set_scissor(&mut self, rect: Rect) -> &mut Self {
         unsafe {
             gl::Scissor(rect.x() as _,
@@ -169,6 +173,28 @@ impl RenderContext {
                         rect.height() as _);
         }
         self
+    }
+
+    pub fn set_offscreen_render_target(&mut self, render_target: &RenderTarget) -> &mut Self {
+        debug_assert!(render_target.is_valid());
+
+        let framebuffer_handle = render_target.handle();
+
+        if self.current_framebuffer != framebuffer_handle {
+            self.current_framebuffer = framebuffer_handle;
+
+            unsafe {
+                gl::BindFramebuffer(gl::FRAMEBUFFER, self.current_framebuffer);
+            }
+        }
+        self
+    }
+
+    pub fn unset_offscreen_render_target(&mut self) {
+        unsafe {
+            gl::BindFramebuffer(gl::FRAMEBUFFER, NULL_BUFFER_HANDLE);
+        }
+        self.current_framebuffer = NULL_BUFFER_HANDLE;
     }
 
     pub fn set_texture_2d(&mut self, texture: &Texture2D) -> &mut Self {
@@ -293,13 +319,19 @@ impl RenderContext {
                            self.clear_color.b,
                            self.clear_color.a);
 
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+            let mut clear_mask = gl::COLOR_BUFFER_BIT;
+            if self.depth_test == DepthTest::Enabled {
+                clear_mask |= gl::DEPTH_BUFFER_BIT;
+            }
+
+            gl::Clear(clear_mask);
         }
     }
 
     pub fn end_frame(&mut self) {
         unsafe {
             // Clear transient GL states.
+            gl::BindFramebuffer(gl::FRAMEBUFFER, NULL_BUFFER_HANDLE);
             gl::UseProgram(NULL_SHADER_HANDLE);
             gl::BindVertexArray(NULL_VERTEX_ARRAY_HANDLE);
 
@@ -312,9 +344,10 @@ impl RenderContext {
         panic_if_gl_error();
 
         self.current_shader_program = NULL_SHADER_HANDLE;
-        self.current_vertex_array = NULL_VERTEX_ARRAY_HANDLE;
-        self.current_index_type = None;
-        self.current_texture2d = [0; MAX_TEXTURE_UNITS];
+        self.current_vertex_array   = NULL_VERTEX_ARRAY_HANDLE;
+        self.current_index_type     = None;
+        self.current_texture2d      = [0; MAX_TEXTURE_UNITS];
+        self.current_framebuffer    = NULL_BUFFER_HANDLE;
     }
 
     #[inline]

@@ -3,7 +3,9 @@ use glfw::Context;
 
 use super::{
     input::InputSystem,
-    Application, ApplicationEvent, ApplicationEventList, ApplicationFactory, ApplicationWindowMode,
+    Application, ApplicationFactory,
+    ApplicationEvent, ApplicationEventList,
+    ApplicationWindowMode, ApplicationContentScale,
 };
 use crate::{
     log,
@@ -40,7 +42,8 @@ impl ApplicationFactory for GlfwApplication {
            window_size: Size,
            window_mode: ApplicationWindowMode,
            resizable_window: bool,
-           confine_cursor: bool) -> Self
+           confine_cursor: bool,
+           content_scale: ApplicationContentScale) -> Self
     {
         let mut glfw_instance = glfw::init(glfw::fail_on_errors)
             .expect("Failed to initialize GLFW!");
@@ -51,7 +54,8 @@ impl ApplicationFactory for GlfwApplication {
             window_size,
             window_mode,
             resizable_window,
-            confine_cursor
+            confine_cursor,
+            content_scale
         );
 
         // NOTE: window_manager is an Rc, so its address is stable.
@@ -91,7 +95,10 @@ impl Application for GlfwApplication {
             // See set_size_polling/set_close_polling/etc calls in GlfwWindowManager.
             match event {
                 glfw::WindowEvent::Size(width, height) => {
-                    translated_events.push(ApplicationEvent::WindowResize(Size::new(width, height)));
+                    translated_events.push(ApplicationEvent::WindowResize {
+                        window_size: Size::new(width, height),
+                        framebuffer_size: self.framebuffer_size(),
+                    });
                 }
                 glfw::WindowEvent::Close => {
                     translated_events.push(ApplicationEvent::Quit);
@@ -126,8 +133,10 @@ impl Application for GlfwApplication {
 
     #[inline]
     fn window_size(&self) -> Size {
-        let (width, height) = self.window_manager.window().get_size();
-        Size::new(width, height)
+        // NOTE: Assume window size is equal to framebuffer size divided by content scale.
+        let scale = self.window_manager.content_scale();
+        let (width, height) = self.window_manager.window().get_framebuffer_size();
+        Size::new((width as f32 / scale.x) as i32, (height as f32 / scale.y) as i32)
     }
 
     #[inline]
@@ -138,8 +147,7 @@ impl Application for GlfwApplication {
 
     #[inline]
     fn content_scale(&self) -> Vec2 {
-        let (x_scale, y_scale) = self.window_manager.window().get_content_scale();
-        Vec2::new(x_scale, y_scale)
+        self.window_manager.content_scale()
     }
 
     #[inline]

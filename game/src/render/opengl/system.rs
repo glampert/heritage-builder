@@ -1,12 +1,12 @@
 use std::any::Any;
-
 use arrayvec::ArrayVec;
 
 use super::{
     batch::{DrawBatch, DrawBatchEntry},
+    texture::TextureCache,
+    target::RenderTarget,
     context::*,
     shader::*,
-    texture::TextureCache,
     vertex::*,
 };
 use crate::{
@@ -29,20 +29,12 @@ pub struct RenderSystem {
     points_shader: points::Shader,
     stats: RenderStats,
     viewport: Rect,
+    framebuffer_size: Size,
     tex_cache: TextureCache,
+    offscreen_render_target: RenderTarget,
 }
 
 impl RenderSystem {
-    fn update_viewport(&mut self, new_size: Size) {
-        debug_assert!(new_size.is_valid());
-        self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size.to_vec2());
-
-        self.render_context.set_viewport(self.viewport);
-        self.sprites_shader.set_viewport_size(self.viewport.size());
-        self.lines_shader.set_viewport_size(self.viewport.size());
-        self.points_shader.set_viewport_size(self.viewport.size());
-    }
-
     fn flush_sprites(&mut self) {
         debug_assert!(self.frame_started);
 
@@ -79,21 +71,44 @@ impl RenderSystem {
 }
 
 impl render::RenderSystemFactory for RenderSystem {
-    fn new(viewport_size: Size, clear_color: Color, texture_settings: render::TextureSettings) -> Self {
+    fn new(viewport_size: Size,
+           framebuffer_size: Size,
+           clear_color: Color,
+           texture_settings: render::TextureSettings) -> Self
+    {
         debug_assert!(viewport_size.is_valid());
+        debug_assert!(framebuffer_size.is_valid());
 
-        let mut render_sys =
-            Self { frame_started: false,
-                   render_context: RenderContext::new(),
-                   sprites_batch: DrawBatch::new(512, 512, 512, PrimitiveTopology::Triangles),
-                   sprites_shader: sprites::Shader::load(),
-                   lines_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Lines),
-                   lines_shader: lines::Shader::load(),
-                   points_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Points),
-                   points_shader: points::Shader::load(),
-                   stats: RenderStats::default(),
-                   viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size.to_vec2()),
-                   tex_cache: TextureCache::new(128, texture_settings) };
+        let mut tex_cache = TextureCache::new(128, texture_settings);
+
+        let with_depth_buffer = false; // Pure 2D rendering, no depth buffer.
+        let offscreen_render_target = RenderTarget::new(
+            &mut tex_cache,
+            viewport_size.max(framebuffer_size),
+            with_depth_buffer,
+            render::TextureFilter::Linear,
+            "OffscreenRT"
+        );
+
+        let mut render_sys = Self {
+            frame_started: false,
+            render_context: RenderContext::new(),
+            sprites_batch: DrawBatch::new(512, 512, 512, PrimitiveTopology::Triangles),
+            sprites_shader: sprites::Shader::load(),
+            lines_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Lines),
+            lines_shader: lines::Shader::load(),
+            points_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Points),
+            points_shader: points::Shader::load(),
+            stats: RenderStats::default(),
+            viewport: Rect::default(),
+            framebuffer_size: Size::default(),
+            tex_cache,
+            offscreen_render_target,
+        };
+
+        use render::RenderSystem;
+        render_sys.set_viewport_size(viewport_size);
+        render_sys.set_framebuffer_size(framebuffer_size);
 
         render_sys.render_context
                   .set_clear_color(clear_color)
@@ -101,8 +116,6 @@ impl render::RenderSystemFactory for RenderSystem {
                   // Pure 2D rendering, no depth test or back-face culling.
                   .set_backface_culling(BackFaceCulling::Disabled)
                   .set_depth_test(DepthTest::Disabled);
-
-        render_sys.update_viewport(viewport_size);
 
         render_sys
     }
@@ -113,28 +126,37 @@ impl render::RenderSystem for RenderSystem {
         self
     }
 
-    fn begin_frame(&mut self, window_size: Size, framebuffer_size: Size) {
+    fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size) {
         debug_assert!(!self.frame_started);
+
+        self.render_context.set_offscreen_render_target(&self.offscreen_render_target);
+        self.set_viewport_size(viewport_size);
+        self.set_framebuffer_size(framebuffer_size);
 
         self.render_context.begin_frame();
         self.frame_started = true;
 
-        self.stats.triangles_drawn = 0;
-        self.stats.lines_drawn = 0;
-        self.stats.points_drawn = 0;
-        self.stats.texture_changes = 0;
-        self.stats.draw_calls = 0;
-
-        self.set_viewport_size(window_size);
-        self.set_framebuffer_size(framebuffer_size);
+        self.stats.triangles_drawn  = 0;
+        self.stats.lines_drawn      = 0;
+        self.stats.points_drawn     = 0;
+        self.stats.texture_changes  = 0;
+        self.stats.draw_calls       = 0;
     }
 
     fn end_frame(&mut self) -> RenderStats {
         debug_assert!(self.frame_started);
+        debug_assert!(self.viewport.is_valid());
+        debug_assert!(self.framebuffer_size.is_valid());
 
         self.flush_sprites();
         self.flush_lines();
         self.flush_points();
+
+        // Blit OffscreenRT to the screen framebuffer.
+        self.offscreen_render_target.blit_to_screen(self.framebuffer_size);
+
+        // Reset viewport to default screen framebuffer size.
+        self.render_context.set_viewport(Rect::from_pos_and_size(Vec2::zero(), self.framebuffer_size.to_vec2()));
 
         self.render_context.end_frame();
         self.frame_started = false;
@@ -167,12 +189,25 @@ impl render::RenderSystem for RenderSystem {
 
     #[inline]
     fn set_viewport_size(&mut self, new_size: Size) {
-        self.update_viewport(new_size);
+        debug_assert!(new_size.is_valid());
+        self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size.to_vec2());
+
+        // NOTE: Set render viewport to render target size; everything else is set
+        // to the virtual viewport size, so we decouple rendering resolution from
+        // logical viewport. 
+        self.render_context.set_viewport(
+            Rect::from_pos_and_size(Vec2::zero(), self.offscreen_render_target.size().to_vec2())
+        );
+
+        self.sprites_shader.set_viewport_size(self.viewport.size());
+        self.lines_shader.set_viewport_size(self.viewport.size());
+        self.points_shader.set_viewport_size(self.viewport.size());
     }
 
     #[inline]
     fn set_framebuffer_size(&mut self, new_size: Size) {
-        self.render_context.set_framebuffer_size(new_size);
+        debug_assert!(new_size.is_valid());
+        self.framebuffer_size = new_size;
     }
 
     fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[u16], color: Color) {

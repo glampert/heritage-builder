@@ -9,6 +9,7 @@ pub mod shader;
 pub mod system;
 pub mod texture;
 pub mod vertex;
+pub mod target;
 
 pub fn log_gl_info() {
     unsafe {

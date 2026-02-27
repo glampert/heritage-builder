@@ -3,11 +3,11 @@ use smallvec::SmallVec;
 use glfw::Context;
 
 use super::{
-    ApplicationWindowMode,
+    ApplicationWindowMode, ApplicationContentScale,
 };
 use crate::{
     log,
-    utils::{self, Size, mem::{RcRef, RcMut}},
+    utils::{self, Size, Vec2, mem::{RcRef, RcMut}},
 };
 
 type GlfwEventReceiver = glfw::GlfwReceiver<(f64, glfw::WindowEvent)>;
@@ -20,6 +20,7 @@ pub struct GlfwWindowManager {
     window_mode: ApplicationWindowMode,
     resizable_window: bool,
     confine_cursor: bool,
+    content_scale: ApplicationContentScale,
     window: glfw::PWindow,
     event_receiver: GlfwEventReceiver,
 }
@@ -33,7 +34,8 @@ impl GlfwWindowManager {
                window_size: Size,
                window_mode: ApplicationWindowMode,
                resizable_window: bool,
-               confine_cursor: bool) -> GlfwWindowManagerRcMut
+               confine_cursor: bool,
+               content_scale: ApplicationContentScale) -> GlfwWindowManagerRcMut
     {
         debug_assert!(window_size.is_valid());
 
@@ -68,6 +70,7 @@ impl GlfwWindowManager {
             window_mode,
             resizable_window,
             confine_cursor,
+            content_scale,
             window,
             event_receiver,
         };
@@ -149,6 +152,29 @@ impl GlfwWindowManager {
     pub fn window_mut(&mut self) -> &mut glfw::Window {
         &mut self.window
     }
+
+    #[inline]
+    pub fn window_mode(&self) -> ApplicationWindowMode {
+        self.window_mode
+    }
+
+    #[inline]
+    pub fn content_scale(&self) -> Vec2 {
+        match self.content_scale {
+            ApplicationContentScale::System => {
+                let (x_scale, y_scale) = self.window.get_content_scale();
+                Vec2::new(x_scale, y_scale)
+            }
+            ApplicationContentScale::Custom(scale) => {
+                Vec2::new(scale, scale)
+            }
+        }
+    }
+
+    #[inline]
+    pub fn has_custom_content_scale(&self) -> bool {
+        matches!(self.content_scale, ApplicationContentScale::Custom(_))
+    }
 }
 
 // ----------------------------------------------
@@ -221,7 +247,7 @@ fn create_exclusive_fullscreen_window(glfw_instance: &mut glfw::Glfw,
 
         log::verbose!(log::channel!("app"), "Fullscreen video modes available:");
         for mode in &video_modes {
-            log::verbose!("{}x{} @ {}hz", mode.width, mode.height, mode.refresh_rate);
+            log::verbose!(log::channel!("app"), "{}x{} @ {}hz", mode.width, mode.height, mode.refresh_rate);
         }
 
         let best_video_mode = select_best_video_mode(&video_modes).ok_or("No suitable video mode available")?;
@@ -244,7 +270,7 @@ fn create_exclusive_fullscreen_window(glfw_instance: &mut glfw::Glfw,
             let (ww, wh)   = window.get_size();
             let (fbw, fbh) = window.get_framebuffer_size();
             let (sx, sy)   = window.get_content_scale();
-            log::info!(log::channel!("app"), "Fullscreen window OK - Size:({ww}x{wh}), Fb:({fbw}x{fbh}), Scale:({sx},{sy})");
+            log::info!(log::channel!("app"), "Fullscreen window OK - Win:({ww}x{wh}), Fb:({fbw}x{fbh}), Scale:({sx},{sy})");
             (window, event_receiver)
         }
         Err(err) => {
