@@ -6,12 +6,13 @@ use std::{
 };
 
 use crate::{
+    log,
     engine::time::Seconds,
     render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
     utils::{
         fixed_string::format_fixed_string,
         Color, FieldAccessorXY, Vec2, Rect,
-        platform::paths, mem::{self, RawPtr},
+        platform::paths, mem::{RawPtr, Mutable},
     },
     app::{
         Application,
@@ -87,6 +88,10 @@ impl UiTheme {
 // ----------------------------------------------
 
 pub struct UiSystem {
+    inner: Mutable<UiSystemInner>,
+}
+
+struct UiSystemInner {
     context: UiContext,
     ui_ptr: Option<RawPtr<imgui::Ui>>,
     current_theme: UiTheme,
@@ -97,12 +102,15 @@ impl UiSystem {
     pub fn new<UiRendererBackendImpl>(app: &impl Application) -> Self
         where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
     {
-        Self {
+        let mut inner = UiSystemInner {
             context: UiContext::new::<UiRendererBackendImpl>(app),
             ui_ptr: None,
             current_theme: UiTheme::Dev,
             current_font_scale: None,
-        }
+        };
+        inner.context.set_dev_ui_theme(); // Start in developer mode.
+
+        Self { inner: Mutable::new(inner) }
     }
 
     #[inline]
@@ -112,13 +120,13 @@ impl UiSystem {
                        delta_time_secs: Seconds) {
         debug_assert!(!self.frame_started());
 
-        let theme_font_handle = self.context.fonts.front_for_theme(self.current_theme);
+        let theme_font_handle = self.inner.context.fonts.front_for_theme(self.inner.current_theme);
 
-        let ui = self.context.begin_frame(app, input_sys, delta_time_secs);
+        let ui = self.inner.context.begin_frame(app, input_sys, delta_time_secs);
 
         internal::push_font(ui, theme_font_handle);
 
-        self.ui_ptr = Some(RawPtr::from_ref(ui));
+        self.inner.ui_ptr = Some(RawPtr::from_ref(ui));
     }
 
     #[inline]
@@ -126,15 +134,15 @@ impl UiSystem {
         debug_assert!(self.frame_started());
 
         internal::pop_font(self.ui());
-        self.current_font_scale = None;
-        self.ui_ptr = None;
+        self.inner.current_font_scale = None;
+        self.inner.ui_ptr = None;
 
-        self.context.end_frame();
+        self.inner.context.end_frame();
     }
 
     #[inline]
     pub fn frame_started(&self) -> bool {
-        self.ui_ptr.is_some()
+        self.inner.ui_ptr.is_some()
     }
 
     #[inline]
@@ -143,7 +151,7 @@ impl UiSystem {
                         action: InputAction,
                         _: InputModifiers)
                         -> UiInputEvent {
-        self.context.on_key_input(key, action);
+        self.inner.context.on_key_input(key, action);
 
         if self.is_handling_key_input() {
             UiInputEvent::Handled
@@ -154,7 +162,7 @@ impl UiSystem {
 
     #[inline]
     pub fn on_char_input(&mut self, c: char) -> UiInputEvent {
-        self.context.on_char_input(c);
+        self.inner.context.on_char_input(c);
 
         if self.is_handling_key_input() {
             UiInputEvent::Handled
@@ -165,7 +173,7 @@ impl UiSystem {
 
     #[inline]
     pub fn on_scroll(&mut self, amount: Vec2) -> UiInputEvent {
-        self.context.on_scroll(amount);
+        self.inner.context.on_scroll(amount);
 
         if self.is_handling_mouse_input() {
             UiInputEvent::Handled
@@ -191,22 +199,22 @@ impl UiSystem {
 
     #[inline]
     pub fn is_handling_mouse_input(&self) -> bool {
-        self.context.ctx.io().want_capture_mouse
+        self.inner.context.ctx.io().want_capture_mouse
     }
 
     #[inline]
     pub fn is_handling_key_input(&self) -> bool {
-        self.context.ctx.io().want_capture_keyboard
+        self.inner.context.ctx.io().want_capture_keyboard
     }
 
     #[inline]
     pub fn fonts(&self) -> &UiFonts {
-        self.context.fonts()
+        self.inner.context.fonts()
     }
 
     #[inline]
     pub fn ui(&self) -> &imgui::Ui {
-        self.ui_ptr.as_ref().expect("Called UiSystem::ui() outside begin_frame/end_frame!")
+        self.inner.ui_ptr.as_ref().expect("Called UiSystem::ui() outside begin_frame/end_frame!")
     }
 
     #[inline]
@@ -224,23 +232,22 @@ impl UiSystem {
     // ----------------------
 
     pub fn set_ui_theme(&self, theme: UiTheme) {
-        let mut_self = mem::mut_ref_cast(self);
-        if mut_self.current_theme != theme {
-            mut_self.current_theme = theme;
+        if self.inner.current_theme != theme {
+            self.inner.as_mut().current_theme = theme;
 
             // Set style variables.
             match theme {
-                UiTheme::Dev => mut_self.context.set_dev_ui_theme(),
-                UiTheme::InGame => mut_self.context.set_in_game_ui_theme(),
+                UiTheme::Dev => self.inner.as_mut().context.set_dev_ui_theme(),
+                UiTheme::InGame => self.inner.as_mut().context.set_in_game_ui_theme(),
             }
 
             // Reset cached font states if this is being called mid-frame.
-            if mut_self.frame_started() {
-                let theme_font_handle = mut_self.context.fonts.front_for_theme(theme);
-                mut_self.current_font_scale = None;
+            if self.frame_started() {
+                let theme_font_handle = self.inner.context.fonts.front_for_theme(theme);
+                self.inner.as_mut().current_font_scale = None;
 
                 // Pop previous global font.
-                let ui = mut_self.ui();
+                let ui = self.ui();
                 internal::pop_font(ui);
 
                 // Set new current global font.
@@ -251,7 +258,7 @@ impl UiSystem {
 
     #[inline]
     pub fn current_ui_theme(&self) -> UiTheme {
-        self.current_theme
+        self.inner.current_theme
     }
 
     #[inline]
@@ -264,7 +271,7 @@ impl UiSystem {
         if self.frame_started() {
             self.ui().current_font()
         } else {
-            let theme_font_handle = self.context.fonts.front_for_theme(self.current_theme);
+            let theme_font_handle = self.inner.context.fonts.front_for_theme(self.inner.current_theme);
             internal::font_atlas()
                 .get_font(theme_font_handle)
                 .expect("current_ui_font(): UI font atlas did not contain the given font!")
@@ -278,16 +285,15 @@ impl UiSystem {
     #[inline]
     pub fn set_window_font_scale(&self, font_scale: UiFontScale) {
         debug_assert!(font_scale.is_valid());
-        let mut_self = mem::mut_ref_cast(self);
-        if mut_self.current_font_scale != Some(font_scale) {
-            mut_self.current_font_scale = Some(font_scale);
-            mut_self.ui().set_window_font_scale(font_scale.0);
+        if self.inner.current_font_scale != Some(font_scale) {
+            self.inner.as_mut().current_font_scale = Some(font_scale);
+            self.ui().set_window_font_scale(font_scale.0);
         }
     }
 
     #[inline]
     pub fn current_window_front_scale(&self) -> UiFontScale {
-        self.current_font_scale.unwrap_or_default()
+        self.inner.current_font_scale.unwrap_or_default()
     }
 
     #[inline]
@@ -295,10 +301,8 @@ impl UiSystem {
         debug_assert!(font_scale.is_valid());
 
         // Always override it for tooltips.
-        let mut_self = mem::mut_ref_cast(self);        
-        mut_self.ui().set_window_font_scale(font_scale.0);
-
-        mut_self.current_font_scale = if font_scale.is_identity() { None } else { Some(font_scale) };
+        self.inner.as_mut().current_font_scale = if font_scale.is_identity() { None } else { Some(font_scale) };
+        self.ui().set_window_font_scale(font_scale.0);
     }
 }
 
@@ -411,14 +415,12 @@ impl UiContext {
         let fonts = Self::load_custom_fonts(&mut ctx);
         let renderer = new_ui_renderer::<UiRendererBackendImpl>(&mut ctx, app);
 
-        let mut context = Self {
+        Self {
             ctx,
             renderer,
             fonts,
             frame_started: false
-        };
-        context.set_dev_ui_theme();
-        context
+        }
     }
 
     fn begin_frame(&mut self,
@@ -545,6 +547,8 @@ impl UiContext {
     fn set_dev_ui_theme(&mut self) {
         use imgui::StyleColor;
 
+        log::info!(log::channel!("ui"), "Setting UI theme to dev.");
+
         let style = self.ctx.style_mut();
         let colors = &mut style.colors;
 
@@ -640,6 +644,8 @@ impl UiContext {
 
     fn set_in_game_ui_theme(&mut self) {
         use imgui::StyleColor;
+
+        log::info!(log::channel!("ui"), "Setting UI theme to in-game.");
 
         let style = self.ctx.style_mut();
         let colors = &mut style.colors;
