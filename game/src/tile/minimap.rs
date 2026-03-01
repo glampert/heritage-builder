@@ -1270,9 +1270,7 @@ impl BaseMinimapRenderer {
     }
 
     fn custom_background(&self, context: &mut MinimapRenderContext) -> Option<UiTextureHandle> {
-        self.widget_custom_background.map(|tex_handle| {
-            context.ui_sys.to_ui_texture(context.render_sys.texture_cache(), tex_handle)
-        })
+        self.widget_custom_background.map(|tex_handle| context.ui_sys.to_ui_texture(tex_handle))
     }
 
     fn draw_minimap(&mut self, context: &mut MinimapRenderContext) {
@@ -1304,7 +1302,7 @@ impl BaseMinimapRenderer {
 
         let draw_minimap_texture = || {
             let minimap_texture_handle =
-                context.ui_sys.to_ui_texture(context.render_sys.texture_cache(), context.texture());
+                context.ui_sys.to_ui_texture(context.texture());
 
             let (uv_min, uv_max) = widget.current_minimap_uv_window();
             let minimap_corners = widget.draw_data.corners();
@@ -1363,9 +1361,8 @@ impl BaseMinimapRenderer {
             return;
         }
 
-        let tex_cache = context.render_sys.texture_cache();
         let draw_list = context.ui_sys.ui().get_window_draw_list();
-        let widget    = context.widget();
+        let widget = context.widget();
         let clip_rect = widget.draw_data.clip_rect();
 
         let draw_all_icons = || {
@@ -1396,7 +1393,7 @@ impl BaseMinimapRenderer {
                 let icon_tint_alpha = (icon.time_left / icon.lifetime).clamp(0.0, 1.0);
                 let icon_tint = Color::new(icon.tint.r, icon.tint.g, icon.tint.b, icon_tint_alpha);
 
-                let icon_ui_texture = context.ui_sys.to_ui_texture(tex_cache, icon.texture);
+                let icon_ui_texture = context.ui_sys.to_ui_texture(icon.texture);
         
                 draw_list
                     .add_image(icon_ui_texture, icon_rect.min.to_array(), icon_rect.max.to_array())

@@ -322,6 +322,7 @@ pub struct IndexBufferSlice {
 pub struct VertexElementDef {
     pub count: u32,
     pub kind: gl::types::GLenum,
+    pub normalized: gl::types::GLboolean,
 }
 
 impl VertexElementDef {
@@ -386,7 +387,7 @@ impl VertexArray {
                 gl::VertexAttribPointer(index,
                                         vertex_element.count as gl::types::GLint,
                                         vertex_element.kind,
-                                        gl::FALSE,
+                                        vertex_element.normalized,
                                         vertex_stride as gl::types::GLsizei,
                                         offset as *const c_void);
 

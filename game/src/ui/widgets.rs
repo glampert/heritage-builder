@@ -154,7 +154,7 @@ impl<'game> UiWidgetContext<'game> {
     #[inline]
     pub fn load_ui_texture(&mut self, path: &str) -> UiTextureHandle {
         let tex_handle = self.load_texture(path);
-        self.ui_sys.to_ui_texture(self.tex_cache, tex_handle)
+        self.ui_sys.to_ui_texture(tex_handle)
     }
 
     pub fn new_sim_query(&mut self) -> Query {

@@ -390,3 +390,10 @@ shader!(
     // Uniform variables:
     viewport_size: Vec2,
 );
+
+shader!(
+    ui,
+    // Uniform variables:
+    viewport_size: Vec2,
+    sprite_texture: &Texture2D,
+);

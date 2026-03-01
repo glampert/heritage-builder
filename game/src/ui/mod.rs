@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     path::PathBuf,
     cell::UnsafeCell,
     ops::{Deref, DerefMut},
@@ -8,30 +7,32 @@ use std::{
 use crate::{
     log,
     engine::time::Seconds,
-    render::{TextureCache, TextureHandle, TextureSettings, TextureFilter},
-    utils::{
-        fixed_string::format_fixed_string,
-        Color, FieldAccessorXY, Vec2, Rect,
-        platform::paths, mem::{RawPtr, Mutable},
+    render::{
+        RenderSystem,
+        TextureHandle, TextureSettings, TextureFilter,
     },
     app::{
         Application,
         input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
     },
+    utils::{
+        fixed_string::format_fixed_string,
+        Color, FieldAccessorXY, Vec2, Rect,
+        platform::paths, mem::{RawPtr, Mutable},
+    },
 };
 
 pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
+pub use renderer::UiRenderFrameBundle;
+
 pub mod icons;
 pub mod widgets;
 pub mod tests;
 
 // Internal implementation.
 mod internal;
-mod opengl;
-pub mod backend {
-    use super::*;
-    pub type UiRendererOpenGl = opengl::UiRendererOpenGl;
-}
+mod renderer;
+use renderer::UiRenderer;
 
 // usize::MAX == invalid/unset
 pub const INVALID_UI_TEXTURE_HANDLE: UiTextureHandle = UiTextureHandle::new(usize::MAX);
@@ -99,15 +100,14 @@ struct UiSystemInner {
 }
 
 impl UiSystem {
-    pub fn new<UiRendererBackendImpl>(app: &impl Application) -> Self
-        where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
-    {
+    pub fn new(render_sys: &mut impl RenderSystem) -> Self {
         let mut inner = UiSystemInner {
-            context: UiContext::new::<UiRendererBackendImpl>(app),
+            context: UiContext::new(render_sys),
             ui_ptr: None,
             current_theme: UiTheme::Dev,
             current_font_scale: None,
         };
+
         inner.context.set_dev_ui_theme(); // Start in developer mode.
 
         Self { inner: Mutable::new(inner) }
@@ -130,14 +130,14 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn end_frame(&mut self) {
+    pub fn end_frame(&mut self) -> UiRenderFrameBundle<'_> {
         debug_assert!(self.frame_started());
 
         internal::pop_font(self.ui());
         self.inner.current_font_scale = None;
         self.inner.ui_ptr = None;
 
-        self.inner.context.end_frame();
+        self.inner.context.end_frame()
     }
 
     #[inline]
@@ -218,13 +218,8 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn to_ui_texture(&self,
-                         tex_cache: &dyn TextureCache,
-                         tex_handle: TextureHandle)
-                         -> UiTextureHandle {
-        let native_handle = tex_cache.to_native_handle(tex_handle);
-        debug_assert!(std::mem::size_of_val(&native_handle) <= std::mem::size_of::<usize>());
-        UiTextureHandle::new(native_handle.bits)
+    pub fn to_ui_texture(&self, tex_handle: TextureHandle) -> UiTextureHandle {
+        UiTextureHandle::new(tex_handle.pack())
     }
 
     // ----------------------
@@ -368,58 +363,29 @@ impl Default for UiFontScale {
 }
 
 // ----------------------------------------------
-// UiRenderer / UiRendererFactory
-// ----------------------------------------------
-
-pub trait UiRenderer: Any {
-    fn as_any(&self) -> &dyn Any;
-    fn render(&self, ctx: &mut imgui::Context);
-}
-
-pub trait UiRendererFactory: Sized {
-    fn new(ctx: &mut imgui::Context, app: &impl Application) -> Self;
-}
-
-#[inline]
-fn new_ui_renderer<UiRendererBackendImpl>(ctx: &mut imgui::Context,
-                                          app: &impl Application)
-                                          -> Box<dyn UiRenderer>
-    where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
-{
-    Box::new(UiRendererBackendImpl::new(ctx, app))
-}
-
-#[inline]
-fn new_ui_context() -> Box<imgui::Context> {
-    Box::new(imgui::Context::create())
-}
-
-// ----------------------------------------------
 // UiContext
 // ----------------------------------------------
 
 struct UiContext {
-    ctx: Box<imgui::Context>,
-    renderer: Box<dyn UiRenderer>,
+    ctx: imgui::Context,
     fonts: UiFonts,
+    renderer: UiRenderer,
     frame_started: bool,
 }
 
 impl UiContext {
-    fn new<UiRendererBackendImpl>(app: &impl Application) -> Self
-        where UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
-    {
-        let mut ctx = new_ui_context();
+    fn new(render_sys: &mut impl RenderSystem) -> Self {
+        let mut ctx = imgui::Context::create();
         ctx.set_ini_filename(None); // 'None' disables automatic "imgui.ini" saving.
 
         let fonts = Self::load_custom_fonts(&mut ctx);
-        let renderer = new_ui_renderer::<UiRendererBackendImpl>(&mut ctx, app);
+        let renderer = UiRenderer::new(render_sys, &mut ctx);
 
         Self {
             ctx,
-            renderer,
             fonts,
-            frame_started: false
+            renderer,
+            frame_started: false,
         }
     }
 
@@ -429,6 +395,7 @@ impl UiContext {
                    delta_time_secs: Seconds)
                    -> &imgui::Ui {
         debug_assert!(!self.frame_started);
+        self.frame_started = true;
 
         let io = self.ctx.io_mut();
         io.update_delta_time(std::time::Duration::from_secs_f32(delta_time_secs));
@@ -439,31 +406,22 @@ impl UiContext {
         io.display_size = [fb_size.x / content_scale.x, fb_size.y / content_scale.y];
         io.display_framebuffer_scale = [content_scale.x, content_scale.y];
 
-        // Send mouse/keyboard input to ImGui. The rest is handled by application
-        // events.
+        // Send mouse/keyboard input to ImGui. The rest is handled by application events.
         self.update_input(input_sys);
 
         // Start new ImGui frame. Use the returned `ui` object to build the UI windows.
-        let ui = self.ctx.new_frame();
-        self.frame_started = true;
+        self.ctx.new_frame()
+    }
 
-        ui
+    fn end_frame(&mut self) -> UiRenderFrameBundle<'_> {
+        debug_assert!(self.frame_started);
+        self.frame_started = false;
+
+        UiRenderFrameBundle::new(&self.renderer, &mut self.ctx)
     }
 
     fn fonts(&self) -> &UiFonts {
         &self.fonts
-    }
-
-    fn end_frame(&mut self) {
-        debug_assert!(self.frame_started);
-
-        let draw_data = self.ctx.render();
-
-        if draw_data.total_idx_count != 0 && draw_data.total_vtx_count != 0 {
-            self.renderer.render(&mut self.ctx);
-        }
-
-        self.frame_started = false;
     }
 
     fn on_key_input(&mut self, key: InputKey, action: InputAction) {

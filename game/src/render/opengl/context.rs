@@ -49,6 +49,13 @@ pub enum FrontFacing {
     Ccw,
 }
 
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum ClipTest {
+    Enabled,
+    Disabled,
+}
+
 // ----------------------------------------------
 // RenderContext
 // ----------------------------------------------
@@ -56,6 +63,7 @@ pub enum FrontFacing {
 pub struct RenderContext {
     clear_color: Color,
     depth_test: DepthTest,
+    clip_test: ClipTest,
     primitive_topology: PrimitiveTopology,
     current_shader_program: gl::types::GLuint,
     current_vertex_array: gl::types::GLuint,
@@ -76,6 +84,7 @@ impl RenderContext {
         Self {
             clear_color: Color::black(),
             depth_test: DepthTest::Disabled,
+            clip_test: ClipTest::Disabled,
             primitive_topology: PrimitiveTopology::Triangles,
             current_shader_program: NULL_SHADER_HANDLE,
             current_vertex_array: NULL_VERTEX_ARRAY_HANDLE,
@@ -155,7 +164,21 @@ impl RenderContext {
         self
     }
 
+    pub fn set_clip_test(&mut self, clip_test: ClipTest) -> &mut Self {
+        self.clip_test = clip_test;
+        match clip_test {
+            ClipTest::Enabled => unsafe {
+                gl::Enable(gl::SCISSOR_TEST);
+            },
+            ClipTest::Disabled => unsafe {
+                gl::Disable(gl::SCISSOR_TEST);
+            },
+        }
+        self
+    }
+
     pub fn set_viewport(&mut self, viewport: Rect) -> &mut Self {
+        debug_assert!(viewport.is_valid());
         unsafe {
             gl::Viewport(viewport.x() as _,
                          viewport.y() as _,
@@ -165,7 +188,9 @@ impl RenderContext {
         self
     }
 
-    pub fn set_scissor(&mut self, rect: Rect) -> &mut Self {
+    pub fn set_clip_rect(&mut self, rect: Rect) -> &mut Self {
+        debug_assert!(rect.is_valid());
+        debug_assert!(self.clip_test == ClipTest::Enabled);
         unsafe {
             gl::Scissor(rect.x() as _,
                         rect.y() as _,

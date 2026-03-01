@@ -18,9 +18,9 @@ impl VertexTrait for SpriteVertex2D {
     fn layout() -> Vec<VertexElementDef> {
         vec![
             // vec2 in_position
-            VertexElementDef { count: 2, kind: gl::FLOAT },
+            VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
             // vec2 in_tex_coords
-            VertexElementDef { count: 2, kind: gl::FLOAT },
+            VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
         ]
     }
 
@@ -44,9 +44,9 @@ impl VertexTrait for LineVertex2D {
     fn layout() -> Vec<VertexElementDef> {
         vec![
             // vec2 in_position
-            VertexElementDef { count: 2, kind: gl::FLOAT },
+            VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
             // vec4 in_color
-            VertexElementDef { count: 4, kind: gl::FLOAT },
+            VertexElementDef { count: 4, kind: gl::FLOAT, normalized: gl::FALSE },
         ]
     }
 
@@ -71,11 +71,30 @@ impl VertexTrait for PointVertex2D {
     fn layout() -> Vec<VertexElementDef> {
         vec![
             // vec2 in_position
-            VertexElementDef { count: 2, kind: gl::FLOAT },
+            VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
             // vec4 in_color
-            VertexElementDef { count: 4, kind: gl::FLOAT },
+            VertexElementDef { count: 4, kind: gl::FLOAT, normalized: gl::FALSE },
             // float in_point_size
-            VertexElementDef { count: 1, kind: gl::FLOAT },
+            VertexElementDef { count: 1, kind: gl::FLOAT, normalized: gl::FALSE },
+        ]
+    }
+
+    fn stride() -> usize { std::mem::size_of::<Self>() }
+}
+
+// ----------------------------------------------
+// ImGui UI Vertex
+// ----------------------------------------------
+
+impl VertexTrait for imgui::DrawVert {
+    fn layout() -> Vec<VertexElementDef> {
+        vec![
+            // vec2 in_position
+            VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
+            // vec2 in_tex_coords
+            VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
+            // vec2 in_vert_color
+            VertexElementDef { count: 4, kind: gl::UNSIGNED_BYTE, normalized: gl::TRUE },
         ]
     }
 

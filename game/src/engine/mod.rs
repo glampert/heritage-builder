@@ -6,8 +6,8 @@ use time::{FrameClock, Seconds};
 
 use crate::{
     log,
+    ui::UiSystem,
     sound::SoundSystem,
-    ui::{self, UiRenderer, UiRendererFactory, UiSystem},
     app::{
         self, input::*,
         Application, ApplicationBuilder, ApplicationFactory,
@@ -40,8 +40,7 @@ pub mod backend {
     use super::*;
     pub type GlfwOpenGlEngine = EngineBackend<app::backend::GlfwApplication,
                                               app::backend::GlfwInputSystem,
-                                              render::backend::RenderSystemOpenGl,
-                                              ui::backend::UiRendererOpenGl>;
+                                              render::backend::RenderSystemOpenGl>;
 }
 
 // ----------------------------------------------
@@ -89,8 +88,7 @@ pub trait Engine: Any {
 
 pub struct EngineBackend<AppBackendImpl,
                          InputSystemBackendImpl,
-                         RenderSystemBackendImpl,
-                         UiRendererBackendImpl>
+                         RenderSystemBackendImpl>
 {
     app: Box<AppBackendImpl>,
 
@@ -107,19 +105,16 @@ pub struct EngineBackend<AppBackendImpl,
     frame_clock: FrameClock,
     frame_events: ApplicationEventList,
 
-    _ui_marker: PhantomData<UiRendererBackendImpl>,
     _input_marker: PhantomData<InputSystemBackendImpl>,
 }
 
-impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRendererBackendImpl>
+impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
     EngineBackend<AppBackendImpl,
                   InputSystemBackendImpl,
-                  RenderSystemBackendImpl,
-                  UiRendererBackendImpl>
+                  RenderSystemBackendImpl>
     where AppBackendImpl: Application + ApplicationFactory + 'static,
           InputSystemBackendImpl: InputSystem + 'static,
-          RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static,
-          UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
+          RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
 {
     pub fn new(configs: &EngineConfigs) -> Self {
         log::set_level(configs.log_level);
@@ -136,7 +131,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
 
         log::info!(log::channel!("engine"), "App instance initialized.");
 
-        let render_system: Box<RenderSystemBackendImpl> =
+        let mut render_system: Box<RenderSystemBackendImpl> =
             RenderSystemBuilder::new().viewport_size(app.window_size())
                                       .framebuffer_size(app.framebuffer_size())
                                       .clear_color(configs.window_background_color)
@@ -145,8 +140,8 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
 
         log::info!(log::channel!("engine"), "RenderSystem initialized.");
 
-        let ui_system = UiSystem::new::<UiRendererBackendImpl>(&*app);
-        let debug_draw = DebugDrawBackend::new(&*render_system);
+        let ui_system  = UiSystem::new(&mut *render_system);
+        let debug_draw = DebugDrawBackend::new(&mut *render_system);
 
         log::info!(log::channel!("engine"), "Debug UI initialized.");
         log::info!(log::channel!("engine"), "Window Size: {}", app.window_size());
@@ -167,7 +162,6 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
             debug_draw,
             frame_clock: FrameClock::new(),
             frame_events: ApplicationEventList::new(),
-            _ui_marker: PhantomData,
             _input_marker: PhantomData,
         }
     }
@@ -215,15 +209,13 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 }
 
-impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRendererBackendImpl> Engine
+impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
     for EngineBackend<AppBackendImpl,
                       InputSystemBackendImpl,
-                      RenderSystemBackendImpl,
-                      UiRendererBackendImpl>
+                      RenderSystemBackendImpl>
     where AppBackendImpl: Application + ApplicationFactory + 'static,
           InputSystemBackendImpl: InputSystem + 'static,
-          RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static,
-          UiRendererBackendImpl: UiRenderer + UiRendererFactory + 'static
+          RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
 {
     #[inline]
     fn as_any(&self) -> &dyn Any {
@@ -306,25 +298,25 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl, UiRenderer
     }
 
     fn begin_frame(&mut self) -> (Seconds, Vec2) {
+        self.frame_clock.begin_frame();
         self.frame_events = self.poll_app_events();
 
         // Pass in the concrete InputSystem implementation to UiSystem.
         let input_sys =
             self.app.input_system().as_any().downcast_ref::<InputSystemBackendImpl>().unwrap();
 
-        self.frame_clock.begin_frame();
-        self.ui_system.begin_frame(&*self.app, input_sys, self.frame_clock.delta_time());
         self.render_system.begin_frame(self.app.window_size(), self.app.framebuffer_size());
+        self.ui_system.begin_frame(&*self.app, input_sys, self.frame_clock.delta_time());
 
         (self.frame_clock.delta_time(), input_sys.cursor_pos())
     }
 
     fn end_frame(&mut self) {
-        self.render_stats = self.render_system.end_frame();
-        self.ui_system.end_frame();
+        let mut ui_frame_bundle = self.ui_system.end_frame();
+        self.render_stats = self.render_system.end_frame(&mut ui_frame_bundle);
         self.app.present();
-        self.frame_clock.end_frame();
         self.frame_events.clear();
+        self.frame_clock.end_frame();
     }
 
     fn draw_tile_map(&mut self,
@@ -384,7 +376,7 @@ struct DebugDrawBackend<RenderSystemBackendImpl> {
 impl<RenderSystemBackendImpl> DebugDrawBackend<RenderSystemBackendImpl>
     where RenderSystemBackendImpl: RenderSystem
 {
-    fn new(render_system: &RenderSystemBackendImpl) -> Self {
+    fn new(render_system: &mut RenderSystemBackendImpl) -> Self {
         Self { render_system: mem::RawPtr::from_ref(render_system) }
     }
 }

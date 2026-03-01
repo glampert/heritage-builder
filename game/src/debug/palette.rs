@@ -87,7 +87,6 @@ impl TilePaletteDevMenu {
                 has_valid_placement: bool,
                 show_selection_bounds: bool) {
         let ui = context.ui_sys.ui();
-        let tex_cache = debug_draw.texture_cache();
 
         let tiles_per_row = 2;
         let spacing_between_tiles = 4.0;
@@ -123,7 +122,7 @@ impl TilePaletteDevMenu {
                     let btn_params = ui::UiImageButtonParams {
                         id: "Clear",
                         size: BASE_TILE_SIZE_F32,
-                        ui_texture: ui_sys.to_ui_texture(tex_cache, self.clear_button_image),
+                        ui_texture: ui_sys.to_ui_texture(self.clear_button_image),
                         tooltip: Some("Clear Tiles"),
                         normal_color: Some(Color::gray()),
                         hovered_color: Some(Color::new(1.0, 1.0, 0.0, 0.1)), // Faint yellow
@@ -149,7 +148,6 @@ impl TilePaletteDevMenu {
                     self.draw_tile_list(label,
                                         tile_kind,
                                         ui_sys,
-                                        tex_cache,
                                         tiles_per_row,
                                         spacing_between_tiles);
                 }
@@ -225,7 +223,6 @@ impl TilePaletteDevMenu {
                       label: &str,
                       tile_kind: TileKind,
                       ui_sys: &UiSystem,
-                      tex_cache: &dyn TextureCache,
                       tiles_per_row: usize,
                       padding_between_tiles: f32) {
         let ui = ui_sys.ui();
@@ -243,7 +240,7 @@ impl TilePaletteDevMenu {
             let selected = self.selected_index.get(&tile_kind) == Some(&tile_index);
 
             let tile_sprite = tile_def.texture_by_index(0, 0, 0);
-            let ui_texture = ui_sys.to_ui_texture(tex_cache, tile_sprite.texture);
+            let ui_texture = ui_sys.to_ui_texture(tile_sprite.texture);
 
             let btn_id = utils::fixed_string::snake_case_to_title::<64>(&tile_def.name);
             let btn_tooltip = if tile_def.cost != 0 {

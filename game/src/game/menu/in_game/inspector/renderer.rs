@@ -186,7 +186,7 @@ impl InspectorMenuRenderer {
     pub fn set_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite, tile_kind: TileKind) {
         let icon = self.find_icon();
 
-        let sprite = context.ui_sys.to_ui_texture(context.tex_cache, icon_sprite.tex_info.texture);
+        let sprite = context.ui_sys.to_ui_texture(icon_sprite.tex_info.texture);
         icon.set_sprite(sprite);
 
         let tex_coords = icon_sprite.tex_info.coords;

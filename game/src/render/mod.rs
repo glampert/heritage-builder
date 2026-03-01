@@ -5,8 +5,8 @@ use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    ui::UiSystem,
-    utils::{Color, Rect, RectTexCoords, Size, Vec2}
+    ui::{UiSystem, UiRenderFrameBundle},
+    utils::{Color, Rect, RectTexCoords, Size, Vec2},
 };
 
 // Internal implementation.
@@ -49,7 +49,7 @@ pub trait RenderSystem: Any {
     // ----------------------
 
     fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size);
-    fn end_frame(&mut self) -> RenderStats;
+    fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle) -> RenderStats;
 
     // ----------------------
     // TextureCache access:
@@ -65,6 +65,16 @@ pub trait RenderSystem: Any {
     fn viewport(&self) -> Rect;
     fn set_viewport_size(&mut self, new_size: Size);
     fn set_framebuffer_size(&mut self, new_size: Size);
+
+    // ----------------------
+    // UI (ImGui) Drawing:
+    // ----------------------
+
+    fn begin_ui_render(&mut self);
+    fn end_ui_render(&mut self);
+
+    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[imgui::DrawVert], idx_buffer: &[imgui::DrawIdx]);
+    fn draw_ui_elements(&mut self, first_index: u32, index_count: u32, texture: TextureHandle, clip_rect: Rect);
 
     // ----------------------
     // Draw commands:
@@ -387,6 +397,27 @@ impl TextureHandle {
     #[inline]
     pub fn is_valid(&self) -> bool {
         !matches!(self, TextureHandle::Invalid)
+    }
+
+    #[inline]
+    pub fn pack(&self) -> usize {
+        match self {
+            Self::Invalid => 0usize,
+            Self::White   => 1usize << 32,
+            Self::Index(idx) => (2usize << 32) | *idx as usize,
+        }
+    }
+
+    #[inline]
+    pub fn unpack(value: usize) -> Self {
+        let high = (value >> 32) as u32;
+        let low  = (value & 0x00000000FFFFFFFF) as u32;
+        match high {
+            0 => { debug_assert_eq!(low, 0); Self::Invalid }
+            1 => { debug_assert_eq!(low, 0); Self::White }
+            2 => { Self::Index(low) } // Low 32 bits contain the index.
+            _ => { panic!("Invalid packed TextureHandle!") }
+        }
     }
 }
 

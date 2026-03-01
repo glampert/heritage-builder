@@ -2,7 +2,7 @@ use std::any::Any;
 use arrayvec::ArrayVec;
 
 use super::{
-    batch::{DrawBatch, DrawBatchEntry},
+    batch::{DrawBatch, DrawBatchEntry, UiDrawBatch},
     texture::TextureCache,
     target::RenderTarget,
     context::*,
@@ -10,6 +10,7 @@ use super::{
     vertex::*,
 };
 use crate::{
+    ui::UiRenderFrameBundle,
     render::{self, RenderStats, TextureHandle},
     utils::{Color, Rect, RectTexCoords, Size, Vec2},
 };
@@ -27,6 +28,8 @@ pub struct RenderSystem {
     lines_shader: lines::Shader,
     points_batch: DrawBatch<PointVertex2D, PointIndex2D>,
     points_shader: points::Shader,
+    ui_batch: UiDrawBatch,
+    ui_shader: ui::Shader,
     stats: RenderStats,
     viewport: Rect,
     framebuffer_size: Size,
@@ -99,6 +102,8 @@ impl render::RenderSystemFactory for RenderSystem {
             lines_shader: lines::Shader::load(),
             points_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Points),
             points_shader: points::Shader::load(),
+            ui_batch: UiDrawBatch::new(),
+            ui_shader: ui::Shader::load(),
             stats: RenderStats::default(),
             viewport: Rect::default(),
             framebuffer_size: Size::default(),
@@ -115,7 +120,8 @@ impl render::RenderSystemFactory for RenderSystem {
                   .set_alpha_blend(AlphaBlend::Enabled)
                   // Pure 2D rendering, no depth test or back-face culling.
                   .set_backface_culling(BackFaceCulling::Disabled)
-                  .set_depth_test(DepthTest::Disabled);
+                  .set_depth_test(DepthTest::Disabled)
+                  .set_clip_test(ClipTest::Disabled);
 
         render_sys
     }
@@ -143,7 +149,7 @@ impl render::RenderSystem for RenderSystem {
         self.stats.draw_calls       = 0;
     }
 
-    fn end_frame(&mut self) -> RenderStats {
+    fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle) -> RenderStats {
         debug_assert!(self.frame_started);
         debug_assert!(self.viewport.is_valid());
         debug_assert!(self.framebuffer_size.is_valid());
@@ -157,6 +163,9 @@ impl render::RenderSystem for RenderSystem {
 
         // Reset viewport to default screen framebuffer size.
         self.render_context.set_viewport(Rect::from_pos_and_size(Vec2::zero(), self.framebuffer_size.to_vec2()));
+
+        // Render UI last so it will draw over the tile map.
+        ui_frame_bundle.render(self);
 
         self.render_context.end_frame();
         self.frame_started = false;
@@ -202,12 +211,45 @@ impl render::RenderSystem for RenderSystem {
         self.sprites_shader.set_viewport_size(self.viewport.size());
         self.lines_shader.set_viewport_size(self.viewport.size());
         self.points_shader.set_viewport_size(self.viewport.size());
+        self.ui_shader.set_viewport_size(self.viewport.size());
     }
 
     #[inline]
     fn set_framebuffer_size(&mut self, new_size: Size) {
         debug_assert!(new_size.is_valid());
         self.framebuffer_size = new_size;
+    }
+
+    #[inline]
+    fn begin_ui_render(&mut self) {
+        self.render_context.set_clip_test(ClipTest::Enabled);
+        self.ui_batch.begin(&mut self.render_context, &self.ui_shader.program);
+    }
+
+    #[inline]
+    fn end_ui_render(&mut self) {
+        self.ui_batch.end(&mut self.render_context);
+        self.render_context.set_clip_test(ClipTest::Disabled);
+    }
+
+    #[inline]
+    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[imgui::DrawVert], idx_buffer: &[imgui::DrawIdx]) {
+        debug_assert!(!vtx_buffer.is_empty() && !idx_buffer.is_empty());
+        self.ui_batch.sync(&mut self.render_context, vtx_buffer, idx_buffer);
+    }
+
+    #[inline]
+    fn draw_ui_elements(&mut self, first_index: u32, index_count: u32, texture: TextureHandle, clip_rect: Rect) {
+        debug_assert!(index_count.is_multiple_of(3)); // We expect triangles.
+
+        self.render_context.set_clip_rect(clip_rect);
+
+        let texture2d = self.tex_cache.handle_to_texture(texture);
+        self.ui_shader.set_sprite_texture(texture2d);
+        self.render_context.set_texture_2d(texture2d);
+
+        self.ui_batch.draw(&mut self.render_context, first_index, index_count);
+        self.stats.triangles_drawn += index_count / 3;
     }
 
     fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[u16], color: Color) {
