@@ -3,8 +3,8 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use crate::{
-    game::menu::*,
     render::TextureHandle,
+    game::{undo_redo, menu::*},
     ui::{UiInputEvent, widgets::*},
     app::input::{InputAction, MouseButton},
     utils::{
@@ -72,8 +72,14 @@ enum TilePaletteMainButtonDef {
     #[strum(props(Label = "palette/trade_and_economy", DisabledIfEmpty = true))]
     TradeAndEconomy,
 
-    #[strum(props(Label = "palette/beautification", DisabledIfEmpty = true))]
+    #[strum(props(Label = "palette/beautification", DisabledIfEmpty = true, SeparatorFollows = true))]
     Beautification,
+
+    #[strum(props(Label = "palette/undo", StateTransitionSecs = "0.5"))]
+    Undo,
+
+    #[strum(props(Label = "palette/redo", StateTransitionSecs = "0.5"))]
+    Redo,
 }
 
 impl TilePaletteMainButtonDef {
@@ -86,11 +92,19 @@ impl TilePaletteMainButtonDef {
     }
 
     fn initial_state(self, has_children: bool) -> UiSpriteButtonState {
-        if self.disabled_if_empty() && !has_children {
+        let is_undo_redo = matches!(self, Self::Undo | Self::Redo);
+
+        if is_undo_redo || (self.disabled_if_empty() && !has_children) {
             UiSpriteButtonState::Disabled
         } else {
             UiSpriteButtonState::Idle
         }
+    }
+
+    fn state_transition_secs(self) -> Seconds {
+        let value = self.get_str("StateTransitionSecs").unwrap_or_default();
+        let seconds: Seconds = value.parse().unwrap_or(TILE_PALETTE_MAIN_BUTTON_STATE_TRANSITION_SECS);
+        seconds
     }
 
     fn build_child_button_defs(self) -> Vec<TilePaletteChildButtonDef> {
@@ -201,18 +215,32 @@ impl TilePaletteMainButtonsBuilder {
                     }
 
                     if is_pressed {
+                        let mut stay_pressed = true;
+
                         // Open new child menu for pressed main button, if any.
                         if let Some(child_menu_weak_ref) = &child_menu_weak_ref {
                             let mut child_menu_rc = child_menu_weak_ref.upgrade().unwrap();
                             child_menu_rc.open(context);
                         } else {
-                            // If parent button has no child menu, choose tile directly here (e.g.: Housing, ClearLand).
-                            let selection = main_button_def.to_tile_selection(None);
-                            tile_palette_rc.set_selection_internal(selection);
+                            match main_button_def {
+                                TilePaletteMainButtonDef::Undo => {
+                                    undo_redo::undo(&context.new_sim_query());
+                                    stay_pressed = false;
+                                }
+                                TilePaletteMainButtonDef::Redo => {
+                                    undo_redo::redo(&context.new_sim_query());
+                                    stay_pressed = false;
+                                }
+                                _ => {
+                                    // If parent button has no child menu, choose tile directly here (e.g.: Housing, ClearLand).
+                                    let selection = main_button_def.to_tile_selection(None);
+                                    tile_palette_rc.set_selection_internal(selection);
+                                }
+                            }
                         }
 
-                        // Stay pressed (reset_selection_internal above would have unpressed all).
-                        button.press(true);
+                        // Stay pressed, except for undo/redo (reset_selection_internal above would have unpressed all).
+                        button.press(stay_pressed);
                     }
                 }
             );
@@ -221,7 +249,7 @@ impl TilePaletteMainButtonsBuilder {
                 context,
                 TILE_PALETTE_MAIN_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED,
                 TILE_PALETTE_MAIN_BUTTON_SIZE,
-                TILE_PALETTE_MAIN_BUTTON_STATE_TRANSITION_SECS,
+                main_button_def.state_transition_secs(),
                 main_button_def.initial_state(main_button.has_children()),
                 on_main_button_state_changed
             );
@@ -460,6 +488,17 @@ impl TilePaletteMenu {
         // Draw the open child menu, if any:
         for button in &mut self.main_buttons {
             button.draw_child_menu(context);
+
+            // Only enable undo/redo buttons if we have actions.
+            match button.def {
+                TilePaletteMainButtonDef::Undo => {
+                    Self::enable_button(&mut self.menu, button.def, undo_redo::can_undo());
+                }
+                TilePaletteMainButtonDef::Redo => {
+                    Self::enable_button(&mut self.menu, button.def, undo_redo::can_redo());
+                }
+                _ => {}
+            }
         }
 
         // Draw selected tile cursor overlay:
@@ -473,13 +512,21 @@ impl TilePaletteMenu {
     // Internal:
     // ----------------------
 
+    fn enable_button(menu: &mut UiMenu, def: TilePaletteMainButtonDef, enable: bool) {
+        let (_, button) = menu
+            .find_widget_with_label_mut::<UiSpriteButton>(def.label_str())
+            .unwrap();
+
+        button.enable(enable);
+    }
+
     fn set_child_menu_position_callbacks(&mut self, context: &UiWidgetContext) {
         for main_button in &mut self.main_buttons {
             if let Some(child_menu) = &mut main_button.child_menu {
                 let child_menu_width = child_menu.measure(context).x;
                 let palette_menu_weak_ref = self.menu.downgrade().into_not_mut();
                 let main_button_index =
-                    self.menu.find_widget_with_label::<UiSpriteButton>(&main_button.def.label())
+                    self.menu.find_widget_with_label::<UiSpriteButton>(main_button.def.label_str())
                         .expect("Couldn't find UiSpriteButton widget in palette menu!").0;
 
                 child_menu.set_position(UiMenuPosition::Callback(

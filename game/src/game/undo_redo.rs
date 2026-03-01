@@ -362,3 +362,11 @@ pub fn undo(query: &Query) {
 pub fn redo(query: &Query) {
     UndoRedoSingleton::get_mut().redo(query);
 }
+
+pub fn can_undo() -> bool {
+    !UndoRedoSingleton::get().undo_stack.is_empty()
+}
+
+pub fn can_redo() -> bool {
+    !UndoRedoSingleton::get().redo_stack.is_empty()
+}

@@ -675,6 +675,10 @@ const TEXT_BUTTON_HOVERED_SPRITE: &str = "misc/brush_stroke_divider.png";
 // ----------------------------------------------
 
 trait ButtonDef: Sized + Copy + Clone + EnumProperty {
+    fn label_str(self) -> &'static str {
+        self.get_str("Label").unwrap_or_default()
+    }
+
     fn label(self) -> String {
         self.get_str("Label")
             .map_or(String::new(), |prop| prop.to_string())

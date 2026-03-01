@@ -684,6 +684,20 @@ impl UiMenu {
         None
     }
 
+    pub fn find_widget_with_label_mut<Widget: UiWidget>(&mut self, label: &str) -> Option<(UiMenuWidgetIndex, &mut Widget)> {
+        debug_assert!(!label.is_empty());
+
+        for (index, widget) in self.widgets.iter_mut().enumerate() {
+            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
+                if w.label() == label {
+                    return Some((UiMenuWidgetIndex(index), w));
+                }
+            }
+        }
+
+        None
+    }
+
     // ----------------------
     // Modal Message Box:
     // ----------------------
@@ -1235,6 +1249,20 @@ impl UiWidgetGroup {
 
         None
     }
+
+    pub fn find_widget_with_label_mut<Widget: UiWidget>(&mut self, label: &str) -> Option<(UiWidgetGroupWidgetIndex, &mut Widget)> {
+        debug_assert!(!label.is_empty());
+
+        for (index, widget) in self.widgets.iter_mut().enumerate() {
+            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
+                if w.label() == label {
+                    return Some((UiWidgetGroupWidgetIndex(index), w));
+                }
+            }
+        }
+
+        None
+    }
 }
 
 // ----------------------------------------------
@@ -1401,6 +1429,20 @@ impl UiLabeledWidgetGroup {
 
         for (index, (widget_label, widget)) in self.labels_and_widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
+                if widget_label == label {
+                    return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn find_widget_with_label_mut<Widget: UiWidget>(&mut self, label: &str) -> Option<(UiLabeledWidgetGroupWidgetIndex, &mut Widget)> {
+        debug_assert!(!label.is_empty());
+
+        for (index, (widget_label, widget)) in self.labels_and_widgets.iter_mut().enumerate() {
+            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
                 if widget_label == label {
                     return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
                 }

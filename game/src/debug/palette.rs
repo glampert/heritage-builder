@@ -123,7 +123,7 @@ impl TilePaletteDevMenu {
                         id: "Clear",
                         size: BASE_TILE_SIZE_F32,
                         ui_texture: ui_sys.to_ui_texture(self.clear_button_image),
-                        tooltip: Some("Clear Tiles"),
+                        tooltip: Some("Clear Land"),
                         normal_color: Some(Color::gray()),
                         hovered_color: Some(Color::new(1.0, 1.0, 0.0, 0.1)), // Faint yellow
                         selected_color: Some(Color::white()),
