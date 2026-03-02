@@ -1,0 +1,22 @@
+{
+  "categories": [
+    {
+      "category": "TileDescription",
+      "strings": [
+        {
+            "key": "test_key",
+            "text": "sample text"
+        }
+      ]
+    },
+    {
+      "category": "UnitDialog",
+      "strings": [
+        {
+            "key": "test_key",
+            "text": "sample text"
+        }
+      ]
+    }
+  ]
+}

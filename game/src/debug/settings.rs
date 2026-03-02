@@ -498,6 +498,9 @@ impl DebugSettingsDevMenu {
                   if let Some(_tab) = ui.tab_item("Props") {
                       PropConfigs::get().draw_debug_ui(context.ui_sys);
                   }
+                  if let Some(_tab) = ui.tab_item("Ui Text") {
+                      ui::text::draw_debug_ui(context.ui_sys);
+                  }
               }
           });
     }

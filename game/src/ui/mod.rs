@@ -28,6 +28,7 @@ pub use renderer::UiRenderFrameBundle;
 pub mod icons;
 pub mod widgets;
 pub mod tests;
+pub mod text;
 
 // Internal implementation.
 mod internal;
@@ -101,6 +102,8 @@ struct UiSystemInner {
 
 impl UiSystem {
     pub fn new(render_sys: &mut impl RenderSystem) -> Self {
+        text::initialize();
+
         let mut inner = UiSystemInner {
             context: UiContext::new(render_sys),
             ui_ptr: None,
