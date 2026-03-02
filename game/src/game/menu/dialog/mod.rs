@@ -27,6 +27,9 @@ use about::*;
 mod load_save;
 use load_save::*;
 
+mod city_management;
+use city_management::*;
+
 mod settings;
 use settings::*;
 
@@ -62,6 +65,12 @@ pub enum DialogMenuImpl {
     SaveGame,
     LoadOrSaveGame,
 
+    // City management menus:
+    CityManagement,
+    WorkersManagement,
+    ResourcesManagement,
+    FinancesManagement,
+
     // Settings menus:
     MainSettings,
     GameSettings,
@@ -78,6 +87,11 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     LoadGame,
     SaveGame,
     LoadOrSaveGame,
+
+    CityManagement,
+    WorkersManagement,
+    ResourcesManagement,
+    FinancesManagement,
 
     MainSettings,
     GameSettings,

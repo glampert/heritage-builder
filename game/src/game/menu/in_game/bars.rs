@@ -347,6 +347,9 @@ enum LeftBarButtonKind {
 
     #[strum(props(Label = "menu_bar/settings"))]
     Settings,
+
+    #[strum(props(Label = "menu_bar/city_management", Tooltip = "City Management"))]
+    CityManagement,
 }
 
 impl ButtonDef for LeftBarButtonKind {
@@ -356,6 +359,7 @@ impl ButtonDef for LeftBarButtonKind {
             Self::MainMenu => dialog::open(DialogMenuKind::MainGame, CLOSE_ALL_OTHERS, context),
             Self::SaveGame => dialog::open(DialogMenuKind::LoadOrSaveGame, CLOSE_ALL_OTHERS, context),
             Self::Settings => dialog::open(DialogMenuKind::MainSettings, CLOSE_ALL_OTHERS, context),
+            Self::CityManagement => dialog::open(DialogMenuKind::CityManagement, CLOSE_ALL_OTHERS, context),
         }
     }
 }

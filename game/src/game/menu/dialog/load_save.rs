@@ -303,7 +303,7 @@ impl SaveGameHelper {
                 enabled: true,
                 on_pressed: UiTextButtonPressed::with_fn(
                     |_, context| {
-                        DialogMenusSingleton::get_mut().close_current(context);
+                        super::close_current(context);
                     }
                 ),
                 ..Default::default()

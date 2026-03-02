@@ -22,7 +22,7 @@ enum AboutButtonKind {
 impl ButtonDef for AboutButtonKind {
     fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
         match self {
-            Self::Back => DialogMenusSingleton::get_mut().close_current(context),
+            Self::Back => super::close_current(context),
         }
     }
 }

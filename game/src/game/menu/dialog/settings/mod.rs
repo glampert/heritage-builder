@@ -324,7 +324,7 @@ impl SettingsCategory {
                 on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
                     let settings = ok_button_weak_ref.upgrade().unwrap();
                     settings.commit_settings();
-                    DialogMenusSingleton::get_mut().close_current(context);
+                    super::close_current(context);
                 }),
                 ..Default::default()
             }
@@ -337,7 +337,7 @@ impl SettingsCategory {
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
                 enabled: true,
                 on_pressed: UiTextButtonPressed::with_fn(|_, context| {
-                    DialogMenusSingleton::get_mut().close_current(context);
+                    super::close_current(context);
                 }),
                 ..Default::default()
             }
