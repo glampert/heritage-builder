@@ -4,8 +4,60 @@
       "category": "TileDescription",
       "strings": [
         {
-            "key": "test_key",
-            "text": "sample text"
+            "key": "dirt",
+            "text": "Empty land."
+        },
+        {
+            "key": "grass",
+            "text": "Empty land."
+        },
+        {
+            "key": "vacant_lot",
+            "text": "Settlers can build houses on empty lots."
+        },
+        {
+            "key": "dirt_road",
+            "text": "Most buildings require road access to function.\nYour citizens will usually only travel on road paths."
+        },
+        {
+            "key": "paved_road",
+            "text": "Most buildings require road access to function.\nYour citizens will usually only travel on road paths."
+        },
+        {
+            "key": "water",
+            "text": "Only boats can travel over water."
+        },
+        {
+            "key": "brown_boulder",
+            "text": "Some rocks can be mined for resources."
+        },
+        {
+            "key": "red_boulder",
+            "text": "Some rocks can be mined for resources."
+        },
+        {
+            "key": "gray_boulder",
+            "text": "Some rocks can be mined for resources."
+        },
+        {
+            "key": "round_stones",
+            "text": "Some rocks can be mined for resources."
+        },
+        {
+            "key": "tree",
+            "text": "Cut down trees to harvest wood."
+        },
+        {
+            "key": "palm_tree",
+            "text": "Cut down trees to harvest wood."
+        },
+        {
+            "key": "bamboo",
+            "text": "A bamboo tree."
+        },
+        {
+            "key": "bush",
+            "text": "A bush."
         }
       ]
     },
@@ -13,8 +65,60 @@
       "category": "UnitDialog",
       "strings": [
         {
-            "key": "test_key",
-            "text": "sample text"
+            "key": "peasant",
+            "text": "Give me a patch of dirt and I'll turn it into dinner.\nFarms don't plow themselves, you know!"
+        },
+        {
+            "key": "runner",
+            "text": "Fast feet, faster deliveries!\nIf it needs moving urgently, I'm already halfway there!"
+        },
+        {
+            "key": "settler",
+            "text": "We're new here!\nEvery great city starts with people like us!"
+        },
+        {
+            "key": "vendor",
+            "text": "Fresh goods! Fair prices!\nI keep the market buzzing and the people smiling."
+        },
+        {
+            "key": "tax_collector",
+            "text": "Relax, it's for the good of the city!\nI turn coins into roads, guards, and very official-looking paperwork."
+        },
+        {
+            "key": "water_carrier",
+            "text": "No water, no life!\nI keep homes supplied and everyone pleasantly un-thirsty."
+        },
+        {
+            "key": "guard",
+            "text": "Stay calm, citizen.\nI handle trouble so you can handle prosperity."
+        },
+        {
+            "key": "teacher",
+            "text": "Knowledge today, greatness tomorrow!\nI turn young minds into productive citizens."
+        },
+        {
+            "key": "actor",
+            "text": "Drama! Comedy! Mildly exaggerated historical events!\nI keep morale high and boredom low."
+        },
+        {
+            "key": "monk",
+            "text": "Peace, wisdom, and the occasional miracle.\nI nurture the spirit of the city."
+        },
+        {
+            "key": "medic",
+            "text": "Coughing? Limping? Mildly on fire?\nI'll patch you up and get you back to work!"
+        },
+        {
+            "key": "dog",
+            "text": "Woof! Woof!"
+        },
+        {
+            "key": "bird",
+            "text": "Chirp! I see everything from up high.\nConsider me your unofficial aerial surveillance."
+        },
+        {
+            "key": "buffalo",
+            "text": "Got grass?"
         }
       ]
     }

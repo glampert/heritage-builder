@@ -234,13 +234,6 @@ impl Unit {
         self.tile_index
     }
 
-    pub fn dialog_text(&self) -> &str {
-        // TODO: Placeholder text. Each unit will have its own dialog in the future.
-        "Hello, I'm a unit in the game!\n\
-        I don't have a dialog message right now.\n\
-        Ask me again later."
-    }
-
     // Teleports to new tile cell and updates direction and animation.
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
         debug_assert!(self.is_spawned());

@@ -1,6 +1,6 @@
 use crate::{
     tile::{Tile, TileKind},
-    ui::widgets::{UiWidgetContext, UiWidget, UiMenu},
+    ui::{self, text::UiTextCategory, widgets::{UiWidgetContext, UiWidget, UiMenu}},
     utils::{mem::{RcMut, WeakMut, WeakRef}, fixed_string::snake_case_to_title},
     game::{
         building::{Building, BuildingKind, BuildingArchetypeKind},
@@ -145,6 +145,20 @@ trait GameObjectInspector {
 }
 
 // ----------------------------------------------
+// Tile description lookup helpers
+// ----------------------------------------------
+
+fn find_tile_description(tile: &Tile) -> &'static str {
+    ui::text::find_str(UiTextCategory::TileDescription, tile.tile_def().hash)
+        .unwrap_or("")
+}
+
+fn find_unit_dialog(unit_tile: &Tile) -> &'static str {
+    ui::text::find_str(UiTextCategory::UnitDialog, unit_tile.tile_def().hash)
+        .unwrap_or("")
+}
+
+// ----------------------------------------------
 // UnitInspector
 // ----------------------------------------------
 
@@ -157,7 +171,7 @@ impl GameObjectInspector for UnitInspector {
         if let Some(unit) = context.world.find_unit_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(unit.name());
-            self.renderer.set_body_text(unit.dialog_text());
+            self.renderer.set_body_text(find_unit_dialog(selected_tile));
             self.set_inventory(unit.peek_inventory());
         }
     }
@@ -404,7 +418,7 @@ impl GameObjectInspector for PropInspector {
         if let Some(prop) = context.world.find_prop_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(prop.name());
-            self.renderer.set_body_text(selected_tile.description());
+            self.renderer.set_body_text(find_tile_description(selected_tile));
             self.set_harvestable_resource(prop.harvestable_resource(), prop.harvestable_amount());
         }
     }
@@ -446,7 +460,7 @@ impl GameObjectInspector for TerrainInspector {
     fn update_selection(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
         self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
         self.renderer.set_title(&snake_case_to_title::<128>(selected_tile.name()));
-        self.renderer.set_body_text(selected_tile.description());
+        self.renderer.set_body_text(find_tile_description(selected_tile));
     }
 
     fn menu(&mut self) -> &mut UiMenu {
