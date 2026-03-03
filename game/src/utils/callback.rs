@@ -246,60 +246,63 @@ pub(crate) use {create, register};
 // Unit Tests
 // ----------------------------------------------
 
-#[test]
-fn test_callback_registry() {
-    use crate::utils::callback;
+#[cfg(test)]
+mod tests {
+    use crate::utils::callback::{self, Callback};
 
-    struct Test;
-    impl Test {
-        fn member_fn() -> usize { 1234 }
-    }
+    #[test]
+    fn test_callback_registry() {
+        struct Test;
+        impl Test {
+            fn member_fn() -> usize { 1234 }
+        }
 
-    fn add_one(x: i32) -> i32 { x + 1 }
-    fn to_upper(s: &str) -> String { s.to_uppercase() }
-    fn multiply(a: i32, b: i32) -> i32 { a * b }
+        fn add_one(x: i32) -> i32 { x + 1 }
+        fn to_upper(s: &str) -> String { s.to_uppercase() }
+        fn multiply(a: i32, b: i32) -> i32 { a * b }
 
-    type AddOneFn   = fn(i32) -> i32;
-    type ToUpperFn  = fn(&str) -> String;
-    type MultiplyFn = fn(i32, i32) -> i32;
-    type MemberFn   = fn() -> usize;
+        type AddOneFn   = fn(i32) -> i32;
+        type ToUpperFn  = fn(&str) -> String;
+        type MultiplyFn = fn(i32, i32) -> i32;
+        type MemberFn   = fn() -> usize;
 
-    let add_one_cb:  Callback<AddOneFn>    = callback::register!(add_one);
-    let to_upper_cb: Callback<ToUpperFn>   = callback::register!(to_upper);
-    let multiply_cb: Callback<MultiplyFn>  = callback::register!(multiply);
-    let member_cb:   Callback<MemberFn>    = callback::register!(Test::member_fn);
+        let add_one_cb:  Callback<AddOneFn>    = callback::register!(add_one);
+        let to_upper_cb: Callback<ToUpperFn>   = callback::register!(to_upper);
+        let multiply_cb: Callback<MultiplyFn>  = callback::register!(multiply);
+        let member_cb:   Callback<MemberFn>    = callback::register!(Test::member_fn);
 
-    let add_one_cb2:  Callback<AddOneFn>   = callback::create!(add_one);
-    let to_upper_cb2: Callback<ToUpperFn>  = callback::create!(to_upper);
-    let multiply_cb2: Callback<MultiplyFn> = callback::create!(multiply);
-    let member_cb2:   Callback<MemberFn>   = callback::create!(Test::member_fn);
+        let add_one_cb2:  Callback<AddOneFn>   = callback::create!(add_one);
+        let to_upper_cb2: Callback<ToUpperFn>  = callback::create!(to_upper);
+        let multiply_cb2: Callback<MultiplyFn> = callback::create!(multiply);
+        let member_cb2:   Callback<MemberFn>   = callback::create!(Test::member_fn);
 
-    assert!(add_one_cb2.is_valid()  && add_one_cb2.try_get().is_some());
-    assert!(to_upper_cb2.is_valid() && to_upper_cb2.try_get().is_some());
-    assert!(multiply_cb2.is_valid() && multiply_cb2.try_get().is_some());
-    assert!(member_cb2.is_valid()   && member_cb2.try_get().is_some());
+        assert!(add_one_cb2.is_valid()  && add_one_cb2.try_get().is_some());
+        assert!(to_upper_cb2.is_valid() && to_upper_cb2.try_get().is_some());
+        assert!(multiply_cb2.is_valid() && multiply_cb2.try_get().is_some());
+        assert!(member_cb2.is_valid()   && member_cb2.try_get().is_some());
 
-    if let Some(cb) = callback::find::<AddOneFn>(add_one_cb.key) {
-        assert_eq!(cb(41), 42);
-    } else {
-        panic!("add_one callback not found!");
-    }
+        if let Some(cb) = callback::find::<AddOneFn>(add_one_cb.key) {
+            assert_eq!(cb(41), 42);
+        } else {
+            panic!("add_one callback not found!");
+        }
 
-    if let Some(cb) = callback::find::<ToUpperFn>(to_upper_cb.key) {
-        assert_eq!(cb("hello"), "HELLO");
-    } else {
-        panic!("to_upper callback not found!");
-    }
+        if let Some(cb) = callback::find::<ToUpperFn>(to_upper_cb.key) {
+            assert_eq!(cb("hello"), "HELLO");
+        } else {
+            panic!("to_upper callback not found!");
+        }
 
-    if let Some(cb) = callback::find::<MultiplyFn>(multiply_cb.key) {
-        assert_eq!(cb(2, 2), 4);
-    } else {
-        panic!("multiply callback not found!");
-    }
+        if let Some(cb) = callback::find::<MultiplyFn>(multiply_cb.key) {
+            assert_eq!(cb(2, 2), 4);
+        } else {
+            panic!("multiply callback not found!");
+        }
 
-    if let Some(cb) = callback::find::<MemberFn>(member_cb.key) {
-        assert_eq!(cb(), 1234);
-    } else {
-        panic!("member_fn callback not found!");
+        if let Some(cb) = callback::find::<MemberFn>(member_cb.key) {
+            assert_eq!(cb(), 1234);
+        } else {
+            panic!("member_fn callback not found!");
+        }
     }
 }
