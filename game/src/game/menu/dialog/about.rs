@@ -48,9 +48,9 @@ impl About {
         );
 
         let about_text = vec![
-            UiText { string: "A City Builder by Core System Games".into(), font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE, color: None },
-            UiText { string: "Copyright (C) 2026. All Rights Reserved".into(), font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE, color: None },
-            UiText { string: format!("Version {}", utils::version()), font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE, color: None },
+            UiText::new("A City Builder by Core System Games".into(), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
+            UiText::new("Copyright (C) 2026. All Rights Reserved".into(), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
+            UiText::new(format!("Version {}", utils::version()), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
         ];
 
         menu.add_widget(UiMenuHeading::new(

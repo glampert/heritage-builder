@@ -106,8 +106,8 @@ impl MainGame {
                         context,
                         UiMenuHeadingParams {
                             lines: vec![
-                                UiText { string: "Quit Game?".into(), font_scale: DEFAULT_DIALOG_POPUP_FONT_SCALE, color: None },
-                                UiText { string: "Any unsaved progress will be lost...".into(), font_scale: DEFAULT_DIALOG_POPUP_FONT_SCALE, color: None },
+                                UiText::new("Quit Game?".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE),
+                                UiText::new("Any unsaved progress will be lost...".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE),
                             ],
                             separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
                             margin_top: 2.0,

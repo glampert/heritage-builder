@@ -811,6 +811,20 @@ pub struct UiText {
     pub color: Option<Color>,
 }
 
+impl UiText {
+    pub const fn new(string: String, font_scale: UiFontScale) -> Self {
+        Self { string, font_scale, color: None }
+    }
+
+    pub const fn colored(string: String, font_scale: UiFontScale, color: Color) -> Self {
+        Self { string, font_scale, color: Some(color) }
+    }
+
+    pub const fn empty(font_scale: UiFontScale) -> Self {
+        Self { string: String::new(), font_scale, color: None }
+    }
+}
+
 // ----------------------------------------------
 // UiMenuHeadingParams
 // ----------------------------------------------

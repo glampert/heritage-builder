@@ -236,8 +236,8 @@ impl InspectorMenuRenderer {
             }
         );
 
-        const TITLE:      UiText = UiText { string: String::new(), font_scale: INSPECTOR_TITLE_FONT_SCALE,      color: None };
-        const SUBHEADING: UiText = UiText { string: String::new(), font_scale: INSPECTOR_SUBHEADING_FONT_SCALE, color: None };
+        const TITLE:      UiText = UiText::empty(INSPECTOR_TITLE_FONT_SCALE);
+        const SUBHEADING: UiText = UiText::empty(INSPECTOR_SUBHEADING_FONT_SCALE);
 
         let heading = UiMenuHeading::new(
             context,
@@ -302,7 +302,7 @@ impl InspectorMenuRenderer {
             UiMenuHeadingParams {
                 // placeholder text
                 lines: vec![
-                    UiText { string: String::new(), font_scale: INSPECTOR_BODY_TEXT_FONT_SCALE, color: None };
+                    UiText::empty(INSPECTOR_BODY_TEXT_FONT_SCALE);
                     INSPECTOR_BODY_TEXT_MAX_LINES
                 ],
                 center_vertically: false,
