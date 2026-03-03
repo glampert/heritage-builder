@@ -43,7 +43,7 @@ impl InGameMenus {
         context.ui_sys.set_ui_theme(UiTheme::InGame);
 
         dialog::initialize(context);
-        dialog::set_global_menu_flags(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter);
+        dialog::set_global_menu_flags(UiMenuFlags::AlignCenter);
 
         Self {
             tile_placement: TilePlacement::new(),

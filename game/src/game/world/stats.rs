@@ -13,9 +13,45 @@ use crate::{
 
 #[derive(Default)]
 pub struct PopulationStats {
-    pub total: u32,
+    pub total: u32, // Entire population. Workforce may be less than total.
     pub employed: u32,
     pub unemployed: u32,
+}
+
+impl PopulationStats {
+    // Returns normalized [0,1] ratio.
+    pub fn employment_ratio(&self) -> f32 {
+        debug_assert!(self.is_valid());
+
+        let workforce = self.workforce();
+        if workforce == 0 {
+            0.0
+        } else {
+            let inv_workforce = 1.0 / workforce as f32;
+            self.employed as f32 * inv_workforce
+        }
+    }
+
+    // Returns normalized [0,1] ratio.
+    pub fn unemployment_ratio(&self) -> f32 {
+        debug_assert!(self.is_valid());
+
+        let workforce = self.workforce();
+        if workforce == 0 {
+            0.0
+        } else {
+            let inv_workforce = 1.0 / workforce as f32;
+            self.unemployed as f32 * inv_workforce
+        }
+    }
+
+    pub fn workforce(&self) -> u32 {
+        self.employed + self.unemployed
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.workforce() <= self.total
+    }
 }
 
 #[derive(Default)]
@@ -193,24 +229,16 @@ impl WorldStats {
             ui.bullet_text("Population:");
             ui.spacing();
             {
-                let (employment_percentage, unemployment_percentage) = {
-                    if self.population.total != 0 {
-                        (((self.population.employed as f32) / (self.population.total as f32))
-                         * 100.0,
-                         ((self.population.unemployed as f32) / (self.population.total as f32))
-                         * 100.0)
-                    } else {
-                        (0.0, 0.0)
-                    }
-                };
+                let employment_percent = self.population.employment_ratio() * 100.0;
+                let unemployment_percent = self.population.unemployment_ratio() * 100.0;
 
                 ui.text(format!("Total : {}", self.population.total));
                 ui.spacing();
                 ui.text(format!("Employed : {}", self.population.employed));
-                ui.text(format!("Employment : {employment_percentage:.2}%"));
+                ui.text(format!("Employment : {employment_percent:.2}%"));
                 ui.spacing();
                 ui.text(format!("Unemployed : {}", self.population.unemployed));
-                ui.text(format!("Unemployment : {unemployment_percentage:.2}%"));
+                ui.text(format!("Unemployment : {unemployment_percent:.2}%"));
             }
             ui.separator();
 
@@ -251,9 +279,7 @@ impl WorldStats {
             ui.bullet_text("Treasury:");
             highlight_zero_value("Total Gold Units", self.treasury.gold_units_total, Color::red());
             highlight_zero_value("Gold In Global Treasury", treasury.gold_units(), Color::red());
-            highlight_zero_value("Gold In Buildings",
-                                 self.treasury.gold_units_in_buildings,
-                                 Color::gray());
+            highlight_zero_value("Gold In Buildings", self.treasury.gold_units_in_buildings, Color::gray());
 
             ui.separator();
 
@@ -292,5 +318,38 @@ impl WorldStats {
             resources.units.draw_debug_ui("Units", ui_sys);
             resources.markets.draw_debug_ui("Markets", ui_sys);
         }
+    }
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn employment_rate_basic() {
+        let stats = PopulationStats {
+            total: 100,
+            employed: 75,
+            unemployed: 25,
+        };
+
+        assert!((stats.employment_ratio() - 0.75).abs() < f32::EPSILON);
+        assert!((stats.unemployment_ratio() - 0.25).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn employment_rate_zero_population() {
+        let stats = PopulationStats {
+            total: 0,
+            employed: 0,
+            unemployed: 0,
+        };
+
+        assert_eq!(stats.employment_ratio(), 0.0);
+        assert_eq!(stats.unemployment_ratio(), 0.0);
     }
 }

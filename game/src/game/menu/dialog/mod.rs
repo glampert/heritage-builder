@@ -67,7 +67,7 @@ pub enum DialogMenuImpl {
 
     // City management menus:
     CityManagement,
-    WorkersManagement,
+    PopulationManagement,
     ResourcesManagement,
     FinancesManagement,
 
@@ -89,7 +89,7 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     LoadOrSaveGame,
 
     CityManagement,
-    WorkersManagement,
+    PopulationManagement,
     ResourcesManagement,
     FinancesManagement,
 
@@ -274,11 +274,18 @@ impl DialogMenusSingleton {
         }
     }
 
-    fn set_global_menu_flags(&mut self, flags: UiMenuFlags) {
-        GLOBAL_DIALOG_MENU_FLAGS.set(flags);
+    fn set_global_menu_flags(&mut self, mut flags: UiMenuFlags) {
+        GLOBAL_DIALOG_MENU_FLAGS.set(flags | DEFAULT_DIALOG_MENU_FLAGS);
 
         for dialog in &mut self.dialog_menus {
-            dialog.menu_mut().reset_flags(flags);
+            let menu = dialog.menu_mut();
+
+            // Preserve this flag.
+            if menu.has_flags(UiMenuFlags::HideWhenMessageBoxOpen) {
+                flags |= UiMenuFlags::HideWhenMessageBoxOpen;
+            }
+
+            menu.reset_flags(flags | DEFAULT_DIALOG_MENU_FLAGS);
         }
     }
 
@@ -308,11 +315,31 @@ impl DialogMenusSingleton {
             .unwrap_or_else(|| panic!("Expected dialog menu kind to be {}!", Dialog::KIND))
     }
 
+    fn is_current_dialog(&self, dialog_menu_kind: DialogMenuKind) -> bool {
+        if let Some(&stack_top) = self.menu_stack.last() {
+            return stack_top == dialog_menu_kind;
+        }
+        false
+    }
+
+    fn push_dialog(&mut self, dialog_menu_kind: DialogMenuKind) {
+        debug_assert!(!self.menu_stack.contains(&dialog_menu_kind), "Dialog menu {dialog_menu_kind} is already open!");
+        self.menu_stack.push(dialog_menu_kind);
+    }
+
+    fn pop_dialog(&mut self, dialog_menu_kind: DialogMenuKind) {
+        let index = self.menu_stack
+            .iter()
+            .position(|kind| *kind == dialog_menu_kind)
+            .expect("Dialog menu not in menu stack!");
+        let removed = self.menu_stack.remove(index);
+        debug_assert!(removed == dialog_menu_kind, "Closed menu should have been in the menu stack!");
+    }
+
     fn open_dialog(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
         let dialog = self.find_dialog(dialog_menu_kind);
         if !dialog.is_open() && dialog.open(context) {
-            debug_assert!(!self.menu_stack.contains(&dialog_menu_kind));
-            self.menu_stack.push(dialog_menu_kind);
+            self.push_dialog(dialog_menu_kind);
             return true;
         }
         false
@@ -321,12 +348,7 @@ impl DialogMenusSingleton {
     fn close_dialog(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
         let dialog = self.find_dialog(dialog_menu_kind);
         if dialog.is_open() && dialog.close(context) {
-            let index = self.menu_stack
-                .iter()
-                .position(|kind| *kind == dialog_menu_kind)
-                .expect("Dialog menu not in menu stack!");
-            let removed = self.menu_stack.remove(index);
-            debug_assert!(removed == dialog_menu_kind, "Closed menu should have been in the menu stack!");
+            self.pop_dialog(dialog_menu_kind);
             return true;
         }
         false
@@ -358,8 +380,18 @@ impl DialogMenusSingleton {
     fn draw_current(&mut self, context: &mut UiWidgetContext) {
         // Draw current open menu only:
         if let Some(dialog) = self.current_dialog() {
-            debug_assert!(dialog.is_open());
             dialog.draw(context);
+
+            // In case the menu was closed via [ESCAPE] key (handled internally by modal menus).
+            let dialog_menu_kind = dialog.kind();
+            if !dialog.is_open() && self.is_current_dialog(dialog_menu_kind) {
+                self.pop_dialog(dialog_menu_kind);
+
+                // If we didn't close the last dialog, keep the game in paused state.
+                if !self.menu_stack.is_empty() {
+                    context.sim.pause();
+                }
+            }
         }
     }
 }
@@ -384,7 +416,13 @@ const DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE: &str = "misc/scroll_bg.png";
 const DEFAULT_DIALOG_POPUP_FONT_SCALE: UiFontScale = UiFontScale(1.5);
 const DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE: &str = "misc/square_page_bg.png";
 
-static GLOBAL_DIALOG_MENU_FLAGS: UiStaticVar<UiMenuFlags> = UiStaticVar::new(UiMenuFlags::empty());
+const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
+    UiMenuFlags::Modal.bits()
+    | UiMenuFlags::CloseModalOnEscape.bits()
+    | UiMenuFlags::PauseSimIfOpen.bits()
+);
+
+static GLOBAL_DIALOG_MENU_FLAGS: UiStaticVar<UiMenuFlags> = UiStaticVar::new(DEFAULT_DIALOG_MENU_FLAGS);
 
 fn default_dialog_menu_size(context: &UiWidgetContext) -> Vec2 {
     Vec2::new(550.0, context.viewport_size.height as f32 - 150.0)
@@ -413,7 +451,7 @@ fn make_default_layout_dialog_menu(context: &mut UiWidgetContext,
         UiMenuHeadingParams {
             lines: heading_title
                 .iter()
-                .map(|line| UiText { string: line.to_string(), font_scale: DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE, color: None })
+                .map(|line| UiText::new(line.to_string(), DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE))
                 .collect(),
             separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
             margin_top: DEFAULT_DIALOG_MENU_HEADING_MARGINS.0,

@@ -45,7 +45,7 @@ impl HomeMenus {
         context.ui_sys.set_ui_theme(UiTheme::InGame);
 
         dialog::initialize(context);
-        dialog::set_global_menu_flags(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft);
+        dialog::set_global_menu_flags(UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft);
 
         // Main Home Menu always open.
         dialog::open(DialogMenuKind::Home, true, context);
