@@ -4,8 +4,8 @@ use strum_macros::{EnumProperty, EnumCount, EnumIter};
 use super::*;
 use crate::game::menu::ButtonDef;
 
-mod workers;
-pub use workers::WorkersManagement;
+mod population;
+pub use population::PopulationManagement;
 
 mod resources;
 pub use resources::ResourcesManagement;
@@ -21,8 +21,8 @@ const CITY_MANAGEMENT_BUTTON_COUNT: usize = CityManagementButtonKind::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 enum CityManagementButtonKind {
-    #[strum(props(Label = "Workers"))]
-    Workers,
+    #[strum(props(Label = "Population"))]
+    Population,
 
     #[strum(props(Label = "Resources"))]
     Resources,
@@ -38,10 +38,10 @@ impl ButtonDef for CityManagementButtonKind {
     fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
-            Self::Workers   => super::open(DialogMenuKind::WorkersManagement,   CLOSE_ALL_OTHERS, context),
-            Self::Resources => super::open(DialogMenuKind::ResourcesManagement, CLOSE_ALL_OTHERS, context),
-            Self::Finances  => super::open(DialogMenuKind::FinancesManagement,  CLOSE_ALL_OTHERS, context),
-            Self::Back      => super::close_current(context),
+            Self::Population => super::open(DialogMenuKind::PopulationManagement, CLOSE_ALL_OTHERS, context),
+            Self::Resources  => super::open(DialogMenuKind::ResourcesManagement,  CLOSE_ALL_OTHERS, context),
+            Self::Finances   => super::open(DialogMenuKind::FinancesManagement,   CLOSE_ALL_OTHERS, context),
+            Self::Back       => super::close_current(context),
         }
     }
 }
