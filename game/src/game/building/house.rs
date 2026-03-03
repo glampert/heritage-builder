@@ -353,8 +353,8 @@ impl BuildingBehavior for HouseBuilding {
         stats.update_housing_stats(self.level());
 
         self.stock.for_each(|_, item| {
-                      stats.add_house_resources(item.kind, item.count);
-                  });
+            stats.add_house_resources(item.kind, item.count);
+        });
 
         stats.treasury.tax_generated += self.tax_generated();
         stats.treasury.tax_available += self.tax_available();
