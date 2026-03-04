@@ -354,12 +354,12 @@ impl BuildingBehavior for ServiceBuilding {
             StockOrTreasury::Stock { stock, .. } => {
                 if kind.intersects(BuildingKind::Market) {
                     stock.for_each(|_, item| {
-                             stats.add_market_resources(item.kind, item.count);
-                         });
+                        stats.add_market_resources(item.kind, item.count);
+                    });
                 } else {
                     stock.for_each(|_, item| {
-                             stats.add_service_resources(item.kind, item.count);
-                         });
+                        stats.add_service_resources(item.kind, item.count);
+                    });
                 }
             }
             StockOrTreasury::Treasury { gold_units } => {
