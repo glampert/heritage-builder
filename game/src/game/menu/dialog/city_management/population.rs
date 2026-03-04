@@ -45,12 +45,6 @@ implement_dialog_menu! { PopulationManagement, ["Population"] }
 
 impl PopulationManagement {
     pub fn new(context: &mut UiWidgetContext) -> Self {
-        const FONT_SCALE_HEADING: UiFontScale = UiFontScale(1.2);
-        const FONT_SCALE_BODY:    UiFontScale = UiFontScale(1.0);
-
-        const PLACEHOLDER_HEADING: UiText = UiText::empty(FONT_SCALE_HEADING);
-        const PLACEHOLDER_BODY:    UiText = UiText::empty(FONT_SCALE_BODY);
-
         // Population stats placeholder text.
         const POPULATION_STATS_TEXT: [UiText; PopulationStatsIdx::COUNT] = [
             PLACEHOLDER_HEADING,

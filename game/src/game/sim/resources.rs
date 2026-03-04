@@ -80,22 +80,29 @@ impl ResourceKind {
 
     #[inline]
     pub fn random<R: Rng>(rng: &mut R) -> Self {
-        Self::all().iter().choose(rng).unwrap_or(ResourceKind::Rice)
+        Self::all().iter().choose(rng).unwrap_or(Self::Rice)
     }
 
     #[inline]
     pub fn random_food<R: Rng>(rng: &mut R) -> Self {
-        Self::foods().iter().choose(rng).unwrap_or(ResourceKind::Rice)
+        Self::foods().iter().choose(rng).unwrap_or(Self::Rice)
     }
 
     #[inline]
     pub fn random_consumer_good<R: Rng>(rng: &mut R) -> Self {
-        Self::consumer_goods().iter().choose(rng).unwrap_or(ResourceKind::Wine)
+        Self::consumer_goods().iter().choose(rng).unwrap_or(Self::Wine)
     }
 
     #[inline]
     pub fn random_raw_material<R: Rng>(rng: &mut R) -> Self {
-        Self::raw_materials().iter().choose(rng).unwrap_or(ResourceKind::Wood)
+        Self::raw_materials().iter().choose(rng).unwrap_or(Self::Wood)
+    }
+
+    #[inline]
+    pub fn all_except(exclude: Self) -> Self {
+        let mut all = Self::all();
+        all.remove(exclude);
+        all
     }
 }
 
@@ -855,6 +862,12 @@ impl ResourceStock {
     #[must_use]
     pub fn accept_all() -> Self {
         Self { kinds: ResourceKind::all(), counts: [0; RESOURCE_KIND_COUNT] }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn accept_all_except(exclude: ResourceKind) -> Self {
+        Self { kinds: ResourceKind::all_except(exclude), counts: [0; RESOURCE_KIND_COUNT] }
     }
 
     #[inline]

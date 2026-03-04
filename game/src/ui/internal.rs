@@ -89,6 +89,10 @@ pub fn draw_widget_window_background(ui: &imgui::Ui, background: UiTextureHandle
         .build();
 }
 
+// HACK: A way to tell draw_centered_text_group() that we're inside a horizontal layout (side-by-side) group.
+// FIXME: Would be better to handle this without reliance on a global variable.
+static STACK_VERTICALLY: UiStaticVar<bool> = UiStaticVar::new(true);
+
 pub fn draw_centered_text_group(context: &mut UiWidgetContext,
                                 lines: &[UiText],
                                 vertical: bool,
@@ -126,8 +130,16 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
     let cursor_start = ui.cursor_pos();
 
     // Compute group origin (top-left):
-    let start_x = if horizontal { cursor_start[0] + ((region_avail[0] - max_width)    * 0.5) } else { cursor_start[0] };
-    let start_y = if vertical   { cursor_start[1] + ((region_avail[1] - total_height) * 0.5) } else { cursor_start[1] };
+    let start_x = if horizontal && *STACK_VERTICALLY {
+        cursor_start[0] + ((region_avail[0] - max_width) * 0.5)
+    } else {
+        cursor_start[0]
+    };
+    let start_y = if vertical {
+        cursor_start[1] + ((region_avail[1] - total_height) * 0.5)
+    } else {
+        cursor_start[1]
+    };
 
     // Draw each line:
     let mut offset_y = 0.0;
@@ -136,7 +148,7 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
             continue;
         }
 
-        let x = start_x + (max_width - size.x) * 0.5;        
+        let x = start_x + (max_width - size.x) * 0.5;
         let y = start_y + offset_y;
 
         context.set_window_font_scale(line.font_scale);
@@ -167,6 +179,8 @@ pub fn draw_centered_widget_group(context: &mut UiWidgetContext,
     if widgets.is_empty() {
         return Rect::zero();
     }
+
+    STACK_VERTICALLY.set(stack_vertically);
 
     let (margin_left, margin_right) = margins;
     debug_assert!(margin_left >= 0.0 && margin_right >= 0.0);
@@ -235,6 +249,8 @@ pub fn draw_centered_widget_group(context: &mut UiWidgetContext,
             widget.draw(context);
         }
     }
+
+    STACK_VERTICALLY.set(true);
 
     // Restore cursor so layout continues correctly.
     ui.set_cursor_pos([cursor_start.x, start_y + total_height]);

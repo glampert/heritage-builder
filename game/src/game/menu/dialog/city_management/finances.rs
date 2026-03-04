@@ -42,12 +42,6 @@ implement_dialog_menu! { FinancesManagement, ["Finances"] }
 
 impl FinancesManagement {
     pub fn new(context: &mut UiWidgetContext) -> Self {
-        const FONT_SCALE_HEADING: UiFontScale = UiFontScale(1.2);
-        const FONT_SCALE_BODY:    UiFontScale = UiFontScale(1.0);
-
-        const PLACEHOLDER_HEADING: UiText = UiText::empty(FONT_SCALE_HEADING);
-        const PLACEHOLDER_BODY:    UiText = UiText::empty(FONT_SCALE_BODY);
-
         // Tax stats placeholder text.
         const TAX_STATS_TEXT: [UiText; TaxStatsIdx::COUNT] = [
             PLACEHOLDER_HEADING,

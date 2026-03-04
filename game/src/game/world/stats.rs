@@ -1,14 +1,14 @@
 use crate::{
+    utils::Color,
+    ui::{UiSystem, UiStaticVar},
     game::{
         building::HouseLevel,
         sim::resources::{GlobalTreasury, ResourceKind, ResourceStock},
     },
-    ui::{UiSystem, UiStaticVar},
-    utils::Color,
 };
 
 // ----------------------------------------------
-// WorldStats
+// WorldStats & Helper Types
 // ----------------------------------------------
 
 #[derive(Default)]
@@ -72,26 +72,26 @@ pub struct TreasuryStats {
     pub tax_collected: u32,
 }
 
-struct HousingStats {
-    total: u32,
-    lowest_level: HouseLevel,
-    highest_level: HouseLevel,
+pub struct HousingStats {
+    pub total: u32,
+    pub lowest_level: HouseLevel,
+    pub highest_level: HouseLevel,
 }
 
-struct GlobalResourceCounts {
+pub struct GlobalResourceCounts {
     // Combined sum of resources (all units + all buildings).
-    all: ResourceStock,
+    pub all: ResourceStock,
 
     // Resources held by spawned units.
-    units: ResourceStock,
+    pub units: ResourceStock,
 
     // Resources held by each kind of building.
-    storage_yards: ResourceStock,
-    granaries: ResourceStock,
-    houses: ResourceStock,
-    markets: ResourceStock,
-    producers: ResourceStock,
-    services: ResourceStock,
+    pub storage_yards: ResourceStock,
+    pub granaries: ResourceStock,
+    pub houses: ResourceStock,
+    pub markets: ResourceStock,
+    pub producers: ResourceStock,
+    pub services: ResourceStock,
 }
 
 pub struct WorldStats {
@@ -101,10 +101,10 @@ pub struct WorldStats {
     pub treasury: TreasuryStats,
 
     // Housing stats:
-    houses: HousingStats,
+    pub houses: HousingStats,
 
     // Global resource tally:
-    resources: GlobalResourceCounts,
+    pub resources: GlobalResourceCounts,
 }
 
 impl Default for WorldStats {
@@ -121,7 +121,7 @@ impl Default for WorldStats {
             resources: GlobalResourceCounts {
                 all: ResourceStock::accept_all(),
                 units: ResourceStock::accept_all(),
-                storage_yards: ResourceStock::accept_all(),
+                storage_yards: ResourceStock::accept_all_except(ResourceKind::Gold),
                 granaries: ResourceStock::with_accepted_kinds(ResourceKind::foods()),
                 houses: ResourceStock::with_accepted_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
                 markets: ResourceStock::with_accepted_kinds(ResourceKind::foods() | ResourceKind::consumer_goods()),
