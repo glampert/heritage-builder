@@ -98,6 +98,7 @@ struct UiSystemInner {
     ui_ptr: Option<RawPtr<imgui::Ui>>,
     current_theme: UiTheme,
     current_font_scale: Option<UiFontScale>,
+    show_ui_debug_menu: bool,
 }
 
 impl UiSystem {
@@ -109,6 +110,7 @@ impl UiSystem {
             ui_ptr: None,
             current_theme: UiTheme::Dev,
             current_font_scale: None,
+            show_ui_debug_menu: false,
         };
 
         inner.context.set_dev_ui_theme(); // Start in developer mode.
@@ -137,6 +139,13 @@ impl UiSystem {
         debug_assert!(self.frame_started());
 
         internal::pop_font(self.ui());
+
+        let mut show_ui_debug_menu = self.inner.show_ui_debug_menu;
+        if show_ui_debug_menu {
+            self.ui().show_metrics_window(&mut show_ui_debug_menu);
+            self.inner.show_ui_debug_menu = show_ui_debug_menu;
+        }
+
         self.inner.current_font_scale = None;
         self.inner.ui_ptr = None;
 
@@ -146,6 +155,16 @@ impl UiSystem {
     #[inline]
     pub fn frame_started(&self) -> bool {
         self.inner.ui_ptr.is_some()
+    }
+
+    #[inline]
+    pub fn show_ui_debug_menu(&self, show: bool) {
+        self.inner.as_mut().show_ui_debug_menu = show;
+    }
+
+    #[inline]
+    pub fn is_showing_ui_debug_menu(&self) -> bool {
+        self.inner.as_mut().show_ui_debug_menu
     }
 
     #[inline]

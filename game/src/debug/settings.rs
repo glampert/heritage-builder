@@ -374,6 +374,11 @@ impl DebugSettingsDevMenu {
             super::set_show_popup_messages(show_popup_messages);
         }
 
+        let mut show_ui_debug_menu = context.ui_sys.is_showing_ui_debug_menu();
+        if ui.checkbox("Show ImGui Debug Menu", &mut show_ui_debug_menu) {
+            context.ui_sys.show_ui_debug_menu(show_ui_debug_menu);
+        }
+
         ui.checkbox("Enable Tile Inspector", enable_tile_inspector);
 
         // Debug grid options:
