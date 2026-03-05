@@ -89,6 +89,7 @@ pub struct UiWidgetContext<'game> {
     pub cursor_screen_pos: Vec2,
 
     in_window_count: u32,
+    side_by_side_layout_count: u32, // Nonzero if we're inside a horizontal layout (side-by-side) group.
 }
 
 impl<'game> UiWidgetContext<'game> {
@@ -110,6 +111,7 @@ impl<'game> UiWidgetContext<'game> {
             delta_time_secs: engine.frame_clock().delta_time(),
             cursor_screen_pos: engine.input_system().cursor_pos(),
             in_window_count: 0,
+            side_by_side_layout_count: 0,
         }
     }
 
@@ -120,6 +122,7 @@ impl<'game> UiWidgetContext<'game> {
 
     #[inline]
     fn end_widget_window(&mut self) {
+        debug_assert!(!self.side_by_side_layout());
         debug_assert!(self.is_inside_widget_window());
         self.in_window_count -= 1;
 
@@ -130,6 +133,22 @@ impl<'game> UiWidgetContext<'game> {
     #[inline]
     fn is_inside_widget_window(&self) -> bool {
         self.in_window_count != 0
+    }
+
+    #[inline]
+    pub fn begin_side_by_side_layout(&mut self) {
+        self.side_by_side_layout_count += 1;
+    }
+
+    #[inline]
+    pub fn end_side_by_side_layout(&mut self) {
+        debug_assert!(self.side_by_side_layout());
+        self.side_by_side_layout_count -= 1;
+    }
+
+    #[inline]
+    pub fn side_by_side_layout(&self) -> bool {
+        self.side_by_side_layout_count != 0
     }
 
     #[inline]
@@ -157,6 +176,7 @@ impl<'game> UiWidgetContext<'game> {
         self.ui_sys.to_ui_texture(tex_handle)
     }
 
+    #[inline]
     pub fn new_sim_query(&mut self) -> Query {
         self.sim.new_query(
             mem::mut_ref_cast(self.world),
