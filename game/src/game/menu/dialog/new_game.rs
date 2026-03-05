@@ -46,15 +46,13 @@ impl NewGame {
                 step: Some(MAP_SIZE_STEP),
                 on_read_value: UiIntInputReadValue::with_fn(
                     |_input, _context| {
-                        let new_game_menu = DialogMenusSingleton::get_mut()
-                            .find_dialog_as::<NewGame>();
+                        let new_game_menu = super::find::<NewGame>();
                         new_game_menu.new_map_size.width
                     }
                 ),
                 on_update_value: UiIntInputUpdateValue::with_fn(
                     |_input, _context, new_width| {
-                        let new_game_menu = DialogMenusSingleton::get_mut()
-                            .find_dialog_as::<NewGame>();
+                        let new_game_menu = super::find::<NewGame>();
                         new_game_menu.new_map_size.width = new_width;
                     }
                 ),
@@ -71,15 +69,13 @@ impl NewGame {
                 step: Some(MAP_SIZE_STEP),
                 on_read_value: UiIntInputReadValue::with_fn(
                     |_input, _context| {
-                        let new_game_menu = DialogMenusSingleton::get_mut()
-                            .find_dialog_as::<NewGame>();
+                        let new_game_menu = super::find::<NewGame>();
                         new_game_menu.new_map_size.height
                     }
                 ),
                 on_update_value: UiIntInputUpdateValue::with_fn(
                     |_input, _context, new_height| {
-                        let new_game_menu = DialogMenusSingleton::get_mut()
-                            .find_dialog_as::<NewGame>();
+                        let new_game_menu = super::find::<NewGame>();
                         new_game_menu.new_map_size.height = new_height;
                     }
                 ),
@@ -95,8 +91,7 @@ impl NewGame {
                 items: TERRAIN_TILE_PRESETS.into(),
                 on_selection_changed: UiDropdownSelectionChanged::with_fn(
                     |dropdown, _context| {
-                        let new_game_menu = DialogMenusSingleton::get_mut()
-                            .find_dialog_as::<NewGame>();
+                        let new_game_menu = super::find::<NewGame>();
                         new_game_menu.terrain_tile_preset_index = dropdown.current_selection_index();
                     }
                 ),
@@ -132,8 +127,7 @@ impl NewGame {
                 enabled: true,
                 on_pressed: UiTextButtonPressed::with_fn(
                     |_button, _context| {
-                        let new_game_menu = DialogMenusSingleton::get_mut()
-                            .find_dialog_as::<NewGame>();
+                        let new_game_menu = super::find::<NewGame>();
 
                         let new_map_size = Some(new_game_menu.new_map_size);
                         let terrain_tile_preset = TERRAIN_TILE_PRESETS[new_game_menu.terrain_tile_preset_index];

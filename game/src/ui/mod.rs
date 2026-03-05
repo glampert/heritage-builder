@@ -295,6 +295,11 @@ impl UiSystem {
         }
     }
 
+    #[inline]
+    pub fn set_style_color(&self, style_color: imgui::StyleColor, color: Color) {
+        self.inner.as_mut().context.ctx.style_mut().colors[style_color as usize] = color.to_array();
+    }
+
     // ----------------------
     // Font Scale:
     // ----------------------

@@ -52,8 +52,7 @@ impl ButtonDef for MainGameButtonKind {
 
 impl MainGameButtonKind {
     fn on_quit(context: &mut UiWidgetContext) -> bool {
-        let main_menu = DialogMenusSingleton::get_mut()
-            .current_dialog_as::<MainGame>()
+        let main_menu = super::current_as::<MainGame>()
             .expect("Expected MainGame dialog to be open!");
 
         main_menu.open_quit_game_message_box(context)

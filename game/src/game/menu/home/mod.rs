@@ -46,9 +46,7 @@ impl HomeMenus {
 
         dialog::initialize(context);
         dialog::set_global_menu_flags(UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft);
-
-        // Main Home Menu always open.
-        dialog::open(DialogMenuKind::Home, true, context);
+        dialog::set_bg_dim_alpha(context, 0.0); // No bg dimming.
 
         let slideshow = if ANIMATED_BACKGROUND {
             // Animated menu background.
@@ -139,6 +137,11 @@ impl GameMenusSystem for HomeMenus {
         self.slideshow.draw(&mut ui_context);
 
         if self.slideshow.has_flags(UiSlideshowFlags::PlayedOnce) {
+            // Main Home Menu always open.
+            if !dialog::is_open(DialogMenuKind::Home) {
+                dialog::open(DialogMenuKind::Home, false, &mut ui_context);
+            }
+
             dialog::draw_current(&mut ui_context);
         }
     }

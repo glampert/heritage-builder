@@ -1,5 +1,4 @@
 use std::any::Any;
-
 use arrayvec::ArrayVec;
 use enum_dispatch::enum_dispatch;
 use strum::{EnumCount, IntoEnumIterator};
@@ -8,8 +7,8 @@ use strum_macros::{Display, EnumCount, EnumIter, EnumDiscriminants};
 use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
     game::menu::ButtonDef,
-    utils::{Vec2, mem::{self, singleton_late_init}},
-    ui::{UiFontScale, UiStaticVar, widgets::*},
+    utils::{Vec2, Color, mem::{self, singleton_late_init}},
+    ui::{self, UiFontScale, UiStaticVar, widgets::*},
 };
 
 mod home;
@@ -123,6 +122,11 @@ pub fn reset() {
     DialogMenusSingleton::get_mut().reset();
 }
 
+pub fn is_open(dialog_menu_kind: DialogMenuKind) -> bool {
+    // Only the current stack top is considered "open" here.
+    current().is_some_and(|dialog| dialog == dialog_menu_kind)
+}
+
 pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &mut UiWidgetContext) -> bool {
     if close_all_others {
         close_all(context);
@@ -143,6 +147,14 @@ pub fn current() -> Option<DialogMenuKind> {
     DialogMenusSingleton::get_mut().current_dialog().map(|dialog| dialog.kind())
 }
 
+pub fn current_as<Dialog: DialogMenu>() -> Option<&'static mut Dialog> {
+    DialogMenusSingleton::get_mut().current_dialog_as::<Dialog>()
+}
+
+pub fn find<Dialog: DialogMenuFactory>() -> &'static mut Dialog {
+    DialogMenusSingleton::get_mut().find_dialog_as::<Dialog>()
+}
+
 pub fn close_current(context: &mut UiWidgetContext) -> bool {
     DialogMenusSingleton::get_mut().close_current(context)
 }
@@ -155,12 +167,17 @@ pub fn set_global_menu_flags(flags: UiMenuFlags) {
     DialogMenusSingleton::get_mut().set_global_menu_flags(flags);
 }
 
+pub fn set_bg_dim_alpha(context: &mut UiWidgetContext, alpha: f32) {
+    debug_assert!((0.0..=1.0).contains(&alpha));
+    context.ui_sys.set_style_color(imgui::StyleColor::ModalWindowDimBg, Color::new(0.0, 0.0, 0.0, alpha));
+}
+
 // ----------------------------------------------
 // DialogMenu
 // ----------------------------------------------
 
 #[enum_dispatch(DialogMenuImpl)]
-trait DialogMenu: Any {
+pub trait DialogMenu: Any {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any {
         mem::mut_ref_cast(self.as_any())
@@ -198,8 +215,35 @@ trait DialogMenu: Any {
         }
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw_root_menu(&mut self, context: &mut UiWidgetContext) {
         self.menu_mut().draw(context);
+    }
+
+    fn draw_child_menu(&mut self, context: &mut UiWidgetContext, root_menu: &mut DialogMenuImpl) {
+        let this_menu = self.menu();
+
+        let mut menu_rc_on_close = this_menu.clone();
+        let mut menu_rc_get_msg_box = this_menu.clone();
+        let mut menu_rc_on_draw = this_menu.clone();
+
+        root_menu.menu_mut().draw_custom(
+            context,
+            this_menu.flags(),
+            move |_, context| {
+                // NOTE: Send close event to child menu, not to the root.
+                if menu_rc_on_close.is_message_box_open() {
+                    menu_rc_on_close.close_message_box(context);
+                } else {
+                    menu_rc_on_close.close(context);
+                }
+            },
+            move |_| {
+                menu_rc_get_msg_box.message_box()
+            },
+            move |_, context| {
+                // Draw child menu inside root layout.
+                menu_rc_on_draw.draw_menu_contents(context);
+            });
     }
 }
 
@@ -207,7 +251,7 @@ trait DialogMenu: Any {
 // DialogMenuFactory
 // ----------------------------------------------
 
-trait DialogMenuFactory: DialogMenu {
+pub trait DialogMenuFactory: DialogMenu {
     const KIND: DialogMenuKind;
     const TITLE: &'static [&'static str];
 
@@ -274,19 +318,53 @@ impl DialogMenusSingleton {
         }
     }
 
-    fn set_global_menu_flags(&mut self, mut flags: UiMenuFlags) {
+    fn set_global_menu_flags(&mut self, flags: UiMenuFlags) {
         GLOBAL_DIALOG_MENU_FLAGS.set(flags | DEFAULT_DIALOG_MENU_FLAGS);
 
         for dialog in &mut self.dialog_menus {
             let menu = dialog.menu_mut();
 
+            let mut new_flags = flags;
+
             // Preserve this flag.
             if menu.has_flags(UiMenuFlags::HideWhenMessageBoxOpen) {
-                flags |= UiMenuFlags::HideWhenMessageBoxOpen;
+                new_flags |= UiMenuFlags::HideWhenMessageBoxOpen;
             }
 
-            menu.reset_flags(flags | DEFAULT_DIALOG_MENU_FLAGS);
+            menu.reset_flags(new_flags | DEFAULT_DIALOG_MENU_FLAGS);
         }
+    }
+
+    fn current_dialog_with_root_menu(&mut self) -> Option<(&mut DialogMenuImpl, Option<&mut DialogMenuImpl>)> {
+        fn get2<T>(slice: &mut [T], i: usize, j: usize) -> (&mut T, &mut T) {
+            debug_assert!(i != j);
+            if i < j {
+                let (left, right) = slice.split_at_mut(j);
+                (&mut left[i], &mut right[0])
+            } else {
+                let (left, right) = slice.split_at_mut(i);
+                (&mut right[0], &mut left[j])
+            }
+        }
+
+        let stack_length = self.menu_stack.len();
+
+        // Return stack top and root menu if we have one.
+        // NOTE: Root menu is not necessarily the direct ancestor of the stack top.
+        if stack_length > 1 {
+            let stack_top = self.menu_stack[stack_length - 1];
+            let root_menu = self.menu_stack[0];
+
+            let (dialog, root) = get2(&mut self.dialog_menus, stack_top as usize, root_menu as usize);
+
+            debug_assert!(dialog.kind() == stack_top);
+            debug_assert!(root.kind()   == root_menu);
+
+            return Some((dialog, Some(root)));
+        }
+
+        // Root menu or empty stack.
+        self.current_dialog().map(|dialog| (dialog, None))
     }
 
     fn current_dialog(&mut self) -> Option<&mut DialogMenuImpl> {
@@ -379,8 +457,20 @@ impl DialogMenusSingleton {
 
     fn draw_current(&mut self, context: &mut UiWidgetContext) {
         // Draw current open menu only:
-        if let Some(dialog) = self.current_dialog() {
-            dialog.draw(context);
+        if let Some((dialog, opt_root_menu)) = self.current_dialog_with_root_menu() {
+            // NOTE: If the current menu is a child modal dialog we want to render it
+            // inside its root menu, using the root layout. This is necessary to avoid
+            // flickering when switching between menus. If we instead stopped rendering
+            // the previous menu and opened a new one, there might a visible flicker when
+            // the switch between menus happen. With this approach, we always keep the
+            // root menu open and change its contents instead. The main limitation with
+            // this approach is that all dialog menus will have to share the same size
+            // and background image.
+            if let Some(root_menu) = opt_root_menu {
+                dialog.draw_child_menu(context, root_menu);
+            } else {
+                dialog.draw_root_menu(context);
+            }
 
             // In case the menu was closed via [ESCAPE] key (handled internally by modal menus).
             let dialog_menu_kind = dialog.kind();
@@ -392,6 +482,18 @@ impl DialogMenusSingleton {
                     context.sim.pause();
                 }
             }
+        }
+
+        // [Debug]:
+        const DEBUG_DRAW_MENU_STACK: bool = false;
+        if DEBUG_DRAW_MENU_STACK && !self.menu_stack.is_empty() {
+            let ui = context.ui_sys.ui();
+            let position = Vec2::new(context.viewport_size.width as f32 - 350.0, 100.0);
+            ui::overlay(ui, "Dialog Menu Stack Debug", position, 1.0, || {
+                for (index, kind) in self.menu_stack.iter().enumerate() {
+                    ui.text(format!("[{index}]: {kind}"));
+                }
+            });
         }
     }
 }

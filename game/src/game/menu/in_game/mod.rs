@@ -44,6 +44,7 @@ impl InGameMenus {
 
         dialog::initialize(context);
         dialog::set_global_menu_flags(UiMenuFlags::AlignCenter);
+        dialog::set_bg_dim_alpha(context, 0.15);
 
         Self {
             tile_placement: TilePlacement::new(),

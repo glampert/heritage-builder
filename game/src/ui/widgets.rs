@@ -450,89 +450,13 @@ impl UiWidget for UiMenu {
     }
 
     fn draw(&mut self, context: &mut UiWidgetContext) {
-        let mut is_open = self.is_open();
-
-        if !is_open {
-            return;
-        }
-
-        if self.message_box.is_open() && self.has_flags(UiMenuFlags::HideWhenMessageBoxOpen) {
-            self.message_box.draw(context);
-            return;
-        }
-
-        let ui = context.ui_sys.ui();
-
-        let (window_size, window_size_cond) = self.calc_window_size(ui);
-        let (window_pos, window_pivot) = self.calc_window_pos(context, ui);
-
-        let window_flags = self.calc_window_flags();
-        let window_name = make_imgui_id!(self, UiMenu, self.label);
-
-        let mut draw_window_contents = || {
-            context.begin_widget_window();
-
-            // Set default widget spacing.
-            let _spacing =
-                ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
-
-            if let Some(background) = self.background {
-                internal::draw_widget_window_background(ui, background);
-            }
-
-            for widget in &mut self.widgets {
-                widget.draw(context);
-            }
-
-            context.end_widget_window();
-        };
-
-        internal::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
-        internal::set_next_widget_window_size(window_size, window_size_cond);
-
-        // Modal window has exclusive input focus (e.g.: popup message box).
-        if self.flags.intersects(UiMenuFlags::Modal) {
-            let close_on_escape_pressed = self.flags.intersects(UiMenuFlags::CloseModalOnEscape);
-
-            ui.open_popup(window_name);
-            let closed = ui.modal_popup_config(window_name)
-                .opened(&mut is_open)
-                .flags(window_flags)
-                .build(|| {
-                    draw_window_contents();
-
-                    let mut closed = false;
-                    if close_on_escape_pressed
-                        && ui.is_window_focused()
-                        && ui.is_key_pressed(imgui::Key::Escape)
-                    {
-                        ui.close_current_popup();
-                        closed = true;
-                    }
-
-                    closed
-                }).unwrap_or(false);
-
-                if closed {
-                    is_open = false;
-                }
-        } else {
-            // Regular window.
-            ui.window(window_name)
-                .opened(&mut is_open)
-                .flags(window_flags)
-                .build(draw_window_contents);
-        }
-
-        let closed = self.is_open() && !is_open;
-        if closed { // Window was closed. Raise event.
-            self.close(context);
-        }
-
-        // Each menu can have one message box.
-        if self.message_box.is_open() {
-            self.message_box.draw(context);
-        }
+        self.draw_custom(
+            context,
+            self.flags,
+            Self::close,
+            Self::message_box,
+            Self::draw_menu_contents
+        );
     }
 
     fn measure(&self, context: &UiWidgetContext) -> Vec2 {
@@ -604,6 +528,11 @@ impl UiMenu {
     #[inline]
     pub fn has_flags(&self, flags: UiMenuFlags) -> bool {
         self.flags.intersects(flags)
+    }
+
+    #[inline]
+    pub fn flags(&self) -> UiMenuFlags {
+        self.flags
     }
 
     #[inline]
@@ -738,6 +667,105 @@ impl UiMenu {
 
     pub fn reset_message_box(&mut self) {
         self.message_box.reset();
+    }
+
+    #[inline]
+    pub fn message_box(&mut self) -> RawPtr<UiMessageBox> {
+        RawPtr::from_ref(&self.message_box)
+    }
+
+    // ----------------------
+    // Custom Menu Drawing:
+    // ----------------------
+
+    pub fn draw_menu_contents(&mut self, context: &mut UiWidgetContext) {
+        let ui = context.ui_sys.ui();
+
+        context.begin_widget_window();
+
+        // Set default widget spacing.
+        let _spacing =
+            ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
+
+        if let Some(background) = self.background {
+            internal::draw_widget_window_background(ui, background);
+        }
+
+        for widget in &mut self.widgets {
+            widget.draw(context);
+        }
+
+        context.end_widget_window();
+    }
+
+    pub fn draw_custom<OnClose, OnGetMsgBox, OnDrawContents>(
+                       &mut self,
+                       context: &mut UiWidgetContext,
+                       flags: UiMenuFlags,
+                       on_close: OnClose,
+                       on_get_msg_box: OnGetMsgBox,
+                       on_draw_contents: OnDrawContents)
+        where OnClose: FnOnce(&mut Self, &mut UiWidgetContext),
+              OnGetMsgBox: FnOnce(&mut Self) -> RawPtr<UiMessageBox>,
+              OnDrawContents: FnOnce(&mut Self, &mut UiWidgetContext)
+    {
+        let mut is_open = flags.intersects(UiMenuFlags::IsOpen);
+        if !is_open {
+            return;
+        }
+
+        let mut message_box = on_get_msg_box(self);
+        if message_box.is_open() &&
+           (flags.intersects(UiMenuFlags::HideWhenMessageBoxOpen) || flags.intersects(UiMenuFlags::Modal))
+        {
+            message_box.as_mut().draw(context);
+            return;
+        }
+
+        let ui = context.ui_sys.ui();
+
+        let (window_size, window_size_cond) = self.calc_window_size(ui);
+        let (window_pos, window_pivot) = self.calc_window_pos(context, ui);
+
+        let window_flags = self.calc_window_flags();
+        let window_name = *make_imgui_id!(self, UiMenu, self.label);
+
+        internal::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
+        internal::set_next_widget_window_size(window_size, window_size_cond);
+
+        // Modal window has exclusive input focus (e.g.: popup message box).
+        if flags.intersects(UiMenuFlags::Modal) {
+            let close_on_escape_pressed = flags.intersects(UiMenuFlags::CloseModalOnEscape);
+
+            ui.open_popup(window_name);
+            let closed = ui.modal_popup_config(window_name)
+                .opened(&mut is_open)
+                .flags(window_flags)
+                .build(|| {
+                    on_draw_contents(self, context);
+                    close_on_escape_pressed
+                        && ui.is_window_focused()
+                        && ui.is_key_pressed(imgui::Key::Escape)
+                }).unwrap_or(false);
+
+                if closed {
+                    is_open = false;
+                }
+        } else {
+            // Regular window.
+            ui.window(window_name)
+                .opened(&mut is_open)
+                .flags(window_flags)
+                .build(|| on_draw_contents(self, context));
+        }
+
+        let closed = flags.intersects(UiMenuFlags::IsOpen) && !is_open;
+        if closed { // Window was closed. Raise event with receiver.
+            on_close(self, context);
+        }
+
+        // Each menu can have one message box. This is a no-op if one is not open.
+        message_box.as_mut().draw(context);
     }
 
     // ----------------------

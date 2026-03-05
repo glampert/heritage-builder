@@ -121,9 +121,7 @@ impl PopulationManagement {
         menu.set_open_close_callback(UiMenuOpenClose::with_fn(
             |_, context, is_open| {
                 if is_open {
-                    let this_dialog = DialogMenusSingleton::get_mut()
-                        .find_dialog_as::<PopulationManagement>();
-
+                    let this_dialog = super::find::<PopulationManagement>();
                     this_dialog.update_stats(context);
                 }
             }
