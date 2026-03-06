@@ -218,7 +218,6 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             label: "Small Size Button".into(),
             size: UiTextButtonSize::Small,
             hover: Some("misc/brush_stroke_divider.png"),
-            enabled: true,
             on_pressed: UiTextButtonPressed::with_fn(
                 |button, _context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -234,7 +233,6 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             label: "Normal Size Button".into(),
             size: UiTextButtonSize::Normal,
             hover: Some("misc/brush_stroke_divider.png"),
-            enabled: true,
             on_pressed: UiTextButtonPressed::with_fn(
                 |button, _context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -250,7 +248,6 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             label: "Large Size Button".into(),
             size: UiTextButtonSize::Large,
             hover: Some("misc/brush_stroke_divider.png"),
-            enabled: true,
             on_pressed: UiTextButtonPressed::with_fn(
                 |button, _context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -266,7 +263,6 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             label: "Disabled Button".into(),
             size: UiTextButtonSize::Normal,
             hover: Some("misc/brush_stroke_divider.png"),
-            enabled: false,
             on_pressed: UiTextButtonPressed::with_fn(
                 |button, _context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -294,7 +290,6 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             label: "Open Message Box".into(),
             size: UiTextButtonSize::Normal,
             hover: Some("misc/brush_stroke_divider.png"),
-            enabled: true,
             on_pressed: UiTextButtonPressed::with_closure(
                 move |button, context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -328,7 +323,6 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                             label: "Ok".into(),
                                             size: UiTextButtonSize::Small,
                                             hover: Some("misc/brush_stroke_divider.png"),
-                                            enabled: true,
                                             on_pressed: UiTextButtonPressed::with_closure(
                                                 move |button, context| {
                                                     log::info!("Pressed Button: {}", button.label());
@@ -346,7 +340,6 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                             label: "Cancel".into(),
                                             size: UiTextButtonSize::Small,
                                             hover: Some("misc/brush_stroke_divider.png"),
-                                            enabled: true,
                                             on_pressed: UiTextButtonPressed::with_closure(
                                                 move |button, context| {
                                                     log::info!("Pressed Button: {}", button.label());
@@ -376,7 +369,6 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             label: "Close Message Box".into(),
             size: UiTextButtonSize::Normal,
             hover: Some("misc/brush_stroke_divider.png"),
-            enabled: true,
             on_pressed: UiTextButtonPressed::with_closure(
                 move |button, context| {
                     log::info!("Pressed Button: {}", button.label());

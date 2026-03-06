@@ -11,11 +11,12 @@ use super::{
 };
 
 use crate::{
+    sound::SoundSystem,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
     app::input::{InputSystem, InputAction, MouseButton},
-    ui::{self, UiSystem, UiTextureHandle, UiFontScale, widgets::UiWidgetContext},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
+    ui::{self, UiSystem, UiTextureHandle, UiFontScale, widgets::UiWidgetContext, sound::{UiButtonSound, UiButtonSounds}},
     utils::{
         Color, Rect, RectEdges, Size, Vec2,
         platform::paths, mem::{self, singleton},
@@ -533,12 +534,13 @@ impl Minimap {
 // Draw the minimap using ImGui, nestled inside its own window.
 pub fn draw(renderer: &mut impl MinimapRenderer, context: &mut UiWidgetContext) {
     let tile_map = mem::mut_ref_cast(context.tile_map);
-    let minimap = tile_map.minimap_mut();
+    let minimap  = tile_map.minimap_mut();
 
     let mut render_ctx = MinimapRenderContext {
         camera: context.camera,
         ui_sys: context.ui_sys,
         render_sys: context.render_sys,
+        sound_sys: context.sound_sys,
         minimap,
     };
 
@@ -1121,6 +1123,7 @@ pub struct MinimapRenderContext<'game> {
     pub camera: &'game mut Camera,
     pub ui_sys: &'game UiSystem,
     pub render_sys: &'game mut dyn RenderSystem,
+    pub sound_sys: &'game mut SoundSystem,
 
     // Minimap:
     pub minimap: &'game mut Minimap,
@@ -1156,6 +1159,8 @@ struct BaseMinimapRenderer {
     widget_font_scale: UiFontScale,
     widget_custom_background: Option<TextureHandle>,
     apply_widget_clip_rect: bool,
+    open_or_close_button_hovered: bool,
+    button_sounds: UiButtonSounds,
 }
 
 impl MinimapRenderer for BaseMinimapRenderer {
@@ -1173,6 +1178,19 @@ impl MinimapRenderer for BaseMinimapRenderer {
 }
 
 impl BaseMinimapRenderer {
+    fn new(sound_sys: &mut SoundSystem,
+           widget_font_scale: UiFontScale,
+           widget_custom_background: Option<TextureHandle>) -> Self
+    {
+        Self {
+            widget_font_scale,
+            widget_custom_background,
+            apply_widget_clip_rect: true,
+            open_or_close_button_hovered: false,
+            button_sounds: UiButtonSounds::load("default", 0.0, sound_sys),
+        }
+    }
+
     fn draw_widget_window(&mut self, context: &mut MinimapRenderContext) {
         let widget = context.widget();
 
@@ -1205,16 +1223,30 @@ impl BaseMinimapRenderer {
             .flags(self.window_flags() | imgui::WindowFlags::NO_BACKGROUND)
             .position(window_pos, imgui::Condition::Always)
             .build(|| {
-                context.minimap.widget.is_open = ui::icon_button_custom_tooltip(
+                let mut hovered = false;
+                let pressed = ui::icon_button_custom_tooltip(
                     context.ui_sys,
                     ui::icons::ICON_MAP,
                     || {
+                        hovered = true;
                         ui::custom_tooltip(
                             context.ui_sys,
                             self.widget_font_scale,
                             self.custom_background(context),
                             || ui.text("Open Map"));
                     });
+
+                if pressed {
+                    context.minimap.widget.is_open = true;
+                    self.button_sounds.play(context.sound_sys, UiButtonSound::Pressed);
+                }
+
+                // Play sound on transition to hovered state.
+                if hovered && !self.open_or_close_button_hovered && !pressed {
+                    self.button_sounds.play(context.sound_sys, UiButtonSound::Hovered);
+                }
+
+                self.open_or_close_button_hovered = hovered;
             });
     }
 
@@ -1240,17 +1272,28 @@ impl BaseMinimapRenderer {
 
         // Close widget button:
         ui.set_cursor_pos([context.widget().window_rect.size().x - 30.0, 5.0]);
-        if ui.button("X") {
+        let pressed = ui.button("X");
+        let hovered = ui.is_item_hovered();
+
+        if pressed {
             context.minimap.widget.is_open = false;
+            self.button_sounds.play(context.sound_sys, UiButtonSound::Pressed);
         }
 
-        if ui.is_item_hovered() {
+        if hovered {
+            // Play sound on transition to hovered state.
+            if !self.open_or_close_button_hovered && !pressed {
+                self.button_sounds.play(context.sound_sys, UiButtonSound::Hovered);
+            }
+
             ui::custom_tooltip(
                 context.ui_sys,
                 self.widget_font_scale,
                 self.custom_background(context),
                 || ui.text("Close"));
         }
+
+        self.open_or_close_button_hovered = hovered;
     }
 
     fn window_flags(&self) -> imgui::WindowFlags {
@@ -1433,11 +1476,11 @@ impl InGameUiMinimapRenderer {
         let background_texture = context.load_texture("misc/square_page_bg.png");
 
         Self {
-            base_renderer: BaseMinimapRenderer {
-                widget_font_scale: Self::WIDGET_FONT_SCALE,
-                widget_custom_background: Some(background_texture),
-                apply_widget_clip_rect: true,
-            }
+            base_renderer: BaseMinimapRenderer::new(
+                context.sound_sys,
+                Self::WIDGET_FONT_SCALE,
+                Some(background_texture)
+            )
         }
     }
 }
@@ -1477,13 +1520,13 @@ impl MinimapRenderer for DevUiMinimapRenderer {
 impl DevUiMinimapRenderer {
     const WIDGET_FONT_SCALE: UiFontScale = UiFontScale::identity();
 
-    pub fn new() -> Self {
+    pub fn new(sound_sys: &mut SoundSystem) -> Self {
         Self {
-            base_renderer: BaseMinimapRenderer {
-                widget_font_scale: Self::WIDGET_FONT_SCALE,
-                widget_custom_background: None,
-                apply_widget_clip_rect: true,
-            },
+            base_renderer: BaseMinimapRenderer::new(
+                sound_sys,
+                Self::WIDGET_FONT_SCALE,
+                None
+            ),
             enable_debug_draw: false,
             show_debug_controls: false,
         }

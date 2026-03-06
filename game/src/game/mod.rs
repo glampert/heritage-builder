@@ -511,7 +511,7 @@ impl GameLoop {
         let configs = GameConfigs::load();
 
         // Boot the engine and load assets:
-        let engine = Self::init_engine(&configs.engine);
+        let mut engine = Self::init_engine(&configs.engine);
         Self::load_assets(engine.texture_cache(), configs);
 
         // Global initialization:
@@ -519,7 +519,7 @@ impl GameLoop {
         undo_redo::initialize();
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
-        debug::init_dev_editor_menus(configs, engine.texture_cache());
+        debug::init_dev_editor_menus(configs, engine.as_mut());
 
         let instance = Self {
             engine,

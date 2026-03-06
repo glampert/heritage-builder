@@ -8,7 +8,7 @@ use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
     game::menu::ButtonDef,
     utils::{Vec2, Color, mem::{self, singleton_late_init}},
-    ui::{self, UiFontScale, UiStaticVar, widgets::*},
+    ui::{self, UiFontScale, UiStaticVar, sound::UiButtonSound, widgets::*},
 };
 
 mod home;
@@ -476,6 +476,11 @@ impl DialogMenusSingleton {
             let dialog_menu_kind = dialog.kind();
             if !dialog.is_open() && self.is_current_dialog(dialog_menu_kind) {
                 self.pop_dialog(dialog_menu_kind);
+
+                if dialog_menu_kind != DialogMenuKind::Home {
+                    // Simulate a button click sound.
+                    UiButtonSound::Pressed.play("default", context.sound_sys);
+                }
 
                 // If we didn't close the last dialog, keep the game in paused state.
                 if !self.menu_stack.is_empty() {

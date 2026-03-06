@@ -27,7 +27,8 @@ use crate::{
     utils::{
         hash::{self, StringHash, PreHashedKeyMap},
         Vec2, platform::paths, mem::RawPtr,
-        coords::IsoPointF32
+        fixed_string::format_fixed_string,
+        coords::IsoPointF32,
     },
 };
 
@@ -82,7 +83,7 @@ declare_sound_keys! {
 
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq)]
-enum SoundKind {
+pub enum SoundKind {
     Sfx,
     Ambience,
     SpatialAmbience,
@@ -114,12 +115,12 @@ impl SoundHandle {
     }
 
     #[inline]
-    fn invalid(kind: SoundKind) -> Self {
+    pub fn invalid(kind: SoundKind) -> Self {
         Self { kind, index: u32::MAX, generation: 0 }
     }
 
     #[inline]
-    fn is_valid(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         self.index < u32::MAX && self.generation != 0
     }
 }
@@ -432,6 +433,10 @@ impl SoundSystem {
     // True if the sound is advancing and producing audio output (Fading-in, Playing, Fading-out).
     // False if the sound is not advancing (Paused, Stopped).
     pub fn is_playing(&self, sound_handle: SoundHandle) -> bool {
+        if !sound_handle.is_valid() {
+            return false;
+        }
+
         if let Some(backend) = &self.backend {
             match sound_handle.kind {
                 SoundKind::Sfx => {
@@ -451,6 +456,7 @@ impl SoundSystem {
                 }
             }
         }
+
         false
     }
 
@@ -845,14 +851,14 @@ fn load_static_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, S
                                     asset_path: &str) -> Key {
     debug_assert!(!asset_path.is_empty());
 
-    let sound_path = format!("{}{}{}", base_path.to_str().unwrap(), MAIN_SEPARATOR, asset_path);
+    let sound_path = format_fixed_string!(512, "{}{}{}", base_path.to_str().unwrap(), MAIN_SEPARATOR, asset_path);
     let sound_hash = hash::fnv1a_from_str(&sound_path);
 
     if hash_map.get(&sound_hash).is_some() {
         return Key::new(sound_hash); // Already loaded.
     }
 
-    let sound_data = match StaticSoundData::from_file(&sound_path) {
+    let sound_data = match StaticSoundData::from_file(sound_path) {
         Ok(sound_data) => sound_data,
         Err(err) => {
             log::error!(log::channel!("sound"), "Failed to load sound '{sound_path}': {err}");
@@ -860,7 +866,7 @@ fn load_static_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, S
         }
     };
 
-    hash_map.insert(sound_hash, StaticSoundAsset { path: sound_path, data: sound_data });
+    hash_map.insert(sound_hash, StaticSoundAsset { path: sound_path.to_string(), data: sound_data });
     Key::new(sound_hash)
 }
 
@@ -869,7 +875,7 @@ fn load_streamed_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash,
                                       asset_path: &str) -> Key {
     debug_assert!(!asset_path.is_empty());
 
-    let sound_path = format!("{}{}{}", base_path.to_str().unwrap(), MAIN_SEPARATOR, asset_path);
+    let sound_path = format_fixed_string!(512, "{}{}{}", base_path.to_str().unwrap(), MAIN_SEPARATOR, asset_path);
     let sound_hash = hash::fnv1a_from_str(&sound_path);
 
     if hash_map.get(&sound_hash).is_some() {
@@ -877,12 +883,12 @@ fn load_streamed_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash,
     }
 
     // Only probe file path now. Data is lazily loaded on first reference.
-    if std::fs::exists(&sound_path).is_err() {
+    if std::fs::exists(sound_path).is_err() {
         log::error!(log::channel!("sound"), "Sound file path '{sound_path}' is invalid!");
         return Key::invalid();
     }
 
-    hash_map.insert(sound_hash, StreamedSoundAsset { path: sound_path });
+    hash_map.insert(sound_hash, StreamedSoundAsset { path: sound_path.to_string() });
     Key::new(sound_hash)
 }
 

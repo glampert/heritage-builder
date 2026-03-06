@@ -153,7 +153,6 @@ impl SaveGameHelper {
                             label: "Yes".into(),
                             size: UiTextButtonSize::Normal,
                             hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            enabled: true,
                             on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
                                 let mut save_game_menu = yes_button_menu_weak_ref.upgrade().unwrap();
                                 let (save_file_name, _) = Self::current_save_file_selection(&save_game_menu);
@@ -169,7 +168,6 @@ impl SaveGameHelper {
                             label: "No".into(),
                             size: UiTextButtonSize::Normal,
                             hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            enabled: true,
                             on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
                                 let mut save_game_menu = no_button_menu_weak_ref.upgrade().unwrap();
                                 save_game_menu.close_message_box(context);
@@ -244,7 +242,6 @@ impl SaveGameHelper {
                 UiTextButtonParams {
                     label: "Load Game".into(),
                     hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                    enabled: true,
                     on_pressed: UiTextButtonPressed::with_closure(
                         move |_, _context| {
                             let menu_rc = menu_weak_ref.upgrade().unwrap();
@@ -267,7 +264,6 @@ impl SaveGameHelper {
                 UiTextButtonParams {
                     label: "Save Game".into(),
                     hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                    enabled: true,
                     on_pressed: UiTextButtonPressed::with_closure(
                         move |_, context| {
                             let mut menu_rc = menu_weak_ref.upgrade().unwrap();
@@ -300,7 +296,6 @@ impl SaveGameHelper {
             UiTextButtonParams {
                 label: "Cancel".into(),
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                enabled: true,
                 on_pressed: UiTextButtonPressed::with_fn(
                     |_, context| {
                         super::close_current(context);

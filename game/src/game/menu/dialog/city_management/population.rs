@@ -106,7 +106,6 @@ impl PopulationManagement {
             UiTextButtonParams {
                 label: "Ok".into(),
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                enabled: true,
                 on_pressed: UiTextButtonPressed::with_fn(|_, context| {
                     super::close_current(context);
                 }),

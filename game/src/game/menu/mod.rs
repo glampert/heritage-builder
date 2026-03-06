@@ -193,7 +193,7 @@ pub trait GameMenusSystem: Any + Save + Load {
 
             // Exit tile placement mode if we've placed a building|unit.
             if placed_building_or_unit {
-                self.tile_palette().unwrap().clear_selection(context);
+                self.tile_palette().unwrap().clear_selection(context, false);
                 context.clear_selection();
             }
         }
@@ -213,7 +213,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                 if action == InputAction::Press {
                     // [ESCAPE]: Clear current selection / close tile inspector.
                     if key == InputKey::Escape {
-                        self.tile_palette().unwrap().clear_selection(context);
+                        self.tile_palette().unwrap().clear_selection(context, true);
                         context.clear_selection();
                         if let Some(tile_inspector) = self.tile_inspector() {
                             tile_inspector.close(context);
@@ -245,7 +245,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                     let input_event = self.tile_palette().unwrap().on_mouse_button(button, action);
                     if input_event.not_handled() {
                         // Mouse button click other than [LEFT_BTN], clear selection state.
-                        self.tile_palette().unwrap().clear_selection(context);
+                        self.tile_palette().unwrap().clear_selection(context, true);
                         context.clear_selection();
                     }
                     return input_event;
@@ -305,7 +305,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                     }
                 } else {
                     // Mouse button click other than [LEFT_BTN], clear selection state.
-                    self.tile_palette().unwrap().clear_selection(context);
+                    self.tile_palette().unwrap().clear_selection(context, true);
                     context.clear_selection();
                 }
 
@@ -622,7 +622,7 @@ pub trait TilePalette {
     fn wants_to_place_or_clear_tile(&self) -> bool;
 
     fn current_selection(&self) -> TilePaletteSelection;
-    fn clear_selection(&mut self, context: &mut GameMenusContext);
+    fn clear_selection(&mut self, context: &mut GameMenusContext, cancel_placement: bool);
 
     fn has_selection(&self) -> bool {
         !self.current_selection().is_none()
@@ -750,6 +750,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
                 size,
                 enabled: self.is_enabled(),
                 on_pressed,
+                ..Default::default()
             }
         )
     }
@@ -783,6 +784,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
                 state_transition_secs,
                 initial_state,
                 on_state_changed,
+                ..Default::default()
             }
         )
     }

@@ -121,7 +121,6 @@ impl MainGame {
                             label: "Quit to Main Menu".into(),
                             size: UiTextButtonSize::Normal,
                             hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            enabled: true,
                             on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_to_main_menu()),
                             ..Default::default()
                         }
@@ -132,7 +131,6 @@ impl MainGame {
                             label: "Exit Game".into(),
                             size: UiTextButtonSize::Normal,
                             hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            enabled: true,
                             on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_game()),
                             ..Default::default()
                         }
@@ -143,7 +141,6 @@ impl MainGame {
                             label: "Cancel".into(),
                             size: UiTextButtonSize::Normal,
                             hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            enabled: true,
                             on_pressed: UiTextButtonPressed::with_closure(
                                 move |_, context| {
                                     let mut main_menu = menu_weak_ref.upgrade().unwrap();

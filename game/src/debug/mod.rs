@@ -7,7 +7,7 @@ use settings::DebugSettingsDevMenu;
 use log_viewer::LogViewerWindow;
 
 use crate::{
-    render::TextureCache,
+    engine::Engine,
     ui::{self, UiTheme, widgets::UiWidgetContext},
     save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{sim, config::GameConfigs, GameLoop, menu::*},
@@ -126,14 +126,14 @@ struct DevEditorMenusSingleton {
 }
 
 impl DevEditorMenusSingleton {
-    fn new(tex_cache: &mut dyn TextureCache, tile_palette_open: bool, enable_tile_inspector: bool) -> Self {
+    fn new(engine: &mut dyn Engine, tile_palette_open: bool, enable_tile_inspector: bool) -> Self {
         Self {
             tile_placement: TilePlacement::new(),
             debug_settings_menu: DebugSettingsDevMenu::new(),
-            tile_palette_menu: TilePaletteDevMenu::new(tile_palette_open, tex_cache),
+            tile_palette_menu: TilePaletteDevMenu::new(tile_palette_open, engine.texture_cache()),
             tile_inspector_menu: TileInspectorDevMenu::default(),
             enable_tile_inspector,
-            minimap_renderer: DevUiMinimapRenderer::new(),
+            minimap_renderer: DevUiMinimapRenderer::new(engine.sound_system()),
             log_viewer: LogViewerWindow::new(),
         }
     }
@@ -231,14 +231,14 @@ impl DevEditorMenusSingleton {
 
 singleton_late_init! { DEV_EDITOR_MENUS_SINGLETON, DevEditorMenusSingleton }
 
-pub fn init_dev_editor_menus(configs: &GameConfigs, tex_cache: &mut dyn TextureCache) {
+pub fn init_dev_editor_menus(configs: &GameConfigs, engine: &mut dyn Engine) {
     if DEV_EDITOR_MENUS_SINGLETON.is_initialized() {
         return; // Already initialized.
     }
 
     DEV_EDITOR_MENUS_SINGLETON.initialize(
         DevEditorMenusSingleton::new(
-            tex_cache,
+            engine,
             configs.debug.tile_palette_open,
             configs.debug.enable_tile_inspector)
     );

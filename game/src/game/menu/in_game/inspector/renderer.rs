@@ -276,7 +276,6 @@ impl InspectorMenuRenderer {
                 label: "Close".into(),
                 size: UiTextButtonSize::Normal,
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                enabled: true,
                 on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
                     let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
                     inspector_menu.close_inspector(context);

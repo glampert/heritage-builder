@@ -60,7 +60,7 @@ impl TilePalette for TilePaletteDevMenu {
         self.selection
     }
 
-    fn clear_selection(&mut self, _context: &mut GameMenusContext) {
+    fn clear_selection(&mut self, _context: &mut GameMenusContext, _cancel_placement: bool) {
         self.reset_selection_internal();
     }
 }

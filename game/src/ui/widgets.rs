@@ -11,6 +11,7 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
     internal,
+    sound::*,
     UiSystem,
     UiFontScale,
     UiTextureHandle,
@@ -20,6 +21,7 @@ use super::{
 };
 
 use crate::{
+    sound::SoundSystem,
     tile::{TileMap, camera::Camera},
     game::{sim::{Simulation, Query}, world::World},
     engine::{Engine, time::{CountdownTimer, Seconds}},
@@ -36,7 +38,7 @@ use crate::{
 // Macros: make_imgui_id / make_imgui_labeled_id
 // ----------------------------------------------
 
-const IMGUI_ID_STRING_MAX_LEN: usize = 128;
+const IMGUI_ID_STRING_MAX_LEN: usize = 60;
 type ImGuiIdString = ArrayString<IMGUI_ID_STRING_MAX_LEN>;
 
 macro_rules! make_imgui_id {
@@ -83,6 +85,7 @@ pub struct UiWidgetContext<'game> {
     pub ui_sys: &'game UiSystem,
     pub render_sys: &'game mut dyn RenderSystem,
     pub tex_cache: &'game mut dyn TextureCache,
+    pub sound_sys: &'game mut SoundSystem,
 
     pub viewport_size: Size,
     pub delta_time_secs: Seconds,
@@ -107,6 +110,7 @@ impl<'game> UiWidgetContext<'game> {
             ui_sys: engine.ui_system(),
             render_sys: engine.render_system(),
             tex_cache: engine.texture_cache(),
+            sound_sys: engine.sound_system(),
             viewport_size: engine.viewport().integer_size(),
             delta_time_secs: engine.frame_clock().delta_time(),
             cursor_screen_pos: engine.input_system().cursor_pos(),
@@ -1544,17 +1548,33 @@ impl UiTextButtonSize {
 // UiTextButtonParams
 // ----------------------------------------------
 
-#[derive(Default)]
 pub struct UiTextButtonParams<'a> {
     pub label: String,
     pub tooltip: Option<UiTooltipText>,
     pub size: UiTextButtonSize,
     pub hover: Option<&'a str>,
+    pub sfx_path: Option<&'a str>,
+    pub sfx_cooldown: Seconds,
     pub enabled: bool,
     pub on_pressed: UiTextButtonPressed,
 }
 
 pub type UiTextButtonPressed = UiWidgetCallback<UiTextButton, UiReadOnly>;
+
+impl Default for UiTextButtonParams<'_> {
+    fn default() -> Self {
+        Self {
+            label: String::new(),
+            tooltip: None,
+            size: UiTextButtonSize::default(),
+            hover: None,
+            sfx_path: Some("default"),
+            sfx_cooldown: 0.0,
+            enabled: true,
+            on_pressed: UiTextButtonPressed::default(),
+        }
+    }
+}
 
 // ----------------------------------------------
 // UiTextButton
@@ -1570,7 +1590,9 @@ pub struct UiTextButton {
     font_scale: UiFontScale,
     size: UiTextButtonSize,
     hover: Option<UiTextureHandle>,
+    sounds: UiButtonSounds,
     enabled: bool,
+    hovered: bool,
     on_pressed: UiTextButtonPressed,
 }
 
@@ -1643,12 +1665,22 @@ impl UiWidget for UiTextButton {
             ui.button(label)
         };
 
-        if let Some(tooltip) = &self.tooltip && ui.is_item_hovered() {
-            tooltip.draw(context);
+        let hovered = ui.is_item_hovered();
+        if hovered {
+            // Play sound on transition to hovered state.
+            if !self.hovered && !pressed && self.is_enabled() {
+                self.sounds.play(context.sound_sys, UiButtonSound::Hovered);
+            }
+
+            if let Some(tooltip) = &self.tooltip {
+                tooltip.draw(context);
+            }
         }
+        self.hovered = hovered;
 
         // Invoke on pressed callback.
         if pressed && self.is_enabled() {
+            self.sounds.play(context.sound_sys, UiButtonSound::Pressed);
             self.on_pressed.invoke(self, context);
         }
     }
@@ -1677,6 +1709,12 @@ impl UiWidget for UiTextButton {
 impl UiTextButton {
     pub fn new(context: &mut UiWidgetContext, params: UiTextButtonParams) -> Self {
         debug_assert!(!params.label.is_empty());
+
+        let sounds = params.sfx_path.map_or_else(
+            UiButtonSounds::unloaded,
+            |sfx_path| UiButtonSounds::load(sfx_path, params.sfx_cooldown, context.sound_sys)
+        );
+
         Self {
             label: params.label,
             imgui_id: ImGuiIdString::new(),
@@ -1684,7 +1722,9 @@ impl UiTextButton {
             font_scale: params.size.font_scale(),
             size: params.size,
             hover: params.hover.map(|path| context.load_ui_texture(path)),
+            sounds,
             enabled: params.enabled,
+            hovered: false,
             on_pressed: params.on_pressed,
         }
     }
@@ -1702,11 +1742,12 @@ impl UiTextButton {
 // UiSpriteButtonParams
 // ----------------------------------------------
 
-#[derive(Default)]
-pub struct UiSpriteButtonParams {
+pub struct UiSpriteButtonParams<'a> {
     pub label: String,
     pub tooltip: Option<UiTooltipText>,
     pub show_tooltip_when_pressed: bool,
+    pub sfx_path: Option<&'a str>,
+    pub sfx_cooldown: Seconds,
     pub size: Vec2,
     pub initial_state: UiSpriteButtonState,
     pub state_transition_secs: Seconds,
@@ -1714,6 +1755,22 @@ pub struct UiSpriteButtonParams {
 }
 
 pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiMutable, UiSpriteButtonState>;
+
+impl Default for UiSpriteButtonParams<'_> {
+    fn default() -> Self {
+        Self {
+            label: String::new(),
+            tooltip: None,
+            show_tooltip_when_pressed: false,
+            sfx_path: Some("default"),
+            sfx_cooldown: 0.0,
+            size: Vec2::default(),
+            initial_state: UiSpriteButtonState::default(),
+            state_transition_secs: 0.0,
+            on_state_changed: UiSpriteButtonStateChanged::default(),
+        }
+    }
+}
 
 // ----------------------------------------------
 // UiSpriteButton
@@ -1729,6 +1786,7 @@ pub struct UiSpriteButton {
     size: Vec2,
     position: Option<Vec2>, // NOTE: Position is only known after the first call to draw().
     textures: UiSpriteButtonTextures,
+    sounds: UiButtonSounds,
 
     logical_state: UiSpriteButtonState,
     visual_state: UiSpriteButtonState,
@@ -1797,6 +1855,11 @@ impl UiSpriteButton {
         let textures = UiSpriteButtonTextures::load(&params.label, context);
         let visual_state_transition_timer = CountdownTimer::new(params.state_transition_secs);
 
+        let sounds = params.sfx_path.map_or_else(
+            UiButtonSounds::unloaded,
+            |sfx_path| UiButtonSounds::load(sfx_path, params.sfx_cooldown, context.sound_sys)
+        );
+
         Self {
             label: params.label,
             tooltip: params.tooltip,
@@ -1804,6 +1867,7 @@ impl UiSpriteButton {
             size: params.size,
             position: None, // Set after the first draw().
             textures,
+            sounds,
             logical_state: params.initial_state,
             visual_state: params.initial_state,
             visual_state_transition_timer,
@@ -1838,7 +1902,9 @@ impl UiSpriteButton {
 
     pub fn enable(&mut self, enable: bool) {
         if enable {
-            self.logical_state = UiSpriteButtonState::Idle;
+            if self.logical_state == UiSpriteButtonState::Disabled {
+                self.logical_state = UiSpriteButtonState::Idle;
+            }
         } else {
             self.logical_state = UiSpriteButtonState::Disabled;
         }
@@ -1856,6 +1922,14 @@ impl UiSpriteButton {
     // Internal:
     // ----------------------
 
+    #[inline]
+    fn play_sound(&mut self, context: &mut UiWidgetContext, sound: UiButtonSound, new_state: UiSpriteButtonState) {
+        // Play state transition sound if moving to a different state.
+        if self.logical_state != new_state {
+            self.sounds.play(context.sound_sys, sound);
+        }
+    }
+
     fn update_state(&mut self,
                     context: &mut UiWidgetContext,
                     hovered: bool,
@@ -1868,8 +1942,10 @@ impl UiSpriteButton {
             UiSpriteButtonState::Idle | UiSpriteButtonState::Hovered => {
                 // Left click selects/presses button.
                 if left_click {
+                    self.play_sound(context, UiButtonSound::Pressed, UiSpriteButtonState::Pressed);
                     self.logical_state = UiSpriteButtonState::Pressed;
                 } else if hovered {
+                    self.play_sound(context, UiButtonSound::Hovered, UiSpriteButtonState::Hovered);
                     self.logical_state = UiSpriteButtonState::Hovered;
                 } else {
                     self.logical_state = UiSpriteButtonState::Idle;
@@ -1911,12 +1987,12 @@ impl UiSpriteButton {
 // ----------------------------------------------
 
 struct UiSpriteButtonTextures {
-    textures: [UiTextureHandle; BUTTON_STATE_COUNT],
+    textures: [UiTextureHandle; UI_SPRITE_BUTTON_STATE_COUNT],
 }
 
 impl UiSpriteButtonTextures {
     fn unloaded() -> Self {
-        Self { textures: [INVALID_UI_TEXTURE_HANDLE; BUTTON_STATE_COUNT] }
+        Self { textures: [INVALID_UI_TEXTURE_HANDLE; UI_SPRITE_BUTTON_STATE_COUNT] }
     }
 
     fn load(sprite_path: &str, context: &mut UiWidgetContext) -> Self {
@@ -1947,7 +2023,7 @@ impl UiSpriteButtonTextures {
 // UiSpriteButtonState
 // ----------------------------------------------
 
-const BUTTON_STATE_COUNT: usize = UiSpriteButtonState::COUNT;
+const UI_SPRITE_BUTTON_STATE_COUNT: usize = UiSpriteButtonState::COUNT;
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 pub enum UiSpriteButtonState {
@@ -1969,14 +2045,7 @@ impl UiSpriteButtonState {
     fn asset_path(self, sprite_path: &str) -> PathBuf {
         debug_assert!(!sprite_path.is_empty());
         let sprite_suffix = self.get_str("Suffix").unwrap();
-
-        // {sprite_path}_{sprite_suffix}.png
-        let mut sprite_name = ArrayString::<128>::new();
-        sprite_name.push_str(sprite_path);
-        sprite_name.push_str("_");
-        sprite_name.push_str(sprite_suffix);
-        sprite_name.push_str(".png");
-
+        let sprite_name = format_fixed_string!(128, "{sprite_path}_{sprite_suffix}.png");
         assets_path().join("buttons").join(sprite_name)
     }
 
@@ -2937,18 +3006,14 @@ impl UiWidget for UiItemList {
         // Optional text input field:
         let text_input_field_changed = {
             if let Some(text_input_field_buffer) = &mut self.text_input_field_buffer {
-                let mut input_field_id = ArrayString::<128>::new();
-                input_field_id.push_str("## ");
-                input_field_id.push_str(window_name);
-                input_field_id.push_str(" InputField");
-
                 // set_next_item_width:
                 //  > 0.0 -> width is item_width pixels
                 //  = 0.0 -> default to ~2/3 of window width
                 //  < 0.0 -> item_width pixels relative to the right of window (-1.0 always aligns width to the right side)
                 ui.set_next_item_width(window_size.x);
-
                 set_left_margin();
+
+                let input_field_id = format_fixed_string!(128, "## {window_name} InputField");
                 ui.input_text(input_field_id, text_input_field_buffer).build()
             } else {
                 false

@@ -29,6 +29,7 @@ pub mod icons;
 pub mod widgets;
 pub mod tests;
 pub mod text;
+pub mod sound;
 
 // Internal implementation.
 mod internal;
