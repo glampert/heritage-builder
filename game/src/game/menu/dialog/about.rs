@@ -49,7 +49,7 @@ impl About {
 
         let about_text = vec![
             UiText::new("A City Builder by Core System Games".into(), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
-            UiText::new("Copyright (C) 2026. All Rights Reserved".into(), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
+            UiText::new("Copyright © 2026. All Rights Reserved".into(), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
             UiText::new(format!("Version {}", utils::version()), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
         ];
 
