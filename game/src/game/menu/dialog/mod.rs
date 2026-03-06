@@ -8,7 +8,7 @@ use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
     game::menu::ButtonDef,
     utils::{Vec2, Color, mem::{self, singleton_late_init}},
-    ui::{self, UiFontScale, UiStaticVar, sound::UiButtonSound, widgets::*},
+    ui::{self, UiFontScale, UiStaticVar, sound::{UiButtonSound, UiButtonSoundsEnabled}, widgets::*},
 };
 
 mod home;
@@ -603,6 +603,7 @@ fn make_dialog_button_widgets<ButtonKind, const COUNT: usize>(context: &mut UiWi
         buttons.push(UiWidgetImpl::from(
             button_kind.new_text_button(
                 context,
+                UiButtonSoundsEnabled::all(),
                 UiTextButtonSize::Large,
                 on_pressed
             )

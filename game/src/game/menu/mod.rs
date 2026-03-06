@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::any::Any;
 use strum::EnumProperty;
 
@@ -10,6 +12,7 @@ use crate::{
     ui::{
         UiInputEvent,
         UiFontScale,
+        sound::UiButtonSoundsEnabled,
         widgets::{
             UiWidgetContext,
             UiTooltipText,
@@ -721,6 +724,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
 
     fn new_text_button(self,
                        context: &mut UiWidgetContext,
+                       sfx_enabled: UiButtonSoundsEnabled,
                        size: UiTextButtonSize,
                        on_pressed: UiTextButtonPressed)
                        -> UiTextButton
@@ -747,6 +751,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
                 label: self.label(),
                 tooltip,
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sfx_enabled,
                 size,
                 enabled: self.is_enabled(),
                 on_pressed,
@@ -757,6 +762,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
 
     fn new_sprite_button(self,
                          context: &mut UiWidgetContext,
+                         sfx_enabled: UiButtonSoundsEnabled,
                          show_tooltip_when_pressed: bool,
                          size: Vec2,
                          state_transition_secs: Seconds,
@@ -780,6 +786,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
                 label: self.label(),
                 tooltip: Some(tooltip),
                 show_tooltip_when_pressed,
+                sfx_enabled,
                 size,
                 state_transition_secs,
                 initial_state,

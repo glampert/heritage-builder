@@ -1555,6 +1555,7 @@ pub struct UiTextButtonParams<'a> {
     pub hover: Option<&'a str>,
     pub sfx_path: Option<&'a str>,
     pub sfx_cooldown: Seconds,
+    pub sfx_enabled: UiButtonSoundsEnabled,
     pub enabled: bool,
     pub on_pressed: UiTextButtonPressed,
 }
@@ -1570,6 +1571,7 @@ impl Default for UiTextButtonParams<'_> {
             hover: None,
             sfx_path: Some("default"),
             sfx_cooldown: 0.0,
+            sfx_enabled: UiButtonSoundsEnabled::all(),
             enabled: true,
             on_pressed: UiTextButtonPressed::default(),
         }
@@ -1712,7 +1714,7 @@ impl UiTextButton {
 
         let sounds = params.sfx_path.map_or_else(
             UiButtonSounds::unloaded,
-            |sfx_path| UiButtonSounds::load(sfx_path, params.sfx_cooldown, context.sound_sys)
+            |sfx_path| UiButtonSounds::load(sfx_path, params.sfx_cooldown, params.sfx_enabled, context.sound_sys)
         );
 
         Self {
@@ -1748,6 +1750,7 @@ pub struct UiSpriteButtonParams<'a> {
     pub show_tooltip_when_pressed: bool,
     pub sfx_path: Option<&'a str>,
     pub sfx_cooldown: Seconds,
+    pub sfx_enabled: UiButtonSoundsEnabled,
     pub size: Vec2,
     pub initial_state: UiSpriteButtonState,
     pub state_transition_secs: Seconds,
@@ -1764,6 +1767,7 @@ impl Default for UiSpriteButtonParams<'_> {
             show_tooltip_when_pressed: false,
             sfx_path: Some("default"),
             sfx_cooldown: 0.0,
+            sfx_enabled: UiButtonSoundsEnabled::all(),
             size: Vec2::default(),
             initial_state: UiSpriteButtonState::default(),
             state_transition_secs: 0.0,
@@ -1857,7 +1861,7 @@ impl UiSpriteButton {
 
         let sounds = params.sfx_path.map_or_else(
             UiButtonSounds::unloaded,
-            |sfx_path| UiButtonSounds::load(sfx_path, params.sfx_cooldown, context.sound_sys)
+            |sfx_path| UiButtonSounds::load(sfx_path, params.sfx_cooldown, params.sfx_enabled, context.sound_sys)
         );
 
         Self {

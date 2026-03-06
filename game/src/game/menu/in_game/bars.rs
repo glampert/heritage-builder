@@ -7,7 +7,7 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter, Display};
 
 use crate::{
     engine::time::Seconds,
-    ui::{self, widgets::*},
+    ui::{self, widgets::*, sound::UiButtonSoundsEnabled},
     utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}},
     game::menu::{
         ButtonDef,
@@ -406,6 +406,7 @@ impl LeftBar {
 
             let button = button_kind.new_sprite_button(
                 context,
+                UiButtonSoundsEnabled::Pressed,
                 LEFT_BAR_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED,
                 LEFT_BAR_BUTTON_SIZE,
                 LEFT_BAR_BUTTON_STATE_TRANSITION_SECS,
@@ -516,6 +517,7 @@ impl SpeedControlsBar {
 
             let button = button_kind.new_sprite_button(
                 context,
+                UiButtonSoundsEnabled::Pressed,
                 SPEED_CONTROLS_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED,
                 SPEED_CONTROLS_BUTTON_SIZE,
                 SPEED_CONTROLS_BUTTON_STATE_TRANSITION_SECS,

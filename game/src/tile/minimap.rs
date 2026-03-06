@@ -16,7 +16,12 @@ use crate::{
     save::{PreLoadContext, PostLoadContext},
     app::input::{InputSystem, InputAction, MouseButton},
     render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
-    ui::{self, UiSystem, UiTextureHandle, UiFontScale, widgets::UiWidgetContext, sound::{UiButtonSound, UiButtonSounds}},
+    ui::{
+        self,
+        UiSystem, UiTextureHandle, UiFontScale,
+        widgets::UiWidgetContext,
+        sound::{UiButtonSound, UiButtonSoundsEnabled, UiButtonSounds},
+    },
     utils::{
         Color, Rect, RectEdges, Size, Vec2,
         platform::paths, mem::{self, singleton},
@@ -1187,7 +1192,11 @@ impl BaseMinimapRenderer {
             widget_custom_background,
             apply_widget_clip_rect: true,
             open_or_close_button_hovered: false,
-            button_sounds: UiButtonSounds::load("default", 0.0, sound_sys),
+            button_sounds: UiButtonSounds::load(
+                "default",
+                0.0,
+                UiButtonSoundsEnabled::Pressed,
+                sound_sys),
         }
     }
 

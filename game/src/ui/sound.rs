@@ -1,4 +1,5 @@
 use arrayvec::ArrayString;
+use bitflags::bitflags;
 use std::{path::MAIN_SEPARATOR, time};
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
@@ -105,12 +106,25 @@ impl UiButtonSound {
 }
 
 // ----------------------------------------------
+// UiButtonSoundsEnabled
+// ----------------------------------------------
+
+bitflags! {
+    #[derive(Copy, Clone)]
+    pub struct UiButtonSoundsEnabled: u8 {
+        const Hovered = 1 << UiButtonSound::Hovered as usize;
+        const Pressed = 1 << UiButtonSound::Pressed as usize;
+    }
+}
+
+// ----------------------------------------------
 // UiButtonSounds
 // ----------------------------------------------
 
 pub struct UiButtonSounds {
     keys: [SfxSoundKey; UI_BUTTON_SOUND_COUNT],
     handles: [SoundHandle; UI_BUTTON_SOUND_COUNT],
+    enabled: UiButtonSoundsEnabled,
 
     last_play_times: [Option<time::Instant>; UI_BUTTON_SOUND_COUNT],
     cooldown_secs: Seconds, // Only plays if at least this many seconds of cooldown have elapsed since last time played.
@@ -121,21 +135,29 @@ impl UiButtonSounds {
         Self {
             keys: [SfxSoundKey::invalid(); UI_BUTTON_SOUND_COUNT],
             handles: [SoundHandle::invalid(SoundKind::Sfx); UI_BUTTON_SOUND_COUNT],
+            enabled: UiButtonSoundsEnabled::empty(),
             last_play_times: [None; UI_BUTTON_SOUND_COUNT],
             cooldown_secs: 0.0,
         }
     }
 
-    pub fn load(sfx_path: &str, cooldown: Seconds, sound_sys: &mut SoundSystem) -> Self {
+    pub fn load(sfx_path: &str, cooldown: Seconds, enabled: UiButtonSoundsEnabled, sound_sys: &mut SoundSystem) -> Self {
         debug_assert!(!sfx_path.is_empty());
         debug_assert!(cooldown >= 0.0);
 
         let mut sounds = Self::unloaded();
+
         sounds.cooldown_secs = cooldown;
+        sounds.enabled = enabled;
 
         for sound in UiButtonSound::iter() {
+            let index = sound as usize;
+            if (enabled.bits() & (1 << index)) == 0 {
+                continue; // Button sound not enabled.
+            }
+
             let path = sound.path(sfx_path);
-            sounds.keys[sound as usize] = sound_sys.load_sfx(&path);
+            sounds.keys[index] = sound_sys.load_sfx(&path);
         }
 
         sounds
@@ -143,8 +165,11 @@ impl UiButtonSounds {
 
     pub fn play(&mut self, sound_sys: &mut SoundSystem, sound: UiButtonSound) {
         let index = sound as usize;
-        let sound_key = self.keys[index];
+        if (self.enabled.bits() & (1 << index)) == 0 {
+            return; // Button sound not enabled.
+        }
 
+        let sound_key = self.keys[index];
         if sound_key.is_valid() && !self.is_any_playing(sound_sys) {
             let time_now = time::Instant::now();
 

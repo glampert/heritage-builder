@@ -5,8 +5,8 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 use crate::{
     render::TextureHandle,
     game::{undo_redo, menu::*},
-    ui::{UiInputEvent, widgets::*, sound::UiSound},
     app::input::{InputAction, MouseButton},
+    ui::{UiInputEvent, widgets::*, sound::{UiSound, UiButtonSoundsEnabled}},
     utils::{
         self,
         Vec2, Color, Rect, RectTexCoords,
@@ -247,6 +247,7 @@ impl TilePaletteMainButtonsBuilder {
 
             let ui_button = main_button_def.new_sprite_button(
                 context,
+                UiButtonSoundsEnabled::Pressed,
                 TILE_PALETTE_MAIN_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED,
                 TILE_PALETTE_MAIN_BUTTON_SIZE,
                 main_button_def.state_transition_secs(),
@@ -348,6 +349,7 @@ impl TilePaletteMainButton {
                     label: child_def.label,
                     tooltip: child_tooltip,
                     hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                    sfx_enabled: UiButtonSoundsEnabled::Pressed,
                     size: UiTextButtonSize::ExtraSmall,
                     on_pressed: on_child_button_pressed,
                     ..Default::default()
