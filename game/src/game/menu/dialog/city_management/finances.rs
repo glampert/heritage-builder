@@ -101,6 +101,7 @@ impl FinancesManagement {
             UiTextButtonParams {
                 label: "Ok".into(),
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_fn(|_, context| {
                     super::close_current(context);
                 }),

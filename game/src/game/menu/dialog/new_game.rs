@@ -124,6 +124,7 @@ impl NewGame {
             UiTextButtonParams {
                 label: "Start New Game".into(),
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_fn(
                     |_button, _context| {
                         let new_game_menu = super::find::<NewGame>();
@@ -144,6 +145,7 @@ impl NewGame {
             UiTextButtonParams {
                 label: "Cancel".into(),
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_fn(
                     |_button, context| {
                         super::close_current(context);

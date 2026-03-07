@@ -7,7 +7,6 @@ use settings::DebugSettingsDevMenu;
 use log_viewer::LogViewerWindow;
 
 use crate::{
-    engine::Engine,
     ui::{self, UiTheme, widgets::UiWidgetContext},
     save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{sim, config::GameConfigs, GameLoop, menu::*},
@@ -32,8 +31,8 @@ pub struct DevEditorMenus;
 impl DevEditorMenus {
     pub fn new(context: &mut UiWidgetContext, tile_map_rc: RcMut<TileMap>) -> Self {
         context.ui_sys.set_ui_theme(UiTheme::Dev);
-        // Register TileMap global callbacks & debug ref:
-        register_tile_map_debug_callbacks(tile_map_rc);
+        init_dev_editor_menus_singleton_once(context, GameConfigs::get());
+        register_tile_map_debug_callbacks(tile_map_rc); // Register TileMap global callbacks & debug ref.
         Self
     }
 }
@@ -126,14 +125,14 @@ struct DevEditorMenusSingleton {
 }
 
 impl DevEditorMenusSingleton {
-    fn new(engine: &mut dyn Engine, tile_palette_open: bool, enable_tile_inspector: bool) -> Self {
+    fn new(context: &mut UiWidgetContext, tile_palette_start_open: bool, enable_tile_inspector: bool) -> Self {
         Self {
             tile_placement: TilePlacement::new(),
             debug_settings_menu: DebugSettingsDevMenu::new(),
-            tile_palette_menu: TilePaletteDevMenu::new(tile_palette_open, engine.texture_cache()),
+            tile_palette_menu: TilePaletteDevMenu::new(tile_palette_start_open, context.tex_cache),
             tile_inspector_menu: TileInspectorDevMenu::default(),
             enable_tile_inspector,
-            minimap_renderer: DevUiMinimapRenderer::new(engine.sound_system()),
+            minimap_renderer: DevUiMinimapRenderer::new(context),
             log_viewer: LogViewerWindow::new(),
         }
     }
@@ -231,14 +230,14 @@ impl DevEditorMenusSingleton {
 
 singleton_late_init! { DEV_EDITOR_MENUS_SINGLETON, DevEditorMenusSingleton }
 
-pub fn init_dev_editor_menus(configs: &GameConfigs, engine: &mut dyn Engine) {
-    if DEV_EDITOR_MENUS_SINGLETON.is_initialized() {
+fn init_dev_editor_menus_singleton_once(context: &mut UiWidgetContext, configs: &GameConfigs) {
+    if DevEditorMenusSingleton::is_initialized() {
         return; // Already initialized.
     }
 
-    DEV_EDITOR_MENUS_SINGLETON.initialize(
+    DevEditorMenusSingleton::initialize(
         DevEditorMenusSingleton::new(
-            engine,
+            context,
             configs.debug.tile_palette_open,
             configs.debug.enable_tile_inspector)
     );

@@ -20,7 +20,7 @@ use crate::{
         self,
         UiSystem, UiTextureHandle, UiFontScale,
         widgets::UiWidgetContext,
-        sound::{UiButtonSound, UiButtonSoundsEnabled, UiButtonSounds},
+        sound::{self, UiSoundKey, UiButtonSoundsEnabled},
     },
     utils::{
         Color, Rect, RectEdges, Size, Vec2,
@@ -1165,7 +1165,7 @@ struct BaseMinimapRenderer {
     widget_custom_background: Option<TextureHandle>,
     apply_widget_clip_rect: bool,
     open_or_close_button_hovered: bool,
-    button_sounds: UiButtonSounds,
+    button_sounds_enabled: UiButtonSoundsEnabled,
 }
 
 impl MinimapRenderer for BaseMinimapRenderer {
@@ -1183,7 +1183,7 @@ impl MinimapRenderer for BaseMinimapRenderer {
 }
 
 impl BaseMinimapRenderer {
-    fn new(sound_sys: &mut SoundSystem,
+    fn new(_context: &mut UiWidgetContext,
            widget_font_scale: UiFontScale,
            widget_custom_background: Option<TextureHandle>) -> Self
     {
@@ -1192,11 +1192,7 @@ impl BaseMinimapRenderer {
             widget_custom_background,
             apply_widget_clip_rect: true,
             open_or_close_button_hovered: false,
-            button_sounds: UiButtonSounds::load(
-                "default",
-                0.0,
-                UiButtonSoundsEnabled::Pressed,
-                sound_sys),
+            button_sounds_enabled: UiButtonSoundsEnabled::Pressed,
         }
     }
 
@@ -1247,12 +1243,17 @@ impl BaseMinimapRenderer {
 
                 if pressed {
                     context.minimap.widget.is_open = true;
-                    self.button_sounds.play(context.sound_sys, UiButtonSound::Pressed);
+
+                    if self.button_sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
+                        sound::play(context.sound_sys, UiSoundKey::ButtonPressed);
+                    }
                 }
 
                 // Play sound on transition to hovered state.
-                if hovered && !self.open_or_close_button_hovered && !pressed {
-                    self.button_sounds.play(context.sound_sys, UiButtonSound::Hovered);
+                if self.button_sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered)
+                    && hovered && !self.open_or_close_button_hovered && !pressed
+                {
+                    sound::play(context.sound_sys, UiSoundKey::ButtonHovered);
                 }
 
                 self.open_or_close_button_hovered = hovered;
@@ -1286,13 +1287,18 @@ impl BaseMinimapRenderer {
 
         if pressed {
             context.minimap.widget.is_open = false;
-            self.button_sounds.play(context.sound_sys, UiButtonSound::Pressed);
+
+            if self.button_sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
+                sound::play(context.sound_sys, UiSoundKey::ButtonPressed);
+            }
         }
 
         if hovered {
             // Play sound on transition to hovered state.
-            if !self.open_or_close_button_hovered && !pressed {
-                self.button_sounds.play(context.sound_sys, UiButtonSound::Hovered);
+            if self.button_sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered)
+                && !self.open_or_close_button_hovered && !pressed
+            {
+                sound::play(context.sound_sys, UiSoundKey::ButtonHovered);
             }
 
             ui::custom_tooltip(
@@ -1486,7 +1492,7 @@ impl InGameUiMinimapRenderer {
 
         Self {
             base_renderer: BaseMinimapRenderer::new(
-                context.sound_sys,
+                context,
                 Self::WIDGET_FONT_SCALE,
                 Some(background_texture)
             )
@@ -1529,10 +1535,10 @@ impl MinimapRenderer for DevUiMinimapRenderer {
 impl DevUiMinimapRenderer {
     const WIDGET_FONT_SCALE: UiFontScale = UiFontScale::identity();
 
-    pub fn new(sound_sys: &mut SoundSystem) -> Self {
+    pub fn new(context: &mut UiWidgetContext) -> Self {
         Self {
             base_renderer: BaseMinimapRenderer::new(
-                sound_sys,
+                context,
                 Self::WIDGET_FONT_SCALE,
                 None
             ),

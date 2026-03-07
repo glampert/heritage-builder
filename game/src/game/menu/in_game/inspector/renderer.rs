@@ -4,10 +4,10 @@ use strum_macros::EnumCount;
 
 use super::TileInspectorMenuWeakMut;
 use crate::{
-    ui::{UiFontScale, widgets::*},
     tile::{TileKind, sets::TileIconSprite},
     game::menu::TEXT_BUTTON_HOVERED_SPRITE,
     utils::{Vec2, fixed_string::format_fixed_string},
+    ui::{UiFontScale, sound::UiButtonSoundsEnabled, widgets::*},
 };
 
 // ----------------------------------------------
@@ -276,6 +276,7 @@ impl InspectorMenuRenderer {
                 label: "Close".into(),
                 size: UiTextButtonSize::Normal,
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
                     let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
                     inspector_menu.close_inspector(context);

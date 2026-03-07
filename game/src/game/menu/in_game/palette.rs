@@ -6,7 +6,7 @@ use crate::{
     render::TextureHandle,
     game::{undo_redo, menu::*},
     app::input::{InputAction, MouseButton},
-    ui::{UiInputEvent, widgets::*, sound::{UiSound, UiButtonSoundsEnabled}},
+    ui::{UiInputEvent, widgets::*, sound::{self, UiSoundKey}},
     utils::{
         self,
         Vec2, Color, Rect, RectTexCoords,
@@ -349,7 +349,7 @@ impl TilePaletteMainButton {
                     label: child_def.label,
                     tooltip: child_tooltip,
                     hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                    sfx_enabled: UiButtonSoundsEnabled::Pressed,
+                    sounds_enabled: UiButtonSoundsEnabled::Pressed,
                     size: UiTextButtonSize::ExtraSmall,
                     on_pressed: on_child_button_pressed,
                     ..Default::default()
@@ -402,7 +402,6 @@ pub struct TilePaletteMenu {
     selection_renderer: TileSelectionRenderer,
     main_buttons: ArrayVec<TilePaletteMainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
     menu: UiMenuRcMut,
-    cancel_sound: UiSound,
 }
 
 pub type TilePaletteMenuRcMut   = RcMut<TilePaletteMenu>;
@@ -433,7 +432,7 @@ impl TilePalette for TilePaletteMenu {
 
     fn clear_selection(&mut self, context: &mut GameMenusContext, cancel_placement: bool) {
         if cancel_placement && !self.current_selection.is_none() {
-            self.cancel_sound.play(context.engine.sound_system());
+            sound::play(context.engine.sound_system(), UiSoundKey::TilePlacementCanceled);
         }
 
         self.reset_selection_internal(&mut context.as_ui_widget_context());
@@ -478,7 +477,6 @@ impl TilePaletteMenu {
                 selection_renderer: TileSelectionRenderer::new(context),
                 main_buttons: buttons.main,
                 menu: palette_menu,
-                cancel_sound: UiSound::load("misc/cancel_placement.wav", 1.0, context.sound_sys),
             };
 
             tile_palette.set_child_menu_position_callbacks(context);

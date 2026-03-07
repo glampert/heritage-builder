@@ -11,7 +11,7 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use super::{
     internal,
-    sound::*,
+    sound::{self, UiSoundKey, UiButtonSoundsEnabled},
     UiSystem,
     UiFontScale,
     UiTextureHandle,
@@ -1553,9 +1553,7 @@ pub struct UiTextButtonParams<'a> {
     pub tooltip: Option<UiTooltipText>,
     pub size: UiTextButtonSize,
     pub hover: Option<&'a str>,
-    pub sfx_path: Option<&'a str>,
-    pub sfx_cooldown: Seconds,
-    pub sfx_enabled: UiButtonSoundsEnabled,
+    pub sounds_enabled: UiButtonSoundsEnabled,
     pub enabled: bool,
     pub on_pressed: UiTextButtonPressed,
 }
@@ -1569,9 +1567,7 @@ impl Default for UiTextButtonParams<'_> {
             tooltip: None,
             size: UiTextButtonSize::default(),
             hover: None,
-            sfx_path: Some("default"),
-            sfx_cooldown: 0.0,
-            sfx_enabled: UiButtonSoundsEnabled::all(),
+            sounds_enabled: UiButtonSoundsEnabled::empty(),
             enabled: true,
             on_pressed: UiTextButtonPressed::default(),
         }
@@ -1592,7 +1588,7 @@ pub struct UiTextButton {
     font_scale: UiFontScale,
     size: UiTextButtonSize,
     hover: Option<UiTextureHandle>,
-    sounds: UiButtonSounds,
+    sounds_enabled: UiButtonSoundsEnabled,
     enabled: bool,
     hovered: bool,
     on_pressed: UiTextButtonPressed,
@@ -1670,8 +1666,10 @@ impl UiWidget for UiTextButton {
         let hovered = ui.is_item_hovered();
         if hovered {
             // Play sound on transition to hovered state.
-            if !self.hovered && !pressed && self.is_enabled() {
-                self.sounds.play(context.sound_sys, UiButtonSound::Hovered);
+            if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered)
+                && !self.hovered && !pressed && self.is_enabled()
+            {
+                sound::play(context.sound_sys, UiSoundKey::ButtonHovered);
             }
 
             if let Some(tooltip) = &self.tooltip {
@@ -1682,7 +1680,10 @@ impl UiWidget for UiTextButton {
 
         // Invoke on pressed callback.
         if pressed && self.is_enabled() {
-            self.sounds.play(context.sound_sys, UiButtonSound::Pressed);
+            if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
+                sound::play(context.sound_sys, UiSoundKey::ButtonPressed);
+            }
+
             self.on_pressed.invoke(self, context);
         }
     }
@@ -1712,11 +1713,6 @@ impl UiTextButton {
     pub fn new(context: &mut UiWidgetContext, params: UiTextButtonParams) -> Self {
         debug_assert!(!params.label.is_empty());
 
-        let sounds = params.sfx_path.map_or_else(
-            UiButtonSounds::unloaded,
-            |sfx_path| UiButtonSounds::load(sfx_path, params.sfx_cooldown, params.sfx_enabled, context.sound_sys)
-        );
-
         Self {
             label: params.label,
             imgui_id: ImGuiIdString::new(),
@@ -1724,7 +1720,7 @@ impl UiTextButton {
             font_scale: params.size.font_scale(),
             size: params.size,
             hover: params.hover.map(|path| context.load_ui_texture(path)),
-            sounds,
+            sounds_enabled: params.sounds_enabled,
             enabled: params.enabled,
             hovered: false,
             on_pressed: params.on_pressed,
@@ -1744,13 +1740,12 @@ impl UiTextButton {
 // UiSpriteButtonParams
 // ----------------------------------------------
 
-pub struct UiSpriteButtonParams<'a> {
+#[derive(Default)]
+pub struct UiSpriteButtonParams {
     pub label: String,
     pub tooltip: Option<UiTooltipText>,
     pub show_tooltip_when_pressed: bool,
-    pub sfx_path: Option<&'a str>,
-    pub sfx_cooldown: Seconds,
-    pub sfx_enabled: UiButtonSoundsEnabled,
+    pub sounds_enabled: UiButtonSoundsEnabled,
     pub size: Vec2,
     pub initial_state: UiSpriteButtonState,
     pub state_transition_secs: Seconds,
@@ -1758,23 +1753,6 @@ pub struct UiSpriteButtonParams<'a> {
 }
 
 pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiMutable, UiSpriteButtonState>;
-
-impl Default for UiSpriteButtonParams<'_> {
-    fn default() -> Self {
-        Self {
-            label: String::new(),
-            tooltip: None,
-            show_tooltip_when_pressed: false,
-            sfx_path: Some("default"),
-            sfx_cooldown: 0.0,
-            sfx_enabled: UiButtonSoundsEnabled::all(),
-            size: Vec2::default(),
-            initial_state: UiSpriteButtonState::default(),
-            state_transition_secs: 0.0,
-            on_state_changed: UiSpriteButtonStateChanged::default(),
-        }
-    }
-}
 
 // ----------------------------------------------
 // UiSpriteButton
@@ -1790,7 +1768,7 @@ pub struct UiSpriteButton {
     size: Vec2,
     position: Option<Vec2>, // NOTE: Position is only known after the first call to draw().
     textures: UiSpriteButtonTextures,
-    sounds: UiButtonSounds,
+    sounds_enabled: UiButtonSoundsEnabled,
 
     logical_state: UiSpriteButtonState,
     visual_state: UiSpriteButtonState,
@@ -1859,11 +1837,6 @@ impl UiSpriteButton {
         let textures = UiSpriteButtonTextures::load(&params.label, context);
         let visual_state_transition_timer = CountdownTimer::new(params.state_transition_secs);
 
-        let sounds = params.sfx_path.map_or_else(
-            UiButtonSounds::unloaded,
-            |sfx_path| UiButtonSounds::load(sfx_path, params.sfx_cooldown, params.sfx_enabled, context.sound_sys)
-        );
-
         Self {
             label: params.label,
             tooltip: params.tooltip,
@@ -1871,7 +1844,7 @@ impl UiSpriteButton {
             size: params.size,
             position: None, // Set after the first draw().
             textures,
-            sounds,
+            sounds_enabled: params.sounds_enabled,
             logical_state: params.initial_state,
             visual_state: params.initial_state,
             visual_state_transition_timer,
@@ -1926,11 +1899,26 @@ impl UiSpriteButton {
     // Internal:
     // ----------------------
 
-    #[inline]
-    fn play_sound(&mut self, context: &mut UiWidgetContext, sound: UiButtonSound, new_state: UiSpriteButtonState) {
+    fn play_sound(&mut self, context: &mut UiWidgetContext, sound_key: UiSoundKey, new_state: UiSpriteButtonState) {
         // Play state transition sound if moving to a different state.
         if self.logical_state != new_state {
-            self.sounds.play(context.sound_sys, sound);
+            let mut play = false;
+
+            if sound_key == UiSoundKey::ButtonHovered
+                && self.sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered)
+            {
+                play = true;
+            }
+
+            if sound_key == UiSoundKey::ButtonPressed
+                && self.sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed)
+            {
+                play = true;
+            }
+
+            if play {
+                sound::play(context.sound_sys, sound_key);
+            }
         }
     }
 
@@ -1946,10 +1934,10 @@ impl UiSpriteButton {
             UiSpriteButtonState::Idle | UiSpriteButtonState::Hovered => {
                 // Left click selects/presses button.
                 if left_click {
-                    self.play_sound(context, UiButtonSound::Pressed, UiSpriteButtonState::Pressed);
+                    self.play_sound(context, UiSoundKey::ButtonPressed, UiSpriteButtonState::Pressed);
                     self.logical_state = UiSpriteButtonState::Pressed;
                 } else if hovered {
-                    self.play_sound(context, UiButtonSound::Hovered, UiSpriteButtonState::Hovered);
+                    self.play_sound(context, UiSoundKey::ButtonHovered, UiSpriteButtonState::Hovered);
                     self.logical_state = UiSpriteButtonState::Hovered;
                 } else {
                     self.logical_state = UiSpriteButtonState::Idle;

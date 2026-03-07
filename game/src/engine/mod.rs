@@ -6,7 +6,7 @@ use time::{FrameClock, Seconds};
 
 use crate::{
     log,
-    ui::UiSystem,
+    ui::{self, UiSystem},
     sound::SoundSystem,
     app::{
         self, input::*,
@@ -148,8 +148,9 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
         log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
         log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());
 
-        let sound_system = SoundSystem::new(configs.sound_settings);
+        let mut sound_system = SoundSystem::new(configs.sound_settings);
         log::info!(log::channel!("engine"), "SoundSystem initialized.");
+        ui::sound::initialize(&mut sound_system);
 
         Self {
             app,

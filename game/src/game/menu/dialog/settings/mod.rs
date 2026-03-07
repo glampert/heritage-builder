@@ -320,6 +320,7 @@ impl SettingsCategory {
             UiTextButtonParams {
                 label: "Ok".into(),
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
                     let settings = ok_button_weak_ref.upgrade().unwrap();
                     settings.commit_settings();
@@ -334,6 +335,7 @@ impl SettingsCategory {
             UiTextButtonParams {
                 label: "Cancel".into(),
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_fn(|_, context| {
                     super::close_current(context);
                 }),

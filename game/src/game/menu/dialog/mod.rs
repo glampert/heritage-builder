@@ -8,7 +8,7 @@ use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
     game::menu::ButtonDef,
     utils::{Vec2, Color, mem::{self, singleton_late_init}},
-    ui::{self, UiFontScale, UiStaticVar, sound::{UiButtonSound, UiButtonSoundsEnabled}, widgets::*},
+    ui::{self, UiFontScale, UiStaticVar, sound::{self, UiSoundKey, UiButtonSoundsEnabled}, widgets::*},
 };
 
 mod home;
@@ -478,8 +478,8 @@ impl DialogMenusSingleton {
                 self.pop_dialog(dialog_menu_kind);
 
                 if dialog_menu_kind != DialogMenuKind::Home {
-                    // Simulate a button click sound.
-                    UiButtonSound::Pressed.play("default", context.sound_sys);
+                    // Simulate a UI button press sound when hitting [ESCAPE] while inside a modal dialog.
+                    sound::play(context.sound_sys, UiSoundKey::ButtonPressed);
                 }
 
                 // If we didn't close the last dialog, keep the game in paused state.
