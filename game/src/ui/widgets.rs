@@ -387,6 +387,7 @@ bitflags_with_display! {
         const CloseModalOnEscape     = 1 << 8;
         const HideWhenMessageBoxOpen = 1 << 9;
         const AdjustSizeToContents   = 1 << 10; // Even if explicit size given, adjust to contents on menu opening.
+        const NoTitleBar             = 1 << 11;
     }
 }
 
@@ -683,23 +684,13 @@ impl UiMenu {
     // ----------------------
 
     pub fn draw_menu_contents(&mut self, context: &mut UiWidgetContext) {
-        let ui = context.ui_sys.ui();
-
-        context.begin_widget_window();
-
         // Set default widget spacing.
-        let _spacing =
-            ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
-
-        if let Some(background) = self.background {
-            internal::draw_widget_window_background(ui, background);
-        }
+        let _spacing = context.ui_sys.ui()
+            .push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
 
         for widget in &mut self.widgets {
             widget.draw(context);
         }
-
-        context.end_widget_window();
     }
 
     pub fn draw_custom<OnClose, OnGetMsgBox, OnDrawContents>(
@@ -737,6 +728,12 @@ impl UiMenu {
         internal::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
         internal::set_next_widget_window_size(window_size, window_size_cond);
 
+        fn draw_background(ui: &imgui::Ui, opt_background: Option<UiTextureHandle>) {
+            if let Some(background) = opt_background {
+                internal::draw_widget_window_background(ui, background);
+            }
+        }
+
         // Modal window has exclusive input focus (e.g.: popup message box).
         if flags.intersects(UiMenuFlags::Modal) {
             let close_on_escape_pressed = flags.intersects(UiMenuFlags::CloseModalOnEscape);
@@ -746,7 +743,11 @@ impl UiMenu {
                 .opened(&mut is_open)
                 .flags(window_flags)
                 .build(|| {
+                    context.begin_widget_window();
+                    draw_background(ui, self.background);
                     on_draw_contents(self, context);
+                    context.end_widget_window();
+    
                     close_on_escape_pressed
                         && ui.is_window_focused()
                         && ui.is_key_pressed(imgui::Key::Escape)
@@ -760,7 +761,12 @@ impl UiMenu {
             ui.window(window_name)
                 .opened(&mut is_open)
                 .flags(window_flags)
-                .build(|| on_draw_contents(self, context));
+                .build(|| {
+                    context.begin_widget_window();
+                    draw_background(ui, self.background);
+                    on_draw_contents(self, context);
+                    context.end_widget_window();
+                });
         }
 
         let closed = flags.intersects(UiMenuFlags::IsOpen) && !is_open;
@@ -844,7 +850,7 @@ impl UiMenu {
             window_flags |= imgui::WindowFlags::NO_BACKGROUND;
         }
 
-        if self.background.is_none() && !self.label.is_empty() {
+        if self.background.is_none() && !self.label.is_empty() && !self.has_flags(UiMenuFlags::NoTitleBar) {
             window_flags.remove(imgui::WindowFlags::NO_TITLE_BAR);
         }
 

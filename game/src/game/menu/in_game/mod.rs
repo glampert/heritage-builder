@@ -18,7 +18,7 @@ use crate::{
     utils::coords::CellRange,
     save::{Save, Load, PreLoadContext},
     app::input::{InputAction, InputKey},
-    tile::minimap::{self, InGameUiMinimapRenderer},
+    tile::minimap::{MinimapRenderer, InGameUiMinimapRenderer},
     ui::{UiInputEvent, UiTheme, widgets::{UiWidgetContext, UiMenuFlags}},
 };
 
@@ -93,7 +93,7 @@ impl GameMenusSystem for InGameMenus {
     fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
         let mut ui_context = context.as_ui_widget_context();
 
-        minimap::draw(&mut self.minimap_renderer, &mut ui_context);
+        self.minimap_renderer.draw(&mut ui_context);
 
         self.tile_palette.draw(&mut ui_context,
                                context.camera.transform(),

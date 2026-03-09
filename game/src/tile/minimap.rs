@@ -11,20 +11,19 @@ use super::{
 };
 
 use crate::{
-    sound::SoundSystem,
     engine::time::Seconds,
     save::{PreLoadContext, PostLoadContext},
     app::input::{InputSystem, InputAction, MouseButton},
-    render::{RenderSystem, TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
+    render::{TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
     ui::{
         self,
-        UiSystem, UiTextureHandle, UiFontScale,
-        widgets::UiWidgetContext,
-        sound::{self, UiSoundKey, UiButtonSoundsEnabled},
+        widgets::*,
+        UiSystem, UiFontScale, UiStaticVar,
+        sound::{UiButtonSoundsEnabled},
     },
     utils::{
         Color, Rect, RectEdges, Size, Vec2,
-        platform::paths, mem::{self, singleton},
+        platform::paths, mem::{self, singleton, RawPtr}, fixed_string::format_fixed_string,
         coords::{self, Cell, CellF32, IsoPointF32, IsoDiamond, WorldToScreenTransform},
     },
 };
@@ -530,26 +529,6 @@ impl Minimap {
             self.icons.swap_remove(*expired_index);
         }
     }
-}
-
-// ----------------------------------------------
-// Minimap rendering
-// ----------------------------------------------
-
-// Draw the minimap using ImGui, nestled inside its own window.
-pub fn draw(renderer: &mut impl MinimapRenderer, context: &mut UiWidgetContext) {
-    let tile_map = mem::mut_ref_cast(context.tile_map);
-    let minimap  = tile_map.minimap_mut();
-
-    let mut render_ctx = MinimapRenderContext {
-        camera: context.camera,
-        ui_sys: context.ui_sys,
-        render_sys: context.render_sys,
-        sound_sys: context.sound_sys,
-        minimap,
-    };
-
-    renderer.draw(&mut render_ctx);
 }
 
 // ----------------------------------------------
@@ -1120,39 +1099,48 @@ impl MinimapWidget {
 // ----------------------------------------------
 
 pub trait MinimapRenderer {
-    fn draw(&mut self, context: &mut MinimapRenderContext);
+    // Draw the minimap using ImGui, nestled inside its own window.
+    fn draw(&mut self, context: &mut UiWidgetContext);
 }
 
-pub struct MinimapRenderContext<'game> {
-    // Game systems:
-    pub camera: &'game mut Camera,
-    pub ui_sys: &'game UiSystem,
-    pub render_sys: &'game mut dyn RenderSystem,
-    pub sound_sys: &'game mut SoundSystem,
-
-    // Minimap:
-    pub minimap: &'game mut Minimap,
+struct MinimapRenderContext<'game> {
+    ui_ctx: RawPtr<UiWidgetContext<'game>>,
 }
 
-impl MinimapRenderContext<'_> {
+impl<'game> MinimapRenderContext<'game> {
     #[inline]
-    fn widget_mut(&mut self) -> &mut MinimapWidget {
-        &mut self.minimap.widget
+    fn new(context: &mut UiWidgetContext<'game>) -> Self {
+        Self { ui_ctx: RawPtr::from_ref(context) }
+    }
+
+    #[inline]
+    fn minimap(&self) -> &Minimap {
+        self.ui_ctx.tile_map.minimap()
+    }
+
+    #[inline]
+    fn minimap_mut(&self) -> &mut Minimap {
+        mem::mut_ref_cast(self.ui_ctx.tile_map.minimap())
     }
 
     #[inline]
     fn widget(&self) -> &MinimapWidget {
-        &self.minimap.widget
+        &self.minimap().widget
+    }
+
+    #[inline]
+    fn widget_mut(&self) -> &mut MinimapWidget {
+        &mut self.minimap_mut().widget
     }
 
     #[inline]
     fn icons(&self) -> &[MinimapIconInstance] {
-        &self.minimap.icons
+        &self.minimap().icons
     }
 
     #[inline]
     fn texture(&self) -> TextureHandle {
-        self.minimap.texture.handle
+        self.minimap().texture.handle
     }
 }
 
@@ -1161,206 +1149,327 @@ impl MinimapRenderContext<'_> {
 // ----------------------------------------------
 
 struct BaseMinimapRenderer {
-    widget_font_scale: UiFontScale,
-    widget_custom_background: Option<TextureHandle>,
-    apply_widget_clip_rect: bool,
-    open_or_close_button_hovered: bool,
+    minimap_menu: Option<UiMenuRcMut>,
+    open_button_menu: Option<UiMenuRcMut>,
     button_sounds_enabled: UiButtonSoundsEnabled,
-}
-
-impl MinimapRenderer for BaseMinimapRenderer {
-    fn draw(&mut self, context: &mut MinimapRenderContext) {
-        debug_assert!(context.widget().window_rect.is_valid());
-        debug_assert!(context.widget().draw_data.is_valid());
-        debug_assert!(self.widget_font_scale.is_valid());
-
-        if context.widget().is_open {
-            self.draw_widget_window(context);
-        } else {
-            self.draw_open_button(context);
-        }
-    }
+    font_scale: UiFontScale,
+    background: Option<&'static str>,
+    with_debug_button: bool,
+    apply_widget_clip_rect: bool,
 }
 
 impl BaseMinimapRenderer {
-    fn new(_context: &mut UiWidgetContext,
-           widget_font_scale: UiFontScale,
-           widget_custom_background: Option<TextureHandle>) -> Self
+    fn new(button_sounds_enabled: UiButtonSoundsEnabled,
+           font_scale: UiFontScale,
+           background: Option<&'static str>,
+           with_debug_button: bool) -> Self
     {
         Self {
-            widget_font_scale,
-            widget_custom_background,
+            minimap_menu: None,
+            open_button_menu: None,
+            button_sounds_enabled,
+            font_scale,
+            background,
+            with_debug_button,
             apply_widget_clip_rect: true,
-            open_or_close_button_hovered: false,
-            button_sounds_enabled: UiButtonSoundsEnabled::Pressed,
         }
     }
 
-    fn draw_widget_window(&mut self, context: &mut MinimapRenderContext) {
-        let widget = context.widget();
+    fn build_minimap_menus(context: &mut UiWidgetContext,
+                           font_scale: UiFontScale,
+                           background: Option<&str>,
+                           button_sounds_enabled: UiButtonSoundsEnabled,
+                           with_debug_button: bool) -> (UiMenuRcMut, UiMenuRcMut)
+    {
+        let widget = &context.tile_map.minimap().widget;
 
-        let window_pos  = widget.window_rect.position().to_array();
-        let window_size = widget.window_rect.size().to_array();
+        debug_assert!(widget.window_rect.is_valid());
+        debug_assert!(widget.draw_data.is_valid());
 
-        context.ui_sys.ui().window("Minimap")
-            .flags(self.window_flags())
-            .position(window_pos, imgui::Condition::Always)
-            .size(window_size, imgui::Condition::Always)
-            .build(|| {
-                context.ui_sys.set_window_font_scale(self.widget_font_scale);
+        let open_button_size = Vec2::new(20.0, 20.0);
+        let open_button_pos  = Vec2::new(
+            0.0,
+            context.viewport_size.height as f32 - open_button_size.y - 20.0
+        );
 
-                // Minimap texture and overlay icons:
-                self.draw_minimap(context);
-                self.draw_icons(context);
+        let menu_margin = 12.0;
 
-                // Header / close button:
-                self.draw_header_buttons(context);
+        let menu_button_size = Vec2::new(20.0, 20.0);
+        let menu_button_count = if with_debug_button { 2.0 } else { 1.0 };
 
-                context.ui_sys.set_window_font_scale(UiFontScale::default());
-            });
+        let menu_size = widget.window_rect.size();
+        let menu_pos  = widget.window_rect.position();
+
+        let mut minimap_menu = UiMenu::new(
+            context,
+            UiMenuParams {
+                label: Some("Minimap".into()),
+                flags: UiMenuFlags::IsOpen | UiMenuFlags::NoTitleBar,
+                size: Some(menu_size),
+                position: UiMenuPosition::Vec2(menu_pos.x, menu_pos.y),
+                background,
+                ..Default::default()
+            }
+        );
+
+        let mut open_button_menu = UiMenu::new(
+            context,
+            UiMenuParams {
+                flags: UiMenuFlags::IsOpen | UiMenuFlags::AdjustSizeToContents,
+                size: Some(open_button_size),
+                position: UiMenuPosition::Vec2(open_button_pos.x, open_button_pos.y),
+                background,
+                ..Default::default()
+            }
+        );
+
+        let mut menu_group = UiWidgetGroup::new(
+            context,
+            UiWidgetGroupParams {
+                widget_spacing: Vec2::zero(),
+                center_vertically: false,
+                center_horizontally: true,
+                stack_vertically: false,
+                ..Default::default()
+            }
+        );
+
+        // Minimap menu title:
+        let menu_heading_width = {
+            let heading = UiMenuHeading::new(
+                context,
+                UiMenuHeadingParams {
+                    lines: vec![UiText::new("Map".into(), font_scale)],
+                    ..Default::default()
+                }
+            );
+
+            let heading_width = heading.measure(context).x;
+            menu_group.add_widget(heading);
+            heading_width
+        };
+
+        // Add a separator to push the minimap buttons to the right-hand side of the menu widget.
+        {
+            let separator_size = Vec2::new(
+                menu_size.x - menu_heading_width - (menu_button_size.x * menu_button_count) - (menu_margin * 2.0),
+                menu_button_size.y
+            );
+
+            let separator = UiSeparator::new(
+                context,
+                UiSeparatorParams {
+                    size: Some(separator_size),
+                    ..Default::default()
+                }
+            );
+
+            menu_group.add_widget(separator);
+        }
+
+        // Debug button, optional:
+        if with_debug_button {
+            let debug_tooltip = UiTooltipText::new(
+                context,
+                UiTooltipTextParams {
+                    text: "Debug".into(),
+                    font_scale,
+                    background,
+                }
+            );
+
+            let debug_button = UiSpriteButton::new(
+                context,
+                UiSpriteButtonParams {
+                    label: "minimap/debug".into(),
+                    tooltip: Some(debug_tooltip),
+                    size: menu_button_size,
+                    sounds_enabled: button_sounds_enabled,
+                    on_state_changed: UiSpriteButtonStateChanged::with_fn(|button, _, _| {
+                        if button.is_pressed() {
+                            let prev_state = *SHOW_MINIMAP_DEBUG_CONTROLS;
+                            SHOW_MINIMAP_DEBUG_CONTROLS.set(!prev_state);
+
+                            // Single click button. Reverts to unpressed immediately.
+                            button.press(false);
+                        }
+                    }),
+                    ..Default::default()
+                }
+            );
+
+            menu_group.add_widget(debug_button);
+        }
+
+        // Close button, always present:
+        {
+            let minimap_menu_ref = minimap_menu.downgrade();
+            let open_button_menu_ref = open_button_menu.downgrade();
+
+            let close_tooltip = UiTooltipText::new(
+                context,
+                UiTooltipTextParams {
+                    text: "Close".into(),
+                    font_scale,
+                    background,
+                }
+            );
+
+            let close_button = UiSpriteButton::new(
+                context,
+                UiSpriteButtonParams {
+                    label: "minimap/close".into(),
+                    tooltip: Some(close_tooltip),
+                    size: menu_button_size,
+                    sounds_enabled: button_sounds_enabled,
+                    on_state_changed: UiSpriteButtonStateChanged::with_closure(
+                        move |button, context, _| {
+                            if button.is_pressed() {
+                                let mut open_button_menu = open_button_menu_ref.upgrade().unwrap();
+                                open_button_menu.open(context);
+
+                                let mut minimap_menu = minimap_menu_ref.upgrade().unwrap();
+                                minimap_menu.close(context);
+
+                                // Single click button. Reverts to unpressed immediately.
+                                button.press(false);
+                            }
+                        }
+                    ),
+                    ..Default::default()
+                }
+            );
+
+            menu_group.add_widget(close_button);
+        }
+
+        minimap_menu.add_widget(menu_group);
+
+        // Open Map button shown when the minimap menu is closed/minimized.
+        {
+            let minimap_menu_ref = minimap_menu.downgrade();
+            let open_button_menu_ref = open_button_menu.downgrade();
+
+            let open_tooltip = UiTooltipText::new(
+                context,
+                UiTooltipTextParams {
+                    text: "Open Map".into(),
+                    font_scale,
+                    background,
+                }
+            );
+
+            let open_button = UiSpriteButton::new(
+                context,
+                UiSpriteButtonParams {
+                    label: "minimap/open".into(),
+                    tooltip: Some(open_tooltip),
+                    size: open_button_size,
+                    sounds_enabled: button_sounds_enabled,
+                    on_state_changed: UiSpriteButtonStateChanged::with_closure(
+                        move |button, context, _| {
+                            if button.is_pressed() {
+                                let mut open_button_menu = open_button_menu_ref.upgrade().unwrap();
+                                open_button_menu.close(context);
+
+                                let mut minimap_menu = minimap_menu_ref.upgrade().unwrap();
+                                minimap_menu.open(context);
+
+                                // Single click button. Reverts to unpressed immediately.
+                                button.press(false);
+                            }
+                        }
+                    ),
+                    ..Default::default()
+                }
+            );
+
+            open_button_menu.add_widget(open_button);
+        }
+
+        (minimap_menu, open_button_menu)
     }
 
-    fn draw_open_button(&mut self, context: &mut MinimapRenderContext) {
-        let ui = context.ui_sys.ui();
-        let window_pos = [5.0, ui.io().display_size[1] - 35.0];
+    fn create_menus(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(self.minimap_menu.is_none());
+        debug_assert!(self.open_button_menu.is_none());
 
-        ui.window("Minimap Button")
-            .flags(self.window_flags() | imgui::WindowFlags::NO_BACKGROUND)
-            .position(window_pos, imgui::Condition::Always)
-            .build(|| {
-                let mut hovered = false;
-                let pressed = ui::icon_button_custom_tooltip(
-                    context.ui_sys,
-                    ui::icons::ICON_MAP,
-                    || {
-                        hovered = true;
-                        ui::custom_tooltip(
-                            context.ui_sys,
-                            self.widget_font_scale,
-                            self.custom_background(context),
-                            || ui.text("Open Map"));
-                    });
+        let (minimap_menu, open_button_menu) = Self::build_minimap_menus(
+            context,
+            self.font_scale,
+            self.background,
+            self.button_sounds_enabled,
+            self.with_debug_button
+        );
 
-                if pressed {
-                    context.minimap.widget.is_open = true;
+        self.minimap_menu = Some(minimap_menu);
+        self.open_button_menu = Some(open_button_menu);
+    }
 
-                    if self.button_sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
-                        sound::play(context.sound_sys, UiSoundKey::ButtonPressed);
+    fn is_minimap_menu_open(&self) -> bool {
+        self.minimap_menu.as_ref().unwrap().is_open()
+    }
+
+    fn draw<F>(&mut self, context: &mut UiWidgetContext, custom_draw_fn: F)
+        where F: FnOnce(&mut UiWidgetContext)
+    {
+        let render_ctx = MinimapRenderContext::new(context);
+
+        debug_assert!(render_ctx.widget().window_rect.is_valid());
+        debug_assert!(render_ctx.widget().draw_data.is_valid());
+
+        // NOTE: Menus have to be lazily created because we only
+        // have the full minimap widget state after the first update.
+        if self.minimap_menu.is_none() {
+            self.create_menus(context);
+        }
+
+        let is_minimap_open = render_ctx.widget().is_open && self.is_minimap_menu_open();
+
+        if is_minimap_open {
+            // Draw minimap widget:
+            let mut minimap_menu = self.minimap_menu.as_ref().unwrap().clone();
+            let minimap_menu_flags = minimap_menu.flags();
+
+            minimap_menu.draw_custom(
+                context,
+                minimap_menu_flags,
+                UiMenu::close,
+                UiMenu::message_box,
+                |menu, context| {
+                    // Buttons/controls:
+                    for widget in menu.widgets_mut() {
+                        widget.draw(context);
                     }
-                }
 
-                // Play sound on transition to hovered state.
-                if self.button_sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered)
-                    && hovered && !self.open_or_close_button_hovered && !pressed
-                {
-                    sound::play(context.sound_sys, UiSoundKey::ButtonHovered);
-                }
+                    // Minimap texture and overlay icons:
+                    self.draw_minimap(context);
+                    self.draw_icons(context);
 
-                self.open_or_close_button_hovered = hovered;
-            });
-    }
-
-    fn draw_header_buttons(&mut self, context: &mut MinimapRenderContext) {
-        let ui = context.ui_sys.ui();
-
-        // No border, no background.
-        let _btn_border_size = ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0));
-        let _btn_bg_color = ui.push_style_color(imgui::StyleColor::Button, [0.0; 4]);
-
-        // Make hover / active effects semi-transparent.
-        let mut btn_hovered_color = ui.style_color(imgui::StyleColor::ButtonHovered);
-        btn_hovered_color[3] = 0.5;
-
-        let mut btn_active_color = ui.style_color(imgui::StyleColor::ButtonActive);
-        btn_active_color[3] = 0.5;
-
-        let _btn_hovered = ui.push_style_color(imgui::StyleColor::ButtonHovered, btn_hovered_color);
-        let _btn_active = ui.push_style_color(imgui::StyleColor::ButtonActive, btn_active_color);
-
-        ui.set_cursor_pos([10.0, 5.0]);
-        ui.text("Map");
-
-        // Close widget button:
-        ui.set_cursor_pos([context.widget().window_rect.size().x - 30.0, 5.0]);
-        let pressed = ui.button("X");
-        let hovered = ui.is_item_hovered();
-
-        if pressed {
-            context.minimap.widget.is_open = false;
-
-            if self.button_sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
-                sound::play(context.sound_sys, UiSoundKey::ButtonPressed);
-            }
+                    // Optional extra debug drawing:
+                    custom_draw_fn(context);
+                });
+        } else {
+            // Display the open minimap button instead:
+            self.open_button_menu.as_mut().unwrap().draw(context);
         }
 
-        if hovered {
-            // Play sound on transition to hovered state.
-            if self.button_sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered)
-                && !self.open_or_close_button_hovered && !pressed
-            {
-                sound::play(context.sound_sys, UiSoundKey::ButtonHovered);
-            }
-
-            ui::custom_tooltip(
-                context.ui_sys,
-                self.widget_font_scale,
-                self.custom_background(context),
-                || ui.text("Close"));
-        }
-
-        self.open_or_close_button_hovered = hovered;
+        render_ctx.widget_mut().is_open = self.is_minimap_menu_open();
     }
 
-    fn window_flags(&self) -> imgui::WindowFlags {
-        let mut flags =
-            imgui::WindowFlags::ALWAYS_AUTO_RESIZE
-            | imgui::WindowFlags::NO_RESIZE
-            | imgui::WindowFlags::NO_DECORATION
-            | imgui::WindowFlags::NO_SCROLLBAR
-            | imgui::WindowFlags::NO_MOVE
-            | imgui::WindowFlags::NO_COLLAPSE;
-    
-        if self.widget_custom_background.is_some() {
-            flags |= imgui::WindowFlags::NO_BACKGROUND;
-        }
-
-        flags
-    }
-
-    fn custom_background(&self, context: &mut MinimapRenderContext) -> Option<UiTextureHandle> {
-        self.widget_custom_background.map(|tex_handle| context.ui_sys.to_ui_texture(tex_handle))
-    }
-
-    fn draw_minimap(&mut self, context: &mut MinimapRenderContext) {
-        self.draw_custom_background(context);
+    fn draw_minimap(&mut self, context: &mut UiWidgetContext) {
         self.draw_minimap_texture_rect(context);
         self.draw_camera_overlay_rect(context);
     }
 
-    fn draw_custom_background(&mut self, context: &mut MinimapRenderContext) {
-        if let Some(background_texture_handle) = self.custom_background(context) {
-            let ui = context.ui_sys.ui();
-            let draw_list = ui.get_window_draw_list();
-
-            let window_rect = Rect::from_pos_and_size(
-                Vec2::from_array(ui.window_pos()),
-                Vec2::from_array(ui.window_size())
-            );
-
-            draw_list.add_image(background_texture_handle,
-                                window_rect.min.to_array(),
-                                window_rect.max.to_array())
-                                .build();
-        }
-    }
-
-    fn draw_minimap_texture_rect(&mut self, context: &mut MinimapRenderContext) {
+    fn draw_minimap_texture_rect(&mut self, context: &mut UiWidgetContext) {
         let draw_list = context.ui_sys.ui().get_window_draw_list();
-        let widget = context.widget();
+        let render_ctx = MinimapRenderContext::new(context);
+        let widget = render_ctx.widget();
 
         let draw_minimap_texture = || {
             let minimap_texture_handle =
-                context.ui_sys.to_ui_texture(context.texture());
+                context.ui_sys.to_ui_texture(render_ctx.texture());
 
             let (uv_min, uv_max) = widget.current_minimap_uv_window();
             let minimap_corners = widget.draw_data.corners();
@@ -1394,9 +1503,10 @@ impl BaseMinimapRenderer {
         }
     }
 
-    fn draw_camera_overlay_rect(&mut self, context: &mut MinimapRenderContext) {
+    fn draw_camera_overlay_rect(&mut self, context: &mut UiWidgetContext) {
         let draw_list = context.ui_sys.ui().get_window_draw_list();
-        let widget = context.widget();
+        let render_ctx = MinimapRenderContext::new(context);
+        let widget = render_ctx.widget();
 
         let clip_rect = widget.draw_data.clip_rect();
         let camera_rect = widget.camera_rect;
@@ -1413,14 +1523,16 @@ impl BaseMinimapRenderer {
                            .build();
     }
 
-    fn draw_icons(&mut self, context: &mut MinimapRenderContext) {
-        let icons = context.icons();
+    fn draw_icons(&mut self, context: &mut UiWidgetContext) {
+        let render_ctx = MinimapRenderContext::new(context);
+
+        let icons = render_ctx.icons();
         if icons.is_empty() {
             return;
         }
 
         let draw_list = context.ui_sys.ui().get_window_draw_list();
-        let widget = context.widget();
+        let widget = render_ctx.widget();
         let clip_rect = widget.draw_data.clip_rect();
 
         let draw_all_icons = || {
@@ -1479,22 +1591,21 @@ pub struct InGameUiMinimapRenderer {
 }
 
 impl MinimapRenderer for InGameUiMinimapRenderer {
-    fn draw(&mut self, context: &mut MinimapRenderContext) {
-        self.base_renderer.draw(context);
+    fn draw(&mut self, context: &mut UiWidgetContext) {
+        self.base_renderer.draw(context, |_| {});
     }
 }
 
 impl InGameUiMinimapRenderer {
     const WIDGET_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 
-    pub fn new(context: &mut UiWidgetContext) -> Self {
-        let background_texture = context.load_texture("misc/square_page_bg.png");
-
+    pub fn new(_context: &mut UiWidgetContext) -> Self {
         Self {
             base_renderer: BaseMinimapRenderer::new(
-                context,
+                UiButtonSoundsEnabled::Pressed,
                 Self::WIDGET_FONT_SCALE,
-                Some(background_texture)
+                Some("misc/square_page_bg.png"),
+                false
             )
         }
     }
@@ -1504,92 +1615,52 @@ impl InGameUiMinimapRenderer {
 // DevUiMinimapRenderer
 // ----------------------------------------------
 
-// Render minimap with debug controls.
+static SHOW_MINIMAP_DEBUG_CONTROLS: UiStaticVar<bool> = UiStaticVar::new(false);
+
+// Render minimap with debug controls & debug drawing support.
 pub struct DevUiMinimapRenderer {
     base_renderer: BaseMinimapRenderer,
     enable_debug_draw: bool,
-    show_debug_controls: bool,
 }
 
 impl MinimapRenderer for DevUiMinimapRenderer {
-    fn draw(&mut self, context: &mut MinimapRenderContext) {
+    fn draw(&mut self, context: &mut UiWidgetContext) {
         // Draw base widget:
-        self.base_renderer.draw(context);
+        let this = RawPtr::from_ref(self);
+        self.base_renderer.draw(context, |context| {
+            // Extra debug drawing:
+            this.draw_debug_outline_rect(context);
+            this.draw_debug_camera_rect(context);
+        });
 
-        if context.widget().is_open {
-            // Extend minimap widget window:
-            context.ui_sys.ui()
-                .window("Minimap")
-                .build(|| {
-                    self.draw_debug_header_buttons(context);
-                    self.draw_debug_outline_rect(context);
-                    self.draw_debug_camera_rect(context);
-                });
-
-            // Debug controls panel:
-            self.draw_debug_controls(context);
-        }
+        // Debug controls panel:
+        self.draw_debug_controls(context);
     }
 }
 
 impl DevUiMinimapRenderer {
-    const WIDGET_FONT_SCALE: UiFontScale = UiFontScale::identity();
+    const WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(_context: &mut UiWidgetContext) -> Self {
         Self {
             base_renderer: BaseMinimapRenderer::new(
-                context,
+                UiButtonSoundsEnabled::empty(),
                 Self::WIDGET_FONT_SCALE,
-                None
+                None,
+                true
             ),
             enable_debug_draw: false,
-            show_debug_controls: false,
         }
     }
 
-    fn draw_debug_header_buttons(&mut self, context: &mut MinimapRenderContext) {
-        let ui = context.ui_sys.ui();
-
-        // No border, no background.
-        let _btn_border_size = ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0));
-        let _btn_bg_color = ui.push_style_color(imgui::StyleColor::Button, [0.0; 4]);
-
-        // Make hover / active effects semi-transparent.
-        let mut btn_hovered_color = ui.style_color(imgui::StyleColor::ButtonHovered);
-        btn_hovered_color[3] = 0.5;
-
-        let mut btn_active_color = ui.style_color(imgui::StyleColor::ButtonActive);
-        btn_active_color[3] = 0.5;
-
-        let _btn_hovered = ui.push_style_color(imgui::StyleColor::ButtonHovered, btn_hovered_color);
-        let _btn_active = ui.push_style_color(imgui::StyleColor::ButtonActive, btn_active_color);
-
-        let prev_cursor = ui.cursor_pos();
-
-        // Open/close Debug Controls:
-        ui.set_cursor_pos([context.widget().window_rect.size().x - 60.0, 5.0]);
-        if ui.button("D") {
-            self.show_debug_controls = !self.show_debug_controls;
-        }
-
-        if ui.is_item_hovered() {
-            ui::custom_tooltip(
-                context.ui_sys,
-                self.base_renderer.widget_font_scale,
-                None,
-                || ui.text("Debug"));
-        }
-
-        ui.set_cursor_pos(prev_cursor);
-    }
-
-    fn draw_debug_outline_rect(&self, context: &mut MinimapRenderContext) {
+    fn draw_debug_outline_rect(&self, context: &mut UiWidgetContext) {
         if !self.enable_debug_draw {
             return;
         }
 
         let draw_list  = context.ui_sys.ui().get_window_draw_list();
-        let widget     = context.widget();
+        let render_ctx = MinimapRenderContext::new(context);
+        let widget     = render_ctx.widget();
         let cursor_pos = widget.cursor_pos;
         let clip_rect  = widget.draw_data.clip_rect();
 
@@ -1621,13 +1692,14 @@ impl DevUiMinimapRenderer {
         }
     }
 
-    fn draw_debug_camera_rect(&self, context: &mut MinimapRenderContext) {
+    fn draw_debug_camera_rect(&self, context: &mut UiWidgetContext) {
         if !self.enable_debug_draw {
             return;
         }
 
         let draw_list = context.ui_sys.ui().get_window_draw_list();
-        let widget = context.widget();
+        let render_ctx = MinimapRenderContext::new(context);
+        let widget = render_ctx.widget();
 
         let camera_rect = widget.camera_rect;
         let camera_near_playable_area_limits = !widget.camera_rect_edges_near_playable_map_area_limits().is_empty();
@@ -1684,13 +1756,16 @@ impl DevUiMinimapRenderer {
         }
     }
 
-    fn draw_debug_controls(&mut self, context: &mut MinimapRenderContext) {
-        if !self.show_debug_controls {
+    fn draw_debug_controls(&mut self, context: &mut UiWidgetContext) {
+        let render_ctx = MinimapRenderContext::new(context);
+        let widget = render_ctx.widget();
+
+        if !*SHOW_MINIMAP_DEBUG_CONTROLS || !widget.is_open {
             return;
         }
 
-        let parent_window_size = context.widget().window_rect.size().to_array();
-        let parent_window_pos  = context.widget().window_rect.position().to_array();
+        let parent_window_size = widget.window_rect.size().to_array();
+        let parent_window_pos  = widget.window_rect.position().to_array();
 
         let window_pos = [
             parent_window_pos[0] + parent_window_size[0] + 10.0,
@@ -1703,12 +1778,12 @@ impl DevUiMinimapRenderer {
             | imgui::WindowFlags::NO_COLLAPSE;
 
         let ui = context.ui_sys.ui();
-        let mut show_debug_controls = self.show_debug_controls;
+        let mut show_debug_controls = *SHOW_MINIMAP_DEBUG_CONTROLS;
 
         let window_name =
-            format!("Minimap Debug | {}x{}",
-                    context.widget().map_size_in_cells.x as i32,
-                    context.widget().map_size_in_cells.y as i32);
+            format_fixed_string!(128, "Minimap Debug | {}x{}",
+                    widget.map_size_in_cells.x as i32,
+                    widget.map_size_in_cells.y as i32);
 
         ui.window(window_name)
             .opened(&mut show_debug_controls)
@@ -1720,20 +1795,19 @@ impl DevUiMinimapRenderer {
                 let camera_center_cell = coords::iso_to_cell_f32(camera_center_iso);
 
                 let camera_edges_near_playable_area_limits =
-                    context.widget().camera_rect_edges_near_playable_map_area_limits();
+                    widget.camera_rect_edges_near_playable_map_area_limits();
 
                 let visible_cells = MinimapWidget::calc_minimap_visible_cells(
-                    context.widget().map_size_in_cells,
-                    context.widget().transform.zoom());
+                    widget.map_size_in_cells,
+                    widget.transform.zoom());
 
-                let (uv_min, uv_max) = context.widget().current_minimap_uv_window();
+                let (uv_min, uv_max) = widget.current_minimap_uv_window();
+                let widget_mut = render_ctx.widget_mut();
 
                 if ui.small_button("Reset") {
                     context.camera.center();
-                    context.widget_mut().transform.reset();
+                    widget_mut.transform.reset();
                 }
-
-                let widget = context.widget_mut();
 
                 ui.same_line();
                 ui.checkbox("Debug Draw", &mut self.enable_debug_draw);
@@ -1741,43 +1815,43 @@ impl DevUiMinimapRenderer {
                 ui.checkbox("Clipped", &mut self.base_renderer.apply_widget_clip_rect);
 
                 // newline
-                ui.checkbox("Auto Scroll", &mut widget.auto_scroll);
+                ui.checkbox("Auto Scroll", &mut widget_mut.auto_scroll);
                 ui.same_line();
-                ui.checkbox("Auto Zoom", &mut widget.auto_zoom);
+                ui.checkbox("Auto Zoom", &mut widget_mut.auto_zoom);
 
-                ui.input_float("Scroll Speed", &mut widget.scroll_speed_px_per_sec)
+                ui.input_float("Scroll Speed", &mut widget_mut.scroll_speed_px_per_sec)
                     .display_format("%.2f")
                     .step(1.0)
                     .build();
 
-                ui.input_float("Scroll X", &mut widget.transform.offsets.x)
+                ui.input_float("Scroll X", &mut widget_mut.transform.offsets.x)
                     .display_format("%.2f")
                     .step(1.0)
                     .build();
 
-                ui.input_float("Scroll Y", &mut widget.transform.offsets.y)
+                ui.input_float("Scroll Y", &mut widget_mut.transform.offsets.y)
                     .display_format("%.2f")
                     .step(1.0)
                     .build();
 
-                if ui.input_float("Zoom", &mut widget.transform.scale)
+                if ui.input_float("Zoom", &mut widget_mut.transform.scale)
                     .display_format("%.2f")
                     .step(MinimapTransform::ZOOM_STEP)
                     .build()
                 {
-                    widget.transform.scale =
-                        widget.transform.scale.clamp(
+                    widget_mut.transform.scale =
+                        widget_mut.transform.scale.clamp(
                             MinimapTransform::ZOOM_MIN,
                             MinimapTransform::ZOOM_MAX);
                 }
 
                 ui.separator();
 
-                ui.text(format!("UV Window          : {}", uv_max - uv_min));
-                ui.text(format!("UV Window Min/Max  : {} / {}", uv_min, uv_max));
-                ui.text(format!("Visible Cells      : {}", visible_cells));
-                ui.text(format!("Camera Center Iso  : {}", camera_center_iso.0));
-                ui.text(format!("Camera Center Cell : {}", camera_center_cell.0));
+                ui.text(format_fixed_string!(128, "UV Window          : {}", uv_max - uv_min));
+                ui.text(format_fixed_string!(128, "UV Window Min/Max  : {} / {}", uv_min, uv_max));
+                ui.text(format_fixed_string!(128, "Visible Cells      : {}", visible_cells));
+                ui.text(format_fixed_string!(128, "Camera Center Iso  : {}", camera_center_iso.0));
+                ui.text(format_fixed_string!(128, "Camera Center Cell : {}", camera_center_cell.0));
 
                 if camera_edges_near_playable_area_limits.is_empty() {
                     ui.text("Camera Edges Near Limit : None");
@@ -1788,6 +1862,6 @@ impl DevUiMinimapRenderer {
                 }
             });
 
-        self.show_debug_controls = show_debug_controls;
+        SHOW_MINIMAP_DEBUG_CONTROLS.set(show_debug_controls);
     }
 }
