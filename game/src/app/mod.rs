@@ -170,14 +170,14 @@ impl<'a> ApplicationBuilder<'a> {
         self
     }
 
-    pub fn build<AppBackendImpl>(&self) -> Box<AppBackendImpl>
+    pub fn build<AppBackendImpl>(&self) -> AppBackendImpl
         where AppBackendImpl: Application + ApplicationFactory + 'static
     {
-        Box::new(AppBackendImpl::new(self.window_title,
-                                     self.window_size,
-                                     self.window_mode,
-                                     self.resizable_window,
-                                     self.confine_cursor,
-                                     self.content_scale))
+        AppBackendImpl::new(self.window_title,
+                            self.window_size,
+                            self.window_mode,
+                            self.resizable_window,
+                            self.confine_cursor,
+                            self.content_scale)
     }
 }

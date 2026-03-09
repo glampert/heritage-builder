@@ -319,15 +319,13 @@ impl RenderSystemBuilder {
         self
     }
 
-    pub fn build<RenderSystemBackendImpl>(&self) -> Box<RenderSystemBackendImpl>
+    pub fn build<RenderSystemBackendImpl>(&self) -> RenderSystemBackendImpl
         where RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
     {
-        Box::new(RenderSystemBackendImpl::new(
-            self.viewport_size,
-            self.framebuffer_size,
-            self.clear_color,
-            self.texture_settings
-        ))
+        RenderSystemBackendImpl::new(self.viewport_size,
+                                     self.framebuffer_size,
+                                     self.clear_color,
+                                     self.texture_settings)
     }
 }
 

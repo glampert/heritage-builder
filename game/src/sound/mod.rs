@@ -26,7 +26,7 @@ use crate::{
     ui::{self, UiSystem, UiStaticVar},
     utils::{
         hash::{self, StringHash, PreHashedKeyMap},
-        Vec2, platform::paths, mem::RawPtr,
+        Vec2, platform::paths, mem::RcMut,
         fixed_string::format_fixed_string,
         coords::IsoPointF32,
     },
@@ -613,9 +613,12 @@ impl SoundSystemBackend {
             }
         };
 
+        // NOTE: Ambience Track is shared between AmbienceController and SpatialController.
+        let ambience_track_rc = RcMut::new(ambience_track);
+
         let sfx = SfxController::new(sfx_track, SoundKind::Sfx);
-        let ambience = AmbienceController::new(Box::new(ambience_track), SoundKind::Ambience);
-        let spatial = SpatialController::new(RawPtr::from_ref(&ambience.track), SoundKind::SpatialAmbience); // NOTE: Track shared with ambience.
+        let ambience = AmbienceController::new(ambience_track_rc.clone(), SoundKind::Ambience);
+        let spatial = SpatialController::new(ambience_track_rc, SoundKind::SpatialAmbience);
         let music = MusicController::new(music_track, SoundKind::Music);
         let narration = NarrationController::new(narration_track, SoundKind::Narration);
 
@@ -1061,13 +1064,7 @@ impl AsTrackHandle for TrackHandle {
     }
 }
 
-impl AsTrackHandle for Box<TrackHandle> {
-    fn as_handle_mut(&mut self) -> &mut TrackHandle {
-        self.as_mut()
-    }
-}
-
-impl AsTrackHandle for RawPtr<TrackHandle> {
+impl AsTrackHandle for RcMut<TrackHandle> {
     fn as_handle_mut(&mut self) -> &mut TrackHandle {
         self.as_mut()
     }
@@ -1211,7 +1208,7 @@ type SfxController = SoundController<
 type AmbienceController = SoundController<
     false,
     false,
-    Box<TrackHandle>,
+    RcMut<TrackHandle>,
     StaticSoundInstance,
     StaticSoundAsset,
     StaticSoundHandle
@@ -1222,7 +1219,7 @@ type AmbienceController = SoundController<
 type SpatialController = SoundController<
     false,
     true,
-    RawPtr<TrackHandle>,
+    RcMut<TrackHandle>,
     SpatialSoundInstance,
     StaticSoundAsset,
     StaticSoundHandle

@@ -24,7 +24,7 @@ use crate::{
         TileMap, camera::Camera,
     },
     utils::{
-        coords::CellRange, mem,
+        coords::CellRange, mem::{self, RcMut},
         Color, Rect, RectTexCoords, Vec2,
     },
 };
@@ -90,9 +90,9 @@ pub struct EngineBackend<AppBackendImpl,
                          InputSystemBackendImpl,
                          RenderSystemBackendImpl>
 {
-    app: Box<AppBackendImpl>,
+    app: RcMut<AppBackendImpl>,
 
-    render_system: Box<RenderSystemBackendImpl>,
+    render_system: RcMut<RenderSystemBackendImpl>,
     render_stats: RenderStats,
 
     tile_map_renderer: TileMapRenderer,
@@ -120,28 +120,32 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
         log::set_level(configs.log_level);
         log::info!(log::channel!("engine"), "--- Engine Initialization ---");
 
-        let app: Box<AppBackendImpl> =
-            ApplicationBuilder::new().window_title(&configs.window_title)
-                                     .window_size(configs.window_size)
-                                     .window_mode(configs.window_mode)
-                                     .resizable_window(configs.resizable_window)
-                                     .confine_cursor_to_window(configs.confine_cursor_to_window)
-                                     .content_scale(configs.content_scale)
-                                     .build();
+        let app: RcMut<AppBackendImpl> = RcMut::new(
+            ApplicationBuilder::new()
+                .window_title(&configs.window_title)
+                .window_size(configs.window_size)
+                .window_mode(configs.window_mode)
+                .resizable_window(configs.resizable_window)
+                .confine_cursor_to_window(configs.confine_cursor_to_window)
+                .content_scale(configs.content_scale)
+                .build()
+        );
 
         log::info!(log::channel!("engine"), "App instance initialized.");
 
-        let mut render_system: Box<RenderSystemBackendImpl> =
-            RenderSystemBuilder::new().viewport_size(app.window_size())
-                                      .framebuffer_size(app.framebuffer_size())
-                                      .clear_color(configs.window_background_color)
-                                      .texture_settings(configs.texture_settings)
-                                      .build();
+        let mut render_system: RcMut<RenderSystemBackendImpl> = RcMut::new(
+            RenderSystemBuilder::new()
+                .viewport_size(app.window_size())
+                .framebuffer_size(app.framebuffer_size())
+                .clear_color(configs.window_background_color)
+                .texture_settings(configs.texture_settings)
+                .build()
+        );
 
         log::info!(log::channel!("engine"), "RenderSystem initialized.");
 
         let ui_system  = UiSystem::new(&mut *render_system);
-        let debug_draw = DebugDrawBackend::new(&mut *render_system);
+        let debug_draw = DebugDrawBackend::new(render_system.clone());
 
         log::info!(log::channel!("engine"), "Debug UI initialized.");
         log::info!(log::channel!("engine"), "Window Size: {}", app.window_size());
@@ -371,14 +375,14 @@ pub trait DebugDraw {
 // ----------------------------------------------
 
 struct DebugDrawBackend<RenderSystemBackendImpl> {
-    render_system: mem::RawPtr<RenderSystemBackendImpl>,
+    render_system: RcMut<RenderSystemBackendImpl>,
 }
 
 impl<RenderSystemBackendImpl> DebugDrawBackend<RenderSystemBackendImpl>
     where RenderSystemBackendImpl: RenderSystem
 {
-    fn new(render_system: &mut RenderSystemBackendImpl) -> Self {
-        Self { render_system: mem::RawPtr::from_ref(render_system) }
+    fn new(render_system: RcMut<RenderSystemBackendImpl>) -> Self {
+        Self { render_system }
     }
 }
 
@@ -387,7 +391,7 @@ impl<RenderSystemBackendImpl> DebugDraw for DebugDrawBackend<RenderSystemBackend
 {
     #[inline]
     fn texture_cache(&self) -> &mut dyn TextureCache {
-        self.render_system.mut_ref_cast().texture_cache_mut()
+        mem::mut_ref_cast(&self.render_system).texture_cache_mut()
     }
 
     #[inline]
