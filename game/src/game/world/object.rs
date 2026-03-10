@@ -10,6 +10,15 @@ use serde::{
 
 use super::stats::WorldStats;
 use crate::{
+    log,
+    ui::UiSystem,
+    save::PostLoadContext,
+    utils::{coords::{Cell, CellRange, WorldToScreenTransform}},
+    tile::{
+        Tile, TileKind, TileFlags, TileMapLayerKind,
+        sets::{TileDef, PresetTiles},
+        placement::{self, TilePlacementErr, TileClearingErr, Placement},
+    },
     game::{
         cheats,
         constants::*,
@@ -19,11 +28,6 @@ use crate::{
         unit::{config::UnitConfigKey, Unit},
         prop::Prop,
     },
-    log,
-    ui::UiSystem,
-    save::PostLoadContext,
-    tile::{sets::{TileDef, PresetTiles}, Tile, TileKind, TileFlags, TileMapLayerKind},
-    utils::{coords::{Cell, CellRange, WorldToScreenTransform}},
 };
 
 // ----------------------------------------------
@@ -498,7 +502,7 @@ pub enum SpawnerResult<'world> {
     Unit(&'world mut Unit),
     Prop(&'world mut Prop),
     Tile(&'world mut Tile),
-    Err(String),
+    Err(TilePlacementErr), // Error message and optional obstructing tile, if any.
 }
 
 impl SpawnerResult<'_> {
@@ -609,9 +613,9 @@ impl<'world> Spawner<'world> {
     pub fn try_spawn_building_with_tile_def(&self,
                                             building_base_cell: Cell,
                                             building_tile_def: &'static TileDef)
-                                            -> Result<&'world mut Building, String> {
+                                            -> Result<&'world mut Building, TilePlacementErr> {
         if !self.can_afford_tile(building_tile_def) {
-            return Err(cost_error(building_tile_def));
+            return cost_error(building_tile_def);
         }
 
         let result =
@@ -646,9 +650,9 @@ impl<'world> Spawner<'world> {
     pub fn try_spawn_unit_with_tile_def(&self,
                                         unit_origin: Cell,
                                         unit_tile_def: &'static TileDef)
-                                        -> Result<&'world mut Unit, String> {
+                                        -> Result<&'world mut Unit, TilePlacementErr> {
         if !self.can_afford_tile(unit_tile_def) {
-            return Err(cost_error(unit_tile_def));
+            return cost_error(unit_tile_def);
         }
 
         let result =
@@ -664,7 +668,7 @@ impl<'world> Spawner<'world> {
     pub fn try_spawn_unit_with_config(&self,
                                       unit_origin: Cell,
                                       unit_config_key: UnitConfigKey)
-                                      -> Result<&'world mut Unit, String> {
+                                      -> Result<&'world mut Unit, TilePlacementErr> {
         // NOTE: No affordability check needed here. This is only
         // used by dynamically spawned units, which have no cost.
 
@@ -690,9 +694,9 @@ impl<'world> Spawner<'world> {
     pub fn try_spawn_prop_with_tile_def(&self,
                                         prop_base_cell: Cell,
                                         prop_tile_def: &'static TileDef)
-                                        -> Result<&'world mut Prop, String> {
+                                        -> Result<&'world mut Prop, TilePlacementErr> {
         if !self.can_afford_tile(prop_tile_def) {
-            return Err(cost_error(prop_tile_def));
+            return cost_error(prop_tile_def);
         }
 
         let result =
@@ -747,9 +751,9 @@ impl<'world> Spawner<'world> {
     fn try_place_tile_with_def(&self,
                                target_cell: Cell,
                                tile_def: &'static TileDef)
-                               -> Result<&mut Tile, String> {
+                               -> Result<&mut Tile, TilePlacementErr> {
         if !self.can_afford_tile(tile_def) {
-            return Err(cost_error(tile_def));
+            return cost_error(tile_def);
         }
 
         let prev_tile_def = self.query
@@ -782,15 +786,15 @@ impl<'world> Spawner<'world> {
 }
 
 #[cold]
-fn cost_error(tile_def: &'static TileDef) -> String {
-    format!("Cannot afford tile '{}'. Cost: {} gold", tile_def.name, tile_def.cost)
+fn cost_error<T>(tile_def: &'static TileDef) -> Result<T, TilePlacementErr> {
+    placement::err!(Placement::CannotAfford, "Cannot afford tile '{}'. Cost: {} gold", tile_def.name, tile_def.cost)
 }
 
 #[cold]
-fn despawn_error(what: &str, err: &str) {
+fn despawn_error(what: &str, err: &TileClearingErr) {
     if cfg!(debug_assertions) {
-        panic!("Despawn {what} Failed: {err}");
+        panic!("Despawn {what} Failed: [{}] {}", err.reason, err.message);
     } else {
-        log::error!(log::channel!("world"), "Despawn {what} Failed: {err}");
+        log::error!(log::channel!("world"), "Despawn {what} Failed: [{}] {}", err.reason, err.message);
     }
 }

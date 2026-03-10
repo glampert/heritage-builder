@@ -32,8 +32,8 @@ use crate::{
 #[derive(Default)]
 pub struct TilePaletteDevMenu {
     start_open: bool,
-    left_mouse_button_held: bool,
-    selection: TilePaletteSelection,
+    left_mouse_button_pressed: bool,
+    current_selection: TilePaletteSelection,
     selected_index: HashMap<TileKind, usize>, // For highlighting the selected button.
     clear_button_image: TextureHandle,
 }
@@ -42,9 +42,9 @@ impl TilePalette for TilePaletteDevMenu {
     fn on_mouse_button(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
-                self.left_mouse_button_held = true;
+                self.left_mouse_button_pressed = true;
             } else if action == InputAction::Release {
-                self.left_mouse_button_held = false;
+                self.left_mouse_button_pressed = false;
             }
             UiInputEvent::Handled
         } else {
@@ -52,16 +52,20 @@ impl TilePalette for TilePaletteDevMenu {
         }
     }
 
-    fn wants_to_place_or_clear_tile(&self) -> bool {
-        self.left_mouse_button_held && self.has_selection()
+    fn on_tile_placement_canceled(&mut self, _context: &mut GameMenusContext) {
+        self.reset_selection_internal();
+    }
+
+    fn clear_current_selection(&mut self, _context: &mut GameMenusContext) {
+        self.reset_selection_internal();
     }
 
     fn current_selection(&self) -> TilePaletteSelection {
-        self.selection
+        self.current_selection
     }
 
-    fn clear_selection(&mut self, _context: &mut GameMenusContext, _cancel_placement: bool) {
-        self.reset_selection_internal();
+    fn wants_to_place_or_clear_tile(&self) -> bool {
+        self.left_mouse_button_pressed && self.has_selection()
     }
 }
 
@@ -133,7 +137,7 @@ impl TilePaletteDevMenu {
 
                     if ui::image_button(ui_sys, &btn_params) {
                         self.reset_selection_internal();
-                        self.selection = TilePaletteSelection::Clear;
+                        self.current_selection = TilePaletteSelection::Clear;
                     }
                 }
 
@@ -265,7 +269,7 @@ impl TilePaletteDevMenu {
 
             if ui::image_button(ui_sys, &btn_params) {
                 self.reset_selection_internal();
-                self.selection = TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def));
+                self.current_selection = TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def));
                 self.selected_index.insert(tile_kind, tile_index);
             }
 
@@ -343,8 +347,8 @@ impl TilePaletteDevMenu {
     }
 
     fn reset_selection_internal(&mut self) {
-        self.left_mouse_button_held = false;
-        self.selection = TilePaletteSelection::None;
+        self.left_mouse_button_pressed = false;
+        self.current_selection = TilePaletteSelection::None;
         self.selected_index.clear();
     }
 }

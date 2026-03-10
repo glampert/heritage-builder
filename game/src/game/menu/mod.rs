@@ -35,8 +35,8 @@ use crate::{
     tile::{
         Tile, TileKind, TileMap, TileMapLayerKind, selection::TileSelection,
         sets::{TileSets, TileDef, TileDefHandle, PresetTiles},
-        rendering::TileMapRenderFlags, PlacementOp, camera::Camera,
-        water, road::{self, RoadSegment, RoadKind},
+        rendering::TileMapRenderFlags, placement::{TilePlacementOp, TilePlacementErrReason},
+        camera::Camera, water, road::{self, RoadSegment, RoadKind},
     },
 };
 
@@ -134,7 +134,7 @@ impl GameMenusContext<'_> {
                                                   self.camera.transform())
     }
 
-    fn update_selection(&mut self, placement_op: PlacementOp) {
+    fn update_selection(&mut self, placement_op: TilePlacementOp) {
         self.tile_map.update_selection(self.tile_selection,
                                        self.cursor_screen_pos,
                                        self.camera.transform(),
@@ -158,6 +158,16 @@ pub trait GameMenusSystem: Any + Save + Load {
     fn tile_palette(&mut self) -> Option<&mut dyn TilePalette>;
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector>;
 
+    #[inline]
+    fn placement(&mut self) -> &mut TilePlacement {
+        self.tile_placement().unwrap()
+    }
+
+    #[inline]
+    fn palette(&mut self) -> &mut dyn TilePalette {
+        self.tile_palette().unwrap()
+    }
+
     fn selected_render_flags(&self) -> TileMapRenderFlags {
         TileMapRenderFlags::DrawTerrainAndObjects
     }
@@ -169,35 +179,76 @@ pub trait GameMenusSystem: Any + Save + Load {
         }
 
         // Tile hovering and selection:
-        let selection = self.tile_palette().unwrap().current_selection();
-        let placement_op = self.tile_placement().unwrap().placement_operation(selection, context);
+        let selection = self.palette().current_selection();
+        let placement_op = self.placement().placement_operation(selection, context);
 
         context.update_selection(placement_op);
 
         // Incrementally build road segment (drag and draw segment):
-        let is_road_tile_selected = self.tile_palette().unwrap().is_road_tile_selected();
+        let is_road_tile_selected = self.palette().is_road_tile_selected();
         if is_road_tile_selected {
             if let Some((start, end)) = context.range_selection_cells() {
-                let road_kind = self.tile_palette().unwrap().selected_road_kind();
-                self.tile_placement().unwrap().update_road_segment(road_kind, start, end, context);
+                let road_kind = self.palette().selected_road_kind();
+                self.placement().update_road_segment(road_kind, start, end, context);
             }
         }
 
         // Place a regular (non-road) tile or clear a tile:
-        if !is_road_tile_selected && self.tile_palette().unwrap().wants_to_place_or_clear_tile() {
-            let placed_building_or_unit = {
-                match TilePlacement::try_place_or_clear_tile(selection, context) {
-                    PlaceOrClearResult::PlacedTile(tile_def) => {
-                        tile_def.is(TileKind::Building | TileKind::Unit)
+        if !is_road_tile_selected && self.palette().wants_to_place_or_clear_tile() {
+            enum PlacementResult {
+                ClearedTile,
+                PlacedTile,
+                PlacedBuildingOrUnit,
+                Failed {
+                    placement_attempt_tile_def: Option<&'static TileDef>,
+                    obstructing_tile_def: Option<&'static TileDef>,
+                },
+            }
+
+            let result = match TilePlacement::try_place_or_clear_tile(selection, context) {
+                PlaceOrClearResult::ClearedTile(_tile_def) => {
+                    PlacementResult::ClearedTile
+                }
+                PlaceOrClearResult::PlacedTile(tile_def) => {
+                    if tile_def.is(TileKind::Building | TileKind::Unit) {
+                        PlacementResult::PlacedBuildingOrUnit
+                    } else {
+                        PlacementResult::PlacedTile
                     }
-                    _ => false
+                }
+                PlaceOrClearResult::Failed { placement_attempt_tile_def, obstructing_tile_def } => {
+                    PlacementResult::Failed { placement_attempt_tile_def, obstructing_tile_def }
                 }
             };
 
-            // Exit tile placement mode if we've placed a building|unit.
-            if placed_building_or_unit {
-                self.tile_palette().unwrap().clear_selection(context, false);
-                context.clear_selection();
+            // Exit tile placement mode if we've placed a building|unit. Keep current selection otherwise.
+            match result {
+                PlacementResult::Failed { placement_attempt_tile_def, obstructing_tile_def } => {
+                    let mut fail_placement = true;
+
+                    // If attempting to place vacant lot over existing vacant lot, ignore.
+                    if let Some(tile_to_place) = placement_attempt_tile_def &&
+                       let Some(obstruction)   = obstructing_tile_def
+                    {
+                        if tile_to_place.is_vacant_lot() && obstruction.is_vacant_lot() {
+                            fail_placement = false;
+                        }
+                    }
+
+                    if fail_placement {
+                        self.palette().on_tile_placement_failed(context);
+                    }
+                }
+                PlacementResult::ClearedTile => {
+                    self.palette().on_tile_cleared(context);
+                }
+                PlacementResult::PlacedTile => {
+                    self.palette().on_tile_placed(context);
+                }
+                PlacementResult::PlacedBuildingOrUnit => {
+                    self.palette().on_tile_placed(context);
+                    self.palette().clear_current_selection(context);
+                }
             }
         }
     }
@@ -216,7 +267,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                 if action == InputAction::Press {
                     // [ESCAPE]: Clear current selection / close tile inspector.
                     if key == InputKey::Escape {
-                        self.tile_palette().unwrap().clear_selection(context, true);
+                        self.palette().on_tile_placement_canceled(context);
                         context.clear_selection();
                         if let Some(tile_inspector) = self.tile_inspector() {
                             tile_inspector.close(context);
@@ -241,14 +292,14 @@ pub trait GameMenusSystem: Any + Save + Load {
                 }
             }
             GameMenusInputArgs::Mouse { button, action, .. } => {
-                let is_road_tile_selected = self.tile_palette().unwrap().is_road_tile_selected();
-                let is_clear_selected = self.tile_palette().unwrap().current_selection().is_clear();
+                let is_road_tile_selected = self.palette().is_road_tile_selected();
+                let is_clear_selected = self.palette().current_selection().is_clear();
 
-                if !is_road_tile_selected && !is_clear_selected && self.tile_palette().unwrap().has_selection() {
-                    let input_event = self.tile_palette().unwrap().on_mouse_button(button, action);
+                if !is_road_tile_selected && !is_clear_selected && self.palette().has_selection() {
+                    let input_event = self.palette().on_mouse_button(button, action);
                     if input_event.not_handled() {
                         // Mouse button click other than [LEFT_BTN], clear selection state.
-                        self.tile_palette().unwrap().clear_selection(context, true);
+                        self.palette().on_tile_placement_canceled(context);
                         context.clear_selection();
                     }
                     return input_event;
@@ -258,7 +309,12 @@ pub trait GameMenusSystem: Any + Save + Load {
                     // Handle road placement (drag and draw segment).
                     if is_road_tile_selected {
                         // Place road segment if valid & we can afford it.
-                        self.tile_placement().unwrap().try_place_road_segment(context);
+                        let result = self.placement().try_place_road_segment(context);
+                        match result {
+                            PlaceRoadSegmentResult::Placed => self.palette().on_road_segment_placed(context),
+                            PlaceRoadSegmentResult::Failed => self.palette().on_tile_placement_failed(context),
+                            PlaceRoadSegmentResult::Empty  => {},
+                        }
                     } else if is_clear_selected && !context.tile_selection.cells().is_empty() {
                         // Clear batch of selected tiles:
                         let query = context.new_query();
@@ -283,6 +339,8 @@ pub trait GameMenusSystem: Any + Save + Load {
                         }
 
                         if !clearable_cells.is_empty() {
+                            let mut cleared_any = false;
+
                             undo_redo::record(EditAction::ClearingTiles,
                                               clearable_cells.iter(),
                                               layers,
@@ -292,15 +350,19 @@ pub trait GameMenusSystem: Any + Save + Load {
                             for (&cell, _) in clearable_cells.iter() {
                                 if layers.intersects(EditedLayer::Objects) {
                                     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                                        TilePlacement::clear(&query, tile, false, false);
+                                        cleared_any |= TilePlacement::clear(&query, tile, false, false).is_ok();
                                     }
                                 }
 
                                 if layers.intersects(EditedLayer::Terrain) {
                                     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-                                        TilePlacement::clear(&query, tile, false, false);
+                                        cleared_any |= TilePlacement::clear(&query, tile, false, false).is_ok();
                                     }
                                 }
+                            }
+
+                            if cleared_any {
+                                self.palette().on_tile_cleared(context);
                             }
 
                             context.clear_selection();
@@ -308,7 +370,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                     }
                 } else {
                     // Mouse button click other than [LEFT_BTN], clear selection state.
-                    self.tile_palette().unwrap().clear_selection(context, true);
+                    self.palette().on_tile_placement_canceled(context);
                     context.clear_selection();
                 }
 
@@ -340,17 +402,16 @@ pub trait GameMenusSystem: Any + Save + Load {
 }
 
 // ----------------------------------------------
-// TilePlacement
+// TilePlacement & Helper Types
 // ----------------------------------------------
-
-pub struct TilePlacement {
-    current_road_segment: RoadSegment, // For road placement.
-}
 
 pub enum PlaceOrClearResult {
     PlacedTile(&'static TileDef),
     ClearedTile(&'static TileDef),
-    Failed,
+    Failed {
+        placement_attempt_tile_def: Option<&'static TileDef>, // Tile we've failed to place. None for a tile clear op.
+        obstructing_tile_def: Option<&'static TileDef>,       // Tile that prevented placement, if any.
+    },
 }
 
 impl PlaceOrClearResult {
@@ -361,8 +422,18 @@ impl PlaceOrClearResult {
 
     #[inline]
     pub fn failed(&self) -> bool {
-        matches!(self, Self::Failed)
+        matches!(self, Self::Failed { .. })
     }
+}
+
+enum PlaceRoadSegmentResult {
+    Placed,
+    Failed,
+    Empty,
+}
+
+pub struct TilePlacement {
+    current_road_segment: RoadSegment, // For road placement.
 }
 
 impl TilePlacement {
@@ -370,7 +441,7 @@ impl TilePlacement {
         Self { current_road_segment: RoadSegment::default() }
     }
 
-    fn try_place_road_segment(&mut self, context: &mut GameMenusContext) -> bool {
+    fn try_place_road_segment(&mut self, context: &mut GameMenusContext) -> PlaceRoadSegmentResult {
         let road_segment_is_empty = self.current_road_segment.is_empty();
 
         // Place road segment if valid & we can afford it:
@@ -407,7 +478,13 @@ impl TilePlacement {
             context.clear_selection();
         }
 
-        is_valid_road_placement
+        if road_segment_is_empty {
+            PlaceRoadSegmentResult::Empty
+        } else if is_valid_road_placement {
+            PlaceRoadSegmentResult::Placed
+        } else {
+            PlaceRoadSegmentResult::Failed
+        }
     }
 
     fn update_road_segment(&mut self, road_kind: RoadKind, start: Cell, end: Cell, context: &mut GameMenusContext) {
@@ -425,17 +502,17 @@ impl TilePlacement {
         road::mark_tiles(context.tile_map, &self.current_road_segment, true, is_valid_road_placement);
     }
 
-    fn placement_operation(&self, selection: TilePaletteSelection, context: &mut GameMenusContext) -> PlacementOp {
+    fn placement_operation(&self, selection: TilePaletteSelection, context: &mut GameMenusContext) -> TilePlacementOp {
         if let Some(tile_def) = selection.as_tile_def() {
             if Spawner::new(&context.new_query()).can_afford_tile(tile_def) {
-                PlacementOp::Place(tile_def)
+                TilePlacementOp::Place(tile_def)
             } else {
-                PlacementOp::Invalidate(tile_def)
+                TilePlacementOp::Invalidate(tile_def)
             }
         } else if selection.is_clear() {
-            PlacementOp::Clear
+            TilePlacementOp::Clear
         } else {
-            PlacementOp::None
+            TilePlacementOp::None
         }
     }
 
@@ -462,7 +539,8 @@ impl TilePlacement {
                 return Self::clear(&query, tile, false, true);
             }
         }
-        PlaceOrClearResult::Failed
+
+        PlaceOrClearResult::Failed { placement_attempt_tile_def: None, obstructing_tile_def: None }
     }
 
     pub fn place(query: &Query,
@@ -475,7 +553,6 @@ impl TilePlacement {
         spawner.set_subtract_tile_cost(subtract_tile_cost);
 
         let spawn_result = spawner.try_spawn_tile_with_def(target_cell, tile_def);
-
         match &spawn_result {
             SpawnerResult::Tile(tile) if tile.is(TileKind::Terrain) => {
                 // In case we've replaced a road tile with terrain.
@@ -487,6 +564,20 @@ impl TilePlacement {
                 // If we've placed a port/wharf, select the correct
                 // tile orientation in relation to the water.
                 water::update_port_wharf_orientation(query.tile_map(), target_cell);
+            }
+            SpawnerResult::Err(err) => {
+                let obstructing_tile_def = {
+                    if let TilePlacementErrReason::Obstruction(tile_def) = err.reason {
+                        Some(tile_def)
+                    } else {
+                        None
+                    }
+                };
+
+                return PlaceOrClearResult::Failed {
+                    placement_attempt_tile_def: Some(tile_def),
+                    obstructing_tile_def
+                }
             }
             _ => {}
         }
@@ -504,10 +595,11 @@ impl TilePlacement {
                                   query.tile_map(),
                                   query.world());
             }
-            PlaceOrClearResult::PlacedTile(tile_def)
-        } else {
-            PlaceOrClearResult::Failed
+            return PlaceOrClearResult::PlacedTile(tile_def);
         }
+
+        // SpawnerResult::Err is already handled in the match above.
+        unreachable!();
     }
 
     pub fn clear(query: &Query,
@@ -518,8 +610,8 @@ impl TilePlacement {
         let tile_def = tile.tile_def();
 
         let is_terrain = tile.is(TileKind::Terrain);
-        let is_road = tile_def.path_kind.is_road();
-        let is_vacant_lot = tile_def.path_kind.is_vacant_lot();
+        let is_road = tile_def.is_road();
+        let is_vacant_lot = tile_def.is_vacant_lot();
 
         // Cannot explicit remove terrain tiles except for roads and vacant lots.
         if !is_terrain || is_road || is_vacant_lot {
@@ -547,7 +639,7 @@ impl TilePlacement {
                 // Replace removed road tile with a regular terrain tile.
                 if let Some(terrain_tile_def) = PresetTiles::Grass.find_tile_def() {
                     if let SpawnerResult::Err(err) = spawner.try_spawn_tile_with_def(target_cell, terrain_tile_def) {
-                        log::error!("Failed to place tile '{}': {}", terrain_tile_def.name, err);
+                        log::error!("Failed to place tile '{}': {}", terrain_tile_def.name, err.message);
                     }
                 } else {
                     log::error!("Cannot find TileDef '{}' to replace removed tile!", PresetTiles::Grass);
@@ -562,15 +654,15 @@ impl TilePlacement {
             return PlaceOrClearResult::ClearedTile(tile_def);
         }
 
-        PlaceOrClearResult::Failed
+        PlaceOrClearResult::Failed { placement_attempt_tile_def: None, obstructing_tile_def: None }
     }
 
     fn can_clear(tile: &Tile) -> bool {
         let tile_def = tile.tile_def();
 
         let is_terrain = tile.is(TileKind::Terrain);
-        let is_road = tile_def.path_kind.is_road();
-        let is_vacant_lot = tile_def.path_kind.is_vacant_lot();
+        let is_road = tile_def.is_road();
+        let is_vacant_lot = tile_def.is_vacant_lot();
 
         !is_terrain || is_road || is_vacant_lot
     }
@@ -589,6 +681,10 @@ pub enum TilePaletteSelection {
 }
 
 impl TilePaletteSelection {
+    pub fn is_some(&self) -> bool {
+        !self.is_none()
+    }
+
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
@@ -622,22 +718,28 @@ impl TilePaletteSelection {
 
 pub trait TilePalette {
     fn on_mouse_button(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent;
-    fn wants_to_place_or_clear_tile(&self) -> bool;
 
+    fn on_tile_placed(&mut self, _context: &mut GameMenusContext) {}
+    fn on_tile_cleared(&mut self, _context: &mut GameMenusContext) {}
+    fn on_road_segment_placed(&mut self, _context: &mut GameMenusContext) {}
+    fn on_tile_placement_failed(&mut self, _context: &mut GameMenusContext) {}
+    fn on_tile_placement_canceled(&mut self, _context: &mut GameMenusContext);
+
+    fn clear_current_selection(&mut self, context: &mut GameMenusContext);
     fn current_selection(&self) -> TilePaletteSelection;
-    fn clear_selection(&mut self, context: &mut GameMenusContext, cancel_placement: bool);
+    fn wants_to_place_or_clear_tile(&self) -> bool;
 
     fn has_selection(&self) -> bool {
         !self.current_selection().is_none()
     }
 
     fn is_road_tile_selected(&self) -> bool {
-        self.current_selection().as_tile_def().is_some_and(|tile_def| tile_def.path_kind.is_road())
+        self.current_selection().as_tile_def().is_some_and(|tile_def| tile_def.is_road())
     }
 
     fn selected_road_kind(&self) -> RoadKind {
         if let Some(tile_def) = self.current_selection().as_tile_def() {
-            if tile_def.path_kind.is_road() {
+            if tile_def.is_road() {
                 if tile_def.hash == road::tile_name(road::RoadKind::Dirt).hash {
                     return road::RoadKind::Dirt;
                 } else if tile_def.hash == road::tile_name(road::RoadKind::Paved).hash {

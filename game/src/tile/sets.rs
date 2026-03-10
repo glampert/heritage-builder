@@ -610,6 +610,16 @@ impl TileDef {
     }
 
     #[inline]
+    pub fn is_vacant_lot(&self) -> bool {
+        self.path_kind.is_vacant_lot()
+    }
+
+    #[inline]
+    pub fn is_road(&self) -> bool {
+        self.path_kind.is_road()
+    }
+
+    #[inline]
     pub fn is_harvestable_prop(&self) -> bool {
         self.path_kind.is_harvestable_prop()
     }

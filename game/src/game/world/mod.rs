@@ -27,6 +27,7 @@ use crate::{
     tile::{
         sets::{TileDef, TileSets, OBJECTS_UNITS_CATEGORY},
         Tile, TileGameObjectHandle, TileKind, TileMap, TileMapLayerKind, TilePoolIndex,
+        placement::{self, TilePlacementErr, TileClearingErr, Placement, Clearing},
     },
     utils::coords::{Cell, CellRange, WorldToScreenTransform},
 };
@@ -193,7 +194,7 @@ impl World {
                                             query: &Query,
                                             tile_base_cell: Cell,
                                             tile_def: &'static TileDef)
-                                            -> Result<&mut Building, String> {
+                                            -> Result<&mut Building, TilePlacementErr> {
         debug_assert!(tile_base_cell.is_valid());
         debug_assert!(tile_def.is_valid());
         debug_assert!(tile_def.is(TileKind::Building));
@@ -223,14 +224,16 @@ impl World {
                         Ok(building)
                     },
                     Err(err) => {
-                        Err(format!("Failed to instantiate Building at cell {} with TileDef '{}': {err}",
-                                    tile_base_cell, tile_def.name))
+                        placement::err!(Placement::SpawnFailed,
+                                        "Failed to instantiate Building at cell {} with TileDef '{}': {err}",
+                                        tile_base_cell, tile_def.name)
                     }
                 }
             }
             Err(err) => {
-                Err(format!("Failed to place Building tile at cell {} with TileDef '{}': {}",
-                            tile_base_cell, tile_def.name, err))
+                placement::err_fwd!(err.reason,
+                                    "Failed to place Building tile at cell {} with TileDef '{}': {}",
+                                    tile_base_cell, tile_def.name, err.message)
             }
         }
     }
@@ -238,22 +241,23 @@ impl World {
     pub fn despawn_building(&mut self,
                             query: &Query,
                             building: &mut Building)
-                            -> Result<(), String> {
+                            -> Result<(), TileClearingErr> {
         let tile_base_cell = building.base_cell();
         debug_assert!(tile_base_cell.is_valid());
 
         let tile_map = query.tile_map();
 
         // Find and validate associated Tile:
-        let tile =
-            tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Building)
-                    .ok_or("Building should have an associated Tile in the TileMap!")?;
+        let tile = match tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Building) {
+            Some(tile) => tile,
+            None => return placement::err!(Clearing::DespawnFailed, "Building should have an associated Tile in the TileMap!"),
+        };
 
         let game_object_handle = tile.game_object_handle();
         if !game_object_handle.is_valid() {
-            return Err(format!("Building tile '{}' {} should have a valid TileGameObjectHandle!",
-                               tile.name(),
-                               tile_base_cell));
+            return placement::err!(Clearing::DespawnFailed,
+                                   "Building tile '{}' {} should have a valid TileGameObjectHandle!",
+                                   tile.name(), tile_base_cell);
         }
 
         // Remove the associated Tile:
@@ -275,7 +279,7 @@ impl World {
     pub fn despawn_building_at_cell(&mut self,
                                     query: &Query,
                                     tile_base_cell: Cell)
-                                    -> Result<(), String> {
+                                    -> Result<(), TileClearingErr> {
         debug_assert!(tile_base_cell.is_valid());
 
         let building = query.world()
@@ -449,7 +453,7 @@ impl World {
                                       query: &Query,
                                       unit_origin: Cell,
                                       unit_config: UnitConfigKey)
-                                      -> Result<&mut Unit, String> {
+                                      -> Result<&mut Unit, TilePlacementErr> {
         debug_assert!(unit_origin.is_valid());
 
         let config = UnitConfigs::get().find_config_by_key(unit_config);
@@ -476,12 +480,16 @@ impl World {
 
                     Ok(unit)
                 }
-                Err(err) => Err(format!("Failed to spawn Unit at cell {} with TileDef '{}': {}",
-                                        unit_origin, tile_def.name, err)),
+                Err(err) => {
+                    placement::err_fwd!(err.reason,
+                                        "Failed to spawn Unit at cell {} with TileDef '{}': {}",
+                                        unit_origin, tile_def.name, err.message)
+                }
             }
         } else {
-            Err(format!("Failed to spawn Unit at cell {} with config '{}': Cannot find TileDef '{}'!",
-                        unit_origin, unit_config, config.tile_def_name))
+            placement::err!(Placement::SpawnFailed,
+                            "Failed to spawn Unit at cell {} with config '{}': Cannot find TileDef '{}'!",
+                            unit_origin, unit_config, config.tile_def_name)
         }
     }
 
@@ -489,7 +497,7 @@ impl World {
                                         query: &Query,
                                         unit_origin: Cell,
                                         tile_def: &'static TileDef)
-                                        -> Result<&mut Unit, String> {
+                                        -> Result<&mut Unit, TilePlacementErr> {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(tile_def.is_valid());
         debug_assert!(tile_def.is(TileKind::Unit));
@@ -512,12 +520,15 @@ impl World {
 
                 Ok(unit)
             }
-            Err(err) => Err(format!("Failed to spawn Unit at cell {} with TileDef '{}': {}",
-                                    unit_origin, tile_def.name, err)),
+            Err(err) => {
+                placement::err_fwd!(err.reason,
+                                    "Failed to spawn Unit at cell {} with TileDef '{}': {}",
+                                    unit_origin, tile_def.name, err.message)
+            }
         }
     }
 
-    pub fn despawn_unit(&mut self, query: &Query, unit: &mut Unit) -> Result<(), String> {
+    pub fn despawn_unit(&mut self, query: &Query, unit: &mut Unit) -> Result<(), TileClearingErr> {
         debug_assert!(unit.is_spawned());
         let tile_map = query.tile_map();
 
@@ -527,8 +538,10 @@ impl World {
         let mut tiles = SmallVec::<[(TileGameObjectHandle, TilePoolIndex, Cell); 10]>::new();
 
         // Find and validate associated Tile:
-        let tile = tile_map.find_tile(tile_cell, TileMapLayerKind::Objects, TileKind::Unit)
-                           .ok_or("Unit should have an associated Tile in the TileMap!")?;
+        let tile = match tile_map.find_tile(tile_cell, TileMapLayerKind::Objects, TileKind::Unit) {
+            Some(tile) => tile,
+            None => return placement::err!(Clearing::DespawnFailed, "Unit should have an associated Tile in the TileMap!"),
+        };
 
         tiles.push((tile.game_object_handle(), tile.index(), tile.base_cell()));
 
@@ -542,9 +555,9 @@ impl World {
 
         for (game_object_handle, tile_index, cell) in &tiles {
             if !game_object_handle.is_valid() {
-                return Err(format!("Unit tile '{}' {} should have a valid TileGameObjectHandle!",
-                                   tile.name(),
-                                   tile_cell));
+                return placement::err!(Clearing::DespawnFailed,
+                                       "Unit tile '{}' {} should have a valid TileGameObjectHandle!",
+                                       tile.name(), tile_cell);
             }
 
             if game_object_handle.index() == unit.id().index()
@@ -565,46 +578,40 @@ impl World {
         }
 
         if cfg!(debug_assertions) {
-            log::error!("Failed to find tile for Unit '{}' @ {}, id: {}.",
-                        unit.name(),
-                        tile_cell,
-                        unit.id());
+            log::error!("Failed to find tile for Unit '{}' @ {}, id: {}.", unit.name(), tile_cell, unit.id());
             log::error!("--- Tiles @ {tile_cell} ---");
 
             for (game_object_handle, tile_index, cell) in &tiles {
                 let id = UnitId::new(game_object_handle.generation(), game_object_handle.index());
                 let unit = self.unit_spawn_pool.try_get_mut(id).unwrap();
-                log::error!(" * Unit '{}': {game_object_handle:?}, {tile_index:?}, {cell:?}",
-                            unit.name());
+                log::error!(" * Unit '{}': {game_object_handle:?}, {tile_index:?}, {cell:?}", unit.name());
             }
 
-            panic!("Failed to find tile for Unit '{}' @ {}, id: {}.",
-                   unit.name(),
-                   tile_cell,
-                   unit.id());
+            panic!("Failed to find tile for Unit '{}' @ {}, id: {}.", unit.name(), tile_cell, unit.id());
         } else {
-            Err(format!("Failed to find tile for Unit '{}' @ {}, id: {}.",
-                        unit.name(),
-                        tile_cell,
-                        unit.id()))
+            placement::err!(Clearing::DespawnFailed,
+                            "Failed to find tile for Unit '{}' @ {}, id: {}.",
+                            unit.name(), tile_cell, unit.id())
         }
     }
 
     pub fn despawn_unit_at_cell(&mut self,
                                 query: &Query,
                                 tile_base_cell: Cell)
-                                -> Result<(), String> {
+                                -> Result<(), TileClearingErr> {
         debug_assert!(tile_base_cell.is_valid());
 
         let mut units = SmallVec::<[&mut Unit; 10]>::new();
 
-        let tile = query.tile_map()
-                        .find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Unit)
-                        .ok_or("Tile cell does not contain a Unit!")?;
+        let tile = match query.tile_map().find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Unit) {
+            Some(tile) => tile,
+            None => return placement::err!(Clearing::DespawnFailed, "Tile cell does not contain a Unit!"),
+        };
 
-        let unit = query.world()
-                        .find_unit_for_tile_mut(tile)
-                        .ok_or("Unit tile does not have a valid TileGameObjectHandle!")?;
+        let unit = match query.world().find_unit_for_tile_mut(tile) {
+            Some(unit) => unit,
+            None => return placement::err!(Clearing::DespawnFailed, "Unit tile does not have a valid TileGameObjectHandle!"),
+        };
 
         units.push(unit);
 
@@ -741,7 +748,7 @@ impl World {
                                         query: &Query,
                                         prop_base_cell: Cell,
                                         tile_def: &'static TileDef)
-                                        -> Result<&mut Prop, String> {
+                                        -> Result<&mut Prop, TilePlacementErr> {
         debug_assert!(prop_base_cell.is_valid());
         debug_assert!(tile_def.is_valid());
         debug_assert!(tile_def.is(TileKind::Prop));
@@ -764,30 +771,34 @@ impl World {
 
                 Ok(prop)
             }
-            Err(err) => Err(format!("Failed to spawn Prop at cell {} with TileDef '{}': {}",
-                                    prop_base_cell, tile_def.name, err)),
+            Err(err) => {
+                placement::err_fwd!(err.reason,
+                                    "Failed to spawn Prop at cell {} with TileDef '{}': {}",
+                                    prop_base_cell, tile_def.name, err.message)
+            }
         }
     }
 
     pub fn despawn_prop(&mut self,
                         query: &Query,
                         prop: &mut Prop)
-                        -> Result<(), String> {
+                        -> Result<(), TileClearingErr> {
         let tile_base_cell = prop.cell();
         debug_assert!(tile_base_cell.is_valid());
 
         let tile_map = query.tile_map();
 
         // Find and validate associated Tile:
-        let tile =
-            tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Prop)
-                    .ok_or("Prop should have an associated Tile in the TileMap!")?;
+        let tile = match tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Prop) {
+            Some(tile) => tile,
+            None => return placement::err!(Clearing::DespawnFailed, "Prop should have an associated Tile in the TileMap!"),
+        };
 
         let game_object_handle = tile.game_object_handle();
         if !game_object_handle.is_valid() {
-            return Err(format!("Prop tile '{}' {} should have a valid TileGameObjectHandle!",
-                               tile.name(),
-                               tile_base_cell));
+            return placement::err!(Clearing::DespawnFailed,
+                                   "Prop tile '{}' {} should have a valid TileGameObjectHandle!",
+                                   tile.name(), tile_base_cell);
         }
 
         debug_assert!(game_object_handle.index() == prop.id().index());
@@ -805,7 +816,7 @@ impl World {
     pub fn despawn_prop_at_cell(&mut self,
                                 query: &Query,
                                 tile_base_cell: Cell)
-                                -> Result<(), String> {
+                                -> Result<(), TileClearingErr> {
         debug_assert!(tile_base_cell.is_valid());
 
         let prop = query.world()

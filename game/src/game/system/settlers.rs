@@ -232,7 +232,7 @@ impl Settler {
                     }
                     Err(err) => {
                         log::error!(log::channel!("unit"),
-                                    "SettlersSpawnSystem: Failed to place House Level 0: {err}");
+                                    "SettlersSpawnSystem: Failed to place House Level 0: {}", err.message);
                     }
                 }
             } else {

@@ -26,7 +26,7 @@ use crate::{
     save::PostLoadContext,
     pathfind::{NodeKind as PathNodeKind, Path},
     tile::{
-        self, Tile, TileKind, TileMap,
+        self, Tile, TileKind, TileMap, placement::TilePlacementErr,
         TileMapLayerKind, TilePoolIndex, TileDepthSortOverride,
     },
     utils::{
@@ -488,7 +488,7 @@ impl Unit {
                                      unit_origin: Cell,
                                      unit_config: UnitConfigKey,
                                      task: Task)
-                                     -> Result<&mut Unit, String>
+                                     -> Result<&mut Unit, TilePlacementErr>
         where Task: UnitTask,
               UnitTaskArchetype: From<Task>
     {
@@ -675,7 +675,7 @@ pub trait UnitTaskHelper {
                 true
             }
             Err(err) => {
-                log::error!(log::channel!("unit"), "{}: {}", spawner_name, err);
+                log::error!(log::channel!("unit"), "{}: {}", spawner_name, err.message);
                 self.on_unit_spawn(UnitId::invalid(), true);
                 false
             }

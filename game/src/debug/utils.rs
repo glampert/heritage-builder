@@ -596,7 +596,7 @@ mod preset_maps {
                 let tile_id = preset.terrain_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(TileMapLayerKind::Terrain, tile_id) {
                     let tile = tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Terrain, tile_def)
-                        .expect("Failed to place Terrain tile!");
+                        .unwrap_or_else(|err| panic!("Failed to place Terrain tile: {}", err.message));
 
                     // Set a random terrain tile variation:
                     if tile.has_flags(TileFlags::RandomizePlacement) {
@@ -612,7 +612,7 @@ mod preset_maps {
                 let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(TileMapLayerKind::Objects, tile_id) {
                     if let Err(err) = world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def) {
-                        log::error!(log::channel!("debug"), "Preset: Failed to place Building tile! {err}");
+                        log::error!(log::channel!("debug"), "Preset: Failed to place Building tile: {}", err.message);
                     }
                 }
             }

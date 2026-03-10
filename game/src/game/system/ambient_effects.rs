@@ -125,7 +125,7 @@ fn spawn_bird(query: &Query, flight_path: BirdFlightPath) {
             unit.set_depth_sort_override(query, TileDepthSortOverride::Topmost);
         }
         Err(err) => {
-            log::warning!(log::channel!("ambient_effects"), "Failed to spawn bird: {err}");
+            log::warning!(log::channel!("ambient_effects"), "Failed to spawn bird: {}", err.message);
         }
     }
 }

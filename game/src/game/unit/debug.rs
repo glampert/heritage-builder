@@ -608,7 +608,7 @@ fn unit_debug_settle_task_post_despawn(query: &Query,
                     }
                 }
                 Err(err) => {
-                    log::error!(log::channel!("unit"), "Failed to place House Level 0: {err}")
+                    log::error!(log::channel!("unit"), "Failed to place House Level 0: {}", err.message)
                 }
             }
         } else {

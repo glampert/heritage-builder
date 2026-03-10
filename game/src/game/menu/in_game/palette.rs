@@ -422,20 +422,49 @@ impl TilePalette for TilePaletteMenu {
         }
     }
 
-    fn wants_to_place_or_clear_tile(&self) -> bool {
-        self.left_mouse_button_pressed && self.has_selection()
+    fn on_tile_placed(&mut self, context: &mut GameMenusContext) {
+        if self.current_selection.is_some() {
+            sound::play(context.engine.sound_system(), UiSoundKey::TilePlaced);
+        }
+    }
+
+    fn on_tile_cleared(&mut self, context: &mut GameMenusContext) {
+        if self.current_selection.is_some() {
+            sound::play(context.engine.sound_system(), UiSoundKey::TileCleared);
+        }
+    }
+
+    fn on_road_segment_placed(&mut self, context: &mut GameMenusContext) {
+        if self.current_selection.is_some() {
+            sound::play(context.engine.sound_system(), UiSoundKey::TilePlaced);
+        }
+    }
+
+    fn on_tile_placement_failed(&mut self, context: &mut GameMenusContext) {
+        if self.current_selection.is_some() {
+            sound::play(context.engine.sound_system(), UiSoundKey::TilePlacementFailed);
+        }
+    }
+
+    fn on_tile_placement_canceled(&mut self, context: &mut GameMenusContext) {
+        if self.current_selection.is_some() {
+            sound::play(context.engine.sound_system(), UiSoundKey::TilePlacementCanceled);
+        }
+
+        // NOTE: Play sound effect AND clear current selection.
+        self.clear_current_selection(context);
+    }
+
+    fn clear_current_selection(&mut self, context: &mut GameMenusContext) {
+        self.reset_selection_internal(&mut context.as_ui_widget_context());
     }
 
     fn current_selection(&self) -> TilePaletteSelection {
         self.current_selection
     }
 
-    fn clear_selection(&mut self, context: &mut GameMenusContext, cancel_placement: bool) {
-        if cancel_placement && !self.current_selection.is_none() {
-            sound::play(context.engine.sound_system(), UiSoundKey::TilePlacementCanceled);
-        }
-
-        self.reset_selection_internal(&mut context.as_ui_widget_context());
+    fn wants_to_place_or_clear_tile(&self) -> bool {
+        self.left_mouse_button_pressed && self.has_selection()
     }
 }
 

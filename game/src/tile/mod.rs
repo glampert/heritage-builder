@@ -11,9 +11,9 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumIter, EnumProperty, VariantNames, VariantArray};
 use std::{ops::{Index, IndexMut}, path::PathBuf};
 
-pub use placement::PlacementOp;
 use minimap::Minimap;
 use selection::TileSelection;
+use placement::{TilePlacementOp, TilePlacementErr, TileClearingErr, Placement, Clearing};
 use sets::{TileAnimSet, TileDef, SerializableTileDefHandle, TileSets, TileTexInfo, TileIconSprite};
 
 use crate::{
@@ -34,12 +34,13 @@ pub mod camera;
 pub mod minimap;
 pub mod rendering;
 pub mod selection;
+pub mod placement;
 pub mod sets;
 pub mod road;
 pub mod water;
 
+// Internal:
 mod atlas;
-mod placement;
 
 // ----------------------------------------------
 // Constants / Enums
@@ -2470,7 +2471,7 @@ impl TileMap {
     pub fn try_place_tile(&mut self,
                           target_cell: Cell,
                           tile_def_to_place: &'static TileDef)
-                          -> Result<&mut Tile, String> {
+                          -> Result<&mut Tile, TilePlacementErr> {
         self.try_place_tile_in_layer(target_cell,
                                      tile_def_to_place.layer_kind(), // Guess layer from TileDef.
                                      tile_def_to_place)
@@ -2481,15 +2482,15 @@ impl TileMap {
                                    target_cell: Cell,
                                    layer_kind: TileMapLayerKind,
                                    tile_def_to_place: &'static TileDef)
-                                   -> Result<&mut Tile, String> {
+                                   -> Result<&mut Tile, TilePlacementErr> {
         if self.layers.is_empty() {
-            return Err("Map has no layers".into());
+            return placement::err!(Placement::EmptyMap, "Map has no layers!");
         }
 
         // Prevent placing objects/props over non-walkable terrain tiles (water/roads, etc).
-        placement::is_placement_on_terrain_valid(self.layers(),
-                                                 target_cell,
-                                                 tile_def_to_place)?;
+        placement::internal::is_placement_on_terrain_valid(self.layers(),
+                                                           target_cell,
+                                                           tile_def_to_place)?;
 
         let mut minimap = mem::RawPtr::from_ref(&self.minimap);
 
@@ -2497,7 +2498,7 @@ impl TileMap {
         let layer = self.layer_mut(layer_kind);
         let prev_pool_capacity = layer.pool_capacity();
 
-        let result = placement::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
+        let result = placement::internal::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
             .map(|(tile, new_pool_capacity)| {
                 if let Some(callback) = tile_placed_callback {
                     let did_reallocate = new_pool_capacity != prev_pool_capacity;
@@ -2517,9 +2518,9 @@ impl TileMap {
     pub fn try_clear_tile_from_layer(&mut self,
                                      target_cell: Cell,
                                      layer_kind: TileMapLayerKind)
-                                     -> Result<(), String> {
+                                     -> Result<(), TileClearingErr> {
         if self.layers.is_empty() {
-            return Err("Map has no layers".into());
+            return placement::err!(Clearing::EmptyMap, "Map has no layers!");
         }
 
         if let Some(callback) = self.on_removing_tile_callback {
@@ -2529,7 +2530,7 @@ impl TileMap {
         }
 
         let result =
-            placement::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
+            placement::internal::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
 
         if let Ok(tile_def) = result {
             self.minimap.clear_tile(target_cell, tile_def);
@@ -2543,11 +2544,11 @@ impl TileMap {
                                               target_index: TilePoolIndex,
                                               target_cell: Cell,
                                               layer_kind: TileMapLayerKind)
-                                              -> Result<(), String> {
+                                              -> Result<(), TileClearingErr> {
         debug_assert!(target_index != INVALID_TILE_INDEX);
 
         if self.layers.is_empty() {
-            return Err("Map has no layers".into());
+            return placement::err!(Clearing::EmptyMap, "Map has no layers!");
         }
 
         if let Some(callback) = self.on_removing_tile_callback {
@@ -2558,9 +2559,9 @@ impl TileMap {
         }
 
         let result =
-            placement::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind),
-                                                          target_index,
-                                                          target_cell);
+            placement::internal::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind),
+                                                                    target_index,
+                                                                    target_cell);
 
         if let Ok(tile_def) = result {
             self.minimap.clear_tile(target_cell, tile_def);
@@ -2717,7 +2718,7 @@ impl TileMap {
                             selection: &mut TileSelection,
                             cursor_screen_pos: Vec2,
                             transform: WorldToScreenTransform,
-                            placement_op: PlacementOp) {
+                            placement_op: TilePlacementOp) {
         if self.layers.is_empty() {
             return;
         }

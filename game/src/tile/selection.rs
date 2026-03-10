@@ -1,7 +1,7 @@
 use smallvec::SmallVec;
 
 use super::{
-    placement::{self, PlacementOp},
+    placement::{self, TilePlacementOp},
     rendering::SELECTION_RECT_COLOR,
     Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerMutRefs,
 };
@@ -113,7 +113,7 @@ impl TileSelection {
                   map_size_in_cells: Size,
                   cursor_screen_pos: Vec2,
                   transform: WorldToScreenTransform,
-                  placement_op: PlacementOp) {
+                  placement_op: TilePlacementOp) {
         if self.left_mouse_button_held {
             // Keep updating the selection rect while left mouse button is held.
             self.rect = Rect::from_extents(self.cursor_drag_start, cursor_screen_pos);
@@ -122,7 +122,7 @@ impl TileSelection {
         }
 
         // Only using range selection for batch tile clearing/removal.
-        self.is_clearing = matches!(placement_op, PlacementOp::Clear);
+        self.is_clearing = matches!(placement_op, TilePlacementOp::Clear);
 
         if self.is_selecting_range() && self.is_clearing {
             // Clear previous highlighted tiles:
@@ -202,7 +202,7 @@ impl TileSelection {
     fn toggle_selection(&mut self,
                         mut layers: TileMapLayerMutRefs,
                         base_cell: Cell,
-                        placement_op: PlacementOp) {
+                        placement_op: TilePlacementOp) {
         if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(base_cell) {
             self.valid_placement = false;
             return;
@@ -211,20 +211,20 @@ impl TileSelection {
         // Highlight object layer tiles if we are placing an object, clearing tiles or
         // just mouse hovering. Don't highlight objects if placing terrain tiles.
         let highlight_objects = match placement_op {
-            PlacementOp::Place(tile_def) | PlacementOp::Invalidate(tile_def) => {
+            TilePlacementOp::Place(tile_def) | TilePlacementOp::Invalidate(tile_def) => {
                 tile_def.is(TileKind::Object)
             }
-            PlacementOp::Clear | PlacementOp::None => true,
+            TilePlacementOp::Clear | TilePlacementOp::None => true,
         };
 
         let selection_flags = match placement_op {
             // Check if our placement candidate tile overlaps with any other Object.
-            PlacementOp::Place(tile_def) => {
+            TilePlacementOp::Place(tile_def) => {
                 let mut flags = TileFlags::Highlighted;
 
-                if placement::is_placement_on_terrain_valid(layers.to_refs(),
-                                                            base_cell,
-                                                            tile_def).is_err() {
+                if placement::internal::is_placement_on_terrain_valid(layers.to_refs(),
+                                                                      base_cell,
+                                                                      tile_def).is_err() {
                     flags = TileFlags::Invalidated;
                 } else {
                     for cell in &tile_def.cell_range(base_cell) {
@@ -249,14 +249,14 @@ impl TileSelection {
                 flags
             }
             // Explicit request to invalidate the whole range of tiles occupied by the TileDef.
-            PlacementOp::Invalidate(_) => TileFlags::Invalidated,
+            TilePlacementOp::Invalidate(_) => TileFlags::Invalidated,
             // Tile clearing, highlight tile to be removed with the Invalidated flag instead.
-            PlacementOp::Clear => TileFlags::Invalidated,
+            TilePlacementOp::Clear => TileFlags::Invalidated,
             // Tile mouse hover; normal highlight.
-            PlacementOp::None => TileFlags::Highlighted,
+            TilePlacementOp::None => TileFlags::Highlighted,
         };
 
-        let is_batch_clearing = self.is_selecting_range() && matches!(placement_op, PlacementOp::Clear);
+        let is_batch_clearing = self.is_selecting_range() && matches!(placement_op, TilePlacementOp::Clear);
 
         // Highlight Terrain:
         if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(base_cell) {
@@ -270,14 +270,14 @@ impl TileSelection {
 
             // Highlight all Terrain tiles this placement candidate would occupy.
             match placement_op {
-                PlacementOp::Place(tile_def) | PlacementOp::Invalidate(tile_def) => {
+                TilePlacementOp::Place(tile_def) | TilePlacementOp::Invalidate(tile_def) => {
                     for cell in tile_def.cell_range(base_cell).iter_rev() {
                         if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile_mut(cell) {
                             self.select_tile(tile, selection_flags);
                         }
                     }
                 }
-                PlacementOp::Clear | PlacementOp::None => {}
+                TilePlacementOp::Clear | TilePlacementOp::None => {}
             }
         }
 

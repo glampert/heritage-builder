@@ -29,8 +29,14 @@ pub enum UiSoundKey {
     #[strum(props(SfxPath = "misc/default/tile_placed.wav"))]
     TilePlaced,
 
+    #[strum(props(SfxPath = "misc/default/tile_cleared.wav"))]
+    TileCleared,
+
     #[strum(props(SfxPath = "misc/default/tile_placement_canceled.wav"))]
     TilePlacementCanceled,
+
+    #[strum(props(SfxPath = "misc/default/tile_placement_failed.wav"))]
+    TilePlacementFailed,
 }
 
 impl UiSoundKey {

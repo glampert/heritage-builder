@@ -155,8 +155,8 @@ pub fn try_replace_tile(context: &BuildingContext,
         tile_map.try_clear_tile_from_layer(prev_cell_range.start, TileMapLayerKind::Objects)
     {
         log::error!(log::channel!("house"),
-                    "{}: Failed to clear previous House tile: {err}",
-                    dest_house.name());
+                    "{}: Failed to clear previous House tile: {}",
+                    dest_house.name(), err.message);
         return false;
     }
 
@@ -175,8 +175,8 @@ pub fn try_replace_tile(context: &BuildingContext,
                 Ok(tile) => tile,
                 Err(err) => {
                     log::error!(log::channel!("house"),
-                                "{}: Tile placement failed! Unable to restore previous House tile: {err}",
-                                dest_house.name());
+                                "{}: Tile placement failed! Unable to restore previous House tile: {}",
+                                dest_house.name(), err.message);
                     return false;
                 }
             };
@@ -186,8 +186,8 @@ pub fn try_replace_tile(context: &BuildingContext,
             debug_assert!(prev_tile.cell_range() == prev_cell_range);
 
             log::error!(log::channel!("house"),
-                        "{}: Failed to place new House tile: {err}. Previous tile restored.",
-                        dest_house.name());
+                        "{}: Failed to place new House tile: {}. Previous tile restored.",
+                        dest_house.name(), err.message);
             return false;
         }
     };
