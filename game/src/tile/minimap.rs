@@ -1627,7 +1627,7 @@ impl MinimapRenderer for DevUiMinimapRenderer {
     fn draw(&mut self, context: &mut UiWidgetContext) {
         // Draw base widget:
         let this = RawPtr::from_ref(self);
-        self.base_renderer.draw(context, |context| {
+        self.base_renderer.draw(context, move |context| {
             // Extra debug drawing:
             this.draw_debug_outline_rect(context);
             this.draw_debug_camera_rect(context);
@@ -1757,10 +1757,14 @@ impl DevUiMinimapRenderer {
     }
 
     fn draw_debug_controls(&mut self, context: &mut UiWidgetContext) {
+        if !*SHOW_MINIMAP_DEBUG_CONTROLS {
+            return;
+        }
+
         let render_ctx = MinimapRenderContext::new(context);
         let widget = render_ctx.widget();
 
-        if !*SHOW_MINIMAP_DEBUG_CONTROLS || !widget.is_open {
+        if !widget.is_open {
             return;
         }
 
