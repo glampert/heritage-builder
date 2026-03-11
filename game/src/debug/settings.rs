@@ -470,7 +470,7 @@ impl DebugSettingsDevMenu {
         }
 
         if self.show_game_systems_debug {
-            self.draw_game_systems_debug_window(context, sim);
+            self.draw_game_systems_debug_window(context, sim, game_loop);
         }
 
         if self.show_texture_settings {
@@ -524,14 +524,15 @@ impl DebugSettingsDevMenu {
 
     fn draw_game_systems_debug_window(&mut self,
                                       context: &mut sim::debug::DebugContext,
-                                      sim: &mut Simulation) {
+                                      sim: &mut Simulation,
+                                      game_loop: &mut GameLoop) {
         let ui = context.ui_sys.ui();
 
         ui.window("Game Systems Debug")
           .opened(&mut self.show_game_systems_debug)
           .position([400.0, 20.0], imgui::Condition::FirstUseEver)
           .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-          .build(|| sim.draw_game_systems_debug_ui(context));
+          .build(|| sim.draw_game_systems_debug_ui(game_loop.engine_mut(), context));
     }
 
     fn draw_texture_settings_window(&mut self,

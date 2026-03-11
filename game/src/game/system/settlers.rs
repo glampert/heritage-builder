@@ -4,9 +4,8 @@ use serde::{Deserialize, Serialize};
 use super::GameSystem;
 use crate::{
     log,
-    ui::UiSystem,
     save::PostLoadContext,
-    engine::time::UpdateTimer,
+    engine::{Engine, time::UpdateTimer},
     pathfind::{Node, NodeKind as PathNodeKind},
     game::{
         building::BuildingKind,
@@ -48,7 +47,7 @@ impl GameSystem for SettlersSpawnSystem {
         self
     }
 
-    fn update(&mut self, query: &Query) {
+    fn update(&mut self, _engine: &mut dyn Engine, query: &Query) {
         if self.spawn_timer.tick(query.delta_time_secs()).should_update() {
             // Only attempt to spawn if we have any empty housing lots available.
             if Self::has_vacant_lots(query) {
@@ -57,14 +56,19 @@ impl GameSystem for SettlersSpawnSystem {
         }
     }
 
+    fn reset(&mut self, _engine: &mut dyn Engine) {
+        self.spawn_timer.reset();
+    }
+
     fn post_load(&mut self, _context: &PostLoadContext) {
         let configs = GameConfigs::get();
         self.spawn_timer.post_load(configs.sim.settlers_spawn_frequency_secs);
     }
 
-    fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        self.spawn_timer.draw_debug_ui("Settler Spawn", 0, ui_sys);
+    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, query: &Query) {
+        self.spawn_timer.draw_debug_ui("Settler Spawn", 0, engine.ui_system());
+
+        let ui = engine.ui_system().ui();
 
         let color_text = |text: &str, cond: bool| {
             ui.text(text);

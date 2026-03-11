@@ -19,7 +19,10 @@ use super::{
 use crate::{
     log,
     save::*,
-    engine::time::{Seconds, UpdateTimer},
+    engine::{
+        Engine,
+        time::{Seconds, UpdateTimer},
+    },
     pathfind::{
         self, AStarUniformCostHeuristic, Bias, Graph, Node, NodeKind as PathNodeKind,
         Path, PathFilter, Search, SearchResult, Unbiased, DefaultPathFilter,
@@ -119,6 +122,7 @@ impl Simulation {
     }
 
     pub fn update(&mut self,
+                  engine: &mut dyn Engine,
                   world: &mut World,
                   systems: &mut GameSystems,
                   tile_map: &mut TileMap,
@@ -128,6 +132,9 @@ impl Simulation {
         self.graph.rebuild_from_tile_map(tile_map, true);
 
         if self.is_paused {
+            // TODO: Should we have a paused update timer or let it run every frame?
+            let query = self.new_query(world, tile_map, delta_time_secs);
+            systems.paused_update(engine, &query);
             return;
         }
 
@@ -145,15 +152,19 @@ impl Simulation {
             if self.update_timer.tick(scaled_delta_time_secs).should_update() {
                 let query = self.new_query(world, tile_map, world_update_delta_time_secs);
                 world.update(&query);
-                systems.update(&query);
+                systems.update(engine, &query);
             }
         }
     }
 
-    pub fn reset_world(&mut self, world: &mut World, systems: &mut GameSystems, tile_map: &mut TileMap) {
+    pub fn reset_world(&mut self,
+                       engine: &mut dyn Engine,
+                       world: &mut World,
+                       systems: &mut GameSystems,
+                       tile_map: &mut TileMap) {
         let query = self.new_query(world, tile_map, 0.0);
         world.reset(&query);
-        systems.reset();
+        systems.reset(engine);
     }
 
     pub fn reset_search_graph(&mut self, tile_map: &TileMap) {
@@ -217,10 +228,10 @@ impl Simulation {
     }
 
     // Game Systems:
-    pub fn draw_game_systems_debug_ui(&mut self, context: &mut debug::DebugContext) {
+    pub fn draw_game_systems_debug_ui(&mut self, engine: &mut dyn Engine, context: &mut debug::DebugContext) {
         let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
 
-        context.systems.draw_debug_ui(&query, context.ui_sys);
+        context.systems.draw_debug_ui(engine, &query, context.ui_sys);
     }
 
     // Generic GameObjects:

@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{EnumCount, VariantNames, EnumIter, Display};
 use strum::{EnumCount, VariantNames, IntoEnumIterator};
 
-use super::{constants::*, sim::Query, world::object::GenerationalIndex, GameLoop};
-use crate::{ui::{UiSystem, UiStaticVar}, save::*, utils::mem};
+use super::{constants::*, sim::Query, world::object::GenerationalIndex};
+use crate::{engine::Engine, ui::{UiSystem, UiStaticVar}, save::*, utils::mem};
 
 // ----------------------------------------------
 // Game System Implementations
@@ -33,12 +33,13 @@ use ambient_sounds::AmbientSoundsSystem;
 pub trait GameSystem: Any {
     // Required overrides:
     fn as_any(&self) -> &dyn Any;
-    fn update(&mut self, query: &Query);
+    fn update(&mut self, engine: &mut dyn Engine, query: &Query);
 
     // Optional overrides:
-    fn reset(&mut self) {}
+    fn paused_update(&mut self, _engine: &mut dyn Engine, _query: &Query) {}
+    fn reset(&mut self, _engine: &mut dyn Engine) {}
     fn post_load(&mut self, _context: &PostLoadContext) {}
-    fn draw_debug_ui(&mut self, _query: &Query, _ui_sys: &UiSystem) {}
+    fn draw_debug_ui(&mut self, _engine: &mut dyn Engine, _query: &Query) {}
     fn register_callbacks(&self) {}
 }
 
@@ -86,10 +87,13 @@ impl GameSystems {
         where System: GameSystem + 'static,
               GameSystemImpl: From<System>
     {
+        let sys_impl = GameSystemImpl::from(system);
+        debug_assert!(!self.has(sys_impl.as_any().type_id()), "System {sys_impl} already registered!");
+
         let index = self.systems.len();
         let generation = self.generation;
 
-        self.systems.push(GameSystemEntry { system: GameSystemImpl::from(system), generation });
+        self.systems.push(GameSystemEntry { system: sys_impl, generation });
         self.generation += 1;
 
         GameSystemId::new(generation, index)
@@ -123,43 +127,65 @@ impl GameSystems {
 
     pub fn has(&self, system_type: TypeId) -> bool {
         for entry in &self.systems {
-            if entry.system.type_id() == system_type {
+            if entry.system.as_any().type_id() == system_type {
                 return true;
             }
         }
         false
     }
 
-    pub fn update(&mut self, query: &Query) {
+    // Regular update, called every simulation tick *when the game is NOT paused*.
+    pub fn update(&mut self, engine: &mut dyn Engine, query: &Query) {
         for entry in &mut self.systems {
-            entry.system.update(query);
+            entry.system.update(engine, query);
         }
     }
 
-    pub fn reset(&mut self) {
+    // Update called every simulation tick *only when the game IS paused*.
+    pub fn paused_update(&mut self, engine: &mut dyn Engine, query: &Query) {
         for entry in &mut self.systems {
-            entry.system.reset();
+            entry.system.paused_update(engine, query);
         }
     }
 
-    pub fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
+    pub fn reset(&mut self, engine: &mut dyn Engine) {
+        for entry in &mut self.systems {
+            entry.system.reset(engine);
+        }
+    }
+
+    fn create_missing(&mut self) {
+        for system in GameSystemImpl::iter() {
+            if !self.has(system.as_any().type_id()) {
+                self.register(system);
+            }
+        }
+    }
+
+    // ----------------------
+    // Debug UI:
+    // ----------------------
+
+    pub fn draw_debug_ui(&mut self, engine: &mut dyn Engine, query: &Query, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if let Some(_tab_bar) = ui.tab_bar("Game Systems Tab Bar") {
             for entry in &mut self.systems {
                 if let Some(_tab) = ui.tab_item(entry.system.to_string()) {
-                    entry.system.draw_debug_ui(query, ui_sys);
+                    entry.system.draw_debug_ui(engine, query);
                 }
             }
 
             if let Some(_tab) = ui.tab_item("Create Systems") {
-                ui.text("Create and register system with the GameLoop if not already created.");
+                ui.text("Create and register system if not already created.");
 
                 static SYSTEM_INDEX: UiStaticVar<usize> = UiStaticVar::new(0);
                 ui.combo_simple_string("Systems", SYSTEM_INDEX.as_mut(), GameSystemImpl::VARIANTS);
 
                 if ui.button("Create") {
                     if let Some(system) = GameSystemImpl::iter().nth(*SYSTEM_INDEX) {
-                        GameLoop::get_mut().create_system(system);
+                        if !self.has(system.as_any().type_id()) {
+                            self.register(system);
+                        }
                     }
                 }
             }
@@ -201,5 +227,10 @@ impl Load for GameSystems {
 
             entry.system.post_load(context);
         }
+
+        // NOTE: Workaround for backwards compatibility with old saves
+        // that might not have newly added game systems. Manually
+        // instantiate any missing systems here.
+        self.create_missing();
     }
 }

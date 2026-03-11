@@ -6,15 +6,11 @@ use std::{
 
 use world::World;
 use sim::Simulation;
+use system::GameSystems;
 use prop::config::PropConfigs;
 use unit::config::UnitConfigs;
 use building::config::BuildingConfigs;
 use config::{GameConfigs, LoadMapSetting};
-use system::{
-    GameSystems,
-    GameSystem,
-    GameSystemImpl,
-};
 use menu::{
     GameMenusMode,
     GameMenusSystem,
@@ -241,7 +237,7 @@ impl GameSession {
     }
 
     fn reset(&mut self,
-             engine: &dyn Engine,
+             engine: &mut dyn Engine,
              reset_map: bool,
              reset_map_with_tile_def: Option<&'static TileDef>,
              new_map_size: Option<Size>,
@@ -249,7 +245,7 @@ impl GameSession {
         undo_redo::clear();
         self.tile_selection = TileSelection::default();
         self.menus = Some(self.new_game_menus_from_config(engine, home_menu));
-        self.sim.reset_world(&mut self.world, &mut self.systems, &mut self.tile_map);
+        self.sim.reset_world(engine, &mut self.world, &mut self.systems, &mut self.tile_map);
 
         if reset_map && (self.tile_map.size_in_cells().is_valid() || new_map_size.is_some()) {
             self.tile_map.reset(reset_map_with_tile_def, new_map_size);
@@ -543,7 +539,7 @@ impl GameLoop {
 
     pub fn terminate_session(&mut self) {
         if let Some(session) = &mut self.session {
-            session.reset(self.engine.as_ref(), false, None, None, false);
+            session.reset(self.engine.as_mut(), false, None, None, false);
         }
         self.session = None;
         log::info!(log::channel!("game"), "--- Game Session destroyed ---");
@@ -607,7 +603,7 @@ impl GameLoop {
     }
 
     #[inline]
-    pub fn is_on_home_menus(&self) -> bool {
+    pub fn is_in_home_menu(&self) -> bool {
         if let Some(session) = &self.session
             && session.current_menus_mode() == Some(GameMenusMode::Home)
         {
@@ -618,7 +614,7 @@ impl GameLoop {
 
     #[inline]
     pub fn is_in_game(&self) -> bool {
-        self.session.is_some() && !self.is_on_home_menus()
+        self.session.is_some() && !self.is_in_home_menu()
     }
 
     #[inline]
@@ -711,18 +707,6 @@ impl GameLoop {
         log::info!(log::channel!("game"), "TileSets loaded.");
     }
 
-    // Create system if it doesn't already exist in the session.
-    fn create_system<System>(&mut self, system: System)
-        where System: GameSystem + 'static,
-              GameSystemImpl: From<System>
-    {
-        if let Some(session) = &mut self.session {
-            if !session.systems.has(system.type_id()) {
-                session.systems.register(system);
-            }
-        }
-    }
-
     fn handle_event(&mut self, event: ApplicationEvent, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
         match event {
             ApplicationEvent::WindowResize { window_size, framebuffer_size } => {
@@ -780,7 +764,8 @@ impl GameLoop {
             session.camera.update_scrolling(cursor_screen_pos, delta_time_secs);
         }
 
-        session.sim.update(&mut session.world,
+        session.sim.update(Self::get_mut().engine_mut(),
+                           &mut session.world,
                            &mut session.systems,
                            &mut session.tile_map,
                            delta_time_secs);
@@ -856,7 +841,7 @@ impl GameLoop {
     }
 
     fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
-        self.session.as_mut().unwrap().reset(self.engine.as_ref(), true, reset_map_with_tile_def, new_map_size, false);
+        self.session.as_mut().unwrap().reset(self.engine.as_mut(), true, reset_map_with_tile_def, new_map_size, false);
         log::info!(log::channel!("game"), "Game Session reset.");
     }
 

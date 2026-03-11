@@ -3,16 +3,15 @@ use serde::{Deserialize, Serialize};
 
 use super::GameSystem;
 use crate::{
-    game::{
-        sim::Query,
-    },
+    engine::Engine,
+    game::sim::Query,
 };
 
 // ----------------------------------------------
 // AmbientSoundsSystem
 // ----------------------------------------------
 
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct AmbientSoundsSystem {
 }
 
@@ -21,13 +20,8 @@ impl GameSystem for AmbientSoundsSystem {
         self
     }
 
-    fn update(&mut self, _query: &Query) {
+    fn update(&mut self, _engine: &mut dyn Engine, _query: &Query) {
     }
-}
 
-impl Default for AmbientSoundsSystem {
-    fn default() -> Self {
-        Self {
-        }
-    }
+    // TODO WIP
 }

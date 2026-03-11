@@ -8,10 +8,9 @@ use strum_macros::EnumIter;
 use super::GameSystem;
 use crate::{
     log,
-    ui::UiSystem,
     save::PostLoadContext,
     pathfind::{Path, Node},
-    engine::time::UpdateTimer,
+    engine::{Engine, time::UpdateTimer},
     tile::{TileDepthSortOverride},
     utils::{callback::Callback, coords::Cell},
     game::{
@@ -40,10 +39,14 @@ impl GameSystem for AmbientEffectsSystem {
         self
     }
 
-    fn update(&mut self, query: &Query) {
+    fn update(&mut self, _engine: &mut dyn Engine, query: &Query) {
         if self.bird_spawn_timer.tick(query.delta_time_secs()).should_update() {
             spawn_bird_with_random_flight_path(query);
         }
+    }
+
+    fn reset(&mut self, _engine: &mut dyn Engine) {
+        self.bird_spawn_timer.reset();
     }
 
     fn post_load(&mut self, _context: &PostLoadContext) {
@@ -51,10 +54,10 @@ impl GameSystem for AmbientEffectsSystem {
         self.bird_spawn_timer.post_load(configs.sim.birds_spawn_frequency);
     }
 
-    fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
+    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, query: &Query) {
+        self.bird_spawn_timer.draw_debug_ui("Bird Spawn", 0, engine.ui_system());
 
-        self.bird_spawn_timer.draw_debug_ui("Bird Spawn", 0, ui_sys);
+        let ui = engine.ui_system().ui();
 
         if ui.button("Spawn Bird (left-to-right path") {
             spawn_bird(query, BirdFlightPath::LeftToRight);
