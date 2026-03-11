@@ -36,10 +36,6 @@ pub struct AmbientEffectsSystem {
 }
 
 impl GameSystem for AmbientEffectsSystem {
-    fn name(&self) -> &str {
-        "Ambient Effects System"
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }

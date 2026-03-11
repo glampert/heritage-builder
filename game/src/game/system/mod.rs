@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
-use strum_macros::{EnumCount, VariantNames, EnumIter};
+use strum_macros::{EnumCount, VariantNames, EnumIter, Display};
 use strum::{EnumCount, VariantNames, IntoEnumIterator};
 
 use super::{constants::*, sim::Query, world::object::GenerationalIndex, GameLoop};
@@ -20,7 +20,6 @@ use ambient_effects::AmbientEffectsSystem;
 #[enum_dispatch(GameSystemImpl)]
 pub trait GameSystem: Any {
     // Required overrides:
-    fn name(&self) -> &str;
     fn as_any(&self) -> &dyn Any;
     fn update(&mut self, query: &Query);
 
@@ -32,7 +31,7 @@ pub trait GameSystem: Any {
 }
 
 #[enum_dispatch]
-#[derive(EnumCount, EnumIter, VariantNames, Serialize, Deserialize)]
+#[derive(EnumCount, EnumIter, VariantNames, Display, Serialize, Deserialize)]
 pub enum GameSystemImpl {
     SettlersSpawnSystem,
     AmbientEffectsSystem,
@@ -125,7 +124,7 @@ impl GameSystems {
         let ui = ui_sys.ui();
         if let Some(_tab_bar) = ui.tab_bar("Game Systems Tab Bar") {
             for entry in &mut self.systems {
-                if let Some(_tab) = ui.tab_item(entry.system.name()) {
+                if let Some(_tab) = ui.tab_item(entry.system.to_string()) {
                     entry.system.draw_debug_ui(query, ui_sys);
                 }
             }
