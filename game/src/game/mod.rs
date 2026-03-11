@@ -14,8 +14,6 @@ use system::{
     GameSystems,
     GameSystem,
     GameSystemImpl,
-    settlers,
-    ambient_effects
 };
 use menu::{
     GameMenusMode,
@@ -97,11 +95,9 @@ impl GameSession {
 
         let mut world = World::new();
         let tile_map = Self::new_tile_map(&mut world, load_map_setting);
-        let sim = Simulation::new(&tile_map);
 
-        let mut systems = GameSystems::new();
-        systems.register(settlers::SettlersSpawnSystem::default());
-        systems.register(ambient_effects::AmbientEffectsSystem::default());
+        let sim = Simulation::new(&tile_map);
+        let systems = GameSystems::register_all();
 
         let configs = GameConfigs::get();
         let camera = Camera::new(viewport_size,
