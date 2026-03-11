@@ -1,4 +1,4 @@
-use std::{any::Any, ffi::c_void};
+use std::any::Any;
 use glfw::Context;
 
 use super::{
@@ -9,7 +9,7 @@ use super::{
 };
 use crate::{
     log,
-    utils::{mem, Size, Vec2},
+    utils::{Size, Vec2},
 };
 
 mod window;
@@ -27,14 +27,6 @@ pub struct GlfwApplication {
     glfw_instance: glfw::Glfw,
     window_manager: GlfwWindowManagerRcMut,
     input_system: GlfwInputSystem,
-}
-
-impl GlfwApplication {
-    // Used by the ImGui OpenGL backend.
-    pub fn load_gl_func(&self, func_name: &'static str) -> *const c_void {
-        let app = mem::mut_ref_cast(self);
-        app.window_manager.load_gl_func(func_name)
-    }
 }
 
 impl ApplicationFactory for GlfwApplication {

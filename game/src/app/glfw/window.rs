@@ -1,4 +1,3 @@
-use std::ffi::c_void;
 use smallvec::SmallVec;
 use glfw::Context;
 
@@ -91,7 +90,7 @@ impl GlfwWindowManager {
         // required for inspection.
         utils::platform::macos_redirect_stderr(|| {
             gl::load_with(|symbol| {
-                manager.load_gl_func(symbol)
+                manager.window.get_proc_address(symbol)
             })
         },
         "stderr_gl_load_app.log");
@@ -130,12 +129,6 @@ impl GlfwWindowManager {
         if changed {
             self.window.set_cursor_pos(new_x, new_y);
         }
-    }
-
-    // Used by the ImGui OpenGL backend.
-    #[inline]
-    pub fn load_gl_func(&mut self, func_name: &'static str) -> *const c_void {
-        self.window.get_proc_address(func_name)
     }
 
     #[inline]
