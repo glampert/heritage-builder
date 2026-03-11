@@ -787,7 +787,7 @@ impl<'world> Spawner<'world> {
 
 #[cold]
 fn cost_error<T>(tile_def: &'static TileDef) -> Result<T, TilePlacementErr> {
-    placement::err!(Placement::CannotAfford, "Cannot afford tile '{}'. Cost: {} gold", tile_def.name, tile_def.cost)
+    placement::err!(Placement::CannotAffordCost, "Cannot afford tile '{}'. Cost: {} gold", tile_def.name, tile_def.cost)
 }
 
 #[cold]

@@ -36,11 +36,11 @@ macro_rules! err {
     }};
 }
 
-// Forward an already existing reason expression.
-// Usage: `err_fwd!(other.reason, "message")`
-macro_rules! err_fwd {
-    ($reason:expr, $($fmt:tt)*) => {{
-        Err($crate::tile::placement::TilePlacementErr {
+// Usage: `err_reason!(Placement, err.reason, "message")`
+macro_rules! err_reason {
+    ($domain:ident, $reason:expr, $($fmt:tt)*) => {{
+        type InnerErrT = < $domain as $crate::tile::placement::TileErrorDomain >::Err;
+        Err(InnerErrT {
             reason: $reason,
             message: format!($($fmt)*),
         })
@@ -48,7 +48,7 @@ macro_rules! err_fwd {
 }
 
 pub(crate) use err;
-pub(crate) use err_fwd;
+pub(crate) use err_reason;
 
 // ----------------------------------------------
 // TilePlacementErr
@@ -63,10 +63,10 @@ pub struct TilePlacementErr {
 pub enum TilePlacementErrReason {
     EmptyMap,
     CellOutOfBounds,
-    InvalidLocation,
     SpawnFailed,
-    CannotAfford,
-    Obstruction(&'static TileDef),
+    CannotAffordCost,
+    RequiresProximity(PathNodeKind), // Required node proximity violated.
+    Obstruction(&'static TileDef),   // Tile obstructing the placement.
 }
 
 // ----------------------------------------------
@@ -123,7 +123,8 @@ pub mod internal {
                 for cell in &cell_range {
                     if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                         if !tile.path_kind().is_water() {
-                            return err!(Placement::InvalidLocation, "Building must be placed near the water edge.");
+                            return err!(Placement::RequiresProximity(PathNodeKind::Water),
+                                        "Building must be placed near the water edge.");
                         }
                     }
                 }
@@ -142,7 +143,8 @@ pub mod internal {
                 });
 
                 if !is_near_land {
-                    return err!(Placement::InvalidLocation, "Building must be placed near the water edge.");
+                    return err!(Placement::RequiresProximity(PathNodeKind::Water),
+                                "Building must be placed near the water edge.");
                 }
             } else {
                 let has_proximity_requirements = !tile_def_to_place.required_proximity.is_empty();
@@ -208,7 +210,7 @@ pub mod internal {
                 }
 
                 if has_proximity_requirements && !found_proximity_requirements {
-                    return err!(Placement::InvalidLocation,
+                    return err!(Placement::RequiresProximity(tile_def_to_place.required_proximity),
                                 "Building must be placed near {}.",
                                 tile_def_to_place.required_proximity);
                 }
@@ -227,8 +229,9 @@ pub mod internal {
             }
 
             // Objects layer mut be empty.
-            if layers.get(TileMapLayerKind::Objects).try_tile(target_cell).is_some() {
-                return err!(Placement::InvalidLocation, "Cannot place vacant lot here.");
+            if let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile(target_cell) {
+                return err!(Placement::Obstruction(object.tile_def()),
+                            "Cannot place vacant lot here! Cell already occupied by an object.");
             }
         } else if tile_def_to_place.path_kind.intersects(PathNodeKind::Road | PathNodeKind::SettlersSpawnPoint) {
             if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
@@ -249,10 +252,11 @@ pub mod internal {
             }
 
             // Cannot place water under existing objects.
-            if layers.get(TileMapLayerKind::Objects).try_tile(target_cell).is_some()
-                && tile_def_to_place.path_kind.is_water()
+            if tile_def_to_place.path_kind.is_water()
+                && let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile(target_cell)
             {
-                return err!(Placement::InvalidLocation, "Cannot place water tile here.");
+                return err!(Placement::Obstruction(object.tile_def()),
+                            "Cannot place water tile here! Cell already occupied by an object.");
             }
         }
 
@@ -340,6 +344,12 @@ pub mod internal {
     pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
                                      target_cell: Cell)
                                      -> Result<&'static TileDef, TileClearingErr> {
+        if !layer.is_cell_within_bounds(target_cell) {
+            return err!(Clearing::CellOutOfBounds,
+                        "{}: Target cell {} is out of bounds",
+                        layer.kind(), target_cell);
+        }
+
         if let Some(tile) = layer.try_tile(target_cell) {
             let tile_def = tile.tile_def();
 
@@ -360,6 +370,12 @@ pub mod internal {
                                               target_index: TilePoolIndex,
                                               target_cell: Cell)
                                               -> Result<&'static TileDef, TileClearingErr> {
+        if !layer.is_cell_within_bounds(target_cell) {
+            return err!(Clearing::CellOutOfBounds,
+                        "{}: Target cell {} is out of bounds",
+                        layer.kind(), target_cell);
+        }
+
         if let Some(tile) = layer.try_tile(target_cell) {
             // For now only Units are supported.
             debug_assert!(tile.is(TileKind::Unit));

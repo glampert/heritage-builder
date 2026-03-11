@@ -231,9 +231,9 @@ impl World {
                 }
             }
             Err(err) => {
-                placement::err_fwd!(err.reason,
-                                    "Failed to place Building tile at cell {} with TileDef '{}': {}",
-                                    tile_base_cell, tile_def.name, err.message)
+                placement::err_reason!(Placement, err.reason,
+                                       "Failed to place Building tile at cell {} with TileDef '{}': {}",
+                                       tile_base_cell, tile_def.name, err.message)
             }
         }
     }
@@ -481,9 +481,9 @@ impl World {
                     Ok(unit)
                 }
                 Err(err) => {
-                    placement::err_fwd!(err.reason,
-                                        "Failed to spawn Unit at cell {} with TileDef '{}': {}",
-                                        unit_origin, tile_def.name, err.message)
+                    placement::err_reason!(Placement, err.reason,
+                                           "Failed to spawn Unit at cell {} with TileDef '{}': {}",
+                                           unit_origin, tile_def.name, err.message)
                 }
             }
         } else {
@@ -521,9 +521,9 @@ impl World {
                 Ok(unit)
             }
             Err(err) => {
-                placement::err_fwd!(err.reason,
-                                    "Failed to spawn Unit at cell {} with TileDef '{}': {}",
-                                    unit_origin, tile_def.name, err.message)
+                placement::err_reason!(Placement, err.reason,
+                                       "Failed to spawn Unit at cell {} with TileDef '{}': {}",
+                                       unit_origin, tile_def.name, err.message)
             }
         }
     }
@@ -772,9 +772,9 @@ impl World {
                 Ok(prop)
             }
             Err(err) => {
-                placement::err_fwd!(err.reason,
-                                    "Failed to spawn Prop at cell {} with TileDef '{}': {}",
-                                    prop_base_cell, tile_def.name, err.message)
+                placement::err_reason!(Placement, err.reason,
+                                       "Failed to spawn Prop at cell {} with TileDef '{}': {}",
+                                       prop_base_cell, tile_def.name, err.message)
             }
         }
     }
