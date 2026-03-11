@@ -45,6 +45,7 @@
     "skip_loading_tile_sets": false,
     "show_popups": false,
     "enable_dev_tile_inspector": true,
-    "disable_ambient_music": false
+    "disable_ambient_music": false,
+    "disable_ambient_sounds": false
   }
 }

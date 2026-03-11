@@ -168,6 +168,7 @@ pub struct DebugConfigs {
     pub show_popups: bool,
     pub enable_dev_tile_inspector: bool,
     pub disable_ambient_music: bool,
+    pub disable_ambient_sounds: bool,
 }
 
 impl Default for DebugConfigs {
@@ -177,7 +178,8 @@ impl Default for DebugConfigs {
                skip_loading_tile_sets: false,
                show_popups: false,
                enable_dev_tile_inspector: true,
-               disable_ambient_music: false }
+               disable_ambient_music: false,
+               disable_ambient_sounds: false }
     }
 }
 

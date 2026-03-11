@@ -18,7 +18,7 @@ use crate::{
 // ----------------------------------------------
 
 #[derive(Copy, Clone, PartialEq, Eq, Display, EnumCount, EnumProperty, EnumIter)]
-pub enum MusicTrackKey {
+enum MusicTrackKey {
     // Home menu track.
     #[strum(props(TrackPath = "dynastys_legacy_1.mp3"))]
     HomeMenu,
