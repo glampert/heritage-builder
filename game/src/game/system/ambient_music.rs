@@ -6,6 +6,7 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use super::GameSystem;
 use crate::{
     log,
+    utils::Color,
     engine::Engine,
     save::PostLoadContext,
     game::{GameLoop, config::GameConfigs, sim::Query},
@@ -157,7 +158,7 @@ impl GameSystem for AmbientMusicSystem {
         let ui = engine.ui_system().ui();
 
         if !self.is_enabled() {
-            ui.text_colored([1.0, 0.0, 0.0, 1.0], "AmbientMusicSystem DISABLED.");
+            ui.text_colored(Color::red().to_array(), "AmbientMusicSystem DISABLED.");
             return;
         }
 
@@ -212,14 +213,12 @@ impl AmbientMusicSystem {
     }
 
     fn play_track(&mut self, sound_sys: &mut SoundSystem, key: MusicTrackKey) {
-        let track = self.track_mut(key);
+        log::verbose!(log::channel!("ambient_music"), "Starting music track {} ('{}')", key, key.track_path());
 
         const LOOPING: bool = false;
-        track.play(sound_sys, LOOPING);
+        self.track_mut(key).play(sound_sys, LOOPING);
 
         self.current_track_playing = Some(key);
-
-        log::verbose!(log::channel!("ambient_music"), "Starting music track {} ('{}')", key, key.track_path());
     }
 
     fn stop_music(&mut self, sound_sys: &mut SoundSystem) {
@@ -239,8 +238,7 @@ impl AmbientMusicSystem {
 
     fn update_current_track(&mut self, sound_sys: &SoundSystem) -> bool {
         if let Some(key) = self.current_track_playing {
-            let track = self.track(key);
-            if !track.is_playing(sound_sys) {
+            if !self.track(key).is_playing(sound_sys) {
                 self.current_track_playing = None;
             }
         }
