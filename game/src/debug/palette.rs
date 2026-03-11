@@ -5,9 +5,9 @@ use std::collections::HashMap;
 
 use crate::{
     engine::DebugDraw,
+    render::TextureHandle,
     app::input::{InputAction, MouseButton},
-    ui::{self, UiInputEvent, UiSystem},
-    render::{TextureCache, TextureHandle},
+    ui::{self, UiInputEvent, UiSystem, widgets::UiWidgetContext},
     utils::{
         self,
         constants::*,
@@ -70,15 +70,10 @@ impl TilePalette for TilePaletteDevMenu {
 }
 
 impl TilePaletteDevMenu {
-    pub fn new(start_open: bool, tex_cache: &mut dyn TextureCache) -> Self {
-        let clear_button_path = ui::assets_path().join("icons/red_x_icon.png");
-        let clear_button_image = tex_cache.load_texture_with_settings(
-            clear_button_path.to_str().unwrap(),
-            Some(ui::texture_settings())
-        );
+    pub fn new(context: &mut UiWidgetContext) -> Self {
         Self {
-            start_open,
-            clear_button_image,
+            start_open: true,
+            clear_button_image: context.load_texture("icons/red_x_icon.png"),
             ..Default::default()
         }
     }

@@ -162,24 +162,20 @@ impl Default for SimConfigs {
 #[derive(DrawDebugUi, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DebugConfigs {
-    pub show_popups: bool,
-    pub tile_palette_open: bool,
-    pub enable_tile_inspector: bool,
-    pub start_in_dev_editor_mode: bool,
     pub skip_home_menu: bool,
+    pub start_in_dev_editor_mode: bool,
     pub skip_loading_tile_sets: bool,
-    pub enable_minimap_debug_controls: bool,
+    pub show_popups: bool,
+    pub enable_dev_tile_inspector: bool,
 }
 
 impl Default for DebugConfigs {
     fn default() -> Self {
-        Self { show_popups: true,
-               tile_palette_open: true,
-               enable_tile_inspector: true,
-               start_in_dev_editor_mode: true,
-               skip_home_menu: true,
+        Self { skip_home_menu: false,
+               start_in_dev_editor_mode: false,
                skip_loading_tile_sets: false,
-               enable_minimap_debug_controls: true, }
+               show_popups: false,
+               enable_dev_tile_inspector: true }
     }
 }
 

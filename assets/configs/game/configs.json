@@ -40,11 +40,10 @@
     "disable_key_shortcut_zoom": false
   },
   "debug": {
-    "show_popups": false,
-    "enable_tile_inspector": true,
-    "start_in_dev_editor_mode": false,
     "skip_home_menu": false,
+    "start_in_dev_editor_mode": false,
     "skip_loading_tile_sets": false,
-    "enable_minimap_debug_controls": true
+    "show_popups": false,
+    "enable_dev_tile_inspector": true
   }
 }

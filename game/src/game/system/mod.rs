@@ -1,3 +1,5 @@
+#![allow(clippy::enum_variant_names)]
+
 use std::any::{Any, TypeId};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
@@ -7,11 +9,21 @@ use strum::{EnumCount, VariantNames, IntoEnumIterator};
 use super::{constants::*, sim::Query, world::object::GenerationalIndex, GameLoop};
 use crate::{ui::{UiSystem, UiStaticVar}, save::*, utils::mem};
 
+// ----------------------------------------------
+// Game System Implementations
+// ----------------------------------------------
+
 pub mod settlers;
 use settlers::SettlersSpawnSystem;
 
 pub mod ambient_effects;
 use ambient_effects::AmbientEffectsSystem;
+
+pub mod ambient_music;
+use ambient_music::AmbientMusicSystem;
+
+pub mod ambient_sounds;
+use ambient_sounds::AmbientSoundsSystem;
 
 // ----------------------------------------------
 // GameSystem
@@ -35,6 +47,8 @@ pub trait GameSystem: Any {
 pub enum GameSystemImpl {
     SettlersSpawnSystem,
     AmbientEffectsSystem,
+    AmbientMusicSystem,
+    AmbientSoundsSystem,
 }
 
 // ----------------------------------------------
@@ -58,6 +72,14 @@ pub struct GameSystems {
 impl GameSystems {
     pub fn new() -> Self {
         Self { systems: Vec::with_capacity(GameSystemImpl::COUNT), generation: INITIAL_GENERATION }
+    }
+
+    pub fn register_all() -> Self {
+        let mut systems = Self::new();
+        for system in GameSystemImpl::iter() {
+            systems.register(system);
+        }
+        systems
     }
 
     pub fn register<System>(&mut self, system: System) -> GameSystemId

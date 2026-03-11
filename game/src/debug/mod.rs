@@ -31,7 +31,7 @@ pub struct DevEditorMenus;
 impl DevEditorMenus {
     pub fn new(context: &mut UiWidgetContext, tile_map_rc: RcMut<TileMap>) -> Self {
         context.ui_sys.set_ui_theme(UiTheme::Dev);
-        init_dev_editor_menus_singleton_once(context, GameConfigs::get());
+        init_dev_editor_menus_singleton_once(context);
         register_tile_map_debug_callbacks(tile_map_rc); // Register TileMap global callbacks & debug ref.
         Self
     }
@@ -56,7 +56,7 @@ impl GameMenusSystem for DevEditorMenus {
 
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {
         let singleton = DevEditorMenusSingleton::get_mut();
-        if singleton.enable_tile_inspector {
+        if singleton.enable_dev_tile_inspector {
             Some(&mut singleton.tile_inspector_menu)
         } else {
             None
@@ -119,19 +119,19 @@ struct DevEditorMenusSingleton {
     debug_settings_menu: DebugSettingsDevMenu,
     tile_palette_menu: TilePaletteDevMenu,
     tile_inspector_menu: TileInspectorDevMenu,
-    enable_tile_inspector: bool,
+    enable_dev_tile_inspector: bool,
     minimap_renderer: DevUiMinimapRenderer,
     log_viewer: LogViewerWindow,
 }
 
 impl DevEditorMenusSingleton {
-    fn new(context: &mut UiWidgetContext, tile_palette_start_open: bool, enable_tile_inspector: bool) -> Self {
+    fn new(context: &mut UiWidgetContext) -> Self {
         Self {
             tile_placement: TilePlacement::new(),
             debug_settings_menu: DebugSettingsDevMenu::new(),
-            tile_palette_menu: TilePaletteDevMenu::new(tile_palette_start_open, context.tex_cache),
+            tile_palette_menu: TilePaletteDevMenu::new(context),
             tile_inspector_menu: TileInspectorDevMenu::default(),
-            enable_tile_inspector,
+            enable_dev_tile_inspector: GameConfigs::get().debug.enable_dev_tile_inspector,
             minimap_renderer: DevUiMinimapRenderer::new(context),
             log_viewer: LogViewerWindow::new(),
         }
@@ -180,9 +180,9 @@ impl DevEditorMenusSingleton {
                                           menu_context.sim,
                                           GameLoop::get_mut(),
                                           &self.log_viewer,
-                                          &mut self.enable_tile_inspector);
+                                          &mut self.enable_dev_tile_inspector);
 
-            if self.enable_tile_inspector {
+            if self.enable_dev_tile_inspector {
                 self.tile_inspector_menu.draw(&mut sim_context, menu_context.sim);
             }
 
@@ -230,17 +230,12 @@ impl DevEditorMenusSingleton {
 
 singleton_late_init! { DEV_EDITOR_MENUS_SINGLETON, DevEditorMenusSingleton }
 
-fn init_dev_editor_menus_singleton_once(context: &mut UiWidgetContext, configs: &GameConfigs) {
+fn init_dev_editor_menus_singleton_once(context: &mut UiWidgetContext) {
     if DevEditorMenusSingleton::is_initialized() {
         return; // Already initialized.
     }
 
-    DevEditorMenusSingleton::initialize(
-        DevEditorMenusSingleton::new(
-            context,
-            configs.debug.tile_palette_open,
-            configs.debug.enable_tile_inspector)
-    );
+    DevEditorMenusSingleton::initialize(DevEditorMenusSingleton::new(context));
 }
 
 // ----------------------------------------------
