@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     log,
-    utils::{self, Size, Vec2, mem::{RcRef, RcMut}},
+    utils::{Size, Vec2, mem::{RcRef, RcMut}},
 };
 
 type GlfwEventReceiver = glfw::GlfwReceiver<(f64, glfw::WindowEvent)>;
@@ -88,7 +88,7 @@ impl GlfwWindowManager {
         // OpenGL functions that we don't need or care about. This is a workaround
         // to stop the TTY spam but still keep a record of the errors if ever
         // required for inspection.
-        utils::platform::macos_redirect_stderr(|| {
+        macos_redirect_stderr(|| {
             gl::load_with(|symbol| {
                 manager.window.get_proc_address(symbol)
             })
@@ -388,6 +388,44 @@ mod macos_app_utils {
             ns_window.toggleFullScreen(None);
         }
     }
+}
+
+// ----------------------------------------------
+// macos_redirect_stderr()
+// ----------------------------------------------
+
+// Using this to deal with some TTY spam from the OpenGL loader on MacOS.
+#[cfg(target_os = "macos")]
+fn macos_redirect_stderr<F, R>(f: F, filename: &str) -> R
+    where F: FnOnce() -> R
+{
+    use std::{fs::{self, OpenOptions}, path::Path, os::unix::io::AsRawFd};
+    use libc::{close, dup, dup2, STDERR_FILENO};
+
+    let logs_dir = log::logs_dir();
+    let _ = fs::create_dir(&logs_dir);
+
+    unsafe {
+        let saved_fd = dup(STDERR_FILENO);
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(Path::new(&logs_dir).join(filename))
+            .expect("Failed to open stderr log file!");
+        dup2(file.as_raw_fd(), STDERR_FILENO);
+        let result = f();
+        dup2(saved_fd, STDERR_FILENO);
+        close(saved_fd);
+        result
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn macos_redirect_stderr<F, R>(f: F, _filename: &str) -> R
+    where F: FnOnce() -> R
+{
+    f() // No-op on non-MacOS
 }
 
 // ----------------------------------------------
