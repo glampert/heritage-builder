@@ -212,7 +212,6 @@ impl SaveGameHelper {
                 size: Some(Vec2::new(0.0, 250.0)), // Use whole parent window width minus margin, fixed height.
                 margin_left: 95.0,
                 margin_right: 100.0,
-                items: Self::save_files_list(),
                 flags: UiItemListFlags::Border | 
                        UiItemListFlags::TextInputField |
                        UiItemListFlags::Scrollbars |

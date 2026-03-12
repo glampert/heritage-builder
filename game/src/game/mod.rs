@@ -467,7 +467,7 @@ enum GameSessionCmd {
 pub struct GameLoop {
     engine: Box<dyn Engine>,
 
-    session: Option<Box<GameSession>>,
+    session: Box<GameSession>,
     session_cmd_queue: VecDeque<GameSessionCmd>,
 
     autosave_timer: UpdateTimer,
@@ -479,7 +479,7 @@ impl GameLoop {
     // Public API:
     // ----------------------
 
-    pub fn new() -> &'static mut Self {
+    pub fn start() -> &'static mut Self {
         let build_profile = platform::build_profile();
         let run_environment = platform::run_environment();
         let is_app_bundle = run_environment == platform::RunEnvironment::MacOSAppBundle;
@@ -514,37 +514,22 @@ impl GameLoop {
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
 
-        let instance = Self {
+        let session = Self::create_session(configs, &*engine);
+        let game_loop = Self {
             engine,
-            session: None,
+            session,
             session_cmd_queue: VecDeque::new(),
             autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
-            enable_autosave: configs.save.enable_autosave
+            enable_autosave: configs.save.enable_autosave,
         };
 
-        GameLoop::initialize(instance); // Set global instance.
-        GameLoop::get_mut() // Return it.
+        Self::initialize(game_loop); // Set global instance.
+        Self::get_mut() // Return it.
     }
 
-    pub fn create_session(&mut self) {
-        debug_assert!(self.session.is_none());
-
-        let config = GameConfigs::get();
-        let home_menu = !config.debug.skip_home_menu;
-
-        let viewport_size = self.engine.viewport().integer_size();
-        let new_session = GameSession::new(&config.save.load_map_setting, viewport_size, self.engine(), home_menu);
-
-        self.session = Some(Box::new(new_session));
-        log::info!(log::channel!("game"), "--- Game Session created ---");
-    }
-
-    pub fn terminate_session(&mut self) {
-        if let Some(session) = &mut self.session {
-            session.reset(self.engine.as_mut(), false, None, None, false);
-        }
-        self.session = None;
-        log::info!(log::channel!("game"), "--- Game Session destroyed ---");
+    pub fn shutdown() {
+        Self::terminate_session(&mut Self::get_mut().session, &mut *Self::get_mut().engine);
+        Self::terminate();
     }
 
     pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
@@ -601,64 +586,60 @@ impl GameLoop {
 
     #[inline]
     pub fn is_running(&self) -> bool {
-        self.session.is_some() && self.engine.is_running()
+        self.engine.is_running()
     }
 
     #[inline]
     pub fn is_in_home_menu(&self) -> bool {
-        if let Some(session) = &self.session
-            && session.current_menus_mode() == Some(GameMenusMode::Home)
-        {
-            return true;
-        }
-        false
+        self.session.current_menus_mode() == Some(GameMenusMode::Home)
     }
 
     #[inline]
     pub fn is_in_game(&self) -> bool {
-        self.session.is_some() && !self.is_in_home_menu()
+        !self.is_in_home_menu()
     }
 
     #[inline]
     pub fn engine(&self) -> &dyn Engine {
-        self.engine.as_ref()
+        &*self.engine
     }
 
     #[inline]
     pub fn engine_mut(&mut self) -> &mut dyn Engine {
-        self.engine.as_mut()
+        &mut *self.engine
     }
 
     #[inline]
     pub fn camera(&self) -> &Camera {
-        &self.session().camera
+        &self.session.camera
     }
 
     #[inline]
     pub fn camera_mut(&mut self) -> &mut Camera {
-        &mut self.session_mut().camera
+        &mut self.session.camera
     }
 
     #[inline]
     pub fn systems(&self) -> &GameSystems {
-        &self.session().systems
+        &self.session.systems
     }
 
     #[inline]
     pub fn systems_mut(&mut self) -> &mut GameSystems {
-        &mut self.session_mut().systems
+        &mut self.session.systems
     }
 
     #[inline]
     pub fn sim(&self) -> &Simulation {
-        &self.session().sim
+        &self.session.sim
     }
 
     #[inline]
     pub fn sim_mut(&mut self) -> &mut Simulation {
-        &mut self.session_mut().sim
+        &mut self.session.sim
     }
 
+    #[inline]
     pub fn quit_game(&mut self) {
         self.engine_mut().app().request_quit();
     }
@@ -695,16 +676,6 @@ impl GameLoop {
     // ----------------------
     // Internal:
     // ----------------------
-
-    #[inline]
-    fn session(&self) -> &GameSession {
-        self.session.as_ref().unwrap()
-    }
-
-    #[inline]
-    fn session_mut(&mut self) -> &mut GameSession {
-        self.session.as_mut().unwrap()
-    }
 
     fn init_engine(configs: &EngineConfigs) -> Box<dyn Engine> {
         log::info!(log::channel!("game"), "Init Engine: GLFW + OpenGL");
@@ -744,7 +715,7 @@ impl GameLoop {
                     && key == InputKey::Slash
                     && modifiers.intersects(InputModifiers::Control)
                 {
-                    self.session.as_mut().unwrap().toggle_menus_mode(self.engine.as_ref());
+                    self.session.toggle_menus_mode(&*self.engine);
                     input_event = UiInputEvent::Handled;
                 }
 
@@ -776,26 +747,24 @@ impl GameLoop {
                          delta_time_secs: Seconds)
                          -> CellRange {
         let is_any_ui_item_hovered = self.engine.ui_system().ui().is_any_item_hovered();
-        let session = self.session_mut();
-
-        session.camera.update_zooming(delta_time_secs);
+        self.session.camera.update_zooming(delta_time_secs);
 
         // Map scrolling, if cursor not hovering a menu item:
         if !is_any_ui_item_hovered {
-            session.camera.update_scrolling(cursor_screen_pos, delta_time_secs);
+            self.session.camera.update_scrolling(cursor_screen_pos, delta_time_secs);
         }
 
-        session.sim.update(Self::get_mut().engine_mut(),
-                           &mut session.world,
-                           &mut session.systems,
-                           &mut session.tile_map,
-                           delta_time_secs);
+        self.session.sim.update(Self::get_mut().engine_mut(),
+                                &mut self.session.world,
+                                &mut self.session.systems,
+                                &mut self.session.tile_map,
+                                delta_time_secs);
 
-        let visible_range = session.camera.visible_cells_range();
+        let visible_range = self.session.camera.visible_cells_range();
 
-        if !session.sim.is_paused() {
-            let scaled_delta_time_secs = delta_time_secs * session.sim.speed();
-            session.tile_map.update_anims(visible_range, scaled_delta_time_secs);
+        if !self.session.sim.is_paused() {
+            let scaled_delta_time_secs = delta_time_secs * self.session.sim.speed();
+            self.session.tile_map.update_anims(visible_range, scaled_delta_time_secs);
         }
 
         visible_range
@@ -808,17 +777,16 @@ impl GameLoop {
         let tex_cache = self.engine.texture_cache();
         let input_sys = self.engine.input_system();
         let ui_sys = self.engine.ui_system();
-        let session = self.session.as_mut().unwrap();
 
-        session.tile_map.minimap_mut().update(&mut session.camera,
-                                              tex_cache,
-                                              input_sys,
-                                              ui_sys,
-                                              delta_time_secs);
+        self.session.tile_map.minimap_mut().update(&mut self.session.camera,
+                                                   tex_cache,
+                                                   input_sys,
+                                                   ui_sys,
+                                                   delta_time_secs);
 
-        self.engine.draw_tile_map(&session.tile_map,
-                                  &session.tile_selection,
-                                  &session.camera,
+        self.engine.draw_tile_map(&self.session.tile_map,
+                                  &self.session.tile_selection,
+                                  &self.session.camera,
                                   visible_range,
                                   flags);
     }
@@ -862,33 +830,47 @@ impl GameLoop {
     }
 
     fn session_cmd_reset(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
-        self.session.as_mut().unwrap().reset(self.engine.as_mut(), true, reset_map_with_tile_def, new_map_size, false);
-        log::info!(log::channel!("game"), "Game Session reset.");
+        self.session.reset(&mut *self.engine, true, reset_map_with_tile_def, new_map_size, false);
+        log::info!(log::channel!("game"), "--- Game Session reset ---");
     }
 
     fn session_cmd_load_preset(&mut self, preset_number: usize) {
-        self.terminate_session();
+        Self::terminate_session(&mut self.session, &mut *self.engine);
 
         let viewport_size = self.engine.viewport().integer_size();
-        let new_session = GameSession::load_preset_map(preset_number, viewport_size, self.engine());
+        self.session = Box::new(GameSession::load_preset_map(preset_number, viewport_size, self.engine()));
 
-        self.session = Some(Box::new(new_session));
         log::info!(log::channel!("game"), "--- Game Session created ---");
     }
 
     fn session_cmd_load_save_game(&mut self, save_file_path: String) {
         debug_assert!(!save_file_path.is_empty());
-        self.session_mut().load_save_game(&save_file_path);
+        self.session.load_save_game(&save_file_path);
     }
 
     fn session_cmd_save_game(&mut self, save_file_path: String) {
         debug_assert!(!save_file_path.is_empty());
-        self.session_mut().save_game(&save_file_path);
+        self.session.save_game(&save_file_path);
     }
 
     fn session_cmd_quit_to_main_menu(&mut self) {
-        self.terminate_session();
-        self.create_session();
+        Self::terminate_session(&mut self.session, &mut *self.engine);
+        self.session = Self::create_session(GameConfigs::get(), &*self.engine);
+    }
+
+    fn create_session(configs: &GameConfigs, engine: &dyn Engine) -> Box<GameSession> {
+        let load_map_setting = &configs.save.load_map_setting;
+        let viewport_size = engine.viewport().integer_size();
+        let home_menu = !configs.debug.skip_home_menu;
+
+        let session = GameSession::new(load_map_setting, viewport_size, engine, home_menu);
+        log::info!(log::channel!("game"), "--- Game Session created ---");
+        Box::new(session)
+    }
+
+    fn terminate_session(session: &mut GameSession, engine: &mut dyn Engine) {
+        session.reset(engine, false, None, None, false);
+        log::info!(log::channel!("game"), "--- Game Session destroyed ---");
     }
 
     // ----------------------
@@ -896,14 +878,13 @@ impl GameLoop {
     // ----------------------
 
     fn menus_begin_frame(&mut self) -> TileMapRenderFlags {
-        let session = self.session.as_mut().unwrap();
-        if let Some(menus) = &mut session.menus {
+        if let Some(menus) = &mut self.session.menus {
             menus.begin_frame(&mut UiWidgetContext::new(
-                &mut session.sim,
-                &mut session.world,
-                &mut session.tile_map,
-                &mut session.tile_selection,
-                &mut session.camera,
+                &mut self.session.sim,
+                &mut self.session.world,
+                &mut self.session.tile_map,
+                &mut self.session.tile_selection,
+                &mut self.session.camera,
                 &*self.engine
             ));
             menus.selected_render_flags()
@@ -913,14 +894,13 @@ impl GameLoop {
     }
 
     fn menus_end_frame(&mut self, visible_range: CellRange) {
-        let session = self.session.as_mut().unwrap();
-        if let Some(menus) = &mut session.menus {
+        if let Some(menus) = &mut self.session.menus {
             menus.end_frame(&mut UiWidgetContext::new(
-                &mut session.sim,
-                &mut session.world,
-                &mut session.tile_map,
-                &mut session.tile_selection,
-                &mut session.camera,
+                &mut self.session.sim,
+                &mut self.session.world,
+                &mut self.session.tile_map,
+                &mut self.session.tile_selection,
+                &mut self.session.camera,
                 &*self.engine
             ),
             visible_range);
@@ -932,14 +912,13 @@ impl GameLoop {
                           action: InputAction,
                           modifiers: InputModifiers)
                           -> UiInputEvent {
-        let session = self.session.as_mut().unwrap();
-        if let Some(menus) = &mut session.menus {
+        if let Some(menus) = &mut self.session.menus {
             menus.handle_input(&mut UiWidgetContext::new(
-                &mut session.sim,
-                &mut session.world,
-                &mut session.tile_map,
-                &mut session.tile_selection,
-                &mut session.camera,
+                &mut self.session.sim,
+                &mut self.session.world,
+                &mut self.session.tile_map,
+                &mut self.session.tile_selection,
+                &mut self.session.camera,
                 &*self.engine
             ),
             GameMenusInputArgs::Key { key, action, modifiers })
@@ -953,14 +932,13 @@ impl GameLoop {
                              action: InputAction,
                              modifiers: InputModifiers)
                              -> UiInputEvent {
-        let session = self.session.as_mut().unwrap();
-        if let Some(menus) = &mut session.menus {
+        if let Some(menus) = &mut self.session.menus {
             menus.handle_input(&mut UiWidgetContext::new(
-                &mut session.sim,
-                &mut session.world,
-                &mut session.tile_map,
-                &mut session.tile_selection,
-                &mut session.camera,
+                &mut self.session.sim,
+                &mut self.session.world,
+                &mut self.session.tile_map,
+                &mut self.session.tile_selection,
+                &mut self.session.camera,
                 &*self.engine
             ),
             GameMenusInputArgs::Mouse { button, action, modifiers })
@@ -970,14 +948,13 @@ impl GameLoop {
     }
 
     fn menus_on_scroll(&mut self, amount: Vec2) -> UiInputEvent {
-        let session = self.session.as_mut().unwrap();
-        if let Some(menus) = &mut session.menus {
+        if let Some(menus) = &mut self.session.menus {
             menus.handle_input(&mut UiWidgetContext::new(
-                &mut session.sim,
-                &mut session.world,
-                &mut session.tile_map,
-                &mut session.tile_selection,
-                &mut session.camera,
+                &mut self.session.sim,
+                &mut self.session.world,
+                &mut self.session.tile_map,
+                &mut self.session.tile_selection,
+                &mut self.session.camera,
                 &*self.engine
             ),
             GameMenusInputArgs::Scroll { amount })

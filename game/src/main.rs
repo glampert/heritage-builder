@@ -22,15 +22,11 @@ mod utils;
 fn main() {
     use game::GameLoop;
 
-    let game_loop = GameLoop::new();
-
-    game_loop.create_session();
+    let game_loop = GameLoop::start();
 
     while game_loop.is_running() {
         game_loop.update();
     }
 
-    game_loop.terminate_session();
-
-    GameLoop::terminate();
+    GameLoop::shutdown();
 }
