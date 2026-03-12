@@ -19,7 +19,7 @@ use crate::{
         fixed_string::format_fixed_string,
         coords::{Cell, CellRange},
         hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
-        mem::{self, singleton_late_init}, Color, RectTexCoords, Size, Vec2,
+        mem::{RawPtr, Mutable, singleton_late_init}, Color, RectTexCoords, Size, Vec2,
     },
 };
 
@@ -846,7 +846,7 @@ impl TileDef {
             // NOTE: Need this temporary to deal with borrow issues.
             // resolve_frame_references will never allow referencing
             // self, only other variations, so this is safe.
-            let mut variation = mem::RawPtr::from_ref(&self.variations[v]);
+            let mut variation = RawPtr::from_ref(&self.variations[v]);
 
             for anim_set in &mut variation.as_mut().anim_sets {
                 if !anim_set.resolve_frame_references(tex_cache,
@@ -901,7 +901,7 @@ const fn default_looping_anim() -> bool {
 // This allows returning a mutable TileDef reference in
 // try_get_editable_tile_def() for runtime editing purposes. We only require
 // this functionality for debug and development.
-type EditableTileDef = mem::Mutable<TileDef>;
+type EditableTileDef = Mutable<TileDef>;
 
 // ----------------------------------------------
 // TileCategory

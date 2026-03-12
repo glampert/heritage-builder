@@ -48,8 +48,7 @@ use crate::{
     utils::{
         bitflags_with_display,
         coords::{Cell, CellRange, WorldToScreenTransform},
-        hash::StringHash,
-        mem, Color,
+        hash::StringHash, mem::Mutable, Color,
     },
 };
 
@@ -221,7 +220,7 @@ pub type BuildingId = GenerationalIndex;
 pub struct Building {
     id: BuildingId,
     map_cells: CellRange,
-    road_link: mem::Mutable<Cell>,
+    road_link: Mutable<Cell>,
     kind: BuildingKind,
     workers_update_timer: UpdateTimer,
     archetype: Option<BuildingArchetype>,
@@ -1293,7 +1292,7 @@ impl BuildingTileInfo {
 
 pub struct BuildingContext<'game> {
     pub id: BuildingId,
-    pub map_cells: mem::Mutable<CellRange>,
+    pub map_cells: Mutable<CellRange>,
     pub road_link: Option<Cell>,
     pub kind: BuildingKind,
     pub archetype_kind: BuildingArchetypeKind,
@@ -1311,7 +1310,7 @@ impl<'game> BuildingContext<'game> {
            -> Self {
         Self {
             id,
-            map_cells: mem::Mutable::new(map_cells),
+            map_cells: Mutable::new(map_cells),
             road_link,
             kind,
             archetype_kind,

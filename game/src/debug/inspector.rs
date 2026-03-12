@@ -28,9 +28,11 @@ struct TileWeakRef {
 
 impl TileWeakRef {
     fn new(tile: &Tile) -> Self {
-        Self { tile_ptr: RawPtr::from_ref(tile),
-               tile_kind: tile.kind(),
-               tile_layer: tile.layer_kind() }
+        Self {
+            tile_ptr: RawPtr::from_ref(tile),
+            tile_kind: tile.kind(),
+            tile_layer: tile.layer_kind(),
+        }
     }
 
     fn try_tile(&self) -> Option<&Tile> {

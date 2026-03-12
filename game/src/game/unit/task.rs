@@ -17,7 +17,7 @@ use crate::{
     debug::{self},
     engine::time::{Seconds, CountdownTimer},
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
-    utils::{callback::Callback, coords::Cell, mem, Color},
+    utils::{callback::Callback, coords::Cell, mem::RawPtr, Color},
     pathfind::{
         self, Node, NodeKind as PathNodeKind, Path, PathFilter, PathHistory,
         RandomDirectionalBias, SearchResult,
@@ -1735,7 +1735,7 @@ impl UnitTaskPool {
                 }
 
                 // HACK: Borrow checker bypass so we can pass self to terminate()...
-                let task_ptr = mem::RawPtr::from_ref(task);
+                let task_ptr = RawPtr::from_ref(task);
                 task_ptr.mut_ref_cast().archetype.terminate(self);
             }
             None => return, // Already free.
