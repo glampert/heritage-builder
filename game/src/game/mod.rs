@@ -418,8 +418,7 @@ impl GameSession {
             return false;
         }
 
-        // Load into a temporary instance so that if we fail we'll avoid modifying any
-        // state.
+        // Load into a temporary instance so that if we fail we'll avoid modifying any state.
         let session: GameSession = match state.load_new_instance() {
             Ok(session) => session,
             Err(err) => {
@@ -429,11 +428,11 @@ impl GameSession {
             }
         };
 
-        let engine = GameLoop::get().engine();
+        let engine = GameLoop::get_mut().engine_mut();
 
         self.pre_load(&PreLoadContext::new(engine));
         *self = session;
-        self.post_load(&PostLoadContext::new(engine, self.sim.rng_mut(), self.tile_map.clone()));
+        self.post_load(&PostLoadContext::new(engine, &self.sim, self.tile_map.clone()));
 
         if GameConfigs::get().sim.start_paused {
             self.sim.pause();

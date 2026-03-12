@@ -1,7 +1,13 @@
 use std::{fs, io, path::Path};
 use enum_dispatch::enum_dispatch;
 use serde::{de::DeserializeOwned, Serialize};
-use crate::{engine::Engine, game::sim::RandomGenerator, tile::TileMap, utils::mem::{self, RawPtr, RcMut}};
+
+use crate::{
+    engine::Engine,
+    tile::TileMap,
+    utils::mem::{self, RawPtr, RcMut},
+    game::sim::{Simulation, RandomGenerator},
+};
 
 // ----------------------------------------------
 // Save / Load Traits
@@ -49,51 +55,41 @@ pub enum SaveStateImpl {
     Json(backend::JsonSaveState),
 }
 
-pub struct PreLoadContext {
-    engine: RawPtr<dyn Engine>,
+pub struct PreLoadContext<'game> {
+    engine: &'game mut dyn Engine,
 }
 
-impl PreLoadContext {
+impl<'game> PreLoadContext<'game> {
     #[inline]
-    pub fn new(engine: &dyn Engine) -> Self {
-        Self { engine: RawPtr::from_ref(engine) }
+    pub fn new(engine: &'game mut dyn Engine) -> Self {
+        Self { engine }
     }
 
     #[inline]
     pub fn engine(&self) -> &dyn Engine {
-        self.engine.as_ref()
+        self.engine
     }
 
     #[inline]
     pub fn engine_mut(&self) -> &mut dyn Engine {
-        self.engine.mut_ref_cast()
+        mem::mut_ref_cast(self.engine)
     }
 }
 
-pub struct PostLoadContext {
-    engine: RawPtr<dyn Engine>,
+pub struct PostLoadContext<'game> {
     rng: RawPtr<RandomGenerator>,
+    engine: &'game mut dyn Engine,
     tile_map: RcMut<TileMap>,
 }
 
-impl PostLoadContext {
+impl<'game> PostLoadContext<'game> {
     #[inline]
-    pub fn new(engine: &dyn Engine, rng: &mut RandomGenerator, tile_map: RcMut<TileMap>) -> Self {
+    pub fn new(engine: &'game mut dyn Engine, sim: &Simulation, tile_map: RcMut<TileMap>) -> Self {
         Self {
-            engine: RawPtr::from_ref(engine),
-            rng: RawPtr::from_ref(rng),
+            rng: RawPtr::from_ref(mem::mut_ref_cast(sim).rng_mut()),
+            engine,
             tile_map,
         }
-    }
-
-    #[inline]
-    pub fn engine(&self) -> &dyn Engine {
-        self.engine.as_ref()
-    }
-
-    #[inline]
-    pub fn engine_mut(&self) -> &mut dyn Engine {
-        self.engine.mut_ref_cast()
     }
 
     #[inline]
@@ -102,13 +98,23 @@ impl PostLoadContext {
     }
 
     #[inline]
+    pub fn engine(&self) -> &dyn Engine {
+        self.engine
+    }
+
+    #[inline]
+    pub fn engine_mut(&self) -> &mut dyn Engine {
+        mem::mut_ref_cast(self.engine)
+    }
+
+    #[inline]
     pub fn tile_map(&self) -> &TileMap {
-        self.tile_map.as_ref()
+        &self.tile_map
     }
 
     #[inline]
     pub fn tile_map_mut(&self) -> &mut TileMap {
-        mem::mut_ref_cast(self.tile_map.as_ref())
+        mem::mut_ref_cast(&self.tile_map)
     }
 
     #[inline]

@@ -1,7 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::type_complexity)]
 
-use std::{any::Any, fmt::Display, path::PathBuf};
+use std::{any::Any, fmt::Display, path::PathBuf, borrow::Cow};
 
 use bitflags::bitflags;
 use arrayvec::ArrayString;
@@ -230,6 +230,27 @@ impl<Widget: UiWidget> UiWidgetCallbackRef<Widget> for UiMutable {
 }
 
 // ----------------------------------------------
+// UiCallbackArg
+// ----------------------------------------------
+
+// Mirrors what UiWidgetCallbackRef does for Widget, but for arguments.
+pub trait UiCallbackArg {
+    type Arg<'a>;
+}
+
+// For owned / 'static arguments where no lifetime is involved.
+pub struct UiValue<T>(std::marker::PhantomData<T>);
+impl<T> UiCallbackArg for UiValue<T> {
+    type Arg<'a> = T;
+}
+
+// For string references.
+pub struct UiStrRef;
+impl UiCallbackArg for UiStrRef {
+    type Arg<'a> = &'a str;
+}
+
+// ----------------------------------------------
 // UiWidgetCallback
 // ----------------------------------------------
 
@@ -288,27 +309,29 @@ impl<Widget, Access, Output> UiWidgetCallback<Widget, Access, Output>
 pub enum UiWidgetCallbackWithArg<Widget, Access, Arg, Output = ()>
     where Widget: UiWidget,
           Access: UiWidgetCallbackRef<Widget>,
+          Arg: UiCallbackArg,
 {
     #[default]
     None,
 
     // With plain function pointer, no capture, no memory allocation.
-    Fn(for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext, Arg) -> Output),
+    Fn(for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext, Arg::Arg<'a>) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
-    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext, Arg) -> Output + 'static>),
+    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext, Arg::Arg<'a>) -> Output + 'static>),
 }
 
 impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, Output>
     where Widget: UiWidget,
           Access: UiWidgetCallbackRef<Widget>,
+          Arg: UiCallbackArg,
 {
-    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext, Arg) -> Output) -> Self {
+    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext, Arg::Arg<'a>) -> Output) -> Self {
         Self::Fn(f)
     }
 
     pub fn with_closure<C>(c: C) -> Self
-        where C: for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext, Arg) -> Output + 'static
+        where C: for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext, Arg::Arg<'a>) -> Output + 'static
     {
         Self::Closure(Box::new(c))
     }
@@ -318,7 +341,7 @@ impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, O
     }
 
     #[inline]
-    fn invoke(&self, widget: &Widget, context: &mut UiWidgetContext, arg: Arg) -> Option<Output> {
+    fn invoke<'a>(&self, widget: &'a Widget, context: &mut UiWidgetContext, arg: Arg::Arg<'a>) -> Option<Output> {
         match self {
             Self::Fn(f) => {
                 Some(f(Access::from_ref(widget), context, arg))
@@ -436,7 +459,7 @@ pub type UiMenuRcMut   = RcMut<UiMenu>;
 pub type UiMenuWeakMut = WeakMut<UiMenu>;
 pub type UiMenuWeakRef = WeakRef<UiMenu>;
 
-pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiMutable, bool>;
+pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiMutable, UiValue<bool>>;
 pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, UiReadOnly, Vec2>;
 
 #[derive(Copy, Clone)]
@@ -1768,7 +1791,7 @@ pub struct UiSpriteButtonParams {
     pub on_state_changed: UiSpriteButtonStateChanged,
 }
 
-pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiMutable, UiSpriteButtonState>;
+pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiMutable, UiValue<UiSpriteButtonState>>;
 
 // ----------------------------------------------
 // UiSpriteButton
@@ -2345,7 +2368,7 @@ pub struct UiSliderParams<T> {
 }
 
 pub type UiSliderReadValue<T>   = UiWidgetCallback<UiSlider, UiReadOnly, T>;
-pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, UiReadOnly, T>;
+pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, UiReadOnly, UiValue<T>>;
 
 // ----------------------------------------------
 // UiSlider
@@ -2525,7 +2548,7 @@ pub struct UiCheckboxParams {
 }
 
 pub type UiCheckboxReadValue   = UiWidgetCallback<UiCheckbox, UiReadOnly, bool>;
-pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, UiReadOnly, bool>;
+pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, UiReadOnly, UiValue<bool>>;
 
 // ----------------------------------------------
 // UiCheckbox
@@ -2536,7 +2559,7 @@ pub struct UiCheckbox {
     imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     on_read_value: UiCheckboxReadValue,
-    on_update_value:UiCheckboxUpdateValue,
+    on_update_value: UiCheckboxUpdateValue,
 }
 
 impl UiWidget for UiCheckbox {
@@ -2615,7 +2638,7 @@ pub struct UiIntInputParams {
 }
 
 pub type UiIntInputReadValue   = UiWidgetCallback<UiIntInput, UiReadOnly, i32>;
-pub type UiIntInputUpdateValue = UiWidgetCallbackWithArg<UiIntInput, UiReadOnly, i32>;
+pub type UiIntInputUpdateValue = UiWidgetCallbackWithArg<UiIntInput, UiReadOnly, UiValue<i32>>;
 
 // ----------------------------------------------
 // UiIntInput
@@ -2700,8 +2723,8 @@ pub struct UiTextInputParams {
     pub on_update_value: UiTextInputUpdateValue,
 }
 
-pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, UiReadOnly, RawPtr<str>>;
-pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, UiReadOnly, RawPtr<str>>;
+pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, UiReadOnly, Cow<'static, String>>;
+pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, UiReadOnly, UiStrRef>;
 
 // ----------------------------------------------
 // UiTextInput
@@ -2729,11 +2752,10 @@ impl UiWidget for UiTextInput {
 
         let label = make_imgui_id!(self, UiTextInput, self.label);
 
-        let value = self.on_read_value.invoke(self, context)
-            .unwrap_or(RawPtr::from_ref(""));
-
         self.buffer.clear();
-        self.buffer.push_str(value.as_ref());
+        if let Some(value) = self.on_read_value.invoke(self, context) {
+            self.buffer.push_str(&value);
+        }
 
         let (input, _group) =
             internal::input_text_with_left_label(ui, label, &mut self.buffer);
@@ -2741,7 +2763,7 @@ impl UiWidget for UiTextInput {
         let value_changed = input.build();
 
         if value_changed {
-            self.on_update_value.invoke(self, context, RawPtr::from_ref(&self.buffer));
+            self.on_update_value.invoke(self, context, &self.buffer);
         }
     }
 

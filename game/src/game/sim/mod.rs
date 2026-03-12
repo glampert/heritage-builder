@@ -35,7 +35,7 @@ use crate::{
     },
     utils::{
         coords::{Cell, CellRange},
-        hash::StringHash, mem::{self, RawPtr},
+        hash::StringHash, mem::RawPtr,
     },
 };
 
@@ -122,8 +122,8 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn rng_mut(&self) -> &mut RandomGenerator {
-        mem::mut_ref_cast(&self.rng)
+    pub fn rng_mut(&mut self) -> &mut RandomGenerator {
+        &mut self.rng
     }
 
     pub fn update(&mut self,

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{log, utils::{Color, mem::RawPtr}, ui::{widgets::*, UiStaticVar}};
+use crate::{log, utils::Color, ui::{widgets::*, UiStaticVar}};
 
 // ----------------------------------------------
 // Sample Menu 1:
@@ -102,14 +102,14 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         UiTextInputParams {
             font_scale: widgets_font_scale,
             on_read_value: UiTextInputReadValue::with_fn(
-                |_input, _context| -> RawPtr<str> {
-                    RawPtr::from_ref(&SAMPLE_MENU_1_STATE.text_input)
+                |_input, _context| {
+                    std::borrow::Cow::Borrowed(&SAMPLE_MENU_1_STATE.text_input)
                 }
             ),
             on_update_value: UiTextInputUpdateValue::with_fn(
-                |_input, _context, new_value: RawPtr<str>| {
-                    log::info!("Updated TextInput value: {}", new_value.as_ref());
-                    SAMPLE_MENU_1_STATE.as_mut().text_input = new_value.as_ref().into();
+                |_input, _context, new_value| {
+                    log::info!("Updated TextInput value: {new_value}");
+                    SAMPLE_MENU_1_STATE.as_mut().text_input = new_value.into();
                 }
             ),
             ..Default::default()
