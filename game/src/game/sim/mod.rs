@@ -86,19 +86,19 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn new_query(&mut self,
-                     world: &mut World,
-                     tile_map: &mut TileMap,
-                     delta_time_secs: Seconds)
-                     -> Query {
-        Query::new(&mut self.rng,
-                   &mut self.graph,
-                   &mut self.search,
-                   &mut self.task_manager,
-                   world,
-                   tile_map,
-                   &mut self.treasury,
-                   delta_time_secs)
+    pub fn new_sim_context(&mut self,
+                           world: &mut World,
+                           tile_map: &mut TileMap,
+                           delta_time_secs: Seconds)
+                           -> SimContext {
+        SimContext::new(&mut self.rng,
+                        &mut self.graph,
+                        &mut self.search,
+                        &mut self.task_manager,
+                        world,
+                        tile_map,
+                        &mut self.treasury,
+                        delta_time_secs)
     }
 
     #[inline]
@@ -133,8 +133,8 @@ impl Simulation {
 
         if self.is_paused {
             // TODO: Should we have a paused update timer or let it run every frame?
-            let query = self.new_query(world, tile_map, delta_time_secs);
-            systems.paused_update(engine, &query);
+            let context = self.new_sim_context(world, tile_map, delta_time_secs);
+            systems.paused_update(engine, &context);
             return;
         }
 
@@ -142,17 +142,17 @@ impl Simulation {
 
         // Units movement needs to be smooth, so it updates every frame.
         {
-            let query = self.new_query(world, tile_map, scaled_delta_time_secs);
-            world.update_unit_navigation(&query);
+            let context = self.new_sim_context(world, tile_map, scaled_delta_time_secs);
+            world.update_unit_navigation(&context);
         }
 
         // Fixed step world & systems update.
         {
             let world_update_delta_time_secs = self.update_timer.time_since_last_secs() * self.speed;
             if self.update_timer.tick(scaled_delta_time_secs).should_update() {
-                let query = self.new_query(world, tile_map, world_update_delta_time_secs);
-                world.update(&query);
-                systems.update(engine, &query);
+                let context = self.new_sim_context(world, tile_map, world_update_delta_time_secs);
+                world.update(&context);
+                systems.update(engine, &context);
             }
         }
     }
@@ -162,8 +162,8 @@ impl Simulation {
                        world: &mut World,
                        systems: &mut GameSystems,
                        tile_map: &mut TileMap) {
-        let query = self.new_query(world, tile_map, 0.0);
-        world.reset(&query);
+        let context = self.new_sim_context(world, tile_map, 0.0);
+        world.reset(&context);
         systems.reset(engine);
     }
 
@@ -232,8 +232,8 @@ impl Simulation {
                                       context: &mut UiWidgetContext,
                                       engine: &mut dyn Engine,
                                       systems: &mut GameSystems) {
-        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-        systems.draw_debug_ui(engine, &query, context.ui_sys);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        systems.draw_debug_ui(engine, &sim_context, context.ui_sys);
     }
 
     // Generic GameObjects:
@@ -258,8 +258,8 @@ impl Simulation {
 
     // Buildings:
     fn draw_building_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
-        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_building_debug_popups(&query,
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        context.world.draw_building_debug_popups(&sim_context,
                                                  context.ui_sys,
                                                  context.camera.transform(),
                                                  visible_range);
@@ -269,36 +269,36 @@ impl Simulation {
                               context: &mut UiWidgetContext,
                               tile: &Tile,
                               mode: DebugUiMode) {
-        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_building_debug_ui(&query, context.ui_sys, tile, mode);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        context.world.draw_building_debug_ui(&sim_context, context.ui_sys, tile, mode);
     }
 
     // Units:
     fn draw_unit_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
-        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_unit_debug_popups(&query, context.ui_sys, context.camera.transform(), visible_range);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        context.world.draw_unit_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_unit_debug_ui(&mut self,
                           context: &mut UiWidgetContext,
                           tile: &Tile,
                           mode: DebugUiMode) {
-        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_unit_debug_ui(&query, context.ui_sys, tile, mode);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        context.world.draw_unit_debug_ui(&sim_context, context.ui_sys, tile, mode);
     }
 
     // Props:
     fn draw_prop_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
-        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_prop_debug_popups(&query, context.ui_sys, context.camera.transform(), visible_range);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        context.world.draw_prop_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_prop_debug_ui(&mut self,
                           context: &mut UiWidgetContext,
                           tile: &Tile,
                           mode: DebugUiMode) {
-        let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_prop_debug_ui(&query, context.ui_sys, tile, mode);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        context.world.draw_prop_debug_ui(&sim_context, context.ui_sys, tile, mode);
     }
 }
 
@@ -329,10 +329,10 @@ impl Load for Simulation {
 }
 
 // ----------------------------------------------
-// Query
+// SimContext
 // ----------------------------------------------
 
-pub struct Query {
+pub struct SimContext {
     // SAFETY: Queries are local variables in the Simulation::update() stack,
     // so none of the pointers stored here will persist or leak outside the
     // update call stack. Storing raw pointers here makes things easier
@@ -358,7 +358,7 @@ pub struct Query {
     delta_time_secs: Seconds,
 }
 
-impl Query {
+impl SimContext {
     #[inline]
     pub fn new(rng: &mut RandomGenerator,
                graph: &mut Graph,
@@ -572,22 +572,22 @@ impl Query {
                 .node_kind(Node::new(start))
                 .is_some_and(|kind| kind.intersects(traversable_node_kinds))
         {
-            log::error!(log::channel!("sim"),
-                        "Near building search: start cell {start} is not traversable!");
+            log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
             return None;
         }
 
-        struct BuildingPathFilter<'world, F> {
-            query: &'world Query,
+        struct BuildingPathFilter<'game, F> {
+            context: &'game SimContext,
             building_kinds: BuildingKind,
             traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
-            result_building: Option<&'world mut Building>, // Search result.
-            result_path: Option<RawPtr<Path>>,             // SAFETY: Saved for result debug validation only.
+            result_building: Option<&'game mut Building>, // Search result.
+            result_path: Option<RawPtr<Path>>,            // SAFETY: Saved for result debug validation only.
             visited_nodes: SmallVec<[Node; 32]>,
         }
 
-        impl<F> PathFilter for BuildingPathFilter<'_, F> where F: FnMut(&Building, &Path) -> bool
+        impl<F> PathFilter for BuildingPathFilter<'_, F>
+            where F: FnMut(&Building, &Path) -> bool
         {
             fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {
                 if self.visited_nodes.contains(&goal) {
@@ -598,17 +598,17 @@ impl Query {
                 debug_assert!(!path.is_empty());
                 debug_assert!(path.last().unwrap().cell == goal.cell);
 
-                let node_kind = self.query.graph().node_kind(goal).unwrap();
+                let node_kind = self.context.graph().node_kind(goal).unwrap();
                 debug_assert!(node_kind.intersects(PathNodeKind::BuildingRoadLink
                                                    | PathNodeKind::BuildingAccess),
                               "Unexpected PathNodeKind: {node_kind}");
 
-                let neighbors = self.query.graph().neighbors(goal, PathNodeKind::Building);
+                let neighbors = self.context.graph().neighbors(goal, PathNodeKind::Building);
                 for neighbor in neighbors {
                     if let Some(building) =
-                        self.query
+                        self.context
                             .world()
-                            .find_building_for_cell_mut(neighbor.cell, self.query.tile_map())
+                            .find_building_for_cell_mut(neighbor.cell, self.context.tile_map())
                     {
                         if building.is(self.building_kinds) {
                             let mut accept_building = false;
@@ -617,7 +617,7 @@ impl Query {
                             // road link goal actually belongs to this
                             // building. Buildings can share the same road link tile.
                             if self.traversable_node_kinds.is_road() {
-                                if building.road_link(self.query)
+                                if building.road_link(self.context)
                                            .is_some_and(|link| link == goal.cell)
                                 {
                                     accept_building = !(self.visitor_fn)(building, path);
@@ -643,13 +643,15 @@ impl Query {
             }
         }
 
-        let mut building_filter = BuildingPathFilter { query: self,
-                                                       building_kinds,
-                                                       traversable_node_kinds,
-                                                       visitor_fn,
-                                                       result_building: None,
-                                                       result_path: None,
-                                                       visited_nodes: SmallVec::new() };
+        let mut building_filter = BuildingPathFilter {
+            context: self,
+            building_kinds,
+            traversable_node_kinds,
+            visitor_fn,
+            result_building: None,
+            result_path: None,
+            visited_nodes: SmallVec::new(),
+        };
 
         let result = self.search().find_buildings(self.graph(),
                                                   &AStarUniformCostHeuristic::new(),
@@ -701,8 +703,7 @@ impl Query {
                 .node_kind(Node::new(start))
                 .is_some_and(|kind| kind.intersects(traversable_node_kinds))
         {
-            log::error!(log::channel!("sim"),
-                        "Near building search: start cell {start} is not traversable!");
+            log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
             return false;
         }
 

@@ -289,10 +289,10 @@ impl BuildingInspector {
         let house = building.as_house();
 
         if !house.level().is_max() {
-            let query = context.new_sim_query();
-            let building_context = building.new_context(&query);
+            let sim_context = context.new_sim_context();
+            let building_context = building.new_context(&sim_context);
 
-            if !building.is_linked_to_road(&query) {
+            if !building.is_linked_to_road(&sim_context) {
                 add_body_line!(&mut body, "House lacks road access!");
             } else if !house.is_upgrade_available(&building_context) {
                 add_body_line!(&mut body, "House has no room to expand!");
@@ -334,8 +334,8 @@ impl BuildingInspector {
 
         let is_operational = building.is_operational();
         if !is_operational {
-            let query = context.new_sim_query();
-            let is_linked_to_road = building.is_linked_to_road(&query);
+            let sim_context = context.new_sim_context();
+            let is_linked_to_road = building.is_linked_to_road(&sim_context);
 
             let has_min_required_workers = building.has_min_required_workers();
             let has_min_required_resources = building.has_min_required_resources();

@@ -12,7 +12,7 @@ use crate::{
     game::{
         cheats,
         sim::{
-            Query,
+            SimContext,
             resources::{
                 ResourceKind, ResourceKinds, ShoppingList, Workers,
                 StockItem, RESOURCE_KIND_COUNT,
@@ -175,7 +175,7 @@ impl BuildingBehavior for ServiceBuilding {
     fn update(&mut self, context: &BuildingContext) {
         debug_assert!(self.config.is_some());
 
-        let delta_time_secs = context.query.delta_time_secs();
+        let delta_time_secs = context.sim_ctx.delta_time_secs();
         let has_min_required_workers = self.has_min_required_workers();
         let has_stock_requirements = self.stock_or_treasury.is_stock_and_requires_resources();
         let has_patrol_unit = self.has_patrol_unit();
@@ -508,17 +508,17 @@ impl ServiceBuilding {
     }
 
     #[inline]
-    fn is_runner_fetching_resources(&self, query: &Query) -> bool {
-        self.runner.is_running_task::<UnitTaskFetchFromStorage>(query)
+    fn is_runner_fetching_resources(&self, context: &SimContext) -> bool {
+        self.runner.is_running_task::<UnitTaskFetchFromStorage>(context)
     }
 
-    fn on_resources_fetched(this_building: &mut Building, runner_unit: &mut Unit, query: &Query) {
+    fn on_resources_fetched(this_building: &mut Building, runner_unit: &mut Unit, context: &SimContext) {
         let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
         debug_assert!(!runner_unit.inventory_is_empty(),
                       "Runner Unit inventory shouldn't be empty!");
-        debug_assert!(this_service.is_runner_fetching_resources(query),
+        debug_assert!(this_service.is_runner_fetching_resources(context),
                       "No Runner was sent out by this building!");
         debug_assert!(this_service.runner.unit_id() == runner_unit.id());
 
@@ -608,13 +608,13 @@ impl ServiceBuilding {
 
     fn on_patrol_completed(this_building: &mut Building,
                            patrol_unit: &mut Unit,
-                           query: &Query)
+                           context: &SimContext)
                            -> bool {
         let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
         debug_assert!(this_service.patrol.unit_id() == patrol_unit.id());
-        debug_assert!(this_service.patrol.is_running_task::<UnitTaskRandomizedPatrol>(query),
+        debug_assert!(this_service.patrol.is_running_task::<UnitTaskRandomizedPatrol>(context),
                       "No Patrol was sent out by this building!");
 
         if let Some(item) = patrol_unit.peek_inventory() {
@@ -719,7 +719,7 @@ impl ServiceBuilding {
         }
 
         if self.is_waiting_on_runner() {
-            if self.is_runner_fetching_resources(context.query) {
+            if self.is_runner_fetching_resources(context.sim_ctx) {
                 ui.text_colored(Color::yellow().to_array(), "Runner sent on Fetch Task.");
             } else {
                 ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");

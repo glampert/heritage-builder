@@ -21,7 +21,7 @@ use crate::{
                 ResourceKind, ResourceKinds, ShoppingList, Workers,
                 StockItem, RESOURCE_KIND_COUNT
             },
-            Query, RandomGenerator,
+            SimContext, RandomGenerator,
         },
         unit::{
             runner::Runner,
@@ -202,7 +202,7 @@ impl BuildingBehavior for ProducerBuilding {
 
     fn update(&mut self, context: &BuildingContext) {
         debug_assert!(self.config.is_some());
-        let delta_time_secs = context.query.delta_time_secs();
+        let delta_time_secs = context.sim_ctx.delta_time_secs();
 
         // Update producer states:
         if self.production_update_timer.tick(delta_time_secs).should_update()
@@ -241,9 +241,9 @@ impl BuildingBehavior for ProducerBuilding {
 
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
         // We can only accept resource deliveries here.
-        debug_assert!(unit.is_running_task::<UnitTaskDeliverToStorage>(context.query.task_manager()));
+        debug_assert!(unit.is_running_task::<UnitTaskDeliverToStorage>(context.sim_ctx.task_manager()));
 
-        if self.is_runner_fetching_resources(context.query) || !self.has_min_required_workers() {
+        if self.is_runner_fetching_resources(context.sim_ctx) || !self.has_min_required_workers() {
             // If we've already sent out a runner to fetch some resources we'll refuse
             // deliveries, let this runner deliver the resources somewhere else.
             //
@@ -588,12 +588,12 @@ impl ProducerBuilding {
                                     callback::create!(ProducerBuilding::on_resources_fetched));
     }
 
-    fn on_resources_delivered(this_building: &mut Building, runner_unit: &mut Unit, query: &Query) {
+    fn on_resources_delivered(this_building: &mut Building, runner_unit: &mut Unit, context: &SimContext) {
         let this_producer = this_building.as_producer_mut();
 
         debug_assert!(runner_unit.inventory_is_empty(),
                       "Runner Unit should have delivered all resourced by now!");
-        debug_assert!(this_producer.is_runner_delivering_resources(query),
+        debug_assert!(this_producer.is_runner_delivering_resources(context),
                       "No Runner was sent out by this building!");
         debug_assert!(this_producer.runner.unit_id() == runner_unit.id());
 
@@ -601,13 +601,13 @@ impl ProducerBuilding {
         this_producer.debug.popup_msg_color(Color::cyan(), "Delivery Task complete");
     }
 
-    fn on_resources_fetched(this_building: &mut Building, runner_unit: &mut Unit, query: &Query) {
+    fn on_resources_fetched(this_building: &mut Building, runner_unit: &mut Unit, context: &SimContext) {
         let this_building_kind = this_building.kind();
         let this_producer = this_building.as_producer_mut();
 
         debug_assert!(!runner_unit.inventory_is_empty(),
                       "Runner Unit inventory shouldn't be empty!");
-        debug_assert!(this_producer.is_runner_fetching_resources(query),
+        debug_assert!(this_producer.is_runner_fetching_resources(context),
                       "No Runner was sent out by this building!");
         debug_assert!(this_producer.runner.unit_id() == runner_unit.id());
 
@@ -637,10 +637,10 @@ impl ProducerBuilding {
         this_producer.debug.popup_msg_color(Color::cyan(), "Fetch Task complete");
     }
 
-    fn on_resources_harvested(this_building: &mut Building, harvester_unit: &mut Unit, query: &Query) {
+    fn on_resources_harvested(this_building: &mut Building, harvester_unit: &mut Unit, context: &SimContext) {
         let this_producer = this_building.as_producer_mut();
 
-        debug_assert!(this_producer.is_harvester_fetching_resources(query), "No Harvester was sent out by this building!");
+        debug_assert!(this_producer.is_harvester_fetching_resources(context), "No Harvester was sent out by this building!");
         debug_assert!(this_producer.harvester.unit_id() == harvester_unit.id(), "Harvester unit ID mismatch!");
 
         // Try unload harvest:
@@ -673,18 +673,18 @@ impl ProducerBuilding {
     }
 
     #[inline]
-    fn is_runner_delivering_resources(&self, query: &Query) -> bool {
-        self.runner.is_running_task::<UnitTaskDeliverToStorage>(query)
+    fn is_runner_delivering_resources(&self, context: &SimContext) -> bool {
+        self.runner.is_running_task::<UnitTaskDeliverToStorage>(context)
     }
 
     #[inline]
-    fn is_runner_fetching_resources(&self, query: &Query) -> bool {
-        self.runner.is_running_task::<UnitTaskFetchFromStorage>(query)
+    fn is_runner_fetching_resources(&self, context: &SimContext) -> bool {
+        self.runner.is_running_task::<UnitTaskFetchFromStorage>(context)
     }
 
     #[inline]
-    fn is_harvester_fetching_resources(&self, query: &Query) -> bool {
-        self.harvester.is_running_task::<UnitTaskHarvestWood>(query)
+    fn is_harvester_fetching_resources(&self, context: &SimContext) -> bool {
+        self.harvester.is_running_task::<UnitTaskHarvestWood>(context)
     }
 
     // ----------------------
@@ -700,7 +700,7 @@ impl ProducerBuilding {
         if let Some(unit_config) = config.ambient_patrol.unit {
             let spawn_chance = config.ambient_patrol.spawn_chance;
             let max_patrol_distance = config.ambient_patrol.max_distance;
-            let idle_countdown_secs = context.query.random_range(15.0..30.0);
+            let idle_countdown_secs = context.sim_ctx.random_range(15.0..30.0);
 
             self.ambient_patrol.try_spawn_unit(
                 context,
@@ -1005,9 +1005,9 @@ impl ProducerBuilding {
         }
 
         if self.is_waiting_on_runner() {
-            if self.is_runner_delivering_resources(context.query) {
+            if self.is_runner_delivering_resources(context.sim_ctx) {
                 ui.text_colored(Color::yellow().to_array(), "Runner sent on Delivery Task.");
-            } else if self.is_runner_fetching_resources(context.query) {
+            } else if self.is_runner_fetching_resources(context.sim_ctx) {
                 ui.text_colored(Color::yellow().to_array(), "Runner sent on Fetch Task.");
             } else {
                 ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
@@ -1019,7 +1019,7 @@ impl ProducerBuilding {
         }
 
         if self.is_waiting_on_harvester() {
-            if self.is_harvester_fetching_resources(context.query) {
+            if self.is_harvester_fetching_resources(context.sim_ctx) {
                 ui.text_colored(Color::yellow().to_array(), "Harvester sent out. Waiting...");
             }
 

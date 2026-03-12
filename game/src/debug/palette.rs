@@ -108,11 +108,11 @@ impl TilePaletteDevMenu {
                 ui.text("Tools");
                 {
                     if ui::icon_button(ui_sys, ui::icons::ICON_UNDO, Some("Undo")) {
-                        undo_redo::undo(&context.sim.new_query(context.world, context.tile_map, context.delta_time_secs));
+                        undo_redo::undo(&context.sim.new_sim_context(context.world, context.tile_map, context.delta_time_secs));
                     }
                     ui.same_line();
                     if ui::icon_button(ui_sys, ui::icons::ICON_REDO, Some("Redo")) {
-                        undo_redo::redo(&context.sim.new_query(context.world, context.tile_map, context.delta_time_secs));
+                        undo_redo::redo(&context.sim.new_sim_context(context.world, context.tile_map, context.delta_time_secs));
                     }
 
                     let btn_params = ui::UiImageButtonParams {

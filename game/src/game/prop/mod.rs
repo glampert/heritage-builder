@@ -4,7 +4,7 @@ use proc_macros::DrawDebugUi;
 use super::{
     sim::{
         resources::{ResourceKind, StockItem},
-        Query,
+        SimContext,
     },
     world::{
         debug::game_object_debug_options,
@@ -105,15 +105,15 @@ impl GameObject for Prop {
     }
 
     #[inline]
-    fn update(&mut self, query: &Query) {
+    fn update(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.config.is_some());
 
         if self.is_harvestable()
             && self.harvestable.amount == 0
-            && self.harvestable.respawn_timer.tick(query.delta_time_secs())
+            && self.harvestable.respawn_timer.tick(context.delta_time_secs())
         {
-            self.respawn_harvestable(query);
+            self.respawn_harvestable(context);
         }
     }
 
@@ -146,18 +146,18 @@ impl GameObject for Prop {
         self.harvestable.initial_variation = saved_state.initial_variation;
     }
 
-    fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
 
         match mode {
             DebugUiMode::Overview => {
-                self.draw_debug_ui_overview(query, ui_sys);
+                self.draw_debug_ui_overview(context, ui_sys);
             }
             DebugUiMode::Detailed => {
                 let ui = ui_sys.ui();
                 if ui.collapsing_header("Prop", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    self.draw_debug_ui_detailed(query, ui_sys);
+                    self.draw_debug_ui_detailed(context, ui_sys);
                     ui.unindent_by(10.0);
                 }
             }
@@ -165,17 +165,17 @@ impl GameObject for Prop {
     }
 
     fn draw_debug_popups(&mut self,
-                         query: &Query,
+                         context: &SimContext,
                          ui_sys: &UiSystem,
                          transform: WorldToScreenTransform,
                          visible_range: CellRange) {
         debug_assert!(self.is_spawned());
 
-        self.debug.draw_popup_messages(self.find_tile(query),
+        self.debug.draw_popup_messages(self.find_tile(context),
                                        ui_sys,
                                        transform,
                                        visible_range,
-                                       query.delta_time_secs());
+                                       context.delta_time_secs());
     }
 }
 
@@ -202,7 +202,7 @@ impl Prop {
         self.harvestable.initial_variation = tile.variation_index().try_into().unwrap();
     }
 
-    pub fn despawned(&mut self, _query: &Query) {
+    pub fn despawned(&mut self, _query: &SimContext) {
         debug_assert!(self.is_spawned());
 
         self.id = PropId::default();
@@ -276,7 +276,7 @@ impl Prop {
 
     // Tries to harvest `amount` units of the available resource.
     // Result may be <= `amount`.
-    pub fn harvest(&mut self, query: &Query, amount: u32) -> StockItem {
+    pub fn harvest(&mut self, context: &SimContext, amount: u32) -> StockItem {
         debug_assert!(self.is_spawned());
 
         let resource = self.harvestable.resource;
@@ -286,7 +286,7 @@ impl Prop {
         self.harvestable.amount = self.harvestable.amount.saturating_sub(amount);
 
         if self.harvestable.amount == 0 {
-            self.update_variation(query);
+            self.update_variation(context);
         }
 
         if amount_harvested != 0 {
@@ -296,11 +296,11 @@ impl Prop {
         StockItem { kind: resource, count: amount_harvested }
     }
 
-    fn respawn_harvestable(&mut self, query: &Query) {
+    fn respawn_harvestable(&mut self, context: &SimContext) {
         let config = self.config.unwrap();
         self.harvestable.amount = config.harvestable_amount;
         self.harvestable.respawn_timer.reset(config.respawn_time_secs);
-        self.update_variation(query);
+        self.update_variation(context);
     }
 
     // ----------------------
@@ -314,11 +314,11 @@ impl Prop {
     // Internal helpers:
     // ----------------------
 
-    fn update_variation(&mut self, query: &Query) {
+    fn update_variation(&mut self, context: &SimContext) {
         if self.is_harvestable() {
-            let tile = self.find_tile_mut(query);
+            let tile = self.find_tile_mut(context);
             if self.harvestable.amount == 0 {
-                if let Some(index) = self.find_variation(query, PROP_VARIATION_DEPLETED.hash) {
+                if let Some(index) = self.find_variation(context, PROP_VARIATION_DEPLETED.hash) {
                     tile.set_variation_index(index);
                     self.debug.popup_msg_color(Color::red(), "Depleted");
                 }
@@ -329,8 +329,8 @@ impl Prop {
         }
     }
 
-    fn find_variation(&self, query: &Query, hash: StringHash) -> Option<usize> {
-        let tile = self.find_tile(query);
+    fn find_variation(&self, context: &SimContext, hash: StringHash) -> Option<usize> {
+        let tile = self.find_tile(context);
         for (index, var) in tile.tile_def().variations.iter().enumerate() {
             if var.hash == hash {
                 return Some(index);
@@ -340,14 +340,14 @@ impl Prop {
     }
 
     #[inline]
-    fn find_tile<'world>(&self, query: &'world Query) -> &'world Tile {
-        query.find_tile(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
+    fn find_tile<'game>(&self, context: &'game SimContext) -> &'game Tile {
+        context.find_tile(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
              .expect("Prop should have an associated Tile in the TileMap!")
     }
 
     #[inline]
-    fn find_tile_mut<'world>(&self, query: &'world Query) -> &'world mut Tile {
-        query.find_tile_mut(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
+    fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
+        context.find_tile_mut(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
              .expect("Prop should have an associated Tile in the TileMap!")
     }
 
@@ -355,7 +355,7 @@ impl Prop {
     // Debug UI:
     // ----------------------
 
-    fn draw_debug_ui_overview(&mut self, _query: &Query, ui_sys: &UiSystem) {
+    fn draw_debug_ui_overview(&mut self, _query: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         ui_sys.set_window_font_scale(UiFontScale(1.2));
@@ -376,7 +376,7 @@ impl Prop {
                           self.harvestable.amount);
     }
 
-    fn draw_debug_ui_detailed(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn draw_debug_ui_detailed(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         self.config.unwrap().draw_debug_ui_with_header("Config", ui_sys);
@@ -416,11 +416,11 @@ impl Prop {
                 .build();
 
             if ui.button("Harvest") {
-                self.harvest(query, *HARVEST_AMOUNT);
+                self.harvest(context, *HARVEST_AMOUNT);
             }
 
             if ui.button("Respawn Now") {
-                self.respawn_harvestable(query);
+                self.respawn_harvestable(context);
             }
         }
     }

@@ -255,7 +255,7 @@ impl BuildingBehavior for HouseBuilding {
     }
 
     fn update(&mut self, context: &BuildingContext) {
-        let delta_time_secs = context.query.delta_time_secs();
+        let delta_time_secs = context.sim_ctx.delta_time_secs();
 
         // Update house states:
         if self.stock_update_timer.tick(delta_time_secs).should_update()
@@ -290,9 +290,9 @@ impl BuildingBehavior for HouseBuilding {
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
         if unit.is_settler() {
             self.visited_by_settler(unit, context);
-        } else if unit.is_market_vendor(context.query) {
+        } else if unit.is_market_vendor(context.sim_ctx) {
             self.visited_by_market_vendor(unit, context);
-        } else if unit.is_tax_collector(context.query) {
+        } else if unit.is_tax_collector(context.sim_ctx) {
             self.visited_by_tax_collector(unit, context);
         }
     }
@@ -518,7 +518,7 @@ impl HouseBuilding {
             return;
         }
 
-        if let Some(market) = unit.patrol_task_origin_building(context.query) {
+        if let Some(market) = unit.patrol_task_origin_building(context.sim_ctx) {
             self.shop_from_market(market, context);
             self.debug.popup_msg_color(Color::green(), "Visited by market vendor");
         }
@@ -704,7 +704,7 @@ impl HouseBuilding {
 
         // Employers of `house_to_merge` workers must now point to this house.
         house_to_merge.workers.as_household_worker_pool().unwrap()
-            .for_each_employer(context.query.world(), |employer, employed_count| {
+            .for_each_employer(context.sim_ctx.world(), |employer, employed_count| {
                 let prev_popups = employer.archetype_mut().debug_options().set_show_popups(false);
 
                 let removed_count = employer.remove_workers(employed_count, house_to_merge_kind_and_id);
@@ -737,7 +737,7 @@ impl HouseBuilding {
             return;
         }
 
-        let rng = context.query.rng();
+        let rng = context.sim_ctx.rng();
         let chance = self.current_level_config().population_increase_chance.min(100);
         let increase_population = rng.random_ratio(chance, 100);
 
@@ -748,7 +748,7 @@ impl HouseBuilding {
     }
 
     fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) {
-        let population_to_add = unit.settler_population(context.query);
+        let population_to_add = unit.settler_population(context.sim_ctx);
         let population_added = self.add_population(context, population_to_add);
         if population_added == 0 {
             self.debug.popup_msg_color(Color::red(), "Refused settler");
@@ -765,7 +765,7 @@ impl HouseBuilding {
 
         let mut settler = Settler::default();
 
-        settler.try_spawn(context.query, unit_origin, amount_to_evict);
+        settler.try_spawn(context.sim_ctx, unit_origin, amount_to_evict);
 
         self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_to_evict} residents"));
     }
@@ -800,7 +800,7 @@ impl HouseBuilding {
             let mut difference = curr_employed - new_employed;
             self.debug.popup_msg_color(Color::magenta(), format!("-{difference} workers"));
 
-            workers.for_each_employer_mut(context.query.world(), |employer, employed_count| {
+            workers.for_each_employer_mut(context.sim_ctx.world(), |employer, employed_count| {
                 let removed_count =
                     employer.remove_workers((*employed_count).min(difference), context.kind_and_id());
 
@@ -892,7 +892,7 @@ impl HouseBuilding {
         if let Some(unit_config) = config.ambient_patrol.unit {
             let spawn_chance = config.ambient_patrol.spawn_chance;
             let max_patrol_distance = config.ambient_patrol.max_distance;
-            let idle_countdown_secs = context.query.random_range(15.0..30.0);
+            let idle_countdown_secs = context.sim_ctx.random_range(15.0..30.0);
 
             self.ambient_patrol.try_spawn_unit(
                 context,

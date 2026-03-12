@@ -18,7 +18,7 @@ use crate::{
         building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
         sim::{
             resources::{ResourceKind, ShoppingList, StockItem},
-            Query,
+            SimContext,
         },
         world::{
             debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt},
@@ -41,7 +41,7 @@ use crate::{
 // ----------------------------------------------
 
 impl Unit {
-    pub fn draw_debug_ui_overview(&mut self, query: &Query, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui_overview(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         ui_sys.set_window_font_scale(UiFontScale(1.2));
@@ -54,7 +54,7 @@ impl Unit {
 
         if let Some(task_id) = self.current_task() {
             if let Some((archetype, state)) =
-                query.task_manager().try_get_task_archetype_and_state(task_id)
+                context.task_manager().try_get_task_archetype_and_state(task_id)
             {
                 ui.bullet_text(format!("Task: {archetype} | {state}"));
             }
@@ -75,14 +75,14 @@ impl Unit {
         }
     }
 
-    pub fn draw_debug_ui_detailed(&mut self, query: &Query, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui_detailed(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_properties(ui_sys);
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
         self.inventory.draw_debug_ui(ui_sys);
-        self.draw_debug_ui_tasks(query, ui_sys);
-        self.draw_debug_ui_navigation(query, ui_sys);
-        self.draw_debug_ui_misc(query, ui_sys);
+        self.draw_debug_ui_tasks(context, ui_sys);
+        self.draw_debug_ui_navigation(context, ui_sys);
+        self.draw_debug_ui_misc(context, ui_sys);
     }
 
     fn draw_debug_ui_properties(&mut self, ui_sys: &UiSystem) {
@@ -115,11 +115,11 @@ impl Unit {
         }
     }
 
-    fn draw_debug_ui_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
-        query.task_manager().draw_tasks_debug_ui(self, query, ui_sys);
+    fn draw_debug_ui_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+        context.task_manager().draw_tasks_debug_ui(self, context, ui_sys);
     }
 
-    fn draw_debug_ui_navigation(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn draw_debug_ui_navigation(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         if !ui.collapsing_header("Navigation", imgui::TreeNodeFlags::empty()) {
@@ -127,7 +127,7 @@ impl Unit {
         }
 
         if let Some(dir) = ui::dpad_buttons(ui) {
-            let tile_map = query.tile_map();
+            let tile_map = context.tile_map();
             match dir {
                 UiDPadDirection::NE => {
                     self.teleport(tile_map, Cell::new(self.cell().x + 1, self.cell().y));
@@ -147,12 +147,12 @@ impl Unit {
         ui.separator();
 
         ui.text(format!("Cell       : {}", self.cell()));
-        ui.text(format!("Iso Coords : {}", self.find_tile(query).iso_coords()));
+        ui.text(format!("Iso Coords : {}", self.find_tile(context).iso_coords()));
         ui.text(format!("Direction  : {}", self.direction));
         ui.text(format!("Anim       : {}", self.anim_sets.current_anim_name()));
 
         if ui.button("Force Idle Anim") {
-            self.idle(query);
+            self.idle(context);
         }
 
         ui.separator();
@@ -180,7 +180,7 @@ impl Unit {
         self.navigation.draw_debug_ui(ui_sys);
     }
 
-    fn draw_debug_ui_misc(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn draw_debug_ui_misc(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -191,7 +191,7 @@ impl Unit {
         }
 
         if ui.button("Push Minimap Alert") {
-            let minimap = query.tile_map().minimap_mut();
+            let minimap = context.tile_map().minimap_mut();
             minimap.push_icon(MinimapIcon::Alert,
                               self.cell(),
                               Color::default(),
@@ -199,48 +199,48 @@ impl Unit {
         }
 
         if ui.button("Clear Current Task") {
-            self.assign_task(query.task_manager(), None);
+            self.assign_task(context.task_manager(), None);
             self.follow_path(None);
         }
 
-        self.debug_dropdown_despawn_tasks(query, ui_sys);
-        self.debug_dropdown_runner_tasks(query, ui_sys);
-        self.debug_dropdown_patrol_tasks(query, ui_sys);
-        self.debug_dropdown_pathfinding_tasks(query, ui_sys);
-        self.debug_dropdown_harvest_tasks(query, ui_sys);
+        self.debug_dropdown_despawn_tasks(context, ui_sys);
+        self.debug_dropdown_runner_tasks(context, ui_sys);
+        self.debug_dropdown_patrol_tasks(context, ui_sys);
+        self.debug_dropdown_pathfinding_tasks(context, ui_sys);
+        self.debug_dropdown_harvest_tasks(context, ui_sys);
     }
 
-    fn debug_dropdown_despawn_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn debug_dropdown_despawn_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Despawn Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 
         if ui.button("Give Despawn Task") {
-            let task = query.task_manager().new_task(UnitTaskDespawn);
-            self.assign_task(query.task_manager(), task);
+            let task = context.task_manager().new_task(UnitTaskDespawn);
+            self.assign_task(context.task_manager(), task);
         }
 
         if ui.button("Force Despawn Immediately") {
-            Spawner::new(query).despawn_unit(self);
+            Spawner::new(context).despawn_unit(self);
         }
     }
 
-    fn debug_dropdown_runner_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn debug_dropdown_runner_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Runner Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 
-        let task_manager = query.task_manager();
-        let world = query.world();
+        let task_manager = context.task_manager();
+        let world = context.world();
 
         if ui.button("Give Deliver Resources Task") {
             // We need a building to own the task, so this assumes there's at least one of
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
-                let start_cell = building.road_link(query).unwrap_or_default();
-                if self.teleport(query.tile_map(), start_cell) {
+                let start_cell = building.road_link(context).unwrap_or_default();
+                if self.teleport(context.tile_map(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskDeliverToStorage {
                         origin_building: BuildingKindAndId {
@@ -272,8 +272,8 @@ impl Unit {
                     ShoppingList::from_items(&[StockItem { kind:
                                                                ResourceKind::random(&mut rng),
                                                            count: rng.random_range(1..5) }]);
-                let start_cell = building.road_link(query).unwrap_or_default();
-                if self.teleport(query.tile_map(), start_cell) {
+                let start_cell = building.road_link(context).unwrap_or_default();
+                if self.teleport(context.tile_map(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskFetchFromStorage {
                         origin_building: BuildingKindAndId {
@@ -296,7 +296,7 @@ impl Unit {
         }
     }
 
-    fn debug_dropdown_patrol_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn debug_dropdown_patrol_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Patrol Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -319,15 +319,15 @@ impl Unit {
             .step(0.1)
             .build();
 
-        let task_manager = query.task_manager();
-        let world = query.world();
+        let task_manager = context.task_manager();
+        let world = context.world();
 
         if ui.button("Give Patrol Task") {
             // We need a building to own the task, so this assumes there's at least one of
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
-                let start_cell = building.road_link(query).unwrap_or_default();
-                if self.teleport(query.tile_map(), start_cell) {
+                let start_cell = building.road_link(context).unwrap_or_default();
+                if self.teleport(context.tile_map(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskRandomizedPatrol {
                         origin_building: BuildingKindAndId {
@@ -353,7 +353,7 @@ impl Unit {
         }
     }
 
-    fn debug_dropdown_pathfinding_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn debug_dropdown_pathfinding_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Pathfind Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -397,7 +397,7 @@ impl Unit {
             self.set_traversable_node_kinds(traversable_node_kinds);
 
             let visit_building = |building: &Building, path: &Path| -> bool {
-                let tile_map = query.tile_map();
+                let tile_map = context.tile_map();
 
                 log::info!("{} '{}' found. Path len: {}",
                            building.kind(),
@@ -410,17 +410,17 @@ impl Unit {
 
                 // Highlight building access tiles and road link:
                 pathfind::highlight_building_access_tiles(tile_map, building.cell_range());
-                building.set_show_road_link_debug(query, true);
+                building.set_show_road_link_debug(context, true);
 
                 self.follow_path(Some(path));
                 false // done
             };
 
-            query.find_nearest_buildings(start,
-                                         search_building_kind,
-                                         traversable_node_kinds,
-                                         Some(max_search_distance),
-                                         visit_building);
+            context.find_nearest_buildings(start,
+                                           search_building_kind,
+                                           traversable_node_kinds,
+                                           Some(max_search_distance),
+                                           visit_building);
         }
 
         if ui.button(format!("Test Is Near Building ({})", search_building_kind))
@@ -429,10 +429,11 @@ impl Unit {
             let connected_to_road_only = traversable_node_kinds.intersects(PathNodeKind::Road)
                                          && !traversable_node_kinds.intersects(PathNodeKind::EmptyLand);
 
-            let is_near = query.is_near_building(self.cell(),
-                                                 search_building_kind,
-                                                 connected_to_road_only,
-                                                 max_search_distance);
+            let is_near = context.is_near_building(self.cell(),
+                                                   search_building_kind,
+                                                   connected_to_road_only,
+                                                   max_search_distance);
+
             if is_near {
                 self.debug
                     .popup_msg_color(Color::green(),
@@ -447,7 +448,7 @@ impl Unit {
 
         ui.separator();
 
-        let task_manager = query.task_manager();
+        let task_manager = context.task_manager();
 
         if ui.button("Find Vacant House Lot") && !traversable_node_kinds.is_empty() {
             self.set_traversable_node_kinds(traversable_node_kinds);
@@ -487,21 +488,21 @@ impl Unit {
         }
     }
 
-    fn debug_dropdown_harvest_tasks(&mut self, query: &Query, ui_sys: &UiSystem) {
+    fn debug_dropdown_harvest_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Harvest Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
         }
 
-        let task_manager = query.task_manager();
-        let world = query.world();
+        let task_manager = context.task_manager();
+        let world = context.world();
 
         if ui.button("Give Harvest Wood Task") {
             // We need a building to own the task, so this assumes there's at least one
             // lumberyard placed on the map.
             if let Some(building) = world.find_building_by_name("Lumberyard", BuildingKind::Lumberyard) {
-                let start_cell = building.road_link(query).unwrap_or_default();
-                if self.teleport(query.tile_map(), start_cell) {
+                let start_cell = building.road_link(context).unwrap_or_default();
+                if self.teleport(context.tile_map(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskHarvestWood {
                         origin_building: BuildingKindAndId {
@@ -548,17 +549,17 @@ pub fn register_callbacks() {
 
 static PATROL_ROUNDS: UiStaticVar<i32> = UiStaticVar::new(5);
 
-fn unit_debug_patrol_task_completed(_: &mut Building, unit: &mut Unit, _: &Query) -> bool {
+fn unit_debug_patrol_task_completed(_: &mut Building, unit: &mut Unit, _: &SimContext) -> bool {
     PATROL_ROUNDS.set(*PATROL_ROUNDS - 1);
     log::info!("Unit {}: Patrol Task Round {} Completed.", unit.name(), *PATROL_ROUNDS);
     *PATROL_ROUNDS <= 0 // Run the task a few times.
 }
 
-fn unit_debug_delivery_task_completed(building: &mut Building, unit: &mut Unit, _: &Query) {
+fn unit_debug_delivery_task_completed(building: &mut Building, unit: &mut Unit, _: &SimContext) {
     log::info!("Unit {}: Deliver Resources to: {}. Task Completed.", unit.name(), building.name());
 }
 
-fn unit_debug_fetch_task_completed(building: &mut Building, unit: &mut Unit, _: &Query) {
+fn unit_debug_fetch_task_completed(building: &mut Building, unit: &mut Unit, _: &SimContext) {
     let item = unit.inventory.peek().unwrap();
     log::info!("Unit {}: Fetch Resources from: {}. Task Completed. Got: {}, {}",
                unit.name(),
@@ -568,7 +569,7 @@ fn unit_debug_fetch_task_completed(building: &mut Building, unit: &mut Unit, _: 
     unit.inventory.clear();
 }
 
-fn unit_debug_find_vacant_lot_task_completed(unit: &mut Unit, dest_tile: &Tile, _: u32, _: &Query) {
+fn unit_debug_find_vacant_lot_task_completed(unit: &mut Unit, dest_tile: &Tile, _: u32, _: &SimContext) {
     log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
     unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
 }
@@ -576,32 +577,32 @@ fn unit_debug_find_vacant_lot_task_completed(unit: &mut Unit, dest_tile: &Tile, 
 fn unit_debug_settle_task_completed(unit: &mut Unit,
                                     dest_tile: &Tile,
                                     population_to_add: u32,
-                                    _: &Query) {
+                                    _: &SimContext) {
     debug_assert!(population_to_add == 1);
     log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
     unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
 }
 
-fn unit_debug_settle_task_post_despawn(query: &Query,
+fn unit_debug_settle_task_post_despawn(context: &SimContext,
                                        unit_prev_cell: Cell,
                                        unit_prev_goal: Option<UnitNavGoal>,
                                        extra_args: &[UnitTaskArg]) {
     let settle_new_vacant_lot =
-        unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, query));
+        unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
 
     if settle_new_vacant_lot {
-        if let Some(tile_def) = query.find_tile_def(TileMapLayerKind::Objects,
-                                                    tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
-                                                    hash::fnv1a_from_str("house0"))
+        if let Some(tile_def) = context.find_tile_def(TileMapLayerKind::Objects,
+                                                      tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
+                                                      hash::fnv1a_from_str("house0"))
         {
-            match query.world().try_spawn_building_with_tile_def(query, unit_prev_cell, tile_def) {
+            match context.world().try_spawn_building_with_tile_def(context, unit_prev_cell, tile_def) {
                 Ok(building) => {
                     debug_assert!(building.is(BuildingKind::House));
 
                     let population_to_add = extra_args[0].as_u32();
                     debug_assert!(population_to_add == 1);
 
-                    let population_added = building.add_population(query, population_to_add);
+                    let population_added = building.add_population(context, population_to_add);
                     if population_added != population_to_add {
                         log::error!(log::channel!("unit"),
                                     "Settler carried population of {population_to_add} but house accommodated {population_added}.");
@@ -619,7 +620,7 @@ fn unit_debug_settle_task_post_despawn(query: &Query,
     }
 }
 
-fn unit_debug_harvest_wood_task_completed(building: &mut Building, unit: &mut Unit, _: &Query) {
+fn unit_debug_harvest_wood_task_completed(building: &mut Building, unit: &mut Unit, _: &SimContext) {
     let item = unit.inventory.peek().unwrap();
     log::info!("Unit {}: Harvested for: {}. Task Completed. Got: {}, {}",
                unit.name(),

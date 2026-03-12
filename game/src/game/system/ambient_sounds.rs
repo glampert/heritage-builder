@@ -9,7 +9,7 @@ use crate::{
     utils::Color,
     engine::Engine,
     save::PostLoadContext,
-    game::{config::GameConfigs, sim::Query},
+    game::{config::GameConfigs, sim::SimContext},
     sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, AmbienceSoundKey},
 };
 
@@ -85,7 +85,7 @@ impl GameSystem for AmbientSoundsSystem {
         self
     }
 
-    fn update(&mut self, engine: &mut dyn Engine, _query: &Query) {
+    fn update(&mut self, engine: &mut dyn Engine, _query: &SimContext) {
         if !self.is_enabled() {
             return;
         }
@@ -115,7 +115,7 @@ impl GameSystem for AmbientSoundsSystem {
         self.reset(context.engine_mut());
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, _query: &Query) {
+    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, _query: &SimContext) {
         let ui = engine.ui_system().ui();
 
         if !self.is_enabled() {

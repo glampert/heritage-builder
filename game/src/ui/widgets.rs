@@ -22,7 +22,7 @@ use super::{
 
 use crate::{
     sound::SoundSystem,
-    game::{sim::{Simulation, Query}, world::World},
+    game::{sim::{Simulation, SimContext}, world::World},
     engine::{Engine, time::{CountdownTimer, Seconds}},
     render::{RenderSystem, TextureHandle, TextureCache},
     tile::{Tile, TileMap, selection::TileSelection, camera::Camera},
@@ -186,8 +186,8 @@ impl<'game> UiWidgetContext<'game> {
     }
 
     #[inline]
-    pub fn new_sim_query(&self) -> Query {
-        mem::mut_ref_cast(self.sim).new_query(
+    pub fn new_sim_context(&self) -> SimContext {
+        mem::mut_ref_cast(self.sim).new_sim_context(
             mem::mut_ref_cast(self.world),
             mem::mut_ref_cast(self.tile_map),
             self.delta_time_secs)

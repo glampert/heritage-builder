@@ -28,7 +28,7 @@ use crate::{
         },
     },
     game::{
-        sim::Query,
+        sim::SimContext,
         world::object::{Spawner, SpawnerResult},
         undo_redo::{self, EditAction, EditedLayer},
     },
@@ -247,13 +247,13 @@ pub trait GameMenusSystem: Any + Save + Load {
 
                     // [SHIFT]+[CTRL]+[Z] / [SHIFT]+[CMD]+[Z] (MacOS): Redo last action.
                     if key == InputKey::Z && ctrl_or_cmd && shift {
-                        undo_redo::redo(&context.new_sim_query());
+                        undo_redo::redo(&context.new_sim_context());
                         return UiInputEvent::Handled;
                     }
 
                     // [CTRL]+[Z] / [CMD]+[Z] (MacOs): Undo last action.
                     if key == InputKey::Z && ctrl_or_cmd {
-                        undo_redo::undo(&context.new_sim_query());
+                        undo_redo::undo(&context.new_sim_context());
                         return UiInputEvent::Handled;
                     }
                 }
@@ -284,8 +284,8 @@ pub trait GameMenusSystem: Any + Save + Load {
                         }
                     } else if is_clear_selected && !context.tile_selection.cells().is_empty() {
                         // Clear batch of selected tiles:
-                        let query = context.new_sim_query();
-                        let tile_map = query.tile_map();
+                        let sim_context = context.new_sim_context();
+                        let tile_map = sim_context.tile_map();
 
                         // Ensure each cell is unique with a hash set.
                         let mut clearable_cells: SmallSet<64, Cell> = SmallSet::new();
@@ -317,13 +317,13 @@ pub trait GameMenusSystem: Any + Save + Load {
                             for (&cell, _) in clearable_cells.iter() {
                                 if layers.intersects(EditedLayer::Objects) {
                                     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                                        cleared_any |= TilePlacement::clear(&query, tile, false, false).is_ok();
+                                        cleared_any |= TilePlacement::clear(&sim_context, tile, false, false).is_ok();
                                     }
                                 }
 
                                 if layers.intersects(EditedLayer::Terrain) {
                                     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-                                        cleared_any |= TilePlacement::clear(&query, tile, false, false).is_ok();
+                                        cleared_any |= TilePlacement::clear(&sim_context, tile, false, false).is_ok();
                                     }
                                 }
                             }
@@ -418,8 +418,8 @@ impl TilePlacement {
             can_afford_cost(context, self.current_road_segment.cost());
 
         if is_valid_road_placement {
-            let query = context.new_sim_query();
-            let spawner = Spawner::new(&query);
+            let sim_context = context.new_sim_context();
+            let spawner = Spawner::new(&sim_context);
 
             // Place tiles:
             for cell in &self.current_road_segment.path {
@@ -471,7 +471,7 @@ impl TilePlacement {
 
     fn placement_operation(&self, selection: TilePaletteSelection, context: &mut UiWidgetContext) -> TilePlacementOp {
         if let Some(tile_def) = selection.as_tile_def() {
-            if Spawner::new(&context.new_sim_query()).can_afford_tile(tile_def) {
+            if Spawner::new(&context.new_sim_context()).can_afford_tile(tile_def) {
                 TilePlacementOp::Place(tile_def)
             } else {
                 TilePlacementOp::Invalidate(tile_def)
@@ -493,44 +493,44 @@ impl TilePlacement {
                                                                          context.cursor_screen_pos,
                                                                          context.camera.transform());
             if target_cell.is_valid() {
-                let query = context.new_sim_query();
-                return Self::place(&query, target_cell, tile_def, true, true);
+                let sim_context = context.new_sim_context();
+                return Self::place(&sim_context, target_cell, tile_def, true, true);
             }
         } else if selection.is_clear() {
             // Clear/remove tile:
-            let query = context.new_sim_query();
-            if let Some(tile) = query.tile_map().topmost_tile_at_cursor(
+            let sim_context = context.new_sim_context();
+            if let Some(tile) = sim_context.tile_map().topmost_tile_at_cursor(
                     context.cursor_screen_pos,
                     context.camera.transform())
             {
-                return Self::clear(&query, tile, false, true);
+                return Self::clear(&sim_context, tile, false, true);
             }
         }
 
         PlaceOrClearResult::Failed { placement_attempt_tile_def: None, obstructing_tile_def: None }
     }
 
-    pub fn place(query: &Query,
+    pub fn place(context: &SimContext,
                  target_cell: Cell,
                  tile_def: &'static TileDef,
                  subtract_tile_cost: bool,
                  undo_redo: bool)
                  -> PlaceOrClearResult {
-        let mut spawner = Spawner::new(query);
+        let mut spawner = Spawner::new(context);
         spawner.set_subtract_tile_cost(subtract_tile_cost);
 
         let spawn_result = spawner.try_spawn_tile_with_def(target_cell, tile_def);
         match &spawn_result {
             SpawnerResult::Tile(tile) if tile.is(TileKind::Terrain) => {
                 // In case we've replaced a road tile with terrain.
-                road::update_junctions(query.tile_map(), target_cell);
+                road::update_junctions(context.tile_map(), target_cell);
                 // In case we've placed a water tile or replaced water with terrain.
-                water::update_transitions(query.tile_map(), target_cell);
+                water::update_transitions(context.tile_map(), target_cell);
             }
             SpawnerResult::Building(_) if water::is_port_or_wharf(tile_def) => {
                 // If we've placed a port/wharf, select the correct
                 // tile orientation in relation to the water.
-                water::update_port_wharf_orientation(query.tile_map(), target_cell);
+                water::update_port_wharf_orientation(context.tile_map(), target_cell);
             }
             SpawnerResult::Err(err) => {
                 let obstructing_tile_def = {
@@ -559,8 +559,8 @@ impl TilePlacement {
                 undo_redo::record(EditAction::PlacedTiles,
                                   &[target_cell],
                                   layers,
-                                  query.tile_map(),
-                                  query.world());
+                                  context.tile_map(),
+                                  context.world());
             }
             return PlaceOrClearResult::PlacedTile(tile_def);
         }
@@ -569,7 +569,7 @@ impl TilePlacement {
         unreachable!();
     }
 
-    pub fn clear(query: &Query,
+    pub fn clear(context: &SimContext,
                  tile: &Tile,
                  restore_tile_cost: bool,
                  undo_redo: bool)
@@ -593,11 +593,11 @@ impl TilePlacement {
                 undo_redo::record(EditAction::ClearingTiles,
                                   &[target_cell],
                                   layers,
-                                  query.tile_map(),
-                                  query.world());
+                                  context.tile_map(),
+                                  context.world());
             }
 
-            let mut spawner = Spawner::new(query);
+            let mut spawner = Spawner::new(context);
             spawner.set_restore_tile_cost(restore_tile_cost);
 
             spawner.despawn_tile(tile);
@@ -614,7 +614,7 @@ impl TilePlacement {
 
                 // Update road junctions around the removed tile cell.
                 if is_road {
-                    road::update_junctions(query.tile_map(), target_cell);
+                    road::update_junctions(context.tile_map(), target_cell);
                 }
             }
 

@@ -127,7 +127,7 @@ pub fn try_replace_tile(context: &BuildingContext,
     debug_assert!(new_cell_range.size() == target_tile_def.cell_range(context.base_cell()).size());
 
     let dest_house = house_for_id_mut(context, house_id);
-    let tile_map = context.query.tile_map();
+    let tile_map = context.sim_ctx.tile_map();
 
     // We'll have to restore the game object handle on the new tile.
     let (prev_game_object_handle, prev_cell_range, prev_tile_def) = {
@@ -202,7 +202,7 @@ pub fn try_replace_tile(context: &BuildingContext,
         *context.map_cells.as_mut() = new_cell_range;
 
         // Update path finding graph:
-        let graph = context.query.graph();
+        let graph = context.sim_ctx.graph();
         for cell in &prev_cell_range {
             graph.set_node_kind(Node::new(cell), PathNodeKind::EmptyLand); // Traversable
         }
@@ -305,7 +305,7 @@ fn valid_merge_sizes(current_size: Size, neighbor_house: &Building) -> bool {
 }
 
 fn can_expand_into_cell(context: &BuildingContext, cell: Cell) -> bool {
-    let graph = context.query.graph();
+    let graph = context.sim_ctx.graph();
 
     let node_kind = match graph.node_kind(Node::new(cell)) {
         Some(node_kind) => node_kind,
@@ -516,7 +516,7 @@ fn merge_house(context: &BuildingContext,
 }
 
 fn destroy_house(context: &BuildingContext, merged_building: &mut Building) {
-    Spawner::new(context.query).despawn_building(merged_building);
+    Spawner::new(context.sim_ctx).despawn_building(merged_building);
 }
 
 // ----------------------------------------------
@@ -528,27 +528,27 @@ fn destroy_house(context: &BuildingContext, merged_building: &mut Building) {
 // We only care about the key being present or not, so value is an empty type.
 type HouseIdsSet = SmallSet<32, BuildingId>;
 
-fn house_for_id<'world>(context: &'world BuildingContext, id: BuildingId) -> &'world Building {
-    let world = context.query.world();
+fn house_for_id<'game>(context: &'game BuildingContext, id: BuildingId) -> &'game Building {
+    let world = context.sim_ctx.world();
 
     world.find_building(BuildingKind::House, id)
          .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-fn house_for_id_mut<'world>(context: &'world BuildingContext,
+fn house_for_id_mut<'game>(context: &'game BuildingContext,
                             id: BuildingId)
-                            -> &'world mut Building {
-    let world = context.query.world();
+                            -> &'game mut Building {
+    let world = context.sim_ctx.world();
 
     world.find_building_mut(BuildingKind::House, id)
          .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-fn find_house_for_cell<'world>(context: &'world BuildingContext,
+fn find_house_for_cell<'game>(context: &'game BuildingContext,
                                cell: Cell)
-                               -> Option<&'world Building> {
-    let world = context.query.world();
-    let tile_map = context.query.tile_map();
+                               -> Option<&'game Building> {
+    let world = context.sim_ctx.world();
+    let tile_map = context.sim_ctx.tile_map();
 
     if let Some(building) = world.find_building_for_cell(cell, tile_map) {
         if building.is(BuildingKind::House) {
@@ -590,7 +590,7 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
         let candidate_rects = candidate_target_rects(context.cell_range());
         let target_rect = candidate_rects[*CANDIDATE_RECT_IDX];
 
-        let tile_map = context.query.tile_map();
+        let tile_map = context.sim_ctx.tile_map();
 
         for cell in target_rect.iter_cells() {
             if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {

@@ -224,11 +224,11 @@ impl TilePaletteMainButtonsBuilder {
                         } else {
                             match main_button_def {
                                 TilePaletteMainButtonDef::Undo => {
-                                    undo_redo::undo(&context.new_sim_query());
+                                    undo_redo::undo(&context.new_sim_context());
                                     stay_pressed = false;
                                 }
                                 TilePaletteMainButtonDef::Redo => {
-                                    undo_redo::redo(&context.new_sim_query());
+                                    undo_redo::redo(&context.new_sim_context());
                                     stay_pressed = false;
                                 }
                                 _ => {

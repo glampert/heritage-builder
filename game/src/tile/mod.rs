@@ -25,7 +25,7 @@ use crate::{
         constants::*,
         bitflags_with_display,
         Color, Rect, Size, Vec2,
-        hash::StringHash, mem, platform::paths,
+        hash::StringHash, mem::RawPtr, platform::paths,
         coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
     },
 };
@@ -219,13 +219,13 @@ impl TileAnimState {
 
 #[derive(Copy, Clone, Default)]
 struct TileMapLayerPtr {
-    opt_ptr: Option<mem::RawPtr<TileMapLayer>>,
+    opt_ptr: Option<RawPtr<TileMapLayer>>,
 }
 
 impl TileMapLayerPtr {
     #[inline]
     fn new(layer: &TileMapLayer) -> Self {
-        Self { opt_ptr: Some(mem::RawPtr::from_ref(layer)) }
+        Self { opt_ptr: Some(RawPtr::from_ref(layer)) }
     }
 
     #[inline]
@@ -1274,12 +1274,12 @@ impl TileMapLayerKind {
 // TileSets).
 #[derive(Copy, Clone)]
 pub struct TileMapLayerRefs {
-    ptrs: [mem::RawPtr<TileMapLayer>; TILE_MAP_LAYER_COUNT],
+    ptrs: [RawPtr<TileMapLayer>; TILE_MAP_LAYER_COUNT],
 }
 
 #[derive(Copy, Clone)]
 pub struct TileMapLayerMutRefs {
-    ptrs: [mem::RawPtr<TileMapLayer>; TILE_MAP_LAYER_COUNT],
+    ptrs: [RawPtr<TileMapLayer>; TILE_MAP_LAYER_COUNT],
 }
 
 impl TileMapLayerRefs {
@@ -2260,8 +2260,8 @@ impl TileMap {
     pub fn layers(&self) -> TileMapLayerRefs {
         TileMapLayerRefs {
             ptrs: [
-                mem::RawPtr::from_ref(self.layer(TileMapLayerKind::Terrain)),
-                mem::RawPtr::from_ref(self.layer(TileMapLayerKind::Objects)),
+                RawPtr::from_ref(self.layer(TileMapLayerKind::Terrain)),
+                RawPtr::from_ref(self.layer(TileMapLayerKind::Objects)),
             ]
         }
     }
@@ -2270,8 +2270,8 @@ impl TileMap {
     pub fn layers_mut(&mut self) -> TileMapLayerMutRefs {
         TileMapLayerMutRefs {
             ptrs: [
-                mem::RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Terrain)),
-                mem::RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Objects)),
+                RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Terrain)),
+                RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Objects)),
             ]
         }
     }
@@ -2492,7 +2492,7 @@ impl TileMap {
                                                            target_cell,
                                                            tile_def_to_place)?;
 
-        let mut minimap = mem::RawPtr::from_ref(&self.minimap);
+        let mut minimap = RawPtr::from_ref(&self.minimap);
 
         let tile_placed_callback = self.on_tile_placed_callback;
         let layer = self.layer_mut(layer_kind);

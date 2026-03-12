@@ -20,7 +20,7 @@ use super::{
     undo_redo::GameObjectSavedState,
     unit::{patrol::Patrol, runner::Runner, Unit},
     sim::{
-        Query,
+        SimContext,
         resources::{
             Population, ResourceKind, ResourceKinds, ResourceStock,
             ServiceKind, StockItem, Workers, RESOURCE_KIND_COUNT,
@@ -237,17 +237,17 @@ impl GameObject for Building {
         self.id
     }
 
-    fn update(&mut self, query: &Query) {
+    fn update(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         // Refresh cached road link cell.
-        self.update_road_link(query);
+        self.update_road_link(context);
 
-        if self.workers_update_timer.tick(query.delta_time_secs()).should_update() {
-            self.update_workers(query);
+        if self.workers_update_timer.tick(context.delta_time_secs()).should_update() {
+            self.update_workers(context);
         }
 
-        let context = self.new_context(query);
+        let context = self.new_context(context);
         self.archetype_mut().update(&context);
     }
 
@@ -310,20 +310,18 @@ impl GameObject for Building {
         self.workers_update_timer.force_update();
     }
 
-    fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
 
         match mode {
             DebugUiMode::Overview => {
-                let context = self.new_context(query);
-                self.draw_debug_ui_overview(&context, ui_sys);
+                self.draw_debug_ui_overview(&self.new_context(context), ui_sys);
             }
             DebugUiMode::Detailed => {
                 let ui = ui_sys.ui();
                 if ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    let context = self.new_context(query);
-                    self.draw_debug_ui_detailed(&context, ui_sys);
+                    self.draw_debug_ui_detailed(&self.new_context(context), ui_sys);
                     ui.unindent_by(10.0);
                 }
             }
@@ -331,21 +329,21 @@ impl GameObject for Building {
     }
 
     fn draw_debug_popups(&mut self,
-                         query: &Query,
+                         context: &SimContext,
                          ui_sys: &UiSystem,
                          transform: WorldToScreenTransform,
                          visible_range: CellRange) {
         debug_assert!(self.is_spawned());
 
         let tile =
-            query.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+            context.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
                  .unwrap();
 
         self.archetype_mut().debug_options().draw_popup_messages(tile,
                                                                  ui_sys,
                                                                  transform,
                                                                  visible_range,
-                                                                 query.delta_time_secs());
+                                                                 context.delta_time_secs());
     }
 }
 
@@ -355,7 +353,7 @@ impl Building {
     // ----------------------
 
     pub fn spawned(&mut self,
-                   query: &Query,
+                   context: &SimContext,
                    id: BuildingId,
                    kind: BuildingKind,
                    map_cells: CellRange,
@@ -371,20 +369,20 @@ impl Building {
         self.workers_update_timer = UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
         self.archetype = Some(archetype);
 
-        self.update_road_link(query);
+        self.update_road_link(context);
 
-        let context = self.new_context(query);
+        let context = self.new_context(context);
         self.archetype_mut().spawned(&context);
     }
 
-    pub fn despawned(&mut self, query: &Query) {
+    pub fn despawned(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
-        self.remove_all_workers(query);
-        self.remove_all_population(query);
-        self.clear_road_link(query.tile_map());
+        self.remove_all_workers(context);
+        self.remove_all_population(context);
+        self.clear_road_link(context.tile_map());
 
-        let context = self.new_context(query);
+        let context = self.new_context(context);
         self.archetype_mut().despawned(&context);
 
         self.id = BuildingId::default();
@@ -395,13 +393,13 @@ impl Building {
     }
 
     #[inline]
-    pub fn new_context<'world>(&self, query: &'world Query) -> BuildingContext<'world> {
+    pub fn new_context<'game>(&self, sim_ctx: &'game SimContext) -> BuildingContext<'game> {
         BuildingContext::new(self.id,
                              self.map_cells,
-                             self.road_link(query),
+                             self.road_link(sim_ctx),
                              self.kind,
                              self.archetype_kind(),
-                             query)
+                             sim_ctx)
     }
 
     #[inline]
@@ -449,9 +447,9 @@ impl Building {
     }
 
     #[inline]
-    pub fn tile_info(&self, query: &Query) -> BuildingTileInfo {
+    pub fn tile_info(&self, context: &SimContext) -> BuildingTileInfo {
         BuildingTileInfo {
-            road_link: self.road_link(query).unwrap_or_default(), // We may or may not be connected to a road.
+            road_link: self.road_link(context).unwrap_or_default(), // We may or may not be connected to a road.
             base_cell: self.base_cell(),
         }
     }
@@ -491,9 +489,9 @@ impl Building {
         self.archetype().has_min_required_workers()
     }
 
-    pub fn visited_by(&mut self, unit: &mut Unit, query: &Query) {
+    pub fn visited_by(&mut self, unit: &mut Unit, context: &SimContext) {
         debug_assert!(self.is_spawned());
-        let context = self.new_context(query);
+        let context = self.new_context(context);
         self.archetype_mut().visited_by(unit, &context);
     }
 
@@ -517,8 +515,8 @@ impl Building {
         false
     }
 
-    pub fn set_random_variation(&self, query: &Query) {
-        let context = self.new_context(query);
+    pub fn set_random_variation(&self, context: &SimContext) {
+        let context = self.new_context(context);
         context.set_random_building_variation();
     }
 
@@ -593,22 +591,22 @@ impl Building {
     }
 
     #[inline]
-    pub fn add_population(&mut self, query: &Query, count: u32) -> u32 {
+    pub fn add_population(&mut self, context: &SimContext, count: u32) -> u32 {
         debug_assert!(self.is_spawned());
-        let context = self.new_context(query);
+        let context = self.new_context(context);
         self.archetype_mut().add_population(&context, count)
     }
 
     #[inline]
-    pub fn remove_population(&mut self, query: &Query, count: u32) -> u32 {
+    pub fn remove_population(&mut self, context: &SimContext, count: u32) -> u32 {
         debug_assert!(self.is_spawned());
-        let context = self.new_context(query);
+        let context = self.new_context(context);
         self.archetype_mut().remove_population(&context, count)
     }
 
     #[inline]
-    fn remove_all_population(&mut self, query: &Query) {
-        self.remove_population(query, self.population_count());
+    fn remove_all_population(&mut self, context: &SimContext) {
+        self.remove_population(context, self.population_count());
     }
 
     // ----------------------
@@ -667,16 +665,16 @@ impl Building {
         workers_removed
     }
 
-    fn remove_all_workers(&mut self, query: &Query) {
+    fn remove_all_workers(&mut self, context: &SimContext) {
         if let Some(workers) = self.archetype().workers() {
             if let Some(employer) = workers.as_employer() {
-                employer.for_each_employee_household(query.world(), |household, employee_count| {
+                employer.for_each_employee_household(context.world(), |household, employee_count| {
                             // Put worker back into the house's worker pool.
                             household.add_workers(employee_count, self.kind_and_id());
                             true
                         });
             } else if let Some(household) = workers.as_household_worker_pool() {
-                household.for_each_employer(query.world(), |employer, employed_count| {
+                household.for_each_employer(context.world(), |employer, employed_count| {
                              // Tell employer workers are no longer available from this household.
                              employer.remove_workers(employed_count, self.kind_and_id());
                              true
@@ -691,8 +689,8 @@ impl Building {
         }
     }
 
-    fn update_workers(&mut self, query: &Query) {
-        if !self.is_linked_to_road(query) {
+    fn update_workers(&mut self, context: &SimContext) {
+        if !self.is_linked_to_road(context) {
             return;
         }
 
@@ -700,7 +698,7 @@ impl Building {
         if let Some(workers) = self.archetype().workers() {
             if let Some(employer) = workers.as_employer() {
                 if !employer.is_at_max_capacity() {
-                    if let Some(house) = self.find_house_with_available_workers(query) {
+                    if let Some(house) = self.find_house_with_available_workers(context) {
                         let workers_available = house.workers_count();
                         let workers_added =
                             self.add_workers(workers_available, house.kind_and_id());
@@ -713,13 +711,13 @@ impl Building {
         }
     }
 
-    fn find_house_with_available_workers<'world>(&self,
-                                                 query: &'world Query)
-                                                 -> Option<&'world mut Building> {
+    fn find_house_with_available_workers<'game>(&self,
+                                                 context: &'game SimContext)
+                                                 -> Option<&'game mut Building> {
         let workers_search_radius = GameConfigs::get().sim.workers_search_radius;
         debug_assert!(workers_search_radius > 0);
 
-        let result = query.find_nearest_buildings(self.road_link(query).unwrap(),
+        let result = context.find_nearest_buildings(self.road_link(context).unwrap(),
                                                   BuildingKind::House,
                                                   PathNodeKind::Road,
                                                   Some(workers_search_radius),
@@ -744,12 +742,12 @@ impl Building {
     // ----------------------
 
     #[inline]
-    pub fn is_linked_to_road(&self, query: &Query) -> bool {
-        self.road_link(query).is_some()
+    pub fn is_linked_to_road(&self, context: &SimContext) -> bool {
+        self.road_link(context).is_some()
     }
 
     #[inline]
-    pub fn road_link(&self, query: &Query) -> Option<Cell> {
+    pub fn road_link(&self, context: &SimContext) -> Option<Cell> {
         debug_assert!(self.is_spawned());
 
         if self.road_link.is_valid() {
@@ -757,13 +755,13 @@ impl Building {
         }
 
         // Lazily cache the road link cell on demand:
-        if let Some(road_link) = query.find_nearest_road_link(self.cell_range()) {
+        if let Some(road_link) = context.find_nearest_road_link(self.cell_range()) {
             // Cache road link cell:
             debug_assert!(road_link.is_valid());
             *self.road_link.as_mut() = road_link;
 
             // Set underlying tile flag:
-            if let Some(road_link_tile) = Self::find_road_link_tile_for_cell(query, road_link) {
+            if let Some(road_link_tile) = Self::find_road_link_tile_for_cell(context, road_link) {
                 road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
             }
 
@@ -773,38 +771,38 @@ impl Building {
         None
     }
 
-    pub fn is_showing_road_link_debug(&self, query: &Query) -> bool {
-        if let Some(road_link_tile) = self.find_road_link_tile(query) {
+    pub fn is_showing_road_link_debug(&self, context: &SimContext) -> bool {
+        if let Some(road_link_tile) = self.find_road_link_tile(context) {
             return road_link_tile.has_flags(TileFlags::DrawDebugBounds);
         }
         false
     }
 
-    pub fn set_show_road_link_debug(&self, query: &Query, show: bool) {
-        if let Some(road_link_tile) = self.find_road_link_tile(query) {
+    pub fn set_show_road_link_debug(&self, context: &SimContext, show: bool) {
+        if let Some(road_link_tile) = self.find_road_link_tile(context) {
             road_link_tile.set_flags(TileFlags::DrawDebugBounds, show);
         }
     }
 
-    pub fn find_road_link_tile<'world>(&self, query: &'world Query) -> Option<&'world mut Tile> {
-        if let Some(road_link) = self.road_link(query) {
-            return Self::find_road_link_tile_for_cell(query, road_link);
+    pub fn find_road_link_tile<'game>(&self, context: &'game SimContext) -> Option<&'game mut Tile> {
+        if let Some(road_link) = self.road_link(context) {
+            return Self::find_road_link_tile_for_cell(context, road_link);
         }
         None
     }
 
-    fn find_road_link_tile_for_cell(query: &Query, road_link: Cell) -> Option<&mut Tile> {
-        query.find_tile_mut(road_link, TileMapLayerKind::Terrain, TileKind::Terrain)
+    fn find_road_link_tile_for_cell(context: &SimContext, road_link: Cell) -> Option<&mut Tile> {
+        context.find_tile_mut(road_link, TileMapLayerKind::Terrain, TileKind::Terrain)
     }
 
-    fn update_road_link(&mut self, query: &Query) {
-        if let Some(new_road_link) = query.find_nearest_road_link(self.cell_range()) {
+    fn update_road_link(&mut self, context: &SimContext) {
+        if let Some(new_road_link) = context.find_nearest_road_link(self.cell_range()) {
             debug_assert!(new_road_link.is_valid());
 
             if new_road_link != *self.road_link.as_ref() && self.road_link.is_valid() {
                 // Clear previous underlying tile flag:
                 if let Some(prev_road_link_tile) =
-                    Self::find_road_link_tile_for_cell(query, *self.road_link.as_ref())
+                    Self::find_road_link_tile_for_cell(context, *self.road_link.as_ref())
                 {
                     prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
                 }
@@ -812,7 +810,7 @@ impl Building {
 
             // Set new underlying tile flag:
             if let Some(new_road_link_tile) =
-                Self::find_road_link_tile_for_cell(query, new_road_link)
+                Self::find_road_link_tile_for_cell(context, new_road_link)
             {
                 new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
             }
@@ -874,7 +872,7 @@ impl Building {
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
         ui_sys.set_window_font_scale(UiFontScale::default());
 
-        color_bullet_bool("Linked to road", self.is_linked_to_road(context.query));
+        color_bullet_bool("Linked to road", self.is_linked_to_road(context.sim_ctx));
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
@@ -963,7 +961,7 @@ impl Building {
                 kind: self.kind(),
                 archetype: self.archetype_kind(),
                 cells: self.cell_range(),
-                road_link: self.road_link(context.query).unwrap_or_default(),
+                road_link: self.road_link(context.sim_ctx).unwrap_or_default(),
                 id: self.id()
             };
             debug_vars.draw_debug_ui(ui_sys);
@@ -984,7 +982,7 @@ impl Building {
                 }
 
                 if ui.button("Evict All Residents") {
-                    self.remove_all_population(context.query);
+                    self.remove_all_population(context.sim_ctx);
                 }
             }
         }
@@ -994,7 +992,7 @@ impl Building {
                 let is_household_worker_pool = workers.is_household_worker_pool();
                 let is_employer = workers.is_employer();
 
-                workers.draw_debug_ui(context.query.world(), ui_sys);
+                workers.draw_debug_ui(context.sim_ctx.world(), ui_sys);
                 ui.separator();
 
                 let source = {
@@ -1036,7 +1034,7 @@ impl Building {
 
                 if ui.button("Add Worker (+1)") && !self.workers_is_maxed() {
                     if let Some(building) =
-                        context.query.world().find_building_mut(source.kind, source.id)
+                        context.sim_ctx.world().find_building_mut(source.kind, source.id)
                     {
                         let removed_count = building.remove_workers(1, self.kind_and_id());
                         let added_count = self.add_workers(removed_count, source);
@@ -1048,7 +1046,7 @@ impl Building {
 
                 if ui.button("Remove Worker (-1)") && self.workers_count() != 0 {
                     if let Some(building) =
-                        context.query.world().find_building_mut(source.kind, source.id)
+                        context.sim_ctx.world().find_building_mut(source.kind, source.id)
                     {
                         let added_count = building.add_workers(1, self.kind_and_id());
                         let removed_count = self.remove_workers(added_count, source);
@@ -1059,7 +1057,7 @@ impl Building {
                 }
 
                 if ui.button("Remove All Workers") {
-                    self.remove_all_workers(context.query);
+                    self.remove_all_workers(context.sim_ctx);
                 }
 
                 if is_employer {
@@ -1070,22 +1068,22 @@ impl Building {
         }
 
         if ui.collapsing_header("Access", imgui::TreeNodeFlags::empty()) {
-            if self.is_linked_to_road(context.query) {
+            if self.is_linked_to_road(context.sim_ctx) {
                 ui.text_colored(Color::green().to_array(), "Has road access.");
             } else {
                 ui.text_colored(Color::red().to_array(), "No road access!");
             }
 
             ui.text(format!("Road Link Tile : {}",
-                            self.road_link(context.query).unwrap_or_default()));
+                            self.road_link(context.sim_ctx).unwrap_or_default()));
 
-            let mut show_road_link = self.is_showing_road_link_debug(context.query);
+            let mut show_road_link = self.is_showing_road_link_debug(context.sim_ctx);
             if ui.checkbox("Show Road Link", &mut show_road_link) {
-                self.set_show_road_link_debug(context.query, show_road_link);
+                self.set_show_road_link_debug(context.sim_ctx, show_road_link);
             }
 
             if ui.button("Highlight Access Tiles") {
-                pathfind::highlight_building_access_tiles(context.query.tile_map(),
+                pathfind::highlight_building_access_tiles(context.sim_ctx.tile_map(),
                                                           self.cell_range());
             }
         }
@@ -1293,24 +1291,32 @@ impl BuildingTileInfo {
 // BuildingContext
 // ----------------------------------------------
 
-pub struct BuildingContext<'world> {
+pub struct BuildingContext<'game> {
     pub id: BuildingId,
     pub map_cells: mem::Mutable<CellRange>,
     pub road_link: Option<Cell>,
     pub kind: BuildingKind,
     pub archetype_kind: BuildingArchetypeKind,
-    pub query: &'world Query,
+    pub sim_ctx: &'game SimContext,
 }
 
-impl<'world> BuildingContext<'world> {
+impl<'game> BuildingContext<'game> {
+    #[inline]
     fn new(id: BuildingId,
            map_cells: CellRange,
            road_link: Option<Cell>,
            kind: BuildingKind,
            archetype_kind: BuildingArchetypeKind,
-           query: &'world Query)
+           sim_ctx: &'game SimContext)
            -> Self {
-        Self { id, map_cells: mem::Mutable::new(map_cells), road_link, kind, archetype_kind, query }
+        Self {
+            id,
+            map_cells: mem::Mutable::new(map_cells),
+            road_link,
+            kind,
+            archetype_kind,
+            sim_ctx,
+        }
     }
 
     #[inline]
@@ -1344,7 +1350,7 @@ impl<'world> BuildingContext<'world> {
     #[inline]
     pub fn debug_name(&self) -> &str {
         if cfg!(debug_assertions) {
-            if let Some(building) = self.query.world().find_building(self.kind, self.id) {
+            if let Some(building) = self.sim_ctx.world().find_building(self.kind, self.id) {
                 return building.name();
             }
         }
@@ -1353,21 +1359,21 @@ impl<'world> BuildingContext<'world> {
 
     #[inline]
     pub fn find_tile_def(&self, tile_def_name_hash: StringHash) -> Option<&'static TileDef> {
-        self.query.find_tile_def(TileMapLayerKind::Objects,
+        self.sim_ctx.find_tile_def(TileMapLayerKind::Objects,
                                  OBJECTS_BUILDINGS_CATEGORY.hash,
                                  tile_def_name_hash)
     }
 
     #[inline]
     pub fn find_tile(&self) -> &Tile {
-        self.query
+        self.sim_ctx
             .find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
     #[inline]
     pub fn find_tile_mut(&self) -> &mut Tile {
-        self.query
+        self.sim_ctx
             .find_tile_mut(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
@@ -1379,7 +1385,7 @@ impl<'world> BuildingContext<'world> {
 
         if let Some(road_link) = self.road_link {
             let config = BuildingConfigs::get().find_service_config(service_kind);
-            return self.query.is_near_building(road_link,
+            return self.sim_ctx.is_near_building(road_link,
                                                service_kind,
                                                config.requires_road_access,
                                                config.effect_radius);
@@ -1391,7 +1397,7 @@ impl<'world> BuildingContext<'world> {
     #[inline]
     pub fn set_random_building_variation(&self) {
         let tile = self.find_tile_mut();
-        tile.set_random_variation_index(self.query.rng());
+        tile.set_random_variation_index(self.sim_ctx.rng());
     }
 
     // Road link if valid, any unobstructed surrounding cell otherwise.
@@ -1402,7 +1408,7 @@ impl<'world> BuildingContext<'world> {
             }
         }
 
-        let tile_map = self.query.tile_map();
+        let tile_map = self.sim_ctx.tile_map();
         let mut access_cell = Cell::invalid();
 
         pathfind::for_each_surrounding_cell(self.cell_range(), |cell| {

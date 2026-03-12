@@ -1,7 +1,7 @@
 use std::{fs, io, path::Path};
 use enum_dispatch::enum_dispatch;
 use serde::{de::DeserializeOwned, Serialize};
-use crate::{engine::Engine, game::sim::RandomGenerator, tile::TileMap, utils::mem::{self, RcMut}};
+use crate::{engine::Engine, game::sim::RandomGenerator, tile::TileMap, utils::mem::{self, RawPtr, RcMut}};
 
 // ----------------------------------------------
 // Save / Load Traits
@@ -50,13 +50,13 @@ pub enum SaveStateImpl {
 }
 
 pub struct PreLoadContext {
-    engine: mem::RawPtr<dyn Engine>,
+    engine: RawPtr<dyn Engine>,
 }
 
 impl PreLoadContext {
     #[inline]
     pub fn new(engine: &dyn Engine) -> Self {
-        Self { engine: mem::RawPtr::from_ref(engine) }
+        Self { engine: RawPtr::from_ref(engine) }
     }
 
     #[inline]
@@ -71,8 +71,8 @@ impl PreLoadContext {
 }
 
 pub struct PostLoadContext {
-    engine: mem::RawPtr<dyn Engine>,
-    rng: mem::RawPtr<RandomGenerator>,
+    engine: RawPtr<dyn Engine>,
+    rng: RawPtr<RandomGenerator>,
     tile_map: RcMut<TileMap>,
 }
 
@@ -80,8 +80,8 @@ impl PostLoadContext {
     #[inline]
     pub fn new(engine: &dyn Engine, rng: &RandomGenerator, tile_map: RcMut<TileMap>) -> Self {
         Self {
-            engine: mem::RawPtr::from_ref(engine),
-            rng: mem::RawPtr::from_ref(rng),
+            engine: RawPtr::from_ref(engine),
+            rng: RawPtr::from_ref(rng),
             tile_map,
         }
     }

@@ -58,14 +58,14 @@ impl Harvester {
                             -> bool {
         self.try_spawn_with_task(
             context.debug_name(),
-            context.query,
+            context.sim_ctx,
             unit_origin,
             UnitConfigKey::Peasant,
             UnitTaskHarvestWood {
                 origin_building: context.kind_and_id(),
                 origin_building_tile: context.tile_info(),
                 completion_callback,
-                completion_task: context.query.task_manager().new_task(UnitTaskDespawn),
+                completion_task: context.sim_ctx.task_manager().new_task(UnitTaskDespawn),
                 harvest_timer: CountdownTimer::default(),
                 harvest_target: PropId::default(),
                 is_returning_to_origin: false,

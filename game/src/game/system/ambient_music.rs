@@ -9,7 +9,7 @@ use crate::{
     utils::Color,
     engine::Engine,
     save::PostLoadContext,
-    game::{GameLoop, config::GameConfigs, sim::Query},
+    game::{GameLoop, config::GameConfigs, sim::SimContext},
     sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, MusicSoundKey},
 };
 
@@ -118,7 +118,7 @@ impl GameSystem for AmbientMusicSystem {
         self
     }
 
-    fn update(&mut self, engine: &mut dyn Engine, _query: &Query) {
+    fn update(&mut self, engine: &mut dyn Engine, _query: &SimContext) {
         if !self.is_enabled() {
             return;
         }
@@ -138,9 +138,9 @@ impl GameSystem for AmbientMusicSystem {
         }
     }
 
-    fn paused_update(&mut self, engine: &mut dyn Engine, query: &Query) {
+    fn paused_update(&mut self, engine: &mut dyn Engine, context: &SimContext) {
         // We want to update as normal when paused since the home menu will pause the game simulation.
-        self.update(engine, query);
+        self.update(engine, context);
     }
 
     fn reset(&mut self, engine: &mut dyn Engine) {
@@ -154,7 +154,7 @@ impl GameSystem for AmbientMusicSystem {
         self.reset(context.engine_mut());
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, _query: &Query) {
+    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, _query: &SimContext) {
         let ui = engine.ui_system().ui();
 
         if !self.is_enabled() {

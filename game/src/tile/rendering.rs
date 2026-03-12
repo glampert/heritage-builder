@@ -16,8 +16,8 @@ use crate::{
     render::RenderSystem,
     utils::{
         constants::*,
+        mem::RawPtr, Color, Vec2,
         coords::{self, CellRange, WorldToScreenTransform, IsoPointF32},
-        mem, Color, Vec2,
     },
 };
 
@@ -487,7 +487,7 @@ struct TileDrawListEntry {
     // of TileMapRenderer we need to bypass the borrow checker.
     // Not ideal but avoids having to allocate a new temporary
     // local Vec each time draw_map() is called.
-    tile: mem::RawPtr<Tile>,
+    tile: RawPtr<Tile>,
 
     // Y value of the left or right corner of the tile iso diamond for sorting.
     // Simulates a pseudo depth value so we can render units and buildings correctly.
@@ -514,7 +514,7 @@ impl TileDrawListEntry {
         };
 
         Self {
-            tile: mem::RawPtr::from_ref(tile),
+            tile: RawPtr::from_ref(tile),
             depth_sort_key,
         }
     }

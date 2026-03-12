@@ -9,7 +9,7 @@ use crate::{
     pathfind::NodeKind as PathNodeKind,
     game::{GameLoop, menu::TileInspector},
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind, TileDepthSortOverride},
-    utils::{constants::*, coords::Cell, fixed_string::format_fixed_string, mem, Color, Size, Vec2},
+    utils::{constants::*, coords::Cell, fixed_string::format_fixed_string, mem::RawPtr, Color, Size, Vec2},
 };
 
 // ----------------------------------------------
@@ -21,14 +21,14 @@ struct TileWeakRef {
     // We hook up the TileMap editor callbacks to guarantee that.
     // Tile Inspector is used only for debug and development,
     // so this is good enough.
-    tile_ptr: mem::RawPtr<Tile>,
+    tile_ptr: RawPtr<Tile>,
     tile_kind: TileKind,
     tile_layer: TileMapLayerKind,
 }
 
 impl TileWeakRef {
     fn new(tile: &Tile) -> Self {
-        Self { tile_ptr: mem::RawPtr::from_ref(tile),
+        Self { tile_ptr: RawPtr::from_ref(tile),
                tile_kind: tile.kind(),
                tile_layer: tile.layer_kind() }
     }

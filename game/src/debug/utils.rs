@@ -11,7 +11,7 @@ use crate::{
         config::GameConfigs,
         cheats::{self, Cheats},
         unit::task::UnitTaskManager,
-        sim::{Query, RandomGenerator, resources::GlobalTreasury},
+        sim::{SimContext, RandomGenerator, resources::GlobalTreasury},
     },
     tile::{
         self,
@@ -384,11 +384,11 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
 }
 
 // ----------------------------------------------
-// DebugQueryBuilder
+// DebugSimContextBuilder
 // ----------------------------------------------
 
-// Dummy Query for unit tests/debug.
-pub struct DebugQueryBuilder<'game> {
+// Dummy SimContext for unit tests/debug.
+pub struct DebugSimContextBuilder<'game> {
     rng: RandomGenerator,
     graph: Graph,
     search: Search,
@@ -398,7 +398,7 @@ pub struct DebugQueryBuilder<'game> {
     tile_map: &'game mut TileMap,
 }
 
-impl<'game> DebugQueryBuilder<'game> {
+impl<'game> DebugSimContextBuilder<'game> {
     pub fn new(world: &'game mut World,
                tile_map: &'game mut TileMap,
                map_size_in_cells: Size)
@@ -414,15 +414,15 @@ impl<'game> DebugQueryBuilder<'game> {
         }
     }
 
-    pub fn new_query(&mut self) -> Query {
-        Query::new(&mut self.rng,
-                   &mut self.graph,
-                   &mut self.search,
-                   &mut self.task_manager,
-                   self.world,
-                   self.tile_map,
-                   &mut self.treasury,
-                   0.0)
+    pub fn new_sim_context(&mut self) -> SimContext {
+        SimContext::new(&mut self.rng,
+                        &mut self.graph,
+                        &mut self.search,
+                        &mut self.task_manager,
+                        self.world,
+                        self.tile_map,
+                        &mut self.treasury,
+                        0.0)
     }
 }
 
@@ -635,8 +635,8 @@ mod preset_maps {
         debug_assert!(preset.building_tiles.len() == tile_count);
 
         let mut tile_map = TileMap::new(map_size_in_cells, None);
-        let mut query_builder = DebugQueryBuilder::new(world, &mut tile_map, map_size_in_cells);
-        let query = query_builder.new_query();
+        let mut builder = DebugSimContextBuilder::new(world, &mut tile_map, map_size_in_cells);
+        let context = builder.new_sim_context();
 
         // Terrain:
         for y in 0..map_size_in_cells.height {
@@ -648,7 +648,7 @@ mod preset_maps {
 
                     // Set a random terrain tile variation:
                     if tile.has_flags(TileFlags::RandomizePlacement) {
-                        tile.set_random_variation_index(query.rng());
+                        tile.set_random_variation_index(context.rng());
                     }
                 }
             }
@@ -659,7 +659,7 @@ mod preset_maps {
             for x in 0..map_size_in_cells.width {
                 let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(TileMapLayerKind::Objects, tile_id) {
-                    if let Err(err) = world.try_spawn_building_with_tile_def(&query, Cell::new(x, y), tile_def) {
+                    if let Err(err) = world.try_spawn_building_with_tile_def(&context, Cell::new(x, y), tile_def) {
                         log::error!(log::channel!("debug"), "Preset: Failed to place Building tile: {}", err.message);
                     }
                 }

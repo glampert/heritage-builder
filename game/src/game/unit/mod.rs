@@ -11,7 +11,7 @@ use super::{
     building::{Building, BuildingKind},
     sim::{
         resources::{ResourceKind, StockItem},
-        Query,
+        SimContext,
     },
     world::{
         debug::game_object_debug_options,
@@ -102,9 +102,9 @@ impl GameObject for Unit {
     }
 
     #[inline]
-    fn update(&mut self, query: &Query) {
+    fn update(&mut self, context: &SimContext) {
         debug_assert!(self.config.is_some());
-        self.update_tasks(query);
+        self.update_tasks(context);
     }
 
     #[inline]
@@ -134,18 +134,18 @@ impl GameObject for Unit {
         self.config = Some(config);
     }
 
-    fn draw_debug_ui(&mut self, query: &Query, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
 
         match mode {
             DebugUiMode::Overview => {
-                self.draw_debug_ui_overview(query, ui_sys);
+                self.draw_debug_ui_overview(context, ui_sys);
             }
             DebugUiMode::Detailed => {
                 let ui = ui_sys.ui();
                 if ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    self.draw_debug_ui_detailed(query, ui_sys);
+                    self.draw_debug_ui_detailed(context, ui_sys);
                     ui.unindent_by(10.0);
                 }
             }
@@ -153,17 +153,17 @@ impl GameObject for Unit {
     }
 
     fn draw_debug_popups(&mut self,
-                         query: &Query,
+                         context: &SimContext,
                          ui_sys: &UiSystem,
                          transform: WorldToScreenTransform,
                          visible_range: CellRange) {
         debug_assert!(self.is_spawned());
 
-        self.debug.draw_popup_messages(self.find_tile(query),
+        self.debug.draw_popup_messages(self.find_tile(context),
                                        ui_sys,
                                        transform,
                                        visible_range,
-                                       query.delta_time_secs());
+                                       context.delta_time_secs());
     }
 }
 
@@ -192,7 +192,7 @@ impl Unit {
         self.debug.set_show_popups(crate::debug::show_popup_messages());
     }
 
-    pub fn despawned(&mut self, query: &Query) {
+    pub fn despawned(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         self.id = UnitId::default();
@@ -208,7 +208,7 @@ impl Unit {
         self.navigation.set_traversable_node_kinds(PathNodeKind::default());
         self.debug.clear_popups();
 
-        query.task_manager().free_task(self.current_task_id);
+        context.task_manager().free_task(self.current_task_id);
         self.current_task_id = UnitTaskId::default();
     }
 
@@ -260,32 +260,30 @@ impl Unit {
         false
     }
 
-    pub fn set_animation(&mut self, query: &Query, new_anim_set_key: UnitAnimSetKey) {
-        let tile = self.find_tile_mut(query);
+    pub fn set_animation(&mut self, context: &SimContext, new_anim_set_key: UnitAnimSetKey) {
+        let tile = self.find_tile_mut(context);
         self.anim_sets.set_anim(tile, new_anim_set_key);
     }
 
-    pub fn set_depth_sort_override(&mut self, query: &Query, depth_sort_override: TileDepthSortOverride) {
-        let tile = self.find_tile_mut(query);
+    pub fn set_depth_sort_override(&mut self, context: &SimContext, depth_sort_override: TileDepthSortOverride) {
+        let tile = self.find_tile_mut(context);
         tile.set_depth_sort_override(depth_sort_override);
     }
 
     #[inline]
-    pub fn patrol_task_origin_building<'world>(&self,
-                                               query: &'world Query)
-                                               -> Option<&'world mut Building> {
+    pub fn patrol_task_origin_building<'game>(&self, context: &'game SimContext) -> Option<&'game mut Building> {
         debug_assert!(self.is_spawned());
-        if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
-            return query.world()
-                        .find_building_mut(task.origin_building.kind, task.origin_building.id);
+        if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(context.task_manager()) {
+            return context.world()
+                          .find_building_mut(task.origin_building.kind, task.origin_building.id);
         }
         None
     }
 
     #[inline]
-    pub fn patrol_task_building_kind(&self, query: &Query) -> Option<BuildingKind> {
+    pub fn patrol_task_building_kind(&self, context: &SimContext) -> Option<BuildingKind> {
         debug_assert!(self.is_spawned());
-        if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(query.task_manager()) {
+        if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(context.task_manager()) {
             return Some(task.origin_building.kind);
         }
         None
@@ -303,23 +301,23 @@ impl Unit {
     }
 
     #[inline]
-    pub fn settler_population(&self, query: &Query) -> u32 {
+    pub fn settler_population(&self, context: &SimContext) -> u32 {
         debug_assert!(self.is_settler());
-        let task = self.current_task_as::<UnitTaskSettler>(query.task_manager())
+        let task = self.current_task_as::<UnitTaskSettler>(context.task_manager())
                        .expect("Expected unit to be running a UnitTaskSettler!");
         task.population_to_add
     }
 
     #[inline]
-    pub fn is_market_vendor(&self, query: &Query) -> bool {
+    pub fn is_market_vendor(&self, context: &SimContext) -> bool {
         self.is(UnitConfigKey::Vendor)
-        && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::Market)
+        && self.patrol_task_building_kind(context).is_some_and(|kind| kind == BuildingKind::Market)
     }
 
     #[inline]
-    pub fn is_tax_collector(&self, query: &Query) -> bool {
+    pub fn is_tax_collector(&self, context: &SimContext) -> bool {
         self.is(UnitConfigKey::TaxCollector)
-        && self.patrol_task_building_kind(query).is_some_and(|kind| kind == BuildingKind::TaxOffice)
+        && self.patrol_task_building_kind(context).is_some_and(|kind| kind == BuildingKind::TaxOffice)
     }
 
     // ----------------------
@@ -379,16 +377,16 @@ impl Unit {
         self.navigation.goal().is_some_and(|goal| self.cell() == goal.destination_cell())
     }
 
-    pub fn update_navigation(&mut self, query: &Query) {
+    pub fn update_navigation(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         // Path following and movement:
-        match self.navigation.update(query.graph(), query.delta_time_secs()) {
+        match self.navigation.update(context.graph(), context.delta_time_secs()) {
             UnitNavResult::Idle => {
                 // Nothing.
             }
             UnitNavResult::Moving(from_cell, to_cell, progress, direction) => {
-                let tile = self.find_tile_mut(query);
+                let tile = self.find_tile_mut(context);
 
                 let draw_size = tile.draw_size();
                 let from_iso = tile::calc_unit_iso_coords(from_cell, draw_size);
@@ -400,17 +398,17 @@ impl Unit {
                 self.update_direction_and_anim(tile, direction);
             }
             UnitNavResult::AdvancedCell(cell, direction) => {
-                if !self.teleport(query.tile_map(), cell) {
+                if !self.teleport(context.tile_map(), cell) {
                     // This would normally happen if two units try to move to the
                     // same tile, so they will bump into each other for one frame.
                     // Not a critical failure, the unit can recover next update.
                     self.debug.popup_msg_color(Color::yellow(), "Bump!");
                 }
 
-                self.update_direction_and_anim(self.find_tile_mut(query), direction);
+                self.update_direction_and_anim(self.find_tile_mut(context), direction);
             }
             UnitNavResult::ReachedGoal(cell, _) => {
-                self.teleport(query.tile_map(), cell);
+                self.teleport(context.tile_map(), cell);
 
                 if cell == self.cell() {
                     // Goal reached, clear current path.
@@ -424,14 +422,14 @@ impl Unit {
                     self.debug.popup_msg_color(Color::red(), "Goal Blocked!");
                 }
 
-                self.idle(query);
+                self.idle(context);
             }
             UnitNavResult::PathBlocked => {
                 // Failed to move to another tile, possibly because it has been
                 // blocked since we've traced the path. Clear the navigation and stop.
                 // If a task is running it should now re-route the path and retry.
                 self.follow_path(None);
-                self.idle(query);
+                self.idle(context);
                 self.path_is_blocked = true;
                 self.debug.popup_msg_color(Color::red(), "Path Blocked!");
             }
@@ -443,10 +441,10 @@ impl Unit {
     // ----------------------
 
     #[inline]
-    fn update_tasks(&mut self, query: &Query) {
+    fn update_tasks(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
-        let task_manager = query.task_manager();
-        task_manager.run_unit_tasks(self, query);
+        let task_manager = context.task_manager();
+        task_manager.run_unit_tasks(self, context);
     }
 
     #[inline]
@@ -484,7 +482,7 @@ impl Unit {
         self.current_task_id = task_id.unwrap_or_default();
     }
 
-    pub fn try_spawn_with_task<Task>(query: &Query,
+    pub fn try_spawn_with_task<Task>(context: &SimContext,
                                      unit_origin: Cell,
                                      unit_config: UnitConfigKey,
                                      task: Task)
@@ -494,10 +492,10 @@ impl Unit {
     {
         debug_assert!(unit_origin.is_valid());
 
-        let task_manager = query.task_manager();
+        let task_manager = context.task_manager();
         let task_id = task_manager.new_task(task);
 
-        let unit = match Spawner::new(query).try_spawn_unit_with_config(unit_origin, unit_config) {
+        let unit = match Spawner::new(context).try_spawn_unit_with_config(unit_origin, unit_config) {
             Ok(unit) => unit,
             error @ Err(_) => {
                 task_manager.free_task(task_id.unwrap());
@@ -567,24 +565,24 @@ impl Unit {
     // ----------------------
 
     #[inline]
-    fn find_tile<'world>(&self, query: &'world Query) -> &'world Tile {
-        let tile = query.tile_map().tile_at_index(self.tile_index, TileMapLayerKind::Objects);
+    fn find_tile<'game>(&self, context: &'game SimContext) -> &'game Tile {
+        let tile = context.tile_map().tile_at_index(self.tile_index, TileMapLayerKind::Objects);
         debug_assert!(tile.is(TileKind::Unit));
         tile
     }
 
     #[inline]
-    fn find_tile_mut<'world>(&self, query: &'world Query) -> &'world mut Tile {
-        let tile = query.tile_map().tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
+    fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
+        let tile = context.tile_map().tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
         debug_assert!(tile.is(TileKind::Unit));
         tile
     }
 
-    fn idle(&mut self, query: &Query) {
+    fn idle(&mut self, context: &SimContext) {
         if self.direction != UnitDirection::Idle {
             let idle_anim_set_key = navigation::idle_anim_set_for_direction(self.direction);
 
-            let tile = self.find_tile_mut(query);
+            let tile = self.find_tile_mut(context);
             if !self.anim_sets.set_anim(tile, idle_anim_set_key) {
                 // Fallback to generic idle if no directional anim.
                 self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
@@ -630,36 +628,36 @@ pub trait UnitTaskHelper {
     }
 
     #[inline]
-    fn try_unit<'world>(&self, query: &'world Query) -> Option<&'world Unit> {
-        query.world().find_unit(self.unit_id())
+    fn try_unit<'game>(&self, context: &'game SimContext) -> Option<&'game Unit> {
+        context.world().find_unit(self.unit_id())
     }
 
     #[inline]
-    fn try_unit_mut<'world>(&mut self, query: &'world Query) -> Option<&'world mut Unit> {
-        query.world().find_unit_mut(self.unit_id())
+    fn try_unit_mut<'game>(&mut self, context: &'game SimContext) -> Option<&'game mut Unit> {
+        context.world().find_unit_mut(self.unit_id())
     }
 
     #[inline]
-    fn unit<'world>(&self, query: &'world Query) -> &'world Unit {
-        self.try_unit(query).unwrap()
+    fn unit<'game>(&self, context: &'game SimContext) -> &'game Unit {
+        self.try_unit(context).unwrap()
     }
 
     #[inline]
-    fn unit_mut<'world>(&mut self, query: &'world Query) -> &'world mut Unit {
-        self.try_unit_mut(query).unwrap()
+    fn unit_mut<'game>(&mut self, context: &'game SimContext) -> &'game mut Unit {
+        self.try_unit_mut(context).unwrap()
     }
 
     #[inline]
-    fn is_running_task<Task>(&self, query: &Query) -> bool
+    fn is_running_task<Task>(&self, context: &SimContext) -> bool
         where Task: UnitTask + 'static
     {
-        self.try_unit(query).is_some_and(|unit| unit.is_running_task::<Task>(query.task_manager()))
+        self.try_unit(context).is_some_and(|unit| unit.is_running_task::<Task>(context.task_manager()))
     }
 
     #[inline]
     fn try_spawn_with_task<Task>(&mut self,
                                  spawner_name: &str,
-                                 query: &Query,
+                                 context: &SimContext,
                                  unit_origin: Cell,
                                  unit_config: UnitConfigKey,
                                  task: Task)
@@ -669,7 +667,7 @@ pub trait UnitTaskHelper {
     {
         debug_assert!(!self.is_spawned(), "Unit already spawned! reset() first.");
 
-        match Unit::try_spawn_with_task(query, unit_origin, unit_config, task) {
+        match Unit::try_spawn_with_task(context, unit_origin, unit_config, task) {
             Ok(unit) => {
                 self.on_unit_spawn(unit.id(), false);
                 true

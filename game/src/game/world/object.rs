@@ -23,7 +23,7 @@ use crate::{
     game::{
         cheats,
         constants::*,
-        sim::Query,
+        sim::SimContext,
         prop::Prop,
         building::Building,
         undo_redo::GameObjectSavedState,
@@ -101,7 +101,7 @@ pub trait GameObject {
     }
 
     // Update:
-    fn update(&mut self, query: &Query);
+    fn update(&mut self, context: &SimContext);
     fn tally(&self, stats: &mut WorldStats);
 
     // Save/load support:
@@ -117,12 +117,12 @@ pub trait GameObject {
 
     // Debug:
     fn draw_debug_ui(&mut self,
-                     query: &Query,
+                     context: &SimContext,
                      ui_sys: &UiSystem,
                      mode: DebugUiMode);
 
     fn draw_debug_popups(&mut self,
-                         query: &Query,
+                         context: &SimContext,
                          ui_sys: &UiSystem,
                          transform: WorldToScreenTransform,
                          visible_range: CellRange);
@@ -193,21 +193,21 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
         }
     }
 
-    pub fn clear<F>(&mut self, query: &Query, on_despawned_fn: F)
-        where F: Fn(&mut T, &Query)
+    pub fn clear<F>(&mut self, context: &SimContext, on_despawned_fn: F)
+        where F: Fn(&mut T, &SimContext)
     {
         debug_assert!(self.is_valid());
 
         for instance in self.iter_mut() {
-            on_despawned_fn(instance, query);
+            on_despawned_fn(instance, context);
         }
 
         self.instances.fill(T::default());
         self.spawned.fill(false);
     }
 
-    pub fn spawn<F>(&mut self, query: &Query, on_spawned_fn: F) -> &mut T
-        where F: FnOnce(&mut T, &Query, GenerationalIndex)
+    pub fn spawn<F>(&mut self, context: &SimContext, on_spawned_fn: F) -> &mut T
+        where F: FnOnce(&mut T, &SimContext, GenerationalIndex)
     {
         debug_assert!(self.is_valid());
 
@@ -220,7 +220,7 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
 
             debug_assert!(!recycled_instance.is_spawned());
             on_spawned_fn(recycled_instance,
-                          query,
+                          context,
                           GenerationalIndex::new(generation, recycled_index));
 
             self.spawned.set(recycled_index, true);
@@ -234,7 +234,7 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
         let mut new_instance = T::default();
 
         debug_assert!(!new_instance.is_spawned());
-        on_spawned_fn(&mut new_instance, query, GenerationalIndex::new(generation, new_index));
+        on_spawned_fn(&mut new_instance, context, GenerationalIndex::new(generation, new_index));
 
         self.instances.push(new_instance);
         self.spawned.push(true);
@@ -243,8 +243,8 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
         &mut self.instances[new_index]
     }
 
-    pub fn despawn<F>(&mut self, instance: &mut T, query: &Query, on_despawned_fn: F)
-        where F: FnOnce(&mut T, &Query)
+    pub fn despawn<F>(&mut self, instance: &mut T, context: &SimContext, on_despawned_fn: F)
+        where F: FnOnce(&mut T, &SimContext)
     {
         debug_assert!(self.is_valid());
         debug_assert!(instance.is_spawned());
@@ -253,7 +253,7 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
         debug_assert!(self.spawned[index]);
         debug_assert!(std::ptr::eq(&self.instances[index], instance)); // Ensure addresses are the same.
 
-        on_despawned_fn(instance, query);
+        on_despawned_fn(instance, context);
         self.spawned.set(index, false);
     }
 
@@ -492,17 +492,17 @@ impl<'de, T> Deserialize<'de> for SpawnPool<T>
 // Spawner
 // ----------------------------------------------
 
-pub struct Spawner<'world> {
-    query: &'world Query,
+pub struct Spawner<'game> {
+    context: &'game SimContext,
     subtract_tile_cost: bool, // Decrement tile cost when spawning? Default = true.
     restore_tile_cost: bool,  // Restore back tile cost when despawning? Default = false.
 }
 
-pub enum SpawnerResult<'world> {
-    Building(&'world mut Building),
-    Unit(&'world mut Unit),
-    Prop(&'world mut Prop),
-    Tile(&'world mut Tile),
+pub enum SpawnerResult<'game> {
+    Building(&'game mut Building),
+    Unit(&'game mut Unit),
+    Prop(&'game mut Prop),
+    Tile(&'game mut Tile),
     Err(TilePlacementErr), // Error message and optional obstructing tile, if any.
 }
 
@@ -518,11 +518,11 @@ impl SpawnerResult<'_> {
     }
 }
 
-impl<'world> Spawner<'world> {
+impl<'game> Spawner<'game> {
     #[inline]
-    pub fn new(query: &'world Query) -> Self {
+    pub fn new(context: &'game SimContext) -> Self {
         Self {
-            query,
+            context,
             subtract_tile_cost: true,
             restore_tile_cost: false,
         }
@@ -594,7 +594,7 @@ impl<'world> Spawner<'world> {
             self.despawn_prop_at_cell(base_cell);
         } else {
             // No GameObject, just remove the tile directly.
-            if let Err(err) = self.query.tile_map().try_clear_tile_from_layer(base_cell, tile.layer_kind()) {
+            if let Err(err) = self.context.tile_map().try_clear_tile_from_layer(base_cell, tile.layer_kind()) {
                 despawn_error("Tile", &err);
             }
         }
@@ -602,7 +602,7 @@ impl<'world> Spawner<'world> {
 
     pub fn despawn_tile_at_cell(&self, tile_base_cell: Cell, layer_kind: TileMapLayerKind) {
         debug_assert!(tile_base_cell.is_valid());
-        if let Some(tile) = self.query.tile_map().try_tile_from_layer(tile_base_cell, layer_kind) {
+        if let Some(tile) = self.context.tile_map().try_tile_from_layer(tile_base_cell, layer_kind) {
             self.despawn_tile(tile);
         }
     }
@@ -614,32 +614,32 @@ impl<'world> Spawner<'world> {
     pub fn try_spawn_building_with_tile_def(&self,
                                             building_base_cell: Cell,
                                             building_tile_def: &'static TileDef)
-                                            -> Result<&'world mut Building, TilePlacementErr> {
+                                            -> Result<&'game mut Building, TilePlacementErr> {
         if !self.can_afford_tile(building_tile_def) {
             return cost_error(building_tile_def);
         }
 
         let result =
-            self.query.world().try_spawn_building_with_tile_def(self.query,
+            self.context.world().try_spawn_building_with_tile_def(self.context,
                                                                 building_base_cell,
                                                                 building_tile_def);
 
         if let Ok(ref building) = result {
             self.subtract_tile_cost(building_tile_def);
-            building.set_random_variation(self.query);
+            building.set_random_variation(self.context);
         }
 
         result
     }
 
     pub fn despawn_building(&self, building: &mut Building) {
-        if let Err(err) = self.query.world().despawn_building(self.query, building) {
+        if let Err(err) = self.context.world().despawn_building(self.context, building) {
             despawn_error("Building", &err);
         }
     }
 
     pub fn despawn_building_at_cell(&self, building_base_cell: Cell) {
-        if let Err(err) = self.query.world().despawn_building_at_cell(self.query, building_base_cell) {
+        if let Err(err) = self.context.world().despawn_building_at_cell(self.context, building_base_cell) {
             despawn_error("Building", &err);
         }
     }
@@ -651,13 +651,13 @@ impl<'world> Spawner<'world> {
     pub fn try_spawn_unit_with_tile_def(&self,
                                         unit_origin: Cell,
                                         unit_tile_def: &'static TileDef)
-                                        -> Result<&'world mut Unit, TilePlacementErr> {
+                                        -> Result<&'game mut Unit, TilePlacementErr> {
         if !self.can_afford_tile(unit_tile_def) {
             return cost_error(unit_tile_def);
         }
 
         let result =
-            self.query.world().try_spawn_unit_with_tile_def(self.query, unit_origin, unit_tile_def);
+            self.context.world().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
 
         if result.is_ok() {
             self.subtract_tile_cost(unit_tile_def);
@@ -669,21 +669,21 @@ impl<'world> Spawner<'world> {
     pub fn try_spawn_unit_with_config(&self,
                                       unit_origin: Cell,
                                       unit_config_key: UnitConfigKey)
-                                      -> Result<&'world mut Unit, TilePlacementErr> {
+                                      -> Result<&'game mut Unit, TilePlacementErr> {
         // NOTE: No affordability check needed here. This is only
         // used by dynamically spawned units, which have no cost.
 
-        self.query.world().try_spawn_unit_with_config(self.query, unit_origin, unit_config_key)
+        self.context.world().try_spawn_unit_with_config(self.context, unit_origin, unit_config_key)
     }
 
     pub fn despawn_unit(&self, unit: &mut Unit) {
-        if let Err(err) = self.query.world().despawn_unit(self.query, unit) {
+        if let Err(err) = self.context.world().despawn_unit(self.context, unit) {
             despawn_error("Unit", &err);
         }
     }
 
     pub fn despawn_unit_at_cell(&self, unit_base_cell: Cell) {
-        if let Err(err) = self.query.world().despawn_unit_at_cell(self.query, unit_base_cell) {
+        if let Err(err) = self.context.world().despawn_unit_at_cell(self.context, unit_base_cell) {
             despawn_error("Unit", &err);
         }
     }
@@ -695,13 +695,13 @@ impl<'world> Spawner<'world> {
     pub fn try_spawn_prop_with_tile_def(&self,
                                         prop_base_cell: Cell,
                                         prop_tile_def: &'static TileDef)
-                                        -> Result<&'world mut Prop, TilePlacementErr> {
+                                        -> Result<&'game mut Prop, TilePlacementErr> {
         if !self.can_afford_tile(prop_tile_def) {
             return cost_error(prop_tile_def);
         }
 
         let result =
-            self.query.world().try_spawn_prop_with_tile_def(self.query, prop_base_cell, prop_tile_def);
+            self.context.world().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
 
         if result.is_ok() {
             self.subtract_tile_cost(prop_tile_def);
@@ -711,13 +711,13 @@ impl<'world> Spawner<'world> {
     }
 
     pub fn despawn_prop(&self, prop: &mut Prop) {
-        if let Err(err) = self.query.world().despawn_prop(self.query, prop) {
+        if let Err(err) = self.context.world().despawn_prop(self.context, prop) {
             despawn_error("Prop", &err);
         }
     }
 
     pub fn despawn_prop_at_cell(&self, prop_base_cell: Cell) {
-        if let Err(err) = self.query.world().despawn_prop_at_cell(self.query, prop_base_cell) {
+        if let Err(err) = self.context.world().despawn_prop_at_cell(self.context, prop_base_cell) {
             despawn_error("Prop", &err);
         }
     }
@@ -729,7 +729,7 @@ impl<'world> Spawner<'world> {
     #[inline]
     pub fn can_afford_tile(&self, tile_def: &'static TileDef) -> bool {
         if self.subtract_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
-            return self.query.treasury().can_afford(self.query.world(), tile_def.cost);
+            return self.context.treasury().can_afford(self.context.world(), tile_def.cost);
         }
         true
     }
@@ -737,14 +737,14 @@ impl<'world> Spawner<'world> {
     #[inline]
     fn subtract_tile_cost(&self, tile_def: &'static TileDef) {
         if self.subtract_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
-            self.query.treasury().subtract_gold_units_global(self.query.world(), tile_def.cost);
+            self.context.treasury().subtract_gold_units_global(self.context.world(), tile_def.cost);
         }
     }
 
     #[inline]
     fn restore_tile_cost(&self, tile_def: &'static TileDef) {
         if self.restore_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
-            self.query.treasury().add_gold_units(tile_def.cost);
+            self.context.treasury().add_gold_units(tile_def.cost);
         }
     }
 
@@ -757,12 +757,12 @@ impl<'world> Spawner<'world> {
             return cost_error(tile_def);
         }
 
-        let prev_tile_def = self.query
+        let prev_tile_def = self.context
                                 .tile_map()
                                 .try_tile_from_layer(target_cell, tile_def.layer_kind())
                                 .map(|tile| tile.tile_def());
 
-        match self.query.tile_map().try_place_tile(target_cell, tile_def) {
+        match self.context.tile_map().try_place_tile(target_cell, tile_def) {
             Ok(tile) => {
                 self.subtract_tile_cost(tile_def);
 
@@ -775,7 +775,7 @@ impl<'world> Spawner<'world> {
                 } else {
                     // Set a random tile variation:
                     if tile.has_flags(TileFlags::RandomizePlacement) {
-                        tile.set_random_variation_index(self.query.rng());
+                        tile.set_random_variation_index(self.context.rng());
                     }
                 }
 

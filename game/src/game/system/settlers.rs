@@ -10,7 +10,7 @@ use crate::{
     game::{
         building::BuildingKind,
         config::GameConfigs,
-        sim::Query,
+        sim::SimContext,
         unit::{
             navigation::{self, UnitNavGoal},
             task::{
@@ -47,11 +47,11 @@ impl GameSystem for SettlersSpawnSystem {
         self
     }
 
-    fn update(&mut self, _engine: &mut dyn Engine, query: &Query) {
-        if self.spawn_timer.tick(query.delta_time_secs()).should_update() {
+    fn update(&mut self, _engine: &mut dyn Engine, context: &SimContext) {
+        if self.spawn_timer.tick(context.delta_time_secs()).should_update() {
             // Only attempt to spawn if we have any empty housing lots available.
-            if Self::has_vacant_lots(query) {
-                self.try_spawn(query);
+            if Self::has_vacant_lots(context) {
+                self.try_spawn(context);
             }
         }
     }
@@ -65,7 +65,7 @@ impl GameSystem for SettlersSpawnSystem {
         self.spawn_timer.post_load(configs.sim.settlers_spawn_frequency_secs);
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, query: &Query) {
+    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, context: &SimContext) {
         self.spawn_timer.draw_debug_ui("Settler Spawn", 0, engine.ui_system());
 
         let ui = engine.ui_system().ui();
@@ -80,9 +80,9 @@ impl GameSystem for SettlersSpawnSystem {
             }
         };
 
-        color_text("Has vacant lots:", Self::has_vacant_lots(query));
+        color_text("Has vacant lots:", Self::has_vacant_lots(context));
 
-        let spawn_point = Self::find_spawn_point(query);
+        let spawn_point = Self::find_spawn_point(context);
         ui.text(format!("Spawn Point: {}", spawn_point.cell));
 
         if ui.input_scalar("Population Per Settler Unit", &mut self.population_per_settler_unit)
@@ -93,11 +93,11 @@ impl GameSystem for SettlersSpawnSystem {
         }
 
         if ui.button("Force Spawn Now") {
-            self.try_spawn(query);
+            self.try_spawn(context);
         }
 
         if ui.button("Highlight Spawn Point") {
-            if let Some(tile) = query.find_tile_mut(spawn_point.cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
+            if let Some(tile) = context.find_tile_mut(spawn_point.cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
                 tile.set_flags(TileFlags::Highlighted | TileFlags::DrawDebugBounds, true);
             }
         }
@@ -120,25 +120,25 @@ impl Default for SettlersSpawnSystem {
 
 impl SettlersSpawnSystem {
     #[inline]
-    fn has_vacant_lots(query: &Query) -> bool {
-        query.graph().has_node_with_kinds(PathNodeKind::VacantLot)
+    fn has_vacant_lots(context: &SimContext) -> bool {
+        context.graph().has_node_with_kinds(PathNodeKind::VacantLot)
     }
 
     #[inline]
-    fn find_spawn_point(query: &Query) -> Node {
-        query.graph().settlers_spawn_point().unwrap_or_else(|| {
+    fn find_spawn_point(context: &SimContext) -> Node {
+        context.graph().settlers_spawn_point().unwrap_or_else(|| {
             // Fallback to map playable area top-left corner cell if no spawn point it set.
-            let map_size = query.tile_map().size_in_cells();
+            let map_size = context.tile_map().size_in_cells();
             let x = (map_size.width / 2) - 1;
             let y = map_size.height - 1;
             Node::new(Cell::new(x, y))
         })
     }
 
-    fn try_spawn(&self, query: &Query) {
+    fn try_spawn(&self, context: &SimContext) {
         let mut settler = Settler::default();
-        let spawn_point = Self::find_spawn_point(query);
-        settler.try_spawn(query, spawn_point.cell, self.population_per_settler_unit);
+        let spawn_point = Self::find_spawn_point(context);
+        settler.try_spawn(context, spawn_point.cell, self.population_per_settler_unit);
     }
 }
 
@@ -178,18 +178,18 @@ impl UnitTaskHelper for Settler {
 }
 
 impl Settler {
-    pub fn try_spawn(&mut self, query: &Query, unit_origin: Cell, population_to_add: u32) -> bool {
+    pub fn try_spawn(&mut self, context: &SimContext, unit_origin: Cell, population_to_add: u32) -> bool {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(population_to_add != 0);
 
         self.try_spawn_with_task(
             "SettlersSpawnSystem",
-            query,
+            context,
             unit_origin,
             UnitConfigKey::Settler,
             UnitTaskSettler {
                 completion_callback: Callback::default(),
-                completion_task: query.task_manager().new_task(UnitTaskDespawnWithCallback {
+                completion_task: context.task_manager().new_task(UnitTaskDespawnWithCallback {
                     // NOTE: We have to spawn the house building *after* the unit has
                     // despawned since we can't place a building over the unit tile.
                     post_despawn_callback: callback::create!(Settler::on_settled),
@@ -205,26 +205,26 @@ impl Settler {
         let _: Callback<UnitTaskPostDespawnCallback> = callback::register!(Settler::on_settled);
     }
 
-    fn on_settled(query: &Query,
+    fn on_settled(context: &SimContext,
                   unit_prev_cell: Cell,
                   unit_prev_goal: Option<UnitNavGoal>,
                   extra_args: &[UnitTaskArg]) {
         let settle_new_vacant_lot =
-            unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, query));
+            unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
 
         if settle_new_vacant_lot {
-            if let Some(tile_def) = Self::find_house_tile_def(query) {
-                let world = query.world();
-                match world.try_spawn_building_with_tile_def(query, unit_prev_cell, tile_def) {
+            if let Some(tile_def) = Self::find_house_tile_def(context) {
+                let world = context.world();
+                match world.try_spawn_building_with_tile_def(context, unit_prev_cell, tile_def) {
                     Ok(building) => {
                         debug_assert!(building.is(BuildingKind::House));
 
-                        building.set_random_variation(query);
+                        building.set_random_variation(context);
 
                         let population_to_add = extra_args[0].as_u32();
                         debug_assert!(population_to_add != 0);
 
-                        let population_added = building.add_population(query, population_to_add);
+                        let population_added = building.add_population(context, population_to_add);
                         if population_added != population_to_add {
                             log::error!(log::channel!("unit"),
                                         "Settler carried population of {population_to_add} but house accommodated {population_added}.");
@@ -243,9 +243,9 @@ impl Settler {
         // Else unit settled into existing household.
     }
 
-    fn find_house_tile_def(query: &Query) -> Option<&'static TileDef> {
-        query.find_tile_def(TileMapLayerKind::Objects,
-                            OBJECTS_BUILDINGS_CATEGORY.hash,
-                            hash::fnv1a_from_str("house0"))
+    fn find_house_tile_def(context: &SimContext) -> Option<&'static TileDef> {
+        context.find_tile_def(TileMapLayerKind::Objects,
+                              OBJECTS_BUILDINGS_CATEGORY.hash,
+                              hash::fnv1a_from_str("house0"))
     }
 }

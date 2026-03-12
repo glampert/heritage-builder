@@ -15,7 +15,7 @@ use crate::{
     utils::{callback::Callback, coords::Cell},
     game::{
         config::GameConfigs,
-        sim::Query,
+        sim::SimContext,
         unit::{
             Unit,
             anim::UnitAnimSets,
@@ -39,9 +39,9 @@ impl GameSystem for AmbientEffectsSystem {
         self
     }
 
-    fn update(&mut self, _engine: &mut dyn Engine, query: &Query) {
-        if self.bird_spawn_timer.tick(query.delta_time_secs()).should_update() {
-            spawn_bird_with_random_flight_path(query);
+    fn update(&mut self, _engine: &mut dyn Engine, context: &SimContext) {
+        if self.bird_spawn_timer.tick(context.delta_time_secs()).should_update() {
+            spawn_bird_with_random_flight_path(context);
         }
     }
 
@@ -54,22 +54,22 @@ impl GameSystem for AmbientEffectsSystem {
         self.bird_spawn_timer.post_load(configs.sim.birds_spawn_frequency);
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, query: &Query) {
+    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, context: &SimContext) {
         self.bird_spawn_timer.draw_debug_ui("Bird Spawn", 0, engine.ui_system());
 
         let ui = engine.ui_system().ui();
 
         if ui.button("Spawn Bird (left-to-right path") {
-            spawn_bird(query, BirdFlightPath::LeftToRight);
+            spawn_bird(context, BirdFlightPath::LeftToRight);
         }
 
         if ui.button("Spawn Bird (right-to-left path)") {
-            spawn_bird(query, BirdFlightPath::RightToLeft);
+            spawn_bird(context, BirdFlightPath::RightToLeft);
         }
 
         if ui.button("Spawn Big Flock") {
             for _ in 0..50 {
-                spawn_bird_with_random_flight_path(query);
+                spawn_bird_with_random_flight_path(context);
             }
         }
     }
@@ -95,33 +95,33 @@ enum BirdFlightPath {
     RightToLeft,
 }
 
-fn spawn_bird(query: &Query, flight_path: BirdFlightPath) {
+fn spawn_bird(context: &SimContext, flight_path: BirdFlightPath) {
     let (path, anim_set_key) = {
         match flight_path {
             BirdFlightPath::LeftToRight => {
-                (make_left_to_right_randomized_path(query), UnitAnimSets::WALK_SE)
+                (make_left_to_right_randomized_path(context), UnitAnimSets::WALK_SE)
             }
             BirdFlightPath::RightToLeft => {
-                (make_right_to_left_randomized_path(query), UnitAnimSets::WALK_SW)
+                (make_right_to_left_randomized_path(context), UnitAnimSets::WALK_SW)
             }
         }
     };
 
     let result = Unit::try_spawn_with_task(
-        query,
+        context,
         path.first().unwrap().cell,
         UnitConfigKey::Bird,
         UnitTaskFollowPath {
             path,
             completion_callback: Callback::default(),
-            completion_task: query.task_manager().new_task(UnitTaskDespawn),
+            completion_task: context.task_manager().new_task(UnitTaskDespawn),
             terminate_if_stuck: true,
         });
 
     match result {
         Ok(unit) => {
-            unit.set_animation(query, anim_set_key);
-            unit.set_depth_sort_override(query, TileDepthSortOverride::Topmost);
+            unit.set_animation(context, anim_set_key);
+            unit.set_depth_sort_override(context, TileDepthSortOverride::Topmost);
         }
         Err(err) => {
             log::warning!(log::channel!("ambient_effects"), "Failed to spawn bird: {}", err.message);
@@ -129,13 +129,13 @@ fn spawn_bird(query: &Query, flight_path: BirdFlightPath) {
     }
 }
 
-fn spawn_bird_with_random_flight_path(query: &Query) {
-    let flight_path = BirdFlightPath::iter().choose(query.rng()).unwrap();
-    spawn_bird(query, flight_path);
+fn spawn_bird_with_random_flight_path(context: &SimContext) {
+    let flight_path = BirdFlightPath::iter().choose(context.rng()).unwrap();
+    spawn_bird(context, flight_path);
 }
 
-fn make_left_to_right_randomized_path(query: &Query) -> Path {
-    let map_size = query.tile_map().size_in_cells();
+fn make_left_to_right_randomized_path(context: &SimContext) -> Path {
+    let map_size = context.tile_map().size_in_cells();
 
     let randomized_spawn_point = || {
         let min_cell = Cell::new(0, (map_size.height / 2) - 1);
@@ -153,7 +153,7 @@ fn make_left_to_right_randomized_path(query: &Query) -> Path {
             cell.y += 1;
         }
 
-        *cells.choose(query.rng()).unwrap()
+        *cells.choose(context.rng()).unwrap()
     };
 
     let mut cell = randomized_spawn_point();
@@ -169,8 +169,8 @@ fn make_left_to_right_randomized_path(query: &Query) -> Path {
     path
 }
 
-fn make_right_to_left_randomized_path(query: &Query) -> Path {
-    let map_size = query.tile_map().size_in_cells();
+fn make_right_to_left_randomized_path(context: &SimContext) -> Path {
+    let map_size = context.tile_map().size_in_cells();
 
     let randomized_spawn_point = || {
         let min_cell = Cell::new((map_size.width / 2) - 1, 0);
@@ -188,7 +188,7 @@ fn make_right_to_left_randomized_path(query: &Query) -> Path {
             cell.y += 1;
         }
 
-        *cells.choose(query.rng()).unwrap()
+        *cells.choose(context.rng()).unwrap()
     };
 
     let mut cell = randomized_spawn_point();

@@ -13,7 +13,7 @@ use crate::{
     game::{
         constants::*,
         prop::{Prop, PropId, config::PropConfigs},
-        sim::{resources::GlobalTreasury, Query},
+        sim::{resources::GlobalTreasury, SimContext},
         unit::{
             config::{UnitConfigKey, UnitConfigs},
             Unit, UnitId,
@@ -82,40 +82,40 @@ impl World {
         }
     }
 
-    pub fn reset(&mut self, query: &Query) {
+    pub fn reset(&mut self, context: &SimContext) {
         for (_, buildings) in &mut self.building_spawn_pools {
-            buildings.clear(query, Building::despawned);
+            buildings.clear(context, Building::despawned);
         }
 
-        self.unit_spawn_pool.clear(query, Unit::despawned);
-        self.prop_spawn_pool.clear(query, Prop::despawned);
+        self.unit_spawn_pool.clear(context, Unit::despawned);
+        self.prop_spawn_pool.clear(context, Prop::despawned);
     }
 
-    pub fn update_unit_navigation(&mut self, query: &Query) {
+    pub fn update_unit_navigation(&mut self, context: &SimContext) {
         for unit in self.unit_spawn_pool.iter_mut() {
-            unit.update_navigation(query);
+            unit.update_navigation(context);
         }
     }
 
-    pub fn update(&mut self, query: &Query) {
+    pub fn update(&mut self, context: &SimContext) {
         self.stats.reset();
 
-        query.treasury().tally(&mut self.stats);
+        context.treasury().tally(&mut self.stats);
 
         for unit in self.unit_spawn_pool.iter_mut() {
-            unit.update(query);
+            unit.update(context);
             unit.tally(&mut self.stats);
         }
 
         for prop in self.prop_spawn_pool.iter_mut() {
-            prop.update(query);
+            prop.update(context);
             prop.tally(&mut self.stats);
         }
 
         for (archetype_kind, buildings) in &mut self.building_spawn_pools {
             for building in buildings.iter_mut() {
                 debug_assert!(building.archetype_kind() == *archetype_kind);
-                building.update(query);
+                building.update(context);
                 building.tally(&mut self.stats);
             }
         }
@@ -190,7 +190,7 @@ impl World {
     // ----------------------
 
     pub fn try_spawn_building_with_tile_def(&mut self,
-                                            query: &Query,
+                                            context: &SimContext,
                                             tile_base_cell: Cell,
                                             tile_def: &'static TileDef)
                                             -> Result<&mut Building, TilePlacementErr> {
@@ -199,17 +199,17 @@ impl World {
         debug_assert!(tile_def.is(TileKind::Building));
 
         // Allocate & place a Tile:
-        match query.tile_map().try_place_tile(tile_base_cell, tile_def) {
+        match context.tile_map().try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
                 // Instantiate new Building:
-                match BuildingConfigs::get().new_building_archetype_for_tile_def(tile_def, query.rng()) {
+                match BuildingConfigs::get().new_building_archetype_for_tile_def(tile_def, context.rng()) {
                     Ok((building_kind, building_archetype)) => {
                         let archetype_kind = building_archetype.discriminant();
                         let buildings = self.buildings_pool_mut(archetype_kind);
 
-                        let building = buildings.spawn(query,
-                            |building, query, id| {
-                                building.spawned(query, id, building_kind, tile.cell_range(), building_archetype);
+                        let building = buildings.spawn(context,
+                            |building, context, id| {
+                                building.spawned(context, id, building_kind, tile.cell_range(), building_archetype);
                             });
                         debug_assert!(building.is_spawned());
 
@@ -238,13 +238,13 @@ impl World {
     }
 
     pub fn despawn_building(&mut self,
-                            query: &Query,
+                            context: &SimContext,
                             building: &mut Building)
                             -> Result<(), TileClearingErr> {
         let tile_base_cell = building.base_cell();
         debug_assert!(tile_base_cell.is_valid());
 
-        let tile_map = query.tile_map();
+        let tile_map = context.tile_map();
 
         // Find and validate associated Tile:
         let tile = match tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Building) {
@@ -270,22 +270,22 @@ impl World {
         debug_assert!(pool_index == building.id().index());
 
         // Put the building instance back into the spawn pool.
-        buildings.despawn(building, query, Building::despawned);
+        buildings.despawn(building, context, Building::despawned);
         Ok(())
     }
 
     #[inline]
     pub fn despawn_building_at_cell(&mut self,
-                                    query: &Query,
+                                    context: &SimContext,
                                     tile_base_cell: Cell)
                                     -> Result<(), TileClearingErr> {
         debug_assert!(tile_base_cell.is_valid());
 
-        let building = query.world()
-                            .find_building_for_cell_mut(tile_base_cell, query.tile_map())
+        let building = context.world()
+                            .find_building_for_cell_mut(tile_base_cell, context.tile_map())
                             .expect("Tile cell does not contain a Building!");
 
-        self.despawn_building(query, building)
+        self.despawn_building(context, building)
     }
 
     #[inline]
@@ -422,25 +422,25 @@ impl World {
     // ----------------------
 
     pub fn draw_building_debug_popups(&mut self,
-                                      query: &Query,
+                                      context: &SimContext,
                                       ui_sys: &UiSystem,
                                       transform: WorldToScreenTransform,
                                       visible_range: CellRange) {
         for (archetype_kind, buildings) in &mut self.building_spawn_pools {
             for building in buildings.iter_mut() {
                 debug_assert!(building.archetype_kind() == *archetype_kind);
-                building.draw_debug_popups(query, ui_sys, transform, visible_range);
+                building.draw_debug_popups(context, ui_sys, transform, visible_range);
             }
         }
     }
 
     pub fn draw_building_debug_ui(&mut self,
-                                  query: &Query,
+                                  context: &SimContext,
                                   ui_sys: &UiSystem,
                                   tile: &Tile,
                                   mode: DebugUiMode) {
         if let Some(building) = self.find_building_for_tile_mut(tile) {
-            building.draw_debug_ui(query, ui_sys, mode);
+            building.draw_debug_ui(context, ui_sys, mode);
         }
     }
 
@@ -449,7 +449,7 @@ impl World {
     // ----------------------
 
     pub fn try_spawn_unit_with_config(&mut self,
-                                      query: &Query,
+                                      context: &SimContext,
                                       unit_origin: Cell,
                                       unit_config: UnitConfigKey)
                                       -> Result<&mut Unit, TilePlacementErr> {
@@ -463,10 +463,10 @@ impl World {
                                                                       config.tile_def_name_hash)
         {
             // Allocate & place a Tile:
-            match query.tile_map().try_place_tile(unit_origin, tile_def) {
+            match context.tile_map().try_place_tile(unit_origin, tile_def) {
                 Ok(tile) => {
                     // Spawn unit:
-                    let unit = self.unit_spawn_pool.spawn(query,
+                    let unit = self.unit_spawn_pool.spawn(context,
                         |unit, _query, id| {
                             unit.spawned(tile, config, id);
                         });
@@ -493,7 +493,7 @@ impl World {
     }
 
     pub fn try_spawn_unit_with_tile_def(&mut self,
-                                        query: &Query,
+                                        context: &SimContext,
                                         unit_origin: Cell,
                                         tile_def: &'static TileDef)
                                         -> Result<&mut Unit, TilePlacementErr> {
@@ -502,12 +502,12 @@ impl World {
         debug_assert!(tile_def.is(TileKind::Unit));
 
         // Allocate & place a Tile:
-        match query.tile_map().try_place_tile(unit_origin, tile_def) {
+        match context.tile_map().try_place_tile(unit_origin, tile_def) {
             Ok(tile) => {
                 let config = UnitConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn unit:
-                let unit = self.unit_spawn_pool.spawn(query,
+                let unit = self.unit_spawn_pool.spawn(context,
                     |unit, _query, id| {
                         unit.spawned(tile, config, id);
                     });
@@ -527,9 +527,9 @@ impl World {
         }
     }
 
-    pub fn despawn_unit(&mut self, query: &Query, unit: &mut Unit) -> Result<(), TileClearingErr> {
+    pub fn despawn_unit(&mut self, context: &SimContext, unit: &mut Unit) -> Result<(), TileClearingErr> {
         debug_assert!(unit.is_spawned());
-        let tile_map = query.tile_map();
+        let tile_map = context.tile_map();
 
         let tile_cell = unit.cell();
         debug_assert!(tile_cell.is_valid());
@@ -571,7 +571,7 @@ impl World {
                                                             TileMapLayerKind::Objects)?;
 
                 // Put the unit instance back into the spawn pool.
-                self.unit_spawn_pool.despawn(unit, query, Unit::despawned);
+                self.unit_spawn_pool.despawn(unit, context, Unit::despawned);
                 return Ok(());
             }
         }
@@ -595,19 +595,19 @@ impl World {
     }
 
     pub fn despawn_unit_at_cell(&mut self,
-                                query: &Query,
+                                context: &SimContext,
                                 tile_base_cell: Cell)
                                 -> Result<(), TileClearingErr> {
         debug_assert!(tile_base_cell.is_valid());
 
         let mut units = SmallVec::<[&mut Unit; 10]>::new();
 
-        let tile = match query.tile_map().find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Unit) {
+        let tile = match context.tile_map().find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Unit) {
             Some(tile) => tile,
             None => return placement::err!(Clearing::DespawnFailed, "Tile cell does not contain a Unit!"),
         };
 
-        let unit = match query.world().find_unit_for_tile_mut(tile) {
+        let unit = match context.world().find_unit_for_tile_mut(tile) {
             Some(unit) => unit,
             None => return placement::err!(Clearing::DespawnFailed, "Unit tile does not have a valid TileGameObjectHandle!"),
         };
@@ -615,8 +615,8 @@ impl World {
         units.push(unit);
 
         if tile.is_stacked() {
-            query.tile_map().visit_next_tiles_mut(tile, |next_tile| {
-                let next_unit = query.world().find_unit_for_tile_mut(next_tile)
+            context.tile_map().visit_next_tiles_mut(tile, |next_tile| {
+                let next_unit = context.world().find_unit_for_tile_mut(next_tile)
                     .expect("Next Unit tile does not have a valid TileGameObjectHandle!");
 
                 units.push(next_unit);
@@ -624,11 +624,11 @@ impl World {
         }
 
         // This will take care of removing all tiles stacked at `tile_base_cell`.
-        query.tile_map().try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
+        context.tile_map().try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
 
         // Despawn all units at this cell.
         for unit in units {
-            query.world().unit_spawn_pool.despawn(unit, query, Unit::despawned);
+            context.world().unit_spawn_pool.despawn(unit, context, Unit::despawned);
         }
 
         Ok(())
@@ -720,22 +720,22 @@ impl World {
     // ----------------------
 
     pub fn draw_unit_debug_popups(&mut self,
-                                  query: &Query,
+                                  context: &SimContext,
                                   ui_sys: &UiSystem,
                                   transform: WorldToScreenTransform,
                                   visible_range: CellRange) {
         for unit in self.unit_spawn_pool.iter_mut() {
-            unit.draw_debug_popups(query, ui_sys, transform, visible_range);
+            unit.draw_debug_popups(context, ui_sys, transform, visible_range);
         }
     }
 
     pub fn draw_unit_debug_ui(&mut self,
-                              query: &Query,
+                              context: &SimContext,
                               ui_sys: &UiSystem,
                               tile: &Tile,
                               mode: DebugUiMode) {
         if let Some(unit) = self.find_unit_for_tile_mut(tile) {
-            unit.draw_debug_ui(query, ui_sys, mode);
+            unit.draw_debug_ui(context, ui_sys, mode);
         }
     }
 
@@ -744,7 +744,7 @@ impl World {
     // ----------------------
 
     pub fn try_spawn_prop_with_tile_def(&mut self,
-                                        query: &Query,
+                                        context: &SimContext,
                                         prop_base_cell: Cell,
                                         tile_def: &'static TileDef)
                                         -> Result<&mut Prop, TilePlacementErr> {
@@ -753,12 +753,12 @@ impl World {
         debug_assert!(tile_def.is(TileKind::Prop));
 
         // Allocate & place a Tile:
-        match query.tile_map().try_place_tile(prop_base_cell, tile_def) {
+        match context.tile_map().try_place_tile(prop_base_cell, tile_def) {
             Ok(tile) => {
                 let config = PropConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn prop:
-                let prop = self.prop_spawn_pool.spawn(query,
+                let prop = self.prop_spawn_pool.spawn(context,
                     |prop, _query, id| {
                         prop.spawned(tile, config, id);
                     });
@@ -779,13 +779,13 @@ impl World {
     }
 
     pub fn despawn_prop(&mut self,
-                        query: &Query,
+                        context: &SimContext,
                         prop: &mut Prop)
                         -> Result<(), TileClearingErr> {
         let tile_base_cell = prop.cell();
         debug_assert!(tile_base_cell.is_valid());
 
-        let tile_map = query.tile_map();
+        let tile_map = context.tile_map();
 
         // Find and validate associated Tile:
         let tile = match tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Prop) {
@@ -807,22 +807,22 @@ impl World {
         tile_map.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
 
         // Despawn prop instance:
-        self.prop_spawn_pool.despawn(prop, query, Prop::despawned);
+        self.prop_spawn_pool.despawn(prop, context, Prop::despawned);
         Ok(())
     }
 
     #[inline]
     pub fn despawn_prop_at_cell(&mut self,
-                                query: &Query,
+                                context: &SimContext,
                                 tile_base_cell: Cell)
                                 -> Result<(), TileClearingErr> {
         debug_assert!(tile_base_cell.is_valid());
 
-        let prop = query.world()
-                            .find_prop_for_cell_mut(tile_base_cell, query.tile_map())
-                            .expect("Tile cell does not contain a Prop!");
+        let prop = context.world()
+            .find_prop_for_cell_mut(tile_base_cell, context.tile_map())
+            .expect("Tile cell does not contain a Prop!");
 
-        self.despawn_prop(query, prop)
+        self.despawn_prop(context, prop)
     }
 
     #[inline]
@@ -911,22 +911,22 @@ impl World {
     // ----------------------
 
     pub fn draw_prop_debug_popups(&mut self,
-                                  query: &Query,
+                                  context: &SimContext,
                                   ui_sys: &UiSystem,
                                   transform: WorldToScreenTransform,
                                   visible_range: CellRange) {
         for prop in self.prop_spawn_pool.iter_mut() {
-            prop.draw_debug_popups(query, ui_sys, transform, visible_range);
+            prop.draw_debug_popups(context, ui_sys, transform, visible_range);
         }
     }
 
     pub fn draw_prop_debug_ui(&mut self,
-                              query: &Query,
+                              context: &SimContext,
                               ui_sys: &UiSystem,
                               tile: &Tile,
                               mode: DebugUiMode) {
         if let Some(prop) = self.find_prop_for_tile_mut(tile) {
-            prop.draw_debug_ui(query, ui_sys, mode);
+            prop.draw_debug_ui(context, ui_sys, mode);
         }
     }
 

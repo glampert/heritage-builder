@@ -138,7 +138,7 @@ impl BuildingBehavior for StorageBuilding {
             return;
         }
 
-        let task_manager = context.query.task_manager();
+        let task_manager = context.sim_ctx.task_manager();
 
         if let Some(task) = unit.current_task_as::<UnitTaskDeliverToStorage>(task_manager) {
             debug_assert!(context.kind.intersects(task.storage_buildings_accepted));

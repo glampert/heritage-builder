@@ -6,7 +6,7 @@ use crate::{
     log,
     pathfind::NodeKind as PathNodeKind,
     utils::{coords::Cell, mem::singleton_late_init},
-    game::{world::World, sim::Query, menu::TilePlacement},
+    game::{world::World, sim::SimContext, menu::TilePlacement},
     tile::{Tile, TileKind, TileFlags, TileMap, TileMapLayerKind, sets::TileDef},
 };
 
@@ -131,32 +131,32 @@ impl Record {
     // Redo:
     // - Place Tiles: Place back deleted tiles.
     // - Clear Tiles: Delete tiles added.
-    fn apply_action(&self, command: Command, query: &Query) {
+    fn apply_action(&self, command: Command, context: &SimContext) {
         match command {
             Command::Undo => {
                 match self.action {
-                    EditAction::PlacedTiles   => self.clear_tiles(query, true),
-                    EditAction::ClearingTiles => self.place_tiles(query, false),
+                    EditAction::PlacedTiles   => self.clear_tiles(context, true),
+                    EditAction::ClearingTiles => self.place_tiles(context, false),
                 }
             }
             Command::Redo => {
                 match self.action {
-                    EditAction::PlacedTiles   => self.place_tiles(query, true),
-                    EditAction::ClearingTiles => self.clear_tiles(query, false),
+                    EditAction::PlacedTiles   => self.place_tiles(context, true),
+                    EditAction::ClearingTiles => self.clear_tiles(context, false),
                 }
             }
         }
     }
 
-    fn place_tiles(&self, query: &Query, subtract_tile_cost: bool) {
+    fn place_tiles(&self, context: &SimContext, subtract_tile_cost: bool) {
         for state in &self.saved_states {
             if let Some(terrain_tile_state) = &state.terrain_tile_state {
-                Self::place_tile(query, TileMapLayerKind::Terrain, terrain_tile_state, subtract_tile_cost);
+                Self::place_tile(context, TileMapLayerKind::Terrain, terrain_tile_state, subtract_tile_cost);
             }
 
             let maybe_object_tile = {
                 if let Some(object_tile_state) = &state.object_tile_state {
-                    Self::place_tile(query, TileMapLayerKind::Objects, object_tile_state, subtract_tile_cost)
+                    Self::place_tile(context, TileMapLayerKind::Objects, object_tile_state, subtract_tile_cost)
                 } else {
                     None
                 }
@@ -165,7 +165,7 @@ impl Record {
             if let Some(object_tile) = maybe_object_tile {
                 if let Some(game_object_state) = &state.game_object_state {
                     if let Some(game_object) =
-                        query.world().find_game_object_for_tile_mut(object_tile)
+                        context.world().find_game_object_for_tile_mut(object_tile)
                     {
                         game_object.undo_redo_apply(game_object_state.as_ref());
                     }
@@ -174,11 +174,11 @@ impl Record {
         }
     }
 
-    fn place_tile<'world>(query: &'world Query,
+    fn place_tile<'game>(context: &'game SimContext,
                           layer: TileMapLayerKind,
                           tile_state: &TileSavedState,
                           subtract_tile_cost: bool)
-                          -> Option<&'world Tile> {
+                          -> Option<&'game Tile> {
         let target_cell = tile_state.tile_base_cell;
         let tile_def = tile_state.tile_def;
         let tile_variation_index = tile_state.tile_variation_index;
@@ -188,8 +188,8 @@ impl Record {
 
         debug_assert!(tile_def.layer_kind() == layer);
 
-        if TilePlacement::place(query, target_cell, tile_def, subtract_tile_cost, false).is_ok() {
-            if let Some(tile) = query.find_tile_mut(target_cell, layer, tile_def.kind()) {
+        if TilePlacement::place(context, target_cell, tile_def, subtract_tile_cost, false).is_ok() {
+            if let Some(tile) = context.find_tile_mut(target_cell, layer, tile_def.kind()) {
                 tile.set_variation_index(tile_variation_index as usize);
                 if !tile_flags.is_empty() {
                     tile.set_flags(tile_flags, true);
@@ -201,24 +201,24 @@ impl Record {
         None
     }
 
-    fn clear_tiles(&self, query: &Query, restore_tile_cost: bool) {
+    fn clear_tiles(&self, context: &SimContext, restore_tile_cost: bool) {
         for state in &self.saved_states {
             if let Some(terrain_tile_state) = &state.terrain_tile_state {
-                Self::clear_tile(query, TileMapLayerKind::Terrain, terrain_tile_state, restore_tile_cost);
+                Self::clear_tile(context, TileMapLayerKind::Terrain, terrain_tile_state, restore_tile_cost);
             }
 
             if let Some(object_tile_state) = &state.object_tile_state {
-                Self::clear_tile(query, TileMapLayerKind::Objects, object_tile_state, restore_tile_cost);
+                Self::clear_tile(context, TileMapLayerKind::Objects, object_tile_state, restore_tile_cost);
             }
         }
     }
 
-    fn clear_tile(query: &Query, layer: TileMapLayerKind, tile_state: &TileSavedState, restore_tile_cost: bool) {
+    fn clear_tile(context: &SimContext, layer: TileMapLayerKind, tile_state: &TileSavedState, restore_tile_cost: bool) {
         let tile_def = tile_state.tile_def;
         debug_assert!(tile_def.layer_kind() == layer);
 
-        if let Some(tile) = query.find_tile(tile_state.tile_base_cell, layer, tile_def.kind()) {
-            TilePlacement::clear(query, tile, restore_tile_cost, false);
+        if let Some(tile) = context.find_tile(tile_state.tile_base_cell, layer, tile_def.kind()) {
+            TilePlacement::clear(context, tile, restore_tile_cost, false);
         }
     }
 }
@@ -301,18 +301,18 @@ impl UndoRedoSingleton {
         self.redo_stack.push_back(record);
     }
 
-    fn undo(&mut self, query: &Query) {
+    fn undo(&mut self, context: &SimContext) {
         if let Some(record) = self.undo_stack.pop_back() {
             log::info!(log::channel!("undo_redo"), "Undo: {:?} ({} items)", record.action, record.saved_states.len());
-            record.apply_action(Command::Undo, query);
+            record.apply_action(Command::Undo, context);
             self.push_redo_record(record);
         }
     }
 
-    fn redo(&mut self, query: &Query) {
+    fn redo(&mut self, context: &SimContext) {
         if let Some(record) = self.redo_stack.pop_back() {
             log::info!(log::channel!("undo_redo"), "Redo: {:?} ({} items)", record.action, record.saved_states.len());
-            record.apply_action(Command::Redo, query);
+            record.apply_action(Command::Redo, context);
             self.push_undo_record(record);
         }
     }
@@ -355,12 +355,12 @@ pub fn record<I, C>(action: EditAction, affected_cells: I, layers: EditedLayer, 
     UndoRedoSingleton::get_mut().record(action, affected_cells, layers, tile_map, world);
 }
 
-pub fn undo(query: &Query) {
-    UndoRedoSingleton::get_mut().undo(query);
+pub fn undo(context: &SimContext) {
+    UndoRedoSingleton::get_mut().undo(context);
 }
 
-pub fn redo(query: &Query) {
-    UndoRedoSingleton::get_mut().redo(query);
+pub fn redo(context: &SimContext) {
+    UndoRedoSingleton::get_mut().redo(context);
 }
 
 pub fn can_undo() -> bool {
