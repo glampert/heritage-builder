@@ -2,7 +2,7 @@ use arrayvec::{ArrayVec, ArrayString};
 use strum::EnumCount;
 use strum_macros::EnumCount;
 
-use super::TileInspectorMenuWeakMut;
+use super::{TileInspector, TileInspectorMenuWeakMut};
 use crate::{
     tile::{TileKind, sets::TileIconSprite},
     game::menu::TEXT_BUTTON_HOVERED_SPRITE,
@@ -183,7 +183,7 @@ impl InspectorMenuRenderer {
         }
     }
 
-    pub fn set_icon(&mut self, context: &mut UiWidgetContext, icon_sprite: TileIconSprite, tile_kind: TileKind) {
+    pub fn set_icon(&mut self, context: &UiWidgetContext, icon_sprite: TileIconSprite, tile_kind: TileKind) {
         let icon = self.find_icon();
 
         let sprite = context.ui_sys.to_ui_texture(icon_sprite.tex_info.texture);
@@ -279,7 +279,7 @@ impl InspectorMenuRenderer {
                 sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
                     let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
-                    inspector_menu.close_inspector(context);
+                    inspector_menu.close(context);
                 }),
                 ..Default::default()
             }

@@ -422,41 +422,41 @@ impl TilePalette for TilePaletteMenu {
         }
     }
 
-    fn on_tile_placed(&mut self, context: &mut GameMenusContext) {
+    fn on_tile_placed(&mut self, context: &mut UiWidgetContext) {
         if self.current_selection.is_some() {
-            sound::play(context.engine.sound_system(), UiSoundKey::TilePlaced);
+            sound::play(context.sound_sys, UiSoundKey::TilePlaced);
         }
     }
 
-    fn on_tile_cleared(&mut self, context: &mut GameMenusContext) {
+    fn on_tile_cleared(&mut self, context: &mut UiWidgetContext) {
         if self.current_selection.is_some() {
-            sound::play(context.engine.sound_system(), UiSoundKey::TileCleared);
+            sound::play(context.sound_sys, UiSoundKey::TileCleared);
         }
     }
 
-    fn on_road_segment_placed(&mut self, context: &mut GameMenusContext) {
+    fn on_road_segment_placed(&mut self, context: &mut UiWidgetContext) {
         if self.current_selection.is_some() {
-            sound::play(context.engine.sound_system(), UiSoundKey::TilePlaced);
+            sound::play(context.sound_sys, UiSoundKey::TilePlaced);
         }
     }
 
-    fn on_tile_placement_failed(&mut self, context: &mut GameMenusContext) {
+    fn on_tile_placement_failed(&mut self, context: &mut UiWidgetContext) {
         if self.current_selection.is_some() {
-            sound::play(context.engine.sound_system(), UiSoundKey::TilePlacementFailed);
+            sound::play(context.sound_sys, UiSoundKey::TilePlacementFailed);
         }
     }
 
-    fn on_tile_placement_canceled(&mut self, context: &mut GameMenusContext) {
+    fn on_tile_placement_canceled(&mut self, context: &mut UiWidgetContext) {
         if self.current_selection.is_some() {
-            sound::play(context.engine.sound_system(), UiSoundKey::TilePlacementCanceled);
+            sound::play(context.sound_sys, UiSoundKey::TilePlacementCanceled);
         }
 
         // NOTE: Play sound effect AND clear current selection.
         self.clear_current_selection(context);
     }
 
-    fn clear_current_selection(&mut self, context: &mut GameMenusContext) {
-        self.reset_selection_internal(&mut context.as_ui_widget_context());
+    fn clear_current_selection(&mut self, context: &mut UiWidgetContext) {
+        self.reset_selection_internal(context);
     }
 
     fn current_selection(&self) -> TilePaletteSelection {
@@ -513,10 +513,7 @@ impl TilePaletteMenu {
         })
     }
 
-    pub fn draw(&mut self,
-                context: &mut UiWidgetContext,
-                transform: WorldToScreenTransform,
-                has_valid_placement: bool) {
+    pub fn draw(&mut self, context: &mut UiWidgetContext) {
         // Draw menu & main buttons:
         self.menu.draw(context);
 
@@ -537,10 +534,7 @@ impl TilePaletteMenu {
         }
 
         // Draw selected tile cursor overlay:
-        self.selection_renderer.draw(context,
-                                     transform,
-                                     has_valid_placement,
-                                     self.current_selection);
+        self.selection_renderer.draw(context, self.current_selection);
     }
 
     // ----------------------
@@ -606,16 +600,10 @@ struct TileSelectionRenderer {
 
 impl TileSelectionRenderer {
     fn new(context: &mut UiWidgetContext) -> Self {
-        Self {
-            clear_icon: context.load_texture("icons/red_x_icon.png"),
-        }
+        Self { clear_icon: context.load_texture("icons/red_x_icon.png") }
     }
 
-    fn draw(&self,
-            context: &mut UiWidgetContext,
-            transform: WorldToScreenTransform,
-            has_valid_placement: bool,
-            current_selection: TilePaletteSelection) {
+    fn draw(&self, context: &mut UiWidgetContext, current_selection: TilePaletteSelection) {
         if current_selection.is_none() {
             return;
         }
@@ -645,6 +633,9 @@ impl TileSelectionRenderer {
                     Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
                               -(selected_tile.draw_size.height as f32 / 2.0))
                 };
+
+            let has_valid_placement = context.tile_selection.has_valid_placement();
+            let transform = context.camera.transform();
 
             let cursor_transform = WorldToScreenTransform::new(transform.scaling, offset);
             let highlight_color = if has_valid_placement { Color::white() } else { INVALID_TILE_COLOR };

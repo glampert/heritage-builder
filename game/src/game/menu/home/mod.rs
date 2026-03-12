@@ -3,7 +3,6 @@ use std::any::Any;
 use super::{
     GameMenusMode,
     GameMenusSystem,
-    GameMenusContext,
     GameMenusInputArgs,
     TilePlacement,
     TileInspector,
@@ -112,16 +111,16 @@ impl GameMenusSystem for HomeMenus {
         TileMapRenderFlags::empty()
     }
 
-    fn begin_frame(&mut self, _context: &mut GameMenusContext) {
+    fn begin_frame(&mut self, _context: &mut UiWidgetContext) {
     }
 
-    fn handle_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
+    fn handle_input(&mut self, context: &mut UiWidgetContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
             // [ESCAPE]: Close child dialog menu.
             if key == InputKey::Escape && action == InputAction::Press {
                 // Close if we're not already at the Main Home Menu.
                 if dialog::current().is_some_and(|dialog| dialog != DialogMenuKind::Home) {
-                    if dialog::close_current(&mut context.as_ui_widget_context()) {
+                    if dialog::close_current(context) {
                         return UiInputEvent::Handled; // Key press is handled.
                     }
                 }
@@ -131,18 +130,15 @@ impl GameMenusSystem for HomeMenus {
         UiInputEvent::NotHandled // Let the event propagate.
     }
 
-    fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
-        let mut ui_context = context.as_ui_widget_context();
-
-        self.slideshow.draw(&mut ui_context);
+    fn end_frame(&mut self, context: &mut UiWidgetContext, _visible_range: CellRange) {
+        self.slideshow.draw(context);
 
         if self.slideshow.has_flags(UiSlideshowFlags::PlayedOnce) {
             // Main Home Menu always open.
             if !dialog::is_open(DialogMenuKind::Home) {
-                dialog::open(DialogMenuKind::Home, false, &mut ui_context);
+                dialog::open(DialogMenuKind::Home, false, context);
             }
-
-            dialog::draw_current(&mut ui_context);
+            dialog::draw_current(context);
         }
     }
 }

@@ -12,6 +12,7 @@ use super::stats::WorldStats;
 use crate::{
     log,
     ui::UiSystem,
+    debug::DebugUiMode,
     save::PostLoadContext,
     utils::{coords::{Cell, CellRange, WorldToScreenTransform}},
     tile::{
@@ -22,11 +23,11 @@ use crate::{
     game::{
         cheats,
         constants::*,
+        sim::Query,
+        prop::Prop,
         building::Building,
         undo_redo::GameObjectSavedState,
-        sim::{debug::DebugUiMode, Query},
         unit::{config::UnitConfigKey, Unit},
-        prop::Prop,
     },
 };
 

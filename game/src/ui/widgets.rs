@@ -22,10 +22,10 @@ use super::{
 
 use crate::{
     sound::SoundSystem,
-    tile::{TileMap, camera::Camera},
     game::{sim::{Simulation, Query}, world::World},
     engine::{Engine, time::{CountdownTimer, Seconds}},
     render::{RenderSystem, TextureHandle, TextureCache},
+    tile::{Tile, TileMap, selection::TileSelection, camera::Camera},
     utils::{
         bitflags_with_display,
         fixed_string::format_fixed_string,
@@ -77,20 +77,23 @@ macro_rules! make_imgui_labeled_id {
 // ----------------------------------------------
 
 pub struct UiWidgetContext<'game> {
+    // Game Session:
     pub sim: &'game mut Simulation,
-    pub world: &'game World,
-    pub tile_map: &'game TileMap,
+    pub world: &'game mut World,
+    pub tile_map: &'game mut TileMap,
+    pub tile_selection: &'game mut TileSelection,
     pub camera: &'game mut Camera,
 
+    // Engine:
     pub ui_sys: &'game UiSystem,
     pub render_sys: &'game mut dyn RenderSystem,
     pub tex_cache: &'game mut dyn TextureCache,
     pub sound_sys: &'game mut SoundSystem,
-
     pub viewport_size: Size,
     pub delta_time_secs: Seconds,
     pub cursor_screen_pos: Vec2,
 
+    // Internal:
     in_window_count: u32,
     side_by_side_layout_count: u32, // Nonzero if we're inside a horizontal layout (side-by-side) group.
 }
@@ -98,14 +101,16 @@ pub struct UiWidgetContext<'game> {
 impl<'game> UiWidgetContext<'game> {
     #[inline]
     pub fn new(sim: &'game mut Simulation,
-               world: &'game World,
-               tile_map: &'game TileMap,
+               world: &'game mut World,
+               tile_map: &'game mut TileMap,
+               tile_selection: &'game mut TileSelection,
                camera: &'game mut Camera,
                engine: &'game dyn Engine) -> Self {
         Self {
             sim,
             world,
             tile_map,
+            tile_selection,
             camera,
             ui_sys: engine.ui_system(),
             render_sys: engine.render_system(),
@@ -181,11 +186,16 @@ impl<'game> UiWidgetContext<'game> {
     }
 
     #[inline]
-    pub fn new_sim_query(&mut self) -> Query {
-        self.sim.new_query(
+    pub fn new_sim_query(&self) -> Query {
+        mem::mut_ref_cast(self.sim).new_query(
             mem::mut_ref_cast(self.world),
             mem::mut_ref_cast(self.tile_map),
             self.delta_time_secs)
+    }
+
+    #[inline]
+    pub fn topmost_selected_tile(&self) -> Option<&Tile> {
+        self.tile_map.topmost_selected_tile(self.tile_selection)
     }
 }
 

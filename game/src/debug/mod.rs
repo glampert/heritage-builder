@@ -9,7 +9,7 @@ use log_viewer::LogViewerWindow;
 use crate::{
     ui::{self, UiTheme, widgets::UiWidgetContext},
     save::{Load, PreLoadContext, PostLoadContext, Save},
-    game::{sim, config::GameConfigs, GameLoop, menu::*},
+    game::{config::GameConfigs, GameLoop, menu::*},
     utils::{coords::{Cell, CellRange}, mem::{SingleThreadStatic, RcMut, WeakMut, singleton_late_init}},
     tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::{MinimapRenderer, DevUiMinimapRenderer}},
 };
@@ -21,6 +21,16 @@ pub mod utils;
 mod inspector;
 mod palette;
 mod settings;
+
+// ----------------------------------------------
+// DebugUiMode
+// ----------------------------------------------
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum DebugUiMode {
+    Overview,
+    Detailed,
+}
 
 // ----------------------------------------------
 // DevEditorMenus
@@ -67,7 +77,7 @@ impl GameMenusSystem for DevEditorMenus {
         DevEditorMenusSingleton::get().debug_settings_menu.selected_render_flags()
     }
 
-    fn end_frame(&mut self, context: &mut GameMenusContext, visible_range: CellRange) {
+    fn end_frame(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
         DevEditorMenusSingleton::get_mut().draw_debug_menus(context, visible_range);
     }
 }
@@ -141,8 +151,7 @@ impl DevEditorMenusSingleton {
         self.tile_inspector_menu.close();
     }
 
-    fn draw_debug_menus(&mut self, menu_context: &mut GameMenusContext, visible_range: CellRange) {
-        let has_valid_placement = menu_context.tile_selection.has_valid_placement();
+    fn draw_debug_menus(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
         let show_sample_menus = self.debug_settings_menu.show_sample_menus();
@@ -151,75 +160,58 @@ impl DevEditorMenusSingleton {
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
         let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
 
-        let ui_sys = GameLoop::get().engine().ui_system();
-        let debug_draw = GameLoop::get_mut().engine_mut().debug_draw();
+        let engine = GameLoop::get().engine();
 
         if *show_log_viewer_window {
             self.log_viewer.show(true);
-            *show_log_viewer_window = self.log_viewer.draw(ui_sys);
+            *show_log_viewer_window = self.log_viewer.draw(engine.ui_system());
         }
 
-        {
-            let mut sim_context = sim::debug::DebugContext {
-                ui_sys,
-                world: menu_context.world,
-                systems: menu_context.systems,
-                tile_map: menu_context.tile_map,
-                transform: menu_context.camera.transform(),
-                delta_time_secs: menu_context.delta_time_secs
-            };
+        self.tile_palette_menu.draw(context,
+                                    engine.debug_draw(),
+                                    show_selection_bounds);
 
-            self.tile_palette_menu.draw(&mut sim_context,
-                                        menu_context.sim,
-                                        debug_draw,
-                                        menu_context.cursor_screen_pos,
-                                        has_valid_placement,
-                                        show_selection_bounds);
+        self.debug_settings_menu.draw(context,
+                                      &self.log_viewer,
+                                      &mut self.enable_dev_tile_inspector);
 
-            self.debug_settings_menu.draw(&mut sim_context,
-                                          menu_context.sim,
-                                          GameLoop::get_mut(),
-                                          &self.log_viewer,
-                                          &mut self.enable_dev_tile_inspector);
+        if self.enable_dev_tile_inspector {
+            self.tile_inspector_menu.draw(context);
+        }
 
-            if self.enable_dev_tile_inspector {
-                self.tile_inspector_menu.draw(&mut sim_context, menu_context.sim);
-            }
+        self.minimap_renderer.draw(context);
+        context.camera.draw_debug(engine.debug_draw(), engine.ui_system());
 
-            if show_popup_messages() {
-                menu_context.sim.draw_game_object_debug_popups(&mut sim_context, visible_range);
-            }
+        if show_popup_messages() {
+            GameLoop::get_mut().sim_mut().draw_game_object_debug_popups(context, visible_range);
         }
 
         if show_sample_menus {
-            ui::tests::draw_sample_menus(&mut menu_context.as_ui_widget_context());
+            ui::tests::draw_sample_menus(context);
         }
 
-        self.minimap_renderer.draw(&mut menu_context.as_ui_widget_context());
-        menu_context.camera.draw_debug(debug_draw, ui_sys);
-
         if show_cursor_pos {
-            utils::draw_cursor_overlay(ui_sys,
-                                       menu_context.camera.transform(),
-                                       menu_context.cursor_screen_pos,
+            utils::draw_cursor_overlay(engine.ui_system(),
+                                       context.camera.transform(),
+                                       context.cursor_screen_pos,
                                        None);
         }
 
         if show_render_perf_stats {
-            utils::draw_render_perf_stats(ui_sys,
-                                          menu_context.engine.render_stats(),
-                                          menu_context.engine.tile_map_render_stats());
+            utils::draw_render_perf_stats(engine.ui_system(),
+                                          engine.render_stats(),
+                                          engine.tile_map_render_stats());
         }
 
         if show_world_perf_stats {
-            utils::draw_world_perf_stats(ui_sys,
-                                         menu_context.world,
-                                         menu_context.tile_map,
+            utils::draw_world_perf_stats(engine.ui_system(),
+                                         context.world,
+                                         context.tile_map,
                                          visible_range);
         }
 
         if show_screen_origin {
-            utils::draw_screen_origin_marker(debug_draw);
+            utils::draw_screen_origin_marker(engine.debug_draw());
         }
     }
 }

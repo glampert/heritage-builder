@@ -6,8 +6,8 @@ use strum::EnumProperty;
 use crate::{
     log,
     save::{Save, Load},
-    engine::{Engine, time::Seconds},
-    utils::{self, Vec2, coords::{Cell, CellRange}, hash::SmallSet, mem},
+    engine::time::Seconds,
+    utils::{self, Vec2, coords::{Cell, CellRange}, hash::SmallSet},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     ui::{
         UiInputEvent,
@@ -28,15 +28,16 @@ use crate::{
         },
     },
     game::{
-        world::{object::{Spawner, SpawnerResult}, World},
-        sim::{Query, Simulation}, system::GameSystems,
+        sim::Query,
+        world::object::{Spawner, SpawnerResult},
         undo_redo::{self, EditAction, EditedLayer},
     },
     tile::{
-        Tile, TileKind, TileMap, TileMapLayerKind, selection::TileSelection,
+        Tile, TileKind, TileMapLayerKind,
+        rendering::TileMapRenderFlags,
         sets::{TileSets, TileDef, TileDefHandle, PresetTiles},
-        rendering::TileMapRenderFlags, placement::{TilePlacementOp, TilePlacementErrReason},
-        camera::Camera, water, road::{self, RoadSegment, RoadKind},
+        water, road::{self, RoadSegment, RoadKind},
+        placement::{TilePlacementOp, TilePlacementErrReason},
     },
 };
 
@@ -45,7 +46,7 @@ pub mod home;
 pub mod in_game;
 
 // ----------------------------------------------
-// Helper structs
+// Helper types
 // ----------------------------------------------
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -72,78 +73,44 @@ pub enum GameMenusInputArgs {
     },
 }
 
-pub struct GameMenusContext<'game> {
-    // Engine:
-    pub engine: &'game mut dyn Engine,
+// ----------------------------------------------
+// Internal helper functions
+// ----------------------------------------------
 
-    // Tile Map:
-    pub tile_map: &'game mut TileMap,
-    pub tile_selection: &'game mut TileSelection,
+fn selection_handle_mouse_button(context: &mut UiWidgetContext,
+                                 button: MouseButton,
+                                 action: InputAction) -> bool {
+    if button != MouseButton::Left {
+        return false;
+    }
 
-    // Sim/World/Game:
-    pub sim: &'game mut Simulation,
-    pub world: &'game mut World,
-    pub systems: &'game mut GameSystems,
-
-    // Camera/Input:
-    pub camera: &'game mut Camera,
-    pub cursor_screen_pos: Vec2,
-    pub delta_time_secs: Seconds,
+    context.tile_selection.on_mouse_button(button,
+                                           action,
+                                           context.tile_map,
+                                           context.cursor_screen_pos,
+                                           context.camera.transform())
+                                           .is_handled()
 }
 
-impl GameMenusContext<'_> {
-    #[inline]
-    pub fn as_ui_widget_context(&self) -> UiWidgetContext<'_> {
-        UiWidgetContext::new(
-            mem::mut_ref_cast(self.sim),
-            self.world,
-            self.tile_map,
-            mem::mut_ref_cast(self.camera),
-            self.engine
-        )
-    }
+fn update_selection(context: &mut UiWidgetContext, placement_op: TilePlacementOp) {
+    context.tile_map.update_selection(context.tile_selection,
+                                      context.cursor_screen_pos,
+                                      context.camera.transform(),
+                                      placement_op);
+}
 
-    pub fn topmost_selected_tile(&self) -> Option<&Tile> {
-        self.tile_map.topmost_selected_tile(self.tile_selection)
-    }
+fn range_selection_cells(context: &UiWidgetContext) -> Option<(Cell, Cell)> {
+    context.tile_selection.range_selection_cells(context.tile_map,
+                                                 context.cursor_screen_pos,
+                                                 context.camera.transform())
+}
 
-    fn new_query(&mut self) -> Query {
-        self.sim.new_query(self.world, self.tile_map, self.delta_time_secs)
-    }
+fn clear_selection(context: &mut UiWidgetContext) {
+    context.tile_map.clear_selection(context.tile_selection);
+}
 
-    fn can_afford_cost(&self, cost: u32) -> bool {
-        self.sim.treasury().can_afford(self.world, cost)
-    }
-
-    fn selection_handle_mouse_button(&mut self, button: MouseButton, action: InputAction) -> bool {
-        if button != MouseButton::Left {
-            return false;
-        }
-
-        self.tile_selection.on_mouse_button(button,
-                                            action,
-                                            self.tile_map,
-                                            self.cursor_screen_pos,
-                                            self.camera.transform())
-                                            .is_handled()
-    }
-
-    fn range_selection_cells(&self) -> Option<(Cell, Cell)> {
-        self.tile_selection.range_selection_cells(self.tile_map,
-                                                  self.cursor_screen_pos,
-                                                  self.camera.transform())
-    }
-
-    fn update_selection(&mut self, placement_op: TilePlacementOp) {
-        self.tile_map.update_selection(self.tile_selection,
-                                       self.cursor_screen_pos,
-                                       self.camera.transform(),
-                                       placement_op);
-    }
-
-    fn clear_selection(&mut self) {
-        self.tile_map.clear_selection(self.tile_selection);
-    }
+fn can_afford_cost(context: &UiWidgetContext, cost: u32) -> bool {
+    context.sim.treasury().can_afford(context.world, cost)
 }
 
 // ----------------------------------------------
@@ -172,9 +139,9 @@ pub trait GameMenusSystem: Any + Save + Load {
         TileMapRenderFlags::DrawTerrainAndObjects
     }
 
-    fn begin_frame(&mut self, context: &mut GameMenusContext) {
+    fn begin_frame(&mut self, context: &mut UiWidgetContext) {
         // Bail if we're hovering over an ImGui menu...
-        if context.engine.ui_system().is_handling_mouse_input() {
+        if context.ui_sys.is_handling_mouse_input() {
             return;
         }
 
@@ -182,12 +149,12 @@ pub trait GameMenusSystem: Any + Save + Load {
         let selection = self.palette().current_selection();
         let placement_op = self.placement().placement_operation(selection, context);
 
-        context.update_selection(placement_op);
+        update_selection(context, placement_op);
 
         // Incrementally build road segment (drag and draw segment):
         let is_road_tile_selected = self.palette().is_road_tile_selected();
         if is_road_tile_selected {
-            if let Some((start, end)) = context.range_selection_cells() {
+            if let Some((start, end)) = range_selection_cells(context) {
                 let road_kind = self.palette().selected_road_kind();
                 self.placement().update_road_segment(road_kind, start, end, context);
             }
@@ -253,11 +220,11 @@ pub trait GameMenusSystem: Any + Save + Load {
         }
     }
 
-    fn end_frame(&mut self, _context: &mut GameMenusContext, _visible_range: CellRange) {
+    fn end_frame(&mut self, _context: &mut UiWidgetContext, _visible_range: CellRange) {
         // Nothing here. Should implement the menu rendering logic.
     }
 
-    fn handle_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
+    fn handle_input(&mut self, context: &mut UiWidgetContext, args: GameMenusInputArgs) -> UiInputEvent {
         if self.handle_custom_input(context, args).is_handled() {
             return UiInputEvent::Handled;
         }
@@ -268,7 +235,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                     // [ESCAPE]: Clear current selection / close tile inspector.
                     if key == InputKey::Escape {
                         self.palette().on_tile_placement_canceled(context);
-                        context.clear_selection();
+                        clear_selection(context);
                         if let Some(tile_inspector) = self.tile_inspector() {
                             tile_inspector.close(context);
                         }
@@ -280,13 +247,13 @@ pub trait GameMenusSystem: Any + Save + Load {
 
                     // [SHIFT]+[CTRL]+[Z] / [SHIFT]+[CMD]+[Z] (MacOS): Redo last action.
                     if key == InputKey::Z && ctrl_or_cmd && shift {
-                        undo_redo::redo(&context.new_query());
+                        undo_redo::redo(&context.new_sim_query());
                         return UiInputEvent::Handled;
                     }
 
                     // [CTRL]+[Z] / [CMD]+[Z] (MacOs): Undo last action.
                     if key == InputKey::Z && ctrl_or_cmd {
-                        undo_redo::undo(&context.new_query());
+                        undo_redo::undo(&context.new_sim_query());
                         return UiInputEvent::Handled;
                     }
                 }
@@ -300,12 +267,12 @@ pub trait GameMenusSystem: Any + Save + Load {
                     if input_event.not_handled() {
                         // Mouse button click other than [LEFT_BTN], clear selection state.
                         self.palette().on_tile_placement_canceled(context);
-                        context.clear_selection();
+                        clear_selection(context);
                     }
                     return input_event;
                 }
 
-                if context.selection_handle_mouse_button(button, action) {
+                if selection_handle_mouse_button(context, button, action) {
                     // Handle road placement (drag and draw segment).
                     if is_road_tile_selected {
                         // Place road segment if valid & we can afford it.
@@ -317,7 +284,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                         }
                     } else if is_clear_selected && !context.tile_selection.cells().is_empty() {
                         // Clear batch of selected tiles:
-                        let query = context.new_query();
+                        let query = context.new_sim_query();
                         let tile_map = query.tile_map();
 
                         // Ensure each cell is unique with a hash set.
@@ -365,13 +332,13 @@ pub trait GameMenusSystem: Any + Save + Load {
                                 self.palette().on_tile_cleared(context);
                             }
 
-                            context.clear_selection();
+                            clear_selection(context);
                         }
                     }
                 } else {
                     // Mouse button click other than [LEFT_BTN], clear selection state.
                     self.palette().on_tile_placement_canceled(context);
-                    context.clear_selection();
+                    clear_selection(context);
                 }
 
                 // Left click on a tile can open the TileInspector:
@@ -396,7 +363,7 @@ pub trait GameMenusSystem: Any + Save + Load {
 
     // Optional override to add extended input handling behavior on top of the default handle_input().
     // This is called before handle_input(), so returning UiInputEvent::Handled will stop handle_input() logic from running.
-    fn handle_custom_input(&mut self, _context: &mut GameMenusContext, _args: GameMenusInputArgs) -> UiInputEvent {
+    fn handle_custom_input(&mut self, _context: &mut UiWidgetContext, _args: GameMenusInputArgs) -> UiInputEvent {
         UiInputEvent::NotHandled
     }
 }
@@ -441,17 +408,17 @@ impl TilePlacement {
         Self { current_road_segment: RoadSegment::default() }
     }
 
-    fn try_place_road_segment(&mut self, context: &mut GameMenusContext) -> PlaceRoadSegmentResult {
+    fn try_place_road_segment(&mut self, context: &mut UiWidgetContext) -> PlaceRoadSegmentResult {
         let road_segment_is_empty = self.current_road_segment.is_empty();
 
         // Place road segment if valid & we can afford it:
         let is_valid_road_placement =
             !road_segment_is_empty &&
             self.current_road_segment.is_valid &&
-            context.can_afford_cost(self.current_road_segment.cost());
+            can_afford_cost(context, self.current_road_segment.cost());
 
         if is_valid_road_placement {
-            let query = context.new_query();
+            let query = context.new_sim_query();
             let spawner = Spawner::new(&query);
 
             // Place tiles:
@@ -475,7 +442,7 @@ impl TilePlacement {
         if !road_segment_is_empty {
             road::mark_tiles(context.tile_map, &self.current_road_segment, false, false);
             self.current_road_segment.clear();
-            context.clear_selection();
+            clear_selection(context);
         }
 
         if road_segment_is_empty {
@@ -487,7 +454,7 @@ impl TilePlacement {
         }
     }
 
-    fn update_road_segment(&mut self, road_kind: RoadKind, start: Cell, end: Cell, context: &mut GameMenusContext) {
+    fn update_road_segment(&mut self, road_kind: RoadKind, start: Cell, end: Cell, context: &mut UiWidgetContext) {
         // Clear previous segment highlight:
         road::mark_tiles(context.tile_map, &self.current_road_segment, false, false);
 
@@ -496,15 +463,15 @@ impl TilePlacement {
 
         let is_valid_road_placement =
             self.current_road_segment.is_valid &&
-            context.can_afford_cost(self.current_road_segment.cost());
+            can_afford_cost(context, self.current_road_segment.cost());
 
         // Highlight new segment:
         road::mark_tiles(context.tile_map, &self.current_road_segment, true, is_valid_road_placement);
     }
 
-    fn placement_operation(&self, selection: TilePaletteSelection, context: &mut GameMenusContext) -> TilePlacementOp {
+    fn placement_operation(&self, selection: TilePaletteSelection, context: &mut UiWidgetContext) -> TilePlacementOp {
         if let Some(tile_def) = selection.as_tile_def() {
-            if Spawner::new(&context.new_query()).can_afford_tile(tile_def) {
+            if Spawner::new(&context.new_sim_query()).can_afford_tile(tile_def) {
                 TilePlacementOp::Place(tile_def)
             } else {
                 TilePlacementOp::Invalidate(tile_def)
@@ -517,7 +484,7 @@ impl TilePlacement {
     }
 
     fn try_place_or_clear_tile(selection: TilePaletteSelection,
-                               context: &mut GameMenusContext)
+                               context: &mut UiWidgetContext)
                                -> PlaceOrClearResult {
         // If we have a selection, place it. Otherwise we want to try removing the tile
         // under the cursor. Do not remove terrain tiles though.
@@ -526,12 +493,12 @@ impl TilePlacement {
                                                                          context.cursor_screen_pos,
                                                                          context.camera.transform());
             if target_cell.is_valid() {
-                let query = context.new_query();
+                let query = context.new_sim_query();
                 return Self::place(&query, target_cell, tile_def, true, true);
             }
         } else if selection.is_clear() {
             // Clear/remove tile:
-            let query = context.new_query();
+            let query = context.new_sim_query();
             if let Some(tile) = query.tile_map().topmost_tile_at_cursor(
                     context.cursor_screen_pos,
                     context.camera.transform())
@@ -719,13 +686,13 @@ impl TilePaletteSelection {
 pub trait TilePalette {
     fn on_mouse_button(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent;
 
-    fn on_tile_placed(&mut self, _context: &mut GameMenusContext) {}
-    fn on_tile_cleared(&mut self, _context: &mut GameMenusContext) {}
-    fn on_road_segment_placed(&mut self, _context: &mut GameMenusContext) {}
-    fn on_tile_placement_failed(&mut self, _context: &mut GameMenusContext) {}
-    fn on_tile_placement_canceled(&mut self, _context: &mut GameMenusContext);
+    fn on_tile_placed(&mut self, _context: &mut UiWidgetContext) {}
+    fn on_tile_cleared(&mut self, _context: &mut UiWidgetContext) {}
+    fn on_road_segment_placed(&mut self, _context: &mut UiWidgetContext) {}
+    fn on_tile_placement_failed(&mut self, _context: &mut UiWidgetContext) {}
+    fn on_tile_placement_canceled(&mut self, _context: &mut UiWidgetContext);
 
-    fn clear_current_selection(&mut self, context: &mut GameMenusContext);
+    fn clear_current_selection(&mut self, context: &mut UiWidgetContext);
     fn current_selection(&self) -> TilePaletteSelection;
     fn wants_to_place_or_clear_tile(&self) -> bool;
 
@@ -756,8 +723,8 @@ pub trait TilePalette {
 // ----------------------------------------------
 
 pub trait TileInspector {
-    fn open(&mut self, context: &GameMenusContext);
-    fn close(&mut self, context: &GameMenusContext);
+    fn open(&mut self, context: &mut UiWidgetContext);
+    fn close(&mut self, context: &mut UiWidgetContext);
 }
 
 // ----------------------------------------------

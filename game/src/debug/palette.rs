@@ -15,8 +15,8 @@ use crate::{
         coords::WorldToScreenTransform,
     },
     game::{
-        sim, building::{config::BuildingConfigs, BuildingArchetypeKind},
-        menu::{GameMenusContext, TilePalette, TilePaletteSelection}, undo_redo,
+        building::{config::BuildingConfigs, BuildingArchetypeKind},
+        menu::{TilePalette, TilePaletteSelection}, undo_redo,
     },
     tile::{
         TileKind,
@@ -52,11 +52,11 @@ impl TilePalette for TilePaletteDevMenu {
         }
     }
 
-    fn on_tile_placement_canceled(&mut self, _context: &mut GameMenusContext) {
+    fn on_tile_placement_canceled(&mut self, _context: &mut UiWidgetContext) {
         self.reset_selection_internal();
     }
 
-    fn clear_current_selection(&mut self, _context: &mut GameMenusContext) {
+    fn clear_current_selection(&mut self, _context: &mut UiWidgetContext) {
         self.reset_selection_internal();
     }
 
@@ -79,11 +79,8 @@ impl TilePaletteDevMenu {
     }
 
     pub fn draw(&mut self,
-                context: &mut sim::debug::DebugContext,
-                sim: &mut sim::Simulation,
+                context: &mut UiWidgetContext,
                 debug_draw: &mut dyn DebugDraw,
-                cursor_screen_pos: Vec2,
-                has_valid_placement: bool,
                 show_selection_bounds: bool) {
         let ui = context.ui_sys.ui();
 
@@ -111,11 +108,11 @@ impl TilePaletteDevMenu {
                 ui.text("Tools");
                 {
                     if ui::icon_button(ui_sys, ui::icons::ICON_UNDO, Some("Undo")) {
-                        undo_redo::undo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
+                        undo_redo::undo(&context.sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
                     ui.same_line();
                     if ui::icon_button(ui_sys, ui::icons::ICON_REDO, Some("Redo")) {
-                        undo_redo::redo(&sim.new_query(context.world, context.tile_map, context.delta_time_secs));
+                        undo_redo::redo(&context.sim.new_query(context.world, context.tile_map, context.delta_time_secs));
                     }
 
                     let btn_params = ui::UiImageButtonParams {
@@ -152,18 +149,12 @@ impl TilePaletteDevMenu {
                 }
             });
 
-        self.draw_selected_tile(debug_draw,
-                                cursor_screen_pos,
-                                context.transform,
-                                has_valid_placement,
-                                show_selection_bounds);
+        self.draw_selected_tile(context, debug_draw, show_selection_bounds);
     }
 
     fn draw_selected_tile(&self,
+                          context: &mut UiWidgetContext,
                           debug_draw: &mut dyn DebugDraw,
-                          cursor_screen_pos: Vec2,
-                          transform: WorldToScreenTransform,
-                          has_valid_placement: bool,
                           show_selection_bounds: bool) {
         if !self.has_selection() {
             return;
@@ -174,7 +165,7 @@ impl TilePaletteDevMenu {
             const CLEAR_ICON_SIZE: Vec2 = BASE_TILE_SIZE_F32;
 
             let rect = Rect::from_pos_and_size(
-                cursor_screen_pos - (CLEAR_ICON_SIZE * 0.5),
+                context.cursor_screen_pos - (CLEAR_ICON_SIZE * 0.5),
                 CLEAR_ICON_SIZE
             );
 
@@ -184,7 +175,7 @@ impl TilePaletteDevMenu {
                                              Color::white());
         } else {
             let selected_tile = self.current_selection().as_tile_def().unwrap();
-            let rect = Rect::from_pos_and_size(cursor_screen_pos, selected_tile.draw_size.to_vec2());
+            let rect = Rect::from_pos_and_size(context.cursor_screen_pos, selected_tile.draw_size.to_vec2());
 
             let offset =
                 if selected_tile.is(TileKind::Building | TileKind::Rocks | TileKind::Vegetation) {
@@ -194,6 +185,9 @@ impl TilePaletteDevMenu {
                     Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
                               -(selected_tile.draw_size.height as f32 / 2.0))
                 };
+
+            let has_valid_placement = context.tile_selection.has_valid_placement();
+            let transform = context.camera.transform();
 
             let cursor_transform = WorldToScreenTransform::new(transform.scaling, offset);
             let highlight_color = if has_valid_placement { Color::white() } else { INVALID_TILE_COLOR };

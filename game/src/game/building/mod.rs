@@ -17,16 +17,15 @@ use storage::StorageBuilding;
 use config::{BuildingConfig, BuildingConfigs};
 
 use super::{
+    undo_redo::GameObjectSavedState,
+    unit::{patrol::Patrol, runner::Runner, Unit},
     sim::{
         Query,
-        debug::DebugUiMode,
         resources::{
             Population, ResourceKind, ResourceKinds, ResourceStock,
             ServiceKind, StockItem, Workers, RESOURCE_KIND_COUNT,
         },
     },
-    unit::{patrol::Patrol, runner::Runner, Unit},
-    undo_redo::GameObjectSavedState,
     world::{
         stats::WorldStats,
         debug::GameObjectDebugOptions,
@@ -34,12 +33,13 @@ use super::{
     },
 };
 use crate::{
+    log,
+    debug::DebugUiMode,
+    save::PostLoadContext,
     engine::time::UpdateTimer,
     game::config::GameConfigs,
     ui::{UiSystem, UiStaticVar, UiFontScale},
-    log,
     pathfind::{self, NodeKind as PathNodeKind},
-    save::PostLoadContext,
     tile::{
         sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY},
         Tile, TileFlags, TileGameObjectHandle, TileKind,

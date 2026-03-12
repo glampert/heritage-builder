@@ -5,7 +5,7 @@ use crate::{
     game::{
         building::{Building, BuildingKind, BuildingArchetypeKind},
         sim::resources::{ResourceKind, StockItem},
-        menu::{TileInspector, GameMenusContext},
+        menu::TileInspector,
     },
 };
 
@@ -30,14 +30,40 @@ pub type TileInspectorMenuWeakMut = WeakMut<TileInspectorMenu>;
 pub type TileInspectorMenuWeakRef = WeakRef<TileInspectorMenu>;
 
 impl TileInspector for TileInspectorMenu {
-    fn open(&mut self, context: &GameMenusContext) {
-        if let Some(selected_tile) = context.topmost_selected_tile() {
-            self.open_inspector(&mut context.as_ui_widget_context(), selected_tile);
+    fn open(&mut self, context: &mut UiWidgetContext) {
+        debug_assert!(self.current_inspector_kind.is_none());
+
+        self.current_inspector_kind = {
+            let selected_tile = match context.topmost_selected_tile() {
+                Some(tile) => tile,
+                None => return,
+            };
+
+            if selected_tile.is(TileKind::Unit) {
+                Some(GameObjectInspectorKind::Unit)
+            } else if selected_tile.is(TileKind::Building) {
+                Some(GameObjectInspectorKind::Building)
+            } else if selected_tile.is_harvestable_prop() {
+                // NOTE: Only harvestable props have an associated Prop object. Anything else uses the terrain inspector.
+                Some(GameObjectInspectorKind::Prop)
+            } else if selected_tile.is(TileKind::Terrain | TileKind::Rocks | TileKind::Vegetation) {
+                // NOTE: Rocks and non-harvestable vegetation are considered part of terrain (no associated Prop object).
+                Some(GameObjectInspectorKind::Terrain)
+            } else {
+                None
+            }
+        };
+
+        if let Some(inspector) = self.current_inspector() {
+            inspector.open(context);
         }
     }
 
-    fn close(&mut self, context: &GameMenusContext) {
-        self.close_inspector(&mut context.as_ui_widget_context());
+    fn close(&mut self, context: &mut UiWidgetContext) {
+        if let Some(inspector) = self.current_inspector() {
+            inspector.close(context);
+            self.current_inspector_kind = None;
+        }
     }
 }
 
@@ -60,39 +86,8 @@ impl TileInspectorMenu {
 
             // If the menu was closed just now, clear current inspector.
             if !is_open {
-                self.close_inspector(context);
+                self.close(context);
             }
-        }
-    }
-
-    fn open_inspector(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
-        debug_assert!(self.current_inspector_kind.is_none());
-
-        self.current_inspector_kind = {
-            if selected_tile.is(TileKind::Unit) {
-                Some(GameObjectInspectorKind::Unit)
-            } else if selected_tile.is(TileKind::Building) {
-                Some(GameObjectInspectorKind::Building)
-            } else if selected_tile.is_harvestable_prop() {
-                // NOTE: Only harvestable props have an associated Prop object. Anything else uses the terrain inspector.
-                Some(GameObjectInspectorKind::Prop)
-            } else if selected_tile.is(TileKind::Terrain | TileKind::Rocks | TileKind::Vegetation) {
-                // NOTE: Rocks and non-harvestable vegetation are considered part of terrain (no associated Prop object).
-                Some(GameObjectInspectorKind::Terrain)
-            } else {
-                None
-            }
-        };
-
-        if let Some(inspector) = self.current_inspector() {
-            inspector.open(context, selected_tile);
-        }
-    }
-
-    fn close_inspector(&mut self, context: &mut UiWidgetContext) {
-        if let Some(inspector) = self.current_inspector() {
-            inspector.close(context);
-            self.current_inspector_kind = None;
         }
     }
 
@@ -124,10 +119,15 @@ enum GameObjectInspectorKind {
 }
 
 trait GameObjectInspector {
-    fn update_selection(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile);
+    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile);
     fn menu(&mut self) -> &mut UiMenu;
 
-    fn open(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
+    fn open(&mut self, context: &mut UiWidgetContext) {
+        let selected_tile = match context.topmost_selected_tile() {
+            Some(tile) => tile,
+            None => return,
+        };
+
         self.update_selection(context, selected_tile);
         self.menu().open(context);
     }
@@ -167,7 +167,7 @@ struct UnitInspector {
 }
 
 impl GameObjectInspector for UnitInspector {
-    fn update_selection(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile) {
         if let Some(unit) = context.world.find_unit_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(unit.name());
@@ -210,7 +210,7 @@ struct BuildingInspector {
 }
 
 impl GameObjectInspector for BuildingInspector {
-    fn update_selection(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile) {
         if let Some(building) = context.world.find_building_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(building.name());
@@ -272,7 +272,7 @@ impl BuildingInspector {
         self.renderer.set_headings(&headings);
     }
 
-    fn set_stats_info(&mut self, context: &mut UiWidgetContext, building: &Building) {
+    fn set_stats_info(&mut self, context: &UiWidgetContext, building: &Building) {
         let body = {
             if building.is(BuildingKind::House) {
                 Self::gather_house_stats(context, building)
@@ -283,7 +283,7 @@ impl BuildingInspector {
         self.renderer.set_body(&body);
     }
 
-    fn gather_house_stats(context: &mut UiWidgetContext, building: &Building) -> InspectorMenuBody {
+    fn gather_house_stats(context: &UiWidgetContext, building: &Building) -> InspectorMenuBody {
         let mut body = InspectorMenuBody::new();
 
         let house = building.as_house();
@@ -329,7 +329,7 @@ impl BuildingInspector {
         body
     }
 
-    fn gather_building_stats(context: &mut UiWidgetContext, building: &Building) -> InspectorMenuBody {
+    fn gather_building_stats(context: &UiWidgetContext, building: &Building) -> InspectorMenuBody {
         let mut body = InspectorMenuBody::new();
 
         let is_operational = building.is_operational();
@@ -414,7 +414,7 @@ struct PropInspector {
 }
 
 impl GameObjectInspector for PropInspector {
-    fn update_selection(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile) {
         if let Some(prop) = context.world.find_prop_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(prop.name());
@@ -457,7 +457,7 @@ struct TerrainInspector {
 }
 
 impl GameObjectInspector for TerrainInspector {
-    fn update_selection(&mut self, context: &mut UiWidgetContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile) {
         self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
         self.renderer.set_title(&snake_case_to_title::<128>(selected_tile.name()));
         self.renderer.set_body_text(find_tile_description(selected_tile));

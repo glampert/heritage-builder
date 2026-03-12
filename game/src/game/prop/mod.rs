@@ -3,7 +3,6 @@ use proc_macros::DrawDebugUi;
 
 use super::{
     sim::{
-        debug::DebugUiMode,
         resources::{ResourceKind, StockItem},
         Query,
     },
@@ -16,6 +15,7 @@ use super::{
     unit::UnitId,
 };
 use crate::{
+    debug::DebugUiMode,
     save::PostLoadContext,
     ui::{UiSystem, UiStaticVar, UiFontScale},
     game::undo_redo::game_object_undo_redo_state,

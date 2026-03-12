@@ -14,7 +14,6 @@ use config::{GameConfigs, LoadMapSetting};
 use menu::{
     GameMenusMode,
     GameMenusSystem,
-    GameMenusContext,
     GameMenusInputArgs,
     home::HomeMenus,
     in_game::InGameMenus,
@@ -127,10 +126,13 @@ impl GameSession {
     }
 
     fn new_game_menus(&mut self, engine: &dyn Engine, menu_mode: GameMenusMode) -> Box<dyn GameMenusSystem> {
+        let tile_map_rc = self.tile_map.clone();
+
         let mut context = UiWidgetContext::new(
             &mut self.sim,
-            &self.world,
-            &self.tile_map,
+            &mut self.world,
+            &mut self.tile_map,
+            &mut self.tile_selection,
             &mut self.camera,
             engine
         );
@@ -138,7 +140,7 @@ impl GameSession {
         match menu_mode {
             GameMenusMode::DevEditor => {
                 log::info!(log::channel!("session"), "Loading DevEditorMenus ...");
-                Box::new(DevEditorMenus::new(&mut context, self.tile_map.clone()))
+                Box::new(DevEditorMenus::new(&mut context, tile_map_rc))
             }
             GameMenusMode::InGame => {
                 log::info!(log::channel!("session"), "Loading InGameMenus ...");
@@ -629,22 +631,32 @@ impl GameLoop {
 
     #[inline]
     pub fn camera(&self) -> &Camera {
-        &self.session.as_ref().unwrap().camera
+        &self.session().camera
     }
 
     #[inline]
     pub fn camera_mut(&mut self) -> &mut Camera {
-        &mut self.session.as_mut().unwrap().camera
+        &mut self.session_mut().camera
     }
 
     #[inline]
-    fn session(&self) -> &GameSession {
-        self.session.as_ref().unwrap()
+    pub fn systems(&self) -> &GameSystems {
+        &self.session().systems
     }
 
     #[inline]
-    fn session_mut(&mut self) -> &mut GameSession {
-        self.session.as_mut().unwrap()
+    pub fn systems_mut(&mut self) -> &mut GameSystems {
+        &mut self.session_mut().systems
+    }
+
+    #[inline]
+    pub fn sim(&self) -> &Simulation {
+        &self.session().sim
+    }
+
+    #[inline]
+    pub fn sim_mut(&mut self) -> &mut Simulation {
+        &mut self.session_mut().sim
     }
 
     pub fn quit_game(&mut self) {
@@ -659,7 +671,7 @@ impl GameLoop {
 
         // Input Events:
         for event in self.engine.app_events().clone() {
-            self.handle_event(event, cursor_screen_pos, delta_time_secs);
+            self.handle_event(event);
         }
 
         let viewport_size = self.engine.app().window_size();
@@ -669,12 +681,11 @@ impl GameLoop {
         let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
 
         // Rendering:
-        let render_flags = self.menus_begin_frame(cursor_screen_pos, delta_time_secs);
-
+        let render_flags = self.menus_begin_frame();
         self.draw_tile_map(delta_time_secs, visible_range, render_flags);
+        self.menus_end_frame(visible_range);
 
-        self.menus_end_frame(visible_range, cursor_screen_pos, delta_time_secs);
-
+        // Sound System Update:
         let listener_position = self.camera().iso_world_position();
         self.engine.sound_system().update(listener_position);
 
@@ -684,6 +695,16 @@ impl GameLoop {
     // ----------------------
     // Internal:
     // ----------------------
+
+    #[inline]
+    fn session(&self) -> &GameSession {
+        self.session.as_ref().unwrap()
+    }
+
+    #[inline]
+    fn session_mut(&mut self) -> &mut GameSession {
+        self.session.as_mut().unwrap()
+    }
 
     fn init_engine(configs: &EngineConfigs) -> Box<dyn Engine> {
         log::info!(log::channel!("game"), "Init Engine: GLFW + OpenGL");
@@ -707,7 +728,7 @@ impl GameLoop {
         log::info!(log::channel!("game"), "TileSets loaded.");
     }
 
-    fn handle_event(&mut self, event: ApplicationEvent, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
+    fn handle_event(&mut self, event: ApplicationEvent) {
         match event {
             ApplicationEvent::WindowResize { window_size, framebuffer_size } => {
                 self.camera_mut().set_viewport_size(window_size);
@@ -728,7 +749,7 @@ impl GameLoop {
                 }
 
                 if input_event.not_handled() {
-                    self.menus_on_key_input(key, action, modifiers, cursor_screen_pos, delta_time_secs);
+                    self.menus_on_key_input(key, action, modifiers);
                 }
             }
             ApplicationEvent::Scroll(amount) => {
@@ -740,11 +761,11 @@ impl GameLoop {
                 };
 
                 if input_event.not_handled() {
-                    self.menus_on_scroll(amount, cursor_screen_pos, delta_time_secs);
+                    self.menus_on_scroll(amount);
                 }
             }
             ApplicationEvent::MouseButton(button, action, modifiers) => {
-                self.menus_on_mouse_button(button, action, modifiers, cursor_screen_pos, delta_time_secs);
+                self.menus_on_mouse_button(button, action, modifiers);
             }
             _ => {}
         }
@@ -874,46 +895,34 @@ impl GameLoop {
     // In-Game UI / Debug UI:
     // ----------------------
 
-    fn menus_begin_frame(&mut self,
-                         cursor_screen_pos: Vec2,
-                         delta_time_secs: Seconds)
-                         -> TileMapRenderFlags {
+    fn menus_begin_frame(&mut self) -> TileMapRenderFlags {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.begin_frame(&mut GameMenusContext {
-                engine: self.engine.as_mut(),
-                tile_map: &mut session.tile_map,
-                tile_selection: &mut session.tile_selection,
-                sim: &mut session.sim,
-                world: &mut session.world,
-                systems: &mut session.systems,
-                camera: &mut session.camera,
-                cursor_screen_pos,
-                delta_time_secs
-            });
+            menus.begin_frame(&mut UiWidgetContext::new(
+                &mut session.sim,
+                &mut session.world,
+                &mut session.tile_map,
+                &mut session.tile_selection,
+                &mut session.camera,
+                &*self.engine
+            ));
             menus.selected_render_flags()
         } else {
             TileMapRenderFlags::DrawTerrainAndObjects
         }
     }
 
-    fn menus_end_frame(&mut self,
-                       visible_range: CellRange,
-                       cursor_screen_pos: Vec2,
-                       delta_time_secs: Seconds) {
+    fn menus_end_frame(&mut self, visible_range: CellRange) {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.end_frame(&mut GameMenusContext {
-                engine: self.engine.as_mut(),
-                tile_map: &mut session.tile_map,
-                tile_selection: &mut session.tile_selection,
-                sim: &mut session.sim,
-                world: &mut session.world,
-                systems: &mut session.systems,
-                camera: &mut session.camera,
-                cursor_screen_pos,
-                delta_time_secs
-            },
+            menus.end_frame(&mut UiWidgetContext::new(
+                &mut session.sim,
+                &mut session.world,
+                &mut session.tile_map,
+                &mut session.tile_selection,
+                &mut session.camera,
+                &*self.engine
+            ),
             visible_range);
         }
     }
@@ -921,23 +930,18 @@ impl GameLoop {
     fn menus_on_key_input(&mut self,
                           key: InputKey,
                           action: InputAction,
-                          modifiers: InputModifiers,
-                          cursor_screen_pos: Vec2,
-                          delta_time_secs: Seconds)
+                          modifiers: InputModifiers)
                           -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.handle_input(&mut GameMenusContext {
-                engine: self.engine.as_mut(),
-                tile_map: &mut session.tile_map,
-                tile_selection: &mut session.tile_selection,
-                sim: &mut session.sim,
-                world: &mut session.world,
-                systems: &mut session.systems,
-                camera: &mut session.camera,
-                cursor_screen_pos,
-                delta_time_secs
-            },
+            menus.handle_input(&mut UiWidgetContext::new(
+                &mut session.sim,
+                &mut session.world,
+                &mut session.tile_map,
+                &mut session.tile_selection,
+                &mut session.camera,
+                &*self.engine
+            ),
             GameMenusInputArgs::Key { key, action, modifiers })
         } else {
             UiInputEvent::NotHandled
@@ -947,47 +951,35 @@ impl GameLoop {
     fn menus_on_mouse_button(&mut self,
                              button: MouseButton,
                              action: InputAction,
-                             modifiers: InputModifiers,
-                             cursor_screen_pos: Vec2,
-                             delta_time_secs: Seconds)
+                             modifiers: InputModifiers)
                              -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.handle_input(&mut GameMenusContext {
-                engine: self.engine.as_mut(),
-                tile_map: &mut session.tile_map,
-                tile_selection: &mut session.tile_selection,
-                sim: &mut session.sim,
-                world: &mut session.world,
-                systems: &mut session.systems,
-                camera: &mut session.camera,
-                cursor_screen_pos,
-                delta_time_secs
-            },
+            menus.handle_input(&mut UiWidgetContext::new(
+                &mut session.sim,
+                &mut session.world,
+                &mut session.tile_map,
+                &mut session.tile_selection,
+                &mut session.camera,
+                &*self.engine
+            ),
             GameMenusInputArgs::Mouse { button, action, modifiers })
         } else {
             UiInputEvent::NotHandled
         }
     }
 
-    fn menus_on_scroll(&mut self,
-                       amount: Vec2,
-                       cursor_screen_pos: Vec2,
-                       delta_time_secs: Seconds)
-                       -> UiInputEvent {
+    fn menus_on_scroll(&mut self, amount: Vec2) -> UiInputEvent {
         let session = self.session.as_mut().unwrap();
         if let Some(menus) = &mut session.menus {
-            menus.handle_input(&mut GameMenusContext {
-                engine: self.engine.as_mut(),
-                tile_map: &mut session.tile_map,
-                tile_selection: &mut session.tile_selection,
-                sim: &mut session.sim,
-                world: &mut session.world,
-                systems: &mut session.systems,
-                camera: &mut session.camera,
-                cursor_screen_pos,
-                delta_time_secs
-            },
+            menus.handle_input(&mut UiWidgetContext::new(
+                &mut session.sim,
+                &mut session.world,
+                &mut session.tile_map,
+                &mut session.tile_selection,
+                &mut session.camera,
+                &*self.engine
+            ),
             GameMenusInputArgs::Scroll { amount })
         } else {
             UiInputEvent::NotHandled

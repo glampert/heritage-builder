@@ -3,15 +3,14 @@ use proc_macros::DrawDebugUi;
 use crate::{
     log,
     debug,
-    ui::{self, UiStaticVar},
     engine::config::Configs,
     utils::{Color, Size},
+    ui::{self, UiStaticVar, widgets::UiWidgetContext},
     game::{
         self,
         cheats,
         GameLoop,
         config::GameConfigs,
-        sim::{self, Simulation},
         unit::config::UnitConfigs,
         prop::config::PropConfigs,
         building::config::BuildingConfigs,
@@ -184,24 +183,22 @@ impl DebugSettingsDevMenu {
     }
 
     pub fn draw(&mut self,
-                context: &mut sim::debug::DebugContext,
-                sim: &mut Simulation,
-                game_loop: &mut GameLoop,
+                context: &mut UiWidgetContext,
                 log_viewer: &debug::log_viewer::LogViewerWindow,
-                enable_tile_inspector: &mut bool) {
+                enable_dev_tile_inspector: &mut bool) {
         let ui = context.ui_sys.ui();
 
         if let Some(_menu_bar) = ui.begin_main_menu_bar() {
             if let Some(_menu) = ui.begin_menu("Game") {
-                self.game_menu(context, game_loop, sim);
+                self.game_menu(context);
             }
 
             if let Some(_menu) = ui.begin_menu("Save") {
-                self.save_game_menu(context, game_loop);
+                self.save_game_menu(context);
             }
 
             if let Some(_menu) = ui.begin_menu("Camera") {
-                self.camera_menu(context, game_loop);
+                self.camera_menu(context);
             }
 
             if let Some(_menu) = ui.begin_menu("Cheats") {
@@ -209,17 +206,17 @@ impl DebugSettingsDevMenu {
             }
 
             if let Some(_menu) = ui.begin_menu("Debug") {
-                self.debug_options_menu(context, game_loop, enable_tile_inspector);
+                self.debug_options_menu(context, enable_dev_tile_inspector);
             }
 
             self.menu_bar_text(context, log_viewer);
         }
 
-        self.draw_child_windows(context, game_loop, sim);
+        self.draw_child_windows(context);
     }
 
     fn menu_bar_text(&self,
-                     context: &mut sim::debug::DebugContext,
+                     context: &mut UiWidgetContext,
                      log_viewer: &debug::log_viewer::LogViewerWindow) {
         let ui = context.ui_sys.ui();
 
@@ -252,15 +249,13 @@ impl DebugSettingsDevMenu {
         }
     }
 
-    fn cheats_menu(&self, context: &mut sim::debug::DebugContext) {
+    fn cheats_menu(&self, context: &mut UiWidgetContext) {
         cheats::get_mut().draw_debug_ui(context.ui_sys);
     }
 
-    fn game_menu(&mut self,
-                 context: &mut sim::debug::DebugContext,
-                 game_loop: &mut GameLoop,
-                 sim: &mut Simulation) {
+    fn game_menu(&mut self, context: &mut UiWidgetContext) {
         let ui = context.ui_sys.ui();
+        let game_loop = GameLoop::get_mut();
 
         // Quit game:
         if ui.button("Quit") {
@@ -330,41 +325,39 @@ impl DebugSettingsDevMenu {
         ui.text("Game Speed:");
 
         if ui::icon_button(context.ui_sys, ui::icons::ICON_PAUSE, Some("Pause")) {
-            sim.pause();
+            context.sim.pause();
         }
         ui.same_line();
         if ui::icon_button(context.ui_sys, ui::icons::ICON_PLAY, Some("Resume")) {
-            sim.resume();
+            context.sim.resume();
         }
         ui.same_line();
         if ui::icon_button(context.ui_sys, ui::icons::ICON_FAST_FORWARD, Some("Speedup")) {
-            sim.speedup();
+            context.sim.speedup();
         }
         ui.same_line();
         if ui::icon_button(context.ui_sys, ui::icons::ICON_FAST_BACKWARD, Some("Slowdown")) {
-            sim.slowdown();
+            context.sim.slowdown();
         }
 
         ui.same_line();
         ui.text("|");
         ui.same_line();
 
-        if sim.is_paused() {
+        if context.sim.is_paused() {
             ui.text_colored(Color::red().to_array(), "Paused");
         } else {
-            ui.text(format!("Speed: {:1}x", sim.speed()));
+            ui.text(format!("Speed: {:1}x", context.sim.speed()));
         }
     }
 
-    fn camera_menu(&self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
-        let camera = game_loop.camera_mut();
-        camera.draw_debug_ui(context.ui_sys);
+    fn camera_menu(&self, context: &mut UiWidgetContext) {
+        context.camera.draw_debug_ui(context.ui_sys);
     }
 
     fn debug_options_menu(&mut self,
-                          context: &mut sim::debug::DebugContext,
-                          game_loop: &mut GameLoop,
-                          enable_tile_inspector: &mut bool) {
+                          context: &mut UiWidgetContext,
+                          enable_dev_tile_inspector: &mut bool) {
         let ui = context.ui_sys.ui();
 
         self.draw_debug_ui(context.ui_sys);
@@ -379,12 +372,12 @@ impl DebugSettingsDevMenu {
             context.ui_sys.show_ui_debug_menu(show_ui_debug_menu);
         }
 
-        ui.checkbox("Enable Tile Inspector", enable_tile_inspector);
+        ui.checkbox("Enable Tile Inspector", enable_dev_tile_inspector);
 
         // Debug grid options:
         ui.separator();
 
-        let engine = game_loop.engine_mut();
+        let engine = GameLoop::get_mut().engine_mut();
 
         let mut line_thickness = engine.grid_line_thickness();
         if ui.slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
@@ -413,8 +406,9 @@ impl DebugSettingsDevMenu {
         }
     }
 
-    fn save_game_menu(&mut self, context: &mut sim::debug::DebugContext, game_loop: &mut GameLoop) {
+    fn save_game_menu(&mut self, context: &mut UiWidgetContext) {
         let ui = context.ui_sys.ui();
+        let game_loop = GameLoop::get_mut();
 
         // Autosave:
         let mut autosave_enabled = game_loop.is_autosave_enabled();
@@ -457,32 +451,29 @@ impl DebugSettingsDevMenu {
         }
     }
 
-    fn draw_child_windows(&mut self,
-                          context: &mut sim::debug::DebugContext,
-                          game_loop: &mut GameLoop,
-                          sim: &mut Simulation) {
+    fn draw_child_windows(&mut self, context: &mut UiWidgetContext) {
         if self.show_game_configs_debug {
             self.draw_game_configs_window(context);
         }
 
         if self.show_game_world_debug {
-            self.draw_world_debug_window(context, sim);
+            self.draw_world_debug_window(context);
         }
 
         if self.show_game_systems_debug {
-            self.draw_game_systems_debug_window(context, sim, game_loop);
+            self.draw_game_systems_debug_window(context);
         }
 
         if self.show_texture_settings {
-            self.draw_texture_settings_window(context, game_loop);
+            self.draw_texture_settings_window(context);
         }
 
         if self.show_sound_settings {
-            self.draw_sound_settings_window(context, game_loop);
+            self.draw_sound_settings_window(context);
         }
     }
 
-    fn draw_game_configs_window(&mut self, context: &mut sim::debug::DebugContext) {
+    fn draw_game_configs_window(&mut self, context: &mut UiWidgetContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Game Configs")
@@ -510,34 +501,35 @@ impl DebugSettingsDevMenu {
           });
     }
 
-    fn draw_world_debug_window(&mut self,
-                               context: &mut sim::debug::DebugContext,
-                               sim: &mut Simulation) {
+    fn draw_world_debug_window(&mut self, context: &mut UiWidgetContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("World Debug")
           .opened(&mut self.show_game_world_debug)
           .position([300.0, 20.0], imgui::Condition::FirstUseEver)
           .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-          .build(|| sim.draw_world_debug_ui(context));
+          .build(|| {
+              let sim = GameLoop::get_mut().sim_mut();
+              sim.draw_world_debug_ui(context);
+          });
     }
 
-    fn draw_game_systems_debug_window(&mut self,
-                                      context: &mut sim::debug::DebugContext,
-                                      sim: &mut Simulation,
-                                      game_loop: &mut GameLoop) {
+    fn draw_game_systems_debug_window(&mut self, context: &mut UiWidgetContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Game Systems Debug")
           .opened(&mut self.show_game_systems_debug)
           .position([400.0, 20.0], imgui::Condition::FirstUseEver)
           .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-          .build(|| sim.draw_game_systems_debug_ui(game_loop.engine_mut(), context));
+          .build(|| {
+              let sim = GameLoop::get_mut().sim_mut();
+              let engine = GameLoop::get_mut().engine_mut();
+              let systems = GameLoop::get_mut().systems_mut();
+              sim.draw_game_systems_debug_ui(context, engine, systems);
+          });
     }
 
-    fn draw_texture_settings_window(&mut self,
-                                    context: &mut sim::debug::DebugContext,
-                                    game_loop: &mut GameLoop) {
+    fn draw_texture_settings_window(&mut self, context: &mut UiWidgetContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Texture Settings")
@@ -545,14 +537,12 @@ impl DebugSettingsDevMenu {
           .position([500.0, 20.0], imgui::Condition::FirstUseEver)
           .size([300.0, 150.0], imgui::Condition::FirstUseEver)
           .build(|| {
-              let tex_cache = game_loop.engine_mut().texture_cache();
+              let tex_cache = GameLoop::get_mut().engine_mut().texture_cache();
               tex_cache.draw_debug_ui(context.ui_sys);
           });
     }
 
-    fn draw_sound_settings_window(&mut self,
-                                  context: &mut sim::debug::DebugContext,
-                                  game_loop: &mut GameLoop) {
+    fn draw_sound_settings_window(&mut self, context: &mut UiWidgetContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Sound Settings")
@@ -560,7 +550,7 @@ impl DebugSettingsDevMenu {
           .position([350.0, 20.0], imgui::Condition::FirstUseEver)
           .size([500.0, 400.0], imgui::Condition::FirstUseEver)
           .build(|| {
-              let sound_sys = game_loop.engine_mut().sound_system();
+              let sound_sys = GameLoop::get_mut().engine_mut().sound_system();
               sound_sys.draw_debug_ui(context.ui_sys);
           });
     }

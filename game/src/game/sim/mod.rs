@@ -9,16 +9,18 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use super::{
-    building::{Building, BuildingKind},
-    config::GameConfigs,
     constants::*,
+    world::World,
+    config::GameConfigs,
     system::GameSystems,
     unit::task::UnitTaskManager,
-    world::World,
+    building::{Building, BuildingKind},
 };
 use crate::{
     log,
     save::*,
+    debug::DebugUiMode,
+    ui::widgets::UiWidgetContext,
     engine::{
         Engine,
         time::{Seconds, UpdateTimer},
@@ -33,12 +35,10 @@ use crate::{
     },
     utils::{
         coords::{Cell, CellRange},
-        hash::StringHash,
-        mem,
+        hash::StringHash, mem::RawPtr,
     },
 };
 
-pub mod debug;
 pub mod resources;
 use resources::GlobalTreasury;
 
@@ -223,22 +223,24 @@ impl Simulation {
     // ----------------------
 
     // World:
-    pub fn draw_world_debug_ui(&mut self, context: &mut debug::DebugContext) {
+    pub fn draw_world_debug_ui(&mut self, context: &mut UiWidgetContext) {
         context.world.draw_debug_ui(&mut self.treasury, context.ui_sys);
     }
 
     // Game Systems:
-    pub fn draw_game_systems_debug_ui(&mut self, engine: &mut dyn Engine, context: &mut debug::DebugContext) {
+    pub fn draw_game_systems_debug_ui(&mut self,
+                                      context: &mut UiWidgetContext,
+                                      engine: &mut dyn Engine,
+                                      systems: &mut GameSystems) {
         let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-
-        context.systems.draw_debug_ui(engine, &query, context.ui_sys);
+        systems.draw_debug_ui(engine, &query, context.ui_sys);
     }
 
     // Generic GameObjects:
     pub fn draw_game_object_debug_ui(&mut self,
-                                     context: &mut debug::DebugContext,
+                                     context: &mut UiWidgetContext,
                                      tile: &Tile,
-                                     mode: debug::DebugUiMode) {
+                                     mode: DebugUiMode) {
         if tile.is(TileKind::Building) {
             self.draw_building_debug_ui(context, tile, mode);
         } else if tile.is(TileKind::Unit) {
@@ -248,70 +250,54 @@ impl Simulation {
         }
     }
 
-    pub fn draw_game_object_debug_popups(&mut self,
-                                         context: &mut debug::DebugContext,
-                                         visible_range: CellRange) {
+    pub fn draw_game_object_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
         self.draw_building_debug_popups(context, visible_range);
         self.draw_unit_debug_popups(context, visible_range);
         self.draw_prop_debug_popups(context, visible_range);
     }
 
     // Buildings:
-    fn draw_building_debug_popups(&mut self,
-                                  context: &mut debug::DebugContext,
-                                  visible_range: CellRange) {
+    fn draw_building_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
         let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-
         context.world.draw_building_debug_popups(&query,
                                                  context.ui_sys,
-                                                 context.transform,
+                                                 context.camera.transform(),
                                                  visible_range);
     }
 
     fn draw_building_debug_ui(&mut self,
-                              context: &mut debug::DebugContext,
+                              context: &mut UiWidgetContext,
                               tile: &Tile,
-                              mode: debug::DebugUiMode) {
+                              mode: DebugUiMode) {
         let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-
         context.world.draw_building_debug_ui(&query, context.ui_sys, tile, mode);
     }
 
     // Units:
-    fn draw_unit_debug_popups(&mut self,
-                              context: &mut debug::DebugContext,
-                              visible_range: CellRange) {
+    fn draw_unit_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
         let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-
-        context.world
-               .draw_unit_debug_popups(&query, context.ui_sys, context.transform, visible_range);
+        context.world.draw_unit_debug_popups(&query, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_unit_debug_ui(&mut self,
-                          context: &mut debug::DebugContext,
+                          context: &mut UiWidgetContext,
                           tile: &Tile,
-                          mode: debug::DebugUiMode) {
+                          mode: DebugUiMode) {
         let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-
         context.world.draw_unit_debug_ui(&query, context.ui_sys, tile, mode);
     }
 
     // Props:
-    fn draw_prop_debug_popups(&mut self,
-                              context: &mut debug::DebugContext,
-                              visible_range: CellRange) {
+    fn draw_prop_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
         let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-
-        context.world
-               .draw_prop_debug_popups(&query, context.ui_sys, context.transform, visible_range);
+        context.world.draw_prop_debug_popups(&query, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_prop_debug_ui(&mut self,
-                          context: &mut debug::DebugContext,
+                          context: &mut UiWidgetContext,
                           tile: &Tile,
-                          mode: debug::DebugUiMode) {
+                          mode: DebugUiMode) {
         let query = self.new_query(context.world, context.tile_map, context.delta_time_secs);
-
         context.world.draw_prop_debug_ui(&query, context.ui_sys, tile, mode);
     }
 }
@@ -355,41 +341,44 @@ pub struct Query {
     // Query's lifetime. It also allows us to pass immutable Query refs.
 
     // Random generator:
-    rng: mem::RawPtr<RandomGenerator>,
+    rng: RawPtr<RandomGenerator>,
 
     // Path finding:
-    graph: mem::RawPtr<Graph>,
-    search: mem::RawPtr<Search>,
+    graph: RawPtr<Graph>,
+    search: RawPtr<Search>,
 
     // Unit tasks:
-    task_manager: mem::RawPtr<UnitTaskManager>,
+    task_manager: RawPtr<UnitTaskManager>,
 
     // World & Tile Map:
-    world: mem::RawPtr<World>,
-    tile_map: mem::RawPtr<TileMap>,
+    world: RawPtr<World>,
+    tile_map: RawPtr<TileMap>,
 
-    treasury: mem::RawPtr<GlobalTreasury>,
+    treasury: RawPtr<GlobalTreasury>,
     delta_time_secs: Seconds,
 }
 
 impl Query {
-    fn new(rng: &mut RandomGenerator,
-           graph: &mut Graph,
-           search: &mut Search,
-           task_manager: &mut UnitTaskManager,
-           world: &mut World,
-           tile_map: &mut TileMap,
-           treasury: &mut GlobalTreasury,
-           delta_time_secs: Seconds)
+    #[inline]
+    pub fn new(rng: &mut RandomGenerator,
+               graph: &mut Graph,
+               search: &mut Search,
+               task_manager: &mut UnitTaskManager,
+               world: &mut World,
+               tile_map: &mut TileMap,
+               treasury: &mut GlobalTreasury,
+               delta_time_secs: Seconds)
            -> Self {
-        Self { rng: mem::RawPtr::from_ref(rng),
-               graph: mem::RawPtr::from_ref(graph),
-               search: mem::RawPtr::from_ref(search),
-               task_manager: mem::RawPtr::from_ref(task_manager),
-               world: mem::RawPtr::from_ref(world),
-               tile_map: mem::RawPtr::from_ref(tile_map),
-               treasury: mem::RawPtr::from_ref(treasury),
-               delta_time_secs }
+        Self {
+            rng: RawPtr::from_ref(rng),
+            graph: RawPtr::from_ref(graph),
+            search: RawPtr::from_ref(search),
+            task_manager: RawPtr::from_ref(task_manager),
+            world: RawPtr::from_ref(world),
+            tile_map: RawPtr::from_ref(tile_map),
+            treasury: RawPtr::from_ref(treasury),
+            delta_time_secs,
+        }
     }
 
     #[inline(always)]
@@ -594,8 +583,7 @@ impl Query {
             traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
             result_building: Option<&'world mut Building>, // Search result.
-            result_path: Option<mem::RawPtr<Path>>,        /* SAFETY: Saved for result debug
-                                                            * validation only. */
+            result_path: Option<RawPtr<Path>>,             // SAFETY: Saved for result debug validation only.
             visited_nodes: SmallVec<[Node; 32]>,
         }
 
@@ -641,7 +629,7 @@ impl Query {
                             if accept_building {
                                 // Accept this path/goal pair and stop searching.
                                 self.result_building = Some(building);
-                                self.result_path = Some(mem::RawPtr::from_ref(path));
+                                self.result_path = Some(RawPtr::from_ref(path));
                                 return true;
                             }
                         }

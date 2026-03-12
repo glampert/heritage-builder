@@ -1,13 +1,15 @@
+use arrayvec::ArrayString;
 use proc_macros::DrawDebugUi;
 use strum::{VariantArray, VariantNames};
 
+use super::DebugUiMode;
 use crate::{
-    ui,
     engine::time::Seconds,
+    ui::{self, widgets::UiWidgetContext},
     pathfind::NodeKind as PathNodeKind,
-    utils::{constants::*, coords::Cell, mem, Color, Size, Vec2},
-    game::{sim::{self, debug::DebugUiMode, Simulation}, menu::{TileInspector, GameMenusContext}},
+    game::{GameLoop, menu::TileInspector},
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind, TileDepthSortOverride},
+    utils::{constants::*, coords::Cell, fixed_string::format_fixed_string, mem, Color, Size, Vec2},
 };
 
 // ----------------------------------------------
@@ -59,13 +61,13 @@ pub struct TileInspectorDevMenu {
 }
 
 impl TileInspector for TileInspectorDevMenu {
-    fn open(&mut self, context: &GameMenusContext) {
+    fn open(&mut self, context: &mut UiWidgetContext) {
         if let Some(selected_tile) = context.topmost_selected_tile() {
             self.open(selected_tile);
         }
     }
 
-    fn close(&mut self, _context: &GameMenusContext) {
+    fn close(&mut self, _context: &mut UiWidgetContext) {
         self.close();
     }
 }
@@ -108,7 +110,7 @@ impl TileInspectorDevMenu {
         }
     }
 
-    pub fn draw(&mut self, context: &mut sim::debug::DebugContext, sim: &mut Simulation) {
+    pub fn draw(&mut self, context: &mut UiWidgetContext) {
         let (tile_screen_rect, window_label) = {
             let tile = match self.try_get_selected_tile() {
                 Some(tile) => tile,
@@ -117,7 +119,7 @@ impl TileInspectorDevMenu {
                     return;
                 }
             };
-            (tile.screen_rect(context.transform, true), Self::make_stable_imgui_window_label(tile))
+            (tile.screen_rect(context.camera.transform(), true), Self::make_stable_imgui_window_label(tile))
         };
 
         let window_position =
@@ -138,14 +140,15 @@ impl TileInspectorDevMenu {
                   None => return,
               };
 
+              let sim = GameLoop::get_mut().sim_mut();
+
               // Overview:
               sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Overview);
 
               // Detailed:
               if tile.game_object_handle().is_valid() {
                   // If the tile has a game object, we'll have different dropdowns besides "Tile"
-                  // (e.g.: "Building", "Unit"), so nest tile debug under its own collapsing
-                  // header.
+                  // (e.g.: "Building", "Unit"), so nest tile debug under its own collapsing header.
                   if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
                       ui.indent_by(10.0);
                       Self::draw_tile_debug_ui(context, tile);
@@ -184,12 +187,14 @@ impl TileInspectorDevMenu {
         tile_ref.try_tile_mut()
     }
 
-    fn make_stable_imgui_window_label(tile: &Tile) -> String {
+    fn make_stable_imgui_window_label(tile: &Tile) -> ArrayString<128> {
         // If the tile has an associated game object, we'll use it as the imgui window
         // ID, since it is the most stable handle we can get.
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
-            return format!("{} - ID({},{:x})",
+            return format_fixed_string!(
+                           128,
+                           "{} - ID({},{:x})",
                            tile.kind(),
                            game_object_handle.index(),
                            game_object_handle.kind());
@@ -197,10 +202,10 @@ impl TileInspectorDevMenu {
 
         // Use the tile cell as a fallback. This is fine as long as the
         // tile doesn't move, so should be OK for terrain & prop tiles.
-        format!("Tile: {} @ {}", tile.name(), tile.base_cell())
+        format_fixed_string!(128, "Tile: {} @ {}", tile.name(), tile.base_cell())
     }
 
-    fn draw_tile_debug_ui(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+    fn draw_tile_debug_ui(context: &mut UiWidgetContext, tile: &mut Tile) {
         Self::tile_properties_dropdown(context, tile);
         Self::tile_flags_dropdown(context, tile);
         Self::tile_variations_dropdown(context, tile);
@@ -209,7 +214,7 @@ impl TileInspectorDevMenu {
         Self::tile_def_editor_dropdown(context, tile);
     }
 
-    fn tile_properties_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+    fn tile_properties_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
         let ui = context.ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
@@ -282,7 +287,7 @@ impl TileInspectorDevMenu {
             tile.set_iso_coords(iso_coords);
         }
 
-        let mut screen_coords = tile.screen_rect(context.transform, true).position();
+        let mut screen_coords = tile.screen_rect(context.camera.transform(), true).position();
         ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
 
         ui.text("Depth Sort Override:");
@@ -313,7 +318,7 @@ impl TileInspectorDevMenu {
         }
     }
 
-    fn tile_flags_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+    fn tile_flags_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
         let ui = context.ui_sys.ui();
         if !ui.collapsing_header("Flags", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -342,7 +347,7 @@ impl TileInspectorDevMenu {
         tile_flag_ui_checkbox!(ui, tile, DrawBlockerInfo);
     }
 
-    fn tile_variations_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+    fn tile_variations_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
         if !tile.has_variations() {
             return;
         }
@@ -361,7 +366,7 @@ impl TileInspectorDevMenu {
         ui.text(format!("Variation idx : {}, {}", tile.variation_index(), tile.variation_name()));
     }
 
-    fn tile_animations_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+    fn tile_animations_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
         if !tile.has_animations() {
             return;
         }
@@ -416,7 +421,7 @@ impl TileInspectorDevMenu {
         debug_vars.draw_debug_ui(context.ui_sys);
     }
 
-    fn tile_debug_opts_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+    fn tile_debug_opts_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
         let ui = context.ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Debug
@@ -449,7 +454,7 @@ impl TileInspectorDevMenu {
     }
 
     // Edit the underlying TileDef, which will apply to *all* tiles sharing this TileDef.
-    fn tile_def_editor_dropdown(context: &mut sim::debug::DebugContext, tile: &mut Tile) {
+    fn tile_def_editor_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
         if tile.is(TileKind::Blocker) {
             return;
         }

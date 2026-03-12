@@ -9,12 +9,11 @@ use crate::{
     log,
     save::*,
     ui::UiSystem,
+    debug::DebugUiMode,
     game::{
         constants::*,
         prop::{Prop, PropId, config::PropConfigs},
-        sim::{
-            debug::DebugUiMode, resources::GlobalTreasury, Query
-        },
+        sim::{resources::GlobalTreasury, Query},
         unit::{
             config::{UnitConfigKey, UnitConfigs},
             Unit, UnitId,

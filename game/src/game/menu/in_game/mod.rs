@@ -7,7 +7,6 @@ use bars::{InGameMenuBars, InGameMenuBarsRcMut};
 use super::{
     GameMenusMode,
     GameMenusSystem,
-    GameMenusContext,
     GameMenusInputArgs,
     TilePlacement,
     TileInspector,
@@ -77,11 +76,11 @@ impl GameMenusSystem for InGameMenus {
         Some(self.tile_inspector.as_mut())
     }
 
-    fn handle_custom_input(&mut self, context: &mut GameMenusContext, args: GameMenusInputArgs) -> UiInputEvent {
+    fn handle_custom_input(&mut self, context: &mut UiWidgetContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
             // [ESCAPE]: Close all dialog menus and return to game.
             if key == InputKey::Escape && action == InputAction::Press {
-                if dialog::close_current(&mut context.as_ui_widget_context()) {
+                if dialog::close_current(context) {
                     return UiInputEvent::Handled; // Key press is handled.
                 }
             }
@@ -90,20 +89,12 @@ impl GameMenusSystem for InGameMenus {
         UiInputEvent::NotHandled // Let the event propagate.
     }
 
-    fn end_frame(&mut self, context: &mut GameMenusContext, _visible_range: CellRange) {
-        let mut ui_context = context.as_ui_widget_context();
-
-        self.minimap_renderer.draw(&mut ui_context);
-
-        self.tile_palette.draw(&mut ui_context,
-                               context.camera.transform(),
-                               context.tile_selection.has_valid_placement());
-
-        self.menu_bars.draw(&mut ui_context);
-
-        dialog::draw_current(&mut ui_context);
-
-        self.tile_inspector.draw(&mut ui_context);
+    fn end_frame(&mut self, context: &mut UiWidgetContext, _visible_range: CellRange) {
+        self.minimap_renderer.draw(context);
+        self.tile_palette.draw(context);
+        self.menu_bars.draw(context);
+        self.tile_inspector.draw(context);
+        dialog::draw_current(context);
     }
 }
 

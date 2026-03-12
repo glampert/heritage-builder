@@ -2,16 +2,12 @@ use std::borrow::Cow;
 use smallvec::SmallVec;
 
 use crate::{
-    debug::{self, popups::PopupMessages},
+    tile::Tile,
+    ui::UiSystem,
     engine::time::Seconds,
     game::sim::resources::ResourceKind,
-    ui::UiSystem,
-    tile::Tile,
-    utils::{
-        self,
-        coords::{CellRange, WorldToScreenTransform},
-        Color,
-    },
+    debug::{self, popups::PopupMessages},
+    utils::{self, Color, coords::{CellRange, WorldToScreenTransform}},
 };
 
 // ----------------------------------------------

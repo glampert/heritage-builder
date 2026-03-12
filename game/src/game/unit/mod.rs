@@ -10,7 +10,6 @@ use task::*;
 use super::{
     building::{Building, BuildingKind},
     sim::{
-        debug::DebugUiMode,
         resources::{ResourceKind, StockItem},
         Query,
     },
@@ -23,6 +22,7 @@ use super::{
 use crate::{
     log,
     ui::UiSystem,
+    debug::DebugUiMode,
     save::PostLoadContext,
     pathfind::{NodeKind as PathNodeKind, Path},
     tile::{

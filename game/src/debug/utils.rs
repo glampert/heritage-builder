@@ -1,12 +1,17 @@
+use rand::SeedableRng;
+
 use crate::{
     log,
     engine::DebugDraw,
     ui::{self, UiSystem, UiFontScale},
     render::{RenderStats, RenderSystem},
+    pathfind::{Graph, Search},
     game::{
-        cheats::{self, Cheats},
-        sim::debug::DebugQueryBuilder,
         world::World,
+        config::GameConfigs,
+        cheats::{self, Cheats},
+        unit::task::UnitTaskManager,
+        sim::{Query, RandomGenerator, resources::GlobalTreasury},
     },
     tile::{
         self,
@@ -16,8 +21,8 @@ use crate::{
         Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileDepthSortOverride,
     },
     utils::{
-        coords::{self, Cell, CellRange, WorldToScreenTransform},
         Color, Rect, Size, Vec2,
+        coords::{self, Cell, CellRange, WorldToScreenTransform},
     },
 };
 
@@ -375,6 +380,49 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
 
     for cell in port_cells {
         water::update_port_wharf_orientation(tile_map, cell);
+    }
+}
+
+// ----------------------------------------------
+// DebugQueryBuilder
+// ----------------------------------------------
+
+// Dummy Query for unit tests/debug.
+pub struct DebugQueryBuilder<'game> {
+    rng: RandomGenerator,
+    graph: Graph,
+    search: Search,
+    task_manager: UnitTaskManager,
+    treasury: GlobalTreasury,
+    world: &'game mut World,
+    tile_map: &'game mut TileMap,
+}
+
+impl<'game> DebugQueryBuilder<'game> {
+    pub fn new(world: &'game mut World,
+               tile_map: &'game mut TileMap,
+               map_size_in_cells: Size)
+               -> Self {
+        Self {
+            rng: RandomGenerator::seed_from_u64(GameConfigs::get().sim.random_seed),
+            graph: Graph::with_empty_grid(map_size_in_cells),
+            search: Search::with_grid_size(map_size_in_cells),
+            task_manager: UnitTaskManager::new(1),
+            treasury: GlobalTreasury::new(GameConfigs::get().sim.starting_gold_units),
+            world,
+            tile_map,
+        }
+    }
+
+    pub fn new_query(&mut self) -> Query {
+        Query::new(&mut self.rng,
+                   &mut self.graph,
+                   &mut self.search,
+                   &mut self.task_manager,
+                   self.world,
+                   self.tile_map,
+                   &mut self.treasury,
+                   0.0)
     }
 }
 
