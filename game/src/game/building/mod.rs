@@ -380,7 +380,7 @@ impl Building {
 
         self.remove_all_workers(context);
         self.remove_all_population(context);
-        self.clear_road_link(context.tile_map());
+        self.clear_road_link(context.tile_map_mut());
 
         let context = self.new_context(context);
         self.archetype_mut().despawned(&context);
@@ -668,17 +668,17 @@ impl Building {
     fn remove_all_workers(&mut self, context: &SimContext) {
         if let Some(workers) = self.archetype().workers() {
             if let Some(employer) = workers.as_employer() {
-                employer.for_each_employee_household(context.world(), |household, employee_count| {
-                            // Put worker back into the house's worker pool.
-                            household.add_workers(employee_count, self.kind_and_id());
-                            true
-                        });
+                employer.for_each_employee_household(context.world_mut(), |household, employee_count| {
+                    // Put worker back into the house's worker pool.
+                    household.add_workers(employee_count, self.kind_and_id());
+                    true
+                });
             } else if let Some(household) = workers.as_household_worker_pool() {
-                household.for_each_employer(context.world(), |employer, employed_count| {
-                             // Tell employer workers are no longer available from this household.
-                             employer.remove_workers(employed_count, self.kind_and_id());
-                             true
-                         });
+                household.for_each_employer(context.world_mut(), |employer, employed_count| {
+                    // Tell employer workers are no longer available from this household.
+                    employer.remove_workers(employed_count, self.kind_and_id());
+                    true
+                });
             } else {
                 panic!("Unhandled Workers kind!");
             }
@@ -711,22 +711,22 @@ impl Building {
         }
     }
 
-    fn find_house_with_available_workers<'game>(&self,
-                                                 context: &'game SimContext)
-                                                 -> Option<&'game mut Building> {
+    fn find_house_with_available_workers<'game>(&self, context: &'game SimContext)
+                                                -> Option<&'game mut Building> {
         let workers_search_radius = GameConfigs::get().sim.workers_search_radius;
         debug_assert!(workers_search_radius > 0);
 
-        let result = context.find_nearest_buildings(self.road_link(context).unwrap(),
-                                                  BuildingKind::House,
-                                                  PathNodeKind::Road,
-                                                  Some(workers_search_radius),
-                                                  |house, _path| {
-                                                      if house.workers_count() != 0 {
-                                                          return false; // Accept and stop search.
-                                                      }
-                                                      true // Continue searching.
-                                                  });
+        let result = context.find_nearest_buildings_mut(
+            self.road_link(context).unwrap(),
+            BuildingKind::House,
+            PathNodeKind::Road,
+            Some(workers_search_radius),
+            |house, _path| {
+                if house.workers_count() != 0 {
+                    return false; // Accept and stop search.
+                }
+                true // Continue searching.
+            });
 
         if let Some((house, _path)) = result {
             debug_assert!(house.is(BuildingKind::House));
@@ -1034,7 +1034,7 @@ impl Building {
 
                 if ui.button("Add Worker (+1)") && !self.workers_is_maxed() {
                     if let Some(building) =
-                        context.sim_ctx.world().find_building_mut(source.kind, source.id)
+                        context.sim_ctx.world_mut().find_building_mut(source.kind, source.id)
                     {
                         let removed_count = building.remove_workers(1, self.kind_and_id());
                         let added_count = self.add_workers(removed_count, source);
@@ -1046,7 +1046,7 @@ impl Building {
 
                 if ui.button("Remove Worker (-1)") && self.workers_count() != 0 {
                     if let Some(building) =
-                        context.sim_ctx.world().find_building_mut(source.kind, source.id)
+                        context.sim_ctx.world_mut().find_building_mut(source.kind, source.id)
                     {
                         let added_count = building.add_workers(1, self.kind_and_id());
                         let removed_count = self.remove_workers(added_count, source);
@@ -1083,7 +1083,7 @@ impl Building {
             }
 
             if ui.button("Highlight Access Tiles") {
-                pathfind::highlight_building_access_tiles(context.sim_ctx.tile_map(),
+                pathfind::highlight_building_access_tiles(context.sim_ctx.tile_map_mut(),
                                                           self.cell_range());
             }
         }
@@ -1397,7 +1397,7 @@ impl<'game> BuildingContext<'game> {
     #[inline]
     pub fn set_random_building_variation(&self) {
         let tile = self.find_tile_mut();
-        tile.set_random_variation_index(self.sim_ctx.rng());
+        tile.set_random_variation_index(self.sim_ctx.rng_mut());
     }
 
     // Road link if valid, any unobstructed surrounding cell otherwise.

@@ -165,7 +165,7 @@ impl Record {
             if let Some(object_tile) = maybe_object_tile {
                 if let Some(game_object_state) = &state.game_object_state {
                     if let Some(game_object) =
-                        context.world().find_game_object_for_tile_mut(object_tile)
+                        context.world_mut().find_game_object_for_tile_mut(object_tile)
                     {
                         game_object.undo_redo_apply(game_object_state.as_ref());
                     }

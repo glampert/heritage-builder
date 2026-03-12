@@ -199,10 +199,10 @@ impl World {
         debug_assert!(tile_def.is(TileKind::Building));
 
         // Allocate & place a Tile:
-        match context.tile_map().try_place_tile(tile_base_cell, tile_def) {
+        match context.tile_map_mut().try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
                 // Instantiate new Building:
-                match BuildingConfigs::get().new_building_archetype_for_tile_def(tile_def, context.rng()) {
+                match BuildingConfigs::get().new_building_archetype_for_tile_def(tile_def, context.rng_mut()) {
                     Ok((building_kind, building_archetype)) => {
                         let archetype_kind = building_archetype.discriminant();
                         let buildings = self.buildings_pool_mut(archetype_kind);
@@ -244,7 +244,7 @@ impl World {
         let tile_base_cell = building.base_cell();
         debug_assert!(tile_base_cell.is_valid());
 
-        let tile_map = context.tile_map();
+        let tile_map = context.tile_map_mut();
 
         // Find and validate associated Tile:
         let tile = match tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Building) {
@@ -281,9 +281,9 @@ impl World {
                                     -> Result<(), TileClearingErr> {
         debug_assert!(tile_base_cell.is_valid());
 
-        let building = context.world()
-                            .find_building_for_cell_mut(tile_base_cell, context.tile_map())
-                            .expect("Tile cell does not contain a Building!");
+        let building = context.world_mut()
+            .find_building_for_cell_mut(tile_base_cell, context.tile_map())
+            .expect("Tile cell does not contain a Building!");
 
         self.despawn_building(context, building)
     }
@@ -463,7 +463,7 @@ impl World {
                                                                       config.tile_def_name_hash)
         {
             // Allocate & place a Tile:
-            match context.tile_map().try_place_tile(unit_origin, tile_def) {
+            match context.tile_map_mut().try_place_tile(unit_origin, tile_def) {
                 Ok(tile) => {
                     // Spawn unit:
                     let unit = self.unit_spawn_pool.spawn(context,
@@ -502,7 +502,7 @@ impl World {
         debug_assert!(tile_def.is(TileKind::Unit));
 
         // Allocate & place a Tile:
-        match context.tile_map().try_place_tile(unit_origin, tile_def) {
+        match context.tile_map_mut().try_place_tile(unit_origin, tile_def) {
             Ok(tile) => {
                 let config = UnitConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
@@ -529,7 +529,7 @@ impl World {
 
     pub fn despawn_unit(&mut self, context: &SimContext, unit: &mut Unit) -> Result<(), TileClearingErr> {
         debug_assert!(unit.is_spawned());
-        let tile_map = context.tile_map();
+        let tile_map = context.tile_map_mut();
 
         let tile_cell = unit.cell();
         debug_assert!(tile_cell.is_valid());
@@ -607,7 +607,7 @@ impl World {
             None => return placement::err!(Clearing::DespawnFailed, "Tile cell does not contain a Unit!"),
         };
 
-        let unit = match context.world().find_unit_for_tile_mut(tile) {
+        let unit = match context.world_mut().find_unit_for_tile_mut(tile) {
             Some(unit) => unit,
             None => return placement::err!(Clearing::DespawnFailed, "Unit tile does not have a valid TileGameObjectHandle!"),
         };
@@ -615,8 +615,8 @@ impl World {
         units.push(unit);
 
         if tile.is_stacked() {
-            context.tile_map().visit_next_tiles_mut(tile, |next_tile| {
-                let next_unit = context.world().find_unit_for_tile_mut(next_tile)
+            context.tile_map_mut().visit_next_tiles_mut(tile, |next_tile| {
+                let next_unit = context.world_mut().find_unit_for_tile_mut(next_tile)
                     .expect("Next Unit tile does not have a valid TileGameObjectHandle!");
 
                 units.push(next_unit);
@@ -624,11 +624,11 @@ impl World {
         }
 
         // This will take care of removing all tiles stacked at `tile_base_cell`.
-        context.tile_map().try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
+        context.tile_map_mut().try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
 
         // Despawn all units at this cell.
         for unit in units {
-            context.world().unit_spawn_pool.despawn(unit, context, Unit::despawned);
+            context.world_mut().unit_spawn_pool.despawn(unit, context, Unit::despawned);
         }
 
         Ok(())
@@ -753,7 +753,7 @@ impl World {
         debug_assert!(tile_def.is(TileKind::Prop));
 
         // Allocate & place a Tile:
-        match context.tile_map().try_place_tile(prop_base_cell, tile_def) {
+        match context.tile_map_mut().try_place_tile(prop_base_cell, tile_def) {
             Ok(tile) => {
                 let config = PropConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
@@ -785,7 +785,7 @@ impl World {
         let tile_base_cell = prop.cell();
         debug_assert!(tile_base_cell.is_valid());
 
-        let tile_map = context.tile_map();
+        let tile_map = context.tile_map_mut();
 
         // Find and validate associated Tile:
         let tile = match tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Prop) {
@@ -818,8 +818,8 @@ impl World {
                                 -> Result<(), TileClearingErr> {
         debug_assert!(tile_base_cell.is_valid());
 
-        let prop = context.world()
-            .find_prop_for_cell_mut(tile_base_cell, context.tile_map())
+        let prop = context.world_mut()
+            .find_prop_for_cell_mut(tile_base_cell, context.tile_map_mut())
             .expect("Tile cell does not contain a Prop!");
 
         self.despawn_prop(context, prop)

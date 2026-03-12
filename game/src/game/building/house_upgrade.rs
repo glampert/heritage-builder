@@ -127,7 +127,7 @@ pub fn try_replace_tile(context: &BuildingContext,
     debug_assert!(new_cell_range.size() == target_tile_def.cell_range(context.base_cell()).size());
 
     let dest_house = house_for_id_mut(context, house_id);
-    let tile_map = context.sim_ctx.tile_map();
+    let tile_map = context.sim_ctx.tile_map_mut();
 
     // We'll have to restore the game object handle on the new tile.
     let (prev_game_object_handle, prev_cell_range, prev_tile_def) = {
@@ -202,7 +202,7 @@ pub fn try_replace_tile(context: &BuildingContext,
         *context.map_cells.as_mut() = new_cell_range;
 
         // Update path finding graph:
-        let graph = context.sim_ctx.graph();
+        let graph = context.sim_ctx.graph_mut();
         for cell in &prev_cell_range {
             graph.set_node_kind(Node::new(cell), PathNodeKind::EmptyLand); // Traversable
         }
@@ -421,8 +421,8 @@ impl CellRect {
     #[inline]
     fn iter_cells(&self) -> impl Iterator<Item = Cell> {
         (self.min_x..=self.max_x).flat_map(move |x| {
-                                     (self.min_y..=self.max_y).map(move |y| Cell::new(x, y))
-                                 })
+            (self.min_y..=self.max_y).map(move |y| Cell::new(x, y))
+        })
     }
 }
 
@@ -538,7 +538,7 @@ fn house_for_id<'game>(context: &'game BuildingContext, id: BuildingId) -> &'gam
 fn house_for_id_mut<'game>(context: &'game BuildingContext,
                             id: BuildingId)
                             -> &'game mut Building {
-    let world = context.sim_ctx.world();
+    let world = context.sim_ctx.world_mut();
 
     world.find_building_mut(BuildingKind::House, id)
          .expect("Invalid Building id! Expected to have a valid House Building.")
@@ -590,7 +590,7 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
         let candidate_rects = candidate_target_rects(context.cell_range());
         let target_rect = candidate_rects[*CANDIDATE_RECT_IDX];
 
-        let tile_map = context.sim_ctx.tile_map();
+        let tile_map = context.sim_ctx.tile_map_mut();
 
         for cell in target_rect.iter_cells() {
             if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {

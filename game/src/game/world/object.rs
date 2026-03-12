@@ -594,7 +594,7 @@ impl<'game> Spawner<'game> {
             self.despawn_prop_at_cell(base_cell);
         } else {
             // No GameObject, just remove the tile directly.
-            if let Err(err) = self.context.tile_map().try_clear_tile_from_layer(base_cell, tile.layer_kind()) {
+            if let Err(err) = self.context.tile_map_mut().try_clear_tile_from_layer(base_cell, tile.layer_kind()) {
                 despawn_error("Tile", &err);
             }
         }
@@ -620,9 +620,9 @@ impl<'game> Spawner<'game> {
         }
 
         let result =
-            self.context.world().try_spawn_building_with_tile_def(self.context,
-                                                                building_base_cell,
-                                                                building_tile_def);
+            self.context.world_mut().try_spawn_building_with_tile_def(self.context,
+                                                                      building_base_cell,
+                                                                      building_tile_def);
 
         if let Ok(ref building) = result {
             self.subtract_tile_cost(building_tile_def);
@@ -633,13 +633,13 @@ impl<'game> Spawner<'game> {
     }
 
     pub fn despawn_building(&self, building: &mut Building) {
-        if let Err(err) = self.context.world().despawn_building(self.context, building) {
+        if let Err(err) = self.context.world_mut().despawn_building(self.context, building) {
             despawn_error("Building", &err);
         }
     }
 
     pub fn despawn_building_at_cell(&self, building_base_cell: Cell) {
-        if let Err(err) = self.context.world().despawn_building_at_cell(self.context, building_base_cell) {
+        if let Err(err) = self.context.world_mut().despawn_building_at_cell(self.context, building_base_cell) {
             despawn_error("Building", &err);
         }
     }
@@ -657,7 +657,7 @@ impl<'game> Spawner<'game> {
         }
 
         let result =
-            self.context.world().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
+            self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
 
         if result.is_ok() {
             self.subtract_tile_cost(unit_tile_def);
@@ -673,17 +673,17 @@ impl<'game> Spawner<'game> {
         // NOTE: No affordability check needed here. This is only
         // used by dynamically spawned units, which have no cost.
 
-        self.context.world().try_spawn_unit_with_config(self.context, unit_origin, unit_config_key)
+        self.context.world_mut().try_spawn_unit_with_config(self.context, unit_origin, unit_config_key)
     }
 
     pub fn despawn_unit(&self, unit: &mut Unit) {
-        if let Err(err) = self.context.world().despawn_unit(self.context, unit) {
+        if let Err(err) = self.context.world_mut().despawn_unit(self.context, unit) {
             despawn_error("Unit", &err);
         }
     }
 
     pub fn despawn_unit_at_cell(&self, unit_base_cell: Cell) {
-        if let Err(err) = self.context.world().despawn_unit_at_cell(self.context, unit_base_cell) {
+        if let Err(err) = self.context.world_mut().despawn_unit_at_cell(self.context, unit_base_cell) {
             despawn_error("Unit", &err);
         }
     }
@@ -701,7 +701,7 @@ impl<'game> Spawner<'game> {
         }
 
         let result =
-            self.context.world().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
+            self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
 
         if result.is_ok() {
             self.subtract_tile_cost(prop_tile_def);
@@ -711,13 +711,13 @@ impl<'game> Spawner<'game> {
     }
 
     pub fn despawn_prop(&self, prop: &mut Prop) {
-        if let Err(err) = self.context.world().despawn_prop(self.context, prop) {
+        if let Err(err) = self.context.world_mut().despawn_prop(self.context, prop) {
             despawn_error("Prop", &err);
         }
     }
 
     pub fn despawn_prop_at_cell(&self, prop_base_cell: Cell) {
-        if let Err(err) = self.context.world().despawn_prop_at_cell(self.context, prop_base_cell) {
+        if let Err(err) = self.context.world_mut().despawn_prop_at_cell(self.context, prop_base_cell) {
             despawn_error("Prop", &err);
         }
     }
@@ -737,14 +737,14 @@ impl<'game> Spawner<'game> {
     #[inline]
     fn subtract_tile_cost(&self, tile_def: &'static TileDef) {
         if self.subtract_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
-            self.context.treasury().subtract_gold_units_global(self.context.world(), tile_def.cost);
+            self.context.treasury_mut().subtract_gold_units_global(self.context.world_mut(), tile_def.cost);
         }
     }
 
     #[inline]
     fn restore_tile_cost(&self, tile_def: &'static TileDef) {
         if self.restore_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
-            self.context.treasury().add_gold_units(tile_def.cost);
+            self.context.treasury_mut().add_gold_units(tile_def.cost);
         }
     }
 
@@ -762,7 +762,7 @@ impl<'game> Spawner<'game> {
                                 .try_tile_from_layer(target_cell, tile_def.layer_kind())
                                 .map(|tile| tile.tile_def());
 
-        match self.context.tile_map().try_place_tile(target_cell, tile_def) {
+        match self.context.tile_map_mut().try_place_tile(target_cell, tile_def) {
             Ok(tile) => {
                 self.subtract_tile_cost(tile_def);
 
@@ -775,7 +775,7 @@ impl<'game> Spawner<'game> {
                 } else {
                     // Set a random tile variation:
                     if tile.has_flags(TileFlags::RandomizePlacement) {
-                        tile.set_random_variation_index(self.context.rng());
+                        tile.set_random_variation_index(self.context.rng_mut());
                     }
                 }
 

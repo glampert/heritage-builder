@@ -433,7 +433,7 @@ impl GameSession {
 
         self.pre_load(&PreLoadContext::new(engine));
         *self = session;
-        self.post_load(&PostLoadContext::new(engine, self.sim.rng(), self.tile_map.clone()));
+        self.post_load(&PostLoadContext::new(engine, self.sim.rng_mut(), self.tile_map.clone()));
 
         if GameConfigs::get().sim.start_paused {
             self.sim.pause();

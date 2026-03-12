@@ -523,14 +523,14 @@ impl TilePlacement {
         match &spawn_result {
             SpawnerResult::Tile(tile) if tile.is(TileKind::Terrain) => {
                 // In case we've replaced a road tile with terrain.
-                road::update_junctions(context.tile_map(), target_cell);
+                road::update_junctions(context.tile_map_mut(), target_cell);
                 // In case we've placed a water tile or replaced water with terrain.
-                water::update_transitions(context.tile_map(), target_cell);
+                water::update_transitions(context.tile_map_mut(), target_cell);
             }
             SpawnerResult::Building(_) if water::is_port_or_wharf(tile_def) => {
                 // If we've placed a port/wharf, select the correct
                 // tile orientation in relation to the water.
-                water::update_port_wharf_orientation(context.tile_map(), target_cell);
+                water::update_port_wharf_orientation(context.tile_map_mut(), target_cell);
             }
             SpawnerResult::Err(err) => {
                 let obstructing_tile_def = {
@@ -614,7 +614,7 @@ impl TilePlacement {
 
                 // Update road junctions around the removed tile cell.
                 if is_road {
-                    road::update_junctions(context.tile_map(), target_cell);
+                    road::update_junctions(context.tile_map_mut(), target_cell);
                 }
             }
 

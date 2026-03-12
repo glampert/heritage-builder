@@ -72,7 +72,7 @@ impl Runner {
                 resource_kind_to_deliver,
                 resource_count,
                 completion_callback,
-                completion_task: context.sim_ctx.task_manager().new_task(UnitTaskDespawn),
+                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
                 allow_producer_fallback: true, // If we can't find a Storage that will take our goods,
                                                // try delivering directly to other Producers.
             }
@@ -96,7 +96,7 @@ impl Runner {
                                      storage_buildings_accepted,
                                      resources_to_fetch,
                                      completion_callback,
-                                     completion_task: context.sim_ctx.task_manager().new_task(UnitTaskDespawn),
+                                     completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
                                      is_returning_to_origin: false,
                                  })
     }

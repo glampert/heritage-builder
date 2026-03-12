@@ -442,8 +442,8 @@ impl UnitTaskRandomizedPatrol {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
 
-        let bias = RandomDirectionalBias::new(context.rng(), self.path_bias_min, self.path_bias_max);
-        let mut filter = UnitPatrolWaypointFilter::new(context.rng(), &self.path_record);
+        let bias = RandomDirectionalBias::new(context.rng_mut(), self.path_bias_min, self.path_bias_max);
+        let mut filter = UnitPatrolWaypointFilter::new(context.rng_mut(), &self.path_record);
 
         match context.find_waypoints(&bias,
                                      &mut filter,
@@ -563,7 +563,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
 
             if let Some(node_kind) = graph.node_kind(current_node) {
                 if node_kind.intersects(PathNodeKind::BuildingRoadLink) {
-                    let world = context.world();
+                    let world = context.world_mut();
                     let tile_map = context.tile_map();
                     let neighbors = graph.neighbors(current_node, PathNodeKind::Building);
 
@@ -1072,7 +1072,7 @@ impl UnitTaskSettler {
     fn try_find_goal(&self, unit: &mut Unit, context: &SimContext) {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
-        let bias = RandomDirectionalBias::new(context.rng(), 0.1, 0.5);
+        let bias = RandomDirectionalBias::new(context.rng_mut(), 0.1, 0.5);
 
         // First try to find an empty lot we can settle:
         {
@@ -1089,21 +1089,19 @@ impl UnitTaskSettler {
 
         // Alternatively try to find a house with room that can take this settler.
         if self.fallback_to_houses_with_room {
-            let result = context.find_nearest_buildings(start,
-                                                 BuildingKind::House,
-                                                 traversable_node_kinds,
-                                                 None,
-                                                 |building, _path| {
-                                                     if let Some(population) = building.population()
-                                                     {
-                                                         if !population.is_max()
-                                                            && building.is_linked_to_road(context)
-                                                         {
-                                                             return false; // Accept this building and end the search.
-                                                         }
-                                                     }
-                                                     true // Continue search.
-                                                 });
+            let result = context.find_nearest_buildings(
+                start,
+                BuildingKind::House,
+                traversable_node_kinds,
+                None,
+                |building, _path| {
+                    if let Some(population) = building.population() {
+                        if !population.is_max() && building.is_linked_to_road(context) {
+                            return false; // Accept this building and end the search.
+                        }
+                    }
+                    true // Continue search.
+                });
 
             if let Some((building, path)) = result {
                 unit.move_to_goal(path,
@@ -1209,7 +1207,7 @@ impl UnitTask for UnitTaskSettler {
             if let Some(house_tile) =
                 tile_map.find_tile(destination_cell, TileMapLayerKind::Objects, TileKind::Building)
             {
-                let world = context.world();
+                let world = context.world_mut();
                 let mut task_completed = false;
 
                 // Visit destination building:
@@ -1304,7 +1302,7 @@ impl PathFilter for FindHarvestableTreeFilter<'_> {
     }
 
     fn shuffle(&mut self, nodes: &mut [Node]) {
-        nodes.shuffle(self.context.rng());
+        nodes.shuffle(self.context.rng_mut());
     }
 }
 
@@ -1327,7 +1325,7 @@ impl UnitTaskHarvestWood {
             // Last node should be our tree prop.
             let tree_cell = path_to_harvestable_tree.last().unwrap().cell;
 
-            if let Some(tree) = context.world().find_prop_for_cell_mut(tree_cell, context.tile_map()) {
+            if let Some(tree) = context.world_mut().find_prop_for_cell_mut(tree_cell, context.tile_map_mut()) {
                 // Filter should only accept paths to trees that are not being harvested by another unit.
                 debug_assert!(!tree.is_being_harvested());
 
@@ -1480,7 +1478,7 @@ impl UnitTask for UnitTaskHarvestWood {
             }
 
             // Reached the tree we wanted to harvest.
-            if let Some(tree) = context.world().find_prop_mut(self.harvest_target) {
+            if let Some(tree) = context.world_mut().find_prop_mut(self.harvest_target) {
                 if tree.harvester_unit() == unit.id() {
                     // Once enough time has elapsed, give it the harvested wood.
                     if self.harvest_timer.tick(context.delta_time_secs()) {
@@ -1941,7 +1939,7 @@ fn visit_destination(unit: &mut Unit, context: &SimContext) {
     debug_assert!(destination_kind.is_single_building());
     debug_assert!(destination_cell.is_valid());
 
-    let world = context.world();
+    let world = context.world_mut();
     let tile_map = context.tile_map();
 
     // Visit destination building:
@@ -1964,7 +1962,7 @@ fn invoke_completion_callback<F, R>(unit: &mut Unit,
     where F: FnOnce(&mut Building, &mut Unit, &SimContext) -> R
 {
     if let Some(origin_building) =
-        context.world().find_building_mut(origin_building_kind, origin_building_id)
+        context.world_mut().find_building_mut(origin_building_kind, origin_building_id)
     {
         // NOTE: Only invoke the completion callback if the original base cell still
         // contains the exact same building that initiated this task. We don't
@@ -1994,7 +1992,7 @@ impl PathFindResult<'_> {
     fn from_query_result<'search>(context: &'search SimContext,
                                   origin_kind: BuildingKind,
                                   origin_base_cell: Cell,
-                                  result: Option<(&mut Building, &'search Path)>)
+                                  result: Option<(&Building, &'search Path)>)
                                   -> PathFindResult<'search> {
         match result {
             Some((destination_building, path)) => {
@@ -2039,22 +2037,21 @@ fn find_delivery_candidate(context: &SimContext,
 
     // Try to find a building that can accept our delivery:
     let result =
-        context.find_nearest_buildings(origin_base_cell,
-                                     building_kinds_accepted,
-                                     traversable_node_kinds,
-                                     None,
-                                     |building, _path| {
-                                         if building.receivable_resources(resource_kind_to_deliver) != 0
-                                            && building.is_linked_to_road(context)
-                                         {
-                                             return false; // Accept this
-                                                           // building and
-                                                           // end the search.
-                                         }
-                                         // Else we couldn't find a free slot in this building or it
-                                         // is not connected to a road. Try again with another one.
-                                         true
-                                     });
+        context.find_nearest_buildings(
+            origin_base_cell,
+            building_kinds_accepted,
+            traversable_node_kinds,
+            None,
+            |building, _path| {
+                if building.receivable_resources(resource_kind_to_deliver) != 0
+                    && building.is_linked_to_road(context)
+                {
+                    return false; // Accept this building and end the search.
+                }
+                // Else we couldn't find a free slot in this building or it
+                // is not connected to a road. Try again with another one.
+                true
+            });
 
     PathFindResult::from_query_result(context, origin_kind, origin_base_cell, result)
 }
@@ -2073,24 +2070,22 @@ fn find_storage_fetch_candidate(context: &SimContext,
                   "Traversable Nodes={traversable_node_kinds}");
 
     // Try to find a storage building that has the resource we want:
-    let result = context.find_nearest_buildings(origin_base_cell,
-                                         storage_buildings_accepted,
-                                         traversable_node_kinds,
-                                         None,
-                                         |building, _path| {
-                                             if building.available_resources(resource_kind_to_fetch) != 0
-                                                && building.is_linked_to_road(context)
-                                             {
-                                                 return false; // Accept this
-                                                               // building and
-                                                               // end the search.
-                                             }
-                                             // Else we couldn't find the resource we're looking for
-                                             // in this building
-                                             // or it is not connected to a road. Try again with
-                                             // another one.
-                                             true
-                                         });
+    let result = context.find_nearest_buildings(
+        origin_base_cell,
+        storage_buildings_accepted,
+        traversable_node_kinds,
+        None,
+        |building, _path| {
+            if building.available_resources(resource_kind_to_fetch) != 0
+                && building.is_linked_to_road(context)
+            {
+                return false; // Accept this building and end the search.
+            }
+            // Else we couldn't find the resource we're looking for
+            // in this building or it is not connected to a road.
+            // Try again with another one.
+            true
+        });
 
     PathFindResult::from_query_result(context, origin_kind, origin_base_cell, result)
 }

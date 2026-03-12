@@ -78,7 +78,7 @@ pub struct PostLoadContext {
 
 impl PostLoadContext {
     #[inline]
-    pub fn new(engine: &dyn Engine, rng: &RandomGenerator, tile_map: RcMut<TileMap>) -> Self {
+    pub fn new(engine: &dyn Engine, rng: &mut RandomGenerator, tile_map: RcMut<TileMap>) -> Self {
         Self {
             engine: RawPtr::from_ref(engine),
             rng: RawPtr::from_ref(rng),
@@ -97,7 +97,7 @@ impl PostLoadContext {
     }
 
     #[inline]
-    pub fn rng(&self) -> &mut RandomGenerator {
+    pub fn rng_mut(&self) -> &mut RandomGenerator {
         self.rng.mut_ref_cast()
     }
 

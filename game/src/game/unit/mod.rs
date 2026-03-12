@@ -208,7 +208,7 @@ impl Unit {
         self.navigation.set_traversable_node_kinds(PathNodeKind::default());
         self.debug.clear_popups();
 
-        context.task_manager().free_task(self.current_task_id);
+        context.task_manager_mut().free_task(self.current_task_id);
         self.current_task_id = UnitTaskId::default();
     }
 
@@ -274,7 +274,7 @@ impl Unit {
     pub fn patrol_task_origin_building<'game>(&self, context: &'game SimContext) -> Option<&'game mut Building> {
         debug_assert!(self.is_spawned());
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(context.task_manager()) {
-            return context.world()
+            return context.world_mut()
                           .find_building_mut(task.origin_building.kind, task.origin_building.id);
         }
         None
@@ -398,7 +398,7 @@ impl Unit {
                 self.update_direction_and_anim(tile, direction);
             }
             UnitNavResult::AdvancedCell(cell, direction) => {
-                if !self.teleport(context.tile_map(), cell) {
+                if !self.teleport(context.tile_map_mut(), cell) {
                     // This would normally happen if two units try to move to the
                     // same tile, so they will bump into each other for one frame.
                     // Not a critical failure, the unit can recover next update.
@@ -408,7 +408,7 @@ impl Unit {
                 self.update_direction_and_anim(self.find_tile_mut(context), direction);
             }
             UnitNavResult::ReachedGoal(cell, _) => {
-                self.teleport(context.tile_map(), cell);
+                self.teleport(context.tile_map_mut(), cell);
 
                 if cell == self.cell() {
                     // Goal reached, clear current path.
@@ -443,7 +443,7 @@ impl Unit {
     #[inline]
     fn update_tasks(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
-        let task_manager = context.task_manager();
+        let task_manager = context.task_manager_mut();
         task_manager.run_unit_tasks(self, context);
     }
 
@@ -492,7 +492,7 @@ impl Unit {
     {
         debug_assert!(unit_origin.is_valid());
 
-        let task_manager = context.task_manager();
+        let task_manager = context.task_manager_mut();
         let task_id = task_manager.new_task(task);
 
         let unit = match Spawner::new(context).try_spawn_unit_with_config(unit_origin, unit_config) {
@@ -573,7 +573,7 @@ impl Unit {
 
     #[inline]
     fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
-        let tile = context.tile_map().tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
+        let tile = context.tile_map_mut().tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
         debug_assert!(tile.is(TileKind::Unit));
         tile
     }
@@ -634,7 +634,7 @@ pub trait UnitTaskHelper {
 
     #[inline]
     fn try_unit_mut<'game>(&mut self, context: &'game SimContext) -> Option<&'game mut Unit> {
-        context.world().find_unit_mut(self.unit_id())
+        context.world_mut().find_unit_mut(self.unit_id())
     }
 
     #[inline]

@@ -35,7 +35,7 @@ use crate::{
     },
     utils::{
         coords::{Cell, CellRange},
-        hash::StringHash, mem::RawPtr,
+        hash::StringHash, mem::{self, RawPtr},
     },
 };
 
@@ -107,18 +107,23 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn task_manager(&mut self) -> &mut UnitTaskManager {
+    pub fn treasury_mut(&mut self) -> &mut GlobalTreasury {
+        &mut self.treasury
+    }
+
+    #[inline]
+    pub fn task_manager(&self) -> &UnitTaskManager {
+        &self.task_manager
+    }
+
+    #[inline]
+    pub fn task_manager_mut(&mut self) -> &mut UnitTaskManager {
         &mut self.task_manager
     }
 
     #[inline]
-    pub fn rng(&self) -> &RandomGenerator {
-        &self.rng
-    }
-
-    #[inline]
-    pub fn rng_mut(&mut self) -> &mut RandomGenerator {
-        &mut self.rng
+    pub fn rng_mut(&self) -> &mut RandomGenerator {
+        mem::mut_ref_cast(&self.rng)
     }
 
     pub fn update(&mut self,
@@ -333,12 +338,12 @@ impl Load for Simulation {
 // ----------------------------------------------
 
 pub struct SimContext {
-    // SAFETY: Queries are local variables in the Simulation::update() stack,
+    // SAFETY: SimContext is a local variable in the Simulation::update() stack,
     // so none of the pointers stored here will persist or leak outside the
     // update call stack. Storing raw pointers here makes things easier
-    // since Query is only a container of references to external objects,
+    // since SimContext is only a container of references to external objects,
     // so we don't want any of these lifetimes to be associated with the
-    // Query's lifetime. It also allows us to pass immutable Query refs.
+    // SimContext's lifetime. This also allows us to pass immutable SimContext refs.
 
     // Random generator:
     rng: RawPtr<RandomGenerator>,
@@ -381,8 +386,9 @@ impl SimContext {
         }
     }
 
+    // Internal.
     #[inline(always)]
-    fn search(&self) -> &mut Search {
+    fn search_mut(&self) -> &mut Search {
         self.search.mut_ref_cast()
     }
 
@@ -391,28 +397,63 @@ impl SimContext {
     // ----------------------
 
     #[inline(always)]
-    pub fn rng(&self) -> &mut RandomGenerator {
-        self.rng.mut_ref_cast()
+    pub fn delta_time_secs(&self) -> Seconds {
+        self.delta_time_secs
     }
 
     #[inline(always)]
-    pub fn task_manager(&self) -> &mut UnitTaskManager {
+    pub fn task_manager(&self) -> &UnitTaskManager {
+        &self.task_manager
+    }
+
+    #[inline(always)]
+    pub fn task_manager_mut(&self) -> &mut UnitTaskManager {
         self.task_manager.mut_ref_cast()
     }
 
     #[inline(always)]
-    pub fn graph(&self) -> &mut Graph {
+    pub fn graph(&self) -> &Graph {
+        &self.graph
+    }
+
+    #[inline(always)]
+    pub fn graph_mut(&self) -> &mut Graph {
         self.graph.mut_ref_cast()
     }
 
     #[inline(always)]
-    pub fn world(&self) -> &mut World {
+    pub fn world(&self) -> &World {
+        &self.world
+    }
+
+    #[inline(always)]
+    pub fn world_mut(&self) -> &mut World {
         self.world.mut_ref_cast()
     }
 
     #[inline(always)]
-    pub fn tile_map(&self) -> &mut TileMap {
+    pub fn tile_map(&self) -> &TileMap {
+        &self.tile_map
+    }
+
+    #[inline(always)]
+    pub fn tile_map_mut(&self) -> &mut TileMap {
         self.tile_map.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    pub fn treasury(&self) -> &GlobalTreasury {
+        &self.treasury
+    }
+
+    #[inline(always)]
+    pub fn treasury_mut(&self) -> &mut GlobalTreasury {
+        self.treasury.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    pub fn rng_mut(&self) -> &mut RandomGenerator {
+        self.rng.mut_ref_cast()
     }
 
     #[inline(always)]
@@ -420,17 +461,7 @@ impl SimContext {
         where T: SampleUniform,
               R: SampleRange<T>
     {
-        self.rng().random_range(range)
-    }
-
-    #[inline(always)]
-    pub fn treasury(&self) -> &mut GlobalTreasury {
-        self.treasury.mut_ref_cast()
-    }
-
-    #[inline(always)]
-    pub fn delta_time_secs(&self) -> Seconds {
-        self.delta_time_secs
+        self.rng_mut().random_range(range)
     }
 
     #[inline]
@@ -457,7 +488,7 @@ impl SimContext {
                          layer: TileMapLayerKind,
                          tile_kinds: TileKind)
                          -> Option<&mut Tile> {
-        self.tile_map().find_tile_mut(cell, layer, tile_kinds)
+        self.tile_map_mut().find_tile_mut(cell, layer, tile_kinds)
     }
 
     // ----------------------
@@ -475,11 +506,11 @@ impl SimContext {
                      start: Cell,
                      goal: Cell)
                      -> SearchResult<'_> {
-        self.search().find_path(self.graph(),
-                                &AStarUniformCostHeuristic::new(),
-                                traversable_node_kinds,
-                                Node::new(start),
-                                Node::new(goal))
+        self.search_mut().find_path(self.graph(),
+                                    &AStarUniformCostHeuristic::new(),
+                                    traversable_node_kinds,
+                                    Node::new(start),
+                                    Node::new(goal))
     }
 
     #[inline]
@@ -492,13 +523,13 @@ impl SimContext {
                               -> SearchResult<'_>
         where Filter: PathFilter
     {
-        self.search().find_paths(self.graph(),
-                                 &AStarUniformCostHeuristic::new(),
-                                 path_filter,
-                                 max_paths,
-                                 traversable_node_kinds,
-                                 Node::new(start),
-                                 Node::new(goal))
+        self.search_mut().find_paths(self.graph(),
+                                     &AStarUniformCostHeuristic::new(),
+                                     path_filter,
+                                     max_paths,
+                                     traversable_node_kinds,
+                                     Node::new(start),
+                                     Node::new(goal))
     }
 
     #[inline]
@@ -511,13 +542,13 @@ impl SimContext {
                                   -> SearchResult<'_>
         where Filter: PathFilter
     {
-        self.search().find_waypoints(self.graph(),
-                                     &AStarUniformCostHeuristic::new(),
-                                     bias,
-                                     path_filter,
-                                     traversable_node_kinds,
-                                     Node::new(start),
-                                     max_distance)
+        self.search_mut().find_waypoints(self.graph(),
+                                         &AStarUniformCostHeuristic::new(),
+                                         bias,
+                                         path_filter,
+                                         traversable_node_kinds,
+                                         Node::new(start),
+                                         max_distance)
     }
 
     #[inline]
@@ -527,13 +558,13 @@ impl SimContext {
                              start: Cell,
                              goal_node_kinds: PathNodeKind)
                              -> SearchResult<'_> {
-        self.search().find_path_to_node(self.graph(),
-                                        &AStarUniformCostHeuristic::new(),
-                                        bias,
-                                        &mut DefaultPathFilter::new(),
-                                        traversable_node_kinds,
-                                        Node::new(start),
-                                        goal_node_kinds)
+        self.search_mut().find_path_to_node(self.graph(),
+                                            &AStarUniformCostHeuristic::new(),
+                                            bias,
+                                            &mut DefaultPathFilter::new(),
+                                            traversable_node_kinds,
+                                            Node::new(start),
+                                            goal_node_kinds)
     }
 
     #[inline]
@@ -546,21 +577,39 @@ impl SimContext {
                                       -> SearchResult<'_>
         where Filter: PathFilter
     {
-        self.search().find_path_to_node(self.graph(),
-                                        &AStarUniformCostHeuristic::new(),
-                                        bias,
-                                        path_filter,
-                                        traversable_node_kinds,
-                                        Node::new(start),
-                                        goal_node_kinds)
+        self.search_mut().find_path_to_node(self.graph(),
+                                            &AStarUniformCostHeuristic::new(),
+                                            bias,
+                                            path_filter,
+                                            traversable_node_kinds,
+                                            Node::new(start),
+                                            goal_node_kinds)
     }
 
+    #[inline]
     pub fn find_nearest_buildings<F>(&self,
                                      start: Cell,
                                      building_kinds: BuildingKind,
                                      traversable_node_kinds: PathNodeKind,
                                      max_distance: Option<i32>,
                                      visitor_fn: F)
+                                     -> Option<(&Building, &Path)>
+        where F: FnMut(&Building, &Path) -> bool {
+
+        self.find_nearest_buildings_mut(start,
+                                        building_kinds,
+                                        traversable_node_kinds,
+                                        max_distance,
+                                        visitor_fn)
+                                        .map(|(building, path)| (building as &Building, path))
+    }
+
+    pub fn find_nearest_buildings_mut<F>(&self,
+                                         start: Cell,
+                                         building_kinds: BuildingKind,
+                                         traversable_node_kinds: PathNodeKind,
+                                         max_distance: Option<i32>,
+                                         visitor_fn: F)
                                      -> Option<(&mut Building, &Path)>
         where F: FnMut(&Building, &Path) -> bool
     {
@@ -607,7 +656,7 @@ impl SimContext {
                 for neighbor in neighbors {
                     if let Some(building) =
                         self.context
-                            .world()
+                            .world_mut()
                             .find_building_for_cell_mut(neighbor.cell, self.context.tile_map())
                     {
                         if building.is(self.building_kinds) {
@@ -653,13 +702,14 @@ impl SimContext {
             visited_nodes: SmallVec::new(),
         };
 
-        let result = self.search().find_buildings(self.graph(),
-                                                  &AStarUniformCostHeuristic::new(),
-                                                  &Unbiased::new(),
-                                                  &mut building_filter,
-                                                  traversable_node_kinds,
-                                                  Node::new(start),
-                                                  max_distance.unwrap_or(i32::MAX));
+        let result = self.search_mut().find_buildings(
+            self.graph(),
+            &AStarUniformCostHeuristic::new(),
+            &Unbiased::new(),
+            &mut building_filter,
+            traversable_node_kinds,
+            Node::new(start),
+            max_distance.unwrap_or(i32::MAX));
 
         match result {
             SearchResult::PathFound(path_found) => {
@@ -713,7 +763,6 @@ impl SimContext {
                                     Some(effect_radius),
                                     |_building, _path| {
                                         false // Stop iterating, we'll take the first match.
-                                    })
-            .is_some()
+                                    }).is_some()
     }
 }

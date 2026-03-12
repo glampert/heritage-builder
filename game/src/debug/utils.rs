@@ -648,7 +648,7 @@ mod preset_maps {
 
                     // Set a random terrain tile variation:
                     if tile.has_flags(TileFlags::RandomizePlacement) {
-                        tile.set_random_variation_index(context.rng());
+                        tile.set_random_variation_index(context.rng_mut());
                     }
                 }
             }

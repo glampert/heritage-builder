@@ -114,7 +114,7 @@ fn spawn_bird(context: &SimContext, flight_path: BirdFlightPath) {
         UnitTaskFollowPath {
             path,
             completion_callback: Callback::default(),
-            completion_task: context.task_manager().new_task(UnitTaskDespawn),
+            completion_task: context.task_manager_mut().new_task(UnitTaskDespawn),
             terminate_if_stuck: true,
         });
 
@@ -130,7 +130,7 @@ fn spawn_bird(context: &SimContext, flight_path: BirdFlightPath) {
 }
 
 fn spawn_bird_with_random_flight_path(context: &SimContext) {
-    let flight_path = BirdFlightPath::iter().choose(context.rng()).unwrap();
+    let flight_path = BirdFlightPath::iter().choose(context.rng_mut()).unwrap();
     spawn_bird(context, flight_path);
 }
 
@@ -153,7 +153,7 @@ fn make_left_to_right_randomized_path(context: &SimContext) -> Path {
             cell.y += 1;
         }
 
-        *cells.choose(context.rng()).unwrap()
+        *cells.choose(context.rng_mut()).unwrap()
     };
 
     let mut cell = randomized_spawn_point();
@@ -188,7 +188,7 @@ fn make_right_to_left_randomized_path(context: &SimContext) -> Path {
             cell.y += 1;
         }
 
-        *cells.choose(context.rng()).unwrap()
+        *cells.choose(context.rng_mut()).unwrap()
     };
 
     let mut cell = randomized_spawn_point();

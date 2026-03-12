@@ -116,7 +116,7 @@ impl Unit {
     }
 
     fn draw_debug_ui_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
-        context.task_manager().draw_tasks_debug_ui(self, context, ui_sys);
+        context.task_manager_mut().draw_tasks_debug_ui(self, context, ui_sys);
     }
 
     fn draw_debug_ui_navigation(&mut self, context: &SimContext, ui_sys: &UiSystem) {
@@ -127,7 +127,7 @@ impl Unit {
         }
 
         if let Some(dir) = ui::dpad_buttons(ui) {
-            let tile_map = context.tile_map();
+            let tile_map = context.tile_map_mut();
             match dir {
                 UiDPadDirection::NE => {
                     self.teleport(tile_map, Cell::new(self.cell().x + 1, self.cell().y));
@@ -191,7 +191,7 @@ impl Unit {
         }
 
         if ui.button("Push Minimap Alert") {
-            let minimap = context.tile_map().minimap_mut();
+            let minimap = context.tile_map_mut().minimap_mut();
             minimap.push_icon(MinimapIcon::Alert,
                               self.cell(),
                               Color::default(),
@@ -199,7 +199,7 @@ impl Unit {
         }
 
         if ui.button("Clear Current Task") {
-            self.assign_task(context.task_manager(), None);
+            self.assign_task(context.task_manager_mut(), None);
             self.follow_path(None);
         }
 
@@ -217,8 +217,8 @@ impl Unit {
         }
 
         if ui.button("Give Despawn Task") {
-            let task = context.task_manager().new_task(UnitTaskDespawn);
-            self.assign_task(context.task_manager(), task);
+            let task = context.task_manager_mut().new_task(UnitTaskDespawn);
+            self.assign_task(context.task_manager_mut(), task);
         }
 
         if ui.button("Force Despawn Immediately") {
@@ -232,7 +232,7 @@ impl Unit {
             return; // collapsed.
         }
 
-        let task_manager = context.task_manager();
+        let task_manager = context.task_manager_mut();
         let world = context.world();
 
         if ui.button("Give Deliver Resources Task") {
@@ -240,7 +240,7 @@ impl Unit {
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link(context).unwrap_or_default();
-                if self.teleport(context.tile_map(), start_cell) {
+                if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskDeliverToStorage {
                         origin_building: BuildingKindAndId {
@@ -269,11 +269,9 @@ impl Unit {
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let mut rng = rand::rng();
                 let resources_to_fetch =
-                    ShoppingList::from_items(&[StockItem { kind:
-                                                               ResourceKind::random(&mut rng),
-                                                           count: rng.random_range(1..5) }]);
+                    ShoppingList::from_items(&[StockItem { kind: ResourceKind::random(&mut rng), count: rng.random_range(1..5) }]);
                 let start_cell = building.road_link(context).unwrap_or_default();
-                if self.teleport(context.tile_map(), start_cell) {
+                if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskFetchFromStorage {
                         origin_building: BuildingKindAndId {
@@ -319,7 +317,7 @@ impl Unit {
             .step(0.1)
             .build();
 
-        let task_manager = context.task_manager();
+        let task_manager = context.task_manager_mut();
         let world = context.world();
 
         if ui.button("Give Patrol Task") {
@@ -327,7 +325,7 @@ impl Unit {
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link(context).unwrap_or_default();
-                if self.teleport(context.tile_map(), start_cell) {
+                if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskRandomizedPatrol {
                         origin_building: BuildingKindAndId {
@@ -397,7 +395,7 @@ impl Unit {
             self.set_traversable_node_kinds(traversable_node_kinds);
 
             let visit_building = |building: &Building, path: &Path| -> bool {
-                let tile_map = context.tile_map();
+                let tile_map = context.tile_map_mut();
 
                 log::info!("{} '{}' found. Path len: {}",
                            building.kind(),
@@ -448,7 +446,7 @@ impl Unit {
 
         ui.separator();
 
-        let task_manager = context.task_manager();
+        let task_manager = context.task_manager_mut();
 
         if ui.button("Find Vacant House Lot") && !traversable_node_kinds.is_empty() {
             self.set_traversable_node_kinds(traversable_node_kinds);
@@ -494,7 +492,7 @@ impl Unit {
             return; // collapsed.
         }
 
-        let task_manager = context.task_manager();
+        let task_manager = context.task_manager_mut();
         let world = context.world();
 
         if ui.button("Give Harvest Wood Task") {
@@ -502,7 +500,7 @@ impl Unit {
             // lumberyard placed on the map.
             if let Some(building) = world.find_building_by_name("Lumberyard", BuildingKind::Lumberyard) {
                 let start_cell = building.road_link(context).unwrap_or_default();
-                if self.teleport(context.tile_map(), start_cell) {
+                if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskHarvestWood {
                         origin_building: BuildingKindAndId {
@@ -595,7 +593,7 @@ fn unit_debug_settle_task_post_despawn(context: &SimContext,
                                                       tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
                                                       hash::fnv1a_from_str("house0"))
         {
-            match context.world().try_spawn_building_with_tile_def(context, unit_prev_cell, tile_def) {
+            match context.world_mut().try_spawn_building_with_tile_def(context, unit_prev_cell, tile_def) {
                 Ok(building) => {
                     debug_assert!(building.is(BuildingKind::House));
 

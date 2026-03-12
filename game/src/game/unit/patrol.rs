@@ -144,7 +144,7 @@ impl Patrol {
                 path_record,
                 buildings_to_visit,
                 completion_callback: callback::create!(Patrol::on_randomized_patrol_completed),
-                completion_task: context.sim_ctx.task_manager().new_task(UnitTaskDespawn),
+                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
                 idle_countdown: idle_countdown_secs.map(|countdown| (CountdownTimer::new(countdown), countdown)),
             }
         )
@@ -274,7 +274,7 @@ impl TimedAmbientPatrol {
     pub fn post_load(&mut self, context: &PostLoadContext, spawn_frequency_secs: [Seconds; 2]) {
         self.patrol.post_load();
 
-        let frequency_secs = Self::randomized_spawn_frequency(context.rng(), spawn_frequency_secs);
+        let frequency_secs = Self::randomized_spawn_frequency(context.rng_mut(), spawn_frequency_secs);
         self.spawn_timer.post_load(frequency_secs);
     }
 
@@ -295,7 +295,7 @@ impl TimedAmbientPatrol {
                 return false;
             }
 
-            let should_spawn = context.sim_ctx.rng().random_bool(chance as f64 / 100.0);
+            let should_spawn = context.sim_ctx.rng_mut().random_bool(chance as f64 / 100.0);
             if !should_spawn {
                 return false;
             }

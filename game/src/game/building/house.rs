@@ -704,7 +704,7 @@ impl HouseBuilding {
 
         // Employers of `house_to_merge` workers must now point to this house.
         house_to_merge.workers.as_household_worker_pool().unwrap()
-            .for_each_employer(context.sim_ctx.world(), |employer, employed_count| {
+            .for_each_employer(context.sim_ctx.world_mut(), |employer, employed_count| {
                 let prev_popups = employer.archetype_mut().debug_options().set_show_popups(false);
 
                 let removed_count = employer.remove_workers(employed_count, house_to_merge_kind_and_id);
@@ -737,7 +737,7 @@ impl HouseBuilding {
             return;
         }
 
-        let rng = context.sim_ctx.rng();
+        let rng = context.sim_ctx.rng_mut();
         let chance = self.current_level_config().population_increase_chance.min(100);
         let increase_population = rng.random_ratio(chance, 100);
 
@@ -800,7 +800,7 @@ impl HouseBuilding {
             let mut difference = curr_employed - new_employed;
             self.debug.popup_msg_color(Color::magenta(), format!("-{difference} workers"));
 
-            workers.for_each_employer_mut(context.sim_ctx.world(), |employer, employed_count| {
+            workers.for_each_employer_mut(context.sim_ctx.world_mut(), |employer, employed_count| {
                 let removed_count =
                     employer.remove_workers((*employed_count).min(difference), context.kind_and_id());
 

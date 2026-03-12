@@ -189,7 +189,7 @@ impl Settler {
             UnitConfigKey::Settler,
             UnitTaskSettler {
                 completion_callback: Callback::default(),
-                completion_task: context.task_manager().new_task(UnitTaskDespawnWithCallback {
+                completion_task: context.task_manager_mut().new_task(UnitTaskDespawnWithCallback {
                     // NOTE: We have to spawn the house building *after* the unit has
                     // despawned since we can't place a building over the unit tile.
                     post_despawn_callback: callback::create!(Settler::on_settled),
@@ -214,7 +214,7 @@ impl Settler {
 
         if settle_new_vacant_lot {
             if let Some(tile_def) = Self::find_house_tile_def(context) {
-                let world = context.world();
+                let world = context.world_mut();
                 match world.try_spawn_building_with_tile_def(context, unit_prev_cell, tile_def) {
                     Ok(building) => {
                         debug_assert!(building.is(BuildingKind::House));
