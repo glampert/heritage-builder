@@ -23,7 +23,7 @@ use crate::{
     },
     utils::{
         Color, Rect, RectEdges, Size, Vec2,
-        platform::paths, mem::{self, singleton, RawPtr}, fixed_string::format_fixed_string,
+        platform::paths, mem::{singleton, RawPtr}, fixed_string::format_fixed_string,
         coords::{self, Cell, CellF32, IsoPointF32, IsoDiamond, WorldToScreenTransform},
     },
 };
@@ -1095,53 +1095,12 @@ impl MinimapWidget {
 }
 
 // ----------------------------------------------
-// MinimapRenderer / MinimapRenderContext
+// MinimapRenderer
 // ----------------------------------------------
 
 pub trait MinimapRenderer {
     // Draw the minimap using ImGui, nestled inside its own window.
     fn draw(&mut self, context: &mut UiWidgetContext);
-}
-
-struct MinimapRenderContext<'game> {
-    ui_ctx: RawPtr<UiWidgetContext<'game>>,
-}
-
-impl<'game> MinimapRenderContext<'game> {
-    #[inline]
-    fn new(context: &mut UiWidgetContext<'game>) -> Self {
-        Self { ui_ctx: RawPtr::from_ref(context) }
-    }
-
-    #[inline]
-    fn minimap(&self) -> &Minimap {
-        self.ui_ctx.tile_map.minimap()
-    }
-
-    #[inline]
-    fn minimap_mut(&self) -> &mut Minimap {
-        mem::mut_ref_cast(self.ui_ctx.tile_map.minimap())
-    }
-
-    #[inline]
-    fn widget(&self) -> &MinimapWidget {
-        &self.minimap().widget
-    }
-
-    #[inline]
-    fn widget_mut(&self) -> &mut MinimapWidget {
-        &mut self.minimap_mut().widget
-    }
-
-    #[inline]
-    fn icons(&self) -> &[MinimapIconInstance] {
-        &self.minimap().icons
-    }
-
-    #[inline]
-    fn texture(&self) -> TextureHandle {
-        self.minimap().texture.handle
-    }
 }
 
 // ----------------------------------------------
@@ -1413,10 +1372,8 @@ impl BaseMinimapRenderer {
     fn draw<F>(&mut self, context: &mut UiWidgetContext, custom_draw_fn: F)
         where F: FnOnce(&mut UiWidgetContext)
     {
-        let render_ctx = MinimapRenderContext::new(context);
-
-        debug_assert!(render_ctx.widget().window_rect.is_valid());
-        debug_assert!(render_ctx.widget().draw_data.is_valid());
+        debug_assert!(context.tile_map.minimap.widget.window_rect.is_valid());
+        debug_assert!(context.tile_map.minimap.widget.draw_data.is_valid());
 
         // NOTE: Menus have to be lazily created because we only
         // have the full minimap widget state after the first update.
@@ -1424,7 +1381,8 @@ impl BaseMinimapRenderer {
             self.create_menus(context);
         }
 
-        let is_minimap_open = render_ctx.widget().is_open && self.is_minimap_menu_open();
+        let is_minimap_open = context.tile_map.minimap.widget.is_open
+            && self.is_minimap_menu_open();
 
         if is_minimap_open {
             // Draw minimap widget:
@@ -1454,7 +1412,7 @@ impl BaseMinimapRenderer {
             self.open_button_menu.as_mut().unwrap().draw(context);
         }
 
-        render_ctx.widget_mut().is_open = self.is_minimap_menu_open();
+        context.tile_map.minimap.widget.is_open = self.is_minimap_menu_open();
     }
 
     fn draw_minimap(&mut self, context: &mut UiWidgetContext) {
@@ -1464,12 +1422,11 @@ impl BaseMinimapRenderer {
 
     fn draw_minimap_texture_rect(&mut self, context: &mut UiWidgetContext) {
         let draw_list = context.ui_sys.ui().get_window_draw_list();
-        let render_ctx = MinimapRenderContext::new(context);
-        let widget = render_ctx.widget();
+        let widget = &context.tile_map.minimap.widget;
 
         let draw_minimap_texture = || {
             let minimap_texture_handle =
-                context.ui_sys.to_ui_texture(render_ctx.texture());
+                context.ui_sys.to_ui_texture(context.tile_map.minimap.texture.handle);
 
             let (uv_min, uv_max) = widget.current_minimap_uv_window();
             let minimap_corners = widget.draw_data.corners();
@@ -1505,8 +1462,7 @@ impl BaseMinimapRenderer {
 
     fn draw_camera_overlay_rect(&mut self, context: &mut UiWidgetContext) {
         let draw_list = context.ui_sys.ui().get_window_draw_list();
-        let render_ctx = MinimapRenderContext::new(context);
-        let widget = render_ctx.widget();
+        let widget = &context.tile_map.minimap.widget;
 
         let clip_rect = widget.draw_data.clip_rect();
         let camera_rect = widget.camera_rect;
@@ -1524,15 +1480,13 @@ impl BaseMinimapRenderer {
     }
 
     fn draw_icons(&mut self, context: &mut UiWidgetContext) {
-        let render_ctx = MinimapRenderContext::new(context);
-
-        let icons = render_ctx.icons();
+        let icons = &context.tile_map.minimap.icons;
         if icons.is_empty() {
             return;
         }
 
         let draw_list = context.ui_sys.ui().get_window_draw_list();
-        let widget = render_ctx.widget();
+        let widget = &context.tile_map.minimap.widget;
         let clip_rect = widget.draw_data.clip_rect();
 
         let draw_all_icons = || {
@@ -1659,8 +1613,7 @@ impl DevUiMinimapRenderer {
         }
 
         let draw_list  = context.ui_sys.ui().get_window_draw_list();
-        let render_ctx = MinimapRenderContext::new(context);
-        let widget     = render_ctx.widget();
+        let widget     = &context.tile_map.minimap.widget;
         let cursor_pos = widget.cursor_pos;
         let clip_rect  = widget.draw_data.clip_rect();
 
@@ -1698,8 +1651,7 @@ impl DevUiMinimapRenderer {
         }
 
         let draw_list = context.ui_sys.ui().get_window_draw_list();
-        let render_ctx = MinimapRenderContext::new(context);
-        let widget = render_ctx.widget();
+        let widget = &context.tile_map.minimap.widget;
 
         let camera_rect = widget.camera_rect;
         let camera_near_playable_area_limits = !widget.camera_rect_edges_near_playable_map_area_limits().is_empty();
@@ -1761,9 +1713,7 @@ impl DevUiMinimapRenderer {
             return;
         }
 
-        let render_ctx = MinimapRenderContext::new(context);
-        let widget = render_ctx.widget();
-
+        let widget = &context.tile_map.minimap.widget;
         if !widget.is_open {
             return;
         }
@@ -1795,18 +1745,19 @@ impl DevUiMinimapRenderer {
             .position(window_pos, imgui::Condition::FirstUseEver)
             .always_auto_resize(true)
             .build(|| {
+                let widget_mut = &mut context.tile_map.minimap.widget;
+
                 let camera_center_iso = context.camera.iso_world_position();
                 let camera_center_cell = coords::iso_to_cell_f32(camera_center_iso);
 
                 let camera_edges_near_playable_area_limits =
-                    widget.camera_rect_edges_near_playable_map_area_limits();
+                    widget_mut.camera_rect_edges_near_playable_map_area_limits();
 
                 let visible_cells = MinimapWidget::calc_minimap_visible_cells(
-                    widget.map_size_in_cells,
-                    widget.transform.zoom());
+                    widget_mut.map_size_in_cells,
+                    widget_mut.transform.zoom());
 
-                let (uv_min, uv_max) = widget.current_minimap_uv_window();
-                let widget_mut = render_ctx.widget_mut();
+                let (uv_min, uv_max) = widget_mut.current_minimap_uv_window();
 
                 if ui.small_button("Reset") {
                     context.camera.center();
