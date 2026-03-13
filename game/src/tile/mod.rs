@@ -2816,7 +2816,7 @@ impl Save for TileMap {
 }
 
 impl Load for TileMap {
-    fn pre_load(&mut self, context: &PreLoadContext) {
+    fn pre_load(&mut self, context: &mut PreLoadContext) {
         self.minimap.pre_load(context);
     }
 
@@ -2824,7 +2824,7 @@ impl Load for TileMap {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext) {
+    fn post_load(&mut self, context: &mut PostLoadContext) {
         debug_assert!(self.size_in_cells >= Size::zero());
 
         // These are *not* serialized, so should be unset.

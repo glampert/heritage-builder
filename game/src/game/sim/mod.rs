@@ -318,7 +318,7 @@ impl Save for Simulation {
 }
 
 impl Load for Simulation {
-    fn pre_load(&mut self, _context: &PreLoadContext) {
+    fn pre_load(&mut self, _context: &mut PreLoadContext) {
         self.task_manager.pre_load();
     }
 
@@ -326,7 +326,7 @@ impl Load for Simulation {
         state.load(self)
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext) {
+    fn post_load(&mut self, _context: &mut PostLoadContext) {
         self.search = Search::with_graph(&self.graph);
         self.update_timer.post_load(GameConfigs::get().sim.update_frequency_secs);
         self.task_manager.post_load();

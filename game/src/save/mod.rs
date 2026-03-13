@@ -20,9 +20,9 @@ pub trait Save {
 }
 
 pub trait Load {
-    fn pre_load(&mut self, _context: &PreLoadContext) {}
+    fn pre_load(&mut self, _context: &mut PreLoadContext) {}
     fn load(&mut self, _state: &SaveStateImpl) -> LoadResult { Ok(()) }
-    fn post_load(&mut self, _context: &PostLoadContext) {}
+    fn post_load(&mut self, _context: &mut PostLoadContext) {}
 }
 
 // ----------------------------------------------
@@ -71,8 +71,8 @@ impl<'game> PreLoadContext<'game> {
     }
 
     #[inline]
-    pub fn engine_mut(&self) -> &mut dyn Engine {
-        mem::mut_ref_cast(self.engine)
+    pub fn engine_mut(&mut self) -> &mut dyn Engine {
+        self.engine
     }
 }
 
@@ -93,8 +93,8 @@ impl<'game> PostLoadContext<'game> {
     }
 
     #[inline]
-    pub fn rng_mut(&self) -> &mut RandomGenerator {
-        self.rng.mut_ref_cast()
+    pub fn rng_mut(&mut self) -> &mut RandomGenerator {
+        &mut self.rng
     }
 
     #[inline]
@@ -103,8 +103,8 @@ impl<'game> PostLoadContext<'game> {
     }
 
     #[inline]
-    pub fn engine_mut(&self) -> &mut dyn Engine {
-        mem::mut_ref_cast(self.engine)
+    pub fn engine_mut(&mut self) -> &mut dyn Engine {
+        self.engine
     }
 
     #[inline]
@@ -113,8 +113,8 @@ impl<'game> PostLoadContext<'game> {
     }
 
     #[inline]
-    pub fn tile_map_mut(&self) -> &mut TileMap {
-        mem::mut_ref_cast(&self.tile_map)
+    pub fn tile_map_mut(&mut self) -> &mut TileMap {
+        &mut self.tile_map
     }
 
     #[inline]

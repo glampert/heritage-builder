@@ -125,7 +125,7 @@ impl GameObject for Unit {
         }
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext) {
+    fn post_load(&mut self, _context: &mut PostLoadContext) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.tile_index.is_valid());
 

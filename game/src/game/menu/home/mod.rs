@@ -159,7 +159,7 @@ impl Drop for HomeMenus {
 
 impl Save for HomeMenus {}
 impl Load for HomeMenus {
-    fn pre_load(&mut self, _context: &PreLoadContext) {
+    fn pre_load(&mut self, _context: &mut PreLoadContext) {
         dialog::reset();
     }
 }

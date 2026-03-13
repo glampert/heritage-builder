@@ -199,12 +199,11 @@ impl BuildingBehavior for ServiceBuilding {
     }
 
     fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
-        // TODO: Do we need anything here? Deliveries are handled by the task completion
-        // callback...
+        // TODO: Do we need anything here? Deliveries are handled by the task completion callback...
         unimplemented!("ServiceBuilding::visited_by() not yet implemented!");
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, _context: &mut PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::services()));
         self.patrol.post_load();
 

@@ -90,7 +90,7 @@ impl GameSystem for AmbientSoundsSystem {
             return;
         }
 
-        let sound_sys = engine.sound_system();
+        let sound_sys = engine.sound_system_mut();
 
         if !self.sounds_are_loaded() {
             self.load_sounds(sound_sys);
@@ -106,10 +106,10 @@ impl GameSystem for AmbientSoundsSystem {
     }
 
     fn reset(&mut self, engine: &mut dyn Engine) {
-        self.stop_sounds(engine.sound_system());
+        self.stop_sounds(engine.sound_system_mut());
     }
 
-    fn post_load(&mut self, context: &PostLoadContext) {
+    fn post_load(&mut self, context: &mut PostLoadContext) {
         // Just reset and stop whatever is playing.
         // Next update will take care of starting a new sound.
         self.reset(context.engine_mut());

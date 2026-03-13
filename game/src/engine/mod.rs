@@ -1,8 +1,6 @@
 #![allow(clippy::mut_from_ref)]
 
 use std::{marker::PhantomData, any::Any};
-use config::EngineConfigs;
-use time::{FrameClock, Seconds};
 
 use crate::{
     log,
@@ -24,10 +22,13 @@ use crate::{
         TileMap, camera::Camera,
     },
     utils::{
-        coords::CellRange, mem::{self, RcMut},
+        coords::CellRange, mem::RcMut,
         Color, Rect, RectTexCoords, Vec2,
     },
 };
+
+use config::EngineConfigs;
+use time::{FrameClock, Seconds};
 
 pub mod config;
 pub mod time;
@@ -44,26 +45,47 @@ pub mod backend {
 }
 
 // ----------------------------------------------
+// EngineSystemsMutRefs
+// ----------------------------------------------
+
+pub struct EngineSystemsMutRefs<'game> {
+    pub ui_sys: &'game UiSystem,
+    pub input_sys: &'game dyn InputSystem,
+    pub sound_sys: &'game mut SoundSystem,
+    pub render_sys: &'game mut dyn RenderSystem,
+}
+
+// ----------------------------------------------
 // Engine
 // ----------------------------------------------
 
 pub trait Engine: Any {
     fn as_any(&self) -> &dyn Any;
+    fn systems_mut_refs(&mut self) -> EngineSystemsMutRefs<'_>;
 
-    fn app(&self) -> &mut dyn Application;
+    fn app(&self) -> &dyn Application;
+    fn app_mut(&mut self) -> &mut dyn Application;
+
+    fn render_system(&self) -> &dyn RenderSystem;
+    fn render_system_mut(&mut self) -> &mut dyn RenderSystem;
+
+    fn texture_cache(&self) -> &dyn TextureCache;
+    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache;
+
+    fn debug_draw(&self) -> &dyn DebugDraw;
+    fn debug_draw_mut(&mut self) -> &mut dyn DebugDraw;
+
+    fn sound_system(&self) -> &SoundSystem;
+    fn sound_system_mut(&mut self) -> &mut SoundSystem;
+
     fn input_system(&self) -> &dyn InputSystem;
-
-    fn render_system(&self) -> &mut dyn RenderSystem;
-    fn texture_cache(&self) -> &mut dyn TextureCache;
-    fn render_stats(&self) -> &RenderStats;
-    fn tile_map_render_stats(&self) -> &TileMapRenderStats;
-
     fn ui_system(&self) -> &UiSystem;
-    fn sound_system(&self) -> &mut SoundSystem;
-    fn debug_draw(&self) -> &mut dyn DebugDraw;
 
     fn frame_clock(&self) -> &FrameClock;
     fn viewport(&self) -> Rect;
+
+    fn render_stats(&self) -> &RenderStats;
+    fn tile_map_render_stats(&self) -> &TileMapRenderStats;
 
     fn set_grid_line_thickness(&mut self, thickness: f32);
     fn grid_line_thickness(&self) -> f32;
@@ -86,10 +108,7 @@ pub trait Engine: Any {
 // EngineBackend
 // ----------------------------------------------
 
-pub struct EngineBackend<AppBackendImpl,
-                         InputSystemBackendImpl,
-                         RenderSystemBackendImpl>
-{
+pub struct EngineBackend<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> {
     app: RcMut<AppBackendImpl>,
 
     render_system: RcMut<RenderSystemBackendImpl>,
@@ -105,13 +124,11 @@ pub struct EngineBackend<AppBackendImpl,
     frame_clock: FrameClock,
     frame_events: ApplicationEventList,
 
-    _input_marker: PhantomData<InputSystemBackendImpl>,
+    _input_system: PhantomData<InputSystemBackendImpl>,
 }
 
 impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
-    EngineBackend<AppBackendImpl,
-                  InputSystemBackendImpl,
-                  RenderSystemBackendImpl>
+    EngineBackend<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
     where AppBackendImpl: Application + ApplicationFactory + 'static,
           InputSystemBackendImpl: InputSystem + 'static,
           RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
@@ -167,7 +184,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
             debug_draw,
             frame_clock: FrameClock::new(),
             frame_events: ApplicationEventList::new(),
-            _input_marker: PhantomData,
+            _input_system: PhantomData,
         }
     }
 
@@ -215,9 +232,7 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
 }
 
 impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
-    for EngineBackend<AppBackendImpl,
-                      InputSystemBackendImpl,
-                      RenderSystemBackendImpl>
+    for EngineBackend<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
     where AppBackendImpl: Application + ApplicationFactory + 'static,
           InputSystemBackendImpl: InputSystem + 'static,
           RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
@@ -228,8 +243,63 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
     }
 
     #[inline]
-    fn app(&self) -> &mut dyn Application {
-        mem::mut_ref_cast(self.app.as_ref())
+    fn systems_mut_refs(&mut self) -> EngineSystemsMutRefs<'_> {
+        EngineSystemsMutRefs {
+            ui_sys: &self.ui_system,
+            input_sys: self.app.input_system(),
+            sound_sys: &mut self.sound_system,
+            render_sys: &mut *self.render_system,
+        }
+    }
+
+    #[inline]
+    fn app(&self) -> &dyn Application {
+        &*self.app
+    }
+
+    #[inline]
+    fn app_mut(&mut self) -> &mut dyn Application {
+        &mut *self.app
+    }
+
+    #[inline]
+    fn render_system(&self) -> &dyn RenderSystem {
+        &*self.render_system
+    }
+
+    #[inline]
+    fn render_system_mut(&mut self) -> &mut dyn RenderSystem {
+        &mut *self.render_system
+    }
+
+    #[inline]
+    fn texture_cache(&self) -> &dyn TextureCache {
+        self.render_system.texture_cache()
+    }
+
+    #[inline]
+    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache {
+        self.render_system.texture_cache_mut()
+    }
+
+    #[inline]
+    fn debug_draw(&self) -> &dyn DebugDraw {
+        &self.debug_draw
+    }
+
+    #[inline]
+    fn debug_draw_mut(&mut self) -> &mut dyn DebugDraw {
+        &mut self.debug_draw
+    }
+
+    #[inline]
+    fn sound_system(&self) -> &SoundSystem {
+        &self.sound_system
+    }
+
+    #[inline]
+    fn sound_system_mut(&mut self) -> &mut SoundSystem {
+        &mut self.sound_system
     }
 
     #[inline]
@@ -238,38 +308,8 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
     }
 
     #[inline]
-    fn render_system(&self) -> &mut dyn RenderSystem {
-        mem::mut_ref_cast(self.render_system.as_ref())
-    }
-
-    #[inline]
-    fn render_stats(&self) -> &RenderStats {
-        &self.render_stats
-    }
-
-    #[inline]
-    fn tile_map_render_stats(&self) -> &TileMapRenderStats {
-        &self.tile_map_render_stats
-    }
-
-    #[inline]
-    fn texture_cache(&self) -> &mut dyn TextureCache {
-        mem::mut_ref_cast(self.render_system.as_ref()).texture_cache_mut()
-    }
-
-    #[inline]
     fn ui_system(&self) -> &UiSystem {
         &self.ui_system
-    }
-
-    #[inline]
-    fn sound_system(&self) -> &mut SoundSystem {
-        mem::mut_ref_cast(&self.sound_system)
-    }
-
-    #[inline]
-    fn debug_draw(&self) -> &mut dyn DebugDraw {
-        mem::mut_ref_cast(&self.debug_draw)
     }
 
     #[inline]
@@ -280,6 +320,16 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
     #[inline]
     fn viewport(&self) -> Rect {
         self.render_system.viewport()
+    }
+
+    #[inline]
+    fn render_stats(&self) -> &RenderStats {
+        &self.render_stats
+    }
+
+    #[inline]
+    fn tile_map_render_stats(&self) -> &TileMapRenderStats {
+        &self.tile_map_render_stats
     }
 
     #[inline]
@@ -307,8 +357,10 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
         self.frame_events = self.poll_app_events();
 
         // Pass in the concrete InputSystem implementation to UiSystem.
-        let input_sys =
-            self.app.input_system().as_any().downcast_ref::<InputSystemBackendImpl>().unwrap();
+        let input_sys = self.app.input_system()
+            .as_any()
+            .downcast_ref::<InputSystemBackendImpl>()
+            .unwrap();
 
         self.render_system.begin_frame(self.app.window_size(), self.app.framebuffer_size());
         self.ui_system.begin_frame(&*self.app, input_sys, self.frame_clock.delta_time());
@@ -353,7 +405,9 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
 // ----------------------------------------------
 
 pub trait DebugDraw {
-    fn texture_cache(&self) -> &mut dyn TextureCache;
+    fn texture_cache(&self) -> &dyn TextureCache;
+    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache;
+
     fn point(&mut self, pt: Vec2, color: Color, size: f32);
 
     fn line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color);
@@ -390,8 +444,13 @@ impl<RenderSystemBackendImpl> DebugDraw for DebugDrawBackend<RenderSystemBackend
     where RenderSystemBackendImpl: RenderSystem
 {
     #[inline]
-    fn texture_cache(&self) -> &mut dyn TextureCache {
-        mem::mut_ref_cast(&self.render_system).texture_cache_mut()
+    fn texture_cache(&self) -> &dyn TextureCache {
+        self.render_system.texture_cache()
+    }
+
+    #[inline]
+    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache {
+        self.render_system.texture_cache_mut()
     }
 
     #[inline]

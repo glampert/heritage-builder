@@ -60,7 +60,7 @@ impl GameSystem for SettlersSpawnSystem {
         self.spawn_timer.reset();
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext) {
+    fn post_load(&mut self, _context: &mut PostLoadContext) {
         let configs = GameConfigs::get();
         self.spawn_timer.post_load(configs.sim.settlers_spawn_frequency_secs);
     }

@@ -83,7 +83,9 @@ struct GameSession {
 }
 
 impl GameSession {
-    fn new(load_map_setting: &LoadMapSetting, viewport_size: Size, engine: &dyn Engine, home_menu: bool) -> Self {
+    fn new(engine: &mut dyn Engine, load_map_setting: &LoadMapSetting, home_menu: bool) -> Self {
+        let viewport_size = engine.viewport().integer_size();
+
         if !viewport_size.is_valid() {
             panic!("Invalid game viewport size!");
         }
@@ -125,7 +127,7 @@ impl GameSession {
         session
     }
 
-    fn new_game_menus(&mut self, engine: &dyn Engine, menu_mode: GameMenusMode) -> Box<dyn GameMenusSystem> {
+    fn new_game_menus(&mut self, engine: &mut dyn Engine, menu_mode: GameMenusMode) -> Box<dyn GameMenusSystem> {
         let tile_map_rc = self.tile_map.clone();
 
         let mut context = UiWidgetContext::new(
@@ -153,7 +155,7 @@ impl GameSession {
         }
     }
 
-    fn new_game_menus_from_config(&mut self, engine: &dyn Engine, home_menu: bool) -> Box<dyn GameMenusSystem> {
+    fn new_game_menus_from_config(&mut self, engine: &mut dyn Engine, home_menu: bool) -> Box<dyn GameMenusSystem> {
         let configs = GameConfigs::get();
         let menu_mode = {
             if configs.debug.skip_home_menu || !home_menu {
@@ -169,7 +171,7 @@ impl GameSession {
         self.new_game_menus(engine, menu_mode)
     }
 
-    fn toggle_menus_mode(&mut self, engine: &dyn Engine) {
+    fn toggle_menus_mode(&mut self, engine: &mut dyn Engine) {
         if let Some(mode) = self.current_menus_mode() {
             match mode {
                 GameMenusMode::DevEditor => {
@@ -232,10 +234,9 @@ impl GameSession {
         RcMut::new(tile_map)
     }
 
-    fn load_preset_map(preset_number: usize, viewport_size: Size, engine: &dyn Engine) -> Self {
+    fn load_preset_map(engine: &mut dyn Engine, preset_number: usize) -> Self {
         // Override GameConfigs.load_map_setting
-        let load_map_setting = LoadMapSetting::Preset { preset_number };
-        Self::new(&load_map_setting, viewport_size, engine, false)
+        Self::new(engine, &LoadMapSetting::Preset { preset_number }, false)
     }
 
     fn reset(&mut self,
@@ -243,8 +244,10 @@ impl GameSession {
              reset_map: bool,
              reset_map_with_tile_def: Option<&'static TileDef>,
              new_map_size: Option<Size>,
-             home_menu: bool) {
+             home_menu: bool)
+    {
         undo_redo::clear();
+
         self.tile_selection = TileSelection::default();
         self.menus = Some(self.new_game_menus_from_config(engine, home_menu));
         self.sim.reset_world(engine, &mut self.world, &mut self.systems, &mut self.tile_map);
@@ -254,13 +257,14 @@ impl GameSession {
 
             if reset_map_with_tile_def.is_some() {
                 // Randomize terrain tiles.
-                self.tile_map.for_each_tile_mut(TileMapLayerKind::Terrain,
-                                                TileKind::Terrain,
-                                                |terrain| {
-                                                    if terrain.has_flags(TileFlags::RandomizePlacement) {
-                                                        terrain.set_random_variation_index(&mut rand::rng());
-                                                    }
-                                                });
+                self.tile_map.for_each_tile_mut(
+                    TileMapLayerKind::Terrain,
+                    TileKind::Terrain,
+                    |terrain| {
+                        if terrain.has_flags(TileFlags::RandomizePlacement) {
+                            terrain.set_random_variation_index(&mut rand::rng());
+                        }
+                    });
             }
 
             log::info!(log::channel!("session"),
@@ -313,7 +317,7 @@ impl Save for GameSession {
 }
 
 impl Load for GameSession {
-    fn pre_load(&mut self, context: &PreLoadContext) {
+    fn pre_load(&mut self, context: &mut PreLoadContext) {
         self.tile_map.pre_load(context);
         self.world.pre_load(context);
         self.sim.pre_load(context);
@@ -330,7 +334,7 @@ impl Load for GameSession {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext) {
+    fn post_load(&mut self, context: &mut PostLoadContext) {
         undo_redo::clear();
 
         self.tile_map.post_load(context);
@@ -340,7 +344,7 @@ impl Load for GameSession {
         self.camera.post_load(context);
         self.tile_selection.post_load(context);
 
-        let mut menus = self.new_game_menus_from_config(context.engine(), false);
+        let mut menus = self.new_game_menus_from_config(context.engine_mut(), false);
         menus.post_load(context);
         self.menus = Some(menus);
     }
@@ -430,9 +434,9 @@ impl GameSession {
 
         let engine = GameLoop::get_mut().engine_mut();
 
-        self.pre_load(&PreLoadContext::new(engine));
+        self.pre_load(&mut PreLoadContext::new(engine));
         *self = session;
-        self.post_load(&PostLoadContext::new(engine, &self.sim, self.tile_map.clone()));
+        self.post_load(&mut PostLoadContext::new(engine, &self.sim, self.tile_map.clone()));
 
         if GameConfigs::get().sim.start_paused {
             self.sim.pause();
@@ -504,8 +508,8 @@ impl GameLoop {
         let configs = GameConfigs::load();
 
         // Boot the engine and load assets:
-        let engine = Self::init_engine(&configs.engine);
-        Self::load_assets(engine.texture_cache(), configs);
+        let mut engine = Self::init_engine(&configs.engine);
+        Self::load_assets(engine.texture_cache_mut(), configs);
 
         // Global initialization:
         cheats::initialize();
@@ -513,7 +517,7 @@ impl GameLoop {
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
 
-        let session = Self::create_session(configs, &*engine);
+        let session = Self::create_session(configs, &mut *engine);
         let game_loop = Self {
             engine,
             session,
@@ -640,7 +644,7 @@ impl GameLoop {
 
     #[inline]
     pub fn quit_game(&mut self) {
-        self.engine_mut().app().request_quit();
+        self.engine_mut().app_mut().request_quit();
     }
 
     pub fn update(&mut self) {
@@ -667,7 +671,7 @@ impl GameLoop {
 
         // Sound System Update:
         let listener_position = self.camera().iso_world_position();
-        self.engine.sound_system().update(listener_position);
+        self.engine.sound_system_mut().update(listener_position);
 
         self.engine.end_frame();
     }
@@ -714,7 +718,7 @@ impl GameLoop {
                     && key == InputKey::Slash
                     && modifiers.intersects(InputModifiers::Control)
                 {
-                    self.session.toggle_menus_mode(&*self.engine);
+                    self.session.toggle_menus_mode(&mut *self.engine);
                     input_event = UiInputEvent::Handled;
                 }
 
@@ -773,14 +777,12 @@ impl GameLoop {
                      delta_time_secs: Seconds,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags) {
-        let tex_cache = self.engine.texture_cache();
-        let input_sys = self.engine.input_system();
-        let ui_sys = self.engine.ui_system();
+        let systems = self.engine.systems_mut_refs();
 
         self.session.tile_map.minimap_mut().update(&mut self.session.camera,
-                                                   tex_cache,
-                                                   input_sys,
-                                                   ui_sys,
+                                                   systems.render_sys.texture_cache_mut(),
+                                                   systems.input_sys,
+                                                   systems.ui_sys,
                                                    delta_time_secs);
 
         self.engine.draw_tile_map(&self.session.tile_map,
@@ -835,10 +837,7 @@ impl GameLoop {
 
     fn session_cmd_load_preset(&mut self, preset_number: usize) {
         Self::terminate_session(&mut self.session, &mut *self.engine);
-
-        let viewport_size = self.engine.viewport().integer_size();
-        self.session = Box::new(GameSession::load_preset_map(preset_number, viewport_size, self.engine()));
-
+        self.session = Box::new(GameSession::load_preset_map(&mut *self.engine, preset_number));
         log::info!(log::channel!("game"), "--- Game Session created ---");
     }
 
@@ -854,15 +853,13 @@ impl GameLoop {
 
     fn session_cmd_quit_to_main_menu(&mut self) {
         Self::terminate_session(&mut self.session, &mut *self.engine);
-        self.session = Self::create_session(GameConfigs::get(), &*self.engine);
+        self.session = Self::create_session(GameConfigs::get(), &mut *self.engine);
     }
 
-    fn create_session(configs: &GameConfigs, engine: &dyn Engine) -> Box<GameSession> {
+    fn create_session(configs: &GameConfigs, engine: &mut dyn Engine) -> Box<GameSession> {
         let load_map_setting = &configs.save.load_map_setting;
-        let viewport_size = engine.viewport().integer_size();
         let home_menu = !configs.debug.skip_home_menu;
-
-        let session = GameSession::new(load_map_setting, viewport_size, engine, home_menu);
+        let session = GameSession::new(engine, load_map_setting, home_menu);
         log::info!(log::channel!("game"), "--- Game Session created ---");
         Box::new(session)
     }
@@ -884,7 +881,7 @@ impl GameLoop {
                 &mut self.session.tile_map,
                 &mut self.session.tile_selection,
                 &mut self.session.camera,
-                &*self.engine
+                &mut *self.engine
             ));
             menus.selected_render_flags()
         } else {
@@ -900,7 +897,7 @@ impl GameLoop {
                 &mut self.session.tile_map,
                 &mut self.session.tile_selection,
                 &mut self.session.camera,
-                &*self.engine
+                &mut *self.engine
             ),
             visible_range);
         }
@@ -918,7 +915,7 @@ impl GameLoop {
                 &mut self.session.tile_map,
                 &mut self.session.tile_selection,
                 &mut self.session.camera,
-                &*self.engine
+                &mut *self.engine
             ),
             GameMenusInputArgs::Key { key, action, modifiers })
         } else {
@@ -938,7 +935,7 @@ impl GameLoop {
                 &mut self.session.tile_map,
                 &mut self.session.tile_selection,
                 &mut self.session.camera,
-                &*self.engine
+                &mut *self.engine
             ),
             GameMenusInputArgs::Mouse { button, action, modifiers })
         } else {
@@ -954,7 +951,7 @@ impl GameLoop {
                 &mut self.session.tile_map,
                 &mut self.session.tile_selection,
                 &mut self.session.camera,
-                &*self.engine
+                &mut *self.engine
             ),
             GameMenusInputArgs::Scroll { amount })
         } else {

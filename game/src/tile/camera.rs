@@ -677,7 +677,7 @@ impl Load for Camera {
         state.load(self)
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext) {
+    fn post_load(&mut self, _context: &mut PostLoadContext) {
         // Stop zooming and snap to target zoom.
         self.current_zoom = self.target_zoom;
         self.is_zooming = false;

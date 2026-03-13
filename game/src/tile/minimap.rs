@@ -420,8 +420,8 @@ impl Minimap {
     }
 
     #[inline]
-    pub fn pre_load(&mut self, context: &PreLoadContext) {
-        self.texture.pre_load(context.engine().texture_cache());
+    pub fn pre_load(&mut self, context: &mut PreLoadContext) {
+        self.texture.pre_load(context.engine_mut().texture_cache_mut());
         self.icons.clear();
     }
 

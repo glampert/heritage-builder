@@ -114,7 +114,7 @@ impl Drop for InGameMenus {
 
 impl Save for InGameMenus {}
 impl Load for InGameMenus {
-    fn pre_load(&mut self, _context: &PreLoadContext) {
+    fn pre_load(&mut self, _context: &mut PreLoadContext) {
         dialog::reset();
     }
 }

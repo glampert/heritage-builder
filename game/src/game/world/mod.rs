@@ -957,7 +957,7 @@ impl Load for World {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext) {
+    fn post_load(&mut self, context: &mut PostLoadContext) {
         self.stats.reset();
 
         for unit in self.unit_spawn_pool.iter_mut() {

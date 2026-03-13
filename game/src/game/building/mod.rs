@@ -281,7 +281,7 @@ impl GameObject for Building {
         self.archetype().tally(stats, self.kind);
     }
 
-    fn post_load(&mut self, context: &PostLoadContext) {
+    fn post_load(&mut self, context: &mut PostLoadContext) {
         debug_assert!(self.is_spawned());
 
         self.workers_update_timer.post_load(GameConfigs::get().sim.workers_update_frequency_secs);
@@ -289,10 +289,10 @@ impl GameObject for Building {
         let kind = self.kind();
         debug_assert!(kind.is_single_building());
 
-        let tile =
-            context.tile_map()
-                   .find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
-                   .unwrap();
+        let tile_map = context.tile_map_rc();
+        let tile = tile_map
+            .find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+            .unwrap();
         debug_assert!(tile.is_valid());
 
         self.archetype_mut().post_load(context, kind, tile);
@@ -1153,7 +1153,7 @@ trait BuildingBehavior {
     fn update(&mut self, context: &BuildingContext);
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);
 
-    fn post_load(&mut self, context: &PostLoadContext, kind: BuildingKind, tile: &Tile);
+    fn post_load(&mut self, context: &mut PostLoadContext, kind: BuildingKind, tile: &Tile);
 
     // ----------------------
     // Resources/Stock:

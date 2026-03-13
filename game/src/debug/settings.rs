@@ -537,7 +537,7 @@ impl DebugSettingsDevMenu {
           .position([500.0, 20.0], imgui::Condition::FirstUseEver)
           .size([300.0, 150.0], imgui::Condition::FirstUseEver)
           .build(|| {
-              let tex_cache = GameLoop::get_mut().engine_mut().texture_cache();
+              let tex_cache = GameLoop::get_mut().engine_mut().texture_cache_mut();
               tex_cache.draw_debug_ui(context.ui_sys);
           });
     }
@@ -550,7 +550,7 @@ impl DebugSettingsDevMenu {
           .position([350.0, 20.0], imgui::Condition::FirstUseEver)
           .size([500.0, 400.0], imgui::Condition::FirstUseEver)
           .build(|| {
-              let sound_sys = GameLoop::get_mut().engine_mut().sound_system();
+              let sound_sys = GameLoop::get_mut().engine_mut().sound_system_mut();
               sound_sys.draw_debug_ui(context.ui_sys);
           });
     }

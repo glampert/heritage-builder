@@ -49,7 +49,7 @@ impl GameSystem for AmbientEffectsSystem {
         self.bird_spawn_timer.reset();
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext) {
+    fn post_load(&mut self, _context: &mut PostLoadContext) {
         let configs = GameConfigs::get();
         self.bird_spawn_timer.post_load(configs.sim.birds_spawn_frequency);
     }

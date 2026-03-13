@@ -265,7 +265,7 @@ impl BuildingBehavior for ProducerBuilding {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext, kind: BuildingKind, tile: &Tile) {
+    fn post_load(&mut self, context: &mut PostLoadContext, kind: BuildingKind, tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::producers()));
 
         let tile_def = tile.tile_def();

@@ -103,7 +103,7 @@ impl Drop for DevEditorMenus {
 impl Save for DevEditorMenus {}
 
 impl Load for DevEditorMenus {
-    fn pre_load(&mut self, _context: &PreLoadContext) {
+    fn pre_load(&mut self, _context: &mut PreLoadContext) {
         // Make sure tile inspector is closed.
         DevEditorMenusSingleton::get_mut().close_tile_inspector();
 
@@ -111,7 +111,7 @@ impl Load for DevEditorMenus {
         remove_tile_map_debug_callbacks();
     }
 
-    fn post_load(&mut self, context: &PostLoadContext) {
+    fn post_load(&mut self, context: &mut PostLoadContext) {
         // Make sure tile inspector is closed.
         DevEditorMenusSingleton::get_mut().close_tile_inspector();
 
@@ -160,15 +160,15 @@ impl DevEditorMenusSingleton {
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
         let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
 
-        let engine = GameLoop::get().engine();
+        let engine = GameLoop::get_mut().engine_mut();
 
         if *show_log_viewer_window {
             self.log_viewer.show(true);
-            *show_log_viewer_window = self.log_viewer.draw(engine.ui_system());
+            *show_log_viewer_window = self.log_viewer.draw(context.ui_sys);
         }
 
         self.tile_palette_menu.draw(context,
-                                    engine.debug_draw(),
+                                    engine.debug_draw_mut(),
                                     show_selection_bounds);
 
         self.debug_settings_menu.draw(context,
@@ -180,7 +180,7 @@ impl DevEditorMenusSingleton {
         }
 
         self.minimap_renderer.draw(context);
-        context.camera.draw_debug(engine.debug_draw(), engine.ui_system());
+        context.camera.draw_debug(engine.debug_draw_mut(), context.ui_sys);
 
         if show_popup_messages() {
             GameLoop::get_mut().sim_mut().draw_game_object_debug_popups(context, visible_range);
@@ -191,27 +191,27 @@ impl DevEditorMenusSingleton {
         }
 
         if show_cursor_pos {
-            utils::draw_cursor_overlay(engine.ui_system(),
+            utils::draw_cursor_overlay(context.ui_sys,
                                        context.camera.transform(),
                                        context.cursor_screen_pos,
                                        None);
         }
 
         if show_render_perf_stats {
-            utils::draw_render_perf_stats(engine.ui_system(),
+            utils::draw_render_perf_stats(context.ui_sys,
                                           engine.render_stats(),
                                           engine.tile_map_render_stats());
         }
 
         if show_world_perf_stats {
-            utils::draw_world_perf_stats(engine.ui_system(),
+            utils::draw_world_perf_stats(context.ui_sys,
                                          context.world,
                                          context.tile_map,
                                          visible_range);
         }
 
         if show_screen_origin {
-            utils::draw_screen_origin_marker(engine.debug_draw());
+            utils::draw_screen_origin_marker(engine.debug_draw_mut());
         }
     }
 }

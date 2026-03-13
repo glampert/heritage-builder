@@ -122,7 +122,7 @@ impl GameObject for Prop {
         // Nothing to tally.
     }
 
-    fn post_load(&mut self, _context: &PostLoadContext) {
+    fn post_load(&mut self, _context: &mut PostLoadContext) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.config_key != hash::NULL_HASH);
 

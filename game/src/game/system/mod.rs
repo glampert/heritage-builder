@@ -31,6 +31,11 @@ use ambient_sounds::AmbientSoundsSystem;
 
 #[enum_dispatch(GameSystemImpl)]
 pub trait GameSystem: Any {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        // Reuse the non-mutable method to avoid duplication.
+        mem::mut_ref_cast(self.as_any())
+    }
+
     // Required overrides:
     fn as_any(&self) -> &dyn Any;
     fn update(&mut self, engine: &mut dyn Engine, context: &SimContext);
@@ -38,7 +43,7 @@ pub trait GameSystem: Any {
     // Optional overrides:
     fn paused_update(&mut self, _engine: &mut dyn Engine, _query: &SimContext) {}
     fn reset(&mut self, _engine: &mut dyn Engine) {}
-    fn post_load(&mut self, _context: &PostLoadContext) {}
+    fn post_load(&mut self, _context: &mut PostLoadContext) {}
     fn draw_debug_ui(&mut self, _engine: &mut dyn Engine, _query: &SimContext) {}
     fn register_callbacks(&self) {}
 }
@@ -117,9 +122,7 @@ impl GameSystems {
         if sys_id.index() < self.systems.len() {
             let entry = &mut self.systems[sys_id.index()];
             if sys_id.generation() == entry.generation {
-                // Reuse the non-mutable method.
-                let sys_mut = mem::mut_ref_cast(entry.system.as_any());
-                return sys_mut.downcast_mut::<System>();
+                return entry.system.as_any_mut().downcast_mut::<System>();
             }
         }
         None
@@ -218,7 +221,7 @@ impl Load for GameSystems {
         state.load(self)
     }
 
-    fn post_load(&mut self, context: &PostLoadContext) {
+    fn post_load(&mut self, context: &mut PostLoadContext) {
         debug_assert!(self.generation != RESERVED_GENERATION);
 
         for entry in &mut self.systems {

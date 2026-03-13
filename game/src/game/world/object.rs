@@ -105,7 +105,7 @@ pub trait GameObject {
     fn tally(&self, stats: &mut WorldStats);
 
     // Save/load support:
-    fn post_load(&mut self, context: &PostLoadContext);
+    fn post_load(&mut self, context: &mut PostLoadContext);
 
     // Optional undo/redo support:
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {

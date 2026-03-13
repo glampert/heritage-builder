@@ -271,7 +271,7 @@ impl TimedAmbientPatrol {
         }
     }
 
-    pub fn post_load(&mut self, context: &PostLoadContext, spawn_frequency_secs: [Seconds; 2]) {
+    pub fn post_load(&mut self, context: &mut PostLoadContext, spawn_frequency_secs: [Seconds; 2]) {
         self.patrol.post_load();
 
         let frequency_secs = Self::randomized_spawn_frequency(context.rng_mut(), spawn_frequency_secs);

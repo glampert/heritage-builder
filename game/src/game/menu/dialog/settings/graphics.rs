@@ -36,7 +36,7 @@ impl GraphicsSettings {
                 texture_settings.gen_mipmaps
             },
             |gen_mipmaps| {
-                let tex_cache = GameLoop::get_mut().engine_mut().texture_cache();
+                let tex_cache = GameLoop::get_mut().engine_mut().texture_cache_mut();
                 let mut texture_settings = tex_cache.current_texture_settings();
                 texture_settings.gen_mipmaps = gen_mipmaps;
                 tex_cache.change_texture_settings(texture_settings);
@@ -51,7 +51,7 @@ impl GraphicsSettings {
                 texture_settings.filter as usize
             },
             |selected_index: usize| {
-                let tex_cache = GameLoop::get_mut().engine_mut().texture_cache();
+                let tex_cache = GameLoop::get_mut().engine_mut().texture_cache_mut();
                 let mut texture_settings = tex_cache.current_texture_settings();
                 texture_settings.filter = TextureFilter::try_from_primitive(selected_index as u32).unwrap();
                 tex_cache.change_texture_settings(texture_settings);

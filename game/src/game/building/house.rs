@@ -297,7 +297,7 @@ impl BuildingBehavior for HouseBuilding {
         }
     }
 
-    fn post_load(&mut self, context: &PostLoadContext, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, context: &mut PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind == BuildingKind::House);
         let config = BuildingConfigs::get().house_config();
 

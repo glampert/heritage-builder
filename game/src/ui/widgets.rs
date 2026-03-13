@@ -1,7 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::type_complexity)]
 
-use std::{any::Any, fmt::Display, path::PathBuf, borrow::Cow};
+use std::{any::Any, fmt::Display, path::PathBuf};
 
 use bitflags::bitflags;
 use arrayvec::ArrayString;
@@ -24,7 +24,7 @@ use crate::{
     sound::SoundSystem,
     game::{sim::{Simulation, SimContext}, world::World},
     engine::{Engine, time::{CountdownTimer, Seconds}},
-    render::{RenderSystem, TextureHandle, TextureCache},
+    render::{RenderSystem, TextureHandle},
     tile::{Tile, TileMap, selection::TileSelection, camera::Camera},
     utils::{
         bitflags_with_display,
@@ -87,7 +87,6 @@ pub struct UiWidgetContext<'game> {
     // Engine:
     pub ui_sys: &'game UiSystem,
     pub render_sys: &'game mut dyn RenderSystem,
-    pub tex_cache: &'game mut dyn TextureCache,
     pub sound_sys: &'game mut SoundSystem,
     pub viewport_size: Size,
     pub delta_time_secs: Seconds,
@@ -105,20 +104,25 @@ impl<'game> UiWidgetContext<'game> {
                tile_map: &'game mut TileMap,
                tile_selection: &'game mut TileSelection,
                camera: &'game mut Camera,
-               engine: &'game dyn Engine) -> Self {
+               engine: &'game mut dyn Engine) -> Self
+    {
+        let viewport_size = engine.viewport().integer_size();
+        let delta_time_secs = engine.frame_clock().delta_time();
+        let cursor_screen_pos = engine.input_system().cursor_pos();
+        let systems = engine.systems_mut_refs();
+
         Self {
             sim,
             world,
             tile_map,
             tile_selection,
             camera,
-            ui_sys: engine.ui_system(),
-            render_sys: engine.render_system(),
-            tex_cache: engine.texture_cache(),
-            sound_sys: engine.sound_system(),
-            viewport_size: engine.viewport().integer_size(),
-            delta_time_secs: engine.frame_clock().delta_time(),
-            cursor_screen_pos: engine.input_system().cursor_pos(),
+            ui_sys: systems.ui_sys,
+            render_sys: systems.render_sys,
+            sound_sys: systems.sound_sys,
+            viewport_size,
+            delta_time_secs,
+            cursor_screen_pos,
             in_window_count: 0,
             side_by_side_layout_count: 0,
         }
@@ -174,7 +178,7 @@ impl<'game> UiWidgetContext<'game> {
     #[inline]
     pub fn load_texture(&mut self, path: &str) -> TextureHandle {
         let file_path = super::assets_path().join(path);
-        self.tex_cache.load_texture_with_settings(
+        self.render_sys.texture_cache_mut().load_texture_with_settings(
             file_path.to_str().unwrap(),
             Some(super::texture_settings()))
     }
@@ -245,9 +249,16 @@ impl<T> UiCallbackArg for UiValue<T> {
 }
 
 // For string references.
-pub struct UiStrRef;
+pub struct UiStrRef(RawPtr<str>);
 impl UiCallbackArg for UiStrRef {
     type Arg<'a> = &'a str;
+}
+
+impl UiStrRef {
+    #[inline]
+    pub fn new(s: &str) -> Self {
+        Self(RawPtr::from_ref(s))
+    }
 }
 
 // ----------------------------------------------
@@ -2723,7 +2734,7 @@ pub struct UiTextInputParams {
     pub on_update_value: UiTextInputUpdateValue,
 }
 
-pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, UiReadOnly, Cow<'static, String>>;
+pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, UiReadOnly, UiStrRef>;
 pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, UiReadOnly, UiStrRef>;
 
 // ----------------------------------------------
@@ -2754,7 +2765,7 @@ impl UiWidget for UiTextInput {
 
         self.buffer.clear();
         if let Some(value) = self.on_read_value.invoke(self, context) {
-            self.buffer.push_str(&value);
+            self.buffer.push_str(&value.0);
         }
 
         let (input, _group) =

@@ -103,7 +103,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             font_scale: widgets_font_scale,
             on_read_value: UiTextInputReadValue::with_fn(
                 |_input, _context| {
-                    std::borrow::Cow::Borrowed(&SAMPLE_MENU_1_STATE.text_input)
+                    UiStrRef::new(&SAMPLE_MENU_1_STATE.text_input)
                 }
             ),
             on_update_value: UiTextInputUpdateValue::with_fn(

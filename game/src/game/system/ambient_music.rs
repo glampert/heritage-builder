@@ -123,7 +123,7 @@ impl GameSystem for AmbientMusicSystem {
             return;
         }
 
-        let sound_sys = engine.sound_system();
+        let sound_sys = engine.sound_system_mut();
 
         if !self.tracks_are_loaded() {
             self.load_tracks(sound_sys);
@@ -144,11 +144,11 @@ impl GameSystem for AmbientMusicSystem {
     }
 
     fn reset(&mut self, engine: &mut dyn Engine) {
-        self.stop_music(engine.sound_system());
+        self.stop_music(engine.sound_system_mut());
         self.current_game_state = GameState::default();
     }
 
-    fn post_load(&mut self, context: &PostLoadContext) {
+    fn post_load(&mut self, context: &mut PostLoadContext) {
         // Just reset and stop whatever is playing.
         // Next update will take care of starting a new track.
         self.reset(context.engine_mut());
