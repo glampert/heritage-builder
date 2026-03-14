@@ -501,6 +501,14 @@ pub trait TextureCache: Any {
                                  settings: Option<TextureSettings>)
                                  -> TextureHandle;
 
+    // New texture with initial pixel data.
+    fn new_initialized_texture(&mut self,
+                               debug_name: &str,
+                               size: Size,
+                               pixels: &[u8],
+                               settings: Option<TextureSettings>)
+                               -> TextureHandle;
+
     // Update texture mip-level sub-rect or whole texture.
     fn update_texture(&mut self,
                       handle: TextureHandle,

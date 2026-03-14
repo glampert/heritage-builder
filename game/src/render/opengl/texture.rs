@@ -630,6 +630,15 @@ impl render::TextureCache for TextureCache {
         self.new_texture_with_data_internal(debug_name, size, core::ptr::null(), settings)
     }
 
+    fn new_initialized_texture(&mut self,
+                               debug_name: &str,
+                               size: Size,
+                               pixels: &[u8],
+                               settings: Option<render::TextureSettings>)
+                               -> TextureHandle {
+        self.new_texture_with_data_internal(debug_name, size, pixels.as_ptr() as _, settings)
+    }
+
     fn update_texture(&mut self,
                       handle: TextureHandle,
                       offset_x: u32,
