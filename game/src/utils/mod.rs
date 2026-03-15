@@ -829,7 +829,7 @@ bitflags_with_display! {
 // RectTexCoords
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct RectTexCoords {
     pub coords: [Vec2; 4],
 }

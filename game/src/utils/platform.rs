@@ -23,6 +23,10 @@ pub mod paths {
         &CACHED_BASE_DIR
     }
 
+    pub fn base_dir_str() -> &'static str {
+        &CACHED_BASE_DIR_STR
+    }
+
     // Joins base_dir and the given relative path.
     pub fn base_path(relative_path: impl AsRef<Path>) -> PathBuf {
         CACHED_BASE_DIR.join(relative_path)
@@ -35,6 +39,10 @@ pub mod paths {
         &CACHED_ASSETS_DIR
     }
 
+    pub fn assets_dir_str() -> &'static str {
+        &CACHED_ASSETS_DIR_STR
+    }
+
     // Resolves a path within the assets directory.
     pub fn asset_path(relative_path: impl AsRef<Path>) -> PathBuf {
         CACHED_ASSETS_DIR.join(relative_path)
@@ -43,6 +51,9 @@ pub mod paths {
     // Cached on first use.
     static CACHED_BASE_DIR:   LazyLock<PathBuf> = LazyLock::new(cache_base_dir);
     static CACHED_ASSETS_DIR: LazyLock<PathBuf> = LazyLock::new(cache_assets_dir);
+
+    static CACHED_BASE_DIR_STR:   LazyLock<&'static str> = LazyLock::new(|| base_dir().to_str().unwrap());
+    static CACHED_ASSETS_DIR_STR: LazyLock<&'static str> = LazyLock::new(|| assets_dir().to_str().unwrap());
 
     fn cache_base_dir() -> PathBuf {
         #[cfg(target_os = "macos")]

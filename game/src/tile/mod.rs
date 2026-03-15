@@ -6,10 +6,10 @@ use arrayvec::ArrayVec;
 use bitflags::bitflags;
 use enum_dispatch::enum_dispatch;
 use num_enum::TryFromPrimitive;
+use std::ops::{Index, IndexMut};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumIter, EnumProperty, VariantNames, VariantArray};
-use std::{ops::{Index, IndexMut}, path::PathBuf};
 
 use minimap::Minimap;
 use selection::TileSelection;
@@ -25,7 +25,7 @@ use crate::{
         constants::*,
         bitflags_with_display,
         Color, Rect, Size, Vec2,
-        hash::StringHash, mem::RawPtr, platform::paths,
+        hash::StringHash, mem::RawPtr,
         coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
     },
 };
@@ -1230,10 +1230,10 @@ impl Tile {
          Serialize,
          Deserialize)]
 pub enum TileMapLayerKind {
-    #[strum(props(AssetsPath = "tiles/terrain"))]
+    #[strum(props(AssetsPath = "tiles/terrain", Name = "terrain"))]
     Terrain,
 
-    #[strum(props(AssetsPath = "tiles/objects"))]
+    #[strum(props(AssetsPath = "tiles/objects", Name = "objects"))]
     Objects,
 }
 
@@ -1241,9 +1241,13 @@ pub const TILE_MAP_LAYER_COUNT: usize = TileMapLayerKind::COUNT;
 
 impl TileMapLayerKind {
     #[inline]
-    pub fn assets_path(self) -> PathBuf {
-        let path = self.get_str("AssetsPath").unwrap();
-        paths::asset_path(path)
+    pub fn assets_path(self) -> &'static str {
+        self.get_str("AssetsPath").unwrap()
+    }
+
+    #[inline]
+    pub fn lowercase_name(self) -> &'static str {
+        self.get_str("Name").unwrap()
     }
 
     #[inline]

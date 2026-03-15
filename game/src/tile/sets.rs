@@ -1,12 +1,12 @@
-use std::path::{Path, MAIN_SEPARATOR_STR};
-use serde::{Deserialize, Serialize};
+use std::path::MAIN_SEPARATOR_STR;
 use smallvec::SmallVec;
 use arrayvec::ArrayString;
+use serde::{Deserialize, Serialize};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumProperty};
 
 use super::{
-    atlas::*,
+    atlas::{self, *},
     TileFlags, TileKind, TileMapLayerKind, TILE_MAP_LAYER_COUNT,
 };
 use crate::{
@@ -16,6 +16,7 @@ use crate::{
     save::{self, SaveState},
     utils::{
         constants::*,
+        platform::paths,
         fixed_string::format_fixed_string,
         coords::{Cell, CellRange},
         hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
@@ -463,12 +464,12 @@ impl TileAnimSet {
         let texture_path = {
             // <layer>/<category>/<tile_name>/
             let mut path = format_fixed_string!(
-                                           1024, // capacity
-                                           "{}{}{}{}",
-                                           tile_set_path_with_category,
-                                           MAIN_SEPARATOR_STR,
-                                           tile_def_name,
-                                           MAIN_SEPARATOR_STR);
+                1024, // capacity
+                "{}{}{}{}",
+                tile_set_path_with_category,
+                MAIN_SEPARATOR_STR,
+                tile_def_name,
+                MAIN_SEPARATOR_STR);
 
             // Do we have a variation? If not the anim_set name follows directly.
             // + <variation>/
@@ -1425,8 +1426,8 @@ impl TileSets {
     fn load_all_layers(&mut self, tex_cache: &mut dyn TextureCache, use_packed_texture_atlas: bool) {
         for layer in TileMapLayerKind::iter() {
             let tile_set_path = layer.assets_path();
-            if !self.load_tile_set(tex_cache, tile_set_path.to_str().unwrap(), layer, use_packed_texture_atlas) {
-                log::error!(log::channel!("tileset"), "TileSet '{layer}' ({tile_set_path:?}) didn't load!");
+            if !self.load_tile_set(tex_cache, tile_set_path, layer, use_packed_texture_atlas) {
+                log::error!(log::channel!("tileset"), "TileSet '{layer}' ({tile_set_path}) didn't load!");
             }
         }
     }
@@ -1439,13 +1440,23 @@ impl TileSets {
                      -> bool {
         debug_assert!(!tile_set_path.is_empty());
 
-        let tile_set_json_path = Path::new(tile_set_path).join("tile_set.json");
+        log::info!(log::channel!("tileset"), "---- Loading TileSet Layer: {layer} ----");
+
+        let tile_set_json_path =
+            format_fixed_string!(
+                1024, // capacity
+                "{}{}{}{}{}",
+                paths::assets_dir_str(),
+                MAIN_SEPARATOR_STR,
+                tile_set_path,
+                MAIN_SEPARATOR_STR,
+                "tile_set.json");
 
         let mut state = save::backend::new_json_save_state(false);
 
-        if let Err(err) = state.read_file(&tile_set_json_path) {
+        if let Err(err) = state.read_file(tile_set_json_path) {
             log::error!(log::channel!("tileset"),
-                        "Failed to read TileSet json file from path {tile_set_json_path:?}: {err}");
+                        "Failed to read TileSet json file from path {tile_set_json_path}: {err}");
             return false;
         }
 
@@ -1453,7 +1464,7 @@ impl TileSets {
             Ok(tile_set) => tile_set,
             Err(err) => {
                 log::error!(log::channel!("tileset"),
-                            "Failed to deserialize TileSet layer '{layer}' from path {tile_set_json_path:?}: {err}");
+                            "Failed to deserialize TileSet layer '{layer}' from path {tile_set_json_path}: {err}");
                 return false;
             }
         };
@@ -1467,27 +1478,46 @@ impl TileSets {
 
         if use_packed_texture_atlas {
             log::info!(log::channel!("tileset"), "Texture Atlas Packing: YES");
-            let mut tex_atlas = PackedTextureAtlas::new(layer);
 
-            if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
-                log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path:?}!");
-                return false;
+            // If we have a pre-packed texture atlas already exported we can load it directly.
+            // Otherwise build the atlas on-the-fly and export it to the local cache, so next
+            // time it will be available and loaded very efficiently.
+            if atlas::cached_packed_atlas_exists(layer) {
+                log::info!(log::channel!("tileset"), "Loading offline packed Texture Atlas for '{layer}'...");
+
+                let mut tex_atlas = OfflinePackedTextureAtlas::new(layer, tex_cache);
+                if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
+                    log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
+                    return false;
+                }
+                tex_atlas.commit_textures(tex_cache);
+            } else {
+                log::info!(log::channel!("tileset"), "Packing Texture Atlas on-the-fly for '{layer}'...");
+
+                let mut tex_atlas = RuntimePackedTextureAtlas::new(layer, tex_cache);
+                if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
+                    log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
+                    return false;
+                }
+                tex_atlas.commit_textures(tex_cache);
+
+                // Save sprite sheet images and metadata so next time
+                // around we'll be able to use the OfflinePackedTextureAtlas.
+                log::info!(log::channel!("tileset"), "Saving packed Texture Atlas to file cache...");
+                tex_atlas.save_textures_to_file(atlas::CACHE_BASE_PATH);
             }
-
-            tex_atlas.commit_textures(tex_cache);
         } else {
             log::info!(log::channel!("tileset"), "Texture Atlas Packing: NO");
-            let mut tex_atlas = PassthroughTextureAtlas::new(layer);
 
+            let mut tex_atlas = PassthroughTextureAtlas::new(layer, tex_cache);
             if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
-                log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path:?}!");
+                log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
                 return false;
             }
+            tex_atlas.commit_textures(tex_cache);
         }
 
-        log::info!(log::channel!("tileset"),
-                   "Successfully loaded TileSet '{layer}' from path {tile_set_json_path:?}.");
-
+        log::info!(log::channel!("tileset"), "Successfully loaded TileSet '{layer}' from path {tile_set_json_path}.");
         self.sets[layer as usize] = tile_set;
         true
     }
