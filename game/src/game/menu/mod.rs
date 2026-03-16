@@ -7,8 +7,8 @@ use crate::{
     log,
     save::{Save, Load},
     engine::time::Seconds,
-    utils::{self, Vec2, coords::{Cell, CellRange}, hash::SmallSet},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
+    utils::{self, Vec2, coords::{Cell, CellRange}, hash::SmallSet, paths::PathRef},
     ui::{
         UiInputEvent,
         UiFontScale,
@@ -732,15 +732,15 @@ pub trait TileInspector {
 // ----------------------------------------------
 
 const TOOLTIP_FONT_SCALE: UiFontScale = UiFontScale(0.8);
-const TOOLTIP_BACKGROUND_SPRITE: &str = "misc/wide_page_bg.png";
+const TOOLTIP_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/wide_page_bg.png");
 
-const SMALL_HORIZONTAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
-const SMALL_VERTICAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider_vertical.png";
+const SMALL_HORIZONTAL_SEPARATOR_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider.png");
+const SMALL_VERTICAL_SEPARATOR_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider_vertical.png");
 
-const LARGE_HORIZONTAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider.png";
-const LARGE_VERTICAL_SEPARATOR_SPRITE: &str = "misc/brush_stroke_divider_vertical.png";
+const LARGE_HORIZONTAL_SEPARATOR_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider.png");
+const LARGE_VERTICAL_SEPARATOR_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider_vertical.png");
 
-const TEXT_BUTTON_HOVERED_SPRITE: &str = "misc/brush_stroke_divider.png";
+const TEXT_BUTTON_HOVERED_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider.png");
 
 // ----------------------------------------------
 // ButtonDef

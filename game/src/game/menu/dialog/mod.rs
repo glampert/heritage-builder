@@ -7,7 +7,7 @@ use strum_macros::{Display, EnumCount, EnumIter, EnumDiscriminants};
 use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
     game::menu::ButtonDef,
-    utils::{Vec2, Color, mem::{self, singleton_late_init}},
+    utils::{Vec2, Color, mem::{self, singleton_late_init}, paths::PathRef},
     ui::{self, UiFontScale, UiStaticVar, sound::{self, UiSoundKey, UiButtonSoundsEnabled}, widgets::*},
 };
 
@@ -517,11 +517,11 @@ const DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING: f32 = 5.0;
 const DEFAULT_DIALOG_MENU_HEADING_MARGINS: (f32, f32) = (100.0, 10.0); // (top, bottom)
 const DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 const DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE: UiFontScale = UiFontScale(1.8);
-const DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE: &str = "misc/scroll_bg.png";
+const DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/scroll_bg.png");
 
 // For popup message boxes:
 const DEFAULT_DIALOG_POPUP_FONT_SCALE: UiFontScale = UiFontScale(1.5);
-const DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE: &str = "misc/square_page_bg.png";
+const DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/square_page_bg.png");
 
 const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
     UiMenuFlags::Modal.bits()

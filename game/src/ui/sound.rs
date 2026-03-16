@@ -1,13 +1,13 @@
+use std::time;
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
-use std::{path::MAIN_SEPARATOR, time};
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumCount, EnumProperty, EnumIter};
 
 use crate::{
     engine::time::Seconds,
-    utils::{fixed_string::format_fixed_string, mem::singleton_late_init},
     sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, SfxSoundKey},
+    utils::{mem::singleton_late_init, paths::{PathRef, AssetPath}},
 };
 
 // ----------------------------------------------
@@ -40,8 +40,8 @@ pub enum UiSoundKey {
 }
 
 impl UiSoundKey {
-    fn sfx_path(self) -> &'static str {
-        self.get_str("SfxPath").unwrap()
+    fn sfx_path(self) -> PathRef<'static> {
+        PathRef::from_str(self.get_str("SfxPath").unwrap())
     }
 }
 
@@ -101,15 +101,15 @@ pub struct UiSound {
 }
 
 impl UiSound {
-    pub fn load(sound_sys: &mut SoundSystem, sfx_path: &str, cooldown: Seconds) -> Self {
+    pub fn load(sound_sys: &mut SoundSystem, sfx_path: PathRef, cooldown: Seconds) -> Self {
         debug_assert!(!sfx_path.is_empty());
         debug_assert!(cooldown >= 0.0);
 
         // All UI sound assets are under "sfx/ui/{sfx_path}"
-        let path = format_fixed_string!(512, "ui{MAIN_SEPARATOR}{sfx_path}");
+        let path = AssetPath::from_str("ui").join(sfx_path);
 
         Self {
-            key: sound_sys.load_sfx(&path),
+            key: sound_sys.load_sfx((&path).into()),
             handle: SoundHandle::invalid(SoundKind::Sfx), // Handle set when we first play the sound.
             last_play_time: None, // Never played.
             cooldown,

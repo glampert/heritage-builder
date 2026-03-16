@@ -4,7 +4,7 @@ use crate::{
     log,
     debug,
     engine::config::Configs,
-    utils::{Color, Size},
+    utils::{Color, Size, paths::PathRef},
     ui::{self, UiStaticVar, widgets::UiWidgetContext},
     game::{
         self,
@@ -424,14 +424,14 @@ impl DebugSettingsDevMenu {
         ui.separator();
 
         if self.save_file_name.is_empty() {
-            self.save_file_name = game::DEFAULT_SAVE_FILE_NAME.into();
+            self.save_file_name = game::DEFAULT_SAVE_FILE_NAME.to_string();
         }
 
         ui.input_text("Save File", &mut self.save_file_name).build();
 
         if ui.button("Save") {
             if !self.save_file_name.is_empty() {
-                game_loop.save_game(&self.save_file_name);
+                game_loop.save_game(PathRef::from_str(&self.save_file_name));
             } else {
                 log::error!(log::channel!("debug"), "No save file name provided!");
             }
@@ -447,7 +447,7 @@ impl DebugSettingsDevMenu {
         }
 
         if ui.button("Load") && !save_files.is_empty() {
-            game_loop.load_save_game(&save_files[self.save_file_selected].to_string_lossy());
+            game_loop.load_save_game(PathRef::from_str(&save_files[self.save_file_selected].to_string_lossy()));
         }
     }
 

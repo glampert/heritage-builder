@@ -25,7 +25,7 @@ use crate::{
         constants::*,
         bitflags_with_display,
         Color, Rect, Size, Vec2,
-        hash::StringHash, mem::RawPtr,
+        hash::StringHash, mem::RawPtr, paths::PathRef,
         coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
     },
 };
@@ -1241,8 +1241,8 @@ pub const TILE_MAP_LAYER_COUNT: usize = TileMapLayerKind::COUNT;
 
 impl TileMapLayerKind {
     #[inline]
-    pub fn assets_path(self) -> &'static str {
-        self.get_str("AssetsPath").unwrap()
+    pub fn assets_path(self) -> PathRef<'static> {
+        PathRef::from_str(self.get_str("AssetsPath").unwrap())
     }
 
     #[inline]

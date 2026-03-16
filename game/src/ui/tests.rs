@@ -1,5 +1,9 @@
 use super::*;
-use crate::{log, utils::Color, ui::{widgets::*, UiStaticVar}};
+use crate::{
+    log,
+    ui::{widgets::*, UiStaticVar},
+    utils::{Color, paths::{PathRef, AssetPath}},
+};
 
 // ----------------------------------------------
 // Sample Menu 1:
@@ -36,7 +40,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
             label: Some("Sample Menu 1".into()),
             flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft,
             size: Some(Vec2::new(512.0, 700.0)),
-            background: Some("misc/square_page_bg.png"),
+            background: Some(PathRef::from_str("misc/square_page_bg.png")),
             ..Default::default()
         }
     );
@@ -50,7 +54,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         context,
         UiMenuHeadingParams {
             lines: vec![UiText::colored("Sample Menu 1".into(), heading_font_scale, Color::red())],
-            separator: Some("misc/brush_stroke_divider.png"),
+            separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
             margin_top: 10.0,
             margin_bottom: 10.0,
             ..Default::default()
@@ -217,7 +221,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         UiTextButtonParams {
             label: "Small Size Button".into(),
             size: UiTextButtonSize::Small,
-            hover: Some("misc/brush_stroke_divider.png"),
+            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
             on_pressed: UiTextButtonPressed::with_fn(
                 |button, _context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -232,7 +236,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         UiTextButtonParams {
             label: "Normal Size Button".into(),
             size: UiTextButtonSize::Normal,
-            hover: Some("misc/brush_stroke_divider.png"),
+            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
             on_pressed: UiTextButtonPressed::with_fn(
                 |button, _context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -247,7 +251,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         UiTextButtonParams {
             label: "Large Size Button".into(),
             size: UiTextButtonSize::Large,
-            hover: Some("misc/brush_stroke_divider.png"),
+            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
             on_pressed: UiTextButtonPressed::with_fn(
                 |button, _context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -262,7 +266,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         UiTextButtonParams {
             label: "Disabled Button".into(),
             size: UiTextButtonSize::Normal,
-            hover: Some("misc/brush_stroke_divider.png"),
+            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
             on_pressed: UiTextButtonPressed::with_fn(
                 |button, _context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -289,7 +293,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         UiTextButtonParams {
             label: "Open Message Box".into(),
             size: UiTextButtonSize::Normal,
-            hover: Some("misc/brush_stroke_divider.png"),
+            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
             on_pressed: UiTextButtonPressed::with_closure(
                 move |button, context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -301,7 +305,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
 
                             UiMessageBoxParams {
                                 label: Some("Message Box Popup".into()),
-                                background: Some("misc/square_page_bg.png"),
+                                background: Some(PathRef::from_str("misc/square_page_bg.png")),
                                 contents: vec![
                                     UiWidgetImpl::from(UiMenuHeading::new(
                                         context,
@@ -310,7 +314,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                                 UiText::new("Quit to main menu?".into(), widgets_font_scale),
                                                 UiText::new("Unsaved progress will be lost".into(), widgets_font_scale),
                                             ],
-                                            separator: Some("misc/brush_stroke_divider.png"),
+                                            separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
                                             margin_top: 5.0,
                                             ..Default::default()
                                         }
@@ -322,7 +326,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                         UiTextButtonParams {
                                             label: "Ok".into(),
                                             size: UiTextButtonSize::Small,
-                                            hover: Some("misc/brush_stroke_divider.png"),
+                                            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
                                             on_pressed: UiTextButtonPressed::with_closure(
                                                 move |button, context| {
                                                     log::info!("Pressed Button: {}", button.label());
@@ -339,7 +343,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                                         UiTextButtonParams {
                                             label: "Cancel".into(),
                                             size: UiTextButtonSize::Small,
-                                            hover: Some("misc/brush_stroke_divider.png"),
+                                            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
                                             on_pressed: UiTextButtonPressed::with_closure(
                                                 move |button, context| {
                                                     log::info!("Pressed Button: {}", button.label());
@@ -368,7 +372,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
         UiTextButtonParams {
             label: "Close Message Box".into(),
             size: UiTextButtonSize::Normal,
-            hover: Some("misc/brush_stroke_divider.png"),
+            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
             on_pressed: UiTextButtonPressed::with_closure(
                 move |button, context| {
                     log::info!("Pressed Button: {}", button.label());
@@ -385,7 +389,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     let separator = UiSeparator::new(
         context,
         UiSeparatorParams {
-            separator: Some("misc/brush_stroke_divider.png"),
+            separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
             thickness: Some(15.0),
             ..Default::default()
         }
@@ -425,7 +429,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
             label: Some("Sample Menu 2".into()),
             flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::AlignRight,
             size: Some(Vec2::new(512.0, 700.0)),
-            background: Some("misc/square_page_bg.png"),
+            background: Some(PathRef::from_str("misc/square_page_bg.png")),
             ..Default::default()
         }
     );
@@ -437,7 +441,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
         UiTooltipTextParams {
             text: "This is a Sprite Button".into(),
             font_scale: UiFontScale(0.8),
-            background: Some("misc/square_page_bg.png"),
+            background: Some(PathRef::from_str("misc/square_page_bg.png")),
         }
     );
 
@@ -540,7 +544,8 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
     let slideshow_frame_count = 3;
     let mut slideshow_frames = Vec::with_capacity(slideshow_frame_count);
     for i in 0..slideshow_frame_count {
-        slideshow_frames.push(format!("misc/home_menu_anim/frame{i}.jpg"));
+        let path = format_fixed_string!(64, "misc/home_menu_anim/frame{i}.jpg");
+        slideshow_frames.push(AssetPath::from_str(&path));
     }
 
     let slideshow = UiSlideshow::new(
@@ -559,7 +564,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
     let separator = UiSeparator::new(
         context,
         UiSeparatorParams {
-            separator: Some("misc/brush_stroke_divider.png"),
+            separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
             thickness: Some(15.0),
             ..Default::default()
         }

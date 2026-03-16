@@ -1,4 +1,3 @@
-use std::path::MAIN_SEPARATOR_STR;
 use smallvec::SmallVec;
 use arrayvec::ArrayString;
 use serde::{Deserialize, Serialize};
@@ -16,9 +15,9 @@ use crate::{
     save::{self, SaveState},
     utils::{
         constants::*,
-        paths,
-        fixed_string::format_fixed_string,
         coords::{Cell, CellRange},
+        paths::{self, PathRef, AssetPath},
+        fixed_string::format_fixed_string,
         hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
         mem::{RawPtr, Mutable, singleton_late_init}, Color, RectTexCoords, Size, Vec2,
     },
@@ -234,7 +233,7 @@ impl TileAnimSet {
     fn post_load(&mut self,
                  tex_cache: &mut dyn TextureCache,
                  tex_atlas: &mut impl TextureAtlas,
-                 tile_set_path_with_category: &str,
+                 tile_set_path_with_category: PathRef,
                  variation_name: &str,
                  tile_def_name: &str,
                  tile_def_kind: TileKind)
@@ -331,7 +330,7 @@ impl TileAnimSet {
     fn resolve_frame_references(&mut self,
                                 tex_cache: &mut dyn TextureCache,
                                 tex_atlas: &mut impl TextureAtlas,
-                                tile_set_path_with_category: &str,
+                                tile_set_path_with_category: PathRef,
                                 tile_def_name: &str,
                                 tile_def_kind: TileKind,
                                 variation: &TileVariation) -> bool {
@@ -450,48 +449,37 @@ impl TileAnimSet {
     fn load_frame_texture(frame: &mut TileSprite,
                           tex_cache: &mut dyn TextureCache,
                           tex_atlas: &mut impl TextureAtlas,
-                          tile_set_path_with_category: &str,
+                          tile_set_path_with_category: PathRef,
                           variation_name: &str,
                           anim_set_name: &str,
-                          tile_def_name: &str) {
-
+                          tile_def_name: &str)
+    {
         debug_assert!(!frame.name.is_empty());
         frame.hash = hash::fnv1a_from_str(&frame.name);
 
         // Path format:
         //  <layer>/<category>/<tile_name>/<variation>/<anim_set>/<frame[N]>.png
-        //
-        let texture_path = {
-            // <layer>/<category>/<tile_name>/
-            let mut path = format_fixed_string!(
-                1024, // capacity
-                "{}{}{}{}",
-                tile_set_path_with_category,
-                MAIN_SEPARATOR_STR,
-                tile_def_name,
-                MAIN_SEPARATOR_STR);
 
-            // Do we have a variation? If not the anim_set name follows directly.
-            // + <variation>/
-            if !variation_name.is_empty() {
-                path.push_str(variation_name);
-                path.push_str(MAIN_SEPARATOR_STR);
-            }
+        // <layer>/<category>/<tile_name>/
+        let mut texture_path: AssetPath = tile_set_path_with_category.join(tile_def_name);
 
-            // Do we have an anim_set? If not the sprite frame image follows directly.
-            // + <anim_set>/
-            if !anim_set_name.is_empty() {
-                path.push_str(anim_set_name);
-                path.push_str(MAIN_SEPARATOR_STR);
-            }
+        // Do we have a variation? If not the anim_set name follows directly.
+        // + <variation>/
+        if !variation_name.is_empty() {
+            texture_path.push(variation_name);
+        }
 
-            // + <frame[N]>.png
-            path.push_str(&frame.name);
-            path.push_str(".png");
-            path
-        };
+        // Do we have an anim_set? If not the sprite frame image follows directly.
+        // + <anim_set>/
+        if !anim_set_name.is_empty() {
+            texture_path.push(anim_set_name);
+        }
 
-        frame.tex_info = tex_atlas.load_texture(tex_cache, &texture_path);
+        // + <frame[N]>.png
+        texture_path.push(frame.name);
+        texture_path.set_extension("png");
+
+        frame.tex_info = tex_atlas.load_texture(tex_cache, (&texture_path).into());
     }
 }
 
@@ -757,7 +745,7 @@ impl TileDef {
     fn post_load(&mut self,
                  tex_cache: &mut dyn TextureCache,
                  tex_atlas: &mut impl TextureAtlas,
-                 tile_set_path_with_category: &str,
+                 tile_set_path_with_category: PathRef,
                  layer: TileMapLayerKind,
                  category_hash: StringHash)
                  -> bool {
@@ -975,7 +963,7 @@ impl TileCategory {
     fn post_load(&mut self,
                  tex_cache: &mut dyn TextureCache,
                  tex_atlas: &mut impl TextureAtlas,
-                 tile_set_path: &str,
+                 tile_set_path: PathRef,
                  layer: TileMapLayerKind)
                  -> bool {
         debug_assert!(self.mapping.is_empty());
@@ -988,7 +976,8 @@ impl TileCategory {
         }
 
         let tile_set_path_with_category =
-            format_fixed_string!(1024, "{}{}{}", tile_set_path, MAIN_SEPARATOR_STR, self.name);
+            AssetPath::from_ref(tile_set_path)
+            .join(&self.name);
 
         for (index, editable_def) in self.tile_defs.iter_mut().enumerate() {
             let tile_def = editable_def.as_mut();
@@ -1006,7 +995,7 @@ impl TileCategory {
             let tile_name_hash = hash::fnv1a_from_str(&tile_def.name);
             tile_def.hash = tile_name_hash;
 
-            if !tile_def.post_load(tex_cache, tex_atlas, &tile_set_path_with_category, layer, self.hash) {
+            if !tile_def.post_load(tex_cache, tex_atlas, (&tile_set_path_with_category).into(), layer, self.hash) {
                 continue;
             }
 
@@ -1089,7 +1078,7 @@ impl TileSet {
     fn post_load(&mut self,
                  tex_cache: &mut dyn TextureCache,
                  tex_atlas: &mut impl TextureAtlas,
-                 tile_set_path: &str)
+                 tile_set_path: PathRef)
                  -> bool {
         debug_assert!(self.mapping.is_empty());
 
@@ -1434,7 +1423,7 @@ impl TileSets {
 
     fn load_tile_set(&mut self,
                      tex_cache: &mut dyn TextureCache,
-                     tile_set_path: &str,
+                     tile_set_path: PathRef,
                      layer: TileMapLayerKind,
                      use_packed_texture_atlas: bool)
                      -> bool {
@@ -1443,18 +1432,14 @@ impl TileSets {
         log::info!(log::channel!("tileset"), "---- Loading TileSet Layer: {layer} ----");
 
         let tile_set_json_path =
-            format_fixed_string!(
-                1024, // capacity
-                "{}{}{}{}{}",
-                paths::assets_path_str(),
-                MAIN_SEPARATOR_STR,
-                tile_set_path,
-                MAIN_SEPARATOR_STR,
-                "tile_set.json");
+            paths::assets_path()
+            .join(tile_set_path)
+            .join("tile_set")
+            .with_extension("json");
 
         let mut state = save::backend::new_json_save_state(false);
 
-        if let Err(err) = state.read_file(tile_set_json_path) {
+        if let Err(err) = state.read_file(&tile_set_json_path) {
             log::error!(log::channel!("tileset"),
                         "Failed to read TileSet json file from path {tile_set_json_path}: {err}");
             return false;

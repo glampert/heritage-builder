@@ -16,8 +16,8 @@ use super::{
 use crate::{
     log,
     ui::UiSystem,
-    utils::{Size, hash::{self, PreHashedKeyMap, StringHash}},
     render::{self, NativeTextureHandle, TextureHandle},
+    utils::{Size, hash::{self, PreHashedKeyMap, StringHash}, paths::PathRef},
 };
 
 // ----------------------------------------------
@@ -91,7 +91,7 @@ pub struct Texture2D {
 }
 
 impl Texture2D {
-    pub fn from_file(file_path: &str,
+    pub fn from_file(file_path: PathRef,
                      flags: TextureLoaderFlags,
                      filter: TextureFilter,
                      wrap_mode: TextureWrapMode,
@@ -133,7 +133,7 @@ impl Texture2D {
                                wrap_mode,
                                tex_unit,
                                gen_mipmaps,
-                               file_path))
+                               file_path.as_str()))
     }
 
     pub fn with_data_raw(data: *const c_void,
@@ -142,7 +142,7 @@ impl Texture2D {
                          wrap_mode: TextureWrapMode,
                          tex_unit: TextureUnit,
                          gen_mipmaps: bool,
-                         debug_name: &str)
+                         name: &str)
                          -> Self {
         debug_assert!((tex_unit.0 as usize) < MAX_TEXTURE_UNITS);
         debug_assert!(size.is_valid());
@@ -169,7 +169,7 @@ impl Texture2D {
             let has_mipmaps = set_current_gl_texture_params(filter,
                                                                   wrap_mode,
                                                                   gen_mipmaps,
-                                                                  debug_name);
+                                                                  name);
 
             unbind_gl_texture();
 
@@ -182,7 +182,7 @@ impl Texture2D {
                filter,
                wrap_mode,
                has_mipmaps,
-               name: debug_name.to_string() }
+               name: name.to_string() }
     }
 
     pub fn update(&self,
@@ -334,14 +334,14 @@ fn unbind_gl_texture() {
 fn set_current_gl_texture_params(filter: TextureFilter,
                                  wrap_mode: TextureWrapMode,
                                  gen_mipmaps: bool,
-                                 debug_name: &str) -> bool {
+                                 name: &str) -> bool {
     unsafe {
         let has_mipmaps = {
             if gen_mipmaps && gl::GenerateMipmap::is_loaded() {
                 gl::GenerateMipmap(gl::TEXTURE_2D);
                 let error_code = gl::GetError();
                 if error_code != gl::NO_ERROR {
-                    panic!("Failed to generate texture mipmaps for '{debug_name}'. OpenGL Error: {} (0x{:X})",
+                    panic!("Failed to generate texture mipmaps for '{name}'. OpenGL Error: {} (0x{:X})",
                            gl_error_to_string(error_code),
                            error_code);
                 }
@@ -493,7 +493,7 @@ impl TextureCache {
     }
 
     fn load_texture_with_settings_internal(&mut self,
-                                           file_path: &str,
+                                           file_path: PathRef,
                                            flags: TextureLoaderFlags,
                                            filter: TextureFilter,
                                            wrap_mode: TextureWrapMode,
@@ -519,16 +519,16 @@ impl TextureCache {
     }
 
     fn new_texture_with_data_internal(&mut self,
-                                      debug_name: &str,
+                                      name: &str,
                                       size: Size,
                                       data: *const c_void,
                                       settings: Option<render::TextureSettings>)
                                       -> TextureHandle {
-        debug_assert!(!debug_name.is_empty());
+        debug_assert!(!name.is_empty());
         debug_assert!(size.is_valid());
 
-        if self.find_texture_internal(debug_name).is_valid() {
-            panic!("TextureCache: A texture with name '{debug_name}' already exists! Choose a different name.");
+        if self.find_texture_internal(name).is_valid() {
+            panic!("TextureCache: A texture with name '{name}' already exists! Choose a different name.");
         }
 
         let allow_settings_change = settings.is_none();
@@ -540,20 +540,20 @@ impl TextureCache {
                                                gl_settings.wrap_mode,
                                                TextureUnit(0),
                                                gl_settings.gen_mipmaps,
-                                               debug_name);
+                                               name);
 
         self.add_texture_internal(texture, allow_settings_change)
     }
 
     fn create_color_filled_8x8_texture(&mut self,
-                                       debug_name: &str,
+                                       name: &str,
                                        color: [u8; 4])
                                        -> TextureHandle {
         const SIZE: Size = Size::new(8, 8);
         const PIXEL_COUNT: usize = (SIZE.width * SIZE.height) as usize;
 
         let pixels = [color; PIXEL_COUNT];
-        self.new_texture_with_data_internal(debug_name, SIZE, pixels.as_ptr() as _, None)
+        self.new_texture_with_data_internal(name, SIZE, pixels.as_ptr() as _, None)
     }
 }
 
@@ -574,15 +574,15 @@ impl render::TextureCache for TextureCache {
         None
     }
 
-    fn load_texture(&mut self, file_path: &str) -> TextureHandle {
+    fn load_texture(&mut self, file_path: PathRef) -> TextureHandle {
         self.load_texture_with_settings(file_path, None)
     }
 
     fn load_texture_with_settings(&mut self,
-                                  file_path: &str,
+                                  file_path: PathRef,
                                   settings: Option<render::TextureSettings>)
                                   -> TextureHandle {
-        let loaded_texture = self.find_texture_internal(file_path);
+        let loaded_texture = self.find_texture_internal(file_path.as_str());
         if loaded_texture.is_valid() {
             return loaded_texture;
         }
@@ -623,20 +623,20 @@ impl render::TextureCache for TextureCache {
     }
 
     fn new_uninitialized_texture(&mut self,
-                                 debug_name: &str,
+                                 name: &str,
                                  size: Size,
                                  settings: Option<render::TextureSettings>)
                                  -> TextureHandle {
-        self.new_texture_with_data_internal(debug_name, size, core::ptr::null(), settings)
+        self.new_texture_with_data_internal(name, size, core::ptr::null(), settings)
     }
 
     fn new_initialized_texture(&mut self,
-                               debug_name: &str,
+                               name: &str,
                                size: Size,
                                pixels: &[u8],
                                settings: Option<render::TextureSettings>)
                                -> TextureHandle {
-        self.new_texture_with_data_internal(debug_name, size, pixels.as_ptr() as _, settings)
+        self.new_texture_with_data_internal(name, size, pixels.as_ptr() as _, settings)
     }
 
     fn update_texture(&mut self,

@@ -11,6 +11,7 @@ use crate::{
     utils::{
         self,
         constants::*,
+        paths::PathRef,
         Color, Rect, RectTexCoords, Vec2,
         coords::WorldToScreenTransform,
     },
@@ -73,7 +74,7 @@ impl TilePaletteDevMenu {
     pub fn new(context: &mut UiWidgetContext) -> Self {
         Self {
             start_open: true,
-            clear_button_image: context.load_texture("icons/red_x_icon.png"),
+            clear_button_image: context.load_texture(PathRef::from_str("icons/red_x_icon.png")),
             ..Default::default()
         }
     }

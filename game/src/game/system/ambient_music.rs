@@ -6,9 +6,9 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use super::GameSystem;
 use crate::{
     log,
-    utils::Color,
     engine::Engine,
     save::PostLoadContext,
+    utils::{Color, paths::PathRef},
     game::{GameLoop, config::GameConfigs, sim::SimContext},
     sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, MusicSoundKey},
 };
@@ -29,8 +29,8 @@ enum MusicTrackKey {
 }
 
 impl MusicTrackKey {
-    fn track_path(self) -> &'static str {
-        self.get_str("TrackPath").unwrap()
+    fn track_path(self) -> PathRef<'static> {
+        PathRef::from_str(self.get_str("TrackPath").unwrap())
     }
 }
 
@@ -46,7 +46,7 @@ struct MusicTrack {
 }
 
 impl MusicTrack {
-    fn load(sound_sys: &mut SoundSystem, track_path: &str) -> Self {
+    fn load(sound_sys: &mut SoundSystem, track_path: PathRef) -> Self {
         debug_assert!(!track_path.is_empty());
         Self {
             // All music track assets are under "music/{track_path}"

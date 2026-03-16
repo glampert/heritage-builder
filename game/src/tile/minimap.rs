@@ -1,5 +1,4 @@
 use rand::Rng;
-use std::path::PathBuf;
 use smallvec::SmallVec;
 use strum::{EnumCount, IntoEnumIterator, EnumProperty};
 use strum_macros::{EnumCount, EnumIter, EnumProperty};
@@ -23,7 +22,7 @@ use crate::{
     },
     utils::{
         Color, Rect, RectEdges, Size, Vec2,
-        paths, mem::{singleton, RawPtr}, fixed_string::format_fixed_string,
+        paths::{self, PathRef, AssetPath}, mem::{singleton, RawPtr}, fixed_string::format_fixed_string,
         coords::{self, Cell, CellF32, IsoPointF32, IsoDiamond, WorldToScreenTransform},
     },
 };
@@ -327,9 +326,9 @@ pub enum MinimapIcon {
 
 impl MinimapIcon {
     #[inline]
-    fn asset_path(self) -> PathBuf {
+    fn asset_path(self) -> AssetPath {
         let path = self.get_str("AssetPath").unwrap();
-        paths::prepend_assets_path(path)
+        paths::assets_path().join(path)
     }
 }
 
@@ -373,10 +372,8 @@ impl MinimapIconTexCache {
             let texture = &mut self.textures[icon as usize];
             debug_assert!(!texture.is_valid(), "Minimap icon texture is already loaded!");
 
-            *texture = tex_cache.load_texture_with_settings(
-                icon.asset_path().to_str().unwrap(),
-                Some(ui::texture_settings())
-            );
+            let icon_path = icon.asset_path();
+            *texture = tex_cache.load_texture_with_settings((&icon_path).into(), Some(ui::texture_settings()));
         }
     }
 }
@@ -1112,7 +1109,7 @@ struct BaseMinimapRenderer {
     open_button_menu: Option<UiMenuRcMut>,
     button_sounds_enabled: UiButtonSoundsEnabled,
     font_scale: UiFontScale,
-    background: Option<&'static str>,
+    background: Option<PathRef<'static>>,
     with_debug_button: bool,
     apply_widget_clip_rect: bool,
 }
@@ -1120,7 +1117,7 @@ struct BaseMinimapRenderer {
 impl BaseMinimapRenderer {
     fn new(button_sounds_enabled: UiButtonSoundsEnabled,
            font_scale: UiFontScale,
-           background: Option<&'static str>,
+           background: Option<PathRef<'static>>,
            with_debug_button: bool) -> Self
     {
         Self {
@@ -1136,7 +1133,7 @@ impl BaseMinimapRenderer {
 
     fn build_minimap_menus(context: &mut UiWidgetContext,
                            font_scale: UiFontScale,
-                           background: Option<&str>,
+                           background: Option<PathRef>,
                            button_sounds_enabled: UiButtonSoundsEnabled,
                            with_debug_button: bool) -> (UiMenuRcMut, UiMenuRcMut)
     {
@@ -1558,7 +1555,7 @@ impl InGameUiMinimapRenderer {
             base_renderer: BaseMinimapRenderer::new(
                 UiButtonSoundsEnabled::Pressed,
                 Self::WIDGET_FONT_SCALE,
-                Some("misc/square_page_bg.png"),
+                Some(PathRef::from_str("misc/square_page_bg.png")),
                 false
             )
         }

@@ -1,8 +1,8 @@
-use std::path::Path;
 use bitflags::bitflags;
 
 use super::*;
 use crate::{
+    utils::paths::FixedPath,
     game::{
         GameLoop,
         AUTOSAVE_FILE_NAME,
@@ -89,7 +89,7 @@ impl SaveGameHelper {
         Self { actions }
     }
 
-    fn default_save_file_name(actions: SaveGameActions) -> String {
+    fn default_save_file_name(actions: SaveGameActions) -> FixedPath {
         let default_file_name = {
             if actions.intersects(SaveGameActions::Load) {
                 AUTOSAVE_FILE_NAME
@@ -99,9 +99,7 @@ impl SaveGameHelper {
         };
 
         // Remove extension.
-        Path::new(default_file_name)
-            .with_extension("")
-            .to_str().unwrap().into()
+        default_file_name.with_extension("")
     }
 
     fn save_files_list() -> Vec<String> {
@@ -113,7 +111,7 @@ impl SaveGameHelper {
             .collect()
     }
 
-    fn current_save_file_selection(menu: &UiMenu) -> (&str, &[String]) {
+    fn current_save_file_selection(menu: &UiMenu) -> (PathRef<'_>, &[String]) {
         let (_, save_files_list) = menu
             .find_widget_of_type::<UiItemList>()
             .unwrap();
@@ -122,7 +120,7 @@ impl SaveGameHelper {
             save_files_list.current_text_input_field().unwrap_or_default()
         });
 
-        (save_file_name, save_files_list.items())
+        (PathRef::from_str(save_file_name), save_files_list.items())
     }
 
     fn open_overwrite_save_game_message_box(menu: &mut UiMenuRcMut, context: &mut UiWidgetContext) {
@@ -276,7 +274,7 @@ impl SaveGameHelper {
 
                             let save_file_already_exits = existing_save_files
                                 .iter()
-                                .any(|file| file.eq_ignore_ascii_case(save_file_name));
+                                .any(|file| file.eq_ignore_ascii_case(save_file_name.as_str()));
 
                             if save_file_already_exits {
                                 // Prompt the user about overwriting an existing save file.
@@ -333,7 +331,7 @@ impl SaveGameHelper {
                     } else {
                         let default_save_file_name = Self::default_save_file_name(save_game_actions);
                         save_files_list.reset_items(None, available_save_files);
-                        save_files_list.reset_text_input_field(default_save_file_name);
+                        save_files_list.reset_text_input_field(default_save_file_name.to_string());
                     }
                 }
             }

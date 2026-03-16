@@ -13,6 +13,7 @@ use crate::{
         coords::WorldToScreenTransform,
         constants::BASE_TILE_SIZE_F32,
         mem::{RcMut, WeakMut, WeakRef},
+        paths::PathRef,
     },
     tile::{
         TileKind,
@@ -28,8 +29,8 @@ use crate::{
 // Constants
 // ----------------------------------------------
 
-const TILE_PALETTE_BACKGROUND_SPRITE: &str = "misc/tall_page_bg.png";
-const TILE_PALETTE_CHILD_MENU_BACKGROUND_SPRITE: &str = "misc/wide_page_bg.png";
+const TILE_PALETTE_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/tall_page_bg.png");
+const TILE_PALETTE_CHILD_MENU_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/wide_page_bg.png");
 
 const TILE_PALETTE_BUTTON_SPACING: Vec2 = Vec2::new(4.0, 4.0); // Vertical spacing between buttons, in pixels.
 const TILE_PALETTE_MAIN_BUTTON_SIZE: Vec2 = Vec2::new(50.0, 50.0); // In pixels.
@@ -600,7 +601,7 @@ struct TileSelectionRenderer {
 
 impl TileSelectionRenderer {
     fn new(context: &mut UiWidgetContext) -> Self {
-        Self { clear_icon: context.load_texture("icons/red_x_icon.png") }
+        Self { clear_icon: context.load_texture(PathRef::from_str("icons/red_x_icon.png")) }
     }
 
     fn draw(&self, context: &mut UiWidgetContext, current_selection: TilePaletteSelection) {

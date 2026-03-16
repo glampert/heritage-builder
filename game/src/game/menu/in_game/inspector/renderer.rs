@@ -6,7 +6,7 @@ use super::{TileInspector, TileInspectorMenuWeakMut};
 use crate::{
     tile::{TileKind, sets::TileIconSprite},
     game::menu::TEXT_BUTTON_HOVERED_SPRITE,
-    utils::{Vec2, fixed_string::format_fixed_string},
+    utils::{Vec2, fixed_string::format_fixed_string, paths::PathRef},
     ui::{UiFontScale, sound::UiButtonSoundsEnabled, widgets::*},
 };
 
@@ -329,7 +329,7 @@ impl InspectorMenuRenderer {
                      | UiMenuFlags::CloseModalOnEscape
                      | UiMenuFlags::AdjustSizeToContents,
                 size: Some(Self::calc_menu_size(context)),
-                background: Some("misc/square_page_bg.png"),
+                background: Some(PathRef::from_str("misc/square_page_bg.png")),
                 widget_spacing: Some(Vec2::new(0.0, 10.0)),
                 ..Default::default()
             }

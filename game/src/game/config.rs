@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
@@ -53,7 +54,7 @@ pub enum LoadMapSetting {
         preset_number: usize,
     },
     SaveGame {
-        save_file_path: String,
+        save_file_path: PathBuf,
     },
 }
 

@@ -6,7 +6,7 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     ui::{UiSystem, UiRenderFrameBundle},
-    utils::{Color, Rect, RectTexCoords, Size, Vec2},
+    utils::{Color, Rect, RectTexCoords, Size, Vec2, paths::PathRef},
 };
 
 // Internal implementation.
@@ -482,11 +482,11 @@ pub trait TextureCache: Any {
     fn find_loaded_texture(&self, name_or_file_path: &str) -> Option<TextureHandle>;
 
     // Load texture with default settings, which can be overridden by change_texture_settings().
-    fn load_texture(&mut self, file_path: &str) -> TextureHandle;
+    fn load_texture(&mut self, file_path: PathRef) -> TextureHandle;
 
     // If settings are provided they will be used and will not be affected by change_texture_settings().
     fn load_texture_with_settings(&mut self,
-                                  file_path: &str,
+                                  file_path: PathRef,
                                   settings: Option<TextureSettings>)
                                   -> TextureHandle;
 
@@ -496,14 +496,14 @@ pub trait TextureCache: Any {
 
     // If settings are provided they will be used and will not be affected by change_texture_settings().
     fn new_uninitialized_texture(&mut self,
-                                 debug_name: &str,
+                                 name: &str,
                                  size: Size,
                                  settings: Option<TextureSettings>)
                                  -> TextureHandle;
 
     // New texture with initial pixel data.
     fn new_initialized_texture(&mut self,
-                               debug_name: &str,
+                               name: &str,
                                size: Size,
                                pixels: &[u8],
                                settings: Option<TextureSettings>)

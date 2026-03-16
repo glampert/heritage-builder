@@ -11,10 +11,14 @@ use super::{
 };
 use crate::{
     engine::time::Seconds,
-    utils::coords::CellRange,
     tile::rendering::TileMapRenderFlags,
     save::{Save, Load, PreLoadContext},
     app::input::{InputAction, InputKey},
+    utils::{
+        coords::CellRange,
+        paths::AssetPath,
+        fixed_string::format_fixed_string
+    },
     ui::{
         UiInputEvent, UiTheme,
         widgets::{
@@ -64,7 +68,8 @@ impl HomeMenus {
 
         let mut frames = Vec::with_capacity(SLIDESHOW_FRAME_COUNT);
         for i in 0..SLIDESHOW_FRAME_COUNT {
-            frames.push(format!("misc/home_menu_anim/frame{i}.jpg"));
+            let path = format_fixed_string!(64, "misc/home_menu_anim/frame{i}.jpg");
+            frames.push(AssetPath::from_str(&path));
         }
 
         UiSlideshowParams {
@@ -80,7 +85,7 @@ impl HomeMenus {
         UiSlideshowParams {
             flags: UiSlideshowFlags::Fullscreen,
             loop_mode: UiSlideshowLoopMode::None,
-            frames: vec!["misc/home_menu_static_bg.png".into()],
+            frames: vec![AssetPath::from_str("misc/home_menu_static_bg.png")],
             ..Default::default()
         }
     }

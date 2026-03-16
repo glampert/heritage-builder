@@ -6,9 +6,9 @@ use strum::{EnumCount, EnumProperty, IntoEnumIterator};
 use super::GameSystem;
 use crate::{
     log,
-    utils::Color,
     engine::Engine,
     save::PostLoadContext,
+    utils::{Color, paths::PathRef},
     game::{config::GameConfigs, sim::SimContext},
     sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, AmbienceSoundKey},
 };
@@ -24,8 +24,8 @@ enum AmbientSoundKey {
 }
 
 impl AmbientSoundKey {
-    fn sound_path(self) -> &'static str {
-        self.get_str("SoundPath").unwrap()
+    fn sound_path(self) -> PathRef<'static> {
+        PathRef::from_str(self.get_str("SoundPath").unwrap())
     }
 }
 
@@ -41,7 +41,7 @@ struct AmbientSound {
 }
 
 impl AmbientSound {
-    fn load(sound_sys: &mut SoundSystem, sound_path: &str) -> Self {
+    fn load(sound_sys: &mut SoundSystem, sound_path: PathRef) -> Self {
         debug_assert!(!sound_path.is_empty());
         Self {
             // All ambience sound assets are under "ambience/{sound_path}"

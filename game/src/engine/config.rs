@@ -1,15 +1,14 @@
-use std::path::{Path, PathBuf};
 use proc_macros::DrawDebugUi;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
     log,
     save::{self, *},
-    tile::rendering,
     ui::UiSystem,
+    tile::rendering,
     render::TextureSettings,
     sound::SoundGlobalSettings,
-    utils::{paths, Color, Size},
+    utils::{paths::{self, PathRef, AssetPath}, Color, Size},
     app::{ApplicationWindowMode, ApplicationContentScale},
 };
 
@@ -17,8 +16,8 @@ use crate::{
 // Configs
 // ----------------------------------------------
 
-pub fn configs_path() -> PathBuf {
-    paths::prepend_assets_path("configs")
+pub fn configs_path() -> AssetPath {
+    paths::assets_path().join("configs")
 }
 
 pub trait Configs {
@@ -26,13 +25,14 @@ pub trait Configs {
     fn post_load(&'static mut self) {}
 
     // Saves current configs to file.
-    fn save_file(&'static self, config_file_name: &str) -> bool
+    fn save_file(&'static self, config_file_name: PathRef) -> bool
         where Self: Configs + Sized + Serialize
     {
         debug_assert!(!config_file_name.is_empty());
 
-        let config_json_path =
-            Path::new(&configs_path()).join(config_file_name).with_extension("json");
+        let config_json_path = configs_path()
+            .join(config_file_name)
+            .with_extension("json");
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
@@ -42,13 +42,13 @@ pub trait Configs {
 
         if let Err(err) = state.save(self) {
             log::error!(log::channel!("config"),
-                        "Failed to save config file {config_json_path:?}: {err}");
+                        "Failed to save config file {config_json_path}: {err}");
             return false;
         }
 
         if let Err(err) = state.write_file(&config_json_path) {
             log::error!(log::channel!("config"),
-                        "Failed to write config file {config_json_path:?}: {err}");
+                        "Failed to write config file {config_json_path}: {err}");
             return false;
         }
 
@@ -56,26 +56,27 @@ pub trait Configs {
     }
 
     // Either succeeds loading the config file or returns a default config.
-    fn load_file<T>(config_file_name: &str) -> T
+    fn load_file<T>(config_file_name: PathRef) -> T
         where T: Configs + Sized + Default + DeserializeOwned
     {
         debug_assert!(!config_file_name.is_empty());
 
-        let config_json_path =
-            Path::new(&configs_path()).join(config_file_name).with_extension("json");
+        let config_json_path = configs_path()
+            .join(config_file_name)
+            .with_extension("json");
 
         let mut state = save::backend::new_json_save_state(false);
 
         if let Err(err) = state.read_file(&config_json_path) {
             log::error!(log::channel!("config"),
-                        "Failed to read config file from path {config_json_path:?}: {err}");
+                        "Failed to read config file from path {config_json_path}: {err}");
             return T::default();
         }
 
         match state.load_new_instance::<T>() {
             Ok(configs) => configs,
             Err(err) => {
-                log::error!(log::channel!("config"), "Failed to deserialize config file from path {config_json_path:?}: {err}");
+                log::error!(log::channel!("config"), "Failed to deserialize config file from path {config_json_path}: {err}");
                 T::default()
             }
         }
@@ -97,13 +98,13 @@ macro_rules! configurations {
         impl $configs_type {
             pub fn load() -> &'static $configs_type {
                 use $crate::engine::config::Configs;
-                <$configs_type>::initialize(<$configs_type>::load_file($configs_path));
+                <$configs_type>::initialize(<$configs_type>::load_file($crate::utils::paths::PathRef::from_str($configs_path)));
                 <$configs_type>::get_mut().post_load();
                 <$configs_type>::get()
             }
             pub fn save() -> bool {
                 use $crate::engine::config::Configs;
-                <$configs_type>::get().save_file($configs_path)
+                <$configs_type>::get().save_file($crate::utils::paths::PathRef::from_str($configs_path))
             }
         }
     };

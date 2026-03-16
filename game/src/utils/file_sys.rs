@@ -17,13 +17,13 @@ bitflags! {
 }
 
 pub fn collect_files<P>(path: &P, flags: CollectFlags, extension: Option<&str>) -> Vec<PathBuf>
-    where P: AsRef<Path> + std::fmt::Debug
+    where P: AsRef<Path> + std::fmt::Display
 {
     collect_dir_entries(path, flags | CollectFlags::Files, extension)
 }
 
 pub fn collect_sub_dirs<P>(path: &P, flags: CollectFlags) -> Vec<PathBuf>
-    where P: AsRef<Path> + std::fmt::Debug
+    where P: AsRef<Path> + std::fmt::Display
 {
     collect_dir_entries(path, flags | CollectFlags::SubDirs, None)
 }
@@ -32,7 +32,7 @@ pub fn collect_dir_entries<P>(path: &P,
                               flags: CollectFlags,
                               extension: Option<&str>)
                               -> Vec<PathBuf>
-    where P: AsRef<Path> + std::fmt::Debug
+    where P: AsRef<Path> + std::fmt::Display
 {
     let mut result = Vec::new();
 
@@ -40,7 +40,7 @@ pub fn collect_dir_entries<P>(path: &P,
         Ok(entries) => entries,
         Err(err) => {
             if flags.intersects(CollectFlags::ErrorIfPathDoesNotExist) {
-                log::error!(log::channel!("fs"), "Failed to read directory {path:?}: {err}");
+                log::error!(log::channel!("fs"), "Failed to read directory {path}: {err}");
             }
             return result;
         }

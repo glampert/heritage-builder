@@ -1,7 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::type_complexity)]
 
-use std::{any::Any, fmt::Display, path::PathBuf};
+use std::{any::Any, fmt::Display};
 
 use bitflags::bitflags;
 use arrayvec::ArrayString;
@@ -15,8 +15,6 @@ use super::{
     UiSystem,
     UiFontScale,
     UiTextureHandle,
-    assets_path,
-    custom_tooltip,
     INVALID_UI_TEXTURE_HANDLE,
 };
 
@@ -28,6 +26,7 @@ use crate::{
     tile::{Tile, TileMap, selection::TileSelection, camera::Camera},
     utils::{
         bitflags_with_display,
+        paths::{PathRef, AssetPath},
         fixed_string::format_fixed_string,
         Rect, RectTexCoords, Size, Vec2, Color,
         mem::{self, RawPtr, RcMut, WeakMut, WeakRef},
@@ -176,15 +175,15 @@ impl<'game> UiWidgetContext<'game> {
     }
 
     #[inline]
-    pub fn load_texture(&mut self, path: &str) -> TextureHandle {
+    pub fn load_texture(&mut self, path: PathRef) -> TextureHandle {
         let file_path = super::assets_path().join(path);
         self.render_sys.texture_cache_mut().load_texture_with_settings(
-            file_path.to_str().unwrap(),
+            (&file_path).into(),
             Some(super::texture_settings()))
     }
 
     #[inline]
-    pub fn load_ui_texture(&mut self, path: &str) -> UiTextureHandle {
+    pub fn load_ui_texture(&mut self, path: PathRef) -> UiTextureHandle {
         let tex_handle = self.load_texture(path);
         self.ui_sys.to_ui_texture(tex_handle)
     }
@@ -458,7 +457,7 @@ pub struct UiMenuParams<'a> {
     pub size: Option<Vec2>,
     pub position: UiMenuPosition,
     pub widget_spacing: Option<Vec2>,
-    pub background: Option<&'a str>,
+    pub background: Option<PathRef<'a>>,
     pub on_open_close: UiMenuOpenClose,
 }
 
@@ -933,7 +932,7 @@ impl UiText {
 
 pub struct UiMenuHeadingParams<'a> {
     pub lines: Vec<UiText>,
-    pub separator: Option<&'a str>,
+    pub separator: Option<PathRef<'a>>,
     pub margin_top: f32,
     pub margin_bottom: f32,
     pub center_vertically: bool,
@@ -1602,7 +1601,7 @@ pub struct UiTextButtonParams<'a> {
     pub label: String,
     pub tooltip: Option<UiTooltipText>,
     pub size: UiTextButtonSize,
-    pub hover: Option<&'a str>,
+    pub hover: Option<PathRef<'a>>,
     pub sounds_enabled: UiButtonSoundsEnabled,
     pub enabled: bool,
     pub on_pressed: UiTextButtonPressed,
@@ -1884,7 +1883,7 @@ impl UiSpriteButton {
         debug_assert!(params.size.x > 0.0 && params.size.y > 0.0);
         debug_assert!(params.state_transition_secs >= 0.0);
 
-        let textures = UiSpriteButtonTextures::load(&params.label, context);
+        let textures = UiSpriteButtonTextures::load(PathRef::from_str(&params.label), context);
         let visual_state_transition_timer = CountdownTimer::new(params.state_transition_secs);
 
         Self {
@@ -2037,13 +2036,13 @@ impl UiSpriteButtonTextures {
         Self { textures: [INVALID_UI_TEXTURE_HANDLE; UI_SPRITE_BUTTON_STATE_COUNT] }
     }
 
-    fn load(sprite_path: &str, context: &mut UiWidgetContext) -> Self {
+    fn load(sprite_path: PathRef, context: &mut UiWidgetContext) -> Self {
         let mut sprites = Self::unloaded();
         sprites.load_textures(sprite_path, context);
         sprites
     }
 
-    fn load_textures(&mut self, sprite_path: &str, context: &mut UiWidgetContext) {
+    fn load_textures(&mut self, sprite_path: PathRef, context: &mut UiWidgetContext) {
         for state in UiSpriteButtonState::iter() {
             self.textures[state as usize] = state.load_texture(sprite_path, context);
         }
@@ -2084,15 +2083,16 @@ pub enum UiSpriteButtonState {
 }
 
 impl UiSpriteButtonState {
-    fn asset_path(self, sprite_path: &str) -> PathBuf {
+    fn asset_path(self, sprite_path: PathRef) -> AssetPath {
         debug_assert!(!sprite_path.is_empty());
         let sprite_suffix = self.get_str("Suffix").unwrap();
-        let sprite_name = format_fixed_string!(128, "{sprite_path}_{sprite_suffix}.png");
-        assets_path().join("buttons").join(sprite_name)
+        let sprite_name = format_fixed_string!(64, "{sprite_path}_{sprite_suffix}.png");
+        AssetPath::from_str("buttons").join(sprite_name)
     }
 
-    fn load_texture(self, sprite_path: &str, context: &mut UiWidgetContext) -> UiTextureHandle {
-        context.load_ui_texture(self.asset_path(sprite_path).to_str().unwrap())
+    fn load_texture(self, sprite_path: PathRef, context: &mut UiWidgetContext) -> UiTextureHandle {
+        let asset_path = self.asset_path(sprite_path);
+        context.load_ui_texture((&asset_path).into())
     }
 }
 
@@ -2104,7 +2104,7 @@ impl UiSpriteButtonState {
 pub struct UiTooltipTextParams<'a> {
     pub text: String,
     pub font_scale: UiFontScale,
-    pub background: Option<&'a str>,
+    pub background: Option<PathRef<'a>>,
 }
 
 // ----------------------------------------------
@@ -2133,7 +2133,7 @@ impl UiTooltipText {
     fn draw(&self, context: &mut UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        custom_tooltip(context.ui_sys, self.font_scale, self.background, || {
+        super::custom_tooltip(context.ui_sys, self.font_scale, self.background, || {
             context.ui_sys.ui().text(&self.text);
         });
     }
@@ -2145,7 +2145,7 @@ impl UiTooltipText {
 
 #[derive(Default)]
 pub struct UiSeparatorParams<'a> {
-    pub separator: Option<&'a str>,
+    pub separator: Option<PathRef<'a>>,
     pub size: Option<Vec2>,
     pub thickness: Option<f32>, // Optional thickness used if `size = None`.
     pub vertical: bool,         // Horizontal separator by default.
@@ -2216,7 +2216,7 @@ impl UiSeparator {
 
 #[derive(Default)]
 pub struct UiSpriteIconParams<'a> {
-    pub sprite: Option<&'a str>,
+    pub sprite: Option<PathRef<'a>>,
     pub tex_coords: RectTexCoords,
     pub size: Vec2,
     pub margin_top: f32, // Margin top can be negative.
@@ -3054,7 +3054,7 @@ impl UiWidget for UiItemList {
                 ui.set_next_item_width(window_size.x);
                 set_left_margin();
 
-                let input_field_id = format_fixed_string!(128, "## {window_name} InputField");
+                let input_field_id = format_fixed_string!(64, "## {window_name} InputField");
                 ui.input_text(input_field_id, text_input_field_buffer).build()
             } else {
                 false
@@ -3249,7 +3249,7 @@ impl UiItemList {
 pub struct UiMessageBoxParams<'a> {
     pub label: Option<String>,
     pub size: Option<Vec2>,
-    pub background: Option<&'a str>,
+    pub background: Option<PathRef<'a>>,
     pub contents: Vec<UiWidgetImpl>,
     pub buttons: Vec<UiWidgetImpl>,
 }
@@ -3400,7 +3400,7 @@ pub struct UiSlideshowParams {
     pub flags: UiSlideshowFlags,
     pub loop_mode: UiSlideshowLoopMode,
     pub frame_duration_secs: Seconds,
-    pub frames: Vec<String>,
+    pub frames: Vec<AssetPath>,
 
     // Ignored if UiSlideshowFlags::Fullscreen is set.
     pub size: Option<Vec2>,
@@ -3456,8 +3456,8 @@ impl UiSlideshow {
         debug_assert!(params.margin_right >= 0.0);
 
         let mut frames = Vec::with_capacity(params.frames.len());
-        for path in params.frames {
-            frames.push(context.load_ui_texture(&path));
+        for path in &params.frames {
+            frames.push(context.load_ui_texture(path.into()));
         }
 
         let mut flags = params.flags;

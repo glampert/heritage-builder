@@ -399,11 +399,11 @@ mod macos_app_utils {
 fn macos_redirect_stderr<F, R>(f: F, filename: &str) -> R
     where F: FnOnce() -> R
 {
-    use std::{fs::{self, OpenOptions}, path::Path, os::unix::io::AsRawFd};
+    use std::{fs::{self, OpenOptions}, os::unix::io::AsRawFd};
     use libc::{close, dup, dup2, STDERR_FILENO};
 
-    let logs_dir = log::logs_dir();
-    let _ = fs::create_dir(&logs_dir);
+    let logs_path = log::logs_path();
+    let _ = fs::create_dir(&logs_path);
 
     unsafe {
         let saved_fd = dup(STDERR_FILENO);
@@ -411,7 +411,7 @@ fn macos_redirect_stderr<F, R>(f: F, filename: &str) -> R
             .create(true)
             .write(true)
             .truncate(true)
-            .open(Path::new(&logs_dir).join(filename))
+            .open(logs_path.join(filename))
             .expect("Failed to open stderr log file!");
         dup2(file.as_raw_fd(), STDERR_FILENO);
         let result = f();

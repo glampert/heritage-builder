@@ -1,5 +1,4 @@
-use std::{rc::Rc, path::PathBuf};
-
+use std::rc::Rc;
 use arrayvec::ArrayVec;
 use num_enum::TryFromPrimitive;
 use strum::{EnumCount, EnumProperty, IntoEnumIterator};
@@ -7,8 +6,8 @@ use strum_macros::{EnumCount, EnumProperty, EnumIter, Display};
 
 use crate::{
     engine::time::Seconds,
-    ui::{self, widgets::*, sound::UiButtonSoundsEnabled},
-    utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}},
+    ui::{widgets::*, sound::UiButtonSoundsEnabled},
+    utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}, paths::PathRef},
     game::menu::{
         ButtonDef,
         dialog::{self, DialogMenuKind},
@@ -123,10 +122,10 @@ enum TopBarIcon {
 }
 
 impl TopBarIcon {
-    fn asset_path(self) -> PathBuf {
+    fn asset_path(self) -> PathRef<'static> {
         // ui/icons/{sprite}.png
         let path = self.get_str("AssetPath").unwrap();
-        ui::assets_path().join(path)
+        PathRef::from_str(path)
     }
 
     fn clip_to_menu(self) -> bool {
@@ -250,7 +249,7 @@ impl TopBar {
             let icon_sprite = UiSpriteIcon::new(
                 context,
                 UiSpriteIconParams {
-                    sprite: icon.asset_path().to_str(),
+                    sprite: Some(icon.asset_path()),
                     size: icon.size(),
                     margin_top: icon.margin_top(),
                     tooltip: icon_tooltip,
@@ -298,7 +297,7 @@ impl TopBar {
                 label: Some("TopBar".into()),
                 flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenterTop,
                 widget_spacing: Some(TOP_BAR_ICON_SPACING),
-                background: Some("misc/wide_page_bg.png"),
+                background: Some(PathRef::from_str("misc/wide_page_bg.png")),
                 ..Default::default()
             }
         );
@@ -387,7 +386,7 @@ impl LeftBar {
                 flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
                 position: UiMenuPosition::Vec2(0.0, 60.0),
                 widget_spacing: Some(Vec2::new(LEFT_BAR_BUTTON_SPACING, LEFT_BAR_BUTTON_SPACING)),
-                background: Some("misc/tall_page_bg.png"),
+                background: Some(PathRef::from_str("misc/tall_page_bg.png")),
                 ..Default::default()
             }
         );
@@ -561,7 +560,7 @@ impl SpeedControlsBar {
                 label: Some("SpeedControlsBar".into()),
                 flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
                 widget_spacing: Some(SPEED_CONTROLS_BUTTON_SPACING),
-                background: Some("misc/wide_page_bg.png"),
+                background: Some(PathRef::from_str("misc/wide_page_bg.png")),
                 ..Default::default()
             }
         );

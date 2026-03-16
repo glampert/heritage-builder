@@ -1,5 +1,4 @@
 use std::{
-    path::PathBuf,
     cell::UnsafeCell,
     ops::{Deref, DerefMut},
 };
@@ -18,7 +17,7 @@ use crate::{
     utils::{
         fixed_string::format_fixed_string,
         Color, FieldAccessorXY, Vec2, Rect,
-        paths, mem::{RawPtr, Mutable},
+        paths::{self, AssetPath}, mem::{RawPtr, Mutable},
     },
 };
 
@@ -799,8 +798,8 @@ impl UiContext {
 // ----------------------------------------------
 
 #[inline]
-pub fn assets_path() -> PathBuf {
-    paths::prepend_assets_path("ui")
+pub fn assets_path() -> AssetPath {
+    paths::assets_path().join("ui")
 }
 
 #[inline]

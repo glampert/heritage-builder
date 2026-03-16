@@ -1,8 +1,5 @@
+use std::{collections::VecDeque, path::PathBuf};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::VecDeque,
-    path::{Path, PathBuf},
-};
 
 use world::World;
 use sim::Simulation;
@@ -31,9 +28,9 @@ use crate::{
     },
     engine::{
         self,
+        Engine,
         config::EngineConfigs,
         time::{Seconds, UpdateTimer},
-        Engine,
     },
     tile::{
         camera::*,
@@ -43,9 +40,11 @@ use crate::{
         TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
     utils::{
+        hash, Size, Vec2,
+        coords::CellRange,
         mem::{RcMut, singleton_late_init},
-        crash_report, platform, paths,
-        coords::CellRange, file_sys, hash, Size, Vec2,
+        crash_report, platform, file_sys,
+        paths::{self, PathRef, FixedPath},
     },
 };
 
@@ -115,7 +114,8 @@ impl GameSession {
         session.menus = Some(session.new_game_menus_from_config(engine, home_menu));
 
         if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
-            session.load_save_game(&make_save_game_file_path(save_file_path));
+            let path = make_save_game_file_path(PathRef::from_path(save_file_path));
+            session.load_save_game((&path).into());
         }
 
         if configs.sim.start_paused {
@@ -222,7 +222,7 @@ impl GameSession {
                     debug::utils::create_preset_tile_map(world, *preset_number)
                 }
                 LoadMapSetting::SaveGame { save_file_path } => {
-                    if save_file_path.is_empty() {
+                    if save_file_path.to_str().unwrap().is_empty() {
                         panic!("LoadMapSetting::SaveGame: No save file path provided!");
                     }
                     // Loading a save requires loading a full GameSession, so we'll just create
@@ -354,31 +354,29 @@ impl Load for GameSession {
 // Save Game
 // ----------------------------------------------
 
-pub const AUTOSAVE_FILE_NAME: &str = "autosave.json";
-pub const DEFAULT_SAVE_FILE_NAME: &str = "save_game.json";
+pub const AUTOSAVE_FILE_NAME: PathRef = PathRef::from_str("autosave.json");
+pub const DEFAULT_SAVE_FILE_NAME: PathRef = PathRef::from_str("save_game.json");
 
-fn save_games_path() -> PathBuf {
-    paths::prepend_base_path("saves")
+fn save_games_path() -> FixedPath {
+    paths::base_path().join("saves")
 }
 
-fn make_save_game_file_path(save_file_name: &str) -> String {
-    Path::new(&save_games_path())
+fn make_save_game_file_path(save_file_name: PathRef) -> FixedPath {
+    save_games_path()
         .join(save_file_name)
         .with_extension("json")
-        .to_string_lossy()
-        .into()
 }
 
 impl GameSession {
-    fn save_game(&mut self, save_file_path: &str) -> bool {
+    fn save_game(&mut self, save_file_path: PathRef) -> bool {
         log::info!(log::channel!("session"), "Saving game '{save_file_path}' ...");
 
-        fn can_write_save_file(save_file_path: &str) -> bool {
+        fn can_write_save_file(save_file_path: PathRef) -> bool {
             // Attempt to write a dummy file to probe if the path is writable.
-            std::fs::write(save_file_path, save_file_path).is_ok()
+            std::fs::write(save_file_path, save_file_path.as_str()).is_ok()
         }
 
-        fn do_save(state: &mut SaveStateImpl, sesion: &GameSession, save_file_path: &str) -> bool {
+        fn do_save(state: &mut SaveStateImpl, sesion: &GameSession, save_file_path: PathRef) -> bool {
             if let Err(err) = sesion.save(state) {
                 log::error!(log::channel!("session"), "Failed to save game: {err}");
                 return false;
@@ -412,7 +410,7 @@ impl GameSession {
         result
     }
 
-    fn load_save_game(&mut self, save_file_path: &str) -> bool {
+    fn load_save_game(&mut self, save_file_path: PathRef) -> bool {
         log::info!(log::channel!("session"), "Loading save game '{save_file_path}' ...");
 
         let mut state = save::backend::new_json_save_state(false);
@@ -459,8 +457,8 @@ impl GameSession {
 enum GameSessionCmd {
     Reset { reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size> },
     LoadPreset { preset_number: usize },
-    LoadSaveGame { save_file_path: String },
-    SaveGame { save_file_path: String },
+    LoadSaveGame { save_file_path: PathBuf },
+    SaveGame { save_file_path: PathBuf },
     QuitToMainMenu,
 }
 
@@ -498,8 +496,8 @@ impl GameLoop {
 
         log::info!(log::channel!("game"), "--- Game Initialization ---");
 
-        log::info!(log::channel!("game"), "Base path: {}", paths::base_path_str());
-        log::info!(log::channel!("game"), "Assets path: {}", paths::assets_path_str());
+        log::info!(log::channel!("game"), "Base path: {}", paths::base_path());
+        log::info!(log::channel!("game"), "Assets path: {}", paths::assets_path());
 
         log::info!(log::channel!("game"), "Running in {build_profile} profile.");
         log::info!(log::channel!("game"), "{run_environment} environment.");
@@ -549,25 +547,25 @@ impl GameLoop {
             .push_back(GameSessionCmd::LoadPreset { preset_number: preset_tile_map_number });
     }
 
-    pub fn load_save_game(&mut self, save_file_name: &str) {
+    pub fn load_save_game(&mut self, save_file_name: PathRef) {
         if save_file_name.is_empty() {
             log::error!(log::channel!("game"), "Load game: Empty file name!");
             return;
         }
 
         self.session_cmd_queue.push_back(GameSessionCmd::LoadSaveGame {
-            save_file_path: make_save_game_file_path(save_file_name)
+            save_file_path: make_save_game_file_path(save_file_name).to_path_buf()
         });
     }
 
-    pub fn save_game(&mut self, save_file_name: &str) {
+    pub fn save_game(&mut self, save_file_name: PathRef) {
         if save_file_name.is_empty() {
             log::error!(log::channel!("game"), "Save game: Empty file name!");
             return;
         }
 
         self.session_cmd_queue.push_back(GameSessionCmd::SaveGame {
-            save_file_path: make_save_game_file_path(save_file_name)
+            save_file_path: make_save_game_file_path(save_file_name).to_path_buf()
         });
     }
 
@@ -819,10 +817,10 @@ impl GameLoop {
                     self.session_cmd_load_preset(preset_number);
                 }
                 GameSessionCmd::LoadSaveGame { save_file_path } => {
-                    self.session_cmd_load_save_game(save_file_path);
+                    self.session_cmd_load_save_game(PathRef::from_path(&save_file_path));
                 }
                 GameSessionCmd::SaveGame { save_file_path } => {
-                    self.session_cmd_save_game(save_file_path);
+                    self.session_cmd_save_game(PathRef::from_path(&save_file_path));
                 }
                 GameSessionCmd::QuitToMainMenu => {
                     self.session_cmd_quit_to_main_menu();
@@ -842,14 +840,14 @@ impl GameLoop {
         log::info!(log::channel!("game"), "--- Game Session created ---");
     }
 
-    fn session_cmd_load_save_game(&mut self, save_file_path: String) {
+    fn session_cmd_load_save_game(&mut self, save_file_path: PathRef) {
         debug_assert!(!save_file_path.is_empty());
-        self.session.load_save_game(&save_file_path);
+        self.session.load_save_game(save_file_path);
     }
 
-    fn session_cmd_save_game(&mut self, save_file_path: String) {
+    fn session_cmd_save_game(&mut self, save_file_path: PathRef) {
         debug_assert!(!save_file_path.is_empty());
-        self.session.save_game(&save_file_path);
+        self.session.save_game(save_file_path);
     }
 
     fn session_cmd_quit_to_main_menu(&mut self) {

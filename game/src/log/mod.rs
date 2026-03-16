@@ -2,7 +2,6 @@
 
 use std::{
     fs, io, fmt,
-    path::{Path, PathBuf},
     hash::{Hash, Hasher},
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
@@ -15,7 +14,7 @@ use strum_macros::Display;
 
 use crate::utils::{
     hash::{self, StringHash},
-    paths, Color,
+    paths::{self, FixedPath}, Color,
 };
 
 // ----------------------------------------------
@@ -135,8 +134,8 @@ pub fn enable_tty_colors(enable: bool) {
     ENABLE_TTY_COLORS.store(enable, Ordering::Relaxed);
 }
 
-pub fn logs_dir() -> PathBuf {
-    paths::prepend_base_path("logs")
+pub fn logs_path() -> FixedPath {
+    paths::base_path().join("logs")
 }
 
 const LOG_FILENAME: &str = "runtime.log";
@@ -168,14 +167,14 @@ impl io::Write for LogOutput {
 
 fn init_log_output() -> LogOutput {
     if REDIRECT_TO_FILE.load(Ordering::Relaxed) {
-        let logs_dir = logs_dir();
-        let _ = fs::create_dir(&logs_dir);
+        let logs_path = logs_path();
+        let _ = fs::create_dir(&logs_path);
 
         if let Ok(file) = fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(Path::new(&logs_dir).join(LOG_FILENAME))
+            .open(logs_path.join(LOG_FILENAME))
         {
             enable_tty_colors(false);
             LogOutput::File(file)

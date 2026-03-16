@@ -2,12 +2,7 @@ use slab::Slab;
 use smallvec::SmallVec;
 use proc_macros::DrawDebugUi;
 use serde::{Serialize, Deserialize};
-
-use std::{
-    time::Duration,
-    marker::PhantomData,
-    path::{Path, PathBuf, MAIN_SEPARATOR},
-};
+use std::{time::Duration, marker::PhantomData};
 
 use kira::{
     backend::DefaultBackend,
@@ -25,10 +20,9 @@ use crate::{
     engine::time::Seconds,
     ui::{self, UiSystem, UiStaticVar},
     utils::{
+        Vec2, coords::IsoPointF32,
         hash::{self, StringHash, PreHashedKeyMap},
-        Vec2, paths, mem::RcMut,
-        fixed_string::format_fixed_string,
-        coords::IsoPointF32,
+        paths::{self, PathRef, AssetPath}, mem::RcMut,
     },
 };
 
@@ -256,28 +250,28 @@ impl SoundSystem {
     // Sound Loading:
     // ----------------------
 
-    pub fn load_sfx(&mut self, path: &str) -> SfxSoundKey {
+    pub fn load_sfx(&mut self, path: PathRef) -> SfxSoundKey {
         if !self.is_initialized() {
             return SfxSoundKey::invalid();
         }
         self.registry.load_sfx(path)
     }
 
-    pub fn load_ambience(&mut self, path: &str) -> AmbienceSoundKey {
+    pub fn load_ambience(&mut self, path: PathRef) -> AmbienceSoundKey {
         if !self.is_initialized() {
             return AmbienceSoundKey::invalid();
         }
         self.registry.load_ambience(path)
     }
 
-    pub fn load_music(&mut self, path: &str) -> MusicSoundKey {
+    pub fn load_music(&mut self, path: PathRef) -> MusicSoundKey {
         if !self.is_initialized() {
             return MusicSoundKey::invalid();
         }
         self.registry.load_music(path)
     }
 
-    pub fn load_narration(&mut self, path: &str) -> NarrationSoundKey {
+    pub fn load_narration(&mut self, path: PathRef) -> NarrationSoundKey {
         if !self.is_initialized() {
             return NarrationSoundKey::invalid();
         }
@@ -502,12 +496,12 @@ impl SoundSystem {
             ui.text("SFX:");
 
             if ui.button("Play SFX (bleep)") {
-                let sound_key = self.load_sfx("test/bleep.ogg");
+                let sound_key = self.load_sfx(PathRef::from_str("test/bleep.ogg"));
                 self.play_sfx(sound_key, *LOOPING);
             }
 
             if ui.button("Play SFX (drums)") {
-                let sound_key = self.load_sfx("test/drums.ogg");
+                let sound_key = self.load_sfx(PathRef::from_str("test/drums.ogg"));
                 self.play_sfx(sound_key, *LOOPING);
             }
 
@@ -518,7 +512,7 @@ impl SoundSystem {
             ui.text("Music:");
 
             if ui.button("Play Music") {
-                let sound_key = self.load_music("dynastys_legacy_1.mp3");
+                let sound_key = self.load_music(PathRef::from_str("dynastys_legacy_1.mp3"));
                 self.play_music(sound_key, *LOOPING);
             }
 
@@ -529,7 +523,7 @@ impl SoundSystem {
             ui.text("Ambience:");
 
             if ui.button("Play Ambience") {
-                let sound_key = self.load_ambience("birds_chirping_ambiance.mp3");
+                let sound_key = self.load_ambience(PathRef::from_str("birds_chirping_ambiance.mp3"));
                 self.play_ambience(sound_key, *LOOPING);
             }
 
@@ -541,7 +535,7 @@ impl SoundSystem {
             ui::input_f32_xy(ui, "Spatial:", SPATIAL_ORIGIN.as_mut(), false, None, None);
 
             if ui.button("Play Spatial") {
-                let sound_key = self.load_ambience("birds_chirping_ambiance.mp3");
+                let sound_key = self.load_ambience(PathRef::from_str("birds_chirping_ambiance.mp3"));
                 self.play_spatial_ambience(sound_key, IsoPointF32(*SPATIAL_ORIGIN), *LOOPING);
             }
 
@@ -782,7 +776,6 @@ impl SoundAsset for StreamedSoundAsset {
 // ----------------------------------------------
 
 // Stores loaded SFX, music, narration, etc.
-#[derive(Default)]
 struct SoundAssetRegistry {
     // SFX, Ambience, Spatial: StaticSoundData
     // Music & Narration: StreamingSoundData
@@ -793,44 +786,52 @@ struct SoundAssetRegistry {
     music: PreHashedKeyMap<StringHash, StreamedSoundAsset>,
     narration: PreHashedKeyMap<StringHash, StreamedSoundAsset>,
 
-    paths: SoundAssetPaths,
+    paths: Box<SoundAssetPaths>,
 }
 
-#[derive(Default)]
 struct SoundAssetPaths {
-    sfx: PathBuf,
-    ambience: PathBuf,
-    music: PathBuf,
-    narration: PathBuf,
+    sfx: AssetPath,
+    ambience: AssetPath,
+    music: AssetPath,
+    narration: AssetPath,
 }
 
 impl SoundAssetRegistry {
     fn new() -> Self {
-        let mut registry = Self { ..Default::default() };
-        registry.paths.sfx       = paths::prepend_assets_path(Path::new("sounds").join("sfx"));
-        registry.paths.ambience  = paths::prepend_assets_path(Path::new("sounds").join("ambience"));
-        registry.paths.music     = paths::prepend_assets_path(Path::new("sounds").join("music"));
-        registry.paths.narration = paths::prepend_assets_path(Path::new("sounds").join("narration"));
-        registry
+        let sound_base_path = paths::assets_path().join("sounds");
+        let asset_paths = SoundAssetPaths {
+            sfx:       sound_base_path.join("sfx"),
+            ambience:  sound_base_path.join("ambience"),
+            music:     sound_base_path.join("music"),
+            narration: sound_base_path.join("narration"),
+        };
+
+        Self {
+            sfx: PreHashedKeyMap::default(),
+            ambience: PreHashedKeyMap::default(),
+            music: PreHashedKeyMap::default(),
+            narration: PreHashedKeyMap::default(),
+            paths: Box::new(asset_paths),
+        }
     }
 
     #[inline]
-    fn load_sfx(&mut self, path: &str) -> SfxSoundKey {
+    fn load_sfx(&mut self, path: PathRef) -> SfxSoundKey {
         load_static_sound(&mut self.sfx, &self.paths.sfx, path)
     }
 
     #[inline]
-    fn load_ambience(&mut self, path: &str) -> AmbienceSoundKey {
+    fn load_ambience(&mut self, path: PathRef) -> AmbienceSoundKey {
         load_static_sound(&mut self.ambience, &self.paths.ambience, path)
     }
 
     #[inline]
-    fn load_music(&mut self, path: &str) -> MusicSoundKey {
+    fn load_music(&mut self, path: PathRef) -> MusicSoundKey {
         load_streamed_sound(&mut self.music, &self.paths.music, path)
     }
 
     #[inline]
-    fn load_narration(&mut self, path: &str) -> NarrationSoundKey {
+    fn load_narration(&mut self, path: PathRef) -> NarrationSoundKey {
         load_streamed_sound(&mut self.narration, &self.paths.narration, path)
     }
 
@@ -850,18 +851,18 @@ impl SoundAssetRegistry {
 }
 
 fn load_static_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, StaticSoundAsset>,
-                                    base_path: &Path,
-                                    asset_path: &str) -> Key {
+                                    base_path: &AssetPath,
+                                    asset_path: PathRef) -> Key {
     debug_assert!(!asset_path.is_empty());
 
-    let sound_path = format_fixed_string!(512, "{}{}{}", base_path.to_str().unwrap(), MAIN_SEPARATOR, asset_path);
-    let sound_hash = hash::fnv1a_from_str(&sound_path);
+    let sound_path = base_path.join(asset_path);
+    let sound_hash = hash::fnv1a_from_str(sound_path.as_str());
 
     if hash_map.get(&sound_hash).is_some() {
         return Key::new(sound_hash); // Already loaded.
     }
 
-    let sound_data = match StaticSoundData::from_file(sound_path) {
+    let sound_data = match StaticSoundData::from_file(&sound_path) {
         Ok(sound_data) => sound_data,
         Err(err) => {
             log::error!(log::channel!("sound"), "Failed to load sound '{sound_path}': {err}");
@@ -874,19 +875,19 @@ fn load_static_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, S
 }
 
 fn load_streamed_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, StreamedSoundAsset>,
-                                      base_path: &Path,
-                                      asset_path: &str) -> Key {
+                                      base_path: &AssetPath,
+                                      asset_path: PathRef) -> Key {
     debug_assert!(!asset_path.is_empty());
 
-    let sound_path = format_fixed_string!(512, "{}{}{}", base_path.to_str().unwrap(), MAIN_SEPARATOR, asset_path);
-    let sound_hash = hash::fnv1a_from_str(&sound_path);
+    let sound_path = base_path.join(asset_path);
+    let sound_hash = hash::fnv1a_from_str(sound_path.as_str());
 
     if hash_map.get(&sound_hash).is_some() {
         return Key::new(sound_hash); // Already loaded.
     }
 
     // Only probe file path now. Data is lazily loaded on first reference.
-    if std::fs::exists(sound_path).is_err() {
+    if !sound_path.exists() {
         log::error!(log::channel!("sound"), "Sound file path '{sound_path}' is invalid!");
         return Key::invalid();
     }
