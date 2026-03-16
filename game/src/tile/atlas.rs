@@ -55,7 +55,7 @@ impl TextureAtlas for PassthroughTextureAtlas {
         let absolute_path = format_fixed_string!(
             1024, // capacity
             "{}{}{}",
-            paths::assets_dir_str(),
+            paths::assets_path_str(),
             MAIN_SEPARATOR,
             texture_path);
 
@@ -100,7 +100,7 @@ impl RuntimePackedTextureAtlas {
 impl TextureAtlas for RuntimePackedTextureAtlas {
     fn load_texture(&mut self, tex_cache: &mut dyn TextureCache, texture_path: &str) -> TileTexInfo {
         debug_assert!(!texture_path.is_empty());
-        if let Some(image) = load_image_file(paths::assets_dir_str(), texture_path) {
+        if let Some(image) = load_image_file(paths::assets_path_str(), texture_path) {
             self.packer.pack_image(tex_cache, texture_path, image)
         } else {
             TileTexInfo::default()
@@ -192,7 +192,7 @@ impl OfflinePackedTextureAtlas {
         let atlas_metadata_path = format_fixed_string!(1024, "{absolute_path}atlas_meta.json");
         let atlas_metadata = load_atlas_metadata_file(&atlas_metadata_path, layer);
 
-        let mut page_images = load_cached_atlas_page_images(&layer_name, atlas_metadata.page_count);
+        let mut page_images = load_cached_atlas_page_images(layer_name, atlas_metadata.page_count);
         debug_assert!(page_images.len() == atlas_metadata.page_count);
 
         let mut pages = Vec::with_capacity(atlas_metadata.page_count);

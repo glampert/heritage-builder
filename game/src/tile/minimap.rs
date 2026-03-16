@@ -329,7 +329,7 @@ impl MinimapIcon {
     #[inline]
     fn asset_path(self) -> PathBuf {
         let path = self.get_str("AssetPath").unwrap();
-        paths::asset_path(path)
+        paths::prepend_assets_path(path)
     }
 }
 

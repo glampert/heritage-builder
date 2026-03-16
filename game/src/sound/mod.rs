@@ -807,10 +807,10 @@ struct SoundAssetPaths {
 impl SoundAssetRegistry {
     fn new() -> Self {
         let mut registry = Self { ..Default::default() };
-        registry.paths.sfx       = paths::asset_path(Path::new("sounds").join("sfx"));
-        registry.paths.ambience  = paths::asset_path(Path::new("sounds").join("ambience"));
-        registry.paths.music     = paths::asset_path(Path::new("sounds").join("music"));
-        registry.paths.narration = paths::asset_path(Path::new("sounds").join("narration"));
+        registry.paths.sfx       = paths::prepend_assets_path(Path::new("sounds").join("sfx"));
+        registry.paths.ambience  = paths::prepend_assets_path(Path::new("sounds").join("ambience"));
+        registry.paths.music     = paths::prepend_assets_path(Path::new("sounds").join("music"));
+        registry.paths.narration = paths::prepend_assets_path(Path::new("sounds").join("narration"));
         registry
     }
 

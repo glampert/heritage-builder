@@ -137,7 +137,7 @@ pub fn enable_tty_colors(enable: bool) {
 }
 
 pub fn logs_dir() -> PathBuf {
-    paths::base_path("logs")
+    paths::prepend_base_path("logs")
 }
 
 const LOG_FILENAME: &str = "runtime.log";

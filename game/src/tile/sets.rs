@@ -1446,7 +1446,7 @@ impl TileSets {
             format_fixed_string!(
                 1024, // capacity
                 "{}{}{}{}{}",
-                paths::assets_dir_str(),
+                paths::assets_path_str(),
                 MAIN_SEPARATOR_STR,
                 tile_set_path,
                 MAIN_SEPARATOR_STR,

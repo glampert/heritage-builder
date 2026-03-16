@@ -357,15 +357,16 @@ impl Load for GameSession {
 pub const AUTOSAVE_FILE_NAME: &str = "autosave.json";
 pub const DEFAULT_SAVE_FILE_NAME: &str = "save_game.json";
 
-fn save_games_dir() -> PathBuf {
-    paths::base_path("saves")
+fn save_games_path() -> PathBuf {
+    paths::prepend_base_path("saves")
 }
 
 fn make_save_game_file_path(save_file_name: &str) -> String {
-    Path::new(&save_games_dir()).join(save_file_name)
-                                .with_extension("json")
-                                .to_string_lossy()
-                                .into()
+    Path::new(&save_games_path())
+        .join(save_file_name)
+        .with_extension("json")
+        .to_string_lossy()
+        .into()
 }
 
 impl GameSession {
@@ -394,7 +395,7 @@ impl GameSession {
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
-        let _ = std::fs::create_dir_all(save_games_dir());
+        let _ = std::fs::create_dir_all(save_games_path());
 
         if !can_write_save_file(save_file_path) {
             log::error!(log::channel!("session"),
@@ -490,15 +491,15 @@ impl GameLoop {
         // Early initialization:
         log::redirect_to_file(is_app_bundle);
         LogViewerWindow::early_init();
-        paths::set_default_working_dir();
+        paths::set_default_working_directory();
 
         // Only log panics when running from a bundle. Otherwise the default behavior is fine.
         crash_report::initialize(is_app_bundle);
 
         log::info!(log::channel!("game"), "--- Game Initialization ---");
 
-        log::info!(log::channel!("game"), "Base dir: {:?}", paths::base_dir());
-        log::info!(log::channel!("game"), "Assets dir: {:?}", paths::assets_dir());
+        log::info!(log::channel!("game"), "Base path: {}", paths::base_path_str());
+        log::info!(log::channel!("game"), "Assets path: {}", paths::assets_path_str());
 
         log::info!(log::channel!("game"), "Running in {build_profile} profile.");
         log::info!(log::channel!("game"), "{run_environment} environment.");
@@ -572,7 +573,7 @@ impl GameLoop {
 
     #[inline]
     pub fn save_files_list(&self) -> Vec<PathBuf> {
-        file_sys::collect_files(&save_games_dir(),
+        file_sys::collect_files(&save_games_path(),
                                 file_sys::CollectFlags::FilenamesOnly,
                                 Some("json"))
     }
@@ -687,7 +688,7 @@ impl GameLoop {
 
     fn load_assets(tex_cache: &mut dyn TextureCache, configs: &GameConfigs) {
         log::info!(log::channel!("game"), "--- Loading Game Assets ---");
-        paths::set_default_working_dir();
+        paths::set_default_working_directory();
 
         BuildingConfigs::load();
         log::info!(log::channel!("game"), "BuildingConfigs loaded.");

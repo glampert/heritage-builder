@@ -18,7 +18,7 @@ use crate::{
 // ----------------------------------------------
 
 pub fn configs_path() -> PathBuf {
-    paths::asset_path("configs")
+    paths::prepend_assets_path("configs")
 }
 
 pub trait Configs {

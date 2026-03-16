@@ -10,55 +10,77 @@ pub mod paths {
     use std::{sync::LazyLock, env, path::{Path, PathBuf}};
     use crate::log;
 
-    // Sets the current working directory to base_dir.
-    pub fn set_default_working_dir() {
-        let path = base_dir();
+    // Sets the current working directory to base_path.
+    pub fn set_default_working_directory() {
+        let path = base_path();
         if let Err(err) = env::set_current_dir(path) {
             log::warning!("Failed to set default working directory: {err}");
         }
     }
 
-    // Absolute path where the application runs from. Parent of assets_dir.
-    pub fn base_dir() -> &'static PathBuf {
-        &CACHED_BASE_DIR
+    // Absolute path where the application runs from. Parent of assets_path.
+    pub fn base_path() -> &'static PathBuf {
+        &CACHED_PATH_BUFS.base_path
     }
 
-    pub fn base_dir_str() -> &'static str {
-        &CACHED_BASE_DIR_STR
+    pub fn base_path_str() -> &'static str {
+        CACHED_PATH_STRS.base_path_str
     }
 
-    // Joins base_dir and the given relative path.
-    pub fn base_path(relative_path: impl AsRef<Path>) -> PathBuf {
-        CACHED_BASE_DIR.join(relative_path)
+    // Joins base_path and the given relative path.
+    pub fn prepend_base_path(relative_path: impl AsRef<Path>) -> PathBuf {
+        CACHED_PATH_BUFS.base_path.join(relative_path)
     }
 
     // Returns the absolute path to the game's assets directory.
     // On MacOS, this will point inside `.app/Contents/Resources/assets`.
     // On other platforms or in dev runs, it falls back to `./assets`.
-    pub fn assets_dir() -> &'static PathBuf {
-        &CACHED_ASSETS_DIR
+    pub fn assets_path() -> &'static PathBuf {
+        &CACHED_PATH_BUFS.assets_path
     }
 
-    pub fn assets_dir_str() -> &'static str {
-        &CACHED_ASSETS_DIR_STR
+    pub fn assets_path_str() -> &'static str {
+        CACHED_PATH_STRS.assets_path_str
     }
 
-    // Resolves a path within the assets directory.
-    pub fn asset_path(relative_path: impl AsRef<Path>) -> PathBuf {
-        CACHED_ASSETS_DIR.join(relative_path)
+    // Joins assets_path and the given relative path.
+    pub fn prepend_assets_path(relative_path: impl AsRef<Path>) -> PathBuf {
+        CACHED_PATH_BUFS.assets_path.join(relative_path)
+    }
+
+    // ----------------------
+    // Internal:
+    // ----------------------
+
+    struct CachedPathBufs {
+        base_path: PathBuf,
+        assets_path: PathBuf,
+    }
+
+    struct CachedPathStrs {
+        base_path_str: &'static str,
+        assets_path_str: &'static str,
     }
 
     // Cached on first use.
-    static CACHED_BASE_DIR:   LazyLock<PathBuf> = LazyLock::new(cache_base_dir);
-    static CACHED_ASSETS_DIR: LazyLock<PathBuf> = LazyLock::new(cache_assets_dir);
+    static CACHED_PATH_BUFS: LazyLock<CachedPathBufs> = LazyLock::new(|| {
+        CachedPathBufs {
+            base_path: cache_base_path(),
+            assets_path: cache_assets_path(),
+        }
+    });
 
-    static CACHED_BASE_DIR_STR:   LazyLock<&'static str> = LazyLock::new(|| base_dir().to_str().unwrap());
-    static CACHED_ASSETS_DIR_STR: LazyLock<&'static str> = LazyLock::new(|| assets_dir().to_str().unwrap());
+    static CACHED_PATH_STRS: LazyLock<CachedPathStrs> = LazyLock::new(|| {
+        CachedPathStrs {
+            base_path_str: CACHED_PATH_BUFS.base_path.to_str().unwrap(),
+            assets_path_str: CACHED_PATH_BUFS.assets_path.to_str().unwrap(),
+        }
+    });
 
-    fn cache_base_dir() -> PathBuf {
+    fn cache_base_path() -> PathBuf {
         #[cfg(target_os = "macos")]
         {
-            if let Some(bundle_resources) = macos_bundle_resources_dir() {
+            if let Some(bundle_resources) = macos_bundle_resources_path() {
                 if bundle_resources.exists() {
                     return bundle_resources;
                 }
@@ -69,10 +91,10 @@ pub mod paths {
         project_relative("")
     }
 
-    fn cache_assets_dir() -> PathBuf {
+    fn cache_assets_path() -> PathBuf {
         #[cfg(target_os = "macos")]
         {
-            if let Some(bundle_resources) = macos_bundle_resources_dir() {
+            if let Some(bundle_resources) = macos_bundle_resources_path() {
                 if bundle_resources.exists() {
                     return bundle_resources.join("assets");
                 }
@@ -85,7 +107,7 @@ pub mod paths {
 
     // Internal helper to find the Resources directory when inside a MacOS bundle.
     #[cfg(target_os = "macos")]
-    fn macos_bundle_resources_dir() -> Option<PathBuf> {
+    fn macos_bundle_resources_path() -> Option<PathBuf> {
         // Example: /MyGame.app/Contents/MacOS/MyGame
         let exe_path = env::current_exe().ok()?;
         let mut path = exe_path.parent()?.to_path_buf();

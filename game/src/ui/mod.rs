@@ -800,7 +800,7 @@ impl UiContext {
 
 #[inline]
 pub fn assets_path() -> PathBuf {
-    paths::asset_path("ui")
+    paths::prepend_assets_path("ui")
 }
 
 #[inline]
