@@ -44,7 +44,7 @@ use crate::{
     },
     utils::{
         mem::{RcMut, singleton_late_init},
-        crash_report, platform::{self, paths},
+        crash_report, platform, paths,
         coords::CellRange, file_sys, hash, Size, Vec2,
     },
 };

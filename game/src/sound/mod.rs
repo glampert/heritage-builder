@@ -26,7 +26,7 @@ use crate::{
     ui::{self, UiSystem, UiStaticVar},
     utils::{
         hash::{self, StringHash, PreHashedKeyMap},
-        Vec2, platform::paths, mem::RcMut,
+        Vec2, paths, mem::RcMut,
         fixed_string::format_fixed_string,
         coords::IsoPointF32,
     },

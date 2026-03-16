@@ -16,7 +16,7 @@ use crate::{
     save::{self, SaveState},
     utils::{
         constants::*,
-        platform::paths,
+        paths,
         fixed_string::format_fixed_string,
         coords::{Cell, CellRange},
         hash::{self, PreHashedKeyMap, StrHashPair, StringHash},

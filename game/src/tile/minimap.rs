@@ -23,7 +23,7 @@ use crate::{
     },
     utils::{
         Color, Rect, RectEdges, Size, Vec2,
-        platform::paths, mem::{singleton, RawPtr}, fixed_string::format_fixed_string,
+        paths, mem::{singleton, RawPtr}, fixed_string::format_fixed_string,
         coords::{self, Cell, CellF32, IsoPointF32, IsoDiamond, WorldToScreenTransform},
     },
 };

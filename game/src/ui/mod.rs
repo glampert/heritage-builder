@@ -18,7 +18,7 @@ use crate::{
     utils::{
         fixed_string::format_fixed_string,
         Color, FieldAccessorXY, Vec2, Rect,
-        platform::paths, mem::{RawPtr, Mutable},
+        paths, mem::{RawPtr, Mutable},
     },
 };
 

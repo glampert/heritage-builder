@@ -9,7 +9,7 @@ use crate::{
     ui::UiSystem,
     render::TextureSettings,
     sound::SoundGlobalSettings,
-    utils::{platform::paths, Color, Size},
+    utils::{paths, Color, Size},
     app::{ApplicationWindowMode, ApplicationContentScale},
 };
 

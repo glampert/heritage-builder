@@ -10,6 +10,7 @@ pub mod file_sys;
 pub mod fixed_string;
 pub mod hash;
 pub mod mem;
+pub mod paths;
 pub mod platform;
 
 // ----------------------------------------------

@@ -13,7 +13,7 @@ use crate::{
     utils::{
         Size,
         RectTexCoords,
-        platform::paths,
+        paths,
         fixed_string::format_fixed_string,
         hash::{self, StringHash, PreHashedKeyMap},
     },

@@ -15,8 +15,7 @@ use strum_macros::Display;
 
 use crate::utils::{
     hash::{self, StringHash},
-    platform::paths,
-    Color,
+    paths, Color,
 };
 
 // ----------------------------------------------
