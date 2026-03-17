@@ -112,11 +112,23 @@ impl<const N: usize> FixedPathBuf<N> {
     }
 
     pub fn push(&mut self, path: impl AsRef<str>) -> &mut Self {
-        if !self.buf.is_empty() && !self.buf.ends_with(SEPARATOR_CHAR) {
-            self.buf.try_push(SEPARATOR_CHAR).expect(Self::PATH_BUF_OVERFLOW);
+        let p = path.as_ref();
+
+        if !self.is_empty() {
+            let path_starts_with_separator = p.starts_with(SEPARATOR_CHAR);
+            let this_ends_with_separator   = self.buf.ends_with(SEPARATOR_CHAR);
+
+            // Add separator if needed.
+            if !this_ends_with_separator && !path_starts_with_separator {
+                self.buf.try_push(SEPARATOR_CHAR).expect(Self::PATH_BUF_OVERFLOW);
+            } else if this_ends_with_separator && path_starts_with_separator {
+                // Remove excess separator when both already have it.
+                let sep = self.buf.pop().unwrap();
+                debug_assert!(sep == SEPARATOR_CHAR);
+            }
         }
 
-        self.buf.try_push_str(path.as_ref()).expect(Self::PATH_BUF_OVERFLOW);
+        self.buf.try_push_str(p).expect(Self::PATH_BUF_OVERFLOW);
         self
     }
 
@@ -149,9 +161,13 @@ impl<const N: usize> FixedPathBuf<N> {
 
         new.buf.try_push_str(stem).expect(Self::PATH_BUF_OVERFLOW);
 
-        if !ext.as_ref().is_empty() {
+        let e = ext.as_ref();
+        if !e.is_empty() {
+            // We append the dot character ourselves.
+            debug_assert!(!e.starts_with('.'), "set_extension: Extension should not start with a dot (.) character!");
+
             new.buf.try_push('.').expect(Self::PATH_BUF_OVERFLOW);
-            new.buf.try_push_str(ext.as_ref()).expect(Self::PATH_BUF_OVERFLOW);
+            new.buf.try_push_str(e).expect(Self::PATH_BUF_OVERFLOW);
         }
 
         self.buf = new.buf;
@@ -481,13 +497,32 @@ mod tests {
 
     #[test]
     fn path_building() {
-        let mut p: FixedPathBuf<64> = FixedPathBuf::from_str("assets");
+        let mut p: FixedPathBuf<64> = FixedPathBuf::new();
+        p.push("assets");
         p.push("textures");
         p.push("wall.png");
 
         assert_eq!(p.as_str(), "assets/textures/wall.png");
         assert_eq!(p.extension(), Some("png"));
         assert_eq!(p.file_name(), Some("wall.png"));
+
+        // Paths starting with separator:
+        // - Merge both without duplicated separators.
+        //
+        // Note that this is where our implementation diverges from std Path/PathBuf.
+        // Our join/push does not replace absolute paths (paths starting with separator),
+        // instead we simply merge them as if two regular paths.
+        p.clear();
+        p.push("/base/path");
+
+        let mut new = p.join("/one").join("/two/");
+        assert_eq!(new.as_str(), "/base/path/one/two/");
+
+        new = new.join("/three/");
+        assert_eq!(new.as_str(), "/base/path/one/two/three/");
+
+        new.set_extension("foo");
+        assert_eq!(new.as_str(), "/base/path/one/two/three/.foo"); // creates a "dot file".
     }
 
     #[test]
