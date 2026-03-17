@@ -5,7 +5,7 @@ use rand::{distr::uniform::{SampleRange, SampleUniform}, Rng};
 
 use super::{
     RandomGenerator,
-    resources::GlobalTreasury,
+    GlobalTreasury,
 };
 use crate::{
     log,
