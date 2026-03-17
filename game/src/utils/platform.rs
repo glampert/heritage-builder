@@ -1,3 +1,4 @@
+use std::{sync::OnceLock, thread::ThreadId};
 use strum_macros::Display;
 
 // ----------------------------------------------
@@ -43,4 +44,42 @@ pub fn run_environment() -> RunEnvironment {
     }
 
     RunEnvironment::Standalone
+}
+
+// ----------------------------------------------
+// Main Thread Detection
+// ----------------------------------------------
+
+static MAIN_THREAD_ID: OnceLock<ThreadId> = OnceLock::new();
+
+pub fn set_main_thread() {
+    MAIN_THREAD_ID.set(std::thread::current().id())
+        .expect("MAIN_THREAD_ID already initialized!");
+}
+
+pub fn is_main_thread() -> bool {
+    MAIN_THREAD_ID
+        .get()
+        .is_some_and(|id| *id == std::thread::current().id())
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn main_thread_check() {
+        set_main_thread();
+        assert!(is_main_thread()); // Main thread.
+
+        let handle = std::thread::spawn(|| {
+            assert!(!is_main_thread()); // Not main thread.
+        });
+
+        handle.join().unwrap();
+    }
 }

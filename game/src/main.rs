@@ -15,12 +15,15 @@ mod sound;
 mod tile;
 mod utils;
 
+use game::GameLoop;
+use utils::platform;
+
 // ----------------------------------------------
 // main()
 // ----------------------------------------------
 
 fn main() {
-    use game::GameLoop;
+    platform::set_main_thread();
 
     let game_loop = GameLoop::start();
 

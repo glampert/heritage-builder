@@ -16,7 +16,7 @@ use crate::{
     },
     utils::{
         fixed_string::format_fixed_string,
-        Color, FieldAccessorXY, Vec2, Rect,
+        Color, FieldAccessorXY, Vec2, Rect, platform,
         paths::{self, AssetPath}, mem::{RawPtr, Mutable},
     },
 };
@@ -1174,18 +1174,21 @@ impl<T> UiStaticVar<T> {
 
     #[inline]
     pub fn as_ref(&'static self) -> &'static T {
+        debug_assert!(platform::is_main_thread(), "Can only use UiStaticVar from main thread!");
         unsafe { &*self.value.get() }
     }
 
     #[inline]
     #[allow(clippy::mut_from_ref)] // intentional.
     pub fn as_mut(&'static self) -> &'static mut T {
+        debug_assert!(platform::is_main_thread(), "Can only use UiStaticVar from main thread!");
         unsafe { &mut *self.value.get() }
     }
 }
 
 // SAFETY: ImGui code always executes from the main thread, so we don't mind
-// using local static config vars for debug ImGui widgets.
+// using local static config vars for debug ImGui widgets. is_main_thread()
+// asserts prevent misuse.
 unsafe impl<T> Sync for UiStaticVar<T> {}
 
 // Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.
@@ -1194,6 +1197,7 @@ impl<T> Deref for UiStaticVar<T> {
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
+        debug_assert!(platform::is_main_thread(), "Can only use UiStaticVar from main thread!");
         unsafe { &*self.value.get() }
     }
 }
@@ -1201,6 +1205,7 @@ impl<T> Deref for UiStaticVar<T> {
 impl<T> DerefMut for UiStaticVar<T> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
+        debug_assert!(platform::is_main_thread(), "Can only use UiStaticVar from main thread!");
         unsafe { &mut *self.value.get() }
     }
 }
