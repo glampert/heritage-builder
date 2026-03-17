@@ -1,6 +1,12 @@
+use arrayvec::ArrayString;
+use std::sync::{OnceLock, Mutex};
 use std::collections::{HashMap, VecDeque};
 
-use crate::{ui::UiSystem, log, utils::mem::singleton_late_init};
+use crate::{
+    log,
+    ui::UiSystem, 
+    utils::fixed_string::format_fixed_string,
+};
 
 // ----------------------------------------------
 // LogViewerSingleton
@@ -19,14 +25,16 @@ struct LogViewerSingleton {
 
 impl LogViewerSingleton {
     fn new(start_open: bool, max_lines: usize) -> Self {
-        Self { is_window_open: start_open,
-               is_channel_filter_window_open: false,
-               auto_scroll: false,
-               error_count: 0,
-               warning_count: 0,
-               max_lines,
-               lines: VecDeque::with_capacity(max_lines),
-               channel_filter: HashMap::new() }
+        Self {
+            is_window_open: start_open,
+            is_channel_filter_window_open: false,
+            auto_scroll: false,
+            error_count: 0,
+            warning_count: 0,
+            max_lines,
+            lines: VecDeque::with_capacity(max_lines),
+            channel_filter: HashMap::new(),
+        }
     }
 
     // Called by the log listener callback to push new messages.
@@ -126,9 +134,9 @@ impl LogViewerSingleton {
         is_window_open
     }
 
-    fn line_prefix(line: &log::Record) -> String {
+    fn line_prefix(line: &log::Record) -> ArrayString<128> {
         let chan_str = line.channel.as_ref().map(|chan| chan.name).unwrap_or_default();
-        format!("[{:?}]{}", line.level, chan_str)
+        format_fixed_string!(128, "[{:?}]{}", line.level, chan_str)
     }
 
     fn draw_channel_filter_child_window(&mut self, ui: &imgui::Ui) {
@@ -143,8 +151,39 @@ impl LogViewerSingleton {
     }
 }
 
+// ----------------------------------------------
 // Global instance:
-singleton_late_init! { LOG_VIEWER_SINGLETON, LogViewerSingleton }
+// ----------------------------------------------
+
+// Thread-safe log viewer global instance, to support logging from workers threads.
+static LOG_VIEWER_SINGLETON: OnceLock<Mutex<LogViewerSingleton>> = OnceLock::new();
+
+fn init_log_viewer_singleton_once() {
+    if LOG_VIEWER_SINGLETON.get().is_some() {
+        return; // Already initialized, early out.
+    }
+
+    const START_OPEN: bool = false;
+    const MAX_LINES: usize = 64;
+    let viewer = LogViewerSingleton::new(START_OPEN, MAX_LINES);
+
+    LOG_VIEWER_SINGLETON.set(Mutex::new(viewer))
+        .unwrap_or_else(|_| panic!("LogViewerSingleton already initialized!"));
+
+    log::set_listener(|line| {
+        let mut viewer = log_viewer_singleton()
+            .lock()
+            .unwrap();
+
+        viewer.push_line(line);
+    });
+}
+
+fn log_viewer_singleton() -> &'static Mutex<LogViewerSingleton> {
+    LOG_VIEWER_SINGLETON
+        .get()
+        .expect("LogViewerSingleton is not initialized!")
+}
 
 // ----------------------------------------------
 // LogViewerWindow
@@ -154,36 +193,43 @@ pub struct LogViewerWindow;
 
 impl LogViewerWindow {
     pub fn early_init() {
-        const START_OPEN: bool = false;
-        const MAX_LINES: usize = 64;
-        LogViewerSingleton::initialize(LogViewerSingleton::new(START_OPEN, MAX_LINES));
-
-        log::set_listener(|line| {
-            LogViewerSingleton::get_mut().push_line(line);
-        });
+        init_log_viewer_singleton_once();
     }
 
     pub fn new() -> Self {
-        if !LogViewerSingleton::is_initialized() {
-            Self::early_init();
-        }
+        init_log_viewer_singleton_once();
         Self
     }
 
     pub fn error_and_warning_count(&self) -> (u32, u32) {
-        let instance = LogViewerSingleton::get();
-        (instance.error_count, instance.warning_count)
+        let viewer = log_viewer_singleton()
+            .lock()
+            .unwrap();
+
+        (viewer.error_count, viewer.warning_count)
     }
 
     pub fn show(&mut self, show: bool) {
-        LogViewerSingleton::get_mut().show(show);
+        let mut viewer = log_viewer_singleton()
+            .lock()
+            .unwrap();
+
+        viewer.show(show);
     }
 
     pub fn set_enabled_channels(&mut self, channels: &[(log::Channel, bool)]) {
-        LogViewerSingleton::get_mut().set_enabled_channels(channels);
+        let mut viewer = log_viewer_singleton()
+            .lock()
+            .unwrap();
+
+        viewer.set_enabled_channels(channels);
     }
 
     pub fn draw(&mut self, ui_sys: &UiSystem) -> bool {
-        LogViewerSingleton::get_mut().draw(ui_sys)
+        let mut viewer = log_viewer_singleton()
+            .lock()
+            .unwrap();
+
+        viewer.draw(ui_sys)
     }
 }
