@@ -725,8 +725,19 @@ impl GameLoop {
     // ----------------------
 
     fn init_engine(configs: &EngineConfigs) -> Box<dyn Engine> {
-        log::info!(log::channel!("game"), "Init Engine: GLFW + OpenGL");
-        Box::new(engine::backend::GlfwOpenGlEngine::new(configs))
+        let init_engine_timer = PerfTimer::begin();
+
+        log::info!(log::channel!("game"), "--- Init Engine: GLFW + OpenGL ---");
+        let engine = Box::new(engine::backend::GlfwOpenGlEngine::new(configs));
+
+        // EXPERIMENTAL / WIP.
+        //log::info!(log::channel!("game"), "--- Init Engine: Winit + OpenGL ---");
+        //let engine = Box::new(engine::backend::WinitOpenGlEngine::new(configs));
+
+        let init_engine_time_ms = init_engine_timer.end();
+        log::info!(log::channel!("game"), "--- Init Engine took: {:.1}ms ---", init_engine_time_ms);
+
+        engine
     }
 
     fn load_assets(tex_cache: &mut dyn TextureCache, configs: &GameConfigs) {

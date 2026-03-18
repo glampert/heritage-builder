@@ -96,7 +96,11 @@ impl Application for GlfwApplication {
                     translated_events.push(ApplicationEvent::Quit);
                 }
                 glfw::WindowEvent::Key(key, _scan_code, action, modifiers) => {
-                    translated_events.push(ApplicationEvent::KeyInput(key, action, modifiers));
+                    translated_events.push(ApplicationEvent::KeyInput(
+                        input::glfw_key_to_input_key(key),
+                        input::glfw_action_to_input_action(action),
+                        input::glfw_modifiers_to_input_modifiers(modifiers),
+                    ));
                 }
                 glfw::WindowEvent::Char(c) => {
                     translated_events.push(ApplicationEvent::CharInput(c));
@@ -105,7 +109,11 @@ impl Application for GlfwApplication {
                     translated_events.push(ApplicationEvent::Scroll(Vec2::new(x as f32, y as f32)));
                 }
                 glfw::WindowEvent::MouseButton(button, action, modifiers) => {
-                    translated_events.push(ApplicationEvent::MouseButton(button, action, modifiers));
+                    translated_events.push(ApplicationEvent::MouseButton(
+                        input::glfw_mouse_button_to_mouse_button(button),
+                        input::glfw_action_to_input_action(action),
+                        input::glfw_modifiers_to_input_modifiers(modifiers),
+                    ));
                 }
                 unhandled_event => {
                     log::warning!(log::channel!("app"), "Unhandled GLFW window event: {unhandled_event:?}");

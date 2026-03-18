@@ -8,12 +8,15 @@ use crate::utils::{Size, Vec2};
 use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
 pub mod input;
 
-// Internal implementation.
+// Internal implementations.
 mod glfw;
+mod winit;
 pub mod backend {
-    use super::*;
-    pub type GlfwApplication = glfw::GlfwApplication;
-    pub type GlfwInputSystem = glfw::input::GlfwInputSystem;
+    pub type GlfwApplication  = super::glfw::GlfwApplication;
+    pub type GlfwInputSystem  = super::glfw::input::GlfwInputSystem;
+
+    pub type WinitApplication = super::winit::WinitApplication;
+    pub type WinitInputSystem = super::winit::input::WinitInputSystem;
 }
 
 // ----------------------------------------------

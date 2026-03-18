@@ -39,9 +39,14 @@ pub mod time;
 
 pub mod backend {
     use super::*;
+
     pub type GlfwOpenGlEngine = EngineBackend<app::backend::GlfwApplication,
                                               app::backend::GlfwInputSystem,
                                               render::backend::RenderSystemOpenGl>;
+
+    pub type WinitOpenGlEngine = EngineBackend<app::backend::WinitApplication,
+                                               app::backend::WinitInputSystem,
+                                               render::backend::RenderSystemOpenGl>;
 }
 
 // ----------------------------------------------

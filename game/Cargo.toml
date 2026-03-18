@@ -8,6 +8,9 @@ edition = "2024"
 proc_macros = { path = "../proc_macros" }
 gl = "0.14.0"
 glfw = "0.59.0"
+winit = "0.30.13"
+glutin = "0.32"
+glutin-winit = "0.5"
 imgui = "0.12"
 texture_packer = { git = "https://github.com/glampert/texture_packer" }
 image = "0.25.6"
