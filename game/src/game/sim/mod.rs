@@ -120,6 +120,11 @@ impl Simulation {
                   delta_time_secs: Seconds) {
         // Rebuild the search graph once every frame so any
         // add/remove tile changes will be reflected on the graph.
+        //
+        // FIXME (Perf): Should only rebuild the graph if the map was changed.
+        // This can get quite expensive for large maps. Maybe could update
+        // the graph on-the-spot when a change happens instead. Would avoid
+        // this full map update pass altogether.
         self.graph.rebuild_from_tile_map(tile_map, true);
 
         if self.is_paused {

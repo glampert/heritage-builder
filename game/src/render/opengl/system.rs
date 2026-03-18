@@ -11,6 +11,7 @@ use super::{
 };
 use crate::{
     ui::UiRenderFrameBundle,
+    engine::time::PerfTimer,
     render::{self, RenderStats, TextureHandle},
     utils::{Color, Rect, RectTexCoords, Size, Vec2},
 };
@@ -147,12 +148,16 @@ impl render::RenderSystem for RenderSystem {
         self.stats.points_drawn     = 0;
         self.stats.texture_changes  = 0;
         self.stats.draw_calls       = 0;
+
+        self.stats.render_submit_time_ms = 0.0;
     }
 
     fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle) -> RenderStats {
         debug_assert!(self.frame_started);
         debug_assert!(self.viewport.is_valid());
         debug_assert!(self.framebuffer_size.is_valid());
+
+        let render_submit_timer = PerfTimer::begin();
 
         self.flush_sprites();
         self.flush_lines();
@@ -169,6 +174,8 @@ impl render::RenderSystem for RenderSystem {
 
         self.render_context.end_frame();
         self.frame_started = false;
+
+        self.stats.render_submit_time_ms = render_submit_timer.end();
 
         self.stats.texture_changes      = self.render_context.texture_changes();
         self.stats.draw_calls           = self.render_context.draw_calls();

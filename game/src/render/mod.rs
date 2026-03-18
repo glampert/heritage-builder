@@ -5,6 +5,7 @@ use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 
 use crate::{
+    engine::time::Milliseconds,
     ui::{UiSystem, UiRenderFrameBundle},
     utils::{Color, Rect, RectTexCoords, Size, Vec2, paths::PathRef},
 };
@@ -29,6 +30,8 @@ pub struct RenderStats {
     pub points_drawn: u32,
     pub texture_changes: u32,
     pub draw_calls: u32,
+    pub render_submit_time_ms: Milliseconds,
+
     // Peaks for the whole run:
     pub peak_triangles_drawn: u32,
     pub peak_lines_drawn: u32,

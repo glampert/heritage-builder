@@ -207,7 +207,8 @@ impl DevEditorMenusSingleton {
             utils::draw_world_perf_stats(context.ui_sys,
                                          context.world,
                                          context.tile_map,
-                                         visible_range);
+                                         visible_range,
+                                         GameLoop::get().stats());
         }
 
         if show_screen_origin {

@@ -2102,10 +2102,24 @@ impl TileMapPlayableArea {
 }
 
 // ----------------------------------------------
+// TileStats
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Default)]
+pub struct TileStats {
+    pub terrain_tiles: usize,
+    pub building_tiles: usize,
+    pub blocker_tiles: usize,
+    pub unit_tiles: usize,
+    pub vegetation_tiles: usize,
+    pub rock_tiles: usize,
+}
+
+// ----------------------------------------------
 // Optional callbacks used for editing and dev
 // ----------------------------------------------
 
-pub type TilePlacedCallback = fn(&mut Tile, bool);
+pub type TilePlacedCallback   = fn(&mut Tile, bool);
 pub type RemovingTileCallback = fn(&mut Tile);
 pub type TileMapResetCallback = fn(&mut TileMap);
 
@@ -2233,6 +2247,32 @@ impl TileMap {
             }
         }
         true
+    }
+
+    pub fn stats(&self) -> TileStats {
+        let mut stats = TileStats::default();
+
+        if !self.layers.is_empty() {
+            let terrain_layer = self.layer(TileMapLayerKind::Terrain);
+            stats.terrain_tiles += terrain_layer.tile_count();
+
+            let objects_layer = self.layer(TileMapLayerKind::Objects);
+            objects_layer.for_each_tile(TileKind::Object, |tile| {
+                if tile.is(TileKind::Building) {
+                    stats.building_tiles += 1;
+                } else if tile.is(TileKind::Blocker) {
+                    stats.blocker_tiles += 1;
+                } else if tile.is(TileKind::Unit) {
+                    stats.unit_tiles += 1;
+                } else if tile.is(TileKind::Vegetation) {
+                    stats.vegetation_tiles += 1;
+                } else if tile.is(TileKind::Rocks) {
+                    stats.rock_tiles += 1;
+                }
+            });
+        }
+
+        stats
     }
 
     #[inline]

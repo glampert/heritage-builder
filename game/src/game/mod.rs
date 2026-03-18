@@ -30,7 +30,7 @@ use crate::{
         self,
         Engine,
         config::EngineConfigs,
-        time::{Seconds, UpdateTimer},
+        time::{Seconds, Milliseconds, UpdateTimer, PerfTimer},
     },
     tile::{
         camera::*,
@@ -463,6 +463,28 @@ enum GameSessionCmd {
 }
 
 // ----------------------------------------------
+// GameLoopStats
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Default)]
+pub struct GameLoopStats {
+    pub fps: f32,
+    pub total_frame_time_ms: Milliseconds,
+
+    pub sim_frame_time_ms: Milliseconds,
+    pub anim_frame_time_ms: Milliseconds,
+    pub sound_frame_time_ms: Milliseconds,
+    pub draw_world_frame_time_ms: Milliseconds,
+
+    pub ui_begin_frame_time_ms: Milliseconds,
+    pub ui_end_frame_time_ms: Milliseconds,
+
+    pub engine_begin_frame_time_ms: Milliseconds,
+    pub engine_end_frame_time_ms: Milliseconds,
+    pub present_frame_time_ms: Milliseconds,
+}
+
+// ----------------------------------------------
 // GameLoop
 // ----------------------------------------------
 
@@ -474,6 +496,8 @@ pub struct GameLoop {
 
     autosave_timer: UpdateTimer,
     enable_autosave: bool,
+
+    stats: GameLoopStats,
 }
 
 impl GameLoop {
@@ -523,6 +547,7 @@ impl GameLoop {
             session_cmd_queue: VecDeque::new(),
             autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
             enable_autosave: configs.save.enable_autosave,
+            stats: GameLoopStats::default(),
         };
 
         Self::initialize(game_loop); // Set global instance.
@@ -642,15 +667,24 @@ impl GameLoop {
     }
 
     #[inline]
+    pub fn stats(&self) -> &GameLoopStats {
+        &self.stats
+    }
+
+    #[inline]
     pub fn quit_game(&mut self) {
         self.engine_mut().app_mut().request_quit();
     }
 
     pub fn update(&mut self) {
+        let frame_timer = PerfTimer::begin();
+
         self.update_autosave();
         self.process_session_commands();
 
-        let (delta_time_secs, cursor_screen_pos) = self.engine.begin_frame();
+        let (delta_time_secs, cursor_screen_pos, begin_frame_time_ms) = self.engine.begin_frame();
+
+        self.stats.fps = if delta_time_secs > 0.0 { 1.0 / delta_time_secs } else { 0.0 };
 
         // Input Events:
         for event in self.engine.app_events().clone() {
@@ -669,10 +703,21 @@ impl GameLoop {
         self.menus_end_frame(visible_range);
 
         // Sound System Update:
-        let listener_position = self.camera().iso_world_position();
-        self.engine.sound_system_mut().update(listener_position);
+        {
+            let sound_update_timer = PerfTimer::begin();
 
-        self.engine.end_frame();
+            let listener_position = self.camera().iso_world_position();
+            self.engine.sound_system_mut().update(listener_position);
+
+            self.stats.sound_frame_time_ms = sound_update_timer.end();
+        }
+
+        let (end_frame_time_ms, present_frame_time_ms) = self.engine.end_frame();
+
+        self.stats.engine_begin_frame_time_ms = begin_frame_time_ms;
+        self.stats.engine_end_frame_time_ms   = end_frame_time_ms;
+        self.stats.present_frame_time_ms      = present_frame_time_ms;
+        self.stats.total_frame_time_ms        = frame_timer.end();
     }
 
     // ----------------------
@@ -756,6 +801,8 @@ impl GameLoop {
             self.session.camera.update_scrolling(cursor_screen_pos, delta_time_secs);
         }
 
+        let sim_timer = PerfTimer::begin();
+
         self.session.sim.update(Self::get_mut().engine_mut(),
                                 &mut self.session.world,
                                 &mut self.session.systems,
@@ -764,9 +811,15 @@ impl GameLoop {
 
         let visible_range = self.session.camera.visible_cells_range();
 
+        self.stats.sim_frame_time_ms = sim_timer.end();
+
         if !self.session.sim.is_paused() {
+            let anim_timer = PerfTimer::begin();
+
             let scaled_delta_time_secs = delta_time_secs * self.session.sim.speed();
             self.session.tile_map.update_anims(visible_range, scaled_delta_time_secs);
+
+            self.stats.anim_frame_time_ms = anim_timer.end();
         }
 
         visible_range
@@ -776,6 +829,7 @@ impl GameLoop {
                      delta_time_secs: Seconds,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags) {
+        let draw_world_timer = PerfTimer::begin();
         let systems = self.engine.systems_mut_refs();
 
         self.session.tile_map.minimap_mut().update(&mut self.session.camera,
@@ -789,6 +843,8 @@ impl GameLoop {
                                   &self.session.camera,
                                   visible_range,
                                   flags);
+
+        self.stats.draw_world_frame_time_ms = draw_world_timer.end();
     }
 
     fn update_autosave(&mut self) {
@@ -873,7 +929,9 @@ impl GameLoop {
     // ----------------------
 
     fn menus_begin_frame(&mut self) -> TileMapRenderFlags {
-        if let Some(menus) = &mut self.session.menus {
+        let ui_begin_timer = PerfTimer::begin();
+
+        let flags = if let Some(menus) = &mut self.session.menus {
             menus.begin_frame(&mut UiWidgetContext::new(
                 &mut self.session.sim,
                 &mut self.session.world,
@@ -885,10 +943,15 @@ impl GameLoop {
             menus.selected_render_flags()
         } else {
             TileMapRenderFlags::DrawTerrainAndObjects
-        }
+        };
+
+        self.stats.ui_begin_frame_time_ms = ui_begin_timer.end();
+        flags
     }
 
     fn menus_end_frame(&mut self, visible_range: CellRange) {
+        let ui_end_timer = PerfTimer::begin();
+
         if let Some(menus) = &mut self.session.menus {
             menus.end_frame(&mut UiWidgetContext::new(
                 &mut self.session.sim,
@@ -900,6 +963,8 @@ impl GameLoop {
             ),
             visible_range);
         }
+
+        self.stats.ui_end_frame_time_ms = ui_end_timer.end();
     }
 
     fn menus_on_key_input(&mut self,

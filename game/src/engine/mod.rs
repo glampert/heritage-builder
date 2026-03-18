@@ -28,7 +28,7 @@ use crate::{
 };
 
 use config::EngineConfigs;
-use time::{FrameClock, Seconds};
+use time::{FrameClock, PerfTimer, Seconds, Milliseconds};
 
 pub mod config;
 pub mod time;
@@ -93,8 +93,8 @@ pub trait Engine: Any {
     fn is_running(&self) -> bool;
     fn app_events(&self) -> &ApplicationEventList;
 
-    fn begin_frame(&mut self) -> (Seconds, Vec2);
-    fn end_frame(&mut self);
+    fn begin_frame(&mut self) -> (Seconds, Vec2, Milliseconds);
+    fn end_frame(&mut self) -> (Milliseconds, Milliseconds);
 
     fn draw_tile_map(&mut self,
                      tile_map: &TileMap,
@@ -352,7 +352,9 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
         &self.frame_events
     }
 
-    fn begin_frame(&mut self) -> (Seconds, Vec2) {
+    fn begin_frame(&mut self) -> (Seconds, Vec2, Milliseconds) {
+        let begin_frame_timer = PerfTimer::begin();
+
         self.frame_clock.begin_frame();
         self.frame_events = self.poll_app_events();
 
@@ -365,15 +367,27 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
         self.render_system.begin_frame(self.app.window_size(), self.app.framebuffer_size());
         self.ui_system.begin_frame(&*self.app, input_sys, self.frame_clock.delta_time());
 
-        (self.frame_clock.delta_time(), input_sys.cursor_pos())
+        let begin_frame_time_ms = begin_frame_timer.end();
+
+        (self.frame_clock.delta_time(), input_sys.cursor_pos(), begin_frame_time_ms)
     }
 
-    fn end_frame(&mut self) {
+    fn end_frame(&mut self) -> (Milliseconds, Milliseconds) {
+        let end_frame_timer = PerfTimer::begin();
+
         let mut ui_frame_bundle = self.ui_system.end_frame();
         self.render_stats = self.render_system.end_frame(&mut ui_frame_bundle);
+
+        let present_timer = PerfTimer::begin();
         self.app.present();
+        let present_frame_time_ms = present_timer.end();
+
         self.frame_events.clear();
         self.frame_clock.end_frame();
+
+        let end_frame_time_ms = end_frame_timer.end();
+
+        (end_frame_time_ms, present_frame_time_ms)
     }
 
     fn draw_tile_map(&mut self,

@@ -1,7 +1,5 @@
 use std::time;
-
 use serde::{Deserialize, Serialize};
-
 use crate::ui::UiSystem;
 
 // ----------------------------------------------
@@ -9,6 +7,7 @@ use crate::ui::UiSystem;
 // ----------------------------------------------
 
 pub type Seconds = f32;
+pub type Milliseconds = f32;
 
 pub struct FrameClock {
     last_frame_time: time::Instant,
@@ -172,5 +171,23 @@ impl CountdownTimer {
         } else {
             false
         }
+    }
+}
+
+// ----------------------------------------------
+// PerfTimer
+// ----------------------------------------------
+
+pub struct PerfTimer(time::Instant);
+
+impl PerfTimer {
+    #[inline]
+    pub fn begin() -> Self {
+        PerfTimer(time::Instant::now())
+    }
+
+    #[inline]
+    pub fn end(self) -> Milliseconds {
+        self.0.elapsed().as_secs_f32() * 1000.0
     }
 }

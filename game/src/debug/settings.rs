@@ -308,12 +308,15 @@ impl DebugSettingsDevMenu {
         ui.separator();
 
         static NEW_MAP_SIZE: UiStaticVar<Size> = UiStaticVar::new(Size::new(64, 64));
-        ui::input_i32_xy(ui,
+        if ui::input_i32_xy(ui,
             "New Map Size:",
             NEW_MAP_SIZE.as_mut(),
             false,
             Some([32, 32]),
-            Some(["Width", "Height"]));
+            Some(["Width", "Height"]))
+        {
+            NEW_MAP_SIZE.set(NEW_MAP_SIZE.as_ref().clamp(Size::zero(), Size::new(1024, 1024)));
+        }
 
         if ui.button("New Game") {
             let grass_tile_def = PresetTiles::Grass.find_tile_def();
