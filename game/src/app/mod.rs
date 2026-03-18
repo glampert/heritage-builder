@@ -11,6 +11,7 @@ pub mod input;
 // Internal implementations.
 mod glfw;
 mod winit;
+mod platform;
 pub mod backend {
     pub type GlfwApplication  = super::glfw::GlfwApplication;
     pub type GlfwInputSystem  = super::glfw::input::GlfwInputSystem;

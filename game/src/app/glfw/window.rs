@@ -6,6 +6,7 @@ use super::{
 };
 use crate::{
     log,
+    app::platform,
     utils::{Size, Vec2, mem::{RcRef, RcMut}},
 };
 
@@ -88,12 +89,22 @@ impl GlfwWindowManager {
         // OpenGL functions that we don't need or care about. This is a workaround
         // to stop the TTY spam but still keep a record of the errors if ever
         // required for inspection.
-        macos_redirect_stderr(|| {
+        #[cfg(target_os = "macos")]
+        {
+            platform::redirect_stderr(|| {
+                gl::load_with(|symbol| {
+                    manager.window.get_proc_address(symbol)
+                })
+            },
+            "stderr_gl_load_app.log");
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
             gl::load_with(|symbol| {
                 manager.window.get_proc_address(symbol)
-            })
-        },
-        "stderr_gl_load_app.log");
+            });
+        }
 
         GlfwWindowManagerRcMut::new(manager)
     }
@@ -210,8 +221,9 @@ fn create_fullscreen_window(glfw_instance: &mut glfw::Glfw,
 
         match result {
             Ok(_) => {
-                macos_app_utils::toggle_native_fullscreen(&window);
-                macos_app_utils::enable_kiosk_mode();
+                let ns_window_ptr = unsafe { glfw::ffi::glfwGetCocoaWindow(window.window_ptr()) };
+                platform::toggle_native_fullscreen(ns_window_ptr);
+                platform::enable_kiosk_mode();
             }
             Err(err) => {
                 // App stays in windowed mode.
@@ -313,119 +325,6 @@ fn select_best_video_mode(modes: &[glfw::VidMode]) -> Option<glfw::VidMode> {
             .then(a.height.cmp(&b.height))
     });
     best_modes.last().map(|mode| **mode)
-}
-
-// ----------------------------------------------
-// MacOS-specific
-// ----------------------------------------------
-
-#[cfg(target_os = "macos")]
-mod macos_app_utils {
-    use objc2::rc::Retained;
-    use objc2_foundation::MainThreadMarker;
-    use objc2_app_kit::{
-        NSApp,
-        NSApplication,
-        NSApplicationPresentationOptions,
-        NSWindow,
-    };
-    use glfw::{
-        Context,
-        ffi::glfwGetCocoaWindow,
-    };
-
-    fn with_app<F>(f: F)
-        where F: FnOnce(&Retained<NSApplication>)
-    {
-        // Ensure we're on the main thread (required by AppKit).
-        let mtm = MainThreadMarker::new().expect("Must be called from the main thread!");
-        let app = NSApp(mtm);
-        f(&app);
-    }
-
-    pub fn enable_kiosk_mode() {
-        with_app(|app| {
-            let options =
-                NSApplicationPresentationOptions::NSApplicationPresentationHideDock |
-                NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
-
-            app.setPresentationOptions(options);
-        });
-    }
-
-    pub fn disable_kiosk_mode() {
-        with_app(|app| {
-            let options =
-                NSApplicationPresentationOptions::NSApplicationPresentationDefault;
-
-            app.setPresentationOptions(options);
-        });
-    }
-
-    pub fn enable_auto_hide_dock_and_menu_bar() {
-        with_app(|app| {
-            let options =
-                NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock |
-                NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
-
-            app.setPresentationOptions(options);
-        });
-    }
-
-    pub fn toggle_native_fullscreen(window: &glfw::Window) {
-        // Ensure we're on the main thread (required by AppKit).
-        let _mtm = MainThreadMarker::new().expect("Must be called from the main thread!");
-
-        unsafe {
-            // Get raw NSWindow* from GLFW:
-            let raw_window_handle = glfwGetCocoaWindow(window.window_ptr());
-            assert!(!raw_window_handle.is_null(), "glfwGetCocoaWindow returned null!");
-
-            // Cast to typed NSWindow reference:
-            let ns_window = &*(raw_window_handle as *mut NSWindow);
-
-            // Call toggleFullScreen:
-            ns_window.toggleFullScreen(None);
-        }
-    }
-}
-
-// ----------------------------------------------
-// macos_redirect_stderr()
-// ----------------------------------------------
-
-// Using this to deal with some TTY spam from the OpenGL loader on MacOS.
-#[cfg(target_os = "macos")]
-fn macos_redirect_stderr<F, R>(f: F, filename: &str) -> R
-    where F: FnOnce() -> R
-{
-    use std::{fs::{self, OpenOptions}, os::unix::io::AsRawFd};
-    use libc::{close, dup, dup2, STDERR_FILENO};
-
-    let logs_path = log::logs_path();
-    let _ = fs::create_dir(&logs_path);
-
-    unsafe {
-        let saved_fd = dup(STDERR_FILENO);
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(logs_path.join(filename))
-            .expect("Failed to open stderr log file!");
-        dup2(file.as_raw_fd(), STDERR_FILENO);
-        let result = f();
-        dup2(saved_fd, STDERR_FILENO);
-        close(saved_fd);
-        result
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn macos_redirect_stderr<F, R>(f: F, _filename: &str) -> R
-    where F: FnOnce() -> R
-{
-    f() // No-op on non-MacOS
 }
 
 // ----------------------------------------------

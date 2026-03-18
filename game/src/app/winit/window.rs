@@ -21,6 +21,7 @@ use super::{
 };
 use crate::{
     log,
+    app::platform,
     utils::{Size, Vec2},
 };
 
@@ -113,8 +114,7 @@ impl WinitWindowManager {
         // OpenGL functions that we don't need or care about. This is a workaround
         // to stop the TTY spam but still keep a record of the errors if ever
         // required for inspection.
-        macos_redirect_stderr(|| {
-            // Load OpenGL function pointers.
+        let load_gl = || {
             gl::load_with(|symbol| {
                 // Avoid a heap allocation per symbol: copy the name + null terminator
                 // onto the stack. No GL function name exceeds 64 bytes.
@@ -129,8 +129,13 @@ impl WinitWindowManager {
                 let c_str = unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(&buf[..=bytes.len()]) };
                 gl_config.display().get_proc_address(c_str).cast()
             });
-        },
-        "stderr_gl_load_app.log");
+        };
+
+        #[cfg(target_os = "macos")]
+        platform::redirect_stderr(load_gl, "stderr_gl_load_app.log");
+
+        #[cfg(not(target_os = "macos"))]
+        load_gl();
 
         log::info!(log::channel!("app"), "WinitWindowManager initialized.");
         log::info!(log::channel!("app"), "Window Size: {window_size}");
@@ -309,26 +314,12 @@ fn select_best_video_mode<I>(modes: I) -> Option<winit::monitor::VideoModeHandle
 // cursor coordinates — both are already in that same top-left, Y-down space.
 #[cfg(target_os = "macos")]
 fn set_cursor_position_native(window: &Window, x: f64, y: f64) {
-    fn macos_cg_warp_mouse(x: f64, y: f64) {
-        // CGPoint is layout-compatible with NSPoint ({f64, f64}).
-        #[repr(C)]
-        #[derive(Clone, Copy)]
-        struct CGPoint { x: f64, y: f64 }
-
-        #[link(name = "CoreGraphics", kind = "framework")]
-        unsafe extern "C" {
-            fn CGWarpMouseCursorPosition(new_cursor_position: CGPoint) -> i32;
-        }
-
-        unsafe { CGWarpMouseCursorPosition(CGPoint { x, y }); }
-    }
-
     // inner_position() is the top-left of the content area in physical pixels,
     // CG coordinate space (top-left origin, Y-down).
     let Ok(inner_pos) = window.inner_position() else { return };
     let scale = window.scale_factor();
 
-    macos_cg_warp_mouse(
+    platform::warp_cursor(
         (inner_pos.x as f64 / scale) + x,
         (inner_pos.y as f64 / scale) + y,
     );
@@ -338,42 +329,4 @@ fn set_cursor_position_native(window: &Window, x: f64, y: f64) {
 fn set_cursor_position_native(window: &Window, x: f64, y: f64) {
     // winit's built-in set_cursor_position works on Windows and Linux.
     let _ = window.set_cursor_position(winit::dpi::LogicalPosition::new(x, y));
-}
-
-// ----------------------------------------------
-// macos_redirect_stderr()
-// ----------------------------------------------
-
-// Using this to deal with some TTY spam from the OpenGL loader on MacOS.
-#[cfg(target_os = "macos")]
-fn macos_redirect_stderr<F, R>(f: F, filename: &str) -> R
-    where F: FnOnce() -> R
-{
-    use std::{fs::{self, OpenOptions}, os::unix::io::AsRawFd};
-    use libc::{close, dup, dup2, STDERR_FILENO};
-
-    let logs_path = log::logs_path();
-    let _ = fs::create_dir(&logs_path);
-
-    unsafe {
-        let saved_fd = dup(STDERR_FILENO);
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(logs_path.join(filename))
-            .expect("Failed to open stderr log file!");
-        dup2(file.as_raw_fd(), STDERR_FILENO);
-        let result = f();
-        dup2(saved_fd, STDERR_FILENO);
-        close(saved_fd);
-        result
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn macos_redirect_stderr<F, R>(f: F, _filename: &str) -> R
-    where F: FnOnce() -> R
-{
-    f() // No-op on non-MacOS
 }
