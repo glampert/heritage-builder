@@ -15,11 +15,11 @@ mod opengl;
 mod wgpu;
 
 pub mod backend {
-    pub type RenderSystemOpenGl = super::opengl::system::RenderSystem;
-    pub type TextureCacheOpenGl = super::opengl::texture::TextureCache;
+    pub type OpenGlRenderSystem = super::opengl::system::RenderSystem;
+    pub type OpenGlTextureCache = super::opengl::texture::TextureCache;
 
-    pub type RenderSystemWgpu = super::wgpu::system::RenderSystem;
-    pub type TextureCacheWgpu = super::wgpu::texture::TextureCache;
+    pub type WgpuRenderSystem = super::wgpu::system::RenderSystem;
+    pub type WgpuTextureCache = super::wgpu::texture::TextureCache;
 }
 
 // ----------------------------------------------

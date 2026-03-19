@@ -42,15 +42,15 @@ pub mod backend {
 
     pub type GlfwOpenGlEngine = EngineBackend<app::backend::GlfwApplication,
                                               app::backend::GlfwInputSystem,
-                                              render::backend::RenderSystemOpenGl>;
+                                              render::backend::OpenGlRenderSystem>;
 
     pub type WinitOpenGlEngine = EngineBackend<app::backend::WinitOpenGlApplication,
                                                app::backend::WinitInputSystem,
-                                               render::backend::RenderSystemOpenGl>;
+                                               render::backend::OpenGlRenderSystem>;
 
     pub type WinitWgpuEngine = EngineBackend<app::backend::WinitWgpuApplication,
                                              app::backend::WinitInputSystem,
-                                             render::backend::RenderSystemWgpu>;
+                                             render::backend::WgpuRenderSystem>;
 }
 
 // ----------------------------------------------
