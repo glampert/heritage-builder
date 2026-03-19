@@ -115,7 +115,7 @@ impl GameSession {
 
         if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
             let path = make_save_game_file_path(PathRef::from_path(save_file_path));
-            session.load_save_game((&path).into());
+            session.load_save_game(engine, (&path).into());
         }
 
         if configs.sim.start_paused {
@@ -410,7 +410,7 @@ impl GameSession {
         result
     }
 
-    fn load_save_game(&mut self, save_file_path: PathRef) -> bool {
+    fn load_save_game(&mut self, engine: &mut dyn Engine, save_file_path: PathRef) -> bool {
         log::info!(log::channel!("session"), "Loading save game '{save_file_path}' ...");
 
         let mut state = save::backend::new_json_save_state(false);
@@ -430,9 +430,6 @@ impl GameSession {
                 return false;
             }
         };
-
-        // FIXME: This breaks LoadMapSetting::SaveGame. GameLoop not yet initialized.
-        let engine = GameLoop::get_mut().engine_mut();
 
         self.pre_load(&mut PreLoadContext::new(engine));
         *self = session;
@@ -914,7 +911,7 @@ impl GameLoop {
 
     fn session_cmd_load_save_game(&mut self, save_file_path: PathRef) {
         debug_assert!(!save_file_path.is_empty());
-        self.session.load_save_game(save_file_path);
+        self.session.load_save_game(&mut *self.engine, save_file_path);
     }
 
     fn session_cmd_save_game(&mut self, save_file_path: PathRef) {
