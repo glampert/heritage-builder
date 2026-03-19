@@ -1,6 +1,5 @@
 use arrayvec::ArrayVec;
 use strum::EnumCount;
-use strum_macros::EnumCount;
 use serde::{Serialize, Deserialize};
 
 use crate::{

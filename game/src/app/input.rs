@@ -1,6 +1,6 @@
 use std::any::Any;
 use bitflags::bitflags;
-use strum_macros::EnumCount;
+use strum::EnumCount;
 use crate::utils::Vec2;
 
 // ----------------------------------------------

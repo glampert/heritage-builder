@@ -1,21 +1,27 @@
 #![allow(unused_macros)]
 
 use std::{
-    fs, io, fmt,
+    fmt,
     hash::{Hash, Hasher},
     sync::{
+        OnceLock,
         atomic::{AtomicBool, AtomicU32, Ordering},
-        OnceLock, LazyLock, RwLock
     },
 };
 
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
+use strum::Display;
 
 use crate::utils::{
+    Color,
     hash::{self, StringHash},
-    paths::{self, FixedPath}, Color,
 };
+
+#[cfg(feature = "desktop")]
+use std::{fs, io, sync::{LazyLock, RwLock}};
+
+#[cfg(feature = "desktop")]
+use crate::utils::paths::{self, FixedPath};
 
 // ----------------------------------------------
 // Log Levels
@@ -134,21 +140,25 @@ pub fn enable_tty_colors(enable: bool) {
     ENABLE_TTY_COLORS.store(enable, Ordering::Relaxed);
 }
 
+#[cfg(feature = "desktop")]
 pub fn logs_path() -> FixedPath {
     paths::base_path().join("logs")
 }
 
+#[cfg(feature = "desktop")]
 const LOG_FILENAME: &str = "runtime.log";
 
 // ----------------------------------------------
-// Log Output Selection
+// Log Output Selection (Desktop)
 // ----------------------------------------------
 
+#[cfg(feature = "desktop")]
 enum LogOutput {
     Stdout(io::Stdout),
     File(fs::File),
 }
 
+#[cfg(feature = "desktop")]
 impl io::Write for LogOutput {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
@@ -165,6 +175,7 @@ impl io::Write for LogOutput {
     }
 }
 
+#[cfg(feature = "desktop")]
 fn init_log_output() -> LogOutput {
     if REDIRECT_TO_FILE.load(Ordering::Relaxed) {
         let logs_path = logs_path();
@@ -188,6 +199,7 @@ fn init_log_output() -> LogOutput {
     }
 }
 
+#[cfg(feature = "desktop")]
 static LOG_OUTPUT: LazyLock<RwLock<LogOutput>> = LazyLock::new(|| {
     RwLock::new(init_log_output())
 });
@@ -211,36 +223,52 @@ pub fn print_internal(level: Level,
         return;
     }
 
-    use io::Write;
-    let mut output = LOG_OUTPUT.write().unwrap();
+    #[cfg(feature = "desktop")]
+    {
+        use io::Write;
+        let mut output = LOG_OUTPUT.write().unwrap();
 
-    let chan_str = channel.as_ref().map(|chan| chan.name).unwrap_or_default();
+        let chan_str = channel.as_ref().map(|chan| chan.name).unwrap_or_default();
 
-    let (color_start, color_end) = {
-        if ENABLE_TTY_COLORS.load(Ordering::Relaxed) {
-            level.tty_color()
+        let (color_start, color_end) = {
+            if ENABLE_TTY_COLORS.load(Ordering::Relaxed) {
+                level.tty_color()
+            } else {
+                ("", "")
+            }
+        };
+
+        if ENABLE_SRC_LOCATION.load(Ordering::Relaxed) {
+            writeln!(output,
+                     "{}[{:?}]{}{} {}:{} {} - {}",
+                     color_start,
+                     level,
+                     chan_str,
+                     color_end,
+                     location.file,
+                     location.line,
+                     location.module,
+                     args)
+                     .unwrap();
         } else {
-            ("", "")
+            writeln!(output,
+                     "{}[{:?}]{}{} {}",
+                     color_start,
+                     level,
+                     chan_str,
+                     color_end,
+                     args)
+                     .unwrap();
         }
-    };
+    }
 
-    if ENABLE_SRC_LOCATION.load(Ordering::Relaxed) {
-        writeln!(output,
-                 "{}[{:?}]{}{} {}:{} {} - {}",
-                 color_start,
-                 level,
-                 chan_str,
-                 color_end,
-                 location.file,
-                 location.line,
-                 location.module,
-                 args).unwrap();
-    } else {
-        writeln!(
-            output,
-            "{}[{:?}]{}{} {}",
-            color_start, level, chan_str, color_end, args
-        ).unwrap();
+    #[cfg(feature = "web")]
+    {
+        let chan_str = channel.as_ref().map(|chan| chan.name).unwrap_or_default();
+        let msg = format!("[{:?}]{} {}", level, chan_str, args);
+        // TODO: Use web_sys::console::log_1/warn_1/error_1 once web-sys is available.
+        // For now, this compiles but won't be reached until the WASM entry point is set up.
+        let _ = msg;
     }
 
     if let Some(listener) = LISTENER.get() {

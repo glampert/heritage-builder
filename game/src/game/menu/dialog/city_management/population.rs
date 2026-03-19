@@ -1,4 +1,4 @@
-use strum_macros::EnumCount;
+use strum::EnumCount;
 
 use super::*;
 use crate::{

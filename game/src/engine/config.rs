@@ -8,7 +8,7 @@ use crate::{
     tile::rendering,
     render::TextureSettings,
     sound::SoundGlobalSettings,
-    utils::{paths::{self, PathRef, AssetPath}, Color, Size},
+    utils::{paths::{self, PathRef, AssetPath}, file_sys, Color, Size},
     app::{ApplicationWindowMode, ApplicationContentScale},
 };
 
@@ -36,7 +36,7 @@ pub trait Configs {
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
-        let _ = std::fs::create_dir_all(configs_path());
+        file_sys::create_path(configs_path());
 
         let mut state = save::backend::new_json_save_state(true);
 

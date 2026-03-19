@@ -1,3 +1,5 @@
-pub mod opengl;
-pub mod wgpu;
 pub mod input;
+pub mod wgpu;
+
+#[cfg(feature = "desktop")]
+pub mod opengl;

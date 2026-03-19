@@ -44,11 +44,27 @@ impl WinitWindowManager {
         let needs_resizable = resizable || window_mode.is_fullscreen();
         let fullscreen = select_fullscreen(event_loop, window_mode);
 
-        let window_attributes = WindowAttributes::default()
+        #[allow(unused_mut)]
+        let mut window_attributes = WindowAttributes::default()
             .with_title(window_title)
             .with_inner_size(LogicalSize::new(window_size.width as f64, window_size.height as f64))
             .with_resizable(needs_resizable)
             .with_fullscreen(fullscreen);
+
+        // On WASM, attach to an HTML canvas element.
+        #[cfg(feature = "web")]
+        {
+            use winit::platform::web::WindowAttributesExtWebSys;
+            use wasm_bindgen::JsCast;
+
+            let canvas = web_sys::window()
+                .and_then(|win| win.document())
+                .and_then(|doc| doc.get_element_by_id("game-canvas"))
+                .and_then(|el| el.dyn_into::<web_sys::HtmlCanvasElement>().ok())
+                .expect("Failed to find <canvas id='game-canvas'> element!");
+
+            window_attributes = window_attributes.with_canvas(Some(canvas));
+        }
 
         let window = Arc::new(
             event_loop.create_window(window_attributes)
@@ -72,6 +88,10 @@ impl WinitWindowManager {
     }
 
     pub fn try_confine_cursor(&self, cursor_pos: Vec2) -> Option<Vec2> {
+        // No cursor confinement on WASM.
+        #[cfg(feature = "web")]
+        { let _ = cursor_pos; return None; }
+
         if !self.confine_cursor {
             return None;
         }
@@ -107,9 +127,13 @@ impl WinitWindowManager {
     }
 
     pub fn warp_cursor_to_pos(&self, pos: Vec2) {
+        #[cfg(feature = "desktop")]
         if self.confine_cursor {
             set_cursor_position_native(&self.window, pos.x as f64, pos.y as f64);
         }
+
+        #[cfg(feature = "web")]
+        let _ = pos;
     }
 
     #[inline]

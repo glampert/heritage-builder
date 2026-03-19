@@ -373,7 +373,7 @@ impl GameSession {
 
         fn can_write_save_file(save_file_path: PathRef) -> bool {
             // Attempt to write a dummy file to probe if the path is writable.
-            std::fs::write(save_file_path, save_file_path.as_str()).is_ok()
+            file_sys::write_file(save_file_path, save_file_path.as_str().as_bytes()).is_ok()
         }
 
         fn do_save(state: &mut SaveStateImpl, sesion: &GameSession, save_file_path: PathRef) -> bool {
@@ -393,7 +393,7 @@ impl GameSession {
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
-        let _ = std::fs::create_dir_all(save_games_path());
+        file_sys::create_path(save_games_path());
 
         if !can_write_save_file(save_file_path) {
             log::error!(log::channel!("session"),
@@ -503,6 +503,8 @@ impl GameLoop {
     // Public API:
     // ----------------------
 
+    // Desktop entry point: creates the engine internally, loads configs, and starts the game.
+    #[cfg(feature = "desktop")]
     pub fn start() -> &'static mut Self {
         let build_profile = platform::build_profile();
         let run_environment = platform::run_environment();
@@ -532,6 +534,26 @@ impl GameLoop {
         let mut engine = Self::init_engine(&configs.engine);
         Self::load_assets(engine.texture_cache_mut(), configs);
 
+        Self::finish_start(engine, configs)
+    }
+
+    // WASM entry point: accepts a pre-created engine (async wgpu init happened externally).
+    #[cfg(feature = "web")]
+    pub fn start_with_engine(mut engine: Box<dyn Engine>, configs: &'static GameConfigs) {
+        LogViewerWindow::early_init();
+        crash_report::initialize(true);
+
+        log::info!(log::channel!("game"), "--- Game Initialization (WASM) ---");
+        log::info!(log::channel!("game"), "Base path: {}", paths::base_path());
+        log::info!(log::channel!("game"), "Assets path: {}", paths::assets_path());
+
+        // Load assets using the pre-created engine.
+        Self::load_assets(engine.texture_cache_mut(), configs);
+
+        Self::finish_start(engine, configs);
+    }
+
+    fn finish_start(mut engine: Box<dyn Engine>, configs: &'static GameConfigs) -> &'static mut Self {
         // Global initialization:
         cheats::initialize();
         undo_redo::initialize();
@@ -722,6 +744,7 @@ impl GameLoop {
     // Internal:
     // ----------------------
 
+    #[cfg(feature = "desktop")]
     fn init_engine(configs: &EngineConfigs) -> Box<dyn Engine> {
         let init_engine_timer = PerfTimer::begin();
 

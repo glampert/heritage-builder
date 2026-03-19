@@ -15,11 +15,24 @@ use crate::{
 // Internal backend implementations
 // ----------------------------------------------
 
+#[cfg(feature = "desktop")]
 mod kira;
 
+#[cfg(feature = "web")]
+mod web_audio;
+
 mod backend {
+    // Kira
+    #[cfg(feature = "desktop")]
     pub type SoundSystemBackendImpl = super::kira::KiraSoundSystemBackend;
+    #[cfg(feature = "desktop")]
     pub type SoundAssetRegistryImpl = super::kira::KiraSoundAssetRegistry;
+
+    // Web Audio
+    #[cfg(feature = "web")]
+    pub type SoundSystemBackendImpl = super::web_audio::WebAudioSoundSystemBackend;
+    #[cfg(feature = "web")]
+    pub type SoundAssetRegistryImpl = super::web_audio::WebAudioSoundAssetRegistry;
 }
 
 // ----------------------------------------------

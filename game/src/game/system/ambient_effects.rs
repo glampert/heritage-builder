@@ -3,7 +3,7 @@ use smallvec::SmallVec;
 use rand::seq::{IndexedRandom, IteratorRandom};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use strum::EnumIter;
 
 use super::GameSystem;
 use crate::{

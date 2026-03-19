@@ -8,8 +8,7 @@ use enum_dispatch::enum_dispatch;
 use num_enum::TryFromPrimitive;
 use std::ops::{Index, IndexMut};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use strum::{EnumCount, EnumProperty, IntoEnumIterator};
-use strum_macros::{Display, EnumCount, EnumIter, EnumProperty, VariantNames, VariantArray};
+use strum::{EnumCount, EnumProperty, Display, VariantNames, VariantArray, EnumIter, IntoEnumIterator};
 
 use minimap::Minimap;
 use selection::TileSelection;

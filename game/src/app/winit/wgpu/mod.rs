@@ -1,12 +1,15 @@
-use std::any::Any;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{any::Any, sync::Arc};
+
+#[cfg(feature = "web")]
+pub mod wasm_runner;
+
+#[cfg(feature = "desktop")]
+use winit::platform::pump_events::EventLoopExtPumpEvents;
 
 use winit::{
     application::ApplicationHandler,
     event::{MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
-    platform::pump_events::EventLoopExtPumpEvents,
     window::WindowId,
 };
 
@@ -30,7 +33,7 @@ use crate::{
     },
 };
 
-mod window;
+pub mod window;
 use window::WinitWindowManager;
 
 // ----------------------------------------------
@@ -39,11 +42,18 @@ use window::WinitWindowManager;
 
 pub struct WinitApplication {
     should_quit: bool,
-    event_loop: EventLoop<()>,
     window_manager: WinitWindowManager,
     input_state: RcMut<WinitInputState>,
     input_system: WinitInputSystem,
     resizable: bool,
+
+    #[cfg(feature = "desktop")]
+    event_loop: EventLoop<()>,
+
+    // On WASM, events are accumulated by the browser event loop handler
+    // and drained here by poll_events().
+    #[cfg(feature = "web")]
+    pending_events: std::cell::RefCell<ApplicationEventList>,
 }
 
 impl WinitApplication {
@@ -51,8 +61,39 @@ impl WinitApplication {
     pub fn window_arc(&self) -> Arc<winit::window::Window> {
         self.window_manager.window_arc()
     }
+
+    // Create a WinitApplication from a pre-created window manager (used on web/WASM).
+    #[cfg(feature = "web")]
+    pub fn from_window_manager(window_manager: WinitWindowManager, resizable: bool) -> Self {
+        let input_state = RcMut::new(WinitInputState::new());
+        let input_system = WinitInputSystem::new(input_state.clone().into_not_mut());
+
+        log::info!(log::channel!("app"), "WinitApplication initialized (WASM).");
+
+        Self {
+            should_quit: false,
+            window_manager,
+            input_state,
+            input_system,
+            resizable,
+            pending_events: std::cell::RefCell::new(ApplicationEventList::new()),
+        }
+    }
+
+    // Push an event from the WASM event loop handler.
+    #[cfg(feature = "web")]
+    pub fn push_event(&self, event: ApplicationEvent) {
+        self.pending_events.borrow_mut().push(event);
+    }
+
+    // Access the input state for updating from the WASM event loop handler.
+    #[cfg(feature = "web")]
+    pub fn input_state_mut(&self) -> &mut WinitInputState {
+        &mut self.input_state
+    }
 }
 
+#[cfg(feature = "desktop")]
 impl ApplicationFactory for WinitApplication {
     fn new(
         window_title: &str,
@@ -74,7 +115,7 @@ impl ApplicationFactory for WinitApplication {
             content_scale,
         );
 
-        event_loop.pump_app_events(Some(Duration::ZERO), &mut init);
+        event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut init);
 
         let window_manager = init.result
             .expect("WinitApplication: window init failed — resumed() was not triggered");
@@ -86,11 +127,11 @@ impl ApplicationFactory for WinitApplication {
 
         Self {
             should_quit: false,
-            event_loop,
             window_manager,
             input_state,
             input_system,
             resizable,
+            event_loop,
         }
     }
 }
@@ -110,37 +151,50 @@ impl Application for WinitApplication {
     }
 
     fn poll_events(&mut self) -> ApplicationEventList {
-        let mut events = ApplicationEventList::new();
-
+        #[cfg(feature = "desktop")]
         {
-            let window_id = self.window_manager.window.id();
+            let mut events = ApplicationEventList::new();
 
-            let WinitApplication {
-                event_loop,
-                should_quit,
-                window_manager,
-                input_state,
-                resizable,
-                ..
-            } = self;
+            {
+                let window_id = self.window_manager.window.id();
 
-            let mut pump = WinitEventPump {
-                events: &mut events,
-                should_quit,
-                window_manager,
-                input_state: &mut *input_state,
-                window_id,
-                resizable: *resizable,
-            };
+                let WinitApplication {
+                    should_quit,
+                    window_manager,
+                    input_state,
+                    resizable,
+                    event_loop,
+                    ..
+                } = self;
 
-            let _ = event_loop.pump_app_events(Some(Duration::ZERO), &mut pump);
+                let mut pump = WinitEventPump {
+                    events: &mut events,
+                    should_quit,
+                    window_manager,
+                    input_state: &mut *input_state,
+                    window_id,
+                    resizable: *resizable,
+                };
+
+                let _ = event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut pump);
+            }
+
+            if let Some(clamped) = self.window_manager.try_confine_cursor(self.input_state.cursor_pos) {
+                self.input_state.cursor_pos = clamped;
+            }
+
+            events
         }
 
-        if let Some(clamped) = self.window_manager.try_confine_cursor(self.input_state.cursor_pos) {
-            self.input_state.cursor_pos = clamped;
+        #[cfg(feature = "web")]
+        {
+            // On WASM, events were accumulated by the browser event loop handler.
+            // Drain them here.
+            let mut events = self.pending_events.borrow_mut();
+            let drained = events.clone();
+            events.clear();
+            drained
         }
-
-        events
     }
 
     #[inline]
@@ -174,9 +228,11 @@ impl Application for WinitApplication {
 }
 
 // ----------------------------------------------
-// WinitEventPump
+// WinitEventPump (desktop only — WASM uses the
+// browser event loop via wasm_runner)
 // ----------------------------------------------
 
+#[cfg(feature = "desktop")]
 struct WinitEventPump<'a> {
     events: &'a mut ApplicationEventList,
     should_quit: &'a mut bool,
@@ -186,6 +242,7 @@ struct WinitEventPump<'a> {
     resizable: bool,
 }
 
+#[cfg(feature = "desktop")]
 impl ApplicationHandler for WinitEventPump<'_> {
     fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
 
@@ -266,9 +323,11 @@ impl ApplicationHandler for WinitEventPump<'_> {
 }
 
 // ----------------------------------------------
-// WinitInitHandler
+// WinitInitHandler (desktop only — on WASM the
+// window is created inside the wasm_runner)
 // ----------------------------------------------
 
+#[cfg(feature = "desktop")]
 struct WinitInitHandler<'a> {
     window_title: &'a str,
     window_size: Size,
@@ -279,6 +338,7 @@ struct WinitInitHandler<'a> {
     result: Option<WinitWindowManager>,
 }
 
+#[cfg(feature = "desktop")]
 impl<'a> WinitInitHandler<'a> {
     fn new(
         window_title: &'a str,
@@ -300,6 +360,7 @@ impl<'a> WinitInitHandler<'a> {
     }
 }
 
+#[cfg(feature = "desktop")]
 impl ApplicationHandler for WinitInitHandler<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.result.is_some() {

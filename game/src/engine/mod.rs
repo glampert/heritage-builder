@@ -40,10 +40,12 @@ pub mod time;
 pub mod backend {
     use super::*;
 
+    #[cfg(feature = "desktop")]
     pub type GlfwOpenGlEngine = EngineBackend<app::backend::GlfwApplication,
                                               app::backend::GlfwInputSystem,
                                               render::backend::OpenGlRenderSystem>;
 
+    #[cfg(feature = "desktop")]
     pub type WinitOpenGlEngine = EngineBackend<app::backend::WinitOpenGlApplication,
                                                app::backend::WinitInputSystem,
                                                render::backend::OpenGlRenderSystem>;
@@ -138,6 +140,97 @@ pub struct EngineBackend<AppBackendImpl, InputSystemBackendImpl, RenderSystemBac
 
 impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
     EngineBackend<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
+    where AppBackendImpl: Application + 'static,
+          InputSystemBackendImpl: InputSystem + 'static,
+          RenderSystemBackendImpl: RenderSystem + 'static
+{
+    // Create an engine from pre-constructed app and render system.
+    // Used on WASM where async initialization prevents using the
+    // ApplicationFactory / RenderSystemFactory traits.
+    pub fn from_parts(
+        app: AppBackendImpl,
+        render_system: RenderSystemBackendImpl,
+        configs: &EngineConfigs,
+    ) -> Self {
+        log::set_level(configs.log_level);
+        log::info!(log::channel!("engine"), "--- Engine Initialization (from_parts) ---");
+
+        let app: RcMut<AppBackendImpl> = RcMut::new(app);
+        let mut render_system: RcMut<RenderSystemBackendImpl> = RcMut::new(render_system);
+
+        let ui_system  = UiSystem::new(&mut *render_system);
+        let debug_draw = DebugDrawBackend::new(render_system.clone());
+
+        log::info!(log::channel!("engine"), "Window Size: {}", app.window_size());
+        log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
+        log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());
+
+        let mut sound_system = SoundSystem::new(configs.sound_settings);
+        log::info!(log::channel!("engine"), "SoundSystem initialized.");
+        ui::sound::initialize(&mut sound_system);
+
+        Self {
+            app,
+            render_system,
+            render_stats: RenderStats::default(),
+            tile_map_renderer: TileMapRenderer::new(configs.grid_color, configs.grid_line_thickness),
+            tile_map_render_stats: TileMapRenderStats::default(),
+            ui_system,
+            sound_system,
+            debug_draw,
+            frame_clock: FrameClock::new(),
+            frame_events: ApplicationEventList::new(),
+            _input_system: PhantomData,
+        }
+    }
+
+    #[must_use]
+    fn poll_app_events(app: &mut RcMut<AppBackendImpl>,
+                       render_system: &mut RcMut<RenderSystemBackendImpl>,
+                       ui_system: &mut UiSystem) -> ApplicationEventList
+    {
+        let mut events_forwarded = ApplicationEventList::new();
+
+        for event in app.poll_events() {
+            match event {
+                ApplicationEvent::Quit => {
+                    app.request_quit();
+                    events_forwarded.push(event);
+                }
+                ApplicationEvent::WindowResize { window_size, framebuffer_size } => {
+                    render_system.set_viewport_size(window_size);
+                    render_system.set_framebuffer_size(framebuffer_size);
+                    events_forwarded.push(event);
+                }
+                ApplicationEvent::KeyInput(key, action, modifiers) => {
+                    if ui_system.on_key_input(key, action, modifiers).not_handled() {
+                        events_forwarded.push(event);
+                    }
+                }
+                ApplicationEvent::CharInput(c) => {
+                    if ui_system.on_char_input(c).not_handled() {
+                        events_forwarded.push(event);
+                    }
+                }
+                ApplicationEvent::Scroll(amount) => {
+                    if ui_system.on_scroll(amount).not_handled() {
+                        events_forwarded.push(event);
+                    }
+                }
+                ApplicationEvent::MouseButton(button, action, modifiers) => {
+                    if ui_system.on_mouse_button(button, action, modifiers).not_handled() {
+                        events_forwarded.push(event);
+                    }
+                }
+            }
+        }
+
+        events_forwarded
+    }
+}
+
+impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
+    EngineBackend<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
     where AppBackendImpl: Application + ApplicationFactory + 'static,
           InputSystemBackendImpl: InputSystem + 'static,
           RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
@@ -201,54 +294,13 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
         }
     }
 
-    #[must_use]
-    fn poll_app_events(&mut self) -> ApplicationEventList {
-        // Forwarded input events not handled here by the UI system.
-        let mut events_forwarded = ApplicationEventList::new();
-
-        for event in self.app.poll_events() {
-            match event {
-                ApplicationEvent::Quit => {
-                    self.app.request_quit();
-                    events_forwarded.push(event);
-                }
-                ApplicationEvent::WindowResize { window_size, framebuffer_size } => {
-                    self.render_system.set_viewport_size(window_size);
-                    self.render_system.set_framebuffer_size(framebuffer_size);
-                    events_forwarded.push(event);
-                }
-                ApplicationEvent::KeyInput(key, action, modifiers) => {
-                    if self.ui_system.on_key_input(key, action, modifiers).not_handled() {
-                        events_forwarded.push(event);
-                    }
-                }
-                ApplicationEvent::CharInput(c) => {
-                    if self.ui_system.on_char_input(c).not_handled() {
-                        events_forwarded.push(event);
-                    }
-                }
-                ApplicationEvent::Scroll(amount) => {
-                    if self.ui_system.on_scroll(amount).not_handled() {
-                        events_forwarded.push(event);
-                    }
-                }
-                ApplicationEvent::MouseButton(button, action, modifiers) => {
-                    if self.ui_system.on_mouse_button(button, action, modifiers).not_handled() {
-                        events_forwarded.push(event);
-                    }
-                }
-            }
-        }
-
-        events_forwarded
-    }
 }
 
 impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
     for EngineBackend<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
-    where AppBackendImpl: Application + ApplicationFactory + 'static,
+    where AppBackendImpl: Application + 'static,
           InputSystemBackendImpl: InputSystem + 'static,
-          RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
+          RenderSystemBackendImpl: RenderSystem + 'static
 {
     #[inline]
     fn as_any(&self) -> &dyn Any {
@@ -369,7 +421,10 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl> Engine
         let begin_frame_timer = PerfTimer::begin();
 
         self.frame_clock.begin_frame();
-        self.frame_events = self.poll_app_events();
+        self.frame_events = Self::poll_app_events(
+            &mut self.app,
+            &mut self.render_system,
+            &mut self.ui_system);
 
         // Pass in the concrete InputSystem implementation to UiSystem.
         let input_sys = self.app.input_system()

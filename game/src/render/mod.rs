@@ -1,6 +1,6 @@
 use std::any::Any;
 use serde::{Serialize, Deserialize};
-use strum_macros::{Display, VariantArray};
+use strum::{Display, VariantArray};
 use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 
@@ -10,16 +10,25 @@ use crate::{
     utils::{Color, Rect, RectTexCoords, Size, Vec2, paths::PathRef},
 };
 
-// Internal implementations.
-mod opengl;
+// ----------------------------------------------
+// Internal backend implementations
+// ----------------------------------------------
+
 mod wgpu;
 
-pub mod backend {
-    pub type OpenGlRenderSystem = super::opengl::system::RenderSystem;
-    pub type OpenGlTextureCache = super::opengl::texture::TextureCache;
+#[cfg(feature = "desktop")]
+mod opengl;
 
+pub mod backend {
+    // WGPU
     pub type WgpuRenderSystem = super::wgpu::system::RenderSystem;
     pub type WgpuTextureCache = super::wgpu::texture::TextureCache;
+
+    // OpenGL
+    #[cfg(feature = "desktop")]
+    pub type OpenGlRenderSystem = super::opengl::system::RenderSystem;
+    #[cfg(feature = "desktop")]
+    pub type OpenGlTextureCache = super::opengl::texture::TextureCache;
 }
 
 // ----------------------------------------------

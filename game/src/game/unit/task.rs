@@ -5,7 +5,7 @@ use slab::Slab;
 use enum_dispatch::enum_dispatch;
 use rand::{seq::SliceRandom, Rng};
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
+use strum::Display;
 
 use super::{
     navigation::{self, UnitDirection, UnitNavGoal},

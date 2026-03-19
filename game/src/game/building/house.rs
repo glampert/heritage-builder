@@ -1,10 +1,9 @@
 use rand::Rng;
+use arrayvec::ArrayVec;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use strum_macros::{Display, EnumCount, EnumIter};
-use strum::EnumCount;
-use arrayvec::ArrayVec;
+use strum::{Display, EnumCount, EnumIter};
 
 use super::{
     config::{BuildingConfig, BuildingConfigs, building_config},

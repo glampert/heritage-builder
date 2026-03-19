@@ -3,7 +3,7 @@
 use std::{any::Any, ffi::c_void};
 use num_enum::TryFromPrimitive;
 use strum::VariantArray;
-use strum_macros::Display;
+use strum::Display;
 use image::GenericImageView;
 use bitflags::bitflags;
 use slab::Slab;

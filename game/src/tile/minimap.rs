@@ -1,7 +1,6 @@
 use rand::Rng;
 use smallvec::SmallVec;
-use strum::{EnumCount, IntoEnumIterator, EnumProperty};
-use strum_macros::{EnumCount, EnumIter, EnumProperty};
+use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 
 use super::{
     TileKind, TileMap, TileMapLayerKind,

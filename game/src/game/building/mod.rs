@@ -7,8 +7,7 @@ use proc_macros::DrawDebugUi;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use smallvec::SmallVec;
 use arrayvec::ArrayVec;
-use strum::{EnumCount, IntoDiscriminant};
-use strum_macros::{Display, EnumCount, EnumDiscriminants, EnumIter};
+use strum::{Display, EnumCount, EnumIter, EnumDiscriminants, IntoDiscriminant};
 
 use house::HouseBuilding;
 use producer::ProducerBuilding;

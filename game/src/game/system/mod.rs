@@ -3,8 +3,7 @@
 use std::any::{Any, TypeId};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
-use strum_macros::{EnumCount, VariantNames, EnumIter, Display};
-use strum::{EnumCount, VariantNames, IntoEnumIterator};
+use strum::{EnumCount, VariantNames, EnumIter, IntoEnumIterator, Display};
 
 use super::{constants::*, sim::SimContext, world::object::GenerationalIndex};
 use crate::{engine::Engine, ui::{UiSystem, UiStaticVar}, save::*, utils::mem};

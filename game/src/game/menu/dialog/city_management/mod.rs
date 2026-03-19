@@ -1,5 +1,4 @@
-use strum::EnumCount;
-use strum_macros::{EnumProperty, EnumCount, EnumIter};
+use strum::{EnumProperty, EnumCount, EnumIter};
 
 use super::*;
 use crate::game::menu::ButtonDef;

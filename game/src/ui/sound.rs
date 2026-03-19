@@ -1,8 +1,12 @@
+#[cfg(feature = "desktop")]
 use std::time;
+
+#[cfg(feature = "web")]
+use web_time as time;
+
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
-use strum::{EnumCount, EnumProperty, IntoEnumIterator};
-use strum_macros::{EnumCount, EnumProperty, EnumIter};
+use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 
 use crate::{
     engine::time::Seconds,

@@ -1,5 +1,5 @@
 use proc_macros::DrawDebugUi;
-use strum_macros::Display;
+use strum::Display;
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
 

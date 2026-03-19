@@ -1,8 +1,7 @@
 use smallvec::SmallVec;
 use arrayvec::ArrayString;
 use serde::{Deserialize, Serialize};
-use strum::{EnumProperty, IntoEnumIterator};
-use strum_macros::{Display, EnumProperty};
+use strum::{EnumProperty, Display, IntoEnumIterator};
 
 use super::{
     atlas::{self, *},

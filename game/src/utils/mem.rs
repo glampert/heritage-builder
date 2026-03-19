@@ -214,7 +214,8 @@ impl<T> SingleThreadStatic<T> {
     }
 
     fn assert_owner(&self) {
-        if cfg!(debug_assertions) {
+        #[cfg(all(debug_assertions, feature = "desktop"))]
+        {
             let this_thread = std::thread::current().id();
             match self.owner.get() {
                 Some(owner) if *owner == this_thread => {} // Same thread, no action.

@@ -331,8 +331,14 @@ impl TextureCache {
             return loaded;
         }
 
-        let image = match image::open(file_path) {
-            Ok(img) => img,
+        let image = match crate::utils::file_sys::load_bytes(file_path) {
+            Ok(bytes) => match image::load_from_memory(&bytes) {
+                Ok(img) => img,
+                Err(err) => {
+                    log::error!(log::channel!("render"), "TextureCache Decode Error for '{}': {err}", file_path.as_str());
+                    return self.dummy_texture_handle;
+                }
+            },
             Err(err) => {
                 log::error!(log::channel!("render"), "TextureCache Load Error: {err}");
                 return self.dummy_texture_handle;

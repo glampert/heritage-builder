@@ -6,8 +6,7 @@ use std::{any::Any, fmt::Display};
 use bitflags::bitflags;
 use arrayvec::ArrayString;
 use enum_dispatch::enum_dispatch;
-use strum::{EnumCount, EnumProperty, IntoEnumIterator};
-use strum_macros::{EnumCount, EnumProperty, EnumIter};
+use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 
 use super::{
     internal,

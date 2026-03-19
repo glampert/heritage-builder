@@ -9,6 +9,7 @@ use super::{
     target::OffscreenTarget,
     texture::TextureCache,
     vertex::*,
+    WgpuInitResources,
 };
 use crate::{
     log,
@@ -141,7 +142,24 @@ pub struct RenderSystem {
 }
 
 impl RenderSystem {
-    pub fn new(
+    /// Create the RenderSystem from pre-initialized wgpu resources.
+    /// On WASM, adapter/device creation is async and happens before this call.
+    pub fn from_init_resources(
+        resources: WgpuInitResources,
+        viewport_size: Size,
+        framebuffer_size: Size,
+        clear_color: Color,
+        texture_settings: render::TextureSettings,
+    ) -> Self {
+        let WgpuInitResources { device, queue, surface, surface_config, surface_format } = resources;
+        Self::init(device, queue, surface, surface_config, surface_format,
+                   viewport_size, framebuffer_size, clear_color, texture_settings)
+    }
+
+    /// Create the RenderSystem from an Arc<Window> (desktop path).
+    /// Uses pollster::block_on to synchronously request adapter and device.
+    #[cfg(feature = "desktop")]
+    pub fn from_window(
         window: Arc<winit::window::Window>,
         viewport_size: Size,
         framebuffer_size: Size,
@@ -198,6 +216,24 @@ impl RenderSystem {
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &surface_config);
+
+        Self::init(device, queue, surface, surface_config, surface_format,
+                   viewport_size, framebuffer_size, clear_color, texture_settings)
+    }
+
+    fn init(
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        surface: wgpu::Surface<'static>,
+        surface_config: wgpu::SurfaceConfiguration,
+        surface_format: wgpu::TextureFormat,
+        viewport_size: Size,
+        framebuffer_size: Size,
+        clear_color: Color,
+        texture_settings: render::TextureSettings,
+    ) -> Self {
+        debug_assert!(viewport_size.is_valid());
+        debug_assert!(framebuffer_size.is_valid());
 
         // Create shared bind group layouts.
         let uniform_bind_group_layout = pipeline::create_uniform_bind_group_layout(&device);
@@ -322,14 +358,24 @@ impl render::RenderSystemFactory for RenderSystem {
         texture_settings: render::TextureSettings,
         app_context: Option<&dyn Any>,
     ) -> Self {
-        // Extract the Arc<Window> from the app context.
-        let window: Arc<winit::window::Window> = app_context
-            .expect("wgpu RenderSystem requires an app_context!")
-            .downcast_ref::<Arc<winit::window::Window>>()
-            .expect("app_context must be Arc<winit::window::Window>!")
-            .clone();
+        // On WASM, the RenderSystem is created via from_init_resources() with
+        // pre-initialized async wgpu resources. This factory path is desktop-only.
+        #[cfg(feature = "web")]
+        {
+            let _ = (viewport_size, framebuffer_size, clear_color, texture_settings, app_context);
+            panic!("On WASM, use from_init_resources() instead of RenderSystemFactory::new()");
+        }
 
-        Self::new(window, viewport_size, framebuffer_size, clear_color, texture_settings)
+        #[cfg(feature = "desktop")]
+        {
+            let window: Arc<winit::window::Window> = app_context
+                .expect("wgpu RenderSystem requires an app_context!")
+                .downcast_ref::<Arc<winit::window::Window>>()
+                .expect("app_context must be Arc<winit::window::Window>!")
+                .clone();
+
+            Self::from_window(window, viewport_size, framebuffer_size, clear_color, texture_settings)
+        }
     }
 }
 

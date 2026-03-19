@@ -1,6 +1,5 @@
 use arrayvec::{ArrayVec, ArrayString};
 use strum::EnumCount;
-use strum_macros::EnumCount;
 
 use super::{TileInspector, TileInspectorMenuWeakMut};
 use crate::{

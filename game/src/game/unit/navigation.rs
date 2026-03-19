@@ -1,6 +1,6 @@
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
+use strum::Display;
 
 use super::anim::{UnitAnimSetKey, UnitAnimSets};
 use crate::{

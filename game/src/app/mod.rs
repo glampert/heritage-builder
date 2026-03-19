@@ -1,6 +1,6 @@
 use std::any::Any;
 use smallvec::SmallVec;
-use strum_macros::Display;
+use strum::Display;
 use serde::{Deserialize, Serialize};
 
 use crate::utils::{Size, Vec2};
@@ -8,18 +8,28 @@ use crate::utils::{Size, Vec2};
 use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
 pub mod input;
 
-// Internal implementations.
+// ----------------------------------------------
+// Internal backend implementations
+// ----------------------------------------------
+
 mod platform;
-mod glfw;
 mod winit;
 
-pub mod backend {
-    pub type GlfwApplication = super::glfw::GlfwApplication;
-    pub type GlfwInputSystem = super::glfw::input::GlfwInputSystem;
+#[cfg(feature = "desktop")]
+mod glfw;
 
+pub mod backend {
+    // Winit
+    #[cfg(feature = "desktop")]
     pub type WinitOpenGlApplication = super::winit::opengl::WinitApplication;
     pub type WinitWgpuApplication   = super::winit::wgpu::WinitApplication;
     pub type WinitInputSystem       = super::winit::input::WinitInputSystem;
+
+    // GLFW
+    #[cfg(feature = "desktop")]
+    pub type GlfwApplication = super::glfw::GlfwApplication;
+    #[cfg(feature = "desktop")]
+    pub type GlfwInputSystem = super::glfw::input::GlfwInputSystem;
 }
 
 // ----------------------------------------------

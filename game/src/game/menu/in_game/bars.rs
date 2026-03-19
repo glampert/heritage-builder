@@ -1,8 +1,7 @@
 use std::rc::Rc;
 use arrayvec::ArrayVec;
 use num_enum::TryFromPrimitive;
-use strum::{EnumCount, EnumProperty, IntoEnumIterator};
-use strum_macros::{EnumCount, EnumProperty, EnumIter, Display};
+use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator, Display};
 
 use crate::{
     engine::time::Seconds,

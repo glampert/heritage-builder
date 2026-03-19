@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
+use strum::Display;
 
 use crate::{
     utils::Size,

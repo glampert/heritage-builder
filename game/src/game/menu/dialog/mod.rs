@@ -1,8 +1,7 @@
 use std::any::Any;
 use arrayvec::ArrayVec;
 use enum_dispatch::enum_dispatch;
-use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{Display, EnumCount, EnumIter, EnumDiscriminants};
+use strum::{EnumCount, EnumIter, EnumDiscriminants, IntoEnumIterator, Display};
 
 use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{

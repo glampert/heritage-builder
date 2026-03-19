@@ -1,6 +1,5 @@
 use arrayvec::ArrayVec;
-use strum::{EnumCount, EnumProperty, IntoEnumIterator};
-use strum_macros::{EnumCount, EnumProperty, EnumIter};
+use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 
 use crate::{
     render::TextureHandle,

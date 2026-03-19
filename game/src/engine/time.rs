@@ -1,4 +1,9 @@
+#[cfg(feature = "desktop")]
 use std::time;
+
+#[cfg(feature = "web")]
+use web_time as time;
+
 use serde::{Deserialize, Serialize};
 use crate::ui::UiSystem;
 

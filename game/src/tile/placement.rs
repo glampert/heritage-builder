@@ -1,4 +1,4 @@
-use strum_macros::Display;
+use strum::Display;
 use super::{water, sets::TileDef, Tile, TileKind, TileMapLayer, TileMapLayerRefs, TileMapLayerKind, TilePoolIndex};
 use crate::{debug, pathfind::{self, NodeKind as PathNodeKind}, utils::coords::Cell};
 

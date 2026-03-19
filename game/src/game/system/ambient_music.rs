@@ -1,7 +1,6 @@
 use std::any::Any;
 use serde::{Deserialize, Serialize};
-use strum_macros::{EnumCount, EnumProperty, EnumIter, Display};
-use strum::{EnumCount, EnumProperty, IntoEnumIterator};
+use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator, Display};
 
 use super::GameSystem;
 use crate::{
