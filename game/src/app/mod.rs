@@ -9,15 +9,17 @@ use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
 pub mod input;
 
 // Internal implementations.
+mod platform;
 mod glfw;
 mod winit;
-mod platform;
-pub mod backend {
-    pub type GlfwApplication  = super::glfw::GlfwApplication;
-    pub type GlfwInputSystem  = super::glfw::input::GlfwInputSystem;
 
-    pub type WinitApplication = super::winit::WinitApplication;
-    pub type WinitInputSystem = super::winit::input::WinitInputSystem;
+pub mod backend {
+    pub type GlfwApplication = super::glfw::GlfwApplication;
+    pub type GlfwInputSystem = super::glfw::input::GlfwInputSystem;
+
+    pub type WinitOpenGlApplication = super::winit::opengl::WinitApplication;
+    pub type WinitWgpuApplication   = super::winit::wgpu::WinitApplication;
+    pub type WinitInputSystem       = super::winit::input::WinitInputSystem;
 }
 
 // ----------------------------------------------
@@ -38,6 +40,9 @@ pub trait Application: Any {
     fn content_scale(&self) -> Vec2;
 
     fn input_system(&self) -> &dyn InputSystem;
+
+    // Optional context passed to the RenderSystemFactory (e.g. Arc<Window> for wgpu).
+    fn app_context(&self) -> Option<&dyn Any> { None }
 }
 
 pub trait ApplicationFactory: Sized {

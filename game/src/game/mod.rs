@@ -431,6 +431,7 @@ impl GameSession {
             }
         };
 
+        // FIXME: This breaks LoadMapSetting::SaveGame. GameLoop not yet initialized.
         let engine = GameLoop::get_mut().engine_mut();
 
         self.pre_load(&mut PreLoadContext::new(engine));
@@ -730,9 +731,13 @@ impl GameLoop {
         log::info!(log::channel!("game"), "--- Init Engine: GLFW + OpenGL ---");
         let engine = Box::new(engine::backend::GlfwOpenGlEngine::new(configs));
 
-        // EXPERIMENTAL / WIP.
+        // EXPERIMENTAL / WIP:
+
         //log::info!(log::channel!("game"), "--- Init Engine: Winit + OpenGL ---");
         //let engine = Box::new(engine::backend::WinitOpenGlEngine::new(configs));
+
+        //log::info!(log::channel!("game"), "--- Init Engine: Winit + Wgpu ---");
+        //let engine = Box::new(engine::backend::WinitWgpuEngine::new(configs));
 
         let init_engine_time_ms = init_engine_timer.end();
         log::info!(log::channel!("game"), "--- Init Engine took: {:.1}ms ---", init_engine_time_ms);
@@ -903,7 +908,7 @@ impl GameLoop {
 
     fn session_cmd_load_preset(&mut self, preset_number: usize) {
         Self::terminate_session(&mut self.session, &mut *self.engine);
-        self.session = Box::new(GameSession::load_preset_map(&mut *self.engine, preset_number));
+        *self.session = GameSession::load_preset_map(&mut *self.engine, preset_number);
         log::info!(log::channel!("game"), "--- Game Session created ---");
     }
 

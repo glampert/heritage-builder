@@ -78,7 +78,8 @@ impl render::RenderSystemFactory for RenderSystem {
     fn new(viewport_size: Size,
            framebuffer_size: Size,
            clear_color: Color,
-           texture_settings: render::TextureSettings) -> Self
+           texture_settings: render::TextureSettings,
+           _app_context: Option<&dyn std::any::Any>) -> Self
     {
         debug_assert!(viewport_size.is_valid());
         debug_assert!(framebuffer_size.is_valid());

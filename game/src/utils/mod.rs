@@ -36,6 +36,7 @@ macro_rules! swap2 {
     }};
 }
 
+#[allow(unused_imports)]
 pub(crate) use swap2;
 
 // Defines a bitflags struct with a Display implementation.

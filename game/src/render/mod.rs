@@ -10,12 +10,16 @@ use crate::{
     utils::{Color, Rect, RectTexCoords, Size, Vec2, paths::PathRef},
 };
 
-// Internal implementation.
+// Internal implementations.
 mod opengl;
+mod wgpu;
+
 pub mod backend {
-    use super::*;
-    pub type RenderSystemOpenGl = opengl::system::RenderSystem;
-    pub type TextureCacheOpenGl = opengl::texture::TextureCache;
+    pub type RenderSystemOpenGl = super::opengl::system::RenderSystem;
+    pub type TextureCacheOpenGl = super::opengl::texture::TextureCache;
+
+    pub type RenderSystemWgpu = super::wgpu::system::RenderSystem;
+    pub type TextureCacheWgpu = super::wgpu::texture::TextureCache;
 }
 
 // ----------------------------------------------
@@ -278,27 +282,30 @@ pub trait RenderSystemFactory: Sized {
     fn new(viewport_size: Size,
            framebuffer_size: Size,
            clear_color: Color,
-           texture_settings: TextureSettings) -> Self;
+           texture_settings: TextureSettings,
+           app_context: Option<&dyn std::any::Any>) -> Self;
 }
 
 // ----------------------------------------------
 // RenderSystemBuilder
 // ----------------------------------------------
 
-pub struct RenderSystemBuilder {
+pub struct RenderSystemBuilder<'a> {
     viewport_size: Size,
     framebuffer_size: Size,
     clear_color: Color,
     texture_settings: TextureSettings,
+    app_context: Option<&'a dyn Any>,
 }
 
-impl RenderSystemBuilder {
+impl<'a> RenderSystemBuilder<'a> {
     pub fn new() -> Self {
         Self {
             viewport_size: Size::new(1024, 768),
             framebuffer_size: Size::new(1024, 768),
             clear_color: Color::black(),
             texture_settings: TextureSettings::default(),
+            app_context: None,
         }
     }
 
@@ -322,13 +329,19 @@ impl RenderSystemBuilder {
         self
     }
 
+    pub fn app_context(&mut self, context: &'a dyn Any) -> &mut Self {
+        self.app_context = Some(context);
+        self
+    }
+
     pub fn build<RenderSystemBackendImpl>(&self) -> RenderSystemBackendImpl
         where RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
     {
         RenderSystemBackendImpl::new(self.viewport_size,
                                      self.framebuffer_size,
                                      self.clear_color,
-                                     self.texture_settings)
+                                     self.texture_settings,
+                                     self.app_context)
     }
 }
 

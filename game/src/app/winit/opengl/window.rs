@@ -1,13 +1,13 @@
 use std::num::NonZeroU32;
 use smallvec::SmallVec;
 
-use glutin::{
-    config::{ConfigTemplateBuilder, GlConfig},
-    context::{ContextApi, ContextAttributesBuilder, GlProfile, NotCurrentGlContext, PossiblyCurrentContext, Version},
-    display::{GetGlDisplay, GlDisplay},
-    surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface},
-};
 use glutin_winit::{DisplayBuilder, GlWindow};
+use glutin::{
+    display::{GetGlDisplay, GlDisplay},
+    config::{ConfigTemplateBuilder, GlConfig},
+    surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface},
+    context::{ContextApi, ContextAttributesBuilder, GlProfile, NotCurrentGlContext, PossiblyCurrentContext, Version},
+};
 use winit::{
     dpi::LogicalSize,
     event_loop::ActiveEventLoop,
@@ -15,14 +15,10 @@ use winit::{
     raw_window_handle::HasWindowHandle,
 };
 
-use super::{
-    ApplicationWindowMode,
-    ApplicationContentScale,
-};
 use crate::{
     log,
-    app::platform,
     utils::{Size, Vec2},
+    app::{ApplicationWindowMode, ApplicationContentScale, platform},
 };
 
 // ----------------------------------------------

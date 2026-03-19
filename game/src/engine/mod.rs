@@ -44,9 +44,13 @@ pub mod backend {
                                               app::backend::GlfwInputSystem,
                                               render::backend::RenderSystemOpenGl>;
 
-    pub type WinitOpenGlEngine = EngineBackend<app::backend::WinitApplication,
+    pub type WinitOpenGlEngine = EngineBackend<app::backend::WinitOpenGlApplication,
                                                app::backend::WinitInputSystem,
                                                render::backend::RenderSystemOpenGl>;
+
+    pub type WinitWgpuEngine = EngineBackend<app::backend::WinitWgpuApplication,
+                                             app::backend::WinitInputSystem,
+                                             render::backend::RenderSystemWgpu>;
 }
 
 // ----------------------------------------------
@@ -155,14 +159,18 @@ impl<AppBackendImpl, InputSystemBackendImpl, RenderSystemBackendImpl>
 
         log::info!(log::channel!("engine"), "App instance initialized.");
 
-        let mut render_system: RcMut<RenderSystemBackendImpl> = RcMut::new(
-            RenderSystemBuilder::new()
+        let mut render_system: RcMut<RenderSystemBackendImpl> = RcMut::new({
+            let mut builder = RenderSystemBuilder::new();
+            builder
                 .viewport_size(app.window_size())
                 .framebuffer_size(app.framebuffer_size())
                 .clear_color(configs.window_background_color)
-                .texture_settings(configs.texture_settings)
-                .build()
-        );
+                .texture_settings(configs.texture_settings);
+            if let Some(ctx) = app.app_context() {
+                builder.app_context(ctx);
+            }
+            builder.build()
+        });
 
         log::info!(log::channel!("engine"), "RenderSystem initialized.");
 
