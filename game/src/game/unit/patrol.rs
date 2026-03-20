@@ -16,15 +16,13 @@ use super::{
 use crate::{
     ui::UiSystem,
     save::PostLoadContext,
-    engine::time::{
-        Seconds, CountdownTimer, UpdateTimer
-    },
     game::{
         world::object::GameObject,
         sim::{SimContext, RandomGenerator},
         building::{Building, BuildingContext, BuildingKind},
     },
     utils::{
+        time::{Seconds, CountdownTimer, UpdateTimer},
         callback::{self, Callback},
         coords::Cell,
     }

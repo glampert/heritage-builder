@@ -5,9 +5,8 @@ use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    engine::time::Milliseconds,
     ui::{UiSystem, UiRenderFrameBundle},
-    utils::{Color, Rect, RectTexCoords, Size, Vec2, paths::PathRef},
+    utils::{Color, Rect, RectTexCoords, Size, Vec2, paths::PathRef, time::Milliseconds},
 };
 
 // ----------------------------------------------

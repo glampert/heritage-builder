@@ -11,9 +11,8 @@ use super::{
 };
 use crate::{
     ui::UiRenderFrameBundle,
-    engine::time::PerfTimer,
     render::{self, RenderStats, TextureHandle},
-    utils::{Color, Rect, RectTexCoords, Size, Vec2},
+    utils::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer},
 };
 
 // ----------------------------------------------

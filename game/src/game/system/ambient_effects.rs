@@ -8,11 +8,11 @@ use strum::EnumIter;
 use super::GameSystem;
 use crate::{
     log,
+    engine::Engine,
     save::PostLoadContext,
     pathfind::{Path, Node},
-    engine::{Engine, time::UpdateTimer},
     tile::{TileDepthSortOverride},
-    utils::{callback::Callback, coords::Cell},
+    utils::{callback::Callback, coords::Cell, time::UpdateTimer},
     game::{
         config::GameConfigs,
         sim::SimContext,

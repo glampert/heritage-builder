@@ -13,7 +13,6 @@ use crate::{
     tile::Tile,
     ui::UiSystem,
     save::PostLoadContext,
-    engine::time::{Seconds, UpdateTimer},
     game::{
         cheats,
         sim::{
@@ -41,6 +40,7 @@ use crate::{
     utils::{
         callback::{self, Callback},
         hash::{self, StringHash},
+        time::{Seconds, UpdateTimer},
         Color,
     },
 };

@@ -8,7 +8,6 @@ use super::{
     Building, BuildingBehavior, BuildingContext, BuildingKind, BuildingStock,
 };
 use crate::{
-    engine::time::{Seconds, UpdateTimer},
     game::{
         cheats,
         sim::{
@@ -35,6 +34,7 @@ use crate::{
     save::PostLoadContext,
     tile::Tile,
     utils::{
+        time::{Seconds, UpdateTimer},
         callback::{self, Callback},
         hash::{self, StringHash},
         Color,

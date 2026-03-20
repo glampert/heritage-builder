@@ -12,6 +12,7 @@ pub mod hash;
 pub mod mem;
 pub mod paths;
 pub mod platform;
+pub mod time;
 
 // ----------------------------------------------
 // Macros

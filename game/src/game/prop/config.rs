@@ -5,8 +5,8 @@ use crate::{
     log,
     ui::UiSystem,
     game::sim::resources::ResourceKind,
-    engine::{time::Seconds, config::configurations},
-    utils::hash::{self, PreHashedKeyMap, StringHash},
+    engine::config::configurations,
+    utils::{time::Seconds, hash::{self, PreHashedKeyMap, StringHash}},
 };
 
 // ----------------------------------------------

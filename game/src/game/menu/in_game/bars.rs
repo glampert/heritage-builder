@@ -4,9 +4,8 @@ use num_enum::TryFromPrimitive;
 use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator, Display};
 
 use crate::{
-    engine::time::Seconds,
     ui::{widgets::*, sound::UiButtonSoundsEnabled},
-    utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}, paths::PathRef},
+    utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}, time::Seconds, paths::PathRef},
     game::menu::{
         ButtonDef,
         dialog::{self, DialogMenuKind},

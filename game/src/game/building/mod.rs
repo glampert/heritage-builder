@@ -35,7 +35,6 @@ use crate::{
     log,
     debug::DebugUiMode,
     save::PostLoadContext,
-    engine::time::UpdateTimer,
     game::config::GameConfigs,
     ui::{UiSystem, UiStaticVar, UiFontScale},
     pathfind::{self, NodeKind as PathNodeKind},
@@ -47,7 +46,7 @@ use crate::{
     utils::{
         bitflags_with_display,
         coords::{Cell, CellRange, WorldToScreenTransform},
-        hash::StringHash, mem::Mutable, Color,
+        hash::StringHash, mem::Mutable, Color, time::UpdateTimer,
     },
 };
 

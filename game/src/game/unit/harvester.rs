@@ -9,10 +9,9 @@ use super::{
     UnitId, UnitTaskHelper,
 };
 use crate::{
-    engine::time::CountdownTimer,
     game::prop::PropId,
     game::building::BuildingContext,
-    utils::{callback::Callback, coords::Cell},
+    utils::{callback::Callback, time::CountdownTimer, coords::Cell},
 };
 
 // ----------------------------------------------

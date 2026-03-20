@@ -4,10 +4,9 @@ use smallvec::SmallVec;
 use crate::{
     tile::Tile,
     ui::UiSystem,
-    engine::time::Seconds,
     game::sim::resources::ResourceKind,
     debug::{self, popups::PopupMessages},
-    utils::{self, Color, coords::{CellRange, WorldToScreenTransform}},
+    utils::{self, Color, coords::{CellRange, WorldToScreenTransform}, time::Seconds},
 };
 
 // ----------------------------------------------

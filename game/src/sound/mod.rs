@@ -2,11 +2,11 @@ use serde::{Serialize, Deserialize};
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    engine::time::Seconds,
     ui::{self, UiSystem, UiStaticVar},
     utils::{
         Vec2, coords::IsoPointF32,
         hash::{self, StringHash},
+        time::Seconds,
         paths::PathRef,
     },
 };

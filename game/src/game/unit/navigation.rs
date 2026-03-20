@@ -5,14 +5,13 @@ use strum::Display;
 use super::anim::{UnitAnimSetKey, UnitAnimSets};
 use crate::{
     debug::{self as debug_utils},
-    engine::time::Seconds,
     game::{
         building::{BuildingKind, BuildingTileInfo},
         sim::SimContext,
     },
     pathfind::{Graph, NodeKind as PathNodeKind, Path},
     tile::TileMapLayerKind,
-    utils::coords::Cell,
+    utils::{coords::Cell, time::Seconds},
 };
 
 // ----------------------------------------------

@@ -5,7 +5,6 @@ use std::{
 
 use crate::{
     log,
-    engine::time::Seconds,
     render::{
         RenderSystem,
         TextureHandle, TextureSettings, TextureFilter,
@@ -15,7 +14,7 @@ use crate::{
         input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
     },
     utils::{
-        fixed_string::format_fixed_string,
+        fixed_string::format_fixed_string, time::Seconds,
         Color, FieldAccessorXY, Vec2, Rect, platform,
         paths::{self, AssetPath}, mem::{RawPtr, Mutable},
     },

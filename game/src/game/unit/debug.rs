@@ -10,7 +10,6 @@ use super::{
 };
 use crate::{
     log,
-    engine::time::CountdownTimer,
     ui::{self, UiDPadDirection, UiSystem, UiStaticVar, UiFontScale},
     pathfind::{self, NodeKind as PathNodeKind, Path},
     game::{
@@ -31,6 +30,7 @@ use crate::{
     },
     utils::{
         callback::{self, Callback},
+        time::CountdownTimer,
         coords::Cell,
         hash, Color,
     },

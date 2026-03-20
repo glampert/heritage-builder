@@ -9,9 +9,8 @@ use arrayvec::ArrayVec;
 use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 
 use crate::{
-    engine::time::Seconds,
     sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, SfxSoundKey},
-    utils::{mem::singleton_late_init, paths::{PathRef, AssetPath}},
+    utils::{mem::singleton_late_init, time::Seconds, paths::{PathRef, AssetPath}},
 };
 
 // ----------------------------------------------

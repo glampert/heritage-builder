@@ -24,14 +24,12 @@ use crate::{
     utils::{
         coords::CellRange, mem::RcMut,
         Color, Rect, RectTexCoords, Vec2,
+        time::{FrameClock, PerfTimer, Seconds, Milliseconds},
     },
 };
 
-use config::EngineConfigs;
-use time::{FrameClock, PerfTimer, Seconds, Milliseconds};
-
 pub mod config;
-pub mod time;
+use config::EngineConfigs;
 
 // ----------------------------------------------
 // Engine Backends

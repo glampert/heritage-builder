@@ -15,8 +15,7 @@ use crate::{
     ui::UiSystem,
     save::PostLoadContext,
     tile::{sets::TileDef, Tile},
-    engine::time::{Seconds, UpdateTimer},
-    utils::{hash::{self, StringHash}, Color},
+    utils::{hash::{self, StringHash}, time::{Seconds, UpdateTimer}, Color},
     game::{
         sim::RandomGenerator,
         system::settlers::Settler,

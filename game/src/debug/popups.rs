@@ -4,9 +4,8 @@ use rand::{self, Rng};
 use smallvec::SmallVec;
 
 use crate::{
-    engine::time::Seconds,
     ui::UiSystem,
-    utils::{self, Color, Vec2},
+    utils::{self, Color, Vec2, time::Seconds},
 };
 
 // ----------------------------------------------

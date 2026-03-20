@@ -4,12 +4,11 @@ use strum::{VariantArray, VariantNames};
 
 use super::DebugUiMode;
 use crate::{
-    engine::time::Seconds,
     ui::{self, widgets::UiWidgetContext},
     pathfind::NodeKind as PathNodeKind,
     game::{GameLoop, menu::TileInspector},
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind, TileDepthSortOverride},
-    utils::{constants::*, coords::Cell, fixed_string::format_fixed_string, mem::RawPtr, Color, Size, Vec2},
+    utils::{constants::*, coords::Cell, time::Seconds, fixed_string::format_fixed_string, mem::RawPtr, Color, Size, Vec2},
 };
 
 // ----------------------------------------------

@@ -1,6 +1,4 @@
-use std::any::Any;
-use std::sync::Arc;
-
+use std::{any::Any, sync::Arc};
 use arrayvec::ArrayVec;
 
 use super::{
@@ -13,10 +11,9 @@ use super::{
 };
 use crate::{
     log,
-    engine::time::PerfTimer,
-    render::{self, RenderStats, TextureHandle},
     ui::UiRenderFrameBundle,
-    utils::{Color, Rect, RectTexCoords, Size, Vec2},
+    render::{self, RenderStats, TextureHandle},
+    utils::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer},
 };
 
 // ----------------------------------------------

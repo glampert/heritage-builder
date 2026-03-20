@@ -30,7 +30,6 @@ use crate::{
         self,
         Engine,
         config::EngineConfigs,
-        time::{Seconds, Milliseconds, UpdateTimer, PerfTimer},
     },
     tile::{
         camera::*,
@@ -45,6 +44,7 @@ use crate::{
         mem::{RcMut, singleton_late_init},
         crash_report, platform, file_sys,
         paths::{self, PathRef, FixedPath},
+        time::{Seconds, Milliseconds, UpdateTimer, PerfTimer},
     },
 };
 

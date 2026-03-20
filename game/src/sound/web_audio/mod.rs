@@ -1,9 +1,9 @@
 use crate::{
-    engine::time::Seconds,
     utils::{
         coords::IsoPointF32,
         hash::StringHash,
         paths::PathRef,
+        time::Seconds,
     },
 };
 

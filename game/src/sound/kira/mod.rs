@@ -19,9 +19,9 @@ use super::{
 };
 use crate::{
     log,
-    engine::time::Seconds,
     utils::{
         mem::RcMut,
+        time::Seconds,
         coords::IsoPointF32,
         paths::{self, PathRef, AssetPath},
         hash::{self, StringHash, PreHashedKeyMap},

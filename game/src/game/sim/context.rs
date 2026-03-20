@@ -9,7 +9,6 @@ use super::{
 };
 use crate::{
     log,
-    engine::time::Seconds,
     game::{
         world::World,
         unit::task::UnitTaskManager,
@@ -24,6 +23,7 @@ use crate::{
         Tile, TileKind, TileMap, TileMapLayerKind,
     },
     utils::{
+        time::Seconds,
         coords::{Cell, CellRange},
         hash::StringHash, mem::RawPtr,
     },

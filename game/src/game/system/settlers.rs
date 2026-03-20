@@ -5,7 +5,7 @@ use super::GameSystem;
 use crate::{
     log,
     save::PostLoadContext,
-    engine::{Engine, time::UpdateTimer},
+    engine::Engine,
     pathfind::{Node, NodeKind as PathNodeKind},
     game::{
         building::BuildingKind,
@@ -27,6 +27,7 @@ use crate::{
     },
     utils::{
         callback::{self, Callback},
+        time::UpdateTimer,
         coords::Cell,
         hash, Color,
     },

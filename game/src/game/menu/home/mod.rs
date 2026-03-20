@@ -10,11 +10,11 @@ use super::{
     dialog::{self, DialogMenuKind},
 };
 use crate::{
-    engine::time::Seconds,
     tile::rendering::TileMapRenderFlags,
     save::{Save, Load, PreLoadContext},
     app::input::{InputAction, InputKey},
     utils::{
+        time::Seconds,
         coords::CellRange,
         paths::AssetPath,
         fixed_string::format_fixed_string

@@ -15,9 +15,8 @@ use crate::{
     log,
     ui::UiSystem,
     debug::{self},
-    engine::time::{Seconds, CountdownTimer},
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
-    utils::{callback::Callback, coords::Cell, mem::RawPtr, Color},
+    utils::{callback::Callback, coords::Cell, mem::RawPtr, time::{Seconds, CountdownTimer}, Color},
     pathfind::{
         self, Node, NodeKind as PathNodeKind, Path, PathFilter, PathHistory,
         RandomDirectionalBias, SearchResult,
