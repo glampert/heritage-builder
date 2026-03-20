@@ -6,6 +6,7 @@ pub mod wasm_runner;
 #[cfg(feature = "desktop")]
 use winit::platform::pump_events::EventLoopExtPumpEvents;
 
+#[cfg(feature = "desktop")]
 use winit::{
     application::ApplicationHandler,
     event::{MouseScrollDelta, WindowEvent},
@@ -13,25 +14,27 @@ use winit::{
     window::WindowId,
 };
 
-use super::{
-    input::{
-        WinitInputState, WinitInputSystem,
-        winit_physical_key_to_input_key,
-        winit_modifiers_to_input_modifiers,
-        winit_mouse_button_to_mouse_button,
-        winit_element_state_to_input_action,
-    },
+use super::input::{WinitInputState, WinitInputSystem};
+
+#[cfg(feature = "desktop")]
+use super::input::{
+    winit_physical_key_to_input_key,
+    winit_modifiers_to_input_modifiers,
+    winit_mouse_button_to_mouse_button,
+    winit_element_state_to_input_action,
 };
 use crate::{
     log,
     utils::{Size, Vec2, mem::RcMut},
     app::{
         input::InputSystem,
-        Application, ApplicationFactory,
+        Application,
         ApplicationEvent, ApplicationEventList,
-        ApplicationWindowMode, ApplicationContentScale,
     },
 };
+
+#[cfg(feature = "desktop")]
+use crate::app::{ApplicationFactory, ApplicationWindowMode, ApplicationContentScale};
 
 pub mod window;
 use window::WinitWindowManager;
@@ -87,9 +90,11 @@ impl WinitApplication {
     }
 
     // Access the input state for updating from the WASM event loop handler.
+    // SAFETY: WASM is single-threaded. The project already uses mut_ref_cast throughout for
+    // interior mutability (see RcMut, Ptr patterns in utils/mem.rs).
     #[cfg(feature = "web")]
     pub fn input_state_mut(&self) -> &mut WinitInputState {
-        &mut self.input_state
+        crate::utils::mem::mut_ref_cast(self.input_state.as_ref())
     }
 }
 

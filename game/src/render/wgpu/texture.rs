@@ -64,17 +64,23 @@ fn to_wgpu_filter_mode(filter: render::TextureFilter) -> (wgpu::FilterMode, wgpu
     }
 }
 
-fn to_wgpu_address_mode(wrap: render::TextureWrapMode) -> wgpu::AddressMode {
+fn to_wgpu_address_mode(wrap: render::TextureWrapMode, device: &wgpu::Device) -> wgpu::AddressMode {
     match wrap {
         render::TextureWrapMode::Repeat        => wgpu::AddressMode::Repeat,
         render::TextureWrapMode::ClampToEdge   => wgpu::AddressMode::ClampToEdge,
-        render::TextureWrapMode::ClampToBorder => wgpu::AddressMode::ClampToBorder,
+        render::TextureWrapMode::ClampToBorder => {
+            if device.features().contains(wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER) {
+                wgpu::AddressMode::ClampToBorder
+            } else {
+                wgpu::AddressMode::ClampToEdge
+            }
+        }
     }
 }
 
 fn create_sampler(device: &wgpu::Device, settings: WgpuTextureSettings) -> wgpu::Sampler {
     let (min, mag, mip) = to_wgpu_filter_mode(settings.filter);
-    let address = to_wgpu_address_mode(settings.wrap_mode);
+    let address = to_wgpu_address_mode(settings.wrap_mode, device);
     device.create_sampler(&wgpu::SamplerDescriptor {
         label: None,
         address_mode_u: address,

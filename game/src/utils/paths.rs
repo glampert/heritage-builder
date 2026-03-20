@@ -1,6 +1,11 @@
-use std::{env, sync::LazyLock, path::{Path, PathBuf}};
+use std::{sync::LazyLock, path::{Path, PathBuf}};
 use arrayvec::ArrayString;
 use smallvec::SmallVec;
+
+#[cfg(feature = "desktop")]
+use std::env;
+
+#[cfg(feature = "desktop")]
 use crate::log;
 
 // ----------------------------------------------
@@ -100,7 +105,7 @@ impl<const N: usize> FixedPathBuf<N> {
 
     #[inline]
     pub fn exists(&self) -> bool {
-        std::fs::exists(self).is_ok_and(|exists| exists)
+        super::file_sys::exists(self)
     }
 
     #[inline]
@@ -305,7 +310,7 @@ impl<'a> PathRef<'a> {
 
     #[inline]
     pub fn exists(&self) -> bool {
-        std::fs::exists(self).is_ok_and(|exists| exists)
+        super::file_sys::exists(self)
     }
 
     #[inline]
@@ -384,10 +389,15 @@ pub fn assets_path() -> &'static AssetPath {
 
 // Sets the current working directory to base_path.
 pub fn set_default_working_directory() {
-    let path = base_path();
-    if let Err(err) = env::set_current_dir(path) {
-        log::warning!("Failed to set default working directory: {err}");
+    #[cfg(feature = "desktop")]
+    {
+        let path = base_path();
+        if let Err(err) = env::set_current_dir(path) {
+            log::warning!("Failed to set default working directory: {err}");
+        }
     }
+
+    // No-op on Web/WASM — no concept of a working directory.
 }
 
 // ----------------------------------------------
@@ -408,35 +418,54 @@ static CACHED_PATHS: LazyLock<CachedPaths> = LazyLock::new(|| {
 });
 
 fn find_base_path() -> FixedPath {
-    #[cfg(target_os = "macos")]
+    #[cfg(feature = "web")]
     {
-        if let Some(bundle_resources) = macos_bundle_resources_path() {
-            if bundle_resources.exists() {
-                return bundle_resources;
-            }
-        }
+        // On Web/WASM, all paths are relative to the web server root.
+        return FixedPath::from_str("");
     }
 
-    // Default for dev / non-MacOS.
-    project_relative("")
+    #[cfg(feature = "desktop")]
+    {
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(bundle_resources) = macos_bundle_resources_path() {
+                if bundle_resources.exists() {
+                    return bundle_resources;
+                }
+            }
+        }
+
+        // Default for dev / non-MacOS.
+        project_relative("")
+    }
 }
 
 fn find_assets_path() -> AssetPath {
-    #[cfg(target_os = "macos")]
+    #[cfg(feature = "web")]
     {
-        if let Some(bundle_resources) = macos_bundle_resources_path() {
-            if bundle_resources.exists() {
-                return bundle_resources.join("assets");
-            }
-        }
+        // On Web/WASM, assets are served alongside the WASM binary.
+        return AssetPath::from_str("assets");
     }
 
-    // Default for dev / non-MacOS.
-    project_relative("assets")
+    #[cfg(feature = "desktop")]
+    {
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(bundle_resources) = macos_bundle_resources_path() {
+                if bundle_resources.exists() {
+                    return bundle_resources.join("assets");
+                }
+            }
+        }
+
+        // Default for dev / non-MacOS.
+        project_relative("assets")
+    }
 }
 
 // Fallback for non-MacOS platforms or when running unbundled.
 // Returns a path relative to the project root.
+#[cfg(feature = "desktop")]
 fn project_relative(relative_path: &str) -> FixedPath {
     // Try CARGO_MANIFEST_DIR for a stable dev path:
     if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {

@@ -13,7 +13,7 @@ use crate::{
 // Internal backend implementations
 // ----------------------------------------------
 
-mod wgpu;
+pub(crate) mod wgpu;
 
 #[cfg(feature = "desktop")]
 mod opengl;
@@ -421,24 +421,30 @@ impl TextureHandle {
         !matches!(self, TextureHandle::Invalid)
     }
 
+    // Pack/unpack into usize for imgui TextureId.
+    // Tag in the top 2 bits, index in the lower 30 bits.
+    // Supports up to 2^30 (~1 billion) texture indices.
+    const TAG_SHIFT: u32 = usize::BITS - 2;
+    const INDEX_MASK: usize = (1 << Self::TAG_SHIFT) - 1;
+
     #[inline]
     pub fn pack(&self) -> usize {
         match self {
-            Self::Invalid => 0usize,
-            Self::White   => 1usize << 32,
-            Self::Index(idx) => (2usize << 32) | *idx as usize,
+            Self::Invalid    => 0,
+            Self::White      => 1 << Self::TAG_SHIFT,
+            Self::Index(idx) => (2 << Self::TAG_SHIFT) | (*idx as usize & Self::INDEX_MASK),
         }
     }
 
     #[inline]
     pub fn unpack(value: usize) -> Self {
-        let high = (value >> 32) as u32;
-        let low  = (value & 0x00000000FFFFFFFF) as u32;
-        match high {
-            0 => { debug_assert_eq!(low, 0); Self::Invalid }
-            1 => { debug_assert_eq!(low, 0); Self::White }
-            2 => { Self::Index(low) } // Low 32 bits contain the index.
-            _ => { panic!("Invalid packed TextureHandle!") }
+        let tag = value >> Self::TAG_SHIFT;
+        let idx = (value & Self::INDEX_MASK) as u32;
+        match tag {
+            0 => { debug_assert_eq!(idx, 0); Self::Invalid }
+            1 => { debug_assert_eq!(idx, 0); Self::White }
+            2 => Self::Index(idx),
+            _ => panic!("Invalid packed TextureHandle!"),
         }
     }
 }

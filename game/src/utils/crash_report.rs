@@ -1,3 +1,4 @@
+#[cfg(feature = "desktop")]
 use crate::log;
 
 pub fn initialize(set_panic_hook: bool) {
@@ -5,14 +6,14 @@ pub fn initialize(set_panic_hook: bool) {
         return;
     }
 
+    #[cfg(feature = "desktop")]
+    set_desktop_panic_hook();
+
     #[cfg(feature = "web")]
     {
         // On WASM, install console_error_panic_hook for better panic messages.
         // TODO: Enable once console_error_panic_hook is wired up.
     }
-
-    #[cfg(feature = "desktop")]
-    set_desktop_panic_hook();
 }
 
 #[cfg(feature = "desktop")]

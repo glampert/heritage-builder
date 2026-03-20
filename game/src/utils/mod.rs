@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+#![allow(unused_macros)]
+
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign, Neg};
 use serde::{Deserialize, Serialize};
 use bitflags::bitflags;
@@ -37,7 +40,6 @@ macro_rules! swap2 {
     }};
 }
 
-#[allow(unused_imports)]
 pub(crate) use swap2;
 
 // Defines a bitflags struct with a Display implementation.

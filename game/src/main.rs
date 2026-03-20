@@ -15,8 +15,8 @@ mod sound;
 mod tile;
 mod utils;
 
-use game::GameLoop;
-use utils::platform;
+#[cfg(feature = "web")]
+mod web;
 
 // ----------------------------------------------
 // Desktop main()
@@ -24,33 +24,31 @@ use utils::platform;
 
 #[cfg(feature = "desktop")]
 fn main() {
-    platform::set_main_thread();
+    utils::platform::set_main_thread();
 
-    let game_loop = GameLoop::start();
+    let game_loop = game::GameLoop::start();
 
     while game_loop.is_running() {
         game_loop.update();
     }
 
-    GameLoop::shutdown();
+    game::GameLoop::shutdown();
 }
 
 // ----------------------------------------------
-// WASM entry point
+// Web/WASM entry point
 // ----------------------------------------------
 
 #[cfg(feature = "web")]
 fn main() {
-    platform::set_main_thread();
+    utils::platform::set_main_thread();
 
-    // Early init: paths, logging, configs.
+    // Early init: paths, logging.
     utils::paths::set_default_working_directory();
     log::info!(log::channel!("game"), "WASM entry point started.");
 
-    log::info!(log::channel!("game"), "Loading Game Configs ...");
-    let configs = game::config::GameConfigs::load();
-
     // Hand control to the browser event loop.
-    // The WASM runner will handle async wgpu init, then start the GameLoop.
-    app::winit::wgpu::wasm_runner::run_wasm_event_loop(configs);
+    // The WASM runner will handle async asset loading, config loading,
+    // wgpu init, then start the GameLoop.
+    app::winit::wgpu::wasm_runner::run_wasm_event_loop();
 }

@@ -10,8 +10,7 @@
 //  4. about_to_wait() calls GameLoop::update() each frame.
 
 use std::sync::Arc;
-use wasm_bindgen::prelude::*;
-
+use wasm_bindgen::JsCast;
 use winit::{
     application::ApplicationHandler,
     event::{MouseScrollDelta, WindowEvent},
@@ -23,7 +22,6 @@ use winit::{
 use super::window::WinitWindowManager;
 use super::WinitApplication;
 use super::super::input::{
-    WinitInputState, WinitInputSystem,
     winit_physical_key_to_input_key,
     winit_modifiers_to_input_modifiers,
     winit_mouse_button_to_mouse_button,
@@ -31,12 +29,37 @@ use super::super::input::{
 };
 use crate::{
     log,
-    game::{GameLoop, config::GameConfigs},
-    engine::{self, config::EngineConfigs},
-    render::wgpu::WgpuInitResources,
-    app::ApplicationEvent,
+    engine,
     utils::Vec2,
+    game::{GameLoop, config::GameConfigs},
+    app::{Application, ApplicationEvent},
+    render::wgpu::WgpuInitResources,
 };
+
+// ----------------------------------------------
+// Loading screen helpers
+// ----------------------------------------------
+
+// Update the browser loading screen progress bar and status text.
+fn set_loading_progress(percent: u32, message: &str) {
+    let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
+    if let Some(bar) = document.get_element_by_id("loading-bar") {
+        let _ = bar.unchecked_ref::<web_sys::HtmlElement>()
+            .style()
+            .set_property("width", &format!("{percent}%"));
+    }
+    if let Some(status) = document.get_element_by_id("loading-status") {
+        status.set_text_content(Some(message));
+    }
+}
+
+// Hide the browser loading screen overlay.
+fn hide_loading_screen() {
+    let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
+    if let Some(el) = document.get_element_by_id("loading-screen") {
+        let _ = el.class_list().add_1("hidden");
+    }
+}
 
 // ----------------------------------------------
 // WasmGameRunner / WasmRunnerState
@@ -50,11 +73,12 @@ enum WasmRunnerState {
     InitializingGpu {
         window: Arc<winit::window::Window>,
         window_manager: WinitWindowManager,
-        resizable: bool,
     },
 
     // Game is fully initialized and running.
-    Running,
+    Running {
+        window: Arc<winit::window::Window>,
+    },
 
     // Initialization failed.
     Failed,
@@ -62,14 +86,12 @@ enum WasmRunnerState {
 
 pub struct WasmGameRunner {
     state: WasmRunnerState,
-    configs: &'static GameConfigs,
 }
 
 impl WasmGameRunner {
-    fn new(configs: &'static GameConfigs) -> Self {
+    fn new() -> Self {
         Self {
             state: WasmRunnerState::WaitingForResume,
-            configs,
         }
     }
 }
@@ -83,16 +105,18 @@ impl ApplicationHandler for WasmGameRunner {
 
         log::info!(log::channel!("app"), "WASM: resumed() — creating window...");
 
-        let engine_configs = &self.configs.engine;
+        // Use defaults for window creation. The actual game configs will be loaded
+        // after assets are fetched (they live in the asset cache on WASM).
+        let defaults = engine::config::EngineConfigs::default();
 
         let window_manager = WinitWindowManager::create(
             event_loop,
-            &engine_configs.window_title,
-            engine_configs.window_size,
-            engine_configs.window_mode,
-            engine_configs.resizable_window,
-            engine_configs.confine_cursor_to_window,
-            engine_configs.content_scale,
+            &defaults.window_title,
+            defaults.window_size,
+            defaults.window_mode,
+            defaults.resizable_window,
+            defaults.confine_cursor_to_window,
+            defaults.content_scale,
         );
 
         let window = window_manager.window_arc();
@@ -100,7 +124,6 @@ impl ApplicationHandler for WasmGameRunner {
         self.state = WasmRunnerState::InitializingGpu {
             window: window.clone(),
             window_manager,
-            resizable: engine_configs.resizable_window,
         };
 
         // Kick off async wgpu initialization.
@@ -122,6 +145,7 @@ impl ApplicationHandler for WasmGameRunner {
             }).await.expect("Failed to find a suitable GPU adapter!");
 
             log::info!(log::channel!("app"), "WASM: adapter: {:?}", adapter.get_info());
+            set_loading_progress(30, "GPU initialized...");
 
             // On WebGL, ADDRESS_MODE_CLAMP_TO_BORDER may not be available.
             let features = if adapter.features().contains(wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER) {
@@ -159,15 +183,35 @@ impl ApplicationHandler for WasmGameRunner {
             surface.configure(&device, &surface_config);
 
             log::info!(log::channel!("app"), "WASM: wgpu initialized. Format: {surface_format:?}");
+            set_loading_progress(40, "Loading assets...");
+
+            // Load all game assets into the in-memory cache.
+            log::info!(log::channel!("app"), "WASM: loading assets from manifest...");
+            match crate::web::asset_cache::load_from_manifest("asset_manifest.json").await {
+                Ok(count) => log::info!(log::channel!("app"), "WASM: loaded {count} assets."),
+                Err(err) => log::error!(log::channel!("app"), "WASM: asset loading failed: {err}"),
+            }
+
+            set_loading_progress(70, "Loading configs...");
+
+            // Now that assets are cached, load game configs from the asset cache.
+            log::info!(log::channel!("app"), "WASM: loading game configs...");
+            let configs = GameConfigs::load();
+            log::info!(log::channel!("app"), "WASM: Game configs loaded!");
+
+            set_loading_progress(90, "Starting game...");
 
             // Store the resources in a global so the event loop handler can pick them up.
             WGPU_INIT_RESULT.with(|cell| {
-                cell.replace(Some(WgpuInitResources {
-                    device,
-                    queue,
-                    surface,
-                    surface_config,
-                    surface_format,
+                cell.replace(Some(WasmInitResult {
+                    resources: WgpuInitResources {
+                        device,
+                        queue,
+                        surface,
+                        surface_config,
+                        surface_format,
+                    },
+                    configs,
                 }));
             });
         });
@@ -180,7 +224,7 @@ impl ApplicationHandler for WasmGameRunner {
         event: WindowEvent,
     ) {
         // Only forward events when the game is running.
-        if !matches!(self.state, WasmRunnerState::Running) {
+        if !matches!(self.state, WasmRunnerState::Running { .. }) {
             return;
         }
 
@@ -230,11 +274,7 @@ impl ApplicationHandler for WasmGameRunner {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let app_ref = game_loop.engine().app()
-                    .as_any()
-                    .downcast_ref::<WinitApplication>()
-                    .unwrap();
-                let scale = app_ref.content_scale();
+                let scale = app.content_scale();
                 app.input_state_mut().cursor_pos = Vec2::new(
                     position.x as f32 / scale.x,
                     position.y as f32 / scale.y,
@@ -248,27 +288,30 @@ impl ApplicationHandler for WasmGameRunner {
         match &self.state {
             WasmRunnerState::InitializingGpu { .. } => {
                 // Check if async wgpu init has completed.
-                let resources = WGPU_INIT_RESULT.with(|cell| cell.take());
+                let init_result: Option<WasmInitResult> = WGPU_INIT_RESULT.with(|cell| cell.take());
 
-                if let Some(resources) = resources {
+                if let Some(init_result) = init_result {
                     // Extract the window_manager from our state.
-                    let (window_manager, resizable) = match std::mem::replace(
+                    let window_manager = match std::mem::replace(
                         &mut self.state, WasmRunnerState::Failed
                     ) {
-                        WasmRunnerState::InitializingGpu { window_manager, resizable, .. } => {
-                            (window_manager, resizable)
+                        WasmRunnerState::InitializingGpu { window_manager, .. } => {
+                            window_manager
                         }
                         _ => unreachable!(),
                     };
 
-                    self.finish_init(window_manager, resizable, resources);
+                    self.finish_init(window_manager, init_result);
                 }
             }
-            WasmRunnerState::Running => {
+            WasmRunnerState::Running { window } => {
                 let game_loop = GameLoop::get_mut();
                 if game_loop.is_running() {
                     game_loop.update();
                 }
+                // Request the next frame so the browser keeps calling us
+                // via requestAnimationFrame, even when there are no input events.
+                window.request_redraw();
             }
             _ => {}
         }
@@ -279,14 +322,28 @@ impl WasmGameRunner {
     fn finish_init(
         &mut self,
         window_manager: WinitWindowManager,
-        resizable: bool,
-        resources: WgpuInitResources,
+        init_result: WasmInitResult,
     ) {
-        let game_configs = self.configs;
+        let WasmInitResult { mut resources, configs: game_configs } = init_result;
         let engine_configs = &game_configs.engine;
+        let resizable = engine_configs.resizable_window;
 
+        // Resize the window/canvas to the size from configs (it was created
+        // with defaults since configs weren't loaded yet).
+        let config_size = engine_configs.window_size;
+        let _ = window_manager.window.request_inner_size(
+            winit::dpi::LogicalSize::new(config_size.width as f64, config_size.height as f64)
+        );
+
+        // Re-read sizes after resize and reconfigure the wgpu surface to match.
         let viewport_size = window_manager.window_size();
         let framebuffer_size = window_manager.framebuffer_size();
+        resources.surface_config.width = framebuffer_size.width as u32;
+        resources.surface_config.height = framebuffer_size.height as u32;
+        resources.surface.configure(&resources.device, &resources.surface_config);
+
+        // Keep a reference to the window for requesting redraws.
+        let window = window_manager.window_arc();
 
         // Create the WinitApplication (without an event loop — WASM mode).
         let app = WinitApplication::from_window_manager(window_manager, resizable);
@@ -308,15 +365,25 @@ impl WasmGameRunner {
         // Initialize the game loop.
         GameLoop::start_with_engine(engine, game_configs);
 
-        self.state = WasmRunnerState::Running;
+        // Hide the browser loading screen — game is fully initialized.
+        set_loading_progress(100, "Ready!");
+        hide_loading_screen();
+
+        self.state = WasmRunnerState::Running { window };
 
         log::info!(log::channel!("app"), "WASM: Game initialized and running!");
     }
 }
 
-// Thread-local storage for async wgpu init result.
+// Bundles async init results (wgpu resources + loaded configs) for handoff to the event loop.
+struct WasmInitResult {
+    resources: WgpuInitResources,
+    configs: &'static GameConfigs,
+}
+
+// Thread-local storage for async init result.
 thread_local! {
-    static WGPU_INIT_RESULT: std::cell::Cell<Option<WgpuInitResources>> = const { std::cell::Cell::new(None) };
+    static WGPU_INIT_RESULT: std::cell::Cell<Option<WasmInitResult>> = const { std::cell::Cell::new(None) };
 }
 
 // ----------------------------------------------
@@ -324,10 +391,10 @@ thread_local! {
 // ----------------------------------------------
 
 // Launch the WASM game. Called from main.rs.
-pub fn run_wasm_event_loop(configs: &'static GameConfigs) {
+pub fn run_wasm_event_loop() {
     let event_loop = EventLoop::new()
         .expect("Failed to create winit event loop!");
 
-    let runner = WasmGameRunner::new(configs);
+    let runner = WasmGameRunner::new();
     event_loop.spawn_app(runner);
 }

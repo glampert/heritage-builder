@@ -1,5 +1,7 @@
+use strum::Display;
+
+#[cfg(feature = "desktop")]
 use std::{sync::OnceLock, thread::ThreadId};
-use strum_macros::Display;
 
 // ----------------------------------------------
 // Build Profile / App Bundle Detection
@@ -15,6 +17,7 @@ pub enum BuildProfile {
 pub enum RunEnvironment {
     Standalone,
     MacOSAppBundle,
+    WebBrowser,
 }
 
 pub fn build_profile() -> BuildProfile {
@@ -26,6 +29,11 @@ pub fn build_profile() -> BuildProfile {
 }
 
 pub fn run_environment() -> RunEnvironment {
+    #[cfg(feature = "web")]
+    {
+        return RunEnvironment::WebBrowser;
+    }
+
     #[cfg(target_os = "macos")]
     {
         // Example: /Applications/MyGame.app/Contents/MacOS/MyGame
@@ -43,6 +51,7 @@ pub fn run_environment() -> RunEnvironment {
         }
     }
 
+    #[cfg(feature = "desktop")]
     RunEnvironment::Standalone
 }
 
@@ -50,17 +59,25 @@ pub fn run_environment() -> RunEnvironment {
 // Main Thread Detection
 // ----------------------------------------------
 
+#[cfg(feature = "desktop")]
 static MAIN_THREAD_ID: OnceLock<ThreadId> = OnceLock::new();
 
 pub fn set_main_thread() {
+    #[cfg(feature = "desktop")]
     MAIN_THREAD_ID.set(std::thread::current().id())
         .expect("MAIN_THREAD_ID already initialized!");
 }
 
 pub fn is_main_thread() -> bool {
-    MAIN_THREAD_ID
-        .get()
-        .is_some_and(|id| *id == std::thread::current().id())
+    #[cfg(feature = "desktop")]
+    {
+        MAIN_THREAD_ID
+            .get()
+            .is_some_and(|id| *id == std::thread::current().id())
+    }
+
+    #[cfg(feature = "web")]
+    true // WASM is always single-threaded.
 }
 
 // ----------------------------------------------

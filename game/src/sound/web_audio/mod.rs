@@ -28,16 +28,15 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
     fn new() -> Option<Box<Self>> {
         // TODO: Create AudioContext via web-sys.
         // Browser autoplay policy may require deferring until first user interaction.
-        todo!("WebAudio backend: new()")
+        // Return None for now — SoundSystem handles this gracefully (no audio).
+        None
     }
 
     fn update(&mut self, listener_position: IsoPointF32, _settings: &SoundGlobalSettings) {
         self.listener_position = listener_position;
     }
 
-    fn set_volumes(&mut self, _settings: &SoundGlobalSettings) {
-        todo!("WebAudio backend: set_volumes()")
-    }
+    fn set_volumes(&mut self, _settings: &SoundGlobalSettings) {}
 
     fn listener_position(&self) -> IsoPointF32 {
         self.listener_position
@@ -48,20 +47,14 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
     }
 
     fn play(&mut self, _params: PlaySoundParams<Self::Registry>) -> SoundHandle {
-        todo!("WebAudio backend: play()")
+        SoundHandle::invalid(SoundKind::Sfx)
     }
 
-    fn stop(&mut self, _sound_handle: SoundHandle, _settings: &SoundGlobalSettings) {
-        todo!("WebAudio backend: stop()")
-    }
+    fn stop(&mut self, _sound_handle: SoundHandle, _settings: &SoundGlobalSettings) {}
 
-    fn stop_kind(&mut self, _kind: SoundKind, _fade_out: Seconds) {
-        todo!("WebAudio backend: stop_kind()")
-    }
+    fn stop_kind(&mut self, _kind: SoundKind, _fade_out: Seconds) {}
 
-    fn stop_all(&mut self, _settings: &SoundGlobalSettings) {
-        todo!("WebAudio backend: stop_all()")
-    }
+    fn stop_all(&mut self, _settings: &SoundGlobalSettings) {}
 
     fn is_playing(&self, _sound_handle: SoundHandle) -> bool {
         false

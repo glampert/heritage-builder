@@ -26,11 +26,7 @@ use crate::{
         input::{InputAction, InputKey, InputModifiers, MouseButton},
         ApplicationEvent,
     },
-    engine::{
-        self,
-        Engine,
-        config::EngineConfigs,
-    },
+    engine::Engine,
     tile::{
         camera::*,
         rendering::TileMapRenderFlags,
@@ -42,10 +38,16 @@ use crate::{
         hash, Size, Vec2,
         coords::CellRange,
         mem::{RcMut, singleton_late_init},
-        crash_report, platform, file_sys,
+        crash_report, file_sys,
         paths::{self, PathRef, FixedPath},
         time::{Seconds, Milliseconds, UpdateTimer, PerfTimer},
     },
+};
+
+#[cfg(feature = "desktop")]
+use crate::{
+    engine::{self, config::EngineConfigs},
+    utils::platform,
 };
 
 pub mod undo_redo;
@@ -711,9 +713,6 @@ impl GameLoop {
             self.handle_event(event);
         }
 
-        let viewport_size = self.engine.app().window_size();
-        self.camera_mut().set_viewport_size(viewport_size);
-
         // Game Logic:
         let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
 
@@ -790,7 +789,11 @@ impl GameLoop {
                 log::info!(log::channel!("game"), "Framebuffer Resized: {framebuffer_size}");
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
-                let mut input_event = self.camera_mut().on_key_input(key, action, modifiers);
+                let mut input_event = if self.is_in_game() {
+                    self.camera_mut().on_key_input(key, action, modifiers)
+                } else {
+                    UiInputEvent::NotHandled
+                };
 
                 // [CTRL]+[/]: Toggle between DevEditor menu / HUD menu.
                 if input_event.not_handled()
@@ -808,7 +811,7 @@ impl GameLoop {
             }
             ApplicationEvent::Scroll(amount) => {
                 // If we're not hovering over an ImGui menu...
-                let input_event = if !self.engine().ui_system().is_handling_mouse_input() {
+                let input_event = if self.is_in_game() && !self.engine().ui_system().is_handling_mouse_input() {
                     self.camera_mut().on_mouse_scroll(amount)
                 } else {
                     UiInputEvent::NotHandled
@@ -829,7 +832,16 @@ impl GameLoop {
                          cursor_screen_pos: Vec2,
                          delta_time_secs: Seconds)
                          -> CellRange {
-        let is_any_ui_item_hovered = self.engine.ui_system().ui().is_any_item_hovered();
+        if !self.is_in_game() {
+            return CellRange::default(); // No simulation to update while at the home menus.
+        }
+
+        let engine = Self::get_mut().engine_mut();
+
+        let viewport_size = engine.app().window_size();
+        self.session.camera.set_viewport_size(viewport_size);
+
+        let is_any_ui_item_hovered = engine.ui_system().ui().is_any_item_hovered();
         self.session.camera.update_zooming(delta_time_secs);
 
         // Map scrolling, if cursor not hovering a menu item:
@@ -839,7 +851,7 @@ impl GameLoop {
 
         let sim_timer = PerfTimer::begin();
 
-        self.session.sim.update(Self::get_mut().engine_mut(),
+        self.session.sim.update(engine,
                                 &mut self.session.world,
                                 &mut self.session.systems,
                                 &mut self.session.tile_map,
@@ -865,6 +877,10 @@ impl GameLoop {
                      delta_time_secs: Seconds,
                      visible_range: CellRange,
                      flags: TileMapRenderFlags) {
+        if !self.is_in_game() {
+            return; // We don't have a tile map to render while at the home menus.
+        }
+
         let draw_world_timer = PerfTimer::begin();
         let systems = self.engine.systems_mut_refs();
 

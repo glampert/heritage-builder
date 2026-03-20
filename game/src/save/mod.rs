@@ -1,13 +1,15 @@
-use std::{fs, io, path::Path};
+use std::{io, path::Path};
 use enum_dispatch::enum_dispatch;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     engine::Engine,
     tile::TileMap,
-    utils::mem::{self, RawPtr, RcMut},
+    utils::{mem::{self, RawPtr, RcMut}, file_sys},
     game::sim::{Simulation, RandomGenerator},
 };
+
+pub mod storage;
 
 // ----------------------------------------------
 // Save / Load Traits
@@ -190,14 +192,14 @@ pub mod backend {
         fn read_file<P>(&mut self, path: P) -> io::Result<()>
             where P: AsRef<Path>
         {
-            self.buffer = fs::read_to_string(path)?;
+            self.buffer = file_sys::load_string(path)?;
             Ok(())
         }
 
         fn write_file<P>(&self, path: P) -> io::Result<()>
             where P: AsRef<Path>
         {
-            fs::write(path, &self.buffer)
+            file_sys::write_file(path, &self.buffer)
         }
     }
 

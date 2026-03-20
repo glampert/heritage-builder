@@ -18,10 +18,10 @@ use crate::utils::{
 };
 
 #[cfg(feature = "desktop")]
-use std::{fs, io, sync::{LazyLock, RwLock}};
+mod desktop;
 
-#[cfg(feature = "desktop")]
-use crate::utils::paths::{self, FixedPath};
+#[cfg(feature = "web")]
+mod web;
 
 // ----------------------------------------------
 // Log Levels
@@ -141,68 +141,7 @@ pub fn enable_tty_colors(enable: bool) {
 }
 
 #[cfg(feature = "desktop")]
-pub fn logs_path() -> FixedPath {
-    paths::base_path().join("logs")
-}
-
-#[cfg(feature = "desktop")]
-const LOG_FILENAME: &str = "runtime.log";
-
-// ----------------------------------------------
-// Log Output Selection (Desktop)
-// ----------------------------------------------
-
-#[cfg(feature = "desktop")]
-enum LogOutput {
-    Stdout(io::Stdout),
-    File(fs::File),
-}
-
-#[cfg(feature = "desktop")]
-impl io::Write for LogOutput {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match self {
-            Self::Stdout(stdout) => stdout.write(buf),
-            Self::File(file) => file.write(buf),
-        }
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        match self {
-            Self::Stdout(stdout) => stdout.flush(),
-            Self::File(file) => file.flush(),
-        }
-    }
-}
-
-#[cfg(feature = "desktop")]
-fn init_log_output() -> LogOutput {
-    if REDIRECT_TO_FILE.load(Ordering::Relaxed) {
-        let logs_path = logs_path();
-        let _ = fs::create_dir(&logs_path);
-
-        if let Ok(file) = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(logs_path.join(LOG_FILENAME))
-        {
-            enable_tty_colors(false);
-            LogOutput::File(file)
-        } else {
-            // Fallback to TTY
-            LogOutput::Stdout(io::stdout())
-        }
-    } else {
-        // TTY
-        LogOutput::Stdout(io::stdout())
-    }
-}
-
-#[cfg(feature = "desktop")]
-static LOG_OUTPUT: LazyLock<RwLock<LogOutput>> = LazyLock::new(|| {
-    RwLock::new(init_log_output())
-});
+pub use desktop::logs_path;
 
 // ----------------------------------------------
 // Internal Implementation
@@ -224,52 +163,10 @@ pub fn print_internal(level: Level,
     }
 
     #[cfg(feature = "desktop")]
-    {
-        use io::Write;
-        let mut output = LOG_OUTPUT.write().unwrap();
-
-        let chan_str = channel.as_ref().map(|chan| chan.name).unwrap_or_default();
-
-        let (color_start, color_end) = {
-            if ENABLE_TTY_COLORS.load(Ordering::Relaxed) {
-                level.tty_color()
-            } else {
-                ("", "")
-            }
-        };
-
-        if ENABLE_SRC_LOCATION.load(Ordering::Relaxed) {
-            writeln!(output,
-                     "{}[{:?}]{}{} {}:{} {} - {}",
-                     color_start,
-                     level,
-                     chan_str,
-                     color_end,
-                     location.file,
-                     location.line,
-                     location.module,
-                     args)
-                     .unwrap();
-        } else {
-            writeln!(output,
-                     "{}[{:?}]{}{} {}",
-                     color_start,
-                     level,
-                     chan_str,
-                     color_end,
-                     args)
-                     .unwrap();
-        }
-    }
+    desktop::output_log(level, channel, location, args);
 
     #[cfg(feature = "web")]
-    {
-        let chan_str = channel.as_ref().map(|chan| chan.name).unwrap_or_default();
-        let msg = format!("[{:?}]{} {}", level, chan_str, args);
-        // TODO: Use web_sys::console::log_1/warn_1/error_1 once web-sys is available.
-        // For now, this compiles but won't be reached until the WASM entry point is set up.
-        let _ = msg;
-    }
+    web::output_log(level, channel, location, args);
 
     if let Some(listener) = LISTENER.get() {
         listener(Record { level, channel, location: *location, message: args.to_string() });

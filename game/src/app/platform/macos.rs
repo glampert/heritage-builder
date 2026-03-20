@@ -96,15 +96,16 @@ pub fn warp_cursor(x: f64, y: f64) {
 pub fn redirect_stderr<F, R>(f: F, filename: &str) -> R
     where F: FnOnce() -> R
 {
-    use std::{fs::{self, OpenOptions}, os::unix::io::AsRawFd};
+    use std::os::unix::io::AsRawFd;
     use libc::{close, dup, dup2, STDERR_FILENO};
+    use crate::utils::file_sys;
 
     let logs_path = log::logs_path();
-    let _ = fs::create_dir(&logs_path);
+    file_sys::create_path(&logs_path);
 
     unsafe {
         let saved_fd = dup(STDERR_FILENO);
-        let file = OpenOptions::new()
+        let file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)

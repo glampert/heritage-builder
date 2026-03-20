@@ -13,7 +13,7 @@ pub mod input;
 // ----------------------------------------------
 
 mod platform;
-mod winit;
+pub(crate) mod winit;
 
 #[cfg(feature = "desktop")]
 mod glfw;

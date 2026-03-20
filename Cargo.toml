@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "tools/bundler",
+    "tools/web-builder",
     "proc_macros",
     "game"
 ]

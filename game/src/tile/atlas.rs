@@ -1,8 +1,10 @@
 #![allow(clippy::needless_range_loop)]
 
-use image::{RgbaImage, ImageReader};
-use serde::{Serialize, Deserialize};
+#[cfg(feature = "desktop")]
 use rayon::prelude::*;
+
+use image::RgbaImage;
+use serde::{Serialize, Deserialize};
 
 use super::{sets::TileTexInfo, TileMapLayerKind};
 use crate::{
@@ -12,6 +14,7 @@ use crate::{
     utils::{
         Size,
         RectTexCoords,
+        file_sys,
         fixed_string::format_fixed_string,
         paths::{self, PathRef, FixedPath},
         hash::{self, StringHash, PreHashedKeyMap},
@@ -121,6 +124,7 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
                    self.layer, self.packer.page_count());
     }
 
+    #[cfg(feature = "desktop")]
     fn save_textures_to_file(&self, base_path: PathRef) {
         let save_path =
             paths::base_path()
@@ -128,16 +132,19 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
                 .join("atlas")
                 .join(self.layer.lowercase_name());
 
-        let _ = std::fs::create_dir_all(&save_path);
+        file_sys::create_path(&save_path);
 
         log::info!(log::channel!("atlas"),
                    "Saving texture atlas {} with {} pages...",
                    save_path, self.packer.page_count());
 
-        // Save pages in parallel:
-        self.packer.pages()
-            .par_iter()
-            .enumerate()
+        // Save pages (parallel on desktop, sequential otherwise):
+        #[cfg(feature = "desktop")]
+        let iter = self.packer.pages().par_iter();
+        #[cfg(feature = "web")]
+        let iter = self.packer.pages().iter();
+
+        iter.enumerate()
             .for_each(|(index, page)| {
                 let image_file_path = save_path
                     .join(format_fixed_string!(64, "page_{index}.png"));
@@ -153,6 +160,11 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
 
         let metadata_file_path = save_path.join("atlas_meta.json");
         save_atlas_metadata_file((&metadata_file_path).into(), self.packer.page_count(), self.layer);
+    }
+
+    #[cfg(feature = "web")]
+    fn save_textures_to_file(&self, _base_path: PathRef) {
+        // No-op on Web/WASM: atlas caching is a desktop optimization.
     }
 }
 
@@ -279,10 +291,13 @@ struct OfflinePackedAtlasPage {
 }
 
 fn load_cached_atlas_page_images(layer_name: &str, page_count: usize) -> Vec<Option<RgbaImage>> {
-    // Load pages in parallel:
-    (0..page_count)
-        .into_par_iter()
-        .map(|page_index| {
+    // Load pages (parallel on desktop, sequential on Web/WASM):
+    #[cfg(feature = "desktop")]
+    let iter = (0..page_count).into_par_iter();
+    #[cfg(feature = "web")]
+    let iter = (0..page_count).into_iter();
+
+    iter.map(|page_index| {
             let image_path: FixedPath =
                 CACHE_BASE_PATH
                     .join("atlas")
@@ -299,9 +314,9 @@ fn load_cached_atlas_page_images(layer_name: &str, page_count: usize) -> Vec<Opt
 fn load_image_file(base_path: PathRef, path: PathRef) -> Option<RgbaImage> {
     let absolute_path: FixedPath = base_path.join(path);
 
-    match ImageReader::open(&absolute_path) {
-        Ok(reader) => {
-            match reader.decode() {
+    match file_sys::load_bytes(&absolute_path) {
+        Ok(bytes) => {
+            match image::load_from_memory(&bytes) {
                 // Moves data, no pixel conversion if already RGBA8.
                 Ok(image) => Some(image.into_rgba8()),
                 Err(err) => {
@@ -311,12 +326,13 @@ fn load_image_file(base_path: PathRef, path: PathRef) -> Option<RgbaImage> {
             }
         }
         Err(err) => {
-            log::error!(log::channel!("atlas"), "Failed to open image file {absolute_path}: {err:?}");
+            log::error!(log::channel!("atlas"), "Failed to load image file {absolute_path}: {err}");
             None
         }
     }
 }
 
+#[cfg(feature = "desktop")]
 fn save_image_file(path: PathRef, image: &RgbaImage) -> bool {
     let mut file = match std::fs::File::create(path) {
         Ok(file) => file,

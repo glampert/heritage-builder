@@ -1,4 +1,6 @@
-use std::{any::Any, sync::Arc};
+use std::any::Any;
+#[cfg(feature = "desktop")]
+use std::sync::Arc;
 use arrayvec::ArrayVec;
 
 use super::{

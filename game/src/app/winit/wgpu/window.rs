@@ -88,41 +88,43 @@ impl WinitWindowManager {
     }
 
     pub fn try_confine_cursor(&self, cursor_pos: Vec2) -> Option<Vec2> {
-        // No cursor confinement on WASM.
         #[cfg(feature = "web")]
         { let _ = cursor_pos; return None; }
 
-        if !self.confine_cursor {
-            return None;
-        }
+        #[cfg(feature = "desktop")]
+        {
+            if !self.confine_cursor {
+                return None;
+            }
 
-        let size = self.window_size();
+            let size = self.window_size();
 
-        let mut new_x = cursor_pos.x;
-        let mut new_y = cursor_pos.y;
-        let mut changed = false;
+            let mut new_x = cursor_pos.x;
+            let mut new_y = cursor_pos.y;
+            let mut changed = false;
 
-        if cursor_pos.x < 0.0 {
-            new_x = 0.0;
-            changed = true;
-        } else if cursor_pos.x > size.width as f32 {
-            new_x = size.width as f32;
-            changed = true;
-        }
+            if cursor_pos.x < 0.0 {
+                new_x = 0.0;
+                changed = true;
+            } else if cursor_pos.x > size.width as f32 {
+                new_x = size.width as f32;
+                changed = true;
+            }
 
-        if cursor_pos.y < 0.0 {
-            new_y = 0.0;
-            changed = true;
-        } else if cursor_pos.y > size.height as f32 {
-            new_y = size.height as f32;
-            changed = true;
-        }
+            if cursor_pos.y < 0.0 {
+                new_y = 0.0;
+                changed = true;
+            } else if cursor_pos.y > size.height as f32 {
+                new_y = size.height as f32;
+                changed = true;
+            }
 
-        if changed {
-            set_cursor_position_native(&self.window, new_x as f64, new_y as f64);
-            Some(Vec2::new(new_x, new_y))
-        } else {
-            None
+            if changed {
+                set_cursor_position_native(&self.window, new_x as f64, new_y as f64);
+                Some(Vec2::new(new_x, new_y))
+            } else {
+                None
+            }
         }
     }
 
