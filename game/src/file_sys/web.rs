@@ -30,7 +30,7 @@ struct AssetCacheEntry {
 }
 
 struct CachedPaths {
-    base_path: paths::FixedPath,
+    base_path:   paths::FixedPath,
     assets_path: paths::AssetPath,
 }
 
@@ -45,7 +45,7 @@ static CACHED_PATHS: LazyLock<CachedPaths> = LazyLock::new(|| {
 });
 
 impl WebFileSystemBackend {
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self { asset_cache: hash::new_const_hash_map() }
     }
 
@@ -91,7 +91,7 @@ impl WebFileSystemBackend {
 }
 
 impl FileSystemBackend for WebFileSystemBackend {
-    fn set_working_directory(&mut self, _path: impl AsRef<Path>) {
+    fn set_working_directory(&self, _path: impl AsRef<Path>) {
         // No-op on Web/WASM — no concept of a working directory.
     }
 
@@ -127,19 +127,19 @@ impl FileSystemBackend for WebFileSystemBackend {
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
     }
 
-    fn write_file(&mut self, _path: impl AsRef<Path>, _data: impl AsRef<[u8]>) -> io::Result<()> {
+    fn write_file(&self, _path: impl AsRef<Path>, _data: impl AsRef<[u8]>) -> io::Result<()> {
         Err(io::Error::new(io::ErrorKind::Unsupported, "Direct file write not supported on Web/WASM"))
     }
 
-    fn remove_file(&mut self, _path: impl AsRef<Path>) -> io::Result<()> {
+    fn remove_file(&self, _path: impl AsRef<Path>) -> io::Result<()> {
         Err(io::Error::new(io::ErrorKind::Unsupported, "File removal not supported on Web/WASM"))
     }
 
-    fn create_path(&mut self, _path: impl AsRef<Path>) -> io::Result<()> {
+    fn create_path(&self, _path: impl AsRef<Path>) -> io::Result<()> {
         Err(io::Error::new(io::ErrorKind::Unsupported, "Directory creation not supported on Web/WASM"))
     }
 
-    fn collect_dir_entries(&mut self,
+    fn collect_dir_entries(&self,
                            _path: impl AsRef<Path>,
                            _flags: CollectFlags,
                            _extension: Option<&str>) -> io::Result<Vec<PathBuf>>

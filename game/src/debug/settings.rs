@@ -3,12 +3,12 @@ use proc_macros::DrawDebugUi;
 use crate::{
     log,
     debug,
+    save,
     engine::config::Configs,
     utils::{Color, Size},
     file_sys::paths::PathRef,
     ui::{self, UiStaticVar, widgets::UiWidgetContext},
     game::{
-        self,
         cheats,
         GameLoop,
         config::GameConfigs,
@@ -421,14 +421,14 @@ impl DebugSettingsDevMenu {
         }
 
         if ui.button("Load Autosave") {
-            game_loop.load_save_game(game::AUTOSAVE_FILE_NAME);
+            game_loop.load_save_game(save::storage::AUTOSAVE_FILE_NAME);
         }
 
         // Save game:
         ui.separator();
 
         if self.save_file_name.is_empty() {
-            self.save_file_name = game::DEFAULT_SAVE_FILE_NAME.to_string();
+            self.save_file_name = save::storage::DEFAULT_SAVE_FILE_NAME.to_string();
         }
 
         ui.input_text("Save File", &mut self.save_file_name).build();
@@ -444,14 +444,14 @@ impl DebugSettingsDevMenu {
         // Load save game:
         ui.separator();
 
-        let save_files = game_loop.save_files_list();
+        let save_files = save::storage::list_save_files();
 
         if ui.combo("Load File", &mut self.save_file_selected, &save_files, |s| s.to_string_lossy()) {
             self.save_file_selected = self.save_file_selected.min(save_files.len());
         }
 
         if ui.button("Load") && !save_files.is_empty() {
-            game_loop.load_save_game(PathRef::from_str(&save_files[self.save_file_selected].to_string_lossy()));
+            game_loop.load_save_game(PathRef::from_str(save_files[self.save_file_selected].to_str().unwrap()));
         }
     }
 

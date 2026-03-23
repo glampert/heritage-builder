@@ -10,7 +10,7 @@ use crate::log;
 pub struct StandardFileSystemBackend;
 
 impl FileSystemBackend for StandardFileSystemBackend {
-    fn set_working_directory(&mut self, path: impl AsRef<Path>) {
+    fn set_working_directory(&self, path: impl AsRef<Path>) {
         if let Err(err) = std::env::set_current_dir(path) {
             log::warning!("Failed to set working directory: {err}");
         }
@@ -42,21 +42,21 @@ impl FileSystemBackend for StandardFileSystemBackend {
     }
 
     #[inline]
-    fn write_file(&mut self, path: impl AsRef<Path>, data: impl AsRef<[u8]>) -> io::Result<()> {
+    fn write_file(&self, path: impl AsRef<Path>, data: impl AsRef<[u8]>) -> io::Result<()> {
         fs::write(path, data)
     }
 
     #[inline]
-    fn remove_file(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
+    fn remove_file(&self, path: impl AsRef<Path>) -> io::Result<()> {
         fs::remove_file(path)
     }
 
     #[inline]
-    fn create_path(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
+    fn create_path(&self, path: impl AsRef<Path>) -> io::Result<()> {
         fs::create_dir_all(path)
     }
 
-    fn collect_dir_entries(&mut self,
+    fn collect_dir_entries(&self,
                            path: impl AsRef<Path>,
                            flags: CollectFlags,
                            extension: Option<&str>) -> io::Result<Vec<PathBuf>>
@@ -132,14 +132,14 @@ impl StandardFileSystemBackend {
 // ----------------------------------------------
 
 struct CachedPaths {
-    base_path: paths::FixedPath,
+    base_path:   paths::FixedPath,
     assets_path: paths::AssetPath,
 }
 
 // Cached on first use.
 static CACHED_PATHS: LazyLock<CachedPaths> = LazyLock::new(|| {
     CachedPaths {
-        base_path: find_base_path(),
+        base_path:   find_base_path(),
         assets_path: find_assets_path(),
     }
 });

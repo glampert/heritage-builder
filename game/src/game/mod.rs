@@ -24,7 +24,7 @@ use crate::{
     render::TextureCache,
     ui::{UiInputEvent, widgets::UiWidgetContext},
     debug::{self, log_viewer::LogViewerWindow, DevEditorMenus},
-    file_sys::{self, paths::{self, PathRef, FixedPath}},
+    file_sys::{self, paths::{self, PathRef}},
     app::{
         input::{InputAction, InputKey, InputModifiers, MouseButton},
         ApplicationEvent,
@@ -114,9 +114,8 @@ impl GameSession {
 
         session.menus = Some(session.new_game_menus_from_config(engine, home_menu));
 
-        if let LoadMapSetting::SaveGame { save_file_path } = load_map_setting {
-            let path = make_save_game_file_path(PathRef::from_path(save_file_path));
-            session.load_save_game(engine, (&path).into());
+        if let LoadMapSetting::SaveGame { save_file } = load_map_setting {
+            session.load_save_game(engine, PathRef::from_path(save_file));
         }
 
         if configs.sim.start_paused {
@@ -222,8 +221,8 @@ impl GameSession {
                 LoadMapSetting::Preset { preset_number } => {
                     debug::utils::create_preset_tile_map(world, *preset_number)
                 }
-                LoadMapSetting::SaveGame { save_file_path } => {
-                    if save_file_path.to_str().unwrap().is_empty() {
+                LoadMapSetting::SaveGame { save_file } => {
+                    if save_file.to_str().unwrap().is_empty() {
                         panic!("LoadMapSetting::SaveGame: No save file path provided!");
                     }
                     // Loading a save requires loading a full GameSession, so we'll just create
@@ -348,86 +347,47 @@ impl Load for GameSession {
         let mut menus = self.new_game_menus_from_config(context.engine_mut(), false);
         menus.post_load(context);
         self.menus = Some(menus);
+
+        if GameConfigs::get().sim.start_paused {
+            self.sim.pause();
+        } else {
+            self.sim.resume();
+        }
     }
 }
 
 // ----------------------------------------------
-// Save Game
+// Save/Load Game
 // ----------------------------------------------
-
-pub const AUTOSAVE_FILE_NAME: PathRef = PathRef::from_str("autosave.json");
-pub const DEFAULT_SAVE_FILE_NAME: PathRef = PathRef::from_str("save_game.json");
-
-fn save_games_path() -> FixedPath {
-    paths::base_path().join("saves")
-}
-
-fn make_save_game_file_path(save_file_name: PathRef) -> FixedPath {
-    save_games_path()
-        .join(save_file_name)
-        .with_extension("json")
-}
 
 impl GameSession {
-    fn save_game(&mut self, save_file_path: PathRef) -> bool {
-        log::info!(log::channel!("session"), "Saving game '{save_file_path}' ...");
+    fn save_game(&mut self, save_file: PathRef) -> bool {
+        log::info!(log::channel!("session"), "Saving game '{save_file}' ...");
 
-        fn can_write_save_file(save_file_path: PathRef) -> bool {
-            // Attempt to write a dummy file to probe if the path is writable.
-            file_sys::write_file(save_file_path, save_file_path.as_str().as_bytes()).is_ok()
+        if !save::storage::can_write_save_file(save_file) {
+            log::error!(log::channel!("session"), "Save game file path '{save_file}' is not accessible!");
+            return false; 
         }
-
-        fn do_save(state: &mut SaveStateImpl, sesion: &GameSession, save_file_path: PathRef) -> bool {
-            if let Err(err) = sesion.save(state) {
-                log::error!(log::channel!("session"), "Failed to save game: {err}");
-                return false;
-            }
-
-            if let Err(err) = state.write_file(save_file_path) {
-                log::error!(log::channel!("session"),
-                            "Failed to write save game file '{save_file_path}': {err}");
-                return false;
-            }
-
-            true
-        }
-
-        // First make sure the save directory exists. Ignore any errors since
-        // this function might fail if any element of the path already exists.
-        let _ = file_sys::create_path(save_games_path());
-
-        if !can_write_save_file(save_file_path) {
-            log::error!(log::channel!("session"),
-                        "Save game file path '{save_file_path}' is not accessible!");
-            return false;
-        }
-
-        let mut state = save::backend::new_json_save_state(true);
 
         self.pre_save();
-        let result = do_save(&mut state, self, save_file_path);
+        let save_result = save::storage::write_save_file(save_file, self);
         self.post_save();
 
-        result
-    }
-
-    fn load_save_game(&mut self, engine: &mut dyn Engine, save_file_path: PathRef) -> bool {
-        log::info!(log::channel!("session"), "Loading save game '{save_file_path}' ...");
-
-        let mut state = save::backend::new_json_save_state(false);
-
-        if let Err(err) = state.read_file(save_file_path) {
-            log::error!(log::channel!("session"),
-                        "Failed to read save game file '{save_file_path}': {err}");
+        if let Err(err) = save_result {
+            log::error!(log::channel!("session"), "{err}");
             return false;
         }
 
-        // Load into a temporary instance so that if we fail we'll avoid modifying any state.
-        let session: GameSession = match state.load_new_instance() {
+        true
+    }
+
+    fn load_save_game(&mut self, engine: &mut dyn Engine, save_file: PathRef) -> bool {
+        log::info!(log::channel!("session"), "Loading save game '{save_file}' ...");
+
+        let session = match save::storage::load_save_file(save_file) {
             Ok(session) => session,
             Err(err) => {
-                log::error!(log::channel!("session"),
-                            "Failed to load save game from '{save_file_path}': {err}");
+                log::error!(log::channel!("session"), "{err}");
                 return false;
             }
         };
@@ -435,12 +395,6 @@ impl GameSession {
         self.pre_load(&mut PreLoadContext::new(engine));
         *self = session;
         self.post_load(&mut PostLoadContext::new(engine, &self.sim, self.tile_map.clone()));
-
-        if GameConfigs::get().sim.start_paused {
-            self.sim.pause();
-        } else {
-            self.sim.resume();
-        }
 
         true
     }
@@ -456,8 +410,8 @@ impl GameSession {
 enum GameSessionCmd {
     Reset { reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size> },
     LoadPreset { preset_number: usize },
-    LoadSaveGame { save_file_path: PathBuf },
-    SaveGame { save_file_path: PathBuf },
+    LoadSaveGame { save_file: PathBuf },
+    SaveGame { save_file: PathBuf },
     QuitToMainMenu,
 }
 
@@ -600,7 +554,7 @@ impl GameLoop {
         }
 
         self.session_cmd_queue.push_back(GameSessionCmd::LoadSaveGame {
-            save_file_path: make_save_game_file_path(save_file_name).to_path_buf()
+            save_file: save_file_name.to_path_buf()
         });
     }
 
@@ -611,16 +565,8 @@ impl GameLoop {
         }
 
         self.session_cmd_queue.push_back(GameSessionCmd::SaveGame {
-            save_file_path: make_save_game_file_path(save_file_name).to_path_buf()
+            save_file: save_file_name.to_path_buf()
         });
-    }
-
-    #[inline]
-    pub fn save_files_list(&self) -> Vec<PathBuf> {
-        file_sys::collect_files(save_games_path(),
-                                file_sys::CollectFlags::FilenamesOnly,
-                                Some("json"))
-                                .unwrap_or_default()
     }
 
     #[inline]
@@ -907,7 +853,7 @@ impl GameLoop {
         let delta_time_secs = self.engine.frame_clock().delta_time();
 
         if self.autosave_timer.tick(delta_time_secs).should_update() {
-            self.save_game(AUTOSAVE_FILE_NAME);
+            self.save_game(save::storage::AUTOSAVE_FILE_NAME);
         }
     }
 
@@ -924,11 +870,11 @@ impl GameLoop {
                 GameSessionCmd::LoadPreset { preset_number } => {
                     self.session_cmd_load_preset(preset_number);
                 }
-                GameSessionCmd::LoadSaveGame { save_file_path } => {
-                    self.session_cmd_load_save_game(PathRef::from_path(&save_file_path));
+                GameSessionCmd::LoadSaveGame { save_file } => {
+                    self.session_cmd_load_save_game(PathRef::from_path(&save_file));
                 }
-                GameSessionCmd::SaveGame { save_file_path } => {
-                    self.session_cmd_save_game(PathRef::from_path(&save_file_path));
+                GameSessionCmd::SaveGame { save_file } => {
+                    self.session_cmd_save_game(PathRef::from_path(&save_file));
                 }
                 GameSessionCmd::QuitToMainMenu => {
                     self.session_cmd_quit_to_main_menu();
@@ -948,14 +894,14 @@ impl GameLoop {
         log::info!(log::channel!("game"), "--- Game Session created ---");
     }
 
-    fn session_cmd_load_save_game(&mut self, save_file_path: PathRef) {
-        debug_assert!(!save_file_path.is_empty());
-        self.session.load_save_game(&mut *self.engine, save_file_path);
+    fn session_cmd_load_save_game(&mut self, save_file: PathRef) {
+        debug_assert!(!save_file.is_empty());
+        self.session.load_save_game(&mut *self.engine, save_file);
     }
 
-    fn session_cmd_save_game(&mut self, save_file_path: PathRef) {
-        debug_assert!(!save_file_path.is_empty());
-        self.session.save_game(save_file_path);
+    fn session_cmd_save_game(&mut self, save_file: PathRef) {
+        debug_assert!(!save_file.is_empty());
+        self.session.save_game(save_file);
     }
 
     fn session_cmd_quit_to_main_menu(&mut self) {

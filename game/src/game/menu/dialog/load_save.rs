@@ -2,13 +2,9 @@ use bitflags::bitflags;
 
 use super::*;
 use crate::{
-    file_sys::paths::FixedPath,
-    game::{
-        GameLoop,
-        AUTOSAVE_FILE_NAME,
-        DEFAULT_SAVE_FILE_NAME,
-        menu::TEXT_BUTTON_HOVERED_SPRITE,
-    },
+    save,
+    file_sys::paths::PathRef,
+    game::{GameLoop, menu::TEXT_BUTTON_HOVERED_SPRITE},
 };
 
 // ----------------------------------------------
@@ -89,26 +85,18 @@ impl SaveGameHelper {
         Self { actions }
     }
 
-    fn default_save_file_name(actions: SaveGameActions) -> FixedPath {
-        let default_file_name = {
-            if actions.intersects(SaveGameActions::Load) {
-                AUTOSAVE_FILE_NAME
-            } else {
-                DEFAULT_SAVE_FILE_NAME
-            }
-        };
-
-        // Remove extension.
-        default_file_name.with_extension("")
+    fn default_save_file_name(actions: SaveGameActions) -> PathRef<'static> {
+        if actions.intersects(SaveGameActions::Load) {
+            save::storage::AUTOSAVE_FILE_NAME
+        } else {
+            save::storage::DEFAULT_SAVE_FILE_NAME
+        }
     }
 
-    fn save_files_list() -> Vec<String> {
+    fn list_save_files() -> Vec<String> {
         // List of available save files, without extension.
-        GameLoop::get()
-            .save_files_list()
-            .iter()
-            .map(|path| path.with_extension("").to_str().unwrap().into())
-            .collect()
+        let files = save::storage::list_save_files();
+        files.iter().map(|file| file.to_str().unwrap().to_string()).collect()
     }
 
     fn current_save_file_selection(menu: &UiMenu) -> (PathRef<'_>, &[String]) {
@@ -322,7 +310,7 @@ impl SaveGameHelper {
                         .find_widget_of_type_mut::<UiItemList>()
                         .unwrap();
 
-                    let available_save_files = Self::save_files_list();
+                    let available_save_files = Self::list_save_files();
                     let current_selection_index = save_files_list.current_selection_index();
 
                     if let Some(index) = current_selection_index {

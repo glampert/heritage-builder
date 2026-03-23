@@ -39,7 +39,7 @@ pub trait Configs {
         // this function might fail if any element of the path already exists.
         let _ = file_sys::create_path(configs_path());
 
-        let mut state = save::backend::new_json_save_state(true);
+        let mut state = save::new_json_save_state(true);
 
         if let Err(err) = state.save(self) {
             log::error!(log::channel!("config"),
@@ -66,7 +66,7 @@ pub trait Configs {
             .join(config_file_name)
             .with_extension("json");
 
-        let mut state = save::backend::new_json_save_state(false);
+        let mut state = save::new_json_save_state(false);
 
         if let Err(err) = state.read_file(&config_json_path) {
             log::error!(log::channel!("config"),

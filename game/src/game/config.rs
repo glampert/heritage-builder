@@ -54,7 +54,7 @@ pub enum LoadMapSetting {
         preset_number: usize,
     },
     SaveGame {
-        save_file_path: PathBuf,
+        save_file: PathBuf,
     },
 }
 

@@ -24,7 +24,7 @@ pub use web::preload_asset_cache;
 // - On Web/WASM, reads from the pre-loaded asset cache.
 trait FileSystemBackend {
     // Tries to set the current working directory.
-    fn set_working_directory(&mut self, path: impl AsRef<Path>);
+    fn set_working_directory(&self, path: impl AsRef<Path>);
 
     // Absolute path where the application runs from. Parent of assets_path.
     fn base_path(&self) -> &'static paths::FixedPath;
@@ -42,12 +42,12 @@ trait FileSystemBackend {
     fn load_string(&mut self, path: impl AsRef<Path>) -> io::Result<String>;
 
     // Create/remove files/directories.
-    fn write_file(&mut self, path: impl AsRef<Path>, data: impl AsRef<[u8]>) -> io::Result<()>;
-    fn remove_file(&mut self, path: impl AsRef<Path>) -> io::Result<()>;
-    fn create_path(&mut self, path: impl AsRef<Path>) -> io::Result<()>;
+    fn write_file(&self, path: impl AsRef<Path>, data: impl AsRef<[u8]>) -> io::Result<()>;
+    fn remove_file(&self, path: impl AsRef<Path>) -> io::Result<()>;
+    fn create_path(&self, path: impl AsRef<Path>) -> io::Result<()>;
 
     // Scan directory contents.
-    fn collect_dir_entries(&mut self,
+    fn collect_dir_entries(&self,
                            path: impl AsRef<Path>,
                            flags: CollectFlags,
                            extension: Option<&str>) -> io::Result<Vec<PathBuf>>;
@@ -78,19 +78,19 @@ pub fn load_string(path: impl AsRef<Path>) -> io::Result<String> {
 // Writes data to a file at the given path.
 #[inline]
 pub fn write_file(path: impl AsRef<Path>, data: impl AsRef<[u8]>) -> io::Result<()> {
-    FileSystemBackendImpl::get_mut().write_file(path, data)
+    FileSystemBackendImpl::get().write_file(path, data)
 }
 
 // Removes a file at the given path.
 #[inline]
 pub fn remove_file(path: impl AsRef<Path>) -> io::Result<()> {
-    FileSystemBackendImpl::get_mut().remove_file(path)
+    FileSystemBackendImpl::get().remove_file(path)
 }
 
 // Creates a directory (and all parent directories).
 #[inline]
 pub fn create_path(path: impl AsRef<Path>) -> io::Result<()> {
-    FileSystemBackendImpl::get_mut().create_path(path)
+    FileSystemBackendImpl::get().create_path(path)
 }
 
 // ----------------------------------------------
@@ -127,5 +127,5 @@ pub fn collect_dir_entries(path: impl AsRef<Path>,
                            flags: CollectFlags,
                            extension: Option<&str>) -> io::Result<Vec<PathBuf>>
 {
-    FileSystemBackendImpl::get_mut().collect_dir_entries(path, flags, extension)
+    FileSystemBackendImpl::get().collect_dir_entries(path, flags, extension)
 }

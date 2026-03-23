@@ -360,7 +360,7 @@ fn save_sprite_metadata_file(path: PathRef, sprites: &[packer::AtlasSprite], pag
         sprites,
     };
 
-    let mut state = save::backend::new_json_save_state(true);
+    let mut state = save::new_json_save_state(true);
 
     if let Err(err) = state.save(&metadata) {
         log::error!(log::channel!("atlas"), "Failed to save sprite metadata {path}: {err}");
@@ -387,7 +387,7 @@ fn save_atlas_metadata_file(path: PathRef, page_count: usize, layer: TileMapLaye
         layer,
     };
 
-    let mut state = save::backend::new_json_save_state(true);
+    let mut state = save::new_json_save_state(true);
 
     if let Err(err) = state.save(&metadata) {
         log::error!(log::channel!("atlas"), "Failed to save atlas metadata {path}: {err}");
@@ -410,7 +410,7 @@ struct DeserializedSpriteMetadata {
 }
 
 fn load_sprite_metadata_file(path: PathRef) -> DeserializedSpriteMetadata {
-    let mut state = save::backend::new_json_save_state(false);
+    let mut state = save::new_json_save_state(false);
 
     if let Err(err) = state.read_file(path) {
         log::error!(log::channel!("atlas"), "Failed to read sprite metadata file {path}: {err}");
@@ -440,7 +440,7 @@ struct DeserializedAtlasMetadata {
 }
 
 fn load_atlas_metadata_file(path: PathRef, layer: TileMapLayerKind) -> DeserializedAtlasMetadata {
-    let mut state = save::backend::new_json_save_state(false);
+    let mut state = save::new_json_save_state(false);
 
     if let Err(err) = state.read_file(path) {
         log::error!(log::channel!("atlas"), "Failed to read atlas metadata file {path}: {err}");

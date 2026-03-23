@@ -1436,7 +1436,7 @@ impl TileSets {
             .join("tile_set")
             .with_extension("json");
 
-        let mut state = save::backend::new_json_save_state(false);
+        let mut state = save::new_json_save_state(false);
 
         if let Err(err) = state.read_file(&tile_set_json_path) {
             log::error!(log::channel!("tileset"),
