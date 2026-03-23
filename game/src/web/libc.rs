@@ -1,7 +1,7 @@
 // C standard library functions for imgui-sys on WASM.
 //
 // Exported as `c_malloc`, `c_free`, `c_qsort`, `c_vsnprintf`, `c_sscanf`
-// so that web/env.js can forward to them. See mod.rs for the full
+// so that web/libc.js can forward to them. See mod.rs for the full
 // explanation of how the JS <-> Rust shim layer works.
 
 use std::collections::HashMap;

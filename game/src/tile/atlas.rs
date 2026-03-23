@@ -11,12 +11,11 @@ use crate::{
     log,
     save::{self, SaveState},
     render::{TextureCache, TextureHandle, TextureSettings},
+    file_sys::{self, paths::{self, PathRef, FixedPath}},
     utils::{
         Size,
         RectTexCoords,
-        file_sys,
         fixed_string::format_fixed_string,
-        paths::{self, PathRef, FixedPath},
         hash::{self, StringHash, PreHashedKeyMap},
     },
 };
@@ -132,19 +131,16 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
                 .join("atlas")
                 .join(self.layer.lowercase_name());
 
-        file_sys::create_path(&save_path);
+        let _ = file_sys::create_path(&save_path);
 
         log::info!(log::channel!("atlas"),
                    "Saving texture atlas {} with {} pages...",
                    save_path, self.packer.page_count());
 
-        // Save pages (parallel on desktop, sequential otherwise):
-        #[cfg(feature = "desktop")]
-        let iter = self.packer.pages().par_iter();
-        #[cfg(feature = "web")]
-        let iter = self.packer.pages().iter();
-
-        iter.enumerate()
+        // Save pages in parallel:
+        self.packer.pages()
+            .par_iter()
+            .enumerate()
             .for_each(|(index, page)| {
                 let image_file_path = save_path
                     .join(format_fixed_string!(64, "page_{index}.png"));

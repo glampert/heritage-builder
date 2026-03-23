@@ -5,7 +5,8 @@ use serde::{de::DeserializeOwned, Serialize};
 use crate::{
     engine::Engine,
     tile::TileMap,
-    utils::{mem::{self, RawPtr, RcMut}, file_sys},
+    file_sys,
+    utils::mem::{self, RawPtr, RcMut},
     game::sim::{Simulation, RandomGenerator},
 };
 

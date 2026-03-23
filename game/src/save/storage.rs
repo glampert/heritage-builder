@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+// TODO: Same idea as file_sys: define a trait and impl for each target.
+
 // ----------------------------------------------
 // Platform-abstracted save file storage.
 //
@@ -9,18 +11,19 @@ use std::path::PathBuf;
 
 // Returns the directory/prefix where save files are stored.
 #[cfg(feature = "desktop")]
-fn save_files_path() -> crate::utils::paths::FixedPath {
-    crate::utils::paths::base_path().join("saves")
+fn save_files_path() -> crate::file_sys::paths::FixedPath {
+    crate::file_sys::paths::base_path().join("saves")
 }
 
 // Lists all available save file names (without directory prefix).
 pub fn list_save_files() -> Vec<PathBuf> {
     #[cfg(feature = "desktop")]
     {
-        use crate::utils::file_sys;
-        file_sys::collect_files(&save_files_path(),
+        use crate::file_sys;
+        file_sys::collect_files(save_files_path(),
                                 file_sys::CollectFlags::FilenamesOnly,
                                 Some("json"))
+                                .unwrap_or_default()
     }
 
     #[cfg(feature = "web")]
@@ -49,7 +52,7 @@ pub fn list_save_files() -> Vec<PathBuf> {
 pub fn read_save(name: &str) -> Result<String, String> {
     #[cfg(feature = "desktop")]
     {
-        use crate::utils::file_sys;
+        use crate::file_sys;
 
         let path = save_files_path()
             .join(name)
@@ -76,10 +79,10 @@ pub fn read_save(name: &str) -> Result<String, String> {
 pub fn write_save(name: &str, data: &str) -> Result<(), String> {
     #[cfg(feature = "desktop")]
     {
-        use crate::utils::file_sys;
+        use crate::file_sys;
 
         let dir = save_files_path();
-        file_sys::create_path(&dir);
+        let _ = file_sys::create_path(&dir);
 
         let path = dir
             .join(name)
@@ -105,7 +108,7 @@ pub fn write_save(name: &str, data: &str) -> Result<(), String> {
 pub fn delete_save(name: &str) -> Result<(), String> {
     #[cfg(feature = "desktop")]
     {
-        use crate::utils::file_sys;
+        use crate::file_sys;
 
         let path = save_files_path()
             .join(name)
@@ -131,10 +134,10 @@ pub fn delete_save(name: &str) -> Result<(), String> {
 pub fn can_write(name: &str) -> bool {
     #[cfg(feature = "desktop")]
     {
-        use crate::utils::file_sys;
+        use crate::file_sys;
 
         let dir = save_files_path();
-        file_sys::create_path(&dir);
+        let _ = file_sys::create_path(&dir);
 
         let path = dir
             .join(name)

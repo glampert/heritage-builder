@@ -34,7 +34,7 @@ pub fn run_environment() -> RunEnvironment {
         return RunEnvironment::WebBrowser;
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(all(feature = "desktop", target_os = "macos"))]
     {
         // Example: /Applications/MyGame.app/Contents/MacOS/MyGame
         if let Ok(exe_path) = std::env::current_exe() {
@@ -77,7 +77,7 @@ pub fn is_main_thread() -> bool {
     }
 
     #[cfg(feature = "web")]
-    true // WASM is always single-threaded.
+    true // Web/WASM is always single-threaded.
 }
 
 // ----------------------------------------------

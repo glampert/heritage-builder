@@ -19,11 +19,12 @@ use crate::{
     log,
     pathfind::NodeKind as PathNodeKind,
     save::*,
+    file_sys::paths::PathRef,
     utils::{
         constants::*,
         bitflags_with_display,
         Color, Rect, Size, Vec2,
-        hash::StringHash, mem::RawPtr, paths::PathRef, time::Seconds,
+        hash::StringHash, mem::RawPtr, time::Seconds,
         coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
     },
 };

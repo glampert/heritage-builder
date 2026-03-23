@@ -222,7 +222,7 @@ where
 // Cursor positioning
 // ----------------------------------------------
 
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "desktop", target_os = "macos"))]
 fn set_cursor_position_native(window: &Window, x: f64, y: f64) {
     use crate::app::platform;
     let Ok(inner_pos) = window.inner_position() else { return };

@@ -10,6 +10,7 @@ use super::{
 
 use crate::{
     save::{PreLoadContext, PostLoadContext},
+    file_sys::paths::{self, PathRef, AssetPath},
     app::input::{InputSystem, InputAction, MouseButton},
     render::{TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
     ui::{
@@ -20,7 +21,7 @@ use crate::{
     },
     utils::{
         Color, Rect, RectEdges, Size, Vec2, time::Seconds,
-        paths::{self, PathRef, AssetPath}, mem::{singleton, RawPtr}, fixed_string::format_fixed_string,
+        mem::{singleton, RawPtr}, fixed_string::format_fixed_string,
         coords::{self, Cell, CellF32, IsoPointF32, IsoDiamond, WorldToScreenTransform},
     },
 };

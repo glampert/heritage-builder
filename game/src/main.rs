@@ -6,6 +6,7 @@ mod log;
 mod app;
 mod debug;
 mod engine;
+mod file_sys;
 mod game;
 mod ui;
 mod pathfind;
@@ -44,7 +45,7 @@ fn main() {
     utils::platform::set_main_thread();
 
     // Early init: paths, logging.
-    utils::paths::set_default_working_directory();
+    file_sys::paths::set_working_directory(file_sys::paths::base_path());
     log::info!(log::channel!("game"), "WASM entry point started.");
 
     // Hand control to the browser event loop.

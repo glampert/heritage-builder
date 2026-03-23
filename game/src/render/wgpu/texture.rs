@@ -7,7 +7,8 @@ use crate::{
     log,
     render::{self, NativeTextureHandle, TextureHandle},
     ui::UiSystem,
-    utils::{Size, hash::{self, PreHashedKeyMap, StringHash}, paths::PathRef},
+    utils::{Size, hash::{self, PreHashedKeyMap, StringHash}},
+    file_sys::paths::PathRef,
 };
 
 // ----------------------------------------------
@@ -337,7 +338,7 @@ impl TextureCache {
             return loaded;
         }
 
-        let image = match crate::utils::file_sys::load_bytes(file_path) {
+        let image = match crate::file_sys::load_bytes(file_path) {
             Ok(bytes) => match image::load_from_memory(&bytes) {
                 Ok(img) => img,
                 Err(err) => {

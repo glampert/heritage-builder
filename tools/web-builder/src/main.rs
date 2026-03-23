@@ -117,11 +117,9 @@ fn sync_assets(src: &Path, dst: &Path) {
     if dst.exists() || dst.is_symlink() {
         // Check if it's already a symlink to the right place.
         if dst.is_symlink() {
-            if let Ok(target) = fs::read_link(dst) {
-                if target == src {
-                    println!("   Assets symlink already up to date.");
-                    return;
-                }
+            if let Ok(target) = fs::read_link(dst) && target == src {
+                println!("   Assets symlink already up to date.");
+                return;
             }
             fs::remove_file(dst).unwrap();
         } else {
@@ -254,22 +252,22 @@ fn run_wasm_bindgen(project_root: &Path, release: bool) {
 
     println!("   Output: {}", out_dir.display());
 
-    // Post-process: inject env.js setWasm() call into the generated JS.
+    // Post-process: inject libc.js setWasm() call into the generated JS.
     // wasm-bindgen's __wbg_finalize_init sets `wasm = instance.exports` then calls
-    // `wasm.__wbindgen_start()` (which runs Rust main()). We need env.js to have
+    // `wasm.__wbindgen_start()` (which runs Rust main()). We need libc.js to have
     // the WASM exports *before* main() runs, so we inject a setWasm() call between
     // the two lines.
     patch_generated_js(&out_dir);
 }
 
-// Patch generate HeritageBuilder.js to load env.js, which contains missing C library wrappers used by ImGui.
+// Patch generate HeritageBuilder.js to load libc.js, which contains missing C library wrappers used by ImGui.
 // NOTE: If we move away from ImGui in the future this shouldn't be necessary anymore.
 fn patch_generated_js(pkg_dir: &Path) {
     let js_path = pkg_dir.join(format!("{GAME_CRATE}.js"));
     let js = fs::read_to_string(&js_path)
         .unwrap_or_else(|e| panic!("❌ Failed to read {}: {e}", js_path.display()));
 
-    // Add import for env.js setWasm at the top (after the existing env imports).
+    // Add import for libc.js setWasm at the top (after the existing env imports).
     let js = if !js.contains("import { setWasm }") {
         js.replacen(
             "\nfunction __wbg_get_imports()",
@@ -289,7 +287,7 @@ fn patch_generated_js(pkg_dir: &Path) {
     fs::write(&js_path, &js)
         .unwrap_or_else(|e| panic!("❌ Failed to write {}: {e}", js_path.display()));
 
-    println!("   Patched {} with env.js integration.", js_path.display());
+    println!("   Patched {} with libc.js integration.", js_path.display());
 }
 
 // -----------------------------------------------

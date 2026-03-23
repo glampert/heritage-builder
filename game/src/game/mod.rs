@@ -22,6 +22,7 @@ use crate::{
     render::TextureCache,
     ui::{UiInputEvent, widgets::UiWidgetContext},
     debug::{self, log_viewer::LogViewerWindow, DevEditorMenus},
+    file_sys::{self, paths::{self, PathRef, FixedPath}},
     app::{
         input::{InputAction, InputKey, InputModifiers, MouseButton},
         ApplicationEvent,
@@ -37,17 +38,16 @@ use crate::{
     utils::{
         hash, Size, Vec2,
         coords::CellRange,
+        crash_report,
         mem::{RcMut, singleton_late_init},
-        crash_report, file_sys,
-        paths::{self, PathRef, FixedPath},
         time::{Seconds, Milliseconds, UpdateTimer, PerfTimer},
     },
 };
 
 #[cfg(feature = "desktop")]
 use crate::{
-    engine::{self, config::EngineConfigs},
     utils::platform,
+    engine::{self, config::EngineConfigs},
 };
 
 pub mod undo_redo;
@@ -395,7 +395,7 @@ impl GameSession {
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
-        file_sys::create_path(save_games_path());
+        let _ = file_sys::create_path(save_games_path());
 
         if !can_write_save_file(save_file_path) {
             log::error!(log::channel!("session"),
@@ -515,7 +515,7 @@ impl GameLoop {
         // Early initialization:
         log::redirect_to_file(is_app_bundle);
         LogViewerWindow::early_init();
-        paths::set_default_working_directory();
+        file_sys::paths::set_working_directory(file_sys::paths::base_path());
 
         // Only log panics when running from a bundle. Otherwise the default behavior is fine.
         crash_report::initialize(is_app_bundle);
@@ -618,9 +618,10 @@ impl GameLoop {
 
     #[inline]
     pub fn save_files_list(&self) -> Vec<PathBuf> {
-        file_sys::collect_files(&save_games_path(),
+        file_sys::collect_files(save_games_path(),
                                 file_sys::CollectFlags::FilenamesOnly,
                                 Some("json"))
+                                .unwrap_or_default()
     }
 
     #[inline]
@@ -766,7 +767,7 @@ impl GameLoop {
 
     fn load_assets(tex_cache: &mut dyn TextureCache, configs: &GameConfigs) {
         log::info!(log::channel!("game"), "--- Loading Game Assets ---");
-        paths::set_default_working_directory();
+        file_sys::paths::set_working_directory(file_sys::paths::base_path());
 
         BuildingConfigs::load();
         log::info!(log::channel!("game"), "BuildingConfigs loaded.");

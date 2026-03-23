@@ -7,7 +7,8 @@ use crate::{
     log,
     engine::Engine,
     save::PostLoadContext,
-    utils::{Color, paths::PathRef},
+    utils::Color,
+    file_sys::paths::PathRef,
     game::{config::GameConfigs, sim::SimContext},
     sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, AmbienceSoundKey},
 };

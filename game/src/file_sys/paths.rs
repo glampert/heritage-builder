@@ -1,12 +1,8 @@
-use std::{sync::LazyLock, path::{Path, PathBuf}};
+use std::path::{Path, PathBuf};
 use arrayvec::ArrayString;
 use smallvec::SmallVec;
 
-#[cfg(feature = "desktop")]
-use std::env;
-
-#[cfg(feature = "desktop")]
-use crate::log;
+use super::{FileSystemBackend, FileSystemBackendImpl};
 
 // ----------------------------------------------
 // FixedPathBuf
@@ -105,7 +101,7 @@ impl<const N: usize> FixedPathBuf<N> {
 
     #[inline]
     pub fn exists(&self) -> bool {
-        super::file_sys::exists(self)
+        super::exists(self)
     }
 
     #[inline]
@@ -211,6 +207,12 @@ impl<const N: usize> FixedPathBuf<N> {
         self
     }
 
+    pub fn normalized(&self) -> Self {
+        let mut new = self.clone();
+        new.normalize();
+        new
+    }
+
     pub fn clear(&mut self) {
         self.buf.clear();
     }
@@ -310,7 +312,7 @@ impl<'a> PathRef<'a> {
 
     #[inline]
     pub fn exists(&self) -> bool {
-        super::file_sys::exists(self)
+        super::exists(self)
     }
 
     #[inline]
@@ -376,129 +378,23 @@ pub const SEPARATOR_CHAR: char = '/';
 pub const SEPARATOR_STR:  &str = "/";
 
 // Absolute path where the application runs from. Parent of assets_path.
+#[inline]
 pub fn base_path() -> &'static FixedPath {
-    &CACHED_PATHS.base_path
+    FileSystemBackendImpl::get().base_path()
 }
 
 // Returns the absolute path to the game's assets directory.
 // On MacOS, this will point inside `.app/Contents/Resources/assets`.
 // On other platforms or in dev runs, it falls back to `./assets`.
+#[inline]
 pub fn assets_path() -> &'static AssetPath {
-    &CACHED_PATHS.assets_path
+    FileSystemBackendImpl::get().assets_path()
 }
 
-// Sets the current working directory to base_path.
-pub fn set_default_working_directory() {
-    #[cfg(feature = "desktop")]
-    {
-        let path = base_path();
-        if let Err(err) = env::set_current_dir(path) {
-            log::warning!("Failed to set default working directory: {err}");
-        }
-    }
-
-    // No-op on Web/WASM — no concept of a working directory.
-}
-
-// ----------------------------------------------
-// Internal helpers
-// ----------------------------------------------
-
-struct CachedPaths {
-    base_path: FixedPath,
-    assets_path: AssetPath,
-}
-
-// Cached on first use.
-static CACHED_PATHS: LazyLock<CachedPaths> = LazyLock::new(|| {
-    CachedPaths {
-        base_path: find_base_path(),
-        assets_path: find_assets_path(),
-    }
-});
-
-fn find_base_path() -> FixedPath {
-    #[cfg(feature = "web")]
-    {
-        // On Web/WASM, all paths are relative to the web server root.
-        return FixedPath::from_str("");
-    }
-
-    #[cfg(feature = "desktop")]
-    {
-        #[cfg(target_os = "macos")]
-        {
-            if let Some(bundle_resources) = macos_bundle_resources_path() {
-                if bundle_resources.exists() {
-                    return bundle_resources;
-                }
-            }
-        }
-
-        // Default for dev / non-MacOS.
-        project_relative("")
-    }
-}
-
-fn find_assets_path() -> AssetPath {
-    #[cfg(feature = "web")]
-    {
-        // On Web/WASM, assets are served alongside the WASM binary.
-        return AssetPath::from_str("assets");
-    }
-
-    #[cfg(feature = "desktop")]
-    {
-        #[cfg(target_os = "macos")]
-        {
-            if let Some(bundle_resources) = macos_bundle_resources_path() {
-                if bundle_resources.exists() {
-                    return bundle_resources.join("assets");
-                }
-            }
-        }
-
-        // Default for dev / non-MacOS.
-        project_relative("assets")
-    }
-}
-
-// Fallback for non-MacOS platforms or when running unbundled.
-// Returns a path relative to the project root.
-#[cfg(feature = "desktop")]
-fn project_relative(relative_path: &str) -> FixedPath {
-    // Try CARGO_MANIFEST_DIR for a stable dev path:
-    if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
-        return FixedPath::from_str(&manifest_dir).join(relative_path);
-    }
-
-    // Fallback: current working directory.
-    let mut dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    if !relative_path.is_empty() {
-        dir = dir.join(relative_path);
-    }
-
-    FixedPath::from_path(&dir)
-}
-
-// Internal helper to find the Resources directory when inside a MacOS bundle.
-#[cfg(target_os = "macos")]
-fn macos_bundle_resources_path() -> Option<FixedPath> {
-    // Example: /MyGame.app/Contents/MacOS/MyGame
-    let exe_path = env::current_exe().ok()?;
-    let mut path = exe_path.parent()?.to_path_buf();
-
-    for _ in 0..3 {
-        if path.ends_with("MacOS") {
-            let contents = FixedPath::from_path(path.parent()?);
-            if contents.ends_with("Contents") {
-                return Some(contents.join("Resources"));
-            }
-        }
-        path = path.parent()?.to_path_buf();
-    }
-
-    None
+// Tries to set the current working directory.
+#[inline]
+pub fn set_working_directory(path: impl AsRef<Path>) {
+    FileSystemBackendImpl::get_mut().set_working_directory(path);
 }
 
 // ----------------------------------------------

@@ -6,7 +6,8 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     ui::{UiSystem, UiRenderFrameBundle},
-    utils::{Color, Rect, RectTexCoords, Size, Vec2, paths::PathRef, time::Milliseconds},
+    utils::{Color, Rect, RectTexCoords, Size, Vec2, time::Milliseconds},
+    file_sys::paths::PathRef,
 };
 
 // ----------------------------------------------

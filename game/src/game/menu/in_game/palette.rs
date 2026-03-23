@@ -6,13 +6,13 @@ use crate::{
     game::{undo_redo, menu::*},
     app::input::{InputAction, MouseButton},
     ui::{UiInputEvent, widgets::*, sound::{self, UiSoundKey}},
+    file_sys::paths::PathRef,
     utils::{
         self,
         Vec2, Color, Rect, RectTexCoords,
         coords::WorldToScreenTransform,
         constants::BASE_TILE_SIZE_F32,
         mem::{RcMut, WeakMut, WeakRef},
-        paths::PathRef,
     },
     tile::{
         TileKind,

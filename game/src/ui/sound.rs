@@ -1,16 +1,11 @@
-#[cfg(feature = "desktop")]
-use std::time;
-
-#[cfg(feature = "web")]
-use web_time as time;
-
 use bitflags::bitflags;
 use arrayvec::ArrayVec;
 use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 
 use crate::{
     sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, SfxSoundKey},
-    utils::{mem::singleton_late_init, time::Seconds, paths::{PathRef, AssetPath}},
+    utils::{mem::singleton_late_init, time::{self, Seconds}},
+    file_sys::paths::{PathRef, AssetPath},
 };
 
 // ----------------------------------------------
@@ -144,8 +139,8 @@ impl UiSound {
         let time_now = time::Instant::now();
 
         let cooldown_elapsed = if let Some(last_play_time) = self.last_play_time {
-            let time_elapsed = time_now - last_play_time;
-            time_elapsed.as_secs_f32() >= cooldown
+            let elapsed_seconds = time::elapsed_seconds(time_now, last_play_time);
+            elapsed_seconds >= cooldown
         } else {
             true
         };

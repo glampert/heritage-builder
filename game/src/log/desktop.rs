@@ -3,25 +3,17 @@ use std::{
     sync::{LazyLock, RwLock, atomic::Ordering},
 };
 
-use crate::utils::{
-    file_sys,
-    paths::{self, FixedPath},
+use crate::file_sys;
+use super::{
+    Level, Channel, Location,
+    REDIRECT_TO_FILE, ENABLE_SRC_LOCATION, ENABLE_TTY_COLORS,
 };
-use super::{Level, Channel, Location, REDIRECT_TO_FILE, ENABLE_SRC_LOCATION, ENABLE_TTY_COLORS};
-
-// ----------------------------------------------
-// Log File Path
-// ----------------------------------------------
-
-const LOG_FILENAME: &str = "runtime.log";
-
-pub fn logs_path() -> FixedPath {
-    paths::base_path().join("logs")
-}
 
 // ----------------------------------------------
 // Log Output Selection
 // ----------------------------------------------
+
+const LOG_FILENAME: &str = "runtime.log";
 
 enum LogOutput {
     Stdout(io::Stdout),
@@ -46,8 +38,8 @@ impl io::Write for LogOutput {
 
 fn init_log_output() -> LogOutput {
     if REDIRECT_TO_FILE.load(Ordering::Relaxed) {
-        let logs_path = logs_path();
-        file_sys::create_path(&logs_path);
+        let logs_path = super::logs_path();
+        let _ = file_sys::create_path(&logs_path);
 
         if let Ok(file) = std::fs::OpenOptions::new()
             .create(true)

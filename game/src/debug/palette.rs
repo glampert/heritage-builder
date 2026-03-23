@@ -8,10 +8,10 @@ use crate::{
     render::TextureHandle,
     app::input::{InputAction, MouseButton},
     ui::{self, UiInputEvent, UiSystem, widgets::UiWidgetContext},
+    file_sys::paths::PathRef,
     utils::{
         self,
         constants::*,
-        paths::PathRef,
         Color, Rect, RectTexCoords, Vec2,
         coords::WorldToScreenTransform,
     },

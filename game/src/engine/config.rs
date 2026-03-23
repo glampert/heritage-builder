@@ -8,7 +8,8 @@ use crate::{
     tile::rendering,
     render::TextureSettings,
     sound::SoundGlobalSettings,
-    utils::{paths::{self, PathRef, AssetPath}, file_sys, Color, Size},
+    utils::{Color, Size},
+    file_sys::{self, paths::{self, PathRef, AssetPath}},
     app::{ApplicationWindowMode, ApplicationContentScale},
 };
 
@@ -36,7 +37,7 @@ pub trait Configs {
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
-        file_sys::create_path(configs_path());
+        let _ = file_sys::create_path(configs_path());
 
         let mut state = save::backend::new_json_save_state(true);
 
@@ -98,13 +99,13 @@ macro_rules! configurations {
         impl $configs_type {
             pub fn load() -> &'static $configs_type {
                 use $crate::engine::config::Configs;
-                <$configs_type>::initialize(<$configs_type>::load_file($crate::utils::paths::PathRef::from_str($configs_path)));
+                <$configs_type>::initialize(<$configs_type>::load_file($crate::file_sys::paths::PathRef::from_str($configs_path)));
                 <$configs_type>::get_mut().post_load();
                 <$configs_type>::get()
             }
             pub fn save() -> bool {
                 use $crate::engine::config::Configs;
-                <$configs_type>::get().save_file($crate::utils::paths::PathRef::from_str($configs_path))
+                <$configs_type>::get().save_file($crate::file_sys::paths::PathRef::from_str($configs_path))
             }
         }
     };

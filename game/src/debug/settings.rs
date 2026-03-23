@@ -4,7 +4,8 @@ use crate::{
     log,
     debug,
     engine::config::Configs,
-    utils::{Color, Size, paths::PathRef},
+    utils::{Color, Size},
+    file_sys::paths::PathRef,
     ui::{self, UiStaticVar, widgets::UiWidgetContext},
     game::{
         self,

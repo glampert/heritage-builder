@@ -23,9 +23,9 @@ use crate::{
     render::{RenderSystem, TextureHandle},
     game::{sim::{Simulation, SimContext}, world::World},
     tile::{Tile, TileMap, selection::TileSelection, camera::Camera},
+    file_sys::paths::{PathRef, AssetPath},
     utils::{
         bitflags_with_display,
-        paths::{PathRef, AssetPath},
         time::{CountdownTimer, Seconds},
         fixed_string::format_fixed_string,
         Rect, RectTexCoords, Size, Vec2, Color,

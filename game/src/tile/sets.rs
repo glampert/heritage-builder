@@ -12,10 +12,10 @@ use crate::{
     pathfind::NodeKind as PathNodeKind,
     render::{TextureCache, TextureHandle},
     save::{self, SaveState},
+    file_sys::paths::{self, PathRef, AssetPath},
     utils::{
         constants::*,
         coords::{Cell, CellRange},
-        paths::{self, PathRef, AssetPath},
         fixed_string::format_fixed_string,
         hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
         mem::{RawPtr, Mutable, singleton_late_init}, Color, RectTexCoords, Size, Vec2,

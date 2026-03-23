@@ -2,7 +2,8 @@ use super::*;
 use crate::{
     log,
     ui::{widgets::*, UiStaticVar},
-    utils::{Color, paths::{PathRef, AssetPath}},
+    utils::Color,
+    file_sys::paths::{PathRef, AssetPath},
 };
 
 // ----------------------------------------------

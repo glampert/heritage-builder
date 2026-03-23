@@ -5,7 +5,8 @@ use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator, Display};
 
 use crate::{
     ui::{widgets::*, sound::UiButtonSoundsEnabled},
-    utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}, time::Seconds, paths::PathRef},
+    utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}, time::Seconds},
+    file_sys::paths::PathRef,
     game::menu::{
         ButtonDef,
         dialog::{self, DialogMenuKind},

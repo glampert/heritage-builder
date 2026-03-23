@@ -8,21 +8,34 @@ use serde::{Deserialize, Serialize};
 use crate::ui::UiSystem;
 
 // ----------------------------------------------
-// FrameClock
+// Type Aliases
 // ----------------------------------------------
+
+pub type Instant  = time::Instant;
+pub type Duration = time::Duration;
 
 pub type Seconds = f32;
 pub type Milliseconds = f32;
 
+#[inline]
+pub fn elapsed_seconds(a: Instant, b: Instant) -> Seconds {
+    let elapsed = a - b;
+    elapsed.as_secs_f32()
+}
+
+// ----------------------------------------------
+// FrameClock
+// ----------------------------------------------
+
 pub struct FrameClock {
-    last_frame_time: time::Instant,
-    delta_time: time::Duration,
+    last_frame_time: Instant,
+    delta_time: Duration,
 }
 
 impl FrameClock {
     #[inline]
     pub fn new() -> Self {
-        Self { last_frame_time: time::Instant::now(), delta_time: time::Duration::new(0, 0) }
+        Self { last_frame_time: Instant::now(), delta_time: Duration::new(0, 0) }
     }
 
     #[inline]
@@ -30,7 +43,7 @@ impl FrameClock {
 
     #[inline]
     pub fn end_frame(&mut self) {
-        let time_now = time::Instant::now();
+        let time_now = Instant::now();
         self.delta_time = time_now - self.last_frame_time;
         self.last_frame_time = time_now;
     }
@@ -183,12 +196,12 @@ impl CountdownTimer {
 // PerfTimer
 // ----------------------------------------------
 
-pub struct PerfTimer(time::Instant);
+pub struct PerfTimer(Instant);
 
 impl PerfTimer {
     #[inline]
     pub fn begin() -> Self {
-        PerfTimer(time::Instant::now())
+        PerfTimer(Instant::now())
     }
 
     #[inline]

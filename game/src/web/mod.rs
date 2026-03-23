@@ -7,7 +7,7 @@
 //
 // These imports are satisfied by a two-part system:
 //
-//  1. `web/env.js` — JS shims for string/memory functions (memchr, strcmp,
+//  1. `web/libc.js` — JS shims for string/memory functions (memchr, strcmp,
 //     strncpy, etc.), file I/O stubs, and thin wrappers that forward to the
 //     Rust implementations below.
 //
@@ -23,7 +23,6 @@
 //         format specifiers imgui actually uses (%d, %u, %x, %f, %lf).
 //
 // All `#[no_mangle] pub extern "C"` functions here are automatically exported
-// from the WASM binary and called by env.js via `wasm.<fn_name>(...)`.
+// from the WASM binary and called by libc.js via `wasm.<fn_name>(...)`.
 
-pub mod asset_cache;
 mod libc;

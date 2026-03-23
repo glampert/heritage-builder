@@ -17,7 +17,8 @@ use crate::{
     log,
     ui::UiSystem,
     render::{self, NativeTextureHandle, TextureHandle},
-    utils::{Size, hash::{self, PreHashedKeyMap, StringHash}, paths::PathRef},
+    utils::{Size, hash::{self, PreHashedKeyMap, StringHash}},
+    file_sys::paths::PathRef,
 };
 
 // ----------------------------------------------

@@ -5,7 +5,8 @@ use super::{TileInspector, TileInspectorMenuWeakMut};
 use crate::{
     tile::{TileKind, sets::TileIconSprite},
     game::menu::TEXT_BUTTON_HOVERED_SPRITE,
-    utils::{Vec2, fixed_string::format_fixed_string, paths::PathRef},
+    utils::{Vec2, fixed_string::format_fixed_string},
+    file_sys::paths::PathRef,
     ui::{UiFontScale, sound::UiButtonSoundsEnabled, widgets::*},
 };
 

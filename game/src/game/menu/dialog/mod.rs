@@ -6,7 +6,8 @@ use strum::{EnumCount, EnumIter, EnumDiscriminants, IntoEnumIterator, Display};
 use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
     game::menu::ButtonDef,
-    utils::{Vec2, Color, mem::{self, singleton_late_init}, paths::PathRef},
+    utils::{Vec2, Color, mem::{self, singleton_late_init}},
+    file_sys::paths::PathRef,
     ui::{self, UiFontScale, UiStaticVar, sound::{self, UiSoundKey, UiButtonSoundsEnabled}, widgets::*},
 };
 

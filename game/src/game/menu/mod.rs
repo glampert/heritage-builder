@@ -7,7 +7,8 @@ use crate::{
     log,
     save::{Save, Load},
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
-    utils::{self, Vec2, coords::{Cell, CellRange}, time::Seconds, hash::SmallSet, paths::PathRef},
+    utils::{self, Vec2, coords::{Cell, CellRange}, time::Seconds, hash::SmallSet},
+    file_sys::paths::PathRef,
     ui::{
         UiInputEvent,
         UiFontScale,

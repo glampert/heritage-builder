@@ -12,9 +12,9 @@ use std::{
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-use crate::utils::{
-    Color,
-    hash::{self, StringHash},
+use crate::{
+    file_sys::paths::{self, FixedPath},
+    utils::{Color, hash::{self, StringHash}},
 };
 
 #[cfg(feature = "desktop")]
@@ -140,8 +140,9 @@ pub fn enable_tty_colors(enable: bool) {
     ENABLE_TTY_COLORS.store(enable, Ordering::Relaxed);
 }
 
-#[cfg(feature = "desktop")]
-pub use desktop::logs_path;
+pub fn logs_path() -> FixedPath {
+    paths::base_path().join("logs")
+}
 
 // ----------------------------------------------
 // Internal Implementation

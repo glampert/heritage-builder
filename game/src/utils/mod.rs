@@ -9,11 +9,9 @@ pub mod callback;
 pub mod constants;
 pub mod coords;
 pub mod crash_report;
-pub mod file_sys;
 pub mod fixed_string;
 pub mod hash;
 pub mod mem;
-pub mod paths;
 pub mod platform;
 pub mod time;
 
@@ -105,6 +103,10 @@ macro_rules! field_accessor_xy {
 }
 
 pub(crate) use field_accessor_xy;
+
+// ----------------------------------------------
+// Built-time version:
+// ----------------------------------------------
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

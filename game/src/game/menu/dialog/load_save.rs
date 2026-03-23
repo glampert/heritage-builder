@@ -2,7 +2,7 @@ use bitflags::bitflags;
 
 use super::*;
 use crate::{
-    utils::paths::FixedPath,
+    file_sys::paths::FixedPath,
     game::{
         GameLoop,
         AUTOSAVE_FILE_NAME,

@@ -13,10 +13,11 @@ use crate::{
         Application,
         input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
     },
+    file_sys::paths::{self, AssetPath},
     utils::{
         fixed_string::format_fixed_string, time::Seconds,
         Color, FieldAccessorXY, Vec2, Rect, platform,
-        paths::{self, AssetPath}, mem::{RawPtr, Mutable},
+        mem::{RawPtr, Mutable},
     },
 };
 

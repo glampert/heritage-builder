@@ -1,7 +1,8 @@
+use arrayvec::ArrayVec;
 use std::any::Any;
+
 #[cfg(feature = "desktop")]
 use std::sync::Arc;
-use arrayvec::ArrayVec;
 
 use super::{
     batch::{DrawBatch, UiDrawBatch},
@@ -220,6 +221,7 @@ impl RenderSystem {
                    viewport_size, framebuffer_size, clear_color, texture_settings)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn init(
         device: wgpu::Device,
         queue: wgpu::Queue,

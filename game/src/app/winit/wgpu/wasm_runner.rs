@@ -187,7 +187,7 @@ impl ApplicationHandler for WasmGameRunner {
 
             // Load all game assets into the in-memory cache.
             log::info!(log::channel!("app"), "WASM: loading assets from manifest...");
-            match crate::web::asset_cache::load_from_manifest("asset_manifest.json").await {
+            match crate::file_sys::preload_asset_cache("asset_manifest.json").await {
                 Ok(count) => log::info!(log::channel!("app"), "WASM: loaded {count} assets."),
                 Err(err) => log::error!(log::channel!("app"), "WASM: asset loading failed: {err}"),
             }

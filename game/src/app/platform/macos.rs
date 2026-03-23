@@ -98,10 +98,10 @@ pub fn redirect_stderr<F, R>(f: F, filename: &str) -> R
 {
     use std::os::unix::io::AsRawFd;
     use libc::{close, dup, dup2, STDERR_FILENO};
-    use crate::utils::file_sys;
+    use crate::file_sys;
 
     let logs_path = log::logs_path();
-    file_sys::create_path(&logs_path);
+    let _ = file_sys::create_path(&logs_path);
 
     unsafe {
         let saved_fd = dup(STDERR_FILENO);

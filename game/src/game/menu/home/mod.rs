@@ -13,10 +13,10 @@ use crate::{
     tile::rendering::TileMapRenderFlags,
     save::{Save, Load, PreLoadContext},
     app::input::{InputAction, InputKey},
+    file_sys::paths::AssetPath,
     utils::{
         time::Seconds,
         coords::CellRange,
-        paths::AssetPath,
         fixed_string::format_fixed_string
     },
     ui::{

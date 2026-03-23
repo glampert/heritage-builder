@@ -95,7 +95,7 @@ pub struct Mutable<T: ?Sized> {
 
 impl<T> Mutable<T> {
     #[inline]
-    pub fn new(instance: T) -> Self {
+    pub const fn new(instance: T) -> Self {
         Self { cell: UnsafeCell::new(instance) }
     }
 }
