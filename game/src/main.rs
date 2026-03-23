@@ -10,14 +10,12 @@ mod file_sys;
 mod game;
 mod ui;
 mod pathfind;
+mod platform;
 mod render;
 mod save;
 mod sound;
 mod tile;
 mod utils;
-
-#[cfg(feature = "web")]
-mod web;
 
 // ----------------------------------------------
 // Desktop main()
@@ -25,7 +23,7 @@ mod web;
 
 #[cfg(feature = "desktop")]
 fn main() {
-    utils::platform::set_main_thread();
+    platform::set_main_thread();
 
     let game_loop = game::GameLoop::start();
 
@@ -42,7 +40,7 @@ fn main() {
 
 #[cfg(feature = "web")]
 fn main() {
-    utils::platform::set_main_thread();
+    platform::set_main_thread();
 
     // Early init: paths, logging.
     file_sys::paths::set_working_directory(file_sys::paths::base_path());

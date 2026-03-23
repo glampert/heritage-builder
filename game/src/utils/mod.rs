@@ -8,11 +8,9 @@ use bitflags::bitflags;
 pub mod callback;
 pub mod constants;
 pub mod coords;
-pub mod crash_report;
 pub mod fixed_string;
 pub mod hash;
 pub mod mem;
-pub mod platform;
 pub mod time;
 
 // ----------------------------------------------

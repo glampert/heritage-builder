@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
     log,
+    platform,
     render::{
         RenderSystem,
         TextureHandle, TextureSettings, TextureFilter,
@@ -16,7 +17,7 @@ use crate::{
     file_sys::paths::{self, AssetPath},
     utils::{
         fixed_string::format_fixed_string, time::Seconds,
-        Color, FieldAccessorXY, Vec2, Rect, platform,
+        Color, FieldAccessorXY, Vec2, Rect,
         mem::{RawPtr, Mutable},
     },
 };

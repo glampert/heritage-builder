@@ -18,7 +18,9 @@ use menu::{
 
 use crate::{
     log,
+    platform,
     save::{self, *},
+    engine::Engine,
     render::TextureCache,
     ui::{UiInputEvent, widgets::UiWidgetContext},
     debug::{self, log_viewer::LogViewerWindow, DevEditorMenus},
@@ -27,7 +29,6 @@ use crate::{
         input::{InputAction, InputKey, InputModifiers, MouseButton},
         ApplicationEvent,
     },
-    engine::Engine,
     tile::{
         camera::*,
         rendering::TileMapRenderFlags,
@@ -38,7 +39,6 @@ use crate::{
     utils::{
         hash, Size, Vec2,
         coords::CellRange,
-        crash_report,
         mem::{RcMut, singleton_late_init},
         time::{Seconds, Milliseconds, UpdateTimer, PerfTimer},
     },
@@ -46,7 +46,6 @@ use crate::{
 
 #[cfg(feature = "desktop")]
 use crate::{
-    utils::platform,
     engine::{self, config::EngineConfigs},
 };
 
@@ -514,11 +513,11 @@ impl GameLoop {
 
         // Early initialization:
         log::redirect_to_file(is_app_bundle);
-        LogViewerWindow::early_init();
+        LogViewerWindow::initialize();
         file_sys::paths::set_working_directory(file_sys::paths::base_path());
 
         // Only log panics when running from a bundle. Otherwise the default behavior is fine.
-        crash_report::initialize(is_app_bundle);
+        platform::initialize_crash_report(is_app_bundle);
 
         log::info!(log::channel!("game"), "--- Game Initialization ---");
 
@@ -542,8 +541,8 @@ impl GameLoop {
     // WASM entry point: accepts a pre-created engine (async wgpu init happened externally).
     #[cfg(feature = "web")]
     pub fn start_with_engine(mut engine: Box<dyn Engine>, configs: &'static GameConfigs) {
-        LogViewerWindow::early_init();
-        crash_report::initialize(true);
+        LogViewerWindow::initialize();
+        platform::initialize_crash_report(true);
 
         log::info!(log::channel!("game"), "--- Game Initialization (WASM) ---");
         log::info!(log::channel!("game"), "Base path: {}", paths::base_path());

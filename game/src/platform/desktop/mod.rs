@@ -1,40 +1,22 @@
-use strum::Display;
-
-#[cfg(feature = "desktop")]
 use std::{sync::OnceLock, thread::ThreadId};
+use super::*;
 
 // ----------------------------------------------
-// Build Profile / App Bundle Detection
+// Crash Report System
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Display, PartialEq, Eq)]
-pub enum BuildProfile {
-    Debug,
-    Release,
+mod crash_report;
+
+pub fn initialize_crash_report(set_panic_hook: bool) {
+    crash_report::initialize(set_panic_hook);
 }
 
-#[derive(Copy, Clone, Display, PartialEq, Eq)]
-pub enum RunEnvironment {
-    Standalone,
-    MacOSAppBundle,
-    WebBrowser,
-}
-
-pub fn build_profile() -> BuildProfile {
-    if cfg!(debug_assertions) {
-        BuildProfile::Debug
-    } else {
-        BuildProfile::Release
-    }
-}
+// ----------------------------------------------
+// Run Env / App Bundle Detection
+// ----------------------------------------------
 
 pub fn run_environment() -> RunEnvironment {
-    #[cfg(feature = "web")]
-    {
-        return RunEnvironment::WebBrowser;
-    }
-
-    #[cfg(all(feature = "desktop", target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     {
         // Example: /Applications/MyGame.app/Contents/MacOS/MyGame
         if let Ok(exe_path) = std::env::current_exe() {
@@ -51,7 +33,6 @@ pub fn run_environment() -> RunEnvironment {
         }
     }
 
-    #[cfg(feature = "desktop")]
     RunEnvironment::Standalone
 }
 
@@ -59,25 +40,17 @@ pub fn run_environment() -> RunEnvironment {
 // Main Thread Detection
 // ----------------------------------------------
 
-#[cfg(feature = "desktop")]
 static MAIN_THREAD_ID: OnceLock<ThreadId> = OnceLock::new();
 
 pub fn set_main_thread() {
-    #[cfg(feature = "desktop")]
     MAIN_THREAD_ID.set(std::thread::current().id())
         .expect("MAIN_THREAD_ID already initialized!");
 }
 
 pub fn is_main_thread() -> bool {
-    #[cfg(feature = "desktop")]
-    {
-        MAIN_THREAD_ID
-            .get()
-            .is_some_and(|id| *id == std::thread::current().id())
-    }
-
-    #[cfg(feature = "web")]
-    true // Web/WASM is always single-threaded.
+    MAIN_THREAD_ID
+        .get()
+        .is_some_and(|id| *id == std::thread::current().id())
 }
 
 // ----------------------------------------------
