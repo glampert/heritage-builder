@@ -7,8 +7,8 @@ use crate::{
         Vec2, coords::IsoPointF32,
         hash::{self, StringHash},
         time::Seconds,
-        paths::PathRef,
     },
+    file_sys::paths::PathRef,
 };
 
 // ----------------------------------------------

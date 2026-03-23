@@ -111,10 +111,18 @@ features = [
     "Storage",
     "console",
     "AudioContext",
+    "AudioContextState",
+    "AudioContextOptions",
     "AudioDestinationNode",
     "AudioBuffer",
     "AudioBufferSourceNode",
+    "AudioNode",
+    "AudioParam",
+    "AudioScheduledSourceNode",
     "GainNode",
+    "GainOptions",
+    "StereoPannerNode",
+    "StereoPannerOptions",
     "Response",
 ]
 

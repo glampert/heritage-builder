@@ -23,9 +23,9 @@ use crate::{
         mem::RcMut,
         time::Seconds,
         coords::IsoPointF32,
-        paths::{self, PathRef, AssetPath},
         hash::{self, StringHash, PreHashedKeyMap},
     },
+    file_sys::paths::{self, PathRef, AssetPath},
 };
 
 // ----------------------------------------------
