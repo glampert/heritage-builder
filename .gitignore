@@ -11,6 +11,11 @@ Cargo.lock
 # Log files
 *.log
 
-# Local save games & runtime cache
+# Generated web/wasm files
+HeritageBuilder.js
+HeritageBuilder_bg.wasm
+
+# Local logs, save games & runtime cache
+/logs/
 /saves/
 /cache/
