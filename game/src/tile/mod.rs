@@ -29,7 +29,6 @@ use crate::{
     },
 };
 
-pub mod camera;
 pub mod minimap;
 pub mod rendering;
 pub mod selection;

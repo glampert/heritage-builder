@@ -15,6 +15,7 @@ mod render;
 mod save;
 mod sound;
 mod tile;
+mod camera;
 mod utils;
 
 // ----------------------------------------------

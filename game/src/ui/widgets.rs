@@ -19,10 +19,11 @@ use super::{
 
 use crate::{
     engine::Engine,
+    camera::Camera,
     sound::SoundSystem,
     render::{RenderSystem, TextureHandle},
     game::{sim::{Simulation, SimContext}, world::World},
-    tile::{Tile, TileMap, selection::TileSelection, camera::Camera},
+    tile::{Tile, TileMap, selection::TileSelection},
     file_sys::paths::{PathRef, AssetPath},
     utils::{
         bitflags_with_display,

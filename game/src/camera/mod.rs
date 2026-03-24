@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use super::{selection};
 use crate::{
     save::*,
     engine::DebugDraw,
@@ -1068,7 +1067,7 @@ fn calc_visible_cells_range(map_size_in_cells: Size,
     let size = Vec2::new((viewport_size.width as f32) + tile_width, (viewport_size.height as f32) + tile_height);
     let screen_rect = Rect::from_pos_and_size(pos, size);
 
-    selection::bounds(&screen_rect, map_size_in_cells, transform)
+    crate::tile::selection::bounds(&screen_rect, map_size_in_cells, transform)
 }
 
 fn calc_scroll_delta(cursor_screen_pos: Vec2, viewport_size: Size, scroll_margin: f32) -> Vec2 {

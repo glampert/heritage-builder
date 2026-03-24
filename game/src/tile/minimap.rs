@@ -5,10 +5,11 @@ use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 use super::{
     TileKind, TileMap, TileMapLayerKind,
     sets::{TileDef, TileSector},
-    camera::Camera, water, road,
+    water, road,
 };
 
 use crate::{
+    camera::Camera,
     save::{PreLoadContext, PostLoadContext},
     file_sys::paths::{self, PathRef, AssetPath},
     app::input::{InputSystem, InputAction, MouseButton},

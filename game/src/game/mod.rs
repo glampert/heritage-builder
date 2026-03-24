@@ -21,6 +21,7 @@ use crate::{
     platform,
     save::{self, *},
     engine::Engine,
+    camera::*,
     render::TextureCache,
     ui::{UiInputEvent, widgets::UiWidgetContext},
     debug::{self, log_viewer::LogViewerWindow, DevEditorMenus},
@@ -30,7 +31,6 @@ use crate::{
         ApplicationEvent,
     },
     tile::{
-        camera::*,
         rendering::TileMapRenderFlags,
         selection::TileSelection,
         sets::{TileDef, TileSets},

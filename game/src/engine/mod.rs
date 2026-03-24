@@ -6,6 +6,7 @@ use crate::{
     log,
     ui::{self, UiSystem},
     sound::SoundSystem,
+    camera::Camera,
     app::{
         self, input::*,
         Application, ApplicationBuilder, ApplicationFactory,
@@ -19,7 +20,7 @@ use crate::{
     tile::{
         rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
         selection::TileSelection,
-        TileMap, camera::Camera,
+        TileMap,
     },
     utils::{
         coords::CellRange, mem::RcMut,

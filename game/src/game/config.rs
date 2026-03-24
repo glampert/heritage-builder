@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use strum::Display;
 
 use crate::{
-    tile::camera::*,
+    camera::*,
     engine::config::{EngineConfigs, configurations},
     utils::{Size, time::Seconds},
 };
