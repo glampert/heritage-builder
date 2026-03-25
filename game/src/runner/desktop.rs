@@ -6,7 +6,7 @@ use crate::{
     render::RenderSystemBuilder,
     engine::{Engine, backend::*},
     app::{Application, ApplicationBuilder},
-    debug::log_viewer::LogViewerWindow,
+    debug::log_viewer::LogViewer,
     utils::{time::PerfTimer, mem::RcMut},
 };
 
@@ -37,7 +37,7 @@ impl DesktopRunner {
         let start_engine_timer = PerfTimer::begin();
 
         // Early initialization:
-        LogViewerWindow::initialize();
+        LogViewer::initialize();
         platform::set_main_thread();
         platform::initialize();
         paths::set_working_directory(paths::base_path());

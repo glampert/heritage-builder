@@ -186,12 +186,12 @@ fn log_viewer_singleton() -> &'static Mutex<LogViewerSingleton> {
 }
 
 // ----------------------------------------------
-// LogViewerWindow
+// LogViewer
 // ----------------------------------------------
 
-pub struct LogViewerWindow;
+pub struct LogViewer;
 
-impl LogViewerWindow {
+impl LogViewer {
     pub fn initialize() {
         init_log_viewer_singleton_once();
     }

@@ -185,7 +185,7 @@ impl DebugSettingsDevMenu {
 
     pub fn draw(&mut self,
                 context: &mut UiWidgetContext,
-                log_viewer: &debug::log_viewer::LogViewerWindow,
+                log_viewer: &debug::log_viewer::LogViewer,
                 enable_dev_tile_inspector: &mut bool) {
         let ui = context.ui_sys.ui();
 
@@ -218,7 +218,7 @@ impl DebugSettingsDevMenu {
 
     fn menu_bar_text(&self,
                      context: &mut UiWidgetContext,
-                     log_viewer: &debug::log_viewer::LogViewerWindow) {
+                     log_viewer: &debug::log_viewer::LogViewer) {
         let ui = context.ui_sys.ui();
 
         // Log error/warning count:

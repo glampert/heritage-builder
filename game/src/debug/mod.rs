@@ -4,7 +4,7 @@ use std::any::Any;
 use inspector::TileInspectorDevMenu;
 use palette::TilePaletteDevMenu;
 use settings::DebugSettingsDevMenu;
-use log_viewer::LogViewerWindow;
+use log_viewer::LogViewer;
 
 use crate::{
     engine::Engine,
@@ -132,7 +132,7 @@ struct DevEditorMenusSingleton {
     tile_inspector_menu: TileInspectorDevMenu,
     enable_dev_tile_inspector: bool,
     minimap_renderer: DevUiMinimapRenderer,
-    log_viewer: LogViewerWindow,
+    log_viewer: LogViewer,
 }
 
 impl DevEditorMenusSingleton {
@@ -144,7 +144,7 @@ impl DevEditorMenusSingleton {
             tile_inspector_menu: TileInspectorDevMenu::default(),
             enable_dev_tile_inspector: GameConfigs::get().debug.enable_dev_tile_inspector,
             minimap_renderer: DevUiMinimapRenderer::new(context),
-            log_viewer: LogViewerWindow::new(),
+            log_viewer: LogViewer::new(),
         }
     }
 
