@@ -16,7 +16,7 @@ use crate::{
     ui::widgets::UiWidgetContext,
     pathfind::{Graph, Search},
     tile::{Tile, TileKind, TileMap},
-    utils::{coords::CellRange, time::{Seconds, UpdateTimer}},
+    utils::{coords::CellRange, mem::RcMut, time::{Seconds, UpdateTimer}},
 };
 
 //pub mod commands;
@@ -40,16 +40,16 @@ pub type RandomGenerator = Pcg64;
 
 #[derive(Serialize, Deserialize)]
 pub struct Simulation {
-    rng: RandomGenerator,
+    rng: RcMut<RandomGenerator>,
+
     update_timer: UpdateTimer,
     task_manager: UnitTaskManager,
+    treasury: GlobalTreasury,
 
     // Path finding:
     graph: Graph,
     #[serde(skip)]
     search: Search,
-
-    treasury: GlobalTreasury,
 
     // Sim speed:
     speed: f32,
@@ -57,15 +57,14 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new(tile_map: &TileMap) -> Self {
-        let configs = GameConfigs::get();
+    pub fn new(tile_map: &TileMap, configs: &GameConfigs) -> Self {
         Self {
-            rng: RandomGenerator::seed_from_u64(configs.sim.random_seed),
+            rng: RcMut::new(RandomGenerator::seed_from_u64(configs.sim.random_seed)),
             update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
+            treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
-            treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
             speed: Self::MIN_SIM_SPEED,
             is_paused: false,
         }
@@ -108,12 +107,17 @@ impl Simulation {
     }
 
     #[inline]
+    pub fn rng(&self) -> &RcMut<RandomGenerator> {
+        &self.rng
+    }
+
+    #[inline]
     pub fn rng_mut(&mut self) -> &mut RandomGenerator {
         &mut self.rng
     }
 
     pub fn update(&mut self,
-                  engine: &mut dyn Engine,
+                  engine: &mut Engine,
                   world: &mut World,
                   systems: &mut GameSystems,
                   tile_map: &mut TileMap,
@@ -154,7 +158,7 @@ impl Simulation {
     }
 
     pub fn reset_world(&mut self,
-                       engine: &mut dyn Engine,
+                       engine: &mut Engine,
                        world: &mut World,
                        systems: &mut GameSystems,
                        tile_map: &mut TileMap) {
@@ -226,7 +230,7 @@ impl Simulation {
     // Game Systems:
     pub fn draw_game_systems_debug_ui(&mut self,
                                       context: &mut UiWidgetContext,
-                                      engine: &mut dyn Engine,
+                                      engine: &mut Engine,
                                       systems: &mut GameSystems) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
         systems.draw_debug_ui(engine, &sim_context, context.ui_sys);
@@ -317,9 +321,9 @@ impl Load for Simulation {
         state.load(self)
     }
 
-    fn post_load(&mut self, _context: &mut PostLoadContext) {
+    fn post_load(&mut self, context: &mut PostLoadContext) {
         self.search = Search::with_graph(&self.graph);
-        self.update_timer.post_load(GameConfigs::get().sim.update_frequency_secs);
+        self.update_timer.post_load(context.configs().sim.update_frequency_secs);
         self.task_manager.post_load();
     }
 }

@@ -7,6 +7,7 @@ use settings::DebugSettingsDevMenu;
 use log_viewer::LogViewerWindow;
 
 use crate::{
+    engine::Engine,
     ui::{self, UiTheme, widgets::UiWidgetContext},
     save::{Load, PreLoadContext, PostLoadContext, Save},
     game::{config::GameConfigs, GameLoop, menu::*},
@@ -160,7 +161,7 @@ impl DevEditorMenusSingleton {
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
         let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
 
-        let engine = GameLoop::get_mut().engine_mut();
+        let engine = Engine::get_mut();
 
         if *show_log_viewer_window {
             self.log_viewer.show(true);

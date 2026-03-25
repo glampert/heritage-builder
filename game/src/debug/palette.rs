@@ -81,7 +81,7 @@ impl TilePaletteDevMenu {
 
     pub fn draw(&mut self,
                 context: &mut UiWidgetContext,
-                debug_draw: &mut dyn DebugDraw,
+                debug_draw: &mut DebugDraw,
                 show_selection_bounds: bool) {
         let ui = context.ui_sys.ui();
 
@@ -155,7 +155,7 @@ impl TilePaletteDevMenu {
 
     fn draw_selected_tile(&self,
                           context: &mut UiWidgetContext,
-                          debug_draw: &mut dyn DebugDraw,
+                          debug_draw: &mut DebugDraw,
                           show_selection_bounds: bool) {
         if !self.has_selection() {
             return;

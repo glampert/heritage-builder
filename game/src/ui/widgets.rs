@@ -104,7 +104,7 @@ impl<'game> UiWidgetContext<'game> {
                tile_map: &'game mut TileMap,
                tile_selection: &'game mut TileSelection,
                camera: &'game mut Camera,
-               engine: &'game mut dyn Engine) -> Self
+               engine: &'game mut Engine) -> Self
     {
         let viewport_size = engine.viewport().integer_size();
         let delta_time_secs = engine.frame_clock().delta_time();

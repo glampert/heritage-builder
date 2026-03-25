@@ -37,13 +37,13 @@ pub trait GameSystem: Any {
 
     // Required overrides:
     fn as_any(&self) -> &dyn Any;
-    fn update(&mut self, engine: &mut dyn Engine, context: &SimContext);
+    fn update(&mut self, engine: &mut Engine, context: &SimContext);
 
     // Optional overrides:
-    fn paused_update(&mut self, _engine: &mut dyn Engine, _query: &SimContext) {}
-    fn reset(&mut self, _engine: &mut dyn Engine) {}
+    fn paused_update(&mut self, _engine: &mut Engine, _query: &SimContext) {}
+    fn reset(&mut self, _engine: &mut Engine) {}
     fn post_load(&mut self, _context: &mut PostLoadContext) {}
-    fn draw_debug_ui(&mut self, _engine: &mut dyn Engine, _query: &SimContext) {}
+    fn draw_debug_ui(&mut self, _engine: &mut Engine, _query: &SimContext) {}
     fn register_callbacks(&self) {}
 }
 
@@ -137,20 +137,20 @@ impl GameSystems {
     }
 
     // Regular update, called every simulation tick *when the game is NOT paused*.
-    pub fn update(&mut self, engine: &mut dyn Engine, context: &SimContext) {
+    pub fn update(&mut self, engine: &mut Engine, context: &SimContext) {
         for entry in &mut self.systems {
             entry.system.update(engine, context);
         }
     }
 
     // Update called every simulation tick *only when the game IS paused*.
-    pub fn paused_update(&mut self, engine: &mut dyn Engine, context: &SimContext) {
+    pub fn paused_update(&mut self, engine: &mut Engine, context: &SimContext) {
         for entry in &mut self.systems {
             entry.system.paused_update(engine, context);
         }
     }
 
-    pub fn reset(&mut self, engine: &mut dyn Engine) {
+    pub fn reset(&mut self, engine: &mut Engine) {
         for entry in &mut self.systems {
             entry.system.reset(engine);
         }
@@ -168,7 +168,7 @@ impl GameSystems {
     // Debug UI:
     // ----------------------
 
-    pub fn draw_debug_ui(&mut self, engine: &mut dyn Engine, context: &SimContext, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&mut self, engine: &mut Engine, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if let Some(_tab_bar) = ui.tab_bar("Game Systems Tab Bar") {
             for entry in &mut self.systems {

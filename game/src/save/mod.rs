@@ -6,8 +6,8 @@ use crate::{
     file_sys,
     engine::Engine,
     tile::TileMap,
-    utils::mem::{self, RawPtr, RcMut},
-    game::sim::{Simulation, RandomGenerator},
+    utils::mem::RcMut,
+    game::{config::GameConfigs, sim::RandomGenerator},
 };
 
 pub mod storage;
@@ -29,44 +29,49 @@ pub trait Load {
 }
 
 // ----------------------------------------------
-// PreLoadContext / PostLoadContext
+// PreLoadContext
 // ----------------------------------------------
 
 pub struct PreLoadContext<'game> {
-    engine: &'game mut dyn Engine,
+    engine: &'game mut Engine,
 }
 
 impl<'game> PreLoadContext<'game> {
     #[inline]
-    pub fn new(engine: &'game mut dyn Engine) -> Self {
+    pub fn new(engine: &'game mut Engine) -> Self {
         Self { engine }
     }
 
     #[inline]
-    pub fn engine(&self) -> &dyn Engine {
+    pub fn engine(&self) -> &Engine {
         self.engine
     }
 
     #[inline]
-    pub fn engine_mut(&mut self) -> &mut dyn Engine {
+    pub fn engine_mut(&mut self) -> &mut Engine {
         self.engine
     }
 }
 
+// ----------------------------------------------
+// PostLoadContext
+// ----------------------------------------------
+
 pub struct PostLoadContext<'game> {
-    rng: RawPtr<RandomGenerator>,
-    engine: &'game mut dyn Engine,
+    engine: &'game mut Engine,
+    configs: &'static GameConfigs,
+    rng: RcMut<RandomGenerator>,
     tile_map: RcMut<TileMap>,
 }
 
 impl<'game> PostLoadContext<'game> {
     #[inline]
-    pub fn new(engine: &'game mut dyn Engine, sim: &Simulation, tile_map: RcMut<TileMap>) -> Self {
-        Self {
-            rng: RawPtr::from_ref(mem::mut_ref_cast(sim).rng_mut()),
-            engine,
-            tile_map,
-        }
+    pub fn new(engine: &'game mut Engine,
+               configs: &'static GameConfigs,
+               rng: RcMut<RandomGenerator>,
+               tile_map: RcMut<TileMap>) -> Self
+    {
+        Self { engine, configs, rng, tile_map }
     }
 
     #[inline]
@@ -75,12 +80,12 @@ impl<'game> PostLoadContext<'game> {
     }
 
     #[inline]
-    pub fn engine(&self) -> &dyn Engine {
+    pub fn engine(&self) -> &Engine {
         self.engine
     }
 
     #[inline]
-    pub fn engine_mut(&mut self) -> &mut dyn Engine {
+    pub fn engine_mut(&mut self) -> &mut Engine {
         self.engine
     }
 
@@ -97,6 +102,16 @@ impl<'game> PostLoadContext<'game> {
     #[inline]
     pub fn tile_map_rc(&self) -> RcMut<TileMap> {
         self.tile_map.clone()
+    }
+
+    #[inline]
+    pub fn configs(&self) -> &'static GameConfigs {
+        self.configs
+    }
+
+    #[inline]
+    pub fn configs_and_engine(&mut self) -> (&'static GameConfigs, &mut Engine) {
+        (self.configs, self.engine)
     }
 }
 

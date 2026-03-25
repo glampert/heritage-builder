@@ -564,7 +564,7 @@ impl Camera {
     // Camera Debug:
     // ----------------------
 
-    pub fn draw_debug(&self, debug_draw: &mut dyn DebugDraw, ui_sys: &UiSystem) {
+    pub fn draw_debug(&self, debug_draw: &mut DebugDraw, ui_sys: &UiSystem) {
         if !GameConfigs::get().camera.enable_debug_draw {
             return;
         }        
@@ -697,7 +697,7 @@ trait CameraConstraints {
     fn clamp_point(&self, p: Vec2) -> Vec2;
 
     // Draw constraint debug shapes.
-    fn debug_draw(&self, debug_draw: &mut dyn DebugDraw, camera: &Camera);
+    fn debug_draw(&self, debug_draw: &mut DebugDraw, camera: &Camera);
 }
 
 // ----------------------------------------------
@@ -784,7 +784,7 @@ impl CameraConstraints for CameraConstraintsInnerRect {
         p
     }
 
-    fn debug_draw(&self, debug_draw: &mut dyn DebugDraw, camera: &Camera) {
+    fn debug_draw(&self, debug_draw: &mut DebugDraw, camera: &Camera) {
         // Whole map diamond bounds and inward-facing normals:
         {
             const CAMERA_RELATIVE: bool = true;
@@ -995,7 +995,7 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
         p
     }
 
-    fn debug_draw(&self, debug_draw: &mut dyn DebugDraw, camera: &Camera) {
+    fn debug_draw(&self, debug_draw: &mut DebugDraw, camera: &Camera) {
         const CAMERA_RELATIVE: bool = true;
 
         // Map diamond bounds and inward-facing normals:
@@ -1026,7 +1026,7 @@ fn inward_normal(edge: Vec2) -> Vec2 {
     Vec2::new(-edge.y, edge.x).normalize()
 }
 
-fn draw_diamond_edges_and_normals(debug_draw: &mut dyn DebugDraw,
+fn draw_diamond_edges_and_normals(debug_draw: &mut DebugDraw,
                                   diamond: &IsoDiamond,
                                   edge_color: Color,
                                   normal_color: Color) {

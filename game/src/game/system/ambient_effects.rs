@@ -39,22 +39,21 @@ impl GameSystem for AmbientEffectsSystem {
         self
     }
 
-    fn update(&mut self, _engine: &mut dyn Engine, context: &SimContext) {
+    fn update(&mut self, _engine: &mut Engine, context: &SimContext) {
         if self.bird_spawn_timer.tick(context.delta_time_secs()).should_update() {
             spawn_bird_with_random_flight_path(context);
         }
     }
 
-    fn reset(&mut self, _engine: &mut dyn Engine) {
+    fn reset(&mut self, _engine: &mut Engine) {
         self.bird_spawn_timer.reset();
     }
 
-    fn post_load(&mut self, _context: &mut PostLoadContext) {
-        let configs = GameConfigs::get();
-        self.bird_spawn_timer.post_load(configs.sim.birds_spawn_frequency);
+    fn post_load(&mut self, context: &mut PostLoadContext) {
+        self.bird_spawn_timer.post_load(context.configs().sim.birds_spawn_frequency);
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, context: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, context: &SimContext) {
         self.bird_spawn_timer.draw_debug_ui("Bird Spawn", 0, engine.ui_system());
 
         let ui = engine.ui_system().ui();

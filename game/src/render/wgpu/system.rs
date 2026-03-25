@@ -236,6 +236,8 @@ impl RenderSystem {
         debug_assert!(viewport_size.is_valid());
         debug_assert!(framebuffer_size.is_valid());
 
+        log::info!(log::channel!("render"), "== Render Backend: WGPU ==");
+
         // Create shared bind group layouts.
         let uniform_bind_group_layout = pipeline::create_uniform_bind_group_layout(&device);
         let texture_bind_group_layout = pipeline::create_texture_bind_group_layout(&device);

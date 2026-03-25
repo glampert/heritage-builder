@@ -91,7 +91,7 @@ pub fn draw_cursor_overlay(ui_sys: &UiSystem,
     });
 }
 
-pub fn draw_screen_origin_marker(debug_draw: &mut dyn DebugDraw) {
+pub fn draw_screen_origin_marker(debug_draw: &mut DebugDraw) {
     let y_offset = 20.0; // Draw it below the main menu bar.
 
     // 50x50px white square to mark the origin.

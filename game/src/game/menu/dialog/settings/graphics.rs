@@ -3,8 +3,9 @@ use num_enum::TryFromPrimitive;
 
 use super::*;
 use crate::{
+    engine::Engine,
     render::TextureFilter,
-    game::{GameLoop, config::GameConfigs},
+    game::config::GameConfigs,
 };
 
 // ----------------------------------------------
@@ -32,11 +33,11 @@ impl GraphicsSettings {
             "Use Texture Mipmaps",
             SettingsWidgetKind::Checkbox,
             || {
-                let texture_settings = GameLoop::get().engine().texture_cache().current_texture_settings();
+                let texture_settings = Engine::get().texture_cache().current_texture_settings();
                 texture_settings.gen_mipmaps
             },
             |gen_mipmaps| {
-                let tex_cache = GameLoop::get_mut().engine_mut().texture_cache_mut();
+                let tex_cache = Engine::get_mut().texture_cache_mut();
                 let mut texture_settings = tex_cache.current_texture_settings();
                 texture_settings.gen_mipmaps = gen_mipmaps;
                 tex_cache.change_texture_settings(texture_settings);
@@ -47,11 +48,11 @@ impl GraphicsSettings {
             "Texture Filtering",
             SettingsWidgetKind::Dropdown(texture_filter_options),
             || {
-                let texture_settings = GameLoop::get().engine().texture_cache().current_texture_settings();
+                let texture_settings = Engine::get().texture_cache().current_texture_settings();
                 texture_settings.filter as usize
             },
             |selected_index: usize| {
-                let tex_cache = GameLoop::get_mut().engine_mut().texture_cache_mut();
+                let tex_cache = Engine::get_mut().texture_cache_mut();
                 let mut texture_settings = tex_cache.current_texture_settings();
                 texture_settings.filter = TextureFilter::try_from_primitive(selected_index as u32).unwrap();
                 tex_cache.change_texture_settings(texture_settings);

@@ -106,23 +106,23 @@ impl GameSessionCmdQueue {
         });
     }
 
-    pub fn execute(&mut self, session: &mut GameSession, engine: &mut dyn Engine) {
+    pub fn execute(&mut self, session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs) {
         while let Some(cmd) = self.queue.pop_front() {
             match cmd {
                 GameSessionCmd::QuitToMainMenu => {
-                    self.cmd_quit_to_main_menu(session, engine);
+                    self.cmd_quit_to_main_menu(session, engine, configs);
                 }
                 GameSessionCmd::ToggleMenusMode => {
                     self.cmd_toggle_menus_mode(session, engine);
                 }
                 GameSessionCmd::Reset { reset_map_with_tile_def, new_map_size } => {
-                    self.cmd_reset_session(session, engine, reset_map_with_tile_def, new_map_size);
+                    self.cmd_reset_session(session, engine, configs, reset_map_with_tile_def, new_map_size);
                 }
                 GameSessionCmd::LoadPreset { preset_number } => {
-                    self.cmd_load_preset(session, engine, preset_number);
+                    self.cmd_load_preset(session, engine, configs, preset_number);
                 }
                 GameSessionCmd::LoadSaveGame { save_file } => {
-                    self.cmd_load_save_game(session, engine, PathRef::from_path(&save_file));
+                    self.cmd_load_save_game(session, engine, configs, PathRef::from_path(&save_file));
                 }
                 GameSessionCmd::SaveGame { save_file } => {
                     self.cmd_save_game(session, PathRef::from_path(&save_file));
@@ -137,47 +137,51 @@ impl GameSessionCmdQueue {
 
     fn cmd_quit_to_main_menu(&mut self,
                              session: &mut GameSession,
-                             engine: &mut dyn Engine)
+                             engine: &mut Engine,
+                             configs: &'static GameConfigs)
     {
-        destroy(session, engine);
-        *session = create(engine, None);
+        destroy(session, engine, configs);
+        *session = create(engine, configs, None);
     }
 
     fn cmd_toggle_menus_mode(&mut self,
                              session: &mut GameSession,
-                             engine: &mut dyn Engine)
+                             engine: &mut Engine)
     {
         session.toggle_menus_mode(engine);
     }
 
     fn cmd_reset_session(&mut self,
                          session: &mut GameSession,
-                         engine: &mut dyn Engine,
+                         engine: &mut Engine,
+                         configs: &'static GameConfigs,
                          reset_map_with_tile_def: Option<&'static TileDef>,
                          new_map_size: Option<Size>)
     {
         let reset_map = true;
         let home_menu = false;
-        session.reset(engine, reset_map, reset_map_with_tile_def, new_map_size, home_menu);
+        session.reset(engine, configs, reset_map, reset_map_with_tile_def, new_map_size, home_menu);
         log::info!(log::channel!("session"), "--- Game Session Reset ---");
     }
 
     fn cmd_load_preset(&mut self,
                        session: &mut GameSession,
-                       engine: &mut dyn Engine,
+                       engine: &mut Engine,
+                       configs: &'static GameConfigs,
                        preset_number: usize)
     {
-        destroy(session, engine);
-        *session = create(engine, Some(preset_number));
+        destroy(session, engine, configs);
+        *session = create(engine, configs, Some(preset_number));
     }
 
     fn cmd_load_save_game(&mut self,
                           session: &mut GameSession,
-                          engine: &mut dyn Engine,
+                          engine: &mut Engine,
+                          configs: &'static GameConfigs,
                           save_file: PathRef)
     {
         debug_assert!(!save_file.is_empty());
-        session.load_save_game(engine, save_file);
+        session.load_save_game(engine, configs, save_file);
     }
 
     fn cmd_save_game(&mut self,
@@ -193,17 +197,15 @@ impl GameSessionCmdQueue {
 // Session creation helpers
 // ----------------------------------------------
 
-pub fn create(engine: &mut dyn Engine, preset_number: Option<usize>) -> GameSession {
+pub fn create(engine: &mut Engine, configs: &'static GameConfigs, preset_number: Option<usize>) -> GameSession {
     let session = {
         if let Some(preset_number) = preset_number {
-            GameSession::create_with_preset_map(engine, preset_number)
+            GameSession::create_with_preset_map(engine, configs, preset_number)
         } else {
-            let configs = GameConfigs::get();
-
             let load_map_setting = &configs.save.load_map_setting;
             let home_menu = !configs.debug.skip_home_menu;
 
-            GameSession::create_with_settings(engine, load_map_setting, home_menu)
+            GameSession::create_with_settings(engine, configs, load_map_setting, home_menu)
         }
     };
 
@@ -211,8 +213,8 @@ pub fn create(engine: &mut dyn Engine, preset_number: Option<usize>) -> GameSess
     session
 }
 
-pub fn destroy(session: &mut GameSession, engine: &mut dyn Engine) {
-    session.reset(engine, false, None, None, false);
+pub fn destroy(session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs) {
+    session.reset(engine, configs, false, None, None, false);
     log::info!(log::channel!("session"), "--- Game Session Destroyed ---");
 }
 
@@ -319,7 +321,7 @@ impl GameSession {
     // Update & Rendering:
     // ----------------------
 
-    pub fn update_simulation(&mut self, engine: &mut dyn Engine, delta_time_secs: Seconds) {
+    pub fn update_simulation(&mut self, engine: &mut Engine, delta_time_secs: Seconds) {
         self.sim.update(engine,
                         &mut self.world,
                         &mut self.systems,
@@ -335,7 +337,7 @@ impl GameSession {
     }
 
     pub fn draw_tile_map(&mut self,
-                         engine: &mut dyn Engine,
+                         engine: &mut Engine,
                          delta_time_secs: Seconds,
                          visible_range: CellRange,
                          flags: TileMapRenderFlags)
@@ -360,7 +362,11 @@ impl GameSession {
     // Session Create/Reset:
     // ----------------------
 
-    fn create_with_settings(engine: &mut dyn Engine, load_map_setting: &LoadMapSetting, home_menu: bool) -> Self {
+    fn create_with_settings(engine: &mut Engine,
+                            configs: &'static GameConfigs,
+                            load_map_setting: &LoadMapSetting,
+                            home_menu: bool) -> Self
+    {
         let viewport_size = engine.viewport().integer_size();
 
         if !viewport_size.is_valid() {
@@ -370,10 +376,9 @@ impl GameSession {
         let mut world = World::new();
         let tile_map = Self::create_tile_map(&mut world, load_map_setting);
 
-        let sim = Simulation::new(&tile_map);
+        let sim = Simulation::new(&tile_map, configs);
         let systems = GameSystems::register_all();
 
-        let configs = GameConfigs::get();
         let camera = Camera::new(viewport_size,
                                  tile_map.size_in_cells(),
                                  configs.camera.zoom,
@@ -389,10 +394,10 @@ impl GameSession {
             menus: None,
         };
 
-        session.menus = Some(session.create_game_menus_from_config(engine, home_menu));
+        session.menus = Some(session.create_game_menus_from_config(engine, configs, home_menu));
 
         if let LoadMapSetting::SaveGame { save_file } = load_map_setting {
-            session.load_save_game(engine, PathRef::from_path(save_file));
+            session.load_save_game(engine, configs, PathRef::from_path(save_file));
         }
 
         if configs.sim.start_paused {
@@ -404,13 +409,20 @@ impl GameSession {
         session
     }
 
-    fn create_with_preset_map(engine: &mut dyn Engine, preset_number: usize) -> Self {
+    fn create_with_preset_map(engine: &mut Engine,
+                              configs: &'static GameConfigs,
+                              preset_number: usize) -> Self
+    {
         // Override GameConfigs.load_map_setting
-        Self::create_with_settings(engine, &LoadMapSetting::Preset { preset_number }, false)
+        Self::create_with_settings(engine,
+                                   configs,
+                                   &LoadMapSetting::Preset { preset_number },
+                                   false)
     }
 
     fn reset(&mut self,
-             engine: &mut dyn Engine,
+             engine: &mut Engine,
+             configs: &'static GameConfigs,
              reset_map: bool,
              reset_map_with_tile_def: Option<&'static TileDef>,
              new_map_size: Option<Size>,
@@ -419,7 +431,7 @@ impl GameSession {
         undo_redo::clear();
 
         self.tile_selection = TileSelection::default();
-        self.menus = Some(self.create_game_menus_from_config(engine, home_menu));
+        self.menus = Some(self.create_game_menus_from_config(engine, configs, home_menu));
         self.sim.reset_world(engine, &mut self.world, &mut self.systems, &mut self.tile_map);
 
         if reset_map && (self.tile_map.size_in_cells().is_valid() || new_map_size.is_some()) {
@@ -453,7 +465,7 @@ impl GameSession {
     // Game Menus Setup:
     // ----------------------
 
-    fn toggle_menus_mode(&mut self, engine: &mut dyn Engine) {
+    fn toggle_menus_mode(&mut self, engine: &mut Engine) {
         if let Some(mode) = self.current_menus_mode() {
             match mode {
                 GameMenusMode::DevEditor => {
@@ -467,7 +479,7 @@ impl GameSession {
         }
     }
 
-    fn create_game_menus(&mut self, engine: &mut dyn Engine, menu_mode: GameMenusMode) -> Box<dyn GameMenusSystem> {
+    fn create_game_menus(&mut self, engine: &mut Engine, menu_mode: GameMenusMode) -> Box<dyn GameMenusSystem> {
         let tile_map_rc = self.tile_map.clone();
         let mut context = make_ui_widget_context!(self, engine);
 
@@ -487,8 +499,11 @@ impl GameSession {
         }
     }
 
-    fn create_game_menus_from_config(&mut self, engine: &mut dyn Engine, home_menu: bool) -> Box<dyn GameMenusSystem> {
-        let configs = GameConfigs::get();
+    fn create_game_menus_from_config(&mut self,
+                                     engine: &mut Engine,
+                                     configs: &'static GameConfigs,
+                                     home_menu: bool) -> Box<dyn GameMenusSystem>
+    {
         let menu_mode = {
             if configs.debug.skip_home_menu || !home_menu {
                 if configs.debug.start_in_dev_editor_mode {
@@ -500,6 +515,7 @@ impl GameSession {
                 GameMenusMode::Home
             }
         };
+
         self.create_game_menus(engine, menu_mode)
     }
 
@@ -619,11 +635,13 @@ impl Load for GameSession {
         self.camera.post_load(context);
         self.tile_selection.post_load(context);
 
-        let mut menus = self.create_game_menus_from_config(context.engine_mut(), false);
+        let (configs, engine) = context.configs_and_engine();
+
+        let mut menus = self.create_game_menus_from_config(engine, configs, false);
         menus.post_load(context);
         self.menus = Some(menus);
 
-        if GameConfigs::get().sim.start_paused {
+        if configs.sim.start_paused {
             self.sim.pause();
         } else {
             self.sim.resume();
@@ -656,7 +674,7 @@ impl GameSession {
         true
     }
 
-    fn load_save_game(&mut self, engine: &mut dyn Engine, save_file: PathRef) -> bool {
+    fn load_save_game(&mut self, engine: &mut Engine, configs: &'static GameConfigs, save_file: PathRef) -> bool {
         log::info!(log::channel!("session"), "Loading save game '{save_file}' ...");
 
         let session = match save::storage::load_save_file(save_file) {
@@ -669,7 +687,12 @@ impl GameSession {
 
         self.pre_load(&mut PreLoadContext::new(engine));
         *self = session;
-        self.post_load(&mut PostLoadContext::new(engine, &self.sim, self.tile_map.clone()));
+        self.post_load(&mut PostLoadContext::new(
+            engine,
+            configs,
+            self.sim.rng().clone(),
+            self.tile_map.clone()
+        ));
 
         true
     }
@@ -680,7 +703,7 @@ impl GameSession {
 // ----------------------------------------------
 
 impl GameSession {
-    pub fn menus_begin_frame(&mut self, engine: &mut dyn Engine) -> TileMapRenderFlags {
+    pub fn menus_begin_frame(&mut self, engine: &mut Engine) -> TileMapRenderFlags {
         if let Some(menus) = &mut self.menus {
             menus.begin_frame(&mut make_ui_widget_context!(self, engine));
             menus.selected_render_flags()
@@ -689,14 +712,14 @@ impl GameSession {
         }
     }
 
-    pub fn menus_end_frame(&mut self, engine: &mut dyn Engine, visible_range: CellRange) {
+    pub fn menus_end_frame(&mut self, engine: &mut Engine, visible_range: CellRange) {
         if let Some(menus) = &mut self.menus {
             menus.end_frame(&mut make_ui_widget_context!(self, engine), visible_range);
         }
     }
 
     pub fn menus_on_key_input(&mut self,
-                              engine: &mut dyn Engine,
+                              engine: &mut Engine,
                               key: InputKey,
                               action: InputAction,
                               modifiers: InputModifiers)
@@ -713,7 +736,7 @@ impl GameSession {
     }
 
     pub fn menus_on_mouse_button(&mut self,
-                                 engine: &mut dyn Engine,
+                                 engine: &mut Engine,
                                  button: MouseButton,
                                  action: InputAction,
                                  modifiers: InputModifiers)
@@ -729,7 +752,7 @@ impl GameSession {
         }
     }
 
-    pub fn menus_on_scroll(&mut self, engine: &mut dyn Engine, amount: Vec2) -> UiInputEvent {
+    pub fn menus_on_scroll(&mut self, engine: &mut Engine, amount: Vec2) -> UiInputEvent {
         if let Some(menus) = &mut self.menus {
             menus.handle_input(
                 &mut make_ui_widget_context!(self, engine),

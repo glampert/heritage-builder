@@ -10,6 +10,7 @@ use super::{
     vertex::*,
 };
 use crate::{
+    log,
     ui::UiRenderFrameBundle,
     render::{self, RenderStats, TextureHandle},
     utils::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer},
@@ -82,6 +83,8 @@ impl render::RenderSystemFactory for RenderSystem {
     {
         debug_assert!(viewport_size.is_valid());
         debug_assert!(framebuffer_size.is_valid());
+
+        log::info!(log::channel!("render"), "== Render Backend: OpenGL ==");
 
         let mut tex_cache = TextureCache::new(128, texture_settings);
 

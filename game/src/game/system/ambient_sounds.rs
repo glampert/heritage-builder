@@ -85,7 +85,7 @@ impl GameSystem for AmbientSoundsSystem {
         self
     }
 
-    fn update(&mut self, engine: &mut dyn Engine, _query: &SimContext) {
+    fn update(&mut self, engine: &mut Engine, _query: &SimContext) {
         if !self.is_enabled() {
             return;
         }
@@ -105,7 +105,7 @@ impl GameSystem for AmbientSoundsSystem {
         }
     }
 
-    fn reset(&mut self, engine: &mut dyn Engine) {
+    fn reset(&mut self, engine: &mut Engine) {
         self.stop_sounds(engine.sound_system_mut());
     }
 
@@ -115,7 +115,7 @@ impl GameSystem for AmbientSoundsSystem {
         self.reset(context.engine_mut());
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, _query: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, _query: &SimContext) {
         let ui = engine.ui_system().ui();
 
         if !self.is_enabled() {

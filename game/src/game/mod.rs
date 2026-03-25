@@ -10,16 +10,14 @@ use session::{GameSessionCmdQueue, GameSession};
 use crate::{
     log,
     save,
-    platform,
-    camera::*,
+    debug,
     engine::Engine,
+    runner::RunLoop,
     ui::UiInputEvent,
-    render::TextureCache,
-    debug::{self, log_viewer::LogViewerWindow},
-    file_sys::{self, paths::{self, PathRef}},
+    file_sys::paths::PathRef,
     app::{
-        input::{InputAction, InputKey, InputModifiers, MouseButton},
         ApplicationEvent,
+        input::{InputAction, InputKey, InputModifiers, MouseButton},
     },
     tile::{
         rendering::TileMapRenderFlags,
@@ -31,11 +29,6 @@ use crate::{
         mem::singleton_late_init,
         time::{Seconds, Milliseconds, UpdateTimer, PerfTimer},
     },
-};
-
-#[cfg(feature = "desktop")]
-use crate::{
-    engine::{self, config::EngineConfigs},
 };
 
 pub mod undo_redo;
@@ -78,7 +71,8 @@ pub struct GameLoopStats {
 // ----------------------------------------------
 
 pub struct GameLoop {
-    engine: Box<dyn Engine>,
+    engine: &'static mut Engine,
+    configs: &'static GameConfigs,
 
     session: Box<GameSession>,
     session_cmd_queue: GameSessionCmdQueue,
@@ -89,85 +83,118 @@ pub struct GameLoop {
     stats: GameLoopStats,
 }
 
+impl RunLoop for GameLoop {
+    fn start(engine: &'static mut Engine, configs: &'static GameConfigs) -> &'static mut impl RunLoop {
+        log::info!(log::channel!("game"), "--- GameLoop Initialization ---");
+
+        // Load configs / tile sets:
+        Self::load_assets(engine, configs);
+
+        // Global initialization:
+        cheats::initialize();
+        undo_redo::initialize();
+        Simulation::register_callbacks();
+        debug::set_show_popup_messages(configs.debug.show_popups);
+
+        // Create Session and GameLoop:
+        let session = session::create(engine, configs, None);
+        let game_loop = Self {
+            engine,
+            configs,
+            session: Box::new(session),
+            session_cmd_queue: GameSessionCmdQueue::new(),
+            autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
+            enable_autosave: configs.save.enable_autosave,
+            stats: GameLoopStats::default(),
+        };
+
+        // Set global instance:
+        Self::initialize(game_loop);
+        Self::get_mut()
+    }
+
+    fn shutdown() {
+        // Terminate game session:
+        {
+            let this = Self::get_mut();
+            session::destroy(&mut this.session, this.engine, this.configs);
+        }
+
+        // Terminate singleton instances.
+        Self::terminate();
+        Self::unload_assets();
+    }
+
+    fn update(&mut self) {
+        let frame_timer = PerfTimer::begin();
+
+        let (delta_time_secs, cursor_screen_pos, begin_frame_time_ms) = self.engine.begin_frame();
+        self.stats.fps = if delta_time_secs > 0.0 { 1.0 / delta_time_secs } else { 0.0 };
+
+        self.update_autosave();
+        self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
+
+        // Input Events:
+        for event in self.engine.app_events().clone() {
+            self.handle_app_event(event);
+        }
+
+        // Game Logic:
+        let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
+
+        // Rendering:
+        let render_flags = self.menus_begin_frame();
+        self.draw_tile_map(delta_time_secs, visible_range, render_flags);
+        self.menus_end_frame(visible_range);
+
+        // Sound System Update:
+        self.update_sound_system();
+
+        let (end_frame_time_ms, present_frame_time_ms) = self.engine.end_frame();
+
+        self.stats.engine_begin_frame_time_ms = begin_frame_time_ms;
+        self.stats.engine_end_frame_time_ms   = end_frame_time_ms;
+        self.stats.present_frame_time_ms      = present_frame_time_ms;
+        self.stats.total_frame_time_ms        = frame_timer.end();
+    }
+
+    #[inline]
+    fn is_running(&self) -> bool {
+        self.engine.is_running()
+    }
+}
+
 impl GameLoop {
     // ----------------------
-    // Public API:
+    // Public GameLoop API:
     // ----------------------
 
-    // Desktop entry point: creates the engine internally, loads configs, and starts the game.
-    #[cfg(feature = "desktop")]
-    pub fn start() -> &'static mut Self {
-        let build_profile = platform::build_profile();
-        let run_environment = platform::run_environment();
-        let is_app_bundle = run_environment == platform::RunEnvironment::MacOSAppBundle;
-
-        // Early initialization:
-        log::redirect_to_file(is_app_bundle);
-        LogViewerWindow::initialize();
-        file_sys::paths::set_working_directory(file_sys::paths::base_path());
-
-        // Only log panics when running from a bundle. Otherwise the default behavior is fine.
-        platform::initialize_crash_report(is_app_bundle);
-
-        log::info!(log::channel!("game"), "--- Game Initialization ---");
-
-        log::info!(log::channel!("game"), "Base path: {}", paths::base_path());
-        log::info!(log::channel!("game"), "Assets path: {}", paths::assets_path());
-
-        log::info!(log::channel!("game"), "Running in {build_profile} profile.");
-        log::info!(log::channel!("game"), "{run_environment} environment.");
-        log::info!(log::channel!("game"), "Redirect log to file: {is_app_bundle}.");
-
-        log::info!(log::channel!("game"), "Loading Game Configs ...");
-        let configs = GameConfigs::load();
-
-        // Boot the engine and load assets:
-        let mut engine = Self::init_engine(&configs.engine);
-        Self::load_assets(engine.texture_cache_mut(), configs);
-
-        Self::finish_start(engine, configs)
+    #[inline]
+    pub fn quit_game(&mut self) {
+        self.engine.app_mut().request_quit();
     }
 
-    // WASM entry point: accepts a pre-created engine (async wgpu init happened externally).
-    #[cfg(feature = "web")]
-    pub fn start_with_engine(mut engine: Box<dyn Engine>, configs: &'static GameConfigs) {
-        LogViewerWindow::initialize();
-        platform::initialize_crash_report(true);
-
-        log::info!(log::channel!("game"), "--- Game Initialization (WASM) ---");
-        log::info!(log::channel!("game"), "Base path: {}", paths::base_path());
-        log::info!(log::channel!("game"), "Assets path: {}", paths::assets_path());
-
-        // Load assets using the pre-created engine.
-        Self::load_assets(engine.texture_cache_mut(), configs);
-
-        Self::finish_start(engine, configs);
-    }
-
-    pub fn shutdown() {
-        {
-            let game_loop = Self::get_mut();
-            session::destroy(&mut game_loop.session, &mut *game_loop.engine);
-        }
-        Self::terminate();
-    }
-
-    pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
-        self.session_cmd_queue.push_reset_session(reset_map_with_tile_def, new_map_size);
-    }
-
+    #[inline]
     pub fn quit_to_main_menu(&mut self) {
         self.session_cmd_queue.push_quit_to_main_menu();
     }
 
+    #[inline]
+    pub fn reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
+        self.session_cmd_queue.push_reset_session(reset_map_with_tile_def, new_map_size);
+    }
+
+    #[inline]
     pub fn load_preset_map(&mut self, preset_number: usize) {
         self.session_cmd_queue.push_load_preset_map(preset_number);
     }
 
+    #[inline]
     pub fn load_save_game(&mut self, save_file_name: PathRef) {
         self.session_cmd_queue.push_load_save_game(save_file_name);
     }
 
+    #[inline]
     pub fn save_game(&mut self, save_file_name: PathRef) {
         self.session_cmd_queue.push_save_game(save_file_name);
     }
@@ -183,11 +210,6 @@ impl GameLoop {
     }
 
     #[inline]
-    pub fn is_running(&self) -> bool {
-        self.engine.is_running()
-    }
-
-    #[inline]
     pub fn is_in_home_menu(&self) -> bool {
         self.session.current_menus_mode() == Some(GameMenusMode::Home)
     }
@@ -195,26 +217,6 @@ impl GameLoop {
     #[inline]
     pub fn is_in_game(&self) -> bool {
         !self.is_in_home_menu()
-    }
-
-    #[inline]
-    pub fn engine(&self) -> &dyn Engine {
-        &*self.engine
-    }
-
-    #[inline]
-    pub fn engine_mut(&mut self) -> &mut dyn Engine {
-        &mut *self.engine
-    }
-
-    #[inline]
-    pub fn camera(&self) -> &Camera {
-        self.session.camera()
-    }
-
-    #[inline]
-    pub fn camera_mut(&mut self) -> &mut Camera {
-        self.session.camera_mut()
     }
 
     #[inline]
@@ -242,94 +244,14 @@ impl GameLoop {
         &self.stats
     }
 
-    #[inline]
-    pub fn quit_game(&mut self) {
-        self.engine_mut().app_mut().request_quit();
-    }
-
-    pub fn update(&mut self) {
-        let frame_timer = PerfTimer::begin();
-
-        let (delta_time_secs, cursor_screen_pos, begin_frame_time_ms) = self.engine.begin_frame();
-        self.stats.fps = if delta_time_secs > 0.0 { 1.0 / delta_time_secs } else { 0.0 };
-
-        self.update_autosave();
-        self.session_cmd_queue.execute(&mut self.session, &mut *self.engine);
-
-        // Input Events:
-        for event in self.engine.app_events().clone() {
-            self.handle_app_event(event);
-        }
-
-        // Game Logic:
-        let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
-
-        // Rendering:
-        let render_flags = self.menus_begin_frame();
-        self.draw_tile_map(delta_time_secs, visible_range, render_flags);
-        self.menus_end_frame(visible_range);
-
-        // Sound System Update:
-        self.update_sound_system();
-
-        let (end_frame_time_ms, present_frame_time_ms) = self.engine.end_frame();
-
-        self.stats.engine_begin_frame_time_ms = begin_frame_time_ms;
-        self.stats.engine_end_frame_time_ms   = end_frame_time_ms;
-        self.stats.present_frame_time_ms      = present_frame_time_ms;
-        self.stats.total_frame_time_ms        = frame_timer.end();
-    }
-
     // ----------------------
     // Internal:
     // ----------------------
 
-    fn finish_start(mut engine: Box<dyn Engine>, configs: &'static GameConfigs) -> &'static mut Self {
-        // Global initialization:
-        cheats::initialize();
-        undo_redo::initialize();
-        Simulation::register_callbacks();
-        debug::set_show_popup_messages(configs.debug.show_popups);
+    fn load_assets(engine: &mut Engine, configs: &GameConfigs) {
+        let load_assets_timer = PerfTimer::begin();
 
-        let session = Box::new(session::create(&mut *engine, None));
-
-        let game_loop = Self {
-            engine,
-            session,
-            session_cmd_queue: GameSessionCmdQueue::new(),
-            autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
-            enable_autosave: configs.save.enable_autosave,
-            stats: GameLoopStats::default(),
-        };
-
-        Self::initialize(game_loop); // Set global instance.
-        Self::get_mut() // Return it.
-    }
-
-    #[cfg(feature = "desktop")]
-    fn init_engine(configs: &EngineConfigs) -> Box<dyn Engine> {
-        let init_engine_timer = PerfTimer::begin();
-
-        log::info!(log::channel!("game"), "--- Init Engine: GLFW + OpenGL ---");
-        let engine = Box::new(engine::backend::GlfwOpenGlEngine::new(configs));
-
-        // EXPERIMENTAL / WIP:
-
-        //log::info!(log::channel!("game"), "--- Init Engine: Winit + OpenGL ---");
-        //let engine = Box::new(engine::backend::WinitOpenGlEngine::new(configs));
-
-        //log::info!(log::channel!("game"), "--- Init Engine: Winit + Wgpu ---");
-        //let engine = Box::new(engine::backend::WinitWgpuEngine::new(configs));
-
-        let init_engine_time_ms = init_engine_timer.end();
-        log::info!(log::channel!("game"), "--- Init Engine took: {:.1}ms ---", init_engine_time_ms);
-
-        engine
-    }
-
-    fn load_assets(tex_cache: &mut dyn TextureCache, configs: &GameConfigs) {
-        log::info!(log::channel!("game"), "--- Loading Game Assets ---");
-        file_sys::paths::set_working_directory(file_sys::paths::base_path());
+        log::info!(log::channel!("game"), "Loading Game Assets ...");
 
         BuildingConfigs::load();
         log::info!(log::channel!("game"), "BuildingConfigs loaded.");
@@ -340,8 +262,20 @@ impl GameLoop {
         PropConfigs::load();
         log::info!(log::channel!("game"), "PropConfigs loaded.");
 
+        let tex_cache = engine.texture_cache_mut();
         TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets);
         log::info!(log::channel!("game"), "TileSets loaded.");
+
+        let load_assets_time_ms = load_assets_timer.end();
+        log::info!(log::channel!("game"), "Load Assets took: {:.1}ms", load_assets_time_ms);
+    }
+
+    fn unload_assets() {
+        TileSets::terminate();
+        PropConfigs::terminate();
+        UnitConfigs::terminate();
+        BuildingConfigs::terminate();
+        GameConfigs::terminate();
     }
 
     // ----------------------
@@ -356,7 +290,7 @@ impl GameLoop {
         let visible_range = self.update_camera(cursor_screen_pos, delta_time_secs);
 
         let sim_update_timer = PerfTimer::begin();
-        self.session.update_simulation(&mut *self.engine, delta_time_secs);
+        self.session.update_simulation(self.engine, delta_time_secs);
         self.stats.sim_frame_time_ms = sim_update_timer.end();
 
         let anim_update_timer = PerfTimer::begin();
@@ -384,7 +318,7 @@ impl GameLoop {
 
     fn update_sound_system(&mut self) {
         let sound_update_timer = PerfTimer::begin();
-        let listener_position = self.camera().iso_world_position();
+        let listener_position = self.session.camera().iso_world_position();
         self.engine.sound_system_mut().update(listener_position);
         self.stats.sound_frame_time_ms = sound_update_timer.end();
     }
@@ -404,26 +338,27 @@ impl GameLoop {
     fn draw_tile_map(&mut self,
                      delta_time_secs: Seconds,
                      visible_range: CellRange,
-                     flags: TileMapRenderFlags) {
+                     flags: TileMapRenderFlags)
+    {
         if !self.is_in_game() {
             return; // We don't have a tile map to render while at the home menus.
         }
 
         let draw_world_timer = PerfTimer::begin();
-        self.session.draw_tile_map(&mut *self.engine, delta_time_secs, visible_range, flags);
+        self.session.draw_tile_map(self.engine, delta_time_secs, visible_range, flags);
         self.stats.draw_world_frame_time_ms = draw_world_timer.end();
     }
 
     fn handle_app_event(&mut self, event: ApplicationEvent) {
         match event {
             ApplicationEvent::WindowResize { window_size, framebuffer_size } => {
-                self.camera_mut().set_viewport_size(window_size);
+                self.session.camera_mut().set_viewport_size(window_size);
                 log::info!(log::channel!("game"), "Window Resized: {window_size}");
                 log::info!(log::channel!("game"), "Framebuffer Resized: {framebuffer_size}");
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
                 let mut input_event = if self.is_in_game() {
-                    self.camera_mut().on_key_input(key, action, modifiers)
+                    self.session.camera_mut().on_key_input(key, action, modifiers)
                 } else {
                     UiInputEvent::NotHandled
                 };
@@ -444,8 +379,8 @@ impl GameLoop {
             }
             ApplicationEvent::Scroll(amount) => {
                 // If we're not hovering over an ImGui menu...
-                let input_event = if self.is_in_game() && !self.engine().ui_system().is_handling_mouse_input() {
-                    self.camera_mut().on_mouse_scroll(amount)
+                let input_event = if self.is_in_game() && !self.engine.ui_system().is_handling_mouse_input() {
+                    self.session.camera_mut().on_mouse_scroll(amount)
                 } else {
                     UiInputEvent::NotHandled
                 };
@@ -467,35 +402,33 @@ impl GameLoop {
 
     fn menus_begin_frame(&mut self) -> TileMapRenderFlags {
         let ui_begin_timer = PerfTimer::begin();
-        let flags = self.session.menus_begin_frame(&mut *self.engine);
+        let flags = self.session.menus_begin_frame(self.engine);
         self.stats.ui_begin_frame_time_ms = ui_begin_timer.end();
         flags
     }
 
     fn menus_end_frame(&mut self, visible_range: CellRange) {
         let ui_end_timer = PerfTimer::begin();
-        self.session.menus_end_frame(&mut *self.engine, visible_range);
+        self.session.menus_end_frame(self.engine, visible_range);
         self.stats.ui_end_frame_time_ms = ui_end_timer.end();
+    }
+
+    fn menus_on_scroll(&mut self, amount: Vec2) -> UiInputEvent {
+        self.session.menus_on_scroll(self.engine, amount)
     }
 
     fn menus_on_key_input(&mut self,
                           key: InputKey,
                           action: InputAction,
-                          modifiers: InputModifiers)
-                          -> UiInputEvent {
-        self.session.menus_on_key_input(&mut *self.engine, key, action, modifiers)
+                          modifiers: InputModifiers) -> UiInputEvent {
+        self.session.menus_on_key_input(self.engine, key, action, modifiers)
     }
 
     fn menus_on_mouse_button(&mut self,
                              button: MouseButton,
                              action: InputAction,
-                             modifiers: InputModifiers)
-                             -> UiInputEvent {
-        self.session.menus_on_mouse_button(&mut *self.engine, button, action, modifiers)
-    }
-
-    fn menus_on_scroll(&mut self, amount: Vec2) -> UiInputEvent {
-        self.session.menus_on_scroll(&mut *self.engine, amount)
+                             modifiers: InputModifiers) -> UiInputEvent {
+        self.session.menus_on_mouse_button(self.engine, button, action, modifiers)
     }
 }
 

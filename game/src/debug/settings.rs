@@ -4,9 +4,9 @@ use crate::{
     log,
     debug,
     save,
-    engine::config::Configs,
     utils::{Color, Size},
     file_sys::paths::PathRef,
+    engine::{Engine, config::Configs},
     ui::{self, UiStaticVar, widgets::UiWidgetContext},
     game::{
         cheats,
@@ -381,7 +381,7 @@ impl DebugSettingsDevMenu {
         // Debug grid options:
         ui.separator();
 
-        let engine = GameLoop::get_mut().engine_mut();
+        let engine = Engine::get_mut();
 
         let mut line_thickness = engine.grid_line_thickness();
         if ui.slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
@@ -526,8 +526,8 @@ impl DebugSettingsDevMenu {
           .position([400.0, 20.0], imgui::Condition::FirstUseEver)
           .size([400.0, 350.0], imgui::Condition::FirstUseEver)
           .build(|| {
+              let engine = Engine::get_mut();
               let sim = GameLoop::get_mut().sim_mut();
-              let engine = GameLoop::get_mut().engine_mut();
               let systems = GameLoop::get_mut().systems_mut();
               sim.draw_game_systems_debug_ui(context, engine, systems);
           });
@@ -541,7 +541,7 @@ impl DebugSettingsDevMenu {
           .position([500.0, 20.0], imgui::Condition::FirstUseEver)
           .size([300.0, 150.0], imgui::Condition::FirstUseEver)
           .build(|| {
-              let tex_cache = GameLoop::get_mut().engine_mut().texture_cache_mut();
+              let tex_cache = Engine::get_mut().texture_cache_mut();
               tex_cache.draw_debug_ui(context.ui_sys);
           });
     }
@@ -554,7 +554,7 @@ impl DebugSettingsDevMenu {
           .position([350.0, 20.0], imgui::Condition::FirstUseEver)
           .size([500.0, 400.0], imgui::Condition::FirstUseEver)
           .build(|| {
-              let sound_sys = GameLoop::get_mut().engine_mut().sound_system_mut();
+              let sound_sys = Engine::get_mut().sound_system_mut();
               sound_sys.draw_debug_ui(context.ui_sys);
           });
     }

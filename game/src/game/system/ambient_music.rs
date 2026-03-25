@@ -118,7 +118,7 @@ impl GameSystem for AmbientMusicSystem {
         self
     }
 
-    fn update(&mut self, engine: &mut dyn Engine, _query: &SimContext) {
+    fn update(&mut self, engine: &mut Engine, _query: &SimContext) {
         if !self.is_enabled() {
             return;
         }
@@ -138,12 +138,12 @@ impl GameSystem for AmbientMusicSystem {
         }
     }
 
-    fn paused_update(&mut self, engine: &mut dyn Engine, context: &SimContext) {
+    fn paused_update(&mut self, engine: &mut Engine, context: &SimContext) {
         // We want to update as normal when paused since the home menu will pause the game simulation.
         self.update(engine, context);
     }
 
-    fn reset(&mut self, engine: &mut dyn Engine) {
+    fn reset(&mut self, engine: &mut Engine) {
         self.stop_music(engine.sound_system_mut());
         self.current_game_state = GameState::default();
     }
@@ -154,7 +154,7 @@ impl GameSystem for AmbientMusicSystem {
         self.reset(context.engine_mut());
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut dyn Engine, _query: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, _query: &SimContext) {
         let ui = engine.ui_system().ui();
 
         if !self.is_enabled() {

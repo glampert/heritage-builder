@@ -1,6 +1,7 @@
 use super::*;
 use crate::{
-    game::{GameLoop, config::GameConfigs},
+    engine::Engine,
+    game::config::GameConfigs,
 };
 
 // ----------------------------------------------
@@ -9,14 +10,14 @@ use crate::{
 
 macro_rules! read_master_volume_u32 {
     ($volume_field:ident) => {{
-        let sound_settings = GameLoop::get().engine().sound_system().current_sound_settings();
+        let sound_settings = Engine::get().sound_system().current_sound_settings();
         (sound_settings.$volume_field * 100.0) as u32 // Scale from [0,1] f32 to [0,100] u32
     }};
 }
 
 macro_rules! write_mater_volume_u32 {
     ($volume_field:ident, $volume:ident) => {{
-        let sound_sys = GameLoop::get_mut().engine_mut().sound_system_mut();
+        let sound_sys = Engine::get_mut().sound_system_mut();
         let mut sound_settings = sound_sys.current_sound_settings();
         sound_settings.$volume_field = $volume as f32 / 100.0; // Back to [0,1] f32 range.
         sound_sys.change_sound_settings(sound_settings);
