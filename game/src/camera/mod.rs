@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     save::*,
-    engine::DebugDraw,
+    render::DebugDraw,
     game::config::GameConfigs,
     ui::{self, UiSystem, UiInputEvent, UiStaticVar},
     app::input::{InputAction, InputKey, InputModifiers},

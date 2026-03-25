@@ -5,9 +5,9 @@ use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 
 use crate::{
-    ui::{UiSystem, UiRenderFrameBundle},
-    utils::{Color, Rect, RectTexCoords, Size, Vec2, time::Milliseconds},
     file_sys::paths::PathRef,
+    ui::{UiSystem, UiRenderFrameBundle},
+    utils::{Color, Rect, RectTexCoords, Size, Vec2, time::Milliseconds, mem::RcMut},
 };
 
 // ----------------------------------------------
@@ -422,7 +422,7 @@ impl TextureHandle {
         !matches!(self, TextureHandle::Invalid)
     }
 
-    // Pack/unpack into usize for imgui TextureId.
+    // Pack/unpack into usize for ImGui TextureId.
     // Tag in the top 2 bits, index in the lower 30 bits.
     // Supports up to 2^30 (~1 billion) texture indices.
     const TAG_SHIFT: u32 = usize::BITS - 2;
@@ -431,8 +431,8 @@ impl TextureHandle {
     #[inline]
     pub fn pack(&self) -> usize {
         match self {
-            Self::Invalid    => 0,
-            Self::White      => 1 << Self::TAG_SHIFT,
+            Self::Invalid => 0,
+            Self::White   => 1 << Self::TAG_SHIFT,
             Self::Index(idx) => (2 << Self::TAG_SHIFT) | (*idx as usize & Self::INDEX_MASK),
         }
     }
@@ -451,6 +451,7 @@ impl TextureHandle {
 }
 
 impl Default for TextureHandle {
+    #[inline]
     fn default() -> Self {
         TextureHandle::invalid()
     }
@@ -491,6 +492,7 @@ pub struct TextureSettings {
 }
 
 impl Default for TextureSettings {
+    #[inline]
     fn default() -> Self {
         Self {
             filter: TextureFilter::Nearest,
@@ -551,4 +553,68 @@ pub trait TextureCache: Any {
 
     // Explicitly unloads a texture. `handle` is set to invalid after this call.
     fn release_texture(&mut self, handle: &mut TextureHandle);
+}
+
+// ----------------------------------------------
+// DebugDraw
+// ----------------------------------------------
+
+pub struct DebugDraw {
+    render_system: RcMut<backend::OpenGlRenderSystem>,
+}
+
+impl DebugDraw {
+    pub fn new(render_system: RcMut<backend::OpenGlRenderSystem>) -> Self {
+        Self { render_system }
+    }
+
+    #[inline]
+    pub fn texture_cache(&self) -> &dyn TextureCache {
+        self.render_system.texture_cache()
+    }
+
+    #[inline]
+    pub fn texture_cache_mut(&mut self) -> &mut dyn TextureCache {
+        self.render_system.texture_cache_mut()
+    }
+
+    #[inline]
+    pub fn point(&mut self, pt: Vec2, color: Color, size: f32) {
+        self.render_system.draw_point_fast(pt, color, size);
+    }
+
+    #[inline]
+    pub fn line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
+        self.render_system.draw_line_fast(from_pos, to_pos, from_color, to_color);
+    }
+
+    #[inline]
+    pub fn line_with_thickness(&mut self, from_pos: Vec2, to_pos: Vec2, color: Color, thickness: f32) {
+        self.render_system.draw_line_with_thickness(from_pos, to_pos, color, thickness);
+    }
+
+    #[inline]
+    pub fn wireframe_rect(&mut self, rect: Rect, color: Color) {
+        self.render_system.draw_wireframe_rect_fast(rect, color);
+    }
+
+    #[inline]
+    pub fn wireframe_rect_with_thickness(&mut self, rect: Rect, color: Color, thickness: f32) {
+        self.render_system.draw_wireframe_rect_with_thickness(rect, color, thickness);
+    }
+
+    #[inline]
+    pub fn colored_rect(&mut self, rect: Rect, color: Color) {
+        self.render_system.draw_colored_rect(rect, color);
+    }
+
+    #[inline]
+    pub fn textured_colored_rect(&mut self,
+                                 rect: Rect,
+                                 tex_coords: &RectTexCoords,
+                                 texture: TextureHandle,
+                                 color: Color)
+    {
+        self.render_system.draw_textured_colored_rect(rect, tex_coords, texture, color);
+    }
 }

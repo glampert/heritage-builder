@@ -11,8 +11,7 @@ use crate::{
     },
     render::{
         self,
-        TextureCache, TextureHandle,
-        RenderSystem, RenderStats,
+        TextureCache, RenderSystem, RenderStats, DebugDraw,
     },
     tile::{
         TileMap,
@@ -20,7 +19,7 @@ use crate::{
         rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
     },
     utils::{
-        Color, Rect, RectTexCoords, Vec2,
+        Rect, Vec2,
         coords::CellRange, mem::{RcMut, singleton_late_init},
         time::{FrameClock, PerfTimer, Seconds, Milliseconds},
     },
@@ -260,9 +259,11 @@ impl Engine {
         }
 
         let render_sys = &mut *self.render_system;
+        let debug_draw = &mut self.debug_draw;
         let ui_sys = &self.ui_system;
 
         self.tile_map_render_stats = self.tile_map_renderer.draw_map(render_sys,
+                                                                     debug_draw,
                                                                      ui_sys,
                                                                      tile_map,
                                                                      camera.transform(),
@@ -376,67 +377,3 @@ impl Engine {
 // ----------------------------------------------
 
 singleton_late_init! { ENGINE_SINGLETON, Engine }
-
-// ----------------------------------------------
-// DebugDraw
-// ----------------------------------------------
-
-pub struct DebugDraw {
-    render_system: RcMut<backend::RenderSystemBackendImpl>,
-}
-
-impl DebugDraw {
-    pub fn new(render_system: RcMut<backend::RenderSystemBackendImpl>) -> Self {
-        Self { render_system }
-    }
-
-    #[inline]
-    pub fn texture_cache(&self) -> &dyn TextureCache {
-        self.render_system.texture_cache()
-    }
-
-    #[inline]
-    pub fn texture_cache_mut(&mut self) -> &mut dyn TextureCache {
-        self.render_system.texture_cache_mut()
-    }
-
-    #[inline]
-    pub fn point(&mut self, pt: Vec2, color: Color, size: f32) {
-        self.render_system.draw_point_fast(pt, color, size);
-    }
-
-    #[inline]
-    pub fn line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
-        self.render_system.draw_line_fast(from_pos, to_pos, from_color, to_color);
-    }
-
-    #[inline]
-    pub fn line_with_thickness(&mut self, from_pos: Vec2, to_pos: Vec2, color: Color, thickness: f32) {
-        self.render_system.draw_line_with_thickness(from_pos, to_pos, color, thickness);
-    }
-
-    #[inline]
-    pub fn wireframe_rect(&mut self, rect: Rect, color: Color) {
-        self.render_system.draw_wireframe_rect_fast(rect, color);
-    }
-
-    #[inline]
-    pub fn wireframe_rect_with_thickness(&mut self, rect: Rect, color: Color, thickness: f32) {
-        self.render_system.draw_wireframe_rect_with_thickness(rect, color, thickness);
-    }
-
-    #[inline]
-    pub fn colored_rect(&mut self, rect: Rect, color: Color) {
-        self.render_system.draw_colored_rect(rect, color);
-    }
-
-    #[inline]
-    pub fn textured_colored_rect(&mut self,
-                                 rect: Rect,
-                                 tex_coords: &RectTexCoords,
-                                 texture: TextureHandle,
-                                 color: Color)
-    {
-        self.render_system.draw_textured_colored_rect(rect, tex_coords, texture, color);
-    }
-}

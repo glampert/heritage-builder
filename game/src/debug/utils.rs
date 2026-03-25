@@ -2,9 +2,8 @@ use rand::SeedableRng;
 
 use crate::{
     log,
-    engine::DebugDraw,
     ui::{self, UiSystem, UiFontScale},
-    render::{RenderStats, RenderSystem},
+    render::{RenderStats, DebugDraw},
     pathfind::{Graph, Search},
     game::{
         world::World,
@@ -38,7 +37,7 @@ macro_rules! format_fast {
     };
 }
 
-pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
+pub fn draw_tile_debug(debug_draw: &mut DebugDraw,
                        ui_sys: &UiSystem,
                        tile_screen_rect: Rect,
                        transform: WorldToScreenTransform,
@@ -58,14 +57,14 @@ pub fn draw_tile_debug(render_sys: &mut impl RenderSystem,
                             || flags.contains(TileMapRenderFlags::DrawDebugBounds);
 
     if draw_debug_info {
-        draw_tile_info(render_sys, ui_sys, tile_screen_rect, tile);
+        draw_tile_info(debug_draw, ui_sys, tile_screen_rect, tile);
     }
 
     if draw_debug_bounds {
         if tile.has_flags(TileFlags::BuildingRoadLink) {
-            draw_road_link_bounds(render_sys, tile_screen_rect, transform, tile);
+            draw_road_link_bounds(debug_draw, tile_screen_rect, transform, tile);
         } else {
-            draw_tile_bounds(render_sys, tile_screen_rect, transform, tile, true, true);
+            draw_tile_bounds(debug_draw, tile_screen_rect, transform, tile, true, true);
         }
     }
 }
@@ -278,7 +277,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem,
     });
 }
 
-fn draw_tile_info(render_sys: &mut impl RenderSystem,
+fn draw_tile_info(debug_draw: &mut DebugDraw,
                   ui_sys: &UiSystem,
                   tile_screen_rect: Rect,
                   tile: &Tile) {
@@ -292,21 +291,21 @@ fn draw_tile_info(render_sys: &mut impl RenderSystem,
 
     // Put a dot at the tile's center.
     let center_pt_color = if tile.is(TileKind::Blocker) { Color::white() } else { Color::red() };
-    render_sys.draw_point_fast(tile_center - Vec2::new(2.5, 2.5), center_pt_color, 10.0);
+    debug_draw.point(tile_center - Vec2::new(2.5, 2.5), center_pt_color, 10.0);
 }
 
 // Alternate debug info used for displaying building road link tiles.
-fn draw_road_link_bounds(render_sys: &mut impl RenderSystem,
+fn draw_road_link_bounds(debug_draw: &mut DebugDraw,
                          tile_screen_rect: Rect,
                          transform: WorldToScreenTransform,
                          tile: &Tile) {
-    draw_tile_bounds(render_sys, tile_screen_rect, transform, tile, true, false);
+    draw_tile_bounds(debug_draw, tile_screen_rect, transform, tile, true, false);
 
     let tile_center = tile_screen_rect.center();
-    render_sys.draw_point_fast(tile_center - Vec2::new(2.5, 2.5), Color::blue(), 10.0);
+    debug_draw.point(tile_center - Vec2::new(2.5, 2.5), Color::blue(), 10.0);
 }
 
-fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
+fn draw_tile_bounds(debug_draw: &mut DebugDraw,
                     tile_screen_rect: Rect,
                     transform: WorldToScreenTransform,
                     tile: &Tile,
@@ -334,19 +333,19 @@ fn draw_tile_bounds(render_sys: &mut impl RenderSystem,
                                                                    tile.logical_size(),
                                                                    transform);
 
-        render_sys.draw_line_fast(diamond_points[0], diamond_points[1], color, color);
-        render_sys.draw_line_fast(diamond_points[1], diamond_points[2], color, color);
-        render_sys.draw_line_fast(diamond_points[2], diamond_points[3], color, color);
-        render_sys.draw_line_fast(diamond_points[3], diamond_points[0], color, color);
+        debug_draw.line(diamond_points[0], diamond_points[1], color, color);
+        debug_draw.line(diamond_points[1], diamond_points[2], color, color);
+        debug_draw.line(diamond_points[2], diamond_points[3], color, color);
+        debug_draw.line(diamond_points[3], diamond_points[0], color, color);
 
         for point in diamond_points {
-            render_sys.draw_point_fast(point, Color::green(), 10.0);
+            debug_draw.point(point, Color::green(), 10.0);
         }
     }
 
     // Tile axis-aligned bounding rectangle of the actual sprite image:
     if sprite_aabb {
-        render_sys.draw_wireframe_rect_fast(tile_screen_rect, color);
+        debug_draw.wireframe_rect(tile_screen_rect, color);
     }
 }
 

@@ -4,11 +4,10 @@ use smallvec::SmallVec;
 use std::collections::HashMap;
 
 use crate::{
-    engine::DebugDraw,
-    render::TextureHandle,
+    file_sys::paths::PathRef,
+    render::{TextureHandle, DebugDraw},
     app::input::{InputAction, MouseButton},
     ui::{self, UiInputEvent, UiSystem, widgets::UiWidgetContext},
-    file_sys::paths::PathRef,
     utils::{
         self,
         constants::*,

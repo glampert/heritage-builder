@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use bitflags::bitflags;
 use smallvec::SmallVec;
 
@@ -13,7 +15,7 @@ use super::{
 use crate::{
     debug::{self},
     ui::UiSystem,
-    render::RenderSystem,
+    render::{RenderSystem, DebugDraw},
     utils::{
         constants::*,
         mem::RawPtr, Color, Vec2,
@@ -136,6 +138,7 @@ impl TileMapRenderer {
 
     pub fn draw_map(&mut self,
                     render_sys: &mut impl RenderSystem,
+                    debug_draw: &mut DebugDraw,
                     ui_sys: &UiSystem,
                     tile_map: &TileMap,
                     transform: WorldToScreenTransform,
@@ -144,7 +147,7 @@ impl TileMapRenderer {
                     -> TileMapRenderStats {
         self.reset_stats();
 
-        self.draw_terrain_layer(render_sys, ui_sys, tile_map, transform, visible_range, flags);
+        self.draw_terrain_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
 
         if flags.contains(TileMapRenderFlags::DrawGrid)
            && !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth)
@@ -154,7 +157,7 @@ impl TileMapRenderer {
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         }
 
-        self.draw_objects_layer(render_sys, ui_sys, tile_map, transform, visible_range, flags);
+        self.draw_objects_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
 
         if flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Allow grid lines to draw later and effectively bypass the draw order
@@ -167,6 +170,7 @@ impl TileMapRenderer {
 
     fn draw_terrain_layer(&mut self,
                           render_sys: &mut impl RenderSystem,
+                          debug_draw: &mut DebugDraw,
                           ui_sys: &UiSystem,
                           tile_map: &TileMap,
                           transform: WorldToScreenTransform,
@@ -201,6 +205,7 @@ impl TileMapRenderer {
                 }
 
                 Self::draw_tile(render_sys,
+                                debug_draw,
                                 &mut self.stats,
                                 ui_sys,
                                 transform,
@@ -213,6 +218,7 @@ impl TileMapRenderer {
 
     fn draw_objects_layer(&mut self,
                           render_sys: &mut impl RenderSystem,
+                          debug_draw: &mut DebugDraw,
                           ui_sys: &UiSystem,
                           tile_map: &TileMap,
                           transform: WorldToScreenTransform,
@@ -262,7 +268,7 @@ impl TileMapRenderer {
                 // Debug display for blocker tiles:
                 let tile_iso_pos = coords::cell_to_iso(cell);
                 let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_pos, BASE_TILE_SIZE_I32, transform);
-                debug::utils::draw_tile_debug(render_sys,
+                debug::utils::draw_tile_debug(debug_draw,
                                               ui_sys,
                                               tile_screen_rect,
                                               transform,
@@ -289,6 +295,7 @@ impl TileMapRenderer {
             debug_assert!(tile.is(TileKind::Object));
 
             Self::draw_tile(render_sys,
+                            debug_draw,
                             &mut self.stats,
                             ui_sys,
                             transform,
@@ -369,6 +376,7 @@ impl TileMapRenderer {
     }
 
     fn draw_tile(render_sys: &mut impl RenderSystem,
+                 debug_draw: &mut DebugDraw,
                  stats: &mut TileMapRenderStats,
                  ui_sys: &UiSystem,
                  transform: WorldToScreenTransform,
@@ -409,7 +417,7 @@ impl TileMapRenderer {
             }
         }
 
-        debug::utils::draw_tile_debug(render_sys, ui_sys, tile_screen_rect, transform, tile, flags);
+        debug::utils::draw_tile_debug(debug_draw, ui_sys, tile_screen_rect, transform, tile, flags);
     }
 
     fn draw_road_placement_overlay(render_sys: &mut impl RenderSystem,
