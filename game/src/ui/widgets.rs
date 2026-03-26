@@ -21,7 +21,7 @@ use crate::{
     engine::Engine,
     camera::Camera,
     sound::SoundSystem,
-    render::{RenderSystem, TextureHandle},
+    render::{RenderSystem, texture::TextureHandle},
     game::{sim::{Simulation, SimContext}, world::World},
     tile::{Tile, TileMap, selection::TileSelection},
     file_sys::paths::{PathRef, AssetPath},
@@ -86,7 +86,7 @@ pub struct UiWidgetContext<'game> {
 
     // Engine:
     pub ui_sys: &'game UiSystem,
-    pub render_sys: &'game mut dyn RenderSystem,
+    pub render_sys: &'game mut RenderSystem,
     pub sound_sys: &'game mut SoundSystem,
     pub viewport_size: Size,
     pub delta_time_secs: Seconds,

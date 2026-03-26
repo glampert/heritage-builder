@@ -1,6 +1,7 @@
 use super::{
     panic_if_gl_error,
     buffer::NULL_BUFFER_HANDLE,
+    texture::TextureFilter,
 };
 use crate::{
     log,
@@ -15,16 +16,16 @@ use crate::{
 pub struct RenderTarget {
     size: Size,
     framebuffer_handle: gl::types::GLuint,
-    depth_buffer_handle: gl::types::GLuint,  // Optional depth buffer.
-    color_rt_texture: render::TextureHandle, // Mandatory color render target texture.
-    blit_filter: gl::types::GLenum,          // Filter used when blitting the color rt to screen.
+    depth_buffer_handle: gl::types::GLuint,           // Optional depth buffer.
+    color_rt_texture: render::texture::TextureHandle, // Mandatory color render target texture.
+    blit_filter: gl::types::GLenum,                   // Filter used when blitting the color rt to screen.
 }
 
 impl RenderTarget {
-    pub fn new(tex_cache: &mut impl render::TextureCache,
+    pub fn new(tex_cache: &mut render::texture::TextureCache,
                size: Size,
                with_depth_buffer: bool,
-               sampling_filter: render::TextureFilter,
+               sampling_filter: TextureFilter,
                debug_name: &str) -> Self
     {
         debug_assert!(size.is_valid());
@@ -32,10 +33,10 @@ impl RenderTarget {
         let color_rt_texture = tex_cache.new_uninitialized_texture(
             debug_name,
             size,
-            Some(render::TextureSettings {
-                filter: sampling_filter,
-                wrap_mode: render::TextureWrapMode::ClampToEdge,
-                gen_mipmaps: false,
+            Some(render::texture::TextureSettings {
+                filter: sampling_filter.into(),
+                wrap_mode: render::texture::TextureWrapMode::ClampToEdge,
+                mipmaps: false,
             }));
 
         let (framebuffer_handle, depth_buffer_handle) = unsafe {
@@ -49,12 +50,13 @@ impl RenderTarget {
 
             gl::BindFramebuffer(gl::FRAMEBUFFER, framebuffer_handle);
 
-            let color_rt_tex2d = tex_cache.to_native_handle(color_rt_texture);
+            let gl_texture = tex_cache.texture_for_handle(color_rt_texture).as_opengl();
+
             gl::FramebufferTexture2D(
                 gl::FRAMEBUFFER,
                 gl::COLOR_ATTACHMENT0,
                 gl::TEXTURE_2D,
-                color_rt_tex2d.bits as _,
+                gl_texture.tex2d.handle(),
                 0,
             );
 
@@ -97,14 +99,14 @@ impl RenderTarget {
         };
 
         let blit_filter = match sampling_filter {
-            render::TextureFilter::Nearest |
-            render::TextureFilter::NearestMipmapNearest |
-            render::TextureFilter::NearestMipmapLinear => {
+            TextureFilter::Nearest |
+            TextureFilter::NearestMipmapNearest |
+            TextureFilter::NearestMipmapLinear => {
                 gl::NEAREST
             }
-            render::TextureFilter::Linear |
-            render::TextureFilter::LinearMipmapNearest |
-            render::TextureFilter::LinearMipmapLinear => {
+            TextureFilter::Linear |
+            TextureFilter::LinearMipmapNearest |
+            TextureFilter::LinearMipmapLinear => {
                 gl::LINEAR
             }
         };
@@ -165,7 +167,7 @@ impl RenderTarget {
         self.depth_buffer_handle != NULL_BUFFER_HANDLE
     }
 
-    pub fn color_texture_handle(&self) -> render::TextureHandle {
+    pub fn color_texture_handle(&self) -> render::texture::TextureHandle {
         self.color_rt_texture
     }
 }

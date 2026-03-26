@@ -85,7 +85,7 @@ impl WebFileSystemBackend {
         let entry = AssetCacheEntry { path: normalized_path.to_string(), data };
 
         if self.asset_cache.insert(path_hash, entry).is_some() {
-            log::error!(log::channel!("file_sys"), "Asset path collision for: '{}' (0x{:x})", path, path_hash);
+            log::error!(log::channel!("file_sys"), "Asset path collision for: '{}' (0x{:X})", path, path_hash);
         }
     }
 }

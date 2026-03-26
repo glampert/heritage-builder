@@ -149,7 +149,7 @@ impl RenderSystem {
         viewport_size: Size,
         framebuffer_size: Size,
         clear_color: Color,
-        texture_settings: render::TextureSettings,
+        texture_settings: render::texture::TextureSettings,
     ) -> Self {
         let WgpuInitResources { device, queue, surface, surface_config, surface_format } = resources;
         Self::init(device, queue, surface, surface_config, surface_format,
@@ -164,7 +164,7 @@ impl RenderSystem {
         viewport_size: Size,
         framebuffer_size: Size,
         clear_color: Color,
-        texture_settings: render::TextureSettings,
+        texture_settings: render::texture::TextureSettings,
     ) -> Self {
         debug_assert!(viewport_size.is_valid());
         debug_assert!(framebuffer_size.is_valid());
@@ -231,12 +231,12 @@ impl RenderSystem {
         viewport_size: Size,
         framebuffer_size: Size,
         clear_color: Color,
-        texture_settings: render::TextureSettings,
+        texture_settings: render::texture::TextureSettings,
     ) -> Self {
         debug_assert!(viewport_size.is_valid());
         debug_assert!(framebuffer_size.is_valid());
 
-        log::info!(log::channel!("render"), "== Render Backend: WGPU ==");
+        log::info!(log::channel!("render"), "--- Render Backend: WGPU ---");
 
         // Create shared bind group layouts.
         let uniform_bind_group_layout = pipeline::create_uniform_bind_group_layout(&device);
@@ -358,7 +358,7 @@ impl render::RenderSystemFactory for RenderSystem {
         viewport_size: Size,
         framebuffer_size: Size,
         clear_color: Color,
-        texture_settings: render::TextureSettings,
+        texture_settings: render::texture::TextureSettings,
         app_context: Option<&dyn Any>,
     ) -> Self {
         // On WASM, the RenderSystem is created via from_init_resources() with

@@ -7,13 +7,12 @@ use super::{
     sets::{TileDef, TileSector},
     water, road,
 };
-
 use crate::{
     camera::Camera,
     save::{PreLoadContext, PostLoadContext},
     file_sys::paths::{self, PathRef, AssetPath},
     app::input::{InputSystem, InputAction, MouseButton},
-    render::{TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
+    render::texture::{TextureCache, TextureFilter, TextureWrapMode, TextureHandle, TextureSettings},
     ui::{
         self,
         widgets::*,
@@ -222,7 +221,7 @@ impl MinimapTexture {
         self.size_changed = true;
     }
 
-    fn update(&mut self, tex_cache: &mut dyn TextureCache) {
+    fn update(&mut self, tex_cache: &mut TextureCache) {
         if !self.need_update || !self.size.is_valid() {
             return;
         }
@@ -243,7 +242,7 @@ impl MinimapTexture {
             let minimap_texture_settings = TextureSettings {
                 filter: TextureFilter::Nearest,
                 wrap_mode: TextureWrapMode::ClampToBorder,
-                gen_mipmaps: false,
+                mipmaps: false,
             };
             self.handle = tex_cache.new_uninitialized_texture(TEXTURE_NAME,
                                                               self.size,
@@ -258,7 +257,7 @@ impl MinimapTexture {
         self.need_update = false;
     }
 
-    fn pre_load(&mut self, tex_cache: &mut dyn TextureCache) {
+    fn pre_load(&mut self, tex_cache: &mut TextureCache) {
         // Release the current minimap texture. It will be recreated
         // with the correct dimensions on next update().
         tex_cache.release_texture(&mut self.handle);
@@ -367,7 +366,7 @@ impl MinimapIconTexCache {
         self.textures[0].is_valid()
     }
 
-    fn load_icon_textures(&mut self, tex_cache: &mut dyn TextureCache) {
+    fn load_icon_textures(&mut self, tex_cache: &mut TextureCache) {
         for icon in MinimapIcon::iter() {
             let texture = &mut self.textures[icon as usize];
             debug_assert!(!texture.is_valid(), "Minimap icon texture is already loaded!");
@@ -402,7 +401,7 @@ impl Minimap {
 
     pub fn update(&mut self,
                   camera: &mut Camera,
-                  tex_cache: &mut dyn TextureCache,
+                  tex_cache: &mut TextureCache,
                   input_sys: &dyn InputSystem,
                   ui_sys: &UiSystem,
                   delta_time_secs: Seconds) {

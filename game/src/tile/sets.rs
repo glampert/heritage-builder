@@ -9,9 +9,9 @@ use super::{
 };
 use crate::{
     log,
-    pathfind::NodeKind as PathNodeKind,
-    render::{TextureCache, TextureHandle},
     save::{self, SaveState},
+    pathfind::NodeKind as PathNodeKind,
+    render::texture::{TextureCache, TextureHandle},
     file_sys::paths::{self, PathRef, AssetPath},
     utils::{
         constants::*,
@@ -230,7 +230,7 @@ impl TileAnimSet {
     }
 
     fn post_load(&mut self,
-                 tex_cache: &mut dyn TextureCache,
+                 tex_cache: &mut TextureCache,
                  tex_atlas: &mut impl TextureAtlas,
                  tile_set_path_with_category: PathRef,
                  variation_name: &str,
@@ -327,7 +327,7 @@ impl TileAnimSet {
     }
 
     fn resolve_frame_references(&mut self,
-                                tex_cache: &mut dyn TextureCache,
+                                tex_cache: &mut TextureCache,
                                 tex_atlas: &mut impl TextureAtlas,
                                 tile_set_path_with_category: PathRef,
                                 tile_def_name: &str,
@@ -446,7 +446,7 @@ impl TileAnimSet {
     }
 
     fn load_frame_texture(frame: &mut TileSprite,
-                          tex_cache: &mut dyn TextureCache,
+                          tex_cache: &mut TextureCache,
                           tex_atlas: &mut impl TextureAtlas,
                           tile_set_path_with_category: PathRef,
                           variation_name: &str,
@@ -742,7 +742,7 @@ impl TileDef {
     }
 
     fn post_load(&mut self,
-                 tex_cache: &mut dyn TextureCache,
+                 tex_cache: &mut TextureCache,
                  tex_atlas: &mut impl TextureAtlas,
                  tile_set_path_with_category: PathRef,
                  layer: TileMapLayerKind,
@@ -960,7 +960,7 @@ impl TileCategory {
     }
 
     fn post_load(&mut self,
-                 tex_cache: &mut dyn TextureCache,
+                 tex_cache: &mut TextureCache,
                  tex_atlas: &mut impl TextureAtlas,
                  tile_set_path: PathRef,
                  layer: TileMapLayerKind)
@@ -1075,7 +1075,7 @@ impl TileSet {
     }
 
     fn post_load(&mut self,
-                 tex_cache: &mut dyn TextureCache,
+                 tex_cache: &mut TextureCache,
                  tex_atlas: &mut impl TextureAtlas,
                  tile_set_path: PathRef)
                  -> bool {
@@ -1184,7 +1184,7 @@ pub struct TileSets {
 }
 
 impl TileSets {
-    pub fn load(tex_cache: &mut dyn TextureCache,
+    pub fn load(tex_cache: &mut TextureCache,
                 use_packed_texture_atlas: bool,
                 skip_loading_tile_sets: bool) -> &'static Self {
         let mut instance = Self {
@@ -1411,7 +1411,7 @@ impl TileSets {
     //  objects/units/peasant/walk_sw/frame0.png
     //  objects/units/peasant/walk_sw/frame1.png
     //
-    fn load_all_layers(&mut self, tex_cache: &mut dyn TextureCache, use_packed_texture_atlas: bool) {
+    fn load_all_layers(&mut self, tex_cache: &mut TextureCache, use_packed_texture_atlas: bool) {
         for layer in TileMapLayerKind::iter() {
             let tile_set_path = layer.assets_path();
             if !self.load_tile_set(tex_cache, tile_set_path, layer, use_packed_texture_atlas) {
@@ -1421,7 +1421,7 @@ impl TileSets {
     }
 
     fn load_tile_set(&mut self,
-                     tex_cache: &mut dyn TextureCache,
+                     tex_cache: &mut TextureCache,
                      tile_set_path: PathRef,
                      layer: TileMapLayerKind,
                      use_packed_texture_atlas: bool)

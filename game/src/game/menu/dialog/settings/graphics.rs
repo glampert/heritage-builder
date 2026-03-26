@@ -4,7 +4,7 @@ use num_enum::TryFromPrimitive;
 use super::*;
 use crate::{
     engine::Engine,
-    render::TextureFilter,
+    render::texture::TextureFilter,
     game::config::GameConfigs,
 };
 
@@ -34,12 +34,12 @@ impl GraphicsSettings {
             SettingsWidgetKind::Checkbox,
             || {
                 let texture_settings = Engine::get().texture_cache().current_texture_settings();
-                texture_settings.gen_mipmaps
+                texture_settings.mipmaps
             },
-            |gen_mipmaps| {
+            |mipmaps| {
                 let tex_cache = Engine::get_mut().texture_cache_mut();
                 let mut texture_settings = tex_cache.current_texture_settings();
-                texture_settings.gen_mipmaps = gen_mipmaps;
+                texture_settings.mipmaps = mipmaps;
                 tex_cache.change_texture_settings(texture_settings);
                 GameConfigs::get_mut().engine.texture_settings = texture_settings;
             }

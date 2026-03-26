@@ -1,34 +1,114 @@
-use std::any::Any;
 use serde::{Serialize, Deserialize};
-use strum::{Display, VariantArray};
-use num_enum::TryFromPrimitive;
-use proc_macros::DrawDebugUi;
+use enum_dispatch::enum_dispatch;
+use strum::Display;
 
 use crate::{
-    file_sys::paths::PathRef,
-    ui::{UiSystem, UiRenderFrameBundle},
-    utils::{Color, Rect, RectTexCoords, Size, Vec2, time::Milliseconds, mem::RcMut},
+    ui::UiRenderFrameBundle,
+    utils::{Vec2, Size, Color, Rect, RectTexCoords, time::Milliseconds, mem::RcMut},
 };
+
+pub mod debug;
+pub mod texture;
 
 // ----------------------------------------------
 // Internal backend implementations
 // ----------------------------------------------
 
-pub(crate) mod wgpu;
-
-#[cfg(feature = "desktop")]
+//mod wgpu;
 mod opengl;
 
-pub mod backend {
-    // WGPU
-    pub type WgpuRenderSystem = super::wgpu::system::RenderSystem;
-    pub type WgpuTextureCache = super::wgpu::texture::TextureCache;
+#[enum_dispatch]
+enum RenderSystemBackendImpl {
+//    Wgpu(wgpu::WgpuRenderSystemBackend),
+    OpenGl(opengl::OpenGlRenderSystemBackend),
+}
 
-    // OpenGL
-    #[cfg(feature = "desktop")]
-    pub type OpenGlRenderSystem = super::opengl::system::RenderSystem;
-    #[cfg(feature = "desktop")]
-    pub type OpenGlTextureCache = super::opengl::texture::TextureCache;
+#[derive(Copy, Clone, Default, PartialEq, Eq, Display, Serialize, Deserialize)]
+pub enum RenderApi {
+    #[default]
+//    Wgpu,
+    OpenGl,
+}
+
+// ----------------------------------------------
+// RenderSystemBackend
+// ----------------------------------------------
+
+#[enum_dispatch(RenderSystemBackendImpl)]
+trait RenderSystemBackend: Sized {
+    // Initialization:
+    fn initialize(&mut self,
+                  params: &RenderSystemInitParams,
+                  tex_cache: &mut texture::TextureCache);
+
+    // Begin/End frame:
+    fn begin_frame(&mut self,
+                   viewport_size: Size,
+                   framebuffer_size: Size);
+
+    fn end_frame(&mut self,
+                 ui_frame_bundle: &mut UiRenderFrameBundle,
+                 tex_cache: &mut texture::TextureCache)
+                 -> RenderStats;
+
+    // Viewport/Framebuffer:
+    fn viewport(&self) -> Rect;
+    fn set_viewport_size(&mut self, new_size: Size);
+    fn set_framebuffer_size(&mut self, new_size: Size);
+
+    // UI (ImGui) Drawing:
+    fn begin_ui_render(&mut self);
+    fn end_ui_render(&mut self);
+
+    fn set_ui_draw_buffers(&mut self,
+                           vtx_buffer: &[imgui::DrawVert],
+                           idx_buffer: &[imgui::DrawIdx]);
+
+    fn draw_ui_elements(&mut self,
+                        first_index: u32,
+                        index_count: u32,
+                        texture: texture::TextureHandle,
+                        tex_cache: &mut texture::TextureCache,
+                        clip_rect: Rect);
+
+    // Draw commands:
+    fn draw_colored_indexed_triangles(&mut self,
+                                      vertices: &[Vec2],
+                                      indices: &[u16],
+                                      color: Color);
+
+    fn draw_textured_colored_rect(&mut self,
+                                  rect: Rect,
+                                  tex_coords: &RectTexCoords,
+                                  texture: texture::TextureHandle,
+                                  color: Color);
+
+    // Line/point debug drawing:
+    fn draw_line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color);
+    fn draw_point(&mut self, pt: Vec2, color: Color, size: f32);
+
+    // Texture Allocation:
+    fn new_texture_from_pixels(&mut self,
+                               name: &str,
+                               size: Size,
+                               pixels: &[u8],
+                               settings: texture::TextureSettings,
+                               allow_settings_change: bool)
+                               -> texture::TextureBackendImpl;
+
+    fn update_texture_pixels(&mut self,
+                             texture: &mut texture::TextureBackendImpl,
+                             offset_x: u32,
+                             offset_y: u32,
+                             size: Size,
+                             mip_level: u32,
+                             pixels: &[u8]);
+
+    fn update_texture_settings(&mut self,
+                               texture: &mut texture::TextureBackendImpl,
+                               settings: texture::TextureSettings);
+
+    fn release_texture(&mut self, texture: &mut texture::TextureBackendImpl);
 }
 
 // ----------------------------------------------
@@ -54,68 +134,200 @@ pub struct RenderStats {
 }
 
 // ----------------------------------------------
+// RenderSystemInitParams
+// ----------------------------------------------
+
+pub struct RenderSystemInitParams<'a> {
+    pub render_api: RenderApi,
+    pub viewport_size: Size,
+    pub framebuffer_size: Size,
+    pub clear_color: Color,
+    pub texture_settings: texture::TextureSettings,
+    pub tex_cache_initial_capacity: usize,
+    pub app_context: Option<&'a dyn std::any::Any>,
+}
+
+impl Default for RenderSystemInitParams<'_> {
+    fn default() -> Self {
+        Self {
+            render_api: RenderApi::default(),
+            viewport_size: Size::new(1024, 768),
+            framebuffer_size: Size::new(1024, 768),
+            clear_color: Color::black(),
+            texture_settings: texture::TextureSettings::default(),
+            tex_cache_initial_capacity: 128, // Hint only, can grow.
+            app_context: None,
+        }
+    }
+}
+
+// ----------------------------------------------
 // RenderSystem
 // ----------------------------------------------
 
-pub trait RenderSystem: Any {
-    fn as_any(&self) -> &dyn Any;
+pub struct RenderSystem {
+    render_api: RenderApi,
+    backend: RenderSystemBackendImpl,
+    tex_cache: texture::TextureCache,
+}
+
+impl RenderSystem {
+    pub fn render_api(&self) -> RenderApi {
+        self.render_api
+    }
+
+    // ----------------------
+    // Initialization:
+    // ----------------------
+
+    pub fn new(params: &RenderSystemInitParams) -> RcMut<Self> {
+        debug_assert!(params.viewport_size.is_valid());
+        debug_assert!(params.framebuffer_size.is_valid());
+
+        let mut render_system = RcMut::new_cyclic(|render_system| {
+            let backend = match params.render_api {
+//                RenderApi::Wgpu   => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new()),
+                RenderApi::OpenGl => RenderSystemBackendImpl::from(opengl::OpenGlRenderSystemBackend::new()),
+            };
+
+            let tex_cache = texture::TextureCache::new(
+                render_system,
+                params.tex_cache_initial_capacity,
+                params.texture_settings
+            );
+
+            Self { render_api: params.render_api, backend, tex_cache }
+        });
+
+        render_system.initialize(params);
+        render_system
+    }
+
+    // Post-construction initialization.
+    fn initialize(&mut self, params: &RenderSystemInitParams) {
+        self.tex_cache.initialize(params);
+        self.backend.initialize(params, &mut self.tex_cache);
+    }
 
     // ----------------------
     // Render frame markers:
     // ----------------------
 
-    fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size);
-    fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle) -> RenderStats;
+    #[inline]
+    pub fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size) {
+        self.backend.begin_frame(viewport_size, framebuffer_size);
+    }
+
+    #[inline]
+    pub fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle) -> RenderStats {
+        self.backend.end_frame(ui_frame_bundle, &mut self.tex_cache)
+    }
 
     // ----------------------
     // TextureCache access:
     // ----------------------
 
-    fn texture_cache(&self) -> &dyn TextureCache;
-    fn texture_cache_mut(&mut self) -> &mut dyn TextureCache;
+    #[inline]
+    pub fn texture_cache(&self) -> &texture::TextureCache {
+        &self.tex_cache
+    }
+
+    #[inline]
+    pub fn texture_cache_mut(&mut self) -> &mut texture::TextureCache {
+        &mut self.tex_cache
+    }
 
     // ----------------------
     // Viewport:
     // ----------------------
 
-    fn viewport(&self) -> Rect;
-    fn set_viewport_size(&mut self, new_size: Size);
-    fn set_framebuffer_size(&mut self, new_size: Size);
+    #[inline]
+    pub fn viewport(&self) -> Rect {
+        self.backend.viewport()
+    }
+
+    #[inline]
+    pub fn set_viewport_size(&mut self, new_size: Size) {
+        self.backend.set_viewport_size(new_size)
+    }
+
+    #[inline]
+    pub fn set_framebuffer_size(&mut self, new_size: Size) {
+        self.backend.set_framebuffer_size(new_size)
+    }
 
     // ----------------------
     // UI (ImGui) Drawing:
     // ----------------------
 
-    fn begin_ui_render(&mut self);
-    fn end_ui_render(&mut self);
+    #[inline]
+    pub fn begin_ui_render(&mut self) {
+        self.backend.begin_ui_render();
+    }
 
-    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[imgui::DrawVert], idx_buffer: &[imgui::DrawIdx]);
-    fn draw_ui_elements(&mut self, first_index: u32, index_count: u32, texture: TextureHandle, clip_rect: Rect);
+    #[inline]
+    pub fn end_ui_render(&mut self) {
+        self.backend.end_ui_render();
+    }
+
+    #[inline]
+    pub fn set_ui_draw_buffers(&mut self,
+                               vtx_buffer: &[imgui::DrawVert],
+                               idx_buffer: &[imgui::DrawIdx])
+    {
+        self.backend.set_ui_draw_buffers(vtx_buffer, idx_buffer);
+    }
+
+    #[inline]
+    pub fn draw_ui_elements(&mut self,
+                            first_index: u32,
+                            index_count: u32,
+                            texture: texture::TextureHandle,
+                            clip_rect: Rect)
+    {
+        self.backend.draw_ui_elements(first_index, index_count, texture, &mut self.tex_cache, clip_rect);
+    }
 
     // ----------------------
     // Draw commands:
     // ----------------------
 
     // This is used for emulated line drawing with custom thickness.
-    fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[u16], color: Color);
+    #[inline]
+    pub fn draw_colored_indexed_triangles(&mut self,
+                                          vertices: &[Vec2],
+                                          indices: &[u16],
+                                          color: Color)
+    {
+        self.backend.draw_colored_indexed_triangles(vertices, indices, color);
+    }
 
     // This is used for drawing sprite rectangles. There is a special case with
     // `texture=TextureHandle::white()` for drawing rectangles with color only.
-    fn draw_textured_colored_rect(&mut self,
-                                  rect: Rect,
-                                  tex_coords: &RectTexCoords,
-                                  texture: TextureHandle,
-                                  color: Color);
+    #[inline]
+    pub fn draw_textured_colored_rect(&mut self,
+                                      rect: Rect,
+                                      tex_coords: &RectTexCoords,
+                                      texture: texture::TextureHandle,
+                                      color: Color)
+    {
+        self.backend.draw_textured_colored_rect(rect, tex_coords, texture, color);
+    }
 
-    fn draw_colored_rect(&mut self, rect: Rect, color: Color) {
+    #[inline]
+    pub fn draw_colored_rect(&mut self, rect: Rect, color: Color) {
         // Just call this with the default white texture.
         self.draw_textured_colored_rect(rect,
                                         &RectTexCoords::DEFAULT,
-                                        TextureHandle::white(),
+                                        texture::TextureHandle::white(),
                                         color);
     }
 
-    fn draw_wireframe_rect_with_thickness(&mut self, rect: Rect, color: Color, thickness: f32) {
+    pub fn draw_wireframe_rect_with_thickness(&mut self,
+                                              rect: Rect,
+                                              color: Color,
+                                              thickness: f32)
+    {
         if is_rect_fully_offscreen(&self.viewport(), &rect) {
             return; // Cull if fully offscreen.
         }
@@ -133,11 +345,12 @@ pub trait RenderSystem: Any {
     // This can handle straight lines efficiently but might produce discontinuities
     // at connecting edges of rectangles and other polygons. To draw connecting
     // lines/polygons use draw_polyline_with_thickness().
-    fn draw_line_with_thickness(&mut self,
-                                from_pos: Vec2,
-                                to_pos: Vec2,
-                                color: Color,
-                                thickness: f32) {
+    pub fn draw_line_with_thickness(&mut self,
+                                    from_pos: Vec2,
+                                    to_pos: Vec2,
+                                    color: Color,
+                                    thickness: f32)
+    {
         if is_line_fully_offscreen(&self.viewport(), &from_pos, &to_pos) {
             return; // Cull if fully offscreen.
         }
@@ -147,7 +360,7 @@ pub trait RenderSystem: Any {
 
         // Normalize and rotate 90° to get perpendicular vector
         let nx = -d.y / length;
-        let ny = d.x / length;
+        let ny =  d.x / length;
 
         let offset_x = nx * (thickness / 2.0);
         let offset_y = ny * (thickness / 2.0);
@@ -171,12 +384,12 @@ pub trait RenderSystem: Any {
 
     // Handles connecting lines or closed polygons with seamless mitered joints.
     // Slower but with correct visual results and no seams.
-    fn draw_polyline_with_thickness(&mut self,
-                                    points: &[Vec2],
-                                    color: Color,
-                                    thickness: f32,
-                                    is_closed: bool) {
-
+    pub fn draw_polyline_with_thickness(&mut self,
+                                        points: &[Vec2],
+                                        color: Color,
+                                        thickness: f32,
+                                        is_closed: bool)
+    {
         const MAX_POINTS:   usize = 32;
         const MAX_VERTICES: usize = 2 * MAX_POINTS;
         const MAX_INDICES:  usize = 6 * MAX_POINTS;
@@ -257,14 +470,21 @@ pub trait RenderSystem: Any {
     // Debug drawing:
     // ----------------------
 
-    // "Fast" line and point drawing, mainly used for debugging.
+    // Simple line and point drawing, mainly used for debugging.
     // These lines and points are batched separately and drawn
     // on top of all sprites so they will not respect draw order
     // in relation to textured sprites and colored polygons.
-    fn draw_line_fast(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color);
-    fn draw_point_fast(&mut self, pt: Vec2, color: Color, size: f32);
+    #[inline]
+    pub fn draw_line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
+        self.backend.draw_line(from_pos, to_pos, from_color, to_color);
+    }
 
-    fn draw_wireframe_rect_fast(&mut self, rect: Rect, color: Color) {
+    #[inline]
+    pub fn draw_point(&mut self, pt: Vec2, color: Color, size: f32) {
+        self.backend.draw_point(pt, color, size);
+    }
+
+    pub fn draw_wireframe_rect(&mut self, rect: Rect, color: Color) {
         if is_rect_fully_offscreen(&self.viewport(), &rect) {
             return; // Cull if fully offscreen.
         }
@@ -278,79 +498,49 @@ pub trait RenderSystem: Any {
         ];
 
         for pair in vertices.windows(2) {
-            self.draw_line_fast(pair[0], pair[1], color, color);
-        }
-    }
-}
-
-// ----------------------------------------------
-// RenderSystemFactory
-// ----------------------------------------------
-
-pub trait RenderSystemFactory: Sized {
-    fn new(viewport_size: Size,
-           framebuffer_size: Size,
-           clear_color: Color,
-           texture_settings: TextureSettings,
-           app_context: Option<&dyn std::any::Any>) -> Self;
-}
-
-// ----------------------------------------------
-// RenderSystemBuilder
-// ----------------------------------------------
-
-pub struct RenderSystemBuilder<'a> {
-    viewport_size: Size,
-    framebuffer_size: Size,
-    clear_color: Color,
-    texture_settings: TextureSettings,
-    app_context: Option<&'a dyn Any>,
-}
-
-impl<'a> RenderSystemBuilder<'a> {
-    pub fn new() -> Self {
-        Self {
-            viewport_size: Size::new(1024, 768),
-            framebuffer_size: Size::new(1024, 768),
-            clear_color: Color::black(),
-            texture_settings: TextureSettings::default(),
-            app_context: None,
+            self.draw_line(pair[0], pair[1], color, color);
         }
     }
 
-    pub fn viewport_size(&mut self, size: Size) -> &mut Self {
-        self.viewport_size = size;
-        self
-    }
+    // ----------------------
+    // Texture Allocation:
+    // ----------------------
 
-    pub fn framebuffer_size(&mut self, size: Size) -> &mut Self {
-        self.framebuffer_size = size;
-        self
-    }
-
-    pub fn clear_color(&mut self, color: Color) -> &mut Self {
-        self.clear_color = color;
-        self
-    }
-
-    pub fn texture_settings(&mut self, settings: TextureSettings) -> &mut Self {
-        self.texture_settings = settings;
-        self
-    }
-
-    pub fn app_context(&mut self, context: &'a dyn Any) -> &mut Self {
-        self.app_context = Some(context);
-        self
-    }
-
-    pub fn build<RenderSystemBackendImpl>(&self) -> RenderSystemBackendImpl
-        where RenderSystemBackendImpl: RenderSystem + RenderSystemFactory + 'static
+    #[inline]
+    fn new_texture_from_pixels(&mut self,
+                               name: &str,
+                               size: Size,
+                               pixels: &[u8],
+                               settings: texture::TextureSettings,
+                               allow_settings_change: bool)
+                               -> texture::TextureBackendImpl
     {
-        RenderSystemBackendImpl::new(self.viewport_size,
-                                     self.framebuffer_size,
-                                     self.clear_color,
-                                     self.texture_settings,
-                                     self.app_context)
+        self.backend.new_texture_from_pixels(name, size, pixels, settings, allow_settings_change)
+    }
+
+    #[inline]
+    fn update_texture_pixels(&mut self,
+                             texture: &mut texture::TextureBackendImpl,
+                             offset_x: u32,
+                             offset_y: u32,
+                             size: Size,
+                             mip_level: u32,
+                             pixels: &[u8])
+    {
+        self.backend.update_texture_pixels(texture, offset_x, offset_y, size, mip_level, pixels);
+    }
+
+    #[inline]
+    fn update_texture_settings(&mut self,
+                               texture: &mut texture::TextureBackendImpl,
+                               settings: texture::TextureSettings)
+    {
+        self.backend.update_texture_settings(texture, settings);
+    }
+
+    #[inline]
+    fn release_texture(&mut self, texture: &mut texture::TextureBackendImpl) {
+        self.backend.release_texture(texture);
     }
 }
 
@@ -393,228 +583,4 @@ pub fn is_point_fully_offscreen(viewport: &Rect, pt: &Vec2) -> bool {
         return true;
     }
     false
-}
-
-// ----------------------------------------------
-// TextureHandle
-// ----------------------------------------------
-
-#[derive(Copy, Clone)]
-pub enum TextureHandle {
-    Invalid,    // Returns built-in dummy_texture.
-    White,      // Returns built-in white_texture.
-    Index(u32), // Index into TextureCache array of textures.
-}
-
-impl TextureHandle {
-    #[inline]
-    pub const fn invalid() -> Self {
-        TextureHandle::Invalid
-    }
-
-    #[inline]
-    pub const fn white() -> Self {
-        TextureHandle::White
-    }
-
-    #[inline]
-    pub fn is_valid(&self) -> bool {
-        !matches!(self, TextureHandle::Invalid)
-    }
-
-    // Pack/unpack into usize for ImGui TextureId.
-    // Tag in the top 2 bits, index in the lower 30 bits.
-    // Supports up to 2^30 (~1 billion) texture indices.
-    const TAG_SHIFT: u32 = usize::BITS - 2;
-    const INDEX_MASK: usize = (1 << Self::TAG_SHIFT) - 1;
-
-    #[inline]
-    pub fn pack(&self) -> usize {
-        match self {
-            Self::Invalid => 0,
-            Self::White   => 1 << Self::TAG_SHIFT,
-            Self::Index(idx) => (2 << Self::TAG_SHIFT) | (*idx as usize & Self::INDEX_MASK),
-        }
-    }
-
-    #[inline]
-    pub fn unpack(value: usize) -> Self {
-        let tag = value >> Self::TAG_SHIFT;
-        let idx = (value & Self::INDEX_MASK) as u32;
-        match tag {
-            0 => { debug_assert_eq!(idx, 0); Self::Invalid }
-            1 => { debug_assert_eq!(idx, 0); Self::White }
-            2 => Self::Index(idx),
-            _ => panic!("Invalid packed TextureHandle!"),
-        }
-    }
-}
-
-impl Default for TextureHandle {
-    #[inline]
-    fn default() -> Self {
-        TextureHandle::invalid()
-    }
-}
-
-pub struct NativeTextureHandle {
-    pub bits: usize,
-}
-
-// ----------------------------------------------
-// TextureSettings
-// ----------------------------------------------
-
-#[repr(u32)]
-#[derive(Copy, Clone, Display, VariantArray, TryFromPrimitive, Serialize, Deserialize)]
-pub enum TextureFilter {
-    Nearest,
-    Linear,
-    NearestMipmapNearest,
-    LinearMipmapNearest,
-    NearestMipmapLinear,
-    LinearMipmapLinear,
-}
-
-#[repr(u32)]
-#[derive(Copy, Clone, Display, VariantArray, TryFromPrimitive, Serialize, Deserialize)]
-pub enum TextureWrapMode {
-    Repeat,
-    ClampToEdge,
-    ClampToBorder,
-}
-
-#[derive(Copy, Clone, DrawDebugUi, Serialize, Deserialize)]
-pub struct TextureSettings {
-    pub filter: TextureFilter,
-    pub wrap_mode: TextureWrapMode,
-    pub gen_mipmaps: bool,
-}
-
-impl Default for TextureSettings {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            filter: TextureFilter::Nearest,
-            wrap_mode: TextureWrapMode::ClampToEdge,
-            gen_mipmaps: false,
-        }
-    }
-}
-
-// ----------------------------------------------
-// TextureCache
-// ----------------------------------------------
-
-pub trait TextureCache: Any {
-    fn as_any(&self) -> &dyn Any;
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem);
-    fn to_native_handle(&self, handle: TextureHandle) -> NativeTextureHandle;
-
-    // Tries to find an already loaded texture with the given name or file path.
-    fn find_loaded_texture(&self, name_or_file_path: &str) -> Option<TextureHandle>;
-
-    // Load texture with default settings, which can be overridden by change_texture_settings().
-    fn load_texture(&mut self, file_path: PathRef) -> TextureHandle;
-
-    // If settings are provided they will be used and will not be affected by change_texture_settings().
-    fn load_texture_with_settings(&mut self,
-                                  file_path: PathRef,
-                                  settings: Option<TextureSettings>)
-                                  -> TextureHandle;
-
-    // Global texture settings override:
-    fn change_texture_settings(&mut self, settings: TextureSettings);
-    fn current_texture_settings(&self) -> TextureSettings;
-
-    // If settings are provided they will be used and will not be affected by change_texture_settings().
-    fn new_uninitialized_texture(&mut self,
-                                 name: &str,
-                                 size: Size,
-                                 settings: Option<TextureSettings>)
-                                 -> TextureHandle;
-
-    // New texture with initial pixel data.
-    fn new_initialized_texture(&mut self,
-                               name: &str,
-                               size: Size,
-                               pixels: &[u8],
-                               settings: Option<TextureSettings>)
-                               -> TextureHandle;
-
-    // Update texture mip-level sub-rect or whole texture.
-    fn update_texture(&mut self,
-                      handle: TextureHandle,
-                      offset_x: u32,
-                      offset_y: u32,
-                      size: Size,
-                      mip_level: u32,
-                      pixels: &[u8]);
-
-    // Explicitly unloads a texture. `handle` is set to invalid after this call.
-    fn release_texture(&mut self, handle: &mut TextureHandle);
-}
-
-// ----------------------------------------------
-// DebugDraw
-// ----------------------------------------------
-
-pub struct DebugDraw {
-    render_system: RcMut<backend::OpenGlRenderSystem>,
-}
-
-impl DebugDraw {
-    pub fn new(render_system: RcMut<backend::OpenGlRenderSystem>) -> Self {
-        Self { render_system }
-    }
-
-    #[inline]
-    pub fn texture_cache(&self) -> &dyn TextureCache {
-        self.render_system.texture_cache()
-    }
-
-    #[inline]
-    pub fn texture_cache_mut(&mut self) -> &mut dyn TextureCache {
-        self.render_system.texture_cache_mut()
-    }
-
-    #[inline]
-    pub fn point(&mut self, pt: Vec2, color: Color, size: f32) {
-        self.render_system.draw_point_fast(pt, color, size);
-    }
-
-    #[inline]
-    pub fn line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
-        self.render_system.draw_line_fast(from_pos, to_pos, from_color, to_color);
-    }
-
-    #[inline]
-    pub fn line_with_thickness(&mut self, from_pos: Vec2, to_pos: Vec2, color: Color, thickness: f32) {
-        self.render_system.draw_line_with_thickness(from_pos, to_pos, color, thickness);
-    }
-
-    #[inline]
-    pub fn wireframe_rect(&mut self, rect: Rect, color: Color) {
-        self.render_system.draw_wireframe_rect_fast(rect, color);
-    }
-
-    #[inline]
-    pub fn wireframe_rect_with_thickness(&mut self, rect: Rect, color: Color, thickness: f32) {
-        self.render_system.draw_wireframe_rect_with_thickness(rect, color, thickness);
-    }
-
-    #[inline]
-    pub fn colored_rect(&mut self, rect: Rect, color: Color) {
-        self.render_system.draw_colored_rect(rect, color);
-    }
-
-    #[inline]
-    pub fn textured_colored_rect(&mut self,
-                                 rect: Rect,
-                                 tex_coords: &RectTexCoords,
-                                 texture: TextureHandle,
-                                 color: Color)
-    {
-        self.render_system.draw_textured_colored_rect(rect, tex_coords, texture, color);
-    }
 }

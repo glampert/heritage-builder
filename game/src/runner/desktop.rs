@@ -3,11 +3,11 @@ use crate::{
     log,
     platform,
     file_sys::paths,
-    render::RenderSystemBuilder,
-    engine::{Engine, backend::*},
-    app::{Application, ApplicationBuilder},
     debug::log_viewer::LogViewer,
+    engine::{Engine, backend::*},
     utils::{time::PerfTimer, mem::RcMut},
+    app::{Application, ApplicationBuilder},
+    render::{RenderSystem, RenderSystemInitParams},
 };
 
 // ----------------------------------------------
@@ -38,7 +38,6 @@ impl DesktopRunner {
 
         // Early initialization:
         LogViewer::initialize();
-        platform::set_main_thread();
         platform::initialize();
         paths::set_working_directory(paths::base_path());
 
@@ -46,6 +45,7 @@ impl DesktopRunner {
 
         let configs = GameConfigs::load();
         log::info!(log::channel!("engine"), "GameConfigs Loaded.");
+
         log::set_level(configs.engine.log_level);
 
         // Initialize Application:
@@ -62,18 +62,17 @@ impl DesktopRunner {
         log::info!(log::channel!("engine"), "Application initialized.");
 
         // Initialize Render System:
-        let render_system: RcMut<RenderSystemBackendImpl> = RcMut::new({
-            let mut builder = RenderSystemBuilder::new();
-            builder
-                .viewport_size(app.window_size())
-                .framebuffer_size(app.framebuffer_size())
-                .clear_color(configs.engine.window_background_color)
-                .texture_settings(configs.engine.texture_settings);
-            if let Some(ctx) = app.app_context() {
-                builder.app_context(ctx);
+        let render_system = RenderSystem::new(
+            &RenderSystemInitParams {
+                render_api: configs.engine.render_api,
+                clear_color: configs.engine.window_background_color,
+                texture_settings: configs.engine.texture_settings,
+                viewport_size: app.window_size(),
+                framebuffer_size: app.framebuffer_size(),
+                app_context: app.app_context(),
+                ..Default::default()
             }
-            builder.build()
-        });
+        );
         log::info!(log::channel!("engine"), "RenderSystem initialized.");
 
         let engine = Engine::start(&configs.engine, app, render_system);

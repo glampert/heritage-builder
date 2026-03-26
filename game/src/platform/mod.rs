@@ -57,6 +57,8 @@ pub fn build_profile() -> BuildProfile {
 // ----------------------------------------------
 
 pub fn initialize() {
+    set_main_thread();
+
     let build_profile = build_profile();
     let run_environment = run_environment();
 

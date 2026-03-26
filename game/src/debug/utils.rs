@@ -3,7 +3,7 @@ use rand::SeedableRng;
 use crate::{
     log,
     ui::{self, UiSystem, UiFontScale},
-    render::{RenderStats, DebugDraw},
+    render::{RenderStats, debug::DebugDraw},
     pathfind::{Graph, Search},
     game::{
         world::World,

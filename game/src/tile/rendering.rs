@@ -15,7 +15,7 @@ use super::{
 use crate::{
     debug::{self},
     ui::UiSystem,
-    render::{RenderSystem, DebugDraw},
+    render::{RenderSystem, debug::DebugDraw},
     utils::{
         constants::*,
         mem::RawPtr, Color, Vec2,
@@ -137,7 +137,7 @@ impl TileMapRenderer {
     }
 
     pub fn draw_map(&mut self,
-                    render_sys: &mut impl RenderSystem,
+                    render_sys: &mut RenderSystem,
                     debug_draw: &mut DebugDraw,
                     ui_sys: &UiSystem,
                     tile_map: &TileMap,
@@ -169,7 +169,7 @@ impl TileMapRenderer {
     }
 
     fn draw_terrain_layer(&mut self,
-                          render_sys: &mut impl RenderSystem,
+                          render_sys: &mut RenderSystem,
                           debug_draw: &mut DebugDraw,
                           ui_sys: &UiSystem,
                           tile_map: &TileMap,
@@ -217,7 +217,7 @@ impl TileMapRenderer {
     }
 
     fn draw_objects_layer(&mut self,
-                          render_sys: &mut impl RenderSystem,
+                          render_sys: &mut RenderSystem,
                           debug_draw: &mut DebugDraw,
                           ui_sys: &UiSystem,
                           tile_map: &TileMap,
@@ -309,7 +309,7 @@ impl TileMapRenderer {
     }
 
     fn draw_isometric_grid(&self,
-                           render_sys: &mut impl RenderSystem,
+                           render_sys: &mut RenderSystem,
                            tile_map: &TileMap,
                            transform: WorldToScreenTransform,
                            visible_range: CellRange) {
@@ -375,7 +375,7 @@ impl TileMapRenderer {
         }
     }
 
-    fn draw_tile(render_sys: &mut impl RenderSystem,
+    fn draw_tile(render_sys: &mut RenderSystem,
                  debug_draw: &mut DebugDraw,
                  stats: &mut TileMapRenderStats,
                  ui_sys: &UiSystem,
@@ -420,7 +420,7 @@ impl TileMapRenderer {
         debug::utils::draw_tile_debug(debug_draw, ui_sys, tile_screen_rect, transform, tile, flags);
     }
 
-    fn draw_road_placement_overlay(render_sys: &mut impl RenderSystem,
+    fn draw_road_placement_overlay(render_sys: &mut RenderSystem,
                                    transform: WorldToScreenTransform,
                                    tile: &Tile,
                                    tile_map: &TileMap) {

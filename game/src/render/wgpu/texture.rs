@@ -38,38 +38,38 @@ impl WgpuTexture {
 
 #[derive(Copy, Clone)]
 struct WgpuTextureSettings {
-    filter:      render::TextureFilter,
-    wrap_mode:   render::TextureWrapMode,
-    gen_mipmaps: bool,
+    filter:    render::texture::TextureFilter,
+    wrap_mode: render::texture::TextureWrapMode,
+    mipmaps:   bool,
 }
 
-impl From<render::TextureSettings> for WgpuTextureSettings {
-    fn from(s: render::TextureSettings) -> Self {
+impl From<render::texture::TextureSettings> for WgpuTextureSettings {
+    fn from(s: render::texture::TextureSettings) -> Self {
         Self {
-            filter:      s.filter,
-            wrap_mode:   s.wrap_mode,
-            gen_mipmaps: s.gen_mipmaps,
+            filter:    s.filter,
+            wrap_mode: s.wrap_mode,
+            mipmaps:   s.mipmaps,
         }
     }
 }
 
-fn to_wgpu_filter_mode(filter: render::TextureFilter) -> (wgpu::FilterMode, wgpu::FilterMode, wgpu::MipmapFilterMode) {
+fn to_wgpu_filter_mode(filter: render::texture::TextureFilter) -> (wgpu::FilterMode, wgpu::FilterMode, wgpu::MipmapFilterMode) {
     // Returns (min_filter, mag_filter, mipmap_filter).
     match filter {
-        render::TextureFilter::Nearest              => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest),
-        render::TextureFilter::Linear               => (wgpu::FilterMode::Linear,  wgpu::FilterMode::Linear,  wgpu::MipmapFilterMode::Nearest),
-        render::TextureFilter::NearestMipmapNearest => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest),
-        render::TextureFilter::LinearMipmapNearest  => (wgpu::FilterMode::Linear,  wgpu::FilterMode::Linear,  wgpu::MipmapFilterMode::Nearest),
-        render::TextureFilter::NearestMipmapLinear  => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Linear),
-        render::TextureFilter::LinearMipmapLinear   => (wgpu::FilterMode::Linear,  wgpu::FilterMode::Linear,  wgpu::MipmapFilterMode::Linear),
+        render::texture::TextureFilter::Nearest              => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest),
+        render::texture::TextureFilter::Linear               => (wgpu::FilterMode::Linear,  wgpu::FilterMode::Linear,  wgpu::MipmapFilterMode::Nearest),
+        render::texture::TextureFilter::NearestMipmapNearest => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest),
+        render::texture::TextureFilter::LinearMipmapNearest  => (wgpu::FilterMode::Linear,  wgpu::FilterMode::Linear,  wgpu::MipmapFilterMode::Nearest),
+        render::texture::TextureFilter::NearestMipmapLinear  => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Linear),
+        render::texture::TextureFilter::LinearMipmapLinear   => (wgpu::FilterMode::Linear,  wgpu::FilterMode::Linear,  wgpu::MipmapFilterMode::Linear),
     }
 }
 
-fn to_wgpu_address_mode(wrap: render::TextureWrapMode, device: &wgpu::Device) -> wgpu::AddressMode {
+fn to_wgpu_address_mode(wrap: render::texture::TextureWrapMode, device: &wgpu::Device) -> wgpu::AddressMode {
     match wrap {
-        render::TextureWrapMode::Repeat        => wgpu::AddressMode::Repeat,
-        render::TextureWrapMode::ClampToEdge   => wgpu::AddressMode::ClampToEdge,
-        render::TextureWrapMode::ClampToBorder => {
+        render::texture::TextureWrapMode::Repeat        => wgpu::AddressMode::Repeat,
+        render::texture::TextureWrapMode::ClampToEdge   => wgpu::AddressMode::ClampToEdge,
+        render::texture::TextureWrapMode::ClampToBorder => {
             if device.features().contains(wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER) {
                 wgpu::AddressMode::ClampToBorder
             } else {
@@ -115,6 +115,8 @@ fn create_bind_group(
 // TextureCache
 // ----------------------------------------------
 
+// TODO: Tidy
+/*
 struct TexCacheEntry {
     texture: WgpuTexture,
     allow_settings_change: bool,
@@ -123,7 +125,7 @@ struct TexCacheEntry {
 pub struct TextureCache {
     lookup:   PreHashedKeyMap<StringHash, usize>,
     textures: Slab<TexCacheEntry>,
-    settings: render::TextureSettings,
+    settings: render::texture::TextureSettings,
 
     device: wgpu::Device,
     queue:  wgpu::Queue,
@@ -138,14 +140,14 @@ pub struct TextureCache {
 impl TextureCache {
     pub fn new(
         initial_capacity: usize,
-        settings: render::TextureSettings,
+        settings: render::texture::TextureSettings,
         device: wgpu::Device,
         queue: wgpu::Queue,
         texture_bind_group_layout: wgpu::BindGroupLayout,
     ) -> Self {
         log::info!(log::channel!("render"),
             "Texture settings: filter:{}, wrap:{}, mipmaps:{}",
-            settings.filter, settings.wrap_mode, settings.gen_mipmaps);
+            settings.filter, settings.wrap_mode, settings.mipmaps);
 
         let mut cache = Self {
             lookup: PreHashedKeyMap::default(),
@@ -247,7 +249,7 @@ impl TextureCache {
             depth_or_array_layers: 1,
         };
 
-        let mip_level_count = if settings.gen_mipmaps {
+        let mip_level_count = if settings.mipmaps {
             (size.width.max(size.height) as f32).log2().floor() as u32 + 1
         } else {
             1
@@ -283,7 +285,7 @@ impl TextureCache {
             );
         }
 
-        // TODO: generate mipmaps if settings.gen_mipmaps (requires compute or blit passes).
+        // TODO: generate mipmaps if settings.mipmaps (requires compute or blit passes).
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = create_sampler(&self.device, settings);
@@ -301,7 +303,7 @@ impl TextureCache {
             sampler,
             bind_group,
             size,
-            has_mipmaps: settings.gen_mipmaps && mip_level_count > 1,
+            has_mipmaps: settings.mipmaps && mip_level_count > 1,
             name: name.to_string(),
             settings,
         }
@@ -312,7 +314,7 @@ impl TextureCache {
         name: &str,
         size: Size,
         pixels: Option<&[u8]>,
-        settings: Option<render::TextureSettings>,
+        settings: Option<render::texture::TextureSettings>,
     ) -> TextureHandle {
         debug_assert!(!name.is_empty());
         debug_assert!(size.is_valid());
@@ -331,7 +333,7 @@ impl TextureCache {
     fn load_texture_internal(
         &mut self,
         file_path: PathRef,
-        settings: Option<render::TextureSettings>,
+        settings: Option<render::texture::TextureSettings>,
     ) -> TextureHandle {
         let loaded = self.find_texture_internal(file_path.as_str());
         if loaded.is_valid() {
@@ -373,10 +375,10 @@ impl TextureCache {
     }
 
     fn rebuild_texture_resources(&mut self, entry: &mut TexCacheEntry) {
-        let settings = WgpuTextureSettings::from(render::TextureSettings {
+        let settings = WgpuTextureSettings::from(render::texture::TextureSettings {
             filter:      self.settings.filter,
             wrap_mode:   self.settings.wrap_mode,
-            gen_mipmaps: self.settings.gen_mipmaps,
+            mipmaps: self.settings.mipmaps,
         });
 
         entry.texture.sampler = create_sampler(&self.device, settings);
@@ -413,15 +415,15 @@ impl render::TextureCache for TextureCache {
     fn load_texture_with_settings(
         &mut self,
         file_path: PathRef,
-        settings: Option<render::TextureSettings>,
+        settings: Option<render::texture::TextureSettings>,
     ) -> TextureHandle {
         self.load_texture_internal(file_path, settings)
     }
 
-    fn change_texture_settings(&mut self, settings: render::TextureSettings) {
+    fn change_texture_settings(&mut self, settings: render::texture::TextureSettings) {
         log::info!(log::channel!("render"),
             "Changing texture settings: filter:{}, wrap:{}, mipmaps:{}",
-            settings.filter, settings.wrap_mode, settings.gen_mipmaps);
+            settings.filter, settings.wrap_mode, settings.mipmaps);
 
         self.settings = settings;
 
@@ -447,13 +449,13 @@ impl render::TextureCache for TextureCache {
         }
     }
 
-    fn current_texture_settings(&self) -> render::TextureSettings { self.settings }
+    fn current_texture_settings(&self) -> render::texture::TextureSettings { self.settings }
 
     fn new_uninitialized_texture(
         &mut self,
         name: &str,
         size: Size,
-        settings: Option<render::TextureSettings>,
+        settings: Option<render::texture::TextureSettings>,
     ) -> TextureHandle {
         self.new_texture_with_data_internal(name, size, None, settings)
     }
@@ -463,7 +465,7 @@ impl render::TextureCache for TextureCache {
         name: &str,
         size: Size,
         pixels: &[u8],
-        settings: Option<render::TextureSettings>,
+        settings: Option<render::texture::TextureSettings>,
     ) -> TextureHandle {
         self.new_texture_with_data_internal(name, size, Some(pixels), settings)
     }
@@ -522,7 +524,7 @@ impl render::TextureCache for TextureCache {
                 let mut current_filter_index = current_settings.filter as usize;
                 if ui.combo("Filter",
                     &mut current_filter_index,
-                    render::TextureFilter::VARIANTS,
+                    render::texture::TextureFilter::VARIANTS,
                     |v| v.to_string().into())
                 {
                     settings_changed = true;
@@ -531,22 +533,22 @@ impl render::TextureCache for TextureCache {
                 let mut current_wrap_mode_index = current_settings.wrap_mode as usize;
                 if ui.combo("Wrap Mode",
                     &mut current_wrap_mode_index,
-                    render::TextureWrapMode::VARIANTS,
+                    render::texture::TextureWrapMode::VARIANTS,
                     |v| v.to_string().into())
                 {
                     settings_changed = true;
                 }
 
-                let mut gen_mipmaps = current_settings.gen_mipmaps;
-                if ui.checkbox("Mipmaps", &mut gen_mipmaps) {
+                let mut mipmaps = current_settings.mipmaps;
+                if ui.checkbox("Mipmaps", &mut mipmaps) {
                     settings_changed = true;
                 }
 
                 if settings_changed {
                     use num_enum::TryFromPrimitive;
-                    current_settings.filter = render::TextureFilter::try_from_primitive(current_filter_index as u32).unwrap();
-                    current_settings.wrap_mode = render::TextureWrapMode::try_from_primitive(current_wrap_mode_index as u32).unwrap();
-                    current_settings.gen_mipmaps = gen_mipmaps;
+                    current_settings.filter = render::texture::TextureFilter::try_from_primitive(current_filter_index as u32).unwrap();
+                    current_settings.wrap_mode = render::texture::TextureWrapMode::try_from_primitive(current_wrap_mode_index as u32).unwrap();
+                    current_settings.mipmaps = mipmaps;
                     self.change_texture_settings(current_settings);
                 }
             }
@@ -587,3 +589,4 @@ impl render::TextureCache for TextureCache {
         }
     }
 }
+*/

@@ -6,9 +6,9 @@ use crate::{
     save::{self, *},
     ui::UiSystem,
     tile::rendering,
-    render::TextureSettings,
-    sound::SoundGlobalSettings,
     utils::{Color, Size},
+    sound::SoundGlobalSettings,
+    render::{RenderApi, texture::TextureSettings},
     file_sys::{self, paths::{self, PathRef, AssetPath}},
     app::{ApplicationWindowMode, ApplicationContentScale},
 };
@@ -130,6 +130,7 @@ pub struct EngineConfigs {
     pub content_scale: ApplicationContentScale, // Optional override. Defaults to System.
 
     // Graphics:
+    pub render_api: RenderApi,
     pub use_packed_texture_atlas: bool,
     #[debug_ui(nested)]
     pub texture_settings: TextureSettings,
@@ -159,6 +160,7 @@ impl Default for EngineConfigs {
             content_scale: ApplicationContentScale::default(),
 
             // Graphics:
+            render_api: RenderApi::default(),
             use_packed_texture_atlas: false,
             texture_settings: TextureSettings::default(),
 

@@ -10,8 +10,8 @@ use super::{sets::TileTexInfo, TileMapLayerKind};
 use crate::{
     log,
     save::{self, SaveState},
-    render::{TextureCache, TextureHandle, TextureSettings},
     file_sys::{self, paths::{self, PathRef, FixedPath}},
+    render::texture::{TextureCache, TextureHandle, TextureSettings},
     utils::{
         Size,
         RectTexCoords,
@@ -25,8 +25,8 @@ use crate::{
 // ----------------------------------------------
 
 pub trait TextureAtlas {
-    fn load_texture(&mut self, tex_cache: &mut dyn TextureCache, texture_path: PathRef) -> TileTexInfo;
-    fn commit_textures(&self, tex_cache: &mut dyn TextureCache);
+    fn load_texture(&mut self, tex_cache: &mut TextureCache, texture_path: PathRef) -> TileTexInfo;
+    fn commit_textures(&self, tex_cache: &mut TextureCache);
     fn save_textures_to_file(&self, base_path: PathRef);
 }
 
@@ -43,14 +43,14 @@ pub struct PassthroughTextureAtlas {
 
 impl PassthroughTextureAtlas {
     #[inline]
-    pub fn new(layer: TileMapLayerKind, _tex_cache: &mut dyn TextureCache) -> Self {
+    pub fn new(layer: TileMapLayerKind, _tex_cache: &mut TextureCache) -> Self {
         Self { layer }
     }
 }
 
 impl TextureAtlas for PassthroughTextureAtlas {
     #[inline]
-    fn load_texture(&mut self, tex_cache: &mut dyn TextureCache, texture_path: PathRef) -> TileTexInfo {
+    fn load_texture(&mut self, tex_cache: &mut TextureCache, texture_path: PathRef) -> TileTexInfo {
         debug_assert!(!texture_path.is_empty());
         let file_path = paths::assets_path().join(texture_path);
         let texture = {
@@ -66,7 +66,7 @@ impl TextureAtlas for PassthroughTextureAtlas {
     }
 
     #[inline]
-    fn commit_textures(&self, _tex_cache: &mut dyn TextureCache) {}
+    fn commit_textures(&self, _tex_cache: &mut TextureCache) {}
 
     #[inline]
     fn save_textures_to_file(&self, _base_path: PathRef) {}
@@ -86,13 +86,13 @@ pub struct RuntimePackedTextureAtlas {
 
 impl RuntimePackedTextureAtlas {
     #[inline]
-    pub fn new(layer: TileMapLayerKind, _tex_cache: &mut dyn TextureCache) -> Self {
+    pub fn new(layer: TileMapLayerKind, _tex_cache: &mut TextureCache) -> Self {
         Self { layer, packer: packer::AtlasPacker::new(layer) }
     }
 }
 
 impl TextureAtlas for RuntimePackedTextureAtlas {
-    fn load_texture(&mut self, tex_cache: &mut dyn TextureCache, texture_path: PathRef) -> TileTexInfo {
+    fn load_texture(&mut self, tex_cache: &mut TextureCache, texture_path: PathRef) -> TileTexInfo {
         debug_assert!(!texture_path.is_empty());
         if let Some(image) = load_image_file(paths::assets_path().into(), texture_path) {
             self.packer.pack_image(tex_cache, texture_path, image)
@@ -101,7 +101,7 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
         }
     }
 
-    fn commit_textures(&self, tex_cache: &mut dyn TextureCache) {
+    fn commit_textures(&self, tex_cache: &mut TextureCache) {
         log::info!(log::channel!("atlas"),
                    "Committing texture atlas '{}' to graphics memory...",
                    self.layer);
@@ -177,7 +177,7 @@ pub struct OfflinePackedTextureAtlas {
 }
 
 impl OfflinePackedTextureAtlas {
-    pub fn new(layer: TileMapLayerKind, tex_cache: &mut dyn TextureCache) -> Self {
+    pub fn new(layer: TileMapLayerKind, tex_cache: &mut TextureCache) -> Self {
         let layer_name = layer.lowercase_name();
 
         let cache_path =
@@ -243,7 +243,7 @@ impl OfflinePackedTextureAtlas {
 }
 
 impl TextureAtlas for OfflinePackedTextureAtlas {
-    fn load_texture(&mut self, _tex_cache: &mut dyn TextureCache, texture_path: PathRef) -> TileTexInfo {
+    fn load_texture(&mut self, _tex_cache: &mut TextureCache, texture_path: PathRef) -> TileTexInfo {
         debug_assert!(!texture_path.is_empty());
         let key = hash::fnv1a_from_str(texture_path.as_str());
 
@@ -259,7 +259,7 @@ impl TextureAtlas for OfflinePackedTextureAtlas {
     }
 
     #[inline]
-    fn commit_textures(&self, _tex_cache: &mut dyn TextureCache) {}
+    fn commit_textures(&self, _tex_cache: &mut TextureCache) {}
 
     #[inline]
     fn save_textures_to_file(&self, _base_path: PathRef) {}
@@ -511,7 +511,7 @@ mod packer {
         }
 
         pub fn pack_image(&mut self,
-                          tex_cache: &mut dyn TextureCache,
+                          tex_cache: &mut TextureCache,
                           path: PathRef,
                           image: RgbaImage) -> TileTexInfo {
             debug_assert!(!path.is_empty());
@@ -537,7 +537,7 @@ mod packer {
             self.pages.len()
         }
 
-        fn new_page(&mut self, tex_cache: &mut dyn TextureCache) -> (&mut TexPacker, &mut AtlasPage) {
+        fn new_page(&mut self, tex_cache: &mut TextureCache) -> (&mut TexPacker, &mut AtlasPage) {
             let packer = TexPacker::new_skyline(TEXTURE_PACKER_CONFIG);
 
             // Allocate a new image/texture with the maximum page dimensions:

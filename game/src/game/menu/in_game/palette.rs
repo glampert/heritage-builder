@@ -2,7 +2,7 @@ use arrayvec::ArrayVec;
 use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 
 use crate::{
-    render::TextureHandle,
+    render::texture::TextureHandle,
     game::{undo_redo, menu::*},
     app::input::{InputAction, MouseButton},
     ui::{UiInputEvent, widgets::*, sound::{self, UiSoundKey}},

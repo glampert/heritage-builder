@@ -10,8 +10,8 @@ use crate::{
         Application, ApplicationEvent, ApplicationEventList,
     },
     render::{
-        self,
-        TextureCache, RenderSystem, RenderStats, DebugDraw,
+        RenderSystem, RenderStats,
+        texture::TextureCache, debug::DebugDraw,
     },
     tile::{
         TileMap,
@@ -37,19 +37,16 @@ pub mod backend {
     use super::*;
 
     // GLFW + OpenGL
-    pub type ApplicationBackendImpl  = app::backend::GlfwApplication;
-    pub type InputSystemBackendImpl  = app::backend::GlfwInputSystem;
-    pub type RenderSystemBackendImpl = render::backend::OpenGlRenderSystem;
+    pub type ApplicationBackendImpl = app::backend::GlfwApplication;
+    pub type InputSystemBackendImpl = app::backend::GlfwInputSystem;
 
     // Winit + OpenGL (EXPERIMENTAL / WIP)
-    //pub type ApplicationBackendImpl  = app::backend::WinitOpenGlApplication;
-    //pub type InputSystemBackendImpl  = app::backend::WinitInputSystem;
-    //pub type RenderSystemBackendImpl = render::backend::OpenGlRenderSystem;
+    //pub type ApplicationBackendImpl = app::backend::WinitOpenGlApplication;
+    //pub type InputSystemBackendImpl = app::backend::WinitInputSystem;
 
     // Winit + Wgpu (EXPERIMENTAL / WIP)
-    //pub type ApplicationBackendImpl  = app::backend::WinitWgpuApplication;
-    //pub type InputSystemBackendImpl  = app::backend::WinitInputSystem;
-    //pub type RenderSystemBackendImpl = render::backend::WgpuRenderSystem;
+    //pub type ApplicationBackendImpl = app::backend::WinitWgpuApplication;
+    //pub type InputSystemBackendImpl = app::backend::WinitInputSystem;
 }
 
 #[cfg(feature = "web")]
@@ -57,9 +54,8 @@ pub mod backend {
     use super::*;
 
     // Winit + Wgpu
-    pub type ApplicationBackendImpl  = app::backend::WinitWgpuApplication;
-    pub type InputSystemBackendImpl  = app::backend::WinitInputSystem;
-    pub type RenderSystemBackendImpl = render::backend::WgpuRenderSystem;
+    pub type ApplicationBackendImpl = app::backend::WinitWgpuApplication;
+    pub type InputSystemBackendImpl = app::backend::WinitInputSystem;
 }
 
 // ----------------------------------------------
@@ -70,7 +66,7 @@ pub struct EngineSystemsMutRefs<'game> {
     pub ui_sys: &'game UiSystem,
     pub input_sys: &'game dyn InputSystem,
     pub sound_sys: &'game mut SoundSystem,
-    pub render_sys: &'game mut dyn RenderSystem,
+    pub render_sys: &'game mut RenderSystem,
 }
 
 // ----------------------------------------------
@@ -80,7 +76,7 @@ pub struct EngineSystemsMutRefs<'game> {
 pub struct Engine {
     app: RcMut<backend::ApplicationBackendImpl>,
 
-    render_system: RcMut<backend::RenderSystemBackendImpl>,
+    render_system: RcMut<RenderSystem>,
     render_stats: RenderStats,
 
     tile_map_renderer: TileMapRenderer,
@@ -106,22 +102,22 @@ impl Engine {
     }
 
     #[inline]
-    pub fn render_system(&self) -> &dyn RenderSystem {
-        &*self.render_system
+    pub fn render_system(&self) -> &RenderSystem {
+        &self.render_system
     }
 
     #[inline]
-    pub fn render_system_mut(&mut self) -> &mut dyn RenderSystem {
-        &mut *self.render_system
+    pub fn render_system_mut(&mut self) -> &mut RenderSystem {
+        &mut self.render_system
     }
 
     #[inline]
-    pub fn texture_cache(&self) -> &dyn TextureCache {
+    pub fn texture_cache(&self) -> &TextureCache {
         self.render_system.texture_cache()
     }
 
     #[inline]
-    pub fn texture_cache_mut(&mut self) -> &mut dyn TextureCache {
+    pub fn texture_cache_mut(&mut self) -> &mut TextureCache {
         self.render_system.texture_cache_mut()
     }
 
@@ -181,7 +177,7 @@ impl Engine {
             ui_sys: &self.ui_system,
             input_sys: self.app.input_system(),
             sound_sys: &mut self.sound_system,
-            render_sys: &mut *self.render_system,
+            render_sys: &mut self.render_system,
         }
     }
 
@@ -232,7 +228,7 @@ impl Engine {
     pub fn end_frame(&mut self) -> (Milliseconds, Milliseconds) {
         let end_frame_timer = PerfTimer::begin();
 
-        let mut ui_frame_bundle = self.ui_system.end_frame();
+        let mut ui_frame_bundle = self.ui_system.end_frame(self.render_system.clone());
         self.render_stats = self.render_system.end_frame(&mut ui_frame_bundle);
 
         let present_timer = PerfTimer::begin();
@@ -258,7 +254,7 @@ impl Engine {
             return;
         }
 
-        let render_sys = &mut *self.render_system;
+        let render_sys = &mut self.render_system;
         let debug_draw = &mut self.debug_draw;
         let ui_sys = &self.ui_system;
 
@@ -279,7 +275,7 @@ impl Engine {
 
     pub fn start(configs: &EngineConfigs,
                  app: RcMut<backend::ApplicationBackendImpl>,
-                 render_system: RcMut<backend::RenderSystemBackendImpl>) -> &'static mut Engine
+                 render_system: RcMut<RenderSystem>) -> &'static mut Engine
     {
         let engine = Self::new(configs, app, render_system);
 
@@ -296,13 +292,13 @@ impl Engine {
     // because we need bespoke initialization for Web/WASM.
     fn new(configs: &EngineConfigs,
            app: RcMut<backend::ApplicationBackendImpl>,
-           mut render_system: RcMut<backend::RenderSystemBackendImpl>) -> Self
+           mut render_system: RcMut<RenderSystem>) -> Self
     {
         log::info!(log::channel!("engine"), "Window Size: {}", app.window_size());
         log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
         log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());
 
-        let ui_system = UiSystem::new(&mut *render_system);
+        let ui_system = UiSystem::new(&mut render_system);
         log::info!(log::channel!("engine"), "UiSystem initialized.");
 
         let mut sound_system = SoundSystem::new(configs.sound_settings);

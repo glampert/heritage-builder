@@ -6,19 +6,19 @@ use std::{
 use crate::{
     log,
     platform,
+    file_sys::paths::{self, AssetPath},
     render::{
         RenderSystem,
-        TextureHandle, TextureSettings, TextureFilter,
+        texture::{TextureHandle, TextureSettings, TextureFilter},
     },
     app::{
         Application,
         input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
     },
-    file_sys::paths::{self, AssetPath},
     utils::{
         fixed_string::format_fixed_string, time::Seconds,
         Color, FieldAccessorXY, Vec2, Rect,
-        mem::{RawPtr, Mutable},
+        mem::{RawPtr, Mutable, RcMut},
     },
 };
 
@@ -103,7 +103,7 @@ struct UiSystemInner {
 }
 
 impl UiSystem {
-    pub fn new(render_sys: &mut impl RenderSystem) -> Self {
+    pub fn new(render_sys: &mut RenderSystem) -> Self {
         text::initialize();
 
         let mut inner = UiSystemInner {
@@ -136,7 +136,7 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn end_frame(&mut self) -> UiRenderFrameBundle<'_> {
+    pub fn end_frame(&mut self, render_sys: RcMut<RenderSystem>) -> UiRenderFrameBundle<'_> {
         debug_assert!(self.frame_started());
 
         internal::pop_font(self.ui());
@@ -150,7 +150,7 @@ impl UiSystem {
         self.inner.current_font_scale = None;
         self.inner.ui_ptr = None;
 
-        self.inner.context.end_frame()
+        self.inner.context.end_frame(render_sys)
     }
 
     #[inline]
@@ -402,7 +402,7 @@ struct UiContext {
 }
 
 impl UiContext {
-    fn new(render_sys: &mut impl RenderSystem) -> Self {
+    fn new(render_sys: &mut RenderSystem) -> Self {
         let mut ctx = imgui::Context::create();
         ctx.set_ini_filename(None); // 'None' disables automatic "imgui.ini" saving.
 
@@ -441,11 +441,11 @@ impl UiContext {
         self.ctx.new_frame()
     }
 
-    fn end_frame(&mut self) -> UiRenderFrameBundle<'_> {
+    fn end_frame(&mut self, render_sys: RcMut<RenderSystem>) -> UiRenderFrameBundle<'_> {
         debug_assert!(self.frame_started);
         self.frame_started = false;
 
-        UiRenderFrameBundle::new(&self.renderer, &mut self.ctx)
+        UiRenderFrameBundle::new(&self.renderer, &mut self.ctx, render_sys)
     }
 
     fn fonts(&self) -> &UiFonts {
@@ -808,7 +808,7 @@ pub fn texture_settings() -> TextureSettings {
     // Use linear filter without mipmaps for all UI textures.
     TextureSettings {
         filter: TextureFilter::Linear,
-        gen_mipmaps: false,
+        mipmaps: false,
         ..Default::default()
     }
 }

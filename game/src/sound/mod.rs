@@ -3,37 +3,33 @@ use proc_macros::DrawDebugUi;
 
 use crate::{
     ui::{self, UiSystem, UiStaticVar},
+    file_sys::paths::PathRef,
     utils::{
         Vec2, coords::IsoPointF32,
         hash::{self, StringHash},
         time::Seconds,
     },
-    file_sys::paths::PathRef,
 };
 
 // ----------------------------------------------
 // Internal backend implementations
 // ----------------------------------------------
 
+// Kira
 #[cfg(feature = "desktop")]
 mod kira;
+#[cfg(feature = "desktop")]
+type SoundSystemBackendImpl = kira::KiraSoundSystemBackend;
+#[cfg(feature = "desktop")]
+type SoundAssetRegistryImpl = kira::KiraSoundAssetRegistry;
 
+// Web Audio
 #[cfg(feature = "web")]
 mod web_audio;
-
-mod backend {
-    // Kira
-    #[cfg(feature = "desktop")]
-    pub type SoundSystemBackendImpl = super::kira::KiraSoundSystemBackend;
-    #[cfg(feature = "desktop")]
-    pub type SoundAssetRegistryImpl = super::kira::KiraSoundAssetRegistry;
-
-    // Web Audio
-    #[cfg(feature = "web")]
-    pub type SoundSystemBackendImpl = super::web_audio::WebAudioSoundSystemBackend;
-    #[cfg(feature = "web")]
-    pub type SoundAssetRegistryImpl = super::web_audio::WebAudioSoundAssetRegistry;
-}
+#[cfg(feature = "web")]
+type SoundSystemBackendImpl = web_audio::WebAudioSoundSystemBackend;
+#[cfg(feature = "web")]
+type SoundAssetRegistryImpl = web_audio::WebAudioSoundAssetRegistry;
 
 // ----------------------------------------------
 // SoundKey
@@ -297,16 +293,16 @@ trait SoundAssetRegistry: Sized {
 // ----------------------------------------------
 
 pub struct SoundSystem {
-    backend: Option<Box<backend::SoundSystemBackendImpl>>,
-    registry: backend::SoundAssetRegistryImpl,
+    backend:  Option<Box<SoundSystemBackendImpl>>,
+    registry: SoundAssetRegistryImpl,
     settings: SoundGlobalSettings,
 }
 
 impl SoundSystem {
     pub fn new(settings: SoundGlobalSettings) -> Self {
         Self {
-            backend: backend::SoundSystemBackendImpl::new(),
-            registry: backend::SoundAssetRegistryImpl::new(),
+            backend:  SoundSystemBackendImpl::new(),
+            registry: SoundAssetRegistryImpl::new(),
             settings,
         }
     }

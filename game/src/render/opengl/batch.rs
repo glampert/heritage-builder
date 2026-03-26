@@ -9,8 +9,8 @@ use super::{
     context::{PrimitiveTopology, RenderContext},
 };
 use crate::{
+    render,
     utils::Color,
-    render::TextureHandle,
 };
 
 // ----------------------------------------------
@@ -19,7 +19,7 @@ use crate::{
 
 pub struct DrawBatchEntry {
     slice: IndexBufferSlice,
-    pub texture: TextureHandle,
+    pub texture: render::texture::TextureHandle,
     pub color: Color,
 }
 
@@ -71,7 +71,7 @@ impl<V, I> DrawBatch<V, I>
         }
     }
 
-    pub fn add_entry(&mut self, vertices: &[V], indices: &[I], texture: TextureHandle, color: Color)
+    pub fn add_entry(&mut self, vertices: &[V], indices: &[I], texture: render::texture::TextureHandle, color: Color)
         where <I as TryFrom<usize>>::Error: Debug
     {
         let ib_slice_start = self.add_fast(vertices, indices);

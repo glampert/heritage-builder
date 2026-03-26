@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 use crate::{
     file_sys::paths::PathRef,
-    render::{TextureHandle, DebugDraw},
     app::input::{InputAction, MouseButton},
+    render::{texture::TextureHandle, debug::DebugDraw},
     ui::{self, UiInputEvent, UiSystem, widgets::UiWidgetContext},
     utils::{
         self,

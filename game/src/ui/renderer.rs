@@ -1,7 +1,10 @@
 use super::UiTextureHandle;
 use crate::{
-    utils::{Rect, Vec2, Size},
-    render::{RenderSystem, TextureHandle, TextureWrapMode, TextureFilter, TextureSettings},
+    utils::{Rect, Vec2, Size, mem::RcMut},
+    render::{
+        RenderSystem,
+        texture::{TextureHandle, TextureWrapMode, TextureFilter, TextureSettings},
+    },
 };
 
 // ----------------------------------------------
@@ -24,15 +27,19 @@ struct UiDrawArgs {
 pub struct UiRenderFrameBundle<'ui> {
     renderer: &'ui UiRenderer,
     ctx: &'ui mut imgui::Context,
+    render_sys: RcMut<RenderSystem>,
 }
 
 impl<'ui> UiRenderFrameBundle<'ui> {
-    pub fn new(renderer: &'ui UiRenderer, ctx: &'ui mut imgui::Context) -> Self {
-         Self { renderer, ctx }
+    pub fn new(renderer: &'ui UiRenderer,
+               ctx: &'ui mut imgui::Context,
+               render_sys: RcMut<RenderSystem>) -> Self
+    {
+         Self { renderer, ctx, render_sys }
     }
 
-    pub fn render(&mut self, render_sys: &mut impl RenderSystem) {
-        self.renderer.render(render_sys, self.ctx);
+    pub fn render(&mut self) {
+        self.renderer.render(&mut self.render_sys, self.ctx);
     }
 }
 
@@ -45,7 +52,7 @@ pub struct UiRenderer {
 }
 
 impl UiRenderer {
-    pub fn new(render_sys: &mut impl RenderSystem, ctx: &mut imgui::Context) -> Self {
+    pub fn new(render_sys: &mut RenderSystem, ctx: &mut imgui::Context) -> Self {
         let tex_cache = render_sys.texture_cache_mut();
 
         let font_atlas = ctx.fonts();
@@ -53,12 +60,12 @@ impl UiRenderer {
         let font_atlas_size = Size::new(font_atlas_texture.width as i32, font_atlas_texture.height as i32);
 
         let font_atlas_tex_handle = tex_cache.new_uninitialized_texture(
-            "UiFontAtlas",
+            "ui_font_atlas",
             font_atlas_size,
             Some(TextureSettings {
                 filter: TextureFilter::Linear,
                 wrap_mode: TextureWrapMode::ClampToEdge,
-                gen_mipmaps: false,
+                mipmaps: false,
             })
         );
 
@@ -76,7 +83,7 @@ impl UiRenderer {
         Self { font_atlas_tex_handle }
     }
 
-    pub fn render(&self, render_sys: &mut impl RenderSystem, ctx: &mut imgui::Context) {
+    pub fn render(&self, render_sys: &mut RenderSystem, ctx: &mut imgui::Context) {
         let [width,   height]  = ctx.io().display_size;
         let [scale_w, scale_h] = ctx.io().display_framebuffer_scale;
 
@@ -130,7 +137,7 @@ impl UiRenderer {
         render_sys.end_ui_render();
     }
 
-    fn execute_draw_command(render_sys: &mut impl RenderSystem, args: &UiDrawArgs) {
+    fn execute_draw_command(render_sys: &mut RenderSystem, args: &UiDrawArgs) {
         if args.count == 0 {
             return;
         }
@@ -143,6 +150,8 @@ impl UiRenderer {
         let clip_max_x = (params.clip_rect[2] * args.scale_w).min(args.fb_width);
         let clip_max_y = (params.clip_rect[3] * args.scale_h).min(args.fb_height);
 
+        // FIXME: Should avoid flipping Y axis here and handle it in the renderer back-end instead.
+        // Keep origin consistent with ImGui instead. This is required for the OpenGL renderer only.
         let clip_min_y_flipped = (args.fb_height - clip_max_y).max(0.0);
 
         let clip_rect = Rect::from_pos_and_size(
