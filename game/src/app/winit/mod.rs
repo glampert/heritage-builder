@@ -1,7 +1,9 @@
+use smallvec::SmallVec;
 use enum_dispatch::enum_dispatch;
 
 use winit::{
-    window::Window,
+    window::{Window, Fullscreen},
+    monitor::VideoModeHandle,
     event_loop::ActiveEventLoop,
     event::{WindowEvent, MouseScrollDelta},
 };
@@ -13,6 +15,7 @@ use super::{
     ApplicationEvent,
     ApplicationEventList,
     ApplicationContentScale,
+    ApplicationWindowMode,
     input::{InputSystem, InputSystemBackendImpl},
 };
 use crate::{
@@ -24,7 +27,7 @@ use crate::{
 mod input;
 pub use input::WinitInputSystemBackend;
 
-//mod wgpu;
+mod wgpu;
 mod opengl;
 
 // ----------------------------------------------
@@ -298,4 +301,57 @@ impl ApplicationBackend for WinitApplicationBackend {
             }
         }
     }
+}
+
+// ----------------------------------------------
+// Helpers
+// ----------------------------------------------
+
+fn select_fullscreen(event_loop: &ActiveEventLoop,
+                     window_mode: ApplicationWindowMode)
+                     -> Option<Fullscreen>
+{
+    match window_mode {
+        ApplicationWindowMode::FullScreen => {
+            // Borderless fullscreen on the primary monitor.
+            Some(Fullscreen::Borderless(event_loop.primary_monitor()))
+        }
+        ApplicationWindowMode::ExclusiveFullScreen => {
+            // Attempt to select the best video mode on the primary monitor.
+            let monitor = event_loop.primary_monitor()?;
+            let video_mode = select_best_video_mode(monitor.video_modes())?;
+            Some(Fullscreen::Exclusive(video_mode))
+        }
+        ApplicationWindowMode::Windowed => None,
+    }
+}
+
+// Selects the best exclusive fullscreen video mode:
+//  - Prefer highest pixel area;
+//  - Prefer 60 Hz if available at that resolution;
+//  - Otherwise prefer highest refresh rate.
+fn select_best_video_mode<I>(modes: I) -> Option<VideoModeHandle>
+    where I: Iterator<Item = VideoModeHandle>
+{
+    let all_modes: SmallVec<[VideoModeHandle; 16]> = modes.collect();
+    if all_modes.is_empty() {
+        return None;
+    }
+
+    let max_area = all_modes
+        .iter()
+        .map(|m| m.size().width * m.size().height)
+        .max()?;
+
+    let mut best: SmallVec<[&VideoModeHandle; 16]> = all_modes
+        .iter()
+        .filter(|m| m.size().width * m.size().height == max_area)
+        .collect();
+
+    if let Some(mode_60hz) = best.iter().find(|m| m.refresh_rate_millihertz() == 60_000) {
+        return Some((*mode_60hz).clone());
+    }
+
+    best.sort_by_key(|m| m.refresh_rate_millihertz());
+    best.last().map(|m| (*m).clone())
 }
