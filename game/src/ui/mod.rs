@@ -23,7 +23,7 @@ use crate::{
 };
 
 pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
-pub use renderer::UiRenderFrameBundle;
+pub use renderer::{UiRenderFrameBundle, UiDrawIndex, UiDrawVertex};
 
 pub mod icons;
 pub mod widgets;

@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::convert::{Into, TryFrom};
 
 use crate::{
-    render::TextureHandle,
+    render,
     utils::Color,
 };
 
@@ -13,7 +13,7 @@ use crate::{
 pub struct DrawBatchEntry {
     pub first_index: u32,
     pub index_count: u32,
-    pub texture:     TextureHandle,
+    pub texture:     render::texture::TextureHandle,
 }
 
 // ----------------------------------------------
@@ -39,7 +39,7 @@ where
         }
     }
 
-    pub fn add_entry(&mut self, vertices: &[V], indices: &[I], texture: TextureHandle, _color: Color)
+    pub fn add_entry(&mut self, vertices: &[V], indices: &[I], texture: render::texture::TextureHandle, _color: Color)
     where
         <I as TryFrom<usize>>::Error: Debug,
     {
@@ -86,15 +86,15 @@ where
 // ----------------------------------------------
 
 pub struct UiDrawBatch {
-    pub vertices: Vec<u8>, // Raw imgui::DrawVert bytes.
-    pub indices:  Vec<u8>, // Raw imgui::DrawIdx bytes.
+    pub vertices: Vec<u8>, // Raw render::UiDrawVertex bytes.
+    pub indices:  Vec<u8>, // Raw render::UiDrawIndex bytes.
 }
 
 impl UiDrawBatch {
     pub fn new() -> Self {
         Self {
-            vertices: Vec::with_capacity(1024 * std::mem::size_of::<imgui::DrawVert>()),
-            indices:  Vec::with_capacity(1024 * std::mem::size_of::<imgui::DrawIdx>()),
+            vertices: Vec::with_capacity(1024 * std::mem::size_of::<render::UiDrawVertex>()),
+            indices:  Vec::with_capacity(1024 * std::mem::size_of::<render::UiDrawIndex>()),
         }
     }
 
@@ -102,15 +102,15 @@ impl UiDrawBatch {
     /// Returns (base_vertex, index_offset) for use with draw_indexed.
     ///  - base_vertex: the vertex offset (in vertices, not bytes) to pass as base_vertex.
     ///  - index_offset: the index offset (in indices, not bytes) to add to first_index.
-    pub fn append_data(&mut self, vtx_buffer: &[imgui::DrawVert], idx_buffer: &[imgui::DrawIdx])
+    pub fn append_data(&mut self, vtx_buffer: &[render::UiDrawVertex], idx_buffer: &[render::UiDrawIndex])
         -> (i32, u32)
     {
-        let base_vertex  = (self.vertices.len() / std::mem::size_of::<imgui::DrawVert>()) as i32;
-        let index_offset = (self.indices.len()  / std::mem::size_of::<imgui::DrawIdx>()) as u32;
+        let base_vertex  = (self.vertices.len() / std::mem::size_of::<render::UiDrawVertex>()) as i32;
+        let index_offset = (self.indices.len()  / std::mem::size_of::<render::UiDrawIndex>()) as u32;
 
-        // imgui::DrawVert doesn't implement bytemuck::Pod, so we reinterpret as raw bytes.
-        // SAFETY: DrawVert is a repr(C) struct of f32s and u32 — no padding, no drop, all
-        //         bit-patterns valid. Same for DrawIdx (u16 or u32).
+        // render::UiDrawVertex doesn't implement bytemuck::Pod, so we reinterpret as raw bytes.
+        // SAFETY: UiDrawVertex is a repr(C) struct of f32s and u32 — no padding, no drop, all
+        //         bit-patterns valid. Same for UiDrawIndex (u16 or u32).
         self.vertices.extend_from_slice(unsafe {
             std::slice::from_raw_parts(
                 vtx_buffer.as_ptr() as *const u8,

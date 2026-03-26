@@ -1,4 +1,4 @@
-use crate::utils::{Color, Vec2};
+use crate::{render, utils::{Color, Vec2}};
 
 // Sprite vertex: position + tex_coords + color (tint baked per-vertex).
 #[repr(C)]
@@ -62,7 +62,7 @@ impl LineVertex2D {
 }
 
 // ImGui vertex: position + tex_coords + color (u8x4 normalized).
-// Must match imgui::DrawVert layout exactly.
+// Must match render::UiDrawVertex layout exactly.
 #[repr(C)]
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct UiVertex {
@@ -83,8 +83,8 @@ impl UiVertex {
     };
 }
 
-// Compile-time check that UiVertex matches imgui::DrawVert in size.
+// Compile-time check that UiVertex matches render::UiDrawVertex in size.
 const _: () = assert!(
-    std::mem::size_of::<UiVertex>() == std::mem::size_of::<imgui::DrawVert>(),
-    "UiVertex size must match imgui::DrawVert"
+    std::mem::size_of::<UiVertex>() == std::mem::size_of::<render::UiDrawVertex>(),
+    "UiVertex size must match render::UiDrawVertex"
 );

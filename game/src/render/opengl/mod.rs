@@ -253,8 +253,8 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
     }
 
     fn set_ui_draw_buffers(&mut self,
-                           vtx_buffer: &[imgui::DrawVert],
-                           idx_buffer: &[imgui::DrawIdx])
+                           vtx_buffer: &[super::UiDrawVertex],
+                           idx_buffer: &[super::UiDrawIndex])
     {
         debug_assert!(!vtx_buffer.is_empty() && !idx_buffer.is_empty());
         self.ui_batch.sync(&mut self.render_context, vtx_buffer, idx_buffer);
@@ -285,7 +285,7 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
 
     fn draw_colored_indexed_triangles(&mut self,
                                       vertices: &[Vec2],
-                                      indices: &[u16],
+                                      indices: &[super::DrawIndex],
                                       color: Color)
     {
         debug_assert!(self.frame_started);

@@ -7,6 +7,9 @@ use crate::{
     },
 };
 
+pub type UiDrawIndex  = imgui::DrawIdx;
+pub type UiDrawVertex = imgui::DrawVert;
+
 // ----------------------------------------------
 // UiDrawArgs
 // ----------------------------------------------

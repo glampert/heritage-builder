@@ -428,7 +428,7 @@ impl render::RenderSystem for RenderSystem {
 
         // UI batch uses raw bytes (not Pod types).
         // wgpu requires write_buffer data to respect COPY_BUFFER_ALIGNMENT (4 bytes).
-        // imgui::DrawIdx is u16, so index data may not be 4-byte aligned.
+        // render::UiDrawIndex is u16, so index data may not be 4-byte aligned.
         {
             let vb = align_to_4(self.ui_batch.vertices.len());
             let ib = align_to_4(self.ui_batch.indices.len());
@@ -571,10 +571,10 @@ impl render::RenderSystem for RenderSystem {
             pass.set_bind_group(0, Some(&self.uniform_bind_group), &[]);
             pass.set_vertex_buffer(0, self.ui_gpu.vertex_buffer.slice(..));
 
-            let idx_format = match std::mem::size_of::<imgui::DrawIdx>() {
+            let idx_format = match std::mem::size_of::<render::UiDrawIdex>() {
                 2 => wgpu::IndexFormat::Uint16,
                 4 => wgpu::IndexFormat::Uint32,
-                _ => panic!("Unsupported imgui::DrawIdx size!"),
+                _ => panic!("Unsupported render::UiDrawIdex size!"),
             };
             pass.set_index_buffer(self.ui_gpu.index_buffer.slice(..), idx_format);
 
@@ -677,7 +677,7 @@ impl render::RenderSystem for RenderSystem {
         // Nothing to do for wgpu; UI pass is built in end_frame.
     }
 
-    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[imgui::DrawVert], idx_buffer: &[imgui::DrawIdx]) {
+    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[render::UiDrawVertex], idx_buffer: &[render::UiDrawIndex]) {
         debug_assert!(!vtx_buffer.is_empty() && !idx_buffer.is_empty());
 
         // Append this draw list's data (NOT replace). Each ImGui draw list has its own

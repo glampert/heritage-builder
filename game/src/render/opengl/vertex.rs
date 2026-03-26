@@ -1,5 +1,5 @@
 use super::buffer::{VertexElementDef, VertexTrait};
-use crate::utils::{Color, Vec2};
+use crate::{render, utils::{Color, Vec2}};
 
 // ----------------------------------------------
 // Sprite Vertex
@@ -86,7 +86,7 @@ impl VertexTrait for PointVertex2D {
 // ImGui UI Vertex
 // ----------------------------------------------
 
-impl VertexTrait for imgui::DrawVert {
+impl VertexTrait for render::UiDrawVertex {
     fn layout() -> Vec<VertexElementDef> {
         vec![
             // vec2 in_position

@@ -204,13 +204,13 @@ impl UiDrawBatch {
         const VERTICES_CAPACITY_HINT: u32 = 1024;
         const INDICES_CAPACITY_HINT: u32  = 1024;
 
-        let vertex_layout = imgui::DrawVert::layout();
-        let vertex_stride = imgui::DrawVert::stride();
+        let vertex_layout = render::UiDrawVertex::layout();
+        let vertex_stride = render::UiDrawVertex::stride();
 
-        let index_type = match std::mem::size_of::<imgui::DrawIdx>() {
+        let index_type = match std::mem::size_of::<render::UiDrawIndex>() {
             2 => IndexType::U16,
             4 => IndexType::U32,
-            _ => unimplemented!("Unsupported imgui::DrawIdx size!"),
+            _ => unimplemented!("Unsupported UiDrawIndex size!"),
         };
 
         let vertex_buffer = VertexBuffer::with_uninitialized_data(
@@ -255,8 +255,8 @@ impl UiDrawBatch {
 
     pub fn sync(&mut self,
                 render_context: &mut RenderContext,
-                vtx_buffer: &[imgui::DrawVert],
-                idx_buffer: &[imgui::DrawIdx])
+                vtx_buffer: &[render::UiDrawVertex],
+                idx_buffer: &[render::UiDrawIndex])
     {
         debug_assert!(self.pass_started);
         self.synced = true;

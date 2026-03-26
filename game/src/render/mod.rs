@@ -3,7 +3,7 @@ use enum_dispatch::enum_dispatch;
 use strum::Display;
 
 use crate::{
-    ui::UiRenderFrameBundle,
+    ui::{UiRenderFrameBundle, UiDrawIndex, UiDrawVertex},
     utils::{Vec2, Size, Color, Rect, RectTexCoords, time::Milliseconds, mem::RcMut},
 };
 
@@ -61,8 +61,8 @@ trait RenderSystemBackend: Sized {
     fn end_ui_render(&mut self);
 
     fn set_ui_draw_buffers(&mut self,
-                           vtx_buffer: &[imgui::DrawVert],
-                           idx_buffer: &[imgui::DrawIdx]);
+                           vtx_buffer: &[UiDrawVertex],
+                           idx_buffer: &[UiDrawIndex]);
 
     fn draw_ui_elements(&mut self,
                         first_index: u32,
@@ -74,7 +74,7 @@ trait RenderSystemBackend: Sized {
     // Draw commands:
     fn draw_colored_indexed_triangles(&mut self,
                                       vertices: &[Vec2],
-                                      indices: &[u16],
+                                      indices: &[DrawIndex],
                                       color: Color);
 
     fn draw_textured_colored_rect(&mut self,
@@ -272,8 +272,8 @@ impl RenderSystem {
 
     #[inline]
     pub fn set_ui_draw_buffers(&mut self,
-                               vtx_buffer: &[imgui::DrawVert],
-                               idx_buffer: &[imgui::DrawIdx])
+                               vtx_buffer: &[UiDrawVertex],
+                               idx_buffer: &[UiDrawIndex])
     {
         self.backend.set_ui_draw_buffers(vtx_buffer, idx_buffer);
     }
@@ -296,7 +296,7 @@ impl RenderSystem {
     #[inline]
     pub fn draw_colored_indexed_triangles(&mut self,
                                           vertices: &[Vec2],
-                                          indices: &[u16],
+                                          indices: &[DrawIndex],
                                           color: Color)
     {
         self.backend.draw_colored_indexed_triangles(vertices, indices, color);
@@ -374,7 +374,7 @@ impl RenderSystem {
         ];
 
         // Draw two triangles to form a quad
-        const INDICES: [u16; 6] = [
+        const INDICES: [DrawIndex; 6] = [
             0, 1, 2, // first triangle
             2, 3, 0, // second triangle
         ];
@@ -397,8 +397,8 @@ impl RenderSystem {
         let num_points = points.len();
         debug_assert!((2..=MAX_POINTS).contains(&num_points));
 
-        let mut vertices = [Vec2::default(); MAX_VERTICES];
-        let mut indices  = [0u16; MAX_INDICES];
+        let mut vertices: [Vec2; MAX_VERTICES] = [Vec2::default(); MAX_VERTICES];
+        let mut indices: [DrawIndex; MAX_INDICES] = [0; MAX_INDICES];
 
         let mut v_count = 0;
         let mut i_count = 0;
@@ -451,9 +451,9 @@ impl RenderSystem {
 
             // Build indices
             if i < num_points - 1 || is_closed {
-                let i0 = v_count.try_into().expect("Value cannot fit into a u16!");
+                let i0 = v_count.try_into().expect("Value cannot fit into a DrawIndex!");
                 let i1 = i0 + 1;
-                let i2 = ((i + 1) % num_points * 2).try_into().expect("Value cannot fit into a u16!");
+                let i2 = ((i + 1) % num_points * 2).try_into().expect("Value cannot fit into a DrawIndex!");
                 let i3 = i2 + 1;
 
                 indices[i_count..i_count + 6].copy_from_slice(&[i0, i2, i1, i1, i2, i3]);
@@ -545,8 +545,10 @@ impl RenderSystem {
 }
 
 // ----------------------------------------------
-// Helper functions
+// Helper types/functions
 // ----------------------------------------------
+
+pub type DrawIndex = u16;
 
 #[inline]
 pub fn is_rect_fully_offscreen(viewport: &Rect, rect: &Rect) -> bool {

@@ -72,11 +72,19 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
 
     }
 
-    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[imgui::DrawVert], idx_buffer: &[imgui::DrawIdx]) {
+    fn set_ui_draw_buffers(&mut self,
+                           vtx_buffer: &[super::UiDrawVertex],
+                           idx_buffer: &[super::UiDrawIndex])
+    {
 
     }
 
-    fn draw_ui_elements(&mut self, first_index: u32, index_count: u32, texture: TextureHandle, clip_rect: Rect) {
+    fn draw_ui_elements(&mut self,
+                        first_index: u32,
+                        index_count: u32,
+                        texture: TextureHandle,
+                        clip_rect: Rect)
+    {
 
     }
 
@@ -86,7 +94,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
 
     fn draw_colored_indexed_triangles(&mut self,
                                       vertices: &[Vec2],
-                                      indices: &[u16],
+                                      indices: &[DrawIndex],
                                       color: Color)
     {
 
