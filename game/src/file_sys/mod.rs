@@ -22,7 +22,7 @@ pub use web::preload_asset_cache;
 // File System operations wrapper.
 // - On desktop, accesses the filesystem directly using std::fs.
 // - On Web/WASM, reads from the pre-loaded asset cache.
-trait FileSystemBackend {
+trait FileSystemBackend: Sized {
     // Tries to set the current working directory.
     fn set_working_directory(&self, path: impl AsRef<Path>);
 

@@ -2,7 +2,9 @@ use smallvec::SmallVec;
 use glfw::Context;
 
 use super::{
-    ApplicationWindowMode, ApplicationContentScale,
+    ApplicationInitParams,
+    ApplicationWindowMode,
+    ApplicationContentScale,
 };
 use crate::{
     log,
@@ -29,15 +31,8 @@ pub type GlfwWindowManagerRcRef = RcRef<GlfwWindowManager>;
 pub type GlfwWindowManagerRcMut = RcMut<GlfwWindowManager>;
 
 impl GlfwWindowManager {
-    pub fn new(glfw_instance: &mut glfw::Glfw,
-               window_title: &str,
-               window_size: Size,
-               window_mode: ApplicationWindowMode,
-               resizable_window: bool,
-               confine_cursor: bool,
-               content_scale: ApplicationContentScale) -> GlfwWindowManagerRcMut
-    {
-        debug_assert!(window_size.is_valid());
+    pub fn new(glfw_instance: &mut glfw::Glfw, params: &ApplicationInitParams) -> GlfwWindowManagerRcMut {
+        debug_assert!(params.window_size.is_valid());
 
         glfw_instance.window_hint(glfw::WindowHint::ContextVersion(3, 3));
         glfw_instance.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
@@ -47,30 +42,30 @@ impl GlfwWindowManager {
         glfw_instance.window_hint(glfw::WindowHint::CocoaRetinaFramebuffer(true));  // We want High-DPI retina display always.
         glfw_instance.window_hint(glfw::WindowHint::CocoaGraphicsSwitching(false)); // Prefer the discrete GPU and avoid low-power integrated graphics.
 
-        if window_mode.is_fullscreen() {
+        if params.window_mode.is_fullscreen() {
             // NOTE: FullScreen window mode requires resizable window on MacOS.
             glfw_instance.window_hint(glfw::WindowHint::Resizable(true));
         } else {
-            glfw_instance.window_hint(glfw::WindowHint::Resizable(resizable_window));
+            glfw_instance.window_hint(glfw::WindowHint::Resizable(params.resizable_window));
         }
 
-        let (window, event_receiver) = match window_mode {
+        let (window, event_receiver) = match params.window_mode {
             ApplicationWindowMode::Windowed => {
-                create_windowed_window(glfw_instance, window_title, window_size)
+                create_windowed_window(glfw_instance, params.window_title, params.window_size)
             }
             ApplicationWindowMode::FullScreen => {
-                create_fullscreen_window(glfw_instance, window_title, window_size)
+                create_fullscreen_window(glfw_instance, params.window_title, params.window_size)
             }
             ApplicationWindowMode::ExclusiveFullScreen => {
-                create_exclusive_fullscreen_window(glfw_instance, window_title, window_size)
+                create_exclusive_fullscreen_window(glfw_instance, params.window_title, params.window_size)
             }
         };
 
         let mut manager = Self {
-            window_mode,
-            resizable_window,
-            confine_cursor,
-            content_scale,
+            window_mode: params.window_mode,
+            resizable_window: params.resizable_window,
+            confine_cursor: params.confine_cursor,
+            content_scale: params.content_scale,
             window,
             event_receiver,
         };
@@ -78,7 +73,7 @@ impl GlfwWindowManager {
         manager.window.make_current();
 
         // Listen to these application events:
-        manager.window.set_size_polling(resizable_window);
+        manager.window.set_size_polling(params.resizable_window);
         manager.window.set_close_polling(true);
         manager.window.set_key_polling(true);
         manager.window.set_char_polling(true);

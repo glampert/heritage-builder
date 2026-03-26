@@ -10,7 +10,7 @@ use crate::{
     sound::SoundGlobalSettings,
     render::{RenderApi, texture::TextureSettings},
     file_sys::{self, paths::{self, PathRef, AssetPath}},
-    app::{ApplicationWindowMode, ApplicationContentScale},
+    app::{ApplicationApi, ApplicationWindowMode, ApplicationContentScale},
 };
 
 // ----------------------------------------------
@@ -128,6 +128,7 @@ pub struct EngineConfigs {
     pub resizable_window: bool,
     pub confine_cursor_to_window: bool,
     pub content_scale: ApplicationContentScale, // Optional override. Defaults to System.
+    pub app_api: ApplicationApi,
 
     // Graphics:
     pub render_api: RenderApi,
@@ -158,6 +159,7 @@ impl Default for EngineConfigs {
             resizable_window: false,
             confine_cursor_to_window: true,
             content_scale: ApplicationContentScale::default(),
+            app_api: ApplicationApi::default(),
 
             // Graphics:
             render_api: RenderApi::default(),

@@ -13,7 +13,7 @@ use crate::{
     },
     app::{
         Application,
-        input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
+        input::{InputSystem, InputAction, InputKey, InputModifiers, MouseButton},
     },
     utils::{
         fixed_string::format_fixed_string, time::Seconds,
@@ -121,8 +121,8 @@ impl UiSystem {
 
     #[inline]
     pub fn begin_frame(&mut self,
-                       app: &impl Application,
-                       input_sys: &impl InputSystem,
+                       app: &Application,
+                       input_sys: &InputSystem,
                        delta_time_secs: Seconds) {
         debug_assert!(!self.frame_started());
 
@@ -418,8 +418,8 @@ impl UiContext {
     }
 
     fn begin_frame(&mut self,
-                   app: &impl Application,
-                   input_sys: &impl InputSystem,
+                   app: &Application,
+                   input_sys: &InputSystem,
                    delta_time_secs: Seconds)
                    -> &imgui::Ui {
         debug_assert!(!self.frame_started);
@@ -471,7 +471,7 @@ impl UiContext {
         io.mouse_wheel += amount.y;
     }
 
-    fn update_input(&mut self, input_sys: &impl InputSystem) {
+    fn update_input(&mut self, input_sys: &InputSystem) {
         let io = self.ctx.io_mut();
 
         let cursor_pos = input_sys.cursor_pos();

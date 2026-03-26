@@ -11,7 +11,7 @@ impl Runner for WebRunner {
         Self
     }
 
-    fn run<T: RunLoop + 'static>(&self) {
+    fn run<GameLoop: RunLoop + 'static>(&self) {
         log::info!(log::channel!("game"), "WASM entry point started.");
 
         // Hand control to the browser event loop.

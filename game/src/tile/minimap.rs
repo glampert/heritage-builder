@@ -402,7 +402,7 @@ impl Minimap {
     pub fn update(&mut self,
                   camera: &mut Camera,
                   tex_cache: &mut TextureCache,
-                  input_sys: &dyn InputSystem,
+                  input_sys: &InputSystem,
                   ui_sys: &UiSystem,
                   delta_time_secs: Seconds) {
         // Load icon textures once:
@@ -700,7 +700,7 @@ impl MinimapWidget {
 
     fn update(&mut self,
               camera: &mut Camera,
-              input_sys: &dyn InputSystem,
+              input_sys: &InputSystem,
               ui_sys: &UiSystem,
               map_size_in_cells: Size,
               delta_time_secs: Seconds) {

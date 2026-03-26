@@ -1,11 +1,11 @@
-use std::any::Any;
-use smallvec::SmallVec;
 use strum::Display;
+use smallvec::SmallVec;
 use serde::{Deserialize, Serialize};
+use enum_dispatch::enum_dispatch;
 
-use crate::utils::{Size, Vec2};
+use crate::utils::{Size, Vec2, mem::RcMut};
+use input::{InputSystem, InputAction, InputKey, InputModifiers, MouseButton};
 
-use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
 pub mod input;
 
 // ----------------------------------------------
@@ -13,31 +13,30 @@ pub mod input;
 // ----------------------------------------------
 
 mod platform;
-pub(crate) mod winit;
-
-#[cfg(feature = "desktop")]
+//mod winit;
 mod glfw;
 
-pub mod backend {
-    // Winit
-    #[cfg(feature = "desktop")]
-    pub type WinitOpenGlApplication = super::winit::opengl::WinitApplication;
-    pub type WinitWgpuApplication   = super::winit::wgpu::WinitApplication;
-    pub type WinitInputSystem       = super::winit::input::WinitInputSystem;
+#[enum_dispatch]
+enum ApplicationBackendImpl {
+//    Winit(winit::WinitApplicationBackend),
+    Glfw(glfw::GlfwApplicationBackend),
+}
 
-    // GLFW
-    #[cfg(feature = "desktop")]
-    pub type GlfwApplication = super::glfw::GlfwApplication;
-    #[cfg(feature = "desktop")]
-    pub type GlfwInputSystem = super::glfw::input::GlfwInputSystem;
+#[derive(Copy, Clone, Default, PartialEq, Eq, Display, Serialize, Deserialize)]
+pub enum ApplicationApi {
+    #[default]
+//    Winit,
+    Glfw,
 }
 
 // ----------------------------------------------
-// Application / ApplicationFactory
+// ApplicationBackend
 // ----------------------------------------------
 
-pub trait Application: Any {
-    fn as_any(&self) -> &dyn Any;
+#[enum_dispatch(ApplicationBackendImpl)]
+trait ApplicationBackend: Sized {
+    fn new_input_system(&mut self) -> InputSystem;
+    fn app_context(&self) -> Option<&dyn std::any::Any>;
 
     fn should_quit(&self) -> bool;
     fn request_quit(&mut self);
@@ -48,20 +47,110 @@ pub trait Application: Any {
     fn window_size(&self) -> Size;
     fn framebuffer_size(&self) -> Size;
     fn content_scale(&self) -> Vec2;
-
-    fn input_system(&self) -> &dyn InputSystem;
-
-    // Optional context passed to the RenderSystemFactory (e.g. Arc<Window> for wgpu).
-    fn app_context(&self) -> Option<&dyn Any> { None }
 }
 
-pub trait ApplicationFactory: Sized {
-    fn new(window_title: &str,
-           window_size: Size,
-           window_mode: ApplicationWindowMode,
-           resizable_window: bool,
-           confine_cursor: bool,
-           content_scale: ApplicationContentScale) -> Self;
+// ----------------------------------------------
+// ApplicationInitParams
+// ----------------------------------------------
+
+pub struct ApplicationInitParams<'a> {
+    pub app_api: ApplicationApi,
+    pub window_title: &'a str,
+    pub window_size: Size,
+    pub window_mode: ApplicationWindowMode,
+    pub content_scale: ApplicationContentScale,
+    pub resizable_window: bool,
+    pub confine_cursor: bool,
+}
+
+impl Default for ApplicationInitParams<'_> {
+    fn default() -> Self {
+        Self {
+            app_api: ApplicationApi::default(),
+            window_title: "Heritage Builder",
+            window_size: Size::new(1024, 768),
+            window_mode: ApplicationWindowMode::Windowed,
+            content_scale: ApplicationContentScale::default(),
+            resizable_window: false,
+            confine_cursor: true,
+        }
+    }
+}
+
+// ----------------------------------------------
+// Application
+// ----------------------------------------------
+
+pub struct Application {
+    app_api: ApplicationApi,
+    backend: ApplicationBackendImpl,
+    input_system: InputSystem,
+}
+
+impl Application {
+    pub fn new(params: &ApplicationInitParams) -> RcMut<Self> {
+        debug_assert!(params.window_size.is_valid());
+
+        let mut backend = match params.app_api {
+//            ApplicationApi::Winit => ApplicationBackendImpl::from(winit::WinitApplicationBackend::new()),
+            ApplicationApi::Glfw  => ApplicationBackendImpl::from(glfw::GlfwApplicationBackend::new(params)),
+        };
+
+        let input_system = backend.new_input_system();
+
+        RcMut::new(Self { app_api: params.app_api, backend, input_system })
+    }
+
+    #[inline]
+    pub fn app_api(&self) -> ApplicationApi {
+        self.app_api
+    }
+
+    // Optional context passed to the RenderSystem (e.g.: Arc<Window> for wgpu).
+    #[inline]
+    pub fn app_context(&self) -> Option<&dyn std::any::Any> {
+        self.backend.app_context()
+    }
+
+    #[inline]
+    pub fn should_quit(&self) -> bool {
+        self.backend.should_quit()
+    }
+
+    #[inline]
+    pub fn request_quit(&mut self) {
+        self.backend.request_quit();
+    }
+
+    #[inline]
+    pub fn poll_events(&mut self) -> ApplicationEventList {
+        self.backend.poll_events()
+    }
+
+    #[inline]
+    pub fn present(&mut self) {
+        self.backend.present();
+    }
+
+    #[inline]
+    pub fn window_size(&self) -> Size {
+        self.backend.window_size()
+    }
+
+    #[inline]
+    pub fn framebuffer_size(&self) -> Size {
+        self.backend.framebuffer_size()
+    }
+
+    #[inline]
+    pub fn content_scale(&self) -> Vec2 {
+        self.backend.content_scale()
+    }
+
+    #[inline]
+    pub fn input_system(&self) -> &InputSystem {
+        &self.input_system
+    }
 }
 
 // ----------------------------------------------
@@ -132,71 +221,4 @@ pub enum ApplicationContentScale {
     #[default]
     System,
     Custom(f32),
-}
-
-// ----------------------------------------------
-// ApplicationBuilder
-// ----------------------------------------------
-
-pub struct ApplicationBuilder<'a> {
-    window_title: &'a str,
-    window_size: Size,
-    window_mode: ApplicationWindowMode,
-    content_scale: ApplicationContentScale,
-    resizable_window: bool,
-    confine_cursor: bool,
-}
-
-impl<'a> ApplicationBuilder<'a> {
-    pub fn new() -> Self {
-        Self {
-            window_title: "",
-            window_size: Size::new(1024, 768),
-            window_mode: ApplicationWindowMode::Windowed,
-            content_scale: ApplicationContentScale::default(),
-            resizable_window: false,
-            confine_cursor: false,
-        }
-    }
-
-    pub fn window_title(&mut self, title: &'a str) -> &mut Self {
-        self.window_title = title;
-        self
-    }
-
-    pub fn window_size(&mut self, size: Size) -> &mut Self {
-        self.window_size = size;
-        self
-    }
-
-    pub fn window_mode(&mut self, mode: ApplicationWindowMode) -> &mut Self {
-        self.window_mode = mode;
-        self
-    }
-
-    pub fn content_scale(&mut self, scale: ApplicationContentScale) -> &mut Self {
-        self.content_scale = scale;
-        self
-    }
-
-    pub fn resizable_window(&mut self, resizable: bool) -> &mut Self {
-        self.resizable_window = resizable;
-        self
-    }
-
-    pub fn confine_cursor_to_window(&mut self, confine: bool) -> &mut Self {
-        self.confine_cursor = confine;
-        self
-    }
-
-    pub fn build<AppBackendImpl>(&self) -> AppBackendImpl
-        where AppBackendImpl: Application + ApplicationFactory + 'static
-    {
-        AppBackendImpl::new(self.window_title,
-                            self.window_size,
-                            self.window_mode,
-                            self.resizable_window,
-                            self.confine_cursor,
-                            self.content_scale)
-    }
 }

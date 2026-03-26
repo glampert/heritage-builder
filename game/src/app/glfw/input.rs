@@ -1,30 +1,27 @@
-use std::any::Any;
-
 use super::window::GlfwWindowManagerRcRef;
 use crate::{
     utils::Vec2,
-    app::input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
+    app::input::{
+        InputSystemBackend,
+        InputAction, InputKey, InputModifiers, MouseButton,
+    },
 };
 
 // ----------------------------------------------
-// GlfwInputSystem
+// GlfwInputSystemBackend
 // ----------------------------------------------
 
-pub struct GlfwInputSystem {
+pub struct GlfwInputSystemBackend {
     window_manager: GlfwWindowManagerRcRef,
 }
 
-impl GlfwInputSystem {
+impl GlfwInputSystemBackend {
     pub fn new(window_manager: GlfwWindowManagerRcRef) -> Self {
         Self { window_manager }
     }
 }
 
-impl InputSystem for GlfwInputSystem {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
+impl InputSystemBackend for GlfwInputSystemBackend {
     #[inline]
     fn cursor_pos(&self) -> Vec2 {
         let (x, y) = self.window_manager.window().get_cursor_pos();
@@ -339,12 +336,12 @@ fn input_key_to_glfw(key: InputKey) -> glfw::Key {
 }
 
 fn mouse_button_to_glfw(button: MouseButton) -> Option<glfw::MouseButton> {
-    match button {
-        MouseButton::Left    => Some(glfw::MouseButton::Button1),
-        MouseButton::Right   => Some(glfw::MouseButton::Button2),
-        MouseButton::Middle  => Some(glfw::MouseButton::Button3),
-        MouseButton::Back    => Some(glfw::MouseButton::Button4),
-        MouseButton::Forward => Some(glfw::MouseButton::Button5),
-        MouseButton::Unknown => None,
-    }
+    Some(match button {
+        MouseButton::Left    => glfw::MouseButton::Button1,
+        MouseButton::Right   => glfw::MouseButton::Button2,
+        MouseButton::Middle  => glfw::MouseButton::Button3,
+        MouseButton::Back    => glfw::MouseButton::Button4,
+        MouseButton::Forward => glfw::MouseButton::Button5,
+        MouseButton::Unknown => return None,
+    })
 }

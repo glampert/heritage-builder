@@ -7,7 +7,7 @@ use objc2_app_kit::{
     NSApplicationPresentationOptions,
 };
 
-use crate::log;
+use crate::{log, file_sys};
 
 // ----------------------------------------------
 // NSApplication presentation helpers
@@ -98,7 +98,6 @@ pub fn redirect_stderr<F, R>(f: F, filename: &str) -> R
 {
     use std::os::unix::io::AsRawFd;
     use libc::{close, dup, dup2, STDERR_FILENO};
-    use crate::file_sys;
 
     let logs_path = log::logs_path();
     let _ = file_sys::create_path(&logs_path);

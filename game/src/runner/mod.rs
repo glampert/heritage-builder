@@ -18,7 +18,7 @@ type RunnerImpl = web::WebRunner;
 // ----------------------------------------------
 
 // Base trait implemented by the GameLoop.
-pub trait RunLoop {
+pub trait RunLoop: Sized {
     fn start(engine: &'static mut Engine, configs: &'static GameConfigs) -> &'static mut impl RunLoop;
     fn shutdown();
 
@@ -36,13 +36,13 @@ pub trait RunLoop {
 //  - Desktop: synchronous loop — create engine, load configs, pump frames, shut down.
 //  - Web: hand control to the browser event loop (WebRunner), which drives
 //         async init and then pumps frames via requestAnimationFrame.
-trait Runner {
+trait Runner: Sized {
     fn new() -> Self;
-    fn run<Game: RunLoop + 'static>(&self);
+    fn run<GameLoop: RunLoop + 'static>(&self);
 }
 
 // Top-level entry point called from main().
-pub fn run<Game: RunLoop + 'static>() {
+pub fn run<GameLoop: RunLoop + 'static>() {
     let runner = RunnerImpl::new();
-    runner.run::<Game>();
+    runner.run::<GameLoop>();
 }

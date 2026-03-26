@@ -164,7 +164,7 @@ impl Application for WinitApplication {
     }
 
     #[inline]
-    fn input_system(&self) -> &dyn InputSystem {
+    fn input_system(&self) -> &InputSystem {
         &self.input_system
     }
 }

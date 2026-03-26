@@ -1,17 +1,56 @@
-use std::any::Any;
 use bitflags::bitflags;
 use strum::EnumCount;
+use enum_dispatch::enum_dispatch;
 use crate::utils::Vec2;
+
+// ----------------------------------------------
+// Internal backend implementations
+// ----------------------------------------------
+
+#[enum_dispatch]
+pub(super) enum InputSystemBackendImpl {
+//    Winit(super::winit::WinitInputSystemBackend),
+    Glfw(super::glfw::GlfwInputSystemBackend),
+}
+
+// ----------------------------------------------
+// InputSystemBackend
+// ----------------------------------------------
+
+#[enum_dispatch(InputSystemBackendImpl)]
+pub(super) trait InputSystemBackend: Sized {
+    fn cursor_pos(&self) -> Vec2;
+    fn mouse_button_state(&self, button: MouseButton) -> InputAction;
+    fn key_state(&self, key: InputKey) -> InputAction;
+}
 
 // ----------------------------------------------
 // InputSystem
 // ----------------------------------------------
 
-pub trait InputSystem: Any {
-    fn as_any(&self) -> &dyn Any;
-    fn cursor_pos(&self) -> Vec2;
-    fn mouse_button_state(&self, button: MouseButton) -> InputAction;
-    fn key_state(&self, key: InputKey) -> InputAction;
+pub struct InputSystem {
+    backend: InputSystemBackendImpl,
+}
+
+impl InputSystem {
+    pub(super) fn new(backend: InputSystemBackendImpl) -> Self {
+        Self { backend }
+    }
+
+    #[inline]
+    pub fn cursor_pos(&self) -> Vec2 {
+        self.backend.cursor_pos()
+    }
+
+    #[inline]
+    pub fn mouse_button_state(&self, button: MouseButton) -> InputAction {
+        self.backend.mouse_button_state(button)
+    }
+
+    #[inline]
+    pub fn key_state(&self, key: InputKey) -> InputAction {
+        self.backend.key_state(key)
+    }
 }
 
 // ----------------------------------------------

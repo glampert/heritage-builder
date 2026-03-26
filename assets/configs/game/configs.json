@@ -1,5 +1,7 @@
 {
   "engine": {
+    "app_api": "Glfw",
+    "render_api": "OpenGl",
     "log_level": "Verbose",
     "window_size": {
       "width": 1440,
@@ -8,7 +10,6 @@
     "window_mode": "Windowed",
     "resizable_window": true,
     "confine_cursor_to_window": true,
-    "render_api": "OpenGl",
     "use_packed_texture_atlas": true,
     "texture_settings": {
       "filter": "Linear",

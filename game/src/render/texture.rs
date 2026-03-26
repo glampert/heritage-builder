@@ -150,6 +150,8 @@ pub(super) enum TextureBackendImpl {
 macro_rules! texture_backend_type_casts {
     ($variant:ident, $func:ident, $func_mut:ident, $type:ty) => {
         #[inline]
+        #[must_use]
+        #[allow(unreachable_patterns)]
         pub(super) fn $func(&self) -> &$type {
             match self {
                 Self::$variant(tex) => tex,
@@ -157,6 +159,8 @@ macro_rules! texture_backend_type_casts {
             }
         }
         #[inline]
+        #[must_use]
+        #[allow(unreachable_patterns)]
         pub(super) fn $func_mut(&mut self) -> &mut $type {
             match self {
                 Self::$variant(tex) => tex,

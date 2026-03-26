@@ -1,9 +1,8 @@
-use std::any::Any;
 use glfw::Context;
 
 use super::{
-    input::InputSystem,
-    Application, ApplicationFactory,
+    input::{InputSystem, InputSystemBackendImpl},
+    ApplicationBackend, ApplicationInitParams, ApplicationApi,
     ApplicationEvent, ApplicationEventList,
     ApplicationWindowMode, ApplicationContentScale,
 };
@@ -15,59 +14,51 @@ use crate::{
 mod window;
 use window::{GlfwWindowManager, GlfwWindowManagerRcMut};
 
-pub mod input;
-use input::GlfwInputSystem;
+mod input;
+pub use input::GlfwInputSystemBackend;
 
 // ----------------------------------------------
-// GlfwApplication
+// GlfwApplicationBackend
 // ----------------------------------------------
 
-pub struct GlfwApplication {
+pub struct GlfwApplicationBackend {
     should_quit: bool,
     glfw_instance: glfw::Glfw,
     window_manager: GlfwWindowManagerRcMut,
-    input_system: GlfwInputSystem,
 }
 
-impl ApplicationFactory for GlfwApplication {
-    fn new(window_title: &str,
-           window_size: Size,
-           window_mode: ApplicationWindowMode,
-           resizable_window: bool,
-           confine_cursor: bool,
-           content_scale: ApplicationContentScale) -> Self
-    {
-        let mut glfw_instance = glfw::init(glfw::fail_on_errors)
-            .expect("Failed to initialize GLFW!");
+impl GlfwApplicationBackend {
+    pub fn new(params: &ApplicationInitParams) -> Self {
+        debug_assert!(params.app_api == ApplicationApi::Glfw);
+        log::info!(log::channel!("app"), "--- App Backend: GLFW ---");
 
-        let window_manager = GlfwWindowManager::new(
-            &mut glfw_instance,
-            window_title,
-            window_size,
-            window_mode,
-            resizable_window,
-            confine_cursor,
-            content_scale
-        );
+        let mut glfw_instance =
+            glfw::init(glfw::fail_on_errors)
+                .expect("Failed to initialize GLFW!");
 
-        // NOTE: window_manager is an Rc, so its address is stable.
-        let input_system = GlfwInputSystem::new(window_manager.clone().into_not_mut());
+        let window_manager =
+            GlfwWindowManager::new(&mut glfw_instance, params);
 
         Self {
             should_quit: false,
             glfw_instance,
             window_manager,
-            input_system,
         }
     }
 }
 
-impl Application for GlfwApplication {
-    fn as_any(&self) -> &dyn Any {
-        self
+impl ApplicationBackend for GlfwApplicationBackend {
+    fn new_input_system(&mut self) -> InputSystem {
+        let input_system =
+            GlfwInputSystemBackend::new(self.window_manager.clone().into_not_mut());
+
+        InputSystem::new(InputSystemBackendImpl::Glfw(input_system))
     }
 
-    #[inline]
+    fn app_context(&self) -> Option<&dyn std::any::Any> {
+        None
+    }
+
     fn should_quit(&self) -> bool {
         self.should_quit
     }
@@ -80,39 +71,39 @@ impl Application for GlfwApplication {
     fn poll_events(&mut self) -> ApplicationEventList {
         self.glfw_instance.poll_events();
 
-        let mut translated_events = ApplicationEventList::new();
+        let mut events = ApplicationEventList::new();
 
         for (_, event) in glfw::flush_messages(self.window_manager.event_receiver()) {
             // NOTE: To receive events here we must call window.set_<event>_polling().
             // See set_size_polling/set_close_polling/etc calls in GlfwWindowManager.
             match event {
                 glfw::WindowEvent::Size(width, height) => {
-                    translated_events.push(ApplicationEvent::WindowResize {
+                    events.push(ApplicationEvent::WindowResize {
                         window_size: Size::new(width, height),
                         framebuffer_size: self.framebuffer_size(),
                     });
                 }
                 glfw::WindowEvent::Close => {
-                    translated_events.push(ApplicationEvent::Quit);
+                    events.push(ApplicationEvent::Quit);
                 }
                 glfw::WindowEvent::Key(key, _scan_code, action, modifiers) => {
-                    translated_events.push(ApplicationEvent::KeyInput(
+                    events.push(ApplicationEvent::KeyInput(
                         input::glfw_key_to_input_key(key),
                         input::glfw_action_to_input_action(action),
-                        input::glfw_modifiers_to_input_modifiers(modifiers),
+                        input::glfw_modifiers_to_input_modifiers(modifiers)
                     ));
                 }
                 glfw::WindowEvent::Char(c) => {
-                    translated_events.push(ApplicationEvent::CharInput(c));
+                    events.push(ApplicationEvent::CharInput(c));
                 }
                 glfw::WindowEvent::Scroll(x, y) => {
-                    translated_events.push(ApplicationEvent::Scroll(Vec2::new(x as f32, y as f32)));
+                    events.push(ApplicationEvent::Scroll(Vec2::new(x as f32, y as f32)));
                 }
                 glfw::WindowEvent::MouseButton(button, action, modifiers) => {
-                    translated_events.push(ApplicationEvent::MouseButton(
+                    events.push(ApplicationEvent::MouseButton(
                         input::glfw_mouse_button_to_mouse_button(button),
                         input::glfw_action_to_input_action(action),
-                        input::glfw_modifiers_to_input_modifiers(modifiers),
+                        input::glfw_modifiers_to_input_modifiers(modifiers)
                     ));
                 }
                 unhandled_event => {
@@ -123,15 +114,13 @@ impl Application for GlfwApplication {
 
         self.window_manager.confine_cursor_to_window();
 
-        translated_events
+        events
     }
 
-    #[inline]
     fn present(&mut self) {
         self.window_manager.window_mut().swap_buffers();
     }
 
-    #[inline]
     fn window_size(&self) -> Size {
         // NOTE: Assume window size is equal to framebuffer size divided by content scale.
         let scale = self.window_manager.content_scale();
@@ -139,19 +128,12 @@ impl Application for GlfwApplication {
         Size::new((width as f32 / scale.x) as i32, (height as f32 / scale.y) as i32)
     }
 
-    #[inline]
     fn framebuffer_size(&self) -> Size {
         let (width, height) = self.window_manager.window().get_framebuffer_size();
         Size::new(width, height)
     }
 
-    #[inline]
     fn content_scale(&self) -> Vec2 {
         self.window_manager.content_scale()
-    }
-
-    #[inline]
-    fn input_system(&self) -> &dyn InputSystem {
-        &self.input_system
     }
 }

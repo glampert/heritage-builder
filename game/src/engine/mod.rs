@@ -1,12 +1,10 @@
-#![allow(clippy::mut_from_ref)]
-
 use crate::{
     log,
     ui::{self, UiSystem},
     sound::SoundSystem,
     camera::Camera,
     app::{
-        self, input::*,
+        input::*,
         Application, ApplicationEvent, ApplicationEventList,
     },
     render::{
@@ -29,42 +27,12 @@ pub mod config;
 use config::EngineConfigs;
 
 // ----------------------------------------------
-// Internal backend implementations
-// ----------------------------------------------
-
-#[cfg(feature = "desktop")]
-pub mod backend {
-    use super::*;
-
-    // GLFW + OpenGL
-    pub type ApplicationBackendImpl = app::backend::GlfwApplication;
-    pub type InputSystemBackendImpl = app::backend::GlfwInputSystem;
-
-    // Winit + OpenGL (EXPERIMENTAL / WIP)
-    //pub type ApplicationBackendImpl = app::backend::WinitOpenGlApplication;
-    //pub type InputSystemBackendImpl = app::backend::WinitInputSystem;
-
-    // Winit + Wgpu (EXPERIMENTAL / WIP)
-    //pub type ApplicationBackendImpl = app::backend::WinitWgpuApplication;
-    //pub type InputSystemBackendImpl = app::backend::WinitInputSystem;
-}
-
-#[cfg(feature = "web")]
-pub mod backend {
-    use super::*;
-
-    // Winit + Wgpu
-    pub type ApplicationBackendImpl = app::backend::WinitWgpuApplication;
-    pub type InputSystemBackendImpl = app::backend::WinitInputSystem;
-}
-
-// ----------------------------------------------
 // EngineSystemsMutRefs
 // ----------------------------------------------
 
 pub struct EngineSystemsMutRefs<'game> {
     pub ui_sys: &'game UiSystem,
-    pub input_sys: &'game dyn InputSystem,
+    pub input_sys: &'game InputSystem,
     pub sound_sys: &'game mut SoundSystem,
     pub render_sys: &'game mut RenderSystem,
 }
@@ -74,7 +42,7 @@ pub struct EngineSystemsMutRefs<'game> {
 // ----------------------------------------------
 
 pub struct Engine {
-    app: RcMut<backend::ApplicationBackendImpl>,
+    app: RcMut<Application>,
 
     render_system: RcMut<RenderSystem>,
     render_stats: RenderStats,
@@ -92,13 +60,13 @@ pub struct Engine {
 
 impl Engine {
     #[inline]
-    pub fn app(&self) -> &dyn Application {
-        &*self.app
+    pub fn app(&self) -> &Application {
+        &self.app
     }
 
     #[inline]
-    pub fn app_mut(&mut self) -> &mut dyn Application {
-        &mut *self.app
+    pub fn app_mut(&mut self) -> &mut Application {
+        &mut self.app
     }
 
     #[inline]
@@ -142,7 +110,7 @@ impl Engine {
     }
 
     #[inline]
-    pub fn input_system(&self) -> &dyn InputSystem {
+    pub fn input_system(&self) -> &InputSystem {
         self.app.input_system()
     }
 
@@ -211,14 +179,10 @@ impl Engine {
         self.frame_clock.begin_frame();
         self.frame_events = self.poll_app_events();
 
-        // Pass in the concrete InputSystem implementation to UiSystem.
-        let input_sys = self.app.input_system()
-            .as_any()
-            .downcast_ref::<backend::InputSystemBackendImpl>()
-            .unwrap();
+        let input_sys = self.app.input_system();
 
         self.render_system.begin_frame(self.app.window_size(), self.app.framebuffer_size());
-        self.ui_system.begin_frame(&*self.app, input_sys, self.frame_clock.delta_time());
+        self.ui_system.begin_frame(&self.app, input_sys, self.frame_clock.delta_time());
 
         let begin_frame_time_ms = begin_frame_timer.end();
 
@@ -274,7 +238,7 @@ impl Engine {
     // ----------------------
 
     pub fn start(configs: &EngineConfigs,
-                 app: RcMut<backend::ApplicationBackendImpl>,
+                 app: RcMut<Application>,
                  render_system: RcMut<RenderSystem>) -> &'static mut Engine
     {
         let engine = Self::new(configs, app, render_system);
@@ -290,10 +254,7 @@ impl Engine {
 
     // NOTE: Application and RenderSystem are initialized outside
     // because we need bespoke initialization for Web/WASM.
-    fn new(configs: &EngineConfigs,
-           app: RcMut<backend::ApplicationBackendImpl>,
-           mut render_system: RcMut<RenderSystem>) -> Self
-    {
+    fn new(configs: &EngineConfigs, app: RcMut<Application>, mut render_system: RcMut<RenderSystem>) -> Self {
         log::info!(log::channel!("engine"), "Window Size: {}", app.window_size());
         log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
         log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());

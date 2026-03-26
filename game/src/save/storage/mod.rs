@@ -19,7 +19,7 @@ type SaveGameStorageBackendImpl = web::WebSaveGameStorageBackend;
 // Platform-abstracted save file storage.
 // - On desktop, delegates to the filesystem.
 // - On Web/WASM, uses browser localStorage.
-trait SaveGameStorageBackend {
+trait SaveGameStorageBackend: Sized {
     // Returns the directory/prefix where save files are stored.
     fn save_files_path(&self) -> FixedPath;
 
