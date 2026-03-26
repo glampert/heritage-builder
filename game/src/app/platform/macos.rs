@@ -74,14 +74,14 @@ pub fn toggle_native_fullscreen(ns_window_ptr: *mut std::ffi::c_void) {
 
 // Warps the OS cursor to the given position in CG global coordinates
 // (top-left origin, Y-down, logical points).
-pub fn warp_cursor(x: f64, y: f64) {
+pub fn set_cursor_position(x: f64, y: f64) {
     #[repr(C)]
     #[derive(Clone, Copy)]
     struct CGPoint { x: f64, y: f64 }
 
     #[link(name = "CoreGraphics", kind = "framework")]
     unsafe extern "C" {
-        fn CGWarpMouseCursorPosition(new_cursor_position: CGPoint) -> i32;
+        unsafe fn CGWarpMouseCursorPosition(new_cursor_position: CGPoint) -> i32;
     }
 
     unsafe { CGWarpMouseCursorPosition(CGPoint { x, y }); }

@@ -1,10 +1,15 @@
-use std::any::Any;
 use strum::EnumCount;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 use crate::{
-    utils::{Vec2, mem::RcRef},
-    app::input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
+    utils::{
+        Vec2,
+        mem::{RcRef, RcMut},
+    },
+    app::input::{
+        InputSystemBackend,
+        InputAction, InputKey, InputModifiers, MouseButton,
+    },
 };
 
 // ----------------------------------------------
@@ -24,13 +29,13 @@ pub struct WinitInputState {
 }
 
 impl WinitInputState {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> RcMut<Self> {
+        RcMut::new(Self {
             cursor_pos: Vec2::zero(),
             modifiers: InputModifiers::empty(),
             key_states: [false; INPUT_KEY_COUNT],
             mouse_button_states: [false; MOUSE_BUTTON_COUNT],
-        }
+        })
     }
 
     #[inline]
@@ -55,24 +60,20 @@ impl WinitInputState {
 }
 
 // ----------------------------------------------
-// WinitInputSystem
+// WinitInputSystemBackend
 // ----------------------------------------------
 
-pub struct WinitInputSystem {
+pub struct WinitInputSystemBackend {
     state: RcRef<WinitInputState>,
 }
 
-impl WinitInputSystem {
+impl WinitInputSystemBackend {
     pub fn new(state: RcRef<WinitInputState>) -> Self {
         Self { state }
     }
 }
 
-impl InputSystem for WinitInputSystem {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
+impl InputSystemBackend for WinitInputSystemBackend {
     #[inline]
     fn cursor_pos(&self) -> Vec2 {
         self.state.cursor_pos
@@ -257,5 +258,36 @@ pub fn winit_element_state_to_input_action(state: winit::event::ElementState, re
         winit::event::ElementState::Pressed if repeat => InputAction::Repeat,
         winit::event::ElementState::Pressed  => InputAction::Press,
         winit::event::ElementState::Released => InputAction::Release,
+    }
+}
+
+// ----------------------------------------------
+// Cursor positioning
+// ----------------------------------------------
+
+#[cfg(feature = "desktop")]
+pub mod cursor {
+    // On MacOS, winit's set_cursor_position is not supported.
+    // CGWarpMouseCursorPosition uses CG global coordinates: top-left origin, Y-down,
+    // in logical points (same space as window.inner_position() / scale_factor).
+    // We compute the target screen position by adding the content-area offset to the
+    // cursor coordinates — both are already in that same top-left, Y-down space.
+    #[cfg(target_os = "macos")]
+    pub fn set_position_native(window: &winit::window::Window, x: f64, y: f64) {
+        // inner_position() is the top-left of the content area in physical pixels,
+        // CG coordinate space (top-left origin, Y-down).
+        let Ok(inner_pos) = window.inner_position() else { return };
+        let scale = window.scale_factor();
+
+        crate::app::platform::set_cursor_position(
+            (inner_pos.x as f64 / scale) + x,
+            (inner_pos.y as f64 / scale) + y,
+        );
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    pub fn set_position_native(window: &winit::window::Window, x: f64, y: f64) {
+        // winit's built-in set_cursor_position works on Windows and Linux.
+        let _ = window.set_cursor_position(winit::dpi::LogicalPosition::new(x, y));
     }
 }

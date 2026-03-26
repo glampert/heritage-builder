@@ -3,7 +3,7 @@ use smallvec::SmallVec;
 use serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
 
-use crate::utils::{Size, Vec2, mem::RcMut};
+use crate::{render::RenderApi, utils::{Size, Vec2, mem::RcMut}};
 use input::{InputSystem, InputAction, InputKey, InputModifiers, MouseButton};
 
 pub mod input;
@@ -13,19 +13,19 @@ pub mod input;
 // ----------------------------------------------
 
 mod platform;
-//mod winit;
+mod winit;
 mod glfw;
 
 #[enum_dispatch]
 enum ApplicationBackendImpl {
-//    Winit(winit::WinitApplicationBackend),
+    Winit(winit::WinitApplicationBackend),
     Glfw(glfw::GlfwApplicationBackend),
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum ApplicationApi {
     #[default]
-//    Winit,
+    Winit,
     Glfw,
 }
 
@@ -55,6 +55,7 @@ trait ApplicationBackend: Sized {
 
 pub struct ApplicationInitParams<'a> {
     pub app_api: ApplicationApi,
+    pub render_api: RenderApi,
     pub window_title: &'a str,
     pub window_size: Size,
     pub window_mode: ApplicationWindowMode,
@@ -67,6 +68,7 @@ impl Default for ApplicationInitParams<'_> {
     fn default() -> Self {
         Self {
             app_api: ApplicationApi::default(),
+            render_api: RenderApi::default(),
             window_title: "Heritage Builder",
             window_size: Size::new(1024, 768),
             window_mode: ApplicationWindowMode::Windowed,
@@ -92,7 +94,7 @@ impl Application {
         debug_assert!(params.window_size.is_valid());
 
         let mut backend = match params.app_api {
-//            ApplicationApi::Winit => ApplicationBackendImpl::from(winit::WinitApplicationBackend::new()),
+            ApplicationApi::Winit => ApplicationBackendImpl::from(winit::WinitApplicationBackend::new(params)),
             ApplicationApi::Glfw  => ApplicationBackendImpl::from(glfw::GlfwApplicationBackend::new(params)),
         };
 

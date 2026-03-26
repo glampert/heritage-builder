@@ -6,8 +6,8 @@ use crate::{
     file_sys::paths,
     utils::time::PerfTimer,
     debug::log_viewer::LogViewer,
-    app::{Application, ApplicationInitParams},
-    render::{RenderSystem, RenderSystemInitParams},
+    app::{Application, ApplicationInitParams, ApplicationApi},
+    render::{RenderSystem, RenderSystemInitParams, RenderApi},
 };
 
 // ----------------------------------------------
@@ -48,10 +48,19 @@ impl DesktopRunner {
 
         log::set_level(configs.engine.log_level);
 
+        let app_api = configs.engine.app_api;
+        let mut render_api = configs.engine.render_api;
+
+        if app_api == ApplicationApi::Glfw && render_api != RenderApi::OpenGl {
+            log::warning!(log::channel!("engine"), "Glfw is only compatible OpenGl. Setting render backend to OpenGl.");
+            render_api = RenderApi::OpenGl;
+        }
+
         // Initialize Application:
         let app = Application::new(
             &ApplicationInitParams {
-                app_api:          configs.engine.app_api,
+                app_api,
+                render_api,
                 window_title:     &configs.engine.window_title,
                 window_size:      configs.engine.window_size,
                 window_mode:      configs.engine.window_mode,
@@ -65,7 +74,7 @@ impl DesktopRunner {
         // Initialize Render System:
         let render_system = RenderSystem::new(
             &RenderSystemInitParams {
-                render_api:       configs.engine.render_api,
+                render_api,
                 clear_color:      configs.engine.window_background_color,
                 texture_settings: configs.engine.texture_settings,
                 viewport_size:    app.window_size(),

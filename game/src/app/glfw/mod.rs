@@ -1,14 +1,19 @@
 use glfw::Context;
 
 use super::{
+    ApplicationBackend,
+    ApplicationInitParams,
+    ApplicationApi,
+    ApplicationEvent,
+    ApplicationEventList,
+    ApplicationWindowMode,
+    ApplicationContentScale,
     input::{InputSystem, InputSystemBackendImpl},
-    ApplicationBackend, ApplicationInitParams, ApplicationApi,
-    ApplicationEvent, ApplicationEventList,
-    ApplicationWindowMode, ApplicationContentScale,
 };
 use crate::{
     log,
     utils::{Size, Vec2},
+    render::RenderApi,
 };
 
 mod window;
@@ -30,6 +35,8 @@ pub struct GlfwApplicationBackend {
 impl GlfwApplicationBackend {
     pub fn new(params: &ApplicationInitParams) -> Self {
         debug_assert!(params.app_api == ApplicationApi::Glfw);
+        debug_assert!(params.render_api == RenderApi::OpenGl);
+
         log::info!(log::channel!("app"), "--- App Backend: GLFW ---");
 
         let mut glfw_instance =

@@ -9,7 +9,7 @@ use crate::utils::Vec2;
 
 #[enum_dispatch]
 pub(super) enum InputSystemBackendImpl {
-//    Winit(super::winit::WinitInputSystemBackend),
+    Winit(super::winit::WinitInputSystemBackend),
     Glfw(super::glfw::GlfwInputSystemBackend),
 }
 

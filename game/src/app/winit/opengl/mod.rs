@@ -1,188 +1,273 @@
-use std::any::Any;
-use std::time::Duration;
+use smallvec::SmallVec;
+use std::num::NonZeroU32;
 
+use glutin_winit::{DisplayBuilder, GlWindow};
+use glutin::{
+    display::{GetGlDisplay, GlDisplay},
+    config::{ConfigTemplateBuilder, GlConfig},
+    surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface},
+    context::{ContextApi, ContextAttributesBuilder, GlProfile, NotCurrentGlContext, PossiblyCurrentContext, Version},
+};
 use winit::{
+    event::WindowEvent,
     application::ApplicationHandler,
-    event::{MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
     platform::pump_events::EventLoopExtPumpEvents,
-    window::WindowId,
+    monitor::VideoModeHandle,
+    raw_window_handle::HasWindowHandle,
+    window::{Window, WindowId, WindowAttributes, Fullscreen},
 };
 
-use super::{
-    input::{
-        WinitInputState, WinitInputSystem,
-        winit_physical_key_to_input_key,
-        winit_modifiers_to_input_modifiers,
-        winit_mouse_button_to_mouse_button,
-        winit_element_state_to_input_action,
-    },
-};
 use crate::{
     log,
-    utils::{Size, Vec2, mem::RcMut},
-    app::{
-        input::InputSystem,
-        Application, ApplicationFactory,
-        ApplicationEvent, ApplicationEventList,
-        ApplicationWindowMode, ApplicationContentScale,
-    },
+    utils::{Size, Vec2},
+    render::RenderApi,
+    app::{ApplicationInitParams, ApplicationApi, ApplicationWindowMode},
 };
 
-mod window;
-use window::WinitWindowManager;
-
 // ----------------------------------------------
-// WinitApplication
+// WinitWindowManager (OpenGL)
 // ----------------------------------------------
 
-pub struct WinitApplication {
-    should_quit: bool,
+pub struct WinitWindowManager {
+    window: Window,
     event_loop: EventLoop<()>,
-    window_manager: WinitWindowManager,
-    input_state: RcMut<WinitInputState>,
-    input_system: WinitInputSystem,
-    resizable: bool,
+    gl_context: PossiblyCurrentContext,
+    gl_surface: Surface<WindowSurface>,
 }
 
-impl ApplicationFactory for WinitApplication {
-    fn new(window_title: &str,
-           window_size: Size,
-           window_mode: ApplicationWindowMode,
-           resizable: bool,
-           confine_cursor: bool,
-           content_scale: ApplicationContentScale) -> Self
-    {
+impl WinitWindowManager {
+    pub fn new(params: &ApplicationInitParams) -> Self {
+        debug_assert!(params.app_api == ApplicationApi::Winit);
+        debug_assert!(params.render_api == RenderApi::OpenGl);
+
         let mut event_loop = EventLoop::new()
-            .expect("Failed to create winit event loop!");
+            .expect("Failed to create Winit event loop!");
 
         // Create the window and GL context during the first pump (triggers `resumed()`).
-        let mut init = WinitInitHandler::new(
-            window_title,
-            window_size,
-            window_mode,
-            resizable,
-            confine_cursor,
-            content_scale
-        );
+        let mut init_handler = WinitInitHandler::new(params);
 
-        // Pump once to trigger `resumed()`, which creates the window + GL context.
-        event_loop.pump_app_events(Some(Duration::ZERO), &mut init);
+        // Pump events once to trigger `resumed()`, which creates the window + GL context.
+        let _ = event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut init_handler);
 
-        let window_manager = init.result
-            .expect("WinitApplication: window initialization failed — resumed() was not triggered");
+        let (window, gl_context, gl_surface) = init_handler.result
+            .expect("Winit: Window initialization failed — resumed() was not triggered!");
 
-        log::info!(log::channel!("app"), "WinitApplication initialized.");
-
-        let input_state = RcMut::new(WinitInputState::new());
-        let input_system = WinitInputSystem::new(input_state.clone().into_not_mut());
+        log::info!(log::channel!("app"), "WinitWindowManager (OpenGL) created.");
 
         Self {
-            should_quit: false,
+            window,
             event_loop,
-            window_manager,
-            input_state,
-            input_system,
-            resizable,
+            gl_context,
+            gl_surface,
         }
     }
 }
 
-impl Application for WinitApplication {
-    fn as_any(&self) -> &dyn Any {
-        self
+impl super::WinitWindowManager for WinitWindowManager {
+    fn window(&self) -> &Window {
+        &self.window
     }
 
-    #[inline]
-    fn should_quit(&self) -> bool {
-        self.should_quit
+    fn app_context(&self) -> Option<&dyn std::any::Any> {
+        None
     }
 
-    fn request_quit(&mut self) {
-        self.should_quit = true;
-    }
-
-    fn poll_events(&mut self) -> ApplicationEventList {
-        let mut events = ApplicationEventList::new();
-
-        {
-            let window_id = self.window_manager.window.id();
-
-            // Split borrows: event_loop is polled, window_manager / input_state
-            // are borrowed by the handler. These are separate fields so the
-            // borrow checker allows it.
-            let WinitApplication {
-                event_loop,
-                should_quit,
-                window_manager,
-                input_state,
-                resizable,
-                ..
-            } = self;
-        
-            let mut pump = WinitEventPump {
-                events: &mut events,
-                should_quit,
-                window_manager,
-                input_state: &mut *input_state,
-                window_id,
-                resizable: *resizable,
-            };
-
-            let _ = event_loop.pump_app_events(Some(Duration::ZERO), &mut pump);
+    fn resize_surface(&mut self, new_size: Size) {
+        if new_size.is_valid() {
+            self.gl_surface.resize(
+                &self.gl_context,
+                NonZeroU32::new(new_size.width  as u32).unwrap(),
+                NonZeroU32::new(new_size.height as u32).unwrap()
+            );
         }
-
-        // Clamp cursor to window bounds.
-        if let Some(clamped) = self.window_manager.try_confine_cursor(self.input_state.cursor_pos) {
-            self.input_state.cursor_pos = clamped;
-        }
-
-        events
     }
 
-    #[inline]
     fn present(&mut self) {
-        use glutin::surface::GlSurface;
-        self.window_manager.gl_surface
-            .swap_buffers(&self.window_manager.gl_context)
+        self.gl_surface
+            .swap_buffers(&self.gl_context)
             .expect("Failed to swap GL buffers!");
     }
 
-    #[inline]
-    fn window_size(&self) -> Size {
-        self.window_manager.window_size()
+    fn poll_events<F>(&mut self, handler: F)
+        where F: FnMut(&ActiveEventLoop, WindowEvent)
+    {        
+        let mut evt_handler = WinitWindowEventHandler {
+            window_id: self.window.id(),
+            handler,
+        };
+
+        let _ = self.event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut evt_handler);
     }
 
-    #[inline]
-    fn framebuffer_size(&self) -> Size {
-        self.window_manager.framebuffer_size()
-    }
-
-    #[inline]
-    fn content_scale(&self) -> Vec2 {
-        self.window_manager.content_scale()
-    }
-
-    #[inline]
-    fn input_system(&self) -> &InputSystem {
-        &self.input_system
+    fn set_cursor_position(&mut self, pos: Vec2) {
+        super::input::cursor::set_position_native(&self.window, pos.x as f64, pos.y as f64);
     }
 }
 
 // ----------------------------------------------
-// WinitEventPump — pumps a single frame of events
+// Helpers
 // ----------------------------------------------
 
-struct WinitEventPump<'a> {
-    events: &'a mut ApplicationEventList,
-    should_quit: &'a mut bool,
-    window_manager: &'a mut WinitWindowManager,
-    input_state: &'a mut WinitInputState,
+// Called from inside `WinitInitHandler::resumed()` during init.
+fn create_window_and_gl_context(event_loop: &ActiveEventLoop,
+                                params: &ApplicationInitParams)
+                                -> Option<(Window, PossiblyCurrentContext, Surface<WindowSurface>)>
+{
+    // Fullscreen mode requires a resizable window attribute on some platforms.
+    let needs_resizable = params.resizable_window || params.window_mode.is_fullscreen();
+    let fullscreen = select_fullscreen(event_loop, params.window_mode);
+
+    let window_attributes = WindowAttributes::default()
+        .with_title(params.window_title)
+        .with_inner_size(winit::dpi::LogicalSize::new(params.window_size.width as f64, params.window_size.height as f64))
+        .with_resizable(needs_resizable)
+        .with_fullscreen(fullscreen);
+
+    let config_template = ConfigTemplateBuilder::new()
+        .with_alpha_size(8)
+        .with_api(glutin::config::Api::OPENGL);
+
+    let display_builder = DisplayBuilder::new()
+        .with_window_attributes(Some(window_attributes));
+
+    let (window_opt, gl_config) = display_builder
+        .build(event_loop, config_template, |configs| {
+            configs
+                .reduce(|best, config| {
+                    if config.num_samples() > best.num_samples() { config } else { best }
+                })
+                .expect("No suitable GL config found!")
+        })
+        .expect("Failed to build Winit window with GL display!");
+
+    let window = window_opt.expect("Winit Window was not created during display build!");
+
+    let raw_window_handle = window.window_handle()
+        .expect("Failed to get window handle!")
+        .as_raw();
+
+    let context_attributes = ContextAttributesBuilder::new()
+        .with_context_api(ContextApi::OpenGl(Some(Version::new(3, 3))))
+        .with_profile(GlProfile::Core)
+        .build(Some(raw_window_handle));
+
+    let not_current_context = unsafe {
+        gl_config.display()
+            .create_context(&gl_config, &context_attributes)
+            .expect("Failed to create OpenGL context!")
+    };
+
+    // Build surface attributes using the glutin_winit helper.
+    let surface_attributes = window
+        .build_surface_attributes(SurfaceAttributesBuilder::new())
+        .expect("Failed to build surface attributes!");
+
+    let gl_surface = unsafe {
+        gl_config.display()
+            .create_window_surface(&gl_config, &surface_attributes)
+            .expect("Failed to create GL window surface!")
+    };
+
+    let gl_context = not_current_context
+        .make_current(&gl_surface)
+        .expect("Failed to make GL context current!");
+
+    // On MacOS `gl::load_with` generates a lot of TTY spam about missing
+    // OpenGL functions that we don't need or care about. This is a workaround
+    // to stop the TTY spam but still keep a record of the errors if ever
+    // required for inspection.
+    let load_gl = || {
+        gl::load_with(|symbol| {
+            // Avoid a heap allocation per symbol: copy the name + null terminator
+            // onto the stack. No GL function name exceeds 64 bytes.
+            let bytes = symbol.as_bytes();
+            debug_assert!(bytes.len() < 128, "GL symbol too long: {symbol}");
+
+            let mut buf = [0u8; 128];
+            buf[..bytes.len()].copy_from_slice(bytes);
+
+            // SAFETY: buf ends with a null byte and `symbol` is a valid C
+            // identifier (no interior nulls).
+            let c_str = unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(&buf[..=bytes.len()]) };
+            gl_config.display().get_proc_address(c_str).cast()
+        });
+    };
+
+    #[cfg(target_os = "macos")]
+    crate::app::platform::redirect_stderr(load_gl, "stderr_gl_load_app.log");
+
+    #[cfg(not(target_os = "macos"))]
+    load_gl();
+
+    log::info!(log::channel!("app"), "Winit Window + OpenGL Context created.");
+    log::info!(log::channel!("app"), "Window Inner Size: {:?}, Outer Size: {:?}", window.inner_size(), window.outer_size());
+
+    Some((window, gl_context, gl_surface))
+}
+
+fn select_fullscreen(event_loop: &ActiveEventLoop,
+                     window_mode: ApplicationWindowMode)
+                     -> Option<Fullscreen>
+{
+    match window_mode {
+        ApplicationWindowMode::FullScreen => {
+            // Borderless fullscreen on the primary monitor.
+            Some(Fullscreen::Borderless(event_loop.primary_monitor()))
+        }
+        ApplicationWindowMode::ExclusiveFullScreen => {
+            // Attempt to select the best video mode on the primary monitor.
+            let monitor = event_loop.primary_monitor()?;
+            let video_mode = select_best_video_mode(monitor.video_modes())?;
+            Some(Fullscreen::Exclusive(video_mode))
+        }
+        ApplicationWindowMode::Windowed => None,
+    }
+}
+
+// Selects the best exclusive fullscreen video mode:
+//  - Prefer highest pixel area;
+//  - Prefer 60 Hz if available at that resolution;
+//  - Otherwise prefer highest refresh rate.
+fn select_best_video_mode<I>(modes: I) -> Option<VideoModeHandle>
+    where I: Iterator<Item = VideoModeHandle>
+{
+    let all_modes: SmallVec<[VideoModeHandle; 16]> = modes.collect();
+    if all_modes.is_empty() {
+        return None;
+    }
+
+    let max_area = all_modes
+        .iter()
+        .map(|m| m.size().width * m.size().height)
+        .max()?;
+
+    let mut best: SmallVec<[&VideoModeHandle; 16]> = all_modes
+        .iter()
+        .filter(|m| m.size().width * m.size().height == max_area)
+        .collect();
+
+    if let Some(mode_60hz) = best.iter().find(|m| m.refresh_rate_millihertz() == 60_000) {
+        return Some((*mode_60hz).clone());
+    }
+
+    best.sort_by_key(|m| m.refresh_rate_millihertz());
+    best.last().map(|m| (*m).clone())
+}
+
+// ----------------------------------------------
+// WinitWindowEventHandler
+// ----------------------------------------------
+
+// Handles window events for the window with specified id only.
+struct WinitWindowEventHandler<F> {
     window_id: WindowId,
-    resizable: bool,
+    handler: F,
 }
 
-impl ApplicationHandler for WinitEventPump<'_> {
+impl<F> ApplicationHandler for WinitWindowEventHandler<F>
+    where F: FnMut(&ActiveEventLoop, WindowEvent)
+{
     fn resumed(&mut self, _event_loop: &ActiveEventLoop) {
         // Window is already created; nothing to do during normal polling.
     }
@@ -196,114 +281,23 @@ impl ApplicationHandler for WinitEventPump<'_> {
             return;
         }
 
-        match event {
-            WindowEvent::CloseRequested => {
-                *self.should_quit = true;
-                self.events.push(ApplicationEvent::Quit);
-                event_loop.exit();
-            }
-            WindowEvent::Resized(phys_size) if self.resizable => {
-                self.window_manager.resize_surface(phys_size.width, phys_size.height);
-
-                let window_size = self.window_manager.window_size();
-                let framebuffer_size = self.window_manager.framebuffer_size();
-
-                self.events.push(ApplicationEvent::WindowResize {
-                    window_size,
-                    framebuffer_size,
-                });
-            }
-            WindowEvent::KeyboardInput { event: key_event, .. } => {
-                let key = winit_physical_key_to_input_key(key_event.physical_key);
-                let action = winit_element_state_to_input_action(key_event.state, key_event.repeat);
-                let modifiers = self.input_state.modifiers;
-
-                self.input_state.set_key(key, key_event.state.is_pressed());
-                self.events.push(ApplicationEvent::KeyInput(key, action, modifiers));
-
-                // Emit CharInput for printable characters on key press/repeat.
-                // `text` is set by winit for keys that produce a character.
-                if let Some(text) = key_event.text {
-                    for c in text.chars().filter(|c| !c.is_control()) {
-                        self.events.push(ApplicationEvent::CharInput(c));
-                    }
-                }
-            }
-            WindowEvent::ModifiersChanged(new_modifiers) => {
-                self.input_state.modifiers = winit_modifiers_to_input_modifiers(new_modifiers.state());
-            }
-            WindowEvent::MouseWheel { delta, .. } => {
-                let scroll = match delta {
-                    MouseScrollDelta::LineDelta(x, y) => {
-                        Vec2::new(x, y)
-                    }
-                    MouseScrollDelta::PixelDelta(pos) => {
-                        // Convert pixel delta to approximate line counts.
-                        Vec2::new(pos.x as f32 / 20.0, pos.y as f32 / 20.0)
-                    }
-                };
-                self.events.push(ApplicationEvent::Scroll(scroll));
-            }
-            WindowEvent::MouseInput { button, state, .. } => {
-                if let Some(mb) = winit_mouse_button_to_mouse_button(button) {
-                    let action = winit_element_state_to_input_action(state, false);
-                    let modifiers = self.input_state.modifiers;
-
-                    self.input_state.set_mouse_button(mb, state.is_pressed());
-                    self.events.push(ApplicationEvent::MouseButton(mb, action, modifiers));
-                }
-            }
-            WindowEvent::CursorLeft { .. } => {
-                // When confinement is enabled: the title bar is outside the content
-                // view, so winit stops sending CursorMoved once the cursor enters it
-                // and clamping never triggers. Warp back to the last known in-bounds
-                // position the moment CursorLeft fires.
-                let pos = self.input_state.cursor_pos;
-                self.window_manager.warp_cursor_to_pos(pos);
-            }
-            WindowEvent::CursorMoved { position, .. } => {
-                let scale = self.window_manager.content_scale();
-                self.input_state.cursor_pos = Vec2::new(
-                    position.x as f32 / scale.x,
-                    position.y as f32 / scale.y,
-                );
-            }
-            _ => {} // Unhandled event.
-        }
+        (self.handler)(event_loop, event);
     }
 }
 
 // ----------------------------------------------
-// WinitInitHandler — creates window + GL context in resumed()
+// WinitInitHandler
 // ----------------------------------------------
 
+// Creates window + GL context in resumed().
 struct WinitInitHandler<'a> {
-    window_title: &'a str,
-    window_size: Size,
-    window_mode: ApplicationWindowMode,
-    resizable: bool,
-    confine_cursor: bool,
-    content_scale: ApplicationContentScale,
-    result: Option<WinitWindowManager>,
+    params: &'a ApplicationInitParams<'a>,
+    result: Option<(Window, PossiblyCurrentContext, Surface<WindowSurface>)>,
 }
 
 impl<'a> WinitInitHandler<'a> {
-    fn new(window_title: &'a str,
-           window_size: Size,
-           window_mode: ApplicationWindowMode,
-           resizable: bool,
-           confine_cursor: bool,
-           content_scale: ApplicationContentScale) -> Self
-    {
-        Self {
-            window_title,
-            window_size,
-            window_mode,
-            resizable,
-            confine_cursor,
-            content_scale,
-            result: None,
-        }
+    fn new(params: &'a ApplicationInitParams<'a>) -> Self {
+        Self { params, result: None }
     }
 }
 
@@ -313,17 +307,7 @@ impl ApplicationHandler for WinitInitHandler<'_> {
             return; // Already initialized (e.g. app resumed after suspend on mobile).
         }
 
-        let manager = WinitWindowManager::create(
-            event_loop,
-            self.window_title,
-            self.window_size,
-            self.window_mode,
-            self.resizable,
-            self.confine_cursor,
-            self.content_scale,
-        );
-
-        self.result = Some(manager);
+        self.result = create_window_and_gl_context(event_loop, self.params);
     }
 
     fn window_event(&mut self,
