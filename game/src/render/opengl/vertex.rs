@@ -15,8 +15,8 @@ pub struct SpriteVertex2D {
 }
 
 impl VertexTrait for SpriteVertex2D {
-    fn layout() -> Vec<VertexElementDef> {
-        vec![
+    fn layout() -> &'static [VertexElementDef] {
+        &[
             // vec2 in_position
             VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
             // vec2 in_tex_coords
@@ -41,8 +41,8 @@ pub struct LineVertex2D {
 }
 
 impl VertexTrait for LineVertex2D {
-    fn layout() -> Vec<VertexElementDef> {
-        vec![
+    fn layout() -> &'static [VertexElementDef] {
+        &[
             // vec2 in_position
             VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
             // vec4 in_color
@@ -68,8 +68,8 @@ pub struct PointVertex2D {
 }
 
 impl VertexTrait for PointVertex2D {
-    fn layout() -> Vec<VertexElementDef> {
-        vec![
+    fn layout() -> &'static [VertexElementDef] {
+        &[
             // vec2 in_position
             VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
             // vec4 in_color
@@ -87,8 +87,8 @@ impl VertexTrait for PointVertex2D {
 // ----------------------------------------------
 
 impl VertexTrait for render::UiDrawVertex {
-    fn layout() -> Vec<VertexElementDef> {
-        vec![
+    fn layout() -> &'static [VertexElementDef] {
+        &[
             // vec2 in_position
             VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
             // vec2 in_tex_coords

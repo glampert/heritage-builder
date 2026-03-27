@@ -25,7 +25,7 @@ impl RenderTarget {
         debug_assert!(size.is_valid());
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("offscreen_rt"),
+            label: Some("offscreen_render_target"),
             size: wgpu::Extent3d {
                 width: size.width as u32,
                 height: size.height as u32,
@@ -58,6 +58,6 @@ impl RenderTarget {
             ],
         });
 
-        Self { texture, view, sampler, bind_group, size }
+        Self { size, texture, view, sampler, bind_group }
     }
 }

@@ -306,7 +306,7 @@ impl RenderSystem {
             64 * std::mem::size_of::<LineVertex2D>(),
             64 * std::mem::size_of::<u16>());
         let ui_gpu = GpuBufferPair::new(&device, "ui",
-            1024 * std::mem::size_of::<UiVertex>(),
+            1024 * std::mem::size_of::<UiVertex2D>(),
             1024 * std::mem::size_of::<u16>());
 
         // Texture cache.
@@ -508,10 +508,10 @@ impl render::RenderSystem for RenderSystem {
 
                 for entry in &self.sprites_batch.entries {
                     // Switch texture bind group when needed.
-                    if !texture_handle_eq(entry.texture, last_texture) {
+                    if entry.texture != last_texture {
+                        last_texture = entry.texture;
                         let wgpu_tex = self.tex_cache.handle_to_wgpu_texture(entry.texture);
                         pass.set_bind_group(1, Some(&wgpu_tex.bind_group), &[]);
-                        last_texture = entry.texture;
                         self.stats.texture_changes += 1;
                     }
 
@@ -842,12 +842,6 @@ struct UiDrawCommand {
     base_vertex: i32,
     texture:     TextureHandle,
     clip_rect:   Rect,
-}
-
-// TextureHandle doesn't implement Eq, so we compare by pack value.
-#[inline]
-fn texture_handle_eq(a: TextureHandle, b: TextureHandle) -> bool {
-    a.pack() == b.pack()
 }
 
 // Round up to the next multiple of N.

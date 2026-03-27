@@ -1,10 +1,6 @@
 use std::fmt::Debug;
 use std::convert::{Into, TryFrom};
-
-use crate::{
-    render,
-    utils::Color,
-};
+use crate::render;
 
 // ----------------------------------------------
 // DrawBatchEntry
@@ -21,9 +17,9 @@ pub struct DrawBatchEntry {
 // ----------------------------------------------
 
 pub struct DrawBatch<V: Copy, I: Copy> {
-    pub vertices: Vec<V>,
-    pub indices:  Vec<I>,
-    pub entries:  Vec<DrawBatchEntry>,
+    vertices: Vec<V>,
+    indices:  Vec<I>,
+    entries:  Vec<DrawBatchEntry>,
 }
 
 impl<V, I> DrawBatch<V, I>
@@ -31,17 +27,16 @@ where
     V: Copy + bytemuck::Pod,
     I: Copy + bytemuck::Pod + TryFrom<usize> + Into<usize>,
 {
-    pub fn new(vertices_cap: usize, indices_cap: usize, entries_cap: usize) -> Self {
+    pub fn new(vertices_capacity: usize, indices_capacity: usize, entries_capacity: usize) -> Self {
         Self {
-            vertices: Vec::with_capacity(vertices_cap),
-            indices:  Vec::with_capacity(indices_cap),
-            entries:  Vec::with_capacity(entries_cap),
+            vertices: Vec::with_capacity(vertices_capacity),
+            indices:  Vec::with_capacity(indices_capacity),
+            entries:  Vec::with_capacity(entries_capacity),
         }
     }
 
-    pub fn add_entry(&mut self, vertices: &[V], indices: &[I], texture: render::texture::TextureHandle, _color: Color)
-    where
-        <I as TryFrom<usize>>::Error: Debug,
+    pub fn add_entry(&mut self, vertices: &[V], indices: &[I], texture: render::texture::TextureHandle)
+        where <I as TryFrom<usize>>::Error: Debug
     {
         let first_index = self.add_fast(vertices, indices);
         self.entries.push(DrawBatchEntry {
@@ -52,8 +47,7 @@ where
     }
 
     pub fn add_fast(&mut self, vertices: &[V], indices: &[I]) -> usize
-    where
-        <I as TryFrom<usize>>::Error: Debug,
+        where <I as TryFrom<usize>>::Error: Debug
     {
         let ib_start = self.indices.len();
         let vb_base  = self.vertices.len();
@@ -62,6 +56,7 @@ where
             let idx: usize = i.into() + vb_base;
             let narrowed: I = idx.try_into()
                 .expect("INTEGER OVERFLOW! Value does not fit into index type.");
+
             self.indices.push(narrowed);
         }
 
@@ -86,8 +81,8 @@ where
 // ----------------------------------------------
 
 pub struct UiDrawBatch {
-    pub vertices: Vec<u8>, // Raw render::UiDrawVertex bytes.
-    pub indices:  Vec<u8>, // Raw render::UiDrawIndex bytes.
+    vertices: Vec<u8>, // Raw render::UiDrawVertex bytes.
+    indices:  Vec<u8>, // Raw render::UiDrawIndex bytes.
 }
 
 impl UiDrawBatch {
@@ -98,18 +93,20 @@ impl UiDrawBatch {
         }
     }
 
-    /// Appends a draw list's vertex/index data to the batch.
-    /// Returns (base_vertex, index_offset) for use with draw_indexed.
-    ///  - base_vertex: the vertex offset (in vertices, not bytes) to pass as base_vertex.
-    ///  - index_offset: the index offset (in indices, not bytes) to add to first_index.
-    pub fn append_data(&mut self, vtx_buffer: &[render::UiDrawVertex], idx_buffer: &[render::UiDrawIndex])
-        -> (i32, u32)
+    // Appends a draw list's vertex/index data to the batch.
+    // Returns (base_vertex, index_offset) for use with draw_indexed.
+    //  - base_vertex: the vertex offset (in vertices, not bytes) to pass as base_vertex.
+    //  - index_offset: the index offset (in indices, not bytes) to add to first_index.
+    pub fn append_data(&mut self,
+                       vtx_buffer: &[render::UiDrawVertex],
+                       idx_buffer: &[render::UiDrawIndex])
+                       -> (i32, u32)
     {
         let base_vertex  = (self.vertices.len() / std::mem::size_of::<render::UiDrawVertex>()) as i32;
-        let index_offset = (self.indices.len()  / std::mem::size_of::<render::UiDrawIndex>()) as u32;
+        let index_offset = (self.indices.len()  / std::mem::size_of::<render::UiDrawIndex>())  as u32;
 
         // render::UiDrawVertex doesn't implement bytemuck::Pod, so we reinterpret as raw bytes.
-        // SAFETY: UiDrawVertex is a repr(C) struct of f32s and u32 — no padding, no drop, all
+        // SAFETY: UiDrawVertex is a repr(C) struct of f32s and u8 — no padding, no drop, all
         //         bit-patterns valid. Same for UiDrawIndex (u16 or u32).
         self.vertices.extend_from_slice(unsafe {
             std::slice::from_raw_parts(
@@ -126,6 +123,11 @@ impl UiDrawBatch {
         });
 
         (base_vertex, index_offset)
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.vertices.is_empty()
     }
 
     pub fn clear(&mut self) {

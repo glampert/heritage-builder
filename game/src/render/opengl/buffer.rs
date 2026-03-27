@@ -345,7 +345,7 @@ impl VertexElementDef {
 }
 
 pub trait VertexTrait {
-    fn layout() -> Vec<VertexElementDef>;
+    fn layout() -> &'static [VertexElementDef];
     fn stride() -> usize;
 }
 

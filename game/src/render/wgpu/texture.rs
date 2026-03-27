@@ -24,7 +24,6 @@ pub struct WgpuTexture {
 impl render::texture::Texture for WgpuTexture {
     #[inline]
     fn is_valid(&self) -> bool {
-        // TODO: anything else we can cheaply test?
         self.size.is_valid()
     }
 

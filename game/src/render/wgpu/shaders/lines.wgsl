@@ -21,6 +21,8 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.color = in.color;
 
+    // Map to normalized clip coordinates:
+    // 'in.position' comes in as screen space.
     let ndc = vec2f(
         (in.position.x / uniforms.viewport_size.x) * 2.0 - 1.0,
         1.0 - (in.position.y / uniforms.viewport_size.y) * 2.0,

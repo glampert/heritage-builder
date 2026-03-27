@@ -16,7 +16,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     //   vertex 1: ( 3, -1)  uv (2, 1)
     //   vertex 2: (-1,  3)  uv (0,-1)
     var out: VertexOutput;
-    let x = f32(i32(vertex_index & 1u)) * 4.0 - 1.0;
+    let x = f32(i32(vertex_index  & 1u)) * 4.0 - 1.0;
     let y = f32(i32(vertex_index >> 1u)) * 4.0 - 1.0;
     out.clip_position = vec4f(x, y, 0.0, 1.0);
 

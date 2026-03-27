@@ -1,5 +1,4 @@
 use batch::*;
-use pipeline::*;
 use texture::*;
 use vertex::*;
 use target::*;
