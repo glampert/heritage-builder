@@ -17,11 +17,11 @@ use crate::{
     utils::{Vec2, Size, Color, Rect, RectTexCoords, time::PerfTimer},
 };
 
-pub mod batch;
-pub mod pipeline;
-pub mod target;
-pub mod texture;
-pub mod vertex;
+mod batch;
+mod pipeline;
+mod target;
+mod texture;
+mod vertex;
 
 // ----------------------------------------------
 // WgpuRenderSystemBackend

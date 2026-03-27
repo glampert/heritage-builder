@@ -22,13 +22,13 @@ use crate::{
     utils::{Vec2, Size, Color, Rect, RectTexCoords, time::PerfTimer},
 };
 
-pub mod batch;
-pub mod buffer;
-pub mod context;
-pub mod shader;
-pub mod texture;
-pub mod vertex;
-pub mod target;
+mod batch;
+mod buffer;
+mod context;
+mod shader;
+mod texture;
+mod vertex;
+mod target;
 
 // ----------------------------------------------
 // OpenGlRenderSystemBackend
@@ -438,7 +438,7 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
 // Helper functions
 // ----------------------------------------------
 
-pub fn log_gl_info() {
+fn log_gl_info() {
     unsafe {
         let gl_version = gl::GetString(gl::VERSION);
         if !gl_version.is_null() {
@@ -463,7 +463,7 @@ pub fn log_gl_info() {
     }
 }
 
-pub fn gl_error_to_string(error: gl::types::GLenum) -> &'static str {
+fn gl_error_to_string(error: gl::types::GLenum) -> &'static str {
     match error {
         gl::NO_ERROR => "No error",
         gl::INVALID_ENUM => "Invalid enum",
@@ -477,7 +477,7 @@ pub fn gl_error_to_string(error: gl::types::GLenum) -> &'static str {
     }
 }
 
-pub fn panic_if_gl_error() {
+fn panic_if_gl_error() {
     let error_code = unsafe { gl::GetError() };
     if error_code != gl::NO_ERROR {
         panic!("OpenGL Error: {} (0x{:X})", gl_error_to_string(error_code), error_code);
