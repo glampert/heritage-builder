@@ -73,7 +73,7 @@ pub struct WinitApplicationBackend {
 
 impl WinitApplicationBackend {
     pub fn new(params: &ApplicationInitParams) -> Self {
-        debug_assert!(params.app_api == ApplicationApi::Winit);
+        assert!(params.app_api == ApplicationApi::Winit);
 
         log::info!(log::channel!("app"), "--- App Backend: Winit ---");
 

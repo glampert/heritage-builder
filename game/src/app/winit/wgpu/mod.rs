@@ -30,8 +30,8 @@ pub struct WinitWindowManager {
 
 impl WinitWindowManager {
     pub fn new(params: &ApplicationInitParams) -> Self {
-        debug_assert!(params.app_api == ApplicationApi::Winit);
-//        debug_assert!(params.render_api == RenderApi::Wgpu);
+        assert!(params.app_api == ApplicationApi::Winit);
+//        assert!(params.render_api == RenderApi::Wgpu);
 
         let mut event_loop = EventLoop::new()
             .expect("Failed to create Winit event loop!");
