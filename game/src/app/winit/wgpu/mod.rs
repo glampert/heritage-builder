@@ -31,7 +31,7 @@ pub struct WinitWindowManager {
 impl WinitWindowManager {
     pub fn new(params: &ApplicationInitParams) -> Self {
         assert!(params.app_api == ApplicationApi::Winit);
-//        assert!(params.render_api == RenderApi::Wgpu);
+        assert!(params.render_api == RenderApi::Wgpu);
 
         let mut event_loop = EventLoop::new()
             .expect("Failed to create Winit event loop!");
@@ -61,7 +61,7 @@ impl super::WinitWindowManager for WinitWindowManager {
         Some(&self.window)
     }
 
-    fn resize_surface(&mut self, _new_size: Size) {
+    fn resize_framebuffer(&mut self, _new_size: Size) {
         // No surface resize needed; the Wgpu RenderSystem
         // reconfigures its surface in set_framebuffer_size().
     }

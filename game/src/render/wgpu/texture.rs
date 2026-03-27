@@ -1,57 +1,72 @@
-use std::any::Any;
-use strum::VariantArray;
-use image::GenericImageView;
-use slab::Slab;
-
 use crate::{
-    log,
-    render::{self, NativeTextureHandle, TextureHandle},
-    ui::UiSystem,
-    utils::{Size, hash::{self, PreHashedKeyMap, StringHash}},
-    file_sys::paths::PathRef,
+    render,
+    utils::{Size, hash::{self, StringHash}},
 };
 
 // ----------------------------------------------
 // WgpuTexture
 // ----------------------------------------------
 
+// Texture type referenced by the frontend TextureCache.
 pub struct WgpuTexture {
-    pub texture:    wgpu::Texture,
-    pub view:       wgpu::TextureView,
-    pub sampler:    wgpu::Sampler,
+    pub name: String,
+    pub size: Size,
+    pub settings: render::texture::TextureSettings,
+    pub allow_settings_change: bool,
+
+    // Wgpu state:
+    pub texture: wgpu::Texture,
+    pub view: wgpu::TextureView,
+    pub sampler: wgpu::Sampler,
     pub bind_group: wgpu::BindGroup,
-    pub size:       Size,
-    pub has_mipmaps: bool,
-    pub name:       String,
-    settings:       WgpuTextureSettings,
 }
 
-impl WgpuTexture {
-    pub fn hash(&self) -> StringHash {
+impl render::texture::Texture for WgpuTexture {
+    #[inline]
+    fn is_valid(&self) -> bool {
+        // TODO: anything else we can cheaply test?
+        self.size.is_valid()
+    }
+
+    #[inline]
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[inline]
+    fn hash(&self) -> StringHash {
         hash::fnv1a_from_str(&self.name)
     }
-}
 
-// ----------------------------------------------
-// WgpuTextureSettings
-// ----------------------------------------------
+    #[inline]
+    fn size(&self) -> Size {
+        self.size
+    }
 
-#[derive(Copy, Clone)]
-struct WgpuTextureSettings {
-    filter:    render::texture::TextureFilter,
-    wrap_mode: render::texture::TextureWrapMode,
-    mipmaps:   bool,
-}
+    #[inline]
+    fn has_mipmaps(&self) -> bool {
+        self.settings.mipmaps
+    }
 
-impl From<render::texture::TextureSettings> for WgpuTextureSettings {
-    fn from(s: render::texture::TextureSettings) -> Self {
-        Self {
-            filter:    s.filter,
-            wrap_mode: s.wrap_mode,
-            mipmaps:   s.mipmaps,
-        }
+    #[inline]
+    fn filter(&self) -> render::texture::TextureFilter {
+        self.settings.filter
+    }
+
+    #[inline]
+    fn wrap_mode(&self) -> render::texture::TextureWrapMode {
+        self.settings.wrap_mode
+    }
+
+    #[inline]
+    fn allow_settings_change(&self) -> bool {
+        self.allow_settings_change
     }
 }
+
+// ----------------------------------------------
+// Internal helpers
+// ----------------------------------------------
 
 fn to_wgpu_filter_mode(filter: render::texture::TextureFilter) -> (wgpu::FilterMode, wgpu::FilterMode, wgpu::MipmapFilterMode) {
     // Returns (min_filter, mag_filter, mipmap_filter).
@@ -79,7 +94,7 @@ fn to_wgpu_address_mode(wrap: render::texture::TextureWrapMode, device: &wgpu::D
     }
 }
 
-fn create_sampler(device: &wgpu::Device, settings: WgpuTextureSettings) -> wgpu::Sampler {
+fn create_sampler(device: &wgpu::Device, settings: render::texture::TextureSettings) -> wgpu::Sampler {
     let (min, mag, mip) = to_wgpu_filter_mode(settings.filter);
     let address = to_wgpu_address_mode(settings.wrap_mode, device);
     device.create_sampler(&wgpu::SamplerDescriptor {
@@ -94,19 +109,18 @@ fn create_sampler(device: &wgpu::Device, settings: WgpuTextureSettings) -> wgpu:
     })
 }
 
-fn create_bind_group(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    view: &wgpu::TextureView,
-    sampler: &wgpu::Sampler,
-    label: Option<&str>,
-) -> wgpu::BindGroup {
+fn create_bind_group(device: &wgpu::Device,
+                     layout: &wgpu::BindGroupLayout,
+                     view: &wgpu::TextureView,
+                     sampler: &wgpu::Sampler,
+                     label: Option<&str>) -> wgpu::BindGroup
+{
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label,
         layout,
         entries: &[
             wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(view) },
-            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
+            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler)  },
         ],
     })
 }
@@ -115,7 +129,7 @@ fn create_bind_group(
 // TextureCache
 // ----------------------------------------------
 
-// TODO: Tidy
+// TODO: Tidy and move all texture creation logic into the new WgpuRenderSystemBackend.
 /*
 struct TexCacheEntry {
     texture: WgpuTexture,
@@ -241,7 +255,7 @@ impl TextureCache {
         name: &str,
         size: Size,
         pixels: Option<&[u8]>,
-        settings: WgpuTextureSettings,
+        settings: render::texture::TextureSettings,
     ) -> WgpuTexture {
         let wgpu_size = wgpu::Extent3d {
             width:  size.width as u32,
@@ -324,7 +338,7 @@ impl TextureCache {
         }
 
         let allow_settings_change = settings.is_none();
-        let wgpu_settings = WgpuTextureSettings::from(settings.unwrap_or(self.settings));
+        let wgpu_settings = settings.unwrap_or(self.settings);
 
         let texture = self.create_wgpu_texture(name, size, pixels, wgpu_settings);
         self.add_texture_internal(texture, allow_settings_change)
@@ -360,7 +374,7 @@ impl TextureCache {
         let pixels = rgba.as_raw();
 
         let allow_settings_change = settings.is_none();
-        let wgpu_settings = WgpuTextureSettings::from(settings.unwrap_or(self.settings));
+        let wgpu_settings = settings.unwrap_or(self.settings);
 
         let texture = self.create_wgpu_texture(file_path.as_str(), size, Some(pixels), wgpu_settings);
         self.add_texture_internal(texture, allow_settings_change)
@@ -375,11 +389,11 @@ impl TextureCache {
     }
 
     fn rebuild_texture_resources(&mut self, entry: &mut TexCacheEntry) {
-        let settings = WgpuTextureSettings::from(render::texture::TextureSettings {
+        let settings = render::texture::TextureSettings {
             filter:      self.settings.filter,
             wrap_mode:   self.settings.wrap_mode,
             mipmaps: self.settings.mipmaps,
-        });
+        };
 
         entry.texture.sampler = create_sampler(&self.device, settings);
         entry.texture.bind_group = create_bind_group(
@@ -436,7 +450,7 @@ impl render::TextureCache for TextureCache {
         for index in indices {
             let entry = &mut self.textures[index];
             // Inline the rebuild to avoid borrowing self while entry is borrowed.
-            let wgpu_settings = WgpuTextureSettings::from(settings);
+            let wgpu_settings = settings;
             entry.texture.sampler = create_sampler(&self.device, wgpu_settings);
             entry.texture.bind_group = create_bind_group(
                 &self.device,

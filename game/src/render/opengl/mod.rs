@@ -8,6 +8,8 @@ use texture::*;
 use vertex::*;
 use target::*;
 
+pub use texture::OpenGlTexture;
+
 use super::{
     RenderApi,
     RenderStats,
@@ -17,7 +19,7 @@ use super::{
 use crate::{
     log,
     ui::UiRenderFrameBundle,
-    utils::{Vec2, Size, Color, Rect, RectTexCoords, hash::StringHash, time::PerfTimer},
+    utils::{Vec2, Size, Color, Rect, RectTexCoords, time::PerfTimer},
 };
 
 pub mod batch;
@@ -429,57 +431,6 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
     fn release_texture(&mut self, texture: &mut super::texture::TextureBackendImpl) {
         let gl_texture = texture.as_opengl_mut();
         gl_texture.tex2d.release();
-    }
-}
-
-// ----------------------------------------------
-// OpenGlTexture
-// ----------------------------------------------
-
-// Texture type referenced by the frontend TextureCache.
-pub struct OpenGlTexture {
-    pub tex2d: texture::Texture2D,
-}
-
-impl super::texture::Texture for OpenGlTexture {
-    #[inline]
-    fn is_valid(&self) -> bool {
-        self.tex2d.is_valid()
-    }
-
-    #[inline]
-    fn name(&self) -> &str {
-        self.tex2d.name()
-    }
-
-    #[inline]
-    fn hash(&self) -> StringHash {
-        self.tex2d.hash()
-    }
-
-    #[inline]
-    fn size(&self) -> Size {
-        self.tex2d.size()
-    }
-
-    #[inline]
-    fn has_mipmaps(&self) -> bool {
-        self.tex2d.has_mipmaps()
-    }
-
-    #[inline]
-    fn filter(&self) -> super::texture::TextureFilter {
-        self.tex2d.filter().into()
-    }
-
-    #[inline]
-    fn wrap_mode(&self) -> super::texture::TextureWrapMode {
-        self.tex2d.wrap_mode().into()
-    }
-
-    #[inline]
-    fn allow_settings_change(&self) -> bool {
-        self.tex2d.allow_settings_change()
     }
 }
 

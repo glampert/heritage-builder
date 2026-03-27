@@ -71,7 +71,7 @@ impl super::WinitWindowManager for WinitWindowManager {
         None
     }
 
-    fn resize_surface(&mut self, new_size: Size) {
+    fn resize_framebuffer(&mut self, new_size: Size) {
         if new_size.is_valid() {
             self.gl_surface.resize(
                 &self.gl_context,

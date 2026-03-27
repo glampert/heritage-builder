@@ -353,8 +353,7 @@ impl GameLoop {
         match event {
             ApplicationEvent::WindowResize { window_size, framebuffer_size } => {
                 self.session.camera_mut().set_viewport_size(window_size);
-                log::info!(log::channel!("game"), "Window Resized: {window_size}");
-                log::info!(log::channel!("game"), "Framebuffer Resized: {framebuffer_size}");
+                log::info!(log::channel!("game"), "Resized Window: {window_size}, Framebuffer: {framebuffer_size}");
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
                 let mut input_event = if self.is_in_game() {

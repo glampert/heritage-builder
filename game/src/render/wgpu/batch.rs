@@ -13,7 +13,7 @@ use crate::{
 pub struct DrawBatchEntry {
     pub first_index: u32,
     pub index_count: u32,
-    pub texture:     render::texture::TextureHandle,
+    pub texture: render::texture::TextureHandle,
 }
 
 // ----------------------------------------------

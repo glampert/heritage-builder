@@ -1,27 +1,28 @@
-use super::{RenderSystemBackend, texture::Texture};
+use batch::*;
+use pipeline::*;
+use texture::*;
+use vertex::*;
+use target::*;
+
+pub use texture::WgpuTexture;
+
+use super::{
+    RenderApi,
+    RenderStats,
+    RenderSystemBackend,
+    RenderSystemInitParams,
+};
+use crate::{
+    log,
+    ui::UiRenderFrameBundle,
+    utils::{Vec2, Size, Color, Rect, RectTexCoords, time::PerfTimer},
+};
 
 pub mod batch;
 pub mod pipeline;
-pub mod system;
 pub mod target;
 pub mod texture;
 pub mod vertex;
-
-// ----------------------------------------------
-// WgpuInitResources
-// ----------------------------------------------
-
-// Pre-initialized wgpu resources for WASM.
-// On WASM, adapter/device creation is async and must happen before
-// the RenderSystem is constructed. These resources are passed through
-// the Application's app_context().
-pub struct WgpuInitResources {
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-    pub surface: wgpu::Surface<'static>,
-    pub surface_config: wgpu::SurfaceConfiguration,
-    pub surface_format: wgpu::TextureFormat,
-}
 
 // ----------------------------------------------
 // WgpuRenderSystemBackend
@@ -31,17 +32,41 @@ pub struct WgpuRenderSystemBackend {
 
 }
 
+impl WgpuRenderSystemBackend {
+    pub fn new() -> Self {
+        Self {} // TODO
+    }
+}
+
 impl RenderSystemBackend for WgpuRenderSystemBackend {
+    // ----------------------
+    // Initialization:
+    // ----------------------
+
+    fn initialize(&mut self, params: &RenderSystemInitParams, tex_cache: &mut super::texture::TextureCache) {
+        debug_assert!(params.render_api == RenderApi::Wgpu);
+
+        // TODO
+    }
+
     // ----------------------
     // Begin/End frame:
     // ----------------------
 
-    fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size) {
-
+    fn begin_frame(&mut self,
+                   viewport_size: Size,
+                   framebuffer_size: Size)
+    {
+        // TODO
     }
 
-    fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle) -> RenderStats {
-
+    fn end_frame(&mut self,
+                 ui_frame_bundle: &mut UiRenderFrameBundle,
+                 tex_cache: &mut super::texture::TextureCache)
+                 -> RenderStats
+    {
+        // TODO
+        RenderStats::default()
     }
 
     // ----------------------
@@ -49,15 +74,16 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
     // ----------------------
 
     fn viewport(&self) -> Rect {
-
+        // TODO
+        Rect::default()
     }
 
     fn set_viewport_size(&mut self, new_size: Size) {
-
+        // TODO
     }
 
     fn set_framebuffer_size(&mut self, new_size: Size) {
-
+        // TODO
     }
 
     // ----------------------
@@ -65,27 +91,28 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
     // ----------------------
 
     fn begin_ui_render(&mut self) {
-
+        // TODO
     }
 
     fn end_ui_render(&mut self) {
-
+        // TODO
     }
 
     fn set_ui_draw_buffers(&mut self,
                            vtx_buffer: &[super::UiDrawVertex],
                            idx_buffer: &[super::UiDrawIndex])
     {
-
+        // TODO
     }
 
     fn draw_ui_elements(&mut self,
                         first_index: u32,
                         index_count: u32,
-                        texture: TextureHandle,
+                        texture: super::texture::TextureHandle,
+                        tex_cache: &mut super::texture::TextureCache,
                         clip_rect: Rect)
     {
-
+        // TODO
     }
 
     // ----------------------
@@ -94,19 +121,19 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
 
     fn draw_colored_indexed_triangles(&mut self,
                                       vertices: &[Vec2],
-                                      indices: &[DrawIndex],
+                                      indices: &[super::DrawIndex],
                                       color: Color)
     {
-
+        // TODO
     }
 
     fn draw_textured_colored_rect(&mut self,
                                   rect: Rect,
                                   tex_coords: &RectTexCoords,
-                                  texture: TextureHandle,
+                                  texture: super::texture::TextureHandle,
                                   color: Color)
     {
-
+        // TODO
     }
 
     // ----------------------
@@ -114,11 +141,11 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
     // ----------------------
 
     fn draw_line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
-
+        // TODO
     }
 
     fn draw_point(&mut self, pt: Vec2, color: Color, size: f32) {
-
+        // TODO
     }
 
     // ----------------------
@@ -129,69 +156,32 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
                                name: &str,
                                size: Size,
                                pixels: &[u8],
-                               settings: TextureSettings,
-                               allow_settings_change: bool) -> TextureBackendImpl
+                               settings: super::texture::TextureSettings,
+                               allow_settings_change: bool) -> super::texture::TextureBackendImpl
     {
+        // TODO
+        todo!()
     }
 
     fn update_texture_pixels(&mut self,
-                             texture: &mut TextureBackendImpl,
+                             texture: &mut super::texture::TextureBackendImpl,
                              offset_x: u32,
                              offset_y: u32,
                              size: Size,
                              mip_level: u32,
                              pixels: &[u8])
     {
+        // TODO
     }
 
     fn update_texture_settings(&mut self,
-                               texture: &mut TextureBackendImpl,
-                               settings: TextureSettings)
+                               texture: &mut super::texture::TextureBackendImpl,
+                               settings: super::texture::TextureSettings)
     {
+        // TODO
     }
 
-    fn release_texture(&mut self, texture: &mut TextureBackendImpl) {
-    }
-}
-
-// ----------------------------------------------
-// WgpuTexture
-// ----------------------------------------------
-
-pub struct WgpuTexture {
-
-}
-
-impl Texture for WgpuTexture {
-    fn is_valid(&self) -> bool {
-
-    }
-
-    fn name(&self) -> &str {
-
-    }
-
-    fn hash(&self) -> StringHash {
-
-    }
-
-    fn size(&self) -> Size {
-
-    }
-
-    fn has_mipmaps(&self) -> bool {
-
-    }
-
-    fn filter(&self) -> TextureFilter {
-
-    }
-
-    fn wrap_mode(&self) -> TextureWrapMode {
-
-    }
-
-    fn allow_settings_change(&self) -> bool {
-
+    fn release_texture(&mut self, texture: &mut super::texture::TextureBackendImpl) {
+        // TODO
     }
 }

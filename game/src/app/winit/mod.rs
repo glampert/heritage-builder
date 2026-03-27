@@ -36,7 +36,7 @@ mod opengl;
 
 #[enum_dispatch]
 enum WinitWindowManagerImpl {
-//    Wgpu(wgpu::WinitWindowManager),
+    Wgpu(wgpu::WinitWindowManager),
     OpenGl(opengl::WinitWindowManager),
 }
 
@@ -50,7 +50,7 @@ trait WinitWindowManager: Sized {
     fn app_context(&self) -> Option<&dyn std::any::Any>;
 
     fn present(&mut self);
-    fn resize_surface(&mut self, new_size: Size);
+    fn resize_framebuffer(&mut self, new_size: Size);
 
     fn poll_events<F>(&mut self, handler: F)
         where F: FnMut(&ActiveEventLoop, WindowEvent);
@@ -64,6 +64,7 @@ trait WinitWindowManager: Sized {
 
 pub struct WinitApplicationBackend {
     should_quit: bool,
+    phys_window_size: winit::dpi::PhysicalSize<u32>, // Last known physical window size.
     window_manager: RcMut<WinitWindowManagerImpl>,
     input_state: RcMut<input::WinitInputState>,
     content_scale: ApplicationContentScale,
@@ -77,9 +78,13 @@ impl WinitApplicationBackend {
 
         log::info!(log::channel!("app"), "--- App Backend: Winit ---");
 
+        let window_manager = Self::new_window_manager(params);
+        let phys_window_size = window_manager.window().inner_size();
+
         Self {
             should_quit: false,
-            window_manager: Self::new_window_manager(params),
+            phys_window_size,
+            window_manager,
             input_state: input::WinitInputState::new(),
             content_scale: params.content_scale,
             resizable_window: params.resizable_window,
@@ -89,7 +94,7 @@ impl WinitApplicationBackend {
 
     fn new_window_manager(params: &ApplicationInitParams) -> RcMut<WinitWindowManagerImpl> {
         RcMut::new(match params.render_api {
-//            RenderApi::Wgpu   => WinitWindowManagerImpl::from(wgpu::WinitWindowManager::new(params)),
+            RenderApi::Wgpu   => WinitWindowManagerImpl::from(wgpu::WinitWindowManager::new(params)),
             RenderApi::OpenGl => WinitWindowManagerImpl::from(opengl::WinitWindowManager::new(params)),
         })
     }
@@ -142,10 +147,15 @@ impl WinitApplicationBackend {
                 events.push(ApplicationEvent::Quit);
                 event_loop.exit();
             }
-            WindowEvent::Resized(phys_size) => {
-                if self.resizable_window {
-                    let new_size = Size::new(phys_size.width as i32, phys_size.height as i32);
-                    self.window_manager.resize_surface(new_size);
+            WindowEvent::Resized(new_phys_size) => {
+                if self.resizable_window && self.phys_window_size != new_phys_size {
+                    let prev_size = Size::new(self.phys_window_size.width as i32, self.phys_window_size.height as i32);
+                    let new_size  = Size::new(new_phys_size.width as i32, new_phys_size.height as i32);
+
+                    log::info!(log::channel!("app"), "WindowEvent::Resized: Prev: {prev_size}, New: {new_size}");
+
+                    self.phys_window_size = new_phys_size;
+                    self.window_manager.resize_framebuffer(new_size);
 
                     let window_size = self.window_size();
                     let framebuffer_size = self.framebuffer_size();

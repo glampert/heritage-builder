@@ -22,7 +22,7 @@ use crate::{
 // TextureHandle
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum TextureHandle {
     Invalid,    // Returns built-in dummy_texture.
     White,      // Returns built-in white_texture.
@@ -143,7 +143,7 @@ pub(super) trait Texture: Sized {
 
 #[enum_dispatch]
 pub(super) enum TextureBackendImpl {
-//    Wgpu(wgpu::WgpuTexture),
+    Wgpu(wgpu::WgpuTexture),
     OpenGl(opengl::OpenGlTexture),
 }
 
@@ -171,6 +171,7 @@ macro_rules! texture_backend_type_casts {
 }
 
 impl TextureBackendImpl {
+    texture_backend_type_casts! { Wgpu,   as_wgpu,   as_wgpu_mut,   wgpu::WgpuTexture     }
     texture_backend_type_casts! { OpenGl, as_opengl, as_opengl_mut, opengl::OpenGlTexture }
 }
 

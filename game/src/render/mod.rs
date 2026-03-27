@@ -14,19 +14,19 @@ pub mod texture;
 // Internal backend implementations
 // ----------------------------------------------
 
-//mod wgpu;
+mod wgpu;
 mod opengl;
 
 #[enum_dispatch]
 enum RenderSystemBackendImpl {
-//    Wgpu(wgpu::WgpuRenderSystemBackend),
+    Wgpu(wgpu::WgpuRenderSystemBackend),
     OpenGl(opengl::OpenGlRenderSystemBackend),
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum RenderApi {
     #[default]
-//    Wgpu,
+    Wgpu,
     OpenGl,
 }
 
@@ -186,7 +186,7 @@ impl RenderSystem {
 
         let mut render_system = RcMut::new_cyclic(|render_system| {
             let backend = match params.render_api {
-//                RenderApi::Wgpu   => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new()),
+                RenderApi::Wgpu   => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new()),
                 RenderApi::OpenGl => RenderSystemBackendImpl::from(opengl::OpenGlRenderSystemBackend::new()),
             };
 
