@@ -252,19 +252,46 @@ impl GpuVertexIndexBuffers {
                                                       vertices: &[V],
                                                       indices: &[I])
     {
-        if vertices.is_empty() {
-            return;
-        }
-
         let vb_bytes = std::mem::size_of_val(vertices);
         let ib_bytes = std::mem::size_of_val(indices);
         self.ensure_capacity(device, vb_bytes, ib_bytes);
 
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(vertices));
+        if !vertices.is_empty() {
+            queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(vertices));
+        }
 
         if !indices.is_empty() {
             queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(indices));
         }
+    }
+
+    // Upload raw bytes (for UI batch data that isn't bytemuck::Pod).
+    // Handles the 4-byte alignment padding required by wgpu's write_buffer.
+    pub fn upload_bytes(&mut self,
+                        device: &wgpu::Device,
+                        queue: &wgpu::Queue,
+                        vertex_bytes: &[u8],
+                        index_bytes: &[u8])
+    {
+        let vb_bytes = align_to_4(vertex_bytes.len());
+        let ib_bytes = align_to_4(index_bytes.len());
+        self.ensure_capacity(device, vb_bytes, ib_bytes);
+
+        if !vertex_bytes.is_empty() {
+            let data = pad_to_alignment::<4>(vertex_bytes);
+            queue.write_buffer(&self.vertex_buffer, 0, &data);
+        }
+
+        if !index_bytes.is_empty() {
+            let data = pad_to_alignment::<4>(index_bytes);
+            queue.write_buffer(&self.index_buffer, 0, &data);
+        }
+    }
+
+    // Bind vertex and index buffers to a render pass.
+    pub fn bind_to_render_pass(&self, pass: &mut wgpu::RenderPass, index_format: wgpu::IndexFormat) {
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.set_index_buffer(self.index_buffer.slice(..), index_format);
     }
 }
 

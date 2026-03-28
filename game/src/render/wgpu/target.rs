@@ -7,13 +7,11 @@ use crate::utils::Size;
 // A Wgpu texture used as an offscreen render target.
 // The rendered contents are blitted to the screen surface via a blit pass.
 pub struct RenderTarget {
-    pub size: Size,
-
-    // Wgpu state:
-    pub texture: wgpu::Texture,
-    pub view: wgpu::TextureView,
-    pub sampler: wgpu::Sampler,
-    pub bind_group: wgpu::BindGroup,
+    size: Size,
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    sampler: wgpu::Sampler,
+    bind_group: wgpu::BindGroup,
 }
 
 impl RenderTarget {
@@ -59,5 +57,25 @@ impl RenderTarget {
         });
 
         Self { size, texture, view, sampler, bind_group }
+    }
+
+    #[inline]
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
+    #[inline]
+    pub fn view(&self) -> &wgpu::TextureView {
+        &self.view
+    }
+
+    #[inline]
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+
+    #[inline]
+    pub fn needs_resize(&self, required_size: Size) -> bool {
+        required_size.width > self.size.width || required_size.height > self.size.height
     }
 }

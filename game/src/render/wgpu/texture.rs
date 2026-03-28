@@ -9,16 +9,16 @@ use crate::{
 
 // Texture type referenced by the frontend TextureCache.
 pub struct WgpuTexture {
-    pub name: String,
-    pub size: Size,
-    pub settings: render::texture::TextureSettings,
-    pub allow_settings_change: bool,
+    name: String,
+    size: Size,
+    settings: render::texture::TextureSettings,
+    allow_settings_change: bool,
 
     // Wgpu state:
-    pub texture: wgpu::Texture,
-    pub view: wgpu::TextureView,
-    pub sampler: wgpu::Sampler,
-    pub bind_group: wgpu::BindGroup,
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    sampler: wgpu::Sampler,
+    bind_group: wgpu::BindGroup,
 }
 
 // Methods exposed to the renderer frontend.
@@ -153,6 +153,8 @@ impl WgpuTexture {
                                           texture_bind_group_layout: &wgpu::BindGroupLayout,
                                           settings: render::texture::TextureSettings)
     {
+        debug_assert!(self.size.is_valid());
+
         self.settings   = settings;
         self.sampler    = create_sampler(device, settings);
         self.bind_group = create_bind_group(
@@ -162,6 +164,53 @@ impl WgpuTexture {
             &self.sampler,
             Some(&self.name)
         );
+    }
+
+    #[inline]
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+
+    // Write pixel data to a sub-region (or the full extent) of the texture.
+    pub fn write_pixels(&self,
+                        queue: &wgpu::Queue,
+                        offset_x: u32,
+                        offset_y: u32,
+                        size: Size,
+                        mip_level: u32,
+                        pixels: &[u8])
+    {
+        debug_assert!(!pixels.is_empty());
+        debug_assert!(self.size.is_valid());
+        debug_assert!(offset_x as i32 + size.width  <= self.size.width);
+        debug_assert!(offset_y as i32 + size.height <= self.size.height);
+
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.texture,
+                mip_level,
+                origin: wgpu::Origin3d { x: offset_x, y: offset_y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * size.width as u32), // Rgba8
+                rows_per_image: Some(size.height as u32),
+            },
+            wgpu::Extent3d {
+                width:  size.width  as u32,
+                height: size.height as u32,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
+    // Explicit release. Wgpu textures are automatically released on drop.
+    pub fn release(&mut self) {
+        self.texture.destroy();
+        self.name = String::new();
+        self.size = Size::zero();
     }
 }
 

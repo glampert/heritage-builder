@@ -43,7 +43,8 @@ impl<V, I> DrawBatch<V, I>
                indices_capacity: u32,
                entries_capacity: u32,
                primitive_topology: PrimitiveTopology)
-               -> Self {
+               -> Self
+    {
         let vertex_layout = V::layout();
         let vertex_stride = V::stride();
 
@@ -58,13 +59,13 @@ impl<V, I> DrawBatch<V, I>
             BufferUsageHint::DynamicDraw);
 
         Self {
-            vertices: if vertices_capacity != 0 { Vec::with_capacity(vertices_capacity as usize) } else { Vec::new() },
-            indices:  if indices_capacity  != 0 { Vec::with_capacity(indices_capacity as usize)  } else { Vec::new() },
-            entries:  if entries_capacity  != 0 { Vec::with_capacity(entries_capacity as usize)  } else { Vec::new() },
+            vertices: Vec::with_capacity(vertices_capacity as usize),
+            indices:  Vec::with_capacity(indices_capacity  as usize),
+            entries:  Vec::with_capacity(entries_capacity  as usize),
             vertex_array: VertexArray::new(
                 vertex_buffer,
                 index_buffer,
-                &vertex_layout,
+                vertex_layout,
                 vertex_stride),
             primitive_topology,
             needs_sync: false,
@@ -226,7 +227,7 @@ impl UiDrawBatch {
         let vertex_array = VertexArray::new(
             vertex_buffer,
             index_buffer,
-            &vertex_layout,
+            vertex_layout,
             vertex_stride);
 
         Self {
