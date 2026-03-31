@@ -10,6 +10,8 @@ use crate::utils::Vec2;
 #[enum_dispatch]
 pub(super) enum InputSystemBackendImpl {
     Winit(super::winit::WinitInputSystemBackend),
+
+    #[cfg(feature = "desktop")]
     Glfw(super::glfw::GlfwInputSystemBackend),
 }
 

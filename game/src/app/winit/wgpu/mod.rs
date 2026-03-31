@@ -82,7 +82,11 @@ impl super::WinitWindowManager for WinitWindowManager {
     }
 
     fn set_cursor_position(&mut self, pos: Vec2) {
+        #[cfg(feature = "desktop")]
         super::input::cursor::set_position_native(&self.window, pos.x as f64, pos.y as f64);
+
+        #[cfg(feature = "web")]
+        { let _ = pos; } // Unavailable.
     }
 }
 

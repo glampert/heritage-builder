@@ -15,11 +15,15 @@ pub mod texture;
 // ----------------------------------------------
 
 mod wgpu;
+
+#[cfg(feature = "desktop")]
 mod opengl;
 
 #[enum_dispatch]
 enum RenderSystemBackendImpl {
     Wgpu(wgpu::WgpuRenderSystemBackend),
+
+    #[cfg(feature = "desktop")]
     OpenGl(opengl::OpenGlRenderSystemBackend),
 }
 
@@ -27,6 +31,8 @@ enum RenderSystemBackendImpl {
 pub enum RenderApi {
     #[default]
     Wgpu,
+
+    #[cfg(feature = "desktop")]
     OpenGl,
 }
 
@@ -181,7 +187,9 @@ impl RenderSystem {
 
         let mut render_sys = RcMut::new_cyclic(|render_system| {
             let backend = match params.render_api {
-                RenderApi::Wgpu   => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new(params)),
+                RenderApi::Wgpu => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new(params)),
+
+                #[cfg(feature = "desktop")]
                 RenderApi::OpenGl => RenderSystemBackendImpl::from(opengl::OpenGlRenderSystemBackend::new(params)),
             };
 

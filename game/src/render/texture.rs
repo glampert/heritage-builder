@@ -144,6 +144,8 @@ pub(super) trait Texture: Sized {
 #[enum_dispatch]
 pub(super) enum TextureBackendImpl {
     Wgpu(wgpu::WgpuTexture),
+
+    #[cfg(feature = "desktop")]
     OpenGl(opengl::OpenGlTexture),
 }
 
@@ -171,7 +173,9 @@ macro_rules! texture_backend_type_casts {
 }
 
 impl TextureBackendImpl {
-    texture_backend_type_casts! { Wgpu,   as_wgpu,   as_wgpu_mut,   wgpu::WgpuTexture     }
+    texture_backend_type_casts! { Wgpu, as_wgpu, as_wgpu_mut, wgpu::WgpuTexture }
+
+    #[cfg(feature = "desktop")]
     texture_backend_type_casts! { OpenGl, as_opengl, as_opengl_mut, opengl::OpenGlTexture }
 }
 

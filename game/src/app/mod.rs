@@ -14,11 +14,15 @@ pub mod input;
 
 mod platform;
 mod winit;
+
+#[cfg(feature = "desktop")]
 mod glfw;
 
 #[enum_dispatch]
 enum ApplicationBackendImpl {
     Winit(winit::WinitApplicationBackend),
+
+    #[cfg(feature = "desktop")]
     Glfw(glfw::GlfwApplicationBackend),
 }
 
@@ -26,6 +30,8 @@ enum ApplicationBackendImpl {
 pub enum ApplicationApi {
     #[default]
     Winit,
+
+    #[cfg(feature = "desktop")]
     Glfw,
 }
 
@@ -95,7 +101,9 @@ impl Application {
 
         let mut backend = match params.app_api {
             ApplicationApi::Winit => ApplicationBackendImpl::from(winit::WinitApplicationBackend::new(params)),
-            ApplicationApi::Glfw  => ApplicationBackendImpl::from(glfw::GlfwApplicationBackend::new(params)),
+
+            #[cfg(feature = "desktop")]
+            ApplicationApi::Glfw => ApplicationBackendImpl::from(glfw::GlfwApplicationBackend::new(params)),
         };
 
         let input_system = backend.new_input_system();

@@ -1,4 +1,5 @@
 use super::*;
+use crate::log;
 
 // ----------------------------------------------
 // WebRunner
@@ -14,9 +15,8 @@ impl Runner for WebRunner {
     fn run<GameLoop: RunLoop + 'static>(&self) {
         log::info!(log::channel!("game"), "WASM entry point started.");
 
-        // Hand control to the browser event loop.
-        // The WASM runner handles async GPU init, asset loading, config loading,
-        // engine creation, and then starts the GameLoop.
-        crate::app::winit::wgpu::wasm_runner::run_wasm_event_loop();
+        // TODO: Hand control to the browser event loop.
+        // The Web/WASM runner handles async GPU init, asset loading,
+        // config loading, engine creation, and then starts the GameLoop.
     }
 }

@@ -28,6 +28,8 @@ mod input;
 pub use input::WinitInputSystemBackend;
 
 mod wgpu;
+
+#[cfg(feature = "desktop")]
 mod opengl;
 
 // ----------------------------------------------
@@ -37,6 +39,8 @@ mod opengl;
 #[enum_dispatch]
 enum WinitWindowManagerImpl {
     Wgpu(wgpu::WinitWindowManager),
+
+    #[cfg(feature = "desktop")]
     OpenGl(opengl::WinitWindowManager),
 }
 
@@ -94,7 +98,9 @@ impl WinitApplicationBackend {
 
     fn new_window_manager(params: &ApplicationInitParams) -> RcMut<WinitWindowManagerImpl> {
         RcMut::new(match params.render_api {
-            RenderApi::Wgpu   => WinitWindowManagerImpl::from(wgpu::WinitWindowManager::new(params)),
+            RenderApi::Wgpu => WinitWindowManagerImpl::from(wgpu::WinitWindowManager::new(params)),
+
+            #[cfg(feature = "desktop")]
             RenderApi::OpenGl => WinitWindowManagerImpl::from(opengl::WinitWindowManager::new(params)),
         })
     }
