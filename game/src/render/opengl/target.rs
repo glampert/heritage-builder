@@ -1,7 +1,7 @@
 use super::{
     panic_if_gl_error,
     buffer::NULL_BUFFER_HANDLE,
-    texture::TextureFilter,
+    texture::{TextureSettings, TextureFilter, TextureWrapMode, TextureUnit, OpenGlTexture},
 };
 use crate::{
     log,
@@ -16,28 +16,31 @@ use crate::{
 pub struct RenderTarget {
     size: Size,
     framebuffer_handle: gl::types::GLuint,
-    depth_buffer_handle: gl::types::GLuint,           // Optional depth buffer.
-    color_rt_texture: render::texture::TextureHandle, // Mandatory color render target texture.
-    blit_filter: gl::types::GLenum,                   // Filter used when blitting the color rt to screen.
+    depth_buffer_handle: gl::types::GLuint, // Optional depth buffer.
+    color_rt_texture: OpenGlTexture,        // Mandatory color render target texture.
+    blit_filter: gl::types::GLenum,         // Filter used when blitting the color rt to screen.
 }
 
 impl RenderTarget {
-    pub fn new(tex_cache: &mut render::texture::TextureCache,
-               size: Size,
+    pub fn new(size: Size,
                with_depth_buffer: bool,
                sampling_filter: TextureFilter,
                debug_name: &str) -> Self
     {
         debug_assert!(size.is_valid());
 
-        let color_rt_texture = tex_cache.new_uninitialized_texture(
+        let color_rt_texture = OpenGlTexture::with_data_raw(
             debug_name,
             size,
-            Some(render::texture::TextureSettings {
-                filter: sampling_filter.into(),
-                wrap_mode: render::texture::TextureWrapMode::ClampToEdge,
+            std::ptr::null(),
+            TextureSettings {
+                filter: sampling_filter,
+                wrap_mode: TextureWrapMode::ClampToEdge,
                 mipmaps: false,
-            }));
+            },
+            TextureUnit(0),
+            false,
+        );
 
         let (framebuffer_handle, depth_buffer_handle) = unsafe {
             let mut framebuffer_handle  = NULL_BUFFER_HANDLE;
@@ -50,13 +53,11 @@ impl RenderTarget {
 
             gl::BindFramebuffer(gl::FRAMEBUFFER, framebuffer_handle);
 
-            let gl_texture = tex_cache.texture_for_handle(color_rt_texture).as_opengl();
-
             gl::FramebufferTexture2D(
                 gl::FRAMEBUFFER,
                 gl::COLOR_ATTACHMENT0,
                 gl::TEXTURE_2D,
-                gl_texture.tex2d.handle(),
+                color_rt_texture.handle(),
                 0,
             );
 
@@ -150,6 +151,8 @@ impl RenderTarget {
     }
 
     pub fn is_valid(&self) -> bool {
+        use render::texture::Texture;
+
         self.framebuffer_handle != NULL_BUFFER_HANDLE &&
         self.color_rt_texture.is_valid() &&
         self.size.is_valid()
@@ -165,9 +168,5 @@ impl RenderTarget {
 
     pub fn has_depth_buffer(&self) -> bool {
         self.depth_buffer_handle != NULL_BUFFER_HANDLE
-    }
-
-    pub fn color_texture_handle(&self) -> render::texture::TextureHandle {
-        self.color_rt_texture
     }
 }

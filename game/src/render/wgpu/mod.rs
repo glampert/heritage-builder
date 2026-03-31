@@ -42,7 +42,7 @@ struct ShaderUniforms {
 // WgpuSystemState
 // ----------------------------------------------
 
-// All wgpu resources, created during initialize().
+// All Wgpu resources, created during initialize().
 struct WgpuSystemState {
     // Core wgpu state.
     device:  wgpu::Device,
@@ -79,7 +79,7 @@ struct WgpuSystemState {
     ui_gpu:      GpuVertexIndexBuffers,
 
     // Offscreen render target.
-    render_target: RenderTarget,
+    offscreen_render_target: RenderTarget,
 
     // UI draw commands recorded during the frame.
     ui_draw_commands: Vec<UiDrawCommand>,
@@ -116,8 +116,8 @@ impl WgpuSystemState {
             // Resize offscreen RT if the new framebuffer exceeds it.
             let vp = Size::new(self.viewport.width() as i32, self.viewport.height() as i32);
             let rt_size = vp.max(new_size);
-            if self.render_target.needs_resize(rt_size) {
-                self.render_target = RenderTarget::new(
+            if self.offscreen_render_target.needs_resize(rt_size) {
+                self.offscreen_render_target = RenderTarget::new(
                     &self.device, rt_size, self.surface_format, &self.blit_texture_layout);
             }
         }
@@ -129,37 +129,20 @@ impl WgpuSystemState {
 // ----------------------------------------------
 
 pub struct WgpuRenderSystemBackend {
-    state: Option<WgpuSystemState>,
+    state: Box<WgpuSystemState>,
 }
 
 impl WgpuRenderSystemBackend {
-    pub fn new() -> Self {
-        Self { state: None }
-    }
-
-    #[inline]
-    fn state(&self) -> &WgpuSystemState {
-        self.state.as_ref().expect("WgpuRenderSystemBackend not initialized!")
-    }
-
-    #[inline]
-    fn state_mut(&mut self) -> &mut WgpuSystemState {
-        self.state.as_mut().expect("WgpuRenderSystemBackend not initialized!")
-    }
-}
-
-impl RenderSystemBackend for WgpuRenderSystemBackend {
     // ----------------------
     // Initialization:
     // ----------------------
 
-    fn initialize(&mut self, params: &RenderSystemInitParams, _tex_cache: &mut super::texture::TextureCache) {
+    pub fn new(params: &RenderSystemInitParams) -> Self {
         debug_assert!(params.render_api == RenderApi::Wgpu);
         debug_assert!(params.viewport_size.is_valid());
         debug_assert!(params.framebuffer_size.is_valid());
-        debug_assert!(self.state.is_none(), "Already initialized!");
 
-        log::info!(log::channel!("render"), "--- Render Backend: WGPU ---");
+        log::info!(log::channel!("render"), "--- Render Backend: Wgpu ---");
 
         // Desktop: get window from app_context, create wgpu resources synchronously.
         let window: Arc<winit::window::Window> = params.app_context
@@ -182,7 +165,17 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             force_fallback_adapter: false,
         })).expect("Failed to find a suitable GPU adapter!");
 
-        log::info!(log::channel!("render"), "Wgpu adapter info: {:?}", adapter.get_info());
+        log::info!(log::channel!("render"), "Wgpu Adapter Info:");
+        {
+            let info = adapter.get_info();
+            log::info!(log::channel!("render"), " - Name: {}", info.name);
+            log::info!(log::channel!("render"), " - Backend: {:?}", info.backend);
+            log::info!(log::channel!("render"), " - Device Type: {:?}", info.device_type);
+
+            if !info.driver.is_empty() || !info.driver_info.is_empty() {
+                log::info!(log::channel!("render"), " - Driver: {} {}", info.driver, info.driver_info);
+            }
+        }
 
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
@@ -251,7 +244,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
 
         // Offscreen render target.
         let rt_size = params.viewport_size.max(params.framebuffer_size);
-        let render_target = RenderTarget::new(&device, rt_size, surface_format, &blit_texture_layout);
+        let offscreen_render_target = RenderTarget::new(&device, rt_size, surface_format, &blit_texture_layout);
 
         // GPU buffers.
         let sprites_gpu = GpuVertexIndexBuffers::new(&device, "sprites",
@@ -267,11 +260,12 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             1024 * std::mem::size_of::<UiVertex2D>(),
             1024 * std::mem::size_of::<render::UiDrawIndex>());
 
-        log::info!(log::channel!("render"), "Wgpu initialized. Surface format: {surface_format:?}");
-        log::info!(log::channel!("render"), "  viewport: {}, framebuffer: {}", params.viewport_size, params.framebuffer_size);
-        log::info!(log::channel!("render"), "  offscreen RT: {}x{}", rt_size.width, rt_size.height);
+        log::info!(log::channel!("render"), "Wgpu initialized.");
+        log::info!(log::channel!("render"), " - Surface format: {:?}", surface_format);
+        log::info!(log::channel!("render"), " - Offscreen RT: {}", rt_size);
+        log::info!(log::channel!("render"), " - Viewport: {}, Framebuffer: {}", params.viewport_size, params.framebuffer_size);
 
-        self.state = Some(WgpuSystemState {
+        let s = Box::new(WgpuSystemState {
             device,
             queue,
             surface,
@@ -300,7 +294,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             points_gpu,
             ui_gpu,
 
-            render_target,
+            offscreen_render_target,
 
             ui_draw_commands: Vec::with_capacity(64),
             ui_base_vertex:  0,
@@ -312,8 +306,22 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             clear_color: params.clear_color,
             stats: RenderStats::default(),
         });
+
+        Self { state: s }
     }
 
+    #[inline]
+    fn state(&self) -> &WgpuSystemState {
+        &self.state
+    }
+
+    #[inline]
+    fn state_mut(&mut self) -> &mut WgpuSystemState {
+        &mut self.state
+    }
+}
+
+impl RenderSystemBackend for WgpuRenderSystemBackend {
     // ----------------------
     // Begin/End frame:
     // ----------------------
@@ -394,7 +402,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("offscreen_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: s.render_target.view(),
+                    view: s.offscreen_render_target.view(),
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
@@ -463,7 +471,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             });
 
             pass.set_pipeline(&s.blit_pipeline);
-            pass.set_bind_group(0, Some(s.render_target.bind_group()), &[]);
+            pass.set_bind_group(0, Some(s.offscreen_render_target.bind_group()), &[]);
             pass.draw(0..3, 0..1); // Fullscreen triangle, no vertex buffer.
             s.stats.draw_calls += 1;
         }
@@ -552,14 +560,17 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
     // Viewport/Framebuffer:
     // ----------------------
 
+    #[inline]
     fn viewport(&self) -> Rect {
         self.state().viewport
     }
 
+    #[inline]
     fn set_viewport_size(&mut self, new_size: Size) {
         self.state_mut().set_viewport_size(new_size);
     }
 
+    #[inline]
     fn set_framebuffer_size(&mut self, new_size: Size) {
         self.state_mut().set_framebuffer_size(new_size);
     }

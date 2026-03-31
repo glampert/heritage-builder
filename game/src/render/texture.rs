@@ -379,7 +379,7 @@ impl TextureCache {
         }
     }
 
-    pub(super) fn initialize(&mut self, _params: &RenderSystemInitParams) {
+    pub(super) fn create_default_textures(&mut self) {
         debug_assert!(!self.dummy_texture_handle.is_valid());
         debug_assert!(!self.white_texture_handle.is_valid());
 

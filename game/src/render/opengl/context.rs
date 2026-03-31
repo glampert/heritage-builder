@@ -2,10 +2,11 @@ use super::{
     log_gl_info, panic_if_gl_error,
     target::RenderTarget,
     shader::{ShaderProgram, NULL_SHADER_HANDLE},
-    texture::{Texture2D, TextureUnit, MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE},
+    texture::{OpenGlTexture, TextureUnit, MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE},
     buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE, NULL_BUFFER_HANDLE},
 };
 use crate::{
+    render,
     utils::{Color, Rect},
 };
 
@@ -68,7 +69,7 @@ pub struct RenderContext {
     current_shader_program: gl::types::GLuint,
     current_vertex_array: gl::types::GLuint,
     current_index_type: Option<IndexType>,
-    current_texture2d: [gl::types::GLuint; MAX_TEXTURE_UNITS],
+    current_texture: [gl::types::GLuint; MAX_TEXTURE_UNITS],
     current_framebuffer: gl::types::GLuint,
 
     // Stats:
@@ -89,7 +90,7 @@ impl RenderContext {
             current_shader_program: NULL_SHADER_HANDLE,
             current_vertex_array: NULL_VERTEX_ARRAY_HANDLE,
             current_index_type: None,
-            current_texture2d: [0; MAX_TEXTURE_UNITS],
+            current_texture: [0; MAX_TEXTURE_UNITS],
             current_framebuffer: NULL_BUFFER_HANDLE,
             texture_changes_count: 0,
             draw_call_count: 0,
@@ -222,14 +223,15 @@ impl RenderContext {
         self.current_framebuffer = NULL_BUFFER_HANDLE;
     }
 
-    pub fn set_texture_2d(&mut self, texture: &Texture2D) -> &mut Self {
+    pub fn set_texture(&mut self, texture: &OpenGlTexture) -> &mut Self {
+        use render::texture::Texture;
         debug_assert!(texture.is_valid());
 
         let tex_unit = texture.tex_unit().0 as usize;
         let tex_handle = texture.handle();
 
-        if self.current_texture2d[tex_unit] != tex_handle {
-            self.current_texture2d[tex_unit] = tex_handle;
+        if self.current_texture[tex_unit] != tex_handle {
+            self.current_texture[tex_unit] = tex_handle;
             self.texture_changes_count += 1;
 
             unsafe {
@@ -246,7 +248,7 @@ impl RenderContext {
             gl::ActiveTexture(gl::TEXTURE0 + (tex_unit as gl::types::GLenum));
             gl::BindTexture(gl::TEXTURE_2D, NULL_TEXTURE_HANDLE);
         }
-        self.current_texture2d[tex_unit] = NULL_TEXTURE_HANDLE;
+        self.current_texture[tex_unit] = NULL_TEXTURE_HANDLE;
     }
 
     pub fn set_shader_program(&mut self, shader_program: &ShaderProgram) -> &mut Self {
@@ -371,7 +373,7 @@ impl RenderContext {
         self.current_shader_program = NULL_SHADER_HANDLE;
         self.current_vertex_array   = NULL_VERTEX_ARRAY_HANDLE;
         self.current_index_type     = None;
-        self.current_texture2d      = [0; MAX_TEXTURE_UNITS];
+        self.current_texture      = [0; MAX_TEXTURE_UNITS];
         self.current_framebuffer    = NULL_BUFFER_HANDLE;
     }
 

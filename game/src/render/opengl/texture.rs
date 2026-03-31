@@ -24,8 +24,8 @@ pub const MAX_TEXTURE_UNITS: usize = 4;
 #[derive(Copy, Clone)]
 pub struct TextureUnit(pub u32);
 
-impl ShaderVarTrait for &Texture2D {
-    fn set_uniform(variable: &ShaderVariable, texture: &Texture2D) {
+impl ShaderVarTrait for &OpenGlTexture {
+    fn set_uniform(variable: &ShaderVariable, texture: &OpenGlTexture) {
         unsafe {
             gl::ProgramUniform1i(variable.program_handle,
                                  variable.location,
@@ -60,10 +60,11 @@ pub enum TextureWrapMode {
 }
 
 // ----------------------------------------------
-// Texture2D
+// OpenGlTexture
 // ----------------------------------------------
 
-pub struct Texture2D {
+// Texture type referenced by the frontend TextureCache.
+pub struct OpenGlTexture {
     name: String,
     size: Size,
     settings: TextureSettings,
@@ -72,7 +73,49 @@ pub struct Texture2D {
     handle: gl::types::GLuint,
 }
 
-impl Texture2D {
+impl render::texture::Texture for OpenGlTexture {
+    #[inline]
+    fn is_valid(&self) -> bool {
+        self.handle != NULL_TEXTURE_HANDLE && self.size.is_valid()
+    }
+
+    #[inline]
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[inline]
+    fn hash(&self) -> StringHash {
+        hash::fnv1a_from_str(&self.name)
+    }
+
+    #[inline]
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    #[inline]
+    fn has_mipmaps(&self) -> bool {
+        self.settings.mipmaps
+    }
+
+    #[inline]
+    fn filter(&self) -> render::texture::TextureFilter {
+        self.settings.filter.into()
+    }
+
+    #[inline]
+    fn wrap_mode(&self) -> render::texture::TextureWrapMode {
+        self.settings.wrap_mode.into()
+    }
+
+    #[inline]
+    fn allow_settings_change(&self) -> bool {
+        self.allow_settings_change
+    }
+}
+
+impl OpenGlTexture {
     pub fn with_data_raw(name: &str,
                          size: Size,
                          data: *const c_void,
@@ -131,6 +174,8 @@ impl Texture2D {
                   mip_level: u32,
                   pixels: &[u8])
     {
+        use render::texture::Texture;
+
         debug_assert!(self.is_valid());
         debug_assert!(offset_x as i32 + size.width  <= self.size.width);
         debug_assert!(offset_y as i32 + size.height <= self.size.height);
@@ -154,6 +199,8 @@ impl Texture2D {
     }
 
     pub fn change_settings(&mut self, settings: TextureSettings) {
+        use render::texture::Texture;
+
         debug_assert!(self.is_valid());
         debug_assert!(self.allow_settings_change());
 
@@ -183,11 +230,6 @@ impl Texture2D {
     }
 
     #[inline]
-    pub fn is_valid(&self) -> bool {
-        self.handle != NULL_TEXTURE_HANDLE && self.size.is_valid()
-    }
-
-    #[inline]
     pub fn handle(&self) -> gl::types::GLuint {
         self.handle
     }
@@ -196,44 +238,9 @@ impl Texture2D {
     pub fn tex_unit(&self) -> TextureUnit {
         self.tex_unit
     }
-
-    #[inline]
-    pub fn size(&self) -> Size {
-        self.size
-    }
-
-    #[inline]
-    pub fn filter(&self) -> TextureFilter {
-        self.settings.filter
-    }
-
-    #[inline]
-    pub fn wrap_mode(&self) -> TextureWrapMode {
-        self.settings.wrap_mode
-    }
-
-    #[inline]
-    pub fn has_mipmaps(&self) -> bool {
-        self.settings.mipmaps
-    }
-
-    #[inline]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    #[inline]
-    pub fn hash(&self) -> StringHash {
-        hash::fnv1a_from_str(&self.name)
-    }
-
-    #[inline]
-    pub fn allow_settings_change(&self) -> bool {
-        self.allow_settings_change
-    }
 }
 
-impl Drop for Texture2D {
+impl Drop for OpenGlTexture {
     fn drop(&mut self) {
         self.release();
     }
@@ -367,56 +374,5 @@ fn set_current_gl_texture_params(filter: TextureFilter,
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_R, wrap_mode as _);
 
         has_mipmaps
-    }
-}
-
-// ----------------------------------------------
-// OpenGlTexture
-// ----------------------------------------------
-
-// Texture type referenced by the frontend TextureCache.
-pub struct OpenGlTexture {
-    pub tex2d: Texture2D,
-}
-
-impl render::texture::Texture for OpenGlTexture {
-    #[inline]
-    fn is_valid(&self) -> bool {
-        self.tex2d.is_valid()
-    }
-
-    #[inline]
-    fn name(&self) -> &str {
-        self.tex2d.name()
-    }
-
-    #[inline]
-    fn hash(&self) -> StringHash {
-        self.tex2d.hash()
-    }
-
-    #[inline]
-    fn size(&self) -> Size {
-        self.tex2d.size()
-    }
-
-    #[inline]
-    fn has_mipmaps(&self) -> bool {
-        self.tex2d.has_mipmaps()
-    }
-
-    #[inline]
-    fn filter(&self) -> render::texture::TextureFilter {
-        self.tex2d.filter().into()
-    }
-
-    #[inline]
-    fn wrap_mode(&self) -> render::texture::TextureWrapMode {
-        self.tex2d.wrap_mode().into()
-    }
-
-    #[inline]
-    fn allow_settings_change(&self) -> bool {
-        self.tex2d.allow_settings_change()
     }
 }

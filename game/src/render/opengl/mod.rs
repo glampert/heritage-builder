@@ -31,17 +31,17 @@ mod vertex;
 mod target;
 
 // ----------------------------------------------
-// OpenGlRenderSystemBackend
+// OpenGlSystemState
 // ----------------------------------------------
 
-pub struct OpenGlRenderSystemBackend {
+struct OpenGlSystemState {
     frame_started: bool,
     stats: RenderStats,
     render_context: RenderContext,
 
     viewport: Rect,
     framebuffer_size: Size,
-    offscreen_render_target: Option<RenderTarget>, // Created on initialize().
+    offscreen_render_target: RenderTarget,
 
     sprites_batch: DrawBatch<SpriteVertex2D, SpriteIndex2D>,
     sprites_shader: sprites::Shader,
@@ -56,31 +56,27 @@ pub struct OpenGlRenderSystemBackend {
     ui_shader: ui::Shader,
 }
 
-impl OpenGlRenderSystemBackend {
-    pub fn new() -> Self {
-        log::info!(log::channel!("render"), "--- Render Backend: OpenGL ---");
+impl OpenGlSystemState {
+    fn set_viewport_size(&mut self, new_size: Size) {
+        debug_assert!(new_size.is_valid());
+        self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size.to_vec2());
 
-        Self {
-            frame_started: false,
-            stats: RenderStats::default(),
-            render_context: RenderContext::new(),
+        // NOTE: Set render viewport to render target size; everything else is set
+        // to the virtual viewport size, so we decouple rendering resolution from
+        // logical viewport. 
+        self.render_context.set_viewport(
+            Rect::from_pos_and_size(Vec2::zero(), self.offscreen_render_target.size().to_vec2())
+        );
 
-            viewport: Rect::default(),
-            framebuffer_size: Size::default(),
-            offscreen_render_target: None,
+        self.sprites_shader.set_viewport_size(self.viewport.size());
+        self.lines_shader.set_viewport_size(self.viewport.size());
+        self.points_shader.set_viewport_size(self.viewport.size());
+        self.ui_shader.set_viewport_size(self.viewport.size());
+    }
 
-            sprites_batch: DrawBatch::new(512, 512, 512, PrimitiveTopology::Triangles),
-            sprites_shader: sprites::Shader::load(),
-
-            lines_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Lines),
-            lines_shader: lines::Shader::load(),
-
-            points_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Points),
-            points_shader: points::Shader::load(),
-
-            ui_batch: UiDrawBatch::new(),
-            ui_shader: ui::Shader::load(),
-        }
+    fn set_framebuffer_size(&mut self, new_size: Size) {
+        debug_assert!(new_size.is_valid());
+        self.framebuffer_size = new_size;
     }
 
     fn flush_sprites(&mut self, tex_cache: &mut super::texture::TextureCache) {
@@ -88,10 +84,10 @@ impl OpenGlRenderSystemBackend {
 
         let set_shader_vars_fn = |render_ctx: &mut RenderContext, entry: &DrawBatchEntry| {
             let gl_texture = tex_cache.texture_for_handle(entry.texture).as_opengl();
-            render_ctx.set_texture_2d(&gl_texture.tex2d);
+            render_ctx.set_texture(gl_texture);
 
             self.sprites_shader.set_sprite_tint(entry.color);
-            self.sprites_shader.set_sprite_texture(&gl_texture.tex2d);
+            self.sprites_shader.set_sprite_texture(gl_texture);
         };
 
         self.sprites_batch.sync();
@@ -118,57 +114,105 @@ impl OpenGlRenderSystemBackend {
     }
 }
 
-impl RenderSystemBackend for OpenGlRenderSystemBackend {
+// ----------------------------------------------
+// OpenGlRenderSystemBackend
+// ----------------------------------------------
+
+pub struct OpenGlRenderSystemBackend {
+    state: Box<OpenGlSystemState>,
+}
+
+impl OpenGlRenderSystemBackend {
     // ----------------------
     // Initialization:
     // ----------------------
 
-    fn initialize(&mut self, params: &RenderSystemInitParams, tex_cache: &mut super::texture::TextureCache) {
+    pub fn new(params: &RenderSystemInitParams) -> Self {
         debug_assert!(params.render_api == RenderApi::OpenGl);
+        debug_assert!(params.viewport_size.is_valid());
+        debug_assert!(params.framebuffer_size.is_valid());
 
-        // Pure 2D rendering, no depth buffer.
+        log::info!(log::channel!("render"), "--- Render Backend: OpenGL ---");
+
+        // Pure 2D rendering, without depth buffer.
         const WITH_DEPTH_BUFFER: bool = false;
-        self.offscreen_render_target = Some(RenderTarget::new(
-            tex_cache,
+        let offscreen_render_target = RenderTarget::new(
             params.viewport_size.max(params.framebuffer_size),
             WITH_DEPTH_BUFFER,
             TextureFilter::Linear,
             "offscreen_render_target"
-        ));
+        );
 
-        self.set_viewport_size(params.viewport_size);
-        self.set_framebuffer_size(params.framebuffer_size);
+        let mut s = Box::new(OpenGlSystemState {
+            frame_started: false,
+            stats: RenderStats::default(),
+            render_context: RenderContext::new(),
+
+            viewport: Rect::default(),
+            framebuffer_size: Size::default(),
+            offscreen_render_target,
+
+            sprites_batch: DrawBatch::new(512, 512, 512, PrimitiveTopology::Triangles),
+            sprites_shader: sprites::Shader::load(),
+
+            lines_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Lines),
+            lines_shader: lines::Shader::load(),
+
+            points_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Points),
+            points_shader: points::Shader::load(),
+
+            ui_batch: UiDrawBatch::new(),
+            ui_shader: ui::Shader::load(),
+        });
+
+        s.set_viewport_size(params.viewport_size);
+        s.set_framebuffer_size(params.framebuffer_size);
 
         // Pure 2D rendering, no depth test or back-face culling.
-        self.render_context
+        s.render_context
             .set_clear_color(params.clear_color)
             .set_alpha_blend(AlphaBlend::Enabled)
             .set_backface_culling(BackFaceCulling::Disabled)
             .set_depth_test(DepthTest::Disabled)
             .set_clip_test(ClipTest::Disabled);
+
+        Self { state: s }
     }
 
+    #[inline]
+    fn state(&self) -> &OpenGlSystemState {
+        &self.state
+    }
+
+    #[inline]
+    fn state_mut(&mut self) -> &mut OpenGlSystemState {
+        &mut self.state
+    }
+}
+
+impl RenderSystemBackend for OpenGlRenderSystemBackend {
     // ----------------------
     // Begin/End frame:
     // ----------------------
 
     fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size) {
-        debug_assert!(!self.frame_started);
+        let s = self.state_mut();
+        debug_assert!(!s.frame_started);
 
-        self.render_context.set_offscreen_render_target(self.offscreen_render_target.as_ref().unwrap());
-        self.set_viewport_size(viewport_size);
-        self.set_framebuffer_size(framebuffer_size);
+        s.render_context.set_offscreen_render_target(&s.offscreen_render_target);
+        s.set_viewport_size(viewport_size);
+        s.set_framebuffer_size(framebuffer_size);
 
-        self.render_context.begin_frame();
-        self.frame_started = true;
+        s.render_context.begin_frame();
+        s.frame_started = true;
 
-        self.stats.triangles_drawn  = 0;
-        self.stats.lines_drawn      = 0;
-        self.stats.points_drawn     = 0;
-        self.stats.texture_changes  = 0;
-        self.stats.draw_calls       = 0;
+        s.stats.triangles_drawn  = 0;
+        s.stats.lines_drawn      = 0;
+        s.stats.points_drawn     = 0;
+        s.stats.texture_changes  = 0;
+        s.stats.draw_calls       = 0;
 
-        self.stats.render_submit_time_ms = 0.0;
+        s.stats.render_submit_time_ms = 0.0;
     }
 
     fn end_frame(&mut self,
@@ -176,37 +220,38 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
                  tex_cache: &mut super::texture::TextureCache)
                  -> RenderStats
     {
-        debug_assert!(self.framebuffer_size.is_valid());
+        let s = self.state_mut();
+        debug_assert!(s.framebuffer_size.is_valid());
 
         let render_submit_timer = PerfTimer::begin();
 
-        self.flush_sprites(tex_cache);
-        self.flush_lines();
-        self.flush_points();
+        s.flush_sprites(tex_cache);
+        s.flush_lines();
+        s.flush_points();
 
         // Blit OffscreenRT to the screen framebuffer.
-        self.offscreen_render_target.as_ref().unwrap().blit_to_screen(self.framebuffer_size);
+        s.offscreen_render_target.blit_to_screen(s.framebuffer_size);
 
         // Reset viewport to default screen framebuffer size.
-        self.render_context.set_viewport(Rect::from_pos_and_size(Vec2::zero(), self.framebuffer_size.to_vec2()));
+        s.render_context.set_viewport(Rect::from_pos_and_size(Vec2::zero(), s.framebuffer_size.to_vec2()));
 
         // Render UI last so it will draw over the tile map.
         ui_frame_bundle.render();
 
-        self.render_context.end_frame();
-        self.frame_started = false;
+        s.render_context.end_frame();
+        s.frame_started = false;
 
-        self.stats.render_submit_time_ms = render_submit_timer.end();
+        s.stats.render_submit_time_ms = render_submit_timer.end();
 
-        self.stats.texture_changes      = self.render_context.texture_changes();
-        self.stats.draw_calls           = self.render_context.draw_calls();
-        self.stats.peak_triangles_drawn = self.stats.triangles_drawn.max(self.stats.peak_triangles_drawn);
-        self.stats.peak_lines_drawn     = self.stats.lines_drawn.max(self.stats.peak_lines_drawn);
-        self.stats.peak_points_drawn    = self.stats.points_drawn.max(self.stats.peak_points_drawn);
-        self.stats.peak_texture_changes = self.stats.texture_changes.max(self.stats.peak_texture_changes);
-        self.stats.peak_draw_calls      = self.stats.draw_calls.max(self.stats.peak_draw_calls);
+        s.stats.texture_changes      = s.render_context.texture_changes();
+        s.stats.draw_calls           = s.render_context.draw_calls();
+        s.stats.peak_triangles_drawn = s.stats.triangles_drawn.max(s.stats.peak_triangles_drawn);
+        s.stats.peak_lines_drawn     = s.stats.lines_drawn.max(s.stats.peak_lines_drawn);
+        s.stats.peak_points_drawn    = s.stats.points_drawn.max(s.stats.peak_points_drawn);
+        s.stats.peak_texture_changes = s.stats.texture_changes.max(s.stats.peak_texture_changes);
+        s.stats.peak_draw_calls      = s.stats.draw_calls.max(s.stats.peak_draw_calls);
 
-        self.stats
+        s.stats
     }
 
     // ----------------------
@@ -215,29 +260,17 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
 
     #[inline]
     fn viewport(&self) -> Rect {
-        self.viewport
+        self.state().viewport
     }
 
+    #[inline]
     fn set_viewport_size(&mut self, new_size: Size) {
-        debug_assert!(new_size.is_valid());
-        self.viewport = Rect::from_pos_and_size(Vec2::zero(), new_size.to_vec2());
-
-        // NOTE: Set render viewport to render target size; everything else is set
-        // to the virtual viewport size, so we decouple rendering resolution from
-        // logical viewport. 
-        self.render_context.set_viewport(
-            Rect::from_pos_and_size(Vec2::zero(), self.offscreen_render_target.as_ref().unwrap().size().to_vec2())
-        );
-
-        self.sprites_shader.set_viewport_size(self.viewport.size());
-        self.lines_shader.set_viewport_size(self.viewport.size());
-        self.points_shader.set_viewport_size(self.viewport.size());
-        self.ui_shader.set_viewport_size(self.viewport.size());
+        self.state_mut().set_viewport_size(new_size);
     }
 
+    #[inline]
     fn set_framebuffer_size(&mut self, new_size: Size) {
-        debug_assert!(new_size.is_valid());
-        self.framebuffer_size = new_size;
+        self.state_mut().set_framebuffer_size(new_size);
     }
 
     // ----------------------
@@ -245,13 +278,15 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
     // ----------------------
 
     fn begin_ui_render(&mut self) {
-        self.render_context.set_clip_test(ClipTest::Enabled);
-        self.ui_batch.begin(&mut self.render_context, &self.ui_shader.program);
+        let s = self.state_mut();
+        s.render_context.set_clip_test(ClipTest::Enabled);
+        s.ui_batch.begin(&mut s.render_context, &s.ui_shader.program);
     }
 
     fn end_ui_render(&mut self) {
-        self.ui_batch.end(&mut self.render_context);
-        self.render_context.set_clip_test(ClipTest::Disabled);
+        let s = self.state_mut();
+        s.ui_batch.end(&mut s.render_context);
+        s.render_context.set_clip_test(ClipTest::Disabled);
     }
 
     fn set_ui_draw_buffers(&mut self,
@@ -259,7 +294,8 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
                            idx_buffer: &[super::UiDrawIndex])
     {
         debug_assert!(!vtx_buffer.is_empty() && !idx_buffer.is_empty());
-        self.ui_batch.sync(&mut self.render_context, vtx_buffer, idx_buffer);
+        let s = self.state_mut();
+        s.ui_batch.sync(&mut s.render_context, vtx_buffer, idx_buffer);
     }
 
     fn draw_ui_elements(&mut self,
@@ -271,14 +307,15 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
     {
         debug_assert!(index_count.is_multiple_of(3)); // We expect triangles.
 
-        self.render_context.set_clip_rect(clip_rect);
+        let s = self.state_mut();
+        s.render_context.set_clip_rect(clip_rect);
 
         let gl_texture = tex_cache.texture_for_handle(texture).as_opengl();
-        self.ui_shader.set_sprite_texture(&gl_texture.tex2d);
-        self.render_context.set_texture_2d(&gl_texture.tex2d);
+        s.ui_shader.set_sprite_texture(gl_texture);
+        s.render_context.set_texture(gl_texture);
 
-        self.ui_batch.draw(&mut self.render_context, first_index, index_count);
-        self.stats.triangles_drawn += index_count / 3;
+        s.ui_batch.draw(&mut s.render_context, first_index, index_count);
+        s.stats.triangles_drawn += index_count / 3;
     }
 
     // ----------------------
@@ -290,7 +327,8 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
                                       indices: &[super::DrawIndex],
                                       color: Color)
     {
-        debug_assert!(self.frame_started);
+        let s = self.state_mut();
+        debug_assert!(s.frame_started);
         debug_assert!(!vertices.is_empty() && !indices.is_empty());
         debug_assert!(indices.len().is_multiple_of(3)); // We expect triangles.
 
@@ -304,14 +342,14 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
             });
         }
 
-        self.sprites_batch.add_entry(
+        s.sprites_batch.add_entry(
             &sprite_verts,
             indices,
             super::texture::TextureHandle::white(),
             color
         );
 
-        self.stats.triangles_drawn += (indices.len() / 3) as u32;
+        s.stats.triangles_drawn += (indices.len() / 3) as u32;
     }
 
     fn draw_textured_colored_rect(&mut self,
@@ -320,9 +358,10 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
                                   texture: super::texture::TextureHandle,
                                   color: Color)
     {
-        debug_assert!(self.frame_started);
+        let s = self.state_mut();
+        debug_assert!(s.frame_started);
 
-        if super::is_rect_fully_offscreen(&self.viewport, &rect) {
+        if super::is_rect_fully_offscreen(&s.viewport, &rect) {
             return; // Cull if fully offscreen.
         }
 
@@ -338,8 +377,8 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
             2, 3, 0, // second triangle
         ];
 
-        self.sprites_batch.add_entry(&vertices, &INDICES, texture, color);
-        self.stats.triangles_drawn += 2;
+        s.sprites_batch.add_entry(&vertices, &INDICES, texture, color);
+        s.stats.triangles_drawn += 2;
     }
 
     // ----------------------
@@ -347,9 +386,10 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
     // ----------------------
 
     fn draw_line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color) {
-        debug_assert!(self.frame_started);
+        let s = self.state_mut();
+        debug_assert!(s.frame_started);
 
-        if super::is_line_fully_offscreen(&self.viewport, &from_pos, &to_pos) {
+        if super::is_line_fully_offscreen(&s.viewport, &from_pos, &to_pos) {
             return; // Cull if fully offscreen.
         }
 
@@ -360,22 +400,23 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
 
         const INDICES: [LineIndex2D; 2] = [0, 1];
 
-        self.lines_batch.add_fast(&vertices, &INDICES);
-        self.stats.lines_drawn += 1;
+        s.lines_batch.add_fast(&vertices, &INDICES);
+        s.stats.lines_drawn += 1;
     }
 
     fn draw_point(&mut self, pt: Vec2, color: Color, size: f32) {
-        debug_assert!(self.frame_started);
+        let s = self.state_mut();
+        debug_assert!(s.frame_started);
 
-        if super::is_point_fully_offscreen(&self.viewport, &pt) {
+        if super::is_point_fully_offscreen(&s.viewport, &pt) {
             return; // Cull if fully offscreen.
         }
 
         let vertices = [PointVertex2D { position: pt, color, size }];
         const INDICES: [PointIndex2D; 1] = [0];
 
-        self.points_batch.add_fast(&vertices, &INDICES);
-        self.stats.points_drawn += 1;
+        s.points_batch.add_fast(&vertices, &INDICES);
+        s.stats.points_drawn += 1;
     }
 
     // ----------------------
@@ -396,7 +437,7 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
             pixels.as_ptr() as *const c_void
         };
 
-        let tex2d = Texture2D::with_data_raw(
+        let gl_texture = OpenGlTexture::with_data_raw(
             name,
             size,
             data,
@@ -405,7 +446,7 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
             allow_settings_change,
         );
 
-        super::texture::TextureBackendImpl::OpenGl(OpenGlTexture { tex2d })
+        super::texture::TextureBackendImpl::OpenGl(gl_texture)
     }
 
     fn update_texture_pixels(&mut self,
@@ -417,7 +458,7 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
                              pixels: &[u8])
     {
         let gl_texture = texture.as_opengl_mut();
-        gl_texture.tex2d.update(offset_x, offset_y, size, mip_level, pixels);
+        gl_texture.update(offset_x, offset_y, size, mip_level, pixels);
     }
 
     fn update_texture_settings(&mut self,
@@ -425,12 +466,12 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
                                settings: super::texture::TextureSettings)
     {
         let gl_texture = texture.as_opengl_mut();
-        gl_texture.tex2d.change_settings(TextureSettings::from(settings));
+        gl_texture.change_settings(TextureSettings::from(settings));
     }
 
     fn release_texture(&mut self, texture: &mut super::texture::TextureBackendImpl) {
         let gl_texture = texture.as_opengl_mut();
-        gl_texture.tex2d.release();
+        gl_texture.release();
     }
 }
 

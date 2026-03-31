@@ -1,8 +1,7 @@
 use std::{ffi::CString, ptr};
-
 use paste::paste;
 
-use super::texture::Texture2D;
+use super::texture::OpenGlTexture;
 use crate::utils::{Color, Vec2};
 
 // ----------------------------------------------
@@ -374,7 +373,7 @@ shader!(
     // Uniform variables:
     viewport_size: Vec2,
     sprite_tint: Color,
-    sprite_texture: &Texture2D,
+    sprite_texture: &OpenGlTexture,
 );
 
 shader!(
@@ -393,5 +392,5 @@ shader!(
     ui,
     // Uniform variables:
     viewport_size: Vec2,
-    sprite_texture: &Texture2D,
+    sprite_texture: &OpenGlTexture,
 );

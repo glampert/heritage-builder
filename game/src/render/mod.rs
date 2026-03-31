@@ -36,11 +36,6 @@ pub enum RenderApi {
 
 #[enum_dispatch(RenderSystemBackendImpl)]
 trait RenderSystemBackend: Sized {
-    // Initialization:
-    fn initialize(&mut self,
-                  params: &RenderSystemInitParams,
-                  tex_cache: &mut texture::TextureCache);
-
     // Begin/End frame:
     fn begin_frame(&mut self,
                    viewport_size: Size,
@@ -184,10 +179,10 @@ impl RenderSystem {
         debug_assert!(params.viewport_size.is_valid());
         debug_assert!(params.framebuffer_size.is_valid());
 
-        let mut render_system = RcMut::new_cyclic(|render_system| {
+        let mut render_sys = RcMut::new_cyclic(|render_system| {
             let backend = match params.render_api {
-                RenderApi::Wgpu   => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new()),
-                RenderApi::OpenGl => RenderSystemBackendImpl::from(opengl::OpenGlRenderSystemBackend::new()),
+                RenderApi::Wgpu   => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new(params)),
+                RenderApi::OpenGl => RenderSystemBackendImpl::from(opengl::OpenGlRenderSystemBackend::new(params)),
             };
 
             let tex_cache = texture::TextureCache::new(
@@ -199,14 +194,8 @@ impl RenderSystem {
             Self { render_api: params.render_api, backend, tex_cache }
         });
 
-        render_system.initialize(params);
-        render_system
-    }
-
-    // Post-construction initialization.
-    fn initialize(&mut self, params: &RenderSystemInitParams) {
-        self.tex_cache.initialize(params);
-        self.backend.initialize(params, &mut self.tex_cache);
+        render_sys.tex_cache.create_default_textures();
+        render_sys
     }
 
     // ----------------------
