@@ -207,10 +207,10 @@ impl ShaderProgram {
                                      info_log.as_mut_ptr() as *mut gl::types::GLchar);
 
                 let shader_stage_prefix = match shader_type {
-                                              gl::VERTEX_SHADER => "[VS]: ",
-                                              gl::FRAGMENT_SHADER => "[FS]: ",
-                                              _ => panic!("Unhandled shader type!"),
-                                          }.to_string();
+                    gl::VERTEX_SHADER => "[VS]: ",
+                    gl::FRAGMENT_SHADER => "[FS]: ",
+                    _ => panic!("Unhandled shader type!"),
+                }.to_string();
 
                 let log_string = String::from_utf8(info_log).unwrap();
                 return Err(shader_stage_prefix + &log_string);

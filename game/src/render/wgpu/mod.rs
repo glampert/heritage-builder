@@ -68,8 +68,8 @@ struct WgpuSystemState {
 
     // CPU-side batches.
     sprites_batch: DrawBatch<SpriteVertex2D, SpriteIndex2D>,
-    lines_batch:   DrawBatch<LineVertex2D, LineIndex2D>,
-    points_batch:  DrawBatch<LineVertex2D, render::DrawIndex>,
+    lines_batch:   DrawBatch<LineVertex2D,   LineIndex2D>,
+    points_batch:  DrawBatch<PointVertex2D,  PointIndex2D>,
     ui_batch:      UiDrawBatch,
 
     // GPU-side buffers.
@@ -254,8 +254,8 @@ impl WgpuRenderSystemBackend {
             64 * std::mem::size_of::<LineVertex2D>(),
             64 * std::mem::size_of::<LineIndex2D>());
         let points_gpu = GpuVertexIndexBuffers::new(&device, "points",
-            64 * std::mem::size_of::<LineVertex2D>(),
-            64 * std::mem::size_of::<render::DrawIndex>());
+            64 * std::mem::size_of::<PointVertex2D>(),
+            64 * std::mem::size_of::<PointIndex2D>());
         let ui_gpu = GpuVertexIndexBuffers::new(&device, "ui",
             1024 * std::mem::size_of::<UiVertex2D>(),
             1024 * std::mem::size_of::<render::UiDrawIndex>());
@@ -418,7 +418,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             if !s.sprites_batch.is_empty() {
                 pass.set_pipeline(&s.sprites_pipeline);
                 pass.set_bind_group(0, Some(&s.uniform_bind_group), &[]);
-                s.sprites_gpu.bind_to_render_pass(&mut pass, wgpu::IndexFormat::Uint16);
+                s.sprites_gpu.bind_to_render_pass(&mut pass, vertex::size_to_index_format::<SpriteIndex2D>());
 
                 let mut last_texture = super::texture::TextureHandle::invalid();
                 for entry in s.sprites_batch.entries() {
@@ -438,7 +438,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             if !s.lines_batch.is_empty() {
                 pass.set_pipeline(&s.lines_pipeline);
                 pass.set_bind_group(0, Some(&s.uniform_bind_group), &[]);
-                s.lines_gpu.bind_to_render_pass(&mut pass, wgpu::IndexFormat::Uint16);
+                s.lines_gpu.bind_to_render_pass(&mut pass, vertex::size_to_index_format::<LineIndex2D>());
                 pass.draw_indexed(0..s.lines_batch.indices().len() as u32, 0, 0..1);
                 s.stats.draw_calls += 1;
             }
@@ -447,7 +447,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             if !s.points_batch.is_empty() {
                 pass.set_pipeline(&s.points_pipeline);
                 pass.set_bind_group(0, Some(&s.uniform_bind_group), &[]);
-                s.points_gpu.bind_to_render_pass(&mut pass, wgpu::IndexFormat::Uint16);
+                s.points_gpu.bind_to_render_pass(&mut pass, vertex::size_to_index_format::<PointIndex2D>());
                 pass.draw_indexed(0..s.points_batch.indices().len() as u32, 0, 0..1);
                 s.stats.draw_calls += 1;
             }
@@ -495,13 +495,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
 
             pass.set_pipeline(&s.ui_pipeline);
             pass.set_bind_group(0, Some(&s.uniform_bind_group), &[]);
-
-            let idx_format = match std::mem::size_of::<super::UiDrawIndex>() {
-                2 => wgpu::IndexFormat::Uint16,
-                4 => wgpu::IndexFormat::Uint32,
-                _ => panic!("Unsupported UiDrawIndex size!"),
-            };
-            s.ui_gpu.bind_to_render_pass(&mut pass, idx_format);
+            s.ui_gpu.bind_to_render_pass(&mut pass, vertex::size_to_index_format::<super::UiDrawIndex>());
 
             let fb_w = s.framebuffer_size.width  as u32;
             let fb_h = s.framebuffer_size.height as u32;
@@ -706,12 +700,12 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         // wgpu doesn't support variable-size points, so expand to a quad.
         let half = size / 2.0;
         let vertices = [
-            LineVertex2D::new(Vec2::new(pt.x - half, pt.y - half), color),
-            LineVertex2D::new(Vec2::new(pt.x + half, pt.y - half), color),
-            LineVertex2D::new(Vec2::new(pt.x + half, pt.y + half), color),
-            LineVertex2D::new(Vec2::new(pt.x - half, pt.y + half), color),
+            PointVertex2D::new(Vec2::new(pt.x - half, pt.y - half), color),
+            PointVertex2D::new(Vec2::new(pt.x + half, pt.y - half), color),
+            PointVertex2D::new(Vec2::new(pt.x + half, pt.y + half), color),
+            PointVertex2D::new(Vec2::new(pt.x - half, pt.y + half), color),
         ];
-        const INDICES: [u16; 6] = [0, 1, 2, 2, 3, 0];
+        const INDICES: [PointIndex2D; 6] = [0, 1, 2, 2, 3, 0];
 
         s.points_batch.add_fast(&vertices, &INDICES);
         s.stats.points_drawn += 1;

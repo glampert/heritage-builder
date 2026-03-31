@@ -1,7 +1,10 @@
 use super::{
     panic_if_gl_error,
     buffer::NULL_BUFFER_HANDLE,
-    texture::{TextureSettings, TextureFilter, TextureWrapMode, TextureUnit, OpenGlTexture},
+    texture::{
+        TextureSettings, TextureFilter, TextureWrapMode,
+        TextureUnit, TextureCreationParams, OpenGlTexture,
+    },
 };
 use crate::{
     log,
@@ -16,35 +19,31 @@ use crate::{
 pub struct RenderTarget {
     size: Size,
     framebuffer_handle: gl::types::GLuint,
-    depth_buffer_handle: gl::types::GLuint, // Optional depth buffer.
-    color_rt_texture: OpenGlTexture,        // Mandatory color render target texture.
-    blit_filter: gl::types::GLenum,         // Filter used when blitting the color rt to screen.
+    color_rt_texture: OpenGlTexture, // Mandatory color render target texture.
+    blit_filter: gl::types::GLenum,  // Filter used when blitting the color rt to screen.
 }
 
 impl RenderTarget {
-    pub fn new(size: Size,
-               with_depth_buffer: bool,
-               sampling_filter: TextureFilter,
-               debug_name: &str) -> Self
-    {
+    pub fn new(size: Size, sampling_filter: TextureFilter) -> Self {
         debug_assert!(size.is_valid());
 
-        let color_rt_texture = OpenGlTexture::with_data_raw(
-            debug_name,
-            size,
-            std::ptr::null(),
-            TextureSettings {
-                filter: sampling_filter,
-                wrap_mode: TextureWrapMode::ClampToEdge,
-                mipmaps: false,
-            },
-            TextureUnit(0),
-            false,
+        let color_rt_texture = OpenGlTexture::new(
+            TextureCreationParams {
+                name: "offscreen_render_target",
+                size,
+                pixels: &[],
+                settings: TextureSettings {
+                    filter: sampling_filter,
+                    wrap_mode: TextureWrapMode::ClampToEdge,
+                    mipmaps: false,
+                },
+                tex_unit: TextureUnit(0),
+                allow_settings_change: false,
+            }
         );
 
-        let (framebuffer_handle, depth_buffer_handle) = unsafe {
-            let mut framebuffer_handle  = NULL_BUFFER_HANDLE;
-            let mut depth_buffer_handle = NULL_BUFFER_HANDLE;
+        let framebuffer_handle = unsafe {
+            let mut framebuffer_handle = NULL_BUFFER_HANDLE;
 
             gl::GenFramebuffers(1, &mut framebuffer_handle);
             if framebuffer_handle == NULL_BUFFER_HANDLE {
@@ -61,42 +60,18 @@ impl RenderTarget {
                 0,
             );
 
-            // Optional Depth Buffer:
-            if with_depth_buffer {
-                gl::GenRenderbuffers(1, &mut depth_buffer_handle);
-                if depth_buffer_handle == NULL_BUFFER_HANDLE {
-                    panic!("Failed to create depth buffer handle!");
-                }
-
-                gl::BindRenderbuffer(gl::RENDERBUFFER, depth_buffer_handle);
-
-                gl::RenderbufferStorage(
-                    gl::RENDERBUFFER,
-                    gl::DEPTH24_STENCIL8,
-                    size.width,
-                    size.height
-                );
-
-                gl::FramebufferRenderbuffer(
-                    gl::FRAMEBUFFER,
-                    gl::DEPTH_STENCIL_ATTACHMENT,
-                    gl::RENDERBUFFER,
-                    depth_buffer_handle
-                );
-
-                gl::BindRenderbuffer(gl::RENDERBUFFER, NULL_BUFFER_HANDLE);
-            }
-
             let framebuffer_status = gl::CheckFramebufferStatus(gl::FRAMEBUFFER);
             if framebuffer_status != gl::FRAMEBUFFER_COMPLETE {
-                log::error!(log::channel!("render"), "Invalid framebuffer status for '{debug_name}': 0x{:X}", framebuffer_status);
+                log::error!(log::channel!("render"),
+                            "Invalid framebuffer status for 'offscreen_render_target': 0x{:X}",
+                            framebuffer_status);
             }
 
             panic_if_gl_error();
 
             gl::BindFramebuffer(gl::FRAMEBUFFER, NULL_BUFFER_HANDLE);
 
-            (framebuffer_handle, depth_buffer_handle)
+            framebuffer_handle
         };
 
         let blit_filter = match sampling_filter {
@@ -115,7 +90,6 @@ impl RenderTarget {
         Self {
             size,
             framebuffer_handle,
-            depth_buffer_handle,
             color_rt_texture,
             blit_filter,
         }
@@ -150,23 +124,34 @@ impl RenderTarget {
         }
     }
 
+    #[inline]
     pub fn is_valid(&self) -> bool {
         use render::texture::Texture;
 
-        self.framebuffer_handle != NULL_BUFFER_HANDLE &&
-        self.color_rt_texture.is_valid() &&
-        self.size.is_valid()
+        self.framebuffer_handle != NULL_BUFFER_HANDLE
+            && self.color_rt_texture.is_valid()
+            && self.size.is_valid()
     }
 
+    #[inline]
     pub fn handle(&self) -> gl::types::GLuint {
         self.framebuffer_handle
     }
 
+    #[inline]
     pub fn size(&self) -> Size {
         self.size
     }
+}
 
-    pub fn has_depth_buffer(&self) -> bool {
-        self.depth_buffer_handle != NULL_BUFFER_HANDLE
+impl Drop for RenderTarget {
+    fn drop(&mut self) {
+        if self.framebuffer_handle != NULL_BUFFER_HANDLE {
+            unsafe {
+                gl::DeleteFramebuffers(1, &self.framebuffer_handle);
+            }
+
+            self.framebuffer_handle = NULL_BUFFER_HANDLE;
+        }
     }
 }

@@ -1,4 +1,4 @@
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, c_char};
 use arrayvec::ArrayVec;
 
 use batch::*;
@@ -134,13 +134,9 @@ impl OpenGlRenderSystemBackend {
 
         log::info!(log::channel!("render"), "--- Render Backend: OpenGL ---");
 
-        // Pure 2D rendering, without depth buffer.
-        const WITH_DEPTH_BUFFER: bool = false;
         let offscreen_render_target = RenderTarget::new(
             params.viewport_size.max(params.framebuffer_size),
-            WITH_DEPTH_BUFFER,
-            TextureFilter::Linear,
-            "offscreen_render_target"
+            TextureFilter::Linear
         );
 
         let mut s = Box::new(OpenGlSystemState {
@@ -155,10 +151,10 @@ impl OpenGlRenderSystemBackend {
             sprites_batch: DrawBatch::new(512, 512, 512, PrimitiveTopology::Triangles),
             sprites_shader: sprites::Shader::load(),
 
-            lines_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Lines),
+            lines_batch: DrawBatch::new(64, 64, 0, PrimitiveTopology::Lines),
             lines_shader: lines::Shader::load(),
 
-            points_batch: DrawBatch::new(8, 8, 0, PrimitiveTopology::Points),
+            points_batch: DrawBatch::new(64, 64, 0, PrimitiveTopology::Points),
             points_shader: points::Shader::load(),
 
             ui_batch: UiDrawBatch::new(),
@@ -438,19 +434,15 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
                                allow_settings_change: bool)
                                -> super::texture::TextureBackendImpl
     {
-        let data = if pixels.is_empty() {
-            std::ptr::null()
-        } else {
-            pixels.as_ptr() as *const c_void
-        };
-
-        let gl_texture = OpenGlTexture::with_data_raw(
-            name,
-            size,
-            data,
-            TextureSettings::from(settings),
-            TextureUnit(0),
-            allow_settings_change,
+        let gl_texture = OpenGlTexture::new(
+            TextureCreationParams {
+                name,
+                size,
+                pixels,
+                settings: TextureSettings::from(settings),
+                tex_unit: TextureUnit(0),
+                allow_settings_change,
+            }
         );
 
         super::texture::TextureBackendImpl::OpenGl(gl_texture)

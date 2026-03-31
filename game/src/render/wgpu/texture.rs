@@ -82,6 +82,9 @@ pub struct TextureCreationParams<'a> {
 impl WgpuTexture {
     // Creates a new WgpuTexture with optional initial pixel data.
     pub fn new(params: &TextureCreationParams) -> Self {
+        debug_assert!(!params.name.is_empty());
+        debug_assert!(params.size.is_valid());
+
         let wgpu_size = wgpu::Extent3d {
             width:  params.size.width  as u32,
             height: params.size.height as u32,

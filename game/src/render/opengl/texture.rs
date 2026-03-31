@@ -1,4 +1,3 @@
-use std::ffi::c_void;
 use strum::Display;
 
 use super::{
@@ -73,6 +72,7 @@ pub struct OpenGlTexture {
     handle: gl::types::GLuint,
 }
 
+// Methods exposed to the renderer frontend.
 impl render::texture::Texture for OpenGlTexture {
     #[inline]
     fn is_valid(&self) -> bool {
@@ -115,17 +115,25 @@ impl render::texture::Texture for OpenGlTexture {
     }
 }
 
+// ----------------------------------------------
+// Texture creation
+// ----------------------------------------------
+
+pub struct TextureCreationParams<'a> {
+    pub name: &'a str,
+    pub size: Size,
+    pub pixels: &'a [u8], // Can be empty.
+    pub settings: TextureSettings,
+    pub tex_unit: TextureUnit,
+    pub allow_settings_change: bool,
+}
+
 impl OpenGlTexture {
-    pub fn with_data_raw(name: &str,
-                         size: Size,
-                         data: *const c_void,
-                         mut settings: TextureSettings,
-                         tex_unit: TextureUnit,
-                         allow_settings_change: bool) -> Self
-    {
-        debug_assert!(!name.is_empty());
-        debug_assert!(size.is_valid());
-        debug_assert!((tex_unit.0 as usize) < MAX_TEXTURE_UNITS);
+    // Creates a new OpenGlTexture with optional initial pixel data.
+    pub fn new(mut params: TextureCreationParams) -> Self {
+        debug_assert!(!params.name.is_empty());
+        debug_assert!(params.size.is_valid());
+        debug_assert!((params.tex_unit.0 as usize) < MAX_TEXTURE_UNITS);
 
         let handle = unsafe {
             let mut handle = NULL_TEXTURE_HANDLE;
@@ -134,35 +142,41 @@ impl OpenGlTexture {
                 panic!("Failed to create texture handle!");
             }
 
-            bind_gl_texture(handle, tex_unit);
+            let pixels_ptr = if params.pixels.is_empty() {
+                std::ptr::null()
+            } else {
+                params.pixels.as_ptr() as *const _
+            };
+
+            bind_gl_texture(handle, params.tex_unit);
 
             gl::TexImage2D(gl::TEXTURE_2D,
                            0,
                            gl::RGBA as _, // Only RGBA images supported for now.
-                           size.width as _,
-                           size.height as _,
+                           params.size.width as _,
+                           params.size.height as _,
                            0,
                            gl::RGBA,
                            gl::UNSIGNED_BYTE,
-                           data);
+                           pixels_ptr);
 
-            let has_mipmaps = set_current_gl_texture_params(settings.filter,
-                                                            settings.wrap_mode,
-                                                            settings.mipmaps,
-                                                            name);
+            let has_mipmaps = set_current_gl_texture_params(params.settings.filter,
+                                                            params.settings.wrap_mode,
+                                                            params.settings.mipmaps,
+                                                            params.name);
 
             unbind_gl_texture();
 
-            settings.mipmaps = has_mipmaps;
+            params.settings.mipmaps = has_mipmaps;
             handle
         };
 
         Self {
-            name: name.to_string(),
-            size,
-            settings,
-            tex_unit,
-            allow_settings_change,
+            name: params.name.to_string(),
+            size: params.size,
+            settings: params.settings,
+            tex_unit: params.tex_unit,
+            allow_settings_change: params.allow_settings_change,
             handle,
         }
     }

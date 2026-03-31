@@ -211,7 +211,7 @@ pub fn create_points_pipeline(device: &wgpu::Device,
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[vertex::LineVertex2D::LAYOUT],
+            buffers: &[vertex::PointVertex2D::LAYOUT],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {

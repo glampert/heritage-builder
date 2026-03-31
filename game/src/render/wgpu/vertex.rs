@@ -1,6 +1,18 @@
 use crate::{render, utils::{Color, Vec2}};
 
 // ----------------------------------------------
+// Compile time index size to wgpu::IndexFormat
+// ----------------------------------------------
+
+pub const fn size_to_index_format<T>() -> wgpu::IndexFormat {
+    match std::mem::size_of::<T>() {
+        2 => wgpu::IndexFormat::Uint16,
+        4 => wgpu::IndexFormat::Uint32,
+        _ => panic!("Unsupported DrawIndex format!"),
+    }
+}
+
+// ----------------------------------------------
 // Sprite Vertex
 // ----------------------------------------------
 
@@ -68,6 +80,13 @@ impl LineVertex2D {
         }
     }
 }
+
+// ----------------------------------------------
+// Point Vertex (Reuses LineVertex2D)
+// ----------------------------------------------
+
+pub type PointVertex2D = LineVertex2D;
+pub type PointIndex2D  = u16;
 
 // ----------------------------------------------
 // ImGui UI Vertex
