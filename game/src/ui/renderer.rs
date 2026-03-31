@@ -147,18 +147,14 @@ impl UiRenderer {
 
         let params = &args.cmd_params;
 
-        // Compute clip rect (in framebuffer space).
+        // Compute clip rect in framebuffer space (top-left origin, matching ImGui).
         let clip_min_x = (params.clip_rect[0] * args.scale_w).max(0.0);
         let clip_min_y = (params.clip_rect[1] * args.scale_h).max(0.0);
         let clip_max_x = (params.clip_rect[2] * args.scale_w).min(args.fb_width);
         let clip_max_y = (params.clip_rect[3] * args.scale_h).min(args.fb_height);
 
-        // FIXME: Should avoid flipping Y axis here and handle it in the renderer back-end instead.
-        // Keep origin consistent with ImGui instead. This is required for the OpenGL renderer only.
-        let clip_min_y_flipped = (args.fb_height - clip_max_y).max(0.0);
-
         let clip_rect = Rect::from_pos_and_size(
-            Vec2::new(clip_min_x, clip_min_y_flipped),
+            Vec2::new(clip_min_x, clip_min_y),
             Vec2::new(clip_max_x - clip_min_x, clip_max_y - clip_min_y),
         );
 

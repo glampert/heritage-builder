@@ -392,13 +392,13 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             label: Some("frame_encoder"),
         });
 
-        let cc = &s.clear_color;
-        let clear_color = wgpu::Color {
-            r: cc.r as f64, g: cc.g as f64, b: cc.b as f64, a: cc.a as f64,
-        };
-
         // ---- Pass 1: Render world to offscreen RT ----
         {
+            let cc = &s.clear_color;
+            let clear_color = wgpu::Color {
+                r: cc.r as f64, g: cc.g as f64, b: cc.b as f64, a: cc.a as f64,
+            };
+
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("offscreen_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -507,11 +507,9 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             let fb_h = s.framebuffer_size.height as u32;
 
             for cmd in &s.ui_draw_commands {
-                // Un-flip Y coordinate. The shared UI renderer flips Y for OpenGL's
-                // bottom-left scissor origin. Wgpu uses top-left, so undo the flip.
+                // Clip rect is in top-left origin (ImGui convention), matching wgpu's scissor.
                 let x = (cmd.clip_rect.x() as u32).min(fb_w);
-                let wgpu_y = (fb_h as f32 - cmd.clip_rect.y() - cmd.clip_rect.height()).max(0.0);
-                let y = (wgpu_y as u32).min(fb_h);
+                let y = (cmd.clip_rect.y() as u32).min(fb_h);
                 let w = (cmd.clip_rect.width() as u32).min(fb_w.saturating_sub(x));
                 let h = (cmd.clip_rect.height() as u32).min(fb_h.saturating_sub(y));
 

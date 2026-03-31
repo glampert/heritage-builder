@@ -308,7 +308,14 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
         debug_assert!(index_count.is_multiple_of(3)); // We expect triangles.
 
         let s = self.state_mut();
-        s.render_context.set_clip_rect(clip_rect);
+
+        // Flip Y from top-left origin (ImGui) to bottom-left origin (OpenGL glScissor).
+        let fb_h = s.framebuffer_size.height as f32;
+        let gl_clip_rect = Rect::from_pos_and_size(
+            Vec2::new(clip_rect.x(), (fb_h - clip_rect.y() - clip_rect.height()).max(0.0)),
+            Vec2::new(clip_rect.width(), clip_rect.height()),
+        );
+        s.render_context.set_clip_rect(gl_clip_rect);
 
         let gl_texture = tex_cache.texture_for_handle(texture).as_opengl();
         s.ui_shader.set_sprite_texture(gl_texture);
