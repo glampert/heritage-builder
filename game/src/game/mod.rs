@@ -84,7 +84,7 @@ pub struct GameLoop {
 }
 
 impl RunLoop for GameLoop {
-    fn start(engine: &'static mut Engine, configs: &'static GameConfigs) -> &'static mut impl RunLoop {
+    fn start(engine: &'static mut Engine, configs: &'static GameConfigs) -> &'static mut Self {
         log::info!(log::channel!("game"), "--- GameLoop Initialization ---");
 
         // Load configs / tile sets:
@@ -123,6 +123,11 @@ impl RunLoop for GameLoop {
         // Terminate singleton instances.
         Self::terminate();
         Self::unload_assets();
+    }
+
+    // RunLoop::get_mut impl.
+    fn get_mut() -> &'static mut Self {
+        Self::get_mut() // Delegates to singleton_late_init! generated method.
     }
 
     fn update(&mut self) {

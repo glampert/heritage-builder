@@ -13,7 +13,7 @@ pub mod input;
 // ----------------------------------------------
 
 mod platform;
-mod winit;
+pub(crate) mod winit;
 
 #[cfg(feature = "desktop")]
 mod glfw;
@@ -68,6 +68,10 @@ pub struct ApplicationInitParams<'a> {
     pub content_scale: ApplicationContentScale,
     pub resizable_window: bool,
     pub confine_cursor: bool,
+
+    // Optional pre-created Arc<winit::window::Window> for Web/WASM.
+    #[cfg(feature = "web")]
+    pub opt_window: Option<&'a dyn std::any::Any>,
 }
 
 impl Default for ApplicationInitParams<'_> {
@@ -81,6 +85,9 @@ impl Default for ApplicationInitParams<'_> {
             content_scale: ApplicationContentScale::default(),
             resizable_window: false,
             confine_cursor: true,
+
+            #[cfg(feature = "web")]
+            opt_window: None,
         }
     }
 }
@@ -93,22 +100,34 @@ pub struct Application {
     app_api: ApplicationApi,
     backend: ApplicationBackendImpl,
     input_system: InputSystem,
+    pending_events: ApplicationEventList,
 }
 
 impl Application {
-    pub fn new(params: &ApplicationInitParams) -> RcMut<Self> {
+    pub fn new(params: ApplicationInitParams) -> RcMut<Self> {
         debug_assert!(params.window_size.is_valid());
 
         let mut backend = match params.app_api {
-            ApplicationApi::Winit => ApplicationBackendImpl::from(winit::WinitApplicationBackend::new(params)),
+            ApplicationApi::Winit => ApplicationBackendImpl::from(winit::WinitApplicationBackend::new(&params)),
 
             #[cfg(feature = "desktop")]
-            ApplicationApi::Glfw => ApplicationBackendImpl::from(glfw::GlfwApplicationBackend::new(params)),
+            ApplicationApi::Glfw => ApplicationBackendImpl::from(glfw::GlfwApplicationBackend::new(&params)),
         };
 
         let input_system = backend.new_input_system();
 
-        RcMut::new(Self { app_api: params.app_api, backend, input_system })
+        RcMut::new(Self {
+            app_api: params.app_api,
+            backend,
+            input_system,
+            pending_events: ApplicationEventList::new(),
+        })
+    }
+
+    // Push an event from an external source (e.g. WebRunner).
+    #[inline]
+    pub fn push_event(&mut self, event: ApplicationEvent) {
+        self.pending_events.push(event);
     }
 
     #[inline]
@@ -134,7 +153,9 @@ impl Application {
 
     #[inline]
     pub fn poll_events(&mut self) -> ApplicationEventList {
-        self.backend.poll_events()
+        let mut events = std::mem::take(&mut self.pending_events);
+        events.extend(self.backend.poll_events());
+        events
     }
 
     #[inline]
@@ -160,6 +181,11 @@ impl Application {
     #[inline]
     pub fn input_system(&self) -> &InputSystem {
         &self.input_system
+    }
+
+    #[inline]
+    pub(crate) fn input_system_mut(&mut self) -> &mut InputSystem {
+        &mut self.input_system
     }
 }
 

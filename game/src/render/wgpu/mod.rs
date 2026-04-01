@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use arrayvec::ArrayVec;
 
 use batch::*;
@@ -9,14 +8,11 @@ use target::*;
 pub use texture::WgpuTexture;
 
 use super::{
-    RenderApi,
     RenderStats,
     RenderSystemBackend,
-    RenderSystemInitParams,
 };
 use crate::{
     log,
-    render,
     ui::UiRenderFrameBundle,
     utils::{Vec2, Size, Color, Rect, RectTexCoords, time::PerfTimer},
 };
@@ -125,6 +121,20 @@ impl WgpuSystemState {
 }
 
 // ----------------------------------------------
+// WgpuInitResources
+// ----------------------------------------------
+
+// Pre-created Wgpu core resources, used to construct
+// WgpuRenderSystemBackend when GPU init is async (web).
+pub struct WgpuInitResources {
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub surface: wgpu::Surface<'static>,
+    pub surface_config: wgpu::SurfaceConfiguration,
+    pub surface_format: wgpu::TextureFormat,
+}
+
+// ----------------------------------------------
 // WgpuRenderSystemBackend
 // ----------------------------------------------
 
@@ -137,14 +147,16 @@ impl WgpuRenderSystemBackend {
     // Initialization:
     // ----------------------
 
-    pub fn new(params: &RenderSystemInitParams) -> Self {
-        debug_assert!(params.render_api == RenderApi::Wgpu);
+    // Desktop: Create Wgpu resources synchronously from app_context window.
+    #[cfg(feature = "desktop")]
+    pub fn new(params: &super::RenderSystemInitParams) -> Self {
+        debug_assert!(params.render_api == super::RenderApi::Wgpu);
         debug_assert!(params.viewport_size.is_valid());
         debug_assert!(params.framebuffer_size.is_valid());
 
         log::info!(log::channel!("render"), "--- Render Backend: Wgpu ---");
 
-        // Desktop: get window from app_context, create wgpu resources synchronously.
+        use std::sync::Arc;
         let window: Arc<winit::window::Window> = params.app_context
             .expect("Wgpu backend requires an app_context!")
             .downcast_ref::<Arc<winit::window::Window>>()
@@ -206,6 +218,33 @@ impl WgpuRenderSystemBackend {
         };
         surface.configure(&device, &surface_config);
 
+        let resources = WgpuInitResources {
+            device,
+            queue,
+            surface,
+            surface_config,
+            surface_format,
+        };
+
+        Self::from_resources(
+            resources,
+            params.viewport_size,
+            params.framebuffer_size,
+            params.clear_color,
+        )
+    }
+
+    // Construct from pre-created Wgpu resources (used on Web/WASM after async GPU init).
+    pub fn from_resources(wgpu_resources: WgpuInitResources,
+                          viewport_size: Size,
+                          framebuffer_size: Size,
+                          clear_color: Color) -> Self
+    {
+        debug_assert!(viewport_size.is_valid());
+        debug_assert!(framebuffer_size.is_valid());
+
+        let WgpuInitResources { device, queue, surface, surface_config, surface_format } = wgpu_resources;
+
         // Bind group layouts.
         let uniform_bind_group_layout = pipeline::create_uniform_bind_group_layout(&device);
         let texture_bind_group_layout = pipeline::create_texture_bind_group_layout(&device);
@@ -243,7 +282,7 @@ impl WgpuRenderSystemBackend {
         });
 
         // Offscreen render target.
-        let rt_size = params.viewport_size.max(params.framebuffer_size);
+        let rt_size = viewport_size.max(framebuffer_size);
         let offscreen_render_target = RenderTarget::new(&device, rt_size, surface_format, &blit_texture_layout);
 
         // GPU buffers.
@@ -258,12 +297,12 @@ impl WgpuRenderSystemBackend {
             64 * std::mem::size_of::<PointIndex2D>());
         let ui_gpu = GpuVertexIndexBuffers::new(&device, "ui",
             1024 * std::mem::size_of::<UiVertex2D>(),
-            1024 * std::mem::size_of::<render::UiDrawIndex>());
+            1024 * std::mem::size_of::<super::UiDrawIndex>());
 
         log::info!(log::channel!("render"), "Wgpu initialized.");
         log::info!(log::channel!("render"), " - Surface format: {:?}", surface_format);
         log::info!(log::channel!("render"), " - Offscreen RT: {}", rt_size);
-        log::info!(log::channel!("render"), " - Viewport: {}, Framebuffer: {}", params.viewport_size, params.framebuffer_size);
+        log::info!(log::channel!("render"), " - Viewport: {}, Framebuffer: {}", viewport_size, framebuffer_size);
 
         let s = Box::new(WgpuSystemState {
             device,
@@ -301,9 +340,9 @@ impl WgpuRenderSystemBackend {
             ui_index_offset: 0,
 
             frame_started: false,
-            viewport: Rect::from_pos_and_size(Vec2::zero(), params.viewport_size.to_vec2()),
-            framebuffer_size: params.framebuffer_size,
-            clear_color: params.clear_color,
+            viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size.to_vec2()),
+            framebuffer_size,
+            clear_color,
             stats: RenderStats::default(),
         });
 

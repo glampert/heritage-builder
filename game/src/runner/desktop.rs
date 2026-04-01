@@ -58,7 +58,7 @@ impl DesktopRunner {
 
         // Initialize Application:
         let app = Application::new(
-            &ApplicationInitParams {
+            ApplicationInitParams {
                 app_api,
                 render_api,
                 window_title:     &configs.engine.window_title,
@@ -73,7 +73,7 @@ impl DesktopRunner {
 
         // Initialize Render System:
         let render_system = RenderSystem::new(
-            &RenderSystemInitParams {
+            RenderSystemInitParams {
                 render_api,
                 clear_color:      configs.engine.window_background_color,
                 texture_settings: configs.engine.texture_settings,

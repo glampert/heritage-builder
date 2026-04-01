@@ -5,7 +5,7 @@ use winit::{
     window::{Window, Fullscreen},
     monitor::VideoModeHandle,
     event_loop::ActiveEventLoop,
-    event::{WindowEvent, MouseScrollDelta},
+    event::WindowEvent,
 };
 
 use super::{
@@ -24,10 +24,10 @@ use crate::{
     utils::{Size, Vec2, mem::RcMut},
 };
 
-mod input;
+pub(crate) mod input;
 pub use input::WinitInputSystemBackend;
 
-mod wgpu;
+pub(crate) mod wgpu;
 
 #[cfg(feature = "desktop")]
 mod opengl;
@@ -109,7 +109,7 @@ impl WinitApplicationBackend {
         debug_assert!(self.confine_cursor);
 
         let window_size = self.window_size().to_vec2();
-        let cursor_pos  = self.input_state.cursor_pos;
+        let cursor_pos  = self.input_state.cursor_pos();
 
         let mut new_x = cursor_pos.x;
         let mut new_y = cursor_pos.y;
@@ -139,7 +139,7 @@ impl WinitApplicationBackend {
     fn set_cursor_position(&mut self, pos: Vec2) {
         debug_assert!(self.confine_cursor);
         self.window_manager.set_cursor_position(pos);
-        self.input_state.cursor_pos = pos;
+        self.input_state.set_cursor_pos(pos);
     }
 
     fn handle_window_event(&mut self,
@@ -173,12 +173,12 @@ impl WinitApplicationBackend {
                 }
             }
             WindowEvent::ModifiersChanged(new_modifiers) => {
-                self.input_state.modifiers = input::winit_modifiers_to_input_modifiers(new_modifiers.state());
+                self.input_state.set_modifiers(input::winit_modifiers_to_input_modifiers(new_modifiers.state()));
             }
             WindowEvent::KeyboardInput { event: key_event, .. } => {
                 let key = input::winit_physical_key_to_input_key(key_event.physical_key);
                 let action = input::winit_element_state_to_input_action(key_event.state, key_event.repeat);
-                let modifiers = self.input_state.modifiers;
+                let modifiers = self.input_state.modifiers();
 
                 self.input_state.set_key(key, key_event.state.is_pressed());
                 events.push(ApplicationEvent::KeyInput(key, action, modifiers));
@@ -194,22 +194,14 @@ impl WinitApplicationBackend {
             WindowEvent::MouseInput { button, state, .. } => {
                 if let Some(mb) = input::winit_mouse_button_to_mouse_button(button) {
                     let action = input::winit_element_state_to_input_action(state, false);
-                    let modifiers = self.input_state.modifiers;
+                    let modifiers = self.input_state.modifiers();
 
                     self.input_state.set_mouse_button(mb, state.is_pressed());
                     events.push(ApplicationEvent::MouseButton(mb, action, modifiers));
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let scroll = match delta {
-                    MouseScrollDelta::LineDelta(x, y) => {
-                        Vec2::new(x, y)
-                    }
-                    MouseScrollDelta::PixelDelta(pos) => {
-                        // Convert pixel delta to approximate line counts.
-                        Vec2::new(pos.x as f32 / 20.0, pos.y as f32 / 20.0)
-                    }
-                };
+                let scroll = input::winit_mouse_scroll_delta_to_vec2(delta);
                 events.push(ApplicationEvent::Scroll(scroll));
             }
             WindowEvent::CursorLeft { .. } => {
@@ -218,16 +210,16 @@ impl WinitApplicationBackend {
                     // view, so winit stops sending CursorMoved once the cursor enters it
                     // and clamping never triggers. Warp back to the last known in-bounds
                     // position the moment CursorLeft fires.
-                    let last_in_window_pos = self.input_state.cursor_pos;
+                    let last_in_window_pos = self.input_state.cursor_pos();
                     self.set_cursor_position(last_in_window_pos);
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = self.content_scale();
-                self.input_state.cursor_pos = Vec2::new(
+                self.input_state.set_cursor_pos(Vec2::new(
                     position.x as f32 / scale.x,
                     position.y as f32 / scale.y,
-                );
+                ));
             }
             _ => {} // Unhandled event.
         }
@@ -241,7 +233,7 @@ impl WinitApplicationBackend {
 impl ApplicationBackend for WinitApplicationBackend {
     fn new_input_system(&mut self) -> InputSystem {
         let input_system =
-            WinitInputSystemBackend::new(self.input_state.clone().into_not_mut());
+            WinitInputSystemBackend::new(self.input_state.clone());
 
         InputSystem::new(InputSystemBackendImpl::Winit(input_system))
     }

@@ -2,10 +2,7 @@ use strum::EnumCount;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 use crate::{
-    utils::{
-        Vec2,
-        mem::{RcRef, RcMut},
-    },
+    utils::{Vec2, mem::RcMut},
     app::input::{
         InputSystemBackend,
         InputAction, InputKey, InputModifiers, MouseButton,
@@ -21,9 +18,8 @@ const MOUSE_BUTTON_COUNT: usize = MouseButton::COUNT;
 
 // Tracks current input state, updated by WinitApplication during poll_events().
 pub struct WinitInputState {
-    pub cursor_pos: Vec2,
-    pub modifiers: InputModifiers,
-
+    cursor_pos: Vec2,
+    modifiers: InputModifiers,
     key_states: [bool; INPUT_KEY_COUNT],
     mouse_button_states: [bool; MOUSE_BUTTON_COUNT],
 }
@@ -36,6 +32,26 @@ impl WinitInputState {
             key_states: [false; INPUT_KEY_COUNT],
             mouse_button_states: [false; MOUSE_BUTTON_COUNT],
         })
+    }
+
+    #[inline]
+    pub fn modifiers(&self) -> InputModifiers {
+        self.modifiers
+    }
+
+    #[inline]
+    pub fn set_modifiers(&mut self, modifiers: InputModifiers) {
+        self.modifiers = modifiers;
+    }
+
+    #[inline]
+    pub fn cursor_pos(&self) -> Vec2 {
+        self.cursor_pos
+    }
+
+    #[inline]
+    pub fn set_cursor_pos(&mut self, pos: Vec2) {
+        self.cursor_pos = pos;
     }
 
     #[inline]
@@ -64,12 +80,18 @@ impl WinitInputState {
 // ----------------------------------------------
 
 pub struct WinitInputSystemBackend {
-    state: RcRef<WinitInputState>,
+    state: RcMut<WinitInputState>,
 }
 
 impl WinitInputSystemBackend {
-    pub fn new(state: RcRef<WinitInputState>) -> Self {
+    pub fn new(state: RcMut<WinitInputState>) -> Self {
         Self { state }
+    }
+
+    // Direct access to the underlying input state for platform-specific mutation (WebRunner).
+    #[cfg(feature = "web")]
+    #[inline] pub(crate) fn input_state_mut(&mut self) -> &mut WinitInputState {
+        &mut self.state
     }
 }
 
@@ -258,6 +280,18 @@ pub fn winit_element_state_to_input_action(state: winit::event::ElementState, re
         winit::event::ElementState::Pressed if repeat => InputAction::Repeat,
         winit::event::ElementState::Pressed  => InputAction::Press,
         winit::event::ElementState::Released => InputAction::Release,
+    }
+}
+
+pub fn winit_mouse_scroll_delta_to_vec2(delta: winit::event::MouseScrollDelta) -> Vec2 {
+    match delta {
+        winit::event::MouseScrollDelta::LineDelta(x, y) => {
+            Vec2::new(x, y)
+        }
+        winit::event::MouseScrollDelta::PixelDelta(pos) => {
+            // Convert pixel delta to approximate line counts.
+            Vec2::new(pos.x as f32 / 20.0, pos.y as f32 / 20.0)
+        }
     }
 }
 

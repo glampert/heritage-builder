@@ -8,7 +8,7 @@ use crate::utils::Vec2;
 // ----------------------------------------------
 
 #[enum_dispatch]
-pub(super) enum InputSystemBackendImpl {
+pub(crate) enum InputSystemBackendImpl {
     Winit(super::winit::WinitInputSystemBackend),
 
     #[cfg(feature = "desktop")]
@@ -52,6 +52,12 @@ impl InputSystem {
     #[inline]
     pub fn key_state(&self, key: InputKey) -> InputAction {
         self.backend.key_state(key)
+    }
+
+    // Direct backend access for platform-specific input mutation (e.g. WebRunner).
+    #[cfg(feature = "web")]
+    #[inline] pub(crate) fn backend_mut(&mut self) -> &mut InputSystemBackendImpl {
+        &mut self.backend
     }
 }
 

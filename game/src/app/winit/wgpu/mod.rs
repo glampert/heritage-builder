@@ -3,9 +3,14 @@ use std::sync::Arc;
 use winit::{
     event::WindowEvent,
     application::ApplicationHandler,
-    event_loop::{ActiveEventLoop, EventLoop},
-    platform::pump_events::EventLoopExtPumpEvents,
+    event_loop::ActiveEventLoop,
     window::{Window, WindowId, WindowAttributes},
+};
+
+#[cfg(feature = "desktop")]
+use winit::{
+    event_loop::EventLoop,
+    platform::pump_events::EventLoopExtPumpEvents,
 };
 
 use crate::{
@@ -25,6 +30,10 @@ use crate::{
 // window (via app_context).
 pub struct WinitWindowManager {
     window: Arc<Window>,
+
+    // Desktop only: owns the event loop for synchronous pump_app_events().
+    // On web the browser owns the event loop; WebRunner drives events externally.
+    #[cfg(feature = "desktop")]
     event_loop: EventLoop<()>,
 }
 
@@ -33,21 +42,36 @@ impl WinitWindowManager {
         assert!(params.app_api == ApplicationApi::Winit);
         assert!(params.render_api == RenderApi::Wgpu);
 
-        let mut event_loop = EventLoop::new()
-            .expect("Failed to create Winit event loop!");
+        #[cfg(feature = "desktop")]
+        {
+            let mut event_loop = EventLoop::new()
+                .expect("Failed to create Winit event loop!");
 
-        // Create the window during the first pump (triggers `resumed()`).
-        let mut init_handler = WinitInitHandler::new(params);
+            // Create the window during the first pump (triggers `resumed()`).
+            let mut init_handler = WinitInitHandler::new(params);
 
-        // Pump events once to trigger `resumed()`, which creates the window + GL context.
-        let _ = event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut init_handler);
+            // Pump events once to trigger `resumed()`, which creates the window.
+            let _ = event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut init_handler);
 
-        let window = init_handler.result
-            .expect("Winit: Window initialization failed — resumed() was not triggered!");
+            let window = init_handler.result
+                .expect("Winit: Window initialization failed — resumed() was not triggered!");
 
-        log::info!(log::channel!("app"), "WinitWindowManager (Wgpu) created.");
+            log::info!(log::channel!("app"), "WinitWindowManager (Wgpu) created.");
 
-        Self { window: Arc::new(window), event_loop }
+            Self { window: Arc::new(window), event_loop }
+        }
+
+        #[cfg(feature = "web")]
+        {
+            let window: Arc<winit::window::Window> = params.opt_window
+                .expect("Web WinitWindowManager requires an opt_window!")
+                .downcast_ref::<Arc<winit::window::Window>>()
+                .expect("opt_window must be Arc<winit::window::Window>!")
+                .clone();
+
+            // Web: wrap a pre-created window (created by WebRunner inside resumed()).
+            Self { window }
+        }
     }
 }
 
@@ -72,13 +96,20 @@ impl super::WinitWindowManager for WinitWindowManager {
 
     fn poll_events<F>(&mut self, handler: F)
         where F: FnMut(&ActiveEventLoop, WindowEvent)
-    {        
-        let mut evt_handler = WinitWindowEventHandler {
-            window_id: self.window.id(),
-            handler,
-        };
+    {
+        // Desktop: synchronous event pump.
+        #[cfg(feature = "desktop")]
+        {
+            let mut evt_handler = WinitWindowEventHandler {
+                window_id: self.window.id(),
+                handler,
+            };
+            let _ = self.event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut evt_handler);
+        }
 
-        let _ = self.event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut evt_handler);
+        // Web: no-op — WebRunner drives events via ApplicationHandler.
+        #[cfg(feature = "web")]
+        { let _ = handler; }
     }
 
     fn set_cursor_position(&mut self, pos: Vec2) {
@@ -91,20 +122,37 @@ impl super::WinitWindowManager for WinitWindowManager {
 }
 
 // ----------------------------------------------
-// Helpers
+// Window creation helpers
 // ----------------------------------------------
 
-// Called from inside `WinitInitHandler::resumed()` during init.
-fn create_window(event_loop: &ActiveEventLoop, params: &ApplicationInitParams) -> Option<Window> {
+// Create a winit window from an ActiveEventLoop.
+// Used by both the desktop WinitInitHandler and the WebRunner.
+pub fn create_window(event_loop: &ActiveEventLoop, params: &ApplicationInitParams) -> Window {
     // Fullscreen mode requires a resizable window attribute on some platforms.
     let needs_resizable = params.resizable_window || params.window_mode.is_fullscreen();
     let fullscreen = super::select_fullscreen(event_loop, params.window_mode);
 
-    let window_attributes = WindowAttributes::default()
+    #[allow(unused_mut)]
+    let mut window_attributes = WindowAttributes::default()
         .with_title(params.window_title)
         .with_inner_size(winit::dpi::LogicalSize::new(params.window_size.width as f64, params.window_size.height as f64))
         .with_resizable(needs_resizable)
         .with_fullscreen(fullscreen);
+
+    // On WASM, attach to the HTML canvas element.
+    #[cfg(feature = "web")]
+    {
+        use wasm_bindgen::JsCast;
+        use winit::platform::web::WindowAttributesExtWebSys;
+
+        let canvas = web_sys::window()
+            .and_then(|win| win.document())
+            .and_then(|doc| doc.get_element_by_id("game-canvas"))
+            .and_then(|el| el.dyn_into::<web_sys::HtmlCanvasElement>().ok())
+            .expect("Failed to find <canvas id='game-canvas'> element!");
+
+        window_attributes = window_attributes.with_canvas(Some(canvas));
+    }
 
     let window =
         event_loop.create_window(window_attributes)
@@ -113,7 +161,7 @@ fn create_window(event_loop: &ActiveEventLoop, params: &ApplicationInitParams) -
     log::info!(log::channel!("app"), "Winit Window for Wgpu created.");
     log::info!(log::channel!("app"), "Window Inner Size: {:?}, Outer Size: {:?}", window.inner_size(), window.outer_size());
 
-    Some(window)
+    window
 }
 
 // ----------------------------------------------
@@ -150,7 +198,8 @@ impl<F> ApplicationHandler for WinitWindowEventHandler<F>
 // WinitInitHandler
 // ----------------------------------------------
 
-// Creates window in resumed().
+// Creates window in resumed(). Used on desktop where we pump
+// the event loop synchronously during initialization.
 struct WinitInitHandler<'a> {
     params: &'a ApplicationInitParams<'a>,
     result: Option<Window>,
@@ -168,7 +217,7 @@ impl ApplicationHandler for WinitInitHandler<'_> {
             return; // Already initialized (e.g. app resumed after suspend on mobile).
         }
 
-        self.result = create_window(event_loop, self.params);
+        self.result = Some(create_window(event_loop, self.params));
     }
 
     fn window_event(&mut self,

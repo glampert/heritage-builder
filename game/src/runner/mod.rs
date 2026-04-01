@@ -19,8 +19,9 @@ type RunnerImpl = web::WebRunner;
 
 // Base trait implemented by the GameLoop.
 pub trait RunLoop: Sized {
-    fn start(engine: &'static mut Engine, configs: &'static GameConfigs) -> &'static mut impl RunLoop;
+    fn start(engine: &'static mut Engine, configs: &'static GameConfigs) -> &'static mut Self;
     fn shutdown();
+    fn get_mut() -> &'static mut Self;
 
     fn update(&mut self);
     fn is_running(&self) -> bool;

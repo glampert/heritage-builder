@@ -14,7 +14,7 @@ pub mod texture;
 // Internal backend implementations
 // ----------------------------------------------
 
-mod wgpu;
+pub(crate) mod wgpu;
 
 #[cfg(feature = "desktop")]
 mod opengl;
@@ -145,7 +145,11 @@ pub struct RenderSystemInitParams<'a> {
     pub clear_color: Color,
     pub texture_settings: texture::TextureSettings,
     pub tex_cache_initial_capacity: usize,
-    pub app_context: Option<&'a dyn std::any::Any>,
+    pub app_context: Option<&'a dyn std::any::Any>, // Arc<winit::window::Window> for desktop Winit.
+
+    // On web builds the Wgpu context is crated asynchronously by the WebRunner.
+    #[cfg(feature = "web")]
+    pub wgpu_resources: Option<wgpu::WgpuInitResources>,
 }
 
 impl Default for RenderSystemInitParams<'_> {
@@ -158,6 +162,9 @@ impl Default for RenderSystemInitParams<'_> {
             texture_settings: texture::TextureSettings::default(),
             tex_cache_initial_capacity: 128, // Hint only, can grow.
             app_context: None,
+
+            #[cfg(feature = "web")]
+            wgpu_resources: None,
         }
     }
 }
@@ -181,16 +188,27 @@ impl RenderSystem {
     // Initialization:
     // ----------------------
 
-    pub fn new(params: &RenderSystemInitParams) -> RcMut<Self> {
+    pub fn new(params: RenderSystemInitParams) -> RcMut<Self> {
         debug_assert!(params.viewport_size.is_valid());
         debug_assert!(params.framebuffer_size.is_valid());
 
-        let mut render_sys = RcMut::new_cyclic(|render_system| {
+        let mut render_system = RcMut::new_cyclic(|render_system| {
+            #[cfg(feature = "desktop")]
             let backend = match params.render_api {
-                RenderApi::Wgpu => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new(params)),
+                RenderApi::Wgpu   => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new(&params)),
+                RenderApi::OpenGl => RenderSystemBackendImpl::from(opengl::OpenGlRenderSystemBackend::new(&params)),
+            };
 
-                #[cfg(feature = "desktop")]
-                RenderApi::OpenGl => RenderSystemBackendImpl::from(opengl::OpenGlRenderSystemBackend::new(params)),
+            #[cfg(feature = "web")]
+            let backend = {
+                // Construct from pre-created Wgpu resources (used by Web/WASM after async GPU init).
+                let wgpu_resources = params.wgpu_resources.expect("Web render backend requires wgpu_resources!");
+                RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::from_resources(
+                    wgpu_resources,
+                    params.viewport_size,
+                    params.framebuffer_size,
+                    params.clear_color
+                ))
             };
 
             let tex_cache = texture::TextureCache::new(
@@ -202,8 +220,8 @@ impl RenderSystem {
             Self { render_api: params.render_api, backend, tex_cache }
         });
 
-        render_sys.tex_cache.create_default_textures();
-        render_sys
+        render_system.tex_cache.create_default_textures();
+        render_system
     }
 
     // ----------------------
