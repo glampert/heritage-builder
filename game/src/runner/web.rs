@@ -13,10 +13,10 @@
 
 use std::sync::Arc;
 
-use winit::{
+use ::winit::{
     event::WindowEvent,
     application::ApplicationHandler,
-    event_loop::{ActiveEventLoop, EventLoop},
+    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     platform::web::EventLoopExtWebSys,
     window::{Window, WindowId},
 };
@@ -27,7 +27,7 @@ use crate::{
     platform,
     engine::Engine,
     file_sys::{self, paths},
-    utils::{Size, Vec2, mem::singleton},
+    utils::{Size, Vec2, mem::singleton_late_init},
     game::config::GameConfigs,
     debug::log_viewer::LogViewer,
     render::{
@@ -80,7 +80,7 @@ impl Runner for WebRunner {
     fn new() -> Self { Self }
 
     fn run<GameLoop: RunLoop + 'static>(&self) {
-        log::info!(log::channel!("game"), "--- Web Runner entry point started ---");
+        log::info!(log::channel!("runner"), "--- Web Runner entry point started ---");
 
         // Early initialization:
         LogViewer::initialize();
@@ -89,6 +89,11 @@ impl Runner for WebRunner {
 
         let event_loop = EventLoop::new()
             .expect("Failed to create Winit event loop!");
+
+        // Create a proxy to wake the event loop from async tasks.
+        // Without a window, the browser won't fire requestAnimationFrame,
+        // so async phases must explicitly wake the loop when they complete.
+        AsyncInitResults::initialize(AsyncInitResults::new(event_loop.create_proxy()));
 
         let handler = WebEventHandler::<GameLoop>::new();
         event_loop.spawn_app(handler);
@@ -136,17 +141,35 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
 // Async handoff variables.
 // These must be static to outlive the wasm_bindgen_futures::spawn_local() closures.
 struct AsyncInitResults {
+    event_loop_proxy: EventLoopProxy<()>,
     loaded_configs: Option<&'static GameConfigs>,
     wgpu_resources: Option<WgpuInitResources>,
 }
 
 impl AsyncInitResults {
-    const fn new() -> Self {
-        Self { loaded_configs: None, wgpu_resources: None }
+    fn new(proxy: EventLoopProxy<()>) -> Self {
+        Self { event_loop_proxy: proxy, loaded_configs: None, wgpu_resources: None }
+    }
+
+    // Wake the event loop so about_to_wait() runs and picks up the async result.
+    fn wake_event_loop(&self) {
+        let _ = self.event_loop_proxy.send_event(());
+    }
+
+    fn configs_ready(&mut self, configs: &'static GameConfigs) {
+        debug_assert!(self.loaded_configs.is_none());
+        self.loaded_configs = Some(configs);
+        self.wake_event_loop()
+    }
+
+    fn wgpu_resources_ready(&mut self, wgpu_resources: WgpuInitResources) {
+        debug_assert!(self.wgpu_resources.is_none());
+        self.wgpu_resources = Some(wgpu_resources);
+        self.wake_event_loop();
     }
 }
 
-singleton! { ASYNC_INIT_RESULTS_SINGLETON, AsyncInitResults }
+singleton_late_init! { ASYNC_INIT_RESULTS_SINGLETON, AsyncInitResults }
 
 // ----------------------------------------------
 // ApplicationHandler for WebEventHandler
@@ -234,7 +257,7 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
 
             set_loading_progress(50, "Initializing Engine...");
 
-            AsyncInitResults::get_mut().loaded_configs = Some(configs); // WebRunnerState::LoadingAssets finished.
+            AsyncInitResults::get_mut().configs_ready(configs);
         });
     }
 
@@ -298,7 +321,7 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
             let features = if adapter.features().contains(wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER) {
                 wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER
             } else {
-                log::warning!(log::channel!("runner"), "Web Runner: ADDRESS_MODE_CLAMP_TO_BORDER not available, using ClampToEdge fallback.");
+                log::warning!(log::channel!("render"), "Web Runner: ADDRESS_MODE_CLAMP_TO_BORDER not available, using ClampToEdge fallback.");
                 wgpu::Features::empty()
             };
 
@@ -332,7 +355,7 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
             log::info!(log::channel!("runner"), "Web Runner: Wgpu initialized. Format: {surface_format:?}");
             set_loading_progress(90, "Starting game...");
 
-            AsyncInitResults::get_mut().wgpu_resources = Some(WgpuInitResources {
+            AsyncInitResults::get_mut().wgpu_resources_ready(WgpuInitResources {
                 device,
                 queue,
                 surface,
