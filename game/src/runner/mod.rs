@@ -1,7 +1,4 @@
-use crate::{
-    engine::Engine,
-    game::config::GameConfigs,
-};
+use crate::engine::{Engine, config::EngineConfigs};
 
 #[cfg(feature = "desktop")]
 mod desktop;
@@ -14,12 +11,30 @@ mod web;
 type RunnerImpl = web::WebRunner;
 
 // ----------------------------------------------
+// RunLoopConfigs
+// ----------------------------------------------
+
+// Trait for config types that contain engine configuration.
+// The runner only needs access to EngineConfigs for initialization;
+// the concrete config type (e.g. GameConfigs) is an associated type on RunLoop.
+pub trait RunLoopConfigs: Sized + 'static {
+    fn engine(&self) -> &EngineConfigs;
+
+    // Load configs from disk/storage. Returns a &'static reference
+    // (configs are stored as a global singleton).
+    fn load() -> &'static Self;
+    fn get() -> &'static Self;
+}
+
+// ----------------------------------------------
 // RunLoop
 // ----------------------------------------------
 
 // Base trait implemented by the GameLoop.
 pub trait RunLoop: Sized {
-    fn start(engine: &'static mut Engine, configs: &'static GameConfigs) -> &'static mut Self;
+    type Configs: RunLoopConfigs;
+
+    fn start(engine: &'static mut Engine, configs: &'static Self::Configs) -> &'static mut Self;
     fn shutdown();
     fn get_mut() -> &'static mut Self;
 

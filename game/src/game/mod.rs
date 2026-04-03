@@ -33,6 +33,7 @@ use crate::{
 
 pub mod undo_redo;
 pub mod ui_context;
+pub mod save_context;
 pub mod building;
 pub mod menu;
 pub mod prop;
@@ -85,7 +86,9 @@ pub struct GameLoop {
 }
 
 impl RunLoop for GameLoop {
-    fn start(engine: &'static mut Engine, configs: &'static GameConfigs) -> &'static mut Self {
+    type Configs = GameConfigs;
+
+    fn start(engine: &'static mut Engine, configs: &'static Self::Configs) -> &'static mut Self {
         log::info!(log::channel!("game"), "--- GameLoop Initialization ---");
 
         // Load configs / tile sets:

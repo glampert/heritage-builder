@@ -33,12 +33,12 @@ trait SaveGameStorageBackend: Sized {
     // Reads a save file and returns its contents as a new instance, or an error description string.
     // `save_file` is relative to save_files_path.
     fn load_save_file<T>(&self, save_file: PathRef) -> Result<T, String>
-        where T: DeserializeOwned + Load;
+        where T: DeserializeOwned;
 
     // Writes save data to a named save file. Overwrites any existing file with the same name.
     // `save_file` is relative to save_files_path.
     fn write_save_file<T>(&self, save_file: PathRef, instance: &T) -> SaveResult
-        where T: Serialize + Save;
+        where T: Serialize;
 
     // Deletes a named save file.
     // `save_file` is relative to save_files_path.
@@ -69,14 +69,14 @@ pub fn can_write_save_file(save_file: PathRef) -> bool {
 
 #[inline]
 pub fn load_save_file<T>(save_file: PathRef) -> Result<T, String>
-    where T: DeserializeOwned + Load
+    where T: DeserializeOwned
 {
     SaveGameStorageBackendImpl::get().load_save_file(save_file)
 }
 
 #[inline]
 pub fn write_save_file<T>(save_file: PathRef, instance: &T) -> SaveResult
-    where T: Serialize + Save
+    where T: Serialize
 {
     SaveGameStorageBackendImpl::get().write_save_file(save_file, instance)
 }

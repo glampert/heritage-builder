@@ -5,8 +5,9 @@ use strum::Display;
 
 use crate::{
     camera::*,
-    engine::config::{EngineConfigs, configurations},
+    runner::RunLoopConfigs,
     utils::{Size, time::Seconds},
+    engine::config::{EngineConfigs, configurations},
 };
 
 // ----------------------------------------------
@@ -181,6 +182,20 @@ impl Default for DebugConfigs {
                enable_dev_tile_inspector: true,
                disable_ambient_music: false,
                disable_ambient_sounds: false }
+    }
+}
+
+impl RunLoopConfigs for GameConfigs {
+    fn engine(&self) -> &EngineConfigs {
+        &self.engine
+    }
+
+    fn load() -> &'static Self {
+        GameConfigs::load()
+    }
+
+    fn get() -> &'static Self {
+        GameConfigs::get()
     }
 }
 

@@ -61,7 +61,7 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
     }
 
     fn load_save_file<T>(&self, save_file: PathRef) -> Result<T, String>
-        where T: DeserializeOwned + Load
+        where T: DeserializeOwned
     {
         let storage = Self::browser_local_storage()
             .ok_or_else(|| "Browser Local Storage not available.".to_string())?;
@@ -87,7 +87,7 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
     }
 
     fn write_save_file<T>(&self, save_file: PathRef, instance: &T) -> SaveResult
-        where T: Serialize + Save
+        where T: Serialize
     {
         let storage = Self::browser_local_storage()
             .ok_or_else(|| "Browser Local Storage not available.".to_string())?;
@@ -96,7 +96,7 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
 
         let mut state = new_json_save_state(true);
 
-        if let Err(err) = instance.save(&mut state) {
+        if let Err(err) = state.save(instance) {
             return Err(format!("Failed to save game: {err}"));
         }
 

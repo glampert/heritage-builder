@@ -1,7 +1,7 @@
 {
   "engine": {
-    "app_api": "Glfw",
-    "render_api": "OpenGl",
+    "app_api": "Winit",
+    "render_api": "Wgpu",
     "log_level": "Verbose",
     "window_size": {
       "width": 1440,

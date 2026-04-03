@@ -43,7 +43,7 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
     }
 
     fn load_save_file<T>(&self, save_file: PathRef) -> Result<T, String>
-        where T: DeserializeOwned + Load
+        where T: DeserializeOwned
     {
         let absolute_path = self.make_absolute_save_path(save_file);
         let mut state = new_json_save_state(false);
@@ -60,7 +60,7 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
     }
 
     fn write_save_file<T>(&self, save_file: PathRef, instance: &T) -> SaveResult
-        where T: Serialize + Save
+        where T: Serialize
     {
         let absolute_path = self.make_absolute_save_path(save_file);
 
@@ -70,7 +70,7 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
 
         let mut state = new_json_save_state(true);
 
-        if let Err(err) = instance.save(&mut state) {
+        if let Err(err) = state.save(instance) {
             return Err(format!("Failed to save game: {err}"));
         }
 

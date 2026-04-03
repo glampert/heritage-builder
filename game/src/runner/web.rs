@@ -21,14 +21,13 @@ use ::winit::{
     window::{Window, WindowId},
 };
 
-use super::{Runner, RunLoop};
+use super::{Runner, RunLoop, RunLoopConfigs};
 use crate::{
     log,
     platform,
-    engine::Engine,
+    engine::{Engine, config::EngineConfigs},
     file_sys::{self, paths},
     utils::{Size, Vec2, mem::singleton_late_init},
-    game::config::GameConfigs,
     debug::log_viewer::LogViewer,
     render::{
         RenderApi,
@@ -114,7 +113,7 @@ enum WebRunnerState {
     // Window created, async Wgpu GPU init in progress.
     InitializingGpu {
         window: Arc<Window>,
-        configs: &'static GameConfigs,
+        engine_configs: &'static EngineConfigs,
     },
 
     // Finished initialization. About to go into Running state.
@@ -142,13 +141,13 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
 // These must be static to outlive the wasm_bindgen_futures::spawn_local() closures.
 struct AsyncInitResults {
     event_loop_proxy: EventLoopProxy<()>,
-    loaded_configs: Option<&'static GameConfigs>,
+    loaded_engine_configs: Option<&'static EngineConfigs>,
     wgpu_resources: Option<WgpuInitResources>,
 }
 
 impl AsyncInitResults {
     fn new(proxy: EventLoopProxy<()>) -> Self {
-        Self { event_loop_proxy: proxy, loaded_configs: None, wgpu_resources: None }
+        Self { event_loop_proxy: proxy, loaded_engine_configs: None, wgpu_resources: None }
     }
 
     // Wake the event loop so about_to_wait() runs and picks up the async result.
@@ -156,9 +155,9 @@ impl AsyncInitResults {
         let _ = self.event_loop_proxy.send_event(());
     }
 
-    fn configs_ready(&mut self, configs: &'static GameConfigs) {
-        debug_assert!(self.loaded_configs.is_none());
-        self.loaded_configs = Some(configs);
+    fn configs_ready(&mut self, engine_configs: &'static EngineConfigs) {
+        debug_assert!(self.loaded_engine_configs.is_none());
+        self.loaded_engine_configs = Some(engine_configs);
         self.wake_event_loop()
     }
 
@@ -203,9 +202,9 @@ impl<GameLoop: RunLoop + 'static> ApplicationHandler for WebEventHandler<GameLoo
         match &self.state {
             WebRunnerState::LoadingAssets => {
                 // Phase 2: Once configs are ready, create Winit window and start Wgpu init.
-                let Some(configs) = AsyncInitResults::get_mut().loaded_configs.take() else { return };
+                let Some(engine_configs) = AsyncInitResults::get_mut().loaded_engine_configs.take() else { return };
 
-                self.create_window_and_wgpu_device(configs, event_loop);
+                self.create_window_and_wgpu_device(engine_configs, event_loop);
             }
             WebRunnerState::InitializingGpu { .. } => {
                 // Phase 3: Once GPU resources are ready, finish initialization.
@@ -249,20 +248,21 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
 
             set_loading_progress(40, "Loading configs...");
 
-            log::info!(log::channel!("runner"), "Web Runner: Loading game configs...");
-            let configs = GameConfigs::load();
-            log::info!(log::channel!("runner"), "Web Runner: Game configs loaded!");
+            log::info!(log::channel!("runner"), "Web Runner: Loading configs...");
+            let configs = GameLoop::Configs::load();
+            let engine_configs = configs.engine();
+            log::info!(log::channel!("runner"), "Web Runner: Configs loaded!");
 
-            log::set_level(configs.engine.log_level);
+            log::set_level(engine_configs.log_level);
 
             set_loading_progress(50, "Initializing Engine...");
 
-            AsyncInitResults::get_mut().configs_ready(configs);
+            AsyncInitResults::get_mut().configs_ready(engine_configs);
         });
     }
 
     fn create_window_and_wgpu_device(&mut self,
-                                     configs: &'static GameConfigs,
+                                     engine_configs: &'static EngineConfigs,
                                      event_loop: &ActiveEventLoop)
     {
         log::info!(log::channel!("runner"), "Web Runner: Configs ready — creating window...");
@@ -270,12 +270,12 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
         let window_params = ApplicationInitParams {
             app_api:          ApplicationApi::Winit,
             render_api:       RenderApi::Wgpu,
-            window_title:     &configs.engine.window_title,
-            window_size:      configs.engine.window_size,
-            window_mode:      configs.engine.window_mode,
-            content_scale:    configs.engine.content_scale,
-            resizable_window: configs.engine.resizable_window,
-            confine_cursor:   configs.engine.confine_cursor_to_window,
+            window_title:     &engine_configs.window_title,
+            window_size:      engine_configs.window_size,
+            window_mode:      engine_configs.window_mode,
+            content_scale:    engine_configs.content_scale,
+            resizable_window: engine_configs.resizable_window,
+            confine_cursor:   engine_configs.confine_cursor_to_window,
             ..Default::default()
         };
 
@@ -283,7 +283,7 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
 
         self.state = WebRunnerState::InitializingGpu {
             window: window.clone(),
-            configs,
+            engine_configs,
         };
 
         // Kick off async wgpu initialization.
@@ -366,9 +366,9 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
     }
 
     fn finish_init(&mut self, wgpu_resources: WgpuInitResources) {
-        // Extract window + configs from the current state.
-        let (window, configs) = match std::mem::replace(&mut self.state, WebRunnerState::ReadyToStartRunLoop) {
-            WebRunnerState::InitializingGpu { window, configs } => (window, configs),
+        // Extract window + engine_configs from the current state.
+        let (window, engine_configs) = match std::mem::replace(&mut self.state, WebRunnerState::ReadyToStartRunLoop) {
+            WebRunnerState::InitializingGpu { window, engine_configs } => (window, engine_configs),
             _ => panic!("Invalid WebRunnerState!"),
         };
 
@@ -377,12 +377,12 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
             ApplicationInitParams {
                 app_api:          ApplicationApi::Winit,
                 render_api:       RenderApi::Wgpu,
-                window_title:     &configs.engine.window_title,
-                window_size:      configs.engine.window_size,
-                window_mode:      configs.engine.window_mode,
-                content_scale:    configs.engine.content_scale,
-                resizable_window: configs.engine.resizable_window,
-                confine_cursor:   configs.engine.confine_cursor_to_window,
+                window_title:     &engine_configs.window_title,
+                window_size:      engine_configs.window_size,
+                window_mode:      engine_configs.window_mode,
+                content_scale:    engine_configs.content_scale,
+                resizable_window: engine_configs.resizable_window,
+                confine_cursor:   engine_configs.confine_cursor_to_window,
                 opt_window:       Some(&window), // With pre-created Window instance.
             }
         );
@@ -392,8 +392,8 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
         let render_system = RenderSystem::new(
             RenderSystemInitParams {
                 render_api:       RenderApi::Wgpu,
-                clear_color:      configs.engine.window_background_color,
-                texture_settings: configs.engine.texture_settings,
+                clear_color:      engine_configs.window_background_color,
+                texture_settings: engine_configs.texture_settings,
                 viewport_size:    app.window_size(),
                 framebuffer_size: app.framebuffer_size(),
                 wgpu_resources:   Some(wgpu_resources),
@@ -402,8 +402,12 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
         );
         log::info!(log::channel!("runner"), "RenderSystem initialized.");
 
+        // Configs were already loaded in start_asset_loading().
+        // Retrieve the full configs from the singleton (already initialized).
+        let configs = GameLoop::Configs::get();
+
         // Create Engine and start the GameLoop.
-        let engine = Engine::start(&configs.engine, app, render_system);
+        let engine = Engine::start(engine_configs, app, render_system);
         GameLoop::start(engine, configs);
 
         // Hide the browser loading screen — game is fully initialized.
@@ -466,7 +470,7 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
 
                     let input_state = get_input_state(app);
                     let modifiers = input_state.modifiers();
-    
+
                     input_state.set_mouse_button(mb, state.is_pressed());
                     app.push_event(ApplicationEvent::MouseButton(mb, action, modifiers));
                 }

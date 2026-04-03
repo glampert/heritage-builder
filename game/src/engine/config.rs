@@ -89,7 +89,7 @@ pub trait Configs {
 
 macro_rules! configurations {
     ($configs_singleton:ident, $configs_type:ty, $configs_path:literal) => {
-        $crate::utils::mem::singleton_late_init! { $configs_singleton, $configs_type }
+        ::common::singleton_late_init! { $configs_singleton, $configs_type }
         impl $crate::engine::config::Configs for $configs_type {
             fn draw_debug_ui(&'static self, ui_sys: &$crate::ui::UiSystem) {
                 self.draw_debug_ui_with_header(stringify!($configs_type), ui_sys);

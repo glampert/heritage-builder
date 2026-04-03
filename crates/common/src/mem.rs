@@ -3,8 +3,6 @@
 
 use core::ptr::NonNull;
 use std::{
-    sync::OnceLock,
-    thread::ThreadId,
     cell::UnsafeCell,
     rc::{Rc, Weak},
     ops::{Deref, DerefMut},
@@ -187,13 +185,20 @@ pub fn mut_ref_cast<T: ?Sized>(reference: &T) -> &mut T {
 // First thread to access the instance claims ownership.
 pub struct SingleThreadStatic<T> {
     value: UnsafeCell<T>,
-    owner: OnceLock<ThreadId>,
+
+    #[cfg(all(debug_assertions, feature = "desktop"))]
+    owner: std::sync::OnceLock<std::thread::ThreadId>,
 }
 
 impl<T> SingleThreadStatic<T> {
     #[inline]
     pub const fn new(value: T) -> Self {
-        Self { value: UnsafeCell::new(value), owner: OnceLock::new() }
+        Self {
+            value: UnsafeCell::new(value),
+
+            #[cfg(all(debug_assertions, feature = "desktop"))]
+            owner: std::sync::OnceLock::new(),
+        }
     }
 
     #[inline]
