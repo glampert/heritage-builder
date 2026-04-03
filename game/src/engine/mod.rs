@@ -2,7 +2,6 @@ use crate::{
     log,
     ui::{self, UiSystem},
     sound::SoundSystem,
-    camera::Camera,
     app::{
         input::*,
         Application, ApplicationEvent, ApplicationEventList,
@@ -11,14 +10,9 @@ use crate::{
         RenderSystem, RenderStats,
         texture::TextureCache, debug::DebugDraw,
     },
-    tile::{
-        TileMap,
-        selection::TileSelection,
-        rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
-    },
     utils::{
         Rect, Vec2,
-        coords::CellRange, mem::{RcMut, singleton_late_init},
+        mem::{RcMut, singleton_late_init},
         time::{FrameClock, PerfTimer, Seconds, Milliseconds},
     },
 };
@@ -30,11 +24,12 @@ use config::EngineConfigs;
 // EngineSystemsMutRefs
 // ----------------------------------------------
 
-pub struct EngineSystemsMutRefs<'game> {
-    pub ui_sys: &'game UiSystem,
-    pub input_sys: &'game InputSystem,
-    pub sound_sys: &'game mut SoundSystem,
-    pub render_sys: &'game mut RenderSystem,
+pub struct EngineSystemsMutRefs<'engine> {
+    pub ui_sys:     &'engine UiSystem,
+    pub input_sys:  &'engine InputSystem,
+    pub sound_sys:  &'engine mut SoundSystem,
+    pub render_sys: &'engine mut RenderSystem,
+    pub debug_draw: &'engine mut DebugDraw,
 }
 
 // ----------------------------------------------
@@ -46,9 +41,6 @@ pub struct Engine {
 
     render_system: RcMut<RenderSystem>,
     render_stats: RenderStats,
-
-    tile_map_renderer: TileMapRenderer,
-    tile_map_render_stats: TileMapRenderStats,
 
     ui_system: UiSystem,
     sound_system: SoundSystem,
@@ -135,28 +127,14 @@ impl Engine {
     }
 
     #[inline]
-    pub fn tile_map_render_stats(&self) -> &TileMapRenderStats {
-        &self.tile_map_render_stats
-    }
-
-    #[inline]
     pub fn systems_mut_refs(&mut self) -> EngineSystemsMutRefs<'_> {
         EngineSystemsMutRefs {
-            ui_sys: &self.ui_system,
-            input_sys: self.app.input_system(),
-            sound_sys: &mut self.sound_system,
+            ui_sys:     &self.ui_system,
+            input_sys:  self.app.input_system(),
+            sound_sys:  &mut self.sound_system,
             render_sys: &mut self.render_system,
+            debug_draw: &mut self.debug_draw,
         }
-    }
-
-    #[inline]
-    pub fn set_grid_line_thickness(&mut self, thickness: f32) {
-        self.tile_map_renderer.set_grid_line_thickness(thickness);
-    }
-
-    #[inline]
-    pub fn grid_line_thickness(&self) -> f32 {
-        self.tile_map_renderer.grid_line_thickness()
     }
 
     #[inline]
@@ -207,32 +185,6 @@ impl Engine {
         (end_frame_time_ms, present_frame_time_ms)
     }
 
-    pub fn draw_tile_map(&mut self,
-                         tile_map: &TileMap,
-                         tile_selection: &TileSelection,
-                         camera: &Camera,
-                         visible_range: CellRange,
-                         flags: TileMapRenderFlags)
-    {
-        if !tile_map.size_in_cells().is_valid() {
-            return;
-        }
-
-        let render_sys = &mut self.render_system;
-        let debug_draw = &mut self.debug_draw;
-        let ui_sys = &self.ui_system;
-
-        self.tile_map_render_stats = self.tile_map_renderer.draw_map(render_sys,
-                                                                     debug_draw,
-                                                                     ui_sys,
-                                                                     tile_map,
-                                                                     camera.transform(),
-                                                                     visible_range,
-                                                                     flags);
-
-        tile_selection.draw(render_sys);
-    }
-
     // ----------------------
     // Initialization:
     // ----------------------
@@ -273,8 +225,6 @@ impl Engine {
             app,
             render_system,
             render_stats: RenderStats::default(),
-            tile_map_renderer: TileMapRenderer::new(configs.grid_color, configs.grid_line_thickness),
-            tile_map_render_stats: TileMapRenderStats::default(),
             ui_system,
             sound_system,
             debug_draw,

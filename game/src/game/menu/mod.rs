@@ -14,7 +14,6 @@ use crate::{
         UiFontScale,
         sound::UiButtonSoundsEnabled,
         widgets::{
-            UiWidgetContext,
             UiTooltipText,
             UiTooltipTextParams,
             UiTextButton,
@@ -29,6 +28,7 @@ use crate::{
     },
     game::{
         sim::SimContext,
+        ui_context::GameUiContext,
         world::object::{Spawner, SpawnerResult},
         undo_redo::{self, EditAction, EditedLayer},
     },
@@ -77,7 +77,7 @@ pub enum GameMenusInputArgs {
 // Internal helper functions
 // ----------------------------------------------
 
-fn selection_handle_mouse_button(context: &mut UiWidgetContext,
+fn selection_handle_mouse_button(context: &mut GameUiContext,
                                  button: MouseButton,
                                  action: InputAction) -> bool {
     if button != MouseButton::Left {
@@ -92,24 +92,24 @@ fn selection_handle_mouse_button(context: &mut UiWidgetContext,
                                            .is_handled()
 }
 
-fn update_selection(context: &mut UiWidgetContext, placement_op: TilePlacementOp) {
+fn update_selection(context: &mut GameUiContext, placement_op: TilePlacementOp) {
     context.tile_map.update_selection(context.tile_selection,
                                       context.cursor_screen_pos,
                                       context.camera.transform(),
                                       placement_op);
 }
 
-fn range_selection_cells(context: &UiWidgetContext) -> Option<(Cell, Cell)> {
+fn range_selection_cells(context: &GameUiContext) -> Option<(Cell, Cell)> {
     context.tile_selection.range_selection_cells(context.tile_map,
                                                  context.cursor_screen_pos,
                                                  context.camera.transform())
 }
 
-fn clear_selection(context: &mut UiWidgetContext) {
+fn clear_selection(context: &mut GameUiContext) {
     context.tile_map.clear_selection(context.tile_selection);
 }
 
-fn can_afford_cost(context: &UiWidgetContext, cost: u32) -> bool {
+fn can_afford_cost(context: &GameUiContext, cost: u32) -> bool {
     context.sim.treasury().can_afford(context.world, cost)
 }
 
@@ -139,7 +139,7 @@ pub trait GameMenusSystem: Any + Save + Load {
         TileMapRenderFlags::DrawTerrainAndObjects
     }
 
-    fn begin_frame(&mut self, context: &mut UiWidgetContext) {
+    fn begin_frame(&mut self, context: &mut GameUiContext) {
         // Bail if we're hovering over an ImGui menu...
         if context.ui_sys.is_handling_mouse_input() {
             return;
@@ -220,11 +220,11 @@ pub trait GameMenusSystem: Any + Save + Load {
         }
     }
 
-    fn end_frame(&mut self, _context: &mut UiWidgetContext, _visible_range: CellRange) {
+    fn end_frame(&mut self, _context: &mut GameUiContext, _visible_range: CellRange) {
         // Nothing here. Should implement the menu rendering logic.
     }
 
-    fn handle_input(&mut self, context: &mut UiWidgetContext, args: GameMenusInputArgs) -> UiInputEvent {
+    fn handle_input(&mut self, context: &mut GameUiContext, args: GameMenusInputArgs) -> UiInputEvent {
         if self.handle_custom_input(context, args).is_handled() {
             return UiInputEvent::Handled;
         }
@@ -363,7 +363,7 @@ pub trait GameMenusSystem: Any + Save + Load {
 
     // Optional override to add extended input handling behavior on top of the default handle_input().
     // This is called before handle_input(), so returning UiInputEvent::Handled will stop handle_input() logic from running.
-    fn handle_custom_input(&mut self, _context: &mut UiWidgetContext, _args: GameMenusInputArgs) -> UiInputEvent {
+    fn handle_custom_input(&mut self, _context: &mut GameUiContext, _args: GameMenusInputArgs) -> UiInputEvent {
         UiInputEvent::NotHandled
     }
 }
@@ -408,7 +408,7 @@ impl TilePlacement {
         Self { current_road_segment: RoadSegment::default() }
     }
 
-    fn try_place_road_segment(&mut self, context: &mut UiWidgetContext) -> PlaceRoadSegmentResult {
+    fn try_place_road_segment(&mut self, context: &mut GameUiContext) -> PlaceRoadSegmentResult {
         let road_segment_is_empty = self.current_road_segment.is_empty();
 
         // Place road segment if valid & we can afford it:
@@ -454,7 +454,7 @@ impl TilePlacement {
         }
     }
 
-    fn update_road_segment(&mut self, road_kind: RoadKind, start: Cell, end: Cell, context: &mut UiWidgetContext) {
+    fn update_road_segment(&mut self, road_kind: RoadKind, start: Cell, end: Cell, context: &mut GameUiContext) {
         // Clear previous segment highlight:
         road::mark_tiles(context.tile_map, &self.current_road_segment, false, false);
 
@@ -469,7 +469,7 @@ impl TilePlacement {
         road::mark_tiles(context.tile_map, &self.current_road_segment, true, is_valid_road_placement);
     }
 
-    fn placement_operation(&self, selection: TilePaletteSelection, context: &mut UiWidgetContext) -> TilePlacementOp {
+    fn placement_operation(&self, selection: TilePaletteSelection, context: &mut GameUiContext) -> TilePlacementOp {
         if let Some(tile_def) = selection.as_tile_def() {
             if Spawner::new(&context.new_sim_context()).can_afford_tile(tile_def) {
                 TilePlacementOp::Place(tile_def)
@@ -484,7 +484,7 @@ impl TilePlacement {
     }
 
     fn try_place_or_clear_tile(selection: TilePaletteSelection,
-                               context: &mut UiWidgetContext)
+                               context: &mut GameUiContext)
                                -> PlaceOrClearResult {
         // If we have a selection, place it. Otherwise we want to try removing the tile
         // under the cursor. Do not remove terrain tiles though.
@@ -686,13 +686,13 @@ impl TilePaletteSelection {
 pub trait TilePalette {
     fn on_mouse_button(&mut self, button: MouseButton, action: InputAction) -> UiInputEvent;
 
-    fn on_tile_placed(&mut self, _context: &mut UiWidgetContext) {}
-    fn on_tile_cleared(&mut self, _context: &mut UiWidgetContext) {}
-    fn on_road_segment_placed(&mut self, _context: &mut UiWidgetContext) {}
-    fn on_tile_placement_failed(&mut self, _context: &mut UiWidgetContext) {}
-    fn on_tile_placement_canceled(&mut self, _context: &mut UiWidgetContext);
+    fn on_tile_placed(&mut self, _context: &mut GameUiContext) {}
+    fn on_tile_cleared(&mut self, _context: &mut GameUiContext) {}
+    fn on_road_segment_placed(&mut self, _context: &mut GameUiContext) {}
+    fn on_tile_placement_failed(&mut self, _context: &mut GameUiContext) {}
+    fn on_tile_placement_canceled(&mut self, _context: &mut GameUiContext);
 
-    fn clear_current_selection(&mut self, context: &mut UiWidgetContext);
+    fn clear_current_selection(&mut self, context: &mut GameUiContext);
     fn current_selection(&self) -> TilePaletteSelection;
     fn wants_to_place_or_clear_tile(&self) -> bool;
 
@@ -723,8 +723,8 @@ pub trait TilePalette {
 // ----------------------------------------------
 
 pub trait TileInspector {
-    fn open(&mut self, context: &mut UiWidgetContext);
-    fn close(&mut self, context: &mut UiWidgetContext);
+    fn open(&mut self, context: &mut GameUiContext);
+    fn close(&mut self, context: &mut GameUiContext);
 }
 
 // ----------------------------------------------
@@ -792,7 +792,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
     }
 
     fn new_text_button(self,
-                       context: &mut UiWidgetContext,
+                       context: &mut GameUiContext,
                        sounds_enabled: UiButtonSoundsEnabled,
                        size: UiTextButtonSize,
                        on_pressed: UiTextButtonPressed)
@@ -829,7 +829,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
     }
 
     fn new_sprite_button(self,
-                         context: &mut UiWidgetContext,
+                         context: &mut GameUiContext,
                          sounds_enabled: UiButtonSoundsEnabled,
                          show_tooltip_when_pressed: bool,
                          size: Vec2,
@@ -863,7 +863,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
         )
     }
 
-    fn on_pressed(self, _context: &mut UiWidgetContext) -> bool {
+    fn on_pressed(self, _context: &mut GameUiContext) -> bool {
         false
     }
 }

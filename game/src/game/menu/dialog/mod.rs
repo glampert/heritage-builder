@@ -5,9 +5,9 @@ use strum::{EnumCount, EnumIter, EnumDiscriminants, IntoEnumIterator, Display};
 
 use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
 use crate::{
-    game::menu::ButtonDef,
-    utils::{Vec2, Color, mem::{self, singleton_late_init}},
     file_sys::paths::PathRef,
+    utils::{Vec2, Color, mem::{self, singleton_late_init}},
+    game::{menu::ButtonDef, ui_context::GameUiContext},
     ui::{self, UiFontScale, UiStaticVar, sound::{self, UiSoundKey, UiButtonSoundsEnabled}, widgets::*},
 };
 
@@ -42,7 +42,7 @@ macro_rules! dialog_menu_factories {
     };
 }
 
-type DialogMenuFactoryFn = fn(&mut UiWidgetContext) -> DialogMenuImpl;
+type DialogMenuFactoryFn = fn(&mut GameUiContext) -> DialogMenuImpl;
 
 // ----------------------------------------------
 // DialogMenuKind / DialogMenuImpl
@@ -99,7 +99,7 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
 ];
 
 impl DialogMenuKind {
-    fn build_menu(self, context: &mut UiWidgetContext) -> DialogMenuImpl {
+    fn build_menu(self, context: &mut GameUiContext) -> DialogMenuImpl {
         let dialog = DIALOG_MENU_FACTORIES[self as usize](context);
         debug_assert!(dialog.kind() == self, "Wrong DialogMenuKind! Check DialogMenu::kind() impl!");
         dialog
@@ -110,7 +110,7 @@ impl DialogMenuKind {
 // Public API
 // ----------------------------------------------
 
-pub fn initialize(context: &mut UiWidgetContext) {
+pub fn initialize(context: &mut GameUiContext) {
     if DialogMenusSingleton::is_initialized() {
         return; // Initialize only once.
     }
@@ -127,7 +127,7 @@ pub fn is_open(dialog_menu_kind: DialogMenuKind) -> bool {
     current().is_some_and(|dialog| dialog == dialog_menu_kind)
 }
 
-pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &mut UiWidgetContext) -> bool {
+pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &mut GameUiContext) -> bool {
     if close_all_others {
         close_all(context);
     }
@@ -135,11 +135,11 @@ pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &
     DialogMenusSingleton::get_mut().open_dialog(dialog_menu_kind, context)
 }
 
-pub fn close(dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
+pub fn close(dialog_menu_kind: DialogMenuKind, context: &mut GameUiContext) -> bool {
     DialogMenusSingleton::get_mut().close_dialog(dialog_menu_kind, context)
 }
 
-pub fn close_all(context: &mut UiWidgetContext) -> bool {
+pub fn close_all(context: &mut GameUiContext) -> bool {
     DialogMenusSingleton::get_mut().close_all(context)
 }
 
@@ -155,11 +155,11 @@ pub fn find<Dialog: DialogMenuFactory>() -> &'static mut Dialog {
     DialogMenusSingleton::get_mut().find_dialog_as::<Dialog>()
 }
 
-pub fn close_current(context: &mut UiWidgetContext) -> bool {
+pub fn close_current(context: &mut GameUiContext) -> bool {
     DialogMenusSingleton::get_mut().close_current(context)
 }
 
-pub fn draw_current(context: &mut UiWidgetContext) {
+pub fn draw_current(context: &mut GameUiContext) {
     DialogMenusSingleton::get_mut().draw_current(context);
 }
 
@@ -167,7 +167,7 @@ pub fn set_global_menu_flags(flags: UiMenuFlags) {
     DialogMenusSingleton::get_mut().set_global_menu_flags(flags);
 }
 
-pub fn set_bg_dim_alpha(context: &mut UiWidgetContext, alpha: f32) {
+pub fn set_bg_dim_alpha(context: &mut GameUiContext, alpha: f32) {
     debug_assert!((0.0..=1.0).contains(&alpha));
     context.ui_sys.set_style_color(imgui::StyleColor::ModalWindowDimBg, Color::new(0.0, 0.0, 0.0, alpha));
 }
@@ -199,12 +199,12 @@ pub trait DialogMenu: Any {
         self.menu().is_open()
     }
 
-    fn open(&mut self, context: &mut UiWidgetContext) -> bool {
+    fn open(&mut self, context: &mut GameUiContext) -> bool {
         self.menu_mut().open(context);
         true
     }
 
-    fn close(&mut self, context: &mut UiWidgetContext) -> bool {
+    fn close(&mut self, context: &mut GameUiContext) -> bool {
         let menu = self.menu_mut();
         if menu.is_message_box_open() {
             menu.close_message_box(context);
@@ -215,11 +215,11 @@ pub trait DialogMenu: Any {
         }
     }
 
-    fn draw_root_menu(&mut self, context: &mut UiWidgetContext) {
+    fn draw_root_menu(&mut self, context: &mut GameUiContext) {
         self.menu_mut().draw(context);
     }
 
-    fn draw_child_menu(&mut self, context: &mut UiWidgetContext, root_menu: &mut DialogMenuImpl) {
+    fn draw_child_menu(&mut self, context: &mut GameUiContext, root_menu: &mut DialogMenuImpl) {
         let this_menu = self.menu();
 
         let mut menu_rc_on_close = this_menu.clone();
@@ -255,7 +255,7 @@ pub trait DialogMenuFactory: DialogMenu {
     const KIND: DialogMenuKind;
     const TITLE: &'static [&'static str];
 
-    fn create(context: &mut UiWidgetContext) -> DialogMenuImpl;
+    fn create(context: &mut GameUiContext) -> DialogMenuImpl;
 }
 
 // ----------------------------------------------
@@ -268,7 +268,7 @@ macro_rules! implement_dialog_menu {
             const KIND: DialogMenuKind = DialogMenuKind::$dialog_menu_struct;
             const TITLE: &'static [&'static str] = &$title;
 
-            fn create(context: &mut UiWidgetContext) -> DialogMenuImpl {
+            fn create(context: &mut GameUiContext) -> DialogMenuImpl {
                 DialogMenuImpl::from($dialog_menu_struct::new(context))
             }
         }
@@ -301,7 +301,7 @@ struct DialogMenusSingleton {
 }
 
 impl DialogMenusSingleton {
-    fn new(context: &mut UiWidgetContext) -> Self {
+    fn new(context: &mut GameUiContext) -> Self {
         let mut dialog_menus = ArrayVec::new();
 
         for dialog_menu_kind in DialogMenuKind::iter() {
@@ -414,7 +414,7 @@ impl DialogMenusSingleton {
         debug_assert!(removed == dialog_menu_kind, "Closed menu should have been in the menu stack!");
     }
 
-    fn open_dialog(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
+    fn open_dialog(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut GameUiContext) -> bool {
         let dialog = self.find_dialog(dialog_menu_kind);
         if !dialog.is_open() && dialog.open(context) {
             self.push_dialog(dialog_menu_kind);
@@ -423,7 +423,7 @@ impl DialogMenusSingleton {
         false
     }
 
-    fn close_dialog(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut UiWidgetContext) -> bool {
+    fn close_dialog(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut GameUiContext) -> bool {
         let dialog = self.find_dialog(dialog_menu_kind);
         if dialog.is_open() && dialog.close(context) {
             self.pop_dialog(dialog_menu_kind);
@@ -432,7 +432,7 @@ impl DialogMenusSingleton {
         false
     }
 
-    fn close_all(&mut self, context: &mut UiWidgetContext) -> bool {
+    fn close_all(&mut self, context: &mut GameUiContext) -> bool {
         let mut any_closed = false;
         // Close all open menus:
         for dialog_menu_kind in self.menu_stack.clone() {
@@ -443,7 +443,7 @@ impl DialogMenusSingleton {
         any_closed
     }
 
-    fn close_current(&mut self, context: &mut UiWidgetContext) -> bool {
+    fn close_current(&mut self, context: &mut GameUiContext) -> bool {
         if let Some(&stack_top) = self.menu_stack.last() {
             let closed = self.close_dialog(stack_top, context);
             // If we didn't close the last dialog, keep the game in paused state.
@@ -455,7 +455,7 @@ impl DialogMenusSingleton {
         false
     }
 
-    fn draw_current(&mut self, context: &mut UiWidgetContext) {
+    fn draw_current(&mut self, context: &mut GameUiContext) {
         // Draw current open menu only:
         if let Some((dialog, opt_root_menu)) = self.current_dialog_with_root_menu() {
             // NOTE: If the current menu is a child modal dialog we want to render it
@@ -479,7 +479,7 @@ impl DialogMenusSingleton {
 
                 if dialog_menu_kind != DialogMenuKind::Home {
                     // Simulate a UI button press sound when hitting [ESCAPE] while inside a modal dialog.
-                    sound::play(context.sound_sys, UiSoundKey::ButtonPressed);
+                    sound::play(*context.sound_sys(), UiSoundKey::ButtonPressed);
                 }
 
                 // If we didn't close the last dialog, keep the game in paused state.
@@ -531,23 +531,24 @@ const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
 
 static GLOBAL_DIALOG_MENU_FLAGS: UiStaticVar<UiMenuFlags> = UiStaticVar::new(DEFAULT_DIALOG_MENU_FLAGS);
 
-fn default_dialog_menu_size(context: &UiWidgetContext) -> Vec2 {
+fn default_dialog_menu_size(context: &GameUiContext) -> Vec2 {
     Vec2::new(550.0, context.viewport_size.height as f32 - 150.0)
 }
 
-fn make_default_layout_dialog_menu(context: &mut UiWidgetContext,
+fn make_default_layout_dialog_menu(context: &mut GameUiContext,
                                    dialog_menu_kind: DialogMenuKind,
                                    heading_title: &[&str], // Each item in the slice is a heading line.
                                    widget_spacing: Vec2,
                                    widgets: Option<impl IntoIterator<Item = UiWidgetImpl>>)
                                    -> UiMenuRcMut
 {
+    let menu_size = default_dialog_menu_size(context);
     let mut menu = UiMenu::new(
         context,
         UiMenuParams {
             label: Some(dialog_menu_kind.to_string()),
             flags: *GLOBAL_DIALOG_MENU_FLAGS,
-            size: Some(default_dialog_menu_size(context)),
+            size: Some(menu_size),
             background: Some(DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE),
             ..Default::default()
         }
@@ -590,14 +591,16 @@ fn make_default_layout_dialog_menu(context: &mut UiWidgetContext,
     menu
 }
 
-fn make_dialog_button_widgets<ButtonKind, const COUNT: usize>(context: &mut UiWidgetContext) -> ArrayVec::<UiWidgetImpl, COUNT>
+fn make_dialog_button_widgets<ButtonKind, const COUNT: usize>(context: &mut GameUiContext) -> ArrayVec::<UiWidgetImpl, COUNT>
     where ButtonKind: ButtonDef + EnumCount + IntoEnumIterator + 'static
 {
     let mut buttons = ArrayVec::<UiWidgetImpl, COUNT>::new();
 
     for button_kind in ButtonKind::iter() {
         let on_pressed = UiTextButtonPressed::with_closure(
-            move |_, context| { button_kind.on_pressed(context); }
+            move |_, context| {
+                button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
+            }
         );
 
         buttons.push(UiWidgetImpl::from(

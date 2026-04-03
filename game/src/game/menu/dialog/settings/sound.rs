@@ -40,7 +40,7 @@ pub struct SoundSettings {
 implement_dialog_menu! { SoundSettings, ["Sound Settings"] }
 
 impl SoundSettings {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let mut category = SettingsCategory::new();
 
         category

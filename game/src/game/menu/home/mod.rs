@@ -14,6 +14,7 @@ use crate::{
     save::{Save, Load, PreLoadContext},
     app::input::{InputAction, InputKey},
     file_sys::paths::AssetPath,
+    game::ui_context::GameUiContext,
     utils::{
         time::Seconds,
         coords::CellRange,
@@ -23,7 +24,6 @@ use crate::{
         UiInputEvent, UiTheme,
         widgets::{
             UiWidget,
-            UiWidgetContext,
             UiMenuFlags,
             UiSlideshow,
             UiSlideshowFlags,
@@ -44,7 +44,7 @@ pub struct HomeMenus {
 }
 
 impl HomeMenus {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         context.ui_sys.set_ui_theme(UiTheme::InGame);
 
         dialog::initialize(context);
@@ -116,10 +116,10 @@ impl GameMenusSystem for HomeMenus {
         TileMapRenderFlags::empty()
     }
 
-    fn begin_frame(&mut self, _context: &mut UiWidgetContext) {
+    fn begin_frame(&mut self, _context: &mut GameUiContext) {
     }
 
-    fn handle_input(&mut self, context: &mut UiWidgetContext, args: GameMenusInputArgs) -> UiInputEvent {
+    fn handle_input(&mut self, context: &mut GameUiContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
             // [ESCAPE]: Close child dialog menu.
             if key == InputKey::Escape && action == InputAction::Press {
@@ -135,7 +135,7 @@ impl GameMenusSystem for HomeMenus {
         UiInputEvent::NotHandled // Let the event propagate.
     }
 
-    fn end_frame(&mut self, context: &mut UiWidgetContext, _visible_range: CellRange) {
+    fn end_frame(&mut self, context: &mut GameUiContext, _visible_range: CellRange) {
         self.slideshow.draw(context);
 
         if self.slideshow.has_flags(UiSlideshowFlags::PlayedOnce) {

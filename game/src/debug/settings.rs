@@ -7,7 +7,8 @@ use crate::{
     utils::{Color, Size},
     file_sys::paths::PathRef,
     engine::{Engine, config::Configs},
-    ui::{self, UiStaticVar, widgets::UiWidgetContext},
+    ui::{self, UiStaticVar},
+    game::ui_context::GameUiContext,
     game::{
         cheats,
         GameLoop,
@@ -184,7 +185,7 @@ impl DebugSettingsDevMenu {
     }
 
     pub fn draw(&mut self,
-                context: &mut UiWidgetContext,
+                context: &mut GameUiContext,
                 log_viewer: &debug::log_viewer::LogViewer,
                 enable_dev_tile_inspector: &mut bool) {
         let ui = context.ui_sys.ui();
@@ -217,7 +218,7 @@ impl DebugSettingsDevMenu {
     }
 
     fn menu_bar_text(&self,
-                     context: &mut UiWidgetContext,
+                     context: &mut GameUiContext,
                      log_viewer: &debug::log_viewer::LogViewer) {
         let ui = context.ui_sys.ui();
 
@@ -250,11 +251,11 @@ impl DebugSettingsDevMenu {
         }
     }
 
-    fn cheats_menu(&self, context: &mut UiWidgetContext) {
+    fn cheats_menu(&self, context: &mut GameUiContext) {
         cheats::get_mut().draw_debug_ui(context.ui_sys);
     }
 
-    fn game_menu(&mut self, context: &mut UiWidgetContext) {
+    fn game_menu(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
         let game_loop = GameLoop::get_mut();
 
@@ -355,12 +356,12 @@ impl DebugSettingsDevMenu {
         }
     }
 
-    fn camera_menu(&self, context: &mut UiWidgetContext) {
+    fn camera_menu(&self, context: &mut GameUiContext) {
         context.camera.draw_debug_ui(context.ui_sys);
     }
 
     fn debug_options_menu(&mut self,
-                          context: &mut UiWidgetContext,
+                          context: &mut GameUiContext,
                           enable_dev_tile_inspector: &mut bool) {
         let ui = context.ui_sys.ui();
 
@@ -381,14 +382,14 @@ impl DebugSettingsDevMenu {
         // Debug grid options:
         ui.separator();
 
-        let engine = Engine::get_mut();
+        let game_loop = GameLoop::get_mut();
 
-        let mut line_thickness = engine.grid_line_thickness();
+        let mut line_thickness = game_loop.grid_line_thickness();
         if ui.slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
              .display_format("%.1f")
              .build(&mut line_thickness)
         {
-            engine.set_grid_line_thickness(line_thickness);
+            game_loop.set_grid_line_thickness(line_thickness);
         }
 
         ui.checkbox("Draw grid", &mut self.draw_grid);
@@ -410,7 +411,7 @@ impl DebugSettingsDevMenu {
         }
     }
 
-    fn save_game_menu(&mut self, context: &mut UiWidgetContext) {
+    fn save_game_menu(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
         let game_loop = GameLoop::get_mut();
 
@@ -455,7 +456,7 @@ impl DebugSettingsDevMenu {
         }
     }
 
-    fn draw_child_windows(&mut self, context: &mut UiWidgetContext) {
+    fn draw_child_windows(&mut self, context: &mut GameUiContext) {
         if self.show_game_configs_debug {
             self.draw_game_configs_window(context);
         }
@@ -477,7 +478,7 @@ impl DebugSettingsDevMenu {
         }
     }
 
-    fn draw_game_configs_window(&mut self, context: &mut UiWidgetContext) {
+    fn draw_game_configs_window(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Game Configs")
@@ -505,7 +506,7 @@ impl DebugSettingsDevMenu {
           });
     }
 
-    fn draw_world_debug_window(&mut self, context: &mut UiWidgetContext) {
+    fn draw_world_debug_window(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("World Debug")
@@ -518,7 +519,7 @@ impl DebugSettingsDevMenu {
           });
     }
 
-    fn draw_game_systems_debug_window(&mut self, context: &mut UiWidgetContext) {
+    fn draw_game_systems_debug_window(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Game Systems Debug")
@@ -533,7 +534,7 @@ impl DebugSettingsDevMenu {
           });
     }
 
-    fn draw_texture_settings_window(&mut self, context: &mut UiWidgetContext) {
+    fn draw_texture_settings_window(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Texture Settings")
@@ -546,7 +547,7 @@ impl DebugSettingsDevMenu {
           });
     }
 
-    fn draw_sound_settings_window(&mut self, context: &mut UiWidgetContext) {
+    fn draw_sound_settings_window(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Sound Settings")

@@ -100,7 +100,7 @@ trait Setting {
     fn set_from_widget_value(&mut self, new_value: SettingsWidgetValue);
 
     fn widget_label(&self) -> String;
-    fn create_widget(&self, this: WeakMut<dyn Setting>, context: &mut UiWidgetContext) -> UiWidgetImpl;
+    fn create_widget(&self, this: WeakMut<dyn Setting>, context: &mut GameUiContext) -> UiWidgetImpl;
 }
 
 struct SettingImpl<T, OnReadFn, OnCommitFn>
@@ -169,7 +169,7 @@ impl<T, OnReadFn, OnCommitFn> Setting for SettingImpl<T, OnReadFn, OnCommitFn>
         self.widget_label.into()
     }
 
-    fn create_widget(&self, this: WeakMut<dyn Setting>, context: &mut UiWidgetContext) -> UiWidgetImpl {
+    fn create_widget(&self, this: WeakMut<dyn Setting>, context: &mut GameUiContext) -> UiWidgetImpl {
         match self.widget_kind {
             SettingsWidgetKind::SliderU32(min, max) => {
                 let read_weak_ref  = this.clone().into_not_mut();
@@ -282,7 +282,7 @@ impl SettingsCategory {
 
     fn build_menu(&self,
                   this: SettingsCategoryWeakMut,
-                  context: &mut UiWidgetContext,
+                  context: &mut GameUiContext,
                   dialog_menu_kind: DialogMenuKind,
                   heading_title: &[&str],
                   margin_left: f32,
@@ -324,7 +324,7 @@ impl SettingsCategory {
                 on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
                     let settings = ok_button_weak_ref.upgrade().unwrap();
                     settings.commit_settings();
-                    super::close_current(context);
+                    super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
                 }),
                 ..Default::default()
             }
@@ -337,7 +337,7 @@ impl SettingsCategory {
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
                 sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_fn(|_, context| {
-                    super::close_current(context);
+                    super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
                 }),
                 ..Default::default()
             }

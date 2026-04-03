@@ -19,7 +19,7 @@ pub struct LoadGame {
 implement_dialog_menu! { LoadGame, ["Load Game"] }
 
 impl LoadGame {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let helper = SaveGameHelper::new(SaveGameActions::Load);
         let menu = helper.build_menu(context, Self::KIND, Self::TITLE);
         Self { helper, menu }
@@ -38,7 +38,7 @@ pub struct SaveGame {
 implement_dialog_menu! { SaveGame, ["Save Game"] }
 
 impl SaveGame {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let helper = SaveGameHelper::new(SaveGameActions::Save);
         let menu = helper.build_menu(context, Self::KIND, Self::TITLE);
         Self { helper, menu }
@@ -57,7 +57,7 @@ pub struct LoadOrSaveGame {
 implement_dialog_menu! { LoadOrSaveGame, ["Load / Save"] }
 
 impl LoadOrSaveGame {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let helper = SaveGameHelper::new(SaveGameActions::Load | SaveGameActions::Save);
         let menu = helper.build_menu(context, Self::KIND, Self::TITLE);
         Self { helper, menu }
@@ -111,10 +111,10 @@ impl SaveGameHelper {
         (PathRef::from_str(save_file_name), save_files_list.items())
     }
 
-    fn open_overwrite_save_game_message_box(menu: &mut UiMenuRcMut, context: &mut UiWidgetContext) {
+    fn open_overwrite_save_game_message_box(menu: &mut UiMenuRcMut, context: &mut GameUiContext) {
         let menu_rc = menu.clone();
 
-        menu.open_message_box(context, |context: &mut UiWidgetContext| {
+        menu.open_message_box(context, |context: &mut dyn UiWidgetContext| {
             let yes_button_menu_weak_ref = menu_rc.downgrade();
             let no_button_menu_weak_ref  = menu_rc.downgrade();
 
@@ -170,7 +170,7 @@ impl SaveGameHelper {
     }
 
     fn build_menu(&self,
-                  context: &mut UiWidgetContext,
+                  context: &mut GameUiContext,
                   dialog_menu_kind: DialogMenuKind,
                   heading_title: &[&str])
                   -> UiMenuRcMut
@@ -266,7 +266,7 @@ impl SaveGameHelper {
 
                             if save_file_already_exits {
                                 // Prompt the user about overwriting an existing save file.
-                                Self::open_overwrite_save_game_message_box(&mut menu_rc, context);
+                                Self::open_overwrite_save_game_message_box(&mut menu_rc, ui::widgets::context_as_mut::<GameUiContext>(context));
                             } else {
                                 // Creating a new save. No prompt required.
                                 GameLoop::get_mut().save_game(save_file_name);
@@ -288,7 +288,7 @@ impl SaveGameHelper {
                 sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_fn(
                     |_, context| {
-                        super::close_current(context);
+                        super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
                     }
                 ),
                 ..Default::default()

@@ -23,13 +23,13 @@ use crate::{
     engine::Engine,
     file_sys::paths::PathRef,
     debug::{self, DevEditorMenus},
-    ui::{UiInputEvent, widgets::UiWidgetContext},
+    ui::UiInputEvent,
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     utils::{Vec2, Size, hash, coords::CellRange, mem::RcMut, time::Seconds},
     tile::{
         sets::TileDef,
         selection::TileSelection,
-        rendering::TileMapRenderFlags,
+        rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
         TileKind, TileFlags, TileMap, TileMapLayerKind,
     },
 };
@@ -222,10 +222,10 @@ pub fn destroy(session: &mut GameSession, engine: &mut Engine, configs: &'static
 // Macro: make_ui_widget_context
 // ----------------------------------------------
 
-// Helper macro to create a new UiWidgetContext from GameSession member variables.
+// Helper macro to create a new GameUiContext from GameSession member variables.
 macro_rules! make_ui_widget_context {
     ($session:ident, $engine:ident) => {
-        UiWidgetContext::new(
+        super::ui_context::GameUiContext::new(
             &mut $session.sim,
             &mut $session.world,
             &mut $session.tile_map,
@@ -248,10 +248,14 @@ pub struct GameSession {
     systems: GameSystems,
     camera: Camera,
 
-    // NOTE: These are not actually serialized on save games.
+    // NOTE: The following members are not serialized on save games.
     // We only need to invoke pre_load/post_load on them.
+
     #[serde(skip)]
     tile_selection: TileSelection,
+
+    #[serde(skip)]
+    tile_map_renderer: TileMapRenderer,
 
     #[serde(skip)]
     menus: Option<Box<dyn GameMenusSystem>>,
@@ -317,6 +321,21 @@ impl GameSession {
         self.menus.as_ref().map(|menus| menus.mode())
     }
 
+    #[inline]
+    pub fn tile_map_render_stats(&self) -> &TileMapRenderStats {
+        self.tile_map_renderer.stats()
+    }
+
+    #[inline]
+    pub fn set_grid_line_thickness(&mut self, thickness: f32) {
+        self.tile_map_renderer.set_grid_line_thickness(thickness);
+    }
+
+    #[inline]
+    pub fn grid_line_thickness(&self) -> f32 {
+        self.tile_map_renderer.grid_line_thickness()
+    }
+
     // ----------------------
     // Update & Rendering:
     // ----------------------
@@ -351,11 +370,17 @@ impl GameSession {
                                            systems.ui_sys,
                                            delta_time_secs);
 
-        engine.draw_tile_map(&self.tile_map,
-                             &self.tile_selection,
-                             &self.camera,
-                             visible_range,
-                             flags);
+        if self.tile_map.size_in_cells().is_valid() {
+            self.tile_map_renderer.draw_map(systems.render_sys,
+                                            systems.debug_draw,
+                                            systems.ui_sys,
+                                            &self.tile_map,
+                                            self.camera.transform(),
+                                            visible_range,
+                                            flags);
+
+            self.tile_selection.draw(engine.render_system_mut());
+        }
     }
 
     // ----------------------
@@ -391,6 +416,7 @@ impl GameSession {
             systems,
             camera,
             tile_selection: TileSelection::default(),
+            tile_map_renderer: TileMapRenderer::new(configs.engine.grid_color, configs.engine.grid_line_thickness),
             menus: None,
         };
 

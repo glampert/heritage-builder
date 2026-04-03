@@ -9,6 +9,7 @@ use super::{
 };
 use crate::{
     camera::Camera,
+    game::ui_context::GameUiContext,
     save::{PreLoadContext, PostLoadContext},
     file_sys::paths::{self, PathRef, AssetPath},
     app::input::{InputSystem, InputAction, MouseButton},
@@ -1096,7 +1097,7 @@ impl MinimapWidget {
 
 pub trait MinimapRenderer {
     // Draw the minimap using ImGui, nestled inside its own window.
-    fn draw(&mut self, context: &mut UiWidgetContext);
+    fn draw(&mut self, context: &mut GameUiContext);
 }
 
 // ----------------------------------------------
@@ -1130,7 +1131,7 @@ impl BaseMinimapRenderer {
         }
     }
 
-    fn build_minimap_menus(context: &mut UiWidgetContext,
+    fn build_minimap_menus(context: &mut GameUiContext,
                            font_scale: UiFontScale,
                            background: Option<PathRef>,
                            button_sounds_enabled: UiButtonSoundsEnabled,
@@ -1345,7 +1346,7 @@ impl BaseMinimapRenderer {
         (minimap_menu, open_button_menu)
     }
 
-    fn create_menus(&mut self, context: &mut UiWidgetContext) {
+    fn create_menus(&mut self, context: &mut GameUiContext) {
         debug_assert!(self.minimap_menu.is_none());
         debug_assert!(self.open_button_menu.is_none());
 
@@ -1365,8 +1366,8 @@ impl BaseMinimapRenderer {
         self.minimap_menu.as_ref().unwrap().is_open()
     }
 
-    fn draw<F>(&mut self, context: &mut UiWidgetContext, custom_draw_fn: F)
-        where F: FnOnce(&mut UiWidgetContext)
+    fn draw<F>(&mut self, context: &mut GameUiContext, custom_draw_fn: F)
+        where F: FnOnce(&mut GameUiContext)
     {
         debug_assert!(context.tile_map.minimap.widget.window_rect.is_valid());
         debug_assert!(context.tile_map.minimap.widget.draw_data.is_valid());
@@ -1396,12 +1397,15 @@ impl BaseMinimapRenderer {
                         widget.draw(context);
                     }
 
+                    let game_ui_context =
+                        ui::widgets::context_as_mut::<GameUiContext>(context);
+
                     // Minimap texture and overlay icons:
-                    self.draw_minimap(context);
-                    self.draw_icons(context);
+                    self.draw_minimap(game_ui_context);
+                    self.draw_icons(game_ui_context);
 
                     // Optional extra debug drawing:
-                    custom_draw_fn(context);
+                    custom_draw_fn(game_ui_context);
                 });
         } else {
             // Display the open minimap button instead:
@@ -1411,12 +1415,12 @@ impl BaseMinimapRenderer {
         context.tile_map.minimap.widget.is_open = self.is_minimap_menu_open();
     }
 
-    fn draw_minimap(&mut self, context: &mut UiWidgetContext) {
+    fn draw_minimap(&mut self, context: &mut GameUiContext) {
         self.draw_minimap_texture_rect(context);
         self.draw_camera_overlay_rect(context);
     }
 
-    fn draw_minimap_texture_rect(&mut self, context: &mut UiWidgetContext) {
+    fn draw_minimap_texture_rect(&mut self, context: &mut GameUiContext) {
         let draw_list = context.ui_sys.ui().get_window_draw_list();
         let widget = &context.tile_map.minimap.widget;
 
@@ -1456,7 +1460,7 @@ impl BaseMinimapRenderer {
         }
     }
 
-    fn draw_camera_overlay_rect(&mut self, context: &mut UiWidgetContext) {
+    fn draw_camera_overlay_rect(&mut self, context: &mut GameUiContext) {
         let draw_list = context.ui_sys.ui().get_window_draw_list();
         let widget = &context.tile_map.minimap.widget;
 
@@ -1475,7 +1479,7 @@ impl BaseMinimapRenderer {
                            .build();
     }
 
-    fn draw_icons(&mut self, context: &mut UiWidgetContext) {
+    fn draw_icons(&mut self, context: &mut GameUiContext) {
         let icons = &context.tile_map.minimap.icons;
         if icons.is_empty() {
             return;
@@ -1541,7 +1545,7 @@ pub struct InGameUiMinimapRenderer {
 }
 
 impl MinimapRenderer for InGameUiMinimapRenderer {
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut GameUiContext) {
         self.base_renderer.draw(context, |_| {});
     }
 }
@@ -1549,7 +1553,7 @@ impl MinimapRenderer for InGameUiMinimapRenderer {
 impl InGameUiMinimapRenderer {
     const WIDGET_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 
-    pub fn new(_context: &mut UiWidgetContext) -> Self {
+    pub fn new(_context: &mut GameUiContext) -> Self {
         Self {
             base_renderer: BaseMinimapRenderer::new(
                 UiButtonSoundsEnabled::Pressed,
@@ -1574,7 +1578,7 @@ pub struct DevUiMinimapRenderer {
 }
 
 impl MinimapRenderer for DevUiMinimapRenderer {
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut GameUiContext) {
         // Draw base widget:
         let this = RawPtr::from_ref(self);
         self.base_renderer.draw(context, move |context| {
@@ -1591,7 +1595,7 @@ impl MinimapRenderer for DevUiMinimapRenderer {
 impl DevUiMinimapRenderer {
     const WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 
-    pub fn new(_context: &mut UiWidgetContext) -> Self {
+    pub fn new(_context: &mut GameUiContext) -> Self {
         Self {
             base_renderer: BaseMinimapRenderer::new(
                 UiButtonSoundsEnabled::empty(),
@@ -1603,7 +1607,7 @@ impl DevUiMinimapRenderer {
         }
     }
 
-    fn draw_debug_outline_rect(&self, context: &mut UiWidgetContext) {
+    fn draw_debug_outline_rect(&self, context: &mut GameUiContext) {
         if !self.enable_debug_draw {
             return;
         }
@@ -1641,7 +1645,7 @@ impl DevUiMinimapRenderer {
         }
     }
 
-    fn draw_debug_camera_rect(&self, context: &mut UiWidgetContext) {
+    fn draw_debug_camera_rect(&self, context: &mut GameUiContext) {
         if !self.enable_debug_draw {
             return;
         }
@@ -1704,7 +1708,7 @@ impl DevUiMinimapRenderer {
         }
     }
 
-    fn draw_debug_controls(&mut self, context: &mut UiWidgetContext) {
+    fn draw_debug_controls(&mut self, context: &mut GameUiContext) {
         if !*SHOW_MINIMAP_DEBUG_CONTROLS {
             return;
         }

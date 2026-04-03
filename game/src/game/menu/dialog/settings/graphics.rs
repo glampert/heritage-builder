@@ -20,7 +20,7 @@ pub struct GraphicsSettings {
 implement_dialog_menu! { GraphicsSettings, ["Graphics Settings"] }
 
 impl GraphicsSettings {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let mut category = SettingsCategory::new();
 
         let texture_filter_options: Vec<String> = TextureFilter::VARIANTS

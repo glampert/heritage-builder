@@ -15,7 +15,7 @@ pub struct GameSettings {
 implement_dialog_menu! { GameSettings, ["Game Settings"] }
 
 impl GameSettings {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let mut category = SettingsCategory::new();
     
         category

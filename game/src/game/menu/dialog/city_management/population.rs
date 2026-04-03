@@ -44,7 +44,7 @@ pub struct PopulationManagement {
 implement_dialog_menu! { PopulationManagement, ["Population"] }
 
 impl PopulationManagement {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         // Population stats placeholder text.
         const POPULATION_STATS_TEXT: [UiText; PopulationStatsIdx::COUNT] = [
             PLACEHOLDER_HEADING,
@@ -108,7 +108,7 @@ impl PopulationManagement {
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
                 sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_fn(|_, context| {
-                    super::close_current(context);
+                    super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
                 }),
                 ..Default::default()
             }
@@ -122,7 +122,7 @@ impl PopulationManagement {
             |_, context, is_open| {
                 if is_open {
                     let this_dialog = super::find::<PopulationManagement>();
-                    this_dialog.update_stats(context);
+                    this_dialog.update_stats(ui::widgets::context_as_mut::<GameUiContext>(context));
                 }
             }
         ));
@@ -134,7 +134,7 @@ impl PopulationManagement {
         }
     }
 
-    fn update_stats(&mut self, context: &UiWidgetContext) {
+    fn update_stats(&mut self, context: &GameUiContext) {
         let world_stats = context.world.stats();
         debug_assert!(world_stats.population.is_valid());
 

@@ -3,9 +3,9 @@ use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 
 use crate::{
     render::texture::TextureHandle,
-    game::{undo_redo, menu::*},
+    game::{undo_redo, menu::*, ui_context::GameUiContext},
     app::input::{InputAction, MouseButton},
-    ui::{UiInputEvent, widgets::*, sound::{self, UiSoundKey}},
+    ui::{self, UiInputEvent, widgets::*, sound::{self, UiSoundKey}},
     file_sys::paths::PathRef,
     utils::{
         self,
@@ -189,7 +189,7 @@ struct TilePaletteMainButtonsBuilder {
 }
 
 impl TilePaletteMainButtonsBuilder {
-    fn build_all(context: &mut UiWidgetContext, tile_palette: &TilePaletteMenuWeakMut) -> Self {
+    fn build_all(context: &mut GameUiContext, tile_palette: &TilePaletteMenuWeakMut) -> Self {
         let mut buttons = Self {
             main: ArrayVec::new(),
             ui: ArrayVec::new(),
@@ -211,7 +211,7 @@ impl TilePaletteMainButtonsBuilder {
 
                     if is_pressed || was_unpressed {
                         // Reset all other main buttons / close open child menus.
-                        tile_palette_rc.reset_selection_internal(context);
+                        tile_palette_rc.reset_selection_internal(ui::widgets::context_as_mut::<GameUiContext>(context));
                     }
 
                     if is_pressed {
@@ -224,11 +224,13 @@ impl TilePaletteMainButtonsBuilder {
                         } else {
                             match main_button_def {
                                 TilePaletteMainButtonDef::Undo => {
-                                    undo_redo::undo(&context.new_sim_context());
+                                    let game_ui_context = ui::widgets::context_as_mut::<GameUiContext>(context);
+                                    undo_redo::undo(&game_ui_context.new_sim_context());
                                     stay_pressed = false;
                                 }
                                 TilePaletteMainButtonDef::Redo => {
-                                    undo_redo::redo(&context.new_sim_context());
+                                    let game_ui_context = ui::widgets::context_as_mut::<GameUiContext>(context);
+                                    undo_redo::redo(&game_ui_context.new_sim_context());
                                     stay_pressed = false;
                                 }
                                 _ => {
@@ -273,7 +275,7 @@ struct TilePaletteMainButton {
 }
 
 impl TilePaletteMainButton {
-    fn new(context: &mut UiWidgetContext,
+    fn new(context: &mut GameUiContext,
            main_button_def: TilePaletteMainButtonDef,
            tile_palette: &TilePaletteMenuWeakMut) -> Self {
         let children = main_button_def.build_child_button_defs();
@@ -289,7 +291,7 @@ impl TilePaletteMainButton {
         Self { def: main_button_def, child_menu }
     }
 
-    fn build_child_menu(context: &mut UiWidgetContext,
+    fn build_child_menu(context: &mut GameUiContext,
                         main_button_def: TilePaletteMainButtonDef,
                         tile_palette: &TilePaletteMenuWeakMut,
                         children: Vec<TilePaletteChildButtonDef>) -> UiMenuRcMut {
@@ -363,19 +365,19 @@ impl TilePaletteMainButton {
         child_menu
     }
 
-    fn draw_child_menu(&mut self, context: &mut UiWidgetContext) {
+    fn draw_child_menu(&mut self, context: &mut GameUiContext) {
         if let Some(child_menu) = &mut self.child_menu && child_menu.is_open() {
             child_menu.draw(context);
         }
     }
 
-    fn open_child_menu(&mut self, context: &mut UiWidgetContext) {
+    fn open_child_menu(&mut self, context: &mut GameUiContext) {
         if let Some(child_menu) = &mut self.child_menu {
             child_menu.open(context);
         }
     }
 
-    fn close_child_menu(&mut self, context: &mut UiWidgetContext) {
+    fn close_child_menu(&mut self, context: &mut GameUiContext) {
         if let Some(child_menu) = &mut self.child_menu {
             child_menu.close(context);
         }
@@ -422,40 +424,40 @@ impl TilePalette for TilePaletteMenu {
         }
     }
 
-    fn on_tile_placed(&mut self, context: &mut UiWidgetContext) {
+    fn on_tile_placed(&mut self, context: &mut GameUiContext) {
         if self.current_selection.is_some() {
-            sound::play(context.sound_sys, UiSoundKey::TilePlaced);
+            sound::play(*context.sound_sys(), UiSoundKey::TilePlaced);
         }
     }
 
-    fn on_tile_cleared(&mut self, context: &mut UiWidgetContext) {
+    fn on_tile_cleared(&mut self, context: &mut GameUiContext) {
         if self.current_selection.is_some() {
-            sound::play(context.sound_sys, UiSoundKey::TileCleared);
+            sound::play(*context.sound_sys(), UiSoundKey::TileCleared);
         }
     }
 
-    fn on_road_segment_placed(&mut self, context: &mut UiWidgetContext) {
+    fn on_road_segment_placed(&mut self, context: &mut GameUiContext) {
         if self.current_selection.is_some() {
-            sound::play(context.sound_sys, UiSoundKey::TilePlaced);
+            sound::play(*context.sound_sys(), UiSoundKey::TilePlaced);
         }
     }
 
-    fn on_tile_placement_failed(&mut self, context: &mut UiWidgetContext) {
+    fn on_tile_placement_failed(&mut self, context: &mut GameUiContext) {
         if self.current_selection.is_some() {
-            sound::play(context.sound_sys, UiSoundKey::TilePlacementFailed);
+            sound::play(*context.sound_sys(), UiSoundKey::TilePlacementFailed);
         }
     }
 
-    fn on_tile_placement_canceled(&mut self, context: &mut UiWidgetContext) {
+    fn on_tile_placement_canceled(&mut self, context: &mut GameUiContext) {
         if self.current_selection.is_some() {
-            sound::play(context.sound_sys, UiSoundKey::TilePlacementCanceled);
+            sound::play(*context.sound_sys(), UiSoundKey::TilePlacementCanceled);
         }
 
         // NOTE: Play sound effect AND clear current selection.
         self.clear_current_selection(context);
     }
 
-    fn clear_current_selection(&mut self, context: &mut UiWidgetContext) {
+    fn clear_current_selection(&mut self, context: &mut GameUiContext) {
         self.reset_selection_internal(context);
     }
 
@@ -469,7 +471,7 @@ impl TilePalette for TilePaletteMenu {
 }
 
 impl TilePaletteMenu {
-    pub fn new(context: &mut UiWidgetContext) -> TilePaletteMenuRcMut {
+    pub fn new(context: &mut GameUiContext) -> TilePaletteMenuRcMut {
         TilePaletteMenuRcMut::new_cyclic(|tile_palette_weak_ref| {
             let buttons =
                 TilePaletteMainButtonsBuilder::build_all(context, &tile_palette_weak_ref);
@@ -513,7 +515,7 @@ impl TilePaletteMenu {
         })
     }
 
-    pub fn draw(&mut self, context: &mut UiWidgetContext) {
+    pub fn draw(&mut self, context: &mut GameUiContext) {
         // Draw menu & main buttons:
         self.menu.draw(context);
 
@@ -549,7 +551,7 @@ impl TilePaletteMenu {
         button.enable(enable);
     }
 
-    fn set_child_menu_position_callbacks(&mut self, context: &UiWidgetContext) {
+    fn set_child_menu_position_callbacks(&mut self, context: &GameUiContext) {
         for main_button in &mut self.main_buttons {
             if let Some(child_menu) = &mut main_button.child_menu {
                 let child_menu_width = child_menu.measure(context).x;
@@ -570,7 +572,7 @@ impl TilePaletteMenu {
         }
     }
 
-    fn reset_selection_internal(&mut self, context: &mut UiWidgetContext) {
+    fn reset_selection_internal(&mut self, context: &mut GameUiContext) {
         self.left_mouse_button_pressed = false;
         self.current_selection = TilePaletteSelection::None;
 
@@ -599,11 +601,11 @@ struct TileSelectionRenderer {
 }
 
 impl TileSelectionRenderer {
-    fn new(context: &mut UiWidgetContext) -> Self {
+    fn new(context: &mut GameUiContext) -> Self {
         Self { clear_icon: context.load_texture(PathRef::from_str("icons/red_x_icon.png")) }
     }
 
-    fn draw(&self, context: &mut UiWidgetContext, current_selection: TilePaletteSelection) {
+    fn draw(&self, context: &mut GameUiContext, current_selection: TilePaletteSelection) {
         if current_selection.is_none() {
             return;
         }
@@ -617,10 +619,10 @@ impl TileSelectionRenderer {
                 CLEAR_ICON_SIZE
             );
 
-            context.render_sys.draw_textured_colored_rect(rect,
-                                                          &RectTexCoords::DEFAULT,
-                                                          self.clear_icon,
-                                                          Color::white());
+            context.render_sys().draw_textured_colored_rect(rect,
+                                                            &RectTexCoords::DEFAULT,
+                                                            self.clear_icon,
+                                                            Color::white());
         } else {
             let selected_tile = current_selection.as_tile_def().unwrap();
             let rect = Rect::from_pos_and_size(context.cursor_screen_pos, selected_tile.draw_size.to_vec2());
@@ -648,10 +650,10 @@ impl TileSelectionRenderer {
                     0.7 // Semi-transparent
                 );
 
-                context.render_sys.draw_textured_colored_rect(cursor_transform.scale_and_offset_rect(rect),
-                                                              &sprite_frame.tex_info.coords,
-                                                              sprite_frame.tex_info.texture,
-                                                              tile_color * highlight_color);
+                context.render_sys().draw_textured_colored_rect(cursor_transform.scale_and_offset_rect(rect),
+                                                                &sprite_frame.tex_info.coords,
+                                                                sprite_frame.tex_info.texture,
+                                                                tile_color * highlight_color);
             }
         }
     }    

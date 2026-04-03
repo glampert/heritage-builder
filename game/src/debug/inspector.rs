@@ -4,7 +4,8 @@ use strum::{VariantArray, VariantNames};
 
 use super::DebugUiMode;
 use crate::{
-    ui::{self, widgets::UiWidgetContext},
+    ui,
+    game::ui_context::GameUiContext,
     pathfind::NodeKind as PathNodeKind,
     game::{GameLoop, menu::TileInspector},
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind, TileDepthSortOverride},
@@ -62,13 +63,13 @@ pub struct TileInspectorDevMenu {
 }
 
 impl TileInspector for TileInspectorDevMenu {
-    fn open(&mut self, context: &mut UiWidgetContext) {
+    fn open(&mut self, context: &mut GameUiContext) {
         if let Some(selected_tile) = context.topmost_selected_tile() {
             self.open(selected_tile);
         }
     }
 
-    fn close(&mut self, _context: &mut UiWidgetContext) {
+    fn close(&mut self, _context: &mut GameUiContext) {
         self.close();
     }
 }
@@ -111,7 +112,7 @@ impl TileInspectorDevMenu {
         }
     }
 
-    pub fn draw(&mut self, context: &mut UiWidgetContext) {
+    pub fn draw(&mut self, context: &mut GameUiContext) {
         let (tile_screen_rect, window_label) = {
             let tile = match self.try_get_selected_tile() {
                 Some(tile) => tile,
@@ -206,7 +207,7 @@ impl TileInspectorDevMenu {
         format_fixed_string!(128, "Tile: {} @ {}", tile.name(), tile.base_cell())
     }
 
-    fn draw_tile_debug_ui(context: &mut UiWidgetContext, tile: &mut Tile) {
+    fn draw_tile_debug_ui(context: &mut GameUiContext, tile: &mut Tile) {
         Self::tile_properties_dropdown(context, tile);
         Self::tile_flags_dropdown(context, tile);
         Self::tile_variations_dropdown(context, tile);
@@ -215,7 +216,7 @@ impl TileInspectorDevMenu {
         Self::tile_def_editor_dropdown(context, tile);
     }
 
-    fn tile_properties_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
+    fn tile_properties_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
         let ui = context.ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
@@ -319,7 +320,7 @@ impl TileInspectorDevMenu {
         }
     }
 
-    fn tile_flags_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
+    fn tile_flags_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
         let ui = context.ui_sys.ui();
         if !ui.collapsing_header("Flags", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -348,7 +349,7 @@ impl TileInspectorDevMenu {
         tile_flag_ui_checkbox!(ui, tile, DrawBlockerInfo);
     }
 
-    fn tile_variations_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
+    fn tile_variations_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
         if !tile.has_variations() {
             return;
         }
@@ -367,7 +368,7 @@ impl TileInspectorDevMenu {
         ui.text(format!("Variation idx : {}, {}", tile.variation_index(), tile.variation_name()));
     }
 
-    fn tile_animations_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
+    fn tile_animations_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
         if !tile.has_animations() {
             return;
         }
@@ -422,7 +423,7 @@ impl TileInspectorDevMenu {
         debug_vars.draw_debug_ui(context.ui_sys);
     }
 
-    fn tile_debug_opts_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
+    fn tile_debug_opts_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
         let ui = context.ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Building/Debug
@@ -455,7 +456,7 @@ impl TileInspectorDevMenu {
     }
 
     // Edit the underlying TileDef, which will apply to *all* tiles sharing this TileDef.
-    fn tile_def_editor_dropdown(context: &mut UiWidgetContext, tile: &mut Tile) {
+    fn tile_def_editor_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
         if tile.is(TileKind::Blocker) {
             return;
         }

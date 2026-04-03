@@ -27,7 +27,7 @@ enum MainSettingsButtonKind {
 }
 
 impl ButtonDef for MainSettingsButtonKind {
-    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
+    fn on_pressed(self, context: &mut GameUiContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
             Self::Game     => super::open(DialogMenuKind::GameSettings, CLOSE_ALL_OTHERS, context),
@@ -50,7 +50,7 @@ pub struct MainSettings {
 implement_dialog_menu! { MainSettings, ["Settings"] }
 
 impl MainSettings {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let buttons = make_dialog_button_widgets::<MainSettingsButtonKind, MAIN_SETTINGS_BUTTON_COUNT>(context);
 
         Self {

@@ -36,7 +36,7 @@ enum MainGameButtonKind {
 }
 
 impl ButtonDef for MainGameButtonKind {
-    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
+    fn on_pressed(self, context: &mut GameUiContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
             Self::NewGame  => super::open(DialogMenuKind::NewGame,  CLOSE_ALL_OTHERS, context),
@@ -50,7 +50,7 @@ impl ButtonDef for MainGameButtonKind {
 }
 
 impl MainGameButtonKind {
-    fn on_quit(context: &mut UiWidgetContext) -> bool {
+    fn on_quit(context: &mut GameUiContext) -> bool {
         let main_menu = super::current_as::<MainGame>()
             .expect("Expected MainGame dialog to be open!");
 
@@ -69,7 +69,7 @@ pub struct MainGame {
 implement_dialog_menu! { MainGame, ["Game"] }
 
 impl MainGame {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let buttons = make_dialog_button_widgets::<MainGameButtonKind, MAIN_GAME_BUTTON_COUNT>(context);
 
         let mut menu = make_default_layout_dialog_menu(
@@ -85,7 +85,7 @@ impl MainGame {
         Self { menu }
     }
 
-    fn open_quit_game_message_box(&mut self, context: &mut UiWidgetContext) -> bool {
+    fn open_quit_game_message_box(&mut self, context: &mut GameUiContext) -> bool {
         debug_assert!(self.menu.is_open());
 
         if self.menu.is_message_box_open() {
@@ -94,7 +94,7 @@ impl MainGame {
 
         let menu_rc = self.menu.clone();
 
-        self.menu.open_message_box(context, |context: &mut UiWidgetContext| {
+        self.menu.open_message_box(context, |context: &mut dyn UiWidgetContext| {
             let menu_weak_ref = menu_rc.downgrade();
             UiMessageBoxParams {
                 label: Some("Quit Game Popup".into()),

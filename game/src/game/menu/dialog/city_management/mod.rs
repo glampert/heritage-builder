@@ -44,7 +44,7 @@ enum CityManagementButtonKind {
 }
 
 impl ButtonDef for CityManagementButtonKind {
-    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
+    fn on_pressed(self, context: &mut GameUiContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
             Self::Population => super::open(DialogMenuKind::PopulationManagement, CLOSE_ALL_OTHERS, context),
@@ -66,7 +66,7 @@ pub struct CityManagement {
 implement_dialog_menu! { CityManagement, ["City Management"] }
 
 impl CityManagement {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let buttons = make_dialog_button_widgets::<CityManagementButtonKind, CITY_MANAGEMENT_BUTTON_COUNT>(context);
 
         Self {

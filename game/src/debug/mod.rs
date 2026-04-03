@@ -8,9 +8,9 @@ use log_viewer::LogViewer;
 
 use crate::{
     engine::Engine,
-    ui::{self, UiTheme, widgets::UiWidgetContext},
+    ui::{self, UiTheme},
     save::{Load, PreLoadContext, PostLoadContext, Save},
-    game::{config::GameConfigs, GameLoop, menu::*},
+    game::{config::GameConfigs, GameLoop, menu::*, ui_context::GameUiContext},
     utils::{coords::{Cell, CellRange}, mem::{SingleThreadStatic, RcMut, WeakMut, singleton_late_init}},
     tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::{MinimapRenderer, DevUiMinimapRenderer}},
 };
@@ -40,7 +40,7 @@ pub enum DebugUiMode {
 pub struct DevEditorMenus;
 
 impl DevEditorMenus {
-    pub fn new(context: &mut UiWidgetContext, tile_map_rc: RcMut<TileMap>) -> Self {
+    pub fn new(context: &mut GameUiContext, tile_map_rc: RcMut<TileMap>) -> Self {
         context.ui_sys.set_ui_theme(UiTheme::Dev);
         init_dev_editor_menus_singleton_once(context);
         register_tile_map_debug_callbacks(tile_map_rc); // Register TileMap global callbacks & debug ref.
@@ -78,7 +78,7 @@ impl GameMenusSystem for DevEditorMenus {
         DevEditorMenusSingleton::get().debug_settings_menu.selected_render_flags()
     }
 
-    fn end_frame(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
+    fn end_frame(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         DevEditorMenusSingleton::get_mut().draw_debug_menus(context, visible_range);
     }
 }
@@ -136,7 +136,7 @@ struct DevEditorMenusSingleton {
 }
 
 impl DevEditorMenusSingleton {
-    fn new(context: &mut UiWidgetContext) -> Self {
+    fn new(context: &mut GameUiContext) -> Self {
         Self {
             tile_placement: TilePlacement::new(),
             debug_settings_menu: DebugSettingsDevMenu::new(),
@@ -152,7 +152,7 @@ impl DevEditorMenusSingleton {
         self.tile_inspector_menu.close();
     }
 
-    fn draw_debug_menus(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
+    fn draw_debug_menus(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
         let show_sample_menus = self.debug_settings_menu.show_sample_menus();
@@ -201,7 +201,7 @@ impl DevEditorMenusSingleton {
         if show_render_perf_stats {
             utils::draw_render_perf_stats(context.ui_sys,
                                           engine.render_stats(),
-                                          engine.tile_map_render_stats());
+                                          GameLoop::get().tile_map_render_stats());
         }
 
         if show_world_perf_stats {
@@ -224,7 +224,7 @@ impl DevEditorMenusSingleton {
 
 singleton_late_init! { DEV_EDITOR_MENUS_SINGLETON, DevEditorMenusSingleton }
 
-fn init_dev_editor_menus_singleton_once(context: &mut UiWidgetContext) {
+fn init_dev_editor_menus_singleton_once(context: &mut GameUiContext) {
     if DevEditorMenusSingleton::is_initialized() {
         return; // Already initialized.
     }

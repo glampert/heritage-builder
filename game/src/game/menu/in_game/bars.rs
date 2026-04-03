@@ -4,16 +4,19 @@ use num_enum::TryFromPrimitive;
 use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator, Display};
 
 use crate::{
-    ui::{widgets::*, sound::UiButtonSoundsEnabled},
+    ui::{self, widgets::*, sound::UiButtonSoundsEnabled},
     utils::{Vec2, mem::{RcMut, WeakMut, WeakRef}, time::Seconds},
     file_sys::paths::PathRef,
-    game::menu::{
-        ButtonDef,
-        dialog::{self, DialogMenuKind},
-        TOOLTIP_FONT_SCALE,
-        TOOLTIP_BACKGROUND_SPRITE,
-        SMALL_VERTICAL_SEPARATOR_SPRITE,
-    },
+    game::{
+        ui_context::GameUiContext,
+        menu::{
+            ButtonDef,
+            dialog::{self, DialogMenuKind},
+            TOOLTIP_FONT_SCALE,
+            TOOLTIP_BACKGROUND_SPRITE,
+            SMALL_VERTICAL_SEPARATOR_SPRITE,
+        },
+    }
 };
 
 // ----------------------------------------------
@@ -29,7 +32,7 @@ pub type InGameMenuBarsWeakMut = WeakMut<InGameMenuBars>;
 pub type InGameMenuBarsWeakRef = WeakRef<InGameMenuBars>;
 
 impl InGameMenuBars {
-    pub fn new(context: &mut UiWidgetContext) -> InGameMenuBarsRcMut {
+    pub fn new(context: &mut GameUiContext) -> InGameMenuBarsRcMut {
         let mut bars = ArrayVec::new();
 
         for bar_kind in MenuBarKind::iter() {
@@ -39,7 +42,7 @@ impl InGameMenuBars {
         InGameMenuBarsRcMut::new(Self { bars })
     }
 
-    pub fn draw(&mut self, context: &mut UiWidgetContext) {
+    pub fn draw(&mut self, context: &mut GameUiContext) {
         for bar in &mut self.bars {
             bar.draw(context);
         }
@@ -60,7 +63,7 @@ enum MenuBarKind {
 }
 
 impl MenuBarKind {
-    fn build_menu(self, context: &mut UiWidgetContext) -> RcMut<dyn MenuBar> {
+    fn build_menu(self, context: &mut GameUiContext) -> RcMut<dyn MenuBar> {
         let rc: Rc<dyn MenuBar> = {
             match self {
                 Self::Top => TopBar::new(context),
@@ -77,7 +80,7 @@ impl MenuBarKind {
 // ----------------------------------------------
 
 trait MenuBar {
-    fn draw(&mut self, context: &mut UiWidgetContext);
+    fn draw(&mut self, context: &mut GameUiContext);
 }
 
 // ----------------------------------------------
@@ -164,7 +167,7 @@ impl TopBarIcon {
         }
     }
 
-    fn max_label_size(context: &UiWidgetContext) -> Vec2 {
+    fn max_label_size(context: &GameUiContext) -> Vec2 {
         const PLACEHOLDER_LABEL: &str = "0000000"; // Estimate max 7 digits label.
         let mut size = context.calc_text_size(TOOLTIP_FONT_SCALE, PLACEHOLDER_LABEL);
         size.y += 5.0; // explicit vertical padding.
@@ -183,7 +186,7 @@ struct TopBarStats {
 }
 
 impl TopBarStats {
-    fn new(context: &UiWidgetContext) -> Self {
+    fn new(context: &GameUiContext) -> Self {
         Self {
             population: context.world.stats().population.total,
             gold: context.world.stats().treasury.gold_units_total,
@@ -202,7 +205,7 @@ struct TopBar {
 }
 
 impl MenuBar for TopBar {
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut GameUiContext) {
         let stats = TopBarStats::new(context);
 
         if self.current_stats != stats {
@@ -214,7 +217,7 @@ impl MenuBar for TopBar {
 }
 
 impl TopBar {
-    fn new(context: &mut UiWidgetContext) -> Rc<Self> {
+    fn new(context: &mut GameUiContext) -> Rc<Self> {
         let stats = TopBarStats::new(context);
 
         let mut group = UiWidgetGroup::new(
@@ -261,12 +264,13 @@ impl TopBar {
             group.add_widget(icon_sprite);
 
             if let Some(label_text) = icon.label_for_stats(&stats) {
+                let size = TopBarIcon::max_label_size(context);
                 let icon_label = UiSizedTextLabel::new(
                     context,
                     UiSizedTextLabelParams {
                         font_scale: TOOLTIP_FONT_SCALE,
                         label: label_text,
-                        size: TopBarIcon::max_label_size(context),
+                        size,
                     }
                 );
 
@@ -351,7 +355,7 @@ enum LeftBarButtonKind {
 }
 
 impl ButtonDef for LeftBarButtonKind {
-    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
+    fn on_pressed(self, context: &mut GameUiContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = true;
         match self {
             Self::MainMenu => dialog::open(DialogMenuKind::MainGame, CLOSE_ALL_OTHERS, context),
@@ -371,13 +375,13 @@ struct LeftBar {
 }
 
 impl MenuBar for LeftBar {
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut GameUiContext) {
         self.menu.draw(context);
     }
 }
 
 impl LeftBar {
-    fn new(context: &mut UiWidgetContext) -> Rc<Self> {
+    fn new(context: &mut GameUiContext) -> Rc<Self> {
         let mut menu = UiMenu::new(
             context,
             UiMenuParams {
@@ -394,7 +398,7 @@ impl LeftBar {
             let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(
                 move |button, context, _| {
                     if button.is_pressed() {
-                        button_kind.on_pressed(context);
+                        button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
 
                         // Pressed state doesn't persist.
                         button.press(false);
@@ -447,7 +451,7 @@ enum SpeedControlsButtonKind {
 }
 
 impl ButtonDef for SpeedControlsButtonKind {
-    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
+    fn on_pressed(self, context: &mut GameUiContext) -> bool {
         match self {
             SpeedControlsButtonKind::Play => {
                 context.sim.resume();
@@ -478,7 +482,7 @@ struct SpeedControlsBar {
 }
 
 impl MenuBar for SpeedControlsBar {
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut GameUiContext) {
         let sim_state = SimState::new(context);
 
         if self.current_sim_state != sim_state {
@@ -490,7 +494,7 @@ impl MenuBar for SpeedControlsBar {
 }
 
 impl SpeedControlsBar {
-    fn new(context: &mut UiWidgetContext) -> Rc<Self> {
+    fn new(context: &mut GameUiContext) -> Rc<Self> {
         let mut group = UiWidgetGroup::new(
             context,
             UiWidgetGroupParams {
@@ -505,7 +509,7 @@ impl SpeedControlsBar {
             let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(
                 move |button, context, _| {
                     if button.is_pressed() {
-                        button_kind.on_pressed(context);
+                        button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
 
                         // Pressed state doesn't persist.
                         button.press(false);
@@ -569,7 +573,7 @@ impl SpeedControlsBar {
         Rc::new(Self { current_sim_state: sim_state, menu })
     }
 
-    fn update_sim_state(&mut self, context: &UiWidgetContext, sim_state: SimState) {
+    fn update_sim_state(&mut self, context: &GameUiContext, sim_state: SimState) {
         self.current_sim_state = sim_state;
 
         let (_, group) = self.menu
@@ -598,7 +602,7 @@ enum SimState {
 }
 
 impl SimState {
-    fn new(context: &UiWidgetContext) -> Self {
+    fn new(context: &GameUiContext) -> Self {
         if context.sim.is_paused() {
             Self::Paused
         } else {
@@ -606,7 +610,7 @@ impl SimState {
         }
     }
 
-    fn label_and_size(&self, context: &UiWidgetContext) -> (String, Vec2) {
+    fn label_and_size(&self, context: &GameUiContext) -> (String, Vec2) {
         let label = self.to_string();
 
         let mut size = context.calc_text_size(TOOLTIP_FONT_SCALE, &label);

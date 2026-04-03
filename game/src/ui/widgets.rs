@@ -1,7 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::type_complexity)]
 
-use std::{any::Any, fmt::Display};
+use std::{any::Any, fmt::Display, cell::RefMut};
 use arrayvec::ArrayString;
 use enum_dispatch::enum_dispatch;
 use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
@@ -16,14 +16,11 @@ use super::{
 };
 
 use crate::{
-    engine::Engine,
-    camera::Camera,
     sound::SoundSystem,
     render::{RenderSystem, texture::TextureHandle},
-    game::{sim::{Simulation, SimContext}, world::World},
-    tile::{Tile, TileMap, selection::TileSelection},
     file_sys::paths::{PathRef, AssetPath},
     utils::{
+        hash::FNV1aHash,
         bitflags_with_display,
         time::{CountdownTimer, Seconds},
         fixed_string::format_fixed_string,
@@ -74,131 +71,82 @@ macro_rules! make_imgui_labeled_id {
 // UiWidgetContext
 // ----------------------------------------------
 
-pub struct UiWidgetContext<'game> {
-    // Game Session:
-    pub sim: &'game mut Simulation,
-    pub world: &'game mut World,
-    pub tile_map: &'game mut TileMap,
-    pub tile_selection: &'game mut TileSelection,
-    pub camera: &'game mut Camera,
+// Base UI widget context; implemented by the game layer with extended game context.
+pub trait UiWidgetContext<'game> {
+    fn runtime_type_id(&self) -> FNV1aHash;
 
-    // Engine:
-    pub ui_sys: &'game UiSystem,
-    pub render_sys: &'game mut RenderSystem,
-    pub sound_sys: &'game mut SoundSystem,
-    pub viewport_size: Size,
-    pub delta_time_secs: Seconds,
-    pub cursor_screen_pos: Vec2,
+    fn ui_sys(&self) -> &'game UiSystem;
+    fn render_sys(&mut self) -> RefMut<'_, &'game mut RenderSystem>;
+    fn sound_sys(&mut self) -> RefMut<'_, &'game mut SoundSystem>;
+    fn viewport_size(&self) -> Size;
+    fn delta_time_secs(&self) -> Seconds;
+    fn cursor_screen_pos(&self) -> Vec2;
 
-    // Internal:
-    in_window_count: u32,
-    side_by_side_layout_count: u32, // Nonzero if we're inside a horizontal layout (side-by-side) group.
+    fn begin_widget_window(&mut self);
+    fn end_widget_window(&mut self);
+    fn is_inside_widget_window(&self) -> bool;
+
+    fn begin_side_by_side_layout(&mut self);
+    fn end_side_by_side_layout(&mut self);
+    fn is_side_by_side_layout(&self) -> bool;
+
+    fn pause_simulation(&mut self);
+    fn resume_simulation(&mut self);
+
+    #[inline]
+    fn set_window_font_scale(&self, font_scale: UiFontScale) {
+        debug_assert!(self.is_inside_widget_window());
+        self.ui_sys().set_window_font_scale(font_scale);
+    }
+
+    #[inline]
+    fn calc_text_size(&self, font_scale: UiFontScale, text: &str) -> Vec2 {
+        internal::calc_text_size(self.ui_sys(), font_scale, text).0
+    }
+
+    #[inline]
+    fn calc_text_and_font_size(&self, font_scale: UiFontScale, text: &str) -> (Vec2, f32) {
+        internal::calc_text_size(self.ui_sys(), font_scale, text)
+    }
+
+    #[inline]
+    fn load_texture(&mut self, path: PathRef) -> TextureHandle {
+        let file_path = super::assets_path().join(path);
+        self.render_sys()
+            .texture_cache_mut()
+            .load_texture_with_settings((&file_path).into(), Some(super::texture_settings()))
+    }
+
+    #[inline]
+    fn load_ui_texture(&mut self, path: PathRef) -> UiTextureHandle {
+        let tex_handle = self.load_texture(path);
+        self.ui_sys().to_ui_texture(tex_handle)
+    }
 }
 
-impl<'game> UiWidgetContext<'game> {
-    #[inline]
-    pub fn new(sim: &'game mut Simulation,
-               world: &'game mut World,
-               tile_map: &'game mut TileMap,
-               tile_selection: &'game mut TileSelection,
-               camera: &'game mut Camera,
-               engine: &'game mut Engine) -> Self
-    {
-        let viewport_size = engine.viewport().integer_size();
-        let delta_time_secs = engine.frame_clock().delta_time();
-        let cursor_screen_pos = engine.input_system().cursor_pos();
-        let systems = engine.systems_mut_refs();
+// ----------------------------------------------
+// Checked UiWidgetContext up-casting
+// ----------------------------------------------
 
-        Self {
-            sim,
-            world,
-            tile_map,
-            tile_selection,
-            camera,
-            ui_sys: systems.ui_sys,
-            render_sys: systems.render_sys,
-            sound_sys: systems.sound_sys,
-            viewport_size,
-            delta_time_secs,
-            cursor_screen_pos,
-            in_window_count: 0,
-            side_by_side_layout_count: 0,
-        }
-    }
+pub trait UiWidgetContextStaticTypeId {
+    const STATIC_TYPE_ID: FNV1aHash;
+}
 
-    #[inline]
-    fn begin_widget_window(&mut self) {
-        self.in_window_count += 1;
-    }
+#[inline]
+pub fn context_as<'game, T>(context: &dyn UiWidgetContext<'game>) -> &'game T
+    where T: UiWidgetContext<'game> + UiWidgetContextStaticTypeId
+{
+    // SAFETY: Assert guarantees T is the concrete type we are casting to.
+    debug_assert_eq!(context.runtime_type_id(), T::STATIC_TYPE_ID, "Casting UiWidgetContext to incorrect type!");
+    unsafe { &*(context as *const dyn UiWidgetContext as *const T) }
+}
 
-    #[inline]
-    fn end_widget_window(&mut self) {
-        debug_assert!(!self.side_by_side_layout());
-        debug_assert!(self.is_inside_widget_window());
-        self.in_window_count -= 1;
-
-        // Restore default font scale when ending a window.
-        self.ui_sys.set_window_font_scale(UiFontScale::default());
-    }
-
-    #[inline]
-    fn is_inside_widget_window(&self) -> bool {
-        self.in_window_count != 0
-    }
-
-    #[inline]
-    pub fn begin_side_by_side_layout(&mut self) {
-        self.side_by_side_layout_count += 1;
-    }
-
-    #[inline]
-    pub fn end_side_by_side_layout(&mut self) {
-        debug_assert!(self.side_by_side_layout());
-        self.side_by_side_layout_count -= 1;
-    }
-
-    #[inline]
-    pub fn side_by_side_layout(&self) -> bool {
-        self.side_by_side_layout_count != 0
-    }
-
-    #[inline]
-    pub fn set_window_font_scale(&self, font_scale: UiFontScale) {
-        debug_assert!(self.is_inside_widget_window());
-        self.ui_sys.set_window_font_scale(font_scale);
-    }
-
-    #[inline]
-    pub fn calc_text_size(&self, font_scale: UiFontScale, text: &str) -> Vec2 {
-        internal::calc_text_size(self, font_scale, text).0
-    }
-
-    #[inline]
-    pub fn load_texture(&mut self, path: PathRef) -> TextureHandle {
-        let file_path = super::assets_path().join(path);
-        self.render_sys.texture_cache_mut().load_texture_with_settings(
-            (&file_path).into(),
-            Some(super::texture_settings()))
-    }
-
-    #[inline]
-    pub fn load_ui_texture(&mut self, path: PathRef) -> UiTextureHandle {
-        let tex_handle = self.load_texture(path);
-        self.ui_sys.to_ui_texture(tex_handle)
-    }
-
-    #[inline]
-    pub fn new_sim_context(&self) -> SimContext {
-        mem::mut_ref_cast(self.sim).new_sim_context(
-            mem::mut_ref_cast(self.world),
-            mem::mut_ref_cast(self.tile_map),
-            self.delta_time_secs)
-    }
-
-    #[inline]
-    pub fn topmost_selected_tile(&self) -> Option<&Tile> {
-        self.tile_map.topmost_selected_tile(self.tile_selection)
-    }
+#[inline]
+pub fn context_as_mut<'game, T>(context: &mut dyn UiWidgetContext<'game>) -> &'game mut T
+    where T: UiWidgetContext<'game> + UiWidgetContextStaticTypeId
+{
+    debug_assert_eq!(context.runtime_type_id(), T::STATIC_TYPE_ID, "Casting UiWidgetContext to incorrect type!");
+    unsafe { &mut *(context as *mut dyn UiWidgetContext as *mut T) }
 }
 
 // ----------------------------------------------
@@ -272,22 +220,22 @@ pub enum UiWidgetCallback<Widget, Access, Output = ()>
     None,
 
     // With plain function pointer, no capture, no memory allocation.
-    Fn(for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext) -> Output),
+    Fn(for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
-    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext) -> Output + 'static>),
+    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output + 'static>),
 }
 
 impl<Widget, Access, Output> UiWidgetCallback<Widget, Access, Output>
     where Widget: UiWidget,
           Access: UiWidgetCallbackRef<Widget>,
 {
-    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext) -> Output) -> Self {
+    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output) -> Self {
         Self::Fn(f)
     }
 
     pub fn with_closure<C>(c: C) -> Self
-        where C: for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext) -> Output + 'static
+        where C: for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output + 'static
     {
         Self::Closure(Box::new(c))
     }
@@ -297,7 +245,7 @@ impl<Widget, Access, Output> UiWidgetCallback<Widget, Access, Output>
     }
 
     #[inline]
-    fn invoke(&self, widget: &Widget, context: &mut UiWidgetContext) -> Option<Output> {
+    fn invoke(&self, widget: &Widget, context: &mut dyn UiWidgetContext) -> Option<Output> {
         match self {
             Self::Fn(f) => {
                 Some(f(Access::from_ref(widget), context))
@@ -324,10 +272,10 @@ pub enum UiWidgetCallbackWithArg<Widget, Access, Arg, Output = ()>
     None,
 
     // With plain function pointer, no capture, no memory allocation.
-    Fn(for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext, Arg::Arg<'a>) -> Output),
+    Fn(for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
-    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext, Arg::Arg<'a>) -> Output + 'static>),
+    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output + 'static>),
 }
 
 impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, Output>
@@ -335,12 +283,12 @@ impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, O
           Access: UiWidgetCallbackRef<Widget>,
           Arg: UiCallbackArg,
 {
-    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut UiWidgetContext, Arg::Arg<'a>) -> Output) -> Self {
+    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output) -> Self {
         Self::Fn(f)
     }
 
     pub fn with_closure<C>(c: C) -> Self
-        where C: for<'a> Fn(Access::Ref<'a>, &mut UiWidgetContext, Arg::Arg<'a>) -> Output + 'static
+        where C: for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output + 'static
     {
         Self::Closure(Box::new(c))
     }
@@ -350,7 +298,7 @@ impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, O
     }
 
     #[inline]
-    fn invoke<'a>(&self, widget: &'a Widget, context: &mut UiWidgetContext, arg: Arg::Arg<'a>) -> Option<Output> {
+    fn invoke<'a>(&self, widget: &'a Widget, context: &mut dyn UiWidgetContext, arg: Arg::Arg<'a>) -> Option<Output> {
         match self {
             Self::Fn(f) => {
                 Some(f(Access::from_ref(widget), context, arg))
@@ -374,8 +322,8 @@ pub trait UiWidget: Any {
         mem::mut_ref_cast(self.as_any())
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext);
-    fn measure(&self, context: &UiWidgetContext) -> Vec2;
+    fn draw(&mut self, context: &mut dyn UiWidgetContext);
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2;
 
     fn label(&self) -> &str {
         ""
@@ -496,7 +444,7 @@ impl UiWidget for UiMenu {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         self.draw_custom(
             context,
             self.flags,
@@ -506,8 +454,8 @@ impl UiWidget for UiMenu {
         );
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys.current_ui_style();
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        let style = context.ui_sys().current_ui_style();
         let mut size = Vec2::zero();
 
         for widget in &self.widgets {
@@ -532,7 +480,7 @@ impl UiWidget for UiMenu {
 }
 
 impl UiMenu {
-    pub fn new(context: &mut UiWidgetContext, params: UiMenuParams) -> UiMenuRcMut {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiMenuParams) -> UiMenuRcMut {
         UiMenuRcMut::new(
             Self {
                 label: params.label.unwrap_or_default(),
@@ -543,7 +491,7 @@ impl UiMenu {
                 background: params.background.map(|path| context.load_ui_texture(path)),
                 widgets: Vec::new(),
                 widget_spacing: params.widget_spacing.unwrap_or_else(|| {
-                    let style = context.ui_sys.current_ui_style();
+                    let style = context.ui_sys().current_ui_style();
                     Vec2::from_array(style.item_spacing)
                 }),
                 message_box: UiMessageBox::default(),
@@ -587,7 +535,7 @@ impl UiMenu {
         self.has_flags(UiMenuFlags::IsOpen)
     }
 
-    pub fn open(&mut self, context: &mut UiWidgetContext) {
+    pub fn open(&mut self, context: &mut dyn UiWidgetContext) {
         if self.is_open() {
             return;
         }
@@ -595,14 +543,14 @@ impl UiMenu {
         self.flags.insert(UiMenuFlags::IsOpen);
 
         if self.has_flags(UiMenuFlags::PauseSimIfOpen) {
-            context.sim.pause();
+            context.pause_simulation();
         }
 
         const IS_OPEN: bool = true;
         self.on_open_close.invoke(self, context, IS_OPEN);
     }
 
-    pub fn close(&mut self, context: &mut UiWidgetContext) {
+    pub fn close(&mut self, context: &mut dyn UiWidgetContext) {
         if !self.is_open() {
             return;
         }
@@ -610,7 +558,7 @@ impl UiMenu {
         self.flags.remove(UiMenuFlags::IsOpen);
 
         if self.has_flags(UiMenuFlags::PauseSimIfOpen) {
-            context.sim.resume();
+            context.resume_simulation();
         }
 
         const IS_OPEN: bool = false;
@@ -702,13 +650,13 @@ impl UiMenu {
         self.message_box.is_open()
     }
 
-    pub fn open_message_box<'a, F>(&mut self, context: &mut UiWidgetContext, params_fn: F)
-        where F: FnMut(&mut UiWidgetContext) -> UiMessageBoxParams<'a>
+    pub fn open_message_box<'a, F>(&mut self, context: &mut dyn UiWidgetContext, params_fn: F)
+        where F: FnMut(&mut dyn UiWidgetContext) -> UiMessageBoxParams<'a>
     {
         self.message_box.open(context, params_fn);
     }
 
-    pub fn close_message_box(&mut self, context: &mut UiWidgetContext) {
+    pub fn close_message_box(&mut self, context: &mut dyn UiWidgetContext) {
         self.message_box.close(context);
     }
 
@@ -725,9 +673,9 @@ impl UiMenu {
     // Custom Menu Drawing:
     // ----------------------
 
-    pub fn draw_menu_contents(&mut self, context: &mut UiWidgetContext) {
+    pub fn draw_menu_contents(&mut self, context: &mut dyn UiWidgetContext) {
         // Set default widget spacing.
-        let _spacing = context.ui_sys.ui()
+        let _spacing = context.ui_sys().ui()
             .push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
 
         for widget in &mut self.widgets {
@@ -737,14 +685,14 @@ impl UiMenu {
 
     pub fn draw_custom<OnClose, OnGetMsgBox, OnDrawContents>(
                        &mut self,
-                       context: &mut UiWidgetContext,
+                       context: &mut dyn UiWidgetContext,
                        flags: UiMenuFlags,
                        on_close: OnClose,
                        on_get_msg_box: OnGetMsgBox,
                        on_draw_contents: OnDrawContents)
-        where OnClose: FnOnce(&mut Self, &mut UiWidgetContext),
+        where OnClose: FnOnce(&mut Self, &mut dyn UiWidgetContext),
               OnGetMsgBox: FnOnce(&mut Self) -> RawPtr<UiMessageBox>,
-              OnDrawContents: FnOnce(&mut Self, &mut UiWidgetContext)
+              OnDrawContents: FnOnce(&mut Self, &mut dyn UiWidgetContext)
     {
         let mut is_open = flags.intersects(UiMenuFlags::IsOpen);
         if !is_open {
@@ -759,7 +707,7 @@ impl UiMenu {
             return;
         }
 
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         let (window_size, window_size_cond) = self.calc_window_size(ui);
         let (window_pos, window_pivot) = self.calc_window_pos(context, ui);
@@ -839,7 +787,7 @@ impl UiMenu {
         }
     }
 
-    fn calc_window_pos(&self, context: &mut UiWidgetContext, ui: &imgui::Ui) -> (Vec2, Vec2) {
+    fn calc_window_pos(&self, context: &mut dyn UiWidgetContext, ui: &imgui::Ui) -> (Vec2, Vec2) {
         let display_size = Vec2::from_array(ui.io().display_size);
 
         let mut position = Vec2::zero();
@@ -971,9 +919,9 @@ impl UiWidget for UiMenuHeading {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         if self.margin_top > 0.0 {
             ui.dummy([0.0, self.margin_top]);
@@ -1010,7 +958,7 @@ impl UiWidget for UiMenuHeading {
         }
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         let mut size = Vec2::zero();
         let mut non_empty_lines_count = 0;
 
@@ -1019,7 +967,7 @@ impl UiWidget for UiMenuHeading {
                 continue;
             }
 
-            let (line_size, _) = internal::calc_text_size(context, line.font_scale, &line.string);
+            let line_size = context.calc_text_size(line.font_scale, &line.string);
             size.x = size.x.max(line_size.x); // Max width.
             size.y += line_size.y; // Total height.
 
@@ -1027,7 +975,7 @@ impl UiWidget for UiMenuHeading {
         }
 
         if non_empty_lines_count > 0 { // Add inter-line spacing.
-            let style = context.ui_sys.current_ui_style();
+            let style = context.ui_sys().current_ui_style();
             size.y += style.item_spacing[1] * (non_empty_lines_count - 1) as f32;
         }
 
@@ -1040,7 +988,7 @@ impl UiWidget for UiMenuHeading {
 }
 
 impl UiMenuHeading {
-    pub fn new(context: &mut UiWidgetContext, params: UiMenuHeadingParams) -> Self {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiMenuHeadingParams) -> Self {
         debug_assert!(!params.lines.is_empty());
         debug_assert!(params.margin_top >= 0.0);
         debug_assert!(params.margin_bottom >= 0.0);
@@ -1120,11 +1068,11 @@ impl UiWidget for UiSizedTextLabel {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         // Make button backgrounds and frames transparent/invisible.
         let transparent = [0.0, 0.0, 0.0, 0.0];
@@ -1138,15 +1086,15 @@ impl UiWidget for UiSizedTextLabel {
         ui.button_with_size(&self.label, self.size.to_array());
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         if self.size != Vec2::zero() {
             return self.size;
         }
 
         // Setting size as [0.0, 0.0] will size the button to the label's width in the current style.
-        let (text_size, font_size) = internal::calc_text_size(context, self.font_scale, &self.label);
+        let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, &self.label);
 
-        let style = context.ui_sys.current_ui_style();
+        let style = context.ui_sys().current_ui_style();
         let width  = text_size.x + (style.frame_padding[0] * 2.0);
         let height = text_size.y.max(font_size) + (style.frame_padding[1] * 2.0);
 
@@ -1163,7 +1111,7 @@ impl UiWidget for UiSizedTextLabel {
 }
 
 impl UiSizedTextLabel {
-    pub fn new(_context: &mut UiWidgetContext, params: UiSizedTextLabelParams) -> Self {                
+    pub fn new(_context: &mut dyn UiWidgetContext, params: UiSizedTextLabelParams) -> Self {                
         debug_assert!(params.font_scale.is_valid());
         debug_assert!(!params.label.is_empty());
 
@@ -1235,10 +1183,10 @@ impl UiWidget for UiWidgetGroup {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         let _spacing =
             ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
@@ -1252,7 +1200,7 @@ impl UiWidget for UiWidgetGroup {
             (self.margin_left, self.margin_right));
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         let mut size = Vec2::zero();
 
         for widget in &self.widgets {
@@ -1268,7 +1216,7 @@ impl UiWidget for UiWidgetGroup {
         }
 
         if !self.widgets.is_empty() { // Add inter-widget spacing
-            let style = context.ui_sys.current_ui_style();
+            let style = context.ui_sys().current_ui_style();
 
             if self.stack_vertically {
                 size.y += style.item_spacing[1] * (self.widgets.len() - 1) as f32; // v-spacing
@@ -1286,7 +1234,7 @@ impl UiWidget for UiWidgetGroup {
 }
 
 impl UiWidgetGroup {
-    pub fn new(_context: &mut UiWidgetContext, params: UiWidgetGroupParams) -> Self {
+    pub fn new(_context: &mut dyn UiWidgetContext, params: UiWidgetGroupParams) -> Self {
         debug_assert!(params.widget_spacing.x >= 0.0 && params.widget_spacing.y >= 0.0);
         debug_assert!(params.margin_left >= 0.0 && params.margin_right >= 0.0);
 
@@ -1429,10 +1377,10 @@ impl UiWidget for UiLabeledWidgetGroup {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         let _spacing =
             ui.push_style_var(imgui::StyleVar::ItemSpacing([self.label_spacing, self.widget_spacing]));
@@ -1445,13 +1393,13 @@ impl UiWidget for UiLabeledWidgetGroup {
             (self.margin_left, self.margin_right));
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys.current_ui_style();
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        let style = context.ui_sys().current_ui_style();
         let mut size = Vec2::zero();
 
         for (label, widget) in &self.labels_and_widgets {
             let widget_size = widget.measure(context);
-            let (label_size, _) = internal::calc_text_size(context, widget.font_scale(), label);
+            let label_size  = context.calc_text_size(widget.font_scale(), label);
 
             size.x = size.x.max(label_size.x + style.item_spacing[0] + widget_size.x); // Max width (label + widget).
             size.y += label_size.y.max(widget_size.y); // Total height (largest of the two).
@@ -1470,7 +1418,7 @@ impl UiWidget for UiLabeledWidgetGroup {
 }
 
 impl UiLabeledWidgetGroup {
-    pub fn new(_context: &mut UiWidgetContext, params: UiLabeledWidgetGroupParams) -> Self {
+    pub fn new(_context: &mut dyn UiWidgetContext, params: UiLabeledWidgetGroupParams) -> Self {
         debug_assert!(params.label_spacing  >= 0.0);
         debug_assert!(params.widget_spacing >= 0.0);
         debug_assert!(params.margin_left >= 0.0 && params.margin_right >= 0.0);
@@ -1647,11 +1595,11 @@ impl UiWidget for UiTextButton {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         let label = make_imgui_labeled_id!(self, UiTextButton, self.label);
 
@@ -1717,7 +1665,7 @@ impl UiWidget for UiTextButton {
             if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered)
                 && !self.hovered && !pressed && self.is_enabled()
             {
-                sound::play(context.sound_sys, UiSoundKey::ButtonHovered);
+                sound::play(*context.sound_sys(), UiSoundKey::ButtonHovered);
             }
 
             if let Some(tooltip) = &self.tooltip {
@@ -1729,18 +1677,18 @@ impl UiWidget for UiTextButton {
         // Invoke on pressed callback.
         if pressed && self.is_enabled() {
             if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
-                sound::play(context.sound_sys, UiSoundKey::ButtonPressed);
+                sound::play(*context.sound_sys(), UiSoundKey::ButtonPressed);
             }
 
             self.on_pressed.invoke(self, context);
         }
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys.current_ui_style();
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        let style = context.ui_sys().current_ui_style();
 
         // Compute scaled font size (window-independent).
-        let (text_size, font_size) = internal::calc_text_size(context, self.font_scale, &self.label);
+        let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, &self.label);
 
         let width  = text_size.x + (style.frame_padding[0] * 2.0);
         let height = text_size.y.max(font_size) + (style.frame_padding[1] * 2.0);
@@ -1758,7 +1706,7 @@ impl UiWidget for UiTextButton {
 }
 
 impl UiTextButton {
-    pub fn new(context: &mut UiWidgetContext, params: UiTextButtonParams) -> Self {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiTextButtonParams) -> Self {
         debug_assert!(!params.label.is_empty());
 
         Self {
@@ -1831,11 +1779,11 @@ impl UiWidget for UiSpriteButton {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
         debug_assert!(self.textures.are_textures_loaded());
 
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
         let texture = self.textures.texture_for_state(self.visual_state);
 
         let flags = imgui::ButtonFlags::MOUSE_BUTTON_LEFT | imgui::ButtonFlags::MOUSE_BUTTON_RIGHT;
@@ -1857,7 +1805,8 @@ impl UiWidget for UiSpriteButton {
         self.position = Some(Vec2::from_array(rect_min));
 
         // NOTE: Only left click counts as "pressed".
-        self.update_state(context, hovered, left_click, right_click, context.delta_time_secs);
+        let delta_time_secs = context.delta_time_secs();
+        self.update_state(context, hovered, left_click, right_click, delta_time_secs);
 
         if let Some(tooltip) = &self.tooltip {
             let show_tooltip = hovered && (!self.is_pressed() || self.show_tooltip_when_pressed);
@@ -1867,7 +1816,7 @@ impl UiWidget for UiSpriteButton {
         }
     }
 
-    fn measure(&self, _context: &UiWidgetContext) -> Vec2 {
+    fn measure(&self, _context: &dyn UiWidgetContext) -> Vec2 {
         self.size
     }
 
@@ -1877,7 +1826,7 @@ impl UiWidget for UiSpriteButton {
 }
 
 impl UiSpriteButton {
-    pub fn new(context: &mut UiWidgetContext, params: UiSpriteButtonParams) -> Self {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiSpriteButtonParams) -> Self {
         debug_assert!(!params.label.is_empty());
         debug_assert!(params.size.x > 0.0 && params.size.y > 0.0);
         debug_assert!(params.state_transition_secs >= 0.0);
@@ -1947,7 +1896,7 @@ impl UiSpriteButton {
     // Internal:
     // ----------------------
 
-    fn play_sound(&mut self, context: &mut UiWidgetContext, sound_key: UiSoundKey, new_state: UiSpriteButtonState) {
+    fn play_sound(&mut self, context: &mut dyn UiWidgetContext, sound_key: UiSoundKey, new_state: UiSpriteButtonState) {
         // Play state transition sound if moving to a different state.
         if self.logical_state != new_state {
             let mut play = false;
@@ -1965,13 +1914,13 @@ impl UiSpriteButton {
             }
 
             if play {
-                sound::play(context.sound_sys, sound_key);
+                sound::play(*context.sound_sys(), sound_key);
             }
         }
     }
 
     fn update_state(&mut self,
-                    context: &mut UiWidgetContext,
+                    context: &mut dyn UiWidgetContext,
                     hovered: bool,
                     left_click: bool,
                     right_click: bool,
@@ -2035,13 +1984,13 @@ impl UiSpriteButtonTextures {
         Self { textures: [INVALID_UI_TEXTURE_HANDLE; UI_SPRITE_BUTTON_STATE_COUNT] }
     }
 
-    fn load(sprite_path: PathRef, context: &mut UiWidgetContext) -> Self {
+    fn load(sprite_path: PathRef, context: &mut dyn UiWidgetContext) -> Self {
         let mut sprites = Self::unloaded();
         sprites.load_textures(sprite_path, context);
         sprites
     }
 
-    fn load_textures(&mut self, sprite_path: PathRef, context: &mut UiWidgetContext) {
+    fn load_textures(&mut self, sprite_path: PathRef, context: &mut dyn UiWidgetContext) {
         for state in UiSpriteButtonState::iter() {
             self.textures[state as usize] = state.load_texture(sprite_path, context);
         }
@@ -2089,7 +2038,7 @@ impl UiSpriteButtonState {
         AssetPath::from_str("buttons").join(sprite_name)
     }
 
-    fn load_texture(self, sprite_path: PathRef, context: &mut UiWidgetContext) -> UiTextureHandle {
+    fn load_texture(self, sprite_path: PathRef, context: &mut dyn UiWidgetContext) -> UiTextureHandle {
         let asset_path = self.asset_path(sprite_path);
         context.load_ui_texture((&asset_path).into())
     }
@@ -2118,7 +2067,7 @@ pub struct UiTooltipText {
 }
 
 impl UiTooltipText {
-    pub fn new(context: &mut UiWidgetContext, params: UiTooltipTextParams) -> Self {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiTooltipTextParams) -> Self {
         debug_assert!(!params.text.is_empty());
         debug_assert!(params.font_scale.is_valid());
 
@@ -2129,11 +2078,11 @@ impl UiTooltipText {
         }
     }
 
-    fn draw(&self, context: &mut UiWidgetContext) {
+    fn draw(&self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        super::custom_tooltip(context.ui_sys, self.font_scale, self.background, || {
-            context.ui_sys.ui().text(&self.text);
+        super::custom_tooltip(context.ui_sys(), self.font_scale, self.background, || {
+            context.ui_sys().ui().text(&self.text);
         });
     }
 }
@@ -2167,12 +2116,12 @@ impl UiWidget for UiSeparator {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
         let size = self.size.unwrap_or_else(
-            || internal::calc_separator_size(context, !self.vertical, self.thickness));
+            || internal::calc_separator_size(context.ui_sys(), !self.vertical, self.thickness));
 
         // Invisible dummy item.
         ui.dummy(size.to_array());
@@ -2192,14 +2141,14 @@ impl UiWidget for UiSeparator {
         }
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         self.size.unwrap_or_else(
-                || internal::calc_separator_size(context, !self.vertical, self.thickness))
+                || internal::calc_separator_size(context.ui_sys(), !self.vertical, self.thickness))
     }
 }
 
 impl UiSeparator {
-    pub fn new(context: &mut UiWidgetContext, params: UiSeparatorParams) -> Self {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiSeparatorParams) -> Self {
         Self {
             separator: params.separator.map(|path| context.load_ui_texture(path)),
             size: params.size,
@@ -2248,10 +2197,10 @@ impl UiWidget for UiSpriteIcon {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
         let label = make_imgui_id!(self, UiSpriteIcon, String::new());
 
         if self.margin_top != 0.0 { // NOTE: May be negative.
@@ -2326,13 +2275,13 @@ impl UiWidget for UiSpriteIcon {
         }
     }
 
-    fn measure(&self, _context: &UiWidgetContext) -> Vec2 {
+    fn measure(&self, _context: &dyn UiWidgetContext) -> Vec2 {
         self.size
     }
 }
 
 impl UiSpriteIcon {
-    pub fn new(context: &mut UiWidgetContext, params: UiSpriteIconParams) -> Self {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiSpriteIconParams) -> Self {
         debug_assert!(params.size.x > 0.0 && params.size.y > 0.0);
         debug_assert!(params.margin_bottom >= 0.0);
 
@@ -2396,11 +2345,11 @@ impl UiWidget for UiSlider {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         let label = make_imgui_id!(self, UiSlider, self.label);
 
@@ -2451,8 +2400,8 @@ impl UiWidget for UiSlider {
         }
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context, self.font_scale, &self.label)
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, &self.label)
     }
 
     fn label(&self) -> &str {
@@ -2465,7 +2414,7 @@ impl UiWidget for UiSlider {
 }
 
 impl UiSlider {
-    pub fn new<T>(_context: &mut UiWidgetContext, params: UiSliderParams<T>) -> Self
+    pub fn new<T>(_context: &mut dyn UiWidgetContext, params: UiSliderParams<T>) -> Self
         where UiSliderParams<T>: IntoUiSliderValue
     {
         debug_assert!(params.font_scale.is_valid());
@@ -2577,11 +2526,11 @@ impl UiWidget for UiCheckbox {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         let label = make_imgui_id!(self, UiCheckbox, self.label);
 
@@ -2595,14 +2544,14 @@ impl UiWidget for UiCheckbox {
         }
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys.current_ui_style();
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        let style = context.ui_sys().current_ui_style();
 
-        let checkbox_square = internal::calc_text_line_height(context, self.font_scale) + (style.frame_padding[1] * 2.0);
+        let checkbox_square = internal::calc_text_line_height(context.ui_sys(), self.font_scale) + (style.frame_padding[1] * 2.0);
         let mut width = checkbox_square;
 
         if !self.label.is_empty() {
-            let (label_size, _) = internal::calc_text_size(context, self.font_scale, &self.label);
+            let label_size = context.calc_text_size(self.font_scale, &self.label);
             width += style.item_inner_spacing[0] + label_size.x;
         }
 
@@ -2619,7 +2568,7 @@ impl UiWidget for UiCheckbox {
 }
 
 impl UiCheckbox {
-    pub fn new(_context: &mut UiWidgetContext, params: UiCheckboxParams) -> Self {
+    pub fn new(_context: &mut dyn UiWidgetContext, params: UiCheckboxParams) -> Self {
         debug_assert!(params.font_scale.is_valid());
 
         Self {
@@ -2670,11 +2619,11 @@ impl UiWidget for UiIntInput {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         let label = make_imgui_id!(self, UiIntInput, self.label);
 
@@ -2691,8 +2640,8 @@ impl UiWidget for UiIntInput {
         }
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context, self.font_scale, &self.label)
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, &self.label)
     }
 
     fn label(&self) -> &str {
@@ -2705,7 +2654,7 @@ impl UiWidget for UiIntInput {
 }
 
 impl UiIntInput {
-    pub fn new(_context: &mut UiWidgetContext, params: UiIntInputParams) -> Self {
+    pub fn new(_context: &mut dyn UiWidgetContext, params: UiIntInputParams) -> Self {
         debug_assert!(params.font_scale.is_valid());
 
         Self {
@@ -2754,11 +2703,11 @@ impl UiWidget for UiTextInput {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         let label = make_imgui_id!(self, UiTextInput, self.label);
 
@@ -2777,8 +2726,8 @@ impl UiWidget for UiTextInput {
         }
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context, self.font_scale, &self.label)
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, &self.label)
     }
 
     fn label(&self) -> &str {
@@ -2791,7 +2740,7 @@ impl UiWidget for UiTextInput {
 }
 
 impl UiTextInput {
-    pub fn new(_context: &mut UiWidgetContext, params: UiTextInputParams) -> Self {
+    pub fn new(_context: &mut dyn UiWidgetContext, params: UiTextInputParams) -> Self {
         debug_assert!(params.font_scale.is_valid());
 
         Self {
@@ -2841,16 +2790,16 @@ impl UiWidget for UiDropdown {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
-        let bg_color = if context.ui_sys.current_ui_theme().is_in_game() {
+        let bg_color = if context.ui_sys().current_ui_theme().is_in_game() {
             [0.90, 0.80, 0.60, 1.0]
         } else {
-            context.ui_sys.current_ui_style().colors[imgui::StyleColor::PopupBg as usize]
+            context.ui_sys().current_ui_style().colors[imgui::StyleColor::PopupBg as usize]
         };
 
         let _combo_bg_color = ui.push_style_color(imgui::StyleColor::PopupBg, bg_color);
@@ -2869,8 +2818,8 @@ impl UiWidget for UiDropdown {
         }
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context, self.font_scale, &self.label)
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, &self.label)
     }
 
     fn label(&self) -> &str {
@@ -2883,11 +2832,11 @@ impl UiWidget for UiDropdown {
 }
 
 impl UiDropdown {
-    pub fn new(context: &mut UiWidgetContext, params: UiDropdownParams<String>) -> Self {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiDropdownParams<String>) -> Self {
         Self::with_strings(context, params)
     }
 
-    pub fn with_strings(_context: &mut UiWidgetContext, params: UiDropdownParams<String>) -> Self {
+    pub fn with_strings(_context: &mut dyn UiWidgetContext, params: UiDropdownParams<String>) -> Self {
         debug_assert!(params.font_scale.is_valid());
         debug_assert!(!params.items.is_empty());
         debug_assert!(params.current_item < params.items.len());
@@ -2904,7 +2853,7 @@ impl UiDropdown {
     }
 
     // From array of values implementing Display.
-    pub fn with_values<T>(context: &mut UiWidgetContext, params: UiDropdownParams<T>) -> Self
+    pub fn with_values<T>(context: &mut dyn UiWidgetContext, params: UiDropdownParams<T>) -> Self
         where T: Display
     {
         let item_strings: Vec<String> = params.items
@@ -3012,11 +2961,11 @@ impl UiWidget for UiItemList {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys.ui();
+        let ui = context.ui_sys().ui();
 
         let window_name = make_imgui_id!(self, UiItemList, self.label);
 
@@ -3027,7 +2976,7 @@ impl UiWidget for UiItemList {
         let mut window_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             // NOTE: Decrement window padding from margin, so it is accurate.
-            let style = context.ui_sys.current_ui_style();
+            let style = context.ui_sys().current_ui_style();
             window_size.x -= self.margin_right - style.window_padding[0];
         }
 
@@ -3099,19 +3048,19 @@ impl UiWidget for UiItemList {
             });
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys.current_ui_style();
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        let style = context.ui_sys().current_ui_style();
 
         let mut requested_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        let size = internal::calc_child_window_size(context, requested_size);
+        let size = internal::calc_child_window_size(context.ui_sys(), requested_size);
 
         let input_field_height = {
             if self.text_input_field_buffer.is_some() {
-                internal::calc_text_line_height(context, self.font_scale) + (style.frame_padding[1] * 2.0)
+                internal::calc_text_line_height(context.ui_sys(), self.font_scale) + (style.frame_padding[1] * 2.0)
             } else {
                 0.0
             }
@@ -3130,11 +3079,11 @@ impl UiWidget for UiItemList {
 }
 
 impl UiItemList {
-    pub fn new(context: &mut UiWidgetContext, params: UiItemListParams<String>) -> Self {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiItemListParams<String>) -> Self {
         Self::with_strings(context, params)
     }
 
-    pub fn with_strings(_context: &mut UiWidgetContext, params: UiItemListParams<String>) -> Self {
+    pub fn with_strings(_context: &mut dyn UiWidgetContext, params: UiItemListParams<String>) -> Self {
         debug_assert!(params.font_scale.is_valid());
         debug_assert!(params.margin_left >= 0.0);
         debug_assert!(params.margin_right >= 0.0);
@@ -3167,7 +3116,7 @@ impl UiItemList {
     }
 
     // From array of values implementing Display.
-    pub fn with_values<T>(context: &mut UiWidgetContext, params: UiItemListParams<T>) -> Self
+    pub fn with_values<T>(context: &mut dyn UiWidgetContext, params: UiItemListParams<T>) -> Self
         where T: Display
     {
         let item_strings: Vec<String> = params.items
@@ -3267,7 +3216,7 @@ impl UiWidget for UiMessageBox {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         if let Some(menu) = &self.menu && menu.is_open() {
             // NOTE: Increment the ref count here.
             // draw() may trigger a UiMessageBox::reset, which could drop `self.menu`.
@@ -3276,7 +3225,7 @@ impl UiWidget for UiMessageBox {
         }
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         self.menu.as_ref().map_or(Vec2::zero(), |menu| menu.measure(context))
     }
 
@@ -3302,8 +3251,8 @@ impl UiMessageBox {
 
     // Message box menu is lazily created on first call to open.
     // Subsequent calls will reuse the same menu until reset.
-    pub fn open<'a, F>(&mut self, context: &mut UiWidgetContext, mut params_fn: F)
-        where F: FnMut(&mut UiWidgetContext) -> UiMessageBoxParams<'a>
+    pub fn open<'a, F>(&mut self, context: &mut dyn UiWidgetContext, mut params_fn: F)
+        where F: FnMut(&mut dyn UiWidgetContext) -> UiMessageBoxParams<'a>
     {
         if let Some(menu) = &mut self.menu {
             // Reuse existing message box.
@@ -3354,7 +3303,7 @@ impl UiMessageBox {
         self.menu = Some(menu);
     }
 
-    pub fn close(&mut self, context: &mut UiWidgetContext) {
+    pub fn close(&mut self, context: &mut dyn UiWidgetContext) {
         if let Some(menu) = &mut self.menu {
             menu.close(context);
         }
@@ -3431,25 +3380,25 @@ impl UiWidget for UiSlideshow {
         self
     }
 
-    fn draw(&mut self, context: &mut UiWidgetContext) {
-        self.update_anim(context.delta_time_secs);
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
+        self.update_anim(context.delta_time_secs());
         self.draw_current_frame(context);
     }
 
-    fn measure(&self, context: &UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys.current_ui_style();
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        let style = context.ui_sys().current_ui_style();
 
         let mut requested_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             requested_size.x -= self.margin_right - style.window_padding[0];
         }
 
-        internal::calc_child_window_size(context, requested_size)
+        internal::calc_child_window_size(context.ui_sys(), requested_size)
     }
 }
 
 impl UiSlideshow {
-    pub fn new(context: &mut UiWidgetContext, params: UiSlideshowParams) -> Self {
+    pub fn new(context: &mut dyn UiWidgetContext, params: UiSlideshowParams) -> Self {
         debug_assert!(!params.frames.is_empty());
         debug_assert!(params.margin_left  >= 0.0);
         debug_assert!(params.margin_right >= 0.0);
@@ -3531,7 +3480,7 @@ impl UiSlideshow {
         }
     }
 
-    fn draw_current_frame(&mut self, context: &mut UiWidgetContext) {
+    fn draw_current_frame(&mut self, context: &mut dyn UiWidgetContext) {
         let current_frame = self.frames[self.frame_index];
 
         if context.is_inside_widget_window() && !self.has_flags(UiSlideshowFlags::Fullscreen) {
@@ -3541,7 +3490,7 @@ impl UiSlideshow {
         } else {
             // Draw full-screen rectangle with the anim frame texture.
             // Background draw list ensures it renders behind any other UI elements.
-            let ui = context.ui_sys.ui();
+            let ui = context.ui_sys().ui();
             let draw_list = ui.get_background_draw_list();
             draw_list.add_image(current_frame,
                                 [0.0, 0.0],
@@ -3550,8 +3499,8 @@ impl UiSlideshow {
         }
     }
 
-    fn draw_inside_child_window(&mut self, context: &mut UiWidgetContext, current_frame: UiTextureHandle) {
-        let ui = context.ui_sys.ui();
+    fn draw_inside_child_window(&mut self, context: &mut dyn UiWidgetContext, current_frame: UiTextureHandle) {
+        let ui = context.ui_sys().ui();
         let window_name = make_imgui_id!(self, UiSlideshow, String::new());
 
         // child_window size:
@@ -3561,7 +3510,7 @@ impl UiSlideshow {
         let mut window_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             // NOTE: Decrement window padding from margin, so it is accurate.
-            let style = context.ui_sys.current_ui_style();
+            let style = context.ui_sys().current_ui_style();
             window_size.x -= self.margin_right - style.window_padding[0];
         }
 

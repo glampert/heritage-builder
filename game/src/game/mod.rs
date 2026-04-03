@@ -20,8 +20,8 @@ use crate::{
         input::{InputAction, InputKey, InputModifiers, MouseButton},
     },
     tile::{
-        rendering::TileMapRenderFlags,
         sets::{TileDef, TileSets},
+        rendering::{TileMapRenderFlags, TileMapRenderStats},
     },
     utils::{
         Size, Vec2,
@@ -32,6 +32,7 @@ use crate::{
 };
 
 pub mod undo_redo;
+pub mod ui_context;
 pub mod building;
 pub mod menu;
 pub mod prop;
@@ -247,6 +248,21 @@ impl GameLoop {
     #[inline]
     pub fn stats(&self) -> &GameLoopStats {
         &self.stats
+    }
+
+    #[inline]
+    pub fn tile_map_render_stats(&self) -> &TileMapRenderStats {
+        self.session.tile_map_render_stats()
+    }
+
+    #[inline]
+    pub fn set_grid_line_thickness(&mut self, thickness: f32) {
+        self.session.set_grid_line_thickness(thickness);
+    }
+
+    #[inline]
+    pub fn grid_line_thickness(&self) -> f32 {
+        self.session.grid_line_thickness()
     }
 
     // ----------------------

@@ -41,7 +41,7 @@ pub struct FinancesManagement {
 implement_dialog_menu! { FinancesManagement, ["Finances"] }
 
 impl FinancesManagement {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         // Tax stats placeholder text.
         const TAX_STATS_TEXT: [UiText; TaxStatsIdx::COUNT] = [
             PLACEHOLDER_HEADING,
@@ -103,7 +103,7 @@ impl FinancesManagement {
                 hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
                 sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_fn(|_, context| {
-                    super::close_current(context);
+                    super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
                 }),
                 ..Default::default()
             }
@@ -114,7 +114,7 @@ impl FinancesManagement {
             |_, context, is_open| {
                 if is_open {
                     let this_dialog = super::find::<FinancesManagement>();
-                    this_dialog.update_stats(context);
+                    this_dialog.update_stats(ui::widgets::context_as_mut::<GameUiContext>(context));
                 }
             }
         ));
@@ -129,7 +129,7 @@ impl FinancesManagement {
         }
     }
 
-    fn update_stats(&mut self, context: &UiWidgetContext) {
+    fn update_stats(&mut self, context: &GameUiContext) {
         const FMT_LEN: usize = 128;
 
         let global_treasury = context.sim.treasury();

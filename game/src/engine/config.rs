@@ -5,7 +5,6 @@ use crate::{
     log,
     save::{self, *},
     ui::UiSystem,
-    tile::rendering,
     utils::{Color, Size},
     sound::SoundGlobalSettings,
     render::{RenderApi, texture::TextureSettings},
@@ -154,7 +153,7 @@ impl Default for EngineConfigs {
             // Window:
             window_title: "Heritage Builder".into(),
             window_size: Size::new(1024, 768),
-            window_background_color: rendering::MAP_BACKGROUND_COLOR,
+            window_background_color: Color::black(),
             window_mode: ApplicationWindowMode::Windowed,
             resizable_window: false,
             confine_cursor_to_window: true,
@@ -170,7 +169,7 @@ impl Default for EngineConfigs {
             sound_settings: SoundGlobalSettings::default(),
 
             // Debug Grid:
-            grid_color: rendering::DEFAULT_GRID_COLOR,
+            grid_color: Color::white(),
             grid_line_thickness: 1.0,
 
             // Debug Log:

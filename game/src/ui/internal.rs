@@ -89,7 +89,7 @@ pub fn draw_widget_window_background(ui: &imgui::Ui, background: UiTextureHandle
         .build();
 }
 
-pub fn draw_centered_text_group(context: &mut UiWidgetContext,
+pub fn draw_centered_text_group(context: &mut dyn UiWidgetContext,
                                 lines: &[UiText],
                                 vertical: bool,
                                 horizontal: bool) -> Rect {
@@ -100,7 +100,7 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
     let mut total_height = 0.0;
     for line in lines {
         if !line.string.is_empty() {
-            total_height += calc_text_line_height_with_spacing(context, line.font_scale);
+            total_height += calc_text_line_height_with_spacing(context.ui_sys(), line.font_scale);
         }
     }
 
@@ -112,7 +112,7 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
     // Measure text sizes:
     let text_sizes: SmallVec<[Vec2; 16]> = lines
         .iter()
-        .map(|text| calc_text_size(context, text.font_scale, &text.string).0)
+        .map(|text| context.calc_text_size(text.font_scale, &text.string))
         .collect();
 
     let max_width = text_sizes
@@ -120,13 +120,13 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
         .map(|size| size.x)
         .fold(0.0, f32::max);
 
-    let ui = context.ui_sys.ui();
+    let ui = context.ui_sys().ui();
 
     let region_avail = ui.content_region_avail();
     let cursor_start = ui.cursor_pos();
 
     // Compute group origin (top-left):
-    let start_x = if horizontal && !context.side_by_side_layout() {
+    let start_x = if horizontal && !context.is_side_by_side_layout() {
         cursor_start[0] + ((region_avail[0] - max_width) * 0.5)
     } else {
         cursor_start[0]
@@ -156,7 +156,7 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
             ui.text(&line.string);
         }
 
-        offset_y += calc_text_line_height_with_spacing(context, line.font_scale);
+        offset_y += calc_text_line_height_with_spacing(context.ui_sys(), line.font_scale);
     }
 
     // Restore cursor so layout continues correctly.
@@ -166,7 +166,7 @@ pub fn draw_centered_text_group(context: &mut UiWidgetContext,
     Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(max_width, total_height))
 }
 
-pub fn draw_centered_widget_group(context: &mut UiWidgetContext,
+pub fn draw_centered_widget_group(context: &mut dyn UiWidgetContext,
                                   widgets: &mut [UiWidgetImpl],
                                   vertical: bool,
                                   horizontal: bool,
@@ -202,7 +202,7 @@ pub fn draw_centered_widget_group(context: &mut UiWidgetContext,
         total_size += *widget_size;
     }
 
-    let ui = context.ui_sys.ui();
+    let ui = context.ui_sys().ui();
 
     let region_avail = Vec2::from_array(ui.content_region_avail());
     let cursor_start = Vec2::from_array(ui.cursor_pos()) + Vec2::new(margin_left, 0.0);
@@ -260,7 +260,7 @@ pub fn draw_centered_widget_group(context: &mut UiWidgetContext,
     Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(total_width, total_height))
 }
 
-pub fn draw_centered_labeled_widget_group(context: &mut UiWidgetContext,
+pub fn draw_centered_labeled_widget_group(context: &mut dyn UiWidgetContext,
                                           labels_and_widgets: &mut [(String, UiWidgetImpl)],
                                           vertical: bool,
                                           horizontal: bool,
@@ -280,7 +280,7 @@ pub fn draw_centered_labeled_widget_group(context: &mut UiWidgetContext,
         .iter()
         .map(|(label, widget)| {
             let widget_size = widget.measure(context);
-            let (label_size, _) = calc_text_size(context, widget.font_scale(), label);
+            let label_size = context.calc_text_size(widget.font_scale(), label);
 
             longest_label = longest_label.max(label_size.x);
 
@@ -298,7 +298,7 @@ pub fn draw_centered_labeled_widget_group(context: &mut UiWidgetContext,
         total_height += widget_size.y;
     }
 
-    let ui = context.ui_sys.ui();
+    let ui = context.ui_sys().ui();
 
     let region_avail = Vec2::from_array(ui.content_region_avail());
     let cursor_start = Vec2::from_array(ui.cursor_pos()) + Vec2::new(margin_left, 0.0);
@@ -350,14 +350,14 @@ pub fn draw_centered_labeled_widget_group(context: &mut UiWidgetContext,
 }
 
 // Works for most labeled widgets (input text, combo, slider).
-pub fn calc_labeled_widget_size(context: &UiWidgetContext, font_scale: UiFontScale, label: &str) -> Vec2 {
+pub fn calc_labeled_widget_size(ui_sys: &UiSystem, font_scale: UiFontScale, label: &str) -> Vec2 {
     let style = current_ui_style();
 
-    let height = calc_text_line_height(context, font_scale) + (style.frame_padding[1] * 2.0);
-    let mut width = context.ui_sys.ui().calc_item_width();
+    let height = calc_text_line_height(ui_sys, font_scale) + (style.frame_padding[1] * 2.0);
+    let mut width = ui_sys.ui().calc_item_width();
 
     if !label.is_empty() {
-        let (label_size, _) = calc_text_size(context, font_scale, label);
+        let (label_size, _) = calc_text_size(ui_sys, font_scale, label);
         width += style.item_inner_spacing[0] + label_size.x;
     }
 
@@ -369,8 +369,8 @@ pub fn calc_labeled_widget_size(context: &UiWidgetContext, font_scale: UiFontSca
 //   > 0.0 -> fixed size
 //   = 0.0 -> use remaining host window size
 //   < 0.0 -> use remaining host window size minus abs(size)
-pub fn calc_child_window_size(context: &UiWidgetContext, requested: Vec2) -> Vec2 {
-    let region_avail = Vec2::from_array(context.ui_sys.ui().content_region_avail());
+pub fn calc_child_window_size(ui_sys: &UiSystem, requested: Vec2) -> Vec2 {
+    let region_avail = Vec2::from_array(ui_sys.ui().content_region_avail());
     let mut size = Vec2::zero();
 
     if requested.x > 0.0 {
@@ -396,8 +396,8 @@ pub fn calc_child_window_size(context: &UiWidgetContext, requested: Vec2) -> Vec
 //  - `horizontal = true`  -> horizontal separator (`ui.separator()`)
 //  - `horizontal = false` -> vertical separator (tables / columns)
 //  - `thickness` -> ImGui default is 1.0
-pub fn calc_separator_size(context: &UiWidgetContext, horizontal: bool, thickness: f32) -> Vec2 {
-    let region_avail = Vec2::from_array(context.ui_sys.ui().content_region_avail());
+pub fn calc_separator_size(ui_sys: &UiSystem, horizontal: bool, thickness: f32) -> Vec2 {
+    let region_avail = Vec2::from_array(ui_sys.ui().content_region_avail());
     let style = current_ui_style();
 
     if horizontal {
@@ -411,21 +411,21 @@ pub fn calc_separator_size(context: &UiWidgetContext, horizontal: bool, thicknes
     }
 }
 
-pub fn calc_text_line_height(context: &UiWidgetContext, font_scale: UiFontScale) -> f32 {
-    let font = context.ui_sys.current_ui_font();
+pub fn calc_text_line_height(ui_sys: &UiSystem, font_scale: UiFontScale) -> f32 {
+    let font = ui_sys.current_ui_font();
     font.font_size * font_scale.0
 }
 
-pub fn calc_text_line_height_with_spacing(context: &UiWidgetContext, font_scale: UiFontScale) -> f32 {
-    let font = context.ui_sys.current_ui_font();
+pub fn calc_text_line_height_with_spacing(ui_sys: &UiSystem, font_scale: UiFontScale) -> f32 {
+    let font = ui_sys.current_ui_font();
     let style = current_ui_style();
     (font.font_size * font_scale.0) + style.item_spacing[1]
 }
 
 // Ui/window independent font size calculation, using current font.
 // Returns text size and scaled current font size.
-pub fn calc_text_size(context: &UiWidgetContext, font_scale: UiFontScale, text: &str) -> (Vec2, f32) {
-    let font = context.ui_sys.current_ui_font();
+pub fn calc_text_size(ui_sys: &UiSystem, font_scale: UiFontScale, text: &str) -> (Vec2, f32) {
+    let font = ui_sys.current_ui_font();
     let font_size = font.font_size * font_scale.0;
 
     if text.is_empty() {

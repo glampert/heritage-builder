@@ -1,11 +1,12 @@
 use crate::{
     tile::{Tile, TileKind},
-    ui::{self, text::UiTextCategory, widgets::{UiWidgetContext, UiWidget, UiMenu}},
+    ui::{self, text::UiTextCategory, widgets::{UiWidget, UiMenu}},
     utils::{mem::{RcMut, WeakMut, WeakRef}, fixed_string::snake_case_to_title},
     game::{
         building::{Building, BuildingKind, BuildingArchetypeKind},
         sim::resources::{ResourceKind, StockItem},
         menu::TileInspector,
+        ui_context::GameUiContext,
     },
 };
 
@@ -30,7 +31,7 @@ pub type TileInspectorMenuWeakMut = WeakMut<TileInspectorMenu>;
 pub type TileInspectorMenuWeakRef = WeakRef<TileInspectorMenu>;
 
 impl TileInspector for TileInspectorMenu {
-    fn open(&mut self, context: &mut UiWidgetContext) {
+    fn open(&mut self, context: &mut GameUiContext) {
         debug_assert!(self.current_inspector_kind.is_none());
 
         self.current_inspector_kind = {
@@ -59,7 +60,7 @@ impl TileInspector for TileInspectorMenu {
         }
     }
 
-    fn close(&mut self, context: &mut UiWidgetContext) {
+    fn close(&mut self, context: &mut GameUiContext) {
         if let Some(inspector) = self.current_inspector() {
             inspector.close(context);
             self.current_inspector_kind = None;
@@ -68,7 +69,7 @@ impl TileInspector for TileInspectorMenu {
 }
 
 impl TileInspectorMenu {
-    pub fn new(context: &mut UiWidgetContext) -> TileInspectorMenuRcMut {
+    pub fn new(context: &mut GameUiContext) -> TileInspectorMenuRcMut {
         TileInspectorMenuRcMut::new_cyclic(|tile_inspector_menu_weak_ref| {
             Self {
                 current_inspector_kind: None,
@@ -80,7 +81,7 @@ impl TileInspectorMenu {
         })
     }
 
-    pub fn draw(&mut self, context: &mut UiWidgetContext) {
+    pub fn draw(&mut self, context: &mut GameUiContext) {
         if let Some(inspector) = self.current_inspector() {
             let is_open = inspector.draw(context);
 
@@ -119,10 +120,10 @@ enum GameObjectInspectorKind {
 }
 
 trait GameObjectInspector {
-    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile);
+    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile);
     fn menu(&mut self) -> &mut UiMenu;
 
-    fn open(&mut self, context: &mut UiWidgetContext) {
+    fn open(&mut self, context: &mut GameUiContext) {
         let selected_tile = match context.topmost_selected_tile() {
             Some(tile) => tile,
             None => return,
@@ -132,12 +133,12 @@ trait GameObjectInspector {
         self.menu().open(context);
     }
 
-    fn close(&mut self, context: &mut UiWidgetContext) {
+    fn close(&mut self, context: &mut GameUiContext) {
         self.menu().close(context);
     }
 
     // Returns true if menu still open.
-    fn draw(&mut self, context: &mut UiWidgetContext) -> bool {
+    fn draw(&mut self, context: &mut GameUiContext) -> bool {
         let menu = self.menu();
         menu.draw(context);
         menu.is_open()
@@ -167,7 +168,7 @@ struct UnitInspector {
 }
 
 impl GameObjectInspector for UnitInspector {
-    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile) {
         if let Some(unit) = context.world.find_unit_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(unit.name());
@@ -182,7 +183,7 @@ impl GameObjectInspector for UnitInspector {
 }
 
 impl UnitInspector {
-    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
+    fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
         Self {
             renderer: InspectorMenuRenderer::new(
                 context,
@@ -210,7 +211,7 @@ struct BuildingInspector {
 }
 
 impl GameObjectInspector for BuildingInspector {
-    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile) {
         if let Some(building) = context.world.find_building_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(building.name());
@@ -225,7 +226,7 @@ impl GameObjectInspector for BuildingInspector {
 }
 
 impl BuildingInspector {
-    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
+    fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
         Self {
             renderer: InspectorMenuRenderer::new(
                 context,
@@ -272,7 +273,7 @@ impl BuildingInspector {
         self.renderer.set_headings(&headings);
     }
 
-    fn set_stats_info(&mut self, context: &UiWidgetContext, building: &Building) {
+    fn set_stats_info(&mut self, context: &GameUiContext, building: &Building) {
         let body = {
             if building.is(BuildingKind::House) {
                 Self::gather_house_stats(context, building)
@@ -283,7 +284,7 @@ impl BuildingInspector {
         self.renderer.set_body(&body);
     }
 
-    fn gather_house_stats(context: &UiWidgetContext, building: &Building) -> InspectorMenuBody {
+    fn gather_house_stats(context: &GameUiContext, building: &Building) -> InspectorMenuBody {
         let mut body = InspectorMenuBody::new();
 
         let house = building.as_house();
@@ -329,7 +330,7 @@ impl BuildingInspector {
         body
     }
 
-    fn gather_building_stats(context: &UiWidgetContext, building: &Building) -> InspectorMenuBody {
+    fn gather_building_stats(context: &GameUiContext, building: &Building) -> InspectorMenuBody {
         let mut body = InspectorMenuBody::new();
 
         let is_operational = building.is_operational();
@@ -414,7 +415,7 @@ struct PropInspector {
 }
 
 impl GameObjectInspector for PropInspector {
-    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile) {
         if let Some(prop) = context.world.find_prop_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(prop.name());
@@ -429,7 +430,7 @@ impl GameObjectInspector for PropInspector {
 }
 
 impl PropInspector {
-    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
+    fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
         Self {
             renderer: InspectorMenuRenderer::new(
                 context,
@@ -457,7 +458,7 @@ struct TerrainInspector {
 }
 
 impl GameObjectInspector for TerrainInspector {
-    fn update_selection(&mut self, context: &UiWidgetContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile) {
         self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
         self.renderer.set_title(&snake_case_to_title::<128>(selected_tile.name()));
         self.renderer.set_body_text(find_tile_description(selected_tile));
@@ -469,7 +470,7 @@ impl GameObjectInspector for TerrainInspector {
 }
 
 impl TerrainInspector {
-    fn new(context: &mut UiWidgetContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
+    fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
         Self {
             renderer: InspectorMenuRenderer::new(
                 context,

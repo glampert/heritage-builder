@@ -30,7 +30,7 @@ static SAMPLE_MENU_1_STATE: UiStaticVar<SampleMenu1State> = UiStaticVar::new(Sam
 
 static SAMPLE_MENU_1_INSTANCE: UiStaticVar<Option<UiMenuRcMut>> = UiStaticVar::new(None);
 
-fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
+fn create_sample_menu_1_once(context: &mut dyn UiWidgetContext) {
     if SAMPLE_MENU_1_INSTANCE.is_some() {
         return; // Already created.
     }
@@ -300,7 +300,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
                     log::info!("Pressed Button: {}", button.label());
 
                     if let Some(mut menu_rc) = menu_weak_ref_open_popup_btn.upgrade() {
-                        menu_rc.open_message_box(context, |context: &mut UiWidgetContext| {
+                        menu_rc.open_message_box(context, |context: &mut dyn UiWidgetContext| {
                             let menu_weak_ref_ok_btn = menu_weak_ref_open_popup_btn.clone();
                             let menu_weak_ref_cancel_btn = menu_weak_ref_open_popup_btn.clone();
 
@@ -407,7 +407,7 @@ fn create_sample_menu_1_once(context: &mut UiWidgetContext) {
     log::info!("Sample Menu 1 created.");
 }
 
-fn draw_sample_menu_1(context: &mut UiWidgetContext) {
+fn draw_sample_menu_1(context: &mut dyn UiWidgetContext) {
     if let Some(menu) = SAMPLE_MENU_1_INSTANCE.as_mut() {
         menu.draw(context);
     }
@@ -419,7 +419,7 @@ fn draw_sample_menu_1(context: &mut UiWidgetContext) {
 
 static SAMPLE_MENU_2_INSTANCE: UiStaticVar<Option<UiMenuRcMut>> = UiStaticVar::new(None);
 
-fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
+fn create_sample_menu_2_once(context: &mut dyn UiWidgetContext) {
     if SAMPLE_MENU_2_INSTANCE.is_some() {
         return; // Already created.
     }
@@ -579,7 +579,7 @@ fn create_sample_menu_2_once(context: &mut UiWidgetContext) {
     log::info!("Sample Menu 2 created.");
 }
 
-fn draw_sample_menu_2(context: &mut UiWidgetContext) {
+fn draw_sample_menu_2(context: &mut dyn UiWidgetContext) {
     if let Some(menu) = SAMPLE_MENU_2_INSTANCE.as_mut() {
         menu.draw(context);
     }
@@ -589,9 +589,9 @@ fn draw_sample_menu_2(context: &mut UiWidgetContext) {
 // draw_sample_menus():
 // ----------------------------------------------
 
-pub fn draw_sample_menus(context: &mut UiWidgetContext) {
-    let prev_theme = context.ui_sys.current_ui_theme();
-    context.ui_sys.set_ui_theme(UiTheme::InGame);
+pub fn draw_sample_menus(context: &mut dyn UiWidgetContext) {
+    let prev_theme = context.ui_sys().current_ui_theme();
+    context.ui_sys().set_ui_theme(UiTheme::InGame);
 
     create_sample_menu_1_once(context);
     create_sample_menu_2_once(context);
@@ -599,5 +599,5 @@ pub fn draw_sample_menus(context: &mut UiWidgetContext) {
     draw_sample_menu_1(context);
     draw_sample_menu_2(context);
 
-    context.ui_sys.set_ui_theme(prev_theme);
+    context.ui_sys().set_ui_theme(prev_theme);
 }

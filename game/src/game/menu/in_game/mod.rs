@@ -18,7 +18,8 @@ use crate::{
     save::{Save, Load, PreLoadContext},
     app::input::{InputAction, InputKey},
     tile::minimap::{MinimapRenderer, InGameUiMinimapRenderer},
-    ui::{UiInputEvent, UiTheme, widgets::{UiWidgetContext, UiMenuFlags}},
+    ui::{UiInputEvent, UiTheme, widgets::UiMenuFlags},
+    game::ui_context::GameUiContext,
 };
 
 mod bars;
@@ -38,7 +39,7 @@ pub struct InGameMenus {
 }
 
 impl InGameMenus {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         context.ui_sys.set_ui_theme(UiTheme::InGame);
 
         dialog::initialize(context);
@@ -76,7 +77,7 @@ impl GameMenusSystem for InGameMenus {
         Some(self.tile_inspector.as_mut())
     }
 
-    fn handle_custom_input(&mut self, context: &mut UiWidgetContext, args: GameMenusInputArgs) -> UiInputEvent {
+    fn handle_custom_input(&mut self, context: &mut GameUiContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
             // [ESCAPE]: Close all dialog menus and return to game.
             if key == InputKey::Escape && action == InputAction::Press {
@@ -89,7 +90,7 @@ impl GameMenusSystem for InGameMenus {
         UiInputEvent::NotHandled // Let the event propagate.
     }
 
-    fn end_frame(&mut self, context: &mut UiWidgetContext, _visible_range: CellRange) {
+    fn end_frame(&mut self, context: &mut GameUiContext, _visible_range: CellRange) {
         self.minimap_renderer.draw(context);
         self.tile_palette.draw(context);
         self.menu_bars.draw(context);

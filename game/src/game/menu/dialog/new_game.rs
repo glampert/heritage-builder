@@ -32,7 +32,7 @@ pub struct NewGame {
 implement_dialog_menu! { NewGame, ["New Game"] }
 
 impl NewGame {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         // -------------
         // Widgets:
         // -------------
@@ -148,7 +148,7 @@ impl NewGame {
                 sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_fn(
                     |_button, context| {
-                        super::close_current(context);
+                        super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
                     }
                 ),
                 ..Default::default()

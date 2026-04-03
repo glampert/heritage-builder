@@ -28,14 +28,12 @@ use crate::{
 // ----------------------------------------------
 
 pub const HIGHLIGHT_TILE_COLOR: Color = Color::new(0.76, 0.96, 0.39, 1.0); // light green
-pub const INVALID_TILE_COLOR: Color   = Color::new(0.95, 0.60, 0.60, 1.0); // light red
+pub const INVALID_TILE_COLOR:   Color = Color::new(0.95, 0.60, 0.60, 1.0); // light red
+pub const SELECTION_RECT_COLOR: Color = Color::new(0.7, 0.2, 0.2, 1.0);    // red-ish
 
-pub const SELECTION_RECT_COLOR: Color = Color::new(0.7, 0.2, 0.2, 1.0); // red-ish
-pub const MAP_BACKGROUND_COLOR: Color = Color::black();
-
-pub const DEFAULT_GRID_COLOR: Color   = Color::white();
+pub const DEFAULT_GRID_COLOR:   Color = Color::white();
 pub const HIGHLIGHT_GRID_COLOR: Color = Color::green();
-pub const INVALID_GRID_COLOR: Color   = Color::red();
+pub const INVALID_GRID_COLOR:   Color = Color::red();
 
 pub const MIN_GRID_LINE_THICKNESS: f32 = 0.5;
 pub const MAX_GRID_LINE_THICKNESS: f32 = 20.0;
@@ -91,6 +89,7 @@ pub struct TileMapRenderStats {
     pub tiles_drawn_highlighted: u32,
     pub tiles_drawn_invalidated: u32,
     pub tile_sort_list_len: u32,
+
     // Peaks for the whole run:
     pub peak_tiles_drawn: u32,
     pub peak_tiles_drawn_highlighted: u32,
@@ -107,6 +106,12 @@ pub struct TileMapRenderer {
     grid_line_thickness: f32,
     stats: TileMapRenderStats,
     temp_tile_sort_list: Vec<TileDrawListEntry>, // For z-sorting.
+}
+
+impl Default for TileMapRenderer {
+    fn default() -> Self {
+        Self::new(DEFAULT_GRID_COLOR, 1.0)
+    }
 }
 
 impl TileMapRenderer {
@@ -136,6 +141,10 @@ impl TileMapRenderer {
         self.grid_line_thickness
     }
 
+    pub fn stats(&self) -> &TileMapRenderStats {
+        &self.stats
+    }
+
     pub fn draw_map(&mut self,
                     render_sys: &mut RenderSystem,
                     debug_draw: &mut DebugDraw,
@@ -144,7 +153,7 @@ impl TileMapRenderer {
                     transform: WorldToScreenTransform,
                     visible_range: CellRange,
                     flags: TileMapRenderFlags)
-                    -> TileMapRenderStats {
+    {
         self.reset_stats();
 
         self.draw_terrain_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
@@ -165,7 +174,7 @@ impl TileMapRenderer {
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         }
 
-        self.update_stats()
+        self.update_stats();
     }
 
     fn draw_terrain_layer(&mut self,
@@ -471,12 +480,11 @@ impl TileMapRenderer {
     }
 
     #[inline]
-    fn update_stats(&mut self) -> TileMapRenderStats {
+    fn update_stats(&mut self) {
         self.stats.peak_tiles_drawn             = self.stats.tiles_drawn.max(self.stats.peak_tiles_drawn);
         self.stats.peak_tiles_drawn_highlighted = self.stats.tiles_drawn_highlighted.max(self.stats.peak_tiles_drawn_highlighted);
         self.stats.peak_tiles_drawn_invalidated = self.stats.tiles_drawn_invalidated.max(self.stats.peak_tiles_drawn_invalidated);
         self.stats.peak_tile_sort_list_len      = self.stats.tile_sort_list_len.max(self.stats.peak_tile_sort_list_len);
-        self.stats
     }
 }
 

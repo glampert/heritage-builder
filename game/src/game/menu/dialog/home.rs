@@ -36,7 +36,7 @@ enum HomeButtonKind {
 }
 
 impl ButtonDef for HomeButtonKind {
-    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
+    fn on_pressed(self, context: &mut GameUiContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
             Self::NewGame    => super::open(DialogMenuKind::NewGame, CLOSE_ALL_OTHERS, context),
@@ -68,7 +68,7 @@ pub struct Home {
 implement_dialog_menu! { Home, ["Heritage Builder", "The Dragon Legacy"] }
 
 impl Home {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let buttons = make_dialog_button_widgets::<HomeButtonKind, HOME_BUTTON_COUNT>(context);
 
         Self {

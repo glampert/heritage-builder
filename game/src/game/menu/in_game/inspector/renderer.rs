@@ -3,11 +3,11 @@ use strum::EnumCount;
 
 use super::{TileInspector, TileInspectorMenuWeakMut};
 use crate::{
-    tile::{TileKind, sets::TileIconSprite},
-    game::menu::TEXT_BUTTON_HOVERED_SPRITE,
-    utils::{Vec2, fixed_string::format_fixed_string},
     file_sys::paths::PathRef,
-    ui::{UiFontScale, sound::UiButtonSoundsEnabled, widgets::*},
+    utils::{Vec2, fixed_string::format_fixed_string},
+    tile::{TileKind, sets::TileIconSprite},
+    game::{ui_context::GameUiContext, menu::TEXT_BUTTON_HOVERED_SPRITE},
+    ui::{self, UiFontScale, sound::UiButtonSoundsEnabled, widgets::*},
 };
 
 // ----------------------------------------------
@@ -183,7 +183,7 @@ impl InspectorMenuRenderer {
         }
     }
 
-    pub fn set_icon(&mut self, context: &UiWidgetContext, icon_sprite: TileIconSprite, tile_kind: TileKind) {
+    pub fn set_icon(&mut self, context: &GameUiContext, icon_sprite: TileIconSprite, tile_kind: TileKind) {
         let icon = self.find_icon();
 
         let sprite = context.ui_sys.to_ui_texture(icon_sprite.tex_info.texture);
@@ -222,7 +222,7 @@ impl InspectorMenuRenderer {
         icon.set_size(scaled_size);
     }
 
-    pub fn new(context: &mut UiWidgetContext,
+    pub fn new(context: &mut GameUiContext,
                tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut,
                menu_name: &str) -> Self
     {
@@ -279,7 +279,7 @@ impl InspectorMenuRenderer {
                 sounds_enabled: UiButtonSoundsEnabled::all(),
                 on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
                     let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
-                    inspector_menu.close(context);
+                    inspector_menu.close(ui::widgets::context_as_mut::<GameUiContext>(context));
                 }),
                 ..Default::default()
             }
@@ -319,6 +319,7 @@ impl InspectorMenuRenderer {
             }
         );
 
+        let menu_size = Self::calc_menu_size(context);
         let mut menu = UiMenu::new(
             context,
             UiMenuParams {
@@ -328,7 +329,7 @@ impl InspectorMenuRenderer {
                      | UiMenuFlags::Modal
                      | UiMenuFlags::CloseModalOnEscape
                      | UiMenuFlags::AdjustSizeToContents,
-                size: Some(Self::calc_menu_size(context)),
+                size: Some(menu_size),
                 background: Some(PathRef::from_str("misc/square_page_bg.png")),
                 widget_spacing: Some(Vec2::new(0.0, 10.0)),
                 ..Default::default()
@@ -381,7 +382,7 @@ impl InspectorMenuRenderer {
         self.menu.widget_as_mut::<UiMenuHeading>(body_text_index).unwrap()
     }
 
-    fn calc_menu_size(context: &UiWidgetContext) -> Vec2 {
+    fn calc_menu_size(context: &GameUiContext) -> Vec2 {
         Vec2::new(
             context.viewport_size.width  as f32 * 0.5 - 120.0,
             context.viewport_size.height as f32 * 0.5

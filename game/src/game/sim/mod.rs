@@ -7,13 +7,13 @@ use super::{
     world::World,
     config::GameConfigs,
     system::GameSystems,
+    ui_context::GameUiContext,
     unit::task::UnitTaskManager,
 };
 use crate::{
     save::*,
     engine::Engine,
     debug::DebugUiMode,
-    ui::widgets::UiWidgetContext,
     pathfind::{Graph, Search},
     tile::{Tile, TileKind, TileMap},
     utils::{coords::CellRange, mem::RcMut, time::{Seconds, UpdateTimer}},
@@ -223,13 +223,13 @@ impl Simulation {
     // ----------------------
 
     // World:
-    pub fn draw_world_debug_ui(&mut self, context: &mut UiWidgetContext) {
+    pub fn draw_world_debug_ui(&mut self, context: &mut GameUiContext) {
         context.world.draw_debug_ui(&mut self.treasury, context.ui_sys);
     }
 
     // Game Systems:
     pub fn draw_game_systems_debug_ui(&mut self,
-                                      context: &mut UiWidgetContext,
+                                      context: &mut GameUiContext,
                                       engine: &mut Engine,
                                       systems: &mut GameSystems) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
@@ -238,7 +238,7 @@ impl Simulation {
 
     // Generic GameObjects:
     pub fn draw_game_object_debug_ui(&mut self,
-                                     context: &mut UiWidgetContext,
+                                     context: &mut GameUiContext,
                                      tile: &Tile,
                                      mode: DebugUiMode) {
         if tile.is(TileKind::Building) {
@@ -250,14 +250,14 @@ impl Simulation {
         }
     }
 
-    pub fn draw_game_object_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
+    pub fn draw_game_object_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         self.draw_building_debug_popups(context, visible_range);
         self.draw_unit_debug_popups(context, visible_range);
         self.draw_prop_debug_popups(context, visible_range);
     }
 
     // Buildings:
-    fn draw_building_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
+    fn draw_building_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
         context.world.draw_building_debug_popups(&sim_context,
                                                  context.ui_sys,
@@ -266,7 +266,7 @@ impl Simulation {
     }
 
     fn draw_building_debug_ui(&mut self,
-                              context: &mut UiWidgetContext,
+                              context: &mut GameUiContext,
                               tile: &Tile,
                               mode: DebugUiMode) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
@@ -274,13 +274,13 @@ impl Simulation {
     }
 
     // Units:
-    fn draw_unit_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
+    fn draw_unit_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
         context.world.draw_unit_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_unit_debug_ui(&mut self,
-                          context: &mut UiWidgetContext,
+                          context: &mut GameUiContext,
                           tile: &Tile,
                           mode: DebugUiMode) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
@@ -288,13 +288,13 @@ impl Simulation {
     }
 
     // Props:
-    fn draw_prop_debug_popups(&mut self, context: &mut UiWidgetContext, visible_range: CellRange) {
+    fn draw_prop_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
         context.world.draw_prop_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_prop_debug_ui(&mut self,
-                          context: &mut UiWidgetContext,
+                          context: &mut GameUiContext,
                           tile: &Tile,
                           mode: DebugUiMode) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);

@@ -19,7 +19,7 @@ enum AboutButtonKind {
 }
 
 impl ButtonDef for AboutButtonKind {
-    fn on_pressed(self, context: &mut UiWidgetContext) -> bool {
+    fn on_pressed(self, context: &mut GameUiContext) -> bool {
         match self {
             Self::Back => super::close_current(context),
         }
@@ -37,7 +37,7 @@ pub struct About {
 implement_dialog_menu! { About, ["Heritage Builder", "The Dragon Legacy"] }
 
 impl About {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         let mut menu = make_default_layout_dialog_menu(
             context,
             Self::KIND,

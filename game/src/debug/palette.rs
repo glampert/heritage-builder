@@ -17,6 +17,7 @@ use crate::{
     game::{
         building::{config::BuildingConfigs, BuildingArchetypeKind},
         menu::{TilePalette, TilePaletteSelection}, undo_redo,
+        ui_context::GameUiContext,
     },
     tile::{
         TileKind,
@@ -52,11 +53,11 @@ impl TilePalette for TilePaletteDevMenu {
         }
     }
 
-    fn on_tile_placement_canceled(&mut self, _context: &mut UiWidgetContext) {
+    fn on_tile_placement_canceled(&mut self, _context: &mut GameUiContext) {
         self.reset_selection_internal();
     }
 
-    fn clear_current_selection(&mut self, _context: &mut UiWidgetContext) {
+    fn clear_current_selection(&mut self, _context: &mut GameUiContext) {
         self.reset_selection_internal();
     }
 
@@ -70,7 +71,7 @@ impl TilePalette for TilePaletteDevMenu {
 }
 
 impl TilePaletteDevMenu {
-    pub fn new(context: &mut UiWidgetContext) -> Self {
+    pub fn new(context: &mut GameUiContext) -> Self {
         Self {
             start_open: true,
             clear_button_image: context.load_texture(PathRef::from_str("icons/red_x_icon.png")),
@@ -79,7 +80,7 @@ impl TilePaletteDevMenu {
     }
 
     pub fn draw(&mut self,
-                context: &mut UiWidgetContext,
+                context: &mut GameUiContext,
                 debug_draw: &mut DebugDraw,
                 show_selection_bounds: bool) {
         let ui = context.ui_sys.ui();
@@ -153,7 +154,7 @@ impl TilePaletteDevMenu {
     }
 
     fn draw_selected_tile(&self,
-                          context: &mut UiWidgetContext,
+                          context: &mut GameUiContext,
                           debug_draw: &mut DebugDraw,
                           show_selection_bounds: bool) {
         if !self.has_selection() {
