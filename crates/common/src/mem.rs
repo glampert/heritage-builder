@@ -280,10 +280,11 @@ impl<T> Singleton<T> {
     }
 }
 
+#[macro_export]
 macro_rules! singleton {
     ($singleton_name:ident, $singleton_type:ty) => {
-        static $singleton_name: $crate::utils::mem::Singleton<$singleton_type> =
-            $crate::utils::mem::Singleton::new(<$singleton_type>::new());
+        static $singleton_name: $crate::mem::Singleton<$singleton_type> =
+            $crate::mem::Singleton::new(<$singleton_type>::new());
 
         impl $singleton_type {
             #[inline]
@@ -298,8 +299,6 @@ macro_rules! singleton {
         }
     };
 }
-
-pub(crate) use singleton;
 
 // ----------------------------------------------
 // SingletonLateInit
@@ -355,10 +354,11 @@ impl<T> SingletonLateInit<T> {
     }
 }
 
+#[macro_export]
 macro_rules! singleton_late_init {
     ($singleton_name:ident, $singleton_type:ty) => {
-        static $singleton_name: $crate::utils::mem::SingletonLateInit<$singleton_type> =
-            $crate::utils::mem::SingletonLateInit::new(stringify!($singleton_type));
+        static $singleton_name: $crate::mem::SingletonLateInit<$singleton_type> =
+            $crate::mem::SingletonLateInit::new(stringify!($singleton_type));
 
         impl $singleton_type {
             #[inline]
@@ -388,8 +388,6 @@ macro_rules! singleton_late_init {
         }
     };
 }
-
-pub(crate) use singleton_late_init;
 
 // ----------------------------------------------
 // RcMut: Mutable sharable Rc. Not thread-safe.

@@ -32,6 +32,7 @@ use crate::{
     log,
     ui::UiSystem,
     save::PostLoadContext,
+    debug::utils::UpdateTimerDebugUi,
     tile::Tile,
     utils::{
         time::{Seconds, UpdateTimer},

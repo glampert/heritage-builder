@@ -6,6 +6,7 @@ use crate::{
     log,
     save::PostLoadContext,
     engine::Engine,
+    debug::utils::UpdateTimerDebugUi,
     pathfind::{Node, NodeKind as PathNodeKind},
     game::{
         building::BuildingKind,

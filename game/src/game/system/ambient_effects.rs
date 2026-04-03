@@ -12,6 +12,7 @@ use crate::{
     save::PostLoadContext,
     pathfind::{Path, Node},
     tile::{TileDepthSortOverride},
+    debug::utils::UpdateTimerDebugUi,
     utils::{callback::Callback, coords::Cell, time::UpdateTimer},
     game::{
         config::GameConfigs,

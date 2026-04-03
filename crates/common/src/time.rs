@@ -5,7 +5,6 @@ use std::time;
 use web_time as time;
 
 use serde::{Deserialize, Serialize};
-use crate::ui::UiSystem;
 
 // ----------------------------------------------
 // Type Aliases
@@ -35,7 +34,7 @@ pub struct FrameClock {
 impl FrameClock {
     #[inline]
     pub fn new() -> Self {
-        Self { last_frame_time: Instant::now(), delta_time: Duration::new(0, 0) }
+        Self { last_frame_time: Instant::now(), delta_time: Duration::ZERO }
     }
 
     #[inline]
@@ -134,24 +133,6 @@ impl UpdateTimer {
         debug_assert!(update_frequency_secs.is_finite());
         self.update_frequency_secs = update_frequency_secs;
     }
-
-    pub fn draw_debug_ui(&mut self, label: &str, imgui_id: u32, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        ui.text(format!("{}:", label));
-
-        ui.input_float(format!("Frequency (secs)##_timer_frequency_{}", imgui_id),
-                       &mut self.update_frequency_secs)
-          .display_format("%.2f")
-          .step(0.5)
-          .build();
-
-        ui.input_float(format!("Time since last##_last_update_{}", imgui_id),
-                       &mut self.time_since_last_update_secs)
-          .display_format("%.2f")
-          .read_only(true)
-          .build();
-    }
 }
 
 // ----------------------------------------------
@@ -205,6 +186,7 @@ impl PerfTimer {
     }
 
     #[inline]
+    #[must_use]
     pub fn end(self) -> Milliseconds {
         self.0.elapsed().as_secs_f32() * 1000.0
     }

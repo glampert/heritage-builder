@@ -15,6 +15,7 @@ use crate::{
     ui::UiSystem,
     save::PostLoadContext,
     tile::{sets::TileDef, Tile},
+    debug::utils::UpdateTimerDebugUi,
     utils::{hash::{self, StringHash}, time::{Seconds, UpdateTimer}, Color},
     game::{
         sim::RandomGenerator,

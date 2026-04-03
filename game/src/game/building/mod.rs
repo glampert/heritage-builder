@@ -1,12 +1,12 @@
 #![allow(clippy::enum_variant_names)]
 
-use bitflags::{bitflags, Flags};
-use enum_dispatch::enum_dispatch;
 use paste::paste;
+use bitflags::Flags;
+use enum_dispatch::enum_dispatch;
 use proc_macros::DrawDebugUi;
-use serde::{de, Deserialize, Deserializer, Serialize};
 use smallvec::SmallVec;
 use arrayvec::ArrayVec;
+use serde::{de, Deserialize, Deserializer, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumDiscriminants, IntoDiscriminant};
 
 use house::HouseBuilding;
@@ -33,10 +33,10 @@ use super::{
 };
 use crate::{
     log,
-    debug::DebugUiMode,
     save::PostLoadContext,
     game::config::GameConfigs,
     ui::{UiSystem, UiStaticVar, UiFontScale},
+    debug::{DebugUiMode, utils::UpdateTimerDebugUi},
     pathfind::{self, NodeKind as PathNodeKind},
     tile::{
         sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY},

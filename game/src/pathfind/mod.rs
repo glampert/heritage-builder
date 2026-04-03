@@ -7,10 +7,9 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use arrayvec::ArrayVec;
-use bitflags::bitflags;
-use priority_queue::PriorityQueue;
 use rand::Rng;
+use arrayvec::ArrayVec;
+use priority_queue::PriorityQueue;
 use serde::{Deserialize, Serialize};
 
 use crate::{

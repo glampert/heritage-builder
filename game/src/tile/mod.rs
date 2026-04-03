@@ -3,7 +3,6 @@
 use rand::Rng;
 use slab::Slab;
 use arrayvec::ArrayVec;
-use bitflags::bitflags;
 use enum_dispatch::enum_dispatch;
 use num_enum::TryFromPrimitive;
 use std::ops::{Index, IndexMut};

@@ -17,6 +17,7 @@ edition = "2024"
 [features]
 default = ["desktop"]
 desktop = [
+    "common/desktop",
     "dep:gl",
     "dep:glfw",
     "dep:glutin",
@@ -28,6 +29,7 @@ desktop = [
     "dep:pollster",
 ]
 web = [
+    "common/web",
     "dep:web-time",
     "dep:web-sys",
     "dep:js-sys",
@@ -42,6 +44,7 @@ web = [
 # ----------------------------
 
 [dependencies]
+common = { path = "../crates/common", default-features = false }
 proc_macros = { path = "../proc_macros" }
 pollster = { version = "0.4", optional = true }
 bytemuck = { version = "1.21", features = ["derive"] }

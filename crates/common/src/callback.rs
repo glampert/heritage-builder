@@ -2,7 +2,7 @@ use std::{any::Any, collections::hash_map::Entry};
 use serde::{Deserialize, Serialize};
 
 use super::hash::{self, FNV1aHash, PreHashedKeyMap};
-use crate::utils::mem::singleton;
+use crate::singleton;
 
 // ----------------------------------------------
 // Callback
@@ -223,24 +223,26 @@ pub fn find<F>(key: CallbackKey) -> Option<&'static F>
 // Public Macros
 // ----------------------------------------------
 
-macro_rules! register {
+#[macro_export]
+macro_rules! register_callback {
     ($func:expr) => {{
-        const KEY: $crate::utils::callback::CallbackKey =
-            $crate::utils::callback::CallbackKey::new(stringify!($func));
-        $crate::utils::callback::Callback::register(KEY, stringify!($func), $func)
+        const KEY: $crate::callback::CallbackKey =
+            $crate::callback::CallbackKey::new(stringify!($func));
+        $crate::callback::Callback::register(KEY, stringify!($func), $func)
     }};
 }
 
-macro_rules! create {
+#[macro_export]
+macro_rules! create_callback {
     ($func:expr) => {{
-        const KEY: $crate::utils::callback::CallbackKey =
-            $crate::utils::callback::CallbackKey::new(stringify!($func));
-        $crate::utils::callback::Callback::create(KEY, stringify!($func), $func)
+        const KEY: $crate::callback::CallbackKey =
+            $crate::callback::CallbackKey::new(stringify!($func));
+        $crate::callback::Callback::create(KEY, stringify!($func), $func)
     }};
 }
 
 // Re-export here so usage is scoped, e.g.: callback::register!(...)
-pub(crate) use {create, register};
+pub use {create_callback as create, register_callback as register};
 
 // ----------------------------------------------
 // Unit Tests
@@ -248,7 +250,7 @@ pub(crate) use {create, register};
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::callback::{self, Callback};
+    use crate::callback::{self, Callback};
 
     #[test]
     fn test_callback_registry() {
@@ -281,25 +283,25 @@ mod tests {
         assert!(multiply_cb2.is_valid() && multiply_cb2.try_get().is_some());
         assert!(member_cb2.is_valid()   && member_cb2.try_get().is_some());
 
-        if let Some(cb) = callback::find::<AddOneFn>(add_one_cb.key) {
+        if let Some(cb) = callback::find::<AddOneFn>(add_one_cb.key()) {
             assert_eq!(cb(41), 42);
         } else {
             panic!("add_one callback not found!");
         }
 
-        if let Some(cb) = callback::find::<ToUpperFn>(to_upper_cb.key) {
+        if let Some(cb) = callback::find::<ToUpperFn>(to_upper_cb.key()) {
             assert_eq!(cb("hello"), "HELLO");
         } else {
             panic!("to_upper callback not found!");
         }
 
-        if let Some(cb) = callback::find::<MultiplyFn>(multiply_cb.key) {
+        if let Some(cb) = callback::find::<MultiplyFn>(multiply_cb.key()) {
             assert_eq!(cb(2, 2), 4);
         } else {
             panic!("multiply callback not found!");
         }
 
-        if let Some(cb) = callback::find::<MemberFn>(member_cb.key) {
+        if let Some(cb) = callback::find::<MemberFn>(member_cb.key()) {
             assert_eq!(cb(), 1234);
         } else {
             panic!("member_fn callback not found!");

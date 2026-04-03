@@ -2,8 +2,6 @@
 #![allow(clippy::type_complexity)]
 
 use std::{any::Any, fmt::Display};
-
-use bitflags::bitflags;
 use arrayvec::ArrayString;
 use enum_dispatch::enum_dispatch;
 use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};

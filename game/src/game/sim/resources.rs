@@ -9,7 +9,7 @@ use std::{
 
 use arrayvec::ArrayVec;
 use smallvec::SmallVec;
-use bitflags::{bitflags, Flags};
+use bitflags::Flags;
 use proc_macros::DrawDebugUi;
 use rand::{seq::IteratorRandom, Rng};
 use serde::{de, Deserialize, Deserializer, Serialize};

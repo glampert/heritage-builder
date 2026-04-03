@@ -21,7 +21,7 @@ use crate::{
         Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileDepthSortOverride,
     },
     utils::{
-        Color, Rect, Size, Vec2,
+        Color, Rect, Size, Vec2, time::UpdateTimer,
         coords::{self, Cell, CellRange, WorldToScreenTransform},
     },
 };
@@ -212,6 +212,35 @@ pub fn draw_world_perf_stats(ui_sys: &UiSystem,
         ui.text(format_fast!("- Engine B/E : {:.2}ms/{:.2}ms", game_stats.engine_begin_frame_time_ms, game_stats.engine_end_frame_time_ms));
         ui.text(format_fast!("- Present    : {:.2}ms", game_stats.present_frame_time_ms));
     });
+}
+
+// ----------------------------------------------
+// UpdateTimerDebugUi
+// ----------------------------------------------
+
+// Extension trait adding draw_debug_ui() to UpdateTimer.
+pub trait UpdateTimerDebugUi {
+    fn draw_debug_ui(&mut self, label: &str, imgui_id: u32, ui_sys: &UiSystem);
+}
+
+impl UpdateTimerDebugUi for UpdateTimer {
+    fn draw_debug_ui(&mut self, label: &str, imgui_id: u32, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+
+        ui.text(format_fast!("{}:", label));
+
+        ui.input_float(format_fast!("Frequency (secs)##_timer_frequency_{}", imgui_id),
+                       &mut self.frequency_secs())
+            .display_format("%.2f")
+            .step(0.5)
+            .build();
+
+        ui.input_float(format_fast!("Time since last##_last_update_{}", imgui_id),
+                       &mut self.time_since_last_secs())
+            .display_format("%.2f")
+            .read_only(true)
+            .build();
+    }
 }
 
 // ----------------------------------------------

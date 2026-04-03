@@ -1,9 +1,7 @@
-#![allow(clippy::collapsible_else_if)]
-
 use std::{iter::FusedIterator, ops::RangeInclusive};
 use serde::{Deserialize, Serialize};
 
-use super::{FieldAccessorXY, field_accessor_xy, Rect, Size, Vec2, Color, constants::*};
+use super::{field_accessor_xy, constants::*, Rect, Size, Vec2, Color};
 
 // ----------------------------------------------
 // IsoPoint
@@ -257,6 +255,7 @@ impl<const REVERSED: bool> Iterator for CellRangeIter<REVERSED> {
         let result = Cell { x: self.curr_x, y: self.curr_y };
 
         // Determine next x,y:
+        #[allow(clippy::collapsible_else_if)]
         if REVERSED {
             if self.curr_x > self.range.start.x {
                 self.curr_x -= 1;

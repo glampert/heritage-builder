@@ -13,6 +13,7 @@ use crate::{
     tile::Tile,
     ui::UiSystem,
     save::PostLoadContext,
+    debug::utils::UpdateTimerDebugUi,
     game::{
         cheats,
         sim::{
