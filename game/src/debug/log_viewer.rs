@@ -164,7 +164,7 @@ fn init_log_viewer_singleton_once() {
     }
 
     const START_OPEN: bool = false;
-    const MAX_LINES: usize = 64;
+    const MAX_LINES: usize = 128;
     let viewer = LogViewerSingleton::new(START_OPEN, MAX_LINES);
 
     LOG_VIEWER_SINGLETON.set(Mutex::new(viewer))

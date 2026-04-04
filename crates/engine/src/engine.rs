@@ -1,7 +1,6 @@
 use common::{
     singleton_late_init,
-    Rect, Vec2,
-    mem::RcMut,
+    Rect, Vec2, mem::RcMut,
     time::{FrameClock, PerfTimer, Seconds, Milliseconds},
 };
 use crate::{
