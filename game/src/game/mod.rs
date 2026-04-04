@@ -88,6 +88,10 @@ pub struct GameLoop {
 impl RunLoop for GameLoop {
     type Configs = GameConfigs;
 
+    fn on_early_init() {
+        debug::log_viewer::LogViewer::initialize();
+    }
+
     fn start(engine: &'static mut Engine, configs: &'static Self::Configs) -> &'static mut Self {
         log::info!(log::channel!("game"), "--- GameLoop Initialization ---");
 

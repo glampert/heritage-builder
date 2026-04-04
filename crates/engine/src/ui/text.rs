@@ -4,8 +4,9 @@ use serde::{Serialize, Deserialize};
 
 use crate::{
     log,
+    configurations,
     ui::UiSystem,
-    engine::config::{Configs, configurations},
+    config::Configs,
     utils::{hash::{self, StringHash, PreHashedKeyMap, NULL_HASH}},
 };
 

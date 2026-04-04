@@ -1,5 +1,3 @@
-#![allow(unused_macros)]
-
 use std::{
     fmt,
     hash::{Hash, Hasher},
@@ -33,7 +31,7 @@ pub enum Level {
     Silent,
     Verbose,
     Info,
-    Warn,
+    Warning,
     Error,
 }
 
@@ -48,7 +46,7 @@ impl Level {
             Self::Silent  => Color::white(),
             Self::Verbose => Color::gray(),
             Self::Info    => Color::green(),
-            Self::Warn    => Color::yellow(),
+            Self::Warning => Color::yellow(),
             Self::Error   => Color::red(),
         }
     }
@@ -58,7 +56,7 @@ impl Level {
             Self::Silent  => ("", ""),
             Self::Verbose => ("\x1b[90m", "\x1b[0m"), // gray
             Self::Info    => ("\x1b[32m", "\x1b[0m"), // green
-            Self::Warn    => ("\x1b[33m", "\x1b[0m"), // yellow
+            Self::Warning => ("\x1b[33m", "\x1b[0m"), // yellow
             Self::Error   => ("\x1b[31m", "\x1b[0m"), // red
         }
     }
@@ -88,7 +86,8 @@ impl Hash for Channel {
     }
 }
 
-macro_rules! channel {
+#[macro_export]
+macro_rules! log_channel {
     ($name:literal) => {
         $crate::log::Channel::new(concat!(" [", $name, "]"))
     };
@@ -119,10 +118,10 @@ pub fn set_listener<F>(listener_fn: F)
 // Global Configs
 // ----------------------------------------------
 
-static MIN_LOG_LEVEL: AtomicU32 = AtomicU32::new(Level::Verbose as u32);
-static REDIRECT_TO_FILE: AtomicBool = AtomicBool::new(false);
+static MIN_LOG_LEVEL:       AtomicU32  = AtomicU32::new(Level::Verbose as u32);
+static REDIRECT_TO_FILE:    AtomicBool = AtomicBool::new(false);
 static ENABLE_SRC_LOCATION: AtomicBool = AtomicBool::new(false);
-static ENABLE_TTY_COLORS: AtomicBool = AtomicBool::new(true);
+static ENABLE_TTY_COLORS:   AtomicBool = AtomicBool::new(true);
 
 pub fn set_level(level: Level) {
     MIN_LOG_LEVEL.store(level as u32, Ordering::Relaxed);
@@ -175,7 +174,8 @@ pub fn print_internal(level: Level,
 }
 
 // Shared helper used by all logging macros.
-macro_rules! print_message {
+#[macro_export]
+macro_rules! log_print_message {
     ($level:expr, $chan:expr, $fmt:literal $(, $($arg:tt)+)?) => {
         if $level.is_enabled() {
             $crate::log::print_internal(
@@ -193,7 +193,8 @@ macro_rules! print_message {
 // ----------------------------------------------
 
 // Verbose
-macro_rules! verbose {
+#[macro_export]
+macro_rules! log_verbose {
     ($fmt:literal $(, $($arg:tt)+)?) => {
         $crate::log::print_message!($crate::log::Level::Verbose, None, $fmt $(, $($arg)+)?)
     };
@@ -203,7 +204,8 @@ macro_rules! verbose {
 }
 
 // Info
-macro_rules! info {
+#[macro_export]
+macro_rules! log_info {
     ($fmt:literal $(, $($arg:tt)+)?) => {
         $crate::log::print_message!($crate::log::Level::Info, None, $fmt $(, $($arg)+)?)
     };
@@ -213,17 +215,19 @@ macro_rules! info {
 }
 
 // Warning
-macro_rules! warning {
+#[macro_export]
+macro_rules! log_warning {
     ($fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log::print_message!($crate::log::Level::Warn, None, $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Warning, None, $fmt $(, $($arg)+)?)
     };
     ($chan:expr, $fmt:literal $(, $($arg:tt)+)?) => {
-        $crate::log::print_message!($crate::log::Level::Warn, Some($chan), $fmt $(, $($arg)+)?)
+        $crate::log::print_message!($crate::log::Level::Warning, Some($chan), $fmt $(, $($arg)+)?)
     };
 }
 
 // Error
-macro_rules! error {
+#[macro_export]
+macro_rules! log_error {
     ($fmt:literal $(, $($arg:tt)+)?) => {
         $crate::log::print_message!($crate::log::Level::Error, None, $fmt $(, $($arg)+)?)
     };
@@ -232,6 +236,13 @@ macro_rules! error {
     };
 }
 
-// Re-export these here so usage is scoped, e.g., log::info!(), log::warning!(), etc.
+// Re-export #[macro_export] macros into this module for scoped usage: log::info!(), log::warning!(), etc.
 #[allow(unused_imports)]
-pub(crate) use {channel, verbose, info, warning, error, print_message};
+pub use crate::{
+    log_channel       as channel,
+    log_verbose       as verbose,
+    log_info          as info,
+    log_warning       as warning,
+    log_error         as error,
+    log_print_message as print_message,
+};

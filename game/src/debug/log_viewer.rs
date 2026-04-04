@@ -47,7 +47,7 @@ impl LogViewerSingleton {
 
         match line.level {
             log::Level::Error => self.error_count += 1,
-            log::Level::Warn  => self.warning_count += 1,
+            log::Level::Warning  => self.warning_count += 1,
             _ => {}
         }
 

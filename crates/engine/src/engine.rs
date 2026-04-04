@@ -17,8 +17,7 @@ use crate::{
     },
 };
 
-pub mod config;
-use config::EngineConfigs;
+use crate::config::EngineConfigs;
 
 // ----------------------------------------------
 // EngineSystemsMutRefs

@@ -1,4 +1,4 @@
-use crate::engine::{Engine, config::EngineConfigs};
+use crate::{engine::Engine, config::EngineConfigs};
 
 #[cfg(feature = "desktop")]
 mod desktop;
@@ -40,6 +40,10 @@ pub trait RunLoop: Sized {
 
     fn update(&mut self);
     fn is_running(&self) -> bool;
+
+    // Called by the runner before engine initialization.
+    // Override to perform early setup (e.g., log viewer, debug tools).
+    fn on_early_init() {}
 }
 
 // ----------------------------------------------

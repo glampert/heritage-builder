@@ -5,7 +5,6 @@ use crate::{
     engine::Engine,
     file_sys::paths,
     utils::time::PerfTimer,
-    debug::log_viewer::LogViewer,
     app::{Application, ApplicationInitParams, ApplicationApi},
     render::{RenderSystem, RenderSystemInitParams, RenderApi},
 };
@@ -37,7 +36,7 @@ impl DesktopRunner {
         let start_engine_timer = PerfTimer::begin();
 
         // Early initialization:
-        LogViewer::initialize();
+        GameLoop::on_early_init();
         platform::initialize();
         paths::set_working_directory(paths::base_path());
 

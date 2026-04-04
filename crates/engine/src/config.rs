@@ -87,30 +87,29 @@ pub trait Configs {
 // Macro: configurations
 // ----------------------------------------------
 
+#[macro_export]
 macro_rules! configurations {
     ($configs_singleton:ident, $configs_type:ty, $configs_path:literal) => {
         ::common::singleton_late_init! { $configs_singleton, $configs_type }
-        impl $crate::engine::config::Configs for $configs_type {
+        impl $crate::config::Configs for $configs_type {
             fn draw_debug_ui(&'static self, ui_sys: &$crate::ui::UiSystem) {
                 self.draw_debug_ui_with_header(stringify!($configs_type), ui_sys);
             }
         }
         impl $configs_type {
             pub fn load() -> &'static $configs_type {
-                use $crate::engine::config::Configs;
+                use $crate::config::Configs;
                 <$configs_type>::initialize(<$configs_type>::load_file($crate::file_sys::paths::PathRef::from_str($configs_path)));
                 <$configs_type>::get_mut().post_load();
                 <$configs_type>::get()
             }
             pub fn save() -> bool {
-                use $crate::engine::config::Configs;
+                use $crate::config::Configs;
                 <$configs_type>::get().save_file($crate::file_sys::paths::PathRef::from_str($configs_path))
             }
         }
     };
 }
-
-pub(crate) use configurations;
 
 // ----------------------------------------------
 // EngineConfigs

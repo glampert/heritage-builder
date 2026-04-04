@@ -729,15 +729,15 @@ impl UiContext {
 
     fn load_custom_fonts(ctx: &mut imgui::Context) -> UiFonts {
         const DEV_FONT_DATA: &[u8] = include_bytes!(
-            "../../../assets/fonts/source_code_pro_semi_bold.ttf"
+            "../../../../assets/fonts/source_code_pro_semi_bold.ttf"
         );
 
         const ICON_FONT_DATA: &[u8] = include_bytes!(
-            "../../../assets/fonts/fa-solid-900.ttf"
+            "../../../../assets/fonts/fa-solid-900.ttf"
         );
 
         const IN_GAME_FONT_DATA: &[u8] = include_bytes!(
-            "../../../assets/fonts/protest_revolution_regular.ttf"
+            "../../../../assets/fonts/protest_revolution_regular.ttf"
         );
 
         // NOTE: First font loaded will be set as the imgui default (dev_monospace).

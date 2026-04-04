@@ -25,10 +25,10 @@ use super::{Runner, RunLoop, RunLoopConfigs};
 use crate::{
     log,
     platform,
-    engine::{Engine, config::EngineConfigs},
+    engine::Engine,
+    config::EngineConfigs,
     file_sys::{self, paths},
     utils::{Size, Vec2, mem::singleton_late_init},
-    debug::log_viewer::LogViewer,
     render::{
         RenderApi,
         RenderSystem,
@@ -82,7 +82,7 @@ impl Runner for WebRunner {
         log::info!(log::channel!("runner"), "--- Web Runner entry point started ---");
 
         // Early initialization:
-        LogViewer::initialize();
+        GameLoop::on_early_init();
         platform::initialize();
         paths::set_working_directory(paths::base_path());
 
