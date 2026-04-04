@@ -1,4 +1,5 @@
-use crate::{render, utils::{Color, Vec2}};
+use common::{Color, Vec2};
+use crate::render;
 
 // ----------------------------------------------
 // Compile time index size to wgpu::IndexFormat

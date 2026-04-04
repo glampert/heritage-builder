@@ -1,7 +1,5 @@
-use crate::{
-    render,
-    utils::{Size, hash::{self, StringHash}},
-};
+use common::{Size, hash::{self, StringHash}};
+use crate::render;
 
 // ----------------------------------------------
 // WgpuTexture

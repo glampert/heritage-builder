@@ -11,10 +11,10 @@ use super::{
     RenderStats,
     RenderSystemBackend,
 };
+use common::{Vec2, Size, Color, Rect, RectTexCoords, time::PerfTimer};
 use crate::{
     log,
     ui::UiRenderFrameBundle,
-    utils::{Vec2, Size, Color, Rect, RectTexCoords, time::PerfTimer},
 };
 
 mod batch;

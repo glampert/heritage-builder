@@ -13,9 +13,9 @@ use winit::{
     platform::pump_events::EventLoopExtPumpEvents,
 };
 
+use common::{Size, Vec2};
 use crate::{
     log,
-    utils::{Size, Vec2},
     render::RenderApi,
     app::{ApplicationInitParams, ApplicationApi},
 };

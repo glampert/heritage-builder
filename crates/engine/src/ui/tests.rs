@@ -1,8 +1,8 @@
 use super::*;
+use common::Color;
 use crate::{
     log,
     ui::{widgets::*, UiStaticVar},
-    utils::Color,
     file_sys::paths::{PathRef, AssetPath},
 };
 

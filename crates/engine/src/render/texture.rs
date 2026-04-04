@@ -6,16 +6,16 @@ use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 use serde::{Serialize, Deserialize};
 
+use common::{
+    format_fixed_string,
+    mem::WeakMut,
+    hash::{self, StringHash, PreHashedKeyMap},
+};
 use super::*;
 use crate::{
     log,
     ui::UiSystem,
     file_sys::{self, paths::PathRef},
-    utils::{
-        mem::WeakMut,
-        fixed_string::format_fixed_string,
-        hash::{self, StringHash, PreHashedKeyMap},
-    },
 };
 
 // ----------------------------------------------

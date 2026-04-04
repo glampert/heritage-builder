@@ -1,10 +1,10 @@
 use super::*;
+use common::time::PerfTimer;
 use crate::{
     log,
     platform,
     engine::Engine,
     file_sys::paths,
-    utils::time::PerfTimer,
     app::{Application, ApplicationInitParams, ApplicationApi},
     render::{RenderSystem, RenderSystemInitParams, RenderApi},
 };

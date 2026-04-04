@@ -1,5 +1,6 @@
 use super::buffer::{VertexElementDef, VertexTrait};
-use crate::{render, utils::{Color, Vec2}};
+use common::{Color, Vec2};
+use crate::render;
 
 // ----------------------------------------------
 // Sprite Vertex

@@ -1,3 +1,9 @@
+use common::{
+    singleton_late_init,
+    Rect, Vec2,
+    mem::RcMut,
+    time::{FrameClock, PerfTimer, Seconds, Milliseconds},
+};
 use crate::{
     log,
     ui::{self, UiSystem},
@@ -9,11 +15,6 @@ use crate::{
     render::{
         RenderSystem, RenderStats,
         texture::TextureCache, debug::DebugDraw,
-    },
-    utils::{
-        Rect, Vec2,
-        mem::{RcMut, singleton_late_init},
-        time::{FrameClock, PerfTimer, Seconds, Milliseconds},
     },
 };
 

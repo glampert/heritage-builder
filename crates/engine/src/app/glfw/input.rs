@@ -1,10 +1,8 @@
 use super::window::GlfwWindowManagerRcRef;
-use crate::{
-    utils::Vec2,
-    app::input::{
-        InputSystemBackend,
-        InputAction, InputKey, InputModifiers, MouseButton,
-    },
+use common::Vec2;
+use crate::app::input::{
+    InputSystemBackend,
+    InputAction, InputKey, InputModifiers, MouseButton,
 };
 
 // ----------------------------------------------

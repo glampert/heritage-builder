@@ -5,10 +5,8 @@ use super::{
     texture::{OpenGlTexture, TextureUnit, MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE},
     buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE, NULL_BUFFER_HANDLE},
 };
-use crate::{
-    render,
-    utils::{Color, Rect},
-};
+use common::{Color, Rect};
+use crate::render;
 
 // ----------------------------------------------
 // Constants

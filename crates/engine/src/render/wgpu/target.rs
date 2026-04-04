@@ -1,4 +1,4 @@
-use crate::utils::Size;
+use common::Size;
 
 // ----------------------------------------------
 // RenderTarget

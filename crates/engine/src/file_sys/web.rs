@@ -1,12 +1,10 @@
 use std::sync::LazyLock;
 use super::*;
-use crate::{
-    log,
-    utils::{
-        mem::singleton,
-        hash::{self, StringHash, PreHashedKeyMap},
-    },
+use common::{
+    singleton,
+    hash::{self, StringHash, PreHashedKeyMap},
 };
+use crate::log;
 
 // ----------------------------------------------
 // WebFileSystemBackend

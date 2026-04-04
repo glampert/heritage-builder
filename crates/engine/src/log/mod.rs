@@ -10,10 +10,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-use crate::{
-    file_sys::paths::{self, FixedPath},
-    utils::{Color, hash::{self, StringHash}},
-};
+use common::{Color, hash::{self, StringHash}};
+use crate::file_sys::paths::{self, FixedPath};
 
 #[cfg(feature = "desktop")]
 mod desktop;

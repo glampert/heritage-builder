@@ -10,9 +10,9 @@ use super::{
     ApplicationContentScale,
     input::{InputSystem, InputSystemBackendImpl},
 };
+use common::{Size, Vec2};
 use crate::{
     log,
-    utils::{Size, Vec2},
     render::RenderApi,
 };
 

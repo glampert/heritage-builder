@@ -2,7 +2,7 @@ use std::{ffi::CString, ptr};
 use paste::paste;
 
 use super::texture::OpenGlTexture;
-use crate::utils::{Color, Vec2};
+use common::{Color, Vec2};
 
 // ----------------------------------------------
 // Constants
@@ -344,7 +344,7 @@ macro_rules! shader {
                     Self {
                         variables: Vars {
                             $(
-                                $field: program.find_variable($crate::utils::name_of!(Vars, $field)),
+                                $field: program.find_variable(::common::name_of!(Vars, $field)),
                             )*
                         },
                         program,

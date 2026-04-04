@@ -2,12 +2,12 @@ use arrayvec::ArrayVec;
 use strum::EnumCount;
 use serde::{Serialize, Deserialize};
 
+use common::hash::{self, StringHash, PreHashedKeyMap, NULL_HASH};
 use crate::{
     log,
     configurations,
     ui::UiSystem,
     config::Configs,
-    utils::{hash::{self, StringHash, PreHashedKeyMap, NULL_HASH}},
 };
 
 // ----------------------------------------------

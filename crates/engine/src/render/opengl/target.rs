@@ -6,10 +6,10 @@ use super::{
         TextureUnit, TextureCreationParams, OpenGlTexture,
     },
 };
+use common::Size;
 use crate::{
     log,
     render,
-    utils::Size,
 };
 
 // ----------------------------------------------

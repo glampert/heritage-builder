@@ -1,11 +1,11 @@
 use proc_macros::DrawDebugUi;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use common::{Color, Size};
 use crate::{
     log,
     save::{self, *},
     ui::UiSystem,
-    utils::{Color, Size},
     sound::SoundGlobalSettings,
     render::{RenderApi, texture::TextureSettings},
     file_sys::{self, paths::{self, PathRef, AssetPath}},

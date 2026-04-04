@@ -3,6 +3,11 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use common::{
+    format_fixed_string, time::Seconds,
+    Color, FieldAccessorXY, Vec2, Rect,
+    mem::{RawPtr, Mutable, RcMut},
+};
 use crate::{
     log,
     platform,
@@ -14,11 +19,6 @@ use crate::{
     app::{
         Application,
         input::{InputSystem, InputAction, InputKey, InputModifiers, MouseButton},
-    },
-    utils::{
-        fixed_string::format_fixed_string, time::Seconds,
-        Color, FieldAccessorXY, Vec2, Rect,
-        mem::{RawPtr, Mutable, RcMut},
     },
 };
 

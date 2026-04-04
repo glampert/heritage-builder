@@ -3,7 +3,8 @@ use smallvec::SmallVec;
 use serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
 
-use crate::{render::RenderApi, utils::{Size, Vec2, mem::RcMut}};
+use common::{Size, Vec2, mem::RcMut};
+use crate::render::RenderApi;
 use input::{InputSystem, InputAction, InputKey, InputModifiers, MouseButton};
 
 pub mod input;

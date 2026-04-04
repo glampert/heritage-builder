@@ -8,10 +8,8 @@ use super::{
     shader::ShaderProgram,
     context::{PrimitiveTopology, RenderContext},
 };
-use crate::{
-    render,
-    utils::Color,
-};
+use common::Color;
+use crate::render;
 
 // ----------------------------------------------
 // DrawBatch

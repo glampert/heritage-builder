@@ -25,16 +25,16 @@ use slab::Slab;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
+use common::{
+    coords::IsoPointF32,
+    hash::{self, StringHash, PreHashedKeyMap},
+    time::Seconds,
+};
 use crate::{
     log,
     file_sys::{
         self,
         paths::{self, PathRef, AssetPath},
-    },
-    utils::{
-        coords::IsoPointF32,
-        hash::{self, StringHash, PreHashedKeyMap},
-        time::Seconds,
     },
 };
 

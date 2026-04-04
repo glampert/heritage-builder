@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 use strum::EnumCount;
 use enum_dispatch::enum_dispatch;
-use crate::utils::Vec2;
+use common::Vec2;
 
 // ----------------------------------------------
 // Internal backend implementations

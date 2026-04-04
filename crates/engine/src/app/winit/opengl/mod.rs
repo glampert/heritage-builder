@@ -16,9 +16,9 @@ use winit::{
     window::{Window, WindowId, WindowAttributes},
 };
 
+use common::{Size, Vec2};
 use crate::{
     log,
-    utils::{Size, Vec2},
     render::RenderApi,
     app::{ApplicationInitParams, ApplicationApi},
 };

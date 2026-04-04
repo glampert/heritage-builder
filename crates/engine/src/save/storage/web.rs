@@ -1,5 +1,5 @@
 use super::*;
-use crate::utils::mem::singleton;
+use common::singleton;
 
 // ----------------------------------------------
 // WebSaveGameStorageBackend

@@ -1,12 +1,10 @@
 use strum::EnumCount;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-use crate::{
-    utils::{Vec2, mem::RcMut},
-    app::input::{
-        InputSystemBackend,
-        InputAction, InputKey, InputModifiers, MouseButton,
-    },
+use common::{Vec2, mem::RcMut};
+use crate::app::input::{
+    InputSystemBackend,
+    InputAction, InputKey, InputModifiers, MouseButton,
 };
 
 // ----------------------------------------------

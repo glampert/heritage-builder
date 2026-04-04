@@ -6,10 +6,10 @@ use super::{
     ApplicationWindowMode,
     ApplicationContentScale,
 };
+use common::{Size, Vec2, mem::{RcRef, RcMut}};
 use crate::{
     log,
     app::platform,
-    utils::{Size, Vec2, mem::{RcRef, RcMut}},
 };
 
 type GlfwEventReceiver = glfw::GlfwReceiver<(f64, glfw::WindowEvent)>;

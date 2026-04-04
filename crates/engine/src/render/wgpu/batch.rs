@@ -4,10 +4,8 @@ use std::{
     convert::{Into, TryFrom},
 };
 
-use crate::{
-    render,
-    utils::{Rect, fixed_string::format_fixed_string},
-};
+use common::{format_fixed_string, Rect};
+use crate::render;
 
 // ----------------------------------------------
 // DrawBatchEntry

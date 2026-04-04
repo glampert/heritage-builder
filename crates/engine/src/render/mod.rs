@@ -2,10 +2,8 @@ use serde::{Serialize, Deserialize};
 use enum_dispatch::enum_dispatch;
 use strum::Display;
 
-use crate::{
-    ui::{UiRenderFrameBundle, UiDrawIndex, UiDrawVertex},
-    utils::{Vec2, Size, Color, Rect, RectTexCoords, time::Milliseconds, mem::RcMut},
-};
+use common::{Vec2, Size, Color, Rect, RectTexCoords, time::Milliseconds, mem::RcMut};
+use crate::ui::{UiRenderFrameBundle, UiDrawIndex, UiDrawVertex};
 
 pub mod debug;
 pub mod texture;

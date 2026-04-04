@@ -4,10 +4,8 @@ use super::{
     gl_error_to_string,
     shader::{ShaderVarTrait, ShaderVariable},
 };
-use crate::{
-    render,
-    utils::{Size, hash::{self, StringHash}},
-};
+use common::{Size, hash::{self, StringHash}};
+use crate::render;
 
 // ----------------------------------------------
 // Constants

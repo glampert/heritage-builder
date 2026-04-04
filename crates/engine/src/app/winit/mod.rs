@@ -18,10 +18,10 @@ use super::{
     ApplicationWindowMode,
     input::{InputSystem, InputSystemBackendImpl},
 };
+use common::{Size, Vec2, mem::RcMut};
 use crate::{
     log,
     render::RenderApi,
-    utils::{Size, Vec2, mem::RcMut},
 };
 
 pub(crate) mod input;

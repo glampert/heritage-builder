@@ -1,14 +1,14 @@
 use serde::{Serialize, Deserialize};
 use proc_macros::DrawDebugUi;
 
+use common::{
+    Vec2, coords::IsoPointF32,
+    hash::{self, StringHash},
+    time::Seconds,
+};
 use crate::{
     ui::{self, UiSystem, UiStaticVar},
     file_sys::paths::PathRef,
-    utils::{
-        Vec2, coords::IsoPointF32,
-        hash::{self, StringHash},
-        time::Seconds,
-    },
 };
 
 // ----------------------------------------------

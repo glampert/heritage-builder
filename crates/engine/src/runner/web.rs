@@ -22,13 +22,13 @@ use ::winit::{
 };
 
 use super::{Runner, RunLoop, RunLoopConfigs};
+use common::{singleton_late_init, Size, Vec2};
 use crate::{
     log,
     platform,
     engine::Engine,
     config::EngineConfigs,
     file_sys::{self, paths},
-    utils::{Size, Vec2, mem::singleton_late_init},
     render::{
         RenderApi,
         RenderSystem,

@@ -1,10 +1,8 @@
 use super::UiTextureHandle;
-use crate::{
-    utils::{Rect, Vec2, Size, mem::RcMut},
-    render::{
-        RenderSystem,
-        texture::{TextureHandle, TextureWrapMode, TextureFilter, TextureSettings},
-    },
+use common::{Rect, Vec2, Size, mem::RcMut};
+use crate::render::{
+    RenderSystem,
+    texture::{TextureHandle, TextureWrapMode, TextureFilter, TextureSettings},
 };
 
 pub type UiDrawIndex  = imgui::DrawIdx;

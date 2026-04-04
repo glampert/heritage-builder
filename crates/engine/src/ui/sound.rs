@@ -2,9 +2,9 @@ use bitflags::bitflags;
 use arrayvec::ArrayVec;
 use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
 
+use common::{singleton_late_init, time::{self, Seconds}};
 use crate::{
     sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, SfxSoundKey},
-    utils::{mem::singleton_late_init, time::{self, Seconds}},
     file_sys::paths::{PathRef, AssetPath},
 };
 
