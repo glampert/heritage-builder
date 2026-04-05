@@ -1,0 +1,113 @@
+use serde::{Deserialize, Serialize};
+use rand::{self, Rng};
+
+use engine::ui::UiSystem;
+use crate::sim::resources::{ResourceKind, StockItem};
+
+// ----------------------------------------------
+// UnitInventory
+// ----------------------------------------------
+
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct UnitInventory {
+    // Unit can carry only one resource kind at a time.
+    item: Option<StockItem>,
+}
+
+impl UnitInventory {
+    #[inline]
+    pub fn peek(&self) -> Option<StockItem> {
+        self.item
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.item.is_none()
+    }
+
+    #[inline]
+    pub fn count(&self) -> u32 {
+        match &self.item {
+            Some(item) => item.count,
+            None => 0,
+        }
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.item = None;
+    }
+
+    #[inline]
+    pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.is_single_resource());
+        if count != 0 {
+            if let Some(item) = &mut self.item {
+                debug_assert!(item.kind == kind && item.count != 0,
+                              "item.kind {} != {}, item.count = {}",
+                              item.kind,
+                              kind,
+                              item.count);
+
+                item.count += count;
+            } else {
+                self.item = Some(StockItem { kind, count });
+            }
+        }
+        count
+    }
+
+    // Returns number of items decremented, which can be <= `count`.
+    #[inline]
+    pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        debug_assert!(kind.is_single_resource());
+        if count != 0 {
+            if let Some(mut item) = self.item.take() {
+                debug_assert!(item.kind == kind && item.count != 0,
+                              "item.kind {} != {}, item.count = {}",
+                              item.kind,
+                              kind,
+                              item.count);
+
+                let removed = count.min(item.count);
+                item.count -= removed;
+
+                if item.count > 0 {
+                    self.item = Some(item);
+                }
+
+                return removed;
+            }
+        }
+        0
+    }
+
+    pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+
+        if !ui.collapsing_header("Inventory", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if ui.button("Give Random Item") {
+            let item = StockItem {
+                kind: ResourceKind::random(&mut rand::rng()),
+                count: rand::rng().random_range(1..10),
+            };
+            self.item = Some(item);
+        }
+
+        ui.same_line();
+
+        if ui.button("Clear") {
+            self.item = None;
+        }
+
+        if let Some(item) = self.item {
+            ui.text(format!("Item  : {}", item.kind));
+            ui.text(format!("Count : {}", item.count));
+        } else {
+            ui.text("<empty>");
+        }
+    }
+}

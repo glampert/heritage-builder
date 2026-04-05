@@ -1,5 +1,5 @@
 [package]
-name = "proc_macros"
+name    = "proc_macros"
 version = "0.1.0"
 edition = "2024"
 

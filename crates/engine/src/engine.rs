@@ -5,7 +5,7 @@ use common::{
 };
 use crate::{
     log,
-    ui::{self, UiSystem},
+    ui::UiSystem,
     sound::SoundSystem,
     app::{
         input::*,
@@ -214,7 +214,7 @@ impl Engine {
         log::info!(log::channel!("engine"), "UiSystem initialized.");
 
         let mut sound_system = SoundSystem::new(configs.sound_settings);
-        ui::sound::initialize(&mut sound_system);
+        crate::ui::sound::initialize(&mut sound_system);
         log::info!(log::channel!("engine"), "SoundSystem initialized.");
 
         let debug_draw = DebugDraw::new(render_system.clone());

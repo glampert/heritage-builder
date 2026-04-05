@@ -10,7 +10,7 @@ web     = ["dep:web-time"]
 
 [dependencies]
 serde     = { version = "1.0.228", features = ["derive"] }
-bitflags  = { version = "2.9.0", features = ["serde"] }
-arrayvec  = { version = "0.7.6", features = ["serde"] }
-web-time  = { version = "1", optional = true }
+bitflags  = { version = "2.9.0",   features = ["serde"] }
+arrayvec  = { version = "0.7.6",   features = ["serde"] }
+web-time  = { version = "1",       optional = true }
 small-map = "0.1.3"

@@ -1,24 +1,9 @@
-// NOTE: Allow these for the whole project.
+// NOTE: Allow for the whole crate.
 #![allow(dead_code)]
-#![allow(clippy::collapsible_if)]
 
-mod log;
-mod app;
-mod debug;
-mod engine;
-mod file_sys;
-mod game;
-mod ui;
-mod pathfind;
-mod platform;
-mod render;
-mod runner;
-mod save;
-mod sound;
-mod tile;
-mod camera;
-mod utils;
+use engine::runner;
+use game::GameLoop;
 
 fn main() {
-    runner::run::<game::GameLoop>();
+    runner::run::<GameLoop>();
 }
